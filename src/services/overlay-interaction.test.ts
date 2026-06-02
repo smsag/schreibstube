@@ -9,57 +9,27 @@ import type { HeadingLevel } from "../types";
 const level2 = 2 as HeadingLevel;
 
 describe("reduceOverlayRowEvent", () => {
-  it("expands ancestor on desktop hover", () => {
+  it("navigates directly for ancestor rows", () => {
     const result = reduceOverlayRowEvent(
-      { expandedLevel: null },
-      { lineNumber: 10, level: level2, kind: "ancestor", source: "hover" },
-      false
-    );
-
-    expect(result).toEqual({
-      nextExpandedLevel: 2,
-      navigateToLine: null,
-      shouldRender: true
-    });
-  });
-
-  it("uses first tap to expand ancestor on touch", () => {
-    const result = reduceOverlayRowEvent(
-      { expandedLevel: null },
+      {},
       { lineNumber: 10, level: level2, kind: "ancestor", source: "click" },
       true
     );
 
     expect(result).toEqual({
-      nextExpandedLevel: 2,
-      navigateToLine: null,
-      shouldRender: true
-    });
-  });
-
-  it("uses second tap to navigate ancestor on touch", () => {
-    const result = reduceOverlayRowEvent(
-      { expandedLevel: level2 },
-      { lineNumber: 10, level: level2, kind: "ancestor", source: "click" },
-      true
-    );
-
-    expect(result).toEqual({
-      nextExpandedLevel: null,
       navigateToLine: 10,
       shouldRender: false
     });
   });
 
-  it("navigates directly for sibling click", () => {
+  it("navigates directly for any provided heading line", () => {
     const result = reduceOverlayRowEvent(
-      { expandedLevel: level2 },
-      { lineNumber: 25, level: level2, kind: "sibling", source: "click" },
+      {},
+      { lineNumber: 25, level: level2, kind: "ancestor", source: "click" },
       false
     );
 
     expect(result).toEqual({
-      nextExpandedLevel: null,
       navigateToLine: 25,
       shouldRender: false
     });
@@ -67,44 +37,28 @@ describe("reduceOverlayRowEvent", () => {
 });
 
 describe("collapse reducers", () => {
-  it("collapses expanded overlay on touch outside tap", () => {
+  it("is a no-op for outside tap collapse in stack-only mode", () => {
     const result = reduceOutsideTapCollapse(
-      { expandedLevel: level2 },
+      {},
       true,
       false
     );
 
     expect(result).toEqual({
-      nextExpandedLevel: null,
-      navigateToLine: null,
-      shouldRender: true
-    });
-  });
-
-  it("does not collapse on inside tap", () => {
-    const result = reduceOutsideTapCollapse(
-      { expandedLevel: level2 },
-      true,
-      true
-    );
-
-    expect(result).toEqual({
-      nextExpandedLevel: 2,
       navigateToLine: null,
       shouldRender: false
     });
   });
 
-  it("collapses on desktop mouse leave", () => {
+  it("is a no-op for mouse leave collapse in stack-only mode", () => {
     const result = reduceMouseLeaveCollapse(
-      { expandedLevel: level2 },
+      {},
       false
     );
 
     expect(result).toEqual({
-      nextExpandedLevel: null,
       navigateToLine: null,
-      shouldRender: true
+      shouldRender: false
     });
   });
 });

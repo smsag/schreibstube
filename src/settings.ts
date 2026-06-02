@@ -1,10 +1,10 @@
 import { App, PluginSettingTab, Setting } from "obsidian";
 import type SchreibstubePlugin from "./main";
 import {
-  MAX_OVERLAY_VISIBLE_ROWS,
-  MIN_OVERLAY_VISIBLE_ROWS,
-  normalizeSettings
-} from "./services/plugin-settings";
+  MAX_DIM_OPACITY,
+  MIN_DIM_OPACITY,
+  normalizeFocusSettings
+} from "./services/focus-settings";
 
 export class SchreibstubeSettingTab extends PluginSettingTab {
   plugin: SchreibstubePlugin;
@@ -19,20 +19,20 @@ export class SchreibstubeSettingTab extends PluginSettingTab {
     containerEl.empty();
 
     new Setting(containerEl)
-      .setName("Max visible rows")
-      .setDesc("Maximum number of rows visible in expanded sibling lists.")
+      .setName("Focus dim strength")
+      .setDesc("Controls how much non-focused text is dimmed in Live Edit focus mode.")
       .addSlider((slider) => {
         slider
           .setDynamicTooltip()
-          .setLimits(MIN_OVERLAY_VISIBLE_ROWS, MAX_OVERLAY_VISIBLE_ROWS, 1)
-          .setValue(this.plugin.settings.overlayMaxVisibleRows)
+          .setLimits(MIN_DIM_OPACITY, MAX_DIM_OPACITY, 0.05)
+          .setValue(this.plugin.settings.focusDimOpacity)
           .onChange(async (value) => {
-            this.plugin.settings = normalizeSettings({
+            const normalized = normalizeFocusSettings({
               ...this.plugin.settings,
-              overlayMaxVisibleRows: value
+              focusDimOpacity: value
             });
-            await this.plugin.saveSettings();
-            this.plugin.requestOverlayRefresh();
+
+            await this.plugin.updateDimOpacity(normalized.focusDimOpacity);
           });
       });
   }

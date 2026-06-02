@@ -1,9 +1,7 @@
 import { MarkdownView, Plugin } from "obsidian";
-import { resolveAncestorStack, resolveSiblingHeadings } from "./services/ancestor-stack";
+import { resolveAncestorStack } from "./services/ancestor-stack";
 import { buildHeadingIndex } from "./services/heading-index";
 import {
-  reduceMouseLeaveCollapse,
-  reduceOutsideTapCollapse,
   reduceOverlayRowEvent,
   type OverlayRowEvent
 } from "./services/overlay-interaction";
@@ -14,16 +12,20 @@ import {
 import { RefreshScheduler, type RefreshOptions } from "./services/refresh-scheduler";
 import { OverlayCoordinator } from "./services/overlay-coordinator";
 import { bootstrapSchreibstubeRuntime } from "./services/plugin-bootstrap";
-import { DEFAULT_SETTINGS, normalizeSettings } from "./services/plugin-settings";
+import {
+  DEFAULT_SETTINGS,
+  normalizeFocusSettings
+} from "./services/focus-settings";
 import { SchreibstubeSettingTab } from "./settings";
-import type { HeadingEntry, HeadingLevel, SchreibstubeSettings } from "./types";
+import type { FocusMode, HeadingEntry, SchreibstubeSettings } from "./types";
 
 export default class SchreibstubePlugin extends Plugin {
   settings: SchreibstubeSettings = DEFAULT_SETTINGS;
+  private currentView: MarkdownView | null = null;
   private viewportTopLine = 0;
   private headingIndex: HeadingEntry[] = [];
+  private lastIndexedContent = "";
   private ancestorStack: HeadingEntry[] = [];
-  private expandedLevel: HeadingLevel | null = null;
   private lastRenderSignature = "";
   private overlayCoordinator = new OverlayCoordinator();
   private refreshScheduler: RefreshScheduler | null = null;
@@ -42,14 +44,14 @@ export default class SchreibstubePlugin extends Plugin {
       onViewportFromReading: ({ viewportTopLine, scrollTop }) => {
         this.queueRefreshForActiveView(viewportTopLine, { readingScrollTop: scrollTop });
       },
+      getSettings: () => this.settings,
       onActiveLeafChange: () => {
         this.requestOverlayRefresh();
       },
-      onGlobalPointerDown: (event) => {
-        this.handleGlobalPointerDown(event);
-      }
+      onGlobalPointerDown: () => {}
     });
 
+    this.registerCommands();
     this.addSettingTab(new SchreibstubeSettingTab(this.app, this));
 
     this.requestOverlayRefresh();
@@ -61,7 +63,7 @@ export default class SchreibstubePlugin extends Plugin {
 
   async loadSettings(): Promise<void> {
     const loaded = await this.loadData();
-    this.settings = normalizeSettings(loaded);
+    this.settings = normalizeFocusSettings(loaded);
   }
 
   async saveSettings(): Promise<void> {
@@ -70,6 +72,16 @@ export default class SchreibstubePlugin extends Plugin {
 
   requestOverlayRefresh(): void {
     this.queueRefreshForActiveView();
+  }
+
+  async updateDimOpacity(dimOpacity: number): Promise<void> {
+    this.settings = normalizeFocusSettings({
+      ...this.settings,
+      focusDimOpacity: dimOpacity
+    });
+
+    await this.saveSettings();
+    this.notifyFocusSettingsChanged();
   }
 
   private queueRefreshForActiveView(
@@ -88,18 +100,28 @@ export default class SchreibstubePlugin extends Plugin {
     viewportTopLine?: number,
     options?: RefreshOptions
   ): void {
-    if (viewportTopLine !== undefined) {
-      this.viewportTopLine = Math.max(0, viewportTopLine);
-    }
-
     const view = this.app.workspace.getActiveViewOfType(MarkdownView);
     if (!view) {
       this.clearOverlay();
       return;
     }
 
+    const didViewChange = this.currentView !== view;
+    if (didViewChange) {
+      this.currentView = view;
+      this.viewportTopLine = 0;
+      this.lastRenderSignature = "";
+    }
+
+    if (viewportTopLine !== undefined) {
+      this.viewportTopLine = Math.max(0, viewportTopLine);
+    }
+
     const content = view.editor.getValue();
-    this.headingIndex = buildHeadingIndex(content);
+    if (content !== this.lastIndexedContent) {
+      this.headingIndex = buildHeadingIndex(content);
+      this.lastIndexedContent = content;
+    }
 
     let resolvedViewportTopLine = this.viewportTopLine;
     if (typeof options?.readingScrollTop === "number") {
@@ -114,43 +136,28 @@ export default class SchreibstubePlugin extends Plugin {
 
     this.ancestorStack = resolveAncestorStack(this.headingIndex, resolvedViewportTopLine);
 
-    if (
-      this.expandedLevel !== null &&
-      !this.ancestorStack.some((entry) => entry.level === this.expandedLevel)
-    ) {
-      this.expandedLevel = null;
-    }
-
-    this.renderOverlay();
+    this.renderOverlay(view);
   }
 
-  private renderOverlay(): void {
-    const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+  private renderOverlay(view: MarkdownView | null = this.currentView): void {
     if (!view) {
       this.clearOverlay();
       return;
     }
 
-    const sig =
-      this.ancestorStack.map(e => `${e.level}:${e.lineNumber}`).join("|") +
-      `|exp:${this.expandedLevel}`;
-    if (sig === this.lastRenderSignature) return;
-
-    const siblings =
-      this.expandedLevel === null
-        ? []
-        : resolveSiblingHeadings(this.headingIndex, this.ancestorStack, this.expandedLevel);
+    const sig = [
+      ...this.ancestorStack.map((entry) => `${entry.level}:${entry.lineNumber}:${entry.text}`)
+    ].join("|");
+    if (sig === this.lastRenderSignature) {
+      return;
+    }
 
     const rendered = this.overlayCoordinator.renderForView(
       view,
       {
-        ancestorStack: this.ancestorStack,
-        expandedLevel: this.expandedLevel,
-        siblings,
-        maxVisibleRows: this.settings.overlayMaxVisibleRows
+        ancestorStack: this.ancestorStack
       },
-      (event) => this.handleOverlayRowEvent(event),
-      () => this.handleOverlayMouseLeave()
+      (event) => this.handleOverlayRowEvent(event)
     );
 
     if (!rendered) {
@@ -164,16 +171,55 @@ export default class SchreibstubePlugin extends Plugin {
   private clearOverlay(): void {
     this.overlayCoordinator.clear();
     this.lastRenderSignature = "";
+    this.currentView = null;
+  }
+
+  private registerCommands(): void {
+    this.addCommand({
+      id: "set-focus-sentence-mode",
+      name: "Focus Mode: Sentence",
+      callback: () => {
+        void this.setFocusMode("sentence");
+      }
+    });
+
+    this.addCommand({
+      id: "set-focus-paragraph-mode",
+      name: "Focus Mode: Paragraph",
+      callback: () => {
+        void this.setFocusMode("paragraph");
+      }
+    });
+
+    this.addCommand({
+      id: "disable-focus-mode",
+      name: "Focus Mode: Disable",
+      callback: () => {
+        void this.setFocusMode("off");
+      }
+    });
+  }
+
+  private async setFocusMode(mode: FocusMode): Promise<void> {
+    this.settings = normalizeFocusSettings({
+      ...this.settings,
+      focusMode: mode
+    });
+
+    await this.saveSettings();
+    this.notifyFocusSettingsChanged();
+  }
+
+  private notifyFocusSettingsChanged(): void {
+    window.dispatchEvent(new Event("schreibstube-focus-settings-changed"));
   }
 
   private handleOverlayRowEvent(event: OverlayRowEvent): void {
     const result = reduceOverlayRowEvent(
-      { expandedLevel: this.expandedLevel },
+      {},
       event,
       this.isTouchDevice()
     );
-
-    this.expandedLevel = result.nextExpandedLevel;
 
     if (result.navigateToLine !== null) {
       this.navigateToLine(result.navigateToLine);
@@ -185,20 +231,8 @@ export default class SchreibstubePlugin extends Plugin {
     }
   }
 
-  private handleOverlayMouseLeave(): void {
-    const result = reduceMouseLeaveCollapse(
-      { expandedLevel: this.expandedLevel },
-      this.isTouchDevice()
-    );
-
-    this.expandedLevel = result.nextExpandedLevel;
-    if (result.shouldRender) {
-      this.renderOverlay();
-    }
-  }
-
   private navigateToLine(lineNumber: number): void {
-    const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+    const view = this.currentView ?? this.app.workspace.getActiveViewOfType(MarkdownView);
     if (!view) {
       return;
     }
@@ -217,19 +251,6 @@ export default class SchreibstubePlugin extends Plugin {
     view.editor.scrollIntoView({ from: { line: lineNumber, ch: 0 }, to: { line: lineNumber, ch: 0 } }, true);
     this.viewportTopLine = lineNumber;
     this.queueRefreshForActiveView(this.viewportTopLine);
-  }
-
-  private handleGlobalPointerDown(event: PointerEvent): void {
-    const result = reduceOutsideTapCollapse(
-      { expandedLevel: this.expandedLevel },
-      this.isTouchDevice(),
-      this.overlayCoordinator.contains(event.target)
-    );
-
-    this.expandedLevel = result.nextExpandedLevel;
-    if (result.shouldRender) {
-      this.renderOverlay();
-    }
   }
 
   private isTouchDevice(): boolean {

@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## 1.0.1 - 2026-06-02
+
+### Changed
+
+- Restored deterministic stack-only headline overlay behavior in Live Edit.
+- Removed hover and sibling expansion behavior; click/tap now navigates directly.
+- Aligned overlay host mounting with the original Headway implementation for reliable Live Edit rendering.
+- Improved iOS behavior with safe-area notch padding for the top stack row.
+- Updated local docs for current stack-only behavior and release flow.
+
+### Fixes
+
+- Fixed cases where no heading stack appeared in Live Edit after reopening/re-activating the plugin.
+- Fixed iOS regressions causing stuck/flickering scroll behavior.
+
+### Release
+
+- BRAT-ready release artifacts: `main.js`, `manifest.json`, `styles.css`.
+
 ## 1.0.0 - 2026-06-02
 
 ### Changed

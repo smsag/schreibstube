@@ -1,8 +1,23 @@
-export function findOverlayHost(container: ParentNode): HTMLElement | null {
-  const editorScroller = container.querySelector(".cm-scroller") as HTMLElement | null;
-  if (editorScroller) {
-    return editorScroller;
+import type { MarkdownView } from "obsidian";
+
+export function findOverlayHost(view: MarkdownView): HTMLElement | null {
+  const contentEl = view.contentEl as (HTMLElement & {
+    querySelector?: (selector: string) => Element | null;
+  }) | null;
+
+  if (!contentEl) {
+    return null;
   }
 
-  return container.querySelector(".markdown-reading-view") as HTMLElement | null;
+  const sourceChromeHost =
+    typeof contentEl.querySelector === "function"
+      ? (contentEl.querySelector(
+          ".markdown-source-view.mod-cm6"
+        ) as HTMLElement | null)
+      : null;
+  if (sourceChromeHost) {
+    return sourceChromeHost;
+  }
+
+  return contentEl;
 }

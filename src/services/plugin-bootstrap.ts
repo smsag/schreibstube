@@ -1,6 +1,7 @@
 import type { Plugin } from "obsidian";
 import { createEditorExtension } from "../processors/editor-extension";
 import { createReadingPostProcessor } from "../processors/markdown-processor";
+import type { SchreibstubeSettings } from "../types";
 
 export interface BootstrapHandlers {
   onViewportFromEditor: (viewportTopLine: number) => void;
@@ -8,6 +9,7 @@ export interface BootstrapHandlers {
     viewportTopLine: number;
     scrollTop: number;
   }) => void;
+  getSettings: () => SchreibstubeSettings;
   onActiveLeafChange: () => void;
   onGlobalPointerDown: (event: PointerEvent) => void;
 }
@@ -17,8 +19,11 @@ export function bootstrapSchreibstubeRuntime(
   handlers: BootstrapHandlers
 ): void {
   plugin.registerEditorExtension(
-    createEditorExtension(({ viewportTopLine }) => {
-      handlers.onViewportFromEditor(viewportTopLine);
+    createEditorExtension({
+      onViewportUpdate: ({ viewportTopLine }) => {
+        handlers.onViewportFromEditor(viewportTopLine);
+      },
+      getSettings: handlers.getSettings
     })
   );
 

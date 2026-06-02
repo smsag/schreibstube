@@ -1,26 +1,39 @@
 :root {
   --schreibstube-border-radius: 8px;
   --schreibstube-padding: 8px;
-  --schreibstube-overlay-top-gap: 4px;
-  --schreibstube-overlay-side-gap: 8px;
-  --schreibstube-safe-top: var(--safe-area-inset-top, env(safe-area-inset-top, 0px));
-  --schreibstube-safe-left: var(--safe-area-inset-left, env(safe-area-inset-left, 0px));
-  --schreibstube-safe-right: var(--safe-area-inset-right, env(safe-area-inset-right, 0px));
+  --schreibstube-focus-dim-opacity: 0.4;
+}
+
+.schreibstube-overlay-host {
+  position: relative;
 }
 
 .schreibstube-overlay {
-  position: sticky;
+  position: absolute;
   top: 0;
+  left: 0;
+  right: 0;
+  display: block;
+  width: auto;
+  box-sizing: border-box;
   z-index: 50;
-  margin: 0 max(var(--schreibstube-overlay-side-gap), var(--schreibstube-safe-right)) 4px
-    max(var(--schreibstube-overlay-side-gap), var(--schreibstube-safe-left));
-  padding: calc(var(--schreibstube-padding) + var(--schreibstube-safe-top) + var(--schreibstube-overlay-top-gap))
-    var(--schreibstube-padding) var(--schreibstube-padding);
-  border: 1px solid var(--background-modifier-border);
-  border-radius: var(--schreibstube-border-radius);
-  background: color-mix(in srgb, var(--background-primary) 90%, var(--background-secondary));
-  backdrop-filter: blur(3px);
+  margin: 0;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--background-modifier-border);
+  background: var(--background-primary);
+  backdrop-filter: none;
+  box-shadow: none;
   pointer-events: auto;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+}
+
+/* iOS notch offset: keep first stack row below the safe-area inset. */
+@supports (-webkit-touch-callout: none) {
+  .is-mobile .schreibstube-overlay {
+    padding-top: calc(6px + env(safe-area-inset-top, 0px));
+  }
 }
 
 .schreibstube-overlay.is-hidden {
@@ -34,47 +47,31 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
+  background: transparent;
 }
 
 .schreibstube-overlay-row {
+  --schreibstube-level: 1;
   font-size: var(--font-ui-small);
   line-height: 1.35;
   color: var(--text-normal);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  padding: 2px 4px;
+  padding: 2px 6px;
+  padding-left: calc(8px + (var(--schreibstube-level) - 1) * 12px);
   border-radius: 4px;
   cursor: pointer;
+  background: transparent;
 }
 
 .schreibstube-overlay-row:hover {
-  background: var(--background-modifier-hover);
+  background: transparent;
 }
 
-.schreibstube-overlay-row-ancestor.is-expanded {
-  font-weight: 600;
-}
-
-.schreibstube-overlay-siblings-wrap {
-  margin: 2px 0 4px;
-}
-
-.schreibstube-overlay-siblings {
-  list-style: none;
-  margin: 0;
-  padding: 2px;
-  overflow-y: auto;
-  border-left: 2px solid var(--background-modifier-border);
-}
-
-.schreibstube-overlay-row-sibling {
-  margin-left: 4px;
-}
-
-.schreibstube-overlay-row-sibling.is-current {
+.schreibstube-overlay-row.is-current {
   color: var(--text-accent);
-  background: var(--background-modifier-active-hover);
+  font-weight: 600;
 }
 
 .schreibstube-focus-enabled .cm-line.schreibstube-focus-dimmed {
