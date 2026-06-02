@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## 1.0.2 - 2026-06-02
+
+### Fixed
+
+- Paragraph focus mode no longer treats an entire Markdown list as one block. Each list item is now its own focus unit, so sibling items are dimmed correctly.
+
 ## 1.0.1 - 2026-06-02
 
 ### Changed
