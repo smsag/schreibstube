@@ -1,9 +1,14 @@
-import type { FocusMode, SchreibstubeSettings } from "../types";
+import type { FocusMode } from "../types";
+
+export interface FocusSettings {
+  focusMode: FocusMode;
+  focusDimOpacity: number;
+}
 
 export const MIN_DIM_OPACITY = 0.2;
 export const MAX_DIM_OPACITY = 0.8;
 
-export const DEFAULT_SETTINGS: SchreibstubeSettings = {
+export const DEFAULT_SETTINGS: FocusSettings = {
   focusMode: "off",
   focusDimOpacity: 0.4
 };
@@ -15,8 +20,8 @@ const ALLOWED_MODES = new Set<FocusMode>([
 ]);
 
 export function normalizeFocusSettings(
-  loaded: Partial<SchreibstubeSettings> | null | undefined
-): SchreibstubeSettings {
+  loaded: Partial<FocusSettings> | null | undefined
+): FocusSettings {
   const merged = Object.assign({}, DEFAULT_SETTINGS, loaded);
   const focusMode = ALLOWED_MODES.has(merged.focusMode as FocusMode)
     ? (merged.focusMode as FocusMode)

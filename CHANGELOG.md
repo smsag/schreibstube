@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## 1.0.0 - 2026-06-02
+
+### Changed
+
+- Plugin identity renamed from Headway to Schreibstube.
+- Focus mode naming aligned to sentence and paragraph semantics.
+- iOS-focused behavior fixes and styling updates for overlay and focus visuals.
+- Repository hardened for distribution with docs excluded from Git tracking.
+
+### Release
+
+- First stable public release for BRAT installation.
+
 ## 0.1.1 - 2026-06-01
 
 ### Added
