@@ -75,6 +75,19 @@ describe("resolveFocusRange", () => {
     });
   });
 
+  it("treats each list item as a standalone block", () => {
+    const doc = createDoc([
+      "- [ ] First todo",
+      "- [ ] Second todo",
+      "- [ ] Third todo"
+    ]);
+
+    expect(resolveFocusRange(doc, 1, "paragraph")).toEqual({
+      startLine: 2,
+      endLine: 2
+    });
+  });
+
   it("returns full fenced code block when cursor is inside", () => {
     const doc = createDoc([
       "```ts",

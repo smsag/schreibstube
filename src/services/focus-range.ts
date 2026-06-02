@@ -63,6 +63,10 @@ function resolveParagraphRange(doc: LineDoc, cursorLine: number): FocusRange {
 
   const targetKind = classifyLine(cursorText);
 
+  if (targetKind === "list") {
+    return { startLine: cursorLine, endLine: cursorLine };
+  }
+
   let startLine = cursorLine;
   while (startLine > 1) {
     const prev = doc.line(startLine - 1).text;
