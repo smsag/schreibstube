@@ -5,6 +5,7 @@ main.js
 dist/
 coverage/
 *.tsbuildinfo
+*.map
 
 # Runtime logs
 *.log
@@ -19,8 +20,10 @@ pnpm-debug.log*
 
 # Editor and OS files
 .DS_Store
+Thumbs.db
 .idea/
 .vscode/
+.claude/
 
 # Local plugin/vault state
 data.json

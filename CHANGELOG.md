@@ -2,6 +2,30 @@
 
 All notable changes to this project will be documented in this file.
 
+## 1.1.1 - 2026-06-09
+
+### Fixed
+
+- Paragraph focus mode no longer treats an entire Markdown list as one block. Each list item is now its own focus unit, so sibling items are dimmed correctly.
+
+## 1.1.0 - 2026-06-09
+
+### Added
+
+- **Rename file from content** command: trigger via command palette or keyboard shortcut to have an LLM generate a filename from the active note's content and rename the file in-place.
+- Supports Anthropic (Claude Haiku 4.5, Claude Sonnet 4.6), OpenAI (GPT-4o mini, GPT-4o), and Google (Gemini 1.5 Flash, Gemini 1.5 Pro) as LLM providers.
+- API keys stored in Obsidian's native SecretStorage — never written to plugin data.
+- Configurable minimum content length (default 50 chars), maximum content sent to LLM (default 4 000 chars), and maximum filename length (default 60 chars).
+- All failure paths (no key, API error, empty result) surface a Notice.
+
+### Improved
+
+- Settings: number inputs now save on blur instead of on every keystroke.
+- `focus-settings.test.ts` moved to `src/services/` to match co-location convention.
+- Added 23 unit tests covering `sanitizeFilename` and `normalizeSettings`.
+- README rewritten to document both plugin features with a settings reference table.
+- `.gitignore` extended to cover `*.map`, `Thumbs.db`, and `.claude/`.
+
 ## 1.0.2 - 2026-06-02
 
 ### Fixed

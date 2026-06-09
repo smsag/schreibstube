@@ -1,7 +1,9 @@
-import { MarkdownView, Plugin } from "obsidian";
-import { resolveAncestorStack } from "./services/ancestor-stack";
+import { MarkdownView, Notice, Plugin, normalizePath } from "obsidian";
+import { resolveAncestorStack, resolveSiblingHeadings } from "./services/ancestor-stack";
 import { buildHeadingIndex } from "./services/heading-index";
 import {
+  reduceMouseLeaveCollapse,
+  reduceOutsideTapCollapse,
   reduceOverlayRowEvent,
   type OverlayRowEvent
 } from "./services/overlay-interaction";
@@ -12,20 +14,17 @@ import {
 import { RefreshScheduler, type RefreshOptions } from "./services/refresh-scheduler";
 import { OverlayCoordinator } from "./services/overlay-coordinator";
 import { bootstrapSchreibstubeRuntime } from "./services/plugin-bootstrap";
-import {
-  DEFAULT_SETTINGS,
-  normalizeFocusSettings
-} from "./services/focus-settings";
+import { DEFAULT_SETTINGS, normalizeSettings } from "./services/plugin-settings";
+import { generateRenameFilename, sanitizeFilename, secretStorageKey } from "./services/llm-rename";
 import { SchreibstubeSettingTab } from "./settings";
-import type { FocusMode, HeadingEntry, SchreibstubeSettings } from "./types";
+import type { HeadingEntry, HeadingLevel, SchreibstubeSettings } from "./types";
 
 export default class SchreibstubePlugin extends Plugin {
   settings: SchreibstubeSettings = DEFAULT_SETTINGS;
-  private currentView: MarkdownView | null = null;
   private viewportTopLine = 0;
   private headingIndex: HeadingEntry[] = [];
-  private lastIndexedContent = "";
   private ancestorStack: HeadingEntry[] = [];
+  private expandedLevel: HeadingLevel | null = null;
   private lastRenderSignature = "";
   private overlayCoordinator = new OverlayCoordinator();
   private refreshScheduler: RefreshScheduler | null = null;
@@ -37,6 +36,12 @@ export default class SchreibstubePlugin extends Plugin {
       ({ viewportTopLine, options }) => this.refreshForActiveView(viewportTopLine, options)
     );
 
+    this.addCommand({
+      id: "rename-from-content",
+      name: "Rename file from content",
+      editorCallback: () => { void this.executeRenameFromContent(); },
+    });
+
     bootstrapSchreibstubeRuntime(this, {
       onViewportFromEditor: (viewportTopLine) => {
         this.queueRefreshForActiveView(viewportTopLine);
@@ -44,14 +49,14 @@ export default class SchreibstubePlugin extends Plugin {
       onViewportFromReading: ({ viewportTopLine, scrollTop }) => {
         this.queueRefreshForActiveView(viewportTopLine, { readingScrollTop: scrollTop });
       },
-      getSettings: () => this.settings,
       onActiveLeafChange: () => {
         this.requestOverlayRefresh();
       },
-      onGlobalPointerDown: () => {}
+      onGlobalPointerDown: (event) => {
+        this.handleGlobalPointerDown(event);
+      }
     });
 
-    this.registerCommands();
     this.addSettingTab(new SchreibstubeSettingTab(this.app, this));
 
     this.requestOverlayRefresh();
@@ -63,7 +68,7 @@ export default class SchreibstubePlugin extends Plugin {
 
   async loadSettings(): Promise<void> {
     const loaded = await this.loadData();
-    this.settings = normalizeFocusSettings(loaded);
+    this.settings = normalizeSettings(loaded);
   }
 
   async saveSettings(): Promise<void> {
@@ -72,16 +77,6 @@ export default class SchreibstubePlugin extends Plugin {
 
   requestOverlayRefresh(): void {
     this.queueRefreshForActiveView();
-  }
-
-  async updateDimOpacity(dimOpacity: number): Promise<void> {
-    this.settings = normalizeFocusSettings({
-      ...this.settings,
-      focusDimOpacity: dimOpacity
-    });
-
-    await this.saveSettings();
-    this.notifyFocusSettingsChanged();
   }
 
   private queueRefreshForActiveView(
@@ -100,28 +95,18 @@ export default class SchreibstubePlugin extends Plugin {
     viewportTopLine?: number,
     options?: RefreshOptions
   ): void {
+    if (viewportTopLine !== undefined) {
+      this.viewportTopLine = Math.max(0, viewportTopLine);
+    }
+
     const view = this.app.workspace.getActiveViewOfType(MarkdownView);
     if (!view) {
       this.clearOverlay();
       return;
     }
 
-    const didViewChange = this.currentView !== view;
-    if (didViewChange) {
-      this.currentView = view;
-      this.viewportTopLine = 0;
-      this.lastRenderSignature = "";
-    }
-
-    if (viewportTopLine !== undefined) {
-      this.viewportTopLine = Math.max(0, viewportTopLine);
-    }
-
     const content = view.editor.getValue();
-    if (content !== this.lastIndexedContent) {
-      this.headingIndex = buildHeadingIndex(content);
-      this.lastIndexedContent = content;
-    }
+    this.headingIndex = buildHeadingIndex(content);
 
     let resolvedViewportTopLine = this.viewportTopLine;
     if (typeof options?.readingScrollTop === "number") {
@@ -136,28 +121,43 @@ export default class SchreibstubePlugin extends Plugin {
 
     this.ancestorStack = resolveAncestorStack(this.headingIndex, resolvedViewportTopLine);
 
-    this.renderOverlay(view);
+    if (
+      this.expandedLevel !== null &&
+      !this.ancestorStack.some((entry) => entry.level === this.expandedLevel)
+    ) {
+      this.expandedLevel = null;
+    }
+
+    this.renderOverlay();
   }
 
-  private renderOverlay(view: MarkdownView | null = this.currentView): void {
+  private renderOverlay(): void {
+    const view = this.app.workspace.getActiveViewOfType(MarkdownView);
     if (!view) {
       this.clearOverlay();
       return;
     }
 
-    const sig = [
-      ...this.ancestorStack.map((entry) => `${entry.level}:${entry.lineNumber}:${entry.text}`)
-    ].join("|");
-    if (sig === this.lastRenderSignature) {
-      return;
-    }
+    const sig =
+      this.ancestorStack.map(e => `${e.level}:${e.lineNumber}`).join("|") +
+      `|exp:${this.expandedLevel}`;
+    if (sig === this.lastRenderSignature) return;
+
+    const siblings =
+      this.expandedLevel === null
+        ? []
+        : resolveSiblingHeadings(this.headingIndex, this.ancestorStack, this.expandedLevel);
 
     const rendered = this.overlayCoordinator.renderForView(
       view,
       {
-        ancestorStack: this.ancestorStack
+        ancestorStack: this.ancestorStack,
+        expandedLevel: this.expandedLevel,
+        siblings,
+        maxVisibleRows: this.settings.overlayMaxVisibleRows
       },
-      (event) => this.handleOverlayRowEvent(event)
+      (event) => this.handleOverlayRowEvent(event),
+      () => this.handleOverlayMouseLeave()
     );
 
     if (!rendered) {
@@ -171,55 +171,16 @@ export default class SchreibstubePlugin extends Plugin {
   private clearOverlay(): void {
     this.overlayCoordinator.clear();
     this.lastRenderSignature = "";
-    this.currentView = null;
-  }
-
-  private registerCommands(): void {
-    this.addCommand({
-      id: "set-focus-sentence-mode",
-      name: "Focus Mode: Sentence",
-      callback: () => {
-        void this.setFocusMode("sentence");
-      }
-    });
-
-    this.addCommand({
-      id: "set-focus-paragraph-mode",
-      name: "Focus Mode: Paragraph",
-      callback: () => {
-        void this.setFocusMode("paragraph");
-      }
-    });
-
-    this.addCommand({
-      id: "disable-focus-mode",
-      name: "Focus Mode: Disable",
-      callback: () => {
-        void this.setFocusMode("off");
-      }
-    });
-  }
-
-  private async setFocusMode(mode: FocusMode): Promise<void> {
-    this.settings = normalizeFocusSettings({
-      ...this.settings,
-      focusMode: mode
-    });
-
-    await this.saveSettings();
-    this.notifyFocusSettingsChanged();
-  }
-
-  private notifyFocusSettingsChanged(): void {
-    window.dispatchEvent(new Event("schreibstube-focus-settings-changed"));
   }
 
   private handleOverlayRowEvent(event: OverlayRowEvent): void {
     const result = reduceOverlayRowEvent(
-      {},
+      { expandedLevel: this.expandedLevel },
       event,
       this.isTouchDevice()
     );
+
+    this.expandedLevel = result.nextExpandedLevel;
 
     if (result.navigateToLine !== null) {
       this.navigateToLine(result.navigateToLine);
@@ -231,8 +192,20 @@ export default class SchreibstubePlugin extends Plugin {
     }
   }
 
+  private handleOverlayMouseLeave(): void {
+    const result = reduceMouseLeaveCollapse(
+      { expandedLevel: this.expandedLevel },
+      this.isTouchDevice()
+    );
+
+    this.expandedLevel = result.nextExpandedLevel;
+    if (result.shouldRender) {
+      this.renderOverlay();
+    }
+  }
+
   private navigateToLine(lineNumber: number): void {
-    const view = this.currentView ?? this.app.workspace.getActiveViewOfType(MarkdownView);
+    const view = this.app.workspace.getActiveViewOfType(MarkdownView);
     if (!view) {
       return;
     }
@@ -253,8 +226,63 @@ export default class SchreibstubePlugin extends Plugin {
     this.queueRefreshForActiveView(this.viewportTopLine);
   }
 
+  private handleGlobalPointerDown(event: PointerEvent): void {
+    const result = reduceOutsideTapCollapse(
+      { expandedLevel: this.expandedLevel },
+      this.isTouchDevice(),
+      this.overlayCoordinator.contains(event.target)
+    );
+
+    this.expandedLevel = result.nextExpandedLevel;
+    if (result.shouldRender) {
+      this.renderOverlay();
+    }
+  }
+
   private isTouchDevice(): boolean {
     return window.matchMedia("(pointer: coarse)").matches;
+  }
+
+  private async executeRenameFromContent(): Promise<void> {
+    const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+    if (!view?.file) return;
+
+    const content = view.editor.getValue().trim();
+    if (content.length < this.settings.renameMinContentChars) return;
+
+    const apiKey = this.app.secretStorage.getSecret(
+      secretStorageKey(this.settings.renameProvider)
+    );
+    if (!apiKey) {
+      new Notice("Schreibstube: no API key configured — open Settings to add one.");
+      return;
+    }
+
+    const truncated = content.slice(0, this.settings.renameMaxContentChars);
+
+    let proposed: string;
+    try {
+      proposed = await generateRenameFilename(truncated, this.settings, apiKey);
+    } catch {
+      new Notice("Schreibstube: rename failed — could not reach the LLM API.");
+      return;
+    }
+
+    const sanitized = sanitizeFilename(proposed, this.settings.renameMaxFilenameLength);
+    if (!sanitized) {
+      new Notice("Schreibstube: rename failed — the LLM returned an unusable filename.");
+      return;
+    }
+
+    const folder = view.file.parent?.path ?? "";
+    const newPath = normalizePath(`${folder}/${sanitized}.md`);
+
+    try {
+      await this.app.fileManager.renameFile(view.file, newPath);
+    } catch {
+      new Notice("Schreibstube: rename failed — a file with that name may already exist.");
+      return;
+    }
   }
 
 }
