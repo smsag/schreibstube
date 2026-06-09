@@ -79,33 +79,42 @@ export class SchreibstubeSettingTab extends PluginSettingTab {
       });
 
     const secretId = secretStorageKey(this.plugin.settings.renameProvider);
-    const currentKey = this.plugin.app.secretStorage.getSecret(secretId) ?? "";
-    new Setting(containerEl)
-      .setName("API key")
-      .setDesc(
-        currentKey
-          ? "Key is saved. Enter a new value to replace it."
-          : "Enter your API key for the selected provider."
-      )
-      .addText((text) => {
-        text
-          .setValue(currentKey)
-          .setPlaceholder("Paste API key here…")
-          .onChange((value) => {
-            this.plugin.app.secretStorage.setSecret(secretId, value);
-          });
-        text.inputEl.type = "password";
-        text.inputEl.style.width = "240px";
-      })
-      .addButton((btn) => {
-        btn
-          .setButtonText("Clear")
-          .setDisabled(!currentKey)
-          .onClick(() => {
+    const storedKeys = this.plugin.app.secretStorage.listSecrets();
+    const hasKey = storedKeys.includes(secretId);
+
+    if (hasKey) {
+      new Setting(containerEl)
+        .setName("API key")
+        .setDesc("A key is stored for this provider.")
+        .addButton((btn) => {
+          btn.setButtonText("Replace").onClick(() => {
             this.plugin.app.secretStorage.setSecret(secretId, "");
             this.display();
           });
-      });
+        })
+        .addButton((btn) => {
+          btn.setButtonText("Clear").setCta().onClick(() => {
+            this.plugin.app.secretStorage.setSecret(secretId, "");
+            this.display();
+          });
+        });
+    } else {
+      new Setting(containerEl)
+        .setName("API key")
+        .setDesc("Enter your API key for the selected provider.")
+        .addText((text) => {
+          text.setPlaceholder("Paste API key here…");
+          text.inputEl.type = "password";
+          text.inputEl.style.width = "240px";
+          text.inputEl.addEventListener("blur", () => {
+            const value = text.inputEl.value.trim();
+            if (value) {
+              this.plugin.app.secretStorage.setSecret(secretId, value);
+              this.display();
+            }
+          });
+        });
+    }
 
     new Setting(containerEl)
       .setName("Minimum content length")

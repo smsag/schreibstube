@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## 1.1.2 - 2026-06-09
+
+### Improved
+
+- API key settings UI overhauled: when a key is stored it shows a status indicator with **Replace** and **Clear** buttons — the actual key value is never displayed. When no key is stored a plain password input appears; saving happens on blur and the view refreshes automatically.
+- Stale `feat/llm-rename-file` and `schreibstube-main` remote branches removed.
+
 ## 1.1.1 - 2026-06-09
 
 ### Fixed
