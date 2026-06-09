@@ -1,4 +1,4 @@
-import type { LlmProvider, SchreibstubeSettings } from "../types";
+import type { SchreibstubeSettings } from "../types";
 
 type RenameSettings = Pick<
   SchreibstubeSettings,
@@ -133,6 +133,3 @@ async function callGoogle(
   return data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? "";
 }
 
-export function secretStorageKey(provider: LlmProvider): string {
-  return `schreibstube-${provider}-key`;
-}

@@ -15,7 +15,7 @@ import { RefreshScheduler, type RefreshOptions } from "./services/refresh-schedu
 import { OverlayCoordinator } from "./services/overlay-coordinator";
 import { bootstrapSchreibstubeRuntime } from "./services/plugin-bootstrap";
 import { DEFAULT_SETTINGS, normalizeSettings } from "./services/plugin-settings";
-import { generateRenameFilename, sanitizeFilename, secretStorageKey } from "./services/llm-rename";
+import { generateRenameFilename, sanitizeFilename } from "./services/llm-rename";
 import { SchreibstubeSettingTab } from "./settings";
 import type { HeadingEntry, SchreibstubeSettings } from "./types";
 
@@ -226,11 +226,14 @@ export default class SchreibstubePlugin extends Plugin {
     const content = view.editor.getValue().trim();
     if (content.length < this.settings.renameMinContentChars) return;
 
-    const apiKey = this.app.secretStorage.getSecret(
-      secretStorageKey(this.settings.renameProvider)
-    );
+    const secretName = this.settings.renameSecretName;
+    if (!secretName) {
+      new Notice("Schreibstube: no secret selected — open Settings to choose one.");
+      return;
+    }
+    const apiKey = this.app.secretStorage.getSecret(secretName);
     if (!apiKey) {
-      new Notice("Schreibstube: no API key configured — open Settings to add one.");
+      new Notice("Schreibstube: secret not found — check Settings.");
       return;
     }
 

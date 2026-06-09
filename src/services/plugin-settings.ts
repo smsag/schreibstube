@@ -29,6 +29,7 @@ export const DEFAULT_SETTINGS: SchreibstubeSettings = {
   ...DEFAULT_FOCUS_SETTINGS,
   renameProvider: "anthropic",
   renameModel: "claude-haiku-4-5-20251001",
+  renameSecretName: "",
   renameMinContentChars: 50,
   renameMaxContentChars: 4000,
   renameMaxFilenameLength: 60,
@@ -58,11 +59,15 @@ export function normalizeSettings(
   const loadedModel = loaded?.renameModel ?? "";
   const model = modelValues.includes(loadedModel) ? loadedModel : providerModels[0].value;
 
+  const renameSecretName =
+    typeof loaded?.renameSecretName === "string" ? loaded.renameSecretName : DEFAULT_SETTINGS.renameSecretName;
+
   return {
     overlayMaxVisibleRows,
     ...focus,
     renameProvider: provider,
     renameModel: model,
+    renameSecretName,
     renameMinContentChars: positiveIntOrDefault(
       loaded?.renameMinContentChars,
       DEFAULT_SETTINGS.renameMinContentChars

@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## 1.1.3 - 2026-06-09
+
+### Fixed
+
+- API key is now configured using Obsidian's native `SecretComponent`. The settings field shows a proper secret picker — users select or create a named secret rather than pasting a raw key. The plugin stores only the secret name; the actual value is retrieved from `SecretStorage` at runtime and never exposed in the UI.
+- `minAppVersion` bumped to `1.11.4` (minimum required for `SecretComponent`).
+
 ## 1.1.2 - 2026-06-09
 
 ### Improved

@@ -1,4 +1,4 @@
-import { App, PluginSettingTab, Setting } from "obsidian";
+import { App, PluginSettingTab, SecretComponent, Setting } from "obsidian";
 import type SchreibstubePlugin from "./main";
 import type { LlmProvider } from "./types";
 import {
@@ -7,7 +7,6 @@ import {
   PROVIDER_MODELS,
   normalizeSettings
 } from "./services/plugin-settings";
-import { secretStorageKey } from "./services/llm-rename";
 
 export class SchreibstubeSettingTab extends PluginSettingTab {
   plugin: SchreibstubePlugin;
@@ -78,43 +77,20 @@ export class SchreibstubeSettingTab extends PluginSettingTab {
           });
       });
 
-    const secretId = secretStorageKey(this.plugin.settings.renameProvider);
-    const storedKeys = this.plugin.app.secretStorage.listSecrets();
-    const hasKey = storedKeys.includes(secretId);
-
-    if (hasKey) {
-      new Setting(containerEl)
-        .setName("API key")
-        .setDesc("A key is stored for this provider.")
-        .addButton((btn) => {
-          btn.setButtonText("Replace").onClick(() => {
-            this.plugin.app.secretStorage.setSecret(secretId, "");
-            this.display();
-          });
-        })
-        .addButton((btn) => {
-          btn.setButtonText("Clear").setCta().onClick(() => {
-            this.plugin.app.secretStorage.setSecret(secretId, "");
-            this.display();
-          });
-        });
-    } else {
-      new Setting(containerEl)
-        .setName("API key")
-        .setDesc("Enter your API key for the selected provider.")
-        .addText((text) => {
-          text.setPlaceholder("Paste API key here…");
-          text.inputEl.type = "password";
-          text.inputEl.style.width = "240px";
-          text.inputEl.addEventListener("blur", () => {
-            const value = text.inputEl.value.trim();
-            if (value) {
-              this.plugin.app.secretStorage.setSecret(secretId, value);
-              this.display();
-            }
-          });
-        });
-    }
+    new Setting(containerEl)
+      .setName("API key")
+      .setDesc("Select a secret from Obsidian's secret storage, or create a new one.")
+      .addComponent((el) =>
+        new SecretComponent(this.app, el)
+          .setValue(this.plugin.settings.renameSecretName)
+          .onChange(async (value) => {
+            this.plugin.settings = normalizeSettings({
+              ...this.plugin.settings,
+              renameSecretName: value,
+            });
+            await this.plugin.saveSettings();
+          })
+      );
 
     new Setting(containerEl)
       .setName("Minimum content length")
