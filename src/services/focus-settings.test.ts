@@ -4,7 +4,7 @@ import {
   MAX_DIM_OPACITY,
   MIN_DIM_OPACITY,
   normalizeFocusSettings
-} from "./services/focus-settings";
+} from "./focus-settings";
 
 describe("normalizeFocusSettings", () => {
   it("uses defaults when settings are missing", () => {

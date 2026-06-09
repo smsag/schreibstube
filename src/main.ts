@@ -1,4 +1,4 @@
-import { MarkdownView, Plugin } from "obsidian";
+import { MarkdownView, Notice, Plugin, normalizePath } from "obsidian";
 import { resolveAncestorStack, resolveSiblingHeadings } from "./services/ancestor-stack";
 import { buildHeadingIndex } from "./services/heading-index";
 import {
@@ -15,6 +15,7 @@ import { RefreshScheduler, type RefreshOptions } from "./services/refresh-schedu
 import { OverlayCoordinator } from "./services/overlay-coordinator";
 import { bootstrapSchreibstubeRuntime } from "./services/plugin-bootstrap";
 import { DEFAULT_SETTINGS, normalizeSettings } from "./services/plugin-settings";
+import { generateRenameFilename, sanitizeFilename, secretStorageKey } from "./services/llm-rename";
 import { SchreibstubeSettingTab } from "./settings";
 import type { HeadingEntry, HeadingLevel, SchreibstubeSettings } from "./types";
 
@@ -34,6 +35,12 @@ export default class SchreibstubePlugin extends Plugin {
       (callback) => window.requestAnimationFrame(callback),
       ({ viewportTopLine, options }) => this.refreshForActiveView(viewportTopLine, options)
     );
+
+    this.addCommand({
+      id: "rename-from-content",
+      name: "Rename file from content",
+      editorCallback: () => { void this.executeRenameFromContent(); },
+    });
 
     bootstrapSchreibstubeRuntime(this, {
       onViewportFromEditor: (viewportTopLine) => {
@@ -234,6 +241,48 @@ export default class SchreibstubePlugin extends Plugin {
 
   private isTouchDevice(): boolean {
     return window.matchMedia("(pointer: coarse)").matches;
+  }
+
+  private async executeRenameFromContent(): Promise<void> {
+    const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+    if (!view?.file) return;
+
+    const content = view.editor.getValue().trim();
+    if (content.length < this.settings.renameMinContentChars) return;
+
+    const apiKey = this.app.secretStorage.getSecret(
+      secretStorageKey(this.settings.renameProvider)
+    );
+    if (!apiKey) {
+      new Notice("Schreibstube: no API key configured — open Settings to add one.");
+      return;
+    }
+
+    const truncated = content.slice(0, this.settings.renameMaxContentChars);
+
+    let proposed: string;
+    try {
+      proposed = await generateRenameFilename(truncated, this.settings, apiKey);
+    } catch {
+      new Notice("Schreibstube: rename failed — could not reach the LLM API.");
+      return;
+    }
+
+    const sanitized = sanitizeFilename(proposed, this.settings.renameMaxFilenameLength);
+    if (!sanitized) {
+      new Notice("Schreibstube: rename failed — the LLM returned an unusable filename.");
+      return;
+    }
+
+    const folder = view.file.parent?.path ?? "";
+    const newPath = normalizePath(`${folder}/${sanitized}.md`);
+
+    try {
+      await this.app.fileManager.renameFile(view.file, newPath);
+    } catch {
+      new Notice("Schreibstube: rename failed — a file with that name may already exist.");
+      return;
+    }
   }
 
 }

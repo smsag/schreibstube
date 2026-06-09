@@ -1,10 +1,13 @@
 import { App, PluginSettingTab, Setting } from "obsidian";
 import type SchreibstubePlugin from "./main";
+import type { LlmProvider } from "./types";
 import {
   MAX_OVERLAY_VISIBLE_ROWS,
   MIN_OVERLAY_VISIBLE_ROWS,
+  PROVIDER_MODELS,
   normalizeSettings
 } from "./services/plugin-settings";
+import { secretStorageKey } from "./services/llm-rename";
 
 export class SchreibstubeSettingTab extends PluginSettingTab {
   plugin: SchreibstubePlugin;
@@ -34,6 +37,137 @@ export class SchreibstubeSettingTab extends PluginSettingTab {
             await this.plugin.saveSettings();
             this.plugin.requestOverlayRefresh();
           });
+      });
+
+    new Setting(containerEl).setName("Rename file from content").setHeading();
+
+    new Setting(containerEl)
+      .setName("LLM provider")
+      .setDesc("Provider used to generate the filename.")
+      .addDropdown((dropdown) => {
+        dropdown
+          .addOption("anthropic", "Anthropic")
+          .addOption("openai", "OpenAI")
+          .addOption("google", "Google")
+          .setValue(this.plugin.settings.renameProvider)
+          .onChange(async (value) => {
+            const provider = value as LlmProvider;
+            this.plugin.settings = normalizeSettings({
+              ...this.plugin.settings,
+              renameProvider: provider,
+              renameModel: PROVIDER_MODELS[provider][0].value,
+            });
+            await this.plugin.saveSettings();
+            this.display();
+          });
+      });
+
+    const models = PROVIDER_MODELS[this.plugin.settings.renameProvider];
+    new Setting(containerEl)
+      .setName("Model")
+      .addDropdown((dropdown) => {
+        models.forEach((m) => dropdown.addOption(m.value, m.label));
+        dropdown
+          .setValue(this.plugin.settings.renameModel)
+          .onChange(async (value) => {
+            this.plugin.settings = normalizeSettings({
+              ...this.plugin.settings,
+              renameModel: value,
+            });
+            await this.plugin.saveSettings();
+          });
+      });
+
+    const secretId = secretStorageKey(this.plugin.settings.renameProvider);
+    const currentKey = this.plugin.app.secretStorage.getSecret(secretId) ?? "";
+    new Setting(containerEl)
+      .setName("API key")
+      .setDesc(
+        currentKey
+          ? "Key is saved. Enter a new value to replace it."
+          : "Enter your API key for the selected provider."
+      )
+      .addText((text) => {
+        text
+          .setValue(currentKey)
+          .setPlaceholder("Paste API key here…")
+          .onChange((value) => {
+            this.plugin.app.secretStorage.setSecret(secretId, value);
+          });
+        text.inputEl.type = "password";
+        text.inputEl.style.width = "240px";
+      })
+      .addButton((btn) => {
+        btn
+          .setButtonText("Clear")
+          .setDisabled(!currentKey)
+          .onClick(() => {
+            this.plugin.app.secretStorage.setSecret(secretId, "");
+            this.display();
+          });
+      });
+
+    new Setting(containerEl)
+      .setName("Minimum content length")
+      .setDesc(
+        "The rename command does nothing if the note has fewer characters than this."
+      )
+      .addText((text) => {
+        text.setValue(String(this.plugin.settings.renameMinContentChars));
+        text.inputEl.type = "number";
+        text.inputEl.min = "1";
+        text.inputEl.style.width = "80px";
+        text.inputEl.addEventListener("blur", async () => {
+          const n = parseInt(text.inputEl.value, 10);
+          if (Number.isInteger(n) && n > 0) {
+            this.plugin.settings = normalizeSettings({
+              ...this.plugin.settings,
+              renameMinContentChars: n,
+            });
+            await this.plugin.saveSettings();
+          }
+        });
+      });
+
+    new Setting(containerEl)
+      .setName("Maximum content sent to LLM")
+      .setDesc("Number of characters from the beginning of the note sent to the LLM.")
+      .addText((text) => {
+        text.setValue(String(this.plugin.settings.renameMaxContentChars));
+        text.inputEl.type = "number";
+        text.inputEl.min = "100";
+        text.inputEl.style.width = "80px";
+        text.inputEl.addEventListener("blur", async () => {
+          const n = parseInt(text.inputEl.value, 10);
+          if (Number.isInteger(n) && n > 0) {
+            this.plugin.settings = normalizeSettings({
+              ...this.plugin.settings,
+              renameMaxContentChars: n,
+            });
+            await this.plugin.saveSettings();
+          }
+        });
+      });
+
+    new Setting(containerEl)
+      .setName("Maximum filename length")
+      .setDesc("Generated filename will be truncated to this many characters.")
+      .addText((text) => {
+        text.setValue(String(this.plugin.settings.renameMaxFilenameLength));
+        text.inputEl.type = "number";
+        text.inputEl.min = "10";
+        text.inputEl.max = "255";
+        text.inputEl.style.width = "80px";
+        text.inputEl.addEventListener("blur", async () => {
+          const n = parseInt(text.inputEl.value, 10);
+          if (Number.isInteger(n) && n > 0) {
+            this.plugin.settings = normalizeSettings({
+              ...this.plugin.settings,
+              renameMaxFilenameLength: n,
+            });
+            await this.plugin.saveSettings();
+          }
+        });
       });
   }
 }
