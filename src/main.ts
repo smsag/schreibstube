@@ -1,5 +1,5 @@
 import { MarkdownView, Notice, Plugin, normalizePath } from "obsidian";
-import { resolveAncestorStack, resolveSiblingHeadings } from "./services/ancestor-stack";
+import { resolveAncestorStack } from "./services/ancestor-stack";
 import { buildHeadingIndex } from "./services/heading-index";
 import {
   reduceMouseLeaveCollapse,
@@ -17,14 +17,13 @@ import { bootstrapSchreibstubeRuntime } from "./services/plugin-bootstrap";
 import { DEFAULT_SETTINGS, normalizeSettings } from "./services/plugin-settings";
 import { generateRenameFilename, sanitizeFilename, secretStorageKey } from "./services/llm-rename";
 import { SchreibstubeSettingTab } from "./settings";
-import type { HeadingEntry, HeadingLevel, SchreibstubeSettings } from "./types";
+import type { HeadingEntry, SchreibstubeSettings } from "./types";
 
 export default class SchreibstubePlugin extends Plugin {
   settings: SchreibstubeSettings = DEFAULT_SETTINGS;
   private viewportTopLine = 0;
   private headingIndex: HeadingEntry[] = [];
   private ancestorStack: HeadingEntry[] = [];
-  private expandedLevel: HeadingLevel | null = null;
   private lastRenderSignature = "";
   private overlayCoordinator = new OverlayCoordinator();
   private refreshScheduler: RefreshScheduler | null = null;
@@ -54,7 +53,8 @@ export default class SchreibstubePlugin extends Plugin {
       },
       onGlobalPointerDown: (event) => {
         this.handleGlobalPointerDown(event);
-      }
+      },
+      getSettings: () => this.settings,
     });
 
     this.addSettingTab(new SchreibstubeSettingTab(this.app, this));
@@ -121,13 +121,6 @@ export default class SchreibstubePlugin extends Plugin {
 
     this.ancestorStack = resolveAncestorStack(this.headingIndex, resolvedViewportTopLine);
 
-    if (
-      this.expandedLevel !== null &&
-      !this.ancestorStack.some((entry) => entry.level === this.expandedLevel)
-    ) {
-      this.expandedLevel = null;
-    }
-
     this.renderOverlay();
   }
 
@@ -138,26 +131,13 @@ export default class SchreibstubePlugin extends Plugin {
       return;
     }
 
-    const sig =
-      this.ancestorStack.map(e => `${e.level}:${e.lineNumber}`).join("|") +
-      `|exp:${this.expandedLevel}`;
+    const sig = this.ancestorStack.map(e => `${e.level}:${e.lineNumber}`).join("|");
     if (sig === this.lastRenderSignature) return;
-
-    const siblings =
-      this.expandedLevel === null
-        ? []
-        : resolveSiblingHeadings(this.headingIndex, this.ancestorStack, this.expandedLevel);
 
     const rendered = this.overlayCoordinator.renderForView(
       view,
-      {
-        ancestorStack: this.ancestorStack,
-        expandedLevel: this.expandedLevel,
-        siblings,
-        maxVisibleRows: this.settings.overlayMaxVisibleRows
-      },
-      (event) => this.handleOverlayRowEvent(event),
-      () => this.handleOverlayMouseLeave()
+      { ancestorStack: this.ancestorStack },
+      (event) => this.handleOverlayRowEvent(event)
     );
 
     if (!rendered) {
@@ -175,12 +155,10 @@ export default class SchreibstubePlugin extends Plugin {
 
   private handleOverlayRowEvent(event: OverlayRowEvent): void {
     const result = reduceOverlayRowEvent(
-      { expandedLevel: this.expandedLevel },
+      {},
       event,
       this.isTouchDevice()
     );
-
-    this.expandedLevel = result.nextExpandedLevel;
 
     if (result.navigateToLine !== null) {
       this.navigateToLine(result.navigateToLine);
@@ -194,11 +172,10 @@ export default class SchreibstubePlugin extends Plugin {
 
   private handleOverlayMouseLeave(): void {
     const result = reduceMouseLeaveCollapse(
-      { expandedLevel: this.expandedLevel },
+      {},
       this.isTouchDevice()
     );
 
-    this.expandedLevel = result.nextExpandedLevel;
     if (result.shouldRender) {
       this.renderOverlay();
     }
@@ -228,12 +205,11 @@ export default class SchreibstubePlugin extends Plugin {
 
   private handleGlobalPointerDown(event: PointerEvent): void {
     const result = reduceOutsideTapCollapse(
-      { expandedLevel: this.expandedLevel },
+      {},
       this.isTouchDevice(),
       this.overlayCoordinator.contains(event.target)
     );
 
-    this.expandedLevel = result.nextExpandedLevel;
     if (result.shouldRender) {
       this.renderOverlay();
     }

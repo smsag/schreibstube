@@ -18,6 +18,7 @@ export interface OverlayState {
 }
 
 export interface SchreibstubeSettings {
+  overlayMaxVisibleRows: number;
   focusMode: FocusMode;
   focusDimOpacity: number;
   renameProvider: LlmProvider;
