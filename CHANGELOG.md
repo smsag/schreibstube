@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## 1.1.6 - 2026-06-12
+
+### Added
+
+- **Rename image from content** command — works the same as the existing text rename, but for images open in Obsidian. The image is resized to a configurable maximum dimension (default 768 px) before being sent to the LLM, keeping costs low. All vault links to the file are updated automatically.
+- New **Max image size** setting (256–2048 px) under _Rename file from content_ in Settings.
+- Supported formats: jpg, png, gif, webp. SVG and BMP are not supported by vision APIs and show a notice.
+
 ## 1.1.5 - 2026-06-12
 
 ### Fixed

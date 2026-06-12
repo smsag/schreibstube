@@ -1,7 +1,7 @@
 {
   "id": "schreibstube",
   "name": "Schreibstube",
-  "version": "1.1.5",
+  "version": "1.1.6",
   "minAppVersion": "1.11.4",
   "description": "Sticky context-aware heading stack overlay for long notes.",
   "author": "Schreibstube",
