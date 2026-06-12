@@ -2,7 +2,9 @@ import { App, PluginSettingTab, SecretComponent, Setting } from "obsidian";
 import type SchreibstubePlugin from "./main";
 import type { LlmProvider } from "./types";
 import {
+  MAX_IMAGE_PX,
   MAX_OVERLAY_VISIBLE_ROWS,
+  MIN_IMAGE_PX,
   MIN_OVERLAY_VISIBLE_ROWS,
   PROVIDER_MODELS,
   normalizeSettings
@@ -53,6 +55,23 @@ export class SchreibstubeSettingTab extends PluginSettingTab {
       });
 
     new Setting(containerEl).setName("Rename file from content").setHeading();
+
+    new Setting(containerEl)
+      .setName("Max image size")
+      .setDesc("Images are resized to this maximum dimension (px) before being sent. Smaller = cheaper and faster.")
+      .addSlider((slider) => {
+        slider
+          .setDynamicTooltip()
+          .setLimits(MIN_IMAGE_PX, MAX_IMAGE_PX, 128)
+          .setValue(this.plugin.settings.renameMaxImagePx)
+          .onChange(async (value) => {
+            this.plugin.settings = normalizeSettings({
+              ...this.plugin.settings,
+              renameMaxImagePx: value,
+            });
+            await this.plugin.saveSettings();
+          });
+      });
 
     new Setting(containerEl)
       .setName("LLM provider")

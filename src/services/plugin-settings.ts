@@ -7,6 +7,9 @@ import {
 export const MIN_OVERLAY_VISIBLE_ROWS = 3;
 export const MAX_OVERLAY_VISIBLE_ROWS = 20;
 
+export const MIN_IMAGE_PX = 256;
+export const MAX_IMAGE_PX = 2048;
+
 export const PROVIDER_MODELS: Record<LlmProvider, { label: string; value: string }[]> = {
   anthropic: [
     { label: "Claude Haiku 4.5 (recommended)", value: "claude-haiku-4-5-20251001" },
@@ -33,6 +36,7 @@ export const DEFAULT_SETTINGS: SchreibstubeSettings = {
   renameMinContentChars: 50,
   renameMaxContentChars: 4000,
   renameMaxFilenameLength: 60,
+  renameMaxImagePx: 768,
 };
 
 export function normalizeSettings(
@@ -80,10 +84,21 @@ export function normalizeSettings(
       loaded?.renameMaxFilenameLength,
       DEFAULT_SETTINGS.renameMaxFilenameLength
     ),
+    renameMaxImagePx: clampIntOrDefault(
+      loaded?.renameMaxImagePx,
+      MIN_IMAGE_PX,
+      MAX_IMAGE_PX,
+      DEFAULT_SETTINGS.renameMaxImagePx
+    ),
   };
 }
 
 function positiveIntOrDefault(value: unknown, fallback: number): number {
   const n = Number(value);
   return Number.isInteger(n) && n > 0 ? n : fallback;
+}
+
+function clampIntOrDefault(value: unknown, min: number, max: number, fallback: number): number {
+  const n = Number(value);
+  return Number.isInteger(n) ? Math.max(min, Math.min(max, n)) : fallback;
 }
