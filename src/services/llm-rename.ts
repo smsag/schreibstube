@@ -106,7 +106,10 @@ async function callAnthropic(
     }),
   });
 
-  if (!response.ok) throw new Error(`Anthropic API error: ${response.status}`);
+  if (!response.ok) {
+    const body = await response.text().catch(() => "");
+    throw new Error(`Anthropic API error: ${response.status} ${body}`);
+  }
 
   const data = await response.json() as { content?: { text?: string }[] };
   return data.content?.[0]?.text?.trim() ?? "";
@@ -134,7 +137,10 @@ async function callOpenAI(
     }),
   });
 
-  if (!response.ok) throw new Error(`OpenAI API error: ${response.status}`);
+  if (!response.ok) {
+    const body = await response.text().catch(() => "");
+    throw new Error(`OpenAI API error: ${response.status} ${body}`);
+  }
 
   const data = await response.json() as { choices?: { message?: { content?: string } }[] };
   return data.choices?.[0]?.message?.content?.trim() ?? "";
@@ -157,7 +163,10 @@ async function callGoogle(
     }),
   });
 
-  if (!response.ok) throw new Error(`Google API error: ${response.status}`);
+  if (!response.ok) {
+    const body = await response.text().catch(() => "");
+    throw new Error(`Google API error: ${response.status} ${body}`);
+  }
 
   const data = await response.json() as {
     candidates?: { content?: { parts?: { text?: string }[] } }[];
@@ -193,7 +202,10 @@ async function callAnthropicImage(
     }),
   });
 
-  if (!response.ok) throw new Error(`Anthropic API error: ${response.status}`);
+  if (!response.ok) {
+    const body = await response.text().catch(() => "");
+    throw new Error(`Anthropic API error: ${response.status} ${body}`);
+  }
   const data = await response.json() as { content?: { text?: string }[] };
   return data.content?.[0]?.text?.trim() ?? "";
 }
@@ -227,7 +239,10 @@ async function callOpenAIImage(
     }),
   });
 
-  if (!response.ok) throw new Error(`OpenAI API error: ${response.status}`);
+  if (!response.ok) {
+    const body = await response.text().catch(() => "");
+    throw new Error(`OpenAI API error: ${response.status} ${body}`);
+  }
   const data = await response.json() as { choices?: { message?: { content?: string } }[] };
   return data.choices?.[0]?.message?.content?.trim() ?? "";
 }
@@ -255,7 +270,10 @@ async function callGoogleImage(
     }),
   });
 
-  if (!response.ok) throw new Error(`Google API error: ${response.status}`);
+  if (!response.ok) {
+    const body = await response.text().catch(() => "");
+    throw new Error(`Google API error: ${response.status} ${body}`);
+  }
   const data = await response.json() as {
     candidates?: { content?: { parts?: { text?: string }[] } }[];
   };

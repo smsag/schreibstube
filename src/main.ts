@@ -276,8 +276,8 @@ export default class SchreibstubePlugin extends Plugin {
     let proposed: string;
     try {
       proposed = await generateImageRenameFilename(base64Image, mimeType, this.settings, apiKey);
-    } catch {
-      new Notice("Schreibstube: rename failed — could not reach the LLM API.");
+    } catch (err) {
+      new Notice(`Schreibstube: rename failed — ${err instanceof Error ? err.message : "unknown error"}`);
       return;
     }
 
@@ -321,8 +321,8 @@ export default class SchreibstubePlugin extends Plugin {
     let proposed: string;
     try {
       proposed = await generateRenameFilename(truncated, this.settings, apiKey);
-    } catch {
-      new Notice("Schreibstube: rename failed — could not reach the LLM API.");
+    } catch (err) {
+      new Notice(`Schreibstube: rename failed — ${err instanceof Error ? err.message : "unknown error"}`);
       return;
     }
 
