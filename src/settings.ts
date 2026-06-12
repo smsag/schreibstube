@@ -7,6 +7,7 @@ import {
   PROVIDER_MODELS,
   normalizeSettings
 } from "./services/plugin-settings";
+import { MAX_DIM_OPACITY, MIN_DIM_OPACITY } from "./services/focus-settings";
 
 export class SchreibstubeSettingTab extends PluginSettingTab {
   plugin: SchreibstubePlugin;
@@ -35,6 +36,19 @@ export class SchreibstubeSettingTab extends PluginSettingTab {
             });
             await this.plugin.saveSettings();
             this.plugin.requestOverlayRefresh();
+          });
+      });
+
+    new Setting(containerEl)
+      .setName("Dim opacity")
+      .setDesc("Opacity of out-of-focus lines in focus mode (0.2 = very faint, 0.8 = nearly full).")
+      .addSlider((slider) => {
+        slider
+          .setDynamicTooltip()
+          .setLimits(MIN_DIM_OPACITY, MAX_DIM_OPACITY, 0.05)
+          .setValue(this.plugin.settings.focusDimOpacity)
+          .onChange(async (value) => {
+            await this.plugin.updateDimOpacity(value);
           });
       });
 
