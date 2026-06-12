@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## 1.1.7 - 2026-06-12
+
+### Fixed
+
+- **API errors now show the actual provider message.** Previously, any 4xx/5xx response from Anthropic, OpenAI, or Google was surfaced as a generic "could not reach the LLM API" notice. The response body is now included so the real reason (wrong key, quota exhausted, unsupported model, etc.) is visible in Obsidian.
+
+### Improved
+
+- Removed dead code left over from the stack-only overlay refactor (1.0.1): unused interaction state interfaces, no-op collapse reducers, `isTouchDevice()`, the global `pointerdown` listener, and the `overlayMaxVisibleRows` setting that controlled sibling lists that no longer exist.
+
 ## 1.1.6 - 2026-06-12
 
 ### Added
