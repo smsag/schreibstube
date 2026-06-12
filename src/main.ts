@@ -1,4 +1,4 @@
-import { MarkdownView, Notice, Plugin, normalizePath } from "obsidian";
+import { MarkdownView, Notice, Plugin, WorkspaceLeaf, normalizePath } from "obsidian";
 import { resolveAncestorStack } from "./services/ancestor-stack";
 import { buildHeadingIndex } from "./services/heading-index";
 import {
@@ -28,6 +28,9 @@ export default class SchreibstubePlugin extends Plugin {
   private lastRenderSignature = "";
   private overlayCoordinator = new OverlayCoordinator();
   private refreshScheduler: RefreshScheduler | null = null;
+  private linkOpenMode: "default" | "left" | "right" = "default";
+  private linkTargetLeaf: WorkspaceLeaf | null = null;
+  private linkModeStatusEl: HTMLElement | null = null;
 
   async onload(): Promise<void> {
     await this.loadSettings();
@@ -48,6 +51,12 @@ export default class SchreibstubePlugin extends Plugin {
         this.requestOverlayRefresh();
       },
     });
+
+    this.linkModeStatusEl = this.addStatusBarItem();
+    this.updateLinkModeStatus();
+    this.registerDomEvent(document, "click", (e: MouseEvent) => {
+      void this.handleLinkClick(e);
+    }, true);
 
     this.registerCommands();
     this.addSettingTab(new SchreibstubeSettingTab(this.app, this));
@@ -109,6 +118,24 @@ export default class SchreibstubePlugin extends Plugin {
       id: "rename-image-from-content",
       name: "Rename image from content",
       callback: () => { void this.executeRenameImageFromContent(); },
+    });
+
+    this.addCommand({
+      id: "open-links-left",
+      name: "Open links to the left",
+      callback: () => { this.setLinkOpenMode("left"); },
+    });
+
+    this.addCommand({
+      id: "open-links-right",
+      name: "Open links to the right",
+      callback: () => { this.setLinkOpenMode("right"); },
+    });
+
+    this.addCommand({
+      id: "open-links-default",
+      name: "Open links normally",
+      callback: () => { this.setLinkOpenMode("default"); },
     });
   }
 
@@ -235,6 +262,75 @@ export default class SchreibstubePlugin extends Plugin {
     );
     this.viewportTopLine = lineNumber;
     this.queueRefreshForActiveView(this.viewportTopLine);
+  }
+
+  private setLinkOpenMode(mode: "default" | "left" | "right"): void {
+    this.linkOpenMode = mode;
+    this.linkTargetLeaf = null;
+    this.updateLinkModeStatus();
+  }
+
+  private updateLinkModeStatus(): void {
+    if (!this.linkModeStatusEl) return;
+    if (this.linkOpenMode === "default") {
+      this.linkModeStatusEl.style.display = "none";
+      this.linkModeStatusEl.setText("");
+    } else {
+      this.linkModeStatusEl.style.display = "";
+      this.linkModeStatusEl.setText(this.linkOpenMode === "left" ? "← links" : "links →");
+    }
+  }
+
+  private async handleLinkClick(e: MouseEvent): Promise<void> {
+    if (this.linkOpenMode === "default") return;
+
+    const target = e.target as HTMLElement;
+    const linkEl = target.closest("a.internal-link") as HTMLAnchorElement | null;
+    if (!linkEl) return;
+
+    const href = linkEl.dataset.href ?? linkEl.getAttribute("href") ?? "";
+    if (!href || /^https?:\/\//.test(href)) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    // Identify which leaf the click originated in
+    let sourceLeaf: WorkspaceLeaf | null = null;
+    this.app.workspace.iterateAllLeaves((leaf) => {
+      if ((leaf as any).containerEl.contains(target)) sourceLeaf = leaf;
+    });
+    if (!sourceLeaf) return;
+
+    await this.openLinkInSidePane(href, sourceLeaf);
+  }
+
+  private async openLinkInSidePane(linkText: string, sourceLeaf: WorkspaceLeaf): Promise<void> {
+    const sourcePath = sourceLeaf.view instanceof MarkdownView
+      ? (sourceLeaf.view.file?.path ?? "")
+      : "";
+
+    // Separate the file path from any heading/block subpath
+    const subpathMatch = linkText.match(/^([^#^]*)([#^].*)?$/);
+    const linkPath = subpathMatch?.[1] ?? linkText;
+    const subpath = subpathMatch?.[2] ?? "";
+
+    const file = this.app.metadataCache.getFirstLinkpathDest(linkPath || linkText, sourcePath);
+    if (!file) return;
+
+    // Reuse existing side pane if still open, otherwise create one
+    if (this.linkTargetLeaf && !this.linkTargetLeaf.view.containerEl.isConnected) {
+      this.linkTargetLeaf = null;
+    }
+    if (!this.linkTargetLeaf) {
+      const before = this.linkOpenMode === "left";
+      this.linkTargetLeaf = (this.app.workspace as any).createLeafBySplit(sourceLeaf, "vertical", before);
+    }
+
+    const targetLeaf = this.linkTargetLeaf!;
+    await targetLeaf.openFile(file, subpath ? { eState: { subpath } } : undefined);
+
+    // Return focus to the note the user was reading
+    this.app.workspace.setActiveLeaf(sourceLeaf, { focus: true });
   }
 
   private async executeRenameImageFromContent(): Promise<void> {
