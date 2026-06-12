@@ -47,9 +47,6 @@ export default class SchreibstubePlugin extends Plugin {
       onActiveLeafChange: () => {
         this.requestOverlayRefresh();
       },
-      onGlobalPointerDown: (event) => {
-        this.handleGlobalPointerDown(event);
-      },
     });
 
     this.registerCommands();
@@ -213,22 +210,8 @@ export default class SchreibstubePlugin extends Plugin {
   }
 
   private handleOverlayRowEvent(event: OverlayRowEvent): void {
-    const result = reduceOverlayRowEvent({}, event, this.isTouchDevice());
-
-    if (result.navigateToLine !== null) {
-      this.navigateToLine(result.navigateToLine);
-      return;
-    }
-
-    if (result.shouldRender) {
-      this.renderOverlay();
-    }
-  }
-
-  private handleGlobalPointerDown(event: PointerEvent): void {
-    if (!this.overlayCoordinator.contains(event.target)) {
-      // No-op in stack-only mode; kept for bootstrap handler contract.
-    }
+    const line = reduceOverlayRowEvent(event);
+    this.navigateToLine(line);
   }
 
   private navigateToLine(lineNumber: number): void {
@@ -252,10 +235,6 @@ export default class SchreibstubePlugin extends Plugin {
     );
     this.viewportTopLine = lineNumber;
     this.queueRefreshForActiveView(this.viewportTopLine);
-  }
-
-  private isTouchDevice(): boolean {
-    return window.matchMedia("(pointer: coarse)").matches;
   }
 
   private async executeRenameImageFromContent(): Promise<void> {

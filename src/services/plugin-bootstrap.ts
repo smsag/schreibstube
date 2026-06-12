@@ -11,7 +11,6 @@ export interface BootstrapHandlers {
   }) => void;
   getSettings: () => SchreibstubeSettings;
   onActiveLeafChange: () => void;
-  onGlobalPointerDown: (event: PointerEvent) => void;
 }
 
 export function bootstrapSchreibstubeRuntime(
@@ -38,8 +37,4 @@ export function bootstrapSchreibstubeRuntime(
       handlers.onActiveLeafChange();
     })
   );
-
-  plugin.registerDomEvent(document, "pointerdown", (event) => {
-    handlers.onGlobalPointerDown(event);
-  });
 }

@@ -12,13 +12,7 @@ export type FocusMode = "off" | "sentence" | "paragraph";
 
 export type LlmProvider = "anthropic" | "openai" | "google";
 
-export interface OverlayState {
-  ancestorStack: HeadingEntry[];
-  expandedLevel: HeadingLevel | null;
-}
-
 export interface SchreibstubeSettings {
-  overlayMaxVisibleRows: number;
   focusMode: FocusMode;
   focusDimOpacity: number;
   renameProvider: LlmProvider;

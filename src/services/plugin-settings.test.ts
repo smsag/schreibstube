@@ -1,8 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_SETTINGS,
-  MAX_OVERLAY_VISIBLE_ROWS,
-  MIN_OVERLAY_VISIBLE_ROWS,
   normalizeSettings
 } from "./plugin-settings";
 
@@ -22,18 +20,6 @@ describe("normalizeSettings", () => {
       renameModel: "gpt-4o",
     };
     expect(normalizeSettings(valid)).toEqual(valid);
-  });
-
-  it("clamps overlay rows to minimum", () => {
-    expect(normalizeSettings({ overlayMaxVisibleRows: 0 })).toMatchObject({
-      overlayMaxVisibleRows: MIN_OVERLAY_VISIBLE_ROWS,
-    });
-  });
-
-  it("clamps overlay rows to maximum", () => {
-    expect(normalizeSettings({ overlayMaxVisibleRows: 999 })).toMatchObject({
-      overlayMaxVisibleRows: MAX_OVERLAY_VISIBLE_ROWS,
-    });
   });
 
   it("falls back to default provider for an unknown provider value", () => {

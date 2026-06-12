@@ -4,9 +4,6 @@ import {
   normalizeFocusSettings
 } from "./focus-settings";
 
-export const MIN_OVERLAY_VISIBLE_ROWS = 3;
-export const MAX_OVERLAY_VISIBLE_ROWS = 20;
-
 export const MIN_IMAGE_PX = 256;
 export const MAX_IMAGE_PX = 2048;
 
@@ -28,7 +25,6 @@ export const PROVIDER_MODELS: Record<LlmProvider, { label: string; value: string
 const ALLOWED_PROVIDERS = new Set<LlmProvider>(["anthropic", "openai", "google"]);
 
 export const DEFAULT_SETTINGS: SchreibstubeSettings = {
-  overlayMaxVisibleRows: 6,
   ...DEFAULT_FOCUS_SETTINGS,
   renameProvider: "anthropic",
   renameModel: "claude-haiku-4-5-20251001",
@@ -42,16 +38,7 @@ export const DEFAULT_SETTINGS: SchreibstubeSettings = {
 export function normalizeSettings(
   loaded: Partial<SchreibstubeSettings> | null | undefined
 ): SchreibstubeSettings {
-  const merged = Object.assign({}, DEFAULT_SETTINGS, loaded);
   const focus = normalizeFocusSettings(loaded);
-
-  const candidateRows = Number(merged.overlayMaxVisibleRows);
-  const overlayMaxVisibleRows = Number.isFinite(candidateRows)
-    ? Math.max(
-        MIN_OVERLAY_VISIBLE_ROWS,
-        Math.min(MAX_OVERLAY_VISIBLE_ROWS, Math.floor(candidateRows))
-      )
-    : DEFAULT_SETTINGS.overlayMaxVisibleRows;
 
   const loadedProvider = loaded?.renameProvider ?? "";
   const provider: LlmProvider = ALLOWED_PROVIDERS.has(loadedProvider as LlmProvider)
@@ -67,7 +54,6 @@ export function normalizeSettings(
     typeof loaded?.renameSecretName === "string" ? loaded.renameSecretName : DEFAULT_SETTINGS.renameSecretName;
 
   return {
-    overlayMaxVisibleRows,
     ...focus,
     renameProvider: provider,
     renameModel: model,
