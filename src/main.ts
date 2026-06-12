@@ -31,6 +31,8 @@ export default class SchreibstubePlugin extends Plugin {
   private linkOpenMode: "default" | "left" | "right" = "default";
   private linkTargetLeaf: WorkspaceLeaf | null = null;
   private linkModeStatusEl: HTMLElement | null = null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private originalOpenLinkText: ((...args: any[]) => Promise<void>) | null = null;
 
   async onload(): Promise<void> {
     await this.loadSettings();
@@ -58,12 +60,14 @@ export default class SchreibstubePlugin extends Plugin {
       void this.handleLinkClick(e);
     }, true);
 
+    this.patchOpenLinkText();
     this.registerCommands();
     this.addSettingTab(new SchreibstubeSettingTab(this.app, this));
     this.requestOverlayRefresh();
   }
 
   onunload(): void {
+    this.unpatchOpenLinkText();
     this.clearOverlay();
   }
 
@@ -262,6 +266,34 @@ export default class SchreibstubePlugin extends Plugin {
     );
     this.viewportTopLine = lineNumber;
     this.queueRefreshForActiveView(this.viewportTopLine);
+  }
+
+  private patchOpenLinkText(): void {
+    const ws = this.app.workspace as any;
+    this.originalOpenLinkText = ws.openLinkText.bind(ws);
+    ws.openLinkText = async (linkText: string, sourcePath: string, newLeaf?: unknown, openViewState?: unknown) => {
+      if (this.linkOpenMode !== "default") {
+        const leaves = this.app.workspace.getLeavesOfType("markdown");
+        let sourceLeaf: WorkspaceLeaf | null = null;
+        for (const leaf of leaves) {
+          if ((leaf.view as MarkdownView).file?.path === sourcePath) {
+            sourceLeaf = leaf;
+            break;
+          }
+        }
+        if (!sourceLeaf) sourceLeaf = this.app.workspace.getMostRecentLeaf();
+        if (sourceLeaf) await this.openLinkInSidePane(linkText, sourceLeaf);
+      } else {
+        return this.originalOpenLinkText!(linkText, sourcePath, newLeaf, openViewState);
+      }
+    };
+  }
+
+  private unpatchOpenLinkText(): void {
+    if (this.originalOpenLinkText) {
+      (this.app.workspace as any).openLinkText = this.originalOpenLinkText;
+      this.originalOpenLinkText = null;
+    }
   }
 
   private setLinkOpenMode(mode: "default" | "left" | "right"): void {
