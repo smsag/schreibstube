@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## 1.1.8 - 2026-06-12
+
+### Added
+
+- **Directional link-open commands** — three new commands for focused reading sessions:
+  - **Open links to the left** — while active, every internal link you click opens in a vertical split to the left; focus returns to your reading pane automatically.
+  - **Open links to the right** — same, but right.
+  - **Open links normally** — restores Obsidian's default behaviour.
+  - The side pane is reused for subsequent clicks (no pane accumulation). Links with heading or block subpaths (`[[Note#heading]]`, `[[Note^block]]`) scroll to the correct position.
+  - A status-bar chip (`← links` / `links →`) shows which mode is active.
+
 ## 1.1.7 - 2026-06-12
 
 ### Fixed
