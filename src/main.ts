@@ -115,7 +115,7 @@ export default class SchreibstubePlugin extends Plugin {
     this.addCommand({
       id: "rename-from-content",
       name: "Rename file from content",
-      editorCallback: () => { void this.executeRenameFromContent(); },
+      callback: () => { void this.executeRenameFromContent(); },
     });
 
     this.addCommand({
