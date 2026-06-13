@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## 1.1.10 - 2026-06-13
+
+### Fixed
+
+- **Rename file from content** command is now visible in reading mode, when a side panel has focus, and on mobile. It previously used `editorCallback` which only registers the command while an editor is focused; it now uses `callback` like the image rename command.
+
 ## 1.1.9 - 2026-06-12
 
 ### Fixed
