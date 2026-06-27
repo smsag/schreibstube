@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## 1.1.11 - 2026-06-27
+
+### Improved
+
+- **Document tree outline** strips Markdown formatting (bold, italic, inline code, links, wikilinks) from heading text so it renders cleanly in the overlay.
+- **Tree connector indicators** replace hash prefixes in the outline overlay. Ancestor headings appear in muted colour with `│`/`└─` connectors; the current (innermost) heading is highlighted in accent colour, making your position in the document immediately visible.
+
 ## 1.1.10 - 2026-06-13
 
 ### Fixed
