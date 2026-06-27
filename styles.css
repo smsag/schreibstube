@@ -66,6 +66,7 @@
 .schreibstube-overlay-connector {
   font-family: var(--font-monospace);
   color: var(--text-faint);
+  white-space: pre;
 }
 
 .schreibstube-overlay-row:hover {

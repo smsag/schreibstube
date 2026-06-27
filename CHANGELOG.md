@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## 1.1.13 - 2026-06-27
+
+### Fixed
+
+- **Outline indent beyond 3rd level** was broken: the connector span inherited `white-space: nowrap` from its parent, which collapses consecutive spaces. Added `white-space: pre` to the connector span so every indent level renders at the correct depth.
+
 ## 1.1.12 - 2026-06-27
 
 ### Fixed
