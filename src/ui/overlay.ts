@@ -63,7 +63,7 @@ export class OverlayController {
       row.dataset.level = String(entry.level);
       row.dataset.text = entry.text;
 
-      const connector = i === 0 ? "" : "│  ".repeat(i - 1) + "└─ ";
+      const connector = i === 0 ? "" : "   ".repeat(i - 1) + "└─ ";
       if (connector) {
         row.createSpan({ cls: "schreibstube-overlay-connector", text: connector });
       }

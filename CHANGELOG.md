@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## 1.1.12 - 2026-06-27
+
+### Fixed
+
+- **Outline tree connectors** no longer show a redundant leading `│` on deeper levels. The path now renders as clean indented `└─` entries:
+  ```
+  Chapter
+  └─ Section
+     └─ Subsection
+  ```
+
 ## 1.1.11 - 2026-06-27
 
 ### Improved
