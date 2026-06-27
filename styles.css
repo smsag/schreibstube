@@ -51,22 +51,30 @@
 }
 
 .schreibstube-overlay-row {
-  --schreibstube-level: 1;
   font-size: var(--font-ui-small);
   line-height: 1.35;
   color: var(--text-normal);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  padding: 2px 6px;
-  padding-left: calc(8px + (var(--schreibstube-level) - 1) * 12px);
+  padding: 2px 8px;
   border-radius: 4px;
   cursor: pointer;
   background: transparent;
 }
 
+.schreibstube-overlay-connector {
+  font-family: var(--font-monospace);
+  color: var(--text-faint);
+}
+
 .schreibstube-overlay-row:hover {
   background: transparent;
+}
+
+.schreibstube-overlay-row.is-ancestor {
+  color: var(--text-muted);
+  font-weight: normal;
 }
 
 .schreibstube-overlay-row.is-current {

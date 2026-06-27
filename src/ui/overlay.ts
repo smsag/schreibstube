@@ -50,17 +50,24 @@ export class OverlayController {
 
     this.container.classList.remove("is-hidden");
 
-    for (const entry of input.ancestorStack) {
+    const lastIndex = input.ancestorStack.length - 1;
+
+    for (let i = 0; i < input.ancestorStack.length; i++) {
+      const entry = input.ancestorStack[i];
+      const isLast = i === lastIndex;
+
       const row = this.listEl.createEl("li", {
-        cls: "schreibstube-overlay-row schreibstube-overlay-row-ancestor is-current"
+        cls: `schreibstube-overlay-row schreibstube-overlay-row-ancestor ${isLast ? "is-current" : "is-ancestor"}`
       });
-      row.style.setProperty("--schreibstube-level", String(entry.level));
       row.dataset.lineNumber = String(entry.lineNumber);
       row.dataset.level = String(entry.level);
       row.dataset.text = entry.text;
 
-      const prefix = "#".repeat(entry.level);
-      row.setText(`${prefix} ${entry.text}`);
+      const connector = i === 0 ? "" : "│  ".repeat(i - 1) + "└─ ";
+      if (connector) {
+        row.createSpan({ cls: "schreibstube-overlay-connector", text: connector });
+      }
+      row.createSpan({ cls: "schreibstube-overlay-text", text: entry.text });
     }
   }
 
