@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## 1.3.0 - 2026-08-28
+
+### Changed
+
+- **The heading-stack overlay is now ancestor-only.** It shows the chain of headings above the current viewport so you can see where you are in the document, and clicking a row jumps to that heading. Sibling expansion — hovering or tapping an ancestor to browse and jump between headings at the same level — has been removed, along with the **Max visible rows** setting. The **Enable heading stack overlay** toggle and click-to-navigate remain.
+
 ## 1.2.0 - 2026-08-28
 
 ### Added
