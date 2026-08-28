@@ -83,6 +83,31 @@
   font-weight: 600;
 }
 
+.schreibstube-overlay-row-ancestor.is-expanded {
+  font-weight: 600;
+}
+
+.schreibstube-overlay-siblings-wrap {
+  margin: 2px 0 4px;
+}
+
+.schreibstube-overlay-siblings {
+  list-style: none;
+  margin: 0;
+  padding: 2px;
+  overflow-y: auto;
+  border-left: 2px solid var(--background-modifier-border);
+}
+
+.schreibstube-overlay-row-sibling {
+  margin-left: 4px;
+}
+
+.schreibstube-overlay-row-sibling.is-current {
+  color: var(--text-accent);
+  background: var(--background-modifier-active-hover);
+}
+
 .schreibstube-focus-enabled .cm-line.schreibstube-focus-dimmed {
   opacity: var(--schreibstube-focus-dim-opacity);
 }

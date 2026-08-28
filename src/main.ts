@@ -1,7 +1,9 @@
 import { MarkdownView, Notice, Plugin, WorkspaceLeaf, normalizePath } from "obsidian";
-import { resolveAncestorStack } from "./services/ancestor-stack";
+import { resolveAncestorStack, resolveSiblingHeadings } from "./services/ancestor-stack";
 import { buildHeadingIndex } from "./services/heading-index";
 import {
+  reduceMouseLeaveCollapse,
+  reduceOutsideTapCollapse,
   reduceOverlayRowEvent,
   type OverlayRowEvent
 } from "./services/overlay-interaction";
@@ -16,7 +18,7 @@ import { DEFAULT_SETTINGS, normalizeSettings } from "./services/plugin-settings"
 import { generateImageRenameFilename, generateRenameFilename, sanitizeFilename } from "./services/llm-rename";
 import { MAX_IMAGE_BYTES, getImageMimeType, resizeImageToBase64 } from "./services/image-resize";
 import { SchreibstubeSettingTab } from "./settings";
-import type { FocusMode, HeadingEntry, SchreibstubeSettings } from "./types";
+import type { FocusMode, HeadingEntry, HeadingLevel, SchreibstubeSettings } from "./types";
 
 export default class SchreibstubePlugin extends Plugin {
   settings: SchreibstubeSettings = DEFAULT_SETTINGS;
@@ -25,6 +27,7 @@ export default class SchreibstubePlugin extends Plugin {
   private headingIndex: HeadingEntry[] = [];
   private lastIndexedContent = "";
   private ancestorStack: HeadingEntry[] = [];
+  private expandedLevel: HeadingLevel | null = null;
   private lastRenderSignature = "";
   private overlayCoordinator = new OverlayCoordinator();
   private refreshScheduler: RefreshScheduler | null = null;
@@ -51,6 +54,9 @@ export default class SchreibstubePlugin extends Plugin {
       getSettings: () => this.settings,
       onActiveLeafChange: () => {
         this.requestOverlayRefresh();
+      },
+      onGlobalPointerDown: (event) => {
+        this.handleGlobalPointerDown(event);
       },
     });
 
@@ -181,6 +187,7 @@ export default class SchreibstubePlugin extends Plugin {
     if (didViewChange) {
       this.currentView = view;
       this.viewportTopLine = 0;
+      this.expandedLevel = null;
       this.lastRenderSignature = "";
     }
 
@@ -206,6 +213,14 @@ export default class SchreibstubePlugin extends Plugin {
     }
 
     this.ancestorStack = resolveAncestorStack(this.headingIndex, resolvedViewportTopLine);
+
+    if (
+      this.expandedLevel !== null &&
+      !this.ancestorStack.some((entry) => entry.level === this.expandedLevel)
+    ) {
+      this.expandedLevel = null;
+    }
+
     this.renderOverlay(view);
   }
 
@@ -215,15 +230,27 @@ export default class SchreibstubePlugin extends Plugin {
       return;
     }
 
-    const sig = this.ancestorStack
-      .map((e) => `${e.level}:${e.lineNumber}:${e.text}`)
-      .join("|");
+    const sig =
+      this.ancestorStack
+        .map((e) => `${e.level}:${e.lineNumber}:${e.text}`)
+        .join("|") + `|exp:${this.expandedLevel}`;
     if (sig === this.lastRenderSignature) return;
+
+    const siblings =
+      this.expandedLevel === null
+        ? []
+        : resolveSiblingHeadings(this.headingIndex, this.ancestorStack, this.expandedLevel);
 
     const rendered = this.overlayCoordinator.renderForView(
       view,
-      { ancestorStack: this.ancestorStack },
-      (event) => this.handleOverlayRowEvent(event)
+      {
+        ancestorStack: this.ancestorStack,
+        expandedLevel: this.expandedLevel,
+        siblings,
+        maxVisibleRows: this.settings.overlayMaxVisibleRows
+      },
+      (event) => this.handleOverlayRowEvent(event),
+      () => this.handleOverlayMouseLeave()
     );
 
     if (!rendered) {
@@ -241,8 +268,51 @@ export default class SchreibstubePlugin extends Plugin {
   }
 
   private handleOverlayRowEvent(event: OverlayRowEvent): void {
-    const line = reduceOverlayRowEvent(event);
-    this.navigateToLine(line);
+    const result = reduceOverlayRowEvent(
+      { expandedLevel: this.expandedLevel },
+      event,
+      this.isTouchDevice()
+    );
+
+    this.expandedLevel = result.nextExpandedLevel;
+
+    if (result.navigateToLine !== null) {
+      this.navigateToLine(result.navigateToLine);
+      return;
+    }
+
+    if (result.shouldRender) {
+      this.renderOverlay();
+    }
+  }
+
+  private handleOverlayMouseLeave(): void {
+    const result = reduceMouseLeaveCollapse(
+      { expandedLevel: this.expandedLevel },
+      this.isTouchDevice()
+    );
+
+    this.expandedLevel = result.nextExpandedLevel;
+    if (result.shouldRender) {
+      this.renderOverlay();
+    }
+  }
+
+  private handleGlobalPointerDown(event: PointerEvent): void {
+    const result = reduceOutsideTapCollapse(
+      { expandedLevel: this.expandedLevel },
+      this.isTouchDevice(),
+      this.overlayCoordinator.contains(event.target)
+    );
+
+    this.expandedLevel = result.nextExpandedLevel;
+    if (result.shouldRender) {
+      this.renderOverlay();
+    }
+  }
+
+  private isTouchDevice(): boolean {
+    return window.matchMedia("(pointer: coarse)").matches;
   }
 
   private navigateToLine(lineNumber: number): void {

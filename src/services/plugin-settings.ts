@@ -4,6 +4,9 @@ import {
   normalizeFocusSettings
 } from "./focus-settings";
 
+export const MIN_OVERLAY_VISIBLE_ROWS = 3;
+export const MAX_OVERLAY_VISIBLE_ROWS = 20;
+
 export const MIN_IMAGE_PX = 256;
 export const MAX_IMAGE_PX = 2048;
 
@@ -26,6 +29,7 @@ const ALLOWED_PROVIDERS = new Set<LlmProvider>(["anthropic", "openai", "google"]
 
 export const DEFAULT_SETTINGS: SchreibstubeSettings = {
   ...DEFAULT_FOCUS_SETTINGS,
+  overlayMaxVisibleRows: 6,
   renameProvider: "anthropic",
   renameModel: "claude-haiku-4-5-20251001",
   renameSecretName: "",
@@ -55,6 +59,12 @@ export function normalizeSettings(
 
   return {
     ...focus,
+    overlayMaxVisibleRows: clampIntOrDefault(
+      loaded?.overlayMaxVisibleRows,
+      MIN_OVERLAY_VISIBLE_ROWS,
+      MAX_OVERLAY_VISIBLE_ROWS,
+      DEFAULT_SETTINGS.overlayMaxVisibleRows
+    ),
     renameProvider: provider,
     renameModel: model,
     renameSecretName,
