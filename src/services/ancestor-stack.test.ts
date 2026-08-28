@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolveAncestorStack, resolveSiblingHeadings } from "./ancestor-stack";
+import { resolveAncestorStack } from "./ancestor-stack";
 import type { HeadingIndex } from "../types";
 
 const index: HeadingIndex = [
@@ -53,20 +53,5 @@ describe("resolveAncestorStack", () => {
       { level: 2, text: "Orphan", lineNumber: 2 },
       { level: 4, text: "Deep", lineNumber: 6 }
     ]);
-  });
-});
-
-describe("resolveSiblingHeadings", () => {
-  it("returns siblings only from the same parent branch", () => {
-    const stack = resolveAncestorStack(index, 13);
-    expect(resolveSiblingHeadings(index, stack, 2)).toEqual([
-      { level: 2, text: "A.1", lineNumber: 3 },
-      { level: 2, text: "A.2", lineNumber: 10 }
-    ]);
-  });
-
-  it("returns empty when level is not active in stack", () => {
-    const stack = resolveAncestorStack(index, 21);
-    expect(resolveSiblingHeadings(index, stack, 3)).toEqual([]);
   });
 });

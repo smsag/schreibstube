@@ -3,9 +3,7 @@ import type SchreibstubePlugin from "./main";
 import type { LlmProvider } from "./types";
 import {
   MAX_IMAGE_PX,
-  MAX_OVERLAY_VISIBLE_ROWS,
   MIN_IMAGE_PX,
-  MIN_OVERLAY_VISIBLE_ROWS,
   normalizeSettings
 } from "./services/plugin-settings";
 import { LLM_PROVIDER_IDS, PROVIDER_MODELS, providerLabel } from "./services/llm-providers";
@@ -35,24 +33,6 @@ export class SchreibstubeSettingTab extends PluginSettingTab {
             this.plugin.settings = normalizeSettings({
               ...this.plugin.settings,
               overlayEnabled: value
-            });
-            await this.plugin.saveSettings();
-            this.plugin.requestOverlayRefresh();
-          });
-      });
-
-    new Setting(containerEl)
-      .setName("Max visible rows")
-      .setDesc("Maximum number of rows visible in expanded sibling lists.")
-      .addSlider((slider) => {
-        slider
-          .setDynamicTooltip()
-          .setLimits(MIN_OVERLAY_VISIBLE_ROWS, MAX_OVERLAY_VISIBLE_ROWS, 1)
-          .setValue(this.plugin.settings.overlayMaxVisibleRows)
-          .onChange(async (value) => {
-            this.plugin.settings = normalizeSettings({
-              ...this.plugin.settings,
-              overlayMaxVisibleRows: value
             });
             await this.plugin.saveSettings();
             this.plugin.requestOverlayRefresh();

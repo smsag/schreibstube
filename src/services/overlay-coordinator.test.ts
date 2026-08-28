@@ -20,14 +20,11 @@ describe("OverlayCoordinator", () => {
     } as unknown as MarkdownView;
 
     const input = {
-      ancestorStack: [],
-      expandedLevel: null,
-      siblings: [],
-      maxVisibleRows: 6
+      ancestorStack: []
     };
 
-    coordinator.renderForView(view, input, () => {}, () => {});
-    coordinator.renderForView(view, input, () => {}, () => {});
+    coordinator.renderForView(view, input, () => {});
+    coordinator.renderForView(view, input, () => {});
 
     expect(createSpy).toHaveBeenCalledTimes(1);
   });
@@ -67,14 +64,11 @@ describe("OverlayCoordinator", () => {
     } as unknown as MarkdownView;
 
     const input = {
-      ancestorStack: [],
-      expandedLevel: null,
-      siblings: [],
-      maxVisibleRows: 6
+      ancestorStack: []
     };
 
-    coordinator.renderForView(viewA, input, () => {}, () => {});
-    coordinator.renderForView(viewB, input, () => {}, () => {});
+    coordinator.renderForView(viewA, input, () => {});
+    coordinator.renderForView(viewB, input, () => {});
 
     expect(createSpy).toHaveBeenCalledTimes(2);
     expect(destroyA).toHaveBeenCalledTimes(1);
@@ -102,14 +96,11 @@ describe("OverlayCoordinator", () => {
     } as unknown as MarkdownView;
 
     const input = {
-      ancestorStack: [],
-      expandedLevel: null,
-      siblings: [],
-      maxVisibleRows: 6
+      ancestorStack: []
     };
 
-    coordinator.renderForView(withHost, input, () => {}, () => {});
-    const rendered = coordinator.renderForView(noHost, input, () => {}, () => {});
+    coordinator.renderForView(withHost, input, () => {});
+    const rendered = coordinator.renderForView(noHost, input, () => {});
 
     expect(rendered).toBe(false);
     expect(destroySpy).toHaveBeenCalledTimes(1);

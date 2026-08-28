@@ -6,7 +6,7 @@ A writing-focused Obsidian plugin: a sticky heading-stack overlay, a distraction
 
 ### Heading stack overlay
 
-Keeps a sticky, context-aware heading breadcrumb at the top of the active note as you scroll. Shows the ancestor headings above the current viewport position. Click or hover an ancestor to expand its siblings and jump to any heading at the same level. The overlay can be turned off entirely in settings.
+Keeps a sticky, context-aware heading breadcrumb at the top of the active note as you scroll. Shows the ancestor headings above the current viewport position, so you always see where you are in the document's hierarchy. Click an ancestor to jump to that heading. The overlay can be turned off entirely in settings.
 
 ### Focus mode
 
@@ -41,7 +41,6 @@ Control where internal links open, indicated in the status bar:
 | Setting | Description | Default |
 |---|---|---|
 | Enable heading stack overlay | Show or hide the sticky ancestor breadcrumb | On |
-| Max visible rows | Maximum rows shown in an expanded sibling list | 6 |
 
 ### Focus mode
 
