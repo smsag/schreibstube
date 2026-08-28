@@ -1,18 +1,38 @@
 # Schreibstube
 
-An Obsidian plugin with two writing-focused features: a sticky heading-stack overlay and an LLM-powered file rename command.
+A writing-focused Obsidian plugin: a sticky heading-stack overlay, a distraction-reducing focus mode, LLM-powered file renaming, and side-pane link opening.
 
 ## Features
 
 ### Heading stack overlay
 
-Keeps a sticky, context-aware heading breadcrumb at the top of the active note as you scroll. Shows the ancestor headings above the current viewport position. Click or hover an ancestor to expand its siblings and jump to any heading in the same level.
+Keeps a sticky, context-aware heading breadcrumb at the top of the active note as you scroll. Shows the ancestor headings above the current viewport position. Click or hover an ancestor to expand its siblings and jump to any heading at the same level. The overlay can be turned off entirely in settings.
+
+### Focus mode
+
+Dims everything except the passage you are working on. Available as three commands:
+
+- **Focus Mode: Sentence** — highlight only the current sentence
+- **Focus Mode: Paragraph** — highlight only the current paragraph
+- **Focus Mode: Disable** — turn focus mode off
+
+The dim strength is configurable.
 
 ### Rename file from content
 
-Assigns a filename to the active note based on its content. Trigger the command **Schreibstube: Rename file from content** via the command palette or a keyboard shortcut — the note's content is sent to an LLM and the file is renamed with the result.
+Assigns a filename to the active note or image based on its content:
 
-The command does nothing if the note is shorter than the configured minimum length, or if no API key has been set.
+- **Rename file from content** — the note's text is sent to an LLM and the file is renamed with the result.
+- **Rename image from content** — the image (jpg, png, gif, webp; up to 10 MB) is resized and sent to a vision model, and the file is renamed.
+
+The rename does nothing if the note is shorter than the configured minimum length, or if no API key has been set.
+
+### Link open modes
+
+Control where internal links open, indicated in the status bar:
+
+- **Open links to the left** / **Open links to the right** — open links in a reused side split pane
+- **Open links normally** — restore default link behaviour
 
 ## Settings
 
@@ -20,14 +40,23 @@ The command does nothing if the note is shorter than the configured minimum leng
 
 | Setting | Description | Default |
 |---|---|---|
+| Enable heading stack overlay | Show or hide the sticky ancestor breadcrumb | On |
 | Max visible rows | Maximum rows shown in an expanded sibling list | 6 |
+
+### Focus mode
+
+| Setting | Description | Default |
+|---|---|---|
+| Dim opacity | Opacity of out-of-focus lines (0.2 faint – 0.8 nearly full) | 0.4 |
 
 ### Rename file from content
 
 | Setting | Description | Default |
 |---|---|---|
-| LLM provider | Anthropic, OpenAI, or Google | Anthropic |
+| LLM provider | Anthropic or OpenAI | Anthropic |
 | Model | Model for the selected provider | Claude Haiku 4.5 |
+| Custom model ID | Optional override for a newer or unlisted model | — |
+| Max image size | Maximum image dimension (px) sent to the model | 768 |
 | API key | Stored in Obsidian's native secret storage | — |
 | Minimum content length | Notes shorter than this are skipped | 50 chars |
 | Maximum content sent to LLM | Characters from the note sent to the API | 4 000 chars |

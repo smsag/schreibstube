@@ -10,7 +10,7 @@ export type HeadingIndex = HeadingEntry[];
 
 export type FocusMode = "off" | "sentence" | "paragraph";
 
-export type LlmProvider = "anthropic" | "openai" | "google";
+export type LlmProvider = "anthropic" | "openai";
 
 export interface OverlayState {
   ancestorStack: HeadingEntry[];
@@ -18,11 +18,13 @@ export interface OverlayState {
 }
 
 export interface SchreibstubeSettings {
+  overlayEnabled: boolean;
   overlayMaxVisibleRows: number;
   focusMode: FocusMode;
   focusDimOpacity: number;
   renameProvider: LlmProvider;
   renameModel: string;
+  renameModelCustom: string;
   renameSecretName: string;
   renameMinContentChars: number;
   renameMaxContentChars: number;
