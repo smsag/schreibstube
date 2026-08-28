@@ -30,6 +30,14 @@ describe("normalizeSettings", () => {
     expect(normalizeSettings({ overlayEnabled: false }).overlayEnabled).toBe(false);
   });
 
+  it("defaults renameModelCustom to an empty string", () => {
+    expect(normalizeSettings({}).renameModelCustom).toBe("");
+  });
+
+  it("preserves a custom model override", () => {
+    expect(normalizeSettings({ renameModelCustom: "gpt-5-mini" }).renameModelCustom).toBe("gpt-5-mini");
+  });
+
   it("falls back to default provider for an unknown provider value", () => {
     expect(normalizeSettings({ renameProvider: "unknown" as never })).toMatchObject({
       renameProvider: DEFAULT_SETTINGS.renameProvider,

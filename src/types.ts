@@ -24,6 +24,7 @@ export interface SchreibstubeSettings {
   focusDimOpacity: number;
   renameProvider: LlmProvider;
   renameModel: string;
+  renameModelCustom: string;
   renameSecretName: string;
   renameMinContentChars: number;
   renameMaxContentChars: number;

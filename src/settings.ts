@@ -6,9 +6,9 @@ import {
   MAX_OVERLAY_VISIBLE_ROWS,
   MIN_IMAGE_PX,
   MIN_OVERLAY_VISIBLE_ROWS,
-  PROVIDER_MODELS,
   normalizeSettings
 } from "./services/plugin-settings";
+import { LLM_PROVIDER_IDS, PROVIDER_MODELS, providerLabel } from "./services/llm-providers";
 import { MAX_DIM_OPACITY, MIN_DIM_OPACITY } from "./services/focus-settings";
 
 export class SchreibstubeSettingTab extends PluginSettingTab {
@@ -97,9 +97,8 @@ export class SchreibstubeSettingTab extends PluginSettingTab {
       .setName("LLM provider")
       .setDesc("Provider used to generate the filename.")
       .addDropdown((dropdown) => {
+        LLM_PROVIDER_IDS.forEach((id) => dropdown.addOption(id, providerLabel(id)));
         dropdown
-          .addOption("anthropic", "Anthropic")
-          .addOption("openai", "OpenAI")
           .setValue(this.plugin.settings.renameProvider)
           .onChange(async (value) => {
             const provider = value as LlmProvider;
@@ -107,6 +106,7 @@ export class SchreibstubeSettingTab extends PluginSettingTab {
               ...this.plugin.settings,
               renameProvider: provider,
               renameModel: PROVIDER_MODELS[provider][0].value,
+              renameModelCustom: "",
             });
             await this.plugin.saveSettings();
             this.display();
@@ -124,9 +124,26 @@ export class SchreibstubeSettingTab extends PluginSettingTab {
             this.plugin.settings = normalizeSettings({
               ...this.plugin.settings,
               renameModel: value,
+              renameModelCustom: "",
             });
             await this.plugin.saveSettings();
+            this.display();
           });
+      });
+
+    new Setting(containerEl)
+      .setName("Custom model ID")
+      .setDesc("Optional. Overrides the model above — use for a newer or unlisted model.")
+      .addText((text) => {
+        text.setPlaceholder("e.g. claude-3-7-sonnet-latest");
+        text.setValue(this.plugin.settings.renameModelCustom);
+        text.onChange(async (value) => {
+          this.plugin.settings = normalizeSettings({
+            ...this.plugin.settings,
+            renameModelCustom: value,
+          });
+          await this.plugin.saveSettings();
+        });
       });
 
     new Setting(containerEl)

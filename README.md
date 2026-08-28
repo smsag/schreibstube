@@ -55,6 +55,7 @@ Control where internal links open, indicated in the status bar:
 |---|---|---|
 | LLM provider | Anthropic or OpenAI | Anthropic |
 | Model | Model for the selected provider | Claude Haiku 4.5 |
+| Custom model ID | Optional override for a newer or unlisted model | — |
 | Max image size | Maximum image dimension (px) sent to the model | 768 |
 | API key | Stored in Obsidian's native secret storage | — |
 | Minimum content length | Notes shorter than this are skipped | 50 chars |
