@@ -7,9 +7,6 @@ import { LLM_PROVIDER_IDS, PROVIDER_MODELS } from "./llm-providers";
 
 export { PROVIDER_MODELS } from "./llm-providers";
 
-export const MIN_OVERLAY_VISIBLE_ROWS = 3;
-export const MAX_OVERLAY_VISIBLE_ROWS = 20;
-
 export const MIN_IMAGE_PX = 256;
 export const MAX_IMAGE_PX = 2048;
 
@@ -18,7 +15,6 @@ const ALLOWED_PROVIDERS = new Set<LlmProvider>(LLM_PROVIDER_IDS);
 export const DEFAULT_SETTINGS: SchreibstubeSettings = {
   ...DEFAULT_FOCUS_SETTINGS,
   overlayEnabled: true,
-  overlayMaxVisibleRows: 6,
   renameProvider: "anthropic",
   renameModel: "claude-haiku-4-5-20251001",
   renameModelCustom: "",
@@ -58,12 +54,6 @@ export function normalizeSettings(
       typeof loaded?.overlayEnabled === "boolean"
         ? loaded.overlayEnabled
         : DEFAULT_SETTINGS.overlayEnabled,
-    overlayMaxVisibleRows: clampIntOrDefault(
-      loaded?.overlayMaxVisibleRows,
-      MIN_OVERLAY_VISIBLE_ROWS,
-      MAX_OVERLAY_VISIBLE_ROWS,
-      DEFAULT_SETTINGS.overlayMaxVisibleRows
-    ),
     renameProvider: provider,
     renameModel: model,
     renameModelCustom,
