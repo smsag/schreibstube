@@ -26,6 +26,22 @@ export class SchreibstubeSettingTab extends PluginSettingTab {
     new Setting(containerEl).setName("Heading stack").setHeading();
 
     new Setting(containerEl)
+      .setName("Enable heading stack overlay")
+      .setDesc("Show the sticky ancestor-heading breadcrumb at the top of the active note.")
+      .addToggle((toggle) => {
+        toggle
+          .setValue(this.plugin.settings.overlayEnabled)
+          .onChange(async (value) => {
+            this.plugin.settings = normalizeSettings({
+              ...this.plugin.settings,
+              overlayEnabled: value
+            });
+            await this.plugin.saveSettings();
+            this.plugin.requestOverlayRefresh();
+          });
+      });
+
+    new Setting(containerEl)
       .setName("Max visible rows")
       .setDesc("Maximum number of rows visible in expanded sibling lists.")
       .addSlider((slider) => {
@@ -84,7 +100,6 @@ export class SchreibstubeSettingTab extends PluginSettingTab {
         dropdown
           .addOption("anthropic", "Anthropic")
           .addOption("openai", "OpenAI")
-          .addOption("google", "Google")
           .setValue(this.plugin.settings.renameProvider)
           .onChange(async (value) => {
             const provider = value as LlmProvider;

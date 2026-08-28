@@ -22,6 +22,14 @@ describe("normalizeSettings", () => {
     expect(normalizeSettings(valid)).toEqual(valid);
   });
 
+  it("defaults overlayEnabled to true when absent", () => {
+    expect(normalizeSettings({}).overlayEnabled).toBe(true);
+  });
+
+  it("preserves an explicit overlayEnabled=false", () => {
+    expect(normalizeSettings({ overlayEnabled: false }).overlayEnabled).toBe(false);
+  });
+
   it("falls back to default provider for an unknown provider value", () => {
     expect(normalizeSettings({ renameProvider: "unknown" as never })).toMatchObject({
       renameProvider: DEFAULT_SETTINGS.renameProvider,

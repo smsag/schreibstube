@@ -59,8 +59,6 @@ export async function generateRenameFilename(
       return callAnthropic(userMessage, settings.renameModel, systemPrompt, apiKey);
     case "openai":
       return callOpenAI(userMessage, settings.renameModel, systemPrompt, apiKey);
-    case "google":
-      return callGoogle(userMessage, settings.renameModel, systemPrompt, apiKey);
   }
 }
 
@@ -80,8 +78,6 @@ export async function generateImageRenameFilename(
       return callAnthropicImage(base64Image, mimeType, settings.renameModel, systemPrompt, apiKey);
     case "openai":
       return callOpenAIImage(base64Image, mimeType, settings.renameModel, systemPrompt, apiKey);
-    case "google":
-      return callGoogleImage(base64Image, mimeType, settings.renameModel, systemPrompt, apiKey);
   }
 }
 
@@ -144,34 +140,6 @@ async function callOpenAI(
 
   const data = await response.json() as { choices?: { message?: { content?: string } }[] };
   return data.choices?.[0]?.message?.content?.trim() ?? "";
-}
-
-async function callGoogle(
-  userMessage: string,
-  model: string,
-  systemPrompt: string,
-  apiKey: string
-): Promise<string> {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      systemInstruction: { parts: [{ text: systemPrompt }] },
-      contents: [{ parts: [{ text: userMessage }] }],
-      generationConfig: { maxOutputTokens: 50 },
-    }),
-  });
-
-  if (!response.ok) {
-    const body = await response.text().catch(() => "");
-    throw new Error(`Google API error: ${response.status} ${body}`);
-  }
-
-  const data = await response.json() as {
-    candidates?: { content?: { parts?: { text?: string }[] } }[];
-  };
-  return data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? "";
 }
 
 async function callAnthropicImage(
@@ -245,38 +213,5 @@ async function callOpenAIImage(
   }
   const data = await response.json() as { choices?: { message?: { content?: string } }[] };
   return data.choices?.[0]?.message?.content?.trim() ?? "";
-}
-
-async function callGoogleImage(
-  base64Image: string,
-  mimeType: string,
-  model: string,
-  systemPrompt: string,
-  apiKey: string
-): Promise<string> {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      systemInstruction: { parts: [{ text: systemPrompt }] },
-      contents: [{
-        parts: [
-          { inline_data: { mime_type: mimeType, data: base64Image } },
-          { text: IMAGE_USER_PROMPT },
-        ],
-      }],
-      generationConfig: { maxOutputTokens: 50 },
-    }),
-  });
-
-  if (!response.ok) {
-    const body = await response.text().catch(() => "");
-    throw new Error(`Google API error: ${response.status} ${body}`);
-  }
-  const data = await response.json() as {
-    candidates?: { content?: { parts?: { text?: string }[] } }[];
-  };
-  return data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? "";
 }
 

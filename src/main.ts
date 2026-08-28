@@ -177,6 +177,11 @@ export default class SchreibstubePlugin extends Plugin {
     viewportTopLine?: number,
     options?: RefreshOptions
   ): void {
+    if (!this.settings.overlayEnabled) {
+      this.clearOverlay();
+      return;
+    }
+
     const view = this.app.workspace.getActiveViewOfType(MarkdownView);
     if (!view) {
       this.clearOverlay();
