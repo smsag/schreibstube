@@ -2,6 +2,28 @@
 
 All notable changes to this project will be documented in this file.
 
+## 1.2.0 - 2026-08-28
+
+### Added
+
+- **Interactive sibling expansion restored in the heading-stack overlay.** Hover (desktop) or tap (touch) an ancestor to expand its siblings and jump to any heading at that level, on top of the outline connector styling. This behaviour was documented in the README but had been dropped from the code in 1.1.7.
+- **Max visible rows** setting (3–20, default 6) — caps the height of an expanded sibling list. Restored alongside the feature above.
+- **Enable heading stack overlay** setting — turn the overlay off entirely.
+- **Custom model ID** setting — override the model dropdown with a newer or unlisted model id for the selected provider.
+- Request **timeout** (30 s) for rename calls, so a stalled provider no longer hangs the command.
+
+### Changed
+
+- **Rename calls now use Obsidian's `requestUrl`** instead of the browser `fetch`, bypassing the renderer CORS restrictions that could block direct Anthropic/OpenAI requests.
+- **LLM provider integration refactored** into a single registry (`llm-providers.ts`) that is the one source of truth for endpoints, headers, request bodies, response parsing, and model lists.
+- **Google/Gemini removed** as a provider; Anthropic and OpenAI remain.
+- README now documents all four feature areas (heading stack, focus mode, rename, link modes) with settings tables.
+
+### Fixed
+
+- Rename **API errors** are now mapped to actionable messages (invalid key, rate limited, service error) instead of a raw JSON blob.
+- Model responses that wrap the filename in a code fence, quotes, or a `Filename:` label are cleaned up before the name is applied.
+
 ## 1.1.13 - 2026-06-27
 
 ### Fixed
