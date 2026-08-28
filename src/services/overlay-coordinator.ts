@@ -5,8 +5,8 @@ import { findOverlayHost } from "./overlay-host";
 type OverlayRowEvent = {
   lineNumber: number;
   level: 1 | 2 | 3 | 4 | 5 | 6;
-  kind: "ancestor";
-  source: "click";
+  kind: "ancestor" | "sibling";
+  source: "click" | "hover";
 };
 
 type OverlayControllerLike = {
@@ -17,7 +17,8 @@ type OverlayControllerLike = {
 
 type CreateOverlayController = (
   host: HTMLElement,
-  onRowEvent: (event: OverlayRowEvent) => void
+  onRowEvent: (event: OverlayRowEvent) => void,
+  onMouseLeave: () => void
 ) => OverlayControllerLike;
 
 export class OverlayCoordinator {
@@ -28,13 +29,15 @@ export class OverlayCoordinator {
   constructor(createController?: CreateOverlayController) {
     this.createController =
       createController ??
-      ((host, onRowEvent) => new OverlayController(host, onRowEvent));
+      ((host, onRowEvent, onMouseLeave) =>
+        new OverlayController(host, onRowEvent, onMouseLeave));
   }
 
   renderForView(
     view: MarkdownView,
     input: OverlayRenderInput,
-    onRowEvent: (event: OverlayRowEvent) => void
+    onRowEvent: (event: OverlayRowEvent) => void,
+    onMouseLeave: () => void
   ): boolean {
     const nextHost = findOverlayHost(view);
     if (!nextHost) {
@@ -45,7 +48,7 @@ export class OverlayCoordinator {
     if (this.host !== nextHost) {
       this.clear();
       this.host = nextHost;
-      this.controller = this.createController(nextHost, onRowEvent);
+      this.controller = this.createController(nextHost, onRowEvent, onMouseLeave);
     }
 
     this.controller?.render(input);
