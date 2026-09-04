@@ -10,6 +10,20 @@ export { PROVIDER_MODELS } from "./llm-providers";
 export const MIN_IMAGE_PX = 256;
 export const MAX_IMAGE_PX = 2048;
 
+export const MIN_SUMMARY_TOKENS = 64;
+export const MAX_SUMMARY_TOKENS = 4096;
+
+/** Default summarize prompt, tuned for turning raw text pasted from analytics
+ *  and reporting tools into a compact insight-log entry. */
+export const DEFAULT_SUMMARIZE_PROMPT =
+  "You distill raw text into a concise insight log entry. The user pastes text " +
+  "copied from an analytics or reporting tool. Rewrite it as Markdown bullet points — " +
+  "one per distinct insight, using as many or as few as the content genuinely warrants: " +
+  "a single line for a small or simple selection, more for a rich one. Never pad to reach " +
+  "a count. Capture the key findings and takeaways, keeping concrete numbers, metrics, and " +
+  "named entities. Drop UI labels, navigation, and boilerplate. Respond with the insight " +
+  "only — no preamble, no closing remarks.";
+
 const ALLOWED_PROVIDERS = new Set<LlmProvider>(LLM_PROVIDER_IDS);
 
 export const DEFAULT_SETTINGS: SchreibstubeSettings = {
@@ -23,6 +37,8 @@ export const DEFAULT_SETTINGS: SchreibstubeSettings = {
   renameMaxContentChars: 4000,
   renameMaxFilenameLength: 60,
   renameMaxImagePx: 768,
+  summarizePrompt: DEFAULT_SUMMARIZE_PROMPT,
+  summarizeMaxTokens: 512,
 };
 
 export function normalizeSettings(
@@ -76,7 +92,21 @@ export function normalizeSettings(
       MAX_IMAGE_PX,
       DEFAULT_SETTINGS.renameMaxImagePx
     ),
+    summarizePrompt: nonEmptyStringOrDefault(
+      loaded?.summarizePrompt,
+      DEFAULT_SETTINGS.summarizePrompt
+    ),
+    summarizeMaxTokens: clampIntOrDefault(
+      loaded?.summarizeMaxTokens,
+      MIN_SUMMARY_TOKENS,
+      MAX_SUMMARY_TOKENS,
+      DEFAULT_SETTINGS.summarizeMaxTokens
+    ),
   };
+}
+
+function nonEmptyStringOrDefault(value: unknown, fallback: string): string {
+  return typeof value === "string" && value.trim().length > 0 ? value : fallback;
 }
 
 function positiveIntOrDefault(value: unknown, fallback: number): number {

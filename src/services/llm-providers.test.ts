@@ -3,6 +3,7 @@ import {
   LLM_PROVIDER_IDS,
   PROVIDER_MODELS,
   buildImageRequest,
+  buildSummaryRequest,
   buildTextRequest,
   describeApiError,
   effectiveModel,
@@ -156,6 +157,28 @@ describe("buildTextRequest", () => {
     const body = JSON.parse(req.body);
     expect(body.model).toBe("gpt-x");
     expect(body.messages[0].role).toBe("system");
+  });
+});
+
+describe("buildSummaryRequest", () => {
+  it("sends the prompt verbatim as the Anthropic system and the text as the user message", () => {
+    const req = buildSummaryRequest("anthropic", "claude-x", "sk-test", "Be concise.", "raw text", 512);
+    expect(req.url).toBe("https://api.anthropic.com/v1/messages");
+    expect(req.headers["x-api-key"]).toBe("sk-test");
+    const body = JSON.parse(req.body);
+    expect(body.model).toBe("claude-x");
+    expect(body.system).toBe("Be concise.");
+    expect(body.max_tokens).toBe(512);
+    expect(body.messages[0].content).toBe("raw text");
+  });
+
+  it("uses the caller's token cap and a system message for OpenAI", () => {
+    const req = buildSummaryRequest("openai", "gpt-x", "sk-test", "Be concise.", "raw text", 256);
+    expect(req.url).toBe("https://api.openai.com/v1/chat/completions");
+    const body = JSON.parse(req.body);
+    expect(body.max_tokens).toBe(256);
+    expect(body.messages[0]).toEqual({ role: "system", content: "Be concise." });
+    expect(body.messages[1]).toEqual({ role: "user", content: "raw text" });
   });
 });
 

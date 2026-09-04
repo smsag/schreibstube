@@ -38,7 +38,7 @@ interface ProviderAdapter {
   models: ProviderModel[];
   url: string;
   headers(apiKey: string): Record<string, string>;
-  textBody(model: string, systemPrompt: string, userMessage: string): unknown;
+  textBody(model: string, systemPrompt: string, userMessage: string, maxTokens: number): unknown;
   imageBody(model: string, systemPrompt: string, base64Image: string, mimeType: string): unknown;
   parse(json: unknown): string;
 }
@@ -55,9 +55,9 @@ const ANTHROPIC: ProviderAdapter = {
     "anthropic-version": "2023-06-01",
     "content-type": "application/json"
   }),
-  textBody: (model, systemPrompt, userMessage) => ({
+  textBody: (model, systemPrompt, userMessage, maxTokens) => ({
     model,
-    max_tokens: MAX_TOKENS,
+    max_tokens: maxTokens,
     system: systemPrompt,
     messages: [{ role: "user", content: userMessage }]
   }),
@@ -90,9 +90,9 @@ const OPENAI: ProviderAdapter = {
     "Authorization": `Bearer ${apiKey}`,
     "content-type": "application/json"
   }),
-  textBody: (model, systemPrompt, userMessage) => ({
+  textBody: (model, systemPrompt, userMessage, maxTokens) => ({
     model,
-    max_tokens: MAX_TOKENS,
+    max_tokens: maxTokens,
     messages: [
       { role: "system", content: systemPrompt },
       { role: "user", content: userMessage }
@@ -155,7 +155,27 @@ export function buildTextRequest(
   return {
     url: adapter.url,
     headers: adapter.headers(apiKey),
-    body: JSON.stringify(adapter.textBody(model, systemPrompt, USER_PROMPT_PREFIX + content))
+    body: JSON.stringify(adapter.textBody(model, systemPrompt, USER_PROMPT_PREFIX + content, MAX_TOKENS))
+  };
+}
+
+/** Build a request that sends the given text under a caller-supplied system
+ *  prompt. Unlike {@link buildTextRequest}, the prompt is used verbatim (no
+ *  filename templating) and the token cap is caller-controlled, so longer
+ *  free-form completions such as summaries are possible. */
+export function buildSummaryRequest(
+  provider: LlmProvider,
+  model: string,
+  apiKey: string,
+  systemPrompt: string,
+  content: string,
+  maxTokens: number
+): BuiltRequest {
+  const adapter = LLM_PROVIDERS[provider];
+  return {
+    url: adapter.url,
+    headers: adapter.headers(apiKey),
+    body: JSON.stringify(adapter.textBody(model, systemPrompt, content, maxTokens))
   };
 }
 

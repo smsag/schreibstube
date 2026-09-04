@@ -24,4 +24,6 @@ export interface SchreibstubeSettings {
   renameMaxContentChars: number;
   renameMaxFilenameLength: number;
   renameMaxImagePx: number;
+  summarizePrompt: string;
+  summarizeMaxTokens: number;
 }
