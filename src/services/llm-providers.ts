@@ -203,10 +203,10 @@ export function parseResponse(provider: LlmProvider, json: unknown): string {
 /** Resolve the model to use: a non-empty custom override wins over the
  *  dropdown selection. */
 export function effectiveModel(
-  settings: Pick<SchreibstubeSettings, "renameModel" | "renameModelCustom">
+  settings: Pick<SchreibstubeSettings, "llmModel" | "llmModelCustom">
 ): string {
-  const custom = settings.renameModelCustom?.trim();
-  return custom ? custom : settings.renameModel;
+  const custom = settings.llmModelCustom?.trim();
+  return custom ? custom : settings.llmModel;
 }
 
 const ILLEGAL_CHARS = /[/\\:*?"<>|#^[\]]/g;

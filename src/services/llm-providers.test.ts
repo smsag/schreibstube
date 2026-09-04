@@ -112,15 +112,15 @@ describe("describeApiError", () => {
 
 describe("effectiveModel", () => {
   it("uses the dropdown model when no custom value", () => {
-    expect(effectiveModel({ renameModel: "gpt-4o", renameModelCustom: "" })).toBe("gpt-4o");
+    expect(effectiveModel({ llmModel: "gpt-4o", llmModelCustom: "" })).toBe("gpt-4o");
   });
 
   it("prefers a non-empty custom model", () => {
-    expect(effectiveModel({ renameModel: "gpt-4o", renameModelCustom: "gpt-5-mini" })).toBe("gpt-5-mini");
+    expect(effectiveModel({ llmModel: "gpt-4o", llmModelCustom: "gpt-5-mini" })).toBe("gpt-5-mini");
   });
 
   it("ignores a whitespace-only custom model", () => {
-    expect(effectiveModel({ renameModel: "gpt-4o", renameModelCustom: "   " })).toBe("gpt-4o");
+    expect(effectiveModel({ llmModel: "gpt-4o", llmModelCustom: "   " })).toBe("gpt-4o");
   });
 });
 

@@ -11,7 +11,7 @@ export { sanitizeFilename } from "./llm-providers";
 
 type RenameSettings = Pick<
   SchreibstubeSettings,
-  "renameProvider" | "renameModel" | "renameModelCustom" | "renameMaxFilenameLength"
+  "llmProvider" | "llmModel" | "llmModelCustom" | "renameMaxFilenameLength"
 >;
 
 export async function generateRenameFilename(
@@ -20,13 +20,13 @@ export async function generateRenameFilename(
   apiKey: string
 ): Promise<string> {
   const request = buildTextRequest(
-    settings.renameProvider,
+    settings.llmProvider,
     effectiveModel(settings),
     apiKey,
     content,
     settings.renameMaxFilenameLength
   );
-  const raw = await sendRequest(settings.renameProvider, request);
+  const raw = await sendRequest(settings.llmProvider, request);
   return extractModelFilename(raw);
 }
 
@@ -37,13 +37,13 @@ export async function generateImageRenameFilename(
   apiKey: string
 ): Promise<string> {
   const request = buildImageRequest(
-    settings.renameProvider,
+    settings.llmProvider,
     effectiveModel(settings),
     apiKey,
     base64Image,
     mimeType,
     settings.renameMaxFilenameLength
   );
-  const raw = await sendRequest(settings.renameProvider, request);
+  const raw = await sendRequest(settings.llmProvider, request);
   return extractModelFilename(raw);
 }

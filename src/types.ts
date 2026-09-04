@@ -16,14 +16,19 @@ export interface SchreibstubeSettings {
   overlayEnabled: boolean;
   focusMode: FocusMode;
   focusDimOpacity: number;
-  renameProvider: LlmProvider;
-  renameModel: string;
-  renameModelCustom: string;
-  renameSecretName: string;
+  // Shared LLM configuration, used by every AI-backed command (rename, summarize).
+  llmProvider: LlmProvider;
+  llmModel: string;
+  llmModelCustom: string;
+  llmSecretName: string;
+  // Rename-specific tuning.
   renameMinContentChars: number;
   renameMaxContentChars: number;
   renameMaxFilenameLength: number;
   renameMaxImagePx: number;
+  // Summarize-specific tuning.
   summarizePrompt: string;
   summarizeMaxTokens: number;
+  // Diagnostics.
+  debugLogging: boolean;
 }

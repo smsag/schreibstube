@@ -1,4 +1,4 @@
-import { MarkdownView, Notice, Plugin, WorkspaceLeaf, normalizePath } from "obsidian";
+import { MarkdownView, Plugin } from "obsidian";
 import { resolveAncestorStack } from "./services/ancestor-stack";
 import { buildHeadingIndex } from "./services/heading-index";
 import {
@@ -13,14 +13,15 @@ import { RefreshScheduler, type RefreshOptions } from "./services/refresh-schedu
 import { OverlayCoordinator } from "./services/overlay-coordinator";
 import { bootstrapSchreibstubeRuntime } from "./services/plugin-bootstrap";
 import { DEFAULT_SETTINGS, normalizeSettings } from "./services/plugin-settings";
-import { generateImageRenameFilename, generateRenameFilename, sanitizeFilename } from "./services/llm-rename";
-import { generateSummary } from "./services/llm-summarize";
-import { MAX_IMAGE_BYTES, getImageMimeType, resizeImageToBase64 } from "./services/image-resize";
+import { createLogger, type Logger } from "./services/logger";
+import { LinkModeController } from "./controllers/link-mode-controller";
+import { LlmCommands } from "./controllers/llm-commands";
 import { SchreibstubeSettingTab } from "./settings";
 import type { FocusMode, HeadingEntry, SchreibstubeSettings } from "./types";
 
 export default class SchreibstubePlugin extends Plugin {
   settings: SchreibstubeSettings = DEFAULT_SETTINGS;
+  private logger: Logger = createLogger(() => this.settings.debugLogging);
   private currentView: MarkdownView | null = null;
   private viewportTopLine = 0;
   private headingIndex: HeadingEntry[] = [];
@@ -29,18 +30,20 @@ export default class SchreibstubePlugin extends Plugin {
   private lastRenderSignature = "";
   private overlayCoordinator = new OverlayCoordinator();
   private refreshScheduler: RefreshScheduler | null = null;
-  private linkOpenMode: "default" | "left" | "right" = "default";
-  private linkTargetLeaf: WorkspaceLeaf | null = null;
-  private linkModeStatusEl: HTMLElement | null = null;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private originalOpenLinkText: ((...args: any[]) => Promise<void>) | null = null;
+  private linkMode: LinkModeController | null = null;
+  private llm: LlmCommands | null = null;
 
   async onload(): Promise<void> {
     await this.loadSettings();
+    this.logger.debug("Loading Schreibstube.");
+
     this.refreshScheduler = new RefreshScheduler(
       (callback) => window.requestAnimationFrame(callback),
       ({ viewportTopLine, options }) => this.refreshForActiveView(viewportTopLine, options)
     );
+
+    this.linkMode = new LinkModeController(this.app, this.logger);
+    this.llm = new LlmCommands(this.app, () => this.settings, this.logger);
 
     bootstrapSchreibstubeRuntime(this, {
       onViewportFromEditor: (viewportTopLine) => {
@@ -55,20 +58,18 @@ export default class SchreibstubePlugin extends Plugin {
       },
     });
 
-    this.linkModeStatusEl = this.addStatusBarItem();
-    this.updateLinkModeStatus();
+    this.linkMode.start(this.addStatusBarItem());
     this.registerDomEvent(document, "click", (e: MouseEvent) => {
-      void this.handleLinkClick(e);
+      void this.linkMode?.handleDocumentClick(e);
     }, true);
 
-    this.patchOpenLinkText();
     this.registerCommands();
     this.addSettingTab(new SchreibstubeSettingTab(this.app, this));
     this.requestOverlayRefresh();
   }
 
   onunload(): void {
-    this.unpatchOpenLinkText();
+    this.linkMode?.stop();
     this.clearOverlay();
   }
 
@@ -116,37 +117,37 @@ export default class SchreibstubePlugin extends Plugin {
     this.addCommand({
       id: "rename-from-content",
       name: "Rename file from content",
-      callback: () => { void this.executeRenameFromContent(); },
+      callback: () => { void this.llm?.renameFromContent(); },
     });
 
     this.addCommand({
       id: "rename-image-from-content",
       name: "Rename image from content",
-      callback: () => { void this.executeRenameImageFromContent(); },
+      callback: () => { void this.llm?.renameImageFromContent(); },
     });
 
     this.addCommand({
       id: "summarize-selection",
       name: "Summarize selection",
-      editorCallback: () => { void this.executeSummarizeSelection(); },
+      editorCallback: () => { void this.llm?.summarizeSelection(); },
     });
 
     this.addCommand({
       id: "open-links-left",
       name: "Open links to the left",
-      callback: () => { this.setLinkOpenMode("left"); },
+      callback: () => { this.linkMode?.setMode("left"); },
     });
 
     this.addCommand({
       id: "open-links-right",
       name: "Open links to the right",
-      callback: () => { this.setLinkOpenMode("right"); },
+      callback: () => { this.linkMode?.setMode("right"); },
     });
 
     this.addCommand({
       id: "open-links-default",
       name: "Open links normally",
-      callback: () => { this.setLinkOpenMode("default"); },
+      callback: () => { this.linkMode?.setMode("default"); },
     });
   }
 
@@ -277,249 +278,5 @@ export default class SchreibstubePlugin extends Plugin {
     );
     this.viewportTopLine = lineNumber;
     this.queueRefreshForActiveView(this.viewportTopLine);
-  }
-
-  private patchOpenLinkText(): void {
-    const ws = this.app.workspace as any;
-    this.originalOpenLinkText = ws.openLinkText.bind(ws);
-    ws.openLinkText = async (linkText: string, sourcePath: string, newLeaf?: unknown, openViewState?: unknown) => {
-      if (this.linkOpenMode !== "default") {
-        const leaves = this.app.workspace.getLeavesOfType("markdown");
-        let sourceLeaf: WorkspaceLeaf | null = null;
-        for (const leaf of leaves) {
-          if ((leaf.view as MarkdownView).file?.path === sourcePath) {
-            sourceLeaf = leaf;
-            break;
-          }
-        }
-        if (!sourceLeaf) sourceLeaf = this.app.workspace.getMostRecentLeaf();
-        if (sourceLeaf) await this.openLinkInSidePane(linkText, sourceLeaf);
-      } else {
-        return this.originalOpenLinkText!(linkText, sourcePath, newLeaf, openViewState);
-      }
-    };
-  }
-
-  private unpatchOpenLinkText(): void {
-    if (this.originalOpenLinkText) {
-      (this.app.workspace as any).openLinkText = this.originalOpenLinkText;
-      this.originalOpenLinkText = null;
-    }
-  }
-
-  private setLinkOpenMode(mode: "default" | "left" | "right"): void {
-    this.linkOpenMode = mode;
-    this.linkTargetLeaf = null;
-    this.updateLinkModeStatus();
-  }
-
-  private updateLinkModeStatus(): void {
-    if (!this.linkModeStatusEl) return;
-    if (this.linkOpenMode === "default") {
-      this.linkModeStatusEl.style.display = "none";
-      this.linkModeStatusEl.setText("");
-    } else {
-      this.linkModeStatusEl.style.display = "";
-      this.linkModeStatusEl.setText(this.linkOpenMode === "left" ? "← links" : "links →");
-    }
-  }
-
-  private async handleLinkClick(e: MouseEvent): Promise<void> {
-    if (this.linkOpenMode === "default") return;
-
-    const target = e.target as HTMLElement;
-    const linkEl = target.closest("a.internal-link") as HTMLAnchorElement | null;
-    if (!linkEl) return;
-
-    const href = linkEl.dataset.href ?? linkEl.getAttribute("href") ?? "";
-    if (!href || /^https?:\/\//.test(href)) return;
-
-    e.preventDefault();
-    e.stopPropagation();
-
-    // Identify which leaf the click originated in
-    let sourceLeaf: WorkspaceLeaf | null = null;
-    this.app.workspace.iterateAllLeaves((leaf) => {
-      if ((leaf as any).containerEl.contains(target)) sourceLeaf = leaf;
-    });
-    if (!sourceLeaf) return;
-
-    await this.openLinkInSidePane(href, sourceLeaf);
-  }
-
-  private async openLinkInSidePane(linkText: string, sourceLeaf: WorkspaceLeaf): Promise<void> {
-    const sourcePath = sourceLeaf.view instanceof MarkdownView
-      ? (sourceLeaf.view.file?.path ?? "")
-      : "";
-
-    // Separate the file path from any heading/block subpath
-    const subpathMatch = linkText.match(/^([^#^]*)([#^].*)?$/);
-    const linkPath = subpathMatch?.[1] ?? linkText;
-    const subpath = subpathMatch?.[2] ?? "";
-
-    const file = this.app.metadataCache.getFirstLinkpathDest(linkPath || linkText, sourcePath);
-    if (!file) return;
-
-    // Reuse existing side pane if still open, otherwise create one
-    if (this.linkTargetLeaf && !this.linkTargetLeaf.view.containerEl.isConnected) {
-      this.linkTargetLeaf = null;
-    }
-    if (!this.linkTargetLeaf) {
-      const before = this.linkOpenMode === "left";
-      this.linkTargetLeaf = (this.app.workspace as any).createLeafBySplit(sourceLeaf, "vertical", before);
-    }
-
-    const targetLeaf = this.linkTargetLeaf!;
-    await targetLeaf.openFile(file, subpath ? { eState: { subpath } } : undefined);
-
-    // Return focus to the note the user was reading
-    this.app.workspace.setActiveLeaf(sourceLeaf, { focus: true });
-  }
-
-  private async executeRenameImageFromContent(): Promise<void> {
-    const file = this.app.workspace.getActiveFile();
-    if (!file) return;
-
-    const mimeType = getImageMimeType(file.extension);
-    if (!mimeType) {
-      new Notice("Schreibstube: unsupported format — supported image types: jpg, png, gif, webp.");
-      return;
-    }
-
-    if (file.stat.size > MAX_IMAGE_BYTES) {
-      new Notice("Schreibstube: image exceeds the 10 MB limit.");
-      return;
-    }
-
-    const secretName = this.settings.renameSecretName;
-    if (!secretName) {
-      new Notice("Schreibstube: no secret selected — open Settings to choose one.");
-      return;
-    }
-    const apiKey = this.app.secretStorage.getSecret(secretName);
-    if (!apiKey) {
-      new Notice("Schreibstube: secret not found — check Settings.");
-      return;
-    }
-
-    const buffer = await this.app.vault.readBinary(file);
-
-    let base64Image: string;
-    try {
-      base64Image = await resizeImageToBase64(buffer, mimeType, this.settings.renameMaxImagePx);
-    } catch {
-      new Notice("Schreibstube: could not process image.");
-      return;
-    }
-
-    let proposed: string;
-    try {
-      proposed = await generateImageRenameFilename(base64Image, mimeType, this.settings, apiKey);
-    } catch (err) {
-      new Notice(`Schreibstube: rename failed — ${err instanceof Error ? err.message : "unknown error"}`);
-      return;
-    }
-
-    const sanitized = sanitizeFilename(proposed, this.settings.renameMaxFilenameLength);
-    if (!sanitized) {
-      new Notice("Schreibstube: rename failed — the LLM returned an unusable filename.");
-      return;
-    }
-
-    const folder = file.parent?.path ?? "";
-    const newPath = normalizePath(`${folder}/${sanitized}.${file.extension}`);
-
-    try {
-      await this.app.fileManager.renameFile(file, newPath);
-    } catch {
-      new Notice("Schreibstube: rename failed — a file with that name may already exist.");
-      return;
-    }
-  }
-
-  private async executeSummarizeSelection(): Promise<void> {
-    const view = this.app.workspace.getActiveViewOfType(MarkdownView);
-    if (!view) return;
-
-    const editor = view.editor;
-    const selection = editor.getSelection();
-    if (!selection.trim()) {
-      new Notice("Schreibstube: select some text to summarize first.");
-      return;
-    }
-
-    const secretName = this.settings.renameSecretName;
-    if (!secretName) {
-      new Notice("Schreibstube: no secret selected — open Settings to choose one.");
-      return;
-    }
-    const apiKey = this.app.secretStorage.getSecret(secretName);
-    if (!apiKey) {
-      new Notice("Schreibstube: secret not found — check Settings.");
-      return;
-    }
-
-    const progress = new Notice("Schreibstube: summarizing…", 0);
-    let summary: string;
-    try {
-      summary = await generateSummary(selection, this.settings, apiKey);
-    } catch (err) {
-      new Notice(`Schreibstube: summarize failed — ${err instanceof Error ? err.message : "unknown error"}`);
-      return;
-    } finally {
-      progress.hide();
-    }
-
-    if (!summary) {
-      new Notice("Schreibstube: summarize failed — the LLM returned an empty response.");
-      return;
-    }
-
-    editor.replaceSelection(summary);
-  }
-
-  private async executeRenameFromContent(): Promise<void> {
-    const view = this.app.workspace.getActiveViewOfType(MarkdownView);
-    if (!view?.file) return;
-
-    const content = view.editor.getValue().trim();
-    if (content.length < this.settings.renameMinContentChars) return;
-
-    const secretName = this.settings.renameSecretName;
-    if (!secretName) {
-      new Notice("Schreibstube: no secret selected — open Settings to choose one.");
-      return;
-    }
-    const apiKey = this.app.secretStorage.getSecret(secretName);
-    if (!apiKey) {
-      new Notice("Schreibstube: secret not found — check Settings.");
-      return;
-    }
-
-    const truncated = content.slice(0, this.settings.renameMaxContentChars);
-
-    let proposed: string;
-    try {
-      proposed = await generateRenameFilename(truncated, this.settings, apiKey);
-    } catch (err) {
-      new Notice(`Schreibstube: rename failed — ${err instanceof Error ? err.message : "unknown error"}`);
-      return;
-    }
-
-    const sanitized = sanitizeFilename(proposed, this.settings.renameMaxFilenameLength);
-    if (!sanitized) {
-      new Notice("Schreibstube: rename failed — the LLM returned an unusable filename.");
-      return;
-    }
-
-    const folder = view.file.parent?.path ?? "";
-    const newPath = normalizePath(`${folder}/${sanitized}.md`);
-
-    try {
-      await this.app.fileManager.renameFile(view.file, newPath);
-    } catch {
-      new Notice("Schreibstube: rename failed — a file with that name may already exist.");
-      return;
-    }
   }
 }
