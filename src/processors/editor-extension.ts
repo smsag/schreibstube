@@ -54,8 +54,12 @@ export function createEditorExtension(
           update.docChanged ||
           update.selectionSet ||
           update.focusChanged ||
+          update.viewportChanged ||
           didFocusChange
         ) {
+          // viewportChanged is included because decorations are built only for
+          // the visible range (see rebuildFocusDecorations), so scrolling must
+          // re-decorate the lines newly scrolled into view.
           this.rebuildFocusDecorations(settings, focusSignature);
         }
 
@@ -127,32 +131,40 @@ export function createEditorExtension(
         }
 
         const builder = new RangeSetBuilder<Decoration>();
-        const totalLines = this.view.state.doc.lines;
+        const doc = this.view.state.doc;
 
-        for (let lineNumber = 1; lineNumber <= totalLines; lineNumber += 1) {
-          const line = this.view.state.doc.line(lineNumber);
-          const inFocusRange =
-            settings.focusMode === "sentence" &&
-            focusRange.startCh !== undefined &&
-            focusRange.endCh !== undefined
-              ? false
-              : lineNumber >= focusRange.startLine && lineNumber <= focusRange.endLine;
-          const className = inFocusRange
-            ? "schreibstube-focus-active"
-            : "schreibstube-focus-dimmed";
-          builder.add(line.from, line.from, Decoration.line({ class: className }));
+        // Decorate only the visible range. On a large document this bounds the
+        // work per rebuild to the viewport rather than the whole file; update()
+        // re-runs this on scroll so freshly revealed lines get decorated.
+        for (const range of this.view.visibleRanges) {
+          const firstLine = doc.lineAt(range.from).number;
+          const lastLine = doc.lineAt(range.to).number;
 
-          if (
-            settings.focusMode === "sentence" &&
-            focusRange.startCh !== undefined &&
-            focusRange.endCh !== undefined &&
-            lineNumber === focusRange.startLine
-          ) {
-            builder.add(
-              line.from + focusRange.startCh,
-              line.from + focusRange.endCh,
-              Decoration.mark({ class: "schreibstube-focus-sentence" })
-            );
+          for (let lineNumber = firstLine; lineNumber <= lastLine; lineNumber += 1) {
+            const line = doc.line(lineNumber);
+            const inFocusRange =
+              settings.focusMode === "sentence" &&
+              focusRange.startCh !== undefined &&
+              focusRange.endCh !== undefined
+                ? false
+                : lineNumber >= focusRange.startLine && lineNumber <= focusRange.endLine;
+            const className = inFocusRange
+              ? "schreibstube-focus-active"
+              : "schreibstube-focus-dimmed";
+            builder.add(line.from, line.from, Decoration.line({ class: className }));
+
+            if (
+              settings.focusMode === "sentence" &&
+              focusRange.startCh !== undefined &&
+              focusRange.endCh !== undefined &&
+              lineNumber === focusRange.startLine
+            ) {
+              builder.add(
+                line.from + focusRange.startCh,
+                line.from + focusRange.endCh,
+                Decoration.mark({ class: "schreibstube-focus-sentence" })
+              );
+            }
           }
         }
 

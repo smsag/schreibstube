@@ -16,8 +16,8 @@ describe("normalizeSettings", () => {
   it("preserves a fully valid settings object", () => {
     const valid = {
       ...DEFAULT_SETTINGS,
-      renameProvider: "openai" as const,
-      renameModel: "gpt-4o",
+      llmProvider: "openai" as const,
+      llmModel: "gpt-4o",
     };
     expect(normalizeSettings(valid)).toEqual(valid);
   });
@@ -30,30 +30,60 @@ describe("normalizeSettings", () => {
     expect(normalizeSettings({ overlayEnabled: false }).overlayEnabled).toBe(false);
   });
 
-  it("defaults renameModelCustom to an empty string", () => {
-    expect(normalizeSettings({}).renameModelCustom).toBe("");
+  it("defaults llmModelCustom to an empty string", () => {
+    expect(normalizeSettings({}).llmModelCustom).toBe("");
   });
 
   it("preserves a custom model override", () => {
-    expect(normalizeSettings({ renameModelCustom: "gpt-5-mini" }).renameModelCustom).toBe("gpt-5-mini");
+    expect(normalizeSettings({ llmModelCustom: "gpt-5-mini" }).llmModelCustom).toBe("gpt-5-mini");
   });
 
   it("falls back to default provider for an unknown provider value", () => {
-    expect(normalizeSettings({ renameProvider: "unknown" as never })).toMatchObject({
-      renameProvider: DEFAULT_SETTINGS.renameProvider,
+    expect(normalizeSettings({ llmProvider: "unknown" as never })).toMatchObject({
+      llmProvider: DEFAULT_SETTINGS.llmProvider,
     });
   });
 
   it("resets model to first provider model when model belongs to a different provider", () => {
     expect(
-      normalizeSettings({ renameProvider: "openai", renameModel: "claude-haiku-4-5-20251001" })
-    ).toMatchObject({ renameProvider: "openai", renameModel: "gpt-4o-mini" });
+      normalizeSettings({ llmProvider: "openai", llmModel: "claude-haiku-4-5-20251001" })
+    ).toMatchObject({ llmProvider: "openai", llmModel: "gpt-4o-mini" });
   });
 
   it("resets model to first provider model when model is unrecognised", () => {
     expect(
-      normalizeSettings({ renameProvider: "anthropic", renameModel: "made-up-model" })
-    ).toMatchObject({ renameModel: "claude-haiku-4-5-20251001" });
+      normalizeSettings({ llmProvider: "anthropic", llmModel: "made-up-model" })
+    ).toMatchObject({ llmModel: "claude-haiku-4-5-20251001" });
+  });
+
+  it("migrates legacy rename* LLM keys to the llm* names", () => {
+    expect(
+      normalizeSettings({
+        renameProvider: "openai",
+        renameModel: "gpt-4o",
+        renameModelCustom: "gpt-5-mini",
+        renameSecretName: "my-key",
+      } as never)
+    ).toMatchObject({
+      llmProvider: "openai",
+      llmModel: "gpt-4o",
+      llmModelCustom: "gpt-5-mini",
+      llmSecretName: "my-key",
+    });
+  });
+
+  it("prefers a current llm* key over a legacy rename* key when both exist", () => {
+    expect(
+      normalizeSettings({ llmProvider: "anthropic", renameProvider: "openai" } as never).llmProvider
+    ).toBe("anthropic");
+  });
+
+  it("defaults debugLogging to false", () => {
+    expect(normalizeSettings({}).debugLogging).toBe(false);
+  });
+
+  it("preserves an explicit debugLogging=true", () => {
+    expect(normalizeSettings({ debugLogging: true }).debugLogging).toBe(true);
   });
 
   it("falls back for non-positive renameMinContentChars", () => {

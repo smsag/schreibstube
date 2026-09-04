@@ -15,7 +15,10 @@ const context = await esbuild.context({
   format: "cjs",
   target: "es2020",
   logLevel: "info",
-  sourcemap: prod ? false : "inline",
+  // Inline in both modes: the release ships only main.js, so an external .map
+  // would never reach users. Inline keeps production stack traces readable,
+  // which pairs with the plugin's debug logging for diagnosing user reports.
+  sourcemap: "inline",
   treeShaking: true,
   outfile: "main.js",
   minify: prod

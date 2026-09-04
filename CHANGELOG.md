@@ -6,7 +6,19 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
-- **Summarize selection** command — select text in a note and replace it with an LLM-generated summary. Built for turning raw text pasted from analytics and reporting tools into a running insight log. The summarize prompt is configurable (with an insight-log preset as the default) and a **Maximum response tokens** setting caps the summary length. The command reuses the provider, model, and API key already configured for **Rename file from content**.
+- **Summarize selection** command — select text in a note and replace it with an LLM-generated summary. Built for turning raw text pasted from analytics and reporting tools into a running insight log. The summarize prompt is configurable (with an insight-log preset as the default) and a **Maximum response tokens** setting caps the summary length. The command uses the shared AI model configured under **AI models**.
+- **Debug logging** setting (under a new **Diagnostics** section). Errors are always logged to the developer console; enabling this adds verbose tracing to help diagnose issues.
+
+### Changed
+
+- **Shared AI configuration.** Provider, model, custom model ID, and API key now live under a dedicated **AI models** settings section and are shared by both rename and summarize (previously grouped under rename). Existing configurations are migrated automatically.
+- **Production builds now ship inline source maps**, so console stack traces from a release point at real source.
+
+### Internal
+
+- Extracted the link-open-mode feature and the LLM commands out of the main plugin class into dedicated controllers; isolated every access to undocumented Obsidian internals behind a single guarded adapter that degrades to a logged no-op if an internal changes.
+- Focus-mode decorations are now built only for the visible range, and the reading-view lifecycle observer no longer watches the whole document subtree — both reduce work on large notes and large workspaces.
+- AI commands now guard against overlapping runs, and summarize targets the originally selected range even if the cursor moves while the request is in flight.
 
 ## 1.3.0 - 2026-08-28
 

@@ -31,7 +31,7 @@ The rename does nothing if the note is shorter than the configured minimum lengt
 
 Select any text and run **Summarize selection** to send it to an LLM and replace the selection with the result. Built for turning raw text pasted from analytics and reporting tools into a running insight log: copy the numbers into a note, select them, summarize, and keep the distilled takeaway in place of the raw dump.
 
-The summarize prompt is fully configurable in settings — a default tuned for the insight-log workflow is provided. The command reuses the same provider, model, and API key as **Rename file from content**.
+The summarize prompt is fully configurable in settings — a default tuned for the insight-log workflow is provided. The command uses the shared **AI models** configuration (provider, model, and API key).
 
 ### Link open modes
 
@@ -54,20 +54,27 @@ Control where internal links open, indicated in the status bar:
 |---|---|---|
 | Dim opacity | Opacity of out-of-focus lines (0.2 faint – 0.8 nearly full) | 0.4 |
 
-### Rename file from content
+### AI models
+
+Provider, model, and API key are shared by every AI command (rename and summarize).
 
 | Setting | Description | Default |
 |---|---|---|
 | LLM provider | Anthropic or OpenAI | Anthropic |
 | Model | Model for the selected provider | Claude Haiku 4.5 |
 | Custom model ID | Optional override for a newer or unlisted model | — |
-| Max image size | Maximum image dimension (px) sent to the model | 768 |
 | API key | Stored in Obsidian's native secret storage | — |
+
+API keys are stored in Obsidian's built-in secret storage and are never written to the plugin data file.
+
+### Rename file from content
+
+| Setting | Description | Default |
+|---|---|---|
+| Max image size | Maximum image dimension (px) sent to the model | 768 |
 | Minimum content length | Notes shorter than this are skipped | 50 chars |
 | Maximum content sent to LLM | Characters from the note sent to the API | 4 000 chars |
 | Maximum filename length | Generated name is truncated to this | 60 chars |
-
-API keys are stored in Obsidian's built-in secret storage and are never written to the plugin data file.
 
 ### Summarize selection
 
@@ -76,7 +83,11 @@ API keys are stored in Obsidian's built-in secret storage and are never written 
 | Summarize prompt | System instruction telling the LLM how to summarize | Insight-log preset |
 | Maximum response tokens | Upper bound on summary length (64–4096) | 512 |
 
-Provider, model, and API key are shared with **Rename file from content**.
+### Diagnostics
+
+| Setting | Description | Default |
+|---|---|---|
+| Debug logging | Log detailed diagnostics to the developer console (errors are always logged) | Off |
 
 ## Installation
 

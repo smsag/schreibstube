@@ -29,40 +29,54 @@ const ALLOWED_PROVIDERS = new Set<LlmProvider>(LLM_PROVIDER_IDS);
 export const DEFAULT_SETTINGS: SchreibstubeSettings = {
   ...DEFAULT_FOCUS_SETTINGS,
   overlayEnabled: true,
-  renameProvider: "anthropic",
-  renameModel: "claude-haiku-4-5-20251001",
-  renameModelCustom: "",
-  renameSecretName: "",
+  llmProvider: "anthropic",
+  llmModel: "claude-haiku-4-5-20251001",
+  llmModelCustom: "",
+  llmSecretName: "",
   renameMinContentChars: 50,
   renameMaxContentChars: 4000,
   renameMaxFilenameLength: 60,
   renameMaxImagePx: 768,
   summarizePrompt: DEFAULT_SUMMARIZE_PROMPT,
   summarizeMaxTokens: 512,
+  debugLogging: false,
 };
 
-export function normalizeSettings(
-  loaded: Partial<SchreibstubeSettings> | null | undefined
-): SchreibstubeSettings {
+/** Settings as persisted may predate the rename→llm rename of the shared LLM
+ *  keys, so `normalizeSettings` accepts the legacy field names too. */
+interface LegacyLlmSettings {
+  renameProvider?: unknown;
+  renameModel?: unknown;
+  renameModelCustom?: unknown;
+  renameSecretName?: unknown;
+}
+
+type LoadedSettings = (Partial<SchreibstubeSettings> & LegacyLlmSettings) | null | undefined;
+
+export function normalizeSettings(loaded: LoadedSettings): SchreibstubeSettings {
   const focus = normalizeFocusSettings(loaded);
 
-  const loadedProvider = loaded?.renameProvider ?? "";
+  // Prefer the current key, falling back to the pre-1.4 `rename*` name so
+  // existing users keep their configured provider/model/key across the rename.
+  const loadedProvider = loaded?.llmProvider ?? loaded?.renameProvider ?? "";
   const provider: LlmProvider = ALLOWED_PROVIDERS.has(loadedProvider as LlmProvider)
     ? (loadedProvider as LlmProvider)
-    : DEFAULT_SETTINGS.renameProvider;
+    : DEFAULT_SETTINGS.llmProvider;
 
   const providerModels = PROVIDER_MODELS[provider];
   const modelValues = providerModels.map((m) => m.value);
-  const loadedModel = loaded?.renameModel ?? "";
-  const model = modelValues.includes(loadedModel) ? loadedModel : providerModels[0].value;
+  const loadedModel = loaded?.llmModel ?? loaded?.renameModel ?? "";
+  const model = modelValues.includes(loadedModel as string)
+    ? (loadedModel as string)
+    : providerModels[0].value;
 
-  const renameModelCustom =
-    typeof loaded?.renameModelCustom === "string"
-      ? loaded.renameModelCustom
-      : DEFAULT_SETTINGS.renameModelCustom;
+  const loadedModelCustom = loaded?.llmModelCustom ?? loaded?.renameModelCustom;
+  const llmModelCustom =
+    typeof loadedModelCustom === "string" ? loadedModelCustom : DEFAULT_SETTINGS.llmModelCustom;
 
-  const renameSecretName =
-    typeof loaded?.renameSecretName === "string" ? loaded.renameSecretName : DEFAULT_SETTINGS.renameSecretName;
+  const loadedSecretName = loaded?.llmSecretName ?? loaded?.renameSecretName;
+  const llmSecretName =
+    typeof loadedSecretName === "string" ? loadedSecretName : DEFAULT_SETTINGS.llmSecretName;
 
   return {
     ...focus,
@@ -70,10 +84,14 @@ export function normalizeSettings(
       typeof loaded?.overlayEnabled === "boolean"
         ? loaded.overlayEnabled
         : DEFAULT_SETTINGS.overlayEnabled,
-    renameProvider: provider,
-    renameModel: model,
-    renameModelCustom,
-    renameSecretName,
+    llmProvider: provider,
+    llmModel: model,
+    llmModelCustom,
+    llmSecretName,
+    debugLogging:
+      typeof loaded?.debugLogging === "boolean"
+        ? loaded.debugLogging
+        : DEFAULT_SETTINGS.debugLogging,
     renameMinContentChars: positiveIntOrDefault(
       loaded?.renameMinContentChars,
       DEFAULT_SETTINGS.renameMinContentChars
