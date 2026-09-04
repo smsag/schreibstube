@@ -14,6 +14,7 @@ import { OverlayCoordinator } from "./services/overlay-coordinator";
 import { bootstrapSchreibstubeRuntime } from "./services/plugin-bootstrap";
 import { DEFAULT_SETTINGS, normalizeSettings } from "./services/plugin-settings";
 import { generateImageRenameFilename, generateRenameFilename, sanitizeFilename } from "./services/llm-rename";
+import { generateSummary } from "./services/llm-summarize";
 import { MAX_IMAGE_BYTES, getImageMimeType, resizeImageToBase64 } from "./services/image-resize";
 import { SchreibstubeSettingTab } from "./settings";
 import type { FocusMode, HeadingEntry, SchreibstubeSettings } from "./types";
@@ -122,6 +123,12 @@ export default class SchreibstubePlugin extends Plugin {
       id: "rename-image-from-content",
       name: "Rename image from content",
       callback: () => { void this.executeRenameImageFromContent(); },
+    });
+
+    this.addCommand({
+      id: "summarize-selection",
+      name: "Summarize selection",
+      editorCallback: () => { void this.executeSummarizeSelection(); },
     });
 
     this.addCommand({
@@ -428,6 +435,47 @@ export default class SchreibstubePlugin extends Plugin {
       new Notice("Schreibstube: rename failed — a file with that name may already exist.");
       return;
     }
+  }
+
+  private async executeSummarizeSelection(): Promise<void> {
+    const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+    if (!view) return;
+
+    const editor = view.editor;
+    const selection = editor.getSelection();
+    if (!selection.trim()) {
+      new Notice("Schreibstube: select some text to summarize first.");
+      return;
+    }
+
+    const secretName = this.settings.renameSecretName;
+    if (!secretName) {
+      new Notice("Schreibstube: no secret selected — open Settings to choose one.");
+      return;
+    }
+    const apiKey = this.app.secretStorage.getSecret(secretName);
+    if (!apiKey) {
+      new Notice("Schreibstube: secret not found — check Settings.");
+      return;
+    }
+
+    const progress = new Notice("Schreibstube: summarizing…", 0);
+    let summary: string;
+    try {
+      summary = await generateSummary(selection, this.settings, apiKey);
+    } catch (err) {
+      new Notice(`Schreibstube: summarize failed — ${err instanceof Error ? err.message : "unknown error"}`);
+      return;
+    } finally {
+      progress.hide();
+    }
+
+    if (!summary) {
+      new Notice("Schreibstube: summarize failed — the LLM returned an empty response.");
+      return;
+    }
+
+    editor.replaceSelection(summary);
   }
 
   private async executeRenameFromContent(): Promise<void> {

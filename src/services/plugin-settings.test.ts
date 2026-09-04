@@ -79,4 +79,34 @@ describe("normalizeSettings", () => {
       normalizeSettings({ focusMode: "sentence", focusDimOpacity: 0.6 })
     ).toMatchObject({ focusMode: "sentence", focusDimOpacity: 0.6 });
   });
+
+  it("defaults summarizePrompt when absent", () => {
+    expect(normalizeSettings({}).summarizePrompt).toBe(DEFAULT_SETTINGS.summarizePrompt);
+  });
+
+  it("restores the default summarizePrompt for a blank value", () => {
+    expect(normalizeSettings({ summarizePrompt: "   " }).summarizePrompt).toBe(
+      DEFAULT_SETTINGS.summarizePrompt
+    );
+  });
+
+  it("preserves a custom summarizePrompt", () => {
+    expect(normalizeSettings({ summarizePrompt: "Summarize tersely." }).summarizePrompt).toBe(
+      "Summarize tersely."
+    );
+  });
+
+  it("clamps summarizeMaxTokens below the minimum", () => {
+    expect(normalizeSettings({ summarizeMaxTokens: 1 }).summarizeMaxTokens).toBe(64);
+  });
+
+  it("clamps summarizeMaxTokens above the maximum", () => {
+    expect(normalizeSettings({ summarizeMaxTokens: 999999 }).summarizeMaxTokens).toBe(4096);
+  });
+
+  it("falls back for a non-integer summarizeMaxTokens", () => {
+    expect(normalizeSettings({ summarizeMaxTokens: NaN }).summarizeMaxTokens).toBe(
+      DEFAULT_SETTINGS.summarizeMaxTokens
+    );
+  });
 });

@@ -3,7 +3,9 @@ import type SchreibstubePlugin from "./main";
 import type { LlmProvider } from "./types";
 import {
   MAX_IMAGE_PX,
+  MAX_SUMMARY_TOKENS,
   MIN_IMAGE_PX,
+  MIN_SUMMARY_TOKENS,
   normalizeSettings
 } from "./services/plugin-settings";
 import { LLM_PROVIDER_IDS, PROVIDER_MODELS, providerLabel } from "./services/llm-providers";
@@ -200,6 +202,52 @@ export class SchreibstubeSettingTab extends PluginSettingTab {
               renameMaxFilenameLength: n,
             });
             await this.plugin.saveSettings();
+          }
+        });
+      });
+
+    new Setting(containerEl).setName("Summarize selection").setHeading();
+
+    new Setting(containerEl)
+      .setDesc(
+        "The Summarize selection command sends the selected text to the LLM and replaces it with the result. It reuses the provider, model, and API key configured above."
+      );
+
+    new Setting(containerEl)
+      .setName("Summarize prompt")
+      .setDesc("System instruction that tells the LLM how to summarize the selection. Leave blank to restore the default.")
+      .addTextArea((text) => {
+        text.inputEl.rows = 6;
+        text.inputEl.style.width = "100%";
+        text.setValue(this.plugin.settings.summarizePrompt);
+        text.inputEl.addEventListener("blur", async () => {
+          this.plugin.settings = normalizeSettings({
+            ...this.plugin.settings,
+            summarizePrompt: text.inputEl.value,
+          });
+          await this.plugin.saveSettings();
+          text.setValue(this.plugin.settings.summarizePrompt);
+        });
+      });
+
+    new Setting(containerEl)
+      .setName("Maximum response tokens")
+      .setDesc(`Upper bound on the length of the generated summary (${MIN_SUMMARY_TOKENS}–${MAX_SUMMARY_TOKENS}).`)
+      .addText((text) => {
+        text.setValue(String(this.plugin.settings.summarizeMaxTokens));
+        text.inputEl.type = "number";
+        text.inputEl.min = String(MIN_SUMMARY_TOKENS);
+        text.inputEl.max = String(MAX_SUMMARY_TOKENS);
+        text.inputEl.style.width = "80px";
+        text.inputEl.addEventListener("blur", async () => {
+          const n = parseInt(text.inputEl.value, 10);
+          if (Number.isInteger(n)) {
+            this.plugin.settings = normalizeSettings({
+              ...this.plugin.settings,
+              summarizeMaxTokens: n,
+            });
+            await this.plugin.saveSettings();
+            text.setValue(String(this.plugin.settings.summarizeMaxTokens));
           }
         });
       });

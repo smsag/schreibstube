@@ -27,6 +27,12 @@ Assigns a filename to the active note or image based on its content:
 
 The rename does nothing if the note is shorter than the configured minimum length, or if no API key has been set.
 
+### Summarize selection
+
+Select any text and run **Summarize selection** to send it to an LLM and replace the selection with the result. Built for turning raw text pasted from analytics and reporting tools into a running insight log: copy the numbers into a note, select them, summarize, and keep the distilled takeaway in place of the raw dump.
+
+The summarize prompt is fully configurable in settings — a default tuned for the insight-log workflow is provided. The command reuses the same provider, model, and API key as **Rename file from content**.
+
 ### Link open modes
 
 Control where internal links open, indicated in the status bar:
@@ -62,6 +68,15 @@ Control where internal links open, indicated in the status bar:
 | Maximum filename length | Generated name is truncated to this | 60 chars |
 
 API keys are stored in Obsidian's built-in secret storage and are never written to the plugin data file.
+
+### Summarize selection
+
+| Setting | Description | Default |
+|---|---|---|
+| Summarize prompt | System instruction telling the LLM how to summarize | Insight-log preset |
+| Maximum response tokens | Upper bound on summary length (64–4096) | 512 |
+
+Provider, model, and API key are shared with **Rename file from content**.
 
 ## Installation
 
