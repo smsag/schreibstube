@@ -16,6 +16,7 @@ import { DEFAULT_SETTINGS, normalizeSettings } from "./services/plugin-settings"
 import { createLogger, type Logger } from "./services/logger";
 import { LinkModeController } from "./controllers/link-mode-controller";
 import { LlmCommands } from "./controllers/llm-commands";
+import { MailCommands } from "./controllers/mail-commands";
 import { SchreibstubeSettingTab } from "./settings";
 import type { FocusMode, HeadingEntry, SchreibstubeSettings } from "./types";
 
@@ -32,6 +33,7 @@ export default class SchreibstubePlugin extends Plugin {
   private refreshScheduler: RefreshScheduler | null = null;
   private linkMode: LinkModeController | null = null;
   private llm: LlmCommands | null = null;
+  private mail: MailCommands | null = null;
 
   async onload(): Promise<void> {
     await this.loadSettings();
@@ -44,6 +46,7 @@ export default class SchreibstubePlugin extends Plugin {
 
     this.linkMode = new LinkModeController(this.app, this.logger);
     this.llm = new LlmCommands(this.app, () => this.settings, this.logger);
+    this.mail = new MailCommands(this.app, () => this.settings, this.logger);
 
     bootstrapSchreibstubeRuntime(this, {
       onViewportFromEditor: (viewportTopLine) => {
@@ -130,6 +133,24 @@ export default class SchreibstubePlugin extends Plugin {
       id: "summarize-selection",
       name: "Summarize selection",
       editorCallback: () => { void this.llm?.summarizeSelection(); },
+    });
+
+    this.addCommand({
+      id: "send-note-as-email",
+      name: "Send note as email",
+      callback: () => { void this.mail?.sendNoteAsEmail(); },
+    });
+
+    this.addCommand({
+      id: "query-mailbox",
+      name: "Query mailbox",
+      callback: () => { void this.mail?.queryMailbox(); },
+    });
+
+    this.addCommand({
+      id: "fetch-replies",
+      name: "Fetch replies into note",
+      callback: () => { void this.mail?.fetchReplies(); },
     });
 
     this.addCommand({

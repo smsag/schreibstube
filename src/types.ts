@@ -29,6 +29,13 @@ export interface SchreibstubeSettings {
   // Summarize-specific tuning.
   summarizePrompt: string;
   summarizeMaxTokens: number;
+  // Email bridge configuration, shared by every mail command.
+  mailBridgeUrl: string;
+  mailTokenSecretName: string;
+  mailFrom: string;
+  mailMailbox: string;
+  mailMaxResults: number;
+  mailMergeHeading: string;
   // Diagnostics.
   debugLogging: boolean;
 }

@@ -140,3 +140,48 @@ describe("normalizeSettings", () => {
     );
   });
 });
+
+describe("normalizeSettings — email bridge", () => {
+  it("defaults to an unconfigured bridge", () => {
+    const settings = normalizeSettings({});
+    expect(settings.mailBridgeUrl).toBe("");
+    expect(settings.mailTokenSecretName).toBe("");
+    expect(settings.mailMailbox).toBe("INBOX");
+    expect(settings.mailMergeHeading).toBe("Correspondence");
+  });
+
+  it("trims the bridge URL so a pasted value with whitespace still works", () => {
+    expect(normalizeSettings({ mailBridgeUrl: "  https://x.app  " }).mailBridgeUrl).toBe(
+      "https://x.app"
+    );
+  });
+
+  it("keeps the bridge URL empty when cleared, rather than restoring a default", () => {
+    expect(normalizeSettings({ mailBridgeUrl: "" }).mailBridgeUrl).toBe("");
+  });
+
+  it("restores the default mailbox when the value is blanked", () => {
+    expect(normalizeSettings({ mailMailbox: "   " }).mailMailbox).toBe("INBOX");
+  });
+
+  it("keeps a custom mailbox and merge heading", () => {
+    const settings = normalizeSettings({
+      mailMailbox: "Archiv",
+      mailMergeHeading: "Korrespondenz"
+    });
+    expect(settings.mailMailbox).toBe("Archiv");
+    expect(settings.mailMergeHeading).toBe("Korrespondenz");
+  });
+
+  it("clamps mailMaxResults into the supported range", () => {
+    expect(normalizeSettings({ mailMaxResults: 0 }).mailMaxResults).toBe(1);
+    expect(normalizeSettings({ mailMaxResults: 5000 }).mailMaxResults).toBe(50);
+    expect(normalizeSettings({ mailMaxResults: 10 }).mailMaxResults).toBe(10);
+  });
+
+  it("falls back for a non-integer mailMaxResults", () => {
+    expect(normalizeSettings({ mailMaxResults: "many" as unknown as number }).mailMaxResults).toBe(
+      DEFAULT_SETTINGS.mailMaxResults
+    );
+  });
+});

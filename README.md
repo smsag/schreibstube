@@ -1,6 +1,6 @@
 # Schreibstube
 
-A writing-focused Obsidian plugin: a sticky heading-stack overlay, a distraction-reducing focus mode, LLM-powered file renaming, and side-pane link opening.
+A writing-focused Obsidian plugin: a sticky heading-stack overlay, a distraction-reducing focus mode, LLM-powered file renaming, email send/query/merge over IMAP and SMTP, and side-pane link opening.
 
 ## Features
 
@@ -32,6 +32,38 @@ The rename does nothing if the note is shorter than the configured minimum lengt
 Select any text and run **Summarize selection** to send it to an LLM and replace the selection with the result. Built for turning raw text pasted from analytics and reporting tools into a running insight log: copy the numbers into a note, select them, summarize, and keep the distilled takeaway in place of the raw dump.
 
 The summarize prompt is fully configurable in settings — a default tuned for the insight-log workflow is provided. The command uses the shared **AI models** configuration (provider, model, and API key).
+
+### Email (IMAP/SMTP)
+
+Send notes as email and pull messages back into your vault — on desktop **and** mobile.
+
+- **Send note as email** — recipients and subject come from the note's frontmatter; the body is the note with its frontmatter stripped. A confirmation dialog shows what is about to be sent.
+- **Query mailbox** — search by sender, subject, full text or date, then insert the chosen message into the active note.
+- **Fetch replies into note** — find replies to a note you sent and append the new ones. Re-running the command only ever adds what is new.
+
+The note's frontmatter is the contract:
+
+```yaml
+---
+to: kunde@example.com
+cc: [innendienst@example.com]
+subject: Angebot Objekt 4711
+message_id: <7f3a…@your-domain.de>      # written on send
+sent_at: 2026-09-07T10:12:00.000Z       # written on send
+merged_ids: ["<reply-1@mail.kunde.de>"] # written on merge; keeps merging idempotent
+---
+```
+
+`message_id` is what ties replies back to the note, so **Fetch replies** only works on notes that were sent from Obsidian.
+
+#### The bridge
+
+Obsidian on mobile runs in a WebView with no Node runtime and no raw sockets, so the plugin cannot speak IMAP or SMTP itself. Instead it talks HTTPS to a small self-hosted bridge that does — see [`bridge/README.md`](bridge/README.md) for the API, configuration, and Sliplane deployment steps.
+
+Two consequences worth knowing:
+
+- The plugin needs **no Node dependencies** and stays available on mobile.
+- Your **mailbox password lives on the bridge**, not in the vault. The plugin only stores a bridge token, which you can rotate without touching the mailbox.
 
 ### Link open modes
 
@@ -82,6 +114,19 @@ API keys are stored in Obsidian's built-in secret storage and are never written 
 |---|---|---|
 | Summarize prompt | System instruction telling the LLM how to summarize | Insight-log preset |
 | Maximum response tokens | Upper bound on summary length (64–4096) | 512 |
+
+### Email
+
+Requires a deployed bridge — see [`bridge/README.md`](bridge/README.md).
+
+| Setting | Description | Default |
+|---|---|---|
+| Bridge URL | Base URL of your bridge. Must be `https://` unless it is localhost | — |
+| Bridge token | The bridge's `BRIDGE_TOKEN`, stored in Obsidian's secret storage | — |
+| From address | Optional override for the bridge's `MAIL_FROM` | — |
+| Mailbox | IMAP mailbox searched by the query and reply commands | INBOX |
+| Maximum results | How many messages a search returns (newest kept) | 25 |
+| Merge heading | Heading that fetched replies are appended under | Correspondence |
 
 ### Diagnostics
 

@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Added
+
+- **Email commands, working on mobile as well as desktop.** Three new commands:
+  - **Send note as email** — addressing comes from the note's frontmatter (`to`, `cc`, `subject`), the body is the note with its frontmatter stripped. A confirmation dialog shows recipients and subject before anything leaves the vault. On success the assigned `message_id` and `sent_at` are written back to the note.
+  - **Query mailbox** — search IMAP by sender, subject, full text and date, then insert the chosen message into the active note.
+  - **Fetch replies into note** — find replies to the note's own `message_id` and append the new ones under a configurable heading. Every merged message is recorded in `merged_ids`, so the command is idempotent and can be run as often as you like without duplicating content.
+- **Mail bridge** (`bridge/`) — a small, stateless self-hosted service that speaks IMAP/SMTP on the plugin's behalf. Ships with a Dockerfile and Sliplane deployment instructions.
+- **Email settings section** — bridge URL, bridge token (in Obsidian's secret storage), optional From override, mailbox, result limit, and merge heading.
+
+### Notes
+
+- The plugin gains no new dependencies and remains available on mobile. Obsidian's mobile runtime has no Node and no raw sockets, so IMAP/SMTP cannot be spoken from the plugin; all mail traffic goes to the bridge over HTTPS via `requestUrl`, the same transport the AI commands already use.
+- The mailbox password lives in the bridge's environment, never in the vault. The plugin stores only the bridge token, which can be rotated independently.
+- Fetched message bodies are quoted when merged into a note, so email content cannot inject headings or lists into the note's own structure.
+
 ## 1.4.0 - 2026-09-04
 
 ### Added

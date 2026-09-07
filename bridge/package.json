@@ -1,0 +1,19 @@
+{
+  "name": "schreibstube-mail-bridge",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Stateless HTTP bridge that lets the Schreibstube Obsidian plugin reach IMAP/SMTP from desktop and mobile.",
+  "main": "server.mjs",
+  "scripts": {
+    "start": "node server.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "imapflow": "^1.0.181",
+    "mailparser": "^3.7.2",
+    "nodemailer": "^6.9.16"
+  }
+}

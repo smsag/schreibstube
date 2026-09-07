@@ -13,6 +13,12 @@ export const MAX_IMAGE_PX = 2048;
 export const MIN_SUMMARY_TOKENS = 64;
 export const MAX_SUMMARY_TOKENS = 4096;
 
+export const MIN_MAIL_RESULTS = 1;
+export const MAX_MAIL_RESULTS = 50;
+
+/** Heading the "Fetch replies" command appends merged messages under. */
+export const DEFAULT_MAIL_MERGE_HEADING = "Correspondence";
+
 /** Default summarize prompt, tuned for turning raw text pasted from analytics
  *  and reporting tools into a compact insight-log entry. */
 export const DEFAULT_SUMMARIZE_PROMPT =
@@ -39,6 +45,12 @@ export const DEFAULT_SETTINGS: SchreibstubeSettings = {
   renameMaxImagePx: 768,
   summarizePrompt: DEFAULT_SUMMARIZE_PROMPT,
   summarizeMaxTokens: 512,
+  mailBridgeUrl: "",
+  mailTokenSecretName: "",
+  mailFrom: "",
+  mailMailbox: "INBOX",
+  mailMaxResults: 25,
+  mailMergeHeading: DEFAULT_MAIL_MERGE_HEADING,
   debugLogging: false,
 };
 
@@ -120,7 +132,30 @@ export function normalizeSettings(loaded: LoadedSettings): SchreibstubeSettings 
       MAX_SUMMARY_TOKENS,
       DEFAULT_SETTINGS.summarizeMaxTokens
     ),
+    mailBridgeUrl: trimmedStringOrDefault(loaded?.mailBridgeUrl, DEFAULT_SETTINGS.mailBridgeUrl),
+    mailTokenSecretName:
+      typeof loaded?.mailTokenSecretName === "string"
+        ? loaded.mailTokenSecretName
+        : DEFAULT_SETTINGS.mailTokenSecretName,
+    mailFrom: trimmedStringOrDefault(loaded?.mailFrom, DEFAULT_SETTINGS.mailFrom),
+    mailMailbox: nonEmptyStringOrDefault(loaded?.mailMailbox, DEFAULT_SETTINGS.mailMailbox),
+    mailMaxResults: clampIntOrDefault(
+      loaded?.mailMaxResults,
+      MIN_MAIL_RESULTS,
+      MAX_MAIL_RESULTS,
+      DEFAULT_SETTINGS.mailMaxResults
+    ),
+    mailMergeHeading: nonEmptyStringOrDefault(
+      loaded?.mailMergeHeading,
+      DEFAULT_SETTINGS.mailMergeHeading
+    ),
   };
+}
+
+/** Optional free-text setting: an empty value is meaningful ("not configured"),
+ *  so it is preserved rather than replaced by the default. */
+function trimmedStringOrDefault(value: unknown, fallback: string): string {
+  return typeof value === "string" ? value.trim() : fallback;
 }
 
 function nonEmptyStringOrDefault(value: unknown, fallback: string): string {

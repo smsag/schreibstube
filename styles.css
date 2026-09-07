@@ -99,3 +99,16 @@
 .schreibstube-focus-enabled.schreibstube-focus-mode-sentence .schreibstube-focus-sentence {
   color: var(--text-normal);
 }
+
+/* Mail result picker: the metadata line under each subject. */
+.schreibstube-mail-result-meta {
+  display: block;
+  color: var(--text-muted);
+  font-size: var(--font-smaller);
+}
+
+/* Re-send warning in the send confirmation dialog. */
+.schreibstube-mail-warning {
+  color: var(--text-warning);
+  font-size: var(--font-smaller);
+}
