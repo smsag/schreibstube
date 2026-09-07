@@ -8,7 +8,8 @@ import {
   normalizeBaseUrl,
   type MailBridgeConfig,
   type MailMessage,
-  type SearchCriteria
+  type SearchCriteria,
+  type SendResult
 } from "../services/mail-protocol";
 import {
   FM_MERGED_IDS,
@@ -97,33 +98,47 @@ export class MailCommands {
       const settings = this.getSettings();
       const progress = new Notice("Schreibstube: sending…", 0);
 
+      let result: SendResult;
       try {
-        const result = await sendMail(bridge, {
+        result = await sendMail(bridge, {
           to: fields.to,
           cc: fields.cc,
           subject: fields.subject,
           text: body,
           from: settings.mailFrom || undefined
         });
+      } catch (err) {
+        this.fail("send", "Schreibstube: send failed", err);
+        return;
+      } finally {
+        progress.hide();
+      }
 
-        // The returned Message-ID is what later ties replies back to this note,
-        // so it is persisted before anything else can go wrong.
+      // The mail is delivered from here on. Anything that fails below must not
+      // be reported as a failed send: the user would send again and deliver a
+      // duplicate — and with message_id unwritten, the re-send warning would
+      // not even fire.
+      try {
         await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
           frontmatter[FM_MESSAGE_ID] = result.messageId;
           frontmatter[FM_SENT_AT] = result.sentAt;
         });
-
-        this.logger.debug("Sent note as email:", result.messageId);
-        new Notice(
-          result.filedInSent
-            ? "Schreibstube: email sent."
-            : "Schreibstube: email sent (no copy filed in Sent)."
-        );
       } catch (err) {
-        this.fail("send", "Schreibstube: send failed", err);
-      } finally {
-        progress.hide();
+        this.logger.error("Email sent but the Message-ID could not be stored:", err);
+        new Notice(
+          `Schreibstube: email sent, but ${FM_MESSAGE_ID} could not be written to the note. ` +
+            `Add it by hand to enable reply fetching: ${result.messageId}`,
+          0
+        );
+        return;
       }
+
+      this.logger.debug("Sent note as email:", result.messageId);
+      new Notice(
+        result.filedInSent
+          ? "Schreibstube: email sent."
+          : "Schreibstube: email sent (no copy filed in Sent)."
+      );
     });
   }
 
@@ -149,18 +164,28 @@ export class MailCommands {
       return;
     }
 
-    const messages = await this.runSearch(bridge, criteria);
-    if (!messages) {
-      return;
-    }
-    if (messages.length === 0) {
-      new Notice("Schreibstube: no messages matched.");
-      return;
-    }
+    await this.withBusy("search", async () => {
+      const progress = new Notice("Schreibstube: searching mailbox…", 0);
 
-    new MailResultModal(this.app, messages, (message) => {
-      this.insertMessage(message);
-    }).open();
+      let messages: MailMessage[];
+      try {
+        messages = await this.runSearch(bridge, criteria);
+      } catch (err) {
+        this.fail("search", "Schreibstube: mailbox search failed", err);
+        return;
+      } finally {
+        progress.hide();
+      }
+
+      if (messages.length === 0) {
+        new Notice("Schreibstube: no messages matched.");
+        return;
+      }
+
+      new MailResultModal(this.app, messages, (message) => {
+        this.insertMessage(message);
+      }).open();
+    });
   }
 
   /**
@@ -181,73 +206,92 @@ export class MailCommands {
     }
 
     const fields = this.readFields(file);
-    if (!fields.messageId) {
+    const messageId = fields.messageId;
+    if (!messageId) {
       new Notice(
         `Schreibstube: this note has no ${FM_MESSAGE_ID} — send it as an email first.`
       );
       return;
     }
 
-    const messages = await this.runSearch(bridge, { references: fields.messageId });
-    if (!messages) {
-      return;
-    }
-
-    const fresh = selectUnmerged(messages, fields.mergedIds);
-    if (fresh.length === 0) {
-      new Notice("Schreibstube: no new replies.");
-      return;
-    }
-
-    const settings = this.getSettings();
-    const content = await this.app.vault.read(file);
-    const merged = appendToSection(content, settings.mailMergeHeading, formatMessages(fresh));
-    await this.app.vault.modify(file, merged);
-
-    // Recorded after the append so a failed write cannot mark messages as
-    // merged when they never made it into the note.
-    await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
-      const existing = Array.isArray(frontmatter[FM_MERGED_IDS])
-        ? (frontmatter[FM_MERGED_IDS] as unknown[]).map(String)
-        : [];
-      frontmatter[FM_MERGED_IDS] = [...existing, ...fresh.map(mergeKey)];
-    });
-
-    this.logger.debug(`Merged ${fresh.length} repl(y|ies) into`, file.path);
-    new Notice(`Schreibstube: merged ${fresh.length} new message(s).`);
-  }
-
-  /** Run a search under the busy guard. Returns null when the search could not
-   *  run at all; an empty array means "ran fine, matched nothing" — the callers
-   *  word that differently, so it is deliberately not announced here. */
-  private async runSearch(
-    bridge: MailBridgeConfig,
-    criteria: SearchCriteria
-  ): Promise<MailMessage[] | null> {
-    const settings = this.getSettings();
-    let messages: MailMessage[] | null = null;
-
-    await this.withBusy("search", async () => {
+    // The guard spans the whole flow, not just the network call: two
+    // overlapping runs could otherwise both pass the merged_ids check and
+    // append the same replies twice.
+    await this.withBusy("fetch replies", async () => {
+      const settings = this.getSettings();
       const progress = new Notice("Schreibstube: searching mailbox…", 0);
-      try {
-        const result = await searchMail(bridge, {
-          criteria,
-          mailbox: settings.mailMailbox,
-          limit: settings.mailMaxResults
-        });
 
-        if (result.truncated) {
-          this.logger.info("Search hit the result limit; older matches were dropped.");
-        }
-        messages = result.messages;
+      let messages: MailMessage[];
+      try {
+        messages = await this.runSearch(bridge, { references: messageId });
       } catch (err) {
-        this.fail("search", "Schreibstube: mailbox search failed", err);
+        this.fail("fetch replies", "Schreibstube: mailbox search failed", err);
+        return;
       } finally {
         progress.hide();
       }
+
+      const fresh = selectUnmerged(messages, fields.mergedIds);
+      if (fresh.length === 0) {
+        new Notice("Schreibstube: no new replies.");
+        return;
+      }
+
+      try {
+        // Atomic read-modify-write. The note is usually open in an editor, and
+        // a separate read + modify would race a pending editor flush — losing
+        // either the user's unsaved typing or the merged replies.
+        await this.app.vault.process(file, (data) =>
+          appendToSection(data, settings.mailMergeHeading, formatMessages(fresh))
+        );
+      } catch (err) {
+        this.fail("fetch replies", "Schreibstube: merging replies failed", err);
+        return;
+      }
+
+      // Recorded only after the append succeeded, so a failed write can never
+      // mark messages as merged when they never reached the note.
+      try {
+        await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
+          const existing = Array.isArray(frontmatter[FM_MERGED_IDS])
+            ? (frontmatter[FM_MERGED_IDS] as unknown[]).map(String)
+            : [];
+          frontmatter[FM_MERGED_IDS] = [...existing, ...fresh.map(mergeKey)];
+        });
+      } catch (err) {
+        this.logger.error("Replies merged but merged_ids could not be updated:", err);
+        new Notice(
+          `Schreibstube: replies merged, but ${FM_MERGED_IDS} could not be updated — ` +
+            "running the command again may duplicate them.",
+          0
+        );
+        return;
+      }
+
+      this.logger.debug(`Merged ${fresh.length} new message(s) into`, file.path);
+      new Notice(`Schreibstube: merged ${fresh.length} new message(s).`);
+    });
+  }
+
+  /** Perform the search itself. Throws on failure and returns an empty array
+   *  for "ran fine, matched nothing" — the callers hold the busy guard and
+   *  word both outcomes differently. */
+  private async runSearch(
+    bridge: MailBridgeConfig,
+    criteria: SearchCriteria
+  ): Promise<MailMessage[]> {
+    const settings = this.getSettings();
+    const result = await searchMail(bridge, {
+      criteria,
+      mailbox: settings.mailMailbox,
+      limit: settings.mailMaxResults
     });
 
-    return messages;
+    if (result.truncated) {
+      this.logger.info("Search hit the result limit; older matches were dropped.");
+    }
+
+    return result.messages;
   }
 
   private insertMessage(message: MailMessage): void {
@@ -273,9 +317,13 @@ export class MailCommands {
       return null;
     }
 
-    const token = resolveApiKey(this.app.secretStorage, settings.mailTokenSecretName);
+    const token = resolveApiKey(
+      this.app.secretStorage,
+      settings.mailTokenSecretName,
+      "bridge token"
+    );
     if (!token.ok) {
-      new Notice(token.message.replace("secret", "bridge token secret"));
+      new Notice(token.message);
       return null;
     }
 

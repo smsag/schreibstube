@@ -140,20 +140,39 @@ function isAuthorized(req) {
 
 function readJson(req, maxBytes) {
   return new Promise((resolve, reject) => {
+    // Reject on the declared size before reading a single byte. Cheaper than
+    // streaming, and it is the path a normal client takes.
+    const declared = Number.parseInt(req.headers["content-length"] ?? "", 10);
+    if (Number.isInteger(declared) && declared > maxBytes) {
+      reject(fail(413, `Request body exceeds ${maxBytes} bytes.`));
+      return;
+    }
+
     const chunks = [];
     let size = 0;
+    let rejected = false;
 
     req.on("data", (chunk) => {
+      if (rejected) {
+        return;
+      }
       size += chunk.length;
       if (size > maxBytes) {
+        // Pause rather than destroy: destroying the socket here kills the
+        // connection before the 413 can be written, so the client sees an
+        // opaque connection reset instead of the reason.
+        rejected = true;
+        req.pause();
         reject(fail(413, `Request body exceeds ${maxBytes} bytes.`));
-        req.destroy();
         return;
       }
       chunks.push(chunk);
     });
 
     req.on("end", () => {
+      if (rejected) {
+        return;
+      }
       const raw = Buffer.concat(chunks).toString("utf8");
       if (!raw.trim()) {
         resolve({});
@@ -166,7 +185,11 @@ function readJson(req, maxBytes) {
       }
     });
 
-    req.on("error", (err) => reject(fail(400, err.message)));
+    req.on("error", (err) => {
+      if (!rejected) {
+        reject(fail(400, err.message));
+      }
+    });
   });
 }
 

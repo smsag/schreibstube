@@ -116,3 +116,23 @@ describe("appendToSection", () => {
     );
   });
 });
+
+describe("appendToSection — heading whitespace", () => {
+  it("re-uses the section when the configured heading has stray whitespace", () => {
+    // Regression: an untrimmed heading never matched the section it wrote last
+    // time, so every run appended another "## Correspondence" block.
+    const first = appendToSection("Body", "Correspondence ", "### One");
+    const second = appendToSection(first, "Correspondence ", "### Two");
+
+    expect(second.match(/## Correspondence/g)).toHaveLength(1);
+    expect(second).toContain("### One");
+    expect(second).toContain("### Two");
+  });
+
+  it("matches a section written with the trimmed heading", () => {
+    const note = "Body\n\n## Correspondence\n\n### One\n";
+    expect(appendToSection(note, "  Correspondence  ", "### Two")).toBe(
+      "Body\n\n## Correspondence\n\n### One\n\n### Two\n"
+    );
+  });
+});

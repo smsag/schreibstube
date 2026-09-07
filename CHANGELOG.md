@@ -13,6 +13,16 @@ All notable changes to this project will be documented in this file.
 - **Mail bridge** (`bridge/`) — a small, stateless self-hosted service that speaks IMAP/SMTP on the plugin's behalf. Ships with a Dockerfile and Sliplane deployment instructions.
 - **Email settings section** — bridge URL, bridge token (in Obsidian's secret storage), optional From override, mailbox, result limit, and merge heading.
 
+### Fixed
+
+- **Duplicate correspondence sections.** A merge heading configured with stray whitespace never matched the section it wrote last time, so every "Fetch replies" run appended a fresh `## Correspondence` block.
+- **A send is no longer reported as failed after the mail has gone out.** Persisting `message_id` is now separate from the send itself: if it fails, the notice says the mail was delivered and shows the ID to add by hand, instead of inviting a re-send that would deliver a duplicate.
+- **"Fetch replies" reports its own failures.** It previously had no error handling, so a failed write surfaced only as an unhandled rejection — with `merged_ids` unwritten, making the next run duplicate the replies it had already merged.
+- **Merging no longer races the editor.** Replies are appended with an atomic read-modify-write, so a pending editor flush can no longer discard either unsaved typing or the merged replies.
+- **The in-flight guard now spans the whole reply merge**, not just the search, so two overlapping runs cannot append the same replies twice.
+- **Bridge: oversized requests return a readable 413** instead of dropping the connection, and the size is rejected from the declared `Content-Length` before any body is read.
+- **Bridge: the search limit is clamped from both ends.** A negative or non-numeric `limit` previously inverted the result window, returning the oldest matches and far more of them than configured — each one fully parsed.
+
 ### Notes
 
 - The plugin gains no new dependencies and remains available on mobile. Obsidian's mobile runtime has no Node and no raw sockets, so IMAP/SMTP cannot be spoken from the plugin; all mail traffic goes to the bridge over HTTPS via `requestUrl`, the same transport the AI commands already use.

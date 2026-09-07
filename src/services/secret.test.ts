@@ -31,4 +31,20 @@ describe("resolveApiKey", () => {
     const result = resolveApiKey(store({ "my-key": "" }), "my-key");
     expect(result.ok).toBe(false);
   });
+
+  it("names the secret in both failure messages, so the user knows which to set", () => {
+    const notSelected = resolveApiKey(store({}), "", "bridge token");
+    const notFound = resolveApiKey(store({}), "absent", "bridge token");
+
+    expect(notSelected.ok).toBe(false);
+    expect(notFound.ok).toBe(false);
+    if (!notSelected.ok) {
+      expect(notSelected.message).toBe(
+        "Schreibstube: no bridge token selected — open Settings to choose one."
+      );
+    }
+    if (!notFound.ok) {
+      expect(notFound.message).toBe("Schreibstube: bridge token not found — check Settings.");
+    }
+  });
 });

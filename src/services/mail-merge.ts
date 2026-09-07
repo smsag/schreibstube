@@ -1,3 +1,4 @@
+import { formatIsoMinutes } from "../utils/format-date";
 import type { MailMessage } from "./mail-protocol";
 
 /**
@@ -45,7 +46,7 @@ export function formatMessage(message: MailMessage): string {
   const heading = message.subject.trim() || "(no subject)";
   const meta = [
     message.from ? `**From:** ${message.from}` : "",
-    message.date ? `**Date:** ${formatDate(message.date)}` : ""
+    message.date ? `**Date:** ${formatIsoMinutes(message.date)}` : ""
   ]
     .filter(Boolean)
     .join(" · ");
@@ -67,15 +68,6 @@ export function formatMessages(messages: MailMessage[]): string {
   return messages.map(formatMessage).join("\n\n");
 }
 
-function formatDate(iso: string): string {
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) {
-    return iso;
-  }
-  // Locale-independent and sortable, which matters more in a note than prose.
-  return date.toISOString().replace("T", " ").slice(0, 16);
-}
-
 /**
  * Append `addition` to the `## <heading>` section, creating that section at the
  * end of the note if it does not exist yet. Content that follows the section
@@ -84,7 +76,10 @@ function formatDate(iso: string): string {
  */
 export function appendToSection(body: string, heading: string, addition: string): string {
   const trimmedBody = body.replace(/\s+$/, "");
-  const headingLine = `## ${heading}`;
+  // The heading is trimmed on both sides of the comparison: a configured value
+  // with stray whitespace would otherwise never match the heading it wrote
+  // last time, and every run would append another section.
+  const headingLine = `## ${heading.trim()}`;
   const lines = trimmedBody.split("\n");
 
   const start = lines.findIndex((line) => line.trim() === headingLine);

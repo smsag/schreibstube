@@ -97,7 +97,7 @@ async function appendToSent(config, raw) {
 /** Search a mailbox and return the matching messages, newest last. */
 export async function searchMessages(config, request) {
   const mailbox = request.mailbox?.trim() || config.defaultMailbox;
-  const limit = Math.min(request.limit || 25, config.maxResults);
+  const limit = clampLimit(request.limit, config.maxResults);
   const client = newClient(config);
 
   try {
@@ -124,6 +124,19 @@ export async function searchMessages(config, request) {
   } finally {
     await safeLogout(client);
   }
+}
+
+/**
+ * Clamp from both ends. A negative or non-numeric limit would turn the
+ * `slice(-limit)` below into a positive offset, returning the oldest matches
+ * and far more of them than `maxResults` — every one fully parsed.
+ */
+function clampLimit(value, maxResults) {
+  const n = Number.parseInt(value ?? "", 10);
+  if (!Number.isInteger(n) || n < 1) {
+    return Math.min(25, maxResults);
+  }
+  return Math.min(n, maxResults);
 }
 
 /**

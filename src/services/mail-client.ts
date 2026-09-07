@@ -1,4 +1,5 @@
 import { requestUrl } from "obsidian";
+import { withTimeout } from "../utils/with-timeout";
 import {
   MAIL_REQUEST_TIMEOUT_MS,
   authHeaders,
@@ -49,7 +50,8 @@ async function postJson(
       body: JSON.stringify(body),
       throw: false
     }),
-    MAIL_REQUEST_TIMEOUT_MS
+    MAIL_REQUEST_TIMEOUT_MS,
+    (seconds) => `bridge did not respond within ${seconds}s.`
   );
 
   if (response.status < 200 || response.status >= 300) {
@@ -57,15 +59,4 @@ async function postJson(
   }
 
   return response.json;
-}
-
-function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
-  let timer = 0;
-  const timeout = new Promise<never>((_, reject) => {
-    timer = window.setTimeout(
-      () => reject(new Error(`bridge did not respond within ${Math.round(ms / 1000)}s.`)),
-      ms
-    );
-  });
-  return Promise.race([promise.finally(() => window.clearTimeout(timer)), timeout]);
 }

@@ -173,7 +173,7 @@ export class LlmCommands {
   }
 
   private requireApiKey(): string | null {
-    const result = resolveApiKey(this.app.secretStorage, this.getSettings().llmSecretName);
+    const result = resolveApiKey(this.app.secretStorage, this.getSettings().llmSecretName, "API key");
     if (!result.ok) {
       new Notice(result.message);
       return null;

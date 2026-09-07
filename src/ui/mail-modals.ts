@@ -1,4 +1,5 @@
 import { App, Modal, Setting, SuggestModal } from "obsidian";
+import { formatIsoMinutes } from "../utils/format-date";
 import type { MailMessage, SearchCriteria } from "../services/mail-protocol";
 
 /**
@@ -103,7 +104,7 @@ export class MailResultModal extends SuggestModal<MailMessage> {
   renderSuggestion(message: MailMessage, el: HTMLElement): void {
     el.createEl("div", { text: message.subject || "(no subject)" });
     el.createEl("small", {
-      text: [message.from, formatDate(message.date)].filter(Boolean).join(" · "),
+      text: [message.from, formatIsoMinutes(message.date)].filter(Boolean).join(" · "),
       cls: "schreibstube-mail-result-meta"
     });
   }
@@ -111,14 +112,6 @@ export class MailResultModal extends SuggestModal<MailMessage> {
   onChooseSuggestion(message: MailMessage): void {
     this.onChoose(message);
   }
-}
-
-function formatDate(iso: string | null): string {
-  if (!iso) {
-    return "";
-  }
-  const date = new Date(iso);
-  return Number.isNaN(date.getTime()) ? iso : date.toISOString().replace("T", " ").slice(0, 16);
 }
 
 /**
