@@ -47,6 +47,14 @@ export interface SchreibstubeSettings {
   syncEnabled: boolean;
   syncCheckOnOpen: boolean;
   syncMinIntervalMinutes: number;
+  /** Background poll across every bound note, scheduled with a cron expression. */
+  syncPollEnabled: boolean;
+  syncPollCron: string;
+  /** Epoch ms of the last completed poll, so a schedule missed while Obsidian
+   *  was closed can be caught up once on load. */
+  syncLastPollAt: number;
+  /** Secret-storage name of a GitHub token, for private repositories. */
+  githubSecretName: string;
   /** Per-note sync state, keyed by vault path. Persisted, not user-editable. */
   syncState: Record<string, SyncRecord>;
   // Diagnostics.

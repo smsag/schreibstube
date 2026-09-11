@@ -1,4 +1,4 @@
-import { MarkdownView, Plugin, TFile, type WorkspaceLeaf } from "obsidian";
+import { MarkdownView, Notice, Plugin, TFile, type WorkspaceLeaf } from "obsidian";
 import { resolveAncestorStack } from "./services/ancestor-stack";
 import { buildHeadingIndex } from "./services/heading-index";
 import {
@@ -19,9 +19,17 @@ import { LlmCommands } from "./controllers/llm-commands";
 import { ProofreadController } from "./controllers/proofread-controller";
 import { createGlossaryUnderlineExtension } from "./processors/glossary-underline";
 import { compileGlossaries } from "./services/glossary-matcher";
+import { minuteOf, parseCron, previousRun, shouldFire } from "./services/cron";
 import { REVIEW_VIEW_TYPE, ReviewPanelView } from "./ui/review-panel";
 import { SchreibstubeSettingTab } from "./settings";
 import type { FocusMode, HeadingEntry, SchreibstubeSettings } from "./types";
+
+/** How often the poll ticker wakes. Well under a minute so a scheduled minute
+ *  is never stepped over by a late tick. */
+const POLL_TICK_MS = 20_000;
+
+/** Delay before the catch-up poll, so it never competes with opening a vault. */
+const POLL_CATCHUP_DELAY_MS = 8_000;
 
 export default class SchreibstubePlugin extends Plugin {
   settings: SchreibstubeSettings = DEFAULT_SETTINGS;
@@ -37,6 +45,8 @@ export default class SchreibstubePlugin extends Plugin {
   private linkMode: LinkModeController | null = null;
   private llm: LlmCommands | null = null;
   private proofread: ProofreadController | null = null;
+  /** Guards against firing twice inside one scheduled minute. */
+  private lastPollMinute = -1;
 
   async onload(): Promise<void> {
     await this.loadSettings();
@@ -55,6 +65,10 @@ export default class SchreibstubePlugin extends Plugin {
         this.settings.syncState = { ...this.settings.syncState, [path]: record };
         await this.saveSettings();
       },
+      setMany: async (records) => {
+        this.settings.syncState = { ...this.settings.syncState, ...records };
+        await this.saveSettings();
+      },
       forget: async (path) => {
         const { [path]: _removed, ...rest } = this.settings.syncState;
         this.settings.syncState = rest;
@@ -70,6 +84,7 @@ export default class SchreibstubePlugin extends Plugin {
       })
     );
     this.registerProofreadEvents();
+    this.startPollTicker();
 
     bootstrapSchreibstubeRuntime(this, {
       onViewportFromEditor: (viewportTopLine) => {
@@ -129,6 +144,71 @@ export default class SchreibstubePlugin extends Plugin {
       void controller.syncActiveFile();
     }
     return view;
+  }
+
+  /**
+   * Drive the cron schedule.
+   *
+   * The ticker runs more often than once a minute so a drifting tick cannot
+   * step over a scheduled minute; `shouldFire` collapses the repeats back down
+   * to one fire per named minute.
+   */
+  private startPollTicker(): void {
+    this.registerInterval(
+      window.setInterval(() => {
+        this.handlePollTick(new Date());
+      }, POLL_TICK_MS)
+    );
+
+    // A schedule that came due while Obsidian was closed would otherwise never
+    // run, which would make a daily poll useless on a machine that is not
+    // always open. One catch-up on load, shortly after startup so it never
+    // competes with opening the vault.
+    const catchUp = window.setTimeout(() => {
+      void this.catchUpPoll();
+    }, POLL_CATCHUP_DELAY_MS);
+    this.register(() => window.clearTimeout(catchUp));
+  }
+
+  private handlePollTick(now: Date): void {
+    const schedule = this.activePollSchedule();
+    if (!schedule) return;
+    if (!shouldFire(schedule, now, this.lastPollMinute)) return;
+
+    this.lastPollMinute = minuteOf(now);
+    void this.runPoll();
+  }
+
+  private async catchUpPoll(): Promise<void> {
+    const schedule = this.activePollSchedule();
+    if (!schedule) return;
+
+    const due = previousRun(schedule, new Date());
+    if (!due || this.settings.syncLastPollAt >= due.getTime()) return;
+
+    this.logger.debug("Catching up a poll missed while Obsidian was closed.");
+    await this.runPoll();
+  }
+
+  /** The parsed schedule, or null when the poll is off or the expression is
+   *  unusable. An invalid expression silently does nothing here; the settings
+   *  tab is where it is reported. */
+  private activePollSchedule() {
+    if (!this.settings.syncEnabled || !this.settings.syncPollEnabled) return null;
+    const parsed = parseCron(this.settings.syncPollCron);
+    return parsed.ok ? parsed.schedule : null;
+  }
+
+  private async runPoll(): Promise<void> {
+    const summary = await this.proofread?.pollAllSources("schedule");
+    this.settings.syncLastPollAt = Date.now();
+    await this.saveSettings();
+
+    if (summary && summary.withChanges > 0) {
+      new Notice(
+        `Schreibstube: ${summary.withChanges} Notiz(en) mit Aktualisierungen aus der Quelle.`
+      );
+    }
   }
 
   private registerProofreadEvents(): void {
@@ -247,6 +327,22 @@ export default class SchreibstubePlugin extends Plugin {
       name: "Check note against glossary",
       editorCallback: () => {
         void this.activateReviewPanel().then(() => this.proofread?.handlers().onGlossaryCheck());
+      },
+    });
+
+    this.addCommand({
+      id: "poll-all-sources",
+      name: "Check all bound notes for updates",
+      callback: () => {
+        void this.proofread?.pollAllSources("manual").then(async (summary) => {
+          this.settings.syncLastPollAt = Date.now();
+          await this.saveSettings();
+          new Notice(
+            summary.checked === 0
+              ? "Schreibstube: keine gebundenen Notizen geprüft."
+              : `Schreibstube: ${summary.checked} geprüft, ${summary.withChanges} mit Aktualisierungen, ${summary.failed} fehlgeschlagen.`
+          );
+        });
       },
     });
 

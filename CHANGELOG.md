@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Added
+
+- **Background poll for bound notes.** Every note bound to a source can be checked on a schedule, not just the one you have open. Changes found while a note is closed are counted, so opening it later surfaces them immediately, and a single summary notice reports how many notes changed rather than one notice per note.
+  - The schedule is a five-field cron expression in local time, with lists, ranges, steps, and month and weekday names. Cron's OR rule for the two day fields is implemented, so `0 9 1 * 1` fires on the first of the month and on Mondays.
+  - The settings screen validates the expression as you type and shows the next fire time, since a schedule cannot be verified by waiting for it.
+  - Obsidian has no scheduler, so a poll runs only while the app is open. A schedule that came due while it was closed is caught up once shortly after the next start, which is what makes a daily poll usable on a machine that is not always on.
+  - Requests are capped and the per-note interval still applies, so one tick never becomes a burst. State for the whole poll is written in a single save rather than once per note.
+  - A poll that found changes has already advanced the validator, so the next interactive check fetches unconditionally. Without that the conditional request would answer "unchanged" and the update would be lost.
+  - New command **Check all bound notes for updates** runs the poll immediately, regardless of schedule.
+- **Private GitHub repositories.** A token stored in Obsidian's secret storage makes sources in a private repository work, and raises GitHub's rate limit. Authenticated reads go through the contents API, which is the path that serves a private file.
+  - The token is only ever sent to GitHub. A note's URL cannot cause it to be attached to any other host, and a raw GitHub URL is recognised as a GitHub source just as a page URL is.
+  - Without a token a private source reports that a token is needed rather than claiming the file was deleted, since GitHub answers 404 in both cases.
+  - A rate-limited response says so instead of reporting a generic failure, and a response that arrived as metadata rather than file content is refused rather than written into the note.
+
+### Settings
+
+- **Document sync** gains a GitHub token, a background poll toggle, and the cron schedule.
+
 ## 1.6.0 - 2026-09-11
 
 ### Added

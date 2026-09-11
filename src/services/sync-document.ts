@@ -23,6 +23,13 @@ export interface SyncRecord {
   etag: string;
   /** Epoch milliseconds of the last check, changed or not. */
   checkedAt: number;
+  /**
+   * Changes the background poll saw and could not show, because the note was
+   * not open. Non-zero means the next check must fetch the body unconditionally:
+   * the poll already advanced the validator, so a conditional request would
+   * answer "unchanged" and the update would be lost.
+   */
+  pendingChanges?: number;
 }
 
 export type LocalState =

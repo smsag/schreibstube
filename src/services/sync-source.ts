@@ -9,8 +9,14 @@
 
 export const SYNC_FRONTMATTER_KEY = "schreibstubeSyncedFrom";
 
+/** Where a source lives, which decides how it is fetched and, crucially,
+ *  whether a credential may be attached to the request. */
+export type SourceTarget =
+  | { kind: "github"; owner: string; repo: string; ref: string; path: string }
+  | { kind: "url" };
+
 export type SourceResult =
-  | { ok: true; url: string; rewritten: boolean }
+  | { ok: true; url: string; rewritten: boolean; target: SourceTarget }
   | { ok: false; reason: string };
 
 const MARKDOWN_EXTENSIONS = [".md", ".markdown", ".mdown", ".mkd"];
@@ -40,15 +46,34 @@ export function resolveSourceUrl(raw: unknown): SourceResult {
   }
 
   const rewrite = rewriteGitHubUrl(parsed);
-  const target = rewrite ?? parsed;
+  const resolved = rewrite?.url ?? parsed;
 
   // The extension is the filter, on every host. A source without one is either
   // a rendered page or something that is not a document at all.
-  if (!hasMarkdownPath(target.pathname)) {
+  if (!hasMarkdownPath(resolved.pathname)) {
     return { ok: false, reason: "Quelle ist keine Markdown-Datei (.md)." };
   }
 
-  return { ok: true, url: target.toString(), rewritten: rewrite !== null };
+  return {
+    ok: true,
+    url: resolved.toString(),
+    rewritten: rewrite !== null,
+    target: rewrite?.target ?? describeHost(resolved),
+  };
+}
+
+/** A raw GitHub URL is still a GitHub source, so a private repository works
+ *  whether the user pasted the page link or the raw one. */
+function describeHost(url: URL): SourceTarget {
+  if (url.hostname !== "raw.githubusercontent.com") {
+    return { kind: "url" };
+  }
+
+  const segments = url.pathname.split("/").filter(Boolean);
+  if (segments.length < 4) return { kind: "url" };
+
+  const [owner, repo, ref, ...rest] = segments;
+  return { kind: "github", owner, repo, ref, path: rest.join("/") };
 }
 
 /** True when a URL is worth showing as a source at all, used to decide whether
@@ -70,7 +95,7 @@ function hasMarkdownPath(pathname: string): boolean {
  * and will fail the Markdown check, which is the right answer for a repo or
  * issue URL.
  */
-function rewriteGitHubUrl(url: URL): URL | null {
+function rewriteGitHubUrl(url: URL): { url: URL; target: SourceTarget } | null {
   if (url.hostname !== "github.com" && url.hostname !== "www.github.com") {
     return null;
   }
@@ -78,11 +103,26 @@ function rewriteGitHubUrl(url: URL): URL | null {
   const segments = url.pathname.split("/").filter(Boolean);
   if (segments.length < 5) return null;
 
-  const [owner, repo, kind, ...rest] = segments;
+  const [owner, repo, kind, ref, ...rest] = segments;
   if (kind !== "blob" && kind !== "raw") return null;
 
-  const rewritten = new URL(
-    `https://raw.githubusercontent.com/${owner}/${repo}/${rest.join("/")}`
+  const path = rest.join("/");
+  return {
+    url: new URL(`https://raw.githubusercontent.com/${owner}/${repo}/${ref}/${path}`),
+    target: { kind: "github", owner, repo, ref, path },
+  };
+}
+
+/** The GitHub contents API endpoint for a source, used when a token is
+ *  configured because it is the path that works for a private repository. */
+export function githubApiUrl(target: Extract<SourceTarget, { kind: "github" }>): string {
+  const path = target.path
+    .split("/")
+    .map((segment) => encodeURIComponent(segment))
+    .join("/");
+  return (
+    `https://api.github.com/repos/${encodeURIComponent(target.owner)}/` +
+    `${encodeURIComponent(target.repo)}/contents/${path}` +
+    `?ref=${encodeURIComponent(target.ref)}`
   );
-  return rewritten;
 }
