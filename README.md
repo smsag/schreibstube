@@ -86,6 +86,25 @@ A GitHub page URL is rewritten to its raw form automatically, so you can paste t
 
 With **Check when a bound note opens** on, a bound note is also checked as you open it, no more often than the configured interval. Checks use a conditional request, so an unchanged source costs one small round trip and no download.
 
+**Private repositories.** Set a GitHub token under **Document sync** and sources in a private repository work. The token is stored in Obsidian's secret storage and is only ever sent to GitHub, never to another host, whatever URL a note carries. It also raises GitHub's rate limit, which matters once you poll several notes. Without a token a private source reports as not found, and the message says a token is needed rather than claiming the file is gone.
+
+**Background poll.** With **Poll all bound notes in the background** on, every bound note is checked on a schedule, not just the one you have open. Changes found are counted, and the next time you open that note the panel says how many are waiting; the summary notice tells you how many notes changed.
+
+The schedule is a five-field cron expression in local time:
+
+| Expression | Meaning |
+|---|---|
+| `0 * * * *` | hourly, on the hour |
+| `0 */4 * * *` | every four hours |
+| `0 8 * * *` | daily at 08:00 |
+| `0 8 * * 1-5` | weekdays at 08:00 |
+
+Lists, ranges and steps work (`0,30`, `9-17`, `*/15`), as do month and weekday names. When both day fields are restricted they are OR-ed, which is standard cron: `0 9 1 * 1` fires on the first of the month and on every Monday. The settings screen shows the next fire time as soon as the expression parses.
+
+Obsidian has no scheduler of its own, so a poll only runs while the app is open. A schedule that came due while it was closed is caught up once shortly after the next start, so a daily poll still works on a machine that is not always on.
+
+- **Check all bound notes for updates** — run the poll now, regardless of schedule
+
 Two things are deliberately protected. The note's own frontmatter is never part of the diff, so accepting a card cannot touch the binding. The remote file's own frontmatter is stripped before comparison, which is what stops the first sync from overwriting the binding and orphaning the note.
 
 The plugin remembers a hash of the note body as of the last sync. If the note still matches it, everything that differs from the source is genuinely incoming. If you edited a bound note, the panel says so and the cards are marked, because accepting them restores the source and discards your edit. That is what a mirror means here.
@@ -195,6 +214,9 @@ API keys are stored in Obsidian's built-in secret storage and are never written 
 | Enable document sync | Bound notes are ignored entirely until this is on | Off |
 | Check when a bound note opens | Also check automatically on open | On |
 | Minimum minutes between automatic checks | Per note. Zero checks on every open; a manual check always runs | 10 |
+| GitHub token | Optional. Needed for private repositories, and raises the rate limit | — |
+| Poll all bound notes in the background | Check every bound note on a schedule | Off |
+| Schedule | Five-field cron expression, local time | `0 * * * *` |
 
 ### Diagnostics
 

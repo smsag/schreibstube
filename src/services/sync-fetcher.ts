@@ -8,6 +8,7 @@
  */
 
 import { requestUrl } from "obsidian";
+import { githubApiUrl, type SourceTarget } from "./sync-source";
 
 /** A document larger than this is refused rather than pasted into a note. */
 export const MAX_SOURCE_BYTES = 1_000_000;
@@ -25,12 +26,40 @@ export type FetchOutcome =
 
 export interface FetchOptions {
   url: string;
+  target: SourceTarget;
   /** Validator from the previous fetch, or empty on the first one. */
   etag?: string;
+  /** A GitHub token from secret storage. Only ever sent to GitHub. */
+  token?: string;
 }
 
+/**
+ * Fetch a source, using the GitHub contents API when a token is available.
+ *
+ * The token is the reason the target matters. A private repository is not
+ * readable from `raw.githubusercontent.com` with a bearer token, so an
+ * authenticated fetch goes through the contents API asking for the raw
+ * representation. Every other host is fetched plainly and never sees the
+ * credential, whatever the URL in the note claims to be.
+ */
 export async function fetchSource(options: FetchOptions): Promise<FetchOutcome> {
-  const headers: Record<string, string> = { accept: "text/markdown, text/plain;q=0.9, */*;q=0.1" };
+  const authenticated = Boolean(options.token) && options.target.kind === "github";
+
+  const url = authenticated
+    ? githubApiUrl(options.target as Extract<SourceTarget, { kind: "github" }>)
+    : options.url;
+
+  const headers: Record<string, string> = {
+    accept: authenticated
+      ? "application/vnd.github.raw"
+      : "text/markdown, text/plain;q=0.9, */*;q=0.1",
+  };
+
+  if (authenticated) {
+    headers.Authorization = `Bearer ${options.token}`;
+    headers["X-GitHub-Api-Version"] = "2022-11-28";
+  }
+
   if (options.etag) {
     headers["If-None-Match"] = options.etag;
   }
@@ -38,7 +67,7 @@ export async function fetchSource(options: FetchOptions): Promise<FetchOutcome> 
   let response: Awaited<ReturnType<typeof requestUrl>>;
   try {
     response = await withTimeout(
-      requestUrl({ url: options.url, method: "GET", headers, throw: false }),
+      requestUrl({ url, method: "GET", headers, throw: false }),
       REQUEST_TIMEOUT_MS
     );
   } catch (err) {
@@ -50,7 +79,23 @@ export async function fetchSource(options: FetchOptions): Promise<FetchOutcome> 
   }
 
   if (response.status === 404 || response.status === 410) {
-    return { status: "missing", message: `Quelle nicht gefunden (HTTP ${response.status}).` };
+    // GitHub answers 404 for a private repository the token cannot see, which
+    // is indistinguishable from a deleted file. Saying so beats reporting a
+    // file as gone when the real problem is the credential.
+    const hint =
+      options.target.kind === "github" && !authenticated
+        ? " Für ein privates Repository wird ein GitHub-Token benötigt."
+        : "";
+    return { status: "missing", message: `Quelle nicht gefunden (HTTP ${response.status}).${hint}` };
+  }
+
+  if (response.status === 401 || response.status === 403) {
+    return {
+      status: "error",
+      message: rateLimited(response.headers)
+        ? "GitHub-Ratenlimit erreicht. Ein Token erhöht das Limit deutlich."
+        : `Zugriff verweigert (HTTP ${response.status}). Token prüfen.`,
+    };
   }
 
   if (response.status < 200 || response.status >= 300) {
@@ -58,7 +103,15 @@ export async function fetchSource(options: FetchOptions): Promise<FetchOutcome> 
   }
 
   const contentType = header(response.headers, "content-type");
-  if (contentType && !isMarkdownType(contentType)) {
+
+  if (authenticated) {
+    // The contents API answers with the file body only when it honours the raw
+    // media type. If it fell back to its JSON representation, that JSON must
+    // never be written into a note as if it were the document.
+    if (contentType && contentType.split(";")[0].trim().toLowerCase() === "application/json") {
+      return { status: "error", message: "GitHub lieferte Metadaten statt Dateiinhalt." };
+    }
+  } else if (contentType && !isMarkdownType(contentType)) {
     return {
       status: "error",
       message: `Quelle ist kein Markdown (${contentType.split(";")[0]}).`,
@@ -78,6 +131,11 @@ function header(headers: Record<string, string> | undefined, name: string): stri
   if (!headers) return undefined;
   const match = Object.keys(headers).find((key) => key.toLowerCase() === name);
   return match ? headers[match] : undefined;
+}
+
+/** A zero remaining-quota header is the honest explanation for a 403. */
+function rateLimited(headers: Record<string, string> | undefined): boolean {
+  return header(headers, "x-ratelimit-remaining") === "0";
 }
 
 function isMarkdownType(contentType: string): boolean {

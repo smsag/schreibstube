@@ -327,3 +327,19 @@
 .schreibstube-review-sync .schreibstube-review-hint {
   overflow-wrap: anywhere;
 }
+
+/* Settings feedback */
+
+.schreibstube-setting-hint,
+.schreibstube-setting-error {
+  margin: -8px 0 12px;
+  font-size: var(--font-ui-smaller);
+}
+
+.schreibstube-setting-hint {
+  color: var(--text-muted);
+}
+
+.schreibstube-setting-error {
+  color: var(--text-error);
+}

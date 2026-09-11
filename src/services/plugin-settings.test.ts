@@ -219,14 +219,43 @@ describe("normalizeSettings", () => {
   });
 
   it("keeps a well-formed sync record", () => {
-    const record = { hash: "abcd1234", etag: "W/\"x\"", checkedAt: 42 };
+    const record = { hash: "abcd1234", etag: "W/\"x\"", checkedAt: 42, pendingChanges: 2 };
     expect(normalizeSettings({ syncState: { "a.md": record } }).syncState["a.md"]).toEqual(record);
   });
 
   it("fills missing fields on a partial sync record", () => {
     expect(
       normalizeSettings({ syncState: { "a.md": { hash: "abcd1234" } as never } }).syncState["a.md"]
-    ).toEqual({ hash: "abcd1234", etag: "", checkedAt: 0 });
+    ).toEqual({ hash: "abcd1234", etag: "", checkedAt: 0, pendingChanges: 0 });
+  });
+
+  it("defaults a missing pending count to zero", () => {
+    expect(
+      normalizeSettings({ syncState: { "a.md": { hash: "abcd1234" } as never } }).syncState["a.md"]
+        .pendingChanges
+    ).toBe(0);
+  });
+
+  it("defaults the background poll to off with an hourly schedule", () => {
+    expect(normalizeSettings({}).syncPollEnabled).toBe(false);
+    expect(normalizeSettings({}).syncPollCron).toBe("0 * * * *");
+  });
+
+  it("restores the default schedule for a blank expression", () => {
+    expect(normalizeSettings({ syncPollCron: "  " }).syncPollCron).toBe("0 * * * *");
+  });
+
+  it("keeps a custom schedule verbatim", () => {
+    expect(normalizeSettings({ syncPollCron: "0 8 * * 1-5" }).syncPollCron).toBe("0 8 * * 1-5");
+  });
+
+  it("defaults the GitHub secret name to empty", () => {
+    expect(normalizeSettings({}).githubSecretName).toBe("");
+  });
+
+  it("defaults the last poll time to zero", () => {
+    expect(normalizeSettings({}).syncLastPollAt).toBe(0);
+    expect(normalizeSettings({ syncLastPollAt: "nope" as never }).syncLastPollAt).toBe(0);
   });
 
   it("drops a sync record with no hash", () => {

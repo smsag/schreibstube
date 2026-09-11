@@ -75,6 +75,10 @@ export const DEFAULT_SETTINGS: SchreibstubeSettings = {
   syncEnabled: false,
   syncCheckOnOpen: true,
   syncMinIntervalMinutes: 10,
+  syncPollEnabled: false,
+  syncPollCron: "0 * * * *",
+  syncLastPollAt: 0,
+  githubSecretName: "",
   syncState: {},
   debugLogging: false,
 };
@@ -200,6 +204,16 @@ export function normalizeSettings(loaded: LoadedSettings): SchreibstubeSettings 
       MAX_SYNC_INTERVAL_MINUTES,
       DEFAULT_SETTINGS.syncMinIntervalMinutes
     ),
+    syncPollEnabled:
+      typeof loaded?.syncPollEnabled === "boolean"
+        ? loaded.syncPollEnabled
+        : DEFAULT_SETTINGS.syncPollEnabled,
+    syncPollCron: nonEmptyStringOrDefault(loaded?.syncPollCron, DEFAULT_SETTINGS.syncPollCron),
+    syncLastPollAt: Number.isFinite(loaded?.syncLastPollAt) ? Number(loaded?.syncLastPollAt) : 0,
+    githubSecretName:
+      typeof loaded?.githubSecretName === "string"
+        ? loaded.githubSecretName
+        : DEFAULT_SETTINGS.githubSecretName,
     syncState: syncStateOrDefault(loaded?.syncState),
   };
 }
@@ -212,12 +226,13 @@ function syncStateOrDefault(value: unknown): Record<string, SyncRecord> {
   const result: Record<string, SyncRecord> = {};
   for (const [path, record] of Object.entries(value as Record<string, unknown>)) {
     if (!record || typeof record !== "object") continue;
-    const { hash, etag, checkedAt } = record as Partial<SyncRecord>;
+    const { hash, etag, checkedAt, pendingChanges } = record as Partial<SyncRecord>;
     if (typeof hash !== "string" || hash.length === 0) continue;
     result[path] = {
       hash,
       etag: typeof etag === "string" ? etag : "",
       checkedAt: Number.isFinite(checkedAt) ? Number(checkedAt) : 0,
+      pendingChanges: Number.isFinite(pendingChanges) ? Number(pendingChanges) : 0,
     };
   }
   return result;

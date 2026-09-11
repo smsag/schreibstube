@@ -33,12 +33,14 @@ import {
   buildSyncSuggestions,
   hashText,
   localState,
+  normalizeNewlines,
   splitNote,
   stripRemoteFrontmatter,
   type LocalState,
   type SyncRecord,
 } from "../services/sync-document";
 import { resolveSourceUrl, SYNC_FRONTMATTER_KEY } from "../services/sync-source";
+import { diffHunks } from "../services/line-diff";
 import {
   mergeSuggestions,
   planApply,
@@ -60,11 +62,26 @@ export const GLOSSARY_FRONTMATTER_KEY = "schreibstubeGlossaries";
 
 export type ReviewStateListener = (state: ReviewState) => void;
 
+/** Requests in flight during a background poll. Deliberately small: a poll is
+ *  never the urgent thing the user is waiting on. */
+const POLL_CONCURRENCY = 3;
+
+export interface PollSummary {
+  checked: number;
+  withChanges: number;
+  failed: number;
+  /** Paths of notes with changes waiting, for the summary notice. */
+  notes: string[];
+}
+
 /** Persists sync bookkeeping between sessions. Implemented by the plugin, which
  *  owns the data file. */
 export interface SyncStore {
   get(path: string): SyncRecord | undefined;
   set(path: string, record: SyncRecord): Promise<void>;
+  /** Write several records in one save. A poll touches every bound note, and
+   *  saving once per note would rewrite the whole data file N times. */
+  setMany(records: Record<string, SyncRecord>): Promise<void>;
   forget(path: string): Promise<void>;
 }
 
@@ -84,6 +101,7 @@ export class ProofreadController {
   private running: CancelToken | null = null;
   private sync: SyncPanelState = EMPTY_REVIEW_STATE.sync;
   private checking = false;
+  private polling = false;
 
   constructor(
     private readonly app: App,
@@ -450,6 +468,157 @@ export class ProofreadController {
    * the automatic check respects the minimum interval and stays silent when the
    * note is not bound, while a manual one always runs and always reports.
    */
+  /** The GitHub token, if one is configured. Absent is normal: public sources
+   *  need none, and the fetcher only ever sends it to GitHub anyway. */
+  private githubToken(): string | undefined {
+    const name = this.getSettings().githubSecretName;
+    if (!name) return undefined;
+    const result = resolveApiKey(this.app.secretStorage, name);
+    return result.ok ? result.apiKey : undefined;
+  }
+
+
+  /**
+   * Check every bound note in the vault.
+   *
+   * A poll cannot show cards, because only the open note has a panel. What it
+   * does instead is record how many changes are waiting, so opening that note
+   * later surfaces them immediately, and report a single summary rather than one
+   * notice per note.
+   *
+   * Requests are limited and the per-note interval still applies, so a vault
+   * full of bound notes does not turn one tick into a burst of traffic.
+   */
+  async pollAllSources(trigger: "schedule" | "manual"): Promise<PollSummary> {
+    const settings = this.getSettings();
+    const empty: PollSummary = { checked: 0, withChanges: 0, failed: 0, notes: [] };
+
+    if (!settings.syncEnabled || this.polling) return empty;
+
+    const bound = this.app.vault.getMarkdownFiles().filter((file) => {
+      const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter;
+      const value = frontmatter?.[SYNC_FRONTMATTER_KEY];
+      return typeof value === "string" && value.trim().length > 0;
+    });
+
+    if (bound.length === 0) return empty;
+
+    this.polling = true;
+    const summary: PollSummary = { checked: 0, withChanges: 0, failed: 0, notes: [] };
+    const token = this.githubToken();
+    const updates: Record<string, SyncRecord> = {};
+
+    try {
+      let next = 0;
+      const worker = async (): Promise<void> => {
+        while (true) {
+          const index = next;
+          if (index >= bound.length) return;
+          next += 1;
+          await this.pollOne(bound[index], token, summary, updates);
+        }
+      };
+
+      await Promise.all(
+        Array.from({ length: Math.min(POLL_CONCURRENCY, bound.length) }, () => worker())
+      );
+
+      if (Object.keys(updates).length > 0) {
+        await this.syncStore.setMany(updates);
+      }
+    } finally {
+      this.polling = false;
+    }
+
+    this.logger.debug(
+      `Poll (${trigger}): ${summary.checked} geprüft, ${summary.withChanges} mit Änderungen, ${summary.failed} fehlgeschlagen.`
+    );
+
+    // Refresh the open note so a poll that touched it is reflected at once.
+    await this.syncActiveFile();
+    return summary;
+  }
+
+  private async pollOne(
+    file: TFile,
+    token: string | undefined,
+    summary: PollSummary,
+    updates: Record<string, SyncRecord>
+  ): Promise<void> {
+    const settings = this.getSettings();
+    const raw = this.app.metadataCache.getFileCache(file)?.frontmatter?.[SYNC_FRONTMATTER_KEY];
+    const resolved = resolveSourceUrl(raw);
+    if (!resolved.ok) {
+      summary.failed += 1;
+      return;
+    }
+
+    const record = this.syncStore.get(file.path);
+    if (!this.isCheckDue(record, settings.syncMinIntervalMinutes)) return;
+
+    const checkedAt = Date.now();
+    const conditional = (record?.pendingChanges ?? 0) > 0 ? undefined : record?.etag;
+
+    let outcome: Awaited<ReturnType<typeof fetchSource>>;
+    try {
+      outcome = await fetchSource({
+        url: resolved.url,
+        target: resolved.target,
+        etag: conditional,
+        token,
+      });
+    } catch (err) {
+      this.logger.warn(`Poll failed for ${file.path}:`, err);
+      summary.failed += 1;
+      return;
+    }
+
+    summary.checked += 1;
+
+    // Read from the vault rather than an editor: this note is not open. The
+    // baseline is needed on every path, because a record stored without one is
+    // discarded as malformed the next time settings load.
+    const body = splitNote(normalizeNewlines(await this.app.vault.cachedRead(file))).body;
+
+    if (outcome.status === "missing" || outcome.status === "error") {
+      summary.failed += 1;
+      // The clock advances even on failure, so a dead binding is not retried
+      // on every tick. The note itself is never touched.
+      updates[file.path] = {
+        hash: record?.hash ?? hashText(body),
+        etag: record?.etag ?? "",
+        checkedAt,
+        pendingChanges: record?.pendingChanges ?? 0,
+      };
+      return;
+    }
+
+    if (outcome.status === "unchanged") {
+      updates[file.path] = {
+        hash: record?.hash ?? hashText(body),
+        etag: outcome.etag,
+        checkedAt,
+        pendingChanges: record?.pendingChanges ?? 0,
+      };
+      return;
+    }
+
+    const remoteBody = stripRemoteFrontmatter(outcome.body);
+    const changes = diffHunks(body, remoteBody).length;
+
+    updates[file.path] = {
+      hash: changes === 0 ? hashText(body) : record?.hash ?? hashText(body),
+      etag: outcome.etag,
+      checkedAt,
+      pendingChanges: changes,
+    };
+
+    if (changes > 0) {
+      summary.withChanges += 1;
+      summary.notes.push(file.path);
+    }
+  }
+
   private async checkSource(manual: boolean): Promise<void> {
     const settings = this.getSettings();
     if (!settings.syncEnabled || this.checking) return;
@@ -480,7 +649,15 @@ export class ProofreadController {
     this.emit();
 
     try {
-      const outcome = await fetchSource({ url: resolved.url, etag: record?.etag });
+      // A poll that found changes already advanced the validator, so asking
+      // conditionally here would answer "unchanged" and lose the update.
+      const conditional = (record?.pendingChanges ?? 0) > 0 ? undefined : record?.etag;
+      const outcome = await fetchSource({
+        url: resolved.url,
+        target: resolved.target,
+        etag: conditional,
+        token: this.githubToken(),
+      });
       const view = this.resolveTargetView();
 
       // The user may have moved on while the request was in flight.
@@ -502,6 +679,7 @@ export class ProofreadController {
           hash: record?.hash ?? hashText(body),
           etag: record?.etag ?? "",
           checkedAt,
+          pendingChanges: record?.pendingChanges ?? 0,
         });
         this.sync = {
           bound: true,
@@ -519,6 +697,7 @@ export class ProofreadController {
           hash: record?.hash ?? hashText(body),
           etag: outcome.etag,
           checkedAt,
+          pendingChanges: 0,
         });
         this.sync = {
           bound: true,
@@ -540,6 +719,8 @@ export class ProofreadController {
         hash: suggestions.length === 0 ? hashText(body) : record?.hash ?? hashText(body),
         etag: outcome.etag,
         checkedAt,
+        // The changes are on screen now, so nothing is owed to a later visit.
+        pendingChanges: 0,
       });
 
       this.suggestions = mergeSuggestions(this.suggestions, suggestions, "remote");
@@ -592,6 +773,7 @@ export class ProofreadController {
     await this.syncStore.set(this.filePath, {
       ...record,
       hash: hashText(splitNote(noteText).body),
+      pendingChanges: 0,
     });
 
     this.sync = { ...this.sync, status: "clean", message: "Notiz entspricht der Quelle." };
@@ -631,12 +813,18 @@ export class ProofreadController {
     const resolved = resolveSourceUrl(raw);
     const record = this.syncStore.get(file.path);
 
+    const pending = record?.pendingChanges ?? 0;
+
     this.sync = {
       bound: true,
       status: resolved.ok ? (record ? "idle" : "unsynced") : "error",
       source: resolved.ok ? resolved.url : raw,
       checkedAt: record?.checkedAt ?? 0,
-      message: resolved.ok ? "" : resolved.reason,
+      message: resolved.ok
+        ? pending > 0
+          ? `${pending} Änderung(en) aus der letzten Hintergrundprüfung. "Quelle prüfen" holt sie.`
+          : ""
+        : resolved.reason,
     };
   }
 

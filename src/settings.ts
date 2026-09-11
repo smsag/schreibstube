@@ -18,6 +18,7 @@ import {
   normalizeSettings
 } from "./services/plugin-settings";
 import { GLOSSARY_CHANGED_EVENT } from "./utils/constants";
+import { CRON_PRESETS, nextRun, parseCron } from "./services/cron";
 import { LLM_PROVIDER_IDS, PROVIDER_MODELS, providerLabel } from "./services/llm-providers";
 import { MAX_DIM_OPACITY, MIN_DIM_OPACITY } from "./services/focus-settings";
 
@@ -27,6 +28,67 @@ export class SchreibstubeSettingTab extends PluginSettingTab {
   constructor(app: App, plugin: SchreibstubePlugin) {
     super(app, plugin);
     this.plugin = plugin;
+  }
+
+  /**
+   * The cron field, with the parse result shown underneath.
+   *
+   * A schedule is easy to get subtly wrong and impossible to verify by waiting,
+   * so the next fire time is displayed as soon as the expression is valid.
+   */
+  private renderPollSchedule(containerEl: HTMLElement): void {
+    let feedback: HTMLElement | null = null;
+
+    const describe = (expression: string): void => {
+      if (!feedback) return;
+      feedback.empty();
+
+      const parsed = parseCron(expression);
+      if (!parsed.ok) {
+        feedback.addClass("schreibstube-setting-error");
+        feedback.removeClass("schreibstube-setting-hint");
+        feedback.setText(parsed.reason);
+        return;
+      }
+
+      feedback.removeClass("schreibstube-setting-error");
+      feedback.addClass("schreibstube-setting-hint");
+      const next = nextRun(parsed.schedule, new Date());
+      feedback.setText(
+        next
+          ? `Nächste Prüfung: ${next.toLocaleString()}`
+          : "Gültig, aber dieser Zeitpunkt tritt nie ein."
+      );
+    };
+
+    const examples = CRON_PRESETS.map((preset) => `${preset.expression} (${preset.label})`).join(
+      ", "
+    );
+
+    new Setting(containerEl)
+      .setName("Schedule")
+      .setDesc(
+        "Five cron fields: minute, hour, day of month, month, day of week. " +
+          "Evaluated in local time. A schedule that came due while Obsidian was closed runs once on the next start. " +
+          `Examples: ${examples}.`
+      )
+      .addText((text) => {
+        text.setPlaceholder("0 * * * *");
+        text.setValue(this.plugin.settings.syncPollCron);
+        text.onChange(async (value) => {
+          describe(value);
+          const parsed = parseCron(value);
+          if (!parsed.ok) return;
+          this.plugin.settings = normalizeSettings({
+            ...this.plugin.settings,
+            syncPollCron: value
+          });
+          await this.plugin.saveSettings();
+        });
+      });
+
+    feedback = containerEl.createDiv({ cls: "schreibstube-setting-hint" });
+    describe(this.plugin.settings.syncPollCron);
   }
 
   display(): void {
@@ -458,6 +520,47 @@ export class SchreibstubeSettingTab extends PluginSettingTab {
             await this.plugin.saveSettings();
           });
       });
+
+    new Setting(containerEl)
+      .setName("GitHub token")
+      .setDesc(
+        "Optional. Needed for sources in a private repository, and it raises GitHub's rate limit. " +
+          "Stored in Obsidian's secret storage and only ever sent to GitHub."
+      )
+      .addComponent((el) =>
+        new SecretComponent(this.app, el)
+          .setValue(this.plugin.settings.githubSecretName)
+          .onChange(async (value) => {
+            this.plugin.settings = normalizeSettings({
+              ...this.plugin.settings,
+              githubSecretName: value
+            });
+            await this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(containerEl)
+      .setName("Poll all bound notes in the background")
+      .setDesc(
+        "Checks every bound note on a schedule, not just the one you have open. " +
+          "Changes found are counted and surface as cards when you next open that note."
+      )
+      .addToggle((toggle) => {
+        toggle
+          .setValue(this.plugin.settings.syncPollEnabled)
+          .onChange(async (value) => {
+            this.plugin.settings = normalizeSettings({
+              ...this.plugin.settings,
+              syncPollEnabled: value
+            });
+            await this.plugin.saveSettings();
+            this.display();
+          });
+      });
+
+    if (this.plugin.settings.syncPollEnabled) {
+      this.renderPollSchedule(containerEl);
+    }
 
     new Setting(containerEl).setName("Diagnostics").setHeading();
 
