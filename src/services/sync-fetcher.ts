@@ -36,11 +36,16 @@ export interface FetchOptions {
 /**
  * Fetch a source, using the GitHub contents API when a token is available.
  *
- * The token is the reason the target matters. A private repository is not
- * readable from `raw.githubusercontent.com` with a bearer token, so an
- * authenticated fetch goes through the contents API asking for the raw
- * representation. Every other host is fetched plainly and never sees the
- * credential, whatever the URL in the note claims to be.
+ * A private repository is read through the contents API, asking for the raw
+ * representation. That is a routing decision, not a limitation: the file is
+ * perfectly readable, just not from `raw.githubusercontent.com`, which ignores
+ * an Authorization header and answers 404 for anything private. So a GitHub
+ * source is redirected to the API whenever a token is available, and the same
+ * request serves public repositories too.
+ *
+ * The token is also why the target matters at all. Every non-GitHub host is
+ * fetched plainly and never sees the credential, whatever the URL in the note
+ * claims to be.
  */
 export async function fetchSource(options: FetchOptions): Promise<FetchOutcome> {
   const authenticated = Boolean(options.token) && options.target.kind === "github";
