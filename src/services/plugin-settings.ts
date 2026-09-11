@@ -1,4 +1,5 @@
 import type { LlmProvider, SchreibstubeSettings } from "../types";
+import type { SyncRecord } from "./sync-document";
 import {
   DEFAULT_SETTINGS as DEFAULT_FOCUS_SETTINGS,
   normalizeFocusSettings
@@ -24,6 +25,11 @@ export const MAX_CHUNK_CHARS = 6000;
 
 export const MIN_CONCURRENCY = 1;
 export const MAX_CONCURRENCY = 4;
+
+/** Floor between automatic source checks for one note, so opening a mirror
+ *  repeatedly does not hammer the source. */
+export const MIN_SYNC_INTERVAL_MINUTES = 0;
+export const MAX_SYNC_INTERVAL_MINUTES = 120;
 
 /** Default summarize prompt, tuned for turning raw text pasted from analytics
  *  and reporting tools into a compact insight-log entry. */
@@ -66,6 +72,10 @@ export const DEFAULT_SETTINGS: SchreibstubeSettings = {
   glossaryDefault: [],
   glossaryFolderRules: "",
   glossaryLiveUnderline: false,
+  syncEnabled: false,
+  syncCheckOnOpen: true,
+  syncMinIntervalMinutes: 10,
+  syncState: {},
   debugLogging: false,
 };
 
@@ -178,7 +188,39 @@ export function normalizeSettings(loaded: LoadedSettings): SchreibstubeSettings 
       typeof loaded?.glossaryLiveUnderline === "boolean"
         ? loaded.glossaryLiveUnderline
         : DEFAULT_SETTINGS.glossaryLiveUnderline,
+    syncEnabled:
+      typeof loaded?.syncEnabled === "boolean" ? loaded.syncEnabled : DEFAULT_SETTINGS.syncEnabled,
+    syncCheckOnOpen:
+      typeof loaded?.syncCheckOnOpen === "boolean"
+        ? loaded.syncCheckOnOpen
+        : DEFAULT_SETTINGS.syncCheckOnOpen,
+    syncMinIntervalMinutes: clampIntOrDefault(
+      loaded?.syncMinIntervalMinutes,
+      MIN_SYNC_INTERVAL_MINUTES,
+      MAX_SYNC_INTERVAL_MINUTES,
+      DEFAULT_SETTINGS.syncMinIntervalMinutes
+    ),
+    syncState: syncStateOrDefault(loaded?.syncState),
   };
+}
+
+/** Sync state is plugin-written, but it lives in the same data file a user can
+ *  edit, so every record is validated rather than trusted. */
+function syncStateOrDefault(value: unknown): Record<string, SyncRecord> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+
+  const result: Record<string, SyncRecord> = {};
+  for (const [path, record] of Object.entries(value as Record<string, unknown>)) {
+    if (!record || typeof record !== "object") continue;
+    const { hash, etag, checkedAt } = record as Partial<SyncRecord>;
+    if (typeof hash !== "string" || hash.length === 0) continue;
+    result[path] = {
+      hash,
+      etag: typeof etag === "string" ? etag : "",
+      checkedAt: Number.isFinite(checkedAt) ? Number(checkedAt) : 0,
+    };
+  }
+  return result;
 }
 
 /** Glossary paths are persisted as an array; anything else in the data file is

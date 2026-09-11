@@ -1,6 +1,6 @@
 # Schreibstube
 
-A writing-focused Obsidian plugin: a proof-read review sidebar with glossary support, a sticky heading-stack overlay, a distraction-reducing focus mode, LLM-powered file renaming, and side-pane link opening.
+A writing-focused Obsidian plugin: a proof-read review sidebar with glossary support, document sync from remote Markdown sources, a sticky heading-stack overlay, a distraction-reducing focus mode, LLM-powered file renaming, and side-pane link opening.
 
 ## Features
 
@@ -20,7 +20,7 @@ If you edit the note while the queue is open, cards whose text can no longer be 
 
 ### Glossary
 
-A glossary is an ordinary note with `schreibstube-glossary: true` in its frontmatter and a term table. Glossary checks run locally and need no API key, so the panel is useful before any provider is configured. The selected glossary is also passed to the correction pass as a constraint, so a rewrite does not undo a term the glossary just enforced.
+A glossary is an ordinary note with `schreibstubeGlossary: true` in its frontmatter and a term table. Glossary checks run locally and need no API key, so the panel is useful before any provider is configured. The selected glossary is also passed to the correction pass as a constraint, so a rewrite does not undo a term the glossary just enforced.
 
 The term model follows TBX-Basic (ISO 30042): a concept groups several terms, and each term carries an administrative status.
 
@@ -35,9 +35,9 @@ The TBX picklist identifiers (`deprecatedTerm-admn-sts` and so on) and the infor
 
 ```markdown
 ---
-schreibstube-glossary: true
+schreibstubeGlossary: true
 language: de
-default-severity: error
+defaultSeverity: error
 ---
 
 | Concept   | Term         | Status     | Match | Note                    |
@@ -63,10 +63,32 @@ When a match is an inflected form, the card is marked *Beugung prüfen*, because
 
 **Which glossary applies** is decided by the first of these that yields anything, with no merging between them:
 
-1. A `glossary` property in the note's own frontmatter
+1. A `schreibstubeGlossaries` property in the note's own frontmatter
 2. A folder rule from settings, deepest matching folder first
 3. The pick in the sidebar header, which lasts for the session
 4. The vault-wide default in settings
+
+### Document sync
+
+Binds a note to a remote Markdown file. The source is the single truth: incoming changes appear in the sidebar as cards you accept one by one, and nothing is ever pushed back. A bound note can live in any folder, since it is found by its frontmatter key rather than its location.
+
+```markdown
+---
+schreibstubeSyncedFrom: https://github.com/org/repo/blob/main/docs/guide.md
+---
+```
+
+A GitHub page URL is rewritten to its raw form automatically, so you can paste the link straight from the browser. Only HTTPS sources whose path ends in a Markdown extension are fetched.
+
+- **Check note source for updates** — fetch now and queue any differences
+
+With **Check when a bound note opens** on, a bound note is also checked as you open it, no more often than the configured interval. Checks use a conditional request, so an unchanged source costs one small round trip and no download.
+
+Two things are deliberately protected. The note's own frontmatter is never part of the diff, so accepting a card cannot touch the binding. The remote file's own frontmatter is stripped before comparison, which is what stops the first sync from overwriting the binding and orphaning the note.
+
+The plugin remembers a hash of the note body as of the last sync. If the note still matches it, everything that differs from the source is genuinely incoming. If you edited a bound note, the panel says so and the cards are marked, because accepting them restores the source and discards your edit. That is what a mirror means here.
+
+If the source is deleted or moved, the panel reports it and the note is left exactly as it is. It is never emptied.
 
 ### Heading stack overlay
 
@@ -163,6 +185,14 @@ API keys are stored in Obsidian's built-in secret storage and are never written 
 | Default glossaries | Vault paths, one per line | — |
 | Folder rules | One per line: `folder \| glossary.md, other.md` | — |
 | Underline glossary hits in the editor | Marks error-severity terms while writing | Off |
+
+### Document sync
+
+| Setting | Description | Default |
+|---|---|---|
+| Enable document sync | Bound notes are ignored entirely until this is on | Off |
+| Check when a bound note opens | Also check automatically on open | On |
+| Minimum minutes between automatic checks | Per note. Zero checks on every open; a manual check always runs | 10 |
 
 ### Diagnostics
 

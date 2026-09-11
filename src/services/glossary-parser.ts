@@ -44,7 +44,7 @@ export interface GlossaryParseResult {
   errors: string[];
 }
 
-export const GLOSSARY_MARKER = "schreibstube-glossary";
+export const GLOSSARY_MARKER = "schreibstubeGlossary";
 
 const STATUS_VALUES = new Set<TermStatus>([
   "preferred",
@@ -89,12 +89,12 @@ export function parseGlossary(path: string, text: string): GlossaryParseResult {
   const frontmatter = readFrontmatter(text);
 
   const language = frontmatter.get("language")?.toLowerCase() || DEFAULT_GLOSSARY_LANGUAGE;
-  const severityRaw = frontmatter.get("default-severity")?.toLowerCase() ?? "";
+  const severityRaw = frontmatter.get("defaultSeverity")?.toLowerCase() ?? "";
   const defaultSeverity = SEVERITY_VALUES.has(severityRaw as Severity)
     ? (severityRaw as Severity)
     : DEFAULT_GLOSSARY_SEVERITY;
   if (severityRaw && !SEVERITY_VALUES.has(severityRaw as Severity)) {
-    errors.push(`Unknown default-severity "${severityRaw}", using ${DEFAULT_GLOSSARY_SEVERITY}.`);
+    errors.push(`Unknown defaultSeverity "${severityRaw}", using ${DEFAULT_GLOSSARY_SEVERITY}.`);
   }
 
   const rows = readTableRows(text);
@@ -193,7 +193,8 @@ function emptyGlossary(path: string, language: string, defaultSeverity: Severity
 }
 
 /** Minimal frontmatter reader: flat `key: value` pairs only, which is all the
- *  glossary header needs. Avoids pulling in a YAML parser. */
+ *  glossary header needs. Avoids pulling in a YAML parser. Keys are kept
+ *  verbatim, since the plugin's own keys are camelCase. */
 function readFrontmatter(text: string): Map<string, string> {
   const result = new Map<string, string>();
   const lines = text.split("\n");
@@ -206,7 +207,7 @@ function readFrontmatter(text: string): Map<string, string> {
     if (line.trim() === "---") break;
     const separator = line.indexOf(":");
     if (separator === -1) continue;
-    const key = line.slice(0, separator).trim().toLowerCase();
+    const key = line.slice(0, separator).trim();
     const value = line
       .slice(separator + 1)
       .trim()
