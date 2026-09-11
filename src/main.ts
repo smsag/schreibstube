@@ -1,4 +1,4 @@
-import { MarkdownView, Plugin } from "obsidian";
+import { MarkdownView, Plugin, TFile, type WorkspaceLeaf } from "obsidian";
 import { resolveAncestorStack } from "./services/ancestor-stack";
 import { buildHeadingIndex } from "./services/heading-index";
 import {
@@ -16,6 +16,10 @@ import { DEFAULT_SETTINGS, normalizeSettings } from "./services/plugin-settings"
 import { createLogger, type Logger } from "./services/logger";
 import { LinkModeController } from "./controllers/link-mode-controller";
 import { LlmCommands } from "./controllers/llm-commands";
+import { ProofreadController } from "./controllers/proofread-controller";
+import { createGlossaryUnderlineExtension } from "./processors/glossary-underline";
+import { compileGlossaries } from "./services/glossary-matcher";
+import { REVIEW_VIEW_TYPE, ReviewPanelView } from "./ui/review-panel";
 import { SchreibstubeSettingTab } from "./settings";
 import type { FocusMode, HeadingEntry, SchreibstubeSettings } from "./types";
 
@@ -32,6 +36,7 @@ export default class SchreibstubePlugin extends Plugin {
   private refreshScheduler: RefreshScheduler | null = null;
   private linkMode: LinkModeController | null = null;
   private llm: LlmCommands | null = null;
+  private proofread: ProofreadController | null = null;
 
   async onload(): Promise<void> {
     await this.loadSettings();
@@ -44,6 +49,16 @@ export default class SchreibstubePlugin extends Plugin {
 
     this.linkMode = new LinkModeController(this.app, this.logger);
     this.llm = new LlmCommands(this.app, () => this.settings, this.logger);
+    this.proofread = new ProofreadController(this.app, () => this.settings, this.logger);
+
+    this.registerView(REVIEW_VIEW_TYPE, (leaf) => this.createReviewView(leaf));
+    this.registerEditorExtension(
+      createGlossaryUnderlineExtension({
+        getSettings: () => this.settings,
+        getMatcher: () => this.proofread?.activeMatcher() ?? compileGlossaries([]),
+      })
+    );
+    this.registerProofreadEvents();
 
     bootstrapSchreibstubeRuntime(this, {
       onViewportFromEditor: (viewportTopLine) => {
@@ -55,6 +70,7 @@ export default class SchreibstubePlugin extends Plugin {
       getSettings: () => this.settings,
       onActiveLeafChange: () => {
         this.requestOverlayRefresh();
+        void this.proofread?.syncActiveFile();
       },
     });
 
@@ -70,7 +86,60 @@ export default class SchreibstubePlugin extends Plugin {
 
   onunload(): void {
     this.linkMode?.stop();
+    this.proofread?.stop();
     this.clearOverlay();
+  }
+
+  /** Open the review sidebar, reusing the existing leaf if it is already open. */
+  async activateReviewPanel(): Promise<void> {
+    const existing = this.app.workspace.getLeavesOfType(REVIEW_VIEW_TYPE);
+    if (existing.length > 0) {
+      await this.app.workspace.revealLeaf(existing[0]);
+      return;
+    }
+
+    const leaf = this.app.workspace.getRightLeaf(false);
+    if (!leaf) {
+      return;
+    }
+    await leaf.setViewState({ type: REVIEW_VIEW_TYPE, active: true });
+    await this.app.workspace.revealLeaf(leaf);
+  }
+
+  private createReviewView(leaf: WorkspaceLeaf): ReviewPanelView {
+    const view = new ReviewPanelView(leaf);
+    const controller = this.proofread;
+    if (controller) {
+      view.setHandlers(controller.handlers());
+      // Registered on the view, so closing the panel unsubscribes it. Hanging
+      // the listener off the plugin instead would keep pushing state into a
+      // detached view for the rest of the session.
+      view.register(controller.onStateChange((state) => view.updateReviewState(state)));
+      void controller.syncActiveFile();
+    }
+    return view;
+  }
+
+  private registerProofreadEvents(): void {
+    this.registerEvent(
+      this.app.workspace.on("editor-change", () => {
+        this.proofread?.notifyEditorChanged();
+      })
+    );
+
+    this.registerEvent(
+      this.app.vault.on("modify", (file) => {
+        if (file instanceof TFile && file.extension === "md") {
+          void this.proofread?.invalidateGlossary(file.path);
+        }
+      })
+    );
+
+    this.registerEvent(
+      this.app.workspace.on("file-open", () => {
+        void this.proofread?.syncActiveFile();
+      })
+    );
   }
 
   async loadSettings(): Promise<void> {
@@ -130,6 +199,28 @@ export default class SchreibstubePlugin extends Plugin {
       id: "summarize-selection",
       name: "Summarize selection",
       editorCallback: () => { void this.llm?.summarizeSelection(); },
+    });
+
+    this.addCommand({
+      id: "open-review-panel",
+      name: "Open proof-read sidebar",
+      callback: () => { void this.activateReviewPanel(); },
+    });
+
+    this.addCommand({
+      id: "proof-read-note",
+      name: "Proof-read note",
+      editorCallback: () => {
+        void this.activateReviewPanel().then(() => this.proofread?.handlers().onProofread());
+      },
+    });
+
+    this.addCommand({
+      id: "glossary-check-note",
+      name: "Check note against glossary",
+      editorCallback: () => {
+        void this.activateReviewPanel().then(() => this.proofread?.handlers().onGlossaryCheck());
+      },
     });
 
     this.addCommand({

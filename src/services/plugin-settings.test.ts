@@ -139,4 +139,65 @@ describe("normalizeSettings", () => {
       DEFAULT_SETTINGS.summarizeMaxTokens
     );
   });
+
+  it("defaults proofreadPrompt when absent", () => {
+    expect(normalizeSettings({}).proofreadPrompt).toBe(DEFAULT_SETTINGS.proofreadPrompt);
+  });
+
+  it("restores the default proofreadPrompt for a blank value", () => {
+    expect(normalizeSettings({ proofreadPrompt: "  " }).proofreadPrompt).toBe(
+      DEFAULT_SETTINGS.proofreadPrompt
+    );
+  });
+
+  it("preserves a custom proofreadPrompt", () => {
+    expect(normalizeSettings({ proofreadPrompt: "Nur Tippfehler." }).proofreadPrompt).toBe(
+      "Nur Tippfehler."
+    );
+  });
+
+  it("clamps proofreadMaxTokens to its range", () => {
+    expect(normalizeSettings({ proofreadMaxTokens: 1 }).proofreadMaxTokens).toBe(256);
+    expect(normalizeSettings({ proofreadMaxTokens: 999999 }).proofreadMaxTokens).toBe(8192);
+  });
+
+  it("clamps proofreadChunkChars to its range", () => {
+    expect(normalizeSettings({ proofreadChunkChars: 1 }).proofreadChunkChars).toBe(500);
+    expect(normalizeSettings({ proofreadChunkChars: 999999 }).proofreadChunkChars).toBe(6000);
+  });
+
+  it("clamps proofreadConcurrency to its range", () => {
+    expect(normalizeSettings({ proofreadConcurrency: 0 }).proofreadConcurrency).toBe(1);
+    expect(normalizeSettings({ proofreadConcurrency: 99 }).proofreadConcurrency).toBe(4);
+  });
+
+  it("defaults glossaryDefault to an empty list", () => {
+    expect(normalizeSettings({}).glossaryDefault).toEqual([]);
+  });
+
+  it("keeps glossary paths and drops blank entries", () => {
+    expect(
+      normalizeSettings({ glossaryDefault: ["A.md", "  ", "B.md"] }).glossaryDefault
+    ).toEqual(["A.md", "B.md"]);
+  });
+
+  it("ignores a glossaryDefault that is not a list", () => {
+    expect(normalizeSettings({ glossaryDefault: "A.md" as never }).glossaryDefault).toEqual([]);
+  });
+
+  it("drops non-string glossary entries", () => {
+    expect(
+      normalizeSettings({ glossaryDefault: ["A.md", 7 as never] }).glossaryDefault
+    ).toEqual(["A.md"]);
+  });
+
+  it("defaults the live underline to off", () => {
+    expect(normalizeSettings({}).glossaryLiveUnderline).toBe(false);
+  });
+
+  it("keeps folder rules verbatim", () => {
+    expect(
+      normalizeSettings({ glossaryFolderRules: "Kunden | A.md" }).glossaryFolderRules
+    ).toBe("Kunden | A.md");
+  });
 });

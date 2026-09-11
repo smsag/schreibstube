@@ -29,6 +29,17 @@ export interface SchreibstubeSettings {
   // Summarize-specific tuning.
   summarizePrompt: string;
   summarizeMaxTokens: number;
+  // Proofreading and the review sidebar.
+  proofreadPrompt: string;
+  proofreadMaxTokens: number;
+  proofreadChunkChars: number;
+  proofreadConcurrency: number;
+  // Glossary selection. `glossaryDefault` is the vault-wide fallback and
+  // `glossaryFolderRules` overrides it per folder; a note's own frontmatter
+  // beats both. See services/glossary-resolver.
+  glossaryDefault: string[];
+  glossaryFolderRules: string;
+  glossaryLiveUnderline: boolean;
   // Diagnostics.
   debugLogging: boolean;
 }

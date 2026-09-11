@@ -99,3 +99,209 @@
 .schreibstube-focus-enabled.schreibstube-focus-mode-sentence .schreibstube-focus-sentence {
   color: var(--text-normal);
 }
+
+/* Review sidebar
+   ------------------------------------------------------------------ */
+
+.schreibstube-review {
+  padding: 10px 12px 24px;
+  font-size: var(--font-ui-small);
+}
+
+.schreibstube-review-header {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.schreibstube-review-file {
+  font-weight: var(--font-semibold);
+  color: var(--text-normal);
+  overflow-wrap: anywhere;
+}
+
+.schreibstube-review-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.schreibstube-review-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  font-size: var(--font-ui-smaller);
+  cursor: pointer;
+}
+
+.schreibstube-review-button[disabled] {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.schreibstube-review-icon {
+  display: inline-flex;
+}
+
+.schreibstube-review-icon svg {
+  width: 14px;
+  height: 14px;
+}
+
+.schreibstube-review-progress,
+.schreibstube-review-message,
+.schreibstube-review-hint,
+.schreibstube-review-empty {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+}
+
+.schreibstube-review-message,
+.schreibstube-review-empty {
+  padding: 8px 0;
+}
+
+.schreibstube-review-warning {
+  padding: 4px 0;
+  color: var(--text-warning);
+  font-size: var(--font-ui-smaller);
+}
+
+/* Glossary picker */
+
+.schreibstube-review-glossary {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.schreibstube-review-glossary-label {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.schreibstube-review-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.schreibstube-review-chip {
+  padding: 2px 8px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 999px;
+  background: var(--background-primary);
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  cursor: pointer;
+}
+
+.schreibstube-review-chip.is-active {
+  border-color: var(--interactive-accent);
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+.schreibstube-review-chip.is-locked {
+  cursor: default;
+  opacity: 0.7;
+}
+
+/* Change cards */
+
+.schreibstube-review-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 10px;
+}
+
+.schreibstube-review-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid var(--background-modifier-border);
+  border-left-width: 3px;
+  border-radius: var(--schreibstube-border-radius);
+  background: var(--background-primary);
+}
+
+.schreibstube-review-card.is-suggestion { border-left-color: var(--background-modifier-border); }
+.schreibstube-review-card.is-warning { border-left-color: var(--text-warning); }
+.schreibstube-review-card.is-error { border-left-color: var(--text-error); }
+
+.schreibstube-review-card.is-stale {
+  opacity: 0.55;
+}
+
+.schreibstube-review-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.schreibstube-review-category {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.schreibstube-review-badge {
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--background-modifier-hover);
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+}
+
+.schreibstube-review-diff {
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.schreibstube-diff-equal { color: var(--text-muted); }
+
+.schreibstube-diff-delete {
+  background: var(--background-modifier-error);
+  color: var(--text-normal);
+  text-decoration: line-through;
+}
+
+.schreibstube-diff-insert {
+  background: var(--background-modifier-success);
+  color: var(--text-normal);
+}
+
+.schreibstube-diff-flag {
+  background: var(--background-modifier-error);
+  color: var(--text-normal);
+}
+
+.schreibstube-review-note {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+}
+
+.schreibstube-review-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+/* Live glossary underline in the editor */
+
+.schreibstube-glossary-hit {
+  text-decoration: underline wavy var(--text-error);
+  text-underline-offset: 3px;
+}
