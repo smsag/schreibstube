@@ -2,12 +2,20 @@ import { App, PluginSettingTab, SecretComponent, Setting } from "obsidian";
 import type SchreibstubePlugin from "./main";
 import type { LlmProvider } from "./types";
 import {
+  DEFAULT_PROOFREAD_PROMPT,
+  MAX_CHUNK_CHARS,
+  MAX_CONCURRENCY,
   MAX_IMAGE_PX,
+  MAX_PROOFREAD_TOKENS,
   MAX_SUMMARY_TOKENS,
+  MIN_CHUNK_CHARS,
+  MIN_CONCURRENCY,
   MIN_IMAGE_PX,
+  MIN_PROOFREAD_TOKENS,
   MIN_SUMMARY_TOKENS,
   normalizeSettings
 } from "./services/plugin-settings";
+import { GLOSSARY_CHANGED_EVENT } from "./utils/constants";
 import { LLM_PROVIDER_IDS, PROVIDER_MODELS, providerLabel } from "./services/llm-providers";
 import { MAX_DIM_OPACITY, MIN_DIM_OPACITY } from "./services/focus-settings";
 
@@ -254,6 +262,142 @@ export class SchreibstubeSettingTab extends PluginSettingTab {
             text.setValue(String(this.plugin.settings.summarizeMaxTokens));
           }
         });
+      });
+
+    new Setting(containerEl).setName("Proofreading").setHeading();
+
+    new Setting(containerEl)
+      .setDesc(
+        "Used by the proof-read sidebar. Corrections are proposed one by one and applied only when you accept them."
+      );
+
+    new Setting(containerEl)
+      .setName("Proofread prompt")
+      .setDesc("System instruction for the correction pass. Leave empty to restore the default.")
+      .addTextArea((text) => {
+        text.inputEl.rows = 5;
+        text.setPlaceholder(DEFAULT_PROOFREAD_PROMPT);
+        text.setValue(this.plugin.settings.proofreadPrompt);
+        text.onChange(async (value) => {
+          this.plugin.settings = normalizeSettings({
+            ...this.plugin.settings,
+            proofreadPrompt: value
+          });
+          await this.plugin.saveSettings();
+        });
+      });
+
+    new Setting(containerEl)
+      .setName("Maximum response tokens")
+      .setDesc("Upper bound per request. The actual budget follows the size of each chunk.")
+      .addSlider((slider) => {
+        slider
+          .setDynamicTooltip()
+          .setLimits(MIN_PROOFREAD_TOKENS, MAX_PROOFREAD_TOKENS, 256)
+          .setValue(this.plugin.settings.proofreadMaxTokens)
+          .onChange(async (value) => {
+            this.plugin.settings = normalizeSettings({
+              ...this.plugin.settings,
+              proofreadMaxTokens: value
+            });
+            await this.plugin.saveSettings();
+          });
+      });
+
+    new Setting(containerEl)
+      .setName("Characters per request")
+      .setDesc("Smaller chunks show the first suggestions sooner but cost more requests.")
+      .addSlider((slider) => {
+        slider
+          .setDynamicTooltip()
+          .setLimits(MIN_CHUNK_CHARS, MAX_CHUNK_CHARS, 250)
+          .setValue(this.plugin.settings.proofreadChunkChars)
+          .onChange(async (value) => {
+            this.plugin.settings = normalizeSettings({
+              ...this.plugin.settings,
+              proofreadChunkChars: value
+            });
+            await this.plugin.saveSettings();
+          });
+      });
+
+    new Setting(containerEl)
+      .setName("Parallel requests")
+      .setDesc("How many chunks are in flight at once.")
+      .addSlider((slider) => {
+        slider
+          .setDynamicTooltip()
+          .setLimits(MIN_CONCURRENCY, MAX_CONCURRENCY, 1)
+          .setValue(this.plugin.settings.proofreadConcurrency)
+          .onChange(async (value) => {
+            this.plugin.settings = normalizeSettings({
+              ...this.plugin.settings,
+              proofreadConcurrency: value
+            });
+            await this.plugin.saveSettings();
+          });
+      });
+
+    new Setting(containerEl).setName("Glossary").setHeading();
+
+    new Setting(containerEl)
+      .setDesc(
+        "A glossary is a note with `schreibstube-glossary: true` in its frontmatter and a term table. " +
+          "Glossary checks run locally and need no API key. A note's own `glossary` property beats a folder rule, " +
+          "which beats the pick in the sidebar, which beats the default below."
+      );
+
+    new Setting(containerEl)
+      .setName("Default glossaries")
+      .setDesc("Vault paths, one per line. Used when nothing more specific applies.")
+      .addTextArea((text) => {
+        text.inputEl.rows = 3;
+        text.setPlaceholder("Glossare/Haus.md");
+        text.setValue(this.plugin.settings.glossaryDefault.join("\n"));
+        text.onChange(async (value) => {
+          this.plugin.settings = normalizeSettings({
+            ...this.plugin.settings,
+            glossaryDefault: value
+              .split("\n")
+              .map((line) => line.trim())
+              .filter((line) => line.length > 0)
+          });
+          await this.plugin.saveSettings();
+          window.dispatchEvent(new Event(GLOSSARY_CHANGED_EVENT));
+        });
+      });
+
+    new Setting(containerEl)
+      .setName("Folder rules")
+      .setDesc("One rule per line: folder | glossary.md, other.md. The deepest matching folder wins.")
+      .addTextArea((text) => {
+        text.inputEl.rows = 4;
+        text.setPlaceholder("Kunden | Glossare/Kunden.md");
+        text.setValue(this.plugin.settings.glossaryFolderRules);
+        text.onChange(async (value) => {
+          this.plugin.settings = normalizeSettings({
+            ...this.plugin.settings,
+            glossaryFolderRules: value
+          });
+          await this.plugin.saveSettings();
+          window.dispatchEvent(new Event(GLOSSARY_CHANGED_EVENT));
+        });
+      });
+
+    new Setting(containerEl)
+      .setName("Underline glossary hits in the editor")
+      .setDesc("Marks error-severity terms as you write. Off by default to keep long notes quiet.")
+      .addToggle((toggle) => {
+        toggle
+          .setValue(this.plugin.settings.glossaryLiveUnderline)
+          .onChange(async (value) => {
+            this.plugin.settings = normalizeSettings({
+              ...this.plugin.settings,
+              glossaryLiveUnderline: value
+            });
+            await this.plugin.saveSettings();
+            window.dispatchEvent(new Event(GLOSSARY_CHANGED_EVENT));
+          });
       });
 
     new Setting(containerEl).setName("Diagnostics").setHeading();

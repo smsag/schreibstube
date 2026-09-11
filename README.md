@@ -1,8 +1,72 @@
 # Schreibstube
 
-A writing-focused Obsidian plugin: a sticky heading-stack overlay, a distraction-reducing focus mode, LLM-powered file renaming, and side-pane link opening.
+A writing-focused Obsidian plugin: a proof-read review sidebar with glossary support, a sticky heading-stack overlay, a distraction-reducing focus mode, LLM-powered file renaming, and side-pane link opening.
 
 ## Features
+
+### Proof-read sidebar
+
+Opens a side pane that reviews the active note and proposes changes one at a time. Nothing is written to the note until you accept a change.
+
+- **Open proof-read sidebar** — show the panel
+- **Proof-read note** — send the note for correction and fill the queue
+- **Check note against glossary** — local glossary check, no API call
+
+Each card shows the change as a word-level diff, with **Übernehmen**, **Verwerfen**, and **Anzeigen** to jump to the place in the note. **Alle übernehmen** applies the whole queue as a single undo step.
+
+What the correction pass will not touch: frontmatter, fenced code blocks, tables, and math blocks are excluded entirely. Inline code, wikilinks, link targets, tags, and bare URLs are masked before the text is sent and restored afterwards; if a response comes back having lost one of them, that section is discarded rather than applied.
+
+If you edit the note while the queue is open, cards whose text can no longer be located are marked *veraltet* instead of being applied to the wrong words.
+
+### Glossary
+
+A glossary is an ordinary note with `schreibstube-glossary: true` in its frontmatter and a term table. Glossary checks run locally and need no API key, so the panel is useful before any provider is configured. The selected glossary is also passed to the correction pass as a constraint, so a rewrite does not undo a term the glossary just enforced.
+
+The term model follows TBX-Basic (ISO 30042): a concept groups several terms, and each term carries an administrative status.
+
+| Status | What the panel does |
+|---|---|
+| `preferred` | Offered as the replacement for other terms in the concept; flagged only when written in the wrong case |
+| `admitted` | Acceptable usage, never flagged |
+| `deprecated` | Flagged, with the preferred term offered when the concept has one |
+| `superseded` | Flagged, never auto-fixed, because whether the newer term applies is a judgement call |
+
+The TBX picklist identifiers (`deprecatedTerm-admn-sts` and so on) and the informal `notRecommended` and `obsolete` spellings are accepted too, so an export from a termbase tool can be pasted in.
+
+```markdown
+---
+schreibstube-glossary: true
+language: de
+default-severity: error
+---
+
+| Concept   | Term         | Status     | Match | Note                    |
+|-----------|--------------|------------|-------|-------------------------|
+| objekt    | Objekt       | preferred  | word  |                         |
+| objekt    | Immobilie    | deprecated | word  | Hausbegriff seit 2024   |
+| objekt    | Liegenschaft | admitted   |       |                         |
+| makler    | Broker       | deprecated | word  |                         |
+| courtage  | Courtage     | superseded | word  | Vertragsabhängig        |
+```
+
+German column headers (`Konzept`, `Benennung`, `Status`, `Treffer`, `Hinweis`) work as well. A malformed row is skipped and reported in the panel rather than failing the whole file.
+
+`Match` controls how a term is found:
+
+| Mode | Behaviour |
+|---|---|
+| `word` (default) | Whole word, case-insensitive, tolerating German inflection endings so *Immobilien* matches *Immobilie* |
+| `exact` | Case-sensitive, no inflection. Use when two spellings of one word are separate entries |
+| `prefix` | Matches inside a compound, so *Broker* catches *Brokerbüro* |
+
+When a match is an inflected form, the card is marked *Beugung prüfen*, because the replacement is the base form and the ending may need fixing by hand.
+
+**Which glossary applies** is decided by the first of these that yields anything, with no merging between them:
+
+1. A `glossary` property in the note's own frontmatter
+2. A folder rule from settings, deepest matching folder first
+3. The pick in the sidebar header, which lasts for the session
+4. The vault-wide default in settings
 
 ### Heading stack overlay
 
@@ -82,6 +146,23 @@ API keys are stored in Obsidian's built-in secret storage and are never written 
 |---|---|---|
 | Summarize prompt | System instruction telling the LLM how to summarize | Insight-log preset |
 | Maximum response tokens | Upper bound on summary length (64–4096) | 512 |
+
+### Proofreading
+
+| Setting | Description | Default |
+|---|---|---|
+| Proofread prompt | System instruction for the correction pass | Correction-only German preset |
+| Maximum response tokens | Upper bound per request (256–8192) | 2 048 |
+| Characters per request | Prose sent per chunk (500–6000) | 2 000 |
+| Parallel requests | Chunks in flight at once (1–4) | 2 |
+
+### Glossary
+
+| Setting | Description | Default |
+|---|---|---|
+| Default glossaries | Vault paths, one per line | — |
+| Folder rules | One per line: `folder \| glossary.md, other.md` | — |
+| Underline glossary hits in the editor | Marks error-severity terms while writing | Off |
 
 ### Diagnostics
 

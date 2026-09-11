@@ -13,6 +13,18 @@ export const MAX_IMAGE_PX = 2048;
 export const MIN_SUMMARY_TOKENS = 64;
 export const MAX_SUMMARY_TOKENS = 4096;
 
+export const MIN_PROOFREAD_TOKENS = 256;
+export const MAX_PROOFREAD_TOKENS = 8192;
+
+/** Characters of prose per request. Small chunks give earlier cards but cost
+ *  more requests; large ones risk the model's attention drifting late in a
+ *  long stretch of text. */
+export const MIN_CHUNK_CHARS = 500;
+export const MAX_CHUNK_CHARS = 6000;
+
+export const MIN_CONCURRENCY = 1;
+export const MAX_CONCURRENCY = 4;
+
 /** Default summarize prompt, tuned for turning raw text pasted from analytics
  *  and reporting tools into a compact insight-log entry. */
 export const DEFAULT_SUMMARIZE_PROMPT =
@@ -23,6 +35,14 @@ export const DEFAULT_SUMMARIZE_PROMPT =
   "a count. Capture the key findings and takeaways, keeping concrete numbers, metrics, and " +
   "named entities. Drop UI labels, navigation, and boilerplate. Respond with the insight " +
   "only — no preamble, no closing remarks.";
+
+/** Default proof-read prompt. Correction only: the instruction is deliberately
+ *  narrow, because a prompt that also invites improvement produces rewrites the
+ *  author has to argue with rather than corrections they can accept. */
+export const DEFAULT_PROOFREAD_PROMPT =
+  "Du bist Korrektor für deutschsprachige Fachtexte. Korrigiere Rechtschreibung, " +
+  "Grammatik, Zeichensetzung und offensichtliche Stilfehler. Ändere niemals die " +
+  "Aussage, den Ton oder die Fachbegriffe des Textes. Kürze nicht und ergänze nichts.";
 
 const ALLOWED_PROVIDERS = new Set<LlmProvider>(LLM_PROVIDER_IDS);
 
@@ -39,6 +59,13 @@ export const DEFAULT_SETTINGS: SchreibstubeSettings = {
   renameMaxImagePx: 768,
   summarizePrompt: DEFAULT_SUMMARIZE_PROMPT,
   summarizeMaxTokens: 512,
+  proofreadPrompt: DEFAULT_PROOFREAD_PROMPT,
+  proofreadMaxTokens: 2048,
+  proofreadChunkChars: 2000,
+  proofreadConcurrency: 2,
+  glossaryDefault: [],
+  glossaryFolderRules: "",
+  glossaryLiveUnderline: false,
   debugLogging: false,
 };
 
@@ -120,7 +147,45 @@ export function normalizeSettings(loaded: LoadedSettings): SchreibstubeSettings 
       MAX_SUMMARY_TOKENS,
       DEFAULT_SETTINGS.summarizeMaxTokens
     ),
+    proofreadPrompt: nonEmptyStringOrDefault(
+      loaded?.proofreadPrompt,
+      DEFAULT_SETTINGS.proofreadPrompt
+    ),
+    proofreadMaxTokens: clampIntOrDefault(
+      loaded?.proofreadMaxTokens,
+      MIN_PROOFREAD_TOKENS,
+      MAX_PROOFREAD_TOKENS,
+      DEFAULT_SETTINGS.proofreadMaxTokens
+    ),
+    proofreadChunkChars: clampIntOrDefault(
+      loaded?.proofreadChunkChars,
+      MIN_CHUNK_CHARS,
+      MAX_CHUNK_CHARS,
+      DEFAULT_SETTINGS.proofreadChunkChars
+    ),
+    proofreadConcurrency: clampIntOrDefault(
+      loaded?.proofreadConcurrency,
+      MIN_CONCURRENCY,
+      MAX_CONCURRENCY,
+      DEFAULT_SETTINGS.proofreadConcurrency
+    ),
+    glossaryDefault: stringListOrDefault(loaded?.glossaryDefault),
+    glossaryFolderRules:
+      typeof loaded?.glossaryFolderRules === "string"
+        ? loaded.glossaryFolderRules
+        : DEFAULT_SETTINGS.glossaryFolderRules,
+    glossaryLiveUnderline:
+      typeof loaded?.glossaryLiveUnderline === "boolean"
+        ? loaded.glossaryLiveUnderline
+        : DEFAULT_SETTINGS.glossaryLiveUnderline,
   };
+}
+
+/** Glossary paths are persisted as an array; anything else in the data file is
+ *  treated as unset rather than crashing the whole settings load. */
+function stringListOrDefault(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((entry): entry is string => typeof entry === "string" && entry.trim() !== "");
 }
 
 function nonEmptyStringOrDefault(value: unknown, fallback: string): string {
