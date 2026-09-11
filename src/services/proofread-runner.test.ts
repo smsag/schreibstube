@@ -16,7 +16,7 @@ const GLOSSARY = parseGlossary(
   [
     "---",
     "schreibstubeGlossary: true",
-    "language: de",
+    "schreibstubeLanguage: de",
     "---",
     "| Concept | Term | Status | Match | Note |",
     "|---|---|---|---|---|",

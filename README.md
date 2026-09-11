@@ -36,8 +36,8 @@ The TBX picklist identifiers (`deprecatedTerm-admn-sts` and so on) and the infor
 ```markdown
 ---
 schreibstubeGlossary: true
-language: de
-defaultSeverity: error
+schreibstubeLanguage: de
+schreibstubeDefaultSeverity: error
 ---
 
 | Concept   | Term         | Status     | Match | Note                    |
@@ -48,6 +48,8 @@ defaultSeverity: error
 | makler    | Broker       | deprecated | word  |                         |
 | courtage  | Courtage     | superseded | word  | Vertragsabhängig        |
 ```
+
+Every frontmatter key the plugin reads is prefixed with `schreibstube`, without exception, because Obsidian frontmatter is one flat namespace shared with other plugins and with your own properties.
 
 German column headers (`Konzept`, `Benennung`, `Status`, `Treffer`, `Hinweis`) work as well. A malformed row is skipped and reported in the panel rather than failing the whole file.
 

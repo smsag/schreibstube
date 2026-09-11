@@ -3,8 +3,8 @@ import { isGlossaryNote, parseGlossary, preferredTerm } from "./glossary-parser"
 
 const NOTE = `---
 schreibstubeGlossary: true
-language: de
-defaultSeverity: error
+schreibstubeLanguage: de
+schreibstubeDefaultSeverity: error
 ---
 
 # Hausglossar
@@ -62,6 +62,30 @@ describe("parseGlossary", () => {
   it("returns null preferred term for a concept that only forbids", () => {
     const { glossary } = parseGlossary("G.md", NOTE);
     expect(preferredTerm(glossary.concepts[1])).toBe(null);
+  });
+
+  it("ignores an unprefixed language key", () => {
+    const { glossary } = parseGlossary(
+      "G.md",
+      "---\nlanguage: en\n---\n\n| Concept | Term | Status |\n|---|---|---|\n| a | B | preferred |"
+    );
+    expect(glossary.language).toBe("de");
+  });
+
+  it("ignores an unprefixed defaultSeverity key", () => {
+    const { glossary } = parseGlossary(
+      "G.md",
+      "---\ndefaultSeverity: error\n---\n\n| Concept | Term | Status |\n|---|---|---|\n| a | B | preferred |"
+    );
+    expect(glossary.defaultSeverity).toBe("warning");
+  });
+
+  it("reads the prefixed language key", () => {
+    const { glossary } = parseGlossary(
+      "G.md",
+      "---\nschreibstubeLanguage: en\n---\n\n| Concept | Term | Status |\n|---|---|---|\n| a | B | preferred |"
+    );
+    expect(glossary.language).toBe("en");
   });
 
   it("ignores the removed default-severity spelling", () => {

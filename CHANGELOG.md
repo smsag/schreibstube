@@ -16,7 +16,14 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
-- **Glossary frontmatter keys are now camelCase, and the old spellings are gone.** `schreibstube-glossary` is now `schreibstubeGlossary`, `default-severity` inside a glossary note is now `defaultSeverity`, and the per-note selection key `glossary` is now `schreibstubeGlossaries`. The old unprefixed `glossary` key was liable to collide with other plugins. Existing glossary notes need their frontmatter updated.
+- **Every frontmatter key the plugin reads is now `schreibstube`-prefixed camelCase, and the old spellings are gone.** Obsidian frontmatter is one flat namespace shared with other plugins and with the user's own properties, so a bare key is a collision waiting to happen. Existing glossary notes need their frontmatter updated.
+
+  | Before | After |
+  |---|---|
+  | `schreibstube-glossary` | `schreibstubeGlossary` |
+  | `language` | `schreibstubeLanguage` |
+  | `default-severity` | `schreibstubeDefaultSeverity` |
+  | `glossary` | `schreibstubeGlossaries` |
 
 ### Settings
 

@@ -3,7 +3,7 @@ import { compileGlossaries } from "./glossary-matcher";
 import { parseGlossary, type Glossary } from "./glossary-parser";
 import { segmentMarkdown } from "./markdown-segments";
 
-function glossary(rows: string, frontmatter = "language: de\ndefaultSeverity: error"): Glossary {
+function glossary(rows: string, frontmatter = "language: de\nschreibstubeDefaultSeverity: error"): Glossary {
   const note = `---\nschreibstubeGlossary: true\n${frontmatter}\n---\n\n| Concept | Term | Status | Match | Note |\n|---|---|---|---|---|\n${rows}`;
   const { glossary: parsed, errors } = parseGlossary("Glossar.md", note);
   expect(errors).toEqual([]);
