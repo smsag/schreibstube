@@ -28,6 +28,17 @@ import {
   type CancelToken,
 } from "../services/proofread-runner";
 import { resolveApiKey } from "../services/secret";
+import { fetchSource } from "../services/sync-fetcher";
+import {
+  buildSyncSuggestions,
+  hashText,
+  localState,
+  splitNote,
+  stripRemoteFrontmatter,
+  type LocalState,
+  type SyncRecord,
+} from "../services/sync-document";
+import { resolveSourceUrl, SYNC_FRONTMATTER_KEY } from "../services/sync-source";
 import {
   mergeSuggestions,
   planApply,
@@ -42,11 +53,20 @@ import {
   type GlossaryPanelState,
   type ReviewHandlers,
   type ReviewState,
+  type SyncPanelState,
 } from "../ui/review-panel";
 
-export const GLOSSARY_FRONTMATTER_KEY = "glossary";
+export const GLOSSARY_FRONTMATTER_KEY = "schreibstubeGlossaries";
 
 export type ReviewStateListener = (state: ReviewState) => void;
+
+/** Persists sync bookkeeping between sessions. Implemented by the plugin, which
+ *  owns the data file. */
+export interface SyncStore {
+  get(path: string): SyncRecord | undefined;
+  set(path: string, record: SyncRecord): Promise<void>;
+  forget(path: string): Promise<void>;
+}
 
 export class ProofreadController {
   private readonly registry: GlossaryRegistry;
@@ -62,11 +82,14 @@ export class ProofreadController {
   private progress: ReviewState["progress"] = null;
   private message = "";
   private running: CancelToken | null = null;
+  private sync: SyncPanelState = EMPTY_REVIEW_STATE.sync;
+  private checking = false;
 
   constructor(
     private readonly app: App,
     private readonly getSettings: () => SchreibstubeSettings,
-    private readonly logger: Logger
+    private readonly logger: Logger,
+    private readonly syncStore: SyncStore
   ) {
     this.registry = new GlossaryRegistry(app);
   }
@@ -87,6 +110,7 @@ export class ProofreadController {
       onReject: (id) => this.reject(id),
       onReveal: (id) => this.reveal(id),
       onToggleGlossary: (path) => void this.toggleGlossary(path),
+      onCheckSource: () => void this.checkSource(true),
     };
   }
 
@@ -112,6 +136,7 @@ export class ProofreadController {
 
     const path = file.path;
     if (path === this.filePath) {
+      this.refreshSyncBinding(file);
       await this.refreshGlossary(file);
       return;
     }
@@ -121,7 +146,12 @@ export class ProofreadController {
     this.suggestions = [];
     this.progress = null;
     this.message = "";
+    this.refreshSyncBinding(file);
     await this.refreshGlossary(file);
+
+    if (this.sync.bound && this.getSettings().syncCheckOnOpen) {
+      await this.checkSource(false);
+    }
   }
 
   /** Called as the user types: pending cards whose text has moved beyond
@@ -145,6 +175,23 @@ export class ProofreadController {
     this.registry.invalidate(path);
     if (this.selection.paths.some((selected) => path.endsWith(selected) || selected === path)) {
       await this.refreshGlossary(this.app.workspace.getActiveFile());
+    }
+  }
+
+  /** Follow a bound note when it moves, so its baseline is not lost. */
+  async handleNoteRenamed(oldPath: string, newPath: string): Promise<void> {
+    const record = this.syncStore.get(oldPath);
+    if (!record) return;
+    await this.syncStore.set(newPath, record);
+    await this.syncStore.forget(oldPath);
+    if (this.filePath === oldPath) {
+      this.filePath = newPath;
+    }
+  }
+
+  async handleNoteDeleted(path: string): Promise<void> {
+    if (this.syncStore.get(path)) {
+      await this.syncStore.forget(path);
     }
   }
 
@@ -282,6 +329,7 @@ export class ProofreadController {
     }
 
     const editor = view.editor;
+    const fromSource = batch.some((suggestion) => suggestion.source === "remote");
     const plan = planApply(editor.getValue(), batch);
 
     if (plan.changes.length > 0) {
@@ -301,6 +349,10 @@ export class ProofreadController {
     // Offsets recorded before this batch are now wrong by the size of it, so
     // every remaining card is re-anchored against the new text at once.
     this.suggestions = refreshStaleness(editor.getValue(), this.suggestions);
+
+    if (fromSource) {
+      void this.settleSyncBaseline(editor.getValue());
+    }
 
     const skipped = plan.stale.length + plan.conflicted.length;
     if (skipped > 0) {
@@ -355,6 +407,7 @@ export class ProofreadController {
     const available = this.registry.listCandidates();
 
     if (!file) {
+      this.sync = EMPTY_REVIEW_STATE.sync;
       this.selection = { paths: [], source: "none" };
       this.matcher = compileGlossaries([]);
       this.glossaryPanel = { selected: [], available, source: "none", errors: [], missing: [] };
@@ -387,6 +440,204 @@ export class ProofreadController {
     );
     window.dispatchEvent(new Event(GLOSSARY_CHANGED_EVENT));
     this.emit();
+  }
+
+
+  /**
+   * Check the bound source and turn any difference into cards.
+   *
+   * `manual` separates a deliberate check from the automatic one on note open:
+   * the automatic check respects the minimum interval and stays silent when the
+   * note is not bound, while a manual one always runs and always reports.
+   */
+  private async checkSource(manual: boolean): Promise<void> {
+    const settings = this.getSettings();
+    if (!settings.syncEnabled || this.checking) return;
+
+    const file = this.app.workspace.getActiveFile();
+    if (!file || file.path !== this.filePath) return;
+
+    const raw = this.app.metadataCache.getFileCache(file)?.frontmatter?.[SYNC_FRONTMATTER_KEY];
+    if (typeof raw !== "string" || raw.trim().length === 0) {
+      if (manual) new Notice("Schreibstube: diese Notiz ist an keine Quelle gebunden.");
+      return;
+    }
+
+    const resolved = resolveSourceUrl(raw);
+    if (!resolved.ok) {
+      this.sync = { ...this.sync, bound: true, status: "error", source: raw, message: resolved.reason };
+      this.emit();
+      return;
+    }
+
+    const record = this.syncStore.get(file.path);
+    if (!manual && !this.isCheckDue(record, settings.syncMinIntervalMinutes)) {
+      return;
+    }
+
+    this.checking = true;
+    this.sync = { ...this.sync, bound: true, status: "checking", source: resolved.url, message: "" };
+    this.emit();
+
+    try {
+      const outcome = await fetchSource({ url: resolved.url, etag: record?.etag });
+      const view = this.resolveTargetView();
+
+      // The user may have moved on while the request was in flight.
+      if (!view || view.file?.path !== file.path) return;
+
+      const noteText = view.editor.getValue();
+      const body = splitNote(noteText).body;
+      const state = localState(body, record);
+      const checkedAt = Date.now();
+
+      if (outcome.status === "missing" || outcome.status === "error") {
+        // A source that vanished never empties the note. It is reported and the
+        // local copy is left exactly as it is.
+        //
+        // The clock still advances, so a dead binding does not fire a request
+        // every time the note is opened. A manual check ignores the interval,
+        // which is the way back from a source that was only briefly away.
+        await this.syncStore.set(file.path, {
+          hash: record?.hash ?? hashText(body),
+          etag: record?.etag ?? "",
+          checkedAt,
+        });
+        this.sync = {
+          bound: true,
+          status: outcome.status,
+          source: resolved.url,
+          checkedAt,
+          message: outcome.message,
+        };
+        this.emit();
+        return;
+      }
+
+      if (outcome.status === "unchanged") {
+        await this.syncStore.set(file.path, {
+          hash: record?.hash ?? hashText(body),
+          etag: outcome.etag,
+          checkedAt,
+        });
+        this.sync = {
+          bound: true,
+          status: state === "diverged" ? "diverged" : "clean",
+          source: resolved.url,
+          checkedAt,
+          message: this.describeState(state, 0),
+        };
+        this.emit();
+        return;
+      }
+
+      const remoteBody = stripRemoteFrontmatter(outcome.body);
+      const suggestions = buildSyncSuggestions({ noteText, remoteBody, state });
+
+      await this.syncStore.set(file.path, {
+        // The baseline only advances once the note actually matches the source,
+        // so an unaccepted update is still pending on the next check.
+        hash: suggestions.length === 0 ? hashText(body) : record?.hash ?? hashText(body),
+        etag: outcome.etag,
+        checkedAt,
+      });
+
+      this.suggestions = mergeSuggestions(this.suggestions, suggestions, "remote");
+      this.sync = {
+        bound: true,
+        status: suggestions.length === 0 ? "clean" : state === "diverged" ? "diverged" : "idle",
+        source: resolved.url,
+        checkedAt,
+        message: this.describeState(state, suggestions.length),
+      };
+      this.emit();
+    } catch (err) {
+      this.logger.error("Source check failed:", err);
+      this.sync = {
+        ...this.sync,
+        bound: true,
+        status: "error",
+        message: err instanceof Error ? err.message : "Unbekannter Fehler.",
+      };
+      this.emit();
+    } finally {
+      this.checking = false;
+    }
+  }
+
+  /**
+   * Move the divergence baseline forward once the note matches its source
+   * again.
+   *
+   * Without this, accepting every incoming card would leave the baseline at the
+   * pre-update body, and the next check would report the note as locally edited
+   * when all the user did was accept the source.
+   *
+   * A partially accepted update deliberately does not advance it: the note then
+   * matches neither side, and "diverged" is the honest description.
+   */
+  private async settleSyncBaseline(noteText: string): Promise<void> {
+    if (!this.filePath) return;
+
+    const record = this.syncStore.get(this.filePath);
+    if (!record) return;
+
+    const outstanding = this.suggestions.some(
+      (suggestion) =>
+        suggestion.source === "remote" &&
+        (suggestion.status === "pending" || suggestion.status === "stale")
+    );
+    if (outstanding) return;
+
+    await this.syncStore.set(this.filePath, {
+      ...record,
+      hash: hashText(splitNote(noteText).body),
+    });
+
+    this.sync = { ...this.sync, status: "clean", message: "Notiz entspricht der Quelle." };
+    this.emit();
+  }
+
+  private describeState(state: LocalState, changes: number): string {
+    if (changes === 0) {
+      return state === "diverged"
+        ? "Quelle unverändert, die Notiz enthält lokale Änderungen."
+        : "Notiz entspricht der Quelle.";
+    }
+    if (state === "diverged") {
+      return `${changes} Unterschied(e). Die Notiz wurde lokal geändert, Übernehmen stellt die Quelle wieder her.`;
+    }
+    return `${changes} Änderung(en) aus der Quelle.`;
+  }
+
+  private isCheckDue(record: SyncRecord | undefined, minIntervalMinutes: number): boolean {
+    if (!record || minIntervalMinutes <= 0) return true;
+    return Date.now() - record.checkedAt >= minIntervalMinutes * 60_000;
+  }
+
+  /** Reflect the binding in the panel without fetching anything. */
+  private refreshSyncBinding(file: TFile | null): void {
+    if (!file) {
+      this.sync = EMPTY_REVIEW_STATE.sync;
+      return;
+    }
+
+    const raw = this.app.metadataCache.getFileCache(file)?.frontmatter?.[SYNC_FRONTMATTER_KEY];
+    if (typeof raw !== "string" || raw.trim().length === 0) {
+      this.sync = EMPTY_REVIEW_STATE.sync;
+      return;
+    }
+
+    const resolved = resolveSourceUrl(raw);
+    const record = this.syncStore.get(file.path);
+
+    this.sync = {
+      bound: true,
+      status: resolved.ok ? (record ? "idle" : "unsynced") : "error",
+      source: resolved.ok ? resolved.url : raw,
+      checkedAt: record?.checkedAt ?? 0,
+      message: resolved.ok ? "" : resolved.reason,
+    };
   }
 
   private activeEditorText(): string | null {
@@ -430,6 +681,7 @@ export class ProofreadController {
       suggestions: this.suggestions,
       progress: this.progress,
       glossary: this.glossaryPanel,
+      sync: this.sync,
       message: this.message,
     };
   }

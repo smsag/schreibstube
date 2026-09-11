@@ -200,4 +200,43 @@ describe("normalizeSettings", () => {
       normalizeSettings({ glossaryFolderRules: "Kunden | A.md" }).glossaryFolderRules
     ).toBe("Kunden | A.md");
   });
+
+  it("defaults document sync to off", () => {
+    expect(normalizeSettings({}).syncEnabled).toBe(false);
+  });
+
+  it("defaults the on-open check to on", () => {
+    expect(normalizeSettings({}).syncCheckOnOpen).toBe(true);
+  });
+
+  it("clamps the sync interval to its range", () => {
+    expect(normalizeSettings({ syncMinIntervalMinutes: -5 }).syncMinIntervalMinutes).toBe(0);
+    expect(normalizeSettings({ syncMinIntervalMinutes: 99999 }).syncMinIntervalMinutes).toBe(120);
+  });
+
+  it("defaults sync state to empty", () => {
+    expect(normalizeSettings({}).syncState).toEqual({});
+  });
+
+  it("keeps a well-formed sync record", () => {
+    const record = { hash: "abcd1234", etag: "W/\"x\"", checkedAt: 42 };
+    expect(normalizeSettings({ syncState: { "a.md": record } }).syncState["a.md"]).toEqual(record);
+  });
+
+  it("fills missing fields on a partial sync record", () => {
+    expect(
+      normalizeSettings({ syncState: { "a.md": { hash: "abcd1234" } as never } }).syncState["a.md"]
+    ).toEqual({ hash: "abcd1234", etag: "", checkedAt: 0 });
+  });
+
+  it("drops a sync record with no hash", () => {
+    expect(
+      normalizeSettings({ syncState: { "a.md": { etag: "x" } as never } }).syncState
+    ).toEqual({});
+  });
+
+  it("ignores a sync state that is not an object", () => {
+    expect(normalizeSettings({ syncState: [] as never }).syncState).toEqual({});
+    expect(normalizeSettings({ syncState: "nope" as never }).syncState).toEqual({});
+  });
 });

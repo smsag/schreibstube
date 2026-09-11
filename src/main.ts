@@ -49,7 +49,18 @@ export default class SchreibstubePlugin extends Plugin {
 
     this.linkMode = new LinkModeController(this.app, this.logger);
     this.llm = new LlmCommands(this.app, () => this.settings, this.logger);
-    this.proofread = new ProofreadController(this.app, () => this.settings, this.logger);
+    this.proofread = new ProofreadController(this.app, () => this.settings, this.logger, {
+      get: (path) => this.settings.syncState[path],
+      set: async (path, record) => {
+        this.settings.syncState = { ...this.settings.syncState, [path]: record };
+        await this.saveSettings();
+      },
+      forget: async (path) => {
+        const { [path]: _removed, ...rest } = this.settings.syncState;
+        this.settings.syncState = rest;
+        await this.saveSettings();
+      },
+    });
 
     this.registerView(REVIEW_VIEW_TYPE, (leaf) => this.createReviewView(leaf));
     this.registerEditorExtension(
@@ -140,6 +151,22 @@ export default class SchreibstubePlugin extends Plugin {
         void this.proofread?.syncActiveFile();
       })
     );
+
+    this.registerEvent(
+      this.app.vault.on("rename", (file, oldPath) => {
+        if (file instanceof TFile) {
+          void this.proofread?.handleNoteRenamed(oldPath, file.path);
+        }
+      })
+    );
+
+    this.registerEvent(
+      this.app.vault.on("delete", (file) => {
+        if (file instanceof TFile) {
+          void this.proofread?.handleNoteDeleted(file.path);
+        }
+      })
+    );
   }
 
   async loadSettings(): Promise<void> {
@@ -220,6 +247,14 @@ export default class SchreibstubePlugin extends Plugin {
       name: "Check note against glossary",
       editorCallback: () => {
         void this.activateReviewPanel().then(() => this.proofread?.handlers().onGlossaryCheck());
+      },
+    });
+
+    this.addCommand({
+      id: "check-note-source",
+      name: "Check note source for updates",
+      callback: () => {
+        void this.activateReviewPanel().then(() => this.proofread?.handlers().onCheckSource());
       },
     });
 

@@ -26,12 +26,34 @@ export interface GlossaryPanelState {
   missing: string[];
 }
 
+export type SyncPanelStatus =
+  | "none"
+  | "idle"
+  | "checking"
+  | "clean"
+  | "diverged"
+  | "unsynced"
+  | "missing"
+  | "error";
+
+export interface SyncPanelState {
+  /** Whether the note carries a source binding at all. */
+  bound: boolean;
+  status: SyncPanelStatus;
+  /** The resolved source URL, or the raw value when it failed validation. */
+  source: string;
+  /** Epoch milliseconds of the last check, or zero if never. */
+  checkedAt: number;
+  message: string;
+}
+
 export interface ReviewState {
   phase: ReviewPhase;
   fileName: string;
   suggestions: Suggestion[];
   progress: { completed: number; total: number } | null;
   glossary: GlossaryPanelState;
+  sync: SyncPanelState;
   /** A short line under the header: a result summary, or why nothing happened. */
   message: string;
 }
@@ -45,6 +67,7 @@ export interface ReviewHandlers {
   onReject(id: string): void;
   onReveal(id: string): void;
   onToggleGlossary(path: string): void;
+  onCheckSource(): void;
 }
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -54,6 +77,18 @@ const CATEGORY_LABELS: Record<string, string> = {
   style: "Stil",
   terminology: "Terminologie",
   capitalization: "Schreibweise",
+  update: "Aktualisierung",
+};
+
+const SYNC_STATUS_LABELS: Record<SyncPanelStatus, string> = {
+  none: "nicht gebunden",
+  idle: "gebunden",
+  checking: "wird geprüft",
+  clean: "aktuell",
+  diverged: "lokal geändert",
+  unsynced: "noch nie abgeglichen",
+  missing: "nicht gefunden",
+  error: "Fehler",
 };
 
 const SOURCE_LABELS: Record<GlossarySelectionSource, string> = {
@@ -70,6 +105,7 @@ export const EMPTY_REVIEW_STATE: ReviewState = {
   suggestions: [],
   progress: null,
   glossary: { selected: [], available: [], source: "none", errors: [], missing: [] },
+  sync: { bound: false, status: "none", source: "", checkedAt: 0, message: "" },
   message: "",
 };
 
@@ -118,6 +154,7 @@ export class ReviewPanelView extends ItemView {
     root.addClass("schreibstube-review");
 
     this.renderHeader(root);
+    this.renderSync(root);
     this.renderGlossary(root);
 
     if (this.state.message) {
@@ -174,6 +211,44 @@ export class ReviewPanelView extends ItemView {
         cls: "schreibstube-review-progress",
         text: `Abschnitt ${completed} von ${total}`,
       });
+    }
+  }
+
+  /** Shown only for a note bound to a source, so an ordinary note is unchanged. */
+  private renderSync(root: HTMLElement): void {
+    const sync = this.state.sync;
+    if (!sync.bound) return;
+
+    const section = root.createDiv({ cls: "schreibstube-review-sync" });
+
+    const row = section.createDiv({ cls: "schreibstube-review-sync-row" });
+    row.createSpan({
+      cls: "schreibstube-review-glossary-label",
+      text: `Quelle (${SYNC_STATUS_LABELS[sync.status]})`,
+    });
+    this.button(
+      row,
+      "Quelle prüfen",
+      "refresh-cw",
+      sync.status === "checking",
+      () => this.handlers?.onCheckSource()
+    );
+
+    if (sync.source) {
+      section.createDiv({ cls: "schreibstube-review-hint", text: sync.source });
+    }
+    if (sync.checkedAt > 0) {
+      section.createDiv({
+        cls: "schreibstube-review-hint",
+        text: `Zuletzt geprüft: ${new Date(sync.checkedAt).toLocaleString()}`,
+      });
+    }
+    if (sync.message) {
+      const cls =
+        sync.status === "missing" || sync.status === "error"
+          ? "schreibstube-review-warning"
+          : "schreibstube-review-hint";
+      section.createDiv({ cls, text: sync.message });
     }
   }
 
@@ -249,6 +324,9 @@ export class ReviewPanelView extends ItemView {
     });
     if (suggestion.source === "glossary") {
       meta.createSpan({ cls: "schreibstube-review-badge", text: "Glossar" });
+    }
+    if (suggestion.source === "remote") {
+      meta.createSpan({ cls: "schreibstube-review-badge", text: "Quelle" });
     }
     if (suggestion.status === "stale") {
       meta.createSpan({ cls: "schreibstube-review-badge", text: "veraltet" });

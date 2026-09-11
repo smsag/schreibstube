@@ -15,8 +15,8 @@ const GLOSSARY = parseGlossary(
   "G.md",
   [
     "---",
-    "schreibstube-glossary: true",
-    "language: de",
+    "schreibstubeGlossary: true",
+    "schreibstubeLanguage: de",
     "---",
     "| Concept | Term | Status | Match | Note |",
     "|---|---|---|---|---|",

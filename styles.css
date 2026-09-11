@@ -305,3 +305,25 @@
   text-decoration: underline wavy var(--text-error);
   text-underline-offset: 3px;
 }
+
+/* Source-bound notes */
+
+.schreibstube-review-sync {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.schreibstube-review-sync-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.schreibstube-review-sync .schreibstube-review-hint {
+  overflow-wrap: anywhere;
+}

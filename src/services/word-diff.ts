@@ -6,7 +6,9 @@
  * and after trustworthy: the offsets come from the document, not the response.
  */
 
-export type DiffOp = "equal" | "insert" | "delete";
+import { diffSequences, type DiffOp } from "./lcs";
+
+export type { DiffOp };
 
 export interface DiffSegment {
   op: DiffOp;
@@ -34,14 +36,10 @@ export function tokenize(text: string): string[] {
 
 /** Word-level diff of `before` against `after`. */
 export function diffWords(before: string, after: string): DiffSegment[] {
-  const a = tokenize(before);
-  const b = tokenize(after);
-
-  if (a.length > MAX_TOKENS || b.length > MAX_TOKENS) {
-    return wholeReplacement(before, after);
-  }
-
-  return backtrack(a, b, lcsTable(a, b));
+  return diffSequences(tokenize(before), tokenize(after), MAX_TOKENS).map((run) => ({
+    op: run.op,
+    text: run.items.join(""),
+  }));
 }
 
 /** Contiguous edits derived from the diff, dropping whitespace-only churn. */
@@ -93,69 +91,4 @@ function isMeaningful(edit: Edit): boolean {
   // empty once trimmed, the other is not) while dropping whitespace-only churn
   // (both sides trim to the same thing).
   return edit.before.trim() !== edit.after.trim();
-}
-
-function wholeReplacement(before: string, after: string): DiffSegment[] {
-  const segments: DiffSegment[] = [];
-  if (before.length > 0) segments.push({ op: "delete", text: before });
-  if (after.length > 0) segments.push({ op: "insert", text: after });
-  return segments;
-}
-
-/** Classic longest-common-subsequence length table over tokens. */
-function lcsTable(a: string[], b: string[]): Uint32Array {
-  const width = b.length + 1;
-  const table = new Uint32Array((a.length + 1) * width);
-
-  for (let i = a.length - 1; i >= 0; i -= 1) {
-    for (let j = b.length - 1; j >= 0; j -= 1) {
-      table[i * width + j] =
-        a[i] === b[j]
-          ? table[(i + 1) * width + j + 1] + 1
-          : Math.max(table[(i + 1) * width + j], table[i * width + j + 1]);
-    }
-  }
-
-  return table;
-}
-
-function backtrack(a: string[], b: string[], table: Uint32Array): DiffSegment[] {
-  const width = b.length + 1;
-  const segments: DiffSegment[] = [];
-  let i = 0;
-  let j = 0;
-
-  const push = (op: DiffOp, text: string): void => {
-    const last = segments[segments.length - 1];
-    if (last && last.op === op) {
-      last.text += text;
-      return;
-    }
-    segments.push({ op, text });
-  };
-
-  while (i < a.length && j < b.length) {
-    if (a[i] === b[j]) {
-      push("equal", a[i]);
-      i += 1;
-      j += 1;
-    } else if (table[(i + 1) * width + j] >= table[i * width + j + 1]) {
-      push("delete", a[i]);
-      i += 1;
-    } else {
-      push("insert", b[j]);
-      j += 1;
-    }
-  }
-
-  while (i < a.length) {
-    push("delete", a[i]);
-    i += 1;
-  }
-  while (j < b.length) {
-    push("insert", b[j]);
-    j += 1;
-  }
-
-  return segments;
 }

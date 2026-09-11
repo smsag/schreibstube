@@ -3,6 +3,8 @@ import type SchreibstubePlugin from "./main";
 import type { LlmProvider } from "./types";
 import {
   DEFAULT_PROOFREAD_PROMPT,
+  MAX_SYNC_INTERVAL_MINUTES,
+  MIN_SYNC_INTERVAL_MINUTES,
   MAX_CHUNK_CHARS,
   MAX_CONCURRENCY,
   MAX_IMAGE_PX,
@@ -342,8 +344,8 @@ export class SchreibstubeSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setDesc(
-        "A glossary is a note with `schreibstube-glossary: true` in its frontmatter and a term table. " +
-          "Glossary checks run locally and need no API key. A note's own `glossary` property beats a folder rule, " +
+        "A glossary is a note with `schreibstubeGlossary: true` in its frontmatter and a term table. " +
+          "Glossary checks run locally and need no API key. A note's own `schreibstubeGlossaries` property beats a folder rule, " +
           "which beats the pick in the sidebar, which beats the default below."
       );
 
@@ -397,6 +399,63 @@ export class SchreibstubeSettingTab extends PluginSettingTab {
             });
             await this.plugin.saveSettings();
             window.dispatchEvent(new Event(GLOSSARY_CHANGED_EVENT));
+          });
+      });
+
+    new Setting(containerEl).setName("Document sync").setHeading();
+
+    new Setting(containerEl)
+      .setDesc(
+        "Bind a note to a remote Markdown file by adding `schreibstubeSyncedFrom: <url>` to its frontmatter. " +
+          "The source is the single truth: incoming changes appear in the sidebar as cards you accept, and nothing " +
+          "is ever pushed back. A note can live in any folder. If the source disappears, it is reported and the note " +
+          "is left untouched."
+      );
+
+    new Setting(containerEl)
+      .setName("Enable document sync")
+      .setDesc("Off by default. Bound notes are ignored entirely until this is on.")
+      .addToggle((toggle) => {
+        toggle
+          .setValue(this.plugin.settings.syncEnabled)
+          .onChange(async (value) => {
+            this.plugin.settings = normalizeSettings({
+              ...this.plugin.settings,
+              syncEnabled: value
+            });
+            await this.plugin.saveSettings();
+          });
+      });
+
+    new Setting(containerEl)
+      .setName("Check when a bound note opens")
+      .setDesc("Also check automatically on open, subject to the interval below. Otherwise only on command.")
+      .addToggle((toggle) => {
+        toggle
+          .setValue(this.plugin.settings.syncCheckOnOpen)
+          .onChange(async (value) => {
+            this.plugin.settings = normalizeSettings({
+              ...this.plugin.settings,
+              syncCheckOnOpen: value
+            });
+            await this.plugin.saveSettings();
+          });
+      });
+
+    new Setting(containerEl)
+      .setName("Minimum minutes between automatic checks")
+      .setDesc("Per note. Zero checks on every open. A manual check always runs.")
+      .addSlider((slider) => {
+        slider
+          .setDynamicTooltip()
+          .setLimits(MIN_SYNC_INTERVAL_MINUTES, MAX_SYNC_INTERVAL_MINUTES, 5)
+          .setValue(this.plugin.settings.syncMinIntervalMinutes)
+          .onChange(async (value) => {
+            this.plugin.settings = normalizeSettings({
+              ...this.plugin.settings,
+              syncMinIntervalMinutes: value
+            });
+            await this.plugin.saveSettings();
           });
       });
 

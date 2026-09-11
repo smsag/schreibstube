@@ -1,3 +1,5 @@
+import type { SyncRecord } from "./services/sync-document";
+
 export type HeadingLevel = 1 | 2 | 3 | 4 | 5 | 6;
 
 export interface HeadingEntry {
@@ -40,6 +42,13 @@ export interface SchreibstubeSettings {
   glossaryDefault: string[];
   glossaryFolderRules: string;
   glossaryLiveUnderline: boolean;
+  // Document sync. A note bound to a remote Markdown source mirrors it: the
+  // source is the truth and nothing is ever pushed back.
+  syncEnabled: boolean;
+  syncCheckOnOpen: boolean;
+  syncMinIntervalMinutes: number;
+  /** Per-note sync state, keyed by vault path. Persisted, not user-editable. */
+  syncState: Record<string, SyncRecord>;
   // Diagnostics.
   debugLogging: boolean;
 }

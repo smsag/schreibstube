@@ -2,6 +2,37 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Added
+
+- **Document sync.** A note can be bound to a remote Markdown file with a `schreibstubeSyncedFrom` frontmatter key, and mirrors it. The source is the single truth and nothing is ever pushed back; incoming changes arrive in the review sidebar as cards you accept one at a time. A bound note can live in any folder, because it is found by its key rather than its location.
+  - Changes are hunk-level, so one card covers one coherent edit rather than scattering a rewritten paragraph across a dozen word changes.
+  - The note's own frontmatter is never part of the diff, and the remote file's frontmatter is stripped before comparison. Without the second rule the first sync of any source with frontmatter would overwrite the binding and orphan the note.
+  - Local edits are detected with a hash of the body as of the last sync, so an edited mirror is reported as diverged rather than having your own words presented back as a remote change. The baseline advances only once the note matches the source again.
+  - A deleted or moved source is reported on the card and the note is left untouched. It is never emptied.
+  - Only HTTPS sources with a Markdown path are fetched, with a size cap and a content-type check. GitHub page URLs are rewritten to their raw form. Checks are conditional, so an unchanged source costs no download.
+  - New command **Check note source for updates**, plus an optional check when a bound note opens, rate-limited per note.
+
+### Changed
+
+- **Every frontmatter key the plugin reads is now `schreibstube`-prefixed camelCase, and the old spellings are gone.** Obsidian frontmatter is one flat namespace shared with other plugins and with the user's own properties, so a bare key is a collision waiting to happen. Existing glossary notes need their frontmatter updated.
+
+  | Before | After |
+  |---|---|
+  | `schreibstube-glossary` | `schreibstubeGlossary` |
+  | `language` | `schreibstubeLanguage` |
+  | `default-severity` | `schreibstubeDefaultSeverity` |
+  | `glossary` | `schreibstubeGlossaries` |
+
+### Settings
+
+- New **Document sync** section: enable the feature, check on open, and the minimum interval between automatic checks.
+
+### Internal
+
+- The word-level and line-level diffs now share one longest-common-subsequence implementation, so they cannot drift apart in how they decide what changed.
+
 ## 1.5.0 - 2026-09-11
 
 ### Added

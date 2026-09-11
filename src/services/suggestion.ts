@@ -13,7 +13,7 @@
 import type { Severity } from "./glossary-parser";
 
 export type SuggestionKind = "replace" | "insert" | "delete";
-export type SuggestionSource = "glossary" | "llm";
+export type SuggestionSource = "glossary" | "llm" | "remote";
 export type SuggestionStatus = "pending" | "accepted" | "rejected" | "stale";
 
 export type SuggestionCategory =
@@ -22,7 +22,9 @@ export type SuggestionCategory =
   | "punctuation"
   | "style"
   | "terminology"
-  | "capitalization";
+  | "capitalization"
+  /** A region changed at a remote source the note mirrors. */
+  | "update";
 
 export interface Suggestion {
   id: string;
