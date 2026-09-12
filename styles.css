@@ -440,14 +440,6 @@
   padding: var(--schreibstube-padding) 0 0;
   height: 100%;
   overflow: hidden;
-  /* A sticky header has to paint something, or rows show through it. The pane
-     states its own ground so the header can borrow it and look like nothing at
-     rest. Sidebar and main area differ, as they do for every other view. */
-  background-color: var(--background-secondary);
-}
-
-.workspace-split.mod-root .schreibstube-explorer {
-  background-color: var(--background-primary);
 }
 
 .schreibstube-explorer-filter {
@@ -479,12 +471,7 @@
    underneath. */
 .schreibstube-explorer-shelf.is-scrolled,
 .schreibstube-explorer .schreibstube-explorer-section-header.is-stuck {
-  box-shadow: 0 4px 6px -1px var(--background-secondary);
-}
-
-.workspace-split.mod-root .schreibstube-explorer-shelf.is-scrolled,
-.workspace-split.mod-root .schreibstube-explorer .schreibstube-explorer-section-header.is-stuck {
-  box-shadow: 0 4px 6px -1px var(--background-primary);
+  box-shadow: 0 4px 6px -1px var(--schreibstube-ground, transparent);
 }
 
 .schreibstube-explorer-body {
@@ -516,11 +503,16 @@
   padding: 0 var(--schreibstube-row-inset);
   /* Sticky under the pinned strip, so the section a person has scrolled into
      keeps saying which one it is. Held to its own section, so the next header
-     pushes it out rather than the two overlapping. */
+     pushes it out rather than the two overlapping.
+
+     It has to paint something or rows show through where it holds, and the one
+     colour that is certainly right is the one actually behind the pane. The
+     view measures that and puts it here; naming a variable instead was wrong in
+     any theme that paints its sidebar something else. */
   position: sticky;
   top: 0;
   z-index: 1;
-  background-color: var(--background-secondary);
+  background-color: var(--schreibstube-ground, transparent);
   border: none;
   border-radius: 0;
   box-shadow: none;
@@ -546,10 +538,6 @@
 /* The one header that separates two kinds of thing, the curated lists above it
    and the vault below. It carries no fill of its own: a darker label and a
    firmer rule are enough to set it apart, and they leave the pane quiet. */
-.workspace-split.mod-root .schreibstube-explorer .schreibstube-explorer-section-header {
-  background-color: var(--background-primary);
-}
-
 .schreibstube-explorer .schreibstube-explorer-section-header.is-divider {
   margin-top: 4px;
   color: var(--text-normal);

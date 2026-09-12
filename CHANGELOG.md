@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## 1.15.1 - 2026-09-12
+
+### Fixed
+
+- **A section header no longer sits on a grey block.** Holding a header at the top of the list means it has to paint something, or rows show through where it sits, and 1.15.0 named a colour for that: Obsidian's sidebar tone in a sidebar, its main tone elsewhere. Which one is right depends on the theme as much as the placement, and a theme that paints its sidebar anything else left every header on a visible rectangle. The pane reads the colour actually behind it instead, off the first ancestor that paints at all, and re-reads it when the theme changes. The header can then only be the colour it is sitting on.
+
 ## 1.15.0 - 2026-09-12
 
 ### Changed
