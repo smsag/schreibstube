@@ -413,7 +413,7 @@ export const de: Messages = {
   },
 
   explorer: {
-    title: "Schreibstube-Dateien",
+    title: "Schreibstube Explorer",
     empty: "In diesem Vault liegt noch keine Datei.",
     searchPlaceholder: "Alle Sektionen filtern …",
 

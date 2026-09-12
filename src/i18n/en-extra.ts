@@ -237,7 +237,7 @@ export const enExtra = {
   },
 
   explorer: {
-    title: "Schreibstube files",
+    title: "Schreibstube Explorer",
     empty: "This vault has no files yet.",
     searchPlaceholder: "Filter all sections…",
 

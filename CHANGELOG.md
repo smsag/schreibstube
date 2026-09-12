@@ -11,6 +11,7 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- **The pane is called Schreibstube Explorer** in both languages. It was "Schreibstube files" and "Schreibstube-Dateien", which named the contents rather than the thing, and read as a folder on the tab and in a phone's pane switcher.
 - **The strip is separated by a soft shadow rather than a rule**, so the list appears to pass beneath it instead of stopping at a border.
 
 ## 1.12.2 - 2026-09-12
