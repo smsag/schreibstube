@@ -12,13 +12,8 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
-- **A long press no longer opens the context menu twice.** A press on a touch screen asks for the menu twice over: once when the pane's own timer elapses at half a second, and again when the browser passes its own threshold and raises a context menu of its own. A short press only ever reached the first, which is why this showed up on a long one. Both mean the same press, so the row that owns the gesture turns the second away, whichever of the two arrives first. Nothing else is affected: a second right click on the same row opens again at once, because a right click is never the echo of anything.
-
-## 1.15.2 - 2026-09-12
-
-### Fixed
-
 - **Focus mode dims callouts, tables and embeds.** It dimmed by marking lines, and a rendered block is not a line: Obsidian replaces the source with a widget, so the mark had nothing to attach to and the block stayed at full strength while the prose around it faded — which is the opposite of what focus mode is for, since the brightest thing on screen was the thing not being written. Every rendered block is dimmed directly now, in both modes, except the one holding the cursor. A callout or a code preview un-renders when entered, but a table stays a widget while being edited, carrying its own editor inside, and dimming it would dim the cell being typed into with no way back.
+- **A long press no longer opens the context menu twice.** A press on a touch screen asks for the menu twice over: once when the pane's own timer elapses at half a second, and again when the browser passes its own threshold and raises a context menu of its own. A short press only ever reached the first, which is why this showed up on a long one. Both mean the same press, so the row that owns the gesture turns the second away, whichever of the two arrives first. Nothing else is affected: a second right click on the same row opens again at once, because a right click is never the echo of anything.
 
 ## 1.15.1 - 2026-09-12
 
