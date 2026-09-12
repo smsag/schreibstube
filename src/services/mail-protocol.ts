@@ -6,15 +6,8 @@
  * bridge returns is remote JSON, so each field is validated rather than
  * trusted.
  */
-import {
-  asRecord,
-  describeBridgeError as describeError,
-  str,
-  type UrlResult
-} from "./bridge-protocol";
+import { asRecord, describeBridgeError as describeError, str } from "./bridge-protocol";
 
-export { authHeaders, buildEndpoint, normalizeBaseUrl } from "./bridge-protocol";
-export type { UrlResult } from "./bridge-protocol";
 
 /** How long to wait for a bridge response before giving up. IMAP searches over
  *  a large mailbox are slower than a typical API call, so this is generous. */

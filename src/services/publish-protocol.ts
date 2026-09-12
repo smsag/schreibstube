@@ -5,7 +5,12 @@
  * renders and writes it. This module is the contract between the two, and the
  * slug rules in `publish-index.ts` have to satisfy what the bridge accepts.
  */
-import { asRecord, describeBridgeError as describeError, str } from "./bridge-protocol";
+import {
+  asRecord,
+  describeBridgeError as describeError,
+  extractError,
+  str
+} from "./bridge-protocol";
 
 /** Generous: a commit renders the whole site and writes what changed. */
 export const PUBLISH_REQUEST_TIMEOUT_MS = 120_000;
@@ -137,19 +142,11 @@ function number(value: unknown): number {
 export function describePublishError(status: number, body: string): string {
   if (status === 404) {
     return (
-      extract(body) ||
+      extractError(body) ||
       "bridge endpoint not found — check the Bridge URL, or redeploy a bridge that can publish."
     );
   }
   return describeError(status, body, "the web host");
-}
-
-function extract(body: string): string {
-  try {
-    return str(asRecord(JSON.parse(body) as unknown).error);
-  } catch {
-    return "";
-  }
 }
 
 /** What the plan means, in one line, for the confirmation dialog. */

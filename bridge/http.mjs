@@ -55,15 +55,28 @@ export function readBody(req, maxBytes) {
   });
 }
 
-/** An empty body is an empty object: several endpoints take only defaults. */
+/**
+ * An empty body is an empty object: several endpoints take only defaults.
+ *
+ * Every JSON route here takes an object, so anything else — an array, a bare
+ * string, null — is refused in one place rather than tripping a field check
+ * further in and being reported as a missing field.
+ */
 export function parseJson(buffer) {
   const raw = buffer.toString("utf8");
   if (!raw.trim()) return {};
+
+  let parsed;
   try {
-    return JSON.parse(raw);
+    parsed = JSON.parse(raw);
   } catch {
     throw httpError(400, "invalid_json", "Request body is not valid JSON.");
   }
+
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+    throw httpError(400, "invalid_request", "Request body must be a JSON object.");
+  }
+  return parsed;
 }
 
 export function httpError(status, code, message) {

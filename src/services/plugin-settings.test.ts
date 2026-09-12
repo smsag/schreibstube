@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { DEFAULT_PUBLISH_KEYS } from "./publish-index";
 import {
   DEFAULT_SETTINGS,
   normalizeSettings
@@ -312,5 +313,63 @@ describe("normalizeSettings — email bridge", () => {
     expect(normalizeSettings({ mailMaxResults: "many" as unknown as number }).mailMaxResults).toBe(
       DEFAULT_SETTINGS.mailMaxResults
     );
+  });
+});
+
+describe("normalizeSettings — publishing", () => {
+  it("starts with no accounts", () => {
+    expect(normalizeSettings({}).publishAccounts).toEqual([]);
+  });
+
+  it("keeps a complete account", () => {
+    const accounts = normalizeSettings({
+      publishAccounts: [
+        { id: "a", name: "Blog", folder: "Blog", target: "blog", writeBack: true }
+      ]
+    }).publishAccounts;
+    expect(accounts).toHaveLength(1);
+    expect(accounts[0]).toMatchObject({ name: "Blog", folder: "Blog", target: "blog" });
+  });
+
+  it("drops an account that cannot publish anything", () => {
+    const accounts = normalizeSettings({
+      publishAccounts: [
+        { id: "a", name: "Ohne Ordner", folder: "", target: "blog", writeBack: true },
+        { id: "b", name: "Ohne Ziel", folder: "Blog", target: "", writeBack: true }
+      ]
+    }).publishAccounts;
+    expect(accounts).toEqual([]);
+  });
+
+  it("trims the slashes a folder is often typed with", () => {
+    const accounts = normalizeSettings({
+      publishAccounts: [{ id: "a", name: "Blog", folder: "/Blog/", target: "blog", writeBack: true }]
+    }).publishAccounts;
+    expect(accounts[0].folder).toBe("Blog");
+  });
+
+  it("names an account after its folder when no name was given", () => {
+    const accounts = normalizeSettings({
+      publishAccounts: [{ id: "a", name: "", folder: "Blog", target: "blog", writeBack: true }]
+    }).publishAccounts;
+    expect(accounts[0].name).toBe("Blog");
+  });
+
+  it("defaults the frontmatter keys to the ones the plugin ships with", () => {
+    expect(normalizeSettings({}).publishFrontmatterKeys).toEqual(DEFAULT_PUBLISH_KEYS);
+  });
+
+  it("keeps a configured key and defaults the rest", () => {
+    const keys = normalizeSettings({
+      publishFrontmatterKeys: { title: "titel" } as never
+    }).publishFrontmatterKeys;
+    expect(keys.title).toBe("titel");
+    expect(keys.date).toBe(DEFAULT_PUBLISH_KEYS.date);
+  });
+
+  it("survives a key map that was edited into nonsense by hand", () => {
+    expect(
+      normalizeSettings({ publishFrontmatterKeys: "titel" as never }).publishFrontmatterKeys
+    ).toEqual(DEFAULT_PUBLISH_KEYS);
   });
 });

@@ -1,14 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
   ATTACHMENT_EXTENSIONS,
-  FM_PUBLISHED,
-  FM_SLUG,
-  FM_TITLE,
+  DEFAULT_PUBLISH_KEYS,
   findSlugCollision,
   firstHeading,
   isInsideFolder,
   isPublishableAttachment,
   isoDate,
+  normalizePublishKeys,
   readPublishFields,
   referencedAttachments,
   resolveNote,
@@ -24,36 +23,105 @@ import {
 
 describe("readPublishFields", () => {
   it("treats a note with no frontmatter as not published", () => {
-    expect(readPublishFields(undefined).published).toBe(false);
+    expect(readPublishFields(undefined, DEFAULT_PUBLISH_KEYS).published).toBe(false);
   });
 
   it("treats a note without the flag as not published, since silence must mean no", () => {
-    expect(readPublishFields({ title: "Hallo" }).published).toBe(false);
+    expect(readPublishFields({ title: "Hallo" }, DEFAULT_PUBLISH_KEYS).published).toBe(false);
   });
 
   it("reads the flag", () => {
-    expect(readPublishFields({ [FM_PUBLISHED]: true }).published).toBe(true);
-    expect(readPublishFields({ [FM_PUBLISHED]: false }).published).toBe(false);
+    expect(readPublishFields({ [DEFAULT_PUBLISH_KEYS.published]: true }, DEFAULT_PUBLISH_KEYS).published).toBe(true);
+    expect(readPublishFields({ [DEFAULT_PUBLISH_KEYS.published]: false }, DEFAULT_PUBLISH_KEYS).published).toBe(false);
   });
 
   it("accepts the spellings a person actually types", () => {
     for (const value of ["true", "yes", "ja", "TRUE", 1]) {
-      expect(readPublishFields({ [FM_PUBLISHED]: value }).published).toBe(true);
+      expect(readPublishFields({ [DEFAULT_PUBLISH_KEYS.published]: value }, DEFAULT_PUBLISH_KEYS).published).toBe(true);
     }
   });
 
   it("does not mistake other strings for consent", () => {
     for (const value of ["nein", "false", "", "vielleicht"]) {
-      expect(readPublishFields({ [FM_PUBLISHED]: value }).published).toBe(false);
+      expect(readPublishFields({ [DEFAULT_PUBLISH_KEYS.published]: value }, DEFAULT_PUBLISH_KEYS).published).toBe(false);
     }
   });
 
   it("trims the text fields", () => {
-    expect(readPublishFields({ [FM_TITLE]: "  Hallo  " }).title).toBe("Hallo");
+    expect(readPublishFields({ [DEFAULT_PUBLISH_KEYS.title]: "  Hallo  " }, DEFAULT_PUBLISH_KEYS).title).toBe("Hallo");
   });
 
   it("reads a date that Obsidian parsed into a Date", () => {
-    expect(readPublishFields({ schreibstubeDate: new Date(2026, 8, 12) }).date).toBe("2026-09-12");
+    const frontmatter = { [DEFAULT_PUBLISH_KEYS.date]: new Date(2026, 8, 12) };
+    expect(readPublishFields(frontmatter, DEFAULT_PUBLISH_KEYS).date).toBe("2026-09-12");
+  });
+});
+
+describe("a configured key map", () => {
+  const keys = normalizePublishKeys({
+    published: "veroeffentlicht",
+    title: "titel",
+    date: "datum",
+    slug: "adresse"
+  });
+
+  it("reads the keys the vault actually uses", () => {
+    const fields = readPublishFields(
+      { veroeffentlicht: true, titel: "Hallo", datum: "2026-09-12", adresse: "hallo" },
+      keys
+    );
+    expect(fields).toMatchObject({
+      published: true,
+      title: "Hallo",
+      date: "2026-09-12",
+      slug: "hallo"
+    });
+  });
+
+  it("stops reading the key it replaced, so one note cannot mean two things", () => {
+    expect(readPublishFields({ schreibstubePublished: true }, keys).published).toBe(false);
+  });
+
+  it("keeps the default for a role left unconfigured", () => {
+    expect(keys.description).toBe(DEFAULT_PUBLISH_KEYS.description);
+  });
+
+  it("resolves a note through the configured keys", () => {
+    const note = resolveNote(
+      {
+        path: "Blog/a.md",
+        basename: "a",
+        content: "# Aus der Datei",
+        createdMs: new Date(2026, 8, 12).getTime(),
+        frontmatter: { titel: "Aus dem Frontmatter" }
+      },
+      keys
+    );
+    expect(note.title).toBe("Aus dem Frontmatter");
+  });
+});
+
+describe("normalizePublishKeys", () => {
+  it("defaults everything when nothing is configured", () => {
+    expect(normalizePublishKeys(undefined)).toEqual(DEFAULT_PUBLISH_KEYS);
+  });
+
+  it("treats a blank field as unchanged, so a cleared setting cannot disable a role", () => {
+    expect(normalizePublishKeys({ title: "   " }).title).toBe(DEFAULT_PUBLISH_KEYS.title);
+  });
+
+  it("trims what was typed", () => {
+    expect(normalizePublishKeys({ title: " titel " }).title).toBe("titel");
+  });
+
+  it("refuses to let two roles share a key, since neither could then be read", () => {
+    const keys = normalizePublishKeys({ title: "name", description: "name" });
+    expect(keys.title).toBe("name");
+    expect(keys.description).toBe(DEFAULT_PUBLISH_KEYS.description);
+  });
+
+  it("ignores anything that is not a mapping", () => {
+    expect(normalizePublishKeys("titel")).toEqual(DEFAULT_PUBLISH_KEYS);
   });
 });
 
@@ -112,7 +180,7 @@ describe("resolveNote", () => {
   };
 
   it("fills in everything the frontmatter left out", () => {
-    expect(resolveNote(base)).toEqual({
+    expect(resolveNote(base, DEFAULT_PUBLISH_KEYS)).toEqual({
       sourcePath: "Blog/Hallo Welt.md",
       slug: "hallo-welt",
       title: "Die Überschrift",
@@ -122,21 +190,21 @@ describe("resolveNote", () => {
   });
 
   it("prefers the frontmatter title over the heading", () => {
-    expect(resolveNote({ ...base, frontmatter: { [FM_TITLE]: "Anders" } }).title).toBe("Anders");
+    expect(resolveNote({ ...base, frontmatter: { [DEFAULT_PUBLISH_KEYS.title]: "Anders" } }, DEFAULT_PUBLISH_KEYS).title).toBe("Anders");
   });
 
   it("falls back to the filename when there is no heading", () => {
-    expect(resolveNote({ ...base, content: "Nur Text" }).title).toBe("Hallo Welt");
+    expect(resolveNote({ ...base, content: "Nur Text" }, DEFAULT_PUBLISH_KEYS).title).toBe("Hallo Welt");
   });
 
   it("slugifies a frontmatter slug rather than trusting it", () => {
-    expect(resolveNote({ ...base, frontmatter: { [FM_SLUG]: "../Etc Passwd" } }).slug).toBe(
+    expect(resolveNote({ ...base, frontmatter: { [DEFAULT_PUBLISH_KEYS.slug]: "../Etc Passwd" } }, DEFAULT_PUBLISH_KEYS).slug).toBe(
       "etc-passwd"
     );
   });
 
   it("uses the creation date when the note gives none", () => {
-    expect(resolveNote(base).date).toBe("2026-09-12");
+    expect(resolveNote(base, DEFAULT_PUBLISH_KEYS).date).toBe("2026-09-12");
   });
 });
 

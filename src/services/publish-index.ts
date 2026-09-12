@@ -7,14 +7,60 @@
  * on a public site, and a wrong publish flag is a note that should not be one.
  */
 
-/** Frontmatter keys, named as the mail commands name theirs. */
-export const FM_PUBLISHED = "schreibstubePublished";
-export const FM_TITLE = "schreibstubeTitle";
-export const FM_DATE = "schreibstubeDate";
-export const FM_DESCRIPTION = "schreibstubeDescription";
-export const FM_SLUG = "schreibstubeSlug";
-export const FM_PUBLISHED_AT = "schreibstubePublishedAt";
-export const FM_PUBLISHED_URL = "schreibstubePublishedUrl";
+/**
+ * Which frontmatter key carries which meaning.
+ *
+ * A vault that already has its own conventions should not have to adopt ours,
+ * so every key is a setting. The defaults are what the plugin shipped with, so
+ * a vault that never touches this keeps working.
+ */
+export interface PublishKeyMap {
+  published: string;
+  title: string;
+  date: string;
+  description: string;
+  slug: string;
+  publishedAt: string;
+  publishedUrl: string;
+}
+
+export const DEFAULT_PUBLISH_KEYS: PublishKeyMap = {
+  published: "schreibstubePublished",
+  title: "schreibstubeTitle",
+  date: "schreibstubeDate",
+  description: "schreibstubeDescription",
+  slug: "schreibstubeSlug",
+  publishedAt: "schreibstubePublishedAt",
+  publishedUrl: "schreibstubePublishedUrl"
+};
+
+/** The roles in the order the settings tab shows them. */
+export const PUBLISH_KEY_ROLES = Object.keys(DEFAULT_PUBLISH_KEYS) as (keyof PublishKeyMap)[];
+
+/**
+ * Reduce a configured map to one that can be used.
+ *
+ * A blank field means "unchanged", so a half-cleared setting cannot silently
+ * stop a role from being read at all. Two roles cannot share a key either: the
+ * plugin would have no way to tell which meaning was intended, so the later
+ * role falls back to its default.
+ */
+export function normalizePublishKeys(value: unknown): PublishKeyMap {
+  const record =
+    typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {};
+
+  const keys = { ...DEFAULT_PUBLISH_KEYS };
+  const taken = new Set<string>();
+
+  for (const role of PUBLISH_KEY_ROLES) {
+    const configured = typeof record[role] === "string" ? (record[role] as string).trim() : "";
+    const key = configured || DEFAULT_PUBLISH_KEYS[role];
+    keys[role] = taken.has(key) ? DEFAULT_PUBLISH_KEYS[role] : key;
+    taken.add(keys[role]);
+  }
+
+  return keys;
+}
 
 export interface PublishFields {
   published: boolean;
@@ -31,18 +77,18 @@ export interface PublishFields {
  * had it and lost it is taken down on the next publish. Silence has to mean
  * "no", because the alternative is publishing a vault by accident.
  */
-export function readPublishFields(frontmatter: unknown): PublishFields {
+export function readPublishFields(frontmatter: unknown, keys: PublishKeyMap): PublishFields {
   const record =
     typeof frontmatter === "object" && frontmatter !== null
       ? (frontmatter as Record<string, unknown>)
       : {};
 
   return {
-    published: isTrue(record[FM_PUBLISHED]),
-    title: text(record[FM_TITLE]),
-    date: text(record[FM_DATE]),
-    description: text(record[FM_DESCRIPTION]),
-    slug: text(record[FM_SLUG])
+    published: isTrue(record[keys.published]),
+    title: text(record[keys.title]),
+    date: text(record[keys.date]),
+    description: text(record[keys.description]),
+    slug: text(record[keys.slug])
   };
 }
 
@@ -120,8 +166,8 @@ export interface ResolvedNote {
 }
 
 /** Fill in everything the frontmatter left out, so the bridge never guesses. */
-export function resolveNote(input: NoteInput): ResolvedNote {
-  const fields = readPublishFields(input.frontmatter);
+export function resolveNote(input: NoteInput, keys: PublishKeyMap): ResolvedNote {
+  const fields = readPublishFields(input.frontmatter, keys);
   const title = fields.title || firstHeading(input.content) || input.basename;
 
   return {

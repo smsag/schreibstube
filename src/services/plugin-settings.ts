@@ -5,6 +5,7 @@ import {
   normalizeFocusSettings
 } from "./focus-settings";
 import { LLM_PROVIDER_IDS, PROVIDER_MODELS } from "./llm-providers";
+import { DEFAULT_PUBLISH_KEYS, normalizePublishKeys } from "./publish-index";
 
 export { PROVIDER_MODELS } from "./llm-providers";
 
@@ -94,6 +95,7 @@ export const DEFAULT_SETTINGS: SchreibstubeSettings = {
   publishBridgeUrl: "",
   publishTokenSecretName: "",
   publishAccounts: [],
+  publishFrontmatterKeys: DEFAULT_PUBLISH_KEYS,
   debugLogging: false,
 };
 
@@ -255,6 +257,7 @@ export function normalizeSettings(loaded: LoadedSettings): SchreibstubeSettings 
         ? loaded.publishTokenSecretName
         : DEFAULT_SETTINGS.publishTokenSecretName,
     publishAccounts: publishAccountsOrDefault(loaded?.publishAccounts),
+    publishFrontmatterKeys: normalizePublishKeys(loaded?.publishFrontmatterKeys),
   };
 }
 

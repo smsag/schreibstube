@@ -297,13 +297,8 @@ describe("send validation", () => {
 
   it("rejects a body that is not an object at all", async () => {
     expect(await reject("null")).toContain("JSON object");
-  });
-
-  // An array passes the `typeof === "object"` check and falls through to the
-  // recipient rule. Recorded as it is: the message is still correct, just not
-  // the one about shape.
-  it("treats an array as an object and fails it on the recipient rule", async () => {
-    expect(await reject("[]")).toContain("recipient");
+    expect(await reject("[]")).toContain("JSON object");
+    expect(await reject('"text"')).toContain("JSON object");
   });
 });
 

@@ -19,8 +19,6 @@ import {
 } from "../services/publish-protocol";
 import {
   ATTACHMENT_EXTENSIONS,
-  FM_PUBLISHED_AT,
-  FM_PUBLISHED_URL,
   findSlugCollision,
   isInsideFolder,
   isPublishableAttachment,
@@ -181,6 +179,7 @@ export class PublishCommands {
    * larger than the notes, and none of the rest belongs on a public site.
    */
   private async collect(account: PublishAccount): Promise<Collected | null> {
+    const keys = this.getSettings().publishFrontmatterKeys;
     const files = this.app.vault
       .getMarkdownFiles()
       .filter((file) => isInsideFolder(file.path, account.folder))
@@ -194,16 +193,19 @@ export class PublishCommands {
 
     for (const file of files) {
       const cache = this.app.metadataCache.getFileCache(file);
-      if (!readPublishFields(cache?.frontmatter).published) continue;
+      if (!readPublishFields(cache?.frontmatter, keys).published) continue;
 
       const content = await this.app.vault.read(file);
-      const note = resolveNote({
-        path: file.path,
-        basename: file.basename,
-        content,
-        createdMs: file.stat.ctime,
-        frontmatter: cache?.frontmatter
-      });
+      const note = resolveNote(
+        {
+          path: file.path,
+          basename: file.basename,
+          content,
+          createdMs: file.stat.ctime,
+          frontmatter: cache?.frontmatter
+        },
+        keys
+      );
       resolved.push(note);
 
       const bytes = new TextEncoder().encode(content);
@@ -272,6 +274,7 @@ export class PublishCommands {
   ): Promise<void> {
     if (!account.writeBack) return;
 
+    const keys = this.getSettings().publishFrontmatterKeys;
     const at = new Date().toISOString();
     for (const note of index.notes) {
       const file = this.app.vault.getAbstractFileByPath(note.sourcePath);
@@ -279,8 +282,8 @@ export class PublishCommands {
 
       try {
         await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
-          frontmatter[FM_PUBLISHED_AT] = at;
-          frontmatter[FM_PUBLISHED_URL] = `${baseUrl}/${note.slug}/`;
+          frontmatter[keys.publishedAt] = at;
+          frontmatter[keys.publishedUrl] = `${baseUrl}/${note.slug}/`;
         });
       } catch (error) {
         this.logger.debug(`Could not record the publish in ${note.sourcePath}.`, error);

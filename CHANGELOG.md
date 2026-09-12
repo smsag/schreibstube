@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- **The publish frontmatter keys are configurable.** A vault that already names these fields its own way can map each role — published, title, date, description, slug, and the two written back after publishing — to the key it uses, under **Frontmatter-Felder** in the publish settings. The defaults are unchanged, so a vault that never touches this keeps working. A configured key replaces the default rather than adding to it; a blank field means "unchanged", and two roles cannot share a key, because the plugin would have no way to tell which meaning was intended.
 - **Publishing: a vault folder becomes a website, from desktop and from mobile.** Three commands — **Veröffentlichen**, **Veröffentlichung prüfen** and **Website öffnen** — publish a folder as a static site over SFTP.
   - **Opt-in per note.** A note is published when its frontmatter carries `schreibstubePublished: true`; removing the flag takes the page down on the next publish. Title, date, description and slug come from frontmatter, each with a sensible default. After publishing, the time and the address are written back into the note.
   - **The bridge renders the Markdown**, so the output is identical from a phone and a laptop, can be snapshot-tested, and can be rebuilt months later without the vault. Wikilinks between published notes become site links; a link to an unpublished note degrades to plain text rather than a dead link. Callouts, footnotes, tables, definition lists, task lists, highlights, maths and Mermaid diagrams all render, and comments never reach the page.
@@ -15,9 +16,19 @@ All notable changes to this project will be documented in this file.
   - **Deletions are safe by construction.** The bridge keeps a manifest of every file it wrote; a file it has never heard of is never touched. The manifest is written last, so an interrupted publish costs repeated work rather than a lost file.
   - **The hosting credentials stay on the bridge.** The vault holds a target name and a token, and the publish token is separate from the mail token. The host key is checked against a configured fingerprint.
 - **Publish settings section** — bridge URL (falling back to the mail bridge), publish token in Obsidian's secret storage, and one entry per account with a connection test that proves token, target, SSH login, host key and web root in one request.
+- **The bridge has tests.** 295 of them, covering configuration, routing, authorisation, the throttle, deadlines, the mail paths, the path rules, the manifest, the renderer and the whole publish flow. They run under the repository's own `npm test`: the mail paths use a fake SMTP transport and a fake IMAP client, and the publish flow drives a real SSH connection into a real SFTP server, so nothing reaches the network.
+- **A CI workflow** runs the test suite and the production build on every pull request.
+- **The plugin explains the bridge's new statuses** — throttled, restarting and timed out — instead of echoing the status code.
+- **Email commands, working on mobile as well as desktop.** Three new commands:
+  - **Send note as email** — addressing comes from the note's frontmatter (`schreibstubeTo`, `schreibstubeCc`, `schreibstubeSubject`), the body is the note with its frontmatter stripped. A confirmation dialog shows recipients and subject before anything leaves the vault. On success the assigned `schreibstubeMessageId` and `schreibstubeSentAt` are written back to the note.
+  - **Query mailbox** — search IMAP by sender, subject, full text and date, then insert the chosen message into the active note.
+  - **Fetch replies into note** — find replies to the note's own `schreibstubeMessageId` and append the new ones under a configurable heading. Every merged message is recorded in `schreibstubeMergedIds`, so the command is idempotent and can be run as often as you like without duplicating content.
+- **Mail bridge** (`bridge/`) — a small, stateless self-hosted service that speaks IMAP/SMTP on the plugin's behalf. Ships with a Dockerfile and Sliplane deployment instructions.
+- **Email settings section** — bridge URL, bridge token (in Obsidian's secret storage), optional From override, mailbox, result limit, and merge heading.
 
 ### Changed
 
+- **A JSON request body that is not an object is refused as one**, rather than falling through to a field check and being reported as a missing field.
 - **The bridge is now capability-based** (`bridge/` 2.0.0), in preparation for publishing. Each capability brings its own token, credentials and limits; a capability whose variables are absent is not offered, and a deployment that offers nothing refuses to start. One capability's token never opens another's routes.
   - **`BRIDGE_TOKEN` is now `MAIL_TOKEN`.** Rename it in your deployment before updating the bridge. Nothing changes in the plugin: the token is still sent as `Authorization: Bearer`.
   - **Errors carry a stable `code` and a `requestId`** alongside the message, so a report can be tied to a log line. Every log line about a request carries the same id.
@@ -28,20 +39,6 @@ All notable changes to this project will be documented in this file.
   - **Every outbound operation has a deadline** and every request a budget, so a connection that neither answers nor closes can no longer hold a request open until the client gives up.
   - **Shutdown drains in-flight requests** instead of cutting them off, so a redeploy is not a crash.
 - Run the bridge as a single instance. Shared state such as the throttle lives in memory.
-
-### Added
-
-- **The bridge has tests.** 151 of them, covering configuration, routing, authorisation, the throttle, deadlines, the send path, the search path and the HTTP layer. They run under the repository's own `npm test`; the mail paths use a fake SMTP transport and a fake IMAP client, so nothing touches the network.
-- **A CI workflow** runs the test suite and the production build on every pull request.
-- **The plugin explains the bridge's new statuses** — throttled, restarting and timed out — instead of echoing the status code.
-- **The bridge gained a publish capability** with its own token, targets, limits and 145 tests, including an end-to-end suite that drives a real SSH connection into a real SFTP server.
-
-- **Email commands, working on mobile as well as desktop.** Three new commands:
-  - **Send note as email** — addressing comes from the note's frontmatter (`schreibstubeTo`, `schreibstubeCc`, `schreibstubeSubject`), the body is the note with its frontmatter stripped. A confirmation dialog shows recipients and subject before anything leaves the vault. On success the assigned `schreibstubeMessageId` and `schreibstubeSentAt` are written back to the note.
-  - **Query mailbox** — search IMAP by sender, subject, full text and date, then insert the chosen message into the active note.
-  - **Fetch replies into note** — find replies to the note's own `schreibstubeMessageId` and append the new ones under a configurable heading. Every merged message is recorded in `schreibstubeMergedIds`, so the command is idempotent and can be run as often as you like without duplicating content.
-- **Mail bridge** (`bridge/`) — a small, stateless self-hosted service that speaks IMAP/SMTP on the plugin's behalf. Ships with a Dockerfile and Sliplane deployment instructions.
-- **Email settings section** — bridge URL, bridge token (in Obsidian's secret storage), optional From override, mailbox, result limit, and merge heading.
 
 ### Fixed
 
