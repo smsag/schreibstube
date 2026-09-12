@@ -16,7 +16,10 @@ body {
   padding: 2rem 1.25rem 4rem;
   background: var(--ground);
   color: var(--ink);
-  font: 1rem/1.65 Georgia, "Times New Roman", serif;
+  font:
+    1rem/1.65 Georgia,
+    "Times New Roman",
+    serif;
 }
 
 a {
