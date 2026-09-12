@@ -1,3 +1,8 @@
 node_modules
 npm-debug.log
 .env
+
+# Tests and their fixtures are run from the repository, never from the image.
+*.test.mjs
+publish/**/*.test.mjs
+publish/sftp-fixture.mjs

@@ -356,3 +356,27 @@
   color: var(--text-warning);
   font-size: var(--font-smaller);
 }
+
+/* Publish plan dialog: the summary, the deletions, and the target it will go to. */
+.schreibstube-publish-summary,
+.schreibstube-publish-list {
+  margin: 0 0 var(--size-4-3);
+  padding-left: var(--size-4-4);
+}
+
+.schreibstube-publish-list {
+  max-height: 12em;
+  overflow-y: auto;
+  font-size: var(--font-smaller);
+  color: var(--text-muted);
+}
+
+.schreibstube-publish-heading {
+  margin-bottom: var(--size-4-1);
+  font-weight: var(--font-semibold);
+}
+
+.schreibstube-publish-target {
+  color: var(--text-muted);
+  font-size: var(--font-smaller);
+}

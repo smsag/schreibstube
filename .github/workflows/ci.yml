@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            bridge/package-lock.json
+
+      - run: npm ci
+
+      # The bridge tests import the bridge's own modules, so its dependencies
+      # have to be present for `npm test` to run the whole suite.
+      - run: npm ci --prefix bridge
+
+      - run: npm test
+
+      - run: npm run build

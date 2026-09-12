@@ -1,13 +1,26 @@
 /**
- * Environment-driven configuration for the mail bridge.
+ * Environment-driven configuration for the bridge.
  *
- * Everything the bridge needs is read once at startup and validated eagerly, so
- * a misconfigured deployment fails on boot with a precise message rather than
- * on the first request with an opaque IMAP error.
+ * The bridge hosts capabilities — mail today, publishing next — and each one
+ * brings its own credentials, its own token and its own limits. Configuration
+ * is therefore read per capability: a capability whose variables are absent is
+ * simply not offered, and a deployment that offers nothing fails at startup.
+ *
+ * Everything is read once and validated eagerly, so a misconfigured deployment
+ * fails on boot with a precise message rather than on the first request with an
+ * opaque protocol error.
  */
 
-const REQUIRED = [
-  "BRIDGE_TOKEN",
+/** Bumped when the request or response shape changes in a way the plugin can
+ *  see. Reported by /health so plugin and bridge can detect drift. */
+export const PROTOCOL_VERSION = 1;
+
+/** Minimum token length. Short tokens are brute-forceable over a public URL. */
+export const MIN_TOKEN_LENGTH = 24;
+
+/** Variables that, if any is present, mean the operator intended mail. */
+const MAIL_KEYS = [
+  "MAIL_TOKEN",
   "IMAP_HOST",
   "SMTP_HOST",
   "MAIL_USER",
@@ -15,29 +28,159 @@ const REQUIRED = [
   "MAIL_FROM"
 ];
 
-/** Minimum token length. Short tokens are brute-forceable over a public URL. */
-export const MIN_TOKEN_LENGTH = 24;
+/** The same, for publishing. */
+const PUBLISH_KEYS = ["PUBLISH_TOKEN", "PUBLISH_TARGETS"];
+
+/** What a target is allowed to serve from an upload. Images and video only:
+ *  anything else on a published site is written by the bridge itself. */
+const DEFAULT_ASSET_EXTENSIONS =
+  "png,jpg,jpeg,gif,webp,avif,svg,mp4,webm,ogv,mov,m4v";
 
 export function loadConfig(env = process.env) {
-  const missing = REQUIRED.filter((key) => !env[key]?.trim());
+  const mail = MAIL_KEYS.some((key) => present(env[key])) ? loadMail(env) : null;
+  const publish = PUBLISH_KEYS.some((key) => present(env[key])) ? loadPublish(env) : null;
+
+  if (!mail && !publish) {
+    throw new Error(
+      "No capability is configured. Set the mail variables " +
+        `(${MAIL_KEYS.join(", ")}), the publish variables ` +
+        `(${PUBLISH_KEYS.join(", ")}), or see bridge/README.md.`
+    );
+  }
+
+  return {
+    port: integer(env.PORT, 8080),
+    // A request that has not finished by now is not going to. The budget covers
+    // the whole request, including whatever it is waiting for upstream.
+    requestTimeoutMs: integer(env.REQUEST_TIMEOUT_MS, 30_000),
+    // Every outbound protocol operation carries its own deadline, so a hung
+    // connection cannot hold a request open until the client gives up.
+    upstreamTimeoutMs: integer(env.UPSTREAM_TIMEOUT_MS, 20_000),
+    // Repeated authentication failures from one address earn a delay. A long
+    // token makes brute force impractical, not impossible.
+    authFailureLimit: integer(env.AUTH_FAILURE_LIMIT, 5),
+    authFailureWindowMs: integer(env.AUTH_FAILURE_WINDOW_MS, 60_000),
+    // How long a shutdown waits for in-flight work before exiting anyway.
+    drainTimeoutMs: integer(env.DRAIN_TIMEOUT_MS, 10_000),
+    mail,
+    publish
+  };
+}
+
+/**
+ * Publishing targets.
+ *
+ * Each target is one hosting account and one site, configured with its own
+ * block of variables. The credentials live here rather than in the vault, which
+ * is the whole reason publishing goes through the bridge at all, and it is why
+ * adding a target is a redeploy rather than a setting.
+ */
+function loadPublish(env) {
+  const missing = PUBLISH_KEYS.filter((key) => !present(env[key]));
   if (missing.length > 0) {
     throw new Error(`Missing required environment variables: ${missing.join(", ")}`);
   }
 
-  const token = env.BRIDGE_TOKEN.trim();
-  if (token.length < MIN_TOKEN_LENGTH) {
-    throw new Error(
-      `BRIDGE_TOKEN must be at least ${MIN_TOKEN_LENGTH} characters ` +
-        `(got ${token.length}). Generate one with: openssl rand -base64 32`
-    );
+  const names = env.PUBLISH_TARGETS.split(",")
+    .map((name) => name.trim())
+    .filter(Boolean);
+  if (names.length === 0) {
+    throw new Error("PUBLISH_TARGETS names no target.");
+  }
+
+  const targets = {};
+  for (const name of names) {
+    if (!/^[a-z0-9][a-z0-9-]*$/.test(name)) {
+      throw new Error(
+        `Unusable target name ${JSON.stringify(name)}: lowercase letters, digits and dashes.`
+      );
+    }
+    targets[name] = loadTarget(env, name);
+  }
+
+  return {
+    token: token(env.PUBLISH_TOKEN, "PUBLISH_TOKEN"),
+    // Markdown is text; an image is an image; a video is the reason the upload
+    // route streams instead of buffering a base64 payload.
+    maxSourceBytes: integer(env.PUBLISH_MAX_SOURCE_BYTES, 2_000_000),
+    maxImageBytes: integer(env.PUBLISH_MAX_IMAGE_BYTES, 10_000_000),
+    maxVideoBytes: integer(env.PUBLISH_MAX_VIDEO_BYTES, 25_000_000),
+    maxIndexBytes: integer(env.PUBLISH_MAX_INDEX_BYTES, 4_000_000),
+    maxFiles: integer(env.PUBLISH_MAX_FILES, 2000),
+    targets
+  };
+}
+
+function loadTarget(env, name) {
+  const prefix = `PUBLISH_${name.toUpperCase().replace(/[^A-Z0-9]/g, "_")}`;
+  const read = (suffix) => env[`${prefix}_${suffix}`]?.trim();
+  const required = (suffix) => {
+    const value = read(suffix);
+    if (!value) throw new Error(`Missing required environment variable: ${prefix}_${suffix}`);
+    return value;
+  };
+
+  const root = required("ROOT");
+  if (!root.startsWith("/")) {
+    throw new Error(`${prefix}_ROOT must be an absolute path.`);
+  }
+
+  const baseUrl = required("BASE_URL").replace(/\/+$/, "");
+  if (!/^https:\/\//.test(baseUrl) && !/^http:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/.test(baseUrl)) {
+    throw new Error(`${prefix}_BASE_URL must be https:// (or localhost).`);
+  }
+
+  const key = read("KEY");
+  const password = read("PASSWORD");
+  if (!key && !password) {
+    throw new Error(`${prefix} needs either a KEY or a PASSWORD.`);
+  }
+  if (key && password) {
+    throw new Error(`${prefix} has both a KEY and a PASSWORD; pick one.`);
+  }
+
+  return {
+    name,
+    host: required("HOST"),
+    port: integer(read("PORT"), 22),
+    user: required("USER"),
+    // The key travels as base64 so a PEM survives an environment variable.
+    key: key ? Buffer.from(key, "base64").toString("utf8") : undefined,
+    keyPassphrase: read("KEY_PASSPHRASE") || undefined,
+    password: password || undefined,
+    // Trust on first use cannot work here: the container is stateless and would
+    // re-trust a new key after every restart.
+    fingerprint: required("HOST_FINGERPRINT"),
+    root: root.replace(/\/+$/, ""),
+    // Sources and the manifest belong outside the served tree where the host
+    // allows it; under it is the fallback, and then a deny rule is needed.
+    stateRoot: (read("STATE_ROOT") || `${root.replace(/\/+$/, "")}/.schreibstube`).replace(
+      /\/+$/,
+      ""
+    ),
+    baseUrl,
+    siteTitle: read("SITE_TITLE") || name,
+    assetExtensions: new Set(
+      (read("ALLOWED_EXT") || DEFAULT_ASSET_EXTENSIONS)
+        .split(",")
+        .map((value) => value.trim().toLowerCase())
+        .filter(Boolean)
+    )
+  };
+}
+
+function loadMail(env) {
+  const missing = MAIL_KEYS.filter((key) => !present(env[key]));
+  if (missing.length > 0) {
+    throw new Error(`Missing required environment variables: ${missing.join(", ")}`);
   }
 
   const imapSecure = boolean(env.IMAP_SECURE, true);
   const smtpSecure = boolean(env.SMTP_SECURE, true);
+  const auth = { user: env.MAIL_USER.trim(), pass: env.MAIL_PASSWORD };
 
   return {
-    port: integer(env.PORT, 8080),
-    token,
+    token: token(env.MAIL_TOKEN, "MAIL_TOKEN"),
     // Requests are capped well below any realistic note size so a malformed or
     // hostile client cannot exhaust memory on a small container.
     maxBodyBytes: integer(env.MAX_BODY_BYTES, 1_000_000),
@@ -47,13 +190,13 @@ export function loadConfig(env = process.env) {
       host: env.IMAP_HOST.trim(),
       port: integer(env.IMAP_PORT, imapSecure ? 993 : 143),
       secure: imapSecure,
-      auth: { user: env.MAIL_USER.trim(), pass: env.MAIL_PASSWORD }
+      auth
     },
     smtp: {
       host: env.SMTP_HOST.trim(),
       port: integer(env.SMTP_PORT, smtpSecure ? 465 : 587),
       secure: smtpSecure,
-      auth: { user: env.MAIL_USER.trim(), pass: env.MAIL_PASSWORD }
+      auth
     },
     from: env.MAIL_FROM.trim(),
     defaultMailbox: env.DEFAULT_MAILBOX?.trim() || "INBOX",
@@ -61,6 +204,26 @@ export function loadConfig(env = process.env) {
     // Set to an empty string to skip that step (e.g. if the server does it).
     sentMailbox: env.SENT_MAILBOX === "" ? "" : env.SENT_MAILBOX?.trim() || "Sent"
   };
+}
+
+/** The names of the capabilities this configuration actually offers. */
+export function capabilityNames(config) {
+  return ["mail", "publish"].filter((name) => config[name]);
+}
+
+function token(value, name) {
+  const trimmed = value.trim();
+  if (trimmed.length < MIN_TOKEN_LENGTH) {
+    throw new Error(
+      `${name} must be at least ${MIN_TOKEN_LENGTH} characters ` +
+        `(got ${trimmed.length}). Generate one with: openssl rand -base64 32`
+    );
+  }
+  return trimmed;
+}
+
+function present(value) {
+  return Boolean(value?.trim());
 }
 
 function integer(value, fallback) {

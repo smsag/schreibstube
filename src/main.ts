@@ -22,6 +22,7 @@ import { compileGlossaries } from "./services/glossary-matcher";
 import { minuteOf, parseCron, previousRun, shouldFire } from "./services/cron";
 import { REVIEW_VIEW_TYPE, ReviewPanelView } from "./ui/review-panel";
 import { MailCommands } from "./controllers/mail-commands";
+import { PublishCommands } from "./controllers/publish-commands";
 import { SchreibstubeSettingTab } from "./settings";
 import type { FocusMode, HeadingEntry, SchreibstubeSettings } from "./types";
 
@@ -49,6 +50,7 @@ export default class SchreibstubePlugin extends Plugin {
   /** Guards against firing twice inside one scheduled minute. */
   private lastPollMinute = -1;
   private mail: MailCommands | null = null;
+  private publish: PublishCommands | null = null;
 
   async onload(): Promise<void> {
     await this.loadSettings();
@@ -62,6 +64,7 @@ export default class SchreibstubePlugin extends Plugin {
     this.linkMode = new LinkModeController(this.app, this.logger);
     this.llm = new LlmCommands(this.app, () => this.settings, this.logger);
     this.mail = new MailCommands(this.app, () => this.settings, this.logger);
+    this.publish = new PublishCommands(this.app, () => this.settings, this.logger);
     this.proofread = new ProofreadController(this.app, () => this.settings, this.logger, {
       get: (path) => this.settings.syncState[path],
       set: async (path, record) => {
@@ -373,6 +376,24 @@ export default class SchreibstubePlugin extends Plugin {
       id: "fetch-replies",
       name: "Fetch replies into note",
       callback: () => { void this.mail?.fetchReplies(); },
+    });
+
+    this.addCommand({
+      id: "publish-folder",
+      name: "Veröffentlichen",
+      callback: () => { void this.publish?.publish(); },
+    });
+
+    this.addCommand({
+      id: "publish-preview",
+      name: "Veröffentlichung prüfen",
+      callback: () => { void this.publish?.preview(); },
+    });
+
+    this.addCommand({
+      id: "publish-open-site",
+      name: "Website öffnen",
+      callback: () => { void this.publish?.openSite(); },
     });
 
     this.addCommand({

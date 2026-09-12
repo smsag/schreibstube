@@ -1,216 +1,206 @@
 /**
- * Schreibstube mail bridge.
+ * Schreibstube bridge.
  *
- * A stateless HTTP front end for one IMAP/SMTP mailbox. It exists because
- * Obsidian on mobile runs in a WebView with no Node runtime and no raw
- * sockets, so the plugin cannot speak IMAP or SMTP itself. Putting HTTPS in
- * front of them gives the plugin a single transport (`requestUrl`) that behaves
- * identically on desktop and mobile.
+ * A stateless HTTP front end for the protocols an Obsidian plugin cannot speak.
+ * Obsidian on mobile runs in a WebView with no Node runtime and no raw sockets,
+ * so IMAP, SMTP and SFTP are out of reach; putting HTTPS in front of them gives
+ * the plugin one transport (`requestUrl`) that behaves identically on desktop
+ * and mobile.
  *
- * Nothing is persisted: no database, no message cache, no request-body logging.
- * The only long-lived state is the mailbox credential held in the environment.
+ * The bridge hosts capabilities, each with its own token, credentials and
+ * limits. This file is only the plumbing: configuration, the route table, and
+ * the order in which a request is checked. The capabilities are elsewhere.
+ *
+ * Nothing is persisted here: no database, no cache, no request-body logging.
+ * The only long-lived state is the credentials held in the environment.
  */
 import { createServer } from "node:http";
-import { timingSafeEqual } from "node:crypto";
-import { loadConfig } from "./config.mjs";
-import { createSmtpTransport, searchMessages, sendMessage } from "./mail.mjs";
+import { createRequire } from "node:module";
+import { capabilityNames, PROTOCOL_VERSION, loadConfig } from "./config.mjs";
+import {
+  clientAddress,
+  newRequestId,
+  parseJson,
+  readBody,
+  sendError,
+  sendJson
+} from "./http.mjs";
+import { authenticate, resolve } from "./router.mjs";
+import { createThrottle } from "./throttle.mjs";
+import { TimeoutError, withDeadline } from "./timeout.mjs";
+import { createMailRoutes } from "./mail-routes.mjs";
+import { createPublishRoutes } from "./publish/routes.mjs";
+
+const VERSION = createRequire(import.meta.url)("./package.json").version;
 
 const config = loadConfig();
-const smtp = createSmtpTransport(config);
+const capabilities = capabilityNames(config);
+const tokens = Object.fromEntries(capabilities.map((name) => [name, config[name].token]));
+const routes = [
+  healthRoute(),
+  ...(config.mail ? createMailRoutes(config) : []),
+  ...(config.publish ? createPublishRoutes(config, { version: VERSION }) : [])
+];
+const throttle = createThrottle({
+  limit: config.authFailureLimit,
+  windowMs: config.authFailureWindowMs
+});
+
+let draining = false;
+let inFlight = 0;
 
 const server = createServer((req, res) => {
-  handle(req, res).catch((err) => {
-    log("error", `unhandled ${req.method} ${req.url}: ${err.message}`);
-    send(res, 500, { error: "Internal error." });
-  });
+  const requestId = newRequestId();
+  inFlight += 1;
+  handle(req, res, requestId)
+    .catch((err) => {
+      log("error", `unhandled ${req.method} ${req.url}: ${err.stack ?? err.message}`, requestId);
+      if (!res.headersSent) {
+        sendError(res, 500, "internal_error", "Internal error.", requestId);
+      }
+    })
+    .finally(() => {
+      inFlight -= 1;
+    });
 });
 
 server.listen(config.port, () => {
-  log("info", `listening on :${config.port} (imap ${config.imap.host}, smtp ${config.smtp.host})`);
+  log("info", `listening on :${config.port} — capabilities: ${capabilities.join(", ")}`);
 });
 
 for (const signal of ["SIGTERM", "SIGINT"]) {
-  process.on(signal, () => {
-    log("info", `${signal} received, shutting down`);
-    server.close(() => process.exit(0));
-  });
+  process.on(signal, () => shutdown(signal));
 }
 
-async function handle(req, res) {
-  const path = new URL(req.url ?? "/", "http://bridge").pathname;
-
-  // Unauthenticated so the platform health check can reach it. It reveals
-  // nothing beyond the fact that a bridge is running.
-  if (req.method === "GET" && path === "/health") {
-    return send(res, 200, { status: "ok" });
+async function handle(req, res, requestId) {
+  // A redeploy should not cut a request in half. New work is refused while the
+  // in-flight work finishes.
+  if (draining) {
+    return sendError(res, 503, "shutting_down", "Bridge is shutting down.", requestId);
   }
 
-  if (req.method !== "POST") {
-    return send(res, 405, { error: "Method not allowed." });
+  const url = new URL(req.url ?? "/", "http://bridge");
+  const pathname = url.pathname;
+  const method = req.method ?? "GET";
+  const address = clientAddress(req);
+  const open = routes.some((route) => route.path === pathname && route.public);
+
+  if (!open) {
+    const gate = throttle.check(address);
+    if (!gate.allowed) {
+      log("warn", `throttled ${address}`, requestId);
+      return sendError(res, 429, "too_many_failures", "Too many failed attempts.", requestId, {
+        "retry-after": String(gate.retryAfterSeconds)
+      });
+    }
   }
 
-  if (!isAuthorized(req)) {
-    // Deliberately identical for a missing and a wrong token.
-    return send(res, 401, { error: "Unauthorized." });
+  const capability = open ? null : authenticate(req.headers.authorization, tokens);
+  const resolution = resolve(routes, { method, pathname, capability });
+
+  switch (resolution.outcome) {
+    case "unauthorized":
+      // Deliberately identical for a missing token, a wrong one, and a valid
+      // token reaching for another capability. None of them learns the path
+      // even exists.
+      throttle.recordFailure(address);
+      return sendError(res, 401, "unauthorized", "Unauthorized.", requestId);
+    case "not-found":
+      return sendError(res, 404, "not_found", "Not found.", requestId);
+    case "method-not-allowed":
+      return sendError(res, 405, "method_not_allowed", "Method not allowed.", requestId);
+    default:
+      break;
   }
 
+  if (!open) throttle.recordSuccess(address);
+
+  const { route } = resolution;
+  // Notes and images differ by three orders of magnitude, so a route says both
+  // how much it will accept and whether it wants that parsed at all: base64 in
+  // a JSON payload would inflate a video by a third on the way through memory.
+  const bodyType = route.bodyType ?? (route.method === "GET" ? "none" : "json");
   let body;
   try {
-    body = await readJson(req, config.maxBodyBytes);
+    const raw = bodyType === "none" ? Buffer.alloc(0) : await readBody(req, route.maxBytes);
+    body = bodyType === "json" ? parseJson(raw) : raw;
   } catch (err) {
-    return send(res, err.statusCode ?? 400, { error: err.message });
-  }
-
-  switch (path) {
-    case "/send":
-      return await handleSend(res, body);
-    case "/search":
-      return await handleSearch(res, body);
-    default:
-      return send(res, 404, { error: "Not found." });
-  }
-}
-
-async function handleSend(res, body) {
-  const problem = validateSend(body);
-  if (problem) {
-    return send(res, 400, { error: problem });
+    return fail(res, err, requestId);
   }
 
   try {
-    const result = await sendMessage(config, smtp, body);
-    // Recipients are intentionally absent from the log line.
-    log("info", `sent ${result.messageId} (filed in sent: ${result.filedInSent})`);
-    return send(res, 200, result);
+    const payload = await withDeadline(
+      route.handler({
+        body,
+        query: url.searchParams,
+        requestId,
+        log: (level, message) => log(level, message, requestId)
+      }),
+      // A route may need longer than the default: uploading a video over a slow
+      // line, or rendering and writing a whole site.
+      route.timeoutMs ?? config.requestTimeoutMs,
+      "Request"
+    );
+    return sendJson(res, 200, payload);
   } catch (err) {
-    log("error", `send failed: ${err.message}`);
-    return send(res, 502, { error: `Send failed: ${err.message}` });
+    return fail(res, err, requestId);
   }
 }
 
-async function handleSearch(res, body) {
-  try {
-    const result = await searchMessages(config, body ?? {});
-    log("info", `search returned ${result.messages.length} message(s) from ${result.mailbox}`);
-    return send(res, 200, result);
-  } catch (err) {
-    log("error", `search failed: ${err.message}`);
-    return send(res, 502, { error: `Search failed: ${err.message}` });
+function fail(res, err, requestId) {
+  if (err instanceof TimeoutError) {
+    log("error", err.message, requestId);
+    return sendError(res, 504, "timeout", "The request took too long.", requestId);
   }
+  if (err.status) {
+    if (err.status >= 500) log("error", err.message, requestId);
+    return sendError(res, err.status, err.code, err.message, requestId);
+  }
+  throw err;
 }
 
-function validateSend(body) {
-  if (!body || typeof body !== "object") {
-    return "Request body must be a JSON object.";
-  }
-  if (!hasRecipient(body.to) && !hasRecipient(body.cc) && !hasRecipient(body.bcc)) {
-    return "At least one recipient (to, cc or bcc) is required.";
-  }
-  if (typeof body.subject !== "string" || !body.subject.trim()) {
-    return "A non-empty subject is required.";
-  }
-  if (typeof body.text !== "string" || !body.text.trim()) {
-    return "A non-empty text body is required.";
-  }
-  if (body.text.length > config.maxTextChars) {
-    return `Body exceeds the ${config.maxTextChars} character limit.`;
-  }
-  return null;
+/**
+ * The only unauthenticated route, so a platform health check can reach it. The
+ * version pair is what lets the plugin notice that a bridge was not redeployed
+ * alongside it, rather than failing later on an unknown route.
+ */
+function healthRoute() {
+  return {
+    method: "GET",
+    path: "/health",
+    public: true,
+    maxBytes: 0,
+    bodyType: "none",
+    handler: async () => ({
+      status: "ok",
+      version: VERSION,
+      protocol: PROTOCOL_VERSION,
+      capabilities
+    })
+  };
 }
 
-function hasRecipient(value) {
-  if (Array.isArray(value)) {
-    return value.some((item) => String(item).trim().length > 0);
+async function shutdown(signal) {
+  if (draining) return;
+  draining = true;
+  log("info", `${signal} received, draining ${inFlight} request(s)`);
+
+  server.close();
+  server.closeIdleConnections?.();
+
+  const until = Date.now() + config.drainTimeoutMs;
+  while (inFlight > 0 && Date.now() < until) {
+    await new Promise((done) => setTimeout(done, 50));
   }
-  return typeof value === "string" && value.trim().length > 0;
-}
 
-function isAuthorized(req) {
-  const header = req.headers.authorization ?? "";
-  const prefix = "Bearer ";
-  if (!header.startsWith(prefix)) {
-    return false;
+  if (inFlight > 0) {
+    log("warn", `exiting with ${inFlight} request(s) still in flight`);
   }
-  const presented = Buffer.from(header.slice(prefix.length).trim());
-  const expected = Buffer.from(config.token);
-  // timingSafeEqual throws on a length mismatch, so compare lengths first —
-  // that leaks only the token length, not its content.
-  return presented.length === expected.length && timingSafeEqual(presented, expected);
+  process.exit(0);
 }
 
-function readJson(req, maxBytes) {
-  return new Promise((resolve, reject) => {
-    // Reject on the declared size before reading a single byte. Cheaper than
-    // streaming, and it is the path a normal client takes.
-    const declared = Number.parseInt(req.headers["content-length"] ?? "", 10);
-    if (Number.isInteger(declared) && declared > maxBytes) {
-      reject(fail(413, `Request body exceeds ${maxBytes} bytes.`));
-      return;
-    }
-
-    const chunks = [];
-    let size = 0;
-    let rejected = false;
-
-    req.on("data", (chunk) => {
-      if (rejected) {
-        return;
-      }
-      size += chunk.length;
-      if (size > maxBytes) {
-        // Pause rather than destroy: destroying the socket here kills the
-        // connection before the 413 can be written, so the client sees an
-        // opaque connection reset instead of the reason.
-        rejected = true;
-        req.pause();
-        reject(fail(413, `Request body exceeds ${maxBytes} bytes.`));
-        return;
-      }
-      chunks.push(chunk);
-    });
-
-    req.on("end", () => {
-      if (rejected) {
-        return;
-      }
-      const raw = Buffer.concat(chunks).toString("utf8");
-      if (!raw.trim()) {
-        resolve({});
-        return;
-      }
-      try {
-        resolve(JSON.parse(raw));
-      } catch {
-        reject(fail(400, "Request body is not valid JSON."));
-      }
-    });
-
-    req.on("error", (err) => {
-      if (!rejected) {
-        reject(fail(400, err.message));
-      }
-    });
-  });
-}
-
-function fail(statusCode, message) {
-  const err = new Error(message);
-  err.statusCode = statusCode;
-  return err;
-}
-
-function send(res, statusCode, payload) {
-  const body = JSON.stringify(payload);
-  res.writeHead(statusCode, {
-    "content-type": "application/json; charset=utf-8",
-    "content-length": Buffer.byteLength(body),
-    "cache-control": "no-store"
-  });
-  res.end(body);
-}
-
-function log(level, message) {
-  const line = `[bridge] ${new Date().toISOString()} ${level} ${message}`;
+function log(level, message, requestId) {
+  const line = `[bridge] ${new Date().toISOString()} ${level} ${requestId ? `${requestId} ` : ""}${message}`;
   if (level === "error") {
     console.error(line);
   } else {
