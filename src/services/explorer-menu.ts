@@ -63,6 +63,34 @@ export interface ExplorerMenuSection {
   items: ExplorerMenuItem[];
 }
 
+/**
+ * How long one gesture's menu stays the only menu.
+ *
+ * A long press on a touch screen raises two events: the pane's own timer, and
+ * the browser's native context menu once its own threshold passes. Both mean
+ * the same press, and both ask for a menu. They arrive within a few hundred
+ * milliseconds of each other, so a window of a second covers the gap while
+ * staying far shorter than a deliberate second opening.
+ */
+export const MENU_REPEAT_WINDOW_MS = 1000;
+
+export interface MenuOpening {
+  path: string;
+  at: number;
+}
+
+/**
+ * Whether a request to open the menu is a new one, or the second half of a
+ * press that has already been answered.
+ *
+ * A different row is always a new request: moving to another file and opening
+ * its menu is a thing people do quickly.
+ */
+export function shouldOpenMenu(path: string, now: number, last: MenuOpening | null): boolean {
+  if (last === null || last.path !== path) return true;
+  return now - last.at >= MENU_REPEAT_WINDOW_MS;
+}
+
 export function buildExplorerMenu(
   target: ExplorerTarget,
   foreignItems: ForeignItemMode

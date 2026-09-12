@@ -14,6 +14,8 @@ import type { SchreibstubeSettings } from "../types";
 import { syncBadgeFor, type SyncBadge } from "../services/explorer-badge";
 import {
   buildExplorerMenu,
+  shouldOpenMenu,
+  type MenuOpening,
   type ExplorerAction,
   type ExplorerMenuItem,
   type ExplorerTarget,
@@ -184,9 +186,25 @@ export class ExplorerController {
     return t().explorer.badge.checkedAt(new Date(record.checkedAt).toLocaleString());
   }
 
+  /** The last menu opened, so one press cannot open two. */
+  private lastMenu: MenuOpening | null = null;
+
   // --- the menu -----------------------------------------------------------
 
+  /**
+   * Open the row's menu.
+   *
+   * A long press on a touch screen asks for this twice: once when the pane's
+   * own timer elapses, and again when the browser reaches its own threshold and
+   * raises a context menu of its own. Both mean the same press. Every way of
+   * opening the menu comes through here, so this is where the second one is
+   * turned away rather than in each of the handlers.
+   */
   showMenu(file: TAbstractFile, event: MouseEvent | { x: number; y: number }): void {
+    const now = Date.now();
+    if (!shouldOpenMenu(file.path, now, this.lastMenu)) return;
+    this.lastMenu = { path: file.path, at: now };
+
     const menu = new Menu();
     const mode = this.foreignMode();
     const sections = buildExplorerMenu(this.describe(file), mode);

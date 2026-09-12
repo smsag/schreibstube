@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { setLanguage } from "../i18n";
 import { syncBadgeFor, syncBadgeIcon } from "./explorer-badge";
-import { buildExplorerMenu, type ExplorerTarget } from "./explorer-menu";
+import {
+  MENU_REPEAT_WINDOW_MS,
+  shouldOpenMenu,
+  buildExplorerMenu,
+  type ExplorerTarget
+} from "./explorer-menu";
 
 setLanguage("en");
 
@@ -145,5 +150,30 @@ describe("syncBadgeFor", () => {
     for (const badge of ["synced", "pending", "unchecked", "error"] as const) {
       expect(syncBadgeIcon(badge)).not.toBe("");
     }
+  });
+});
+
+describe("shouldOpenMenu", () => {
+  it("opens when nothing has been opened yet", () => {
+    expect(shouldOpenMenu("a.md", 1000, null)).toBe(true);
+  });
+
+  it("refuses the second half of one long press on the same row", () => {
+    // The pane's timer answers first; the browser's own context menu follows.
+    const opened = { path: "a.md", at: 1000 };
+
+    expect(shouldOpenMenu("a.md", 1000 + 300, opened)).toBe(false);
+  });
+
+  it("opens again once the window has passed", () => {
+    const opened = { path: "a.md", at: 1000 };
+
+    expect(shouldOpenMenu("a.md", 1000 + MENU_REPEAT_WINDOW_MS, opened)).toBe(true);
+  });
+
+  it("always opens for a different row, however quickly", () => {
+    const opened = { path: "a.md", at: 1000 };
+
+    expect(shouldOpenMenu("b.md", 1001, opened)).toBe(true);
   });
 });
