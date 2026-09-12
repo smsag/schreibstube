@@ -9,6 +9,7 @@ import {
   parseExplorerData,
   pruneExplorerData,
   reattachOrphans,
+  reorderPinned,
   renamePath,
   serializeExplorerData,
   setIcon,
@@ -346,5 +347,63 @@ describe("sortSiblings", () => {
     const sorted = sortSiblings([node("a.md"), node("Ordner", "folder")], data);
 
     expect(sorted.map((entry) => entry.path)).toEqual(["Ordner", "a.md"]);
+  });
+});
+
+describe("reorderPinned", () => {
+  const pinnedData = (...paths: string[]): ExplorerData => ({
+    version: 1,
+    entries: Object.fromEntries(
+      paths.map((path, index) => [path, { pinnedAt: 100 + index, updatedAt: 100 + index }])
+    )
+  });
+
+  it("puts the pinned block in the order given", () => {
+    const data = pinnedData("a.md", "b.md", "c.md");
+
+    const next = reorderPinned(data, ["c.md", "a.md", "b.md"], 500);
+
+    expect(pinnedPaths(next)).toEqual(["c.md", "a.md", "b.md"]);
+  });
+
+  it("stamps every moved entry so a merge prefers this order", () => {
+    const data = pinnedData("a.md", "b.md");
+
+    const next = reorderPinned(data, ["b.md", "a.md"], 500);
+
+    expect(next.entries["a.md"].updatedAt).toBe(500);
+    expect(next.entries["b.md"].updatedAt).toBe(500);
+  });
+
+  it("keeps a pin the caller did not mention, after the ones it did", () => {
+    const data = pinnedData("a.md", "b.md", "c.md");
+
+    const next = reorderPinned(data, ["c.md", "a.md"], 500);
+
+    expect(pinnedPaths(next)).toEqual(["c.md", "a.md", "b.md"]);
+  });
+
+  it("ignores a path that is not pinned rather than pinning it", () => {
+    const data = pinnedData("a.md");
+
+    const next = reorderPinned(data, ["b.md", "a.md"], 500);
+
+    expect(pinnedPaths(next)).toEqual(["a.md"]);
+    expect(next.entries["b.md"]).toBeUndefined();
+  });
+
+  it("leaves the data alone when nothing given is pinned", () => {
+    const data = pinnedData("a.md");
+
+    expect(reorderPinned(data, ["x.md"], 500)).toBe(data);
+  });
+
+  it("does not disturb an icon already on a reordered entry", () => {
+    const data = pinnedData("a.md", "b.md");
+    data.entries["a.md"] = { ...data.entries["a.md"], icon: "key" };
+
+    const next = reorderPinned(data, ["b.md", "a.md"], 500);
+
+    expect(next.entries["a.md"].icon).toBe("key");
   });
 });

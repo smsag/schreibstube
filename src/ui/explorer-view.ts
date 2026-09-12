@@ -18,7 +18,14 @@
  * offers, what a pin does to the order, what a bookmark points at — lives in a
  * controller and in the services behind it.
  */
-import { ItemView, TFile, TFolder, type TAbstractFile, type WorkspaceLeaf } from "obsidian";
+import {
+  FileView,
+  ItemView,
+  TFile,
+  TFolder,
+  type TAbstractFile,
+  type WorkspaceLeaf
+} from "obsidian";
 import { t } from "../i18n";
 import type { ExplorerController } from "../controllers/explorer-controller";
 import type { PaneSectionsController } from "../controllers/pane-sections";
@@ -45,6 +52,13 @@ export const EXPLORER_RIBBON_ICON = SCHREIBSTUBE_ICON;
 
 /** Long enough not to fire while scrolling, short enough to feel deliberate. */
 const LONG_PRESS_MS = 500;
+
+/** How many pinned rows sit in the shelf above the scroller. Beyond this the
+ *  block continues in the scrolling list, so the shelf cannot eat the pane. */
+const FIXED_PINNED_ROWS = 3;
+
+/** Movement, in pixels, that turns a press into a drag rather than a click. */
+const DRAG_THRESHOLD_PX = 4;
 
 /**
  * What the pane remembers between sessions, per device.
@@ -109,6 +123,12 @@ export class ExplorerPaneView extends ItemView {
   private collapsedBookmarks = new Set<string>();
   private query = "";
   private body: HTMLElement | null = null;
+  /** The fixed strip above the scroller: the filter and the pinned block. */
+  private shelf: HTMLElement | null = null;
+  /** Path of the row being dragged, or null when nothing is being dragged. */
+  private dragging: string | null = null;
+  /** Files open in some tab, recomputed once per draw rather than per row. */
+  private openPaths = new Set<string>();
   private pending = false;
   /** A path to scroll to once the next draw has put it on screen. */
   private revealing: string | null = null;
@@ -159,6 +179,7 @@ export class ExplorerPaneView extends ItemView {
       this.requestRender();
     });
 
+    this.shelf = root.createDiv({ cls: "schreibstube-explorer-shelf" });
     this.body = root.createDiv({ cls: "schreibstube-explorer-body" });
 
     // The vault changes under the pane: a note created by a template, a file
@@ -169,6 +190,7 @@ export class ExplorerPaneView extends ItemView {
     this.registerEvent(this.app.vault.on("rename", () => this.requestRender()));
     this.registerEvent(this.app.metadataCache.on("changed", () => this.requestRender()));
     this.registerEvent(this.app.workspace.on("file-open", () => this.requestRender()));
+    this.registerEvent(this.app.workspace.on("layout-change", () => this.requestRender()));
 
     this.render();
   }
@@ -209,9 +231,11 @@ export class ExplorerPaneView extends ItemView {
     if (!host || !this.host) return;
 
     host.empty();
+    this.shelf?.empty();
+    this.openPaths = this.collectOpenPaths();
     const settings = this.host.settings();
 
-    this.renderPinned(host);
+    if (this.shelf) this.renderPinned(this.shelf, host);
     if (settings.explorerBookmarksEnabled) this.renderBookmarks(host);
     if (settings.explorerLatestEnabled) this.renderLatest(host);
     this.renderFiles(host);
@@ -267,43 +291,64 @@ export class ExplorerPaneView extends ItemView {
    * It is drawn only when something is pinned, so a vault that does not use
    * pinning never pays a header for it.
    */
-  private renderPinned(host: HTMLElement): void {
+  /**
+   * The pinned block, drawn in two places.
+   *
+   * The header and the first few rows go into the shelf above the scroller, so
+   * what a person pinned is on screen whatever they have scrolled to — which is
+   * the whole point of pinning something. Anything beyond that count is drawn at
+   * the top of the scrolling list, directly beneath, so the block still reads as
+   * one list and the shelf can never grow to eat the pane.
+   */
+  private renderPinned(shelf: HTMLElement, scroller: HTMLElement): void {
     const controller = this.host?.explorer;
     if (!controller) return;
 
     const items = controller.pinnedItems().filter((file) => this.matchesQuery(file.name));
     if (items.length === 0) return;
 
-    const body = this.renderSection(host, "pinned", "pinned");
+    const order = items.map((file) => file.path);
+    const body = this.renderSection(shelf, "pinned", "pinned");
     if (!body) return;
 
-    for (const file of items) {
-      const isFolder = file instanceof TFolder;
-      const row = body.createDiv({ cls: "schreibstube-explorer-row is-pinned" });
-      indent(row, 0);
-      row.setAttribute("title", file.path);
-      if (isFolder) row.addClass("is-folder");
-      if (this.app.workspace.getActiveFile()?.path === file.path) row.addClass("is-active");
-
-      row.createSpan({ cls: "schreibstube-explorer-twisty" });
-      applyIcon(row.createSpan({ cls: "schreibstube-explorer-glyph" }), this.glyphFor(file));
-      row.createSpan({ cls: "schreibstube-explorer-name", text: displayName(file) });
-      if (file instanceof TFile) this.renderBadge(row, file);
-
-      this.renderRowActions(row, file);
-
-      row.addEventListener("contextmenu", (event) => {
-        event.preventDefault();
-        controller.showMenu(file, event);
-      });
-
-      // A pinned folder shows where it is rather than opening a second copy of
-      // the tree inside the section.
-      row.addEventListener("click", () => {
-        if (isFolder) this.revealFolder(file.path);
-        else void controller.open(file, false);
-      });
+    for (const [index, file] of items.entries()) {
+      const host = index < FIXED_PINNED_ROWS ? body : scroller;
+      this.renderPinnedRow(host, file, order);
     }
+  }
+
+  private renderPinnedRow(host: HTMLElement, file: TAbstractFile, order: string[]): void {
+    const controller = this.host?.explorer;
+    if (!controller) return;
+
+    const isFolder = file instanceof TFolder;
+    const row = host.createDiv({ cls: "schreibstube-explorer-row is-pinned-entry" });
+    indent(row, 0);
+    row.setAttribute("title", file.path);
+    row.setAttribute("data-path", file.path);
+    if (isFolder) row.addClass("is-folder");
+    if (!isFolder) this.markOpenState(row, file.path);
+
+    row.createSpan({ cls: "schreibstube-explorer-twisty" });
+    applyIcon(row.createSpan({ cls: "schreibstube-explorer-glyph" }), this.glyphFor(file));
+    row.createSpan({ cls: "schreibstube-explorer-name", text: displayName(file) });
+    if (file instanceof TFile) this.renderBadge(row, file);
+
+    this.renderRowActions(row, file);
+    this.wirePinnedDrag(row, file.path, order);
+
+    row.addEventListener("contextmenu", (event) => {
+      event.preventDefault();
+      controller.showMenu(file, event);
+    });
+
+    // A pinned folder shows where it is rather than opening a second copy of
+    // the tree inside the section.
+    row.addEventListener("click", () => {
+      if (this.dragging) return;
+      if (isFolder) this.revealFolder(file.path);
+      else void controller.open(file, false);
+    });
   }
 
   private renderBookmarks(host: HTMLElement): void {
@@ -432,7 +477,7 @@ export class ExplorerPaneView extends ItemView {
       const row = host.createDiv({ cls: "schreibstube-explorer-row is-latest" });
       indent(row, 0);
       row.setAttribute("title", file.path);
-      if (this.app.workspace.getActiveFile()?.path === file.path) row.addClass("is-active");
+      this.markOpenState(row, file.path);
 
       row.createSpan({ cls: "schreibstube-explorer-twisty" });
       applyIcon(row.createSpan({ cls: "schreibstube-explorer-glyph" }), "file-text");
@@ -523,9 +568,7 @@ export class ExplorerPaneView extends ItemView {
     row.setAttribute("role", "treeitem");
     if (isFolder) row.addClass("is-folder");
     if (controller.isPinned(file.path)) row.addClass("is-pinned");
-    if (file instanceof TFile && this.app.workspace.getActiveFile()?.path === file.path) {
-      row.addClass("is-active");
-    }
+    if (file instanceof TFile) this.markOpenState(row, file.path);
 
     const twisty = row.createSpan({ cls: "schreibstube-explorer-twisty" });
     if (isFolder) {
@@ -560,6 +603,183 @@ export class ExplorerPaneView extends ItemView {
       event.stopPropagation();
       controller.showMenu(file, event);
     });
+  }
+
+  /**
+   * Dragging a pinned row to reorder the block.
+   *
+   * A mouse begins the drag as soon as the pointer leaves the row it pressed;
+   * a finger has to hold first, because on a touch surface a short drag down a
+   * list is how a person scrolls, and taking that gesture would make the pane
+   * impossible to move. Pinned rows carry no long-press menu of their own, so
+   * holding is free here in a way it would not be in the tree.
+   *
+   * Nothing is written until the finger or button comes up, and a drag that
+   * ends where it started writes nothing at all.
+   */
+  private wirePinnedDrag(row: HTMLElement, path: string, order: string[]): void {
+    const controller = this.host?.explorer;
+    if (!controller) return;
+
+    let startX = 0;
+    let startY = 0;
+    let armed = false;
+    let holdTimer: number | null = null;
+
+    const clearHold = (): void => {
+      if (holdTimer !== null) window.clearTimeout(holdTimer);
+      holdTimer = null;
+    };
+
+    const finish = (): void => {
+      clearHold();
+      armed = false;
+      row.removeClass("is-dragging");
+      this.clearDropMarks();
+      // The click that follows a pointerup would otherwise open the file the
+      // drag just moved.
+      window.setTimeout(() => {
+        this.dragging = null;
+      }, 0);
+    };
+
+    row.addEventListener("pointerdown", (event: PointerEvent) => {
+      if (event.button !== 0) return;
+      startX = event.clientX;
+      startY = event.clientY;
+
+      if (event.pointerType === "touch") {
+        holdTimer = window.setTimeout(() => {
+          armed = true;
+          row.addClass("is-dragging");
+        }, LONG_PRESS_MS);
+      } else {
+        armed = true;
+      }
+    });
+
+    row.addEventListener("pointermove", (event: PointerEvent) => {
+      const moved = Math.hypot(event.clientX - startX, event.clientY - startY);
+
+      // A finger that moves before the hold has elapsed is scrolling the pane.
+      if (!armed) {
+        if (moved > DRAG_THRESHOLD_PX) clearHold();
+        return;
+      }
+      if (this.dragging === null && moved <= DRAG_THRESHOLD_PX) return;
+
+      if (this.dragging === null) {
+        this.dragging = path;
+        row.addClass("is-dragging");
+        row.setPointerCapture(event.pointerId);
+      }
+
+      this.markDropTarget(event.clientY);
+    });
+
+    row.addEventListener("pointerup", (event: PointerEvent) => {
+      if (this.dragging !== path) {
+        finish();
+        return;
+      }
+
+      const next = this.orderAfterDrop(path, order, event.clientY);
+      finish();
+      if (next) controller.reorderPinned(next);
+    });
+
+    row.addEventListener("pointercancel", finish);
+  }
+
+  /**
+   * Every file open in a tab, the active one included.
+   *
+   * A view that shows a file extends `FileView`, whatever the file is, so this
+   * counts notes, images, PDFs and canvases alike rather than markdown only. A
+   * file open in a sidebar counts too: it is on screen, which is what the mark
+   * is about.
+   */
+  private collectOpenPaths(): Set<string> {
+    const paths = new Set<string>();
+
+    this.app.workspace.iterateAllLeaves((leaf) => {
+      const view = leaf.view;
+      if (view instanceof FileView && view.file) paths.add(view.file.path);
+    });
+
+    return paths;
+  }
+
+  /**
+   * Mark a row for the file it stands for: the one in front of the person, or
+   * one waiting in another tab. Never both — the active file is open too, and
+   * a second bar would say nothing the stronger one does not already say.
+   */
+  private markOpenState(row: HTMLElement, path: string): void {
+    if (this.app.workspace.getActiveFile()?.path === path) {
+      row.addClass("is-active");
+      return;
+    }
+    if (this.openPaths.has(path)) row.addClass("is-open");
+  }
+
+  /**
+   * Every row of the Pinned section on screen, shelf and scroller alike, in
+   * drawn order. Deliberately not `.is-pinned`, which the tree also puts on a
+   * pinned row: dropping onto one of those would reorder against a row that is
+   * not part of this list.
+   */
+  private pinnedRows(): HTMLElement[] {
+    const root = this.contentEl;
+    return Array.from(
+      root.querySelectorAll<HTMLElement>(".schreibstube-explorer-row.is-pinned-entry")
+    );
+  }
+
+  /** Which row the pointer is over, and whether it is above that row's middle. */
+  private dropAt(clientY: number): { path: string; before: boolean } | null {
+    for (const row of this.pinnedRows()) {
+      const box = row.getBoundingClientRect();
+      if (clientY < box.top || clientY > box.bottom) continue;
+
+      const path = row.getAttribute("data-path");
+      if (!path) continue;
+      return { path, before: clientY < box.top + box.height / 2 };
+    }
+    return null;
+  }
+
+  private markDropTarget(clientY: number): void {
+    this.clearDropMarks();
+    const target = this.dropAt(clientY);
+    if (!target || target.path === this.dragging) return;
+
+    for (const row of this.pinnedRows()) {
+      if (row.getAttribute("data-path") !== target.path) continue;
+      row.addClass(target.before ? "is-drop-before" : "is-drop-after");
+    }
+  }
+
+  private clearDropMarks(): void {
+    for (const row of this.pinnedRows()) {
+      row.removeClass("is-drop-before");
+      row.removeClass("is-drop-after");
+    }
+  }
+
+  /** The order the block should take, or null when the drag changed nothing. */
+  private orderAfterDrop(path: string, order: string[], clientY: number): string[] | null {
+    const target = this.dropAt(clientY);
+    if (!target || target.path === path) return null;
+
+    const without = order.filter((entry) => entry !== path);
+    const at = without.indexOf(target.path);
+    if (at === -1) return null;
+
+    const next = [...without];
+    next.splice(target.before ? at : at + 1, 0, path);
+
+    return next.join("\u0000") === order.join("\u0000") ? null : next;
   }
 
   private renderBadge(row: HTMLElement, file: TFile): void {

@@ -358,6 +358,40 @@ export function mergeExplorerData(mine: ExplorerData, theirs: ExplorerData): Exp
  * folder nobody has open. This is what the pane's pinned section draws, so a
  * pin means something from the moment it is set.
  */
+/**
+ * Put the pinned block in a given order.
+ *
+ * `pinnedAt` doubles as the sort key, so a reorder rewrites it: consecutive
+ * values from one base, in the order handed in. Every touched entry gets a
+ * fresh `updatedAt` too, which is what the per-entry merge compares, so a
+ * reorder made on one device wins over an older order held by another without
+ * either having to know a list was involved.
+ *
+ * Paths that are not pinned are ignored rather than pinned by side effect, and
+ * anything pinned but missing from the list keeps its place after the ones
+ * given, so a stale view cannot silently unpin what it did not know about.
+ */
+export function reorderPinned(
+  data: ExplorerData,
+  orderedPaths: readonly string[],
+  now: number
+): ExplorerData {
+  const pinned = new Set(pinnedPaths(data));
+  const moved = orderedPaths.filter((path) => pinned.has(path));
+  if (moved.length === 0) return data;
+
+  const rest = pinnedPaths(data).filter((path) => !moved.includes(path));
+  const entries = { ...data.entries };
+
+  [...moved, ...rest].forEach((path, index) => {
+    const current = entries[path];
+    if (!current) return;
+    entries[path] = { ...current, pinnedAt: now + index, updatedAt: now };
+  });
+
+  return { version: EXPLORER_DATA_VERSION, entries };
+}
+
 export function pinnedPaths(data: ExplorerData): string[] {
   return Object.entries(data.entries)
     .filter(([, entry]) => entry.orphanedAt === undefined && entry.pinnedAt !== undefined)

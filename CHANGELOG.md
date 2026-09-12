@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## 1.13.0 - 2026-09-12
+
+### Added
+
+- **The pinned block stays on screen.** The filter and the first three pinned rows now sit on a strip above the list rather than inside it, so what you pinned is there whatever you have scrolled to — which is the point of having pinned it. A fourth pin and beyond continue at the top of the scrolling list, directly beneath, so the strip reads as one block with them and can never grow to eat the pane.
+- **A file open in another tab carries a faded accent.** The same bar as the row in front of you, at a little over a third of its strength, so the two read as one scale rather than two signals: this is open, that is the one you are looking at. It counts notes, images, PDFs and canvases alike, and a file open in a sidebar counts too, since it is on screen. The marks follow tabs opening and closing, not only the file you switch to.
+- **Pinned rows can be dragged into any order.** A mouse starts the drag as soon as the pointer leaves the row it pressed. A finger has to hold first, because on a touch surface a short drag down a list is how a person scrolls, and taking that gesture would make the pane impossible to move. A line marks the edge the row would join rather than shuffling every other row under the finger, and nothing is written until the button or finger comes up.
+
+### Changed
+
+- **The accent bar means the open file, and nothing else.** 1.12.0 gave the active row a bar down its left edge without noticing the tree had used one since 1.9.0 to mark a pinned row. Two meanings, 2px against 2.5px, in two accent colours a theme usually makes identical: a vault with a few pins looked like several files were open at once. A pin is marked by its glyph, which is what the glyph is for.
+- **The pane is called Schreibstube Explorer** in both languages. It was "Schreibstube files" and "Schreibstube-Dateien", which named the contents rather than the thing, and read as a folder on the tab and in a phone's pane switcher.
+- **The strip is separated by a soft shadow rather than a rule**, so the list appears to pass beneath it instead of stopping at a border.
+
+### Fixed
+
+- **A drag in the Pinned section cannot drop onto a row in the tree.** Both carried the same marker, so a pinned row further down the vault counted as a place to drop and reordered the block against a row that was not part of it. Rows of the section now have a name of their own.
+
 ## 1.12.2 - 2026-09-12
 
 ### Changed

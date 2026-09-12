@@ -449,6 +449,34 @@
   flex: 0 0 auto;
 }
 
+/* The strip that does not scroll: the pinned block, directly under the filter.
+   What a person pinned should be on screen wherever they have scrolled to,
+   which is the whole point of having pinned it. */
+.schreibstube-explorer-shelf {
+  position: relative;
+  flex: 0 0 auto;
+  z-index: 1;
+  background: var(--background-secondary);
+}
+
+/* A short gradient rather than a rule, so the list appears to pass beneath the
+   shelf instead of stopping at a border. Drawn outside the shelf's own box and
+   deaf to the pointer, so it never intercepts a click on the row below. */
+.schreibstube-explorer-shelf:not(:empty)::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  height: 8px;
+  pointer-events: none;
+  background: linear-gradient(
+    to bottom,
+    var(--background-modifier-box-shadow, rgba(0, 0, 0, 0.18)),
+    transparent
+  );
+}
+
 .schreibstube-explorer-body {
   flex: 1 1 auto;
   overflow-y: auto;
@@ -541,6 +569,22 @@
   background: var(--text-selection);
 }
 
+/* The row under the pointer while it is being dragged. */
+.schreibstube-explorer-row.is-dragging {
+  opacity: 0.5;
+  cursor: grabbing;
+}
+
+/* Where it would land. A line on the edge it would join, rather than moving
+   every other row, so the list does not shuffle under the finger. */
+.schreibstube-explorer-row.is-drop-before {
+  box-shadow: inset 0 2px 0 var(--interactive-accent);
+}
+
+.schreibstube-explorer-row.is-drop-after {
+  box-shadow: inset 0 -2px 0 var(--interactive-accent);
+}
+
 .schreibstube-explorer-empty {
   padding: 4px var(--schreibstube-row-inset);
   color: var(--text-faint);
@@ -563,6 +607,15 @@
 
 .schreibstube-explorer-row:hover {
   background: var(--nav-item-background-hover, var(--background-modifier-hover));
+}
+
+/* A file waiting in another tab. The same bar as the active row, faded, so the
+   two read as one scale rather than two signals: this is open, that is the one
+   you are looking at. The plain colour comes first for a renderer without
+   color-mix, which then simply gets a quieter accent. */
+.schreibstube-explorer-row.is-open {
+  box-shadow: inset 2.5px 0 0 var(--background-modifier-border-focus);
+  box-shadow: inset 2.5px 0 0 color-mix(in srgb, var(--interactive-accent) 38%, transparent);
 }
 
 /* Active carries a bar rather than only a tint, so it survives a theme whose
@@ -659,12 +712,6 @@
 /* A phone has no hover, so the button is simply always there. */
 .is-mobile .schreibstube-explorer-more {
   opacity: 1;
-}
-
-/* A pinned row is worth recognising at a glance; the pin glyph alone is easy
-   to miss on a row that would have sorted near the top anyway. */
-.schreibstube-explorer-row.is-pinned {
-  box-shadow: inset 2px 0 0 0 var(--text-accent);
 }
 
 .schreibstube-icon-picker .schreibstube-icon-search,

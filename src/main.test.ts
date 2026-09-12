@@ -88,7 +88,7 @@ describe("activateExplorerPane", () => {
     await pluginWith(fake).activateExplorerPane();
 
     expect(fake.created).toEqual([]);
-    expect(Notice.shown.join(" ")).toContain("Schreibstube files");
+    expect(Notice.shown.join(" ")).toContain("Schreibstube Explorer");
     expect(Notice.shown.join(" ")).toMatch(/no sidebar is available/i);
   });
 
