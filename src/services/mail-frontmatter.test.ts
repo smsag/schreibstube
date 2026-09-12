@@ -25,11 +25,11 @@ describe("parseAddressList", () => {
 describe("readMailFields", () => {
   it("reads the full contract", () => {
     const fields = readMailFields({
-      to: "kunde@example.com",
-      cc: ["innen@example.de"],
-      subject: " Angebot Objekt 4711 ",
-      message_id: "<7f3a@example.de>",
-      merged_ids: ["<r1@example.com>"]
+      schreibstubeTo: "kunde@example.com",
+      schreibstubeCc: ["innen@example.de"],
+      schreibstubeSubject: " Angebot Objekt 4711 ",
+      schreibstubeMessageId: "<7f3a@example.de>",
+      schreibstubeMergedIds: ["<r1@example.com>"]
     });
 
     expect(fields).toEqual({
@@ -42,7 +42,7 @@ describe("readMailFields", () => {
   });
 
   it("re-adds angle brackets an editor may have stripped from the Message-ID", () => {
-    expect(readMailFields({ message_id: "7f3a@example.de" }).messageId).toBe(
+    expect(readMailFields({ schreibstubeMessageId: "7f3a@example.de" }).messageId).toBe(
       "<7f3a@example.de>"
     );
   });
@@ -102,16 +102,16 @@ describe("validateSendable", () => {
 
 describe("stripFrontmatter", () => {
   it("removes the frontmatter block", () => {
-    const note = "---\nto: a@x.de\nsubject: Hi\n---\n\nDear all,\n\nregards";
+    const note = "---\nschreibstubeTo: a@x.de\nschreibstubeSubject: Hi\n---\n\nDear all,\n\nregards";
     expect(stripFrontmatter(note)).toBe("Dear all,\n\nregards");
   });
 
   it("handles the '...' terminator", () => {
-    expect(stripFrontmatter("---\nto: a@x.de\n...\nBody")).toBe("Body");
+    expect(stripFrontmatter("---\nschreibstubeTo: a@x.de\n...\nBody")).toBe("Body");
   });
 
   it("handles CRLF line endings", () => {
-    expect(stripFrontmatter("---\r\nto: a@x.de\r\n---\r\nBody")).toBe("Body");
+    expect(stripFrontmatter("---\r\nschreibstubeTo: a@x.de\r\n---\r\nBody")).toBe("Body");
   });
 
   it("leaves a note without frontmatter untouched", () => {
@@ -119,7 +119,7 @@ describe("stripFrontmatter", () => {
   });
 
   it("keeps the whole note when frontmatter is unterminated, rather than sending nothing", () => {
-    const broken = "---\nto: a@x.de\nno terminator";
+    const broken = "---\nschreibstubeTo: a@x.de\nno terminator";
     expect(stripFrontmatter(broken)).toBe(broken);
   });
 

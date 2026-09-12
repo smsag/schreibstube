@@ -2,14 +2,25 @@ import { App, PluginSettingTab, SecretComponent, Setting } from "obsidian";
 import type SchreibstubePlugin from "./main";
 import type { LlmProvider } from "./types";
 import {
+  DEFAULT_PROOFREAD_PROMPT,
+  MAX_SYNC_INTERVAL_MINUTES,
+  MIN_SYNC_INTERVAL_MINUTES,
+  MAX_CHUNK_CHARS,
+  MAX_CONCURRENCY,
   MAX_IMAGE_PX,
   MAX_MAIL_RESULTS,
+  MAX_PROOFREAD_TOKENS,
   MAX_SUMMARY_TOKENS,
+  MIN_CHUNK_CHARS,
+  MIN_CONCURRENCY,
   MIN_IMAGE_PX,
   MIN_MAIL_RESULTS,
+  MIN_PROOFREAD_TOKENS,
   MIN_SUMMARY_TOKENS,
   normalizeSettings
 } from "./services/plugin-settings";
+import { GLOSSARY_CHANGED_EVENT } from "./utils/constants";
+import { CRON_PRESETS, nextRun, parseCron } from "./services/cron";
 import { LLM_PROVIDER_IDS, PROVIDER_MODELS, providerLabel } from "./services/llm-providers";
 import { MAX_DIM_OPACITY, MIN_DIM_OPACITY } from "./services/focus-settings";
 
@@ -19,6 +30,67 @@ export class SchreibstubeSettingTab extends PluginSettingTab {
   constructor(app: App, plugin: SchreibstubePlugin) {
     super(app, plugin);
     this.plugin = plugin;
+  }
+
+  /**
+   * The cron field, with the parse result shown underneath.
+   *
+   * A schedule is easy to get subtly wrong and impossible to verify by waiting,
+   * so the next fire time is displayed as soon as the expression is valid.
+   */
+  private renderPollSchedule(containerEl: HTMLElement): void {
+    let feedback: HTMLElement | null = null;
+
+    const describe = (expression: string): void => {
+      if (!feedback) return;
+      feedback.empty();
+
+      const parsed = parseCron(expression);
+      if (!parsed.ok) {
+        feedback.addClass("schreibstube-setting-error");
+        feedback.removeClass("schreibstube-setting-hint");
+        feedback.setText(parsed.reason);
+        return;
+      }
+
+      feedback.removeClass("schreibstube-setting-error");
+      feedback.addClass("schreibstube-setting-hint");
+      const next = nextRun(parsed.schedule, new Date());
+      feedback.setText(
+        next
+          ? `Nächste Prüfung: ${next.toLocaleString()}`
+          : "Gültig, aber dieser Zeitpunkt tritt nie ein."
+      );
+    };
+
+    const examples = CRON_PRESETS.map((preset) => `${preset.expression} (${preset.label})`).join(
+      ", "
+    );
+
+    new Setting(containerEl)
+      .setName("Schedule")
+      .setDesc(
+        "Five cron fields: minute, hour, day of month, month, day of week. " +
+          "Evaluated in local time. A schedule that came due while Obsidian was closed runs once on the next start. " +
+          `Examples: ${examples}.`
+      )
+      .addText((text) => {
+        text.setPlaceholder("0 * * * *");
+        text.setValue(this.plugin.settings.syncPollCron);
+        text.onChange(async (value) => {
+          describe(value);
+          const parsed = parseCron(value);
+          if (!parsed.ok) return;
+          this.plugin.settings = normalizeSettings({
+            ...this.plugin.settings,
+            syncPollCron: value
+          });
+          await this.plugin.saveSettings();
+        });
+      });
+
+    feedback = containerEl.createDiv({ cls: "schreibstube-setting-hint" });
+    describe(this.plugin.settings.syncPollCron);
   }
 
   display(): void {
@@ -257,6 +329,240 @@ export class SchreibstubeSettingTab extends PluginSettingTab {
           }
         });
       });
+
+    new Setting(containerEl).setName("Proofreading").setHeading();
+
+    new Setting(containerEl)
+      .setDesc(
+        "Used by the proof-read sidebar. Corrections are proposed one by one and applied only when you accept them."
+      );
+
+    new Setting(containerEl)
+      .setName("Proofread prompt")
+      .setDesc("System instruction for the correction pass. Leave empty to restore the default.")
+      .addTextArea((text) => {
+        text.inputEl.rows = 5;
+        text.setPlaceholder(DEFAULT_PROOFREAD_PROMPT);
+        text.setValue(this.plugin.settings.proofreadPrompt);
+        text.onChange(async (value) => {
+          this.plugin.settings = normalizeSettings({
+            ...this.plugin.settings,
+            proofreadPrompt: value
+          });
+          await this.plugin.saveSettings();
+        });
+      });
+
+    new Setting(containerEl)
+      .setName("Maximum response tokens")
+      .setDesc("Upper bound per request. The actual budget follows the size of each chunk.")
+      .addSlider((slider) => {
+        slider
+          .setDynamicTooltip()
+          .setLimits(MIN_PROOFREAD_TOKENS, MAX_PROOFREAD_TOKENS, 256)
+          .setValue(this.plugin.settings.proofreadMaxTokens)
+          .onChange(async (value) => {
+            this.plugin.settings = normalizeSettings({
+              ...this.plugin.settings,
+              proofreadMaxTokens: value
+            });
+            await this.plugin.saveSettings();
+          });
+      });
+
+    new Setting(containerEl)
+      .setName("Characters per request")
+      .setDesc("Smaller chunks show the first suggestions sooner but cost more requests.")
+      .addSlider((slider) => {
+        slider
+          .setDynamicTooltip()
+          .setLimits(MIN_CHUNK_CHARS, MAX_CHUNK_CHARS, 250)
+          .setValue(this.plugin.settings.proofreadChunkChars)
+          .onChange(async (value) => {
+            this.plugin.settings = normalizeSettings({
+              ...this.plugin.settings,
+              proofreadChunkChars: value
+            });
+            await this.plugin.saveSettings();
+          });
+      });
+
+    new Setting(containerEl)
+      .setName("Parallel requests")
+      .setDesc("How many chunks are in flight at once.")
+      .addSlider((slider) => {
+        slider
+          .setDynamicTooltip()
+          .setLimits(MIN_CONCURRENCY, MAX_CONCURRENCY, 1)
+          .setValue(this.plugin.settings.proofreadConcurrency)
+          .onChange(async (value) => {
+            this.plugin.settings = normalizeSettings({
+              ...this.plugin.settings,
+              proofreadConcurrency: value
+            });
+            await this.plugin.saveSettings();
+          });
+      });
+
+    new Setting(containerEl).setName("Glossary").setHeading();
+
+    new Setting(containerEl)
+      .setDesc(
+        "A glossary is a note with `schreibstubeGlossary: true` in its frontmatter and a term table. " +
+          "Glossary checks run locally and need no API key. A note's own `schreibstubeGlossaries` property beats a folder rule, " +
+          "which beats the pick in the sidebar, which beats the default below."
+      );
+
+    new Setting(containerEl)
+      .setName("Default glossaries")
+      .setDesc("Vault paths, one per line. Used when nothing more specific applies.")
+      .addTextArea((text) => {
+        text.inputEl.rows = 3;
+        text.setPlaceholder("Glossare/Haus.md");
+        text.setValue(this.plugin.settings.glossaryDefault.join("\n"));
+        text.onChange(async (value) => {
+          this.plugin.settings = normalizeSettings({
+            ...this.plugin.settings,
+            glossaryDefault: value
+              .split("\n")
+              .map((line) => line.trim())
+              .filter((line) => line.length > 0)
+          });
+          await this.plugin.saveSettings();
+          window.dispatchEvent(new Event(GLOSSARY_CHANGED_EVENT));
+        });
+      });
+
+    new Setting(containerEl)
+      .setName("Folder rules")
+      .setDesc("One rule per line: folder | glossary.md, other.md. The deepest matching folder wins.")
+      .addTextArea((text) => {
+        text.inputEl.rows = 4;
+        text.setPlaceholder("Kunden | Glossare/Kunden.md");
+        text.setValue(this.plugin.settings.glossaryFolderRules);
+        text.onChange(async (value) => {
+          this.plugin.settings = normalizeSettings({
+            ...this.plugin.settings,
+            glossaryFolderRules: value
+          });
+          await this.plugin.saveSettings();
+          window.dispatchEvent(new Event(GLOSSARY_CHANGED_EVENT));
+        });
+      });
+
+    new Setting(containerEl)
+      .setName("Underline glossary hits in the editor")
+      .setDesc("Marks error-severity terms as you write. Off by default to keep long notes quiet.")
+      .addToggle((toggle) => {
+        toggle
+          .setValue(this.plugin.settings.glossaryLiveUnderline)
+          .onChange(async (value) => {
+            this.plugin.settings = normalizeSettings({
+              ...this.plugin.settings,
+              glossaryLiveUnderline: value
+            });
+            await this.plugin.saveSettings();
+            window.dispatchEvent(new Event(GLOSSARY_CHANGED_EVENT));
+          });
+      });
+
+    new Setting(containerEl).setName("Document sync").setHeading();
+
+    new Setting(containerEl)
+      .setDesc(
+        "Bind a note to a remote Markdown file by adding `schreibstubeSyncedFrom: <url>` to its frontmatter. " +
+          "The source is the single truth: incoming changes appear in the sidebar as cards you accept, and nothing " +
+          "is ever pushed back. A note can live in any folder. If the source disappears, it is reported and the note " +
+          "is left untouched."
+      );
+
+    new Setting(containerEl)
+      .setName("Enable document sync")
+      .setDesc("Off by default. Bound notes are ignored entirely until this is on.")
+      .addToggle((toggle) => {
+        toggle
+          .setValue(this.plugin.settings.syncEnabled)
+          .onChange(async (value) => {
+            this.plugin.settings = normalizeSettings({
+              ...this.plugin.settings,
+              syncEnabled: value
+            });
+            await this.plugin.saveSettings();
+          });
+      });
+
+    new Setting(containerEl)
+      .setName("Check when a bound note opens")
+      .setDesc("Also check automatically on open, subject to the interval below. Otherwise only on command.")
+      .addToggle((toggle) => {
+        toggle
+          .setValue(this.plugin.settings.syncCheckOnOpen)
+          .onChange(async (value) => {
+            this.plugin.settings = normalizeSettings({
+              ...this.plugin.settings,
+              syncCheckOnOpen: value
+            });
+            await this.plugin.saveSettings();
+          });
+      });
+
+    new Setting(containerEl)
+      .setName("Minimum minutes between automatic checks")
+      .setDesc("Per note. Zero checks on every open. A manual check always runs.")
+      .addSlider((slider) => {
+        slider
+          .setDynamicTooltip()
+          .setLimits(MIN_SYNC_INTERVAL_MINUTES, MAX_SYNC_INTERVAL_MINUTES, 5)
+          .setValue(this.plugin.settings.syncMinIntervalMinutes)
+          .onChange(async (value) => {
+            this.plugin.settings = normalizeSettings({
+              ...this.plugin.settings,
+              syncMinIntervalMinutes: value
+            });
+            await this.plugin.saveSettings();
+          });
+      });
+
+    new Setting(containerEl)
+      .setName("GitHub token")
+      .setDesc(
+        "Optional. Needed for sources in a private repository, and it raises GitHub's rate limit. " +
+          "Stored in Obsidian's secret storage and only ever sent to GitHub."
+      )
+      .addComponent((el) =>
+        new SecretComponent(this.app, el)
+          .setValue(this.plugin.settings.githubSecretName)
+          .onChange(async (value) => {
+            this.plugin.settings = normalizeSettings({
+              ...this.plugin.settings,
+              githubSecretName: value
+            });
+            await this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(containerEl)
+      .setName("Poll all bound notes in the background")
+      .setDesc(
+        "Checks every bound note on a schedule, not just the one you have open. " +
+          "Changes found are counted and surface as cards when you next open that note."
+      )
+      .addToggle((toggle) => {
+        toggle
+          .setValue(this.plugin.settings.syncPollEnabled)
+          .onChange(async (value) => {
+            this.plugin.settings = normalizeSettings({
+              ...this.plugin.settings,
+              syncPollEnabled: value
+            });
+            await this.plugin.saveSettings();
+            this.display();
+          });
+      });
+
+    if (this.plugin.settings.syncPollEnabled) {
+      this.renderPollSchedule(containerEl);
+    }
 
     new Setting(containerEl).setName("Email").setHeading();
 

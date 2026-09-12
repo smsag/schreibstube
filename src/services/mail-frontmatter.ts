@@ -5,24 +5,28 @@
  * fields that later let replies be found again:
  *
  *   ---
- *   to: kunde@example.com
- *   cc: [innendienst@example.com]
- *   subject: Angebot Objekt 4711
- *   message_id: <7f3a…@your-domain.de>   # written on send
- *   sent_at: 2026-09-07T10:12:00Z        # written on send
- *   merged_ids: ["<reply-1@mail.kunde.de>"]
+ *   schreibstubeTo: kunde@example.com
+ *   schreibstubeCc: [innendienst@example.com]
+ *   schreibstubeSubject: Angebot Objekt 4711
+ *   schreibstubeMessageId: <7f3a…@your-domain.de>   # written on send
+ *   schreibstubeSentAt: 2026-09-07T10:12:00Z        # written on send
+ *   schreibstubeMergedIds: ["<reply-1@mail.kunde.de>"]
  *   ---
  *
  * Pure and `obsidian`-free so it stays unit-testable; the caller supplies the
  * already-parsed frontmatter object from the metadata cache.
  */
 
-export const FM_TO = "to";
-export const FM_CC = "cc";
-export const FM_SUBJECT = "subject";
-export const FM_MESSAGE_ID = "message_id";
-export const FM_SENT_AT = "sent_at";
-export const FM_MERGED_IDS = "merged_ids";
+/* Every key is `schreibstube`-prefixed camelCase, the rule the rest of the
+ * plugin follows: Obsidian frontmatter is one flat namespace shared with other
+ * plugins and with the user's own properties, and bare `to` or `subject` would
+ * be a collision waiting to happen. */
+export const FM_TO = "schreibstubeTo";
+export const FM_CC = "schreibstubeCc";
+export const FM_SUBJECT = "schreibstubeSubject";
+export const FM_MESSAGE_ID = "schreibstubeMessageId";
+export const FM_SENT_AT = "schreibstubeSentAt";
+export const FM_MERGED_IDS = "schreibstubeMergedIds";
 
 export interface MailFields {
   to: string[];
