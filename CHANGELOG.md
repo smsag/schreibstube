@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## 1.15.2 - 2026-09-12
+
+### Fixed
+
+- **Focus mode dims callouts, tables and embeds.** It dimmed by marking lines, and a rendered block is not a line: Obsidian replaces the source with a widget, so the mark had nothing to attach to and the block stayed at full strength while the prose around it faded — which is the opposite of what focus mode is for, since the brightest thing on screen was the thing not being written. Every rendered block is dimmed directly now, in both modes, and never restored, because it cannot be the passage in focus: the moment the cursor enters one, Obsidian puts the source lines back and the ordinary line marking takes over.
+
 ## 1.15.1 - 2026-09-12
 
 ### Fixed
