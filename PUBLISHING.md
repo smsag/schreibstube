@@ -1,79 +1,142 @@
 # Publishing: specification
 
-Publish a vault folder as a static site. The plugin renders each note to HTML
-and pushes the result through the Schreibstube bridge, which holds the SFTP
-credentials and writes to the web root.
+Publish a vault folder as a static site. The plugin uploads Markdown sources
+and attachments through the Schreibstube bridge; the bridge renders the HTML,
+holds the SFTP credentials, and writes to the web root.
 
-Status: specification, not yet implemented. Targets plugin version 1.8.0.
+Status: specification, not yet implemented. Targets plugin version 1.8.0 and
+bridge version 2.0.0.
 
-## Decisions already taken
+## Decisions
 
 | Decision | Choice | Consequence |
 |---|---|---|
-| Markdown to HTML | Rendered in the plugin | The bridge never parses note content; it only writes bytes |
-| Publish set | One vault folder per account | The published set is visible in the file tree |
-| Deletions | Manifest-based mirror | Only files the plugin uploaded are ever deleted |
-| Transport | Bridge over HTTPS, as for mail | Works on mobile; the plugin gains no dependency |
-| Tokens | Separate mail and publish tokens | A leaked publish token cannot read the mailbox |
-| SFTP credentials | On the bridge, as named targets | No key material in the vault; adding an account needs a redeploy |
+| Markdown to HTML | Rendered on the bridge | Deterministic, snapshot-testable, identical from every device |
+| Publish set | Folder per account, `published: true` in frontmatter | Opt-in per note; the folder bounds what is even read |
+| Ordering | By `date`, newest first | The index is a blog index |
+| Attachments | Images and video, up to 25 MB each | Single streamed upload per file, no chunking |
+| Render scope | Obsidian syntax, math, diagrams | KaTeX server-side; Mermaid as self-hosted client-side script |
+| Sources on the server | Kept in a state directory | A template change re-renders the site without the vault |
+| Deletions | Manifest-based mirror | Only files the bridge wrote are ever deleted |
+| Transport | Bridge over HTTPS | Works on mobile; the plugin gains no dependency |
+| Tokens | Separate mail and publish tokens | A leaked publish token cannot reach the mailbox |
+| SFTP credentials | On the bridge, as named targets | No key material in the vault; a new account needs a redeploy |
+| Desktop SFTP shortcut | Not built | One transport, one code path, one set of failure modes |
+| Backwards compatibility | Not required | The bridge is restructured rather than extended |
 
-## Why the bridge and not direct SFTP
+## Why the bridge
 
 Obsidian on mobile runs in a WebView with no Node runtime and no raw sockets,
 so the plugin cannot open an SSH connection. A direct SFTP implementation would
 force `isDesktopOnly: true` and cost the heading overlay and focus mode on
-mobile. The mail bridge already solved this for IMAP and SMTP, and publishing
-reuses the same transport, the same auth shape, and the same deployment.
+mobile. The mail bridge already solved this for IMAP and SMTP.
 
-The second benefit matters as much as the first. The SSH key lives in the
-bridge environment, never in the vault, and the vault holds only a token that
-can be rotated without touching the hosting account.
+Rendering moved to the bridge once the bridge existed. Obsidian's own renderer
+would have produced markup that shifts with the app, renders asynchronous
+plugin content as empty, and cannot be snapshot-tested in continuous
+integration. A Markdown pipeline on the bridge is a pure function from source
+to HTML, which is testable, identical on every device, and re-runnable without
+the vault.
 
 ## Scope
 
 In scope for the first release:
 
 - One or more publish accounts, each mapping a vault folder to a bridge target.
-- Render, plan, upload, delete, manifest write, in that order.
-- A dry run that shows exactly what would be uploaded and deleted.
-- An index page and a minimal built-in stylesheet.
-- Attachments referenced from published notes.
+- Upload changed sources, render the whole site, write what changed.
+- A dry run that shows exactly what would be uploaded, written and deleted.
+- An index page sorted by date, and a built-in stylesheet.
+- Images and video referenced from published notes.
+- Math and Mermaid diagrams.
 
-Out of scope for the first release, listed so nobody plans around them:
+Out of scope, listed so nobody plans around them:
 
 - Feeds, tags, pagination, search.
-- Comments, analytics, anything that needs server-side code.
+- Comments, analytics, anything needing server-side code at request time.
 - Scheduled or automatic publishing on save.
-- Re-rendering the site from the server without the vault.
 - Multiple accounts publishing the same folder.
 
-## Architecture
+# Part one: bridge refactor
 
+The bridge was built for one capability and now grows a second. Extending it in
+place would carry over four assumptions that no longer hold: one token, one
+body limit, one set of credentials, and no automated tests. With backwards
+compatibility waived, it is restructured instead.
+
+## Capability-based configuration
+
+`loadConfig` returns server settings plus whichever capabilities are
+configured, and boots with at least one:
+
+```js
+{
+  port, requestTimeoutMs, version,
+  mail:    null | { token, imap, smtp, from, defaultMailbox, sentMailbox, … },
+  publish: null | { token, targets: { blog: {…}, handbuch: {…} } }
+}
 ```
-Obsidian (desktop or mobile)                 Bridge (Node, single instance)      Web host
-────────────────────────────                 ──────────────────────────────      ────────
-collect folder + attachments
-render each note to HTML
-hash every output file
-        │
-        ├── POST /publish/plan ────────────▶ read manifest over SFTP ──────────▶ SFTP
-        ◀── upload[], delete[], unchanged ──
-        │
-        ├── POST /publish/put (per file) ──▶ write temp, rename ───────────────▶ SFTP
-        │
-        └── POST /publish/commit ──────────▶ delete removed, write manifest ───▶ SFTP
+
+A mail-only deployment stays exactly as cheap as it is today, and a
+publish-only deployment becomes possible. `BRIDGE_TOKEN` is gone; `MAIL_TOKEN`
+and `PUBLISH_TOKEN` are each required only for their own capability, and each
+is validated for minimum length as before.
+
+## Route table
+
+Routing becomes a table rather than a switch, because the two capabilities need
+different limits and different auth:
+
+```js
+{ method, path, capability, bodyType, maxBytes, timeoutMs, handler }
 ```
 
-The plugin never learns the host name, the user, or the key. It knows a target
-name and a token.
+A route declares which token opens it, so a mail token on a publish route is
+rejected before the body is read. Body limits become per route: mail keeps its
+1 MB, source uploads get 2 MB, asset uploads get 25 MB and are streamed rather
+than buffered. `bodyType` is `json` or `stream`; a JSON base64 payload would
+inflate a 25 MB video to 33 MB in memory on a small container.
 
-## Bridge
+## Seven improvements worth making while it is open
 
-### Configuration
+1. **Tests.** The bridge currently has none and was verified by hand. Every
+   pure module — configuration, path validation, slug derivation, manifest
+   diffing, the whole renderer — is imported by the root Vitest suite and runs
+   under the same `npm test` as the plugin. This is the single biggest gap.
+2. **Outbound timeouts.** The plugin wraps its requests in `withTimeout`; the
+   bridge wraps nothing. A hung IMAP or SFTP connection holds a request until
+   the client gives up and can leak the socket. Every outbound operation gets a
+   deadline, and every request an overall budget.
+3. **Request identifiers.** Log lines carry a timestamp but nothing that ties
+   the forty requests of one publish together. Each request gets a short id,
+   returned in every error body and printed on every line about it. Support
+   questions become answerable.
+4. **A version handshake.** Plugin and bridge deploy separately and will drift.
+   `/health` returns the bridge version and the protocol version it speaks; the
+   plugin checks it on the first call of a session and says plainly that the
+   bridge needs redeploying, instead of failing on an unknown route.
+5. **A real diagnostics endpoint.** `/health` proves only that a process is
+   alive. `/diagnostics`, authenticated per capability, opens an actual IMAP
+   login or SFTP connection and reports what it found. The settings tab needs
+   exactly this for its connection test.
+6. **Sanitised error bodies.** `Send failed: ${err.message}` forwards upstream
+   text verbatim. For SFTP that can carry remote paths and host detail. Errors
+   become a stable code, a short message, and the request id; the verbatim text
+   stays in the log.
+7. **Failure throttling.** A public URL with a bearer token and no throttle
+   invites brute force. A long token makes that impractical, not impossible.
+   Repeated authentication failures from one address earn a delay and then a
+   429.
 
-Targets are declared by name and configured with one environment block each.
-Validation happens at startup, as with the mail configuration, so a broken
-deployment fails on boot with a precise message.
+Two further points that need a decision rather than code. The bridge must run
+as a **single instance**: the per-target publish lock is in memory, and two
+instances behind a load balancer would interleave writes to one site. And
+**graceful shutdown** should refuse new publishes while draining in-flight
+ones, because a restart mid-publish is otherwise only survivable thanks to the
+manifest being written last.
+
+# Part two: publish capability
+
+## Target configuration
 
 ```
 PUBLISH_TOKEN=<openssl rand -base64 32>
@@ -84,289 +147,328 @@ PUBLISH_BLOG_PORT=22
 PUBLISH_BLOG_USER=web123
 PUBLISH_BLOG_KEY=<base64 of an OpenSSH private key>
 PUBLISH_BLOG_KEY_PASSPHRASE=…          # optional
-PUBLISH_BLOG_PASSWORD=…                # alternative to KEY, not both
+PUBLISH_BLOG_PASSWORD=…                # alternative to KEY, never both
 PUBLISH_BLOG_HOST_FINGERPRINT=SHA256:… # required
 PUBLISH_BLOG_ROOT=/var/www/blog
+PUBLISH_BLOG_STATE_ROOT=/var/schreibstube/blog   # default: <ROOT>/.schreibstube
 PUBLISH_BLOG_BASE_URL=https://blog.example.com
-PUBLISH_BLOG_ALLOWED_EXT=html,css,js,json,xml,txt,svg,png,jpg,jpeg,gif,webp,avif,ico,woff2,pdf
+PUBLISH_BLOG_SITE_TITLE=Schreibstube
 ```
 
 Startup rejects a target whose root is not absolute, whose base URL is not
 `https://`, which has neither a key nor a password, which has both, or which
 has no host fingerprint. Host key verification cannot be trust-on-first-use
-here: the container is stateless and would trust a new key after every restart.
+here: the container is stateless and would re-trust a new key after every
+restart, which is not verification at all.
 
-The existing `BRIDGE_TOKEN` keeps working for the mail routes and is renamed to
-`MAIL_TOKEN`, with `BRIDGE_TOKEN` accepted as a fallback so deployed instances
-do not break. `PUBLISH_TOKEN` is required only when `PUBLISH_TARGETS` is set, so
-a mail-only deployment is unaffected.
+`STATE_ROOT` should sit outside the served tree. The default keeps it under the
+web root for hosts that allow nothing else, and the deployment notes then
+require a deny rule for `/.schreibstube/`.
 
-### Authorisation
-
-Each route group accepts exactly one token. `/send` and `/search` accept the
-mail token, `/publish/*` accepts the publish token, and neither accepts the
-other. Comparison stays constant-time and a wrong token is indistinguishable
-from a missing one, as today.
-
-### Endpoints
+## Protocol
 
 | Method | Path | Body | Returns |
 |---|---|---|---|
-| `GET` | `/publish/targets` | — | `{targets:[{name, baseUrl}]}` |
-| `POST` | `/publish/plan` | `{target, files:[{path, sha256, bytes}]}` | `{upload:[path], delete:[path], unchanged, manifestFound}` |
-| `POST` | `/publish/put` | `{target, path, sha256, contentBase64}` | `{path, bytes}` |
-| `POST` | `/publish/commit` | `{target, delete:[path], manifest}` | `{deleted, pruned, manifestWritten, baseUrl}` |
+| `GET` | `/publish/targets` | — | `{targets:[{name, baseUrl, siteTitle}]}` |
+| `POST` | `/publish/plan` | `{target, index}` | `{uploadSources[], uploadAssets[], willWrite, willDelete[], unchanged}` |
+| `PUT` | `/publish/source?target=&sha256=` | raw Markdown | `{sha256, bytes}` |
+| `PUT` | `/publish/asset?target=&sha256=&name=` | raw bytes | `{sha256, bytes, path}` |
+| `POST` | `/publish/commit` | `{target, index}` | `{written, deleted, pruned, unchanged, baseUrl}` |
+| `POST` | `/publish/render` | `{target}` | `{written, unchanged}` |
 
-`/publish/targets` exists so the settings tab can offer a dropdown instead of
-asking the user to retype a name the bridge knows.
+`/publish/render` rebuilds the site from stored sources and the stored index.
+It is what makes a template change a redeploy rather than a re-upload, and it
+needs no vault and no plugin.
 
-`/publish/put` verifies the declared hash against the received bytes and
-refuses a mismatch, so a truncated upload cannot be recorded as published.
+### The index
+
+The plugin knows the vault; the bridge does not. The index is how vault
+knowledge crosses, and it is the input to link resolution, the index page, and
+every page header:
+
+```json
+{
+  "renderVersion": 1,
+  "siteTitle": "Schreibstube",
+  "notes": [
+    {
+      "sourcePath": "Blog/Hallo Welt.md",
+      "sha256": "…",
+      "slug": "hallo-welt",
+      "title": "Hallo Welt",
+      "date": "2026-09-12",
+      "description": "…"
+    }
+  ],
+  "assets": [
+    { "sourcePath": "Blog/bild.png", "sha256": "…", "bytes": 48210, "name": "bild.png" }
+  ]
+}
+```
+
+The plugin resolves every default before sending: title from the first heading
+or the filename, date from file creation time, slug from the filename. The
+bridge receives complete records and never guesses.
+
+### Flow
+
+```
+plan     hash comparison against the manifest; nothing is written
+upload   only sources and assets whose hashes are new, one request each
+commit   render every note, write changed output, delete removed, write manifest
+```
+
+Uploads are incremental, rendering is total. Rendering the whole site on every
+commit costs little, removes a class of staleness bugs, and is the only way an
+edited title or date updates the index page and the links pointing at it.
+Output is still hashed before writing, so an unchanged page is not rewritten
+and the transfer stays proportional to what actually changed.
+
+### Storage
+
+Sources are content-addressed under the state root:
+
+```
+<state>/manifest.json          what is published, by output path and hash
+<state>/index.json             the last index, so /publish/render needs no plugin
+<state>/src/<sha256>.md        note sources, deduplicated by content
+```
+
+Content addressing makes uploads idempotent and makes a resumed publish free:
+a hash already present is never uploaded twice. Sources unreferenced by the
+current index are collected at commit.
 
 ### Write protocol
 
-Every write goes to a temporary name in the destination directory and is then
+Every write goes to a temporary name in the destination directory and is
 renamed over the target. Rename within one filesystem is atomic, so a reader
 never sees a half-written page.
 
-Order in `commit`: deletions first, then directory pruning, then the manifest.
-The manifest is written last on purpose. A crash before it leaves the manifest
-describing the previous state, and the next plan simply re-uploads. The failure
-mode is a wasted upload, never a lost file.
+Order at commit: render everything, write changed output, delete removed
+output, prune empty directories, collect orphan sources, write the manifest
+last. A crash before the manifest leaves it describing the previous state, so
+the next plan re-uploads and re-renders. The failure mode is wasted work, never
+a lost file.
 
 ### Path safety
 
-This is the part that deserves the tests. The bridge is now a remote file
-writer, and a path bug is a defaced site rather than an embarrassing email.
+The bridge is now a remote file writer. A path bug defaces a site, which is a
+different order of problem from a badly formatted email.
 
 A path is rejected unless it is relative, free of `..` and empty segments, free
 of backslashes and control characters, at most 1024 bytes with no segment over
 255, and carries an allowed extension. The resolved path must remain under the
-target root. Before overwriting, the bridge stats the destination and refuses to
-write through an existing symlink. Directory pruning after deletion stops at the
-root and removes only empty directories.
+target root or state root. Before overwriting, the bridge stats the destination
+and refuses to write through an existing symlink. Pruning stops at the root and
+removes only empty directories.
 
-These rules live in `bridge/publish-path.mjs` as pure functions, imported by the
-root Vitest suite so they are covered by the same `npm test` as the plugin.
+Uploaded asset names are never used as paths. They are slugified and prefixed
+with the content hash, so a hostile filename cannot escape anything.
+
+These rules live in `bridge/publish/path.mjs` as pure functions with their own
+test file. They are the part of this feature most worth over-testing.
 
 ### Limits
 
-| Limit | Value | Reason |
-|---|---|---|
-| `/publish/put` body | 10 MB | Base64 inflates by a third; the practical file cap is about 7 MB |
-| Other routes | 1 MB | Unchanged from the mail bridge |
-| Files per plan | 2000 | A runaway folder should fail fast, not half-publish |
-| Concurrent publishes per target | 1 | An in-memory lock; the bridge must run as a single instance |
-
-The single-instance requirement is a real constraint and belongs in the
-deployment notes. Two instances behind a load balancer would interleave writes
-to one site.
-
-## Manifest
-
-Stored at `<root>/.schreibstube/manifest.json`.
-
-```json
-{
-  "version": 1,
-  "target": "blog",
-  "updatedAt": "2026-09-12T09:14:02.113Z",
-  "generator": "schreibstube/1.8.0",
-  "files": {
-    "hello-world/index.html": { "sha256": "…", "bytes": 4821 },
-    "assets/theme.css": { "sha256": "…", "bytes": 2210 }
-  }
-}
-```
-
-It lists only files that are public anyway, but the deployment notes should
-still recommend denying `/.schreibstube/` in the web server, because the file
-makes enumeration trivial.
-
-A missing manifest is not an error. It means a first publish, and every file is
-planned for upload with nothing to delete.
-
-## Plugin
-
-### Settings
-
-A **Publish** section holding:
-
-- Bridge URL, defaulting to the mail bridge URL, with an override field for the
-  case where the services are ever split.
-- Publish token, in Obsidian's secret storage, resolved through the existing
-  `resolveApiKey` helper with the label `Publish-Token`.
-- A list of accounts. Each has a display name, a vault folder, a bridge target
-  chosen from `/publish/targets`, and a toggle for writing publish state back
-  into the note.
-- A **Verbindung testen** button per account, calling `/publish/plan` with an
-  empty file list. It proves the token, the target, the SFTP login, and the
-  root path in one request without writing anything.
-
-### Commands
-
-| Command | Behaviour |
+| Limit | Value |
 |---|---|
-| **Veröffentlichen** | Renders, plans, shows the plan for confirmation, uploads, commits |
-| **Veröffentlichung prüfen** | The same up to the plan, then stops and shows it |
-| **Website öffnen** | Opens the account base URL |
+| Markdown source | 2 MB |
+| Image | 10 MB |
+| Video | 25 MB |
+| Files per publish | 2000 |
+| Bytes per publish | 500 MB |
+| Concurrent publishes per target | 1 |
 
-Publishing is explicit. No save hook, no schedule, at least until the plan
-preview has proven itself in practice.
+## Rendering
 
-### Note contract
+`markdown-it` with GitHub-flavoured defaults, plus footnotes, definition
+lists, task lists, highlights, subscript and superscript, and heading anchors.
+On top of that, four Obsidian-specific rules:
+
+- **Wikilinks.** `[[Note]]` and `[[Note|alias]]` resolve through the index. A
+  link to a published note becomes `/<slug>/`. A link to an unpublished note
+  becomes plain text, never a dead link.
+- **Embeds.** `![[bild.png]]` becomes the content-addressed asset path. A video
+  extension produces a `<video controls>` element rather than an image.
+- **Callouts.** `> [!note]`, with the collapsible variants rendered as
+  `<details>` so folding needs no JavaScript.
+- **Comments.** `%%…%%` is removed before rendering, not hidden with CSS.
+
+**Math** is rendered server-side with KaTeX, both inline and block. The
+stylesheet and its font files are written once as generator assets and tracked
+in the manifest like any other file.
+
+**Diagrams** are the one exception to a JavaScript-free site. Mermaid cannot
+render server-side without a headless browser, so a `mermaid` fence becomes a
+`<pre class="mermaid">` block and the page loads a self-hosted Mermaid bundle
+that the bridge writes from its own dependencies. No content delivery network,
+and only pages that contain a diagram load the script.
+
+Frontmatter never reaches the output. It is metadata, and `published: false` on
+a page that leaks its own frontmatter would be an unpleasant surprise.
+
+Every rule gets a snapshot test. Rendering is a pure function, which is the
+whole reason it moved here.
+
+## Note contract
 
 ```yaml
 ---
-title: Hallo Welt          # default: first H1, else the filename
+published: true            # absent or false: not published
+title: Hallo Welt          # default: first heading, else the filename
 date: 2026-09-12           # default: file creation time
-description: …             # optional, used in the page head and on the index
-publish_slug: hallo-welt   # default: slugified filename
-draft: true                # excluded from the publish set
+description: …             # optional; page head and index entry
+slug: hallo-welt           # default: slugified filename
 published_at: …            # written back on success
 published_url: …           # written back on success
 ---
 ```
 
-Write-back mirrors what the mail feature does with `message_id` and `sent_at`,
-and for the same reason: the note should carry the evidence of what happened to
-it. It is a per-account toggle because it touches every published note.
+Setting `published: false` on a note that was published removes it from the
+site on the next publish. That is the unpublish path, and it needs no separate
+command.
 
-### Output layout
+Write-back mirrors what the mail feature does with `message_id` and `sent_at`:
+the note carries the evidence of what happened to it. It is a per-account
+toggle because it touches every published note, and it runs in its own error
+boundary so a failed write is reported without claiming the publish failed.
+
+## Output layout
 
 ```
-/index.html                     list of published notes, newest first
-/<slug>/index.html              one page per note
-/assets/theme.css               built-in stylesheet
-/assets/<hash>-<name>           attachments, content-addressed
-/.schreibstube/manifest.json    state
+/index.html                  published notes, newest first
+/<slug>/index.html           one page per note
+/assets/<hash>-<name>.<ext>  images and video
+/assets/theme.css            built-in stylesheet
+/assets/katex.css            plus font files, written once
+/assets/mermaid.min.js       written once, loaded only by pages with diagrams
 ```
 
-Clean URLs without server configuration, and an attachment whose content
-changes gets a new name, so caches cannot serve a stale image.
-
-A `theme.css` in the publish folder root replaces the built-in stylesheet. That
-is the whole theming story for the first release.
-
-### Rendering
-
-Each note is rendered with Obsidian's own `MarkdownRenderer` into a detached
-element, then wrapped in a page template. This keeps callouts, wikilinks and
-embeds looking as they do in the app, and it works on mobile because the
-renderer is the app's own code.
-
-Link handling:
-
-- An internal link to another published note becomes `/<slug>/`.
-- An internal link to an unpublished note becomes plain text, not a dead link.
-- An embedded attachment is collected into the file set and rewritten to its
-  content-addressed asset path.
-- An external link is left alone, with `rel="noopener"` added.
-
-Two known limits, worth stating before anyone reports them as bugs. Content
-produced asynchronously by other plugins, Mermaid among them, may render empty
-because serialisation does not wait for it. And output can shift when Obsidian
-changes its renderer, since the markup is not ours.
-
-If either becomes painful, the alternative is to render on the bridge from
-uploaded Markdown, which buys determinism and testability at the cost of
-reimplementing Obsidian's syntax extensions. Not worth it up front, worth
-revisiting if the output proves unstable.
+Clean URLs with no server configuration. An asset whose content changes gets a
+new name, so a cache cannot serve a stale image. A `theme.css` in the publish
+folder root replaces the built-in stylesheet, which is the whole theming story
+for the first release.
 
 ### Slug collisions
 
 Two notes resolving to the same slug abort the publish during the plan stage,
-naming both notes. Silently overwriting one with the other would lose a page
+naming both notes. Silently overwriting one page with another loses content
 with no signal.
+
+## Plugin
+
+### Settings
+
+A **Publish** section holding the bridge URL, defaulting to the mail bridge
+URL with an override for the case where the services are ever split; the
+publish token in Obsidian's secret storage, resolved through the existing
+`resolveApiKey` helper; and a list of accounts. Each account has a display
+name, a vault folder, a bridge target chosen from `/publish/targets`, and a
+write-back toggle.
+
+A **Verbindung testen** button per account calls `/diagnostics`, which proves
+the token, the target, the SFTP login, the fingerprint and the root path in one
+request without writing anything.
+
+### Commands
+
+| Command | Behaviour |
+|---|---|
+| **Veröffentlichen** | Collects, plans, shows the plan for confirmation, uploads, commits |
+| **Veröffentlichung prüfen** | The same up to the plan, then stops and shows it |
+| **Website öffnen** | Opens the account base URL |
+
+Publishing is explicit. No save hook and no schedule, at least until the plan
+preview has proven itself in practice.
 
 ## Failure modes
 
 | Failure | Behaviour |
 |---|---|
-| Bridge unreachable | Nothing rendered is uploaded; the command reports and stops |
-| Token wrong | A single clear message pointing at settings; no partial run |
-| Host fingerprint mismatch | The publish is refused, loudly. This is the one case that might be an attack |
-| Upload fails midway | Already-uploaded files stay; the manifest is untouched; the next run resumes |
-| Commit fails | Deletions may be partly applied; the manifest is untouched; the next run replans |
-| Disk full on the host | The failing put reports the SFTP error verbatim; nothing is committed |
+| Bridge unreachable | Nothing is uploaded; the command reports and stops |
+| Bridge too old | The version handshake names the mismatch and points at a redeploy |
+| Token wrong | One clear message pointing at settings; no partial run |
+| Fingerprint mismatch | Refused, loudly. This is the one case that might be an attack |
+| Upload interrupted | Uploaded hashes stay; the manifest is untouched; the next run resumes free |
+| Commit fails | Output may be partly written; the manifest is untouched; the next run re-renders |
+| Slug collision | Refused at plan; nothing is uploaded |
+| Disk full | The failing write reports the error; nothing is committed |
 
 ## Non-functional requirements
 
-- **Latency.** A publish of fifty unchanged notes must complete in under five
-  seconds, because the plan stage alone touches the network.
-- **Transfer.** Only changed files travel. Re-publishing an untouched folder
-  uploads nothing beyond the manifest.
-- **Reliability.** An interrupted publish never leaves a served page in a
-  half-written state.
+- **Latency.** Re-publishing an unchanged folder of fifty notes completes in
+  under five seconds, uploading nothing and writing nothing but the manifest.
+- **Transfer.** Only new content hashes travel. An edited note uploads one file.
+- **Reliability.** An interrupted publish never leaves a served page half
+  written, and never loses a file that is still in the index.
 - **Security.** No key material in the vault. Separate tokens per capability.
-  Every remote path validated against the target root.
-- **Privacy.** Only files in the publish folder leave the vault. Draft notes
-  and notes outside the folder are never read. Bridge logs record target, file
-  count and byte count, never paths or content.
-- **Observability.** Every publish logs a single summary line on both sides:
-  target, uploaded, deleted, unchanged, duration.
+  Every path validated against a configured root. No filename from a note ever
+  used as a path.
+- **Privacy.** Only notes marked `published: true` inside the folder leave the
+  vault. Logs record target, counts and bytes, never paths or content.
+- **Observability.** One summary line per publish on each side: target,
+  uploaded, written, deleted, unchanged, duration, request id.
 
 ## Delivery
 
-### Epic 1: Bridge publish capability
+### Epic 1: Bridge restructure
 
-- **Story 1.1** Target configuration and startup validation.
-  *Accepts when:* a valid block boots, each invalid variant fails at startup
-  with a message naming the variable, and a mail-only deployment is unaffected.
-- **Story 1.2** Token separation.
-  *Accepts when:* mail routes reject the publish token, publish routes reject
-  the mail token, `BRIDGE_TOKEN` still works for mail, and both rejections are
-  indistinguishable from a missing token.
-- **Story 1.3** Path safety module with unit tests.
-  *Accepts when:* traversal, absolute paths, control characters, oversized
-  segments, disallowed extensions and symlink destinations are all refused, and
-  the tests run under the root `npm test`.
-- **Story 1.4** SFTP transport with fingerprint pinning.
-  *Accepts when:* a mismatched fingerprint aborts before authentication.
-- **Story 1.5** The four endpoints, with temp-and-rename writes and
-  last-written manifest.
-  *Accepts when:* a killed process between put and commit leaves the site and
-  manifest consistent, and the next plan resumes correctly.
+- **Story 1.1** Capability-based configuration with startup validation.
+  *Accepts when:* mail-only, publish-only and combined deployments all boot,
+  each invalid variant fails at startup naming the variable, and no
+  `BRIDGE_TOKEN` path remains.
+- **Story 1.2** Route table with per-route capability, body type, limit and
+  timeout. *Accepts when:* a mail token on a publish route is rejected before
+  the body is read, and both rejections are indistinguishable from a missing
+  token.
+- **Story 1.3** Request identifiers, sanitised error bodies, failure
+  throttling, outbound timeouts, graceful drain.
+- **Story 1.4** `/health` version handshake and authenticated `/diagnostics`.
+- **Story 1.5** Existing mail behaviour ported onto the new structure with its
+  first tests. *Accepts when:* send, search and reply-fetch behave exactly as
+  they do today.
 
-### Epic 2: Plugin render pipeline
+### Epic 2: Renderer
 
-- **Story 2.1** Folder collection, frontmatter contract, draft exclusion, slug
-  derivation, collision detection.
-- **Story 2.2** Note to HTML with the page template and link rewriting.
-- **Story 2.3** Attachment collection and content-addressed naming.
-- **Story 2.4** Index page and built-in stylesheet, with `theme.css` override.
-  *Accepts when:* rendering a fixture vault produces byte-identical output on
-  two consecutive runs, and every link in the output resolves within the site.
+- **Story 2.1** Markdown pipeline with the base plugin set, snapshot-tested.
+- **Story 2.2** Wikilinks, embeds, callouts and comments against an index
+  fixture. *Accepts when:* a link to an unpublished note renders as text and
+  every internal link in the output resolves within the site.
+- **Story 2.3** Math and generator assets.
+- **Story 2.4** Diagrams with the self-hosted bundle, loaded only where used.
+- **Story 2.5** Page template, index page sorted by date, built-in stylesheet
+  and `theme.css` override. *Accepts when:* two consecutive renders of one
+  fixture produce byte-identical output.
 
-### Epic 3: Plugin publish flow
+### Epic 3: Publish capability
 
-- **Story 3.1** Settings section, accounts list, target dropdown, connection test.
-- **Story 3.2** Publish client over `requestUrl`, mirroring `mail-client.ts`.
-- **Story 3.3** The three commands, with the plan confirmation dialog and a
-  progress notice.
-- **Story 3.4** Frontmatter write-back, in its own error boundary so a failed
-  write is reported without claiming the publish failed. This is the mistake
-  the mail feature already made once and fixed.
+- **Story 3.1** Path safety module with its own tests.
+- **Story 3.2** SFTP transport with fingerprint pinning. *Accepts when:* a
+  mismatched fingerprint aborts before authentication.
+- **Story 3.3** Plan, source and asset upload, streamed and hash-verified.
+- **Story 3.4** Commit: render, write changed, delete removed, prune, collect,
+  manifest last. *Accepts when:* a process killed between upload and commit
+  leaves site and manifest consistent and the next plan resumes correctly.
+- **Story 3.5** `/publish/render` from stored state alone.
+
+### Epic 4: Plugin
+
+- **Story 4.1** Settings section, accounts, target dropdown, connection test.
+- **Story 4.2** Collection, frontmatter contract, defaults, slug derivation,
+  collision detection, index construction.
+- **Story 4.3** Publish client over `requestUrl`, mirroring `mail-client.ts`,
+  with binary bodies for assets.
+- **Story 4.4** The three commands, plan confirmation, progress notice.
+- **Story 4.5** Frontmatter write-back in its own error boundary.
 
 ### Rollout
 
-1. Render stage first, writing to a local folder. Reviewable with no bridge and
-   no server.
-2. Bridge endpoints against a throwaway directory on the real host, with
-   deletion disabled.
-3. Deletion enabled, exercised with a renamed note.
-4. Real folder, one account.
-5. Second account, to prove the target model before it is documented.
+1. Bridge restructure and the mail port, with tests. No publish routes yet.
+2. Renderer alone, output written to a local directory and reviewed.
+3. Publish routes against a throwaway directory on the real host, deletion
+   disabled.
+4. Deletion enabled, exercised with a renamed note and an unpublished note.
+5. First real account, then a second to prove the target model.
 
 Each step is a separate pull request. The publish commands stay unregistered
 until step three passes, which is the feature flag.
-
-## Open decisions
-
-1. **Index page contents.** Title, date and description, or also an excerpt?
-   The assumption here is the first.
-2. **Attachment scope.** Only attachments referenced by published notes, as
-   assumed here, or everything in the folder?
-3. **Desktop shortcut.** Should desktop later gain a direct SFTP path that
-   skips the bridge? It removes a dependency for desktop users and doubles the
-   transport surface. The assumption here is no.
