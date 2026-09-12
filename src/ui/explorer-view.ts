@@ -195,6 +195,7 @@ export class ExplorerPaneView extends ItemView {
 
     this.shelf = root.createDiv({ cls: "schreibstube-explorer-shelf" });
     this.body = root.createDiv({ cls: "schreibstube-explorer-body" });
+    this.body.addEventListener("scroll", () => this.syncShelfRule(), { passive: true });
 
     // The vault changes under the pane: a note created by a template, a file
     // deleted on another device and delivered by sync, frontmatter that binds a
@@ -257,6 +258,19 @@ export class ExplorerPaneView extends ItemView {
     this.renderFiles(host);
 
     this.scrollToRevealed();
+    this.syncShelfRule();
+  }
+
+  /**
+   * Show the strip's rule only while something is scrolled under it.
+   *
+   * At rest the strip is part of the pane and needs no line around it. The
+   * moment a fourth pinned row, or the section below, has gone past, the line
+   * says the strip is holding rows back rather than simply being first.
+   */
+  private syncShelfRule(): void {
+    if (!this.shelf || !this.body) return;
+    this.shelf.toggleClass("is-scrolled", this.body.scrollTop > 0);
   }
 
   // --- sections -----------------------------------------------------------

@@ -451,30 +451,22 @@
 
 /* The strip that does not scroll: the pinned block, directly under the filter.
    What a person pinned should be on screen wherever they have scrolled to,
-   which is the whole point of having pinned it. */
+   which is the whole point of having pinned it.
+
+   It paints no background of its own. The list scrolls inside its own box
+   below, so nothing ever passes under the strip, and a background would only
+   make it a panel sitting on the pane. */
 .schreibstube-explorer-shelf {
   position: relative;
   flex: 0 0 auto;
   z-index: 1;
-  background: var(--background-secondary);
 }
 
-/* A short gradient rather than a rule, so the list appears to pass beneath the
-   shelf instead of stopping at a border. Drawn outside the shelf's own box and
-   deaf to the pointer, so it never intercepts a click on the row below. */
-.schreibstube-explorer-shelf:not(:empty)::after {
-  content: "";
-  position: absolute;
-  top: 100%;
-  left: 0;
-  right: 0;
-  height: 8px;
-  pointer-events: none;
-  background: linear-gradient(
-    to bottom,
-    var(--background-modifier-box-shadow, rgba(0, 0, 0, 0.18)),
-    transparent
-  );
+/* The rule appears only once something has actually scrolled under the strip,
+   which is the moment it starts holding rows back. Drawn as a shadow rather
+   than a border so its arrival costs no layout. */
+.schreibstube-explorer-shelf.is-scrolled {
+  box-shadow: 0 1px 0 var(--background-modifier-border);
 }
 
 .schreibstube-explorer-body {

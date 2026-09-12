@@ -8,6 +8,10 @@ All notable changes to this project will be documented in this file.
 
 - **A file or folder can be dragged onto a folder to move it.** Dropping on the "Files and folders" header moves the item to the vault root, which is the only way to drag something out of every folder it sits in. Whether a move is allowed is decided away from the pointer: a folder cannot be dropped into itself or into its own subtree, a name already taken is refused rather than overwritten, and a refusal says which it was. The move goes through Obsidian's own rename, so links follow. Mouse only — the tree's long press opens the context menu, and on a phone that is the only way to reach a row's actions, so it is not a gesture to take.
 
+### Changed
+
+- **The pinned strip stops looking like a panel.** It painted a background of its own and carried a permanent shadow, which made the top of the pane read as a separate box sitting on it. It paints nothing now: the list scrolls inside its own box below, so nothing ever passes under the strip and it needed no background in the first place. The rule under it appears only once something has actually scrolled past, which is the moment the strip starts holding rows back rather than simply being first, and is drawn as a shadow so its arrival costs no layout.
+
 ### Fixed
 
 - **A press that ended outside its row left that row armed.** The pointer was captured only once a drag had begun, so a release delivered elsewhere never reached the row that started it. The next pointer merely passing over that row began a drag with nothing held down. The pointer is captured on the press now, and a mouse with no button held is treated as hovering.
