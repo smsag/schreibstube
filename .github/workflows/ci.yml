@@ -13,7 +13,7 @@ jobs:
       matrix:
         # The bridge declares support from Node 20; CI should say whether that
         # is true rather than assume it.
-        node: ['20', '22']
+        node: ["20", "22"]
 
     steps:
       - uses: actions/checkout@v5
