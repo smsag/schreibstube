@@ -149,6 +149,18 @@ describe("describeBridgeError", () => {
     );
   });
 
+  it("explains a throttled bridge rather than echoing the status", () => {
+    expect(describeBridgeError(429, '{"error":"Too many failed attempts."}')).toMatch(/wait/i);
+  });
+
+  it("explains a restarting bridge", () => {
+    expect(describeBridgeError(503, '{"error":"Bridge is shutting down."}')).toMatch(/restarting/i);
+  });
+
+  it("names what timed out", () => {
+    expect(describeBridgeError(504, '{"error":"The request took too long."}')).toMatch(/timed out/i);
+  });
+
   it("falls back to the raw body when the response is not JSON", () => {
     expect(describeBridgeError(500, "<html>gateway</html>")).toMatch(/gateway/);
   });

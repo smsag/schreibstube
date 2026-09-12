@@ -1,33 +1,61 @@
-# Schreibstube mail bridge
+# Schreibstube bridge
 
-A small, stateless HTTP service that lets the Schreibstube Obsidian plugin send
-and search email.
+A small, stateless HTTP service that lets the Schreibstube Obsidian plugin reach
+protocols a WebView cannot speak. Today that is mail; publishing is next.
 
 ## Why this exists
 
 Obsidian on mobile runs plugins in a WebView: no Node runtime, no raw TCP
-sockets. IMAP and SMTP are raw TCP protocols, so the plugin cannot speak them
-directly — on mobile it never will be able to. Putting HTTPS in front of them
-gives the plugin one transport (`requestUrl`) that behaves identically on
+sockets. IMAP, SMTP and SFTP are raw TCP protocols, so the plugin cannot speak
+them directly — on mobile it never will be able to. Putting HTTPS in front of
+them gives the plugin one transport (`requestUrl`) that behaves identically on
 desktop and mobile, and keeps the plugin free of Node-only dependencies.
 
 A useful side effect: the mailbox password lives here, in the bridge's
-environment, not in the vault. The plugin only stores a bridge token, which can
-be rotated without touching the mailbox.
+environment, not in the vault. The plugin only stores a token, which can be
+rotated without touching the mailbox.
 
 **The bridge stores nothing.** No database, no message cache, no request-body
 logging. Log lines record the Message-ID and result counts, never recipients or
 message content.
 
+## Capabilities
+
+The bridge hosts capabilities, each with its own token, credentials and limits.
+A capability whose variables are absent is not offered at all, and a deployment
+that offers nothing refuses to start. One capability's token never opens
+another's routes: it is refused exactly as a wrong token is, and says as little.
+
+Run the bridge as a **single instance**. State that has to be shared between
+requests — the throttle today, the per-target publish lock later — lives in
+memory, and a second instance would not see it.
+
 ## API
 
-All endpoints except `/health` require `Authorization: Bearer <BRIDGE_TOKEN>`.
+All endpoints except `/health` require `Authorization: Bearer <token>`, and the
+token must belong to the capability that owns the route.
 
-| Method | Path | Body | Returns |
-|---|---|---|---|
-| `GET` | `/health` | — | `{"status":"ok"}` |
-| `POST` | `/send` | `{to, cc?, bcc?, subject, text, from?, inReplyTo?, references?}` | `{messageId, sentAt, filedInSent}` |
-| `POST` | `/search` | `{criteria:{from?,to?,subject?,text?,since?,references?}, mailbox?, limit?}` | `{messages[], mailbox, truncated}` |
+| Method | Path | Capability | Body | Returns |
+|---|---|---|---|---|
+| `GET` | `/health` | — | — | `{status, version, protocol, capabilities[]}` |
+| `POST` | `/diagnostics` | any | — | per-protocol reachability for that capability |
+| `POST` | `/send` | mail | `{to, cc?, bcc?, subject, text, from?, inReplyTo?, references?}` | `{messageId, sentAt, filedInSent}` |
+| `POST` | `/search` | mail | `{criteria:{from?,to?,subject?,text?,since?,references?}, mailbox?, limit?}` | `{messages[], mailbox, truncated}` |
+
+`/health` is the version handshake: plugin and bridge deploy separately, and
+`protocol` is what lets the plugin say "redeploy the bridge" instead of failing
+later on an unknown route.
+
+`/diagnostics` opens a real connection with the configured credentials and
+reports each protocol on its own, because a health check that says only "a
+process is alive" cannot answer "is my configuration right".
+
+Every error carries a stable `code` and the `requestId` that identifies it in
+the logs:
+
+```json
+{ "error": "Unauthorized.", "code": "unauthorized", "requestId": "req_3f9a1c07" }
+```
 
 `references` is the thread lookup: it matches messages citing that Message-ID in
 either `References` or `In-Reply-To`, which is how the plugin finds replies to a
@@ -54,18 +82,21 @@ npm ci --prefix bridge   # once; the tests import imapflow and nodemailer
 npm test                 # from the repository root
 ```
 
-`config.test.mjs`, `mail-send.test.mjs` and `mail-search.test.mjs` exercise the
-modules directly, with a fake SMTP transport and a fake IMAP client, so nothing
-touches the network. `server.test.mjs` starts the bridge as a real process and
-drives it over HTTP, because configuration is read and the port bound at import
-time.
+The pure modules — configuration, routing, the throttle, the deadlines — are
+tested directly. The mail modules run against a fake SMTP transport and a fake
+IMAP client, so nothing touches the network. `server.test.mjs` starts the bridge
+as a real process and drives it over HTTP, because configuration is read and the
+port bound at import time, and because routing, auth and the body limits are
+properties of the running service.
 
 ## Configuration
 
-Copy `.env.example` and fill it in. Required: `BRIDGE_TOKEN`, `IMAP_HOST`,
-`SMTP_HOST`, `MAIL_USER`, `MAIL_PASSWORD`, `MAIL_FROM`. Everything else has a
-sensible default. Missing or weak values fail at startup with a precise message
-rather than on the first request.
+Copy `.env.example` and fill it in. To offer mail, set `MAIL_TOKEN`,
+`IMAP_HOST`, `SMTP_HOST`, `MAIL_USER`, `MAIL_PASSWORD` and `MAIL_FROM`;
+everything else has a sensible default. Set none of them and the bridge does not
+offer mail; set some, and it names the ones still missing. Missing or weak
+values fail at startup with a precise message rather than on the first
+request.
 
 Generate the token with:
 

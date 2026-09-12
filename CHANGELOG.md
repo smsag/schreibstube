@@ -4,7 +4,24 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Changed
+
+- **The bridge is now capability-based** (`bridge/` 2.0.0), in preparation for publishing. Each capability brings its own token, credentials and limits; a capability whose variables are absent is not offered, and a deployment that offers nothing refuses to start. One capability's token never opens another's routes.
+  - **`BRIDGE_TOKEN` is now `MAIL_TOKEN`.** Rename it in your deployment before updating the bridge. Nothing changes in the plugin: the token is still sent as `Authorization: Bearer`.
+  - **Errors carry a stable `code` and a `requestId`** alongside the message, so a report can be tied to a log line. Every log line about a request carries the same id.
+  - **`/health` reports the bridge version, the protocol version and the capabilities offered**, so a bridge that was not redeployed alongside the plugin can say so instead of failing on an unknown route.
+  - **New `/diagnostics` endpoint** opens a real connection with the configured credentials and reports each protocol separately.
+  - **The token is now checked before the path**, so an unauthorised caller cannot map the bridge by probing for routes.
+  - **Repeated authentication failures from one address are throttled**, then answered with a 429 and a `Retry-After`. The health probe stays reachable.
+  - **Every outbound operation has a deadline** and every request a budget, so a connection that neither answers nor closes can no longer hold a request open until the client gives up.
+  - **Shutdown drains in-flight requests** instead of cutting them off, so a redeploy is not a crash.
+- Run the bridge as a single instance. Shared state such as the throttle lives in memory.
+
 ### Added
+
+- **The bridge has tests.** 151 of them, covering configuration, routing, authorisation, the throttle, deadlines, the send path, the search path and the HTTP layer. They run under the repository's own `npm test`; the mail paths use a fake SMTP transport and a fake IMAP client, so nothing touches the network.
+- **A CI workflow** runs the test suite and the production build on every pull request.
+- **The plugin explains the bridge's new statuses** — throttled, restarting and timed out — instead of echoing the status code.
 
 - **Email commands, working on mobile as well as desktop.** Three new commands:
   - **Send note as email** — addressing comes from the note's frontmatter (`schreibstubeTo`, `schreibstubeCc`, `schreibstubeSubject`), the body is the note with its frontmatter stripped. A confirmation dialog shows recipients and subject before anything leaves the vault. On success the assigned `schreibstubeMessageId` and `schreibstubeSentAt` are written back to the note.

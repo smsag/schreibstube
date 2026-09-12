@@ -256,7 +256,7 @@ Requires a deployed bridge — see [`bridge/README.md`](bridge/README.md).
 | Setting | Description | Default |
 |---|---|---|
 | Bridge URL | Base URL of your bridge. Must be `https://` unless it is localhost | — |
-| Bridge token | The bridge's `BRIDGE_TOKEN`, stored in Obsidian's secret storage | — |
+| Bridge token | The bridge's `MAIL_TOKEN`, stored in Obsidian's secret storage | — |
 | From address | Optional override for the bridge's `MAIL_FROM` | — |
 | Mailbox | IMAP mailbox searched by the query and reply commands | INBOX |
 | Maximum results | How many messages a search returns (newest kept) | 25 |

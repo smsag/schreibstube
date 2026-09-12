@@ -22,14 +22,55 @@ const compiler = nodemailer.createTransport({
   newline: "windows"
 });
 
-export function createSmtpTransport(config) {
+export function createSmtpTransport(config, timeoutMs) {
   return nodemailer.createTransport({
     host: config.smtp.host,
     port: config.smtp.port,
     secure: config.smtp.secure,
     auth: config.smtp.auth,
-    requireTLS: !config.smtp.secure
+    requireTLS: !config.smtp.secure,
+    // Without these, a server that accepts the connection and then says nothing
+    // holds the request until the client gives up.
+    connectionTimeout: timeoutMs,
+    greetingTimeout: timeoutMs,
+    socketTimeout: timeoutMs
   });
+}
+
+/**
+ * Prove the mailbox is reachable with the configured credentials.
+ *
+ * Used by /diagnostics, which exists because a health check that only says a
+ * process is alive cannot answer "is my configuration right". Each protocol is
+ * reported on its own: SMTP working while IMAP does not is a real and common
+ * state, and the distinction is the whole value of the answer.
+ */
+export async function diagnose(config, transport) {
+  return {
+    imap: await attempt(async () => {
+      const client = newClient(config);
+      try {
+        await client.connect();
+        const lock = await client.getMailboxLock(config.defaultMailbox);
+        lock.release();
+        return { mailbox: config.defaultMailbox };
+      } finally {
+        await safeLogout(client);
+      }
+    }),
+    smtp: await attempt(async () => {
+      await transport.verify();
+      return {};
+    })
+  };
+}
+
+async function attempt(work) {
+  try {
+    return { ok: true, ...(await work()) };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
 }
 
 /**
@@ -215,7 +256,9 @@ function newClient(config) {
     secure: config.imap.secure,
     auth: config.imap.auth,
     logger: false,
-    emitLogs: false
+    emitLogs: false,
+    greetingTimeout: config.upstreamTimeoutMs,
+    socketTimeout: config.upstreamTimeoutMs
   });
 }
 

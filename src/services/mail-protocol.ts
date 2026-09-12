@@ -183,6 +183,12 @@ export function describeBridgeError(status: number, body: string): string {
       return "bridge endpoint not found — check the Bridge URL setting.";
     case 413:
       return "the note is too large for the bridge to accept.";
+    case 429:
+      return "bridge is refusing further attempts after repeated token failures — wait a minute.";
+    case 503:
+      return "bridge is restarting — try again in a moment.";
+    case 504:
+      return `bridge timed out — ${detail || "the mail server did not answer in time."}`;
     case 502:
       return `mail server error — ${detail || "the bridge could not reach IMAP/SMTP."}`;
     default:
