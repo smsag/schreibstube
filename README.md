@@ -319,6 +319,16 @@ The token is deliberately separate from the mail token, so a leaked publish toke
 | ------------- | ---------------------------------------------------------------------------- | ------- |
 | Debug logging | Log detailed diagnostics to the developer console (errors are always logged) | Off     |
 
+## Documentation
+
+| Document                               | What is in it                                                     |
+| -------------------------------------- | ----------------------------------------------------------------- |
+| [`ARCHITECTURE.md`](ARCHITECTURE.md)   | What runs in the vault, what runs on the bridge, and what crosses |
+| [`PUBLISHING.md`](PUBLISHING.md)       | Why publishing is shaped this way                                 |
+| [`CONTRIBUTING.md`](CONTRIBUTING.md)   | Setup, the checks, the mobile checklist, releasing                |
+| [`bridge/README.md`](bridge/README.md) | The bridge's API, configuration and deployment                    |
+| [`examples/blog/`](examples/blog/)     | A publish folder to copy into a vault                             |
+
 ## Installation
 
 Copy `main.js`, `manifest.json`, and `styles.css` into your vault plugin folder:

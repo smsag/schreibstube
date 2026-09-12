@@ -19,6 +19,19 @@ rotated without touching the mailbox.
 logging. Log lines record the Message-ID and result counts, never recipients or
 message content.
 
+## Versions
+
+The bridge and the plugin are deployed separately, so the pair has to stay
+compatible. `/health` reports what a deployment is actually running, and the
+plugin says plainly when the bridge is behind rather than failing later on a
+route that does not exist yet.
+
+| Bridge | Protocol | Plugin          | Notes                                             |
+| ------ | -------- | --------------- | ------------------------------------------------- |
+| 2.1.x  | 1        | 1.8.0 and later | Mail and publishing                               |
+| 2.0.x  | 1        | 1.8.0 and later | Mail only; `BRIDGE_TOKEN` renamed to `MAIL_TOKEN` |
+| 1.0.x  | —        | 1.7.0           | Mail only, single token, no version handshake     |
+
 ## Capabilities
 
 The bridge hosts capabilities, each with its own token, credentials and limits.
