@@ -417,9 +417,54 @@
   flex: 0 0 auto;
 }
 
-.schreibstube-explorer-tree {
+.schreibstube-explorer-body {
   flex: 1 1 auto;
   overflow-y: auto;
+}
+
+.schreibstube-explorer-tree {
+  display: flex;
+  flex-direction: column;
+}
+
+.schreibstube-explorer-section + .schreibstube-explorer-section {
+  margin-top: 8px;
+}
+
+.schreibstube-explorer-section-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 2px 4px;
+  background: none;
+  border: none;
+  box-shadow: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  text-align: left;
+}
+
+.schreibstube-explorer-section-header:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+.schreibstube-explorer-section-title {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: var(--font-semibold);
+}
+
+.schreibstube-explorer-subheading {
+  padding: 4px 4px 2px 21px;
+  color: var(--text-faint);
+  font-size: var(--font-ui-smaller);
+}
+
+.schreibstube-explorer-row.is-revealed {
+  background: var(--text-selection);
 }
 
 .schreibstube-explorer-empty {
@@ -566,4 +611,22 @@
 
 .schreibstube-prompt-error {
   color: var(--text-error);
+}
+
+.schreibstube-bookmark-suggestion {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.schreibstube-bookmark-suggestion-text {
+  min-width: 0;
+}
+
+.schreibstube-bookmark-suggestion-path {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

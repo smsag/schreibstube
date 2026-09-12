@@ -212,6 +212,8 @@ What the bridge does and the plugin does not: rendering the Markdown, holding th
 
 A file list of Schreibstube's own, opened with **Open file pane**. It exists because three things cannot be done to Obsidian's explorer from a plugin without fighting it: an icon per item, a mark for sync state, and an order that puts pinned files first.
 
+The pane has three sections, each one collapsible, each remembering whether it was open on that device: **Bookmarks**, **Latest**, and **Files and folders**.
+
 - **Icons.** Right-click, or long-press on a phone, and pick from 172 icons grouped by what they are for — documents, folders, property, business, status. The set is a subsetted [Tabler](https://tabler.io/icons) webfont carried inside the bundle, so it works offline and on mobile, with no request to a CDN.
 - **Sync marks.** A note bound to a source shows what its mirror is doing: in sync, changes waiting from the poll, never checked, or a source that cannot be fetched. Shape carries the state and colour only reinforces it. Nothing is shown while document sync is off.
 - **Pinning.** A pinned file or folder sits at the top of its folder, in the order it was pinned. Everything below keeps Obsidian's own arrangement: folders first, then files, numeric-aware so `Objekt 2` precedes `Objekt 10`.
@@ -228,6 +230,46 @@ The sync actions are why the menu is worth owning:
 | Remove source binding | Drops the frontmatter key and the stored baseline                                 |
 
 On a folder, **Check every bound note here** refreshes the mirrors under it, which is the difference between refreshing one project and polling a vault of a thousand notes.
+
+#### Bookmarks
+
+A list of links the tree cannot hold: a web page, an Obsidian URI, a vault folder, a note. Obsidian's own bookmarks cover the last two and have no room for the first two, which is the reason this section exists.
+
+They are read from a Markdown file in the vault, `bookmarks.md` unless a setting says otherwise. The pane never writes it. Links are added by editing the file, which is also what makes the list survivable: it can be read, fixed, versioned and merged like any other note, and two devices editing it conflict the way two devices editing a note conflict, rather than through a mechanism of its own.
+
+```markdown
+# Work
+
+- [Linear](https://linear.app/team)
+- [Objekte](vault://Immobilien/Objekte)
+
+## Design
+
+- [[Design Brief]]
+```
+
+| Line            | Meaning                                          |
+| --------------- | ------------------------------------------------ |
+| `# Heading`     | A folder                                         |
+| `## Heading`    | A subfolder, one level only                      |
+| `- [Name](url)` | A bookmark                                       |
+| `- [[Note]]`    | A bookmark to a note, with an optional `\|label` |
+| Anything else   | Ignored                                          |
+
+| Scheme                | Opens                                              |
+| --------------------- | -------------------------------------------------- |
+| `https://`, `http://` | The page in the default browser                    |
+| `obsidian://`         | The Obsidian URI                                   |
+| `vault://path`        | Reveals that folder in this pane, ancestors opened |
+| `note://linkpath`     | The note                                           |
+
+Anything else is dropped while the file is read, so a `javascript:` line pasted into a synced file never becomes a row that can be tapped.
+
+Right-click a folder anywhere in Obsidian and choose **Copy path for Schreibstube** to get its `vault://` URL, ready to paste into the file. **Open bookmark** searches the list by name, folder or URL from the command palette, offering what was opened most recently on that device first.
+
+#### Latest
+
+Two short lists: the notes created most recently, and those changed most recently. A note shown as created is not repeated as changed, because in a young vault the two lists are otherwise the same list twice. Only Markdown counts, so an attachment written by a paste never takes the top row. The bookmarks file is always excluded, and further paths can be.
 
 Icons and pins live in `explorer.json` inside the plugin folder, deliberately not in `data.json`: that file is rewritten whole on every save, so a second device would clobber it. Each entry carries its own timestamp and every write re-reads and merges per entry, so two devices editing different files both keep their change. The pane also watches the file for writes delivered by iCloud, Obsidian Sync or Git while it is open. A file that moves keeps its icon; one that disappears keeps it for thirty days, in case it turns up somewhere else under the same name.
 
@@ -257,6 +299,11 @@ Control where internal links open, indicated in the status bar:
 | Setting                  | Description                                                                   | Default             |
 | ------------------------ | ----------------------------------------------------------------------------- | ------------------- |
 | Items from other plugins | Where contributed menu items go: behind "More actions", inline, or not at all | Behind More actions |
+| Bookmarks section        | Show the bookmarks list above the file tree                                   | On                  |
+| Bookmarks file           | Vault path of the Markdown file the bookmarks are read from                   | `bookmarks.md`      |
+| Latest section           | Show the recently created and recently changed notes                          | On                  |
+| Notes per list           | How many notes each of the two lists shows                                    | 5                   |
+| Never show these         | Vault paths kept out of both lists, by comma or line break                    | empty               |
 | Icon set                 | Which icon set is bundled, and how many icons it holds                        | Tabler Icons (MIT)  |
 
 ### AI models

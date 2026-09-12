@@ -28,6 +28,24 @@ export const enExtra = {
     explorerForeignSubmenu: 'Behind "More actions"',
     explorerForeignInline: "At the end of the menu",
     explorerForeignOff: "Not at all",
+    explorerBookmarks: "Bookmarks section",
+    explorerBookmarksDesc:
+      "A list of links above the file tree: web pages, Obsidian URIs, vault folders and notes. " +
+      "The pane only reads the file, so links are added by editing it.",
+    explorerBookmarksFile: "Bookmarks file",
+    explorerBookmarksFileDesc:
+      "Vault path of the Markdown file the bookmarks are read from. A heading is a folder, a " +
+      "list item is a link.",
+    explorerLatest: "Latest section",
+    explorerLatestDesc:
+      "Two short lists between the bookmarks and the tree: the notes most recently created, and " +
+      "those most recently changed. A note shown as created is not repeated as changed.",
+    explorerLatestCount: "Notes per list",
+    explorerLatestCountDesc: (max: number) =>
+      `How many notes each of the two lists shows (1 to ${max}).`,
+    explorerLatestExclude: "Never show these",
+    explorerLatestExcludeDesc:
+      "Vault paths, separated by commas or line breaks. The bookmarks file is always excluded.",
     explorerIcons: "Icon set",
     explorerIconsDesc: (count: number, version: string) =>
       `${count} icons from Tabler Icons ${version} (MIT), bundled with the plugin so they work offline and on mobile.`,
@@ -223,6 +241,34 @@ export const enExtra = {
     empty: "This vault has no files yet.",
     searchPlaceholder: "Filter files…",
     pinnedSection: "Pinned",
+
+    sections: {
+      bookmarks: "Bookmarks",
+      latest: "Latest",
+      files: "Files and folders"
+    },
+
+    bookmarks: {
+      empty: "No bookmarks yet.",
+      hint: (path: string) =>
+        `Write them into ${path}: a heading is a folder, a list item is a link.`,
+      missingFile: (path: string) => `There is no bookmarks file at ${path} yet.`,
+      badTarget: (name: string) => `${name} does not point anywhere that can be opened.`,
+      missingFolder: (path: string) => `there is no folder at ${path}.`,
+      missingNote: (path: string) => `there is no note called ${path}.`,
+      copyPath: "Copy path for Schreibstube",
+      copied: (path: string) => `${path} copied as a bookmark link.`,
+      copyFailed: "the clipboard is not available here.",
+      quickOpen: "Search bookmarks…",
+      recent: "Recently opened",
+      all: "All bookmarks"
+    },
+
+    latest: {
+      created: "Created",
+      modified: "Modified",
+      empty: "No notes yet."
+    },
 
     menu: {
       open: "Open",
