@@ -16,7 +16,7 @@ Each card shows the change as a word-level diff, with **Übernehmen**, **Verwerf
 
 What the correction pass will not touch: frontmatter, fenced code blocks, tables, and math blocks are excluded entirely. Inline code, wikilinks, link targets, tags, and bare URLs are masked before the text is sent and restored afterwards; if a response comes back having lost one of them, that section is discarded rather than applied.
 
-If you edit the note while the queue is open, cards whose text can no longer be located are marked *veraltet* instead of being applied to the wrong words.
+If you edit the note while the queue is open, cards whose text can no longer be located are marked _veraltet_ instead of being applied to the wrong words.
 
 ### Glossary
 
@@ -24,12 +24,12 @@ A glossary is an ordinary note with `schreibstubeGlossary: true` in its frontmat
 
 The term model follows TBX-Basic (ISO 30042): a concept groups several terms, and each term carries an administrative status.
 
-| Status | What the panel does |
-|---|---|
-| `preferred` | Offered as the replacement for other terms in the concept; flagged only when written in the wrong case |
-| `admitted` | Acceptable usage, never flagged |
-| `deprecated` | Flagged, with the preferred term offered when the concept has one |
-| `superseded` | Flagged, never auto-fixed, because whether the newer term applies is a judgement call |
+| Status       | What the panel does                                                                                    |
+| ------------ | ------------------------------------------------------------------------------------------------------ |
+| `preferred`  | Offered as the replacement for other terms in the concept; flagged only when written in the wrong case |
+| `admitted`   | Acceptable usage, never flagged                                                                        |
+| `deprecated` | Flagged, with the preferred term offered when the concept has one                                      |
+| `superseded` | Flagged, never auto-fixed, because whether the newer term applies is a judgement call                  |
 
 The TBX picklist identifiers (`deprecatedTerm-admn-sts` and so on) and the informal `notRecommended` and `obsolete` spellings are accepted too, so an export from a termbase tool can be pasted in.
 
@@ -40,13 +40,13 @@ schreibstubeLanguage: de
 schreibstubeDefaultSeverity: error
 ---
 
-| Concept   | Term         | Status     | Match | Note                    |
-|-----------|--------------|------------|-------|-------------------------|
-| objekt    | Objekt       | preferred  | word  |                         |
-| objekt    | Immobilie    | deprecated | word  | Hausbegriff seit 2024   |
-| objekt    | Liegenschaft | admitted   |       |                         |
-| makler    | Broker       | deprecated | word  |                         |
-| courtage  | Courtage     | superseded | word  | Vertragsabhängig        |
+| Concept  | Term         | Status     | Match | Note                  |
+| -------- | ------------ | ---------- | ----- | --------------------- |
+| objekt   | Objekt       | preferred  | word  |                       |
+| objekt   | Immobilie    | deprecated | word  | Hausbegriff seit 2024 |
+| objekt   | Liegenschaft | admitted   |       |                       |
+| makler   | Broker       | deprecated | word  |                       |
+| courtage | Courtage     | superseded | word  | Vertragsabhängig      |
 ```
 
 Every frontmatter key the plugin reads is prefixed with `schreibstube`, without exception, because Obsidian frontmatter is one flat namespace shared with other plugins and with your own properties.
@@ -55,13 +55,13 @@ German column headers (`Konzept`, `Benennung`, `Status`, `Treffer`, `Hinweis`) w
 
 `Match` controls how a term is found:
 
-| Mode | Behaviour |
-|---|---|
-| `word` (default) | Whole word, case-insensitive, tolerating German inflection endings so *Immobilien* matches *Immobilie* |
-| `exact` | Case-sensitive, no inflection. Use when two spellings of one word are separate entries |
-| `prefix` | Matches inside a compound, so *Broker* catches *Brokerbüro* |
+| Mode             | Behaviour                                                                                              |
+| ---------------- | ------------------------------------------------------------------------------------------------------ |
+| `word` (default) | Whole word, case-insensitive, tolerating German inflection endings so _Immobilien_ matches _Immobilie_ |
+| `exact`          | Case-sensitive, no inflection. Use when two spellings of one word are separate entries                 |
+| `prefix`         | Matches inside a compound, so _Broker_ catches _Brokerbüro_                                            |
 
-When a match is an inflected form, the card is marked *Beugung prüfen*, because the replacement is the base form and the ending may need fixing by hand.
+When a match is an inflected form, the card is marked _Beugung prüfen_, because the replacement is the base form and the ending may need fixing by hand.
 
 **Which glossary applies** is decided by the first of these that yields anything, with no merging between them:
 
@@ -92,12 +92,12 @@ With **Check when a bound note opens** on, a bound note is also checked as you o
 
 The schedule is a five-field cron expression in local time:
 
-| Expression | Meaning |
-|---|---|
-| `0 * * * *` | hourly, on the hour |
-| `0 */4 * * *` | every four hours |
-| `0 8 * * *` | daily at 08:00 |
-| `0 8 * * 1-5` | weekdays at 08:00 |
+| Expression    | Meaning             |
+| ------------- | ------------------- |
+| `0 * * * *`   | hourly, on the hour |
+| `0 */4 * * *` | every four hours    |
+| `0 8 * * *`   | daily at 08:00      |
+| `0 8 * * 1-5` | weekdays at 08:00   |
 
 Lists, ranges and steps work (`0,30`, `9-17`, `*/15`), as do month and weekday names. When both day fields are restricted they are OR-ed, which is standard cron: `0 9 1 * 1` fires on the first of the month and on every Monday. The settings screen shows the next fire time as soon as the expression parses.
 
@@ -155,8 +155,8 @@ The note's frontmatter is the contract:
 schreibstubeTo: kunde@example.com
 schreibstubeCc: [innendienst@example.com]
 schreibstubeSubject: Angebot Objekt 4711
-schreibstubeMessageId: <7f3a…@your-domain.de>   # written on send
-schreibstubeSentAt: 2026-09-07T10:12:00.000Z    # written on send
+schreibstubeMessageId: <7f3a…@your-domain.de> # written on send
+schreibstubeSentAt: 2026-09-07T10:12:00.000Z # written on send
 schreibstubeMergedIds: ["<reply-1@mail.kunde.de>"] # written on merge; keeps merging idempotent
 ---
 ```
@@ -185,12 +185,12 @@ Publishing is opt-in per note. A note is published when its frontmatter says so,
 ```yaml
 ---
 published: true
-title: Hallo Welt          # default: the first heading, else the filename
-date: 2026-09-12           # default: the file's creation date
-description: Kurzfassung   # optional; page head and index entry
-slug: hallo-welt           # default: from the filename
-publishedAt: …             # written back after publishing
-publishedUrl: …            # written back after publishing
+title: Hallo Welt # default: the first heading, else the filename
+date: 2026-09-12 # default: the file's creation date
+description: Kurzfassung # optional; page head and index entry
+slug: hallo-welt # default: from the filename
+publishedAt: … # written back after publishing
+publishedUrl: … # written back after publishing
 ---
 ```
 
@@ -219,104 +219,105 @@ Control where internal links open, indicated in the status bar:
 
 ### Heading stack
 
-| Setting | Description | Default |
-|---|---|---|
-| Enable heading stack overlay | Show or hide the sticky ancestor breadcrumb | On |
+| Setting                      | Description                                 | Default |
+| ---------------------------- | ------------------------------------------- | ------- |
+| Enable heading stack overlay | Show or hide the sticky ancestor breadcrumb | On      |
 
 ### Focus mode
 
-| Setting | Description | Default |
-|---|---|---|
-| Dim opacity | Opacity of out-of-focus lines (0.2 faint – 0.8 nearly full) | 0.4 |
+| Setting     | Description                                                 | Default |
+| ----------- | ----------------------------------------------------------- | ------- |
+| Dim opacity | Opacity of out-of-focus lines (0.2 faint – 0.8 nearly full) | 0.4     |
 
 ### AI models
 
 Provider, model, and API key are shared by every AI command (rename and summarize).
 
-| Setting | Description | Default |
-|---|---|---|
-| LLM provider | Anthropic or OpenAI | Anthropic |
-| Model | Model for the selected provider | Claude Haiku 4.5 |
-| Custom model ID | Optional override for a newer or unlisted model | — |
-| API key | Stored in Obsidian's native secret storage | — |
+| Setting         | Description                                     | Default          |
+| --------------- | ----------------------------------------------- | ---------------- |
+| LLM provider    | Anthropic or OpenAI                             | Anthropic        |
+| Model           | Model for the selected provider                 | Claude Haiku 4.5 |
+| Custom model ID | Optional override for a newer or unlisted model | —                |
+| API key         | Stored in Obsidian's native secret storage      | —                |
 
 API keys are stored in Obsidian's built-in secret storage and are never written to the plugin data file.
 
 ### Rename file from content
 
-| Setting | Description | Default |
-|---|---|---|
-| Max image size | Maximum image dimension (px) sent to the model | 768 |
-| Minimum content length | Notes shorter than this are skipped | 50 chars |
-| Maximum content sent to LLM | Characters from the note sent to the API | 4 000 chars |
-| Maximum filename length | Generated name is truncated to this | 60 chars |
+| Setting                     | Description                                    | Default     |
+| --------------------------- | ---------------------------------------------- | ----------- |
+| Max image size              | Maximum image dimension (px) sent to the model | 768         |
+| Minimum content length      | Notes shorter than this are skipped            | 50 chars    |
+| Maximum content sent to LLM | Characters from the note sent to the API       | 4 000 chars |
+| Maximum filename length     | Generated name is truncated to this            | 60 chars    |
 
 ### Summarize selection
 
-| Setting | Description | Default |
-|---|---|---|
-| Summarize prompt | System instruction telling the LLM how to summarize | Insight-log preset |
-| Maximum response tokens | Upper bound on summary length (64–4096) | 512 |
+| Setting                 | Description                                         | Default            |
+| ----------------------- | --------------------------------------------------- | ------------------ |
+| Summarize prompt        | System instruction telling the LLM how to summarize | Insight-log preset |
+| Maximum response tokens | Upper bound on summary length (64–4096)             | 512                |
 
 ### Proofreading
 
-| Setting | Description | Default |
-|---|---|---|
-| Proofread prompt | System instruction for the correction pass | Correction-only German preset |
-| Maximum response tokens | Upper bound per request (256–8192) | 2 048 |
-| Characters per request | Prose sent per chunk (500–6000) | 2 000 |
-| Parallel requests | Chunks in flight at once (1–4) | 2 |
+| Setting                 | Description                                | Default                       |
+| ----------------------- | ------------------------------------------ | ----------------------------- |
+| Proofread prompt        | System instruction for the correction pass | Correction-only German preset |
+| Maximum response tokens | Upper bound per request (256–8192)         | 2 048                         |
+| Characters per request  | Prose sent per chunk (500–6000)            | 2 000                         |
+| Parallel requests       | Chunks in flight at once (1–4)             | 2                             |
 
 ### Glossary
 
-| Setting | Description | Default |
-|---|---|---|
-| Default glossaries | Vault paths, one per line | — |
-| Folder rules | One per line: `folder \| glossary.md, other.md` | — |
-| Underline glossary hits in the editor | Marks error-severity terms while writing | Off |
+| Setting                               | Description                                     | Default |
+| ------------------------------------- | ----------------------------------------------- | ------- |
+| Default glossaries                    | Vault paths, one per line                       | —       |
+| Folder rules                          | One per line: `folder \| glossary.md, other.md` | —       |
+| Underline glossary hits in the editor | Marks error-severity terms while writing        | Off     |
 
 ### Document sync
 
-| Setting | Description | Default |
-|---|---|---|
-| Enable document sync | Bound notes are ignored entirely until this is on | Off |
-| Check when a bound note opens | Also check automatically on open | On |
-| Minimum minutes between automatic checks | Per note. Zero checks on every open; a manual check always runs | 10 |
-| GitHub token | Optional. Needed for private repositories, and raises the rate limit | — |
-| Poll all bound notes in the background | Check every bound note on a schedule | Off |
-| Schedule | Five-field cron expression, local time | `0 * * * *` |
+| Setting                                  | Description                                                          | Default     |
+| ---------------------------------------- | -------------------------------------------------------------------- | ----------- |
+| Enable document sync                     | Bound notes are ignored entirely until this is on                    | Off         |
+| Check when a bound note opens            | Also check automatically on open                                     | On          |
+| Minimum minutes between automatic checks | Per note. Zero checks on every open; a manual check always runs      | 10          |
+| GitHub token                             | Optional. Needed for private repositories, and raises the rate limit | —           |
+| Poll all bound notes in the background   | Check every bound note on a schedule                                 | Off         |
+| Schedule                                 | Five-field cron expression, local time                               | `0 * * * *` |
+
 ### Email
 
 Requires a deployed bridge — see [`bridge/README.md`](bridge/README.md).
 
-| Setting | Description | Default |
-|---|---|---|
-| Bridge URL | Base URL of your bridge. Must be `https://` unless it is localhost | — |
-| Bridge token | The bridge's `MAIL_TOKEN`, stored in Obsidian's secret storage | — |
-| From address | Optional override for the bridge's `MAIL_FROM` | — |
-| Mailbox | IMAP mailbox searched by the query and reply commands | INBOX |
-| Maximum results | How many messages a search returns (newest kept) | 25 |
-| Merge heading | Heading that fetched replies are appended under | Correspondence |
+| Setting         | Description                                                        | Default        |
+| --------------- | ------------------------------------------------------------------ | -------------- |
+| Bridge URL      | Base URL of your bridge. Must be `https://` unless it is localhost | —              |
+| Bridge token    | The bridge's `MAIL_TOKEN`, stored in Obsidian's secret storage     | —              |
+| From address    | Optional override for the bridge's `MAIL_FROM`                     | —              |
+| Mailbox         | IMAP mailbox searched by the query and reply commands              | INBOX          |
+| Maximum results | How many messages a search returns (newest kept)                   | 25             |
+| Merge heading   | Heading that fetched replies are appended under                    | Correspondence |
 
 ### Publishing
 
 Requires a bridge with the publish capability configured — see [`bridge/README.md`](bridge/README.md).
 
-| Setting | Description | Default |
-|---|---|---|
-| Bridge URL | Leave empty to use the mail bridge's URL | — |
-| Publish token | The bridge's `PUBLISH_TOKEN`, stored in Obsidian's secret storage | — |
-| Accounts | Site name, vault folder, and the name of a target the bridge knows | — |
-| Write-back | Record the publish time and URL in each note's frontmatter | On |
+| Setting            | Description                                                                                           | Default         |
+| ------------------ | ----------------------------------------------------------------------------------------------------- | --------------- |
+| Bridge URL         | Leave empty to use the mail bridge's URL                                                              | —               |
+| Publish token      | The bridge's `PUBLISH_TOKEN`, stored in Obsidian's secret storage                                     | —               |
+| Accounts           | Site name, vault folder, and the name of a target the bridge knows                                    | —               |
+| Write-back         | Record the publish time and URL in each note's frontmatter                                            | On              |
 | Frontmatter fields | Which key carries which meaning — published, title, date, description, slug, and the two written back | the plain names |
 
 The token is deliberately separate from the mail token, so a leaked publish token cannot reach the mailbox. **Verbindung testen** proves the token, the target, the SSH login, the host key and the web root in one request, without writing anything.
 
 ### Diagnostics
 
-| Setting | Description | Default |
-|---|---|---|
-| Debug logging | Log detailed diagnostics to the developer console (errors are always logged) | Off |
+| Setting       | Description                                                                  | Default |
+| ------------- | ---------------------------------------------------------------------------- | ------- |
+| Debug logging | Log detailed diagnostics to the developer console (errors are always logged) | Off     |
 
 ## Installation
 

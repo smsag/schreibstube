@@ -155,10 +155,7 @@ export class MailCommands {
     }).open();
   }
 
-  private async performQuery(
-    bridge: MailBridgeConfig,
-    criteria: SearchCriteria
-  ): Promise<void> {
+  private async performQuery(bridge: MailBridgeConfig, criteria: SearchCriteria): Promise<void> {
     if (!hasCriteria(criteria)) {
       new Notice("Schreibstube: enter at least one search criterion.");
       return;
@@ -208,9 +205,7 @@ export class MailCommands {
     const fields = this.readFields(file);
     const messageId = fields.messageId;
     if (!messageId) {
-      new Notice(
-        `Schreibstube: this note has no ${FM_MESSAGE_ID} — send it as an email first.`
-      );
+      new Notice(`Schreibstube: this note has no ${FM_MESSAGE_ID} — send it as an email first.`);
       return;
     }
 

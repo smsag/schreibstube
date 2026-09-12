@@ -130,7 +130,10 @@ export function stripFrontmatter(content: string): string {
   const lines = content.split(/\r?\n/);
   for (let i = 1; i < lines.length; i++) {
     if (lines[i] === "---" || lines[i] === "...") {
-      return lines.slice(i + 1).join("\n").replace(/^\n+/, "");
+      return lines
+        .slice(i + 1)
+        .join("\n")
+        .replace(/^\n+/, "");
     }
   }
 

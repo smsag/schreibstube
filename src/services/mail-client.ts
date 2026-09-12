@@ -36,11 +36,7 @@ export async function searchMail(
   return parseSearchResult(await postJson(config, "/search", request));
 }
 
-async function postJson(
-  config: MailBridgeConfig,
-  path: string,
-  body: unknown
-): Promise<unknown> {
+async function postJson(config: MailBridgeConfig, path: string, body: unknown): Promise<unknown> {
   const response = await withTimeout(
     requestUrl({
       url: buildEndpoint(config.baseUrl, path),

@@ -65,7 +65,13 @@ function config(overrides = {}) {
 }
 
 /** A minimal but genuine RFC 5322 message, so mailparser does real work. */
-function message({ uid, subject = "Betreff", date = "Mon, 07 Sep 2026 10:12:00 +0000", headers = "", body = "Inhalt" }) {
+function message({
+  uid,
+  subject = "Betreff",
+  date = "Mon, 07 Sep 2026 10:12:00 +0000",
+  headers = "",
+  body = "Inhalt"
+}) {
   imap.uids.push(uid);
   imap.sources.set(
     uid,

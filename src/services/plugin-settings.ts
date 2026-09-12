@@ -96,7 +96,7 @@ export const DEFAULT_SETTINGS: SchreibstubeSettings = {
   publishTokenSecretName: "",
   publishAccounts: [],
   publishFrontmatterKeys: DEFAULT_PUBLISH_KEYS,
-  debugLogging: false,
+  debugLogging: false
 };
 
 /** Settings as persisted: a data file a user can also edit by hand, so every
@@ -248,7 +248,7 @@ export function normalizeSettings(loaded: LoadedSettings): SchreibstubeSettings 
         ? loaded.publishTokenSecretName
         : DEFAULT_SETTINGS.publishTokenSecretName,
     publishAccounts: publishAccountsOrDefault(loaded?.publishAccounts),
-    publishFrontmatterKeys: normalizePublishKeys(loaded?.publishFrontmatterKeys),
+    publishFrontmatterKeys: normalizePublishKeys(loaded?.publishFrontmatterKeys)
   };
 }
 
@@ -301,7 +301,7 @@ function syncStateOrDefault(value: unknown): Record<string, SyncRecord> {
       hash,
       etag: typeof etag === "string" ? etag : "",
       checkedAt: Number.isFinite(checkedAt) ? Number(checkedAt) : 0,
-      pendingChanges: Number.isFinite(pendingChanges) ? Number(pendingChanges) : 0,
+      pendingChanges: Number.isFinite(pendingChanges) ? Number(pendingChanges) : 0
     };
   }
   return result;

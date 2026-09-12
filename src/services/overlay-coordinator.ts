@@ -27,8 +27,7 @@ export class OverlayCoordinator {
 
   constructor(createController?: CreateOverlayController) {
     this.createController =
-      createController ??
-      ((host, onRowEvent) => new OverlayController(host, onRowEvent));
+      createController ?? ((host, onRowEvent) => new OverlayController(host, onRowEvent));
   }
 
   renderForView(

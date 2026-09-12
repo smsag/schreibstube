@@ -33,8 +33,7 @@ const PUBLISH_KEYS = ["PUBLISH_TOKEN", "PUBLISH_TARGETS"];
 
 /** What a target is allowed to serve from an upload. Images and video only:
  *  anything else on a published site is written by the bridge itself. */
-const DEFAULT_ASSET_EXTENSIONS =
-  "png,jpg,jpeg,gif,webp,avif,svg,mp4,webm,ogv,mov,m4v";
+const DEFAULT_ASSET_EXTENSIONS = "png,jpg,jpeg,gif,webp,avif,svg,mp4,webm,ogv,mov,m4v";
 
 export function loadConfig(env = process.env) {
   const mail = MAIL_KEYS.some((key) => present(env[key])) ? loadMail(env) : null;

@@ -104,20 +104,26 @@ describe("buildSyncSuggestions", () => {
   const body = splitNote(NOTE).body;
 
   it("returns nothing when the note already matches the source", () => {
-    expect(
-      buildSyncSuggestions({ noteText: NOTE, remoteBody: body, state: "clean" })
-    ).toEqual([]);
+    expect(buildSyncSuggestions({ noteText: NOTE, remoteBody: body, state: "clean" })).toEqual([]);
   });
 
   it("offsets cards past the note's own frontmatter", () => {
     const remote = body.replace("Erster Absatz.", "Erster Absatz, überarbeitet.");
-    const [suggestion] = buildSyncSuggestions({ noteText: NOTE, remoteBody: remote, state: "clean" });
+    const [suggestion] = buildSyncSuggestions({
+      noteText: NOTE,
+      remoteBody: remote,
+      state: "clean"
+    });
     expect(NOTE.slice(suggestion.from, suggestion.to)).toBe(suggestion.original);
   });
 
   it("never touches the binding when a card is applied", () => {
     const remote = body.replace("# Titel", "# Neuer Titel");
-    const suggestions = buildSyncSuggestions({ noteText: NOTE, remoteBody: remote, state: "clean" });
+    const suggestions = buildSyncSuggestions({
+      noteText: NOTE,
+      remoteBody: remote,
+      state: "clean"
+    });
     const updated = applyPlan(NOTE, planApply(NOTE, suggestions));
     expect(updated).toContain("schreibstubeSyncedFrom: https://example.com/a.md");
     expect(updated).toContain("# Neuer Titel");
@@ -125,14 +131,22 @@ describe("buildSyncSuggestions", () => {
 
   it("reproduces the source exactly when every card is accepted", () => {
     const remote = "\n# Ganz neu\n\nAnderer Text.\n\nNoch einer.\n";
-    const suggestions = buildSyncSuggestions({ noteText: NOTE, remoteBody: remote, state: "clean" });
+    const suggestions = buildSyncSuggestions({
+      noteText: NOTE,
+      remoteBody: remote,
+      state: "clean"
+    });
     const updated = applyPlan(NOTE, planApply(NOTE, suggestions));
     expect(splitNote(updated).body).toBe(remote);
   });
 
   it("handles a source that grew a new section", () => {
     const remote = `${body}\n## Neu\n\nInhalt.\n`;
-    const suggestions = buildSyncSuggestions({ noteText: NOTE, remoteBody: remote, state: "clean" });
+    const suggestions = buildSyncSuggestions({
+      noteText: NOTE,
+      remoteBody: remote,
+      state: "clean"
+    });
     expect(splitNote(applyPlan(NOTE, planApply(NOTE, suggestions))).body).toBe(remote);
   });
 
@@ -145,20 +159,32 @@ describe("buildSyncSuggestions", () => {
 
   it("marks cards for review when the note diverged locally", () => {
     const remote = body.replace("Erster Absatz.", "Anders.");
-    const [suggestion] = buildSyncSuggestions({ noteText: NOTE, remoteBody: remote, state: "diverged" });
+    const [suggestion] = buildSyncSuggestions({
+      noteText: NOTE,
+      remoteBody: remote,
+      state: "diverged"
+    });
     expect(suggestion.needsReview).toBe(true);
     expect(suggestion.note).toContain("Lokale Änderung");
   });
 
   it("explains the first sync", () => {
     const remote = body.replace("Erster Absatz.", "Anders.");
-    const [suggestion] = buildSyncSuggestions({ noteText: NOTE, remoteBody: remote, state: "unsynced" });
+    const [suggestion] = buildSyncSuggestions({
+      noteText: NOTE,
+      remoteBody: remote,
+      state: "unsynced"
+    });
     expect(suggestion.note).toContain("Erster Abgleich");
   });
 
   it("says nothing extra for a clean note", () => {
     const remote = body.replace("Erster Absatz.", "Anders.");
-    const [suggestion] = buildSyncSuggestions({ noteText: NOTE, remoteBody: remote, state: "clean" });
+    const [suggestion] = buildSyncSuggestions({
+      noteText: NOTE,
+      remoteBody: remote,
+      state: "clean"
+    });
     expect(suggestion.note).toBe("");
     expect(suggestion.needsReview).toBe(false);
   });
@@ -166,13 +192,21 @@ describe("buildSyncSuggestions", () => {
   it("fills an empty note from the source", () => {
     const note = "---\nschreibstubeSyncedFrom: https://example.com/a.md\n---\n";
     const remote = "# Inhalt\n\nText.\n";
-    const suggestions = buildSyncSuggestions({ noteText: note, remoteBody: remote, state: "unsynced" });
+    const suggestions = buildSyncSuggestions({
+      noteText: note,
+      remoteBody: remote,
+      state: "unsynced"
+    });
     expect(splitNote(applyPlan(note, planApply(note, suggestions))).body).toBe(remote);
   });
 
   it("carries the remote source onto every card", () => {
     const remote = body.replace("Erster Absatz.", "Anders.");
-    const suggestions = buildSyncSuggestions({ noteText: NOTE, remoteBody: remote, state: "clean" });
+    const suggestions = buildSyncSuggestions({
+      noteText: NOTE,
+      remoteBody: remote,
+      state: "clean"
+    });
     expect(suggestions.every((s) => s.source === "remote" && s.category === "update")).toBe(true);
   });
 });

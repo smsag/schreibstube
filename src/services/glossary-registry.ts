@@ -13,7 +13,7 @@ import {
   GLOSSARY_MARKER,
   parseGlossary,
   type Glossary,
-  type GlossaryParseResult,
+  type GlossaryParseResult
 } from "./glossary-parser";
 
 export interface GlossaryCandidate {

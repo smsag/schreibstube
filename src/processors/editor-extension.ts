@@ -20,9 +20,7 @@ interface EditorExtensionOptions {
   getSettings: () => SchreibstubeSettings;
 }
 
-export function createEditorExtension(
-  options: EditorExtensionOptions
-): Extension {
+export function createEditorExtension(options: EditorExtensionOptions): Extension {
   return ViewPlugin.fromClass(
     class {
       private view: EditorView;

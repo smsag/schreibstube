@@ -1,10 +1,7 @@
 import { MarkdownView, Notice, Plugin, TFile, type WorkspaceLeaf } from "obsidian";
 import { resolveAncestorStack } from "./services/ancestor-stack";
 import { buildHeadingIndex } from "./services/heading-index";
-import {
-  reduceOverlayRowEvent,
-  type OverlayRowEvent
-} from "./services/overlay-interaction";
+import { reduceOverlayRowEvent, type OverlayRowEvent } from "./services/overlay-interaction";
 import {
   resolveViewportLineForReadingView,
   scrollReadingHeadingIntoView
@@ -79,14 +76,14 @@ export default class SchreibstubePlugin extends Plugin {
         const { [path]: _removed, ...rest } = this.settings.syncState;
         this.settings.syncState = rest;
         await this.saveSettings();
-      },
+      }
     });
 
     this.registerView(REVIEW_VIEW_TYPE, (leaf) => this.createReviewView(leaf));
     this.registerEditorExtension(
       createGlossaryUnderlineExtension({
         getSettings: () => this.settings,
-        getMatcher: () => this.proofread?.activeMatcher() ?? compileGlossaries([]),
+        getMatcher: () => this.proofread?.activeMatcher() ?? compileGlossaries([])
       })
     );
     this.registerProofreadEvents();
@@ -103,13 +100,18 @@ export default class SchreibstubePlugin extends Plugin {
       onActiveLeafChange: () => {
         this.requestOverlayRefresh();
         void this.proofread?.syncActiveFile();
-      },
+      }
     });
 
     this.linkMode.start(this.addStatusBarItem());
-    this.registerDomEvent(document, "click", (e: MouseEvent) => {
-      void this.linkMode?.handleDocumentClick(e);
-    }, true);
+    this.registerDomEvent(
+      document,
+      "click",
+      (e: MouseEvent) => {
+        void this.linkMode?.handleDocumentClick(e);
+      },
+      true
+    );
 
     this.registerCommands();
     this.addSettingTab(new SchreibstubeSettingTab(this.app, this));
@@ -271,7 +273,7 @@ export default class SchreibstubePlugin extends Plugin {
   async updateDimOpacity(dimOpacity: number): Promise<void> {
     this.settings = normalizeSettings({
       ...this.settings,
-      focusDimOpacity: dimOpacity,
+      focusDimOpacity: dimOpacity
     });
     await this.saveSettings();
     this.notifyFocusSettingsChanged();
@@ -281,43 +283,57 @@ export default class SchreibstubePlugin extends Plugin {
     this.addCommand({
       id: "set-focus-sentence-mode",
       name: "Focus Mode: Sentence",
-      callback: () => { void this.setFocusMode("sentence"); },
+      callback: () => {
+        void this.setFocusMode("sentence");
+      }
     });
 
     this.addCommand({
       id: "set-focus-paragraph-mode",
       name: "Focus Mode: Paragraph",
-      callback: () => { void this.setFocusMode("paragraph"); },
+      callback: () => {
+        void this.setFocusMode("paragraph");
+      }
     });
 
     this.addCommand({
       id: "disable-focus-mode",
       name: "Focus Mode: Disable",
-      callback: () => { void this.setFocusMode("off"); },
+      callback: () => {
+        void this.setFocusMode("off");
+      }
     });
 
     this.addCommand({
       id: "rename-from-content",
       name: "Rename file from content",
-      callback: () => { void this.llm?.renameFromContent(); },
+      callback: () => {
+        void this.llm?.renameFromContent();
+      }
     });
 
     this.addCommand({
       id: "rename-image-from-content",
       name: "Rename image from content",
-      callback: () => { void this.llm?.renameImageFromContent(); },
+      callback: () => {
+        void this.llm?.renameImageFromContent();
+      }
     });
 
     this.addCommand({
       id: "summarize-selection",
       name: "Summarize selection",
-      editorCallback: () => { void this.llm?.summarizeSelection(); },
+      editorCallback: () => {
+        void this.llm?.summarizeSelection();
+      }
     });
 
     this.addCommand({
       id: "open-review-panel",
       name: "Open proof-read sidebar",
-      callback: () => { void this.activateReviewPanel(); },
+      callback: () => {
+        void this.activateReviewPanel();
+      }
     });
 
     this.addCommand({
@@ -325,7 +341,7 @@ export default class SchreibstubePlugin extends Plugin {
       name: "Proof-read note",
       editorCallback: () => {
         void this.activateReviewPanel().then(() => this.proofread?.handlers().onProofread());
-      },
+      }
     });
 
     this.addCommand({
@@ -333,7 +349,7 @@ export default class SchreibstubePlugin extends Plugin {
       name: "Check note against glossary",
       editorCallback: () => {
         void this.activateReviewPanel().then(() => this.proofread?.handlers().onGlossaryCheck());
-      },
+      }
     });
 
     this.addCommand({
@@ -349,7 +365,7 @@ export default class SchreibstubePlugin extends Plugin {
               : `Schreibstube: ${summary.checked} geprüft, ${summary.withChanges} mit Aktualisierungen, ${summary.failed} fehlgeschlagen.`
           );
         });
-      },
+      }
     });
 
     this.addCommand({
@@ -357,68 +373,86 @@ export default class SchreibstubePlugin extends Plugin {
       name: "Check note source for updates",
       callback: () => {
         void this.activateReviewPanel().then(() => this.proofread?.handlers().onCheckSource());
-      },
+      }
     });
 
     this.addCommand({
       id: "send-note-as-email",
       name: "Send note as email",
-      callback: () => { void this.mail?.sendNoteAsEmail(); },
+      callback: () => {
+        void this.mail?.sendNoteAsEmail();
+      }
     });
 
     this.addCommand({
       id: "query-mailbox",
       name: "Query mailbox",
-      callback: () => { void this.mail?.queryMailbox(); },
+      callback: () => {
+        void this.mail?.queryMailbox();
+      }
     });
 
     this.addCommand({
       id: "fetch-replies",
       name: "Fetch replies into note",
-      callback: () => { void this.mail?.fetchReplies(); },
+      callback: () => {
+        void this.mail?.fetchReplies();
+      }
     });
 
     this.addCommand({
       id: "publish-folder",
       name: "Veröffentlichen",
-      callback: () => { void this.publish?.publish(); },
+      callback: () => {
+        void this.publish?.publish();
+      }
     });
 
     this.addCommand({
       id: "publish-preview",
       name: "Veröffentlichung prüfen",
-      callback: () => { void this.publish?.preview(); },
+      callback: () => {
+        void this.publish?.preview();
+      }
     });
 
     this.addCommand({
       id: "publish-open-site",
       name: "Website öffnen",
-      callback: () => { void this.publish?.openSite(); },
+      callback: () => {
+        void this.publish?.openSite();
+      }
     });
 
     this.addCommand({
       id: "open-links-left",
       name: "Open links to the left",
-      callback: () => { this.linkMode?.setMode("left"); },
+      callback: () => {
+        this.linkMode?.setMode("left");
+      }
     });
 
     this.addCommand({
       id: "open-links-right",
       name: "Open links to the right",
-      callback: () => { this.linkMode?.setMode("right"); },
+      callback: () => {
+        this.linkMode?.setMode("right");
+      }
     });
 
     this.addCommand({
       id: "open-links-default",
       name: "Open links normally",
-      callback: () => { this.linkMode?.setMode("default"); },
+      callback: () => {
+        this.linkMode?.setMode("default");
+      }
     });
   }
 
   private async setFocusMode(mode: FocusMode): Promise<void> {
     this.settings = normalizeSettings({
       ...this.settings,
-      focusMode: mode,
+      focusMode: mode
     });
     await this.saveSettings();
     this.notifyFocusSettingsChanged();
@@ -428,10 +462,7 @@ export default class SchreibstubePlugin extends Plugin {
     window.dispatchEvent(new Event("schreibstube-focus-settings-changed"));
   }
 
-  private queueRefreshForActiveView(
-    viewportTopLine?: number,
-    options?: RefreshOptions
-  ): void {
+  private queueRefreshForActiveView(viewportTopLine?: number, options?: RefreshOptions): void {
     if (!this.refreshScheduler) {
       this.refreshForActiveView(viewportTopLine, options);
       return;
@@ -439,10 +470,7 @@ export default class SchreibstubePlugin extends Plugin {
     this.refreshScheduler.enqueue(viewportTopLine, options);
   }
 
-  private refreshForActiveView(
-    viewportTopLine?: number,
-    options?: RefreshOptions
-  ): void {
+  private refreshForActiveView(viewportTopLine?: number, options?: RefreshOptions): void {
     if (!this.settings.overlayEnabled) {
       this.clearOverlay();
       return;
@@ -492,9 +520,7 @@ export default class SchreibstubePlugin extends Plugin {
       return;
     }
 
-    const sig = this.ancestorStack
-      .map((e) => `${e.level}:${e.lineNumber}:${e.text}`)
-      .join("|");
+    const sig = this.ancestorStack.map((e) => `${e.level}:${e.lineNumber}:${e.text}`).join("|");
     if (sig === this.lastRenderSignature) return;
 
     const rendered = this.overlayCoordinator.renderForView(

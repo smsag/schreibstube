@@ -92,7 +92,9 @@ describe("diffHunks", () => {
 
   it("reproduces a heavily rewritten document", () => {
     const before = Array.from({ length: 60 }, (_, i) => `Zeile ${i}`).join("\n");
-    const after = Array.from({ length: 60 }, (_, i) => (i % 3 === 0 ? `Neu ${i}` : `Zeile ${i}`)).join("\n");
+    const after = Array.from({ length: 60 }, (_, i) =>
+      i % 3 === 0 ? `Neu ${i}` : `Zeile ${i}`
+    ).join("\n");
     expect(applyHunks(before, diffHunks(before, after))).toBe(after);
   });
 

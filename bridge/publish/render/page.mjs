@@ -89,7 +89,9 @@ function page({ up, title, description, siteTitle, usedMath, usedMermaid, hasInd
 
 function metaLine(date) {
   const formatted = formatDate(date);
-  return formatted ? `<p class="meta"><time datetime="${escapeHtml(date)}">${formatted}</time></p>\n` : "";
+  return formatted
+    ? `<p class="meta"><time datetime="${escapeHtml(date)}">${formatted}</time></p>\n`
+    : "";
 }
 
 /** `2026-09-12` becomes `12.09.2026`; anything else is left as it came. */

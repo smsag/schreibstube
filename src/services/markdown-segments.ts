@@ -68,15 +68,12 @@ const MASK_PATTERNS: RegExp[] = [
   /!?\[\[[^\]\n]*\]\]/g,
   /\$[^$\n]+\$/g,
   /\bhttps?:\/\/\S+/gu,
-  /<\/?[a-zA-Z][^>\n]*>/g,
+  /<\/?[a-zA-Z][^>\n]*>/g
 ];
 
 /** Patterns whose *capture group* is masked while the surrounding text stays.
  *  Keeps link labels and the words around a tag in the proof-read stream. */
-const MASK_GROUP_PATTERNS: RegExp[] = [
-  /\]\(([^)\n]*)\)/g,
-  /(?:^|\s)(#[\p{L}\p{N}_\/-]+)/gu,
-];
+const MASK_GROUP_PATTERNS: RegExp[] = [/\]\(([^)\n]*)\)/g, /(?:^|\s)(#[\p{L}\p{N}_/-]+)/gu];
 
 /** Segment `text` into reviewable prose blocks with protected spans masked. */
 export function segmentMarkdown(text: string): SegmentResult {
@@ -266,11 +263,7 @@ function mergeRanges(ranges: TextRange[]): TextRange[] {
   return merged;
 }
 
-function maskRanges(
-  text: string,
-  ranges: TextRange[],
-  placeholders: Map<string, string>
-): string {
+function maskRanges(text: string, ranges: TextRange[], placeholders: Map<string, string>): string {
   if (ranges.length === 0) return text;
 
   let result = "";

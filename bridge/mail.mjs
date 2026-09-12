@@ -277,7 +277,7 @@ function generateMessageId(from) {
 
 function extractAddress(value) {
   const match = /<([^>]+)>/.exec(value ?? "");
-  return (match ? match[1] : value ?? "").trim();
+  return (match ? match[1] : (value ?? "")).trim();
 }
 
 function toList(value) {
@@ -289,6 +289,9 @@ function toList(value) {
 function joinAddresses(value) {
   if (!value) return undefined;
   const items = Array.isArray(value) ? value : [value];
-  const joined = items.map((item) => String(item).trim()).filter(Boolean).join(", ");
+  const joined = items
+    .map((item) => String(item).trim())
+    .filter(Boolean)
+    .join(", ");
   return joined || undefined;
 }

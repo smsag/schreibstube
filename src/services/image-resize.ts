@@ -3,7 +3,7 @@ const MIME_BY_EXTENSION: Record<string, string> = {
   jpeg: "image/jpeg",
   png: "image/png",
   gif: "image/gif",
-  webp: "image/webp",
+  webp: "image/webp"
 };
 
 export const MAX_IMAGE_BYTES = 10 * 1024 * 1024;

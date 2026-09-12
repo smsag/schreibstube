@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_PUBLISH_KEYS } from "./publish-index";
-import {
-  DEFAULT_SETTINGS,
-  normalizeSettings
-} from "./plugin-settings";
+import { DEFAULT_SETTINGS, normalizeSettings } from "./plugin-settings";
 
 describe("normalizeSettings", () => {
   it("returns defaults when called with undefined", () => {
@@ -18,7 +15,7 @@ describe("normalizeSettings", () => {
     const valid = {
       ...DEFAULT_SETTINGS,
       llmProvider: "openai" as const,
-      llmModel: "gpt-4o",
+      llmModel: "gpt-4o"
     };
     expect(normalizeSettings(valid)).toEqual(valid);
   });
@@ -41,7 +38,7 @@ describe("normalizeSettings", () => {
 
   it("falls back to default provider for an unknown provider value", () => {
     expect(normalizeSettings({ llmProvider: "unknown" as never })).toMatchObject({
-      llmProvider: DEFAULT_SETTINGS.llmProvider,
+      llmProvider: DEFAULT_SETTINGS.llmProvider
     });
   });
 
@@ -58,9 +55,9 @@ describe("normalizeSettings", () => {
   });
 
   it("ignores a field it does not know", () => {
-    expect(
-      normalizeSettings({ renameProvider: "openai" } as never).llmProvider
-    ).toBe(DEFAULT_SETTINGS.llmProvider);
+    expect(normalizeSettings({ renameProvider: "openai" } as never).llmProvider).toBe(
+      DEFAULT_SETTINGS.llmProvider
+    );
   });
 
   it("defaults debugLogging to false", () => {
@@ -73,26 +70,27 @@ describe("normalizeSettings", () => {
 
   it("falls back for non-positive renameMinContentChars", () => {
     expect(normalizeSettings({ renameMinContentChars: 0 })).toMatchObject({
-      renameMinContentChars: DEFAULT_SETTINGS.renameMinContentChars,
+      renameMinContentChars: DEFAULT_SETTINGS.renameMinContentChars
     });
   });
 
   it("falls back for non-positive renameMaxContentChars", () => {
     expect(normalizeSettings({ renameMaxContentChars: -1 })).toMatchObject({
-      renameMaxContentChars: DEFAULT_SETTINGS.renameMaxContentChars,
+      renameMaxContentChars: DEFAULT_SETTINGS.renameMaxContentChars
     });
   });
 
   it("falls back for non-positive renameMaxFilenameLength", () => {
     expect(normalizeSettings({ renameMaxFilenameLength: 0 })).toMatchObject({
-      renameMaxFilenameLength: DEFAULT_SETTINGS.renameMaxFilenameLength,
+      renameMaxFilenameLength: DEFAULT_SETTINGS.renameMaxFilenameLength
     });
   });
 
   it("preserves focus settings from loaded data", () => {
-    expect(
-      normalizeSettings({ focusMode: "sentence", focusDimOpacity: 0.6 })
-    ).toMatchObject({ focusMode: "sentence", focusDimOpacity: 0.6 });
+    expect(normalizeSettings({ focusMode: "sentence", focusDimOpacity: 0.6 })).toMatchObject({
+      focusMode: "sentence",
+      focusDimOpacity: 0.6
+    });
   });
 
   it("defaults summarizePrompt when absent", () => {
@@ -161,9 +159,10 @@ describe("normalizeSettings", () => {
   });
 
   it("keeps glossary paths and drops blank entries", () => {
-    expect(
-      normalizeSettings({ glossaryDefault: ["A.md", "  ", "B.md"] }).glossaryDefault
-    ).toEqual(["A.md", "B.md"]);
+    expect(normalizeSettings({ glossaryDefault: ["A.md", "  ", "B.md"] }).glossaryDefault).toEqual([
+      "A.md",
+      "B.md"
+    ]);
   });
 
   it("ignores a glossaryDefault that is not a list", () => {
@@ -171,9 +170,9 @@ describe("normalizeSettings", () => {
   });
 
   it("drops non-string glossary entries", () => {
-    expect(
-      normalizeSettings({ glossaryDefault: ["A.md", 7 as never] }).glossaryDefault
-    ).toEqual(["A.md"]);
+    expect(normalizeSettings({ glossaryDefault: ["A.md", 7 as never] }).glossaryDefault).toEqual([
+      "A.md"
+    ]);
   });
 
   it("defaults the live underline to off", () => {
@@ -181,9 +180,9 @@ describe("normalizeSettings", () => {
   });
 
   it("keeps folder rules verbatim", () => {
-    expect(
-      normalizeSettings({ glossaryFolderRules: "Kunden | A.md" }).glossaryFolderRules
-    ).toBe("Kunden | A.md");
+    expect(normalizeSettings({ glossaryFolderRules: "Kunden | A.md" }).glossaryFolderRules).toBe(
+      "Kunden | A.md"
+    );
   });
 
   it("defaults document sync to off", () => {
@@ -204,7 +203,7 @@ describe("normalizeSettings", () => {
   });
 
   it("keeps a well-formed sync record", () => {
-    const record = { hash: "abcd1234", etag: "W/\"x\"", checkedAt: 42, pendingChanges: 2 };
+    const record = { hash: "abcd1234", etag: 'W/"x"', checkedAt: 42, pendingChanges: 2 };
     expect(normalizeSettings({ syncState: { "a.md": record } }).syncState["a.md"]).toEqual(record);
   });
 
@@ -244,9 +243,9 @@ describe("normalizeSettings", () => {
   });
 
   it("drops a sync record with no hash", () => {
-    expect(
-      normalizeSettings({ syncState: { "a.md": { etag: "x" } as never } }).syncState
-    ).toEqual({});
+    expect(normalizeSettings({ syncState: { "a.md": { etag: "x" } as never } }).syncState).toEqual(
+      {}
+    );
   });
 
   it("ignores a sync state that is not an object", () => {
@@ -307,9 +306,7 @@ describe("normalizeSettings — publishing", () => {
 
   it("keeps a complete account", () => {
     const accounts = normalizeSettings({
-      publishAccounts: [
-        { id: "a", name: "Blog", folder: "Blog", target: "blog", writeBack: true }
-      ]
+      publishAccounts: [{ id: "a", name: "Blog", folder: "Blog", target: "blog", writeBack: true }]
     }).publishAccounts;
     expect(accounts).toHaveLength(1);
     expect(accounts[0]).toMatchObject({ name: "Blog", folder: "Blog", target: "blog" });
@@ -327,7 +324,9 @@ describe("normalizeSettings — publishing", () => {
 
   it("trims the slashes a folder is often typed with", () => {
     const accounts = normalizeSettings({
-      publishAccounts: [{ id: "a", name: "Blog", folder: "/Blog/", target: "blog", writeBack: true }]
+      publishAccounts: [
+        { id: "a", name: "Blog", folder: "/Blog/", target: "blog", writeBack: true }
+      ]
     }).publishAccounts;
     expect(accounts[0].folder).toBe("Blog");
   });

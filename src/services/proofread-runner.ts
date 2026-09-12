@@ -16,7 +16,7 @@ import {
   placeholdersIntact,
   restorePlaceholders,
   segmentMarkdown,
-  type ProseBlock,
+  type ProseBlock
 } from "./markdown-segments";
 import { createSuggestion, type Suggestion, type SuggestionCategory } from "./suggestion";
 import { diffToEdits } from "./word-diff";
@@ -97,7 +97,7 @@ function suggestionFromHit(block: ProseBlock, hit: GlossaryHit, index: number): 
     // no-op. The card offers no Accept, and the replacement stays the original.
     replacement: hit.replacement ?? hit.matchedText,
     note: buildHitNote(hit),
-    needsReview: hit.inflected && hit.replacement !== null,
+    needsReview: hit.inflected && hit.replacement !== null
   });
 }
 
@@ -197,7 +197,7 @@ export async function runProofread(
       onProgress?.({
         completedChunks,
         totalChunks: chunks.length,
-        suggestions: [...suggestions].sort((a, b) => a.from - b.from),
+        suggestions: [...suggestions].sort((a, b) => a.from - b.from)
       });
     }
   };
@@ -212,7 +212,7 @@ export async function runProofread(
     suggestions: suggestions.sort((a, b) => a.from - b.from),
     rejectedBlocks,
     failedChunks,
-    cancelled: token.cancelled,
+    cancelled: token.cancelled
   };
 }
 
@@ -235,7 +235,7 @@ function suggestionsForBlock(
       to: block.from + edit.to,
       original: edit.before,
       replacement: edit.after,
-      note: "",
+      note: ""
     })
   );
 }

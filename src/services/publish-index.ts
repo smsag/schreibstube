@@ -96,7 +96,8 @@ export function readPublishFields(frontmatter: unknown, keys: PublishKeyMap): Pu
 
 function isTrue(value: unknown): boolean {
   if (typeof value === "boolean") return value;
-  if (typeof value === "string") return ["true", "yes", "ja", "1"].includes(value.trim().toLowerCase());
+  if (typeof value === "string")
+    return ["true", "yes", "ja", "1"].includes(value.trim().toLowerCase());
   return value === 1;
 }
 
@@ -141,7 +142,7 @@ export function firstHeading(content: string): string {
 
 export function stripFrontmatter(content: string): string {
   const match = /^---\r?\n[\s\S]*?\r?\n---[ \t]*(?:\r?\n|$)/.exec(content ?? "");
-  return match ? content.slice(match[0].length) : content ?? "";
+  return match ? content.slice(match[0].length) : (content ?? "");
 }
 
 /** `2026-09-12`, in local time, because a publication date is a calendar date. */

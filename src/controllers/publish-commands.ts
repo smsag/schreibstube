@@ -92,10 +92,7 @@ export class PublishCommands {
     });
   }
 
-  private async run(
-    account: PublishAccount,
-    prepared: Prepared
-  ): Promise<void> {
+  private async run(account: PublishAccount, prepared: Prepared): Promise<void> {
     if (this.busy) {
       new Notice("Schreibstube: eine Veröffentlichung läuft bereits.");
       return;

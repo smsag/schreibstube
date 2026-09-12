@@ -7,12 +7,7 @@
  * cannot see.
  */
 
-export type GlossarySelectionSource =
-  | "frontmatter"
-  | "folder"
-  | "session"
-  | "default"
-  | "none";
+export type GlossarySelectionSource = "frontmatter" | "folder" | "session" | "default" | "none";
 
 export interface FolderRule {
   /** Vault folder path the rule applies to, including everything beneath it. */

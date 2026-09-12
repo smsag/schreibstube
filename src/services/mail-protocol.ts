@@ -8,7 +8,6 @@
  */
 import { asRecord, describeBridgeError as describeError, str } from "./bridge-protocol";
 
-
 /** How long to wait for a bridge response before giving up. IMAP searches over
  *  a large mailbox are slower than a typical API call, so this is generous. */
 export const MAIL_REQUEST_TIMEOUT_MS = 45_000;
@@ -126,4 +125,3 @@ export function describeBridgeError(status: number, body: string): string {
   if (status === 404) return "bridge endpoint not found — check the Bridge URL setting.";
   return describeError(status, body, "mail server");
 }
-

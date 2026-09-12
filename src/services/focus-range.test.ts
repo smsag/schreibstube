@@ -48,14 +48,7 @@ describe("resolveFocusRange", () => {
   });
 
   it("returns contiguous paragraph block", () => {
-    const doc = createDoc([
-      "# Heading",
-      "",
-      "First line",
-      "Second line",
-      "",
-      "Tail"
-    ]);
+    const doc = createDoc(["# Heading", "", "First line", "Second line", "", "Tail"]);
 
     expect(resolveFocusRange(doc, 2, "paragraph")).toEqual({
       startLine: 3,
@@ -64,10 +57,7 @@ describe("resolveFocusRange", () => {
   });
 
   it("treats headings as standalone blocks", () => {
-    const doc = createDoc([
-      "# Heading",
-      "Paragraph"
-    ]);
+    const doc = createDoc(["# Heading", "Paragraph"]);
 
     expect(resolveFocusRange(doc, 0, "paragraph")).toEqual({
       startLine: 1,
@@ -76,11 +66,7 @@ describe("resolveFocusRange", () => {
   });
 
   it("treats each list item as a standalone block", () => {
-    const doc = createDoc([
-      "- [ ] First todo",
-      "- [ ] Second todo",
-      "- [ ] Third todo"
-    ]);
+    const doc = createDoc(["- [ ] First todo", "- [ ] Second todo", "- [ ] Third todo"]);
 
     expect(resolveFocusRange(doc, 1, "paragraph")).toEqual({
       startLine: 2,
@@ -89,14 +75,7 @@ describe("resolveFocusRange", () => {
   });
 
   it("returns full fenced code block when cursor is inside", () => {
-    const doc = createDoc([
-      "```ts",
-      "const a = 1;",
-      "const b = 2;",
-      "```",
-      "",
-      "tail"
-    ]);
+    const doc = createDoc(["```ts", "const a = 1;", "const b = 2;", "```", "", "tail"]);
 
     expect(resolveFocusRange(doc, 1, "paragraph")).toEqual({
       startLine: 1,

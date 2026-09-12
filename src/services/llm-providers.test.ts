@@ -162,7 +162,14 @@ describe("buildTextRequest", () => {
 
 describe("buildSummaryRequest", () => {
   it("sends the prompt verbatim as the Anthropic system and the text as the user message", () => {
-    const req = buildSummaryRequest("anthropic", "claude-x", "sk-test", "Be concise.", "raw text", 512);
+    const req = buildSummaryRequest(
+      "anthropic",
+      "claude-x",
+      "sk-test",
+      "Be concise.",
+      "raw text",
+      512
+    );
     expect(req.url).toBe("https://api.anthropic.com/v1/messages");
     expect(req.headers["x-api-key"]).toBe("sk-test");
     const body = JSON.parse(req.body);

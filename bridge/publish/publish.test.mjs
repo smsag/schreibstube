@@ -183,9 +183,7 @@ describe("targets", () => {
       headers: { authorization: `Bearer ${TOKEN}` }
     });
     expect(await response.json()).toEqual({
-      targets: [
-        { name: "blog", baseUrl: "https://blog.example.com", siteTitle: "Schreibstube" }
-      ]
+      targets: [{ name: "blog", baseUrl: "https://blog.example.com", siteTitle: "Schreibstube" }]
     });
   });
 

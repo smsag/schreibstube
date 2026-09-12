@@ -66,7 +66,11 @@ export async function uploadSource(
   sha256: string,
   content: ArrayBuffer
 ): Promise<void> {
-  await upload(config, `/publish/source?target=${encodeURIComponent(target)}&sha256=${sha256}`, content);
+  await upload(
+    config,
+    `/publish/source?target=${encodeURIComponent(target)}&sha256=${sha256}`,
+    content
+  );
 }
 
 export async function uploadAsset(

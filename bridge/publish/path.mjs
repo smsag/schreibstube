@@ -42,6 +42,8 @@ export const MAX_PATH_BYTES = 1024;
 export const MAX_SEGMENT_BYTES = 255;
 
 const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+// Matching control characters is the point: a path that carries one is refused.
+// eslint-disable-next-line no-control-regex
 const CONTROL_CHARACTERS = /[\u0000-\u001f\u007f]/;
 const DIACRITICS = /[\u0300-\u036f]/g;
 

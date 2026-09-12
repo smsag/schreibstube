@@ -27,14 +27,7 @@ export interface GlossaryPanelState {
 }
 
 export type SyncPanelStatus =
-  | "none"
-  | "idle"
-  | "checking"
-  | "clean"
-  | "diverged"
-  | "unsynced"
-  | "missing"
-  | "error";
+  "none" | "idle" | "checking" | "clean" | "diverged" | "unsynced" | "missing" | "error";
 
 export interface SyncPanelState {
   /** Whether the note carries a source binding at all. */
@@ -77,7 +70,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   style: "Stil",
   terminology: "Terminologie",
   capitalization: "Schreibweise",
-  update: "Aktualisierung",
+  update: "Aktualisierung"
 };
 
 const SYNC_STATUS_LABELS: Record<SyncPanelStatus, string> = {
@@ -88,7 +81,7 @@ const SYNC_STATUS_LABELS: Record<SyncPanelStatus, string> = {
   diverged: "lokal geändert",
   unsynced: "noch nie abgeglichen",
   missing: "nicht gefunden",
-  error: "Fehler",
+  error: "Fehler"
 };
 
 const SOURCE_LABELS: Record<GlossarySelectionSource, string> = {
@@ -96,7 +89,7 @@ const SOURCE_LABELS: Record<GlossarySelectionSource, string> = {
   folder: "aus Ordnerregel",
   session: "manuell gewählt",
   default: "Standard",
-  none: "keins",
+  none: "keins"
 };
 
 export const EMPTY_REVIEW_STATE: ReviewState = {
@@ -106,7 +99,7 @@ export const EMPTY_REVIEW_STATE: ReviewState = {
   progress: null,
   glossary: { selected: [], available: [], source: "none", errors: [], missing: [] },
   sync: { bound: false, status: "none", source: "", checkedAt: 0, message: "" },
-  message: "",
+  message: ""
 };
 
 export class ReviewPanelView extends ItemView {
@@ -167,7 +160,7 @@ export class ReviewPanelView extends ItemView {
     for (const missing of this.state.glossary.missing) {
       root.createDiv({
         cls: "schreibstube-review-warning",
-        text: `Glossar nicht gefunden: ${missing}`,
+        text: `Glossar nicht gefunden: ${missing}`
       });
     }
 
@@ -179,7 +172,7 @@ export class ReviewPanelView extends ItemView {
 
     header.createDiv({
       cls: "schreibstube-review-file",
-      text: this.state.fileName || "Keine Notiz geöffnet",
+      text: this.state.fileName || "Keine Notiz geöffnet"
     });
 
     const actions = header.createDiv({ cls: "schreibstube-review-actions" });
@@ -209,7 +202,7 @@ export class ReviewPanelView extends ItemView {
       const { completed, total } = this.state.progress;
       header.createDiv({
         cls: "schreibstube-review-progress",
-        text: `Abschnitt ${completed} von ${total}`,
+        text: `Abschnitt ${completed} von ${total}`
       });
     }
   }
@@ -224,14 +217,10 @@ export class ReviewPanelView extends ItemView {
     const row = section.createDiv({ cls: "schreibstube-review-sync-row" });
     row.createSpan({
       cls: "schreibstube-review-glossary-label",
-      text: `Quelle (${SYNC_STATUS_LABELS[sync.status]})`,
+      text: `Quelle (${SYNC_STATUS_LABELS[sync.status]})`
     });
-    this.button(
-      row,
-      "Quelle prüfen",
-      "refresh-cw",
-      sync.status === "checking",
-      () => this.handlers?.onCheckSource()
+    this.button(row, "Quelle prüfen", "refresh-cw", sync.status === "checking", () =>
+      this.handlers?.onCheckSource()
     );
 
     if (sync.source) {
@@ -240,7 +229,7 @@ export class ReviewPanelView extends ItemView {
     if (sync.checkedAt > 0) {
       section.createDiv({
         cls: "schreibstube-review-hint",
-        text: `Zuletzt geprüft: ${new Date(sync.checkedAt).toLocaleString()}`,
+        text: `Zuletzt geprüft: ${new Date(sync.checkedAt).toLocaleString()}`
       });
     }
     if (sync.message) {
@@ -258,13 +247,13 @@ export class ReviewPanelView extends ItemView {
 
     section.createSpan({
       cls: "schreibstube-review-glossary-label",
-      text: `Glossar (${SOURCE_LABELS[source]})`,
+      text: `Glossar (${SOURCE_LABELS[source]})`
     });
 
     if (available.length === 0) {
       section.createSpan({
         cls: "schreibstube-review-hint",
-        text: "Keine Glossarnotiz im Vault.",
+        text: "Keine Glossarnotiz im Vault."
       });
       return;
     }
@@ -278,7 +267,7 @@ export class ReviewPanelView extends ItemView {
       const active = selected.includes(candidate.path);
       const chip = chips.createEl("button", {
         cls: `schreibstube-review-chip${active ? " is-active" : ""}`,
-        text: candidate.name,
+        text: candidate.name
       });
       chip.setAttr("title", candidate.path);
       if (locked) {
@@ -296,10 +285,7 @@ export class ReviewPanelView extends ItemView {
     if (pending.length === 0) {
       root.createDiv({
         cls: "schreibstube-review-empty",
-        text:
-          this.state.phase === "running"
-            ? "Läuft …"
-            : "Keine offenen Vorschläge.",
+        text: this.state.phase === "running" ? "Läuft …" : "Keine offenen Vorschläge."
       });
       return;
     }
@@ -314,13 +300,13 @@ export class ReviewPanelView extends ItemView {
     const card = list.createDiv({
       cls: `schreibstube-review-card is-${suggestion.severity}${
         suggestion.status === "stale" ? " is-stale" : ""
-      }`,
+      }`
     });
 
     const meta = card.createDiv({ cls: "schreibstube-review-meta" });
     meta.createSpan({
       cls: "schreibstube-review-category",
-      text: CATEGORY_LABELS[suggestion.category] ?? suggestion.category,
+      text: CATEGORY_LABELS[suggestion.category] ?? suggestion.category
     });
     if (suggestion.source === "glossary") {
       meta.createSpan({ cls: "schreibstube-review-badge", text: "Glossar" });

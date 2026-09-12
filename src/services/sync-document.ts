@@ -130,7 +130,7 @@ export function buildSyncSuggestions(options: SyncSuggestionOptions): Suggestion
       note: noteFor(options.state),
       // A mirror with local edits presents them back as changes to undo, which
       // the user has to see coming rather than discover after accepting.
-      needsReview: options.state === "diverged",
+      needsReview: options.state === "diverged"
     })
   );
 }

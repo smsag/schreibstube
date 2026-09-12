@@ -75,8 +75,7 @@ const ANTHROPIC: ProviderAdapter = {
       }
     ]
   }),
-  parse: (json) =>
-    (json as { content?: { text?: string }[] })?.content?.[0]?.text ?? ""
+  parse: (json) => (json as { content?: { text?: string }[] })?.content?.[0]?.text ?? ""
 };
 
 const OPENAI: ProviderAdapter = {
@@ -87,7 +86,7 @@ const OPENAI: ProviderAdapter = {
   ],
   url: "https://api.openai.com/v1/chat/completions",
   headers: (apiKey) => ({
-    "Authorization": `Bearer ${apiKey}`,
+    Authorization: `Bearer ${apiKey}`,
     "content-type": "application/json"
   }),
   textBody: (model, systemPrompt, userMessage, maxTokens) => ({
@@ -106,14 +105,18 @@ const OPENAI: ProviderAdapter = {
       {
         role: "user",
         content: [
-          { type: "image_url", image_url: { url: `data:${mimeType};base64,${base64Image}`, detail: "low" } },
+          {
+            type: "image_url",
+            image_url: { url: `data:${mimeType};base64,${base64Image}`, detail: "low" }
+          },
           { type: "text", text: IMAGE_USER_PROMPT }
         ]
       }
     ]
   }),
   parse: (json) =>
-    (json as { choices?: { message?: { content?: string } }[] })?.choices?.[0]?.message?.content ?? ""
+    (json as { choices?: { message?: { content?: string } }[] })?.choices?.[0]?.message?.content ??
+    ""
 };
 
 /** The single source of truth for provider integration. Add or remove a
@@ -155,7 +158,9 @@ export function buildTextRequest(
   return {
     url: adapter.url,
     headers: adapter.headers(apiKey),
-    body: JSON.stringify(adapter.textBody(model, systemPrompt, USER_PROMPT_PREFIX + content, MAX_TOKENS))
+    body: JSON.stringify(
+      adapter.textBody(model, systemPrompt, USER_PROMPT_PREFIX + content, MAX_TOKENS)
+    )
   };
 }
 
@@ -212,7 +217,7 @@ export function effectiveModel(
 const ILLEGAL_CHARS = /[/\\:*?"<>|#^[\]]/g;
 const MULTIPLE_HYPHENS = /-{2,}/g;
 const WHITESPACE = /\s+/g;
-const EDGE_DOTS_HYPHENS = /^[.\-]+|[.\-]+$/g;
+const EDGE_DOTS_HYPHENS = /^[.-]+|[.-]+$/g;
 
 export function sanitizeFilename(raw: string, maxLength: number): string {
   return raw
@@ -232,10 +237,17 @@ export function extractModelFilename(raw: string): string {
   let text = (raw ?? "").trim();
 
   if (text.startsWith("```")) {
-    text = text.replace(/^```[^\n]*\n?/, "").replace(/\n?```\s*$/, "").trim();
+    text = text
+      .replace(/^```[^\n]*\n?/, "")
+      .replace(/\n?```\s*$/, "")
+      .trim();
   }
 
-  const firstLine = text.split(/\r?\n/).map((line) => line.trim()).find((line) => line.length > 0) ?? "";
+  const firstLine =
+    text
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .find((line) => line.length > 0) ?? "";
 
   return firstLine
     .replace(/^(?:file\s*name|filename|name)\s*[:=]\s*/i, "")

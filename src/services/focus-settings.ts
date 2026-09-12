@@ -13,11 +13,7 @@ export const DEFAULT_SETTINGS: FocusSettings = {
   focusDimOpacity: 0.4
 };
 
-const ALLOWED_MODES = new Set<FocusMode>([
-  "off",
-  "sentence",
-  "paragraph"
-]);
+const ALLOWED_MODES = new Set<FocusMode>(["off", "sentence", "paragraph"]);
 
 export function normalizeFocusSettings(
   loaded: Partial<FocusSettings> | null | undefined

@@ -51,7 +51,9 @@ async function katexAssets() {
 }
 
 async function mermaidBundle() {
-  return cached("mermaid", () => readFile(`${distDirectory("mermaid/package.json")}/mermaid.min.js`));
+  return cached("mermaid", () =>
+    readFile(`${distDirectory("mermaid/package.json")}/mermaid.min.js`)
+  );
 }
 
 function distDirectory(manifestPath) {

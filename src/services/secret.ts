@@ -3,9 +3,7 @@ export interface SecretStore {
   getSecret(name: string): string | null | undefined;
 }
 
-export type ApiKeyResult =
-  | { ok: true; apiKey: string }
-  | { ok: false; message: string };
+export type ApiKeyResult = { ok: true; apiKey: string } | { ok: false; message: string };
 
 /**
  * Resolve a configured secret from Obsidian's secret storage, returning a

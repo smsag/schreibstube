@@ -111,16 +111,14 @@ export class SchreibstubeSettingTab extends PluginSettingTab {
       .setName("Enable heading stack overlay")
       .setDesc("Show the sticky ancestor-heading breadcrumb at the top of the active note.")
       .addToggle((toggle) => {
-        toggle
-          .setValue(this.plugin.settings.overlayEnabled)
-          .onChange(async (value) => {
-            this.plugin.settings = normalizeSettings({
-              ...this.plugin.settings,
-              overlayEnabled: value
-            });
-            await this.plugin.saveSettings();
-            this.plugin.requestOverlayRefresh();
+        toggle.setValue(this.plugin.settings.overlayEnabled).onChange(async (value) => {
+          this.plugin.settings = normalizeSettings({
+            ...this.plugin.settings,
+            overlayEnabled: value
           });
+          await this.plugin.saveSettings();
+          this.plugin.requestOverlayRefresh();
+        });
       });
 
     new Setting(containerEl).setName("Focus mode").setHeading();
@@ -140,45 +138,38 @@ export class SchreibstubeSettingTab extends PluginSettingTab {
 
     new Setting(containerEl).setName("AI models").setHeading();
 
-    new Setting(containerEl)
-      .setDesc("Provider, model, and API key shared by every AI command (rename and summarize).");
+    new Setting(containerEl).setDesc(
+      "Provider, model, and API key shared by every AI command (rename and summarize)."
+    );
 
-    new Setting(containerEl)
-      .setName("LLM provider")
-      .addDropdown((dropdown) => {
-        LLM_PROVIDER_IDS.forEach((id) => dropdown.addOption(id, providerLabel(id)));
-        dropdown
-          .setValue(this.plugin.settings.llmProvider)
-          .onChange(async (value) => {
-            const provider = value as LlmProvider;
-            this.plugin.settings = normalizeSettings({
-              ...this.plugin.settings,
-              llmProvider: provider,
-              llmModel: PROVIDER_MODELS[provider][0].value,
-              llmModelCustom: "",
-            });
-            await this.plugin.saveSettings();
-            this.display();
-          });
+    new Setting(containerEl).setName("LLM provider").addDropdown((dropdown) => {
+      LLM_PROVIDER_IDS.forEach((id) => dropdown.addOption(id, providerLabel(id)));
+      dropdown.setValue(this.plugin.settings.llmProvider).onChange(async (value) => {
+        const provider = value as LlmProvider;
+        this.plugin.settings = normalizeSettings({
+          ...this.plugin.settings,
+          llmProvider: provider,
+          llmModel: PROVIDER_MODELS[provider][0].value,
+          llmModelCustom: ""
+        });
+        await this.plugin.saveSettings();
+        this.display();
       });
+    });
 
     const models = PROVIDER_MODELS[this.plugin.settings.llmProvider];
-    new Setting(containerEl)
-      .setName("Model")
-      .addDropdown((dropdown) => {
-        models.forEach((m) => dropdown.addOption(m.value, m.label));
-        dropdown
-          .setValue(this.plugin.settings.llmModel)
-          .onChange(async (value) => {
-            this.plugin.settings = normalizeSettings({
-              ...this.plugin.settings,
-              llmModel: value,
-              llmModelCustom: "",
-            });
-            await this.plugin.saveSettings();
-            this.display();
-          });
+    new Setting(containerEl).setName("Model").addDropdown((dropdown) => {
+      models.forEach((m) => dropdown.addOption(m.value, m.label));
+      dropdown.setValue(this.plugin.settings.llmModel).onChange(async (value) => {
+        this.plugin.settings = normalizeSettings({
+          ...this.plugin.settings,
+          llmModel: value,
+          llmModelCustom: ""
+        });
+        await this.plugin.saveSettings();
+        this.display();
       });
+    });
 
     new Setting(containerEl)
       .setName("Custom model ID")
@@ -189,7 +180,7 @@ export class SchreibstubeSettingTab extends PluginSettingTab {
         text.onChange(async (value) => {
           this.plugin.settings = normalizeSettings({
             ...this.plugin.settings,
-            llmModelCustom: value,
+            llmModelCustom: value
           });
           await this.plugin.saveSettings();
         });
@@ -204,7 +195,7 @@ export class SchreibstubeSettingTab extends PluginSettingTab {
           .onChange(async (value) => {
             this.plugin.settings = normalizeSettings({
               ...this.plugin.settings,
-              llmSecretName: value,
+              llmSecretName: value
             });
             await this.plugin.saveSettings();
           })
@@ -214,7 +205,9 @@ export class SchreibstubeSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName("Max image size")
-      .setDesc("Images are resized to this maximum dimension (px) before being sent. Smaller = cheaper and faster.")
+      .setDesc(
+        "Images are resized to this maximum dimension (px) before being sent. Smaller = cheaper and faster."
+      )
       .addSlider((slider) => {
         slider
           .setDynamicTooltip()
@@ -223,7 +216,7 @@ export class SchreibstubeSettingTab extends PluginSettingTab {
           .onChange(async (value) => {
             this.plugin.settings = normalizeSettings({
               ...this.plugin.settings,
-              renameMaxImagePx: value,
+              renameMaxImagePx: value
             });
             await this.plugin.saveSettings();
           });
@@ -231,9 +224,7 @@ export class SchreibstubeSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName("Minimum content length")
-      .setDesc(
-        "The rename command does nothing if the note has fewer characters than this."
-      )
+      .setDesc("The rename command does nothing if the note has fewer characters than this.")
       .addText((text) => {
         text.setValue(String(this.plugin.settings.renameMinContentChars));
         text.inputEl.type = "number";
@@ -244,7 +235,7 @@ export class SchreibstubeSettingTab extends PluginSettingTab {
           if (Number.isInteger(n) && n > 0) {
             this.plugin.settings = normalizeSettings({
               ...this.plugin.settings,
-              renameMinContentChars: n,
+              renameMinContentChars: n
             });
             await this.plugin.saveSettings();
           }
@@ -264,7 +255,7 @@ export class SchreibstubeSettingTab extends PluginSettingTab {
           if (Number.isInteger(n) && n > 0) {
             this.plugin.settings = normalizeSettings({
               ...this.plugin.settings,
-              renameMaxContentChars: n,
+              renameMaxContentChars: n
             });
             await this.plugin.saveSettings();
           }
@@ -285,7 +276,7 @@ export class SchreibstubeSettingTab extends PluginSettingTab {
           if (Number.isInteger(n) && n > 0) {
             this.plugin.settings = normalizeSettings({
               ...this.plugin.settings,
-              renameMaxFilenameLength: n,
+              renameMaxFilenameLength: n
             });
             await this.plugin.saveSettings();
           }
@@ -294,14 +285,15 @@ export class SchreibstubeSettingTab extends PluginSettingTab {
 
     new Setting(containerEl).setName("Summarize selection").setHeading();
 
-    new Setting(containerEl)
-      .setDesc(
-        "The Summarize selection command sends the selected text to the LLM and replaces it with the result. It uses the shared AI model configured above."
-      );
+    new Setting(containerEl).setDesc(
+      "The Summarize selection command sends the selected text to the LLM and replaces it with the result. It uses the shared AI model configured above."
+    );
 
     new Setting(containerEl)
       .setName("Summarize prompt")
-      .setDesc("System instruction that tells the LLM how to summarize the selection. Leave blank to restore the default.")
+      .setDesc(
+        "System instruction that tells the LLM how to summarize the selection. Leave blank to restore the default."
+      )
       .addTextArea((text) => {
         text.inputEl.rows = 6;
         text.inputEl.style.width = "100%";
@@ -309,7 +301,7 @@ export class SchreibstubeSettingTab extends PluginSettingTab {
         text.inputEl.addEventListener("blur", async () => {
           this.plugin.settings = normalizeSettings({
             ...this.plugin.settings,
-            summarizePrompt: text.inputEl.value,
+            summarizePrompt: text.inputEl.value
           });
           await this.plugin.saveSettings();
           text.setValue(this.plugin.settings.summarizePrompt);
@@ -318,7 +310,9 @@ export class SchreibstubeSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName("Maximum response tokens")
-      .setDesc(`Upper bound on the length of the generated summary (${MIN_SUMMARY_TOKENS}–${MAX_SUMMARY_TOKENS}).`)
+      .setDesc(
+        `Upper bound on the length of the generated summary (${MIN_SUMMARY_TOKENS}–${MAX_SUMMARY_TOKENS}).`
+      )
       .addText((text) => {
         text.setValue(String(this.plugin.settings.summarizeMaxTokens));
         text.inputEl.type = "number";
@@ -330,7 +324,7 @@ export class SchreibstubeSettingTab extends PluginSettingTab {
           if (Number.isInteger(n)) {
             this.plugin.settings = normalizeSettings({
               ...this.plugin.settings,
-              summarizeMaxTokens: n,
+              summarizeMaxTokens: n
             });
             await this.plugin.saveSettings();
             text.setValue(String(this.plugin.settings.summarizeMaxTokens));
@@ -340,10 +334,9 @@ export class SchreibstubeSettingTab extends PluginSettingTab {
 
     new Setting(containerEl).setName("Proofreading").setHeading();
 
-    new Setting(containerEl)
-      .setDesc(
-        "Used by the proof-read sidebar. Corrections are proposed one by one and applied only when you accept them."
-      );
+    new Setting(containerEl).setDesc(
+      "Used by the proof-read sidebar. Corrections are proposed one by one and applied only when you accept them."
+    );
 
     new Setting(containerEl)
       .setName("Proofread prompt")
@@ -414,12 +407,11 @@ export class SchreibstubeSettingTab extends PluginSettingTab {
 
     new Setting(containerEl).setName("Glossary").setHeading();
 
-    new Setting(containerEl)
-      .setDesc(
-        "A glossary is a note with `schreibstubeGlossary: true` in its frontmatter and a term table. " +
-          "Glossary checks run locally and need no API key. A note's own `schreibstubeGlossaries` property beats a folder rule, " +
-          "which beats the pick in the sidebar, which beats the default below."
-      );
+    new Setting(containerEl).setDesc(
+      "A glossary is a note with `schreibstubeGlossary: true` in its frontmatter and a term table. " +
+        "Glossary checks run locally and need no API key. A note's own `schreibstubeGlossaries` property beats a folder rule, " +
+        "which beats the pick in the sidebar, which beats the default below."
+    );
 
     new Setting(containerEl)
       .setName("Default glossaries")
@@ -443,7 +435,9 @@ export class SchreibstubeSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName("Folder rules")
-      .setDesc("One rule per line: folder | glossary.md, other.md. The deepest matching folder wins.")
+      .setDesc(
+        "One rule per line: folder | glossary.md, other.md. The deepest matching folder wins."
+      )
       .addTextArea((text) => {
         text.inputEl.rows = 4;
         text.setPlaceholder("Kunden | Glossare/Kunden.md");
@@ -462,56 +456,51 @@ export class SchreibstubeSettingTab extends PluginSettingTab {
       .setName("Underline glossary hits in the editor")
       .setDesc("Marks error-severity terms as you write. Off by default to keep long notes quiet.")
       .addToggle((toggle) => {
-        toggle
-          .setValue(this.plugin.settings.glossaryLiveUnderline)
-          .onChange(async (value) => {
-            this.plugin.settings = normalizeSettings({
-              ...this.plugin.settings,
-              glossaryLiveUnderline: value
-            });
-            await this.plugin.saveSettings();
-            window.dispatchEvent(new Event(GLOSSARY_CHANGED_EVENT));
+        toggle.setValue(this.plugin.settings.glossaryLiveUnderline).onChange(async (value) => {
+          this.plugin.settings = normalizeSettings({
+            ...this.plugin.settings,
+            glossaryLiveUnderline: value
           });
+          await this.plugin.saveSettings();
+          window.dispatchEvent(new Event(GLOSSARY_CHANGED_EVENT));
+        });
       });
 
     new Setting(containerEl).setName("Document sync").setHeading();
 
-    new Setting(containerEl)
-      .setDesc(
-        "Bind a note to a remote Markdown file by adding `schreibstubeSyncedFrom: <url>` to its frontmatter. " +
-          "The source is the single truth: incoming changes appear in the sidebar as cards you accept, and nothing " +
-          "is ever pushed back. A note can live in any folder. If the source disappears, it is reported and the note " +
-          "is left untouched."
-      );
+    new Setting(containerEl).setDesc(
+      "Bind a note to a remote Markdown file by adding `schreibstubeSyncedFrom: <url>` to its frontmatter. " +
+        "The source is the single truth: incoming changes appear in the sidebar as cards you accept, and nothing " +
+        "is ever pushed back. A note can live in any folder. If the source disappears, it is reported and the note " +
+        "is left untouched."
+    );
 
     new Setting(containerEl)
       .setName("Enable document sync")
       .setDesc("Off by default. Bound notes are ignored entirely until this is on.")
       .addToggle((toggle) => {
-        toggle
-          .setValue(this.plugin.settings.syncEnabled)
-          .onChange(async (value) => {
-            this.plugin.settings = normalizeSettings({
-              ...this.plugin.settings,
-              syncEnabled: value
-            });
-            await this.plugin.saveSettings();
+        toggle.setValue(this.plugin.settings.syncEnabled).onChange(async (value) => {
+          this.plugin.settings = normalizeSettings({
+            ...this.plugin.settings,
+            syncEnabled: value
           });
+          await this.plugin.saveSettings();
+        });
       });
 
     new Setting(containerEl)
       .setName("Check when a bound note opens")
-      .setDesc("Also check automatically on open, subject to the interval below. Otherwise only on command.")
+      .setDesc(
+        "Also check automatically on open, subject to the interval below. Otherwise only on command."
+      )
       .addToggle((toggle) => {
-        toggle
-          .setValue(this.plugin.settings.syncCheckOnOpen)
-          .onChange(async (value) => {
-            this.plugin.settings = normalizeSettings({
-              ...this.plugin.settings,
-              syncCheckOnOpen: value
-            });
-            await this.plugin.saveSettings();
+        toggle.setValue(this.plugin.settings.syncCheckOnOpen).onChange(async (value) => {
+          this.plugin.settings = normalizeSettings({
+            ...this.plugin.settings,
+            syncCheckOnOpen: value
           });
+          await this.plugin.saveSettings();
+        });
       });
 
     new Setting(containerEl)
@@ -556,16 +545,14 @@ export class SchreibstubeSettingTab extends PluginSettingTab {
           "Changes found are counted and surface as cards when you next open that note."
       )
       .addToggle((toggle) => {
-        toggle
-          .setValue(this.plugin.settings.syncPollEnabled)
-          .onChange(async (value) => {
-            this.plugin.settings = normalizeSettings({
-              ...this.plugin.settings,
-              syncPollEnabled: value
-            });
-            await this.plugin.saveSettings();
-            this.display();
+        toggle.setValue(this.plugin.settings.syncPollEnabled).onChange(async (value) => {
+          this.plugin.settings = normalizeSettings({
+            ...this.plugin.settings,
+            syncPollEnabled: value
           });
+          await this.plugin.saveSettings();
+          this.display();
+        });
       });
 
     if (this.plugin.settings.syncPollEnabled) {
@@ -590,7 +577,7 @@ export class SchreibstubeSettingTab extends PluginSettingTab {
         text.onChange(async (value) => {
           this.plugin.settings = normalizeSettings({
             ...this.plugin.settings,
-            mailBridgeUrl: value,
+            mailBridgeUrl: value
           });
           await this.plugin.saveSettings();
         });
@@ -605,7 +592,7 @@ export class SchreibstubeSettingTab extends PluginSettingTab {
           .onChange(async (value) => {
             this.plugin.settings = normalizeSettings({
               ...this.plugin.settings,
-              mailTokenSecretName: value,
+              mailTokenSecretName: value
             });
             await this.plugin.saveSettings();
           })
@@ -620,7 +607,7 @@ export class SchreibstubeSettingTab extends PluginSettingTab {
         text.onChange(async (value) => {
           this.plugin.settings = normalizeSettings({
             ...this.plugin.settings,
-            mailFrom: value,
+            mailFrom: value
           });
           await this.plugin.saveSettings();
         });
@@ -635,7 +622,7 @@ export class SchreibstubeSettingTab extends PluginSettingTab {
         text.onChange(async (value) => {
           this.plugin.settings = normalizeSettings({
             ...this.plugin.settings,
-            mailMailbox: value,
+            mailMailbox: value
           });
           await this.plugin.saveSettings();
         });
@@ -652,7 +639,7 @@ export class SchreibstubeSettingTab extends PluginSettingTab {
           .onChange(async (value) => {
             this.plugin.settings = normalizeSettings({
               ...this.plugin.settings,
-              mailMaxResults: value,
+              mailMaxResults: value
             });
             await this.plugin.saveSettings();
           });
@@ -667,7 +654,7 @@ export class SchreibstubeSettingTab extends PluginSettingTab {
         text.onChange(async (value) => {
           this.plugin.settings = normalizeSettings({
             ...this.plugin.settings,
-            mailMergeHeading: value,
+            mailMergeHeading: value
           });
           await this.plugin.saveSettings();
         });
@@ -679,17 +666,17 @@ export class SchreibstubeSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName("Debug logging")
-      .setDesc("Log detailed diagnostics to the developer console (Ctrl/Cmd+Shift+I). Errors are always logged; enable this to trace what the plugin is doing.")
+      .setDesc(
+        "Log detailed diagnostics to the developer console (Ctrl/Cmd+Shift+I). Errors are always logged; enable this to trace what the plugin is doing."
+      )
       .addToggle((toggle) => {
-        toggle
-          .setValue(this.plugin.settings.debugLogging)
-          .onChange(async (value) => {
-            this.plugin.settings = normalizeSettings({
-              ...this.plugin.settings,
-              debugLogging: value,
-            });
-            await this.plugin.saveSettings();
+        toggle.setValue(this.plugin.settings.debugLogging).onChange(async (value) => {
+          this.plugin.settings = normalizeSettings({
+            ...this.plugin.settings,
+            debugLogging: value
           });
+          await this.plugin.saveSettings();
+        });
       });
   }
 
@@ -720,7 +707,7 @@ export class SchreibstubeSettingTab extends PluginSettingTab {
         text.onChange(async (value) => {
           this.plugin.settings = normalizeSettings({
             ...this.plugin.settings,
-            publishBridgeUrl: value,
+            publishBridgeUrl: value
           });
           await this.plugin.saveSettings();
         });
@@ -738,7 +725,7 @@ export class SchreibstubeSettingTab extends PluginSettingTab {
           .onChange(async (value) => {
             this.plugin.settings = normalizeSettings({
               ...this.plugin.settings,
-              publishTokenSecretName: value,
+              publishTokenSecretName: value
             });
             await this.plugin.saveSettings();
           })
@@ -795,22 +782,20 @@ export class SchreibstubeSettingTab extends PluginSettingTab {
       );
 
     for (const role of PUBLISH_KEY_ROLES) {
-      new Setting(containerEl)
-        .setName(labels[role])
-        .addText((text) => {
-          text.setPlaceholder(DEFAULT_PUBLISH_KEYS[role]);
-          text.setValue(this.plugin.settings.publishFrontmatterKeys[role]);
-          text.onChange(async (value) => {
-            this.plugin.settings = normalizeSettings({
-              ...this.plugin.settings,
-              publishFrontmatterKeys: {
-                ...this.plugin.settings.publishFrontmatterKeys,
-                [role]: value
-              },
-            });
-            await this.plugin.saveSettings();
+      new Setting(containerEl).setName(labels[role]).addText((text) => {
+        text.setPlaceholder(DEFAULT_PUBLISH_KEYS[role]);
+        text.setValue(this.plugin.settings.publishFrontmatterKeys[role]);
+        text.onChange(async (value) => {
+          this.plugin.settings = normalizeSettings({
+            ...this.plugin.settings,
+            publishFrontmatterKeys: {
+              ...this.plugin.settings.publishFrontmatterKeys,
+              [role]: value
+            }
           });
+          await this.plugin.saveSettings();
         });
+      });
     }
   }
 

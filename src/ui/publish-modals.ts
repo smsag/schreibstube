@@ -85,8 +85,7 @@ export class PublishAccountModal extends SuggestModal<PublishAccount> {
     const needle = query.toLowerCase();
     return this.accounts.filter(
       (account) =>
-        account.name.toLowerCase().includes(needle) ||
-        account.folder.toLowerCase().includes(needle)
+        account.name.toLowerCase().includes(needle) || account.folder.toLowerCase().includes(needle)
     );
   }
 

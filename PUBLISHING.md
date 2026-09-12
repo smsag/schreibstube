@@ -10,20 +10,20 @@ way. `bridge/README.md` and the plugin README document what was built.
 
 ## Decisions
 
-| Decision | Choice | Consequence |
-|---|---|---|
-| Markdown to HTML | Rendered on the bridge | Deterministic, snapshot-testable, identical from every device |
-| Publish set | Folder per account, `published: true` in frontmatter | Opt-in per note; the folder bounds what is even read |
-| Ordering | By `date`, newest first | The index is a blog index |
-| Attachments | Images and video, up to 25 MB each | One raw-bytes upload per file, no chunking |
-| Render scope | Obsidian syntax, math, diagrams | KaTeX server-side; Mermaid as self-hosted client-side script |
-| Sources on the server | Kept in a state directory | A template change re-renders the site without the vault |
-| Deletions | Manifest-based mirror | Only files the bridge wrote are ever deleted |
-| Transport | Bridge over HTTPS | Works on mobile; the plugin gains no dependency |
-| Tokens | Separate mail and publish tokens | A leaked publish token cannot reach the mailbox |
-| SFTP credentials | On the bridge, as named targets | No key material in the vault; a new account needs a redeploy |
-| Desktop SFTP shortcut | Not built | One transport, one code path, one set of failure modes |
-| Backwards compatibility | Not required | The bridge is restructured rather than extended |
+| Decision                | Choice                                               | Consequence                                                   |
+| ----------------------- | ---------------------------------------------------- | ------------------------------------------------------------- |
+| Markdown to HTML        | Rendered on the bridge                               | Deterministic, snapshot-testable, identical from every device |
+| Publish set             | Folder per account, `published: true` in frontmatter | Opt-in per note; the folder bounds what is even read          |
+| Ordering                | By `date`, newest first                              | The index is a blog index                                     |
+| Attachments             | Images and video, up to 25 MB each                   | One raw-bytes upload per file, no chunking                    |
+| Render scope            | Obsidian syntax, math, diagrams                      | KaTeX server-side; Mermaid as self-hosted client-side script  |
+| Sources on the server   | Kept in a state directory                            | A template change re-renders the site without the vault       |
+| Deletions               | Manifest-based mirror                                | Only files the bridge wrote are ever deleted                  |
+| Transport               | Bridge over HTTPS                                    | Works on mobile; the plugin gains no dependency               |
+| Tokens                  | Separate mail and publish tokens                     | A leaked publish token cannot reach the mailbox               |
+| SFTP credentials        | On the bridge, as named targets                      | No key material in the vault; a new account needs a redeploy  |
+| Desktop SFTP shortcut   | Not built                                            | One transport, one code path, one set of failure modes        |
+| Backwards compatibility | Not required                                         | The bridge is restructured rather than extended               |
 
 ## Why the bridge
 
@@ -88,7 +88,9 @@ Routing becomes a table rather than a switch, because the two capabilities need
 different limits and different auth:
 
 ```js
-{ method, path, capability, bodyType, maxBytes, timeoutMs, handler }
+{
+  (method, path, capability, bodyType, maxBytes, timeoutMs, handler);
+}
 ```
 
 A route declares which token opens it, so a mail token on a publish route is
@@ -125,8 +127,7 @@ through both processes, so an upload sends bytes.
    stays in the log.
 7. **Failure throttling.** A public URL with a bearer token and no throttle
    invites brute force. A long token makes that impractical, not impossible.
-   Repeated authentication failures from one address earn a delay and then a
-   429.
+   Repeated authentication failures from one address earn a delay and then a 429.
 
 One further point is operational rather than code. **Graceful shutdown** should
 refuse new publishes while draining in-flight ones, because a Sliplane redeploy
@@ -173,14 +174,14 @@ enabling more than one replica.
 
 ## Protocol
 
-| Method | Path | Body | Returns |
-|---|---|---|---|
-| `GET` | `/publish/targets` | — | `{targets:[{name, baseUrl, siteTitle}]}` |
-| `POST` | `/publish/plan` | `{target, index}` | `{uploadSources[], uploadAssets[], willWrite, willDelete[], unchanged}` |
-| `PUT` | `/publish/source?target=&sha256=` | raw Markdown | `{sha256, bytes}` |
-| `PUT` | `/publish/asset?target=&sha256=&name=` | raw bytes | `{sha256, bytes, path}` |
-| `POST` | `/publish/commit` | `{target, index}` | `{written, deleted, pruned, unchanged, baseUrl}` |
-| `POST` | `/publish/render` | `{target}` | `{written, unchanged}` |
+| Method | Path                                   | Body              | Returns                                                                 |
+| ------ | -------------------------------------- | ----------------- | ----------------------------------------------------------------------- |
+| `GET`  | `/publish/targets`                     | —                 | `{targets:[{name, baseUrl, siteTitle}]}`                                |
+| `POST` | `/publish/plan`                        | `{target, index}` | `{uploadSources[], uploadAssets[], willWrite, willDelete[], unchanged}` |
+| `PUT`  | `/publish/source?target=&sha256=`      | raw Markdown      | `{sha256, bytes}`                                                       |
+| `PUT`  | `/publish/asset?target=&sha256=&name=` | raw bytes         | `{sha256, bytes, path}`                                                 |
+| `POST` | `/publish/commit`                      | `{target, index}` | `{written, deleted, pruned, unchanged, baseUrl}`                        |
+| `POST` | `/publish/render`                      | `{target}`        | `{written, unchanged}`                                                  |
 
 `/publish/render` rebuilds the site from stored sources and the stored index.
 It is what makes a template change a redeploy rather than a re-upload, and it
@@ -206,9 +207,7 @@ every page header:
       "description": "…"
     }
   ],
-  "assets": [
-    { "sourcePath": "Blog/bild.png", "sha256": "…", "bytes": 48210, "name": "bild.png" }
-  ]
+  "assets": [{ "sourcePath": "Blog/bild.png", "sha256": "…", "bytes": 48210, "name": "bild.png" }]
 }
 ```
 
@@ -276,14 +275,14 @@ test file. They are the part of this feature most worth over-testing.
 
 ### Limits
 
-| Limit | Value |
-|---|---|
-| Markdown source | 2 MB |
-| Image | 10 MB |
-| Video | 25 MB |
-| Files per publish | 2000 |
-| Bytes per publish | 500 MB |
-| Concurrent publishes per target | 1 |
+| Limit                           | Value  |
+| ------------------------------- | ------ |
+| Markdown source                 | 2 MB   |
+| Image                           | 10 MB  |
+| Video                           | 25 MB  |
+| Files per publish               | 2000   |
+| Bytes per publish               | 500 MB |
+| Concurrent publishes per target | 1      |
 
 ## Rendering
 
@@ -320,13 +319,13 @@ whole reason it moved here.
 
 ```yaml
 ---
-published: true            # absent or false: not published
-title: Hallo Welt          # default: first heading, else the filename
-date: 2026-09-12           # default: file creation time
-description: …             # optional; page head and index entry
-slug: hallo-welt           # default: slugified filename
-published_at: …            # written back on success
-published_url: …           # written back on success
+published: true # absent or false: not published
+title: Hallo Welt # default: first heading, else the filename
+date: 2026-09-12 # default: file creation time
+description: … # optional; page head and index entry
+slug: hallo-welt # default: slugified filename
+published_at: … # written back on success
+published_url: … # written back on success
 ---
 ```
 
@@ -378,27 +377,27 @@ request without writing anything.
 
 ### Commands
 
-| Command | Behaviour |
-|---|---|
-| **Veröffentlichen** | Collects, plans, shows the plan for confirmation, uploads, commits |
-| **Veröffentlichung prüfen** | The same up to the plan, then stops and shows it |
-| **Website öffnen** | Opens the account base URL |
+| Command                     | Behaviour                                                          |
+| --------------------------- | ------------------------------------------------------------------ |
+| **Veröffentlichen**         | Collects, plans, shows the plan for confirmation, uploads, commits |
+| **Veröffentlichung prüfen** | The same up to the plan, then stops and shows it                   |
+| **Website öffnen**          | Opens the account base URL                                         |
 
 Publishing is explicit. No save hook and no schedule, at least until the plan
 preview has proven itself in practice.
 
 ## Failure modes
 
-| Failure | Behaviour |
-|---|---|
-| Bridge unreachable | Nothing is uploaded; the command reports and stops |
-| Bridge too old | The version handshake names the mismatch and points at a redeploy |
-| Token wrong | One clear message pointing at settings; no partial run |
-| Fingerprint mismatch | Refused, loudly. This is the one case that might be an attack |
-| Upload interrupted | Uploaded hashes stay; the manifest is untouched; the next run resumes free |
-| Commit fails | Output may be partly written; the manifest is untouched; the next run re-renders |
-| Slug collision | Refused at plan; nothing is uploaded |
-| Disk full | The failing write reports the error; nothing is committed |
+| Failure              | Behaviour                                                                        |
+| -------------------- | -------------------------------------------------------------------------------- |
+| Bridge unreachable   | Nothing is uploaded; the command reports and stops                               |
+| Bridge too old       | The version handshake names the mismatch and points at a redeploy                |
+| Token wrong          | One clear message pointing at settings; no partial run                           |
+| Fingerprint mismatch | Refused, loudly. This is the one case that might be an attack                    |
+| Upload interrupted   | Uploaded hashes stay; the manifest is untouched; the next run resumes free       |
+| Commit fails         | Output may be partly written; the manifest is untouched; the next run re-renders |
+| Slug collision       | Refused at plan; nothing is uploaded                                             |
+| Disk full            | The failing write reports the error; nothing is committed                        |
 
 ## Non-functional requirements
 
@@ -420,40 +419,40 @@ preview has proven itself in practice.
 ### Epic 1: Bridge restructure
 
 - **Story 1.1** Capability-based configuration with startup validation.
-  *Accepts when:* mail-only, publish-only and combined deployments all boot,
+  _Accepts when:_ mail-only, publish-only and combined deployments all boot,
   each invalid variant fails at startup naming the variable, and no
   `BRIDGE_TOKEN` path remains.
 - **Story 1.2** Route table with per-route capability, body type, limit and
-  timeout. *Accepts when:* a mail token on a publish route is rejected before
+  timeout. _Accepts when:_ a mail token on a publish route is rejected before
   the body is read, and both rejections are indistinguishable from a missing
   token.
 - **Story 1.3** Request identifiers, sanitised error bodies, failure
   throttling, outbound timeouts, graceful drain.
 - **Story 1.4** `/health` version handshake and authenticated `/diagnostics`.
 - **Story 1.5** Existing mail behaviour ported onto the new structure with its
-  first tests. *Accepts when:* send, search and reply-fetch behave exactly as
+  first tests. _Accepts when:_ send, search and reply-fetch behave exactly as
   they do today.
 
 ### Epic 2: Renderer
 
 - **Story 2.1** Markdown pipeline with the base plugin set, snapshot-tested.
 - **Story 2.2** Wikilinks, embeds, callouts and comments against an index
-  fixture. *Accepts when:* a link to an unpublished note renders as text and
+  fixture. _Accepts when:_ a link to an unpublished note renders as text and
   every internal link in the output resolves within the site.
 - **Story 2.3** Math and generator assets.
 - **Story 2.4** Diagrams with the self-hosted bundle, loaded only where used.
 - **Story 2.5** Page template, index page sorted by date, built-in stylesheet
-  and `theme.css` override. *Accepts when:* two consecutive renders of one
+  and `theme.css` override. _Accepts when:_ two consecutive renders of one
   fixture produce byte-identical output.
 
 ### Epic 3: Publish capability
 
 - **Story 3.1** Path safety module with its own tests.
-- **Story 3.2** SFTP transport with fingerprint pinning. *Accepts when:* a
+- **Story 3.2** SFTP transport with fingerprint pinning. _Accepts when:_ a
   mismatched fingerprint aborts before authentication.
 - **Story 3.3** Plan, source and asset upload, as raw bytes and hash-verified.
 - **Story 3.4** Commit: render, write changed, delete removed, prune, collect,
-  manifest last. *Accepts when:* a process killed between upload and commit
+  manifest last. _Accepts when:_ a process killed between upload and commit
   leaves site and manifest consistent and the next plan resumes correctly.
 - **Story 3.5** `/publish/render` from stored state alone.
 

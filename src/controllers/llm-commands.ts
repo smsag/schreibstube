@@ -2,11 +2,7 @@ import { MarkdownView, Notice, normalizePath, type App, type TFile } from "obsid
 import type { SchreibstubeSettings } from "../types";
 import type { Logger } from "../services/logger";
 import { resolveApiKey } from "../services/secret";
-import {
-  MAX_IMAGE_BYTES,
-  getImageMimeType,
-  resizeImageToBase64
-} from "../services/image-resize";
+import { MAX_IMAGE_BYTES, getImageMimeType, resizeImageToBase64 } from "../services/image-resize";
 import {
   generateImageRenameFilename,
   generateRenameFilename,
@@ -173,7 +169,11 @@ export class LlmCommands {
   }
 
   private requireApiKey(): string | null {
-    const result = resolveApiKey(this.app.secretStorage, this.getSettings().llmSecretName, "API key");
+    const result = resolveApiKey(
+      this.app.secretStorage,
+      this.getSettings().llmSecretName,
+      "API key"
+    );
     if (!result.ok) {
       new Notice(result.message);
       return null;

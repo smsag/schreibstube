@@ -17,14 +17,7 @@
 import { createServer } from "node:http";
 import { createRequire } from "node:module";
 import { capabilityNames, PROTOCOL_VERSION, loadConfig } from "./config.mjs";
-import {
-  clientAddress,
-  newRequestId,
-  parseJson,
-  readBody,
-  sendError,
-  sendJson
-} from "./http.mjs";
+import { clientAddress, newRequestId, parseJson, readBody, sendError, sendJson } from "./http.mjs";
 import { authenticate, resolve } from "./router.mjs";
 import { createThrottle } from "./throttle.mjs";
 import { TimeoutError, withDeadline } from "./timeout.mjs";

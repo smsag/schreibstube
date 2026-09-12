@@ -101,7 +101,9 @@ describe("encodeChunk and parseChunkResponse", () => {
   });
 
   it("returns nothing when the response has no markers", () => {
-    expect(parseChunkResponse("Hier ist Ihre Korrektur!", blocksOf("Ein Satz."))).toEqual(new Map());
+    expect(parseChunkResponse("Hier ist Ihre Korrektur!", blocksOf("Ein Satz."))).toEqual(
+      new Map()
+    );
   });
 
   it("drops a preamble before the first marker", () => {

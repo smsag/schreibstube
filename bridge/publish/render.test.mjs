@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { createRenderer, renderMarkdown, stripComments, stripFrontmatter } from "./render/markdown.mjs";
+import {
+  createRenderer,
+  renderMarkdown,
+  stripComments,
+  stripFrontmatter
+} from "./render/markdown.mjs";
 import { formatDate, indexPage, notePage } from "./render/page.mjs";
 import { buildSite, checkIndex, orderNotes, sha256 } from "./site.mjs";
 
@@ -153,11 +158,13 @@ describe("callouts", () => {
   });
 
   it("opens a callout marked with a plus", () => {
-    expect(render("> [!tip]+ Offen\n> Text.")).toContain("<details class=\"callout callout-tip\" open>");
+    expect(render("> [!tip]+ Offen\n> Text.")).toContain(
+      '<details class="callout callout-tip" open>'
+    );
   });
 
   it("escapes a title rather than letting it close the tag", () => {
-    expect(render('> [!note] <img src=x onerror=alert(1)>\n> Text.')).toContain("&lt;img");
+    expect(render("> [!note] <img src=x onerror=alert(1)>\n> Text.")).toContain("&lt;img");
   });
 });
 
@@ -221,12 +228,18 @@ describe("pages", () => {
 
   it("loads the maths stylesheet only where there is maths", () => {
     expect(notePage({ note, body: "", siteTitle: "S", usedMath: true })).toContain("katex.css");
-    expect(notePage({ note, body: "", siteTitle: "S", usedMath: false })).not.toContain("katex.css");
+    expect(notePage({ note, body: "", siteTitle: "S", usedMath: false })).not.toContain(
+      "katex.css"
+    );
   });
 
   it("loads the diagram bundle only where there is a diagram", () => {
-    expect(notePage({ note, body: "", siteTitle: "S", usedMermaid: true })).toContain("mermaid.min.js");
-    expect(notePage({ note, body: "", siteTitle: "S", usedMermaid: false })).not.toContain("mermaid");
+    expect(notePage({ note, body: "", siteTitle: "S", usedMermaid: true })).toContain(
+      "mermaid.min.js"
+    );
+    expect(notePage({ note, body: "", siteTitle: "S", usedMermaid: false })).not.toContain(
+      "mermaid"
+    );
   });
 
   it("adds the title as a heading", () => {

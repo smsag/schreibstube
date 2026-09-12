@@ -87,9 +87,7 @@ describe("describeBridgeError", () => {
   });
 
   it("surfaces the bridge's own message for a mail server failure", () => {
-    expect(describeBridgeError(502, '{"error":"Search failed: ENOTFOUND"}')).toMatch(
-      /ENOTFOUND/
-    );
+    expect(describeBridgeError(502, '{"error":"Search failed: ENOTFOUND"}')).toMatch(/ENOTFOUND/);
   });
 
   it("explains a throttled bridge rather than echoing the status", () => {
@@ -101,7 +99,9 @@ describe("describeBridgeError", () => {
   });
 
   it("names what timed out", () => {
-    expect(describeBridgeError(504, '{"error":"The request took too long."}')).toMatch(/timed out/i);
+    expect(describeBridgeError(504, '{"error":"The request took too long."}')).toMatch(
+      /timed out/i
+    );
   });
 
   it("falls back to the raw body when the response is not JSON", () => {

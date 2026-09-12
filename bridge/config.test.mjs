@@ -159,7 +159,9 @@ describe("loadConfig, parsing", () => {
   });
 
   it("trims hosts and the user but never the password", () => {
-    const { mail } = loadConfig(env({ IMAP_HOST: " imap.example.com ", MAIL_PASSWORD: " geheim " }));
+    const { mail } = loadConfig(
+      env({ IMAP_HOST: " imap.example.com ", MAIL_PASSWORD: " geheim " })
+    );
     expect(mail.imap.host).toBe("imap.example.com");
     expect(mail.imap.auth.pass).toBe(" geheim ");
   });

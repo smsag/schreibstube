@@ -51,9 +51,9 @@ describe("resolveGlossarySelection", () => {
   });
 
   it("still falls back when the user has not touched the picker", () => {
-    expect(
-      resolveGlossarySelection({ notePath: "a.md", fallback: ["Standard.md"] }).source
-    ).toBe("default");
+    expect(resolveGlossarySelection({ notePath: "a.md", fallback: ["Standard.md"] }).source).toBe(
+      "default"
+    );
   });
 
   it("lets frontmatter override an explicit empty pick", () => {

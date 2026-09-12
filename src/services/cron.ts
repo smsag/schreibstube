@@ -22,9 +22,7 @@ export interface CronSchedule {
   dayOfWeekRestricted: boolean;
 }
 
-export type CronParseResult =
-  | { ok: true; schedule: CronSchedule }
-  | { ok: false; reason: string };
+export type CronParseResult = { ok: true; schedule: CronSchedule } | { ok: false; reason: string };
 
 interface FieldSpec {
   name: string;
@@ -42,14 +40,14 @@ const FIELDS: FieldSpec[] = [
     name: "Monat",
     min: 1,
     max: 12,
-    names: ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"],
+    names: ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"]
   },
   {
     name: "Wochentag",
     min: 0,
     max: 7,
-    names: ["sun", "mon", "tue", "wed", "thu", "fri", "sat"],
-  },
+    names: ["sun", "mon", "tue", "wed", "thu", "fri", "sat"]
+  }
 ];
 
 /** A few schedules worth offering as a starting point. */
@@ -57,7 +55,7 @@ export const CRON_PRESETS: { label: string; expression: string }[] = [
   { label: "Stündlich", expression: "0 * * * *" },
   { label: "Alle 4 Stunden", expression: "0 */4 * * *" },
   { label: "Täglich 8:00", expression: "0 8 * * *" },
-  { label: "Werktags 8:00", expression: "0 8 * * 1-5" },
+  { label: "Werktags 8:00", expression: "0 8 * * 1-5" }
 ];
 
 export function parseCron(expression: string): CronParseResult {
@@ -68,7 +66,7 @@ export function parseCron(expression: string): CronParseResult {
   if (parts.length !== 5) {
     return {
       ok: false,
-      reason: `Fünf Felder erwartet (Minute Stunde Tag Monat Wochentag), ${parts.length} gefunden.`,
+      reason: `Fünf Felder erwartet (Minute Stunde Tag Monat Wochentag), ${parts.length} gefunden.`
     };
   }
 
@@ -96,8 +94,8 @@ export function parseCron(expression: string): CronParseResult {
       month: sets[3],
       dayOfWeek,
       dayOfMonthRestricted: parts[2] !== "*",
-      dayOfWeekRestricted: parts[4] !== "*",
-    },
+      dayOfWeekRestricted: parts[4] !== "*"
+    }
   };
 }
 
@@ -162,11 +160,7 @@ export function previousRun(schedule: CronSchedule, from: Date): Date | null {
  * when a tick drifts, which means the same minute can be seen several times.
  * `lastFiredMinute` is the guard: one fire per named minute, no more.
  */
-export function shouldFire(
-  schedule: CronSchedule,
-  now: Date,
-  lastFiredMinute: number
-): boolean {
+export function shouldFire(schedule: CronSchedule, now: Date, lastFiredMinute: number): boolean {
   const minuteStamp = minuteOf(now);
   if (minuteStamp === lastFiredMinute) return false;
   return matchesCron(schedule, now);

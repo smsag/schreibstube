@@ -234,9 +234,15 @@
   background: var(--background-primary);
 }
 
-.schreibstube-review-card.is-suggestion { border-left-color: var(--background-modifier-border); }
-.schreibstube-review-card.is-warning { border-left-color: var(--text-warning); }
-.schreibstube-review-card.is-error { border-left-color: var(--text-error); }
+.schreibstube-review-card.is-suggestion {
+  border-left-color: var(--background-modifier-border);
+}
+.schreibstube-review-card.is-warning {
+  border-left-color: var(--text-warning);
+}
+.schreibstube-review-card.is-error {
+  border-left-color: var(--text-error);
+}
 
 .schreibstube-review-card.is-stale {
   opacity: 0.55;
@@ -270,7 +276,9 @@
   white-space: pre-wrap;
 }
 
-.schreibstube-diff-equal { color: var(--text-muted); }
+.schreibstube-diff-equal {
+  color: var(--text-muted);
+}
 
 .schreibstube-diff-delete {
   background: var(--background-modifier-error);

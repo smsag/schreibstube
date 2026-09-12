@@ -38,7 +38,7 @@ export function tokenize(text: string): string[] {
 export function diffWords(before: string, after: string): DiffSegment[] {
   return diffSequences(tokenize(before), tokenize(after), MAX_TOKENS).map((run) => ({
     op: run.op,
-    text: run.items.join(""),
+    text: run.items.join("")
   }));
 }
 
@@ -56,7 +56,7 @@ export function diffToEdits(before: string, after: string): Edit[] {
       from: pending.from,
       to: pending.from + pending.before.length,
       before: pending.before,
-      after: pending.after,
+      after: pending.after
     };
     if (isMeaningful(edit)) {
       edits.push(edit);

@@ -16,7 +16,7 @@ import {
   parseFolderRules,
   parseGlossaryList,
   resolveGlossarySelection,
-  type GlossarySelection,
+  type GlossarySelection
 } from "../services/glossary-resolver";
 import { GlossaryRegistry } from "../services/glossary-registry";
 import { createChunkSender } from "../services/llm-proofread";
@@ -25,7 +25,7 @@ import {
   isFlagOnly,
   runProofread,
   scanGlossary,
-  type CancelToken,
+  type CancelToken
 } from "../services/proofread-runner";
 import { resolveApiKey } from "../services/secret";
 import { fetchSource } from "../services/sync-fetcher";
@@ -37,7 +37,7 @@ import {
   splitNote,
   stripRemoteFrontmatter,
   type LocalState,
-  type SyncRecord,
+  type SyncRecord
 } from "../services/sync-document";
 import { resolveSourceUrl, SYNC_FRONTMATTER_KEY } from "../services/sync-source";
 import { diffHunks } from "../services/line-diff";
@@ -47,7 +47,7 @@ import {
   refreshStaleness,
   resolveAnchor,
   settleStatuses,
-  type Suggestion,
+  type Suggestion
 } from "../services/suggestion";
 import { GLOSSARY_CHANGED_EVENT } from "../utils/constants";
 import {
@@ -55,7 +55,7 @@ import {
   type GlossaryPanelState,
   type ReviewHandlers,
   type ReviewState,
-  type SyncPanelState,
+  type SyncPanelState
 } from "../ui/review-panel";
 
 export const GLOSSARY_FRONTMATTER_KEY = "schreibstubeGlossaries";
@@ -128,7 +128,7 @@ export class ProofreadController {
       onReject: (id) => this.reject(id),
       onReveal: (id) => this.reveal(id),
       onToggleGlossary: (path) => void this.toggleGlossary(path),
-      onCheckSource: () => void this.checkSource(true),
+      onCheckSource: () => void this.checkSource(true)
     };
   }
 
@@ -242,7 +242,8 @@ export class ProofreadController {
 
     const found = scanGlossary(text, this.matcher);
     this.suggestions = mergeSuggestions(this.suggestions, found, "glossary");
-    this.message = found.length === 0 ? "Glossar: keine Treffer." : `Glossar: ${found.length} Treffer.`;
+    this.message =
+      found.length === 0 ? "Glossar: keine Treffer." : `Glossar: ${found.length} Treffer.`;
     this.emit();
   }
 
@@ -291,14 +292,14 @@ export class ProofreadController {
         createChunkSender(settings, key.apiKey, this.matcher.constraints()),
         {
           chunkChars: settings.proofreadChunkChars,
-          concurrency: settings.proofreadConcurrency,
+          concurrency: settings.proofreadConcurrency
         },
         token,
         (progress) => {
           if (token.cancelled) return;
           this.progress = {
             completed: progress.completedChunks,
-            total: progress.totalChunks,
+            total: progress.totalChunks
           };
           this.suggestions = mergeSuggestions(this.suggestions, progress.suggestions, "llm");
           this.emit();
@@ -309,7 +310,11 @@ export class ProofreadController {
         this.message = "Korrektur abgebrochen.";
       } else {
         this.suggestions = mergeSuggestions(this.suggestions, result.suggestions, "llm");
-        this.message = summarize(result.suggestions.length, result.rejectedBlocks, result.failedChunks);
+        this.message = summarize(
+          result.suggestions.length,
+          result.rejectedBlocks,
+          result.failedChunks
+        );
       }
     } catch (err) {
       this.logger.error("Proofread failed:", err);
@@ -356,8 +361,8 @@ export class ProofreadController {
         changes: plan.changes.map((change) => ({
           from: editor.offsetToPos(change.from),
           to: editor.offsetToPos(change.to),
-          text: change.text,
-        })),
+          text: change.text
+        }))
       });
     }
 
@@ -440,7 +445,7 @@ export class ProofreadController {
       frontmatter: parseGlossaryList(frontmatter?.[GLOSSARY_FRONTMATTER_KEY]),
       folderRules: parseFolderRules(settings.glossaryFolderRules),
       session: this.sessionPicks.get(file.path),
-      fallback: settings.glossaryDefault,
+      fallback: settings.glossaryDefault
     });
 
     const loaded = await this.registry.load(this.selection.paths, file.path);
@@ -450,7 +455,7 @@ export class ProofreadController {
       available,
       source: this.selection.source,
       errors: loaded.errors,
-      missing: loaded.missing,
+      missing: loaded.missing
     };
 
     this.logger.debug(
@@ -459,7 +464,6 @@ export class ProofreadController {
     window.dispatchEvent(new Event(GLOSSARY_CHANGED_EVENT));
     this.emit();
   }
-
 
   /**
    * Check the bound source and turn any difference into cards.
@@ -476,7 +480,6 @@ export class ProofreadController {
     const result = resolveApiKey(this.app.secretStorage, name);
     return result.ok ? result.apiKey : undefined;
   }
-
 
   /**
    * Check every bound note in the vault.
@@ -565,7 +568,7 @@ export class ProofreadController {
         url: resolved.url,
         target: resolved.target,
         etag: conditional,
-        token,
+        token
       });
     } catch (err) {
       this.logger.warn(`Poll failed for ${file.path}:`, err);
@@ -588,7 +591,7 @@ export class ProofreadController {
         hash: record?.hash ?? hashText(body),
         etag: record?.etag ?? "",
         checkedAt,
-        pendingChanges: record?.pendingChanges ?? 0,
+        pendingChanges: record?.pendingChanges ?? 0
       };
       return;
     }
@@ -598,7 +601,7 @@ export class ProofreadController {
         hash: record?.hash ?? hashText(body),
         etag: outcome.etag,
         checkedAt,
-        pendingChanges: record?.pendingChanges ?? 0,
+        pendingChanges: record?.pendingChanges ?? 0
       };
       return;
     }
@@ -607,10 +610,10 @@ export class ProofreadController {
     const changes = diffHunks(body, remoteBody).length;
 
     updates[file.path] = {
-      hash: changes === 0 ? hashText(body) : record?.hash ?? hashText(body),
+      hash: changes === 0 ? hashText(body) : (record?.hash ?? hashText(body)),
       etag: outcome.etag,
       checkedAt,
-      pendingChanges: changes,
+      pendingChanges: changes
     };
 
     if (changes > 0) {
@@ -634,7 +637,13 @@ export class ProofreadController {
 
     const resolved = resolveSourceUrl(raw);
     if (!resolved.ok) {
-      this.sync = { ...this.sync, bound: true, status: "error", source: raw, message: resolved.reason };
+      this.sync = {
+        ...this.sync,
+        bound: true,
+        status: "error",
+        source: raw,
+        message: resolved.reason
+      };
       this.emit();
       return;
     }
@@ -645,7 +654,13 @@ export class ProofreadController {
     }
 
     this.checking = true;
-    this.sync = { ...this.sync, bound: true, status: "checking", source: resolved.url, message: "" };
+    this.sync = {
+      ...this.sync,
+      bound: true,
+      status: "checking",
+      source: resolved.url,
+      message: ""
+    };
     this.emit();
 
     try {
@@ -656,7 +671,7 @@ export class ProofreadController {
         url: resolved.url,
         target: resolved.target,
         etag: conditional,
-        token: this.githubToken(),
+        token: this.githubToken()
       });
       const view = this.resolveTargetView();
 
@@ -679,14 +694,14 @@ export class ProofreadController {
           hash: record?.hash ?? hashText(body),
           etag: record?.etag ?? "",
           checkedAt,
-          pendingChanges: record?.pendingChanges ?? 0,
+          pendingChanges: record?.pendingChanges ?? 0
         });
         this.sync = {
           bound: true,
           status: outcome.status,
           source: resolved.url,
           checkedAt,
-          message: outcome.message,
+          message: outcome.message
         };
         this.emit();
         return;
@@ -697,14 +712,14 @@ export class ProofreadController {
           hash: record?.hash ?? hashText(body),
           etag: outcome.etag,
           checkedAt,
-          pendingChanges: 0,
+          pendingChanges: 0
         });
         this.sync = {
           bound: true,
           status: state === "diverged" ? "diverged" : "clean",
           source: resolved.url,
           checkedAt,
-          message: this.describeState(state, 0),
+          message: this.describeState(state, 0)
         };
         this.emit();
         return;
@@ -716,11 +731,11 @@ export class ProofreadController {
       await this.syncStore.set(file.path, {
         // The baseline only advances once the note actually matches the source,
         // so an unaccepted update is still pending on the next check.
-        hash: suggestions.length === 0 ? hashText(body) : record?.hash ?? hashText(body),
+        hash: suggestions.length === 0 ? hashText(body) : (record?.hash ?? hashText(body)),
         etag: outcome.etag,
         checkedAt,
         // The changes are on screen now, so nothing is owed to a later visit.
-        pendingChanges: 0,
+        pendingChanges: 0
       });
 
       this.suggestions = mergeSuggestions(this.suggestions, suggestions, "remote");
@@ -729,7 +744,7 @@ export class ProofreadController {
         status: suggestions.length === 0 ? "clean" : state === "diverged" ? "diverged" : "idle",
         source: resolved.url,
         checkedAt,
-        message: this.describeState(state, suggestions.length),
+        message: this.describeState(state, suggestions.length)
       };
       this.emit();
     } catch (err) {
@@ -738,7 +753,7 @@ export class ProofreadController {
         ...this.sync,
         bound: true,
         status: "error",
-        message: err instanceof Error ? err.message : "Unbekannter Fehler.",
+        message: err instanceof Error ? err.message : "Unbekannter Fehler."
       };
       this.emit();
     } finally {
@@ -773,7 +788,7 @@ export class ProofreadController {
     await this.syncStore.set(this.filePath, {
       ...record,
       hash: hashText(splitNote(noteText).body),
-      pendingChanges: 0,
+      pendingChanges: 0
     });
 
     this.sync = { ...this.sync, status: "clean", message: "Notiz entspricht der Quelle." };
@@ -824,7 +839,7 @@ export class ProofreadController {
         ? pending > 0
           ? `${pending} Änderung(en) aus der letzten Hintergrundprüfung. "Quelle prüfen" holt sie.`
           : ""
-        : resolved.reason,
+        : resolved.reason
     };
   }
 
@@ -864,13 +879,19 @@ export class ProofreadController {
   private buildState(): ReviewState {
     const hasFile = this.filePath !== null;
     return {
-      phase: !hasFile ? "no-file" : this.running ? "running" : this.suggestions.length > 0 ? "reviewing" : "idle",
+      phase: !hasFile
+        ? "no-file"
+        : this.running
+          ? "running"
+          : this.suggestions.length > 0
+            ? "reviewing"
+            : "idle",
       fileName: this.filePath?.split("/").pop() ?? "",
       suggestions: this.suggestions,
       progress: this.progress,
       glossary: this.glossaryPanel,
       sync: this.sync,
-      message: this.message,
+      message: this.message
     };
   }
 

@@ -105,14 +105,16 @@ describe("describePublishError", () => {
   });
 
   it("names the web host for an upstream failure", () => {
-    expect(describePublishError(502, '{"error":"Host key mismatch"}')).toContain("Host key mismatch");
+    expect(describePublishError(502, '{"error":"Host key mismatch"}')).toContain(
+      "Host key mismatch"
+    );
     expect(describePublishError(502, "")).toMatch(/web host/);
   });
 
   it("explains a publish that collided with another", () => {
-    expect(describePublishError(409, '{"error":"A publish to blog is already running."}')).toContain(
-      "already running"
-    );
+    expect(
+      describePublishError(409, '{"error":"A publish to blog is already running."}')
+    ).toContain("already running");
   });
 
   it("explains a restarting bridge", () => {

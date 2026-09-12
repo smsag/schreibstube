@@ -35,19 +35,19 @@ memory, and a second instance would not see it.
 All endpoints except `/health` require `Authorization: Bearer <token>`, and the
 token must belong to the capability that owns the route.
 
-| Method | Path | Capability | Body | Returns |
-|---|---|---|---|---|
-| `GET` | `/health` | — | — | `{status, version, protocol, capabilities[]}` |
-| `POST` | `/diagnostics` | mail | — | per-protocol reachability |
-| `POST` | `/send` | mail | `{to, cc?, bcc?, subject, text, from?, inReplyTo?, references?}` | `{messageId, sentAt, filedInSent}` |
-| `POST` | `/search` | mail | `{criteria:{from?,to?,subject?,text?,since?,references?}, mailbox?, limit?}` | `{messages[], mailbox, truncated}` |
-| `GET` | `/publish/targets` | publish | — | `{targets:[{name, baseUrl, siteTitle}]}` |
-| `POST` | `/publish/diagnostics` | publish | `{target}` | `{ok, root, entries}` or `{ok:false, error}` |
-| `POST` | `/publish/plan` | publish | `{target, index}` | what to upload, and what will be deleted |
-| `PUT` | `/publish/source` | publish | raw Markdown, `?target=&sha256=` | `{sha256, bytes}` |
-| `PUT` | `/publish/asset` | publish | raw bytes, `?target=&sha256=&name=` | `{sha256, bytes, path}` |
-| `POST` | `/publish/commit` | publish | `{target, index}` | `{written, unchanged, deleted, pruned, collected}` |
-| `POST` | `/publish/render` | publish | `{target}` | the same, rebuilt from stored state |
+| Method | Path                   | Capability | Body                                                                         | Returns                                            |
+| ------ | ---------------------- | ---------- | ---------------------------------------------------------------------------- | -------------------------------------------------- |
+| `GET`  | `/health`              | —          | —                                                                            | `{status, version, protocol, capabilities[]}`      |
+| `POST` | `/diagnostics`         | mail       | —                                                                            | per-protocol reachability                          |
+| `POST` | `/send`                | mail       | `{to, cc?, bcc?, subject, text, from?, inReplyTo?, references?}`             | `{messageId, sentAt, filedInSent}`                 |
+| `POST` | `/search`              | mail       | `{criteria:{from?,to?,subject?,text?,since?,references?}, mailbox?, limit?}` | `{messages[], mailbox, truncated}`                 |
+| `GET`  | `/publish/targets`     | publish    | —                                                                            | `{targets:[{name, baseUrl, siteTitle}]}`           |
+| `POST` | `/publish/diagnostics` | publish    | `{target}`                                                                   | `{ok, root, entries}` or `{ok:false, error}`       |
+| `POST` | `/publish/plan`        | publish    | `{target, index}`                                                            | what to upload, and what will be deleted           |
+| `PUT`  | `/publish/source`      | publish    | raw Markdown, `?target=&sha256=`                                             | `{sha256, bytes}`                                  |
+| `PUT`  | `/publish/asset`       | publish    | raw bytes, `?target=&sha256=&name=`                                          | `{sha256, bytes, path}`                            |
+| `POST` | `/publish/commit`      | publish    | `{target, index}`                                                            | `{written, unchanged, deleted, pruned, collected}` |
+| `POST` | `/publish/render`      | publish    | `{target}`                                                                   | the same, rebuilt from stored state                |
 
 `/health` is the version handshake: plugin and bridge deploy separately, and
 `protocol` is what lets the plugin say "redeploy the bridge" instead of failing

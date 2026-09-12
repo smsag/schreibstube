@@ -12,8 +12,7 @@ export const SYNC_FRONTMATTER_KEY = "schreibstubeSyncedFrom";
 /** Where a source lives, which decides how it is fetched and, crucially,
  *  whether a credential may be attached to the request. */
 export type SourceTarget =
-  | { kind: "github"; owner: string; repo: string; ref: string; path: string }
-  | { kind: "url" };
+  { kind: "github"; owner: string; repo: string; ref: string; path: string } | { kind: "url" };
 
 export type SourceResult =
   | { ok: true; url: string; rewritten: boolean; target: SourceTarget }
@@ -58,7 +57,7 @@ export function resolveSourceUrl(raw: unknown): SourceResult {
     ok: true,
     url: resolved.toString(),
     rewritten: rewrite !== null,
-    target: rewrite?.target ?? describeHost(resolved),
+    target: rewrite?.target ?? describeHost(resolved)
   };
 }
 
@@ -109,7 +108,7 @@ function rewriteGitHubUrl(url: URL): { url: URL; target: SourceTarget } | null {
   const path = rest.join("/");
   return {
     url: new URL(`https://raw.githubusercontent.com/${owner}/${repo}/${ref}/${path}`),
-    target: { kind: "github", owner, repo, ref, path },
+    target: { kind: "github", owner, repo, ref, path }
   };
 }
 
