@@ -168,6 +168,13 @@ export default class SchreibstubePlugin extends Plugin {
     );
 
     this.registerCommands();
+    // The file pane is the one thing here a person opens rather than runs, and
+    // reaching for a command palette to open a file list is a tax nobody else
+    // charges. Obsidian's own appearance settings hide the icon for anyone who
+    // would rather it were not there.
+    this.addRibbonIcon("folder-tree", t().commands.openExplorer, () => {
+      void this.activateExplorerPane();
+    });
     this.addSettingTab(new SchreibstubeSettingTab(this.app, this));
     this.requestOverlayRefresh();
   }

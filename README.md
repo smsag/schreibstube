@@ -210,7 +210,7 @@ What the bridge does and the plugin does not: rendering the Markdown, holding th
 
 ### File pane
 
-A file list of Schreibstube's own, opened with **Open file pane**. It exists because three things cannot be done to Obsidian's explorer from a plugin without fighting it: an icon per item, a mark for sync state, and an order that puts pinned files first.
+A file list of Schreibstube's own, opened from the ribbon icon in the left sidebar or with **Open file pane**. It exists because three things cannot be done to Obsidian's explorer from a plugin without fighting it: an icon per item, a mark for sync state, and an order that puts pinned files first.
 
 The pane has three sections, each one collapsible, each remembering whether it was open on that device: **Bookmarks**, **Latest**, and **Files and folders**.
 

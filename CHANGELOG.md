@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Added
+
+- **A ribbon icon opens the file pane.** The pane is the one part of the plugin a person opens rather than runs, and reaching for the command palette to open a file list is a tax no other explorer charges. Obsidian's appearance settings hide the icon for anyone who would rather it were not there.
+
 ## 1.10.1 - 2026-09-12
 
 ### Fixed
