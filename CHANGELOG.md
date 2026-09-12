@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Added
+
+- **The plugin has an icon of its own** — a house with a quill, for "Stube" — registered by the plugin and used for the ribbon button and the pane's tab. It replaces a name borrowed from Obsidian's own set, and with it the fallback that existed because a borrowed name can be missing: an icon the plugin registers itself cannot be.
+- **A trash button on every row**, next to the menu button, shown on hover and always on a phone. It opens the same confirmation the menu entry does. Delete was reachable only by opening a menu first, which is a lot of taps for the one action a file list is asked for most.
+- **A footer** naming the vault, with help and the plugin's settings beside it.
+- **Copy path for Schreibstube sits on the folder's own menu**, in the create block, rather than only on the menu Obsidian builds — where the pane's own rules put it behind "More actions", which is the opposite of what it is for.
+
+### Changed
+
+- **The pane is drawn on one grid.** Every row is a 12px chevron slot, a 7px gap and then its content, indented 14px per level from a 12px base, at a fixed 27px height. Rows without a chevron render the slot empty rather than swallowing it, so an icon at a given depth lines up with every other icon at that depth — across sections, not only inside the tree. Latest used to sit on a hardcoded inset of its own and the tree stepped 17px from a 4px base, so nothing quite lined up with anything.
+- **"Files and folders" is drawn as a band** across the pane with a rule above and below. It is the one header that separates two kinds of thing, the curated lists above and the vault below, and it used to look like the other three.
+- **An active row carries an accent bar** down its left edge rather than a background tint alone, which a theme whose hover and active colours are close together made nearly invisible.
+- **The filter says what it filters.** Its placeholder named files; it has always searched all four sections.
+- **Rows take their colours from Obsidian's navigation variables** rather than the generic background ones, so the pane matches the file explorer beside it in any theme.
+
 ## 1.11.0 - 2026-09-12
 
 ### Added

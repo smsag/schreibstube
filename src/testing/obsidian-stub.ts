@@ -123,10 +123,14 @@ export class Plugin {
   ) {}
 }
 
-/**
- * The icon names Obsidian ships. A test that cares sets this; the default is
- * empty, which `resolveIconName` reads as "could not be asked".
- */
+/** Icons the plugin registered, so a test can assert what was handed over. */
+export const registeredIcons = new Map<string, string>();
+
+export function addIcon(id: string, svg: string): void {
+  registeredIcons.set(id, svg);
+}
+
+/** The icon names Obsidian ships. A test that cares sets this. */
 export let iconIds: string[] = [];
 
 export function setIconIds(ids: string[]): void {

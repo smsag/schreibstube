@@ -28,6 +28,7 @@ export type ExplorerAction =
   | "sync-folder"
   | "new-note"
   | "new-folder"
+  | "copy-path"
   | "rename"
   | "delete"
   | "more";
@@ -100,7 +101,10 @@ export function buildExplorerMenu(
       id: "create",
       items: [
         { id: "new-note", label: menu.newNote, icon: "file-plus" },
-        { id: "new-folder", label: menu.newFolder, icon: "folder-plus" }
+        { id: "new-folder", label: menu.newFolder, icon: "folder-plus" },
+        // A folder is bookmarked by pasting its URL into the bookmarks file,
+        // so the way to obtain that URL belongs on the folder itself.
+        { id: "copy-path", label: t().explorer.bookmarks.copyPath, icon: "copy" }
       ]
     });
   }

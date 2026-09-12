@@ -404,16 +404,31 @@
 }
 
 .schreibstube-explorer {
+  /* The grid the whole pane sits on. A row is a 12px chevron slot, a 7px gap
+     and then its content, so every icon at a given depth lines up with every
+     other one — across sections, not only within the tree. */
+  --schreibstube-row-height: 27px;
+  --schreibstube-row-inset: 12px;
+  --schreibstube-row-step: 14px;
+  --schreibstube-twisty-size: 12px;
+  --schreibstube-row-gap: 7px;
+  --schreibstube-glyph-size: 15px;
+  --schreibstube-badge-size: 12px;
+  --schreibstube-pin-size: 11px;
+  --schreibstube-depth: 0;
+
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding: var(--schreibstube-padding);
+  padding: var(--schreibstube-padding) 0 0;
   height: 100%;
   overflow: hidden;
 }
 
 .schreibstube-explorer-filter {
-  width: 100%;
+  width: calc(100% - 2 * var(--schreibstube-padding));
+  height: 32px;
+  margin: 0 var(--schreibstube-padding);
   flex: 0 0 auto;
 }
 
@@ -434,16 +449,30 @@
 .schreibstube-explorer-section-header {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--schreibstube-row-gap);
   width: 100%;
-  padding: 2px 4px;
+  height: 24px;
+  padding: 0 var(--schreibstube-row-inset);
   background: none;
   border: none;
   box-shadow: none;
   cursor: pointer;
   color: var(--text-muted);
-  font-size: var(--font-ui-smaller);
+  font-size: 10.5px;
+  font-weight: var(--font-semibold);
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
   text-align: left;
+}
+
+/* The one header that separates two kinds of thing: the curated lists above
+   it and the vault below. It is a band across the pane rather than a label. */
+.schreibstube-explorer-section-header.is-divider {
+  margin: 10px 0 4px;
+  background: var(--background-modifier-border-hover, var(--background-modifier-hover));
+  border-top: 1px solid var(--background-modifier-border);
+  border-bottom: 1px solid var(--background-modifier-border);
+  color: var(--text-muted);
 }
 
 .schreibstube-explorer-section-header:hover {
@@ -451,67 +480,76 @@
   color: var(--text-normal);
 }
 
-.schreibstube-explorer-section-title {
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  font-weight: var(--font-semibold);
+.schreibstube-explorer-section-header.is-divider:hover {
+  color: var(--text-normal);
 }
 
+.schreibstube-explorer-section-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Created / Modified inside Latest: a label, not a row, so it carries no
+   chevron slot and no icon. */
 .schreibstube-explorer-subheading {
-  padding: 4px 4px 2px 21px;
+  padding: 9px var(--schreibstube-row-inset) 3px;
   color: var(--text-faint);
-  font-size: var(--font-ui-smaller);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .schreibstube-explorer-row.is-revealed {
   background: var(--text-selection);
 }
 
-/* A pinned row is worth recognising at a glance; the pin glyph alone is easy
-   to miss on a row that would have sorted near the top anyway. */
-.schreibstube-explorer-row.is-pinned {
-  box-shadow: inset 2px 0 0 0 var(--text-accent);
-}
-
 .schreibstube-explorer-empty {
-  color: var(--text-muted);
-  padding: var(--schreibstube-padding);
+  padding: 4px var(--schreibstube-row-inset);
+  color: var(--text-faint);
+  font-size: var(--font-ui-smaller);
 }
 
 .schreibstube-explorer-row {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding-top: 3px;
-  padding-bottom: 3px;
-  padding-right: 4px;
-  border-radius: var(--schreibstube-border-radius);
-  cursor: default;
-  /* A file list is tapped, not selected. */
-  user-select: none;
-  -webkit-user-select: none;
+  gap: var(--schreibstube-row-gap);
+  height: var(--schreibstube-row-height);
+  padding-right: 8px;
+  padding-left: calc(
+    var(--schreibstube-row-inset) + var(--schreibstube-depth) * var(--schreibstube-row-step)
+  );
+  font-size: 13px;
+  color: var(--nav-item-color, var(--text-normal));
+  cursor: pointer;
 }
 
 .schreibstube-explorer-row:hover {
-  background: var(--background-modifier-hover);
+  background: var(--nav-item-background-hover, var(--background-modifier-hover));
 }
 
+/* Active carries a bar rather than only a tint, so it survives a theme whose
+   hover and active backgrounds are nearly the same colour. */
 .schreibstube-explorer-row.is-active {
-  background: var(--background-modifier-active-hover, var(--background-modifier-hover));
+  background: var(--nav-item-background-active, var(--background-modifier-hover));
+  box-shadow: inset 2.5px 0 0 var(--interactive-accent);
+  color: var(--nav-item-color-active, var(--text-normal));
   font-weight: var(--font-medium);
 }
 
+/* Always drawn, even with no chevron in it: the empty slot is what keeps the
+   icon column straight. */
 .schreibstube-explorer-twisty {
-  width: 14px;
+  width: var(--schreibstube-twisty-size);
   flex: 0 0 auto;
-  color: var(--text-faint);
-  font-size: 14px;
+  color: var(--nav-collapse-icon-color, var(--text-faint));
+  font-size: var(--schreibstube-twisty-size);
 }
 
 .schreibstube-explorer-glyph {
   flex: 0 0 auto;
-  font-size: 16px;
-  color: var(--text-muted);
+  font-size: var(--schreibstube-glyph-size);
+  color: var(--icon-color, var(--text-muted));
 }
 
 .schreibstube-explorer-row.is-folder .schreibstube-explorer-glyph {
@@ -525,16 +563,23 @@
   white-space: nowrap;
 }
 
-.schreibstube-explorer-pin,
+/* Both sit directly behind the name, not against the right edge: they belong
+   to the name, and a state never replaces another one. */
+.schreibstube-explorer-pin {
+  flex: 0 0 auto;
+  font-size: var(--schreibstube-pin-size);
+  color: var(--text-faint);
+}
+
 .schreibstube-explorer-badge {
   flex: 0 0 auto;
-  font-size: 13px;
+  font-size: var(--schreibstube-badge-size);
   color: var(--text-faint);
 }
 
 /* Shape carries the state; colour only reinforces it. */
 .schreibstube-explorer-badge[data-sync="synced"] {
-  color: var(--text-success, var(--color-green));
+  color: var(--interactive-accent);
 }
 
 .schreibstube-explorer-badge[data-sync="pending"] {
@@ -542,29 +587,88 @@
 }
 
 .schreibstube-explorer-badge[data-sync="error"] {
-  color: var(--text-error, var(--color-red));
+  color: var(--text-error);
 }
 
+.schreibstube-explorer-delete,
 .schreibstube-explorer-more {
   flex: 0 0 auto;
+  display: flex;
+  align-items: center;
   padding: 0 4px;
-  background: transparent;
   border: none;
   box-shadow: none;
-  color: var(--text-faint);
-  cursor: var(--cursor);
+  cursor: pointer;
   opacity: 0;
 }
 
+/* The trash stands free in the danger colour; the menu button is the neutral
+   chip. Neither deletes anything: the trash opens the confirmation. */
+.schreibstube-explorer-delete {
+  background: transparent;
+  color: var(--text-error);
+}
+
+.schreibstube-explorer-more {
+  background: var(--background-modifier-border);
+  border-radius: 4px;
+  color: var(--text-muted);
+}
+
+.schreibstube-explorer-row:hover .schreibstube-explorer-delete,
 .schreibstube-explorer-row:hover .schreibstube-explorer-more,
+.schreibstube-explorer-delete:focus-visible,
 .schreibstube-explorer-more:focus-visible {
   opacity: 1;
 }
 
-/* Touch has no hover, so the way into the menu is always visible. */
+/* A phone has no hover, so the buttons are simply always there. */
+.is-mobile .schreibstube-explorer-delete,
 .is-mobile .schreibstube-explorer-more {
   opacity: 1;
-  padding: 0 8px;
+}
+
+.schreibstube-explorer-footer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 0 0 auto;
+  height: 38px;
+  padding: 0 14px;
+  border-top: 1px solid var(--background-modifier-border);
+}
+
+.schreibstube-explorer-vault {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12.5px;
+  font-weight: var(--font-semibold);
+  color: var(--text-muted);
+}
+
+.schreibstube-explorer-footer-button {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  padding: 0;
+  background: none;
+  border: none;
+  box-shadow: none;
+  cursor: pointer;
+  font-size: var(--schreibstube-glyph-size);
+  color: var(--icon-color, var(--text-muted));
+}
+
+.schreibstube-explorer-footer-button:hover {
+  color: var(--text-normal);
+}
+
+/* A pinned row is worth recognising at a glance; the pin glyph alone is easy
+   to miss on a row that would have sorted near the top anyway. */
+.schreibstube-explorer-row.is-pinned {
+  box-shadow: inset 2px 0 0 0 var(--text-accent);
 }
 
 .schreibstube-icon-picker .schreibstube-icon-search,
@@ -576,11 +680,6 @@
 .schreibstube-icon-groups {
   max-height: 45vh;
   overflow-y: auto;
-}
-
-.schreibstube-icon-groups h4 {
-  margin: 12px 0 4px;
-  color: var(--text-muted);
 }
 
 .schreibstube-icon-grid {
@@ -600,10 +699,6 @@
   border: 1px solid transparent;
   border-radius: var(--schreibstube-border-radius);
   cursor: var(--cursor);
-}
-
-.schreibstube-icon-choice:hover {
-  background: var(--background-modifier-hover);
 }
 
 .schreibstube-icon-choice.is-current {

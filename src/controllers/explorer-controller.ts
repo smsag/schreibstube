@@ -30,6 +30,7 @@ import {
   type ExplorerData
 } from "../services/explorer-state";
 import { ExplorerStore, type ExplorerFileStore } from "../services/explorer-store";
+import { vaultUrlFor } from "../services/bookmark-file";
 import { hasSourceBinding, resolveSourceUrl, SYNC_FRONTMATTER_KEY } from "../services/sync-source";
 import { openSubmenu } from "../services/workspace-internals";
 import type { PollSummary } from "./proofread-controller";
@@ -309,6 +310,8 @@ export class ExplorerController {
         return this.create(file, "note");
       case "new-folder":
         return this.create(file, "folder");
+      case "copy-path":
+        return this.copyPath(file);
       case "rename":
         return this.rename(file);
       case "delete":
@@ -322,6 +325,28 @@ export class ExplorerController {
     if (!(file instanceof TFile)) return;
     const leaf = this.app.workspace.getLeaf(newTab ? "tab" : false);
     await leaf.openFile(file);
+  }
+
+  /**
+   * The folder's `vault://` URL, on the clipboard.
+   *
+   * A folder is bookmarked by pasting this into the bookmarks file, so the path
+   * has to be obtainable without typing it out and without a typo.
+   */
+  private copyPath(file: TAbstractFile): void {
+    if (!(file instanceof TFolder)) return;
+
+    const url = vaultUrlFor(file.path);
+
+    void navigator.clipboard
+      .writeText(url)
+      .then(() => {
+        new Notice(t().common.notice(t().explorer.bookmarks.copied(file.path)));
+      })
+      .catch((error: unknown) => {
+        this.logger.warn(`Could not copy ${url} to the clipboard:`, error);
+        new Notice(t().common.notice(t().explorer.bookmarks.copyFailed));
+      });
   }
 
   private chooseIcon(file: TAbstractFile): void {
@@ -481,6 +506,15 @@ export class ExplorerController {
           });
       }
     ).open();
+  }
+
+  /**
+   * The delete confirmation, reachable from the menu and from the trash button
+   * a row shows on hover. Both go through here, so there is one dialog and one
+   * place that decides what deleting means.
+   */
+  confirmDelete(file: TAbstractFile): void {
+    this.remove(file);
   }
 
   private remove(file: TAbstractFile): void {

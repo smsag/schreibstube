@@ -218,6 +218,10 @@ The pane has four sections, each one collapsible, each remembering whether it wa
 - **Sync marks.** A note bound to a source shows what its mirror is doing: in sync, changes waiting from the poll, never checked, or a source that cannot be fetched. Shape carries the state and colour only reinforces it. Nothing is shown while document sync is off.
 - **Pinning.** Everything pinned appears in a **Pinned** section at the top of the pane, in the order it was pinned, wherever in the vault it lives. A pinned item also sits at the top of its own folder in the tree. Everything below keeps Obsidian's own arrangement: folders first, then files, numeric-aware so `Objekt 2` precedes `Objekt 10`.
 
+- **Deleting.** Every row carries a trash button next to its menu button, shown on hover and always on a phone. It never deletes on the spot: it opens the same confirmation the menu entry does, and what it confirms is a move to the vault's trash.
+
+A footer along the bottom names the vault and holds the two ways out of a pane that is not behaving: help, and the plugin's settings.
+
 The context menu is the pane's own, in a fixed order: open, icon and pin, sync, create, rename and delete. Items other plugins contribute land behind one **More actions** entry at the end rather than in blocks between the actions — the pane fires Obsidian's `file-menu` event, so a plugin that adds to the file explorer's menu adds to this one without knowing the pane exists.
 
 The sync actions are why the menu is worth owning:
@@ -228,6 +232,8 @@ The sync actions are why the menu is worth owning:
 | Check source now      | Fetches that one note, whether or not it is open, ignoring the minimum interval   |
 | Open source           | Opens the raw Markdown the note mirrors                                           |
 | Remove source binding | Drops the frontmatter key and the stored baseline                                 |
+
+On a folder, **Copy path for Schreibstube** puts its `vault://` URL on the clipboard, which is how a folder bookmark is written without typing a path out by hand.
 
 On a folder, **Check every bound note here** refreshes the mirrors under it, which is the difference between refreshing one project and polling a vault of a thousand notes.
 
