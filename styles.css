@@ -91,6 +91,20 @@
   opacity: 1;
 }
 
+/* A rendered block — a callout, a table, an embed, the preview of a code block
+   — is a CodeMirror widget standing in place of its source lines, not a line.
+   Obsidian builds every one of them as `cm-embed-block` plus a kind, so a line
+   decoration has nothing to attach to and the block stayed at full strength
+   while the prose around it faded.
+
+   It is dimmed directly, and never restored, because it cannot be the passage
+   in focus: the moment the cursor enters one, Obsidian puts the source lines
+   back and the line decorations take over again. Dimmed in both modes, since a
+   callout carries its own colours and cannot be muted the way a line can. */
+.schreibstube-focus-enabled .cm-embed-block {
+  opacity: var(--schreibstube-focus-dim-opacity);
+}
+
 .schreibstube-focus-enabled.schreibstube-focus-mode-sentence .cm-line.schreibstube-focus-dimmed {
   opacity: 1;
   color: var(--text-muted);
