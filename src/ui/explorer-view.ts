@@ -18,7 +18,14 @@
  * offers, what a pin does to the order, what a bookmark points at — lives in a
  * controller and in the services behind it.
  */
-import { ItemView, TFile, TFolder, type TAbstractFile, type WorkspaceLeaf } from "obsidian";
+import {
+  FileView,
+  ItemView,
+  TFile,
+  TFolder,
+  type TAbstractFile,
+  type WorkspaceLeaf
+} from "obsidian";
 import { t } from "../i18n";
 import type { ExplorerController } from "../controllers/explorer-controller";
 import type { PaneSectionsController } from "../controllers/pane-sections";
@@ -120,6 +127,8 @@ export class ExplorerPaneView extends ItemView {
   private shelf: HTMLElement | null = null;
   /** Path of the row being dragged, or null when nothing is being dragged. */
   private dragging: string | null = null;
+  /** Files open in some tab, recomputed once per draw rather than per row. */
+  private openPaths = new Set<string>();
   private pending = false;
   /** A path to scroll to once the next draw has put it on screen. */
   private revealing: string | null = null;
@@ -181,6 +190,7 @@ export class ExplorerPaneView extends ItemView {
     this.registerEvent(this.app.vault.on("rename", () => this.requestRender()));
     this.registerEvent(this.app.metadataCache.on("changed", () => this.requestRender()));
     this.registerEvent(this.app.workspace.on("file-open", () => this.requestRender()));
+    this.registerEvent(this.app.workspace.on("layout-change", () => this.requestRender()));
 
     this.render();
   }
@@ -222,6 +232,7 @@ export class ExplorerPaneView extends ItemView {
 
     host.empty();
     this.shelf?.empty();
+    this.openPaths = this.collectOpenPaths();
     const settings = this.host.settings();
 
     if (this.shelf) this.renderPinned(this.shelf, host);
@@ -316,7 +327,7 @@ export class ExplorerPaneView extends ItemView {
     row.setAttribute("title", file.path);
     row.setAttribute("data-path", file.path);
     if (isFolder) row.addClass("is-folder");
-    if (this.app.workspace.getActiveFile()?.path === file.path) row.addClass("is-active");
+    if (!isFolder) this.markOpenState(row, file.path);
 
     row.createSpan({ cls: "schreibstube-explorer-twisty" });
     applyIcon(row.createSpan({ cls: "schreibstube-explorer-glyph" }), this.glyphFor(file));
@@ -466,7 +477,7 @@ export class ExplorerPaneView extends ItemView {
       const row = host.createDiv({ cls: "schreibstube-explorer-row is-latest" });
       indent(row, 0);
       row.setAttribute("title", file.path);
-      if (this.app.workspace.getActiveFile()?.path === file.path) row.addClass("is-active");
+      this.markOpenState(row, file.path);
 
       row.createSpan({ cls: "schreibstube-explorer-twisty" });
       applyIcon(row.createSpan({ cls: "schreibstube-explorer-glyph" }), "file-text");
@@ -557,9 +568,7 @@ export class ExplorerPaneView extends ItemView {
     row.setAttribute("role", "treeitem");
     if (isFolder) row.addClass("is-folder");
     if (controller.isPinned(file.path)) row.addClass("is-pinned");
-    if (file instanceof TFile && this.app.workspace.getActiveFile()?.path === file.path) {
-      row.addClass("is-active");
-    }
+    if (file instanceof TFile) this.markOpenState(row, file.path);
 
     const twisty = row.createSpan({ cls: "schreibstube-explorer-twisty" });
     if (isFolder) {
@@ -680,6 +689,38 @@ export class ExplorerPaneView extends ItemView {
     });
 
     row.addEventListener("pointercancel", finish);
+  }
+
+  /**
+   * Every file open in a tab, the active one included.
+   *
+   * A view that shows a file extends `FileView`, whatever the file is, so this
+   * counts notes, images, PDFs and canvases alike rather than markdown only. A
+   * file open in a sidebar counts too: it is on screen, which is what the mark
+   * is about.
+   */
+  private collectOpenPaths(): Set<string> {
+    const paths = new Set<string>();
+
+    this.app.workspace.iterateAllLeaves((leaf) => {
+      const view = leaf.view;
+      if (view instanceof FileView && view.file) paths.add(view.file.path);
+    });
+
+    return paths;
+  }
+
+  /**
+   * Mark a row for the file it stands for: the one in front of the person, or
+   * one waiting in another tab. Never both — the active file is open too, and
+   * a second bar would say nothing the stronger one does not already say.
+   */
+  private markOpenState(row: HTMLElement, path: string): void {
+    if (this.app.workspace.getActiveFile()?.path === path) {
+      row.addClass("is-active");
+      return;
+    }
+    if (this.openPaths.has(path)) row.addClass("is-open");
   }
 
   /**

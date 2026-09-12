@@ -7,6 +7,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - **The pinned block stays on screen.** The filter and the first three pinned rows now sit on a strip above the list rather than inside it, so what you pinned is there whatever you have scrolled to — which is the point of having pinned it. A fourth pin and beyond continue at the top of the scrolling list, directly beneath, so the strip reads as one block with them and can never grow to eat the pane.
+- **A file open in another tab carries a faded accent.** The same bar as the row in front of you, at a little over a third of its strength, so the two read as one scale rather than two signals: this is open, that is the one you are looking at. It counts notes, images, PDFs and canvases alike, and a file open in a sidebar counts too, since it is on screen. The marks follow tabs opening and closing, not only the file you switch to.
 - **Pinned rows can be dragged into any order.** A mouse starts the drag as soon as the pointer leaves the row it pressed. A finger has to hold first, because on a touch surface a short drag down a list is how a person scrolls, and taking that gesture would make the pane impossible to move. A line marks the edge the row would join rather than shuffling every other row under the finger, and nothing is written until the button or finger comes up.
 
 ### Changed

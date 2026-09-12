@@ -609,6 +609,15 @@
   background: var(--nav-item-background-hover, var(--background-modifier-hover));
 }
 
+/* A file waiting in another tab. The same bar as the active row, faded, so the
+   two read as one scale rather than two signals: this is open, that is the one
+   you are looking at. The plain colour comes first for a renderer without
+   color-mix, which then simply gets a quieter accent. */
+.schreibstube-explorer-row.is-open {
+  box-shadow: inset 2.5px 0 0 var(--background-modifier-border-focus);
+  box-shadow: inset 2.5px 0 0 color-mix(in srgb, var(--interactive-accent) 38%, transparent);
+}
+
 /* Active carries a bar rather than only a tint, so it survives a theme whose
    hover and active backgrounds are nearly the same colour. */
 .schreibstube-explorer-row.is-active {
