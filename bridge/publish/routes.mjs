@@ -28,6 +28,10 @@ import { connect, SftpError } from "./sftp.mjs";
 
 const VIDEO_EXTENSIONS = new Set(["mp4", "webm", "ogv", "mov", "m4v"]);
 const MANIFEST_FILE = "manifest.json";
+const HISTORY_FILE = "history.json";
+/** How many publishes the history keeps. Enough to answer "when did that page
+ *  change", small enough that the file stays a file. */
+const HISTORY_LENGTH = 50;
 const INDEX_FILE = "index.json";
 const SOURCE_DIRECTORY = "src";
 
@@ -297,6 +301,7 @@ async function publishSite({ remote, target, index, generator, log }) {
   );
 
   const summary = {
+    at: new Date().toISOString(),
     target: target.name,
     baseUrl: target.baseUrl,
     written: difference.write.length,
@@ -306,12 +311,34 @@ async function publishSite({ remote, target, index, generator, log }) {
     collected: collected.length,
     durationMs: Date.now() - started
   };
+  await appendHistory(remote, summary);
+
   log(
     "info",
     `publish ${summary.target}: ${summary.written} written, ${summary.unchanged} unchanged, ` +
       `${summary.deleted} deleted, ${summary.pruned} pruned in ${summary.durationMs}ms`
   );
   return summary;
+}
+
+/**
+ * Keep the last publishes next to the manifest.
+ *
+ * The manifest says what the site is now; nothing said what changed when. A
+ * short history answers that without a log server, and a failure to write it
+ * never fails a publish that already succeeded.
+ */
+async function appendHistory(remote, summary) {
+  try {
+    const path = remote.stateAbsolute(HISTORY_FILE);
+    const existing = await remote.readJson(path);
+    const entries = Array.isArray(existing) ? existing : [];
+    const next = [summary, ...entries].slice(0, HISTORY_LENGTH);
+    await remote.writeAbsolute(path, Buffer.from(JSON.stringify(next, null, 2), "utf8"));
+  } catch {
+    // The site is published either way; a missing history entry is not a
+    // reason to report a failure.
+  }
 }
 
 async function storedSourceHashes(remote) {

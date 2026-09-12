@@ -20,8 +20,31 @@ exports[`the awkward vault > renders diagramm exactly as it did 1`] = `
 </pre>
 </article>
 </main>
-<script src="../assets/mermaid.min.js"></script>
-<script>mermaid.initialize({ startOnLoad: true, securityLevel: "strict" });</script>
+<script>
+(function () {
+  var blocks = document.querySelectorAll("pre.mermaid");
+  if (!blocks.length) return;
+  var loaded = false;
+  function load() {
+    if (loaded) return;
+    loaded = true;
+    var s = document.createElement("script");
+    s.src = "../assets/mermaid.min.js";
+    s.onload = function () {
+      mermaid.initialize({ startOnLoad: true, securityLevel: "strict" });
+    };
+    document.head.appendChild(s);
+  }
+  if (!("IntersectionObserver" in window)) return load();
+  var watcher = new IntersectionObserver(function (entries) {
+    if (entries.some(function (e) { return e.isIntersecting; })) {
+      watcher.disconnect();
+      load();
+    }
+  }, { rootMargin: "400px" });
+  blocks.forEach(function (block) { watcher.observe(block); });
+})();
+</script>
 </body>
 </html>
 "

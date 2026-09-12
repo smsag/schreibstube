@@ -61,6 +61,9 @@ export function loadConfig(env = process.env) {
     authFailureWindowMs: integer(env.AUTH_FAILURE_WINDOW_MS, 60_000),
     // How long a shutdown waits for in-flight work before exiting anyway.
     drainTimeoutMs: integer(env.DRAIN_TIMEOUT_MS, 10_000),
+    // "json" for a hosting dashboard that can search fields; the default stays
+    // human, because most of the time a person is reading these.
+    logFormat: env.LOG_FORMAT?.trim() === "json" ? "json" : "text",
     mail,
     publish
   };

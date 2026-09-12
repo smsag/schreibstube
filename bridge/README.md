@@ -112,6 +112,11 @@ every file the bridge wrote. A page whose note was unpublished is removed; a
 file the bridge has never heard of is never touched. It is written last, so a
 crash means the next publish repeats work rather than losing a file.
 
+**Each publish leaves a trace.** `<state>/history.json` keeps the last fifty
+summaries — when, what was written, what was deleted — so "when did that page
+change" has an answer without a log server. Failing to write it never fails a
+publish that already succeeded.
+
 **Sources are kept.** `<state>/src/<sha256>.md` holds the Markdown, so
 `/publish/render` can rebuild the whole site after a template change with
 nothing uploaded and no vault in reach.

@@ -67,11 +67,35 @@ function page({ up, title, description, siteTitle, usedMath, usedMermaid, hasInd
     usedMath ? `<link rel="stylesheet" href="${up}assets/katex/katex.css">` : null
   ].filter(Boolean);
 
-  // Mermaid ships one self-contained bundle that assigns a global, so a classic
-  // script tag is all it needs and no module graph reaches the page.
+  // Five megabytes, fetched when a diagram is actually about to be read rather
+  // than on load. A reader who never scrolls that far never pays for it, and a
+  // browser without IntersectionObserver simply loads it at once.
   const scripts = usedMermaid
-    ? `<script src="${up}assets/mermaid.min.js"></script>\n` +
-      `<script>mermaid.initialize({ startOnLoad: true, securityLevel: "strict" });</script>\n`
+    ? `<script>\n` +
+      `(function () {\n` +
+      `  var blocks = document.querySelectorAll("pre.mermaid");\n` +
+      `  if (!blocks.length) return;\n` +
+      `  var loaded = false;\n` +
+      `  function load() {\n` +
+      `    if (loaded) return;\n` +
+      `    loaded = true;\n` +
+      `    var s = document.createElement("script");\n` +
+      `    s.src = "${up}assets/mermaid.min.js";\n` +
+      `    s.onload = function () {\n` +
+      `      mermaid.initialize({ startOnLoad: true, securityLevel: "strict" });\n` +
+      `    };\n` +
+      `    document.head.appendChild(s);\n` +
+      `  }\n` +
+      `  if (!("IntersectionObserver" in window)) return load();\n` +
+      `  var watcher = new IntersectionObserver(function (entries) {\n` +
+      `    if (entries.some(function (e) { return e.isIntersecting; })) {\n` +
+      `      watcher.disconnect();\n` +
+      `      load();\n` +
+      `    }\n` +
+      `  }, { rootMargin: "400px" });\n` +
+      `  blocks.forEach(function (block) { watcher.observe(block); });\n` +
+      `})();\n` +
+      `</script>\n`
     : "";
 
   return (
