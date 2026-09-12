@@ -440,6 +440,14 @@
   padding: var(--schreibstube-padding) 0 0;
   height: 100%;
   overflow: hidden;
+  /* A sticky header has to paint something, or rows show through it. The pane
+     states its own ground so the header can borrow it and look like nothing at
+     rest. Sidebar and main area differ, as they do for every other view. */
+  background-color: var(--background-secondary);
+}
+
+.workspace-split.mod-root .schreibstube-explorer {
+  background-color: var(--background-primary);
 }
 
 .schreibstube-explorer-filter {
@@ -462,11 +470,21 @@
   z-index: 1;
 }
 
-/* The rule appears only once something has actually scrolled under the strip,
-   which is the moment it starts holding rows back. Drawn as a shadow rather
-   than a border so its arrival costs no layout. */
-.schreibstube-explorer-shelf.is-scrolled {
-  box-shadow: 0 1px 0 var(--background-modifier-border);
+/* What separates the strip, and a header holding the top, from the rows sliding
+   under them: a short fall of the pane's own ground rather than a rule. The row
+   fades into the background instead of being cut by a line.
+
+   It is a shadow in the ground colour, so the blur does the fading and nothing
+   has to be positioned. Only drawn while something is actually scrolled
+   underneath. */
+.schreibstube-explorer-shelf.is-scrolled,
+.schreibstube-explorer .schreibstube-explorer-section-header.is-stuck {
+  box-shadow: 0 4px 6px -1px var(--background-secondary);
+}
+
+.workspace-split.mod-root .schreibstube-explorer-shelf.is-scrolled,
+.workspace-split.mod-root .schreibstube-explorer .schreibstube-explorer-section-header.is-stuck {
+  box-shadow: 0 4px 6px -1px var(--background-primary);
 }
 
 .schreibstube-explorer-body {
@@ -496,7 +514,13 @@
   width: 100%;
   height: 24px;
   padding: 0 var(--schreibstube-row-inset);
-  background-color: transparent;
+  /* Sticky under the pinned strip, so the section a person has scrolled into
+     keeps saying which one it is. Held to its own section, so the next header
+     pushes it out rather than the two overlapping. */
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background-color: var(--background-secondary);
   border: none;
   border-radius: 0;
   box-shadow: none;
@@ -522,6 +546,10 @@
 /* The one header that separates two kinds of thing, the curated lists above it
    and the vault below. It carries no fill of its own: a darker label and a
    firmer rule are enough to set it apart, and they leave the pane quiet. */
+.workspace-split.mod-root .schreibstube-explorer .schreibstube-explorer-section-header {
+  background-color: var(--background-primary);
+}
+
 .schreibstube-explorer .schreibstube-explorer-section-header.is-divider {
   margin-top: 4px;
   color: var(--text-normal);

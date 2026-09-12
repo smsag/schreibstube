@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## 1.15.0 - 2026-09-12
+
+### Changed
+
+- **The pane is called Schreibstube Explorer everywhere, in both languages.** 1.13.0 renamed the tab and left the rest: the command, the ribbon's tooltip and the settings section still said "file pane", or "Dateibereich" in German, so the thing had two names depending on where you met it.
+- **A section header holds the top of the list while you are inside that section.** Holding the pinned block permanently at the top had a cost that only showed once you scrolled: whatever came next sat directly under it with nothing to say which section it belonged to, so bookmarks and folders read as pinned. Each header below the strip now stays at the top of the list until the next one pushes it out, so the list always says where you are. The pinned block is unaffected and stays where it was.
+- **A row fades into the background as it slides under a held header**, rather than meeting a rule. The fall is the pane's own ground, so the row dissolves into the page the way the bottom of Obsidian's own sidebar does. It is drawn only while something is actually scrolled underneath, so a header sitting in its natural place in the list casts nothing.
+- **The pane states its own background.** A header that holds position has to paint something or rows show through it. The pane now names its ground, following the same sidebar-and-main-area split Obsidian uses for every other view, and the header borrows it — so at rest the header looks like nothing at all.
+
 ## 1.14.0 - 2026-09-12
 
 ### Added

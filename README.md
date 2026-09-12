@@ -208,9 +208,9 @@ The site is one page per note plus an index sorted by date, newest first. Wikili
 
 What the bridge does and the plugin does not: rendering the Markdown, holding the SFTP credentials, and deciding what may be deleted. Only files the bridge itself wrote are ever removed, and the hosting key never enters the vault. See [`bridge/README.md`](bridge/README.md).
 
-### File pane
+### Schreibstube Explorer
 
-A file list of Schreibstube's own, opened from the ribbon icon in the left margin or with **Open file pane**. It exists because three things cannot be done to Obsidian's explorer from a plugin without fighting it: an icon per item, a mark for sync state, and an order that puts pinned files first.
+A file list of Schreibstube's own, opened from the ribbon icon in the left margin or with **Open Schreibstube Explorer**. It exists because three things cannot be done to Obsidian's explorer from a plugin without fighting it: an icon per item, a mark for sync state, and an order that puts pinned files first.
 
 The pane has four sections, each one collapsible, each remembering whether it was open on that device: **Pinned**, **Bookmarks**, **Latest**, and **Files and folders**. Pinned is drawn only when something is pinned.
 
@@ -300,7 +300,7 @@ Control where internal links open, indicated in the status bar:
 | ----------- | ----------------------------------------------------------- | ------- |
 | Dim opacity | Opacity of out-of-focus lines (0.2 faint – 0.8 nearly full) | 0.4     |
 
-### File pane
+### Schreibstube Explorer
 
 | Setting                  | Description                                                                   | Default             |
 | ------------------------ | ----------------------------------------------------------------------------- | ------------------- |
