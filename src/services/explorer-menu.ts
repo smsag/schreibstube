@@ -63,6 +63,27 @@ export interface ExplorerMenuSection {
   items: ExplorerMenuItem[];
 }
 
+/**
+ * How long after the pane answers a long press the browser's own context menu
+ * still counts as the same press.
+ *
+ * The two arrive within a few hundred milliseconds of each other, so a second
+ * covers the gap. Nothing else is suppressed for that second: a right click and
+ * the row's own button are never the echo of anything.
+ */
+export const LONG_PRESS_ECHO_MS = 1000;
+
+/**
+ * Whether a context menu event is the browser's echo of a long press the pane
+ * has already answered.
+ *
+ * `answeredAt` is null until the pane's own timer has opened a menu for the
+ * press in progress, which is why a mouse never reaches this at all.
+ */
+export function isLongPressEcho(now: number, answeredAt: number | null): boolean {
+  return answeredAt !== null && now - answeredAt < LONG_PRESS_ECHO_MS;
+}
+
 export function buildExplorerMenu(
   target: ExplorerTarget,
   foreignItems: ForeignItemMode

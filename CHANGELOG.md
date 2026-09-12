@@ -2,11 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## 1.16.0 - 2026-09-12
+
+### Added
+
+- **Opening the pane shows the file you are editing.** A note is usually reached some other way — the quick switcher, a link, a search hit — and the pane would open on whatever folders happened to be left open, with no sign of the note in front of you. It now opens the folders above that file and scrolls to it, both when the pane is first opened and when an already open one is brought forward. What a reveal opens is held apart from what you opened by hand and never written to storage, so being shown where a file lives does not quietly rearrange the pane for every session to come. Clicking such a folder closes it, as it would any other.
+- **Collapse all, on the pane's own header.** The same button Obsidian's explorer carries, in the same place and with the same icon. It could not simply follow Obsidian's: that one is a header button and nothing else, raising no event and registering no command, so there is nothing for a plugin to hear. This one is also a command, so unlike Obsidian's it can take a hotkey. It closes what you opened by hand and what a reveal opened for you, and leaves the sections alone, since a section is not a folder.
+- **The filter field can be emptied with one click.** A small cross appears inside the field once there is something in it, and clearing puts the cursor back in the field, since the reason to clear it is usually to type something else. It is not there while the field is empty, because there would be nothing for it to do.
+
+### Fixed
+
+- **A long press no longer opens the context menu twice.** A press on a touch screen asks for the menu twice over: once when the pane's own timer elapses at half a second, and again when the browser passes its own threshold and raises a context menu of its own. A short press only ever reached the first, which is why this showed up on a long one. Both mean the same press, so the row that owns the gesture turns the second away, whichever of the two arrives first. Nothing else is affected: a second right click on the same row opens again at once, because a right click is never the echo of anything.
+
 ## 1.15.2 - 2026-09-12
 
 ### Fixed
 
-- **Focus mode dims callouts, tables and embeds.** It dimmed by marking lines, and a rendered block is not a line: Obsidian replaces the source with a widget, so the mark had nothing to attach to and the block stayed at full strength while the prose around it faded — which is the opposite of what focus mode is for, since the brightest thing on screen was the thing not being written. Every rendered block is dimmed directly now, in both modes, and never restored, because it cannot be the passage in focus: the moment the cursor enters one, Obsidian puts the source lines back and the ordinary line marking takes over.
+- **Focus mode dims callouts, tables and embeds.** It dimmed by marking lines, and a rendered block is not a line: Obsidian replaces the source with a widget, so the mark had nothing to attach to and the block stayed at full strength while the prose around it faded — which is the opposite of what focus mode is for, since the brightest thing on screen was the thing not being written. Every rendered block is dimmed directly now, in both modes, except the one holding the cursor. A callout or a code preview un-renders when entered, but a table stays a widget while being edited, carrying its own editor inside, and dimming it would dim the cell being typed into with no way back.
 
 ## 1.15.1 - 2026-09-12
 

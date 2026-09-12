@@ -212,6 +212,9 @@ export default class SchreibstubePlugin extends Plugin {
     const existing = this.app.workspace.getLeavesOfType(EXPLORER_VIEW_TYPE);
     if (existing.length > 0) {
       await this.app.workspace.revealLeaf(existing[0]);
+      // Already open, so nothing redraws on its own: it has to be told to go
+      // to whatever is being edited now.
+      this.revealActiveFileInExplorerPanes();
       return;
     }
 
@@ -245,6 +248,14 @@ export default class SchreibstubePlugin extends Plugin {
     } catch (error) {
       this.logger.warn(`Could not copy ${url} to the clipboard:`, error);
       new Notice(t().common.notice(t().explorer.bookmarks.copyFailed));
+    }
+  }
+
+  /** Put the file being edited on screen in every open pane. */
+  private revealActiveFileInExplorerPanes(): void {
+    for (const leaf of this.app.workspace.getLeavesOfType(EXPLORER_VIEW_TYPE)) {
+      const view = leaf.view;
+      if (view instanceof ExplorerPaneView) view.revealActiveFile();
     }
   }
 
@@ -552,6 +563,18 @@ export default class SchreibstubePlugin extends Plugin {
       name: t().commands.openExplorer,
       callback: () => {
         void this.activateExplorerPane();
+      }
+    });
+
+    // Obsidian's own collapse-all is a button on its explorer's header and
+    // nothing else: no command, so no hotkey. This one is both.
+    this.addCommand({
+      id: "collapse-explorer-folders",
+      name: t().commands.collapseExplorer,
+      callback: () => {
+        for (const leaf of this.app.workspace.getLeavesOfType(EXPLORER_VIEW_TYPE)) {
+          if (leaf.view instanceof ExplorerPaneView) leaf.view.collapseAll();
+        }
       }
     });
 

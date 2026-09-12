@@ -39,8 +39,15 @@ import {
   type BookmarkFolder
 } from "../services/bookmark-file";
 import type { LatestCandidate } from "../services/latest-files";
-import { isMovePlan, planMove, type MoveContext, type MoveRefusal } from "../services/tree-move";
+import {
+  ancestorsOf,
+  isMovePlan,
+  planMove,
+  type MoveContext,
+  type MoveRefusal
+} from "../services/tree-move";
 import type { SchreibstubeSettings } from "../types";
+import { isLongPressEcho } from "../services/explorer-menu";
 import { applyIcon, installIconFont } from "./icon-font";
 import { SCHREIBSTUBE_ICON } from "./schreibstube-icon";
 
@@ -146,6 +153,16 @@ export class ExplorerPaneView extends ItemView {
   private dragging: string | null = null;
   /** Files open in some tab, recomputed once per draw rather than per row. */
   private openPaths = new Set<string>();
+  /**
+   * Folders opened to put a revealed row on screen, and whether the tree was
+   * opened for the same reason.
+   *
+   * Kept apart from what the person opened by hand, and never written to
+   * storage: being shown where a file lives should not quietly rearrange the
+   * pane for every session to come.
+   */
+  private revealedFolders = new Set<string>();
+  private revealedTree = false;
   private pending = false;
   /** A path to scroll to once the next draw has put it on screen. */
   private revealing: string | null = null;
@@ -183,7 +200,10 @@ export class ExplorerPaneView extends ItemView {
     root.empty();
     root.addClass("schreibstube-explorer");
 
-    const search = root.createEl("input", {
+    // The field and its clear button share a box, so the button can sit inside
+    // the field rather than beside it.
+    const filter = root.createDiv({ cls: "schreibstube-explorer-filter-row" });
+    const search = filter.createEl("input", {
       type: "search",
       cls: "schreibstube-explorer-filter",
       attr: {
@@ -194,6 +214,21 @@ export class ExplorerPaneView extends ItemView {
     search.addEventListener("input", () => {
       this.query = search.value.trim().toLowerCase();
       this.requestRender();
+    });
+
+    // Drawn after the field so CSS can hide it while the field is empty,
+    // without the view having to track that.
+    const clear = filter.createEl("button", {
+      cls: "schreibstube-explorer-filter-clear",
+      attr: { type: "button", "aria-label": t().explorer.clearFilter }
+    });
+    applyIcon(clear, "x");
+    clear.addEventListener("click", () => {
+      search.value = "";
+      this.query = "";
+      this.requestRender();
+      // The point of clearing is to type something else.
+      search.focus();
     });
 
     this.shelf = root.createDiv({ cls: "schreibstube-explorer-shelf" });
@@ -212,7 +247,14 @@ export class ExplorerPaneView extends ItemView {
     // A theme swap repaints everything the ground was measured from.
     this.registerEvent(this.app.workspace.on("css-change", () => this.measureGround()));
 
+    // The same button Obsidian's own explorer carries, in the same place and
+    // with the same icon. Obsidian raises no event when its own is pressed and
+    // registers no command for it, so the pane cannot follow along; it brings
+    // its own instead.
+    this.addAction("chevrons-down-up", t().explorer.collapseAll, () => this.collapseAll());
+
     this.measureGround();
+    this.revealActiveFile(false);
 
     this.render();
   }
@@ -229,13 +271,36 @@ export class ExplorerPaneView extends ItemView {
    * may not even be open.
    */
   revealFolder(path: string): void {
-    for (const ancestor of ancestorsOf(path)) this.expanded.add(ancestor);
-    this.expanded.add(path);
-    this.collapsedSections.delete("files");
-    this.writeMemory();
+    for (const ancestor of ancestorsOf(path)) this.revealedFolders.add(ancestor);
+    this.revealedFolders.add(path);
+    this.reveal(path);
+  }
 
+  /**
+   * Put the file being edited on screen, wherever in the vault it lives.
+   *
+   * A note is usually reached by some other route — the quick switcher, a link,
+   * a search hit — and the pane would then open showing whatever folders
+   * happened to be left open, with no sign of the note in front of the person.
+   * Opening the pane answers "where am I" as well as "what is there".
+   *
+   * Only the folders above the file are opened. Nothing is collapsed, so a
+   * person's own arrangement survives.
+   */
+  revealActiveFile(redraw = true): void {
+    const path = this.app.workspace.getActiveFile()?.path;
+    if (!path) return;
+
+    for (const ancestor of ancestorsOf(path)) this.revealedFolders.add(ancestor);
+    this.reveal(path, redraw);
+  }
+
+  private reveal(path: string, redraw = true): void {
+    this.revealedTree = true;
     this.revealing = path;
-    this.requestRender();
+    // The caller sometimes draws immediately afterwards, and queueing a frame
+    // as well would rebuild the whole tree a second time for nothing.
+    if (redraw) this.requestRender();
   }
 
   /**
@@ -262,6 +327,23 @@ export class ExplorerPaneView extends ItemView {
     }
 
     this.contentEl.style.removeProperty("--schreibstube-ground");
+  }
+
+  /**
+   * Close every folder in the tree.
+   *
+   * Both sets go: what a person opened by hand and what a reveal opened for
+   * them. Closing everything and leaving a folder open because the pane had
+   * shown a file in it would be the one thing this button must not do.
+   *
+   * Sections are left alone. They are not folders, and a person who closed the
+   * bookmarks list did not ask about them.
+   */
+  collapseAll(): void {
+    this.expanded.clear();
+    this.revealedFolders.clear();
+    this.writeMemory();
+    this.requestRender();
   }
 
   /** Collapse the redraws a burst of vault events would otherwise cause. */
@@ -336,7 +418,7 @@ export class ExplorerPaneView extends ItemView {
    */
   private renderSection(host: HTMLElement, id: SectionId, icon: string): HTMLElement | null {
     const section = host.createDiv({ cls: "schreibstube-explorer-section" });
-    const collapsed = this.collapsedSections.has(id);
+    const collapsed = this.collapsedSections.has(id) && !(id === "files" && this.revealedTree);
 
     // "Files and folders" is drawn as a band across the pane, because it is the
     // one header that separates two kinds of thing: the three curated lists
@@ -356,8 +438,12 @@ export class ExplorerPaneView extends ItemView {
     });
 
     header.addEventListener("click", () => {
-      if (this.collapsedSections.has(id)) this.collapsedSections.delete(id);
-      else this.collapsedSections.add(id);
+      if (collapsed) {
+        this.collapsedSections.delete(id);
+      } else {
+        this.collapsedSections.add(id);
+        if (id === "files") this.revealedTree = false;
+      }
       this.writeMemory();
       this.requestRender();
     });
@@ -638,7 +724,11 @@ export class ExplorerPaneView extends ItemView {
   /** A filter expands the tree for as long as it is set, without disturbing
    *  what the person had opened by hand. */
   private isExpanded(folder: TFolder): boolean {
-    return this.query.length > 0 || this.expanded.has(folder.path);
+    return (
+      this.query.length > 0 ||
+      this.expanded.has(folder.path) ||
+      this.revealedFolders.has(folder.path)
+    );
   }
 
   private renderRow(host: HTMLElement, file: TAbstractFile, depth: number): void {
@@ -1048,27 +1138,40 @@ export class ExplorerPaneView extends ItemView {
       void controller.open(file, false);
     });
 
-    row.addEventListener("contextmenu", (event) => {
-      event.preventDefault();
-      controller.showMenu(file, event);
-    });
-
     // Mobile has no right click and Obsidian's own long-press belongs to its
     // explorer, so the pane brings its own. The button on the row stays as the
     // way that always works.
     let timer: number | null = null;
+    // When the pane's own timer last answered a press on this row, so the
+    // browser's context menu for the same press can be recognised.
+    let answeredAt: number | null = null;
+
     const cancel = (): void => {
       if (timer !== null) window.clearTimeout(timer);
       timer = null;
     };
+
+    row.addEventListener("contextmenu", (event) => {
+      event.preventDefault();
+      // A long press on a touch screen raises this after the pane's timer has
+      // already opened a menu. A right click never does, so a second right
+      // click on the same row always opens again.
+      if (isLongPressEcho(Date.now(), answeredAt)) return;
+      // Arriving first instead: the browser is handling the press, so the
+      // pane's pending timer would only add a second menu.
+      cancel();
+      controller.showMenu(file, event);
+    });
 
     row.addEventListener(
       "touchstart",
       (event) => {
         const touch = event.touches[0];
         cancel();
+        answeredAt = null;
         timer = window.setTimeout(() => {
           timer = null;
+          answeredAt = Date.now();
           controller.showMenu(file, { x: touch.clientX, y: touch.clientY });
         }, LONG_PRESS_MS);
       },
@@ -1081,8 +1184,14 @@ export class ExplorerPaneView extends ItemView {
   }
 
   private toggle(path: string): void {
-    if (this.expanded.has(path)) this.expanded.delete(path);
-    else this.expanded.add(path);
+    // A folder a reveal opened is still open as far as the person clicking it
+    // is concerned, so the click has to close it rather than open it again.
+    if (this.expanded.has(path) || this.revealedFolders.has(path)) {
+      this.expanded.delete(path);
+      this.revealedFolders.delete(path);
+    } else {
+      this.expanded.add(path);
+    }
     this.writeMemory();
     this.requestRender();
   }
@@ -1172,20 +1281,6 @@ function toSet(value: unknown): Set<string> {
   return new Set(
     Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === "string") : []
   );
-}
-
-/** Every folder above a path, outermost first. */
-function ancestorsOf(path: string): string[] {
-  const parts = path.split("/");
-  parts.pop();
-
-  const ancestors: string[] = [];
-  let current = "";
-  for (const part of parts) {
-    current = current.length > 0 ? `${current}/${part}` : part;
-    ancestors.push(current);
-  }
-  return ancestors;
 }
 
 function basenameOf(path: string): string {

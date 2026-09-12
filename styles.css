@@ -97,11 +97,15 @@
    decoration has nothing to attach to and the block stayed at full strength
    while the prose around it faded.
 
-   It is dimmed directly, and never restored, because it cannot be the passage
-   in focus: the moment the cursor enters one, Obsidian puts the source lines
-   back and the line decorations take over again. Dimmed in both modes, since a
-   callout carries its own colours and cannot be muted the way a line can. */
-.schreibstube-focus-enabled .cm-embed-block {
+   It is dimmed directly and in both modes, since a callout carries its own
+   colours and cannot be muted the way a line can.
+
+   Except the one holding the cursor. A callout or a code preview un-renders
+   when entered, so the question does not arise there, but a table stays a
+   widget while being edited — it carries its own editor inside — and dimming
+   it would dim the cell being typed into, with no way back: opacity on an
+   ancestor is a ceiling its children cannot rise above. */
+.schreibstube-focus-enabled .cm-embed-block:not(:focus-within) {
   opacity: var(--schreibstube-focus-dim-opacity);
 }
 
@@ -456,11 +460,48 @@
   overflow: hidden;
 }
 
-.schreibstube-explorer-filter {
-  width: calc(100% - 2 * var(--schreibstube-padding));
-  height: 32px;
-  margin: 0 var(--schreibstube-padding);
+.schreibstube-explorer-filter-row {
+  position: relative;
   flex: 0 0 auto;
+  margin: 0 var(--schreibstube-padding);
+}
+
+.schreibstube-explorer-filter {
+  width: 100%;
+  height: 32px;
+  /* Room for the clear button, so a long filter does not run under it. */
+  padding-right: 26px;
+}
+
+.schreibstube-explorer .schreibstube-explorer-filter-clear {
+  position: absolute;
+  right: 3px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  background-color: transparent;
+  border: none;
+  border-radius: var(--radius-s);
+  box-shadow: none;
+  cursor: pointer;
+  color: var(--text-faint);
+  font-size: 14px;
+}
+
+.schreibstube-explorer .schreibstube-explorer-filter-clear:hover {
+  background-color: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+/* Nothing to clear while the field still shows its placeholder, so the button
+   is simply not there. The field says so itself; the view does not have to. */
+.schreibstube-explorer-filter:placeholder-shown ~ .schreibstube-explorer-filter-clear {
+  display: none;
 }
 
 /* The strip that does not scroll: the pinned block, directly under the filter.

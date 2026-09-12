@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { setLanguage } from "../i18n";
 import { syncBadgeFor, syncBadgeIcon } from "./explorer-badge";
-import { buildExplorerMenu, type ExplorerTarget } from "./explorer-menu";
+import {
+  LONG_PRESS_ECHO_MS,
+  isLongPressEcho,
+  buildExplorerMenu,
+  type ExplorerTarget
+} from "./explorer-menu";
 
 setLanguage("en");
 
@@ -145,5 +150,25 @@ describe("syncBadgeFor", () => {
     for (const badge of ["synced", "pending", "unchecked", "error"] as const) {
       expect(syncBadgeIcon(badge)).not.toBe("");
     }
+  });
+});
+
+describe("isLongPressEcho", () => {
+  it("is not an echo when the pane has answered nothing", () => {
+    // A right click: the timer never ran, so there is nothing to be an echo of.
+    expect(isLongPressEcho(1000, null)).toBe(false);
+  });
+
+  it("recognises the browser's context menu for a press already answered", () => {
+    expect(isLongPressEcho(1000 + 300, 1000)).toBe(true);
+  });
+
+  it("stops recognising it once the window has passed", () => {
+    expect(isLongPressEcho(1000 + LONG_PRESS_ECHO_MS, 1000)).toBe(false);
+  });
+
+  it("lets a second right click on the same row open again at once", () => {
+    // Nothing answered it, however recently the last menu was opened.
+    expect(isLongPressEcho(1001, null)).toBe(false);
   });
 });

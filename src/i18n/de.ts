@@ -15,6 +15,7 @@ export const de: Messages = {
     renameImage: "Bild aus Inhalt benennen",
     summarize: "Auswahl zusammenfassen",
     openExplorer: "Schreibstube Explorer öffnen",
+    collapseExplorer: "Alle Ordner zuklappen",
     openBookmark: "Lesezeichen öffnen",
     openReview: "Korrektur-Seitenleiste öffnen",
     proofread: "Notiz korrigieren",
@@ -416,6 +417,8 @@ export const de: Messages = {
     title: "Schreibstube Explorer",
     empty: "In diesem Vault liegt noch keine Datei.",
     searchPlaceholder: "Alle Sektionen filtern …",
+    clearFilter: "Filter leeren",
+    collapseAll: "Alle zuklappen",
 
     move: {
       intoItself: (name: string) => `${name} lässt sich nicht in sich selbst verschieben.`,

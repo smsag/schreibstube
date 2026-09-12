@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isMovePlan, isUnder, planMove, type MoveContext } from "./tree-move";
+import { ancestorsOf, isMovePlan, isUnder, planMove, type MoveContext } from "./tree-move";
 
 function context(paths: string[], folders: string[]): MoveContext {
   return { taken: new Set(paths), folders: new Set(folders) };
@@ -85,5 +85,22 @@ describe("isUnder", () => {
 
   it("says a folder is not under itself", () => {
     expect(isUnder("Beruf", "Beruf")).toBe(false);
+  });
+});
+
+describe("ancestorsOf", () => {
+  it("lists the folders above a file, outermost first", () => {
+    expect(ancestorsOf("Berufliches/Karriere/Briefing.md")).toEqual([
+      "Berufliches",
+      "Berufliches/Karriere"
+    ]);
+  });
+
+  it("gives nothing for something at the vault root", () => {
+    expect(ancestorsOf("Wurzel.md")).toEqual([]);
+  });
+
+  it("leaves out the path's own segment, so revealing a folder opens its parents", () => {
+    expect(ancestorsOf("Berufliches/Karriere")).toEqual(["Berufliches"]);
   });
 });
