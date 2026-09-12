@@ -42,7 +42,11 @@ export const en = {
     remove: "Remove",
     copy: "Copy",
     copied: "Copied",
-    notice: (message: string) => `Schreibstube: ${message}`
+    notice: (message: string) => `Schreibstube: ${message}`,
+    /** Obsidian returns no leaf when the sidebar that would hold the pane is
+     *  gone from the workspace. Saying so beats a command that does nothing. */
+    sidebarMissing: (pane: string) =>
+      `no sidebar is available for ${pane}. Show the sidebar and run the command again.`
   },
 
   publish: {

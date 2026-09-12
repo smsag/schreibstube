@@ -30,10 +30,6 @@ export function allIconNames(): string[] {
   return ICON_GROUPS.flatMap((group) => group.icons);
 }
 
-export function isKnownIcon(name: string | undefined): name is string {
-  return typeof name === "string" && name in ICON_CODEPOINTS;
-}
-
 /**
  * Register the font once per Obsidian window.
  *

@@ -11,7 +11,7 @@
  * are still in flight.
  */
 
-import { compileGlossaries, type GlossaryHit, type GlossaryMatcher } from "./glossary-matcher";
+import type { GlossaryHit, GlossaryMatcher } from "./glossary-matcher";
 import {
   placeholdersIntact,
   restorePlaceholders,
@@ -65,27 +65,18 @@ export function scanGlossary(text: string, matcher: GlossaryMatcher): Suggestion
 
   for (const block of blocks) {
     for (const hit of matcher.findHits(block.text, block.protectedRanges)) {
-      suggestions.push(suggestionFromHit(block, hit, suggestions.length));
+      suggestions.push(suggestionFromHit(block, hit));
     }
   }
 
   return suggestions.sort((a, b) => a.from - b.from);
 }
 
-/** Convenience wrapper for callers holding parsed glossaries rather than a
- *  compiled matcher. */
-export function scanGlossaryNotes(
-  text: string,
-  glossaries: Parameters<typeof compileGlossaries>[0]
-): Suggestion[] {
-  return scanGlossary(text, compileGlossaries(glossaries));
-}
-
-function suggestionFromHit(block: ProseBlock, hit: GlossaryHit, index: number): Suggestion {
+function suggestionFromHit(block: ProseBlock, hit: GlossaryHit): Suggestion {
   const category: SuggestionCategory =
     hit.kind === "capitalization" ? "capitalization" : "terminology";
 
-  return createSuggestion(`glossary-${index}`, {
+  return createSuggestion({
     kind: "replace",
     source: "glossary",
     category,
@@ -159,6 +150,13 @@ export async function runProofread(
   let completedChunks = 0;
   let nextChunk = 0;
 
+  const report = (): void =>
+    onProgress?.({
+      completedChunks,
+      totalChunks: chunks.length,
+      suggestions: [...suggestions].sort((a, b) => a.from - b.from)
+    });
+
   const worker = async (): Promise<void> => {
     while (!token.cancelled) {
       const index = nextChunk;
@@ -171,9 +169,12 @@ export async function runProofread(
         rewrites = await send(chunk, token);
       } catch {
         // One chunk failing must not lose the chunks that succeeded, so the
-        // failure is counted and reported rather than thrown.
+        // failure is counted and reported rather than thrown. It still counts
+        // as progress: a run whose last chunk failed would otherwise leave the
+        // panel showing the chunk before it, as though it had never finished.
         failedChunks += 1;
         completedChunks += 1;
+        report();
         continue;
       }
 
@@ -194,11 +195,7 @@ export async function runProofread(
 
       suggestions.push(...produced);
       completedChunks += 1;
-      onProgress?.({
-        completedChunks,
-        totalChunks: chunks.length,
-        suggestions: [...suggestions].sort((a, b) => a.from - b.from)
-      });
+      report();
     }
   };
 
@@ -225,8 +222,8 @@ function suggestionsForBlock(
   // edit offset is directly usable against the document.
   const rewritten = restorePlaceholders(maskedRewrite, placeholders);
 
-  return diffToEdits(block.text, rewritten).map((edit, index) =>
-    createSuggestion(`${block.id}-${index}`, {
+  return diffToEdits(block.text, rewritten).map((edit) =>
+    createSuggestion({
       kind: editKind(edit.before, edit.after),
       source: "llm",
       category: categorize(edit.before, edit.after),

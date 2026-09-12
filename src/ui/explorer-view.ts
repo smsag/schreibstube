@@ -36,6 +36,14 @@ import { applyIcon, installIconFont } from "./icon-font";
 
 export const EXPLORER_VIEW_TYPE = "schreibstube-explorer";
 
+/** One icon for the pane's tab and for the ribbon entry that opens it, so the
+ *  thing a person clicks and the thing that appears look like each other. */
+export const EXPLORER_RIBBON_ICON = "folder-tree";
+
+/** Where the ribbon goes when Obsidian's set has no `folder-tree`. Plain enough
+ *  to have been there since the first release. */
+export const EXPLORER_RIBBON_FALLBACK_ICON = "folder";
+
 /** Long enough not to fire while scrolling, short enough to feel deliberate. */
 const LONG_PRESS_MS = 500;
 
@@ -97,6 +105,10 @@ export class ExplorerPaneView extends ItemView {
 
   getDisplayText(): string {
     return t().explorer.title;
+  }
+
+  getIcon(): string {
+    return EXPLORER_RIBBON_ICON;
   }
 
   connect(host: ExplorerPaneHost): void {

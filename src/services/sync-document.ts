@@ -117,8 +117,8 @@ export function buildSyncSuggestions(options: SyncSuggestionOptions): Suggestion
   const { frontmatter, body } = splitNote(normalizeNewlines(options.noteText));
   const offset = frontmatter.length;
 
-  return diffHunks(body, options.remoteBody).map((hunk, index) =>
-    createSuggestion(`remote-${index}`, {
+  return diffHunks(body, options.remoteBody).map((hunk) =>
+    createSuggestion({
       kind: hunk.before.length === 0 ? "insert" : hunk.after.length === 0 ? "delete" : "replace",
       source: "remote",
       category: "update",

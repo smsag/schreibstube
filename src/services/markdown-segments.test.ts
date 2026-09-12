@@ -53,6 +53,14 @@ describe("segmentMarkdown", () => {
     ]);
   });
 
+  it("excludes a one-line math block without swallowing the rest of the note", () => {
+    expect(textsOf("Intro.\n\n$$E = mc^2$$\n\nOutro.\n\nUnd noch einer.")).toEqual([
+      "Intro.",
+      "Outro.",
+      "Und noch einer."
+    ]);
+  });
+
   it("excludes math blocks", () => {
     expect(textsOf("Intro.\n\n$$\nx = 1\n$$\n\nOutro.")).toEqual(["Intro.", "Outro."]);
   });
