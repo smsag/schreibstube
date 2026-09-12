@@ -22,6 +22,7 @@ import {
 import {
   entryFor,
   markMissing,
+  pinnedPaths,
   reattachOrphans,
   renamePath,
   setIcon,
@@ -127,6 +128,22 @@ export class ExplorerController {
 
   isPinned(path: string): boolean {
     return entryFor(this.store.data(), path)?.pinnedAt !== undefined;
+  }
+
+  /**
+   * What the pinned section draws: every pinned item that still exists, in the
+   * order it was pinned. A path whose file is gone is skipped rather than
+   * dropped from the state, because it may be a move sync has not delivered yet.
+   */
+  pinnedItems(): TAbstractFile[] {
+    const items: TAbstractFile[] = [];
+
+    for (const path of pinnedPaths(this.store.data())) {
+      const file = this.app.vault.getAbstractFileByPath(path);
+      if (file) items.push(file);
+    }
+
+    return items;
   }
 
   /**

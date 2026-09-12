@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## 1.11.0 - 2026-09-12
+
+### Added
+
+- **A Pinned section at the top of the pane.** Pinning moved an item to the top of its own folder and nowhere else, which is invisible from the rest of the tree: a note pinned four folders down sat at the top of a folder nobody had open, and the pin read as having done nothing. Everything pinned now has a place of its own, in the order it was pinned, drawn only when something is pinned. A pinned folder in that section reveals itself in the tree rather than opening a second copy of it.
+- **A pinned row is marked in the tree**, so a pin is visible on a row that would have sorted near the top anyway.
+- **A ribbon icon opens the file pane.** It was reachable only through the command palette, so enabling the plugin changed nothing anyone could see until they went looking for a command they had to already know about. The icon name is checked against the set Obsidian actually ships and steps down to a plain folder when it is missing, because an unknown name draws an empty button with no error anywhere to say so.
+
+### Fixed
+
+- **A one-line `$$x$$` no longer swallows the rest of the note.** It opened a maths block that only a later `$$` closed, so every paragraph after it was dropped from the proof-read pass, to the end of the note when no later one came.
+- **A glossary card is identified by its span, not by a counter.** A re-scan renumbered from zero, so a card kept from the previous run could share an id with a new card somewhere else: Accept reached whichever came first and Reject took both.
+- **`explorer.json` stops growing.** Its thirty-day pruning ran only at load, against data the very next write merged back in from the file, so nothing was ever actually collected. Pruning now happens where it reaches disk.
+- **A failed chunk reports its progress**, so a run whose last chunk fails no longer leaves the review panel a chunk short.
+
 ## 1.10.1 - 2026-09-12
 
 ### Fixed

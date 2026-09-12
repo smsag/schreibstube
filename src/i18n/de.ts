@@ -416,9 +416,9 @@ export const de: Messages = {
     title: "Schreibstube-Dateien",
     empty: "In diesem Vault liegt noch keine Datei.",
     searchPlaceholder: "Dateien filtern …",
-    pinnedSection: "Angeheftet",
 
     sections: {
+      pinned: "Angeheftet",
       bookmarks: "Lesezeichen",
       latest: "Zuletzt",
       files: "Dateien und Ordner"
