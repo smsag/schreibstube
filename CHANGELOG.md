@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## 1.12.1 - 2026-09-12
+
+### Fixed
+
+- **The pane's own styling reaches the screen.** Almost none of 1.12.0's design was visible, because every control in the pane is a `<button>` and Obsidian styles those with `button:not(.clickable-icon)` — one class and one element, which outranks a rule carrying a single class of ours. Obsidian's chip background and shadow therefore won on all four section headers, on the row menu and trash buttons, and on both footer buttons, and `button { justify-content: center }` centred every section header's label in the middle of the pane. Every rule that dresses a button is now scoped under the pane so it outranks Obsidian's, and each states the properties that rule sets rather than assuming a default.
+- **The band above the tree reaches both edges, and the footer sits on the floor.** Obsidian pads a leaf's content box by 12px at the sides and 32px at the foot. That inset held the "Files and folders" band away from the edges and stranded the footer above a gap. The view takes that padding over and spends it on its own grid instead.
+
 ## 1.12.0 - 2026-09-12
 
 ### Added
