@@ -4,7 +4,6 @@ import {
   PathError,
   assetPath,
   checkRelativePath,
-  directoriesFor,
   extensionOf,
   isValidSlug,
   joinRemote,
@@ -173,15 +172,5 @@ describe("extensionOf", () => {
 
   it("returns nothing for a name without one", () => {
     expect(extensionOf("README")).toBe("");
-  });
-});
-
-describe("directoriesFor", () => {
-  it("lists every directory a set of files needs, shallowest first", () => {
-    expect(directoriesFor(["a/b/c.html", "a/d.html", "e.html"])).toEqual(["a", "a/b"]);
-  });
-
-  it("returns nothing when every file is at the root", () => {
-    expect(directoriesFor(["index.html"])).toEqual([]);
   });
 });

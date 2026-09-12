@@ -91,6 +91,16 @@ export class ExplorerStore {
     this.lastMtime = disk.mtime;
   }
 
+  /** Merge the file into memory, then drop what has expired.
+   *
+   *  Pruning after the merge rather than only at load is what makes the grace
+   *  period mean anything: the merge starts from the file, so an entry pruned
+   *  from memory at load comes straight back from disk on the next flush and
+   *  the file only ever grows. */
+  private reconcile(disk: ExplorerData): ExplorerData {
+    return pruneExplorerData(mergeExplorerData(this.current, disk), this.now());
+  }
+
   /**
    * Change the state and schedule a write.
    *
@@ -118,7 +128,7 @@ export class ExplorerStore {
       this.dirty = false;
 
       const disk = await this.readDisk();
-      const merged = this.adopt(mergeExplorerData(this.current, disk.data));
+      const merged = this.adopt(this.reconcile(disk.data));
       const text = serializeExplorerData(merged);
 
       if (text === disk.text) {
@@ -160,7 +170,7 @@ export class ExplorerStore {
       }
 
       const before = this.current;
-      this.adopt(mergeExplorerData(this.current, disk.data));
+      this.adopt(this.reconcile(disk.data));
       this.lastWritten = disk.text;
       this.lastMtime = disk.mtime;
 

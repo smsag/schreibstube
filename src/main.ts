@@ -4,6 +4,7 @@ import {
   Plugin,
   TFile,
   TFolder,
+  getIconIds,
   type TAbstractFile,
   type WorkspaceLeaf
 } from "obsidian";
@@ -26,7 +27,13 @@ import { createGlossaryUnderlineExtension } from "./processors/glossary-underlin
 import { compileGlossaries } from "./services/glossary-matcher";
 import { minuteOf, parseCron, previousRun, shouldFire } from "./services/cron";
 import { REVIEW_VIEW_TYPE, ReviewPanelView } from "./ui/review-panel";
-import { EXPLORER_VIEW_TYPE, ExplorerPaneView } from "./ui/explorer-view";
+import {
+  EXPLORER_RIBBON_FALLBACK_ICON,
+  EXPLORER_RIBBON_ICON,
+  EXPLORER_VIEW_TYPE,
+  ExplorerPaneView
+} from "./ui/explorer-view";
+import { resolveIconName } from "./services/ribbon-icon";
 import {
   EXPLORER_STATE_FILE,
   EXTERNAL_CHECK_MS,
@@ -168,15 +175,25 @@ export default class SchreibstubePlugin extends Plugin {
     );
 
     this.registerCommands();
-    // The file pane is the one thing here a person opens rather than runs, and
-    // reaching for a command palette to open a file list is a tax nobody else
-    // charges. Obsidian's own appearance settings hide the icon for anyone who
-    // would rather it were not there.
-    this.addRibbonIcon("folder-tree", t().commands.openExplorer, () => {
+    // The file pane is the plugin's main surface and everything else it offers
+    // is a command. Without a ribbon icon there is nothing to find: enabling
+    // the plugin changes nothing anyone can see until they open the palette
+    // and already know what to search for.
+    this.addRibbonIcon(this.ribbonIcon(), t().commands.openExplorer, () => {
       void this.activateExplorerPane();
     });
     this.addSettingTab(new SchreibstubeSettingTab(this.app, this));
     this.requestOverlayRefresh();
+  }
+
+  /** The ribbon's icon, checked against the set Obsidian actually ships so a
+   *  name it does not have becomes a log line rather than a blank button. */
+  private ribbonIcon(): string {
+    const icon = resolveIconName(EXPLORER_RIBBON_ICON, getIconIds(), EXPLORER_RIBBON_FALLBACK_ICON);
+    if (icon !== EXPLORER_RIBBON_ICON) {
+      this.logger.warn(`Obsidian has no "${EXPLORER_RIBBON_ICON}" icon; using "${icon}".`);
+    }
+    return icon;
   }
 
   onunload(): void {
@@ -197,6 +214,7 @@ export default class SchreibstubePlugin extends Plugin {
 
     const leaf = this.app.workspace.getRightLeaf(false);
     if (!leaf) {
+      new Notice(t().common.notice(t().common.sidebarMissing(t().proofread.panelTitle)));
       return;
     }
     await leaf.setViewState({ type: REVIEW_VIEW_TYPE, active: true });
@@ -213,6 +231,7 @@ export default class SchreibstubePlugin extends Plugin {
 
     const leaf = this.app.workspace.getLeftLeaf(false);
     if (!leaf) {
+      new Notice(t().common.notice(t().common.sidebarMissing(t().explorer.title)));
       return;
     }
     await leaf.setViewState({ type: EXPLORER_VIEW_TYPE, active: true });
@@ -244,10 +263,14 @@ export default class SchreibstubePlugin extends Plugin {
   }
 
   /** Show a folder in every open file pane. What a `vault://` bookmark does. */
-  private revealInExplorerPanes(path: string): void {
+  private revealInExplorerPanes(path: string, mayOpen = true): void {
     const leaves = this.app.workspace.getLeavesOfType(EXPLORER_VIEW_TYPE);
     if (leaves.length === 0) {
-      void this.activateExplorerPane().then(() => this.revealInExplorerPanes(path));
+      // One attempt only. `activateExplorerPane` reports and returns when the
+      // workspace has no left sidebar to put the pane in, and retrying on that
+      // would call straight back into here for the rest of the session.
+      if (!mayOpen) return;
+      void this.activateExplorerPane().then(() => this.revealInExplorerPanes(path, false));
       return;
     }
 

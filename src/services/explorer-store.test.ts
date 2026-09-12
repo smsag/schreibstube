@@ -1,7 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NULL_LOGGER } from "./logger";
 import { ExplorerStore, type ExplorerFileStore } from "./explorer-store";
-import { iconFor, setIcon, serializeExplorerData, emptyExplorerData } from "./explorer-state";
+import {
+  iconFor,
+  setIcon,
+  serializeExplorerData,
+  emptyExplorerData,
+  ORPHAN_GRACE_MS
+} from "./explorer-state";
 
 const T0 = Date.UTC(2026, 8, 12, 8, 0);
 
@@ -253,6 +259,30 @@ describe("picking up a foreign write", () => {
 
     expect(await store.refreshFromDisk()).toBe(false);
     expect(iconFor(store.data(), "a.md")).toBe("home");
+  });
+});
+
+describe("collecting what expired", () => {
+  it("does not let a flush bring an expired tombstone back from the file", async () => {
+    // Pruning only in memory at load is the same as not pruning at all: the
+    // flush merges the file in, and the file is where the expired entry lives.
+    const later = T0 + 2 * ORPHAN_GRACE_MS;
+    file.text = JSON.stringify({
+      version: 1,
+      entries: {
+        "gone.md": { icon: "star", updatedAt: T0, orphanedAt: T0, name: "gone.md" },
+        "here.md": { icon: "home", updatedAt: later }
+      }
+    });
+
+    const store = makeStore(file, manualTimers(), () => later);
+    await store.load();
+    store.mutate((data, now) => setIcon(data, "new.md", "book", now));
+    await store.flush();
+
+    expect(file.text).not.toContain("gone.md");
+    expect(file.text).toContain("here.md");
+    expect(file.text).toContain("new.md");
   });
 });
 

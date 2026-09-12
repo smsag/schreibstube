@@ -115,7 +115,27 @@ export class SecretComponent {
 
 export class MarkdownView {}
 export class ItemView {}
-export class Plugin {}
+
+export class Plugin {
+  constructor(
+    public app: unknown,
+    public manifest: unknown = { id: "schreibstube", dir: ".obsidian/plugins/schreibstube" }
+  ) {}
+}
+
+/**
+ * The icon names Obsidian ships. A test that cares sets this; the default is
+ * empty, which `resolveIconName` reads as "could not be asked".
+ */
+export let iconIds: string[] = [];
+
+export function setIconIds(ids: string[]): void {
+  iconIds = ids;
+}
+
+export function getIconIds(): string[] {
+  return iconIds;
+}
 
 export const requestUrl = async (): Promise<never> => {
   throw new Error("requestUrl is not available in tests; mock the client module instead.");
