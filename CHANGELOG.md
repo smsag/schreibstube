@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Added
+
+- **Bookmarks in the file pane.** A list of links above the tree for the places the tree cannot hold: a web page, an Obsidian URI, a vault folder, a note. Obsidian's own bookmarks cover the last two and have no room for the first two.
+  - **A Markdown file is the whole store.** `bookmarks.md` by default, anywhere in the vault by setting, in the format Launchpad used — a heading is a folder, a second-level heading a subfolder, a list item a link, a `[[wikilink]]` a note. An existing file is read as it stands.
+  - **The pane never writes it.** Links are added by editing the file, which is what keeps the list readable, versionable and mergeable, and what leaves exactly one writer per device: the person.
+  - **Five schemes open, everything else is dropped while reading** — `https`, `http`, `obsidian://`, `vault://` and `note://` — so a `javascript:` line pasted into a synced file never becomes a row that can be tapped. A `vault://` bookmark reveals the folder in this pane, ancestors opened, rather than handing the job to Obsidian's explorer.
+  - **Open bookmark**, a command that searches the list by name, folder or URL, offering what was opened most recently on that device first. Recents are stored per device and never written into the file.
+  - **Copy path for Schreibstube** on any folder's context menu, which is how a `vault://` URL is obtained without typing a path out by hand.
+- **Latest in the file pane.** The notes created most recently and those changed most recently, in two short lists. A note shown as created is not repeated as changed, only Markdown counts, and the bookmarks file is always excluded. The count and further exclusions are settings.
+- **The pane has sections**, each collapsible: bookmarks, latest, files and folders.
+
+### Changed
+
+- **The pane remembers what was open.** Which folders and which sections, stored per device in Obsidian's local storage rather than in a synced file — what is open on a phone is not a thing a laptop should inherit, and it is not worth a sync conflict. Folder expansion was previously lost on every restart.
+
 ## 1.9.0 - 2026-09-12
 
 ### Added

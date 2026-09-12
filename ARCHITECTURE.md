@@ -36,6 +36,7 @@ controllers/         one per feature; they own flow and talk to Obsidian
   proofread-controller  the review sidebar
   sync-poller        checks bound notes against their sources
   explorer-controller  the file pane: icons, pins, its menu, its sync actions
+  pane-sections        the two read-only lists above the tree: bookmarks, latest
 services/            pure decisions, no Obsidian imports, heavily tested
 ui/                  panels and modals
 settings/            one module per settings area
@@ -83,6 +84,19 @@ Uploads are incremental; rendering is total. A title that changed in one note
 changes the index page and every link pointing at it, and only a full render
 gets that right. Output is hashed before writing, so an unchanged page is left
 alone.
+
+## Why bookmarks are a Markdown file
+
+Because nothing writes them. A bookmark list that only ever gets read has no
+merge problem, no schema migration and no way to corrupt itself: when something
+is wrong with it, a person opens the file and fixes it. That is worth more than
+an add-bookmark dialog, and it is the one design choice the pane's bookmark
+section is built around.
+
+The file also has to survive being edited by hand, so the parser drops what it
+cannot use rather than reporting it — a line of prose in the middle of the file
+is ignored, and a scheme that must never be opened is dropped while reading,
+before it can become a row on a screen.
 
 ## Why the file pane has its own state file
 

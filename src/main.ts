@@ -1,4 +1,12 @@
-import { MarkdownView, Notice, Plugin, TFile, type WorkspaceLeaf } from "obsidian";
+import {
+  MarkdownView,
+  Notice,
+  Plugin,
+  TFile,
+  TFolder,
+  type TAbstractFile,
+  type WorkspaceLeaf
+} from "obsidian";
 import { resolveAncestorStack } from "./services/ancestor-stack";
 import { buildHeadingIndex } from "./services/heading-index";
 import { reduceOverlayRowEvent, type OverlayRowEvent } from "./services/overlay-interaction";
@@ -25,6 +33,9 @@ import {
   ExplorerController
 } from "./controllers/explorer-controller";
 import type { ExplorerFileStore } from "./services/explorer-store";
+import { PaneSectionsController } from "./controllers/pane-sections";
+import { BookmarkQuickOpenModal } from "./ui/bookmark-quick-open";
+import { vaultUrlFor } from "./services/bookmark-file";
 import { MailCommands } from "./controllers/mail-commands";
 import { PublishCommands } from "./controllers/publish-commands";
 import { SchreibstubeSettingTab } from "./settings/index";
@@ -53,6 +64,7 @@ export default class SchreibstubePlugin extends Plugin {
   private llm: LlmCommands | null = null;
   private proofread: ProofreadController | null = null;
   private explorer: ExplorerController | null = null;
+  private sections: PaneSectionsController | null = null;
   /** Guards against firing twice inside one scheduled minute. */
   private lastPollMinute = -1;
   private mail: MailCommands | null = null;
@@ -111,6 +123,14 @@ export default class SchreibstubePlugin extends Plugin {
     );
     await this.explorer.start();
 
+    this.sections = new PaneSectionsController(
+      this.app,
+      () => this.settings,
+      this.logger,
+      (path) => this.revealInExplorerPanes(path)
+    );
+    await this.sections.start();
+
     this.registerView(REVIEW_VIEW_TYPE, (leaf) => this.createReviewView(leaf));
     this.registerView(EXPLORER_VIEW_TYPE, (leaf) => this.createExplorerView(leaf));
     this.registerExplorerEvents();
@@ -156,6 +176,7 @@ export default class SchreibstubePlugin extends Plugin {
     this.linkMode?.stop();
     this.proofread?.stop();
     void this.explorer?.stop();
+    this.sections?.stop();
     this.clearOverlay();
   }
 
@@ -193,10 +214,40 @@ export default class SchreibstubePlugin extends Plugin {
 
   private createExplorerView(leaf: WorkspaceLeaf): ExplorerPaneView {
     const view = new ExplorerPaneView(leaf);
-    if (this.explorer) {
-      view.setController(this.explorer);
+    if (this.explorer && this.sections) {
+      view.connect({
+        explorer: this.explorer,
+        sections: this.sections,
+        settings: () => this.settings
+      });
     }
     return view;
+  }
+
+  private async copyBookmarkPath(folderPath: string): Promise<void> {
+    const url = vaultUrlFor(folderPath);
+
+    try {
+      await navigator.clipboard.writeText(url);
+      new Notice(t().common.notice(t().explorer.bookmarks.copied(folderPath)));
+    } catch (error) {
+      this.logger.warn(`Could not copy ${url} to the clipboard:`, error);
+      new Notice(t().common.notice(t().explorer.bookmarks.copyFailed));
+    }
+  }
+
+  /** Show a folder in every open file pane. What a `vault://` bookmark does. */
+  private revealInExplorerPanes(path: string): void {
+    const leaves = this.app.workspace.getLeavesOfType(EXPLORER_VIEW_TYPE);
+    if (leaves.length === 0) {
+      void this.activateExplorerPane().then(() => this.revealInExplorerPanes(path));
+      return;
+    }
+
+    for (const leaf of leaves) {
+      if (leaf.view instanceof ExplorerPaneView) leaf.view.revealFolder(path);
+    }
+    void this.app.workspace.revealLeaf(leaves[0]);
   }
 
   /**
@@ -228,6 +279,51 @@ export default class SchreibstubePlugin extends Plugin {
     // that the state file does not already say.
     this.app.workspace.onLayoutReady(() => {
       this.registerEvent(this.app.vault.on("create", (file) => this.explorer?.handleCreate(file)));
+    });
+
+    // The two lists above the tree are a snapshot of the vault, so any change to
+    // it makes them stale. The bookmarks file costs a re-read; everything else
+    // only marks the recent-notes lists for recomputing on the next draw.
+    const touched = (file: TAbstractFile): void => {
+      if (this.sections?.isBookmarksFile(file.path)) void this.sections.reload();
+      this.sections?.invalidateLatest();
+    };
+
+    this.registerEvent(this.app.vault.on("create", touched));
+    this.registerEvent(this.app.vault.on("delete", touched));
+    this.registerEvent(this.app.vault.on("modify", touched));
+
+    this.registerEvent(
+      this.app.vault.on("rename", (file, oldPath) => {
+        const sections = this.sections;
+        if (!sections) return;
+        if (sections.isBookmarksFile(file.path) || sections.isBookmarksFile(oldPath)) {
+          void sections.reload();
+        }
+        sections.invalidateLatest();
+      })
+    );
+
+    // A folder is bookmarked by pasting its `vault://` URL into the bookmarks
+    // file, so the path has to be obtainable without typing it out by hand.
+    this.registerEvent(
+      this.app.workspace.on("file-menu", (menu, file) => {
+        if (!(file instanceof TFolder)) return;
+        menu.addItem((item) =>
+          item
+            .setTitle(t().explorer.bookmarks.copyPath)
+            .setIcon("link")
+            .setSection("info")
+            .onClick(() => void this.copyBookmarkPath(file.path))
+        );
+      })
+    );
+
+    // The bookmarks file may not be indexed yet when the plugin loads, which is
+    // the normal case on a phone waiting for iCloud. Read it again once the
+    // vault says it is ready.
+    this.app.workspace.onLayoutReady(() => {
+      void this.sections?.reload();
     });
 
     // A sync client drops a new state file in without telling anyone, so the
@@ -367,6 +463,10 @@ export default class SchreibstubePlugin extends Plugin {
 
   async saveSettings(): Promise<void> {
     await this.saveData(this.settings);
+    // A changed bookmarks path, count or exclusion list only matters once the
+    // pane has been told; nothing else watches the settings object.
+    void this.sections?.reloadIfPathChanged();
+    this.sections?.invalidateLatest();
   }
 
   requestOverlayRefresh(): void {
@@ -436,6 +536,14 @@ export default class SchreibstubePlugin extends Plugin {
       name: t().commands.openExplorer,
       callback: () => {
         void this.activateExplorerPane();
+      }
+    });
+
+    this.addCommand({
+      id: "open-bookmark",
+      name: t().commands.openBookmark,
+      callback: () => {
+        if (this.sections) new BookmarkQuickOpenModal(this.app, this.sections).open();
       }
     });
 

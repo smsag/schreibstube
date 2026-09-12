@@ -7,6 +7,8 @@
  */
 import { Setting } from "obsidian";
 import { t } from "../i18n";
+import { BOOKMARK_FILE_DEFAULT } from "../services/bookmark-file";
+import { LATEST_COUNT_MAX } from "../services/latest-files";
 import { ICON_FONT_VERSION, allIconNames } from "../ui/icon-font";
 import type { ExplorerForeignMenu } from "../types";
 import type { SettingsContext } from "./context";
@@ -31,6 +33,58 @@ export function renderExplorer(ctx: SettingsContext): void {
         .onChange(async (value) => {
           await ctx.update({ explorerForeignMenu: value as ExplorerForeignMenu });
         });
+    });
+
+  new Setting(ctx.containerEl)
+    .setName(t().settings.explorerBookmarks)
+    .setDesc(t().settings.explorerBookmarksDesc)
+    .addToggle((toggle) => {
+      toggle.setValue(ctx.plugin.settings.explorerBookmarksEnabled).onChange(async (value) => {
+        await ctx.update({ explorerBookmarksEnabled: value });
+      });
+    });
+
+  new Setting(ctx.containerEl)
+    .setName(t().settings.explorerBookmarksFile)
+    .setDesc(t().settings.explorerBookmarksFileDesc)
+    .addText((text) => {
+      text
+        .setPlaceholder(BOOKMARK_FILE_DEFAULT)
+        .setValue(ctx.plugin.settings.explorerBookmarksFile)
+        .onChange(async (value) => {
+          await ctx.update({ explorerBookmarksFile: value.trim() || BOOKMARK_FILE_DEFAULT });
+        });
+    });
+
+  new Setting(ctx.containerEl)
+    .setName(t().settings.explorerLatest)
+    .setDesc(t().settings.explorerLatestDesc)
+    .addToggle((toggle) => {
+      toggle.setValue(ctx.plugin.settings.explorerLatestEnabled).onChange(async (value) => {
+        await ctx.update({ explorerLatestEnabled: value });
+      });
+    });
+
+  new Setting(ctx.containerEl)
+    .setName(t().settings.explorerLatestCount)
+    .setDesc(t().settings.explorerLatestCountDesc(LATEST_COUNT_MAX))
+    .addSlider((slider) => {
+      slider
+        .setLimits(1, LATEST_COUNT_MAX, 1)
+        .setDynamicTooltip()
+        .setValue(ctx.plugin.settings.explorerLatestCount)
+        .onChange(async (value) => {
+          await ctx.update({ explorerLatestCount: value });
+        });
+    });
+
+  new Setting(ctx.containerEl)
+    .setName(t().settings.explorerLatestExclude)
+    .setDesc(t().settings.explorerLatestExcludeDesc)
+    .addTextArea((area) => {
+      area.setValue(ctx.plugin.settings.explorerLatestExcluded).onChange(async (value) => {
+        await ctx.update({ explorerLatestExcluded: value });
+      });
     });
 
   new Setting(ctx.containerEl)

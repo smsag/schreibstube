@@ -8,15 +8,30 @@
  * sync mark on notes that mirror a source, and a pinned block at the top of
  * every folder.
  *
+ * Above the tree sit two lists that are not part of it. **Bookmarks** are links
+ * to somewhere the tree cannot reach — a web page, an Obsidian URI, a folder, a
+ * note — read from a Markdown file a person edits by hand. **Latest** is the
+ * handful of notes written most recently. Both are read-only here: the pane
+ * shows them and opens them, and nothing else.
+ *
  * It draws and reports. Every decision — what an icon means, what the menu
- * offers, what a pin does to the order — lives in the controller and in the
- * services behind it.
+ * offers, what a pin does to the order, what a bookmark points at — lives in a
+ * controller and in the services behind it.
  */
 import { ItemView, TFile, TFolder, type TAbstractFile, type WorkspaceLeaf } from "obsidian";
 import { t } from "../i18n";
 import type { ExplorerController } from "../controllers/explorer-controller";
+import type { PaneSectionsController } from "../controllers/pane-sections";
 import { syncBadgeIcon, type SyncBadge } from "../services/explorer-badge";
 import { sortSiblings, type ExplorerNode } from "../services/explorer-state";
+import {
+  bookmarkIcon,
+  isBookmarkTreeEmpty,
+  type Bookmark,
+  type BookmarkFolder
+} from "../services/bookmark-file";
+import type { LatestCandidate } from "../services/latest-files";
+import type { SchreibstubeSettings } from "../types";
 import { applyIcon, installIconFont } from "./icon-font";
 
 export const EXPLORER_VIEW_TYPE = "schreibstube-explorer";
@@ -24,12 +39,51 @@ export const EXPLORER_VIEW_TYPE = "schreibstube-explorer";
 /** Long enough not to fire while scrolling, short enough to feel deliberate. */
 const LONG_PRESS_MS = 500;
 
+/**
+ * What the pane remembers between sessions, per device.
+ *
+ * Obsidian's local storage is per vault and per device, which is the right home
+ * for it: which folders a person has open on their phone is not a thing their
+ * laptop should inherit, and it is not worth a sync conflict.
+ */
+const MEMORY_KEY = "schreibstube:explorer:view";
+
+/** Separator inside a bookmark folder key. A vault name can hold a slash; it
+ *  cannot hold this. */
+const FOLDER_SEP = "\u001f";
+
+type SectionId = "bookmarks" | "latest" | "files";
+
+interface PaneMemory {
+  /** Sections the person closed. Absent means open, which is the default. */
+  collapsedSections?: string[];
+  /** Bookmark folders the person closed. */
+  collapsedBookmarks?: string[];
+  /** Tree folders the person opened. */
+  expandedFolders?: string[];
+}
+
+interface LocalStorageApi {
+  loadLocalStorage?: (key: string) => unknown;
+  saveLocalStorage?: (key: string, value: unknown) => void;
+}
+
+export interface ExplorerPaneHost {
+  explorer: ExplorerController;
+  sections: PaneSectionsController;
+  settings: () => SchreibstubeSettings;
+}
+
 export class ExplorerPaneView extends ItemView {
-  private controller: ExplorerController | null = null;
+  private host: ExplorerPaneHost | null = null;
   private expanded = new Set<string>();
+  private collapsedSections = new Set<string>();
+  private collapsedBookmarks = new Set<string>();
   private query = "";
-  private tree: HTMLElement | null = null;
+  private body: HTMLElement | null = null;
   private pending = false;
+  /** A path to scroll to once the next draw has put it on screen. */
+  private revealing: string | null = null;
 
   constructor(leaf: WorkspaceLeaf) {
     super(leaf);
@@ -45,14 +99,16 @@ export class ExplorerPaneView extends ItemView {
     return t().explorer.title;
   }
 
-  setController(controller: ExplorerController): void {
-    this.controller = controller;
-    this.register(controller.onChange(() => this.requestRender()));
+  connect(host: ExplorerPaneHost): void {
+    this.host = host;
+    this.register(host.explorer.onChange(() => this.requestRender()));
+    this.register(host.sections.onChange(() => this.requestRender()));
     this.requestRender();
   }
 
   protected async onOpen(): Promise<void> {
     installIconFont(this.containerEl.doc);
+    this.readMemory();
 
     const root = this.contentEl;
     root.empty();
@@ -71,7 +127,7 @@ export class ExplorerPaneView extends ItemView {
       this.requestRender();
     });
 
-    this.tree = root.createDiv({ cls: "schreibstube-explorer-tree" });
+    this.body = root.createDiv({ cls: "schreibstube-explorer-body" });
 
     // The vault changes under the pane: a note created by a template, a file
     // deleted on another device and delivered by sync, frontmatter that binds a
@@ -89,6 +145,23 @@ export class ExplorerPaneView extends ItemView {
     this.contentEl.empty();
   }
 
+  /**
+   * Put a folder on screen, opened, with its ancestors opened above it.
+   *
+   * This is what a `vault://` bookmark does. The pane owns the tree, so it
+   * reveals in itself rather than handing the job to Obsidian's explorer, which
+   * may not even be open.
+   */
+  revealFolder(path: string): void {
+    for (const ancestor of ancestorsOf(path)) this.expanded.add(ancestor);
+    this.expanded.add(path);
+    this.collapsedSections.delete("files");
+    this.writeMemory();
+
+    this.revealing = path;
+    this.requestRender();
+  }
+
   /** Collapse the redraws a burst of vault events would otherwise cause. */
   private requestRender(): void {
     if (this.pending) return;
@@ -100,21 +173,209 @@ export class ExplorerPaneView extends ItemView {
   }
 
   private render(): void {
-    const host = this.tree;
-    if (!host || !this.controller) return;
+    const host = this.body;
+    if (!host || !this.host) return;
 
     host.empty();
-    const root = this.app.vault.getRoot();
-    const drawn = this.renderChildren(host, root, 0);
+    const settings = this.host.settings();
+
+    if (settings.explorerBookmarksEnabled) this.renderBookmarks(host);
+    if (settings.explorerLatestEnabled) this.renderLatest(host);
+    this.renderFiles(host);
+
+    this.scrollToRevealed();
+  }
+
+  // --- sections -----------------------------------------------------------
+
+  /**
+   * A section: a header that toggles, and a body that is simply not drawn while
+   * the section is closed. Keeping the rows out of the document rather than
+   * hiding them is what keeps a vault of thousands of notes cheap to redraw.
+   */
+  private renderSection(host: HTMLElement, id: SectionId, icon: string): HTMLElement | null {
+    const section = host.createDiv({ cls: "schreibstube-explorer-section" });
+    const collapsed = this.collapsedSections.has(id);
+
+    const header = section.createEl("button", {
+      cls: "schreibstube-explorer-section-header",
+      attr: { type: "button", "aria-expanded": String(!collapsed) }
+    });
+    applyIcon(
+      header.createSpan({ cls: "schreibstube-explorer-twisty" }),
+      collapsed ? "chevron-right" : "chevron-down"
+    );
+    applyIcon(header.createSpan({ cls: "schreibstube-explorer-glyph" }), icon);
+    header.createSpan({
+      cls: "schreibstube-explorer-section-title",
+      text: t().explorer.sections[id]
+    });
+
+    header.addEventListener("click", () => {
+      if (this.collapsedSections.has(id)) this.collapsedSections.delete(id);
+      else this.collapsedSections.add(id);
+      this.writeMemory();
+      this.requestRender();
+    });
+
+    return collapsed ? null : section.createDiv({ cls: "schreibstube-explorer-section-body" });
+  }
+
+  private renderBookmarks(host: HTMLElement): void {
+    const sections = this.host?.sections;
+    const body = this.renderSection(host, "bookmarks", "bookmark");
+    if (!body || !sections) return;
+
+    const tree = sections.bookmarks();
+
+    if (isBookmarkTreeEmpty(tree)) {
+      const path = sections.bookmarksPath();
+      body.createEl("p", {
+        cls: "schreibstube-explorer-empty",
+        text: sections.bookmarksFileMissing()
+          ? t().explorer.bookmarks.missingFile(path)
+          : t().explorer.bookmarks.empty
+      });
+      body.createEl("p", {
+        cls: "schreibstube-explorer-empty",
+        text: t().explorer.bookmarks.hint(path)
+      });
+      return;
+    }
+
+    // A filter that matches nothing leaves the section empty on purpose: the
+    // filter box is right above it and says why.
+    for (const bookmark of tree.loose) this.renderBookmarkRow(body, bookmark, 0);
+    for (const folder of tree.folders) this.renderBookmarkFolder(body, folder, "", 0);
+  }
+
+  /** Returns how many bookmark rows were drawn, so a filter that matches
+   *  nothing can say so rather than showing empty folders. */
+  private renderBookmarkFolder(
+    host: HTMLElement,
+    folder: BookmarkFolder,
+    parentKey: string,
+    depth: number
+  ): number {
+    const key = parentKey.length > 0 ? `${parentKey}${FOLDER_SEP}${folder.name}` : folder.name;
+    const matching = this.bookmarkMatches(folder);
+    if (matching === 0) return 0;
+
+    // A filter opens every folder that still has something in it, and closes
+    // nothing the person had opened by hand.
+    const collapsed = this.query.length === 0 && this.collapsedBookmarks.has(key);
+
+    const row = host.createDiv({ cls: "schreibstube-explorer-row is-folder" });
+    row.style.paddingLeft = `${depth * 17 + 4}px`;
+
+    applyIcon(
+      row.createSpan({ cls: "schreibstube-explorer-twisty" }),
+      collapsed ? "chevron-right" : "chevron-down"
+    );
+    applyIcon(row.createSpan({ cls: "schreibstube-explorer-glyph" }), "folder");
+    row.createSpan({ cls: "schreibstube-explorer-name", text: folder.name });
+
+    row.addEventListener("click", () => {
+      if (this.collapsedBookmarks.has(key)) this.collapsedBookmarks.delete(key);
+      else this.collapsedBookmarks.add(key);
+      this.writeMemory();
+      this.requestRender();
+    });
+
+    if (collapsed) return 1;
+
+    let drawn = 1;
+    for (const bookmark of folder.bookmarks) {
+      drawn += this.renderBookmarkRow(host, bookmark, depth + 1);
+    }
+    for (const sub of folder.subfolders) {
+      drawn += this.renderBookmarkFolder(host, sub, key, depth + 1);
+    }
+    return drawn;
+  }
+
+  private renderBookmarkRow(host: HTMLElement, bookmark: Bookmark, depth: number): number {
+    if (!this.matchesQuery(bookmark.name)) return 0;
+
+    const row = host.createDiv({ cls: "schreibstube-explorer-row is-bookmark" });
+    row.style.paddingLeft = `${depth * 17 + 4}px`;
+    row.setAttribute("data-kind", bookmark.kind);
+    row.setAttribute("title", bookmark.url);
+
+    row.createSpan({ cls: "schreibstube-explorer-twisty" });
+    applyIcon(row.createSpan({ cls: "schreibstube-explorer-glyph" }), bookmarkIcon(bookmark.kind));
+    row.createSpan({ cls: "schreibstube-explorer-name", text: bookmark.name });
+
+    row.addEventListener("click", () => this.host?.sections.openBookmark(bookmark));
+    return 1;
+  }
+
+  /** How many bookmarks under a folder survive the filter. */
+  private bookmarkMatches(folder: BookmarkFolder): number {
+    const here = folder.bookmarks.filter((bookmark) => this.matchesQuery(bookmark.name)).length;
+    return folder.subfolders.reduce((total, sub) => total + this.bookmarkMatches(sub), here);
+  }
+
+  private renderLatest(host: HTMLElement): void {
+    const sections = this.host?.sections;
+    const body = this.renderSection(host, "latest", "history");
+    if (!body || !sections) return;
+
+    const { created, modified } = sections.latestFiles();
+    const labels = t().explorer.latest;
+
+    const drawn =
+      this.renderLatestGroup(body, labels.created, created) +
+      this.renderLatestGroup(body, labels.modified, modified);
 
     if (drawn === 0) {
-      host.createEl("p", { cls: "schreibstube-explorer-empty", text: t().explorer.empty });
+      body.createEl("p", { cls: "schreibstube-explorer-empty", text: labels.empty });
     }
   }
 
+  private renderLatestGroup(
+    host: HTMLElement,
+    label: string,
+    files: readonly LatestCandidate[]
+  ): number {
+    const matching = files.filter((file) => this.matchesQuery(file.name));
+    if (matching.length === 0) return 0;
+
+    host.createDiv({ cls: "schreibstube-explorer-subheading", text: label });
+
+    for (const file of matching) {
+      const row = host.createDiv({ cls: "schreibstube-explorer-row is-latest" });
+      row.style.paddingLeft = "21px";
+      row.setAttribute("title", file.path);
+      if (this.app.workspace.getActiveFile()?.path === file.path) row.addClass("is-active");
+
+      row.createSpan({ cls: "schreibstube-explorer-twisty" });
+      applyIcon(row.createSpan({ cls: "schreibstube-explorer-glyph" }), "file-text");
+      row.createSpan({ cls: "schreibstube-explorer-name", text: file.name });
+
+      row.addEventListener("click", () => void this.host?.sections.openLatest(file.path));
+    }
+
+    return matching.length;
+  }
+
+  private renderFiles(host: HTMLElement): void {
+    const body = this.renderSection(host, "files", "folder");
+    if (!body) return;
+
+    const tree = body.createDiv({ cls: "schreibstube-explorer-tree" });
+    const drawn = this.renderChildren(tree, this.app.vault.getRoot(), 0);
+
+    if (drawn === 0) {
+      tree.createEl("p", { cls: "schreibstube-explorer-empty", text: t().explorer.empty });
+    }
+  }
+
+  // --- the file tree ------------------------------------------------------
+
   /** Returns how many rows were drawn, so an empty vault can say so. */
   private renderChildren(host: HTMLElement, folder: TFolder, depth: number): number {
-    const controller = this.controller;
+    const controller = this.host?.explorer;
     if (!controller) return 0;
 
     const nodes: ExplorerNode[] = folder.children.map((child) => ({
@@ -142,7 +403,7 @@ export class ExplorerPaneView extends ItemView {
         continue;
       }
 
-      if (this.query.length > 0 && !child.name.toLowerCase().includes(this.query)) continue;
+      if (!this.matchesQuery(child.name)) continue;
       this.renderRow(host, child, depth);
       drawn += 1;
     }
@@ -152,10 +413,12 @@ export class ExplorerPaneView extends ItemView {
 
   private folderMatches(folder: TFolder): boolean {
     return folder.children.some((child) =>
-      child instanceof TFolder
-        ? this.folderMatches(child)
-        : child.name.toLowerCase().includes(this.query)
+      child instanceof TFolder ? this.folderMatches(child) : this.matchesQuery(child.name)
     );
+  }
+
+  private matchesQuery(name: string): boolean {
+    return this.query.length === 0 || name.toLowerCase().includes(this.query);
   }
 
   /** A filter expands the tree for as long as it is set, without disturbing
@@ -165,7 +428,7 @@ export class ExplorerPaneView extends ItemView {
   }
 
   private renderRow(host: HTMLElement, file: TAbstractFile, depth: number): void {
-    const controller = this.controller;
+    const controller = this.host?.explorer;
     if (!controller) return;
 
     const isFolder = file instanceof TFolder;
@@ -207,7 +470,7 @@ export class ExplorerPaneView extends ItemView {
   }
 
   private renderBadge(row: HTMLElement, file: TFile): void {
-    const controller = this.controller;
+    const controller = this.host?.explorer;
     if (!controller) return;
 
     const badge = controller.badgeFor(file);
@@ -222,7 +485,7 @@ export class ExplorerPaneView extends ItemView {
   }
 
   private wireRow(row: HTMLElement, file: TAbstractFile, isFolder: boolean): void {
-    const controller = this.controller;
+    const controller = this.host?.explorer;
     if (!controller) return;
 
     row.addEventListener("click", () => {
@@ -268,16 +531,89 @@ export class ExplorerPaneView extends ItemView {
   private toggle(path: string): void {
     if (this.expanded.has(path)) this.expanded.delete(path);
     else this.expanded.add(path);
+    this.writeMemory();
     this.requestRender();
   }
 
   private glyphFor(file: TAbstractFile): string {
-    const chosen = this.controller?.iconFor(file.path);
+    const chosen = this.host?.explorer.iconFor(file.path);
     if (chosen) return chosen;
 
     if (file instanceof TFolder) return this.isExpanded(file) ? "folder-open" : "folder";
     return file instanceof TFile && file.extension === "md" ? "file-text" : "file";
   }
+
+  private scrollToRevealed(): void {
+    const path = this.revealing;
+    if (path === null || !this.body) return;
+    this.revealing = null;
+
+    const row = this.body.querySelector(`[data-path="${CSS.escape(path)}"]`);
+    if (!(row instanceof HTMLElement)) return;
+
+    row.scrollIntoView({ block: "center" });
+    // A folder that was already on screen would otherwise jump to nowhere
+    // visible; the mark says which row the bookmark meant.
+    row.addClass("is-revealed");
+    window.setTimeout(() => row.removeClass("is-revealed"), 1200);
+  }
+
+  // --- what the pane remembers --------------------------------------------
+
+  private readMemory(): void {
+    const storage = this.app as unknown as LocalStorageApi;
+    if (typeof storage.loadLocalStorage !== "function") return;
+
+    let memory: PaneMemory;
+    try {
+      const raw = storage.loadLocalStorage(MEMORY_KEY);
+      if (!raw || typeof raw !== "object") return;
+      memory = raw as PaneMemory;
+    } catch {
+      // A hardened setup can refuse storage entirely; the pane opens with
+      // everything expanded rather than failing to open.
+      return;
+    }
+
+    this.collapsedSections = toSet(memory.collapsedSections);
+    this.collapsedBookmarks = toSet(memory.collapsedBookmarks);
+    this.expanded = toSet(memory.expandedFolders);
+  }
+
+  private writeMemory(): void {
+    const storage = this.app as unknown as LocalStorageApi;
+    if (typeof storage.saveLocalStorage !== "function") return;
+
+    try {
+      storage.saveLocalStorage(MEMORY_KEY, {
+        collapsedSections: [...this.collapsedSections],
+        collapsedBookmarks: [...this.collapsedBookmarks],
+        expandedFolders: [...this.expanded]
+      } satisfies PaneMemory);
+    } catch {
+      // Nothing here is worth failing a click over.
+    }
+  }
+}
+
+function toSet(value: unknown): Set<string> {
+  return new Set(
+    Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === "string") : []
+  );
+}
+
+/** Every folder above a path, outermost first. */
+function ancestorsOf(path: string): string[] {
+  const parts = path.split("/");
+  parts.pop();
+
+  const ancestors: string[] = [];
+  let current = "";
+  for (const part of parts) {
+    current = current.length > 0 ? `${current}/${part}` : part;
+    ancestors.push(current);
+  }
+  return ancestors;
 }
 
 function displayName(file: TAbstractFile): string {

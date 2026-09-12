@@ -15,6 +15,7 @@ export const de: Messages = {
     renameImage: "Bild aus Inhalt benennen",
     summarize: "Auswahl zusammenfassen",
     openExplorer: "Dateibereich öffnen",
+    openBookmark: "Lesezeichen öffnen",
     openReview: "Korrektur-Seitenleiste öffnen",
     proofread: "Notiz korrigieren",
     checkGlossary: "Notiz gegen Glossar prüfen",
@@ -199,6 +200,25 @@ export const de: Messages = {
     explorerForeignSubmenu: "Unter „Weitere Aktionen“",
     explorerForeignInline: "Am Ende des Menüs",
     explorerForeignOff: "Gar nicht",
+    explorerBookmarks: "Bereich Lesezeichen",
+    explorerBookmarksDesc:
+      "Eine Linkliste über dem Dateibaum: Webseiten, Obsidian-URIs, Vault-Ordner und Notizen. " +
+      "Der Bereich liest die Datei nur, eingetragen werden Links von Hand.",
+    explorerBookmarksFile: "Lesezeichen-Datei",
+    explorerBookmarksFileDesc:
+      "Vault-Pfad der Markdown-Datei, aus der die Lesezeichen gelesen werden. Eine Überschrift " +
+      "ist ein Ordner, ein Listenpunkt ein Link.",
+    explorerLatest: "Bereich Zuletzt",
+    explorerLatestDesc:
+      "Zwei kurze Listen zwischen Lesezeichen und Baum: die zuletzt erstellten und die zuletzt " +
+      "geänderten Notizen. Was als erstellt erscheint, wiederholt sich nicht als geändert.",
+    explorerLatestCount: "Notizen je Liste",
+    explorerLatestCountDesc: (max: number) =>
+      `Wie viele Notizen jede der beiden Listen zeigt (1 bis ${max}).`,
+    explorerLatestExclude: "Nie anzeigen",
+    explorerLatestExcludeDesc:
+      "Vault-Pfade, durch Komma oder Zeilenumbruch getrennt. Die Lesezeichen-Datei ist immer " +
+      "ausgenommen.",
     explorerIcons: "Symbolsatz",
     explorerIconsDesc: (count: number, version: string) =>
       `${count} Symbole aus Tabler Icons ${version} (MIT), im Plugin enthalten — offline und mobil verfügbar.`,
@@ -395,6 +415,34 @@ export const de: Messages = {
     empty: "In diesem Vault liegt noch keine Datei.",
     searchPlaceholder: "Dateien filtern …",
     pinnedSection: "Angeheftet",
+
+    sections: {
+      bookmarks: "Lesezeichen",
+      latest: "Zuletzt",
+      files: "Dateien und Ordner"
+    },
+
+    bookmarks: {
+      empty: "Noch keine Lesezeichen.",
+      hint: (path: string) =>
+        `Trage sie in ${path} ein: eine Überschrift ist ein Ordner, ein Listenpunkt ein Link.`,
+      missingFile: (path: string) => `Unter ${path} liegt noch keine Lesezeichen-Datei.`,
+      badTarget: (name: string) => `${name} zeigt auf nichts, was sich öffnen lässt.`,
+      missingFolder: (path: string) => `unter ${path} liegt kein Ordner.`,
+      missingNote: (path: string) => `es gibt keine Notiz namens ${path}.`,
+      copyPath: "Pfad für Schreibstube kopieren",
+      copied: (path: string) => `${path} als Lesezeichen-Link kopiert.`,
+      copyFailed: "die Zwischenablage steht hier nicht zur Verfügung.",
+      quickOpen: "Lesezeichen suchen …",
+      recent: "Zuletzt geöffnet",
+      all: "Alle Lesezeichen"
+    },
+
+    latest: {
+      created: "Erstellt",
+      modified: "Geändert",
+      empty: "Noch keine Notizen."
+    },
 
     menu: {
       open: "Öffnen",

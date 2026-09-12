@@ -11,6 +11,8 @@ import {
   DEFAULT_SETTINGS as DEFAULT_FOCUS_SETTINGS,
   normalizeFocusSettings
 } from "./focus-settings";
+import { BOOKMARK_FILE_DEFAULT } from "./bookmark-file";
+import { LATEST_COUNT_DEFAULT, LATEST_COUNT_MAX } from "./latest-files";
 import { LLM_PROVIDER_IDS, PROVIDER_MODELS } from "./llm-providers";
 import { DEFAULT_PUBLISH_KEYS, normalizePublishKeys } from "./publish-index";
 
@@ -95,6 +97,11 @@ export const DEFAULT_SETTINGS: SchreibstubeSettings = {
   githubSecretName: "",
   syncState: {},
   explorerForeignMenu: "submenu",
+  explorerBookmarksEnabled: true,
+  explorerBookmarksFile: BOOKMARK_FILE_DEFAULT,
+  explorerLatestEnabled: true,
+  explorerLatestCount: LATEST_COUNT_DEFAULT,
+  explorerLatestExcluded: "",
   mailBridgeUrl: "",
   mailTokenSecretName: "",
   mailFrom: "",
@@ -234,6 +241,28 @@ export function normalizeSettings(loaded: LoadedSettings): SchreibstubeSettings 
         : DEFAULT_SETTINGS.githubSecretName,
     syncState: syncStateOrDefault(loaded?.syncState),
     explorerForeignMenu: foreignMenuOrDefault(loaded?.explorerForeignMenu),
+    explorerBookmarksEnabled:
+      typeof loaded?.explorerBookmarksEnabled === "boolean"
+        ? loaded.explorerBookmarksEnabled
+        : DEFAULT_SETTINGS.explorerBookmarksEnabled,
+    explorerBookmarksFile: nonEmptyStringOrDefault(
+      loaded?.explorerBookmarksFile,
+      DEFAULT_SETTINGS.explorerBookmarksFile
+    ),
+    explorerLatestEnabled:
+      typeof loaded?.explorerLatestEnabled === "boolean"
+        ? loaded.explorerLatestEnabled
+        : DEFAULT_SETTINGS.explorerLatestEnabled,
+    explorerLatestCount: clampIntOrDefault(
+      loaded?.explorerLatestCount,
+      1,
+      LATEST_COUNT_MAX,
+      DEFAULT_SETTINGS.explorerLatestCount
+    ),
+    explorerLatestExcluded:
+      typeof loaded?.explorerLatestExcluded === "string"
+        ? loaded.explorerLatestExcluded
+        : DEFAULT_SETTINGS.explorerLatestExcluded,
     mailBridgeUrl: trimmedStringOrDefault(loaded?.mailBridgeUrl, DEFAULT_SETTINGS.mailBridgeUrl),
     mailTokenSecretName:
       typeof loaded?.mailTokenSecretName === "string"

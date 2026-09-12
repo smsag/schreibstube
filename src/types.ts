@@ -82,6 +82,17 @@ export interface SchreibstubeSettings {
    * behind one "more actions" entry, inline at the end, or nowhere.
    */
   explorerForeignMenu: ExplorerForeignMenu;
+  /** Show the bookmarks section above the file tree. */
+  explorerBookmarksEnabled: boolean;
+  /** Vault path of the Markdown file the bookmarks are read from. The plugin
+   *  never writes it: a person edits it like any other note. */
+  explorerBookmarksFile: string;
+  /** Show the recent-notes section between bookmarks and the file tree. */
+  explorerLatestEnabled: boolean;
+  /** How many notes each recent-notes list shows. */
+  explorerLatestCount: number;
+  /** Vault paths kept out of the recent-notes lists, comma or newline separated. */
+  explorerLatestExcluded: string;
   /** Secret-storage name of a GitHub token, for private repositories. */
   githubSecretName: string;
   /** Per-note sync state, keyed by vault path. Persisted, not user-editable. */
