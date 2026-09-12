@@ -23,36 +23,37 @@ import {
 
 describe("readPublishFields", () => {
   it("treats a note with no frontmatter as not published", () => {
-    expect(readPublishFields(undefined).published).toBe(false);
+    expect(readPublishFields(undefined, DEFAULT_PUBLISH_KEYS).published).toBe(false);
   });
 
   it("treats a note without the flag as not published, since silence must mean no", () => {
-    expect(readPublishFields({ title: "Hallo" }).published).toBe(false);
+    expect(readPublishFields({ title: "Hallo" }, DEFAULT_PUBLISH_KEYS).published).toBe(false);
   });
 
   it("reads the flag", () => {
-    expect(readPublishFields({ [DEFAULT_PUBLISH_KEYS.published]: true }).published).toBe(true);
-    expect(readPublishFields({ [DEFAULT_PUBLISH_KEYS.published]: false }).published).toBe(false);
+    expect(readPublishFields({ [DEFAULT_PUBLISH_KEYS.published]: true }, DEFAULT_PUBLISH_KEYS).published).toBe(true);
+    expect(readPublishFields({ [DEFAULT_PUBLISH_KEYS.published]: false }, DEFAULT_PUBLISH_KEYS).published).toBe(false);
   });
 
   it("accepts the spellings a person actually types", () => {
     for (const value of ["true", "yes", "ja", "TRUE", 1]) {
-      expect(readPublishFields({ [DEFAULT_PUBLISH_KEYS.published]: value }).published).toBe(true);
+      expect(readPublishFields({ [DEFAULT_PUBLISH_KEYS.published]: value }, DEFAULT_PUBLISH_KEYS).published).toBe(true);
     }
   });
 
   it("does not mistake other strings for consent", () => {
     for (const value of ["nein", "false", "", "vielleicht"]) {
-      expect(readPublishFields({ [DEFAULT_PUBLISH_KEYS.published]: value }).published).toBe(false);
+      expect(readPublishFields({ [DEFAULT_PUBLISH_KEYS.published]: value }, DEFAULT_PUBLISH_KEYS).published).toBe(false);
     }
   });
 
   it("trims the text fields", () => {
-    expect(readPublishFields({ [DEFAULT_PUBLISH_KEYS.title]: "  Hallo  " }).title).toBe("Hallo");
+    expect(readPublishFields({ [DEFAULT_PUBLISH_KEYS.title]: "  Hallo  " }, DEFAULT_PUBLISH_KEYS).title).toBe("Hallo");
   });
 
   it("reads a date that Obsidian parsed into a Date", () => {
-    expect(readPublishFields({ schreibstubeDate: new Date(2026, 8, 12) }).date).toBe("2026-09-12");
+    const frontmatter = { [DEFAULT_PUBLISH_KEYS.date]: new Date(2026, 8, 12) };
+    expect(readPublishFields(frontmatter, DEFAULT_PUBLISH_KEYS).date).toBe("2026-09-12");
   });
 });
 
@@ -179,7 +180,7 @@ describe("resolveNote", () => {
   };
 
   it("fills in everything the frontmatter left out", () => {
-    expect(resolveNote(base)).toEqual({
+    expect(resolveNote(base, DEFAULT_PUBLISH_KEYS)).toEqual({
       sourcePath: "Blog/Hallo Welt.md",
       slug: "hallo-welt",
       title: "Die Überschrift",
@@ -189,21 +190,21 @@ describe("resolveNote", () => {
   });
 
   it("prefers the frontmatter title over the heading", () => {
-    expect(resolveNote({ ...base, frontmatter: { [DEFAULT_PUBLISH_KEYS.title]: "Anders" } }).title).toBe("Anders");
+    expect(resolveNote({ ...base, frontmatter: { [DEFAULT_PUBLISH_KEYS.title]: "Anders" } }, DEFAULT_PUBLISH_KEYS).title).toBe("Anders");
   });
 
   it("falls back to the filename when there is no heading", () => {
-    expect(resolveNote({ ...base, content: "Nur Text" }).title).toBe("Hallo Welt");
+    expect(resolveNote({ ...base, content: "Nur Text" }, DEFAULT_PUBLISH_KEYS).title).toBe("Hallo Welt");
   });
 
   it("slugifies a frontmatter slug rather than trusting it", () => {
-    expect(resolveNote({ ...base, frontmatter: { [DEFAULT_PUBLISH_KEYS.slug]: "../Etc Passwd" } }).slug).toBe(
+    expect(resolveNote({ ...base, frontmatter: { [DEFAULT_PUBLISH_KEYS.slug]: "../Etc Passwd" } }, DEFAULT_PUBLISH_KEYS).slug).toBe(
       "etc-passwd"
     );
   });
 
   it("uses the creation date when the note gives none", () => {
-    expect(resolveNote(base).date).toBe("2026-09-12");
+    expect(resolveNote(base, DEFAULT_PUBLISH_KEYS).date).toBe("2026-09-12");
   });
 });
 

@@ -71,9 +71,6 @@ async function upstream(work, timeoutMs, label) {
 }
 
 function validateSend(body, maxTextChars) {
-  if (!body || typeof body !== "object") {
-    return "Request body must be a JSON object.";
-  }
   if (!hasRecipient(body.to) && !hasRecipient(body.cc) && !hasRecipient(body.bcc)) {
     return "At least one recipient (to, cc or bcc) is required.";
   }

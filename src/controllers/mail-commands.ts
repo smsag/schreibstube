@@ -3,9 +3,9 @@ import type { SchreibstubeSettings } from "../types";
 import type { Logger } from "../services/logger";
 import { resolveApiKey } from "../services/secret";
 import { searchMail, sendMail } from "../services/mail-client";
+import { normalizeBaseUrl } from "../services/bridge-protocol";
 import {
   hasCriteria,
-  normalizeBaseUrl,
   type MailBridgeConfig,
   type MailMessage,
   type SearchCriteria,

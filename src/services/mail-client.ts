@@ -1,9 +1,8 @@
 import { requestUrl } from "obsidian";
 import { withTimeout } from "../utils/with-timeout";
+import { authHeaders, buildEndpoint } from "./bridge-protocol";
 import {
   MAIL_REQUEST_TIMEOUT_MS,
-  authHeaders,
-  buildEndpoint,
   describeBridgeError,
   parseSearchResult,
   parseSendResult,

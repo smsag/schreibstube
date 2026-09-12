@@ -77,10 +77,7 @@ export interface PublishFields {
  * had it and lost it is taken down on the next publish. Silence has to mean
  * "no", because the alternative is publishing a vault by accident.
  */
-export function readPublishFields(
-  frontmatter: unknown,
-  keys: PublishKeyMap = DEFAULT_PUBLISH_KEYS
-): PublishFields {
+export function readPublishFields(frontmatter: unknown, keys: PublishKeyMap): PublishFields {
   const record =
     typeof frontmatter === "object" && frontmatter !== null
       ? (frontmatter as Record<string, unknown>)
@@ -169,10 +166,7 @@ export interface ResolvedNote {
 }
 
 /** Fill in everything the frontmatter left out, so the bridge never guesses. */
-export function resolveNote(
-  input: NoteInput,
-  keys: PublishKeyMap = DEFAULT_PUBLISH_KEYS
-): ResolvedNote {
+export function resolveNote(input: NoteInput, keys: PublishKeyMap): ResolvedNote {
   const fields = readPublishFields(input.frontmatter, keys);
   const title = fields.title || firstHeading(input.content) || input.basename;
 
