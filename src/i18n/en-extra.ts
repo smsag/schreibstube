@@ -16,11 +16,11 @@ export const enExtra = {
     focusOpacityDesc:
       "Opacity of out-of-focus lines in focus mode (0.2 = very faint, 0.8 = nearly full).",
 
-    explorerHeading: "File pane",
+    explorerHeading: "Schreibstube Explorer",
     explorerIntro:
       "Schreibstube's own file list: an icon per file and folder, a sync mark on notes bound " +
       "to a source, and a pinned block at the top of each folder. Open it with the " +
-      '"Open file pane" command.',
+      '"Open Schreibstube Explorer" command.',
     explorerForeign: "Items from other plugins",
     explorerForeignDesc:
       "The pane fires Obsidian's file-menu event, so other plugins can contribute. Keeping " +

@@ -14,7 +14,7 @@ export const de: Messages = {
     renameFile: "Datei aus Inhalt benennen",
     renameImage: "Bild aus Inhalt benennen",
     summarize: "Auswahl zusammenfassen",
-    openExplorer: "Dateibereich öffnen",
+    openExplorer: "Schreibstube Explorer öffnen",
     openBookmark: "Lesezeichen öffnen",
     openReview: "Korrektur-Seitenleiste öffnen",
     proofread: "Notiz korrigieren",
@@ -190,11 +190,11 @@ export const de: Messages = {
     focusOpacityDesc:
       "Deckkraft der Zeilen außerhalb des Fokus (0,2 = sehr blass, 0,8 = fast voll).",
 
-    explorerHeading: "Dateibereich",
+    explorerHeading: "Schreibstube Explorer",
     explorerIntro:
       "Die eigene Dateiliste der Schreibstube: ein Symbol je Datei und Ordner, eine " +
       "Sync-Markierung an Notizen mit Quelle und ein angehefteter Block oben in jedem Ordner. " +
-      "Öffnen über den Befehl „Dateibereich öffnen“.",
+      "Öffnen über den Befehl „Schreibstube Explorer öffnen“.",
     explorerForeign: "Einträge anderer Plugins",
     explorerForeignDesc:
       "Der Bereich löst Obsidians file-menu-Event aus, andere Plugins können also beitragen. " +
