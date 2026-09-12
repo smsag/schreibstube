@@ -5,18 +5,12 @@ import type { SchreibstubeSettings } from "../types";
 
 export interface BootstrapHandlers {
   onViewportFromEditor: (viewportTopLine: number) => void;
-  onViewportFromReading: (payload: {
-    viewportTopLine: number;
-    scrollTop: number;
-  }) => void;
+  onViewportFromReading: (payload: { viewportTopLine: number; scrollTop: number }) => void;
   getSettings: () => SchreibstubeSettings;
   onActiveLeafChange: () => void;
 }
 
-export function bootstrapSchreibstubeRuntime(
-  plugin: Plugin,
-  handlers: BootstrapHandlers
-): void {
+export function bootstrapSchreibstubeRuntime(plugin: Plugin, handlers: BootstrapHandlers): void {
   plugin.registerEditorExtension(
     createEditorExtension({
       onViewportUpdate: ({ viewportTopLine }) => {

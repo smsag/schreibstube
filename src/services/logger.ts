@@ -26,10 +26,7 @@ export interface Logger {
  * `isDebugEnabled` is read on every call, so toggling the setting takes effect
  * immediately without recreating the logger.
  */
-export function createLogger(
-  isDebugEnabled: () => boolean,
-  sink: LogSink = console
-): Logger {
+export function createLogger(isDebugEnabled: () => boolean, sink: LogSink = console): Logger {
   return {
     debug(message, ...args) {
       if (isDebugEnabled()) {

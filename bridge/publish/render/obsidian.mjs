@@ -12,10 +12,10 @@
 
 const CALLOUT = /^\[!([A-Za-z]+)\]([+-]?)[ \t]*(.*)$/;
 
-export function obsidian(md) {
+export function obsidian(md, { allowDiagrams = true } = {}) {
   md.inline.ruler.before("link", "wikilink", wikilink);
   md.core.ruler.after("block", "callout", callouts);
-  overrideFence(md);
+  overrideFence(md, allowDiagrams);
   overrideLinks(md);
 }
 
@@ -196,11 +196,11 @@ function findClose(tokens, openIndex) {
  * to measure text. The page loads a self-hosted bundle instead, and only a page
  * that contains a diagram loads it at all.
  */
-function overrideFence(md) {
+function overrideFence(md, allowDiagrams) {
   const fallback = md.renderer.rules.fence;
   md.renderer.rules.fence = (tokens, index, options, env, self) => {
     const info = tokens[index].info.trim().split(/\s+/)[0]?.toLowerCase();
-    if (info === "mermaid") {
+    if (info === "mermaid" && allowDiagrams) {
       env.usedMermaid = true;
       return `<pre class="mermaid">${escapeHtml(tokens[index].content)}</pre>\n`;
     }

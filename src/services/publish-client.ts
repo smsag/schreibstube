@@ -1,13 +1,16 @@
 import { requestUrl } from "obsidian";
 import { withTimeout } from "../utils/with-timeout";
+import { withRetry } from "../utils/retry";
 import { buildEndpoint, authHeaders } from "./bridge-protocol";
 import {
   PUBLISH_REQUEST_TIMEOUT_MS,
   UPLOAD_REQUEST_TIMEOUT_MS,
   describePublishError,
+  parseHealth,
   parsePlan,
   parseSummary,
   parseTargets,
+  type BridgeHealth,
   type PublishBridgeConfig,
   type PublishIndex,
   type PublishPlan,
@@ -26,6 +29,29 @@ import {
  * Uploads send raw bytes rather than base64 in JSON. A video would otherwise
  * grow by a third on the way through both processes.
  */
+
+/**
+ * What the bridge says it is.
+ *
+ * Unauthenticated, so it also works before a token is configured, and cheap
+ * enough to call once per session before the first real request.
+ */
+export async function bridgeHealth(config: PublishBridgeConfig): Promise<BridgeHealth> {
+  const response = await withTimeout(
+    requestUrl({
+      url: buildEndpoint(config.baseUrl, "/health"),
+      method: "GET",
+      throw: false
+    }),
+    PUBLISH_REQUEST_TIMEOUT_MS,
+    (seconds) => `bridge did not respond within ${seconds}s.`
+  );
+
+  if (response.status < 200 || response.status >= 300) {
+    throw new Error(describePublishError(response.status, response.text));
+  }
+  return parseHealth(response.json);
+}
 
 export async function listTargets(config: PublishBridgeConfig): Promise<PublishTarget[]> {
   return parseTargets(await send(config, "GET", "/publish/targets"));
@@ -66,7 +92,11 @@ export async function uploadSource(
   sha256: string,
   content: ArrayBuffer
 ): Promise<void> {
-  await upload(config, `/publish/source?target=${encodeURIComponent(target)}&sha256=${sha256}`, content);
+  await upload(
+    config,
+    `/publish/source?target=${encodeURIComponent(target)}&sha256=${sha256}`,
+    content
+  );
 }
 
 export async function uploadAsset(
@@ -108,7 +138,23 @@ async function send(
   return response.json;
 }
 
+/**
+ * Uploads are the one request worth repeating.
+ *
+ * They are addressed by the hash of their content, so a repeat is either a
+ * no-op or the same write again. Without this, one dropped connection during a
+ * fifty-file publish reported failure even though the next run would have
+ * resumed for free.
+ */
 async function upload(
+  config: PublishBridgeConfig,
+  path: string,
+  content: ArrayBuffer
+): Promise<void> {
+  await withRetry(() => sendUpload(config, path, content));
+}
+
+async function sendUpload(
   config: PublishBridgeConfig,
   path: string,
   content: ArrayBuffer

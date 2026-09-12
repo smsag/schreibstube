@@ -40,18 +40,14 @@ describe("normalizeFocusSettings", () => {
   });
 
   it("keeps valid sentence mode values", () => {
-    expect(
-      normalizeFocusSettings({ focusMode: "sentence", focusDimOpacity: 0.55 })
-    ).toEqual({
+    expect(normalizeFocusSettings({ focusMode: "sentence", focusDimOpacity: 0.55 })).toEqual({
       focusMode: "sentence",
       focusDimOpacity: 0.55
     });
   });
 
   it("keeps valid paragraph mode values", () => {
-    expect(
-      normalizeFocusSettings({ focusMode: "paragraph", focusDimOpacity: 0.55 })
-    ).toEqual({
+    expect(normalizeFocusSettings({ focusMode: "paragraph", focusDimOpacity: 0.55 })).toEqual({
       focusMode: "paragraph",
       focusDimOpacity: 0.55
     });

@@ -97,7 +97,10 @@ describe("parseGlossary", () => {
   });
 
   it("defaults language and severity when frontmatter omits them", () => {
-    const { glossary } = parseGlossary("G.md", "| Concept | Term | Status |\n| a | B | preferred |");
+    const { glossary } = parseGlossary(
+      "G.md",
+      "| Concept | Term | Status |\n| a | B | preferred |"
+    );
     expect(glossary.language).toBe("de");
     expect(glossary.defaultSeverity).toBe("warning");
   });

@@ -12,6 +12,9 @@ COPY . .
 # Drop privileges: the bridge needs no write access to its own image.
 USER node
 
+# Run exactly one instance. The authentication throttle and the per-target
+# publish lock live in memory, so a second replica would not see them and two
+# publishes could interleave writes to one site.
 EXPOSE 8080
 
 # Fail the container early if the process is up but the HTTP layer is not.

@@ -1,11 +1,11 @@
+import { t } from "../i18n";
+
 /** The subset of Obsidian's `app.secretStorage` this plugin depends on. */
 export interface SecretStore {
   getSecret(name: string): string | null | undefined;
 }
 
-export type ApiKeyResult =
-  | { ok: true; apiKey: string }
-  | { ok: false; message: string };
+export type ApiKeyResult = { ok: true; apiKey: string } | { ok: false; message: string };
 
 /**
  * Resolve a configured secret from Obsidian's secret storage, returning a
@@ -19,18 +19,15 @@ export type ApiKeyResult =
 export function resolveApiKey(
   store: SecretStore,
   secretName: string,
-  label = "secret"
+  label: string = t().secrets.apiKey
 ): ApiKeyResult {
   if (!secretName) {
-    return {
-      ok: false,
-      message: `Schreibstube: no ${label} selected — open Settings to choose one.`
-    };
+    return { ok: false, message: t().common.notice(t().secrets.notSelected(label)) };
   }
 
   const apiKey = store.getSecret(secretName);
   if (!apiKey) {
-    return { ok: false, message: `Schreibstube: ${label} not found — check Settings.` };
+    return { ok: false, message: t().common.notice(t().secrets.notFound(label)) };
   }
 
   return { ok: true, apiKey };

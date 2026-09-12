@@ -25,9 +25,7 @@ describe("RefreshScheduler", () => {
 
     callbacks[0]();
 
-    expect(flushed).toEqual([
-      { viewportTopLine: 30, readingScrollTop: 240 }
-    ]);
+    expect(flushed).toEqual([{ viewportTopLine: 30, readingScrollTop: 240 }]);
   });
 
   it("schedules another frame after previous flush", () => {

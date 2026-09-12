@@ -4,15 +4,29 @@
   "private": true,
   "description": "Schreibstube Obsidian community plugin",
   "scripts": {
+    "setup": "npm install && npm install --prefix bridge",
     "dev": "node esbuild.config.mjs --watch",
-    "build": "tsc --noEmit && node esbuild.config.mjs --production",
-    "test": "vitest run"
+    "build": "tsc --noEmit && node esbuild.config.mjs --production && node scripts/check-bundle.mjs",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "pretest": "node scripts/check-deps.mjs",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "check": "npm run lint && npm run format:check && npm test && npm run build",
+    "release": "node scripts/release.mjs"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@types/node": "^22.10.1",
+    "@vitest/coverage-v8": "^2.1.9",
     "esbuild": "^0.24.0",
+    "eslint": "^10.10.0",
+    "globals": "^17.12.0",
     "obsidian": "latest",
+    "prettier": "^3.9.6",
     "typescript": "^5.7.2",
+    "typescript-eslint": "^8.70.0",
     "vitest": "^2.1.8"
   }
 }

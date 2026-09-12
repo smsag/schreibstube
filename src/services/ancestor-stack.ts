@@ -20,9 +20,7 @@ export function resolveAncestorStack(
     }
   }
 
-  const stack = Array.from(stackByLevel.values()).sort(
-    (a, b) => a.level - b.level
-  );
+  const stack = Array.from(stackByLevel.values()).sort((a, b) => a.level - b.level);
 
   return stack;
 }

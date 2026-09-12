@@ -1,10 +1,7 @@
 import { MarkdownView, Notice, Plugin, TFile, type WorkspaceLeaf } from "obsidian";
 import { resolveAncestorStack } from "./services/ancestor-stack";
 import { buildHeadingIndex } from "./services/heading-index";
-import {
-  reduceOverlayRowEvent,
-  type OverlayRowEvent
-} from "./services/overlay-interaction";
+import { reduceOverlayRowEvent, type OverlayRowEvent } from "./services/overlay-interaction";
 import {
   resolveViewportLineForReadingView,
   scrollReadingHeadingIntoView
@@ -23,7 +20,8 @@ import { minuteOf, parseCron, previousRun, shouldFire } from "./services/cron";
 import { REVIEW_VIEW_TYPE, ReviewPanelView } from "./ui/review-panel";
 import { MailCommands } from "./controllers/mail-commands";
 import { PublishCommands } from "./controllers/publish-commands";
-import { SchreibstubeSettingTab } from "./settings";
+import { SchreibstubeSettingTab } from "./settings/index";
+import { setLanguage, t } from "./i18n";
 import type { FocusMode, HeadingEntry, SchreibstubeSettings } from "./types";
 
 /** How often the poll ticker wakes. Well under a minute so a scheduled minute
@@ -54,6 +52,8 @@ export default class SchreibstubePlugin extends Plugin {
 
   async onload(): Promise<void> {
     await this.loadSettings();
+    // Before anything builds a string: commands are named once, at registration.
+    setLanguage(this.settings.language);
     this.logger.debug("Loading Schreibstube.");
 
     this.refreshScheduler = new RefreshScheduler(
@@ -64,7 +64,15 @@ export default class SchreibstubePlugin extends Plugin {
     this.linkMode = new LinkModeController(this.app, this.logger);
     this.llm = new LlmCommands(this.app, () => this.settings, this.logger);
     this.mail = new MailCommands(this.app, () => this.settings, this.logger);
-    this.publish = new PublishCommands(this.app, () => this.settings, this.logger);
+    this.publish = new PublishCommands(
+      this.app,
+      () => this.settings,
+      async (patch) => {
+        this.settings = normalizeSettings({ ...this.settings, ...patch });
+        await this.saveSettings();
+      },
+      this.logger
+    );
     this.proofread = new ProofreadController(this.app, () => this.settings, this.logger, {
       get: (path) => this.settings.syncState[path],
       set: async (path, record) => {
@@ -79,14 +87,14 @@ export default class SchreibstubePlugin extends Plugin {
         const { [path]: _removed, ...rest } = this.settings.syncState;
         this.settings.syncState = rest;
         await this.saveSettings();
-      },
+      }
     });
 
     this.registerView(REVIEW_VIEW_TYPE, (leaf) => this.createReviewView(leaf));
     this.registerEditorExtension(
       createGlossaryUnderlineExtension({
         getSettings: () => this.settings,
-        getMatcher: () => this.proofread?.activeMatcher() ?? compileGlossaries([]),
+        getMatcher: () => this.proofread?.activeMatcher() ?? compileGlossaries([])
       })
     );
     this.registerProofreadEvents();
@@ -103,13 +111,18 @@ export default class SchreibstubePlugin extends Plugin {
       onActiveLeafChange: () => {
         this.requestOverlayRefresh();
         void this.proofread?.syncActiveFile();
-      },
+      }
     });
 
     this.linkMode.start(this.addStatusBarItem());
-    this.registerDomEvent(document, "click", (e: MouseEvent) => {
-      void this.linkMode?.handleDocumentClick(e);
-    }, true);
+    this.registerDomEvent(
+      document,
+      "click",
+      (e: MouseEvent) => {
+        void this.linkMode?.handleDocumentClick(e);
+      },
+      true
+    );
 
     this.registerCommands();
     this.addSettingTab(new SchreibstubeSettingTab(this.app, this));
@@ -211,9 +224,7 @@ export default class SchreibstubePlugin extends Plugin {
     await this.saveSettings();
 
     if (summary && summary.withChanges > 0) {
-      new Notice(
-        `Schreibstube: ${summary.withChanges} Notiz(en) mit Aktualisierungen aus der Quelle.`
-      );
+      new Notice(t().common.notice(t().sync.withUpdates(summary.withChanges)));
     }
   }
 
@@ -271,7 +282,7 @@ export default class SchreibstubePlugin extends Plugin {
   async updateDimOpacity(dimOpacity: number): Promise<void> {
     this.settings = normalizeSettings({
       ...this.settings,
-      focusDimOpacity: dimOpacity,
+      focusDimOpacity: dimOpacity
     });
     await this.saveSettings();
     this.notifyFocusSettingsChanged();
@@ -280,145 +291,179 @@ export default class SchreibstubePlugin extends Plugin {
   private registerCommands(): void {
     this.addCommand({
       id: "set-focus-sentence-mode",
-      name: "Focus Mode: Sentence",
-      callback: () => { void this.setFocusMode("sentence"); },
+      name: t().commands.focusSentence,
+      callback: () => {
+        void this.setFocusMode("sentence");
+      }
     });
 
     this.addCommand({
       id: "set-focus-paragraph-mode",
-      name: "Focus Mode: Paragraph",
-      callback: () => { void this.setFocusMode("paragraph"); },
+      name: t().commands.focusParagraph,
+      callback: () => {
+        void this.setFocusMode("paragraph");
+      }
     });
 
     this.addCommand({
       id: "disable-focus-mode",
-      name: "Focus Mode: Disable",
-      callback: () => { void this.setFocusMode("off"); },
+      name: t().commands.focusDisable,
+      callback: () => {
+        void this.setFocusMode("off");
+      }
     });
 
     this.addCommand({
       id: "rename-from-content",
-      name: "Rename file from content",
-      callback: () => { void this.llm?.renameFromContent(); },
+      name: t().commands.renameFile,
+      callback: () => {
+        void this.llm?.renameFromContent();
+      }
     });
 
     this.addCommand({
       id: "rename-image-from-content",
-      name: "Rename image from content",
-      callback: () => { void this.llm?.renameImageFromContent(); },
+      name: t().commands.renameImage,
+      callback: () => {
+        void this.llm?.renameImageFromContent();
+      }
     });
 
     this.addCommand({
       id: "summarize-selection",
-      name: "Summarize selection",
-      editorCallback: () => { void this.llm?.summarizeSelection(); },
+      name: t().commands.summarize,
+      editorCallback: () => {
+        void this.llm?.summarizeSelection();
+      }
     });
 
     this.addCommand({
       id: "open-review-panel",
-      name: "Open proof-read sidebar",
-      callback: () => { void this.activateReviewPanel(); },
+      name: t().commands.openReview,
+      callback: () => {
+        void this.activateReviewPanel();
+      }
     });
 
     this.addCommand({
       id: "proof-read-note",
-      name: "Proof-read note",
+      name: t().commands.proofread,
       editorCallback: () => {
         void this.activateReviewPanel().then(() => this.proofread?.handlers().onProofread());
-      },
+      }
     });
 
     this.addCommand({
       id: "glossary-check-note",
-      name: "Check note against glossary",
+      name: t().commands.checkGlossary,
       editorCallback: () => {
         void this.activateReviewPanel().then(() => this.proofread?.handlers().onGlossaryCheck());
-      },
+      }
     });
 
     this.addCommand({
       id: "poll-all-sources",
-      name: "Check all bound notes for updates",
+      name: t().commands.syncAll,
       callback: () => {
         void this.proofread?.pollAllSources("manual").then(async (summary) => {
           this.settings.syncLastPollAt = Date.now();
           await this.saveSettings();
           new Notice(
-            summary.checked === 0
-              ? "Schreibstube: keine gebundenen Notizen geprüft."
-              : `Schreibstube: ${summary.checked} geprüft, ${summary.withChanges} mit Aktualisierungen, ${summary.failed} fehlgeschlagen.`
+            t().common.notice(
+              summary.checked === 0
+                ? t().sync.noneChecked
+                : t().sync.checked(summary.checked, summary.withChanges, summary.failed)
+            )
           );
         });
-      },
+      }
     });
 
     this.addCommand({
       id: "check-note-source",
-      name: "Check note source for updates",
+      name: t().commands.syncNote,
       callback: () => {
         void this.activateReviewPanel().then(() => this.proofread?.handlers().onCheckSource());
-      },
+      }
     });
 
     this.addCommand({
       id: "send-note-as-email",
-      name: "Send note as email",
-      callback: () => { void this.mail?.sendNoteAsEmail(); },
+      name: t().commands.sendMail,
+      callback: () => {
+        void this.mail?.sendNoteAsEmail();
+      }
     });
 
     this.addCommand({
       id: "query-mailbox",
-      name: "Query mailbox",
-      callback: () => { void this.mail?.queryMailbox(); },
+      name: t().commands.queryMailbox,
+      callback: () => {
+        void this.mail?.queryMailbox();
+      }
     });
 
     this.addCommand({
       id: "fetch-replies",
-      name: "Fetch replies into note",
-      callback: () => { void this.mail?.fetchReplies(); },
+      name: t().commands.fetchReplies,
+      callback: () => {
+        void this.mail?.fetchReplies();
+      }
     });
 
     this.addCommand({
       id: "publish-folder",
-      name: "Veröffentlichen",
-      callback: () => { void this.publish?.publish(); },
+      name: t().commands.publish,
+      callback: () => {
+        void this.publish?.publish();
+      }
     });
 
     this.addCommand({
       id: "publish-preview",
-      name: "Veröffentlichung prüfen",
-      callback: () => { void this.publish?.preview(); },
+      name: t().commands.publishPreview,
+      callback: () => {
+        void this.publish?.preview();
+      }
     });
 
     this.addCommand({
       id: "publish-open-site",
-      name: "Website öffnen",
-      callback: () => { void this.publish?.openSite(); },
+      name: t().commands.openSite,
+      callback: () => {
+        void this.publish?.openSite();
+      }
     });
 
     this.addCommand({
       id: "open-links-left",
-      name: "Open links to the left",
-      callback: () => { this.linkMode?.setMode("left"); },
+      name: t().commands.linksLeft,
+      callback: () => {
+        this.linkMode?.setMode("left");
+      }
     });
 
     this.addCommand({
       id: "open-links-right",
-      name: "Open links to the right",
-      callback: () => { this.linkMode?.setMode("right"); },
+      name: t().commands.linksRight,
+      callback: () => {
+        this.linkMode?.setMode("right");
+      }
     });
 
     this.addCommand({
       id: "open-links-default",
-      name: "Open links normally",
-      callback: () => { this.linkMode?.setMode("default"); },
+      name: t().commands.linksNormal,
+      callback: () => {
+        this.linkMode?.setMode("default");
+      }
     });
   }
 
   private async setFocusMode(mode: FocusMode): Promise<void> {
     this.settings = normalizeSettings({
       ...this.settings,
-      focusMode: mode,
+      focusMode: mode
     });
     await this.saveSettings();
     this.notifyFocusSettingsChanged();
@@ -428,10 +473,7 @@ export default class SchreibstubePlugin extends Plugin {
     window.dispatchEvent(new Event("schreibstube-focus-settings-changed"));
   }
 
-  private queueRefreshForActiveView(
-    viewportTopLine?: number,
-    options?: RefreshOptions
-  ): void {
+  private queueRefreshForActiveView(viewportTopLine?: number, options?: RefreshOptions): void {
     if (!this.refreshScheduler) {
       this.refreshForActiveView(viewportTopLine, options);
       return;
@@ -439,10 +481,7 @@ export default class SchreibstubePlugin extends Plugin {
     this.refreshScheduler.enqueue(viewportTopLine, options);
   }
 
-  private refreshForActiveView(
-    viewportTopLine?: number,
-    options?: RefreshOptions
-  ): void {
+  private refreshForActiveView(viewportTopLine?: number, options?: RefreshOptions): void {
     if (!this.settings.overlayEnabled) {
       this.clearOverlay();
       return;
@@ -492,9 +531,7 @@ export default class SchreibstubePlugin extends Plugin {
       return;
     }
 
-    const sig = this.ancestorStack
-      .map((e) => `${e.level}:${e.lineNumber}:${e.text}`)
-      .join("|");
+    const sig = this.ancestorStack.map((e) => `${e.level}:${e.lineNumber}:${e.text}`).join("|");
     if (sig === this.lastRenderSignature) return;
 
     const rendered = this.overlayCoordinator.renderForView(

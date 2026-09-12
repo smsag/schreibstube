@@ -19,6 +19,19 @@ rotated without touching the mailbox.
 logging. Log lines record the Message-ID and result counts, never recipients or
 message content.
 
+## Versions
+
+The bridge and the plugin are deployed separately, so the pair has to stay
+compatible. `/health` reports what a deployment is actually running, and the
+plugin says plainly when the bridge is behind rather than failing later on a
+route that does not exist yet.
+
+| Bridge | Protocol | Plugin          | Notes                                             |
+| ------ | -------- | --------------- | ------------------------------------------------- |
+| 2.1.x  | 1        | 1.8.0 and later | Mail and publishing                               |
+| 2.0.x  | 1        | 1.8.0 and later | Mail only; `BRIDGE_TOKEN` renamed to `MAIL_TOKEN` |
+| 1.0.x  | —        | 1.7.0           | Mail only, single token, no version handshake     |
+
 ## Capabilities
 
 The bridge hosts capabilities, each with its own token, credentials and limits.
@@ -35,19 +48,19 @@ memory, and a second instance would not see it.
 All endpoints except `/health` require `Authorization: Bearer <token>`, and the
 token must belong to the capability that owns the route.
 
-| Method | Path | Capability | Body | Returns |
-|---|---|---|---|---|
-| `GET` | `/health` | — | — | `{status, version, protocol, capabilities[]}` |
-| `POST` | `/diagnostics` | mail | — | per-protocol reachability |
-| `POST` | `/send` | mail | `{to, cc?, bcc?, subject, text, from?, inReplyTo?, references?}` | `{messageId, sentAt, filedInSent}` |
-| `POST` | `/search` | mail | `{criteria:{from?,to?,subject?,text?,since?,references?}, mailbox?, limit?}` | `{messages[], mailbox, truncated}` |
-| `GET` | `/publish/targets` | publish | — | `{targets:[{name, baseUrl, siteTitle}]}` |
-| `POST` | `/publish/diagnostics` | publish | `{target}` | `{ok, root, entries}` or `{ok:false, error}` |
-| `POST` | `/publish/plan` | publish | `{target, index}` | what to upload, and what will be deleted |
-| `PUT` | `/publish/source` | publish | raw Markdown, `?target=&sha256=` | `{sha256, bytes}` |
-| `PUT` | `/publish/asset` | publish | raw bytes, `?target=&sha256=&name=` | `{sha256, bytes, path}` |
-| `POST` | `/publish/commit` | publish | `{target, index}` | `{written, unchanged, deleted, pruned, collected}` |
-| `POST` | `/publish/render` | publish | `{target}` | the same, rebuilt from stored state |
+| Method | Path                   | Capability | Body                                                                         | Returns                                            |
+| ------ | ---------------------- | ---------- | ---------------------------------------------------------------------------- | -------------------------------------------------- |
+| `GET`  | `/health`              | —          | —                                                                            | `{status, version, protocol, capabilities[]}`      |
+| `POST` | `/diagnostics`         | mail       | —                                                                            | per-protocol reachability                          |
+| `POST` | `/send`                | mail       | `{to, cc?, bcc?, subject, text, from?, inReplyTo?, references?}`             | `{messageId, sentAt, filedInSent}`                 |
+| `POST` | `/search`              | mail       | `{criteria:{from?,to?,subject?,text?,since?,references?}, mailbox?, limit?}` | `{messages[], mailbox, truncated}`                 |
+| `GET`  | `/publish/targets`     | publish    | —                                                                            | `{targets:[{name, baseUrl, siteTitle}]}`           |
+| `POST` | `/publish/diagnostics` | publish    | `{target}`                                                                   | `{ok, root, entries}` or `{ok:false, error}`       |
+| `POST` | `/publish/plan`        | publish    | `{target, index}`                                                            | what to upload, and what will be deleted           |
+| `PUT`  | `/publish/source`      | publish    | raw Markdown, `?target=&sha256=`                                             | `{sha256, bytes}`                                  |
+| `PUT`  | `/publish/asset`       | publish    | raw bytes, `?target=&sha256=&name=`                                          | `{sha256, bytes, path}`                            |
+| `POST` | `/publish/commit`      | publish    | `{target, index}`                                                            | `{written, unchanged, deleted, pruned, collected}` |
+| `POST` | `/publish/render`      | publish    | `{target}`                                                                   | the same, rebuilt from stored state                |
 
 `/health` is the version handshake: plugin and bridge deploy separately, and
 `protocol` is what lets the plugin say "redeploy the bridge" instead of failing
@@ -112,6 +125,11 @@ every file the bridge wrote. A page whose note was unpublished is removed; a
 file the bridge has never heard of is never touched. It is written last, so a
 crash means the next publish repeats work rather than losing a file.
 
+**Each publish leaves a trace.** `<state>/history.json` keeps the last fifty
+summaries — when, what was written, what was deleted — so "when did that page
+change" has an answer without a log server. Failing to write it never fails a
+publish that already succeeded.
+
 **Sources are kept.** `<state>/src/<sha256>.md` holds the Markdown, so
 `/publish/render` can rebuild the whole site after a template change with
 nothing uploaded and no vault in reach.
@@ -124,6 +142,20 @@ re-trust a new key after every restart.
 The rendered site is static. Maths is rendered to HTML by KaTeX at publish time;
 only Mermaid needs JavaScript, and only on pages that contain a diagram, from a
 bundle the bridge writes itself rather than from a content delivery network.
+
+## Dependencies and advisories
+
+`npm audit` reports findings against `lodash-es`, reached through Mermaid's
+parser. They are worth stating precisely rather than silencing:
+
+- The bridge never runs Mermaid. It copies one prebuilt file into the published
+  site, where the browser runs it against diagrams the site's own author wrote.
+- No fixed version of `lodash-es` exists; the advisories have no upstream patch.
+- A site that does not draw diagrams can set `PUBLISH_<TARGET>_ALLOW_DIAGRAMS`
+  to `false`, and then nothing of Mermaid reaches the site at all.
+
+Moving Mermaid to a development dependency would clear the audit output without
+changing a byte of what ships, so it stays where it is.
 
 ## Configuration
 

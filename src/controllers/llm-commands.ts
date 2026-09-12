@@ -1,12 +1,9 @@
 import { MarkdownView, Notice, normalizePath, type App, type TFile } from "obsidian";
 import type { SchreibstubeSettings } from "../types";
 import type { Logger } from "../services/logger";
+import { t } from "../i18n";
 import { resolveApiKey } from "../services/secret";
-import {
-  MAX_IMAGE_BYTES,
-  getImageMimeType,
-  resizeImageToBase64
-} from "../services/image-resize";
+import { MAX_IMAGE_BYTES, getImageMimeType, resizeImageToBase64 } from "../services/image-resize";
 import {
   generateImageRenameFilename,
   generateRenameFilename,
@@ -55,14 +52,14 @@ export class LlmCommands {
       try {
         proposed = await generateRenameFilename(truncated, settings, apiKey);
       } catch (err) {
-        this.fail("rename", "Schreibstube: rename failed", err);
+        this.fail("rename", t().ai.failRename, err);
         return;
       }
 
       const sanitized = sanitizeFilename(proposed, settings.renameMaxFilenameLength);
       if (!sanitized) {
         this.logger.warn("Rename produced an unusable filename:", proposed);
-        new Notice("Schreibstube: rename failed — the LLM returned an unusable filename.");
+        new Notice(t().common.notice(t().ai.renameFailedName));
         return;
       }
 
@@ -81,12 +78,12 @@ export class LlmCommands {
     const settings = this.getSettings();
     const mimeType = getImageMimeType(file.extension);
     if (!mimeType) {
-      new Notice("Schreibstube: unsupported format — supported image types: jpg, png, gif, webp.");
+      new Notice(t().common.notice(t().ai.unsupportedImage));
       return;
     }
 
     if (file.stat.size > MAX_IMAGE_BYTES) {
-      new Notice("Schreibstube: image exceeds the 10 MB limit.");
+      new Notice(t().common.notice(t().ai.imageTooLarge));
       return;
     }
 
@@ -102,7 +99,7 @@ export class LlmCommands {
       try {
         base64Image = await resizeImageToBase64(buffer, mimeType, settings.renameMaxImagePx);
       } catch (err) {
-        this.fail("image resize", "Schreibstube: could not process image", err);
+        this.fail("image resize", t().ai.failImage, err);
         return;
       }
 
@@ -110,14 +107,14 @@ export class LlmCommands {
       try {
         proposed = await generateImageRenameFilename(base64Image, mimeType, settings, apiKey);
       } catch (err) {
-        this.fail("image rename", "Schreibstube: rename failed", err);
+        this.fail("image rename", t().ai.failRename, err);
         return;
       }
 
       const sanitized = sanitizeFilename(proposed, settings.renameMaxFilenameLength);
       if (!sanitized) {
         this.logger.warn("Image rename produced an unusable filename:", proposed);
-        new Notice("Schreibstube: rename failed — the LLM returned an unusable filename.");
+        new Notice(t().common.notice(t().ai.renameFailedName));
         return;
       }
 
@@ -136,7 +133,7 @@ export class LlmCommands {
     const editor = view.editor;
     const selection = editor.getSelection();
     if (!selection.trim()) {
-      new Notice("Schreibstube: select some text to summarize first.");
+      new Notice(t().common.notice(t().ai.selectText));
       return;
     }
 
@@ -151,12 +148,12 @@ export class LlmCommands {
     const to = editor.getCursor("to");
 
     await this.withBusy("summarize", async () => {
-      const progress = new Notice("Schreibstube: summarizing…", 0);
+      const progress = new Notice(t().common.notice(t().ai.summarizing), 0);
       let summary: string;
       try {
         summary = await generateSummary(selection, this.getSettings(), apiKey);
       } catch (err) {
-        this.fail("summarize", "Schreibstube: summarize failed", err);
+        this.fail("summarize", t().ai.failSummarize, err);
         return;
       } finally {
         progress.hide();
@@ -164,7 +161,7 @@ export class LlmCommands {
 
       if (!summary) {
         this.logger.warn("Summarize returned an empty response.");
-        new Notice("Schreibstube: summarize failed — the LLM returned an empty response.");
+        new Notice(t().common.notice(t().ai.summarizeFailed));
         return;
       }
 
@@ -173,7 +170,11 @@ export class LlmCommands {
   }
 
   private requireApiKey(): string | null {
-    const result = resolveApiKey(this.app.secretStorage, this.getSettings().llmSecretName, "API key");
+    const result = resolveApiKey(
+      this.app.secretStorage,
+      this.getSettings().llmSecretName,
+      "API key"
+    );
     if (!result.ok) {
       new Notice(result.message);
       return null;
@@ -185,7 +186,7 @@ export class LlmCommands {
   private async withBusy(label: string, work: () => Promise<void>): Promise<void> {
     if (this.busy) {
       this.logger.debug(`Ignoring ${label}: another AI command is already running.`);
-      new Notice("Schreibstube: an AI command is already running — please wait.");
+      new Notice(t().common.notice(t().ai.busy));
       return;
     }
     this.busy = true;
@@ -202,7 +203,7 @@ export class LlmCommands {
       this.logger.debug("Renamed file to", newPath);
     } catch (err) {
       this.logger.warn("File rename failed for", newPath, err);
-      new Notice("Schreibstube: rename failed — a file with that name may already exist.");
+      new Notice(t().common.notice(t().ai.renameFailedExists));
     }
   }
 

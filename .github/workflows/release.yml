@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version to release (must match manifest.json)'
+        description: "Version to release (must match manifest.json)"
         required: true
         type: string
 
@@ -19,7 +19,7 @@ jobs:
 
       - uses: actions/setup-node@v5
         with:
-          node-version: '22'
+          node-version: "22"
 
       - run: npm ci
 

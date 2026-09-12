@@ -49,16 +49,8 @@ describe("buildHeadingIndex", () => {
   });
 
   it("ignores empty headings and non-heading lines", () => {
-    const content = [
-      "# ",
-      "##",
-      "###  ",
-      "text",
-      "## Valid"
-    ].join("\n");
+    const content = ["# ", "##", "###  ", "text", "## Valid"].join("\n");
 
-    expect(buildHeadingIndex(content)).toEqual([
-      { level: 2, text: "Valid", lineNumber: 4 }
-    ]);
+    expect(buildHeadingIndex(content)).toEqual([{ level: 2, text: "Valid", lineNumber: 4 }]);
   });
 });

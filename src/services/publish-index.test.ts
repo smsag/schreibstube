@@ -36,24 +36,36 @@ describe("readPublishFields", () => {
   });
 
   it("reads the flag", () => {
-    expect(readPublishFields({ [DEFAULT_PUBLISH_KEYS.published]: true }, DEFAULT_PUBLISH_KEYS).published).toBe(true);
-    expect(readPublishFields({ [DEFAULT_PUBLISH_KEYS.published]: false }, DEFAULT_PUBLISH_KEYS).published).toBe(false);
+    expect(
+      readPublishFields({ [DEFAULT_PUBLISH_KEYS.published]: true }, DEFAULT_PUBLISH_KEYS).published
+    ).toBe(true);
+    expect(
+      readPublishFields({ [DEFAULT_PUBLISH_KEYS.published]: false }, DEFAULT_PUBLISH_KEYS).published
+    ).toBe(false);
   });
 
   it("accepts the spellings a person actually types", () => {
     for (const value of ["true", "yes", "ja", "TRUE", 1]) {
-      expect(readPublishFields({ [DEFAULT_PUBLISH_KEYS.published]: value }, DEFAULT_PUBLISH_KEYS).published).toBe(true);
+      expect(
+        readPublishFields({ [DEFAULT_PUBLISH_KEYS.published]: value }, DEFAULT_PUBLISH_KEYS)
+          .published
+      ).toBe(true);
     }
   });
 
   it("does not mistake other strings for consent", () => {
     for (const value of ["nein", "false", "", "vielleicht"]) {
-      expect(readPublishFields({ [DEFAULT_PUBLISH_KEYS.published]: value }, DEFAULT_PUBLISH_KEYS).published).toBe(false);
+      expect(
+        readPublishFields({ [DEFAULT_PUBLISH_KEYS.published]: value }, DEFAULT_PUBLISH_KEYS)
+          .published
+      ).toBe(false);
     }
   });
 
   it("trims the text fields", () => {
-    expect(readPublishFields({ [DEFAULT_PUBLISH_KEYS.title]: "  Hallo  " }, DEFAULT_PUBLISH_KEYS).title).toBe("Hallo");
+    expect(
+      readPublishFields({ [DEFAULT_PUBLISH_KEYS.title]: "  Hallo  " }, DEFAULT_PUBLISH_KEYS).title
+    ).toBe("Hallo");
   });
 
   it("reads a date that Obsidian parsed into a Date", () => {
@@ -196,17 +208,27 @@ describe("resolveNote", () => {
   });
 
   it("prefers the frontmatter title over the heading", () => {
-    expect(resolveNote({ ...base, frontmatter: { [DEFAULT_PUBLISH_KEYS.title]: "Anders" } }, DEFAULT_PUBLISH_KEYS).title).toBe("Anders");
+    expect(
+      resolveNote(
+        { ...base, frontmatter: { [DEFAULT_PUBLISH_KEYS.title]: "Anders" } },
+        DEFAULT_PUBLISH_KEYS
+      ).title
+    ).toBe("Anders");
   });
 
   it("falls back to the filename when there is no heading", () => {
-    expect(resolveNote({ ...base, content: "Nur Text" }, DEFAULT_PUBLISH_KEYS).title).toBe("Hallo Welt");
+    expect(resolveNote({ ...base, content: "Nur Text" }, DEFAULT_PUBLISH_KEYS).title).toBe(
+      "Hallo Welt"
+    );
   });
 
   it("slugifies a frontmatter slug rather than trusting it", () => {
-    expect(resolveNote({ ...base, frontmatter: { [DEFAULT_PUBLISH_KEYS.slug]: "../Etc Passwd" } }, DEFAULT_PUBLISH_KEYS).slug).toBe(
-      "etc-passwd"
-    );
+    expect(
+      resolveNote(
+        { ...base, frontmatter: { [DEFAULT_PUBLISH_KEYS.slug]: "../Etc Passwd" } },
+        DEFAULT_PUBLISH_KEYS
+      ).slug
+    ).toBe("etc-passwd");
   });
 
   it("uses the creation date when the note gives none", () => {

@@ -109,11 +109,7 @@ function resolveFenceRange(doc: LineDoc, cursorLine: number): FocusRange | null 
       continue;
     }
 
-    if (
-      marker &&
-      marker.charAt(0) === open.marker &&
-      marker.length >= open.length
-    ) {
+    if (marker && marker.charAt(0) === open.marker && marker.length >= open.length) {
       if (cursorLine >= open.startLine && cursorLine <= lineNumber) {
         return { startLine: open.startLine, endLine: lineNumber };
       }

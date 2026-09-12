@@ -16,7 +16,7 @@ import {
   type Glossary,
   type GlossaryTerm,
   type Severity,
-  type TermStatus,
+  type TermStatus
 } from "./glossary-parser";
 import { overlapsAny, type TextRange } from "./markdown-segments";
 
@@ -44,7 +44,7 @@ export interface GlossaryHit {
  *  deliberately a closed set rather than a stemmer, which would overreach. */
 const SUFFIXES: Record<string, string[]> = {
   de: ["e", "en", "er", "es", "em", "n", "s", "ns", "nen"],
-  en: ["s", "es", "ed", "ing", "'s"],
+  en: ["s", "es", "ed", "ing", "'s"]
 };
 
 const FALLBACK_SUFFIXES = ["s"];
@@ -103,7 +103,7 @@ export function compileGlossaries(glossaries: Glossary[]): GlossaryMatcher {
           severity: severityFor(term.status, glossary.defaultSeverity),
           // A superseded term is historical: flag it, but never auto-fix, because
           // whether the newer term really applies is a judgement call.
-          replacement: term.status === "deprecated" ? preferred : null,
+          replacement: term.status === "deprecated" ? preferred : null
         });
       }
     }
@@ -118,7 +118,7 @@ export function compileGlossaries(glossaries: Glossary[]): GlossaryMatcher {
         .map((entry) => ({
           avoid: entry.term.text,
           use: entry.replacement,
-          note: entry.term.note,
+          note: entry.term.note
         })),
 
     findHits(text, protectedRanges = []) {
@@ -144,7 +144,7 @@ export function compileGlossaries(glossaries: Glossary[]): GlossaryMatcher {
       }
 
       return resolveOverlaps(hits, compiled);
-    },
+    }
   };
 }
 
@@ -162,7 +162,7 @@ function buildHit(
     conceptId: entry.conceptId,
     glossaryPath: entry.glossaryPath,
     note: entry.term.note,
-    inflected: matchedText.length !== entry.term.text.length,
+    inflected: matchedText.length !== entry.term.text.length
   };
 
   if (entry.term.status === "preferred") {
@@ -175,19 +175,17 @@ function buildHit(
       kind: "capitalization",
       replacement: entry.term.text,
       severity: "suggestion",
-      inflected: false,
+      inflected: false
     };
   }
 
-  const replacement = entry.replacement
-    ? matchCase(entry.replacement, matchedText)
-    : null;
+  const replacement = entry.replacement ? matchCase(entry.replacement, matchedText) : null;
 
   return {
     ...base,
     kind: replacement ? "substitution" : "existence",
     replacement,
-    severity: entry.severity,
+    severity: entry.severity
   };
 }
 
@@ -211,7 +209,10 @@ function buildPattern(term: GlossaryTerm, suffixes: string[]): RegExp {
     return new RegExp(`${LEFT_EDGE}${body}[\\p{L}\\p{N}]*${RIGHT_EDGE}`, "giu");
   }
 
-  const tail = suffixes.map(escapeRegExp).sort((a, b) => b.length - a.length).join("|");
+  const tail = suffixes
+    .map(escapeRegExp)
+    .sort((a, b) => b.length - a.length)
+    .join("|");
   return new RegExp(`${LEFT_EDGE}${body}(?:${tail})?${RIGHT_EDGE}`, "giu");
 }
 

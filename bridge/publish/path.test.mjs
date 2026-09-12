@@ -23,13 +23,7 @@ describe("checkRelativePath", () => {
     expect(checkRelativePath("hallo-welt/index.html")).toBe("hallo-welt/index.html");
   });
 
-  for (const path of [
-    "../etc/passwd.html",
-    "a/../../b.html",
-    "..",
-    "a/../b.html",
-    "a/./b.html"
-  ]) {
+  for (const path of ["../etc/passwd.html", "a/../../b.html", "..", "a/../b.html", "a/./b.html"]) {
     it(`refuses traversal: ${path}`, () => {
       expect(() => checkRelativePath(path)).toThrow(PathError);
     });

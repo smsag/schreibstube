@@ -4,11 +4,7 @@ import { sendRequest } from "./llm-client";
 
 type SummarizeSettings = Pick<
   SchreibstubeSettings,
-  | "llmProvider"
-  | "llmModel"
-  | "llmModelCustom"
-  | "summarizePrompt"
-  | "summarizeMaxTokens"
+  "llmProvider" | "llmModel" | "llmModelCustom" | "summarizePrompt" | "summarizeMaxTokens"
 >;
 
 /** Send the selected text to the configured LLM and return its summary,

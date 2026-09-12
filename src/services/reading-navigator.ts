@@ -6,15 +6,11 @@ import {
 } from "./reading-headings";
 
 function getPreviewRoot(view: MarkdownView): HTMLElement | null {
-  return view.containerEl.querySelector(
-    ".markdown-preview-view"
-  ) as HTMLElement | null;
+  return view.containerEl.querySelector(".markdown-preview-view") as HTMLElement | null;
 }
 
 function getRenderedHeadings(previewRoot: HTMLElement): HTMLElement[] {
-  return Array.from(
-    previewRoot.querySelectorAll("h1, h2, h3, h4, h5, h6")
-  ) as HTMLElement[];
+  return Array.from(previewRoot.querySelectorAll("h1, h2, h3, h4, h5, h6")) as HTMLElement[];
 }
 
 export function resolveViewportLineForReadingView(
@@ -32,9 +28,7 @@ export function resolveViewportLineForReadingView(
     return fallbackLine;
   }
 
-  const renderedOffsets = getRenderedHeadings(previewRoot).map(
-    (heading) => heading.offsetTop
-  );
+  const renderedOffsets = getRenderedHeadings(previewRoot).map((heading) => heading.offsetTop);
 
   return resolveViewportLineFromRenderedHeadings(
     headingIndex,

@@ -1,9 +1,11 @@
+import { t } from "../i18n";
 import { Notice, TFile, type App } from "obsidian";
 import type { PublishAccount, SchreibstubeSettings } from "../types";
 import type { Logger } from "../services/logger";
 import { resolveApiKey } from "../services/secret";
 import { normalizeBaseUrl } from "../services/bridge-protocol";
 import {
+  bridgeHealth,
   commitPublish,
   listTargets,
   planPublish,
@@ -11,6 +13,7 @@ import {
   uploadSource
 } from "../services/publish-client";
 import {
+  PROTOCOL_VERSION,
   summarisePlan,
   type PublishAsset,
   type PublishBridgeConfig,
@@ -42,10 +45,13 @@ import { PublishAccountModal, PublishPlanModal } from "../ui/publish-modals";
  */
 export class PublishCommands {
   private busy = false;
+  /** The handshake runs once per session, not once per request. */
+  private handshakeDone = false;
 
   constructor(
     private readonly app: App,
     private readonly getSettings: () => SchreibstubeSettings,
+    private readonly saveSettings: (patch: Partial<SchreibstubeSettings>) => Promise<void>,
     private readonly logger: Logger
   ) {}
 
@@ -82,7 +88,7 @@ export class PublishCommands {
         // is the point of keeping the hosting configuration on the bridge.
         const target = (await listTargets(bridge)).find((entry) => entry.name === account.target);
         if (!target) {
-          new Notice(`Schreibstube: die Bridge kennt kein Ziel namens ${account.target}.`);
+          new Notice(t().common.notice(t().publish.unknownTarget(account.target)));
           return;
         }
         window.open(target.baseUrl, "_blank");
@@ -92,17 +98,14 @@ export class PublishCommands {
     });
   }
 
-  private async run(
-    account: PublishAccount,
-    prepared: Prepared
-  ): Promise<void> {
+  private async run(account: PublishAccount, prepared: Prepared): Promise<void> {
     if (this.busy) {
-      new Notice("Schreibstube: eine Veröffentlichung läuft bereits.");
+      new Notice(t().common.notice(t().publish.busy));
       return;
     }
     this.busy = true;
 
-    const notice = new Notice("Schreibstube: Veröffentlichung läuft …", 0);
+    const notice = new Notice(t().common.notice(t().publish.running), 0);
     try {
       const { bridge, index, plan, sources, assets } = prepared;
 
@@ -112,32 +115,35 @@ export class PublishCommands {
       for (const entry of plan.uploadSources) {
         const content = sources.get(entry.sha256);
         if (!content) {
-          throw new Error(`die Quelle zu ${entry.sourcePath} fehlt — bitte erneut versuchen.`);
+          throw new Error(t().publish.missingSource(entry.sourcePath));
         }
         await uploadSource(bridge, account.target, entry.sha256, content);
         done += 1;
-        notice.setMessage(`Schreibstube: überträgt ${done}/${total} …`);
+        notice.setMessage(t().common.notice(t().publish.uploading(done, total)));
       }
 
       for (const entry of plan.uploadAssets) {
         const asset = assets.get(entry.sha256);
         if (!asset) {
-          throw new Error(`die Datei zu ${entry.sourcePath} fehlt — bitte erneut versuchen.`);
+          throw new Error(t().publish.missingSource(entry.sourcePath));
         }
         await uploadAsset(bridge, account.target, entry.sha256, asset.name, asset.content);
         done += 1;
-        notice.setMessage(`Schreibstube: überträgt ${done}/${total} …`);
+        notice.setMessage(t().common.notice(t().publish.uploading(done, total)));
       }
 
-      notice.setMessage("Schreibstube: baut die Website …");
+      notice.setMessage(t().common.notice(t().publish.building));
       const summary = await commitPublish(bridge, account.target, index);
 
       notice.hide();
       new Notice(
-        `Schreibstube: veröffentlicht — ${summary.written} geschrieben, ` +
-          `${summary.unchanged} unverändert, ${summary.deleted} gelöscht.`
+        t().common.notice(t().publish.done(summary.written, summary.unchanged, summary.deleted))
       );
       this.logger.debug("Publish finished.", summary);
+
+      // The notice is gone in seconds; the settings pane keeps the answer to
+      // "did that go through".
+      await this.recordRun(account, summary.written, summary.deleted);
 
       // Separate from the publish itself: the site is live either way, and a
       // failed note write must not be reported as a failed publish.
@@ -145,7 +151,7 @@ export class PublishCommands {
     } catch (error) {
       notice.hide();
       const message = error instanceof Error ? error.message : String(error);
-      new Notice(`Schreibstube: Veröffentlichung fehlgeschlagen — ${message}`);
+      new Notice(t().common.notice(t().publish.failed(message)));
       this.logger.debug("Publish failed.", error);
     } finally {
       this.busy = false;
@@ -158,6 +164,7 @@ export class PublishCommands {
     if (!bridge) return null;
 
     try {
+      await this.checkBridgeVersion(bridge);
       const collected = await this.collect(account);
       if (!collected) return null;
 
@@ -232,9 +239,7 @@ export class PublishCommands {
     }
 
     if (notes.length === 0) {
-      new Notice(
-        `Schreibstube: keine Notiz in ${account.folder} ist zur Veröffentlichung markiert.`
-      );
+      new Notice(t().common.notice(t().publish.noNotes(account.folder)));
       return null;
     }
 
@@ -252,6 +257,19 @@ export class PublishCommands {
     };
 
     return { index, sources, assets };
+  }
+
+  private async recordRun(
+    account: PublishAccount,
+    written: number,
+    deleted: number
+  ): Promise<void> {
+    await this.saveSettings({
+      publishLastRun: {
+        ...this.getSettings().publishLastRun,
+        [account.id]: { at: new Date().toISOString(), written, deleted }
+      }
+    });
   }
 
   /** A `theme.css` in the publish folder replaces the built-in stylesheet. */
@@ -287,10 +305,33 @@ export class PublishCommands {
         });
       } catch (error) {
         this.logger.debug(`Could not record the publish in ${note.sourcePath}.`, error);
+        new Notice(t().common.notice(t().publish.writeBackFailed(note.sourcePath)));
+      }
+    }
+  }
+
+  /**
+   * Say plainly when the bridge is behind the plugin.
+   *
+   * The two are deployed separately and will drift. Without this, an older
+   * bridge answers a request for a route it does not have with a 404, which
+   * reads as a wrong URL rather than as a missing redeploy.
+   */
+  private async checkBridgeVersion(bridge: PublishBridgeConfig): Promise<void> {
+    if (this.handshakeDone) return;
+    this.handshakeDone = true;
+
+    try {
+      const health = await bridgeHealth(bridge);
+      if (health.protocol < PROTOCOL_VERSION) {
         new Notice(
-          `Schreibstube: veröffentlicht, aber ${note.sourcePath} konnte nicht aktualisiert werden.`
+          t().common.notice(t().publish.bridgeOutdated(health.protocol, PROTOCOL_VERSION))
         );
       }
+    } catch (error) {
+      // A bridge that cannot answer /health will fail the real request in a
+      // moment, with a better message than anything this could add.
+      this.logger.debug("Bridge health check failed.", error);
     }
   }
 
@@ -299,7 +340,7 @@ export class PublishCommands {
     const accounts = this.getSettings().publishAccounts;
 
     if (accounts.length === 0) {
-      new Notice("Schreibstube: kein Veröffentlichungs-Konto eingerichtet — siehe Einstellungen.");
+      new Notice(t().common.notice(t().publish.noAccount));
       return;
     }
     if (accounts.length === 1) {
@@ -330,7 +371,7 @@ export class PublishCommands {
     const token = resolveApiKey(
       this.app.secretStorage,
       settings.publishTokenSecretName,
-      "Publish-Token"
+      t().secrets.publishToken
     );
     if (!token.ok) {
       new Notice(token.message);

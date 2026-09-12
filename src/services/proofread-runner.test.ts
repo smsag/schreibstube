@@ -97,8 +97,7 @@ describe("chunkBlocks", () => {
 });
 
 function echoSender(rewrite: (block: ProseBlock) => string) {
-  return async (blocks: ProseBlock[]) =>
-    new Map(blocks.map((block) => [block.id, rewrite(block)]));
+  return async (blocks: ProseBlock[]) => new Map(blocks.map((block) => [block.id, rewrite(block)]));
 }
 
 describe("runProofread", () => {

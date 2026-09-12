@@ -33,8 +33,7 @@ const PUBLISH_KEYS = ["PUBLISH_TOKEN", "PUBLISH_TARGETS"];
 
 /** What a target is allowed to serve from an upload. Images and video only:
  *  anything else on a published site is written by the bridge itself. */
-const DEFAULT_ASSET_EXTENSIONS =
-  "png,jpg,jpeg,gif,webp,avif,svg,mp4,webm,ogv,mov,m4v";
+const DEFAULT_ASSET_EXTENSIONS = "png,jpg,jpeg,gif,webp,avif,svg,mp4,webm,ogv,mov,m4v";
 
 export function loadConfig(env = process.env) {
   const mail = MAIL_KEYS.some((key) => present(env[key])) ? loadMail(env) : null;
@@ -62,6 +61,9 @@ export function loadConfig(env = process.env) {
     authFailureWindowMs: integer(env.AUTH_FAILURE_WINDOW_MS, 60_000),
     // How long a shutdown waits for in-flight work before exiting anyway.
     drainTimeoutMs: integer(env.DRAIN_TIMEOUT_MS, 10_000),
+    // "json" for a hosting dashboard that can search fields; the default stays
+    // human, because most of the time a person is reading these.
+    logFormat: env.LOG_FORMAT?.trim() === "json" ? "json" : "text",
     mail,
     publish
   };
@@ -160,6 +162,12 @@ function loadTarget(env, name) {
     ),
     baseUrl,
     siteTitle: read("SITE_TITLE") || name,
+    // A personal site is the author's own HTML; a shared vault is not. The
+    // switch exists so that judgement belongs to whoever deploys the bridge.
+    allowHtml: boolean(read("ALLOW_HTML"), true),
+    // A page with a diagram loads a five megabyte bundle. A site that never
+    // draws one should not have to carry the possibility.
+    allowDiagrams: boolean(read("ALLOW_DIAGRAMS"), true),
     assetExtensions: new Set(
       (read("ALLOWED_EXT") || DEFAULT_ASSET_EXTENSIONS)
         .split(",")

@@ -12,7 +12,7 @@ import {
   EditorView,
   ViewPlugin,
   type DecorationSet,
-  type ViewUpdate,
+  type ViewUpdate
 } from "@codemirror/view";
 import { RangeSetBuilder, type Extension } from "@codemirror/state";
 import type { GlossaryMatcher } from "../services/glossary-matcher";
@@ -35,9 +35,7 @@ interface GlossaryUnderlineOptions {
 
 const UNDERLINE = Decoration.mark({ class: "schreibstube-glossary-hit" });
 
-export function createGlossaryUnderlineExtension(
-  options: GlossaryUnderlineOptions
-): Extension {
+export function createGlossaryUnderlineExtension(options: GlossaryUnderlineOptions): Extension {
   return ViewPlugin.fromClass(
     class {
       decorations: DecorationSet = Decoration.none;
@@ -96,7 +94,7 @@ export function createGlossaryUnderlineExtension(
       }
     },
     {
-      decorations: (value) => value.decorations,
+      decorations: (value) => value.decorations
     }
   );
 }

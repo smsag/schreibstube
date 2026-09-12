@@ -28,6 +28,10 @@ import { connect, SftpError } from "./sftp.mjs";
 
 const VIDEO_EXTENSIONS = new Set(["mp4", "webm", "ogv", "mov", "m4v"]);
 const MANIFEST_FILE = "manifest.json";
+const HISTORY_FILE = "history.json";
+/** How many publishes the history keeps. Enough to answer "when did that page
+ *  change", small enough that the file stays a file. */
+const HISTORY_LENGTH = 50;
 const INDEX_FILE = "index.json";
 const SOURCE_DIRECTORY = "src";
 
@@ -98,91 +102,125 @@ export function createPublishRoutes(config, { version }) {
       });
     }),
 
-    route("PUT", "/publish/source", publish.maxSourceBytes, "raw", async ({ body, query, log }) => {
-      const target = targetOf(publish, query.get("target"));
-      const hash = verifyHash(body, query.get("sha256"));
+    route(
+      "PUT",
+      "/publish/source",
+      publish.maxSourceBytes,
+      "raw",
+      async ({ body, query, log }) => {
+        const target = targetOf(publish, query.get("target"));
+        const hash = verifyHash(body, query.get("sha256"));
 
-      return withRemote(target, config, async (remote) => {
-        await remote.writeAbsolute(
-          remote.stateAbsolute(`${SOURCE_DIRECTORY}/${hash}.md`),
-          body
-        );
-        log("info", `source ${hash.slice(0, 12)} stored for ${target.name} (${body.length} bytes)`);
-        return { sha256: hash, bytes: body.length };
-      });
-    }, uploadTimeoutMs),
-
-    route("PUT", "/publish/asset", publish.maxVideoBytes, "raw", async ({ body, query, log }) => {
-      const target = targetOf(publish, query.get("target"));
-      const hash = verifyHash(body, query.get("sha256"));
-      const name = query.get("name") ?? "";
-
-      const extension = extensionOf(name);
-      if (!target.assetExtensions.has(extension)) {
-        throw httpError(400, "asset_rejected", `Not an allowed asset type: ${extension || name}.`);
-      }
-
-      const limit = VIDEO_EXTENSIONS.has(extension) ? publish.maxVideoBytes : publish.maxImageBytes;
-      if (body.length > limit) {
-        throw httpError(413, "body_too_large", `${name} exceeds the ${limit} byte limit.`);
-      }
-
-      // The name from the vault never becomes a path: it is slugified and
-      // prefixed with the content hash, then checked like any other path.
-      const path = safePath(assetPath(hash, name), target);
-
-      return withRemote(target, config, async (remote) => {
-        await remote.writeFile(path, body);
-        log("info", `asset ${path} stored for ${target.name} (${body.length} bytes)`);
-        return { sha256: hash, bytes: body.length, path };
-      });
-    }, uploadTimeoutMs),
-
-    route("POST", "/publish/commit", publish.maxIndexBytes, "json", async ({ body, log }) => {
-      const target = targetOf(publish, body?.target);
-      const index = validateIndex(body?.index, publish);
-
-      return exclusive(busy, target.name, () =>
-        withRemote(target, config, async (remote) => {
-          const stored = await storedSourceHashes(remote);
-          const missing = index.notes.filter((note) => !stored.includes(note.sha256));
-          if (missing.length > 0) {
-            throw httpError(
-              409,
-              "sources_missing",
-              `${missing.length} source(s) were never uploaded; run the plan again.`
-            );
-          }
-
-          await remote.writeAbsolute(
-            remote.stateAbsolute(INDEX_FILE),
-            Buffer.from(JSON.stringify(index, null, 2), "utf8")
+        return withRemote(target, config, async (remote) => {
+          await remote.writeAbsolute(remote.stateAbsolute(`${SOURCE_DIRECTORY}/${hash}.md`), body);
+          log(
+            "info",
+            `source ${hash.slice(0, 12)} stored for ${target.name} (${body.length} bytes)`
           );
+          return { sha256: hash, bytes: body.length };
+        });
+      },
+      uploadTimeoutMs
+    ),
 
-          return publishSite({ remote, target, index, generator, log });
-        })
-      );
-    }, commitTimeoutMs),
+    route(
+      "PUT",
+      "/publish/asset",
+      publish.maxVideoBytes,
+      "raw",
+      async ({ body, query, log }) => {
+        const target = targetOf(publish, query.get("target"));
+        const hash = verifyHash(body, query.get("sha256"));
+        const name = query.get("name") ?? "";
 
-    route("POST", "/publish/render", 64_000, "json", async ({ body, log }) => {
-      const target = targetOf(publish, body?.target);
+        const extension = extensionOf(name);
+        if (!target.assetExtensions.has(extension)) {
+          throw httpError(
+            400,
+            "asset_rejected",
+            `Not an allowed asset type: ${extension || name}.`
+          );
+        }
 
-      return exclusive(busy, target.name, () =>
-        withRemote(target, config, async (remote) => {
-          const stored = await remote.readJson(remote.stateAbsolute(INDEX_FILE));
-          if (!stored) {
-            throw httpError(409, "nothing_published", "This target has never been published.");
-          }
-          return publishSite({
-            remote,
-            target,
-            index: validateIndex(stored, publish),
-            generator,
-            log
-          });
-        })
-      );
-    }, commitTimeoutMs)
+        const limit = VIDEO_EXTENSIONS.has(extension)
+          ? publish.maxVideoBytes
+          : publish.maxImageBytes;
+        if (body.length > limit) {
+          throw httpError(413, "body_too_large", `${name} exceeds the ${limit} byte limit.`);
+        }
+
+        // The name from the vault never becomes a path: it is slugified and
+        // prefixed with the content hash, then checked like any other path.
+        const path = safePath(assetPath(hash, name), target);
+
+        return withRemote(target, config, async (remote) => {
+          await remote.writeFile(path, body);
+          log("info", `asset ${path} stored for ${target.name} (${body.length} bytes)`);
+          return { sha256: hash, bytes: body.length, path };
+        });
+      },
+      uploadTimeoutMs
+    ),
+
+    route(
+      "POST",
+      "/publish/commit",
+      publish.maxIndexBytes,
+      "json",
+      async ({ body, log }) => {
+        const target = targetOf(publish, body?.target);
+        const index = validateIndex(body?.index, publish);
+
+        return exclusive(busy, target.name, () =>
+          withRemote(target, config, async (remote) => {
+            const stored = await storedSourceHashes(remote);
+            const missing = index.notes.filter((note) => !stored.includes(note.sha256));
+            if (missing.length > 0) {
+              throw httpError(
+                409,
+                "sources_missing",
+                `${missing.length} source(s) were never uploaded; run the plan again.`
+              );
+            }
+
+            await remote.writeAbsolute(
+              remote.stateAbsolute(INDEX_FILE),
+              Buffer.from(JSON.stringify(index, null, 2), "utf8")
+            );
+
+            return publishSite({ remote, target, index, generator, log });
+          })
+        );
+      },
+      commitTimeoutMs
+    ),
+
+    route(
+      "POST",
+      "/publish/render",
+      64_000,
+      "json",
+      async ({ body, log }) => {
+        const target = targetOf(publish, body?.target);
+
+        return exclusive(busy, target.name, () =>
+          withRemote(target, config, async (remote) => {
+            const stored = await remote.readJson(remote.stateAbsolute(INDEX_FILE));
+            if (!stored) {
+              throw httpError(409, "nothing_published", "This target has never been published.");
+            }
+            return publishSite({
+              remote,
+              target,
+              index: validateIndex(stored, publish),
+              generator,
+              log
+            });
+          })
+        );
+      },
+      commitTimeoutMs
+    )
   ];
 }
 
@@ -205,7 +243,11 @@ async function publishSite({ remote, target, index, generator, log }) {
     sources.set(note.sha256, content.toString("utf8"));
   }
 
-  const files = await buildSite({ ...index, siteTitle: index.siteTitle || target.siteTitle }, sources);
+  const files = await buildSite(
+    { ...index, siteTitle: index.siteTitle || target.siteTitle },
+    sources,
+    { allowHtml: target.allowHtml, allowDiagrams: target.allowDiagrams }
+  );
   for (const path of files.keys()) safePath(path, target, { output: true });
 
   // Assets were written to the host by their own upload, so they are not
@@ -259,6 +301,7 @@ async function publishSite({ remote, target, index, generator, log }) {
   );
 
   const summary = {
+    at: new Date().toISOString(),
     target: target.name,
     baseUrl: target.baseUrl,
     written: difference.write.length,
@@ -268,12 +311,34 @@ async function publishSite({ remote, target, index, generator, log }) {
     collected: collected.length,
     durationMs: Date.now() - started
   };
+  await appendHistory(remote, summary);
+
   log(
     "info",
     `publish ${summary.target}: ${summary.written} written, ${summary.unchanged} unchanged, ` +
       `${summary.deleted} deleted, ${summary.pruned} pruned in ${summary.durationMs}ms`
   );
   return summary;
+}
+
+/**
+ * Keep the last publishes next to the manifest.
+ *
+ * The manifest says what the site is now; nothing said what changed when. A
+ * short history answers that without a log server, and a failure to write it
+ * never fails a publish that already succeeded.
+ */
+async function appendHistory(remote, summary) {
+  try {
+    const path = remote.stateAbsolute(HISTORY_FILE);
+    const existing = await remote.readJson(path);
+    const entries = Array.isArray(existing) ? existing : [];
+    const next = [summary, ...entries].slice(0, HISTORY_LENGTH);
+    await remote.writeAbsolute(path, Buffer.from(JSON.stringify(next, null, 2), "utf8"));
+  } catch {
+    // The site is published either way; a missing history entry is not a
+    // reason to report a failure.
+  }
 }
 
 async function storedSourceHashes(remote) {
@@ -296,7 +361,11 @@ function validateIndex(index, publish) {
     const checked = checkIndex(index);
     const files = checked.notes.length + checked.assets.length;
     if (files > publish.maxFiles) {
-      throw httpError(413, "too_many_files", `${files} files exceeds the ${publish.maxFiles} limit.`);
+      throw httpError(
+        413,
+        "too_many_files",
+        `${files} files exceeds the ${publish.maxFiles} limit.`
+      );
     }
     return checked;
   } catch (err) {

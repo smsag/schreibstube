@@ -83,7 +83,11 @@ export function resolveAnchor(docText: string, suggestion: Suggestion): Resolved
 
   const windowStart = Math.max(0, from - NEARBY_WINDOW);
   const windowEnd = Math.min(docText.length, to + NEARBY_WINDOW);
-  const nearby = nearestOccurrence(docText.slice(windowStart, windowEnd), original, from - windowStart);
+  const nearby = nearestOccurrence(
+    docText.slice(windowStart, windowEnd),
+    original,
+    from - windowStart
+  );
   if (nearby !== -1) {
     return { from: windowStart + nearby, to: windowStart + nearby + original.length };
   }
@@ -99,7 +103,11 @@ function nearestOccurrence(haystack: string, needle: string, target: number): nu
   let best = -1;
   let bestDistance = Number.POSITIVE_INFINITY;
 
-  for (let index = haystack.indexOf(needle); index !== -1; index = haystack.indexOf(needle, index + 1)) {
+  for (
+    let index = haystack.indexOf(needle);
+    index !== -1;
+    index = haystack.indexOf(needle, index + 1)
+  ) {
     const distance = Math.abs(index - target);
     if (distance < bestDistance) {
       best = index;
@@ -149,7 +157,7 @@ export function planApply(docText: string, suggestions: Suggestion[]): ApplyPlan
       id: suggestion.id,
       from: anchor.from,
       to: anchor.to,
-      text: suggestion.replacement,
+      text: suggestion.replacement
     });
   }
 
@@ -245,9 +253,7 @@ export function mergeSuggestions(
   }
 
   const kept = replaces
-    ? existing.filter(
-        (suggestion) => suggestion.source !== replaces || isDecided(suggestion)
-      )
+    ? existing.filter((suggestion) => suggestion.source !== replaces || isDecided(suggestion))
     : existing;
 
   const merged = new Map<string, Suggestion>();

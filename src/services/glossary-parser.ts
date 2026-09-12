@@ -56,12 +56,7 @@ export const GLOSSARY_MARKER = "schreibstubeGlossary";
 export const GLOSSARY_LANGUAGE_KEY = "schreibstubeLanguage";
 export const GLOSSARY_SEVERITY_KEY = "schreibstubeDefaultSeverity";
 
-const STATUS_VALUES = new Set<TermStatus>([
-  "preferred",
-  "admitted",
-  "deprecated",
-  "superseded",
-]);
+const STATUS_VALUES = new Set<TermStatus>(["preferred", "admitted", "deprecated", "superseded"]);
 
 /** TBX-Basic picklist identifiers and the informal spellings that appear in
  *  exports from termbase tools, all folded onto the four canonical values. */
@@ -75,7 +70,7 @@ const STATUS_ALIASES: Record<string, TermStatus> = {
   deprecated: "deprecated",
   preferred: "preferred",
   admitted: "admitted",
-  superseded: "superseded",
+  superseded: "superseded"
 };
 
 const MATCH_VALUES = new Set<MatchMode>(["word", "exact", "prefix"]);
@@ -98,7 +93,8 @@ export function parseGlossary(path: string, text: string): GlossaryParseResult {
   const errors: string[] = [];
   const frontmatter = readFrontmatter(text);
 
-  const language = frontmatter.get(GLOSSARY_LANGUAGE_KEY)?.toLowerCase() || DEFAULT_GLOSSARY_LANGUAGE;
+  const language =
+    frontmatter.get(GLOSSARY_LANGUAGE_KEY)?.toLowerCase() || DEFAULT_GLOSSARY_LANGUAGE;
   const severityRaw = frontmatter.get(GLOSSARY_SEVERITY_KEY)?.toLowerCase() ?? "";
   const defaultSeverity = SEVERITY_VALUES.has(severityRaw as Severity)
     ? (severityRaw as Severity)
@@ -149,7 +145,9 @@ export function parseGlossary(path: string, text: string): GlossaryParseResult {
       return;
     }
 
-    const matchRaw = (columns.match !== undefined ? cells[columns.match] : "")?.trim().toLowerCase();
+    const matchRaw = (columns.match !== undefined ? cells[columns.match] : "")
+      ?.trim()
+      .toLowerCase();
     let match: MatchMode = "word";
     if (matchRaw) {
       if (MATCH_VALUES.has(matchRaw as MatchMode)) {
@@ -171,7 +169,9 @@ export function parseGlossary(path: string, text: string): GlossaryParseResult {
         : t.text.toLowerCase() === termText.toLowerCase()
     );
     if (isDuplicate) {
-      errors.push(`Skipped ${lineLabel}: "${termText}" is already defined in concept "${conceptId}".`);
+      errors.push(
+        `Skipped ${lineLabel}: "${termText}" is already defined in concept "${conceptId}".`
+      );
       return;
     }
     terms.push({ text: termText, status, match, note });
@@ -191,7 +191,7 @@ export function parseGlossary(path: string, text: string): GlossaryParseResult {
 
   return {
     glossary: { path, language, defaultSeverity, concepts },
-    errors,
+    errors
   };
 }
 
@@ -266,7 +266,7 @@ function indexColumns(header: string[]): ColumnIndex {
     treffer: "match",
     note: "note",
     notiz: "note",
-    hinweis: "note",
+    hinweis: "note"
   };
 
   const columns: ColumnIndex = {};

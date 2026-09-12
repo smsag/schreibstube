@@ -38,9 +38,7 @@ describe("resolveAncestorStack", () => {
   });
 
   it("resets deeper levels after shallower heading", () => {
-    expect(resolveAncestorStack(index, 21)).toEqual([
-      { level: 1, text: "B", lineNumber: 20 }
-    ]);
+    expect(resolveAncestorStack(index, 21)).toEqual([{ level: 1, text: "B", lineNumber: 20 }]);
   });
 
   it("handles gap headings without placeholder levels", () => {

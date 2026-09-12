@@ -28,9 +28,7 @@ describe("selectUnmerged", () => {
   it("drops messages already recorded in the note", () => {
     const messages = [message(), message({ messageId: "<r2@example.com>", uid: 2 })];
     expect(selectUnmerged(messages, ["<r1@example.com>"])).toHaveLength(1);
-    expect(selectUnmerged(messages, ["<r1@example.com>"])[0].messageId).toBe(
-      "<r2@example.com>"
-    );
+    expect(selectUnmerged(messages, ["<r1@example.com>"])[0].messageId).toBe("<r2@example.com>");
   });
 
   it("is a no-op when everything was merged before — the command stays idempotent", () => {

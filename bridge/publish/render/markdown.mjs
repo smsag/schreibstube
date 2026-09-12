@@ -24,11 +24,12 @@ export const RENDER_VERSION = 1;
 
 const katex = katexModule.default ?? katexModule;
 
-export function createRenderer() {
+export function createRenderer({ allowHtml = true, allowDiagrams = true } = {}) {
   return new MarkdownIt({
-    // The author is publishing their own vault to their own site, so inline
-    // HTML is theirs to write, exactly as it is inside Obsidian.
-    html: true,
+    // A personal site is the author's own HTML, exactly as it is inside
+    // Obsidian. A vault with more than one author is a different question, so
+    // the target decides.
+    html: allowHtml,
     linkify: true,
     breaks: false,
     typographer: false
@@ -41,7 +42,7 @@ export function createRenderer() {
     .use(taskLists, { label: false })
     .use(anchor, { slugify, tabIndex: false })
     .use(katex, { throwOnError: false })
-    .use(obsidian);
+    .use(obsidian, { allowDiagrams });
 }
 
 /**

@@ -3,7 +3,10 @@ import { compileGlossaries } from "./glossary-matcher";
 import { parseGlossary, type Glossary } from "./glossary-parser";
 import { segmentMarkdown } from "./markdown-segments";
 
-function glossary(rows: string, frontmatter = "language: de\nschreibstubeDefaultSeverity: error"): Glossary {
+function glossary(
+  rows: string,
+  frontmatter = "language: de\nschreibstubeDefaultSeverity: error"
+): Glossary {
   const note = `---\nschreibstubeGlossary: true\n${frontmatter}\n---\n\n| Concept | Term | Status | Match | Note |\n|---|---|---|---|---|\n${rows}`;
   const { glossary: parsed, errors } = parseGlossary("Glossar.md", note);
   expect(errors).toEqual([]);
@@ -16,7 +19,7 @@ const HAUS = glossary(
     "| objekt | Immobilie | deprecated | word | Hausbegriff |",
     "| objekt | Liegenschaft | admitted | | |",
     "| makler | Broker | deprecated | word | |",
-    "| courtage | Courtage | superseded | word | Vertrag prüfen |",
+    "| courtage | Courtage | superseded | word | Vertrag prüfen |"
   ].join("\n")
 );
 
@@ -75,7 +78,9 @@ describe("compileGlossaries", () => {
   });
 
   it("matches inside a compound in prefix mode", () => {
-    const g = glossary("| a | Broker | deprecated | prefix | |\n| a | Makler | preferred | word | |");
+    const g = glossary(
+      "| a | Broker | deprecated | prefix | |\n| a | Makler | preferred | word | |"
+    );
     const [hit] = compileGlossaries([g]).findHits("Das Brokerbuero ruft an.");
     expect(hit.matchedText).toBe("Brokerbuero");
     expect(hit.replacement).toBe("Makler");
@@ -100,7 +105,9 @@ describe("compileGlossaries", () => {
   });
 
   it("carries sentence-initial capitals onto the replacement", () => {
-    const g = glossary("| a | objekt | preferred | word | |\n| a | immobilie | deprecated | word | |");
+    const g = glossary(
+      "| a | objekt | preferred | word | |\n| a | immobilie | deprecated | word | |"
+    );
     const [hit] = compileGlossaries([g]).findHits("Immobilie frei.");
     expect(hit.replacement).toBe("Objekt");
   });
@@ -125,7 +132,9 @@ describe("compileGlossaries", () => {
   });
 
   it("gives one card per span when two glossaries overlap", () => {
-    const first = glossary("| a | Immobilie | deprecated | word | |\n| a | Objekt | preferred | word | |");
+    const first = glossary(
+      "| a | Immobilie | deprecated | word | |\n| a | Objekt | preferred | word | |"
+    );
     const second = parseGlossary(
       "Zweit.md",
       "| Concept | Term | Status |\n|---|---|---|\n| b | Immobilie | deprecated |\n| b | Liegenschaft | preferred |"
@@ -142,7 +151,7 @@ describe("compileGlossaries", () => {
         "| a | Makler | deprecated | word | |",
         "| a | Berater | preferred | word | |",
         "| b | Makler Buero | deprecated | word | |",
-        "| b | Beratungsbuero | preferred | word | |",
+        "| b | Beratungsbuero | preferred | word | |"
       ].join("\n")
     );
     const hits = compileGlossaries([g]).findHits("Das Makler Buero ruft an.");

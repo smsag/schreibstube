@@ -6,6 +6,28 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- **The interface speaks German and English.** It was half of each; both are now first class. English is the reference catalogue and gives the message type, so a string added without a translation does not compile. The language follows Obsidian's own by default, with a setting for when it should not.
+- **A linter, a formatter and an editorconfig**, with the rules deliberately few: formatting belongs to Prettier, and what is left are the mistakes nobody should have to catch by eye.
+- **CI runs what it was not running**: both Node versions the bridge supports, the linter, the formatter, coverage against a floor, and an assertion that the built bundle reaches for no Node built-ins — the property that keeps the plugin working on mobile.
+- **The publish controller has tests**, behind a stub of Obsidian and a fake vault. It was the largest untested file in the plugin, and it decides what the bridge writes and what it deletes.
+- **One slug contract**, shared by both implementations. The rule existed twice, in two languages, and had to agree or a published page would stop being reachable.
+- **Property tests for the path rules** and an awkward vault fixture — emoji in a filename, a note that is one long line, a dead wikilink, a missing date — with the rendered pages snapshotted, so a layout change shows up as a diff rather than as nothing.
+- **Uploads retry** with backoff and jitter. They are addressed by the hash of their content, so a repeat is either a no-op or the same write again; one dropped connection used to fail a whole publish.
+- **Each account shows what it last published**, generates the bridge's environment block, and picks its target from a list the bridge provides rather than a retyped name.
+- **The plugin checks the bridge's protocol version** once per session, so a bridge that was not redeployed says so instead of answering a 404 that reads like a wrong URL.
+- **Each publish leaves a trace**: the last fifty summaries are kept next to the manifest, so "when did that page change" has an answer.
+- **Two per-target switches**: raw HTML inside a note, and diagrams. A page with a diagram loads five megabytes, now only when a diagram is about to be read.
+- **`ARCHITECTURE.md`, `CONTRIBUTING.md`, a mobile checklist, a bridge compatibility table, an example publish folder, and a release script** that bumps the three files carrying a version together.
+
+### Changed
+
+- **The settings tab is one module per area** rather than a 900-line class, and each control changes a setting through one call instead of repeating five lines.
+- **Background polling moved out of the review controller**, which was holding three concerns because they happened to share a store.
+- **Nodemailer moves to 10**, clearing its advisories. The findings that remain reach the bridge through Mermaid's parser; `bridge/README.md` says exactly what they are rather than silencing them.
+- **The bridge can log JSON**, behind a flag, for a hosting dashboard that searches fields.
+
+### Added
+
 - **The publish frontmatter keys are configurable.** A vault that already names these fields its own way can map each role — published, title, date, description, slug, and the two written back after publishing — to the key it uses, under **Frontmatter-Felder** in the publish settings. The defaults are the plain names (`published`, `title`, `date`, …), since a collision with another plugin's property is what the mapping is there to resolve. A configured key replaces the default rather than adding to it; a blank field means "unchanged", and two roles cannot share a key, because the plugin would have no way to tell which meaning was intended.
 - **Publishing: a vault folder becomes a website, from desktop and from mobile.** Three commands — **Veröffentlichen**, **Veröffentlichung prüfen** and **Website öffnen** — publish a folder as a static site over SFTP.
   - **Opt-in per note.** A note is published when its frontmatter carries `published: true`; removing the flag takes the page down on the next publish. Title, date, description and slug come from frontmatter, each with a sensible default. After publishing, the time and the address are written back into the note.

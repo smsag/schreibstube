@@ -190,7 +190,10 @@ describe("orphanSources", () => {
   it("keeps a source two notes share", () => {
     const shared = hash("gleich");
     expect(
-      orphanSources([shared], index({ notes: [note("a", "a.md", shared), note("b", "b.md", shared)] }))
+      orphanSources(
+        [shared],
+        index({ notes: [note("a", "a.md", shared), note("b", "b.md", shared)] })
+      )
     ).toEqual([]);
   });
 });

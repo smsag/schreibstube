@@ -57,9 +57,7 @@ export function formatMessage(message: MailMessage): string {
     .map((line) => (line.trim() ? `> ${line}` : ">"))
     .join("\n");
 
-  const truncationNote = message.truncated
-    ? "\n>\n> _[message truncated by the bridge]_"
-    : "";
+  const truncationNote = message.truncated ? "\n>\n> _[message truncated by the bridge]_" : "";
 
   return [`### ${heading}`, meta, "", quoted + truncationNote].filter(Boolean).join("\n");
 }
@@ -99,7 +97,9 @@ export function appendToSection(body: string, heading: string, addition: string)
 
   const section = lines.slice(start, end).join("\n").replace(/\s+$/, "");
   const rest = lines.slice(end);
-  const merged = [`${section}\n\n${addition}`, ...(rest.length > 0 ? ["", ...rest] : [])].join("\n");
+  const merged = [`${section}\n\n${addition}`, ...(rest.length > 0 ? ["", ...rest] : [])].join(
+    "\n"
+  );
 
   return `${[...lines.slice(0, start), merged].join("\n").replace(/\s+$/, "")}\n`;
 }

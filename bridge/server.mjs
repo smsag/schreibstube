@@ -17,14 +17,7 @@
 import { createServer } from "node:http";
 import { createRequire } from "node:module";
 import { capabilityNames, PROTOCOL_VERSION, loadConfig } from "./config.mjs";
-import {
-  clientAddress,
-  newRequestId,
-  parseJson,
-  readBody,
-  sendError,
-  sendJson
-} from "./http.mjs";
+import { clientAddress, newRequestId, parseJson, readBody, sendError, sendJson } from "./http.mjs";
 import { authenticate, resolve } from "./router.mjs";
 import { createThrottle } from "./throttle.mjs";
 import { TimeoutError, withDeadline } from "./timeout.mjs";
@@ -199,8 +192,19 @@ async function shutdown(signal) {
   process.exit(0);
 }
 
+/**
+ * One line per event, in whichever shape the deployment can read.
+ *
+ * Text is the default because a person is usually reading it. JSON is there for
+ * a hosting dashboard, where "every line about req_3f9a1c07" is a query rather
+ * than a search through prose.
+ */
 function log(level, message, requestId) {
-  const line = `[bridge] ${new Date().toISOString()} ${level} ${requestId ? `${requestId} ` : ""}${message}`;
+  const line =
+    config.logFormat === "json"
+      ? JSON.stringify({ time: new Date().toISOString(), level, requestId, message })
+      : `[bridge] ${new Date().toISOString()} ${level} ${requestId ? `${requestId} ` : ""}${message}`;
+
   if (level === "error") {
     console.error(line);
   } else {

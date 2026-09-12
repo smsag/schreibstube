@@ -76,10 +76,7 @@ export function encodeChunk(blocks: ProseBlock[]): string {
  * than matched against an unrelated block. A block the response never mentions
  * is simply absent, which the runner treats as "no change proposed".
  */
-export function parseChunkResponse(
-  response: string,
-  blocks: ProseBlock[]
-): Map<string, string> {
+export function parseChunkResponse(response: string, blocks: ProseBlock[]): Map<string, string> {
   const expected = new Set(blocks.map((block) => block.id));
   const rewrites = new Map<string, string>();
 
@@ -91,7 +88,7 @@ export function parseChunkResponse(
     markers.push({
       id: match[1],
       from: match.index,
-      to: match.index + match[0].length,
+      to: match.index + match[0].length
     });
   }
 

@@ -23,7 +23,11 @@ export function fingerprintOf(key) {
 }
 
 export function fingerprintsMatch(presented, configured) {
-  const normalise = (value) => String(value).trim().replace(/^SHA256:/i, "").replace(/=+$/, "");
+  const normalise = (value) =>
+    String(value)
+      .trim()
+      .replace(/^SHA256:/i, "")
+      .replace(/=+$/, "");
   return normalise(presented) === normalise(configured);
 }
 
@@ -173,9 +177,7 @@ class Remote {
       }
     }
 
-    const deepestFirst = [...candidates].sort(
-      (a, b) => b.split("/").length - a.split("/").length
-    );
+    const deepestFirst = [...candidates].sort((a, b) => b.split("/").length - a.split("/").length);
 
     let pruned = 0;
     for (const directory of deepestFirst) {

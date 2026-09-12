@@ -115,13 +115,18 @@ export function diffOutputs(files, manifest, hash, uploaded = new Map()) {
     if (published[path]) unchanged.push(path);
   }
 
-  const remove = Object.keys(published).filter(
-    (path) => !files.has(path) && !uploaded.has(path)
-  );
+  const remove = Object.keys(published).filter((path) => !files.has(path) && !uploaded.has(path));
   return { write: write.sort(), unchanged: unchanged.sort(), delete: remove.sort() };
 }
 
-export function buildManifest({ target, files, hash, renderVersion, generator, uploaded = new Map() }) {
+export function buildManifest({
+  target,
+  files,
+  hash,
+  renderVersion,
+  generator,
+  uploaded = new Map()
+}) {
   const entries = {};
   for (const [path, content] of [...files].sort(([a], [b]) => a.localeCompare(b))) {
     entries[path] = { sha256: hash(content), bytes: content.length };

@@ -1,5 +1,6 @@
 import type { SyncRecord } from "./services/sync-document";
 import type { PublishKeyMap } from "./services/publish-index";
+import type { LanguagePreference } from "./i18n";
 
 export type HeadingLevel = 1 | 2 | 3 | 4 | 5 | 6;
 
@@ -26,7 +27,16 @@ export interface PublishAccount {
   writeBack: boolean;
 }
 
+/** The summary of one publish, kept so the settings can show it afterwards. */
+export interface PublishRunRecord {
+  at: string;
+  written: number;
+  deleted: number;
+}
+
 export interface SchreibstubeSettings {
+  /** Interface language; "auto" follows Obsidian's own. */
+  language: LanguagePreference;
   overlayEnabled: boolean;
   focusMode: FocusMode;
   focusDimOpacity: number;
@@ -84,6 +94,8 @@ export interface SchreibstubeSettings {
   /** Which frontmatter key carries which meaning, so a vault can keep its own
    *  conventions instead of adopting the plugin's. */
   publishFrontmatterKeys: PublishKeyMap;
+  /** What each account last published, keyed by account id. Plugin-written. */
+  publishLastRun: Record<string, PublishRunRecord>;
   // Diagnostics.
   debugLogging: boolean;
 }

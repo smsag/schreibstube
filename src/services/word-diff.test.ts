@@ -60,7 +60,10 @@ describe("diffToEdits", () => {
   });
 
   it("splits independent changes into separate edits", () => {
-    const edits = diffToEdits("ein Fhler und noch ein Fehlr hier", "ein Fehler und noch ein Fehler hier");
+    const edits = diffToEdits(
+      "ein Fhler und noch ein Fehlr hier",
+      "ein Fehler und noch ein Fehler hier"
+    );
     expect(edits).toHaveLength(2);
     expect(edits[0].after).toBe("Fehler");
     expect(edits[1].after).toBe("Fehler");

@@ -102,7 +102,8 @@ describe("validateSendable", () => {
 
 describe("stripFrontmatter", () => {
   it("removes the frontmatter block", () => {
-    const note = "---\nschreibstubeTo: a@x.de\nschreibstubeSubject: Hi\n---\n\nDear all,\n\nregards";
+    const note =
+      "---\nschreibstubeTo: a@x.de\nschreibstubeSubject: Hi\n---\n\nDear all,\n\nregards";
     expect(stripFrontmatter(note)).toBe("Dear all,\n\nregards");
   });
 

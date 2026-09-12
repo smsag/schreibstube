@@ -11,12 +11,13 @@
 import { MarkdownView, Notice, type App, type TFile } from "obsidian";
 import type { SchreibstubeSettings } from "../types";
 import type { Logger } from "../services/logger";
+import { t } from "../i18n";
 import { compileGlossaries, type GlossaryMatcher } from "../services/glossary-matcher";
 import {
   parseFolderRules,
   parseGlossaryList,
   resolveGlossarySelection,
-  type GlossarySelection,
+  type GlossarySelection
 } from "../services/glossary-resolver";
 import { GlossaryRegistry } from "../services/glossary-registry";
 import { createChunkSender } from "../services/llm-proofread";
@@ -25,7 +26,7 @@ import {
   isFlagOnly,
   runProofread,
   scanGlossary,
-  type CancelToken,
+  type CancelToken
 } from "../services/proofread-runner";
 import { resolveApiKey } from "../services/secret";
 import { fetchSource } from "../services/sync-fetcher";
@@ -33,21 +34,20 @@ import {
   buildSyncSuggestions,
   hashText,
   localState,
-  normalizeNewlines,
   splitNote,
   stripRemoteFrontmatter,
   type LocalState,
-  type SyncRecord,
+  type SyncRecord
 } from "../services/sync-document";
 import { resolveSourceUrl, SYNC_FRONTMATTER_KEY } from "../services/sync-source";
-import { diffHunks } from "../services/line-diff";
+import { SyncPoller, githubToken, isCheckDue } from "./sync-poller";
 import {
   mergeSuggestions,
   planApply,
   refreshStaleness,
   resolveAnchor,
   settleStatuses,
-  type Suggestion,
+  type Suggestion
 } from "../services/suggestion";
 import { GLOSSARY_CHANGED_EVENT } from "../utils/constants";
 import {
@@ -55,7 +55,7 @@ import {
   type GlossaryPanelState,
   type ReviewHandlers,
   type ReviewState,
-  type SyncPanelState,
+  type SyncPanelState
 } from "../ui/review-panel";
 
 export const GLOSSARY_FRONTMATTER_KEY = "schreibstubeGlossaries";
@@ -64,7 +64,6 @@ export type ReviewStateListener = (state: ReviewState) => void;
 
 /** Requests in flight during a background poll. Deliberately small: a poll is
  *  never the urgent thing the user is waiting on. */
-const POLL_CONCURRENCY = 3;
 
 export interface PollSummary {
   checked: number;
@@ -87,6 +86,7 @@ export interface SyncStore {
 
 export class ProofreadController {
   private readonly registry: GlossaryRegistry;
+  private readonly poller: SyncPoller;
   private readonly listeners = new Set<ReviewStateListener>();
   /** Manual glossary picks, per note, for this session only. */
   private readonly sessionPicks = new Map<string, string[]>();
@@ -110,6 +110,7 @@ export class ProofreadController {
     private readonly syncStore: SyncStore
   ) {
     this.registry = new GlossaryRegistry(app);
+    this.poller = new SyncPoller(app, getSettings, syncStore, () => this.syncActiveFile(), logger);
   }
 
   onStateChange(listener: ReviewStateListener): () => void {
@@ -128,7 +129,7 @@ export class ProofreadController {
       onReject: (id) => this.reject(id),
       onReveal: (id) => this.reveal(id),
       onToggleGlossary: (path) => void this.toggleGlossary(path),
-      onCheckSource: () => void this.checkSource(true),
+      onCheckSource: () => void this.checkSource(true)
     };
   }
 
@@ -213,6 +214,11 @@ export class ProofreadController {
     }
   }
 
+  /** Check every bound note, not just the open one. */
+  async pollAllSources(trigger: "schedule" | "manual"): Promise<PollSummary> {
+    return this.poller.pollAllSources(trigger);
+  }
+
   stop(): void {
     if (this.running) {
       this.running.cancelled = true;
@@ -222,7 +228,7 @@ export class ProofreadController {
 
   private async runGlossaryPass(): Promise<void> {
     if (this.activeEditorText() === null) {
-      new Notice("Schreibstube: keine Notiz im Editor geöffnet.");
+      new Notice(t().common.notice(t().ai.noNote));
       return;
     }
 
@@ -242,18 +248,19 @@ export class ProofreadController {
 
     const found = scanGlossary(text, this.matcher);
     this.suggestions = mergeSuggestions(this.suggestions, found, "glossary");
-    this.message = found.length === 0 ? "Glossar: keine Treffer." : `Glossar: ${found.length} Treffer.`;
+    this.message =
+      found.length === 0 ? "Glossar: keine Treffer." : `Glossar: ${found.length} Treffer.`;
     this.emit();
   }
 
   private async runModelPass(): Promise<void> {
     if (this.activeEditorText() === null) {
-      new Notice("Schreibstube: keine Notiz im Editor geöffnet.");
+      new Notice(t().common.notice(t().ai.noNote));
       return;
     }
 
     if (this.running) {
-      new Notice("Schreibstube: es läuft bereits eine Korrektur.");
+      new Notice(t().common.notice(t().proofread.busy));
       return;
     }
 
@@ -291,14 +298,14 @@ export class ProofreadController {
         createChunkSender(settings, key.apiKey, this.matcher.constraints()),
         {
           chunkChars: settings.proofreadChunkChars,
-          concurrency: settings.proofreadConcurrency,
+          concurrency: settings.proofreadConcurrency
         },
         token,
         (progress) => {
           if (token.cancelled) return;
           this.progress = {
             completed: progress.completedChunks,
-            total: progress.totalChunks,
+            total: progress.totalChunks
           };
           this.suggestions = mergeSuggestions(this.suggestions, progress.suggestions, "llm");
           this.emit();
@@ -309,12 +316,16 @@ export class ProofreadController {
         this.message = "Korrektur abgebrochen.";
       } else {
         this.suggestions = mergeSuggestions(this.suggestions, result.suggestions, "llm");
-        this.message = summarize(result.suggestions.length, result.rejectedBlocks, result.failedChunks);
+        this.message = summarize(
+          result.suggestions.length,
+          result.rejectedBlocks,
+          result.failedChunks
+        );
       }
     } catch (err) {
       this.logger.error("Proofread failed:", err);
       const detail = err instanceof Error ? err.message : "unbekannter Fehler";
-      new Notice(`Schreibstube: Korrektur fehlgeschlagen — ${detail}`);
+      new Notice(t().common.notice(t().proofread.failed(detail)));
       this.message = "Korrektur fehlgeschlagen.";
     } finally {
       if (this.running === token) {
@@ -342,7 +353,7 @@ export class ProofreadController {
   private applyBatch(batch: Suggestion[]): void {
     const view = this.resolveTargetView();
     if (!view) {
-      new Notice("Schreibstube: die geprüfte Notiz ist nicht mehr geöffnet.");
+      new Notice(t().common.notice(t().proofread.noteClosed));
       return;
     }
 
@@ -356,8 +367,8 @@ export class ProofreadController {
         changes: plan.changes.map((change) => ({
           from: editor.offsetToPos(change.from),
           to: editor.offsetToPos(change.to),
-          text: change.text,
-        })),
+          text: change.text
+        }))
       });
     }
 
@@ -396,7 +407,7 @@ export class ProofreadController {
 
     const anchor = resolveAnchor(view.editor.getValue(), suggestion);
     if (!anchor) {
-      new Notice("Schreibstube: Stelle nicht mehr auffindbar.");
+      new Notice(t().common.notice(t().proofread.spotGone));
       return;
     }
 
@@ -440,7 +451,7 @@ export class ProofreadController {
       frontmatter: parseGlossaryList(frontmatter?.[GLOSSARY_FRONTMATTER_KEY]),
       folderRules: parseFolderRules(settings.glossaryFolderRules),
       session: this.sessionPicks.get(file.path),
-      fallback: settings.glossaryDefault,
+      fallback: settings.glossaryDefault
     });
 
     const loaded = await this.registry.load(this.selection.paths, file.path);
@@ -450,7 +461,7 @@ export class ProofreadController {
       available,
       source: this.selection.source,
       errors: loaded.errors,
-      missing: loaded.missing,
+      missing: loaded.missing
     };
 
     this.logger.debug(
@@ -458,165 +469,6 @@ export class ProofreadController {
     );
     window.dispatchEvent(new Event(GLOSSARY_CHANGED_EVENT));
     this.emit();
-  }
-
-
-  /**
-   * Check the bound source and turn any difference into cards.
-   *
-   * `manual` separates a deliberate check from the automatic one on note open:
-   * the automatic check respects the minimum interval and stays silent when the
-   * note is not bound, while a manual one always runs and always reports.
-   */
-  /** The GitHub token, if one is configured. Absent is normal: public sources
-   *  need none, and the fetcher only ever sends it to GitHub anyway. */
-  private githubToken(): string | undefined {
-    const name = this.getSettings().githubSecretName;
-    if (!name) return undefined;
-    const result = resolveApiKey(this.app.secretStorage, name);
-    return result.ok ? result.apiKey : undefined;
-  }
-
-
-  /**
-   * Check every bound note in the vault.
-   *
-   * A poll cannot show cards, because only the open note has a panel. What it
-   * does instead is record how many changes are waiting, so opening that note
-   * later surfaces them immediately, and report a single summary rather than one
-   * notice per note.
-   *
-   * Requests are limited and the per-note interval still applies, so a vault
-   * full of bound notes does not turn one tick into a burst of traffic.
-   */
-  async pollAllSources(trigger: "schedule" | "manual"): Promise<PollSummary> {
-    const settings = this.getSettings();
-    const empty: PollSummary = { checked: 0, withChanges: 0, failed: 0, notes: [] };
-
-    if (!settings.syncEnabled || this.polling) return empty;
-
-    const bound = this.app.vault.getMarkdownFiles().filter((file) => {
-      const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter;
-      const value = frontmatter?.[SYNC_FRONTMATTER_KEY];
-      return typeof value === "string" && value.trim().length > 0;
-    });
-
-    if (bound.length === 0) return empty;
-
-    this.polling = true;
-    const summary: PollSummary = { checked: 0, withChanges: 0, failed: 0, notes: [] };
-    const token = this.githubToken();
-    const updates: Record<string, SyncRecord> = {};
-
-    try {
-      let next = 0;
-      const worker = async (): Promise<void> => {
-        while (true) {
-          const index = next;
-          if (index >= bound.length) return;
-          next += 1;
-          await this.pollOne(bound[index], token, summary, updates);
-        }
-      };
-
-      await Promise.all(
-        Array.from({ length: Math.min(POLL_CONCURRENCY, bound.length) }, () => worker())
-      );
-
-      if (Object.keys(updates).length > 0) {
-        await this.syncStore.setMany(updates);
-      }
-    } finally {
-      this.polling = false;
-    }
-
-    this.logger.debug(
-      `Poll (${trigger}): ${summary.checked} geprüft, ${summary.withChanges} mit Änderungen, ${summary.failed} fehlgeschlagen.`
-    );
-
-    // Refresh the open note so a poll that touched it is reflected at once.
-    await this.syncActiveFile();
-    return summary;
-  }
-
-  private async pollOne(
-    file: TFile,
-    token: string | undefined,
-    summary: PollSummary,
-    updates: Record<string, SyncRecord>
-  ): Promise<void> {
-    const settings = this.getSettings();
-    const raw = this.app.metadataCache.getFileCache(file)?.frontmatter?.[SYNC_FRONTMATTER_KEY];
-    const resolved = resolveSourceUrl(raw);
-    if (!resolved.ok) {
-      summary.failed += 1;
-      return;
-    }
-
-    const record = this.syncStore.get(file.path);
-    if (!this.isCheckDue(record, settings.syncMinIntervalMinutes)) return;
-
-    const checkedAt = Date.now();
-    const conditional = (record?.pendingChanges ?? 0) > 0 ? undefined : record?.etag;
-
-    let outcome: Awaited<ReturnType<typeof fetchSource>>;
-    try {
-      outcome = await fetchSource({
-        url: resolved.url,
-        target: resolved.target,
-        etag: conditional,
-        token,
-      });
-    } catch (err) {
-      this.logger.warn(`Poll failed for ${file.path}:`, err);
-      summary.failed += 1;
-      return;
-    }
-
-    summary.checked += 1;
-
-    // Read from the vault rather than an editor: this note is not open. The
-    // baseline is needed on every path, because a record stored without one is
-    // discarded as malformed the next time settings load.
-    const body = splitNote(normalizeNewlines(await this.app.vault.cachedRead(file))).body;
-
-    if (outcome.status === "missing" || outcome.status === "error") {
-      summary.failed += 1;
-      // The clock advances even on failure, so a dead binding is not retried
-      // on every tick. The note itself is never touched.
-      updates[file.path] = {
-        hash: record?.hash ?? hashText(body),
-        etag: record?.etag ?? "",
-        checkedAt,
-        pendingChanges: record?.pendingChanges ?? 0,
-      };
-      return;
-    }
-
-    if (outcome.status === "unchanged") {
-      updates[file.path] = {
-        hash: record?.hash ?? hashText(body),
-        etag: outcome.etag,
-        checkedAt,
-        pendingChanges: record?.pendingChanges ?? 0,
-      };
-      return;
-    }
-
-    const remoteBody = stripRemoteFrontmatter(outcome.body);
-    const changes = diffHunks(body, remoteBody).length;
-
-    updates[file.path] = {
-      hash: changes === 0 ? hashText(body) : record?.hash ?? hashText(body),
-      etag: outcome.etag,
-      checkedAt,
-      pendingChanges: changes,
-    };
-
-    if (changes > 0) {
-      summary.withChanges += 1;
-      summary.notes.push(file.path);
-    }
   }
 
   private async checkSource(manual: boolean): Promise<void> {
@@ -628,24 +480,36 @@ export class ProofreadController {
 
     const raw = this.app.metadataCache.getFileCache(file)?.frontmatter?.[SYNC_FRONTMATTER_KEY];
     if (typeof raw !== "string" || raw.trim().length === 0) {
-      if (manual) new Notice("Schreibstube: diese Notiz ist an keine Quelle gebunden.");
+      if (manual) new Notice(t().common.notice(t().sync.notBound));
       return;
     }
 
     const resolved = resolveSourceUrl(raw);
     if (!resolved.ok) {
-      this.sync = { ...this.sync, bound: true, status: "error", source: raw, message: resolved.reason };
+      this.sync = {
+        ...this.sync,
+        bound: true,
+        status: "error",
+        source: raw,
+        message: resolved.reason
+      };
       this.emit();
       return;
     }
 
     const record = this.syncStore.get(file.path);
-    if (!manual && !this.isCheckDue(record, settings.syncMinIntervalMinutes)) {
+    if (!manual && !isCheckDue(record, settings.syncMinIntervalMinutes)) {
       return;
     }
 
     this.checking = true;
-    this.sync = { ...this.sync, bound: true, status: "checking", source: resolved.url, message: "" };
+    this.sync = {
+      ...this.sync,
+      bound: true,
+      status: "checking",
+      source: resolved.url,
+      message: ""
+    };
     this.emit();
 
     try {
@@ -656,7 +520,7 @@ export class ProofreadController {
         url: resolved.url,
         target: resolved.target,
         etag: conditional,
-        token: this.githubToken(),
+        token: githubToken(this.app, this.getSettings())
       });
       const view = this.resolveTargetView();
 
@@ -679,14 +543,14 @@ export class ProofreadController {
           hash: record?.hash ?? hashText(body),
           etag: record?.etag ?? "",
           checkedAt,
-          pendingChanges: record?.pendingChanges ?? 0,
+          pendingChanges: record?.pendingChanges ?? 0
         });
         this.sync = {
           bound: true,
           status: outcome.status,
           source: resolved.url,
           checkedAt,
-          message: outcome.message,
+          message: outcome.message
         };
         this.emit();
         return;
@@ -697,14 +561,14 @@ export class ProofreadController {
           hash: record?.hash ?? hashText(body),
           etag: outcome.etag,
           checkedAt,
-          pendingChanges: 0,
+          pendingChanges: 0
         });
         this.sync = {
           bound: true,
           status: state === "diverged" ? "diverged" : "clean",
           source: resolved.url,
           checkedAt,
-          message: this.describeState(state, 0),
+          message: this.describeState(state, 0)
         };
         this.emit();
         return;
@@ -716,11 +580,11 @@ export class ProofreadController {
       await this.syncStore.set(file.path, {
         // The baseline only advances once the note actually matches the source,
         // so an unaccepted update is still pending on the next check.
-        hash: suggestions.length === 0 ? hashText(body) : record?.hash ?? hashText(body),
+        hash: suggestions.length === 0 ? hashText(body) : (record?.hash ?? hashText(body)),
         etag: outcome.etag,
         checkedAt,
         // The changes are on screen now, so nothing is owed to a later visit.
-        pendingChanges: 0,
+        pendingChanges: 0
       });
 
       this.suggestions = mergeSuggestions(this.suggestions, suggestions, "remote");
@@ -729,7 +593,7 @@ export class ProofreadController {
         status: suggestions.length === 0 ? "clean" : state === "diverged" ? "diverged" : "idle",
         source: resolved.url,
         checkedAt,
-        message: this.describeState(state, suggestions.length),
+        message: this.describeState(state, suggestions.length)
       };
       this.emit();
     } catch (err) {
@@ -738,7 +602,7 @@ export class ProofreadController {
         ...this.sync,
         bound: true,
         status: "error",
-        message: err instanceof Error ? err.message : "Unbekannter Fehler.",
+        message: err instanceof Error ? err.message : "Unbekannter Fehler."
       };
       this.emit();
     } finally {
@@ -773,7 +637,7 @@ export class ProofreadController {
     await this.syncStore.set(this.filePath, {
       ...record,
       hash: hashText(splitNote(noteText).body),
-      pendingChanges: 0,
+      pendingChanges: 0
     });
 
     this.sync = { ...this.sync, status: "clean", message: "Notiz entspricht der Quelle." };
@@ -790,11 +654,6 @@ export class ProofreadController {
       return `${changes} Unterschied(e). Die Notiz wurde lokal geändert, Übernehmen stellt die Quelle wieder her.`;
     }
     return `${changes} Änderung(en) aus der Quelle.`;
-  }
-
-  private isCheckDue(record: SyncRecord | undefined, minIntervalMinutes: number): boolean {
-    if (!record || minIntervalMinutes <= 0) return true;
-    return Date.now() - record.checkedAt >= minIntervalMinutes * 60_000;
   }
 
   /** Reflect the binding in the panel without fetching anything. */
@@ -824,7 +683,7 @@ export class ProofreadController {
         ? pending > 0
           ? `${pending} Änderung(en) aus der letzten Hintergrundprüfung. "Quelle prüfen" holt sie.`
           : ""
-        : resolved.reason,
+        : resolved.reason
     };
   }
 
@@ -864,13 +723,19 @@ export class ProofreadController {
   private buildState(): ReviewState {
     const hasFile = this.filePath !== null;
     return {
-      phase: !hasFile ? "no-file" : this.running ? "running" : this.suggestions.length > 0 ? "reviewing" : "idle",
+      phase: !hasFile
+        ? "no-file"
+        : this.running
+          ? "running"
+          : this.suggestions.length > 0
+            ? "reviewing"
+            : "idle",
       fileName: this.filePath?.split("/").pop() ?? "",
       suggestions: this.suggestions,
       progress: this.progress,
       glossary: this.glossaryPanel,
       sync: this.sync,
-      message: this.message,
+      message: this.message
     };
   }
 

@@ -15,7 +15,12 @@ export const MAX_SOURCE_BYTES = 1_000_000;
 
 const REQUEST_TIMEOUT_MS = 20_000;
 
-const MARKDOWN_CONTENT_TYPES = ["text/markdown", "text/plain", "text/x-markdown", "application/octet-stream"];
+const MARKDOWN_CONTENT_TYPES = [
+  "text/markdown",
+  "text/plain",
+  "text/x-markdown",
+  "application/octet-stream"
+];
 
 export type FetchOutcome =
   | { status: "updated"; body: string; etag: string }
@@ -57,7 +62,7 @@ export async function fetchSource(options: FetchOptions): Promise<FetchOutcome> 
   const headers: Record<string, string> = {
     accept: authenticated
       ? "application/vnd.github.raw"
-      : "text/markdown, text/plain;q=0.9, */*;q=0.1",
+      : "text/markdown, text/plain;q=0.9, */*;q=0.1"
   };
 
   if (authenticated) {
@@ -91,7 +96,10 @@ export async function fetchSource(options: FetchOptions): Promise<FetchOutcome> 
       options.target.kind === "github" && !authenticated
         ? " Für ein privates Repository wird ein GitHub-Token benötigt."
         : "";
-    return { status: "missing", message: `Quelle nicht gefunden (HTTP ${response.status}).${hint}` };
+    return {
+      status: "missing",
+      message: `Quelle nicht gefunden (HTTP ${response.status}).${hint}`
+    };
   }
 
   if (response.status === 401 || response.status === 403) {
@@ -99,7 +107,7 @@ export async function fetchSource(options: FetchOptions): Promise<FetchOutcome> 
       status: "error",
       message: rateLimited(response.headers)
         ? "GitHub-Ratenlimit erreicht. Ein Token erhöht das Limit deutlich."
-        : `Zugriff verweigert (HTTP ${response.status}). Token prüfen.`,
+        : `Zugriff verweigert (HTTP ${response.status}). Token prüfen.`
     };
   }
 
@@ -119,7 +127,7 @@ export async function fetchSource(options: FetchOptions): Promise<FetchOutcome> 
   } else if (contentType && !isMarkdownType(contentType)) {
     return {
       status: "error",
-      message: `Quelle ist kein Markdown (${contentType.split(";")[0]}).`,
+      message: `Quelle ist kein Markdown (${contentType.split(";")[0]}).`
     };
   }
 

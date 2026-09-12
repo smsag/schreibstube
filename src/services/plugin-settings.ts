@@ -1,4 +1,5 @@
-import type { LlmProvider, PublishAccount, SchreibstubeSettings } from "../types";
+import type { LlmProvider, PublishAccount, PublishRunRecord, SchreibstubeSettings } from "../types";
+import type { LanguagePreference } from "../i18n";
 import type { SyncRecord } from "./sync-document";
 import {
   DEFAULT_SETTINGS as DEFAULT_FOCUS_SETTINGS,
@@ -59,6 +60,7 @@ export const DEFAULT_PROOFREAD_PROMPT =
 const ALLOWED_PROVIDERS = new Set<LlmProvider>(LLM_PROVIDER_IDS);
 
 export const DEFAULT_SETTINGS: SchreibstubeSettings = {
+  language: "auto",
   ...DEFAULT_FOCUS_SETTINGS,
   overlayEnabled: true,
   llmProvider: "anthropic",
@@ -96,7 +98,8 @@ export const DEFAULT_SETTINGS: SchreibstubeSettings = {
   publishTokenSecretName: "",
   publishAccounts: [],
   publishFrontmatterKeys: DEFAULT_PUBLISH_KEYS,
-  debugLogging: false,
+  publishLastRun: {},
+  debugLogging: false
 };
 
 /** Settings as persisted: a data file a user can also edit by hand, so every
@@ -128,6 +131,7 @@ export function normalizeSettings(loaded: LoadedSettings): SchreibstubeSettings 
 
   return {
     ...focus,
+    language: languageOrDefault(loaded?.language),
     overlayEnabled:
       typeof loaded?.overlayEnabled === "boolean"
         ? loaded.overlayEnabled
@@ -249,6 +253,7 @@ export function normalizeSettings(loaded: LoadedSettings): SchreibstubeSettings 
         : DEFAULT_SETTINGS.publishTokenSecretName,
     publishAccounts: publishAccountsOrDefault(loaded?.publishAccounts),
     publishFrontmatterKeys: normalizePublishKeys(loaded?.publishFrontmatterKeys),
+    publishLastRun: publishRunsOrDefault(loaded?.publishLastRun)
   };
 }
 
@@ -287,6 +292,28 @@ function publishAccountsOrDefault(value: unknown): PublishAccount[] {
   return accounts;
 }
 
+/** Plugin-written, but it shares a file a user can edit, so it is validated. */
+function publishRunsOrDefault(value: unknown): Record<string, PublishRunRecord> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+
+  const runs: Record<string, PublishRunRecord> = {};
+  for (const [id, record] of Object.entries(value as Record<string, unknown>)) {
+    if (!record || typeof record !== "object") continue;
+    const { at, written, deleted } = record as Partial<PublishRunRecord>;
+    if (typeof at !== "string") continue;
+    runs[id] = {
+      at,
+      written: typeof written === "number" ? written : 0,
+      deleted: typeof deleted === "number" ? deleted : 0
+    };
+  }
+  return runs;
+}
+
+function languageOrDefault(value: unknown): LanguagePreference {
+  return value === "de" || value === "en" || value === "auto" ? value : DEFAULT_SETTINGS.language;
+}
+
 /** Sync state is plugin-written, but it lives in the same data file a user can
  *  edit, so every record is validated rather than trusted. */
 function syncStateOrDefault(value: unknown): Record<string, SyncRecord> {
@@ -301,7 +328,7 @@ function syncStateOrDefault(value: unknown): Record<string, SyncRecord> {
       hash,
       etag: typeof etag === "string" ? etag : "",
       checkedAt: Number.isFinite(checkedAt) ? Number(checkedAt) : 0,
-      pendingChanges: Number.isFinite(pendingChanges) ? Number(pendingChanges) : 0,
+      pendingChanges: Number.isFinite(pendingChanges) ? Number(pendingChanges) : 0
     };
   }
   return result;

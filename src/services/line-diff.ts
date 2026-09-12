@@ -45,7 +45,7 @@ export function diffHunks(before: string, after: string): Hunk[] {
         from: pending.from,
         to: pending.from + pending.before.length,
         before: pending.before,
-        after: pending.after,
+        after: pending.after
       });
     }
     pending = null;

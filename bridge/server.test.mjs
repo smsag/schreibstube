@@ -238,7 +238,9 @@ describe("errors", () => {
 
 describe("request bodies", () => {
   it("rejects an announced body over the limit", async () => {
-    const response = await call("/send", { body: { ...valid, subject: "x".repeat(MAX_BODY_BYTES) } });
+    const response = await call("/send", {
+      body: { ...valid, subject: "x".repeat(MAX_BODY_BYTES) }
+    });
     expect(response.status).toBe(413);
     expect(response.json.error).toContain(String(MAX_BODY_BYTES));
     expect(response.json.code).toBe("body_too_large");
@@ -273,7 +275,9 @@ describe("send validation", () => {
   });
 
   it("accepts a recipient in cc or bcc alone", async () => {
-    const response = await call("/send", { body: { bcc: ["a@example.com"], subject: "S", text: "T" } });
+    const response = await call("/send", {
+      body: { bcc: ["a@example.com"], subject: "S", text: "T" }
+    });
     expect(response.status).toBe(502);
   });
 
@@ -421,7 +425,10 @@ describe("startup", () => {
   it("refuses to start with no capability configured at all", async () => {
     const bare = { PATH: process.env.PATH, PORT: "0" };
     const { code, stderr } = await new Promise((resolve) => {
-      const child = spawn(process.execPath, [SERVER], { env: bare, stdio: ["ignore", "pipe", "pipe"] });
+      const child = spawn(process.execPath, [SERVER], {
+        env: bare,
+        stdio: ["ignore", "pipe", "pipe"]
+      });
       running.push(child);
       let text = "";
       child.stderr.on("data", (chunk) => {

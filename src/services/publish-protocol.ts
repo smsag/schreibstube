@@ -12,6 +12,15 @@ import {
   str
 } from "./bridge-protocol";
 
+/**
+ * The protocol this plugin speaks.
+ *
+ * Plugin and bridge are deployed separately and will drift. The bridge reports
+ * its own number on /health, so a mismatch can be named — "redeploy the bridge"
+ * — instead of surfacing later as a 404 on a route that does not exist yet.
+ */
+export const PROTOCOL_VERSION = 1;
+
 /** Generous: a commit renders the whole site and writes what changed. */
 export const PUBLISH_REQUEST_TIMEOUT_MS = 120_000;
 
@@ -79,6 +88,21 @@ export interface PublishSummary {
   pruned: number;
   collected: number;
   durationMs: number;
+}
+
+export interface BridgeHealth {
+  version: string;
+  protocol: number;
+  capabilities: string[];
+}
+
+export function parseHealth(json: unknown): BridgeHealth {
+  const record = asRecord(json);
+  return {
+    version: str(record.version),
+    protocol: typeof record.protocol === "number" ? record.protocol : 0,
+    capabilities: Array.isArray(record.capabilities) ? record.capabilities.map(str) : []
+  };
 }
 
 export function parseTargets(json: unknown): PublishTarget[] {

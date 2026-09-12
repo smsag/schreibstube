@@ -8,6 +8,7 @@
  * without a workspace.
  */
 
+import { t } from "../i18n";
 import { ItemView, setIcon, type WorkspaceLeaf } from "obsidian";
 import type { GlossarySelectionSource } from "../services/glossary-resolver";
 import { isFlagOnly } from "../services/proofread-runner";
@@ -27,14 +28,7 @@ export interface GlossaryPanelState {
 }
 
 export type SyncPanelStatus =
-  | "none"
-  | "idle"
-  | "checking"
-  | "clean"
-  | "diverged"
-  | "unsynced"
-  | "missing"
-  | "error";
+  "none" | "idle" | "checking" | "clean" | "diverged" | "unsynced" | "missing" | "error";
 
 export interface SyncPanelState {
   /** Whether the note carries a source binding at all. */
@@ -70,35 +64,6 @@ export interface ReviewHandlers {
   onCheckSource(): void;
 }
 
-const CATEGORY_LABELS: Record<string, string> = {
-  spelling: "Rechtschreibung",
-  grammar: "Grammatik",
-  punctuation: "Zeichensetzung",
-  style: "Stil",
-  terminology: "Terminologie",
-  capitalization: "Schreibweise",
-  update: "Aktualisierung",
-};
-
-const SYNC_STATUS_LABELS: Record<SyncPanelStatus, string> = {
-  none: "nicht gebunden",
-  idle: "gebunden",
-  checking: "wird geprüft",
-  clean: "aktuell",
-  diverged: "lokal geändert",
-  unsynced: "noch nie abgeglichen",
-  missing: "nicht gefunden",
-  error: "Fehler",
-};
-
-const SOURCE_LABELS: Record<GlossarySelectionSource, string> = {
-  frontmatter: "aus dieser Notiz",
-  folder: "aus Ordnerregel",
-  session: "manuell gewählt",
-  default: "Standard",
-  none: "keins",
-};
-
 export const EMPTY_REVIEW_STATE: ReviewState = {
   phase: "no-file",
   fileName: "",
@@ -106,7 +71,7 @@ export const EMPTY_REVIEW_STATE: ReviewState = {
   progress: null,
   glossary: { selected: [], available: [], source: "none", errors: [], missing: [] },
   sync: { bound: false, status: "none", source: "", checkedAt: 0, message: "" },
-  message: "",
+  message: ""
 };
 
 export class ReviewPanelView extends ItemView {
@@ -122,7 +87,7 @@ export class ReviewPanelView extends ItemView {
   }
 
   getDisplayText(): string {
-    return "Schreibstube: Korrektur";
+    return t().proofread.panelTitle;
   }
 
   getIcon(): string {
@@ -167,7 +132,7 @@ export class ReviewPanelView extends ItemView {
     for (const missing of this.state.glossary.missing) {
       root.createDiv({
         cls: "schreibstube-review-warning",
-        text: `Glossar nicht gefunden: ${missing}`,
+        text: t().proofread.panelGlossaryMissing(missing)
       });
     }
 
@@ -179,7 +144,7 @@ export class ReviewPanelView extends ItemView {
 
     header.createDiv({
       cls: "schreibstube-review-file",
-      text: this.state.fileName || "Keine Notiz geöffnet",
+      text: this.state.fileName || t().proofread.panelNoNote
     });
 
     const actions = header.createDiv({ cls: "schreibstube-review-actions" });
@@ -200,7 +165,7 @@ export class ReviewPanelView extends ItemView {
     const pending = this.pendingSuggestions();
     const applicable = pending.filter((suggestion) => !isFlagOnly(suggestion));
     if (applicable.length > 0) {
-      this.button(actions, `Alle übernehmen (${applicable.length})`, "check-check", false, () =>
+      this.button(actions, t().proofread.acceptAll(applicable.length), "check-check", false, () =>
         this.handlers?.onAcceptAll()
       );
     }
@@ -209,7 +174,7 @@ export class ReviewPanelView extends ItemView {
       const { completed, total } = this.state.progress;
       header.createDiv({
         cls: "schreibstube-review-progress",
-        text: `Abschnitt ${completed} von ${total}`,
+        text: t().proofread.panelSection(completed, total)
       });
     }
   }
@@ -224,14 +189,10 @@ export class ReviewPanelView extends ItemView {
     const row = section.createDiv({ cls: "schreibstube-review-sync-row" });
     row.createSpan({
       cls: "schreibstube-review-glossary-label",
-      text: `Quelle (${SYNC_STATUS_LABELS[sync.status]})`,
+      text: t().proofread.panelSource(t().proofread.syncStatus[sync.status])
     });
-    this.button(
-      row,
-      "Quelle prüfen",
-      "refresh-cw",
-      sync.status === "checking",
-      () => this.handlers?.onCheckSource()
+    this.button(row, "Quelle prüfen", "refresh-cw", sync.status === "checking", () =>
+      this.handlers?.onCheckSource()
     );
 
     if (sync.source) {
@@ -240,7 +201,7 @@ export class ReviewPanelView extends ItemView {
     if (sync.checkedAt > 0) {
       section.createDiv({
         cls: "schreibstube-review-hint",
-        text: `Zuletzt geprüft: ${new Date(sync.checkedAt).toLocaleString()}`,
+        text: t().proofread.panelCheckedAt(new Date(sync.checkedAt).toLocaleString())
       });
     }
     if (sync.message) {
@@ -258,13 +219,13 @@ export class ReviewPanelView extends ItemView {
 
     section.createSpan({
       cls: "schreibstube-review-glossary-label",
-      text: `Glossar (${SOURCE_LABELS[source]})`,
+      text: t().proofread.panelGlossary(t().proofread.glossarySource[source])
     });
 
     if (available.length === 0) {
       section.createSpan({
         cls: "schreibstube-review-hint",
-        text: "Keine Glossarnotiz im Vault.",
+        text: t().proofread.panelNoGlossary
       });
       return;
     }
@@ -278,7 +239,7 @@ export class ReviewPanelView extends ItemView {
       const active = selected.includes(candidate.path);
       const chip = chips.createEl("button", {
         cls: `schreibstube-review-chip${active ? " is-active" : ""}`,
-        text: candidate.name,
+        text: candidate.name
       });
       chip.setAttr("title", candidate.path);
       if (locked) {
@@ -296,10 +257,7 @@ export class ReviewPanelView extends ItemView {
     if (pending.length === 0) {
       root.createDiv({
         cls: "schreibstube-review-empty",
-        text:
-          this.state.phase === "running"
-            ? "Läuft …"
-            : "Keine offenen Vorschläge.",
+        text: this.state.phase === "running" ? t().proofread.panelRunning : t().proofread.panelIdle
       });
       return;
     }
@@ -314,25 +272,25 @@ export class ReviewPanelView extends ItemView {
     const card = list.createDiv({
       cls: `schreibstube-review-card is-${suggestion.severity}${
         suggestion.status === "stale" ? " is-stale" : ""
-      }`,
+      }`
     });
 
     const meta = card.createDiv({ cls: "schreibstube-review-meta" });
     meta.createSpan({
       cls: "schreibstube-review-category",
-      text: CATEGORY_LABELS[suggestion.category] ?? suggestion.category,
+      text: t().proofread.categories[suggestion.category] ?? suggestion.category
     });
     if (suggestion.source === "glossary") {
-      meta.createSpan({ cls: "schreibstube-review-badge", text: "Glossar" });
+      meta.createSpan({ cls: "schreibstube-review-badge", text: t().proofread.badgeGlossary });
     }
     if (suggestion.source === "remote") {
-      meta.createSpan({ cls: "schreibstube-review-badge", text: "Quelle" });
+      meta.createSpan({ cls: "schreibstube-review-badge", text: t().proofread.badgeSource });
     }
     if (suggestion.status === "stale") {
-      meta.createSpan({ cls: "schreibstube-review-badge", text: "veraltet" });
+      meta.createSpan({ cls: "schreibstube-review-badge", text: t().proofread.badgeStale });
     }
     if (suggestion.needsReview) {
-      meta.createSpan({ cls: "schreibstube-review-badge", text: "Beugung prüfen" });
+      meta.createSpan({ cls: "schreibstube-review-badge", text: t().proofread.badgeInflection });
     }
 
     this.renderDiff(card, suggestion);
@@ -345,12 +303,14 @@ export class ReviewPanelView extends ItemView {
     const stale = suggestion.status === "stale";
 
     if (!isFlagOnly(suggestion)) {
-      this.button(actions, "Übernehmen", "check", stale, () =>
+      this.button(actions, t().proofread.accept, "check", stale, () =>
         this.handlers?.onAccept(suggestion.id)
       );
     }
-    this.button(actions, "Verwerfen", "x", false, () => this.handlers?.onReject(suggestion.id));
-    this.button(actions, "Anzeigen", "crosshair", false, () =>
+    this.button(actions, t().proofread.reject, "x", false, () =>
+      this.handlers?.onReject(suggestion.id)
+    );
+    this.button(actions, t().proofread.show, "crosshair", false, () =>
       this.handlers?.onReveal(suggestion.id)
     );
   }

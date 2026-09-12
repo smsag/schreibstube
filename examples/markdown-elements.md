@@ -15,10 +15,15 @@ exclusions, and inline constructs for the masking round-trip.
 ## Headings
 
 # Heading level 1
+
 ## Heading level 2
+
 ### Heading level 3
+
 #### Heading level 4
+
 ##### Heading level 5
+
 ###### Heading level 6
 
 Setext style also renders as a heading:
@@ -43,9 +48,9 @@ in most Markdown flavours.
 
 ## Emphasis
 
-*Italic with asterisks* and _italic with underscores_.
-**Bold with asterisks** and __bold with underscores__.
-***Bold italic*** and ~~strikethrough~~.
+_Italic with asterisks_ and _italic with underscores_.
+**Bold with asterisks** and **bold with underscores**.
+_**Bold italic**_ and ~~strikethrough~~.
 ==Highlighted text== renders as a mark in Obsidian.
 Subscript H<sub>2</sub>O and superscript E = mc<sup>2</sup> need inline HTML.
 
@@ -61,7 +66,8 @@ Subscript H<sub>2</sub>O and superscript E = mc<sup>2</sup> need inline HTML.
 - Third item
 
 * Asterisk marker
-+ Plus marker
+
+- Plus marker
 
 ### Ordered
 
@@ -148,20 +154,20 @@ A fence without a language hint.
 
 ## Tables
 
-| Element | Syntax | Excluded from correction |
-|---|---|---|
-| Heading | `# Title` | no |
-| Table | pipes | yes |
-| Code block | backtick fence | yes |
-| Math block | `$$ … $$` | yes |
+| Element    | Syntax         | Excluded from correction |
+| ---------- | -------------- | ------------------------ |
+| Heading    | `# Title`      | no                       |
+| Table      | pipes          | yes                      |
+| Code block | backtick fence | yes                      |
+| Math block | `$$ … $$`      | yes                      |
 
 Alignment is set by the colons in the delimiter row:
 
-| Left | Center | Right |
-|:---|:---:|---:|
-| a | b | 1 |
-| longer cell | centred | 42 |
-| c | d | 1000 |
+| Left        | Center  | Right |
+| :---------- | :-----: | ----: |
+| a           |    b    |     1 |
+| longer cell | centred |    42 |
+| c           |    d    |  1000 |
 
 ## Links and references
 
@@ -188,16 +194,18 @@ A block embed: ![[Another Note#Section]].
 Text carrying a footnote.[^1] A second reference points elsewhere.[^note]
 
 [^1]: The footnote body.
-[^note]: A named footnote, which may span
+
+[^note]:
+    A named footnote, which may span
     several indented lines.
 
 ## Horizontal rules
 
 ---
 
-***
+---
 
-___
+---
 
 ## Math
 
