@@ -240,6 +240,7 @@ export const enExtra = {
     title: "Schreibstube Explorer",
     empty: "This vault has no files yet.",
     searchPlaceholder: "Filter all sections…",
+    clearFilter: "Clear the filter",
 
     move: {
       intoItself: (name: string) => `${name} cannot be moved inside itself.`,

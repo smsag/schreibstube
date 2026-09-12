@@ -2,7 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
-## 1.15.3 - 2026-09-12
+## 1.16.0 - 2026-09-12
+
+### Added
+
+- **The filter field can be emptied with one click.** A small cross appears inside the field once there is something in it, and clearing puts the cursor back in the field, since the reason to clear it is usually to type something else. It is not there while the field is empty, because there would be nothing for it to do.
 
 ### Fixed
 

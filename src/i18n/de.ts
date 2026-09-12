@@ -416,6 +416,7 @@ export const de: Messages = {
     title: "Schreibstube Explorer",
     empty: "In diesem Vault liegt noch keine Datei.",
     searchPlaceholder: "Alle Sektionen filtern …",
+    clearFilter: "Filter leeren",
 
     move: {
       intoItself: (name: string) => `${name} lässt sich nicht in sich selbst verschieben.`,

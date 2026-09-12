@@ -183,7 +183,10 @@ export class ExplorerPaneView extends ItemView {
     root.empty();
     root.addClass("schreibstube-explorer");
 
-    const search = root.createEl("input", {
+    // The field and its clear button share a box, so the button can sit inside
+    // the field rather than beside it.
+    const filter = root.createDiv({ cls: "schreibstube-explorer-filter-row" });
+    const search = filter.createEl("input", {
       type: "search",
       cls: "schreibstube-explorer-filter",
       attr: {
@@ -194,6 +197,21 @@ export class ExplorerPaneView extends ItemView {
     search.addEventListener("input", () => {
       this.query = search.value.trim().toLowerCase();
       this.requestRender();
+    });
+
+    // Drawn after the field so CSS can hide it while the field is empty,
+    // without the view having to track that.
+    const clear = filter.createEl("button", {
+      cls: "schreibstube-explorer-filter-clear",
+      attr: { type: "button", "aria-label": t().explorer.clearFilter }
+    });
+    applyIcon(clear, "x");
+    clear.addEventListener("click", () => {
+      search.value = "";
+      this.query = "";
+      this.requestRender();
+      // The point of clearing is to type something else.
+      search.focus();
     });
 
     this.shelf = root.createDiv({ cls: "schreibstube-explorer-shelf" });
