@@ -1,6 +1,6 @@
 {
   "name": "schreibstube",
-  "version": "1.10.0",
+  "version": "1.10.1",
   "private": true,
   "description": "Schreibstube Obsidian community plugin",
   "scripts": {
