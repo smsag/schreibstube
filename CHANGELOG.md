@@ -13,7 +13,7 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
-- **The pane is drawn on one grid.** Every row is a 12px chevron slot, a 7px gap and then its content, indented 14px per level from a 12px base, at a fixed 27px height. Rows without a chevron render the slot empty rather than swallowing it, so an icon at a given depth lines up with every other icon at that depth — across sections, not only inside the tree. Latest used to sit on a hardcoded inset of its own and the tree stepped 17px from a 4px base, so nothing quite lined up with anything.
+- **The pane is drawn on one grid.** Every row is a 12px chevron slot, a 7px gap and then its content, indented 15px per level from a 12px base, at a fixed 27px height. Rows without a chevron render the slot empty rather than swallowing it, so an icon at a given depth lines up with every other icon at that depth — across sections, not only inside the tree. Latest used to sit on a hardcoded inset of its own and the tree stepped 17px from a 4px base, so nothing quite lined up with anything.
 - **"Files and folders" is drawn as a band** across the pane with a rule above and below. It is the one header that separates two kinds of thing, the curated lists above and the vault below, and it used to look like the other three.
 - **An active row carries an accent bar** down its left edge rather than a background tint alone, which a theme whose hover and active colours are close together made nearly invisible.
 - **The filter says what it filters.** Its placeholder named files; it has always searched all four sections.
