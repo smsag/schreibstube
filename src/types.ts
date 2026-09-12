@@ -57,6 +57,13 @@ export interface SchreibstubeSettings {
   githubSecretName: string;
   /** Per-note sync state, keyed by vault path. Persisted, not user-editable. */
   syncState: Record<string, SyncRecord>;
+  // Email bridge configuration, shared by every mail command.
+  mailBridgeUrl: string;
+  mailTokenSecretName: string;
+  mailFrom: string;
+  mailMailbox: string;
+  mailMaxResults: number;
+  mailMergeHeading: string;
   // Diagnostics.
   debugLogging: boolean;
 }
