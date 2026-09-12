@@ -59,18 +59,26 @@ const MEMORY_KEY = "schreibstube:explorer:view";
  *  cannot hold this. */
 const FOLDER_SEP = "\u001f";
 
-/** Where the footer's help button goes. The project's own repository, which is
- *  the only documentation there is. */
-const HELP_URL = "https://github.com/smsag/schreibstube#readme";
-
-/** Matches `id` in the manifest, which is what Obsidian keys settings tabs by. */
-const PLUGIN_ID = "schreibstube";
-
-/** Obsidian's settings window, which `App` carries but does not declare. */
-interface SettingWindow {
-  open: () => void;
-  openTabById: (id: string) => void;
-}
+/** Attachments drawn as a picture rather than a blank sheet. */
+const MEDIA_EXTENSIONS = new Set([
+  "png",
+  "jpg",
+  "jpeg",
+  "gif",
+  "webp",
+  "svg",
+  "bmp",
+  "avif",
+  "mp4",
+  "mov",
+  "webm",
+  "mkv",
+  "mp3",
+  "m4a",
+  "ogg",
+  "wav",
+  "flac"
+]);
 
 type SectionId = "pinned" | "bookmarks" | "latest" | "files";
 
@@ -152,7 +160,6 @@ export class ExplorerPaneView extends ItemView {
     });
 
     this.body = root.createDiv({ cls: "schreibstube-explorer-body" });
-    this.renderFooter(root);
 
     // The vault changes under the pane: a note created by a template, a file
     // deleted on another device and delivered by sync, frontmatter that binds a
@@ -210,44 +217,6 @@ export class ExplorerPaneView extends ItemView {
     this.renderFiles(host);
 
     this.scrollToRevealed();
-  }
-
-  /**
-   * The strip along the bottom: which vault this is, and the two places a
-   * person goes when the pane is not doing what they expected.
-   *
-   * It is drawn once rather than on every render, because nothing in it changes
-   * while the pane is open.
-   */
-  private renderFooter(root: HTMLElement): void {
-    const footer = root.createDiv({ cls: "schreibstube-explorer-footer" });
-    footer.createSpan({
-      cls: "schreibstube-explorer-vault",
-      text: this.app.vault.getName()
-    });
-
-    const help = footer.createEl("button", {
-      cls: "schreibstube-explorer-footer-button",
-      attr: { type: "button", "aria-label": t().explorer.footer.help }
-    });
-    applyIcon(help, "help");
-    help.addEventListener("click", () => {
-      window.open(HELP_URL, "_blank");
-    });
-
-    const settings = footer.createEl("button", {
-      cls: "schreibstube-explorer-footer-button",
-      attr: { type: "button", "aria-label": t().explorer.footer.settings }
-    });
-    applyIcon(settings, "settings");
-    settings.addEventListener("click", () => this.openSettings());
-  }
-
-  /** Obsidian exposes the settings window on `app`, but not in its types. */
-  private openSettings(): void {
-    const setting = (this.app as unknown as { setting?: SettingWindow }).setting;
-    setting?.open();
-    setting?.openTabById(PLUGIN_ID);
   }
 
   // --- sections -----------------------------------------------------------
@@ -434,7 +403,7 @@ export class ExplorerPaneView extends ItemView {
 
   private renderLatest(host: HTMLElement): void {
     const sections = this.host?.sections;
-    const body = this.renderSection(host, "latest", "history");
+    const body = this.renderSection(host, "latest", "clock");
     if (!body || !sections) return;
 
     const { created, modified } = sections.latestFiles();
@@ -577,27 +546,10 @@ export class ExplorerPaneView extends ItemView {
     this.wireRow(row, file, isFolder);
   }
 
-  /**
-   * The two buttons that appear at the right of a row on hover.
-   *
-   * Delete sits outside the menu because it is the one destructive thing a file
-   * list is asked for often enough to be worth a shortcut, and it is the one
-   * that must never happen on a mis-tap. The button opens the same confirmation
-   * the menu entry does; nothing here deletes anything by itself.
-   */
+  /** The menu button a row shows on hover. Every action lives behind it. */
   private renderRowActions(row: HTMLElement, file: TAbstractFile): void {
     const controller = this.host?.explorer;
     if (!controller) return;
-
-    const remove = row.createEl("button", {
-      cls: "schreibstube-explorer-delete",
-      attr: { type: "button", "aria-label": t().explorer.menu.delete }
-    });
-    applyIcon(remove, "trash");
-    remove.addEventListener("click", (event) => {
-      event.stopPropagation();
-      controller.confirmDelete(file);
-    });
 
     const more = row.createEl("button", {
       cls: "schreibstube-explorer-more",
@@ -681,7 +633,14 @@ export class ExplorerPaneView extends ItemView {
     if (chosen) return chosen;
 
     if (file instanceof TFolder) return this.isExpanded(file) ? "folder-open" : "folder";
-    return file instanceof TFile && file.extension === "md" ? "file-text" : "file";
+    if (!(file instanceof TFile)) return "file";
+
+    const extension = file.extension.toLowerCase();
+    if (extension === "md") return "file-text";
+    // A vault's attachments are mostly pictures and recordings, and a row of
+    // identical blank sheets says nothing about which is which.
+    if (MEDIA_EXTENSIONS.has(extension)) return "photo";
+    return "file";
   }
 
   private scrollToRevealed(): void {
