@@ -52,7 +52,7 @@ const MEMORY_KEY = "schreibstube:explorer:view";
  *  cannot hold this. */
 const FOLDER_SEP = "\u001f";
 
-type SectionId = "bookmarks" | "latest" | "files";
+type SectionId = "pinned" | "bookmarks" | "latest" | "files";
 
 interface PaneMemory {
   /** Sections the person closed. Absent means open, which is the default. */
@@ -179,6 +179,7 @@ export class ExplorerPaneView extends ItemView {
     host.empty();
     const settings = this.host.settings();
 
+    this.renderPinned(host);
     if (settings.explorerBookmarksEnabled) this.renderBookmarks(host);
     if (settings.explorerLatestEnabled) this.renderLatest(host);
     this.renderFiles(host);
@@ -219,6 +220,63 @@ export class ExplorerPaneView extends ItemView {
     });
 
     return collapsed ? null : section.createDiv({ cls: "schreibstube-explorer-section-body" });
+  }
+
+  /**
+   * Everything pinned, wherever it lives.
+   *
+   * A pin also moves an item to the top of its own folder, but that is invisible
+   * from anywhere else: a note pinned four folders down sits at the top of a
+   * folder nobody has open. This section is where a pin is worth setting.
+   *
+   * It is drawn only when something is pinned, so a vault that does not use
+   * pinning never pays a header for it.
+   */
+  private renderPinned(host: HTMLElement): void {
+    const controller = this.host?.explorer;
+    if (!controller) return;
+
+    const items = controller.pinnedItems().filter((file) => this.matchesQuery(file.name));
+    if (items.length === 0) return;
+
+    const body = this.renderSection(host, "pinned", "pinned");
+    if (!body) return;
+
+    for (const file of items) {
+      const isFolder = file instanceof TFolder;
+      const row = body.createDiv({ cls: "schreibstube-explorer-row is-pinned" });
+      row.style.paddingLeft = "4px";
+      row.setAttribute("title", file.path);
+      if (isFolder) row.addClass("is-folder");
+      if (this.app.workspace.getActiveFile()?.path === file.path) row.addClass("is-active");
+
+      row.createSpan({ cls: "schreibstube-explorer-twisty" });
+      applyIcon(row.createSpan({ cls: "schreibstube-explorer-glyph" }), this.glyphFor(file));
+      row.createSpan({ cls: "schreibstube-explorer-name", text: displayName(file) });
+      if (file instanceof TFile) this.renderBadge(row, file);
+
+      const more = row.createEl("button", {
+        cls: "schreibstube-explorer-more",
+        attr: { type: "button", "aria-label": t().explorer.menu.more }
+      });
+      applyIcon(more, "dots");
+      more.addEventListener("click", (event) => {
+        event.stopPropagation();
+        controller.showMenu(file, event);
+      });
+
+      row.addEventListener("contextmenu", (event) => {
+        event.preventDefault();
+        controller.showMenu(file, event);
+      });
+
+      // A pinned folder shows where it is rather than opening a second copy of
+      // the tree inside the section.
+      row.addEventListener("click", () => {
+        if (isFolder) this.revealFolder(file.path);
+        else void controller.open(file, false);
+      });
+    }
   }
 
   private renderBookmarks(host: HTMLElement): void {

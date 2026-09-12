@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- **A Pinned section at the top of the pane.** Pinning moved an item to the top of its own folder and nowhere else, which is invisible from the rest of the tree: a note pinned four folders down sat at the top of a folder nobody had open, and the pin read as having done nothing. Everything pinned now has a place of its own, in the order it was pinned, drawn only when something is pinned. A pinned folder in that section reveals itself in the tree rather than opening a second copy of it.
 - **A ribbon icon opens the file pane.** The pane is the one part of the plugin a person opens rather than runs, and reaching for the command palette to open a file list is a tax no other explorer charges. Obsidian's appearance settings hide the icon for anyone who would rather it were not there.
 
 ## 1.10.1 - 2026-09-12
@@ -29,6 +30,7 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- **A pinned row is marked in the tree**, so a pin is visible on a row that would have sorted near the top anyway.
 - **The pane remembers what was open.** Which folders and which sections, stored per device in Obsidian's local storage rather than in a synced file — what is open on a phone is not a thing a laptop should inherit, and it is not worth a sync conflict. Folder expansion was previously lost on every restart.
 
 ## 1.9.0 - 2026-09-12

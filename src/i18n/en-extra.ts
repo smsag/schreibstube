@@ -240,9 +240,9 @@ export const enExtra = {
     title: "Schreibstube files",
     empty: "This vault has no files yet.",
     searchPlaceholder: "Filter files…",
-    pinnedSection: "Pinned",
 
     sections: {
+      pinned: "Pinned",
       bookmarks: "Bookmarks",
       latest: "Latest",
       files: "Files and folders"

@@ -212,11 +212,11 @@ What the bridge does and the plugin does not: rendering the Markdown, holding th
 
 A file list of Schreibstube's own, opened from the ribbon icon in the left sidebar or with **Open file pane**. It exists because three things cannot be done to Obsidian's explorer from a plugin without fighting it: an icon per item, a mark for sync state, and an order that puts pinned files first.
 
-The pane has three sections, each one collapsible, each remembering whether it was open on that device: **Bookmarks**, **Latest**, and **Files and folders**.
+The pane has four sections, each one collapsible, each remembering whether it was open on that device: **Pinned**, **Bookmarks**, **Latest**, and **Files and folders**. Pinned is drawn only when something is pinned.
 
 - **Icons.** Right-click, or long-press on a phone, and pick from 172 icons grouped by what they are for — documents, folders, property, business, status. The set is a subsetted [Tabler](https://tabler.io/icons) webfont carried inside the bundle, so it works offline and on mobile, with no request to a CDN.
 - **Sync marks.** A note bound to a source shows what its mirror is doing: in sync, changes waiting from the poll, never checked, or a source that cannot be fetched. Shape carries the state and colour only reinforces it. Nothing is shown while document sync is off.
-- **Pinning.** A pinned file or folder sits at the top of its folder, in the order it was pinned. Everything below keeps Obsidian's own arrangement: folders first, then files, numeric-aware so `Objekt 2` precedes `Objekt 10`.
+- **Pinning.** Everything pinned appears in a **Pinned** section at the top of the pane, in the order it was pinned, wherever in the vault it lives. A pinned item also sits at the top of its own folder in the tree. Everything below keeps Obsidian's own arrangement: folders first, then files, numeric-aware so `Objekt 2` precedes `Objekt 10`.
 
 The context menu is the pane's own, in a fixed order: open, icon and pin, sync, create, rename and delete. Items other plugins contribute land behind one **More actions** entry at the end rather than in blocks between the actions — the pane fires Obsidian's `file-menu` event, so a plugin that adds to the file explorer's menu adds to this one without knowing the pane exists.
 

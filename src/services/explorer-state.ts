@@ -351,6 +351,21 @@ export function mergeExplorerData(mine: ExplorerData, theirs: ExplorerData): Exp
 }
 
 /**
+ * Everything pinned, in the order it was pinned.
+ *
+ * A pin moves an item to the top of its own folder, which is invisible from
+ * anywhere else in the tree: a note pinned four folders down is at the top of a
+ * folder nobody has open. This is what the pane's pinned section draws, so a
+ * pin means something from the moment it is set.
+ */
+export function pinnedPaths(data: ExplorerData): string[] {
+  return Object.entries(data.entries)
+    .filter(([, entry]) => entry.orphanedAt === undefined && entry.pinnedAt !== undefined)
+    .sort(([, a], [, b]) => (a.pinnedAt ?? 0) - (b.pinnedAt ?? 0))
+    .map(([path]) => path);
+}
+
+/**
  * The order a folder's children are shown in.
  *
  * Pinned items first, in the order they were pinned, so a pin does not move

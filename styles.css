@@ -467,6 +467,12 @@
   background: var(--text-selection);
 }
 
+/* A pinned row is worth recognising at a glance; the pin glyph alone is easy
+   to miss on a row that would have sorted near the top anyway. */
+.schreibstube-explorer-row.is-pinned {
+  box-shadow: inset 2px 0 0 0 var(--text-accent);
+}
+
 .schreibstube-explorer-empty {
   color: var(--text-muted);
   padding: var(--schreibstube-padding);

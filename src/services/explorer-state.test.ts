@@ -13,6 +13,7 @@ import {
   serializeExplorerData,
   setIcon,
   setPinned,
+  pinnedPaths,
   sortSiblings,
   type ExplorerData,
   type ExplorerNode
@@ -270,6 +271,29 @@ describe("mergeExplorerData", () => {
 
     expect(iconFor(mergeExplorerData(cleared, stale), "a.md")).toBeUndefined();
     expect(iconFor(mergeExplorerData(stale, cleared), "a.md")).toBeUndefined();
+  });
+});
+
+describe("pinnedPaths", () => {
+  it("lists what is pinned, in the order it was pinned", () => {
+    let data = setPinned(emptyExplorerData(), "Zebra.md", true, T0 + MINUTE);
+    data = setPinned(data, "Objekte/Haus.md", true, T0);
+    data = setIcon(data, "Nicht angeheftet.md", "star", T0);
+
+    expect(pinnedPaths(data)).toEqual(["Objekte/Haus.md", "Zebra.md"]);
+  });
+
+  it("leaves out what was unpinned and what went missing", () => {
+    let data = setPinned(emptyExplorerData(), "a.md", true, T0);
+    data = setPinned(data, "b.md", true, T0);
+    data = setPinned(data, "a.md", false, T0 + MINUTE);
+    data = markMissing(data, "b.md", T0 + MINUTE);
+
+    expect(pinnedPaths(data)).toEqual([]);
+  });
+
+  it("finds nothing in an empty vault", () => {
+    expect(pinnedPaths(emptyExplorerData())).toEqual([]);
   });
 });
 
