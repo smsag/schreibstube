@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## 1.15.3 - 2026-09-12
+
+### Fixed
+
+- **A long press no longer opens the context menu twice.** A press on a touch screen asks for the menu twice over: once when the pane's own timer elapses at half a second, and again when the browser passes its own threshold and raises a context menu of its own. A short press only ever reached the first, which is why this showed up on a long one. Both mean the same press, so the second is turned away — in the one method every way of opening the menu goes through, rather than in each handler. A different row always opens, however quickly it is asked for.
+
 ## 1.15.2 - 2026-09-12
 
 ### Fixed
