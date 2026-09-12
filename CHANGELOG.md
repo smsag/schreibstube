@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- **Opening the pane shows the file you are editing.** A note is usually reached some other way — the quick switcher, a link, a search hit — and the pane would open on whatever folders happened to be left open, with no sign of the note in front of you. It now opens the folders above that file and scrolls to it, both when the pane is first opened and when an already open one is brought forward. Only folders are opened, never closed, so your own arrangement survives.
 - **The filter field can be emptied with one click.** A small cross appears inside the field once there is something in it, and clearing puts the cursor back in the field, since the reason to clear it is usually to type something else. It is not there while the field is empty, because there would be nothing for it to do.
 
 ### Fixed

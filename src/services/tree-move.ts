@@ -54,6 +54,25 @@ export function isUnder(path: string, folder: string): boolean {
   return folder.length === 0 ? path.length > 0 : path.startsWith(`${folder}/`);
 }
 
+/**
+ * Every folder above a path, outermost first.
+ *
+ * What a reveal has to open to put a row on screen. The path's own segment is
+ * not included: revealing a file opens the folders holding it, not the file.
+ */
+export function ancestorsOf(path: string): string[] {
+  const parts = path.split("/");
+  parts.pop();
+
+  const ancestors: string[] = [];
+  let current = "";
+  for (const part of parts) {
+    current = current.length > 0 ? `${current}/${part}` : part;
+    ancestors.push(current);
+  }
+  return ancestors;
+}
+
 export function parentOf(path: string): string {
   const cut = path.lastIndexOf("/");
   return cut === -1 ? "" : path.slice(0, cut);

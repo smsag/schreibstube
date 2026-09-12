@@ -39,7 +39,13 @@ import {
   type BookmarkFolder
 } from "../services/bookmark-file";
 import type { LatestCandidate } from "../services/latest-files";
-import { isMovePlan, planMove, type MoveContext, type MoveRefusal } from "../services/tree-move";
+import {
+  ancestorsOf,
+  isMovePlan,
+  planMove,
+  type MoveContext,
+  type MoveRefusal
+} from "../services/tree-move";
 import type { SchreibstubeSettings } from "../types";
 import { applyIcon, installIconFont } from "./icon-font";
 import { SCHREIBSTUBE_ICON } from "./schreibstube-icon";
@@ -231,6 +237,7 @@ export class ExplorerPaneView extends ItemView {
     this.registerEvent(this.app.workspace.on("css-change", () => this.measureGround()));
 
     this.measureGround();
+    this.revealActiveFile();
 
     this.render();
   }
@@ -249,6 +256,29 @@ export class ExplorerPaneView extends ItemView {
   revealFolder(path: string): void {
     for (const ancestor of ancestorsOf(path)) this.expanded.add(ancestor);
     this.expanded.add(path);
+    this.reveal(path);
+  }
+
+  /**
+   * Put the file being edited on screen, wherever in the vault it lives.
+   *
+   * A note is usually reached by some other route — the quick switcher, a link,
+   * a search hit — and the pane would then open showing whatever folders
+   * happened to be left open, with no sign of the note in front of the person.
+   * Opening the pane answers "where am I" as well as "what is there".
+   *
+   * Only the folders above the file are opened. Nothing is collapsed, so a
+   * person's own arrangement survives.
+   */
+  revealActiveFile(): void {
+    const path = this.app.workspace.getActiveFile()?.path;
+    if (!path) return;
+
+    for (const ancestor of ancestorsOf(path)) this.expanded.add(ancestor);
+    this.reveal(path);
+  }
+
+  private reveal(path: string): void {
     this.collapsedSections.delete("files");
     this.writeMemory();
 
@@ -1190,20 +1220,6 @@ function toSet(value: unknown): Set<string> {
   return new Set(
     Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === "string") : []
   );
-}
-
-/** Every folder above a path, outermost first. */
-function ancestorsOf(path: string): string[] {
-  const parts = path.split("/");
-  parts.pop();
-
-  const ancestors: string[] = [];
-  let current = "";
-  for (const part of parts) {
-    current = current.length > 0 ? `${current}/${part}` : part;
-    ancestors.push(current);
-  }
-  return ancestors;
 }
 
 function basenameOf(path: string): string {
