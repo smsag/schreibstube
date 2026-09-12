@@ -403,6 +403,14 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Obsidian pads a leaf's content box (12px at the sides, 32px at the foot).
+   That inset would keep the "Files and folders" band from reaching the edges
+   and would strand the footer above a gap, so this view takes the padding over
+   and spends it on its own grid instead. */
+.workspace-leaf-content[data-type="schreibstube-explorer"] .view-content {
+  padding: 0;
+}
+
 .schreibstube-explorer {
   /* The grid the whole pane sits on. A row is a 12px chevron slot, a 7px gap
      and then its content, so every icon at a given depth lines up with every
@@ -446,15 +454,19 @@
   margin-top: 8px;
 }
 
-.schreibstube-explorer-section-header {
+.schreibstube-explorer .schreibstube-explorer-section-header {
   display: flex;
   align-items: center;
+  /* `button` sets this to center, which would put every header's label in the
+     middle of the pane. */
+  justify-content: flex-start;
   gap: var(--schreibstube-row-gap);
   width: 100%;
   height: 24px;
   padding: 0 var(--schreibstube-row-inset);
-  background: none;
+  background-color: transparent;
   border: none;
+  border-radius: 0;
   box-shadow: none;
   cursor: pointer;
   color: var(--text-muted);
@@ -467,7 +479,7 @@
 
 /* The one header that separates two kinds of thing: the curated lists above
    it and the vault below. It is a band across the pane rather than a label. */
-.schreibstube-explorer-section-header.is-divider {
+.schreibstube-explorer .schreibstube-explorer-section-header.is-divider {
   margin: 10px 0 4px;
   background: var(--background-modifier-border-hover, var(--background-modifier-hover));
   border-top: 1px solid var(--background-modifier-border);
@@ -475,12 +487,12 @@
   color: var(--text-muted);
 }
 
-.schreibstube-explorer-section-header:hover {
+.schreibstube-explorer .schreibstube-explorer-section-header:hover {
   background: var(--background-modifier-hover);
   color: var(--text-normal);
 }
 
-.schreibstube-explorer-section-header.is-divider:hover {
+.schreibstube-explorer .schreibstube-explorer-section-header.is-divider:hover {
   color: var(--text-normal);
 }
 
@@ -590,11 +602,13 @@
   color: var(--text-error);
 }
 
-.schreibstube-explorer-delete,
-.schreibstube-explorer-more {
+.schreibstube-explorer .schreibstube-explorer-delete,
+.schreibstube-explorer .schreibstube-explorer-more {
   flex: 0 0 auto;
   display: flex;
   align-items: center;
+  justify-content: center;
+  height: 20px;
   padding: 0 4px;
   border: none;
   box-shadow: none;
@@ -604,21 +618,24 @@
 
 /* The trash stands free in the danger colour; the menu button is the neutral
    chip. Neither deletes anything: the trash opens the confirmation. */
-.schreibstube-explorer-delete {
-  background: transparent;
+/* Free-standing, with no chip behind it, so the danger colour is the only
+   thing that marks it out. */
+.schreibstube-explorer .schreibstube-explorer-delete {
+  background-color: transparent;
+  border-radius: 0;
   color: var(--text-error);
 }
 
-.schreibstube-explorer-more {
-  background: var(--background-modifier-border);
+.schreibstube-explorer .schreibstube-explorer-more {
+  background-color: var(--background-modifier-border);
   border-radius: 4px;
   color: var(--text-muted);
 }
 
-.schreibstube-explorer-row:hover .schreibstube-explorer-delete,
-.schreibstube-explorer-row:hover .schreibstube-explorer-more,
-.schreibstube-explorer-delete:focus-visible,
-.schreibstube-explorer-more:focus-visible {
+.schreibstube-explorer .schreibstube-explorer-row:hover .schreibstube-explorer-delete,
+.schreibstube-explorer .schreibstube-explorer-row:hover .schreibstube-explorer-more,
+.schreibstube-explorer .schreibstube-explorer-delete:focus-visible,
+.schreibstube-explorer .schreibstube-explorer-more:focus-visible {
   opacity: 1;
 }
 
@@ -648,20 +665,22 @@
   color: var(--text-muted);
 }
 
-.schreibstube-explorer-footer-button {
+.schreibstube-explorer .schreibstube-explorer-footer-button {
   flex: 0 0 auto;
   display: flex;
   align-items: center;
+  justify-content: center;
   padding: 0;
-  background: none;
+  background-color: transparent;
   border: none;
+  border-radius: 0;
   box-shadow: none;
   cursor: pointer;
   font-size: var(--schreibstube-glyph-size);
   color: var(--icon-color, var(--text-muted));
 }
 
-.schreibstube-explorer-footer-button:hover {
+.schreibstube-explorer .schreibstube-explorer-footer-button:hover {
   color: var(--text-normal);
 }
 
