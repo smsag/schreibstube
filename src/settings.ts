@@ -8,11 +8,13 @@ import {
   MAX_CHUNK_CHARS,
   MAX_CONCURRENCY,
   MAX_IMAGE_PX,
+  MAX_MAIL_RESULTS,
   MAX_PROOFREAD_TOKENS,
   MAX_SUMMARY_TOKENS,
   MIN_CHUNK_CHARS,
   MIN_CONCURRENCY,
   MIN_IMAGE_PX,
+  MIN_MAIL_RESULTS,
   MIN_PROOFREAD_TOKENS,
   MIN_SUMMARY_TOKENS,
   normalizeSettings
@@ -561,6 +563,107 @@ export class SchreibstubeSettingTab extends PluginSettingTab {
     if (this.plugin.settings.syncPollEnabled) {
       this.renderPollSchedule(containerEl);
     }
+
+    new Setting(containerEl).setName("Email").setHeading();
+
+    new Setting(containerEl).setDesc(
+      "Email runs through a small self-hosted bridge (see bridge/ in the repository), " +
+        "which speaks IMAP and SMTP on the plugin's behalf. The bridge holds the mailbox " +
+        "password; the plugin only stores the bridge token, so mail credentials never " +
+        "enter the vault. This is also what makes the mail commands work on mobile."
+    );
+
+    new Setting(containerEl)
+      .setName("Bridge URL")
+      .setDesc("Base URL of your deployed bridge, e.g. https://mail-bridge.sliplane.app")
+      .addText((text) => {
+        text.setPlaceholder("https://…");
+        text.setValue(this.plugin.settings.mailBridgeUrl);
+        text.onChange(async (value) => {
+          this.plugin.settings = normalizeSettings({
+            ...this.plugin.settings,
+            mailBridgeUrl: value,
+          });
+          await this.plugin.saveSettings();
+        });
+      });
+
+    new Setting(containerEl)
+      .setName("Bridge token")
+      .setDesc("The BRIDGE_TOKEN configured on the bridge. Stored in Obsidian's secret storage.")
+      .addComponent((el) =>
+        new SecretComponent(this.app, el)
+          .setValue(this.plugin.settings.mailTokenSecretName)
+          .onChange(async (value) => {
+            this.plugin.settings = normalizeSettings({
+              ...this.plugin.settings,
+              mailTokenSecretName: value,
+            });
+            await this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(containerEl)
+      .setName("From address")
+      .setDesc("Optional. Overrides the bridge's MAIL_FROM — use for a second identity.")
+      .addText((text) => {
+        text.setPlaceholder("Name <you@your-domain.de>");
+        text.setValue(this.plugin.settings.mailFrom);
+        text.onChange(async (value) => {
+          this.plugin.settings = normalizeSettings({
+            ...this.plugin.settings,
+            mailFrom: value,
+          });
+          await this.plugin.saveSettings();
+        });
+      });
+
+    new Setting(containerEl)
+      .setName("Mailbox")
+      .setDesc("IMAP mailbox searched by the query and reply commands.")
+      .addText((text) => {
+        text.setPlaceholder("INBOX");
+        text.setValue(this.plugin.settings.mailMailbox);
+        text.onChange(async (value) => {
+          this.plugin.settings = normalizeSettings({
+            ...this.plugin.settings,
+            mailMailbox: value,
+          });
+          await this.plugin.saveSettings();
+        });
+      });
+
+    new Setting(containerEl)
+      .setName("Maximum results")
+      .setDesc("Number of messages a search returns. Only the newest matches are kept.")
+      .addSlider((slider) => {
+        slider
+          .setDynamicTooltip()
+          .setLimits(MIN_MAIL_RESULTS, MAX_MAIL_RESULTS, 1)
+          .setValue(this.plugin.settings.mailMaxResults)
+          .onChange(async (value) => {
+            this.plugin.settings = normalizeSettings({
+              ...this.plugin.settings,
+              mailMaxResults: value,
+            });
+            await this.plugin.saveSettings();
+          });
+      });
+
+    new Setting(containerEl)
+      .setName("Merge heading")
+      .setDesc("Fetched replies are appended under this heading in the note.")
+      .addText((text) => {
+        text.setPlaceholder("Correspondence");
+        text.setValue(this.plugin.settings.mailMergeHeading);
+        text.onChange(async (value) => {
+          this.plugin.settings = normalizeSettings({
+            ...this.plugin.settings,
+            mailMergeHeading: value,
+          });
+          await this.plugin.saveSettings();
+        });
+      });
 
     new Setting(containerEl).setName("Diagnostics").setHeading();
 

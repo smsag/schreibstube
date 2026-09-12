@@ -17,6 +17,8 @@ pnpm-debug.log*
 # Environment files
 .env
 .env.*
+# ...but the bridge's template must ship.
+!bridge/.env.example
 
 # Editor and OS files
 .DS_Store

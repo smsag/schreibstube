@@ -1,4 +1,5 @@
 import { requestUrl } from "obsidian";
+import { withTimeout } from "../utils/with-timeout";
 import type { LlmProvider } from "../types";
 import {
   REQUEST_TIMEOUT_MS,
@@ -22,7 +23,7 @@ export async function sendRequest(provider: LlmProvider, request: BuiltRequest):
       throw: false
     }),
     REQUEST_TIMEOUT_MS,
-    providerLabel(provider)
+    (seconds) => `${providerLabel(provider)}: request timed out after ${seconds}s.`
   );
 
   if (response.status < 200 || response.status >= 300) {
@@ -30,18 +31,4 @@ export async function sendRequest(provider: LlmProvider, request: BuiltRequest):
   }
 
   return parseResponse(provider, response.json);
-}
-
-function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
-  let timer = 0;
-  const timeout = new Promise<never>((_, reject) => {
-    timer = window.setTimeout(
-      () => reject(new Error(`${label}: request timed out after ${Math.round(ms / 1000)}s.`)),
-      ms
-    );
-  });
-  return Promise.race([
-    promise.finally(() => window.clearTimeout(timer)),
-    timeout
-  ]);
 }

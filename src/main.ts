@@ -21,6 +21,7 @@ import { createGlossaryUnderlineExtension } from "./processors/glossary-underlin
 import { compileGlossaries } from "./services/glossary-matcher";
 import { minuteOf, parseCron, previousRun, shouldFire } from "./services/cron";
 import { REVIEW_VIEW_TYPE, ReviewPanelView } from "./ui/review-panel";
+import { MailCommands } from "./controllers/mail-commands";
 import { SchreibstubeSettingTab } from "./settings";
 import type { FocusMode, HeadingEntry, SchreibstubeSettings } from "./types";
 
@@ -47,6 +48,7 @@ export default class SchreibstubePlugin extends Plugin {
   private proofread: ProofreadController | null = null;
   /** Guards against firing twice inside one scheduled minute. */
   private lastPollMinute = -1;
+  private mail: MailCommands | null = null;
 
   async onload(): Promise<void> {
     await this.loadSettings();
@@ -59,6 +61,7 @@ export default class SchreibstubePlugin extends Plugin {
 
     this.linkMode = new LinkModeController(this.app, this.logger);
     this.llm = new LlmCommands(this.app, () => this.settings, this.logger);
+    this.mail = new MailCommands(this.app, () => this.settings, this.logger);
     this.proofread = new ProofreadController(this.app, () => this.settings, this.logger, {
       get: (path) => this.settings.syncState[path],
       set: async (path, record) => {
@@ -352,6 +355,24 @@ export default class SchreibstubePlugin extends Plugin {
       callback: () => {
         void this.activateReviewPanel().then(() => this.proofread?.handlers().onCheckSource());
       },
+    });
+
+    this.addCommand({
+      id: "send-note-as-email",
+      name: "Send note as email",
+      callback: () => { void this.mail?.sendNoteAsEmail(); },
+    });
+
+    this.addCommand({
+      id: "query-mailbox",
+      name: "Query mailbox",
+      callback: () => { void this.mail?.queryMailbox(); },
+    });
+
+    this.addCommand({
+      id: "fetch-replies",
+      name: "Fetch replies into note",
+      callback: () => { void this.mail?.fetchReplies(); },
     });
 
     this.addCommand({
