@@ -17,6 +17,8 @@
  * already-parsed frontmatter object from the metadata cache.
  */
 
+import { t } from "../i18n";
+
 /* Every key is `schreibstube`-prefixed camelCase, the rule the rest of the
  * plugin follows: Obsidian frontmatter is one flat namespace shared with other
  * plugins and with the user's own properties, and bare `to` or `subject` would
@@ -92,19 +94,19 @@ export function validateSendable(fields: MailFields): SendableResult {
   if (fields.to.length === 0 && fields.cc.length === 0) {
     return {
       ok: false,
-      message: `add a "${FM_TO}:" recipient to the note's frontmatter first.`
+      message: t().mailNotices.needsRecipient(FM_TO)
     };
   }
 
   const invalid = [...fields.to, ...fields.cc].filter((address) => !looksLikeAddress(address));
   if (invalid.length > 0) {
-    return { ok: false, message: `not a valid email address: ${invalid.join(", ")}` };
+    return { ok: false, message: t().mailNotices.invalidRecipient(invalid.join(", ")) };
   }
 
   if (!fields.subject) {
     return {
       ok: false,
-      message: `add a "${FM_SUBJECT}:" line to the note's frontmatter first.`
+      message: t().mailNotices.needsSubject(FM_SUBJECT)
     };
   }
 

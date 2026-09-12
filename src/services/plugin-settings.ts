@@ -1,4 +1,5 @@
 import type { LlmProvider, PublishAccount, SchreibstubeSettings } from "../types";
+import type { LanguagePreference } from "../i18n";
 import type { SyncRecord } from "./sync-document";
 import {
   DEFAULT_SETTINGS as DEFAULT_FOCUS_SETTINGS,
@@ -59,6 +60,7 @@ export const DEFAULT_PROOFREAD_PROMPT =
 const ALLOWED_PROVIDERS = new Set<LlmProvider>(LLM_PROVIDER_IDS);
 
 export const DEFAULT_SETTINGS: SchreibstubeSettings = {
+  language: "auto",
   ...DEFAULT_FOCUS_SETTINGS,
   overlayEnabled: true,
   llmProvider: "anthropic",
@@ -128,6 +130,7 @@ export function normalizeSettings(loaded: LoadedSettings): SchreibstubeSettings 
 
   return {
     ...focus,
+    language: languageOrDefault(loaded?.language),
     overlayEnabled:
       typeof loaded?.overlayEnabled === "boolean"
         ? loaded.overlayEnabled
@@ -285,6 +288,10 @@ function publishAccountsOrDefault(value: unknown): PublishAccount[] {
   }
 
   return accounts;
+}
+
+function languageOrDefault(value: unknown): LanguagePreference {
+  return value === "de" || value === "en" || value === "auto" ? value : DEFAULT_SETTINGS.language;
 }
 
 /** Sync state is plugin-written, but it lives in the same data file a user can

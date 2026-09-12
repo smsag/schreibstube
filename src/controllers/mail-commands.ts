@@ -1,6 +1,7 @@
 import { MarkdownView, Notice, type App, type TFile } from "obsidian";
 import type { SchreibstubeSettings } from "../types";
 import type { Logger } from "../services/logger";
+import { t } from "../i18n";
 import { resolveApiKey } from "../services/secret";
 import { searchMail, sendMail } from "../services/mail-client";
 import { normalizeBaseUrl } from "../services/bridge-protocol";
@@ -70,7 +71,7 @@ export class MailCommands {
     const content = await this.app.vault.read(file);
     const body = stripFrontmatter(content).trim();
     if (!body) {
-      new Notice("Schreibstube: the note has no body to send.");
+      new Notice(t().common.notice(t().mailNotices.noBody));
       return;
     }
 
@@ -96,7 +97,7 @@ export class MailCommands {
   ): Promise<void> {
     await this.withBusy("send", async () => {
       const settings = this.getSettings();
-      const progress = new Notice("Schreibstube: sending…", 0);
+      const progress = new Notice(t().common.notice(t().mailNotices.sending), 0);
 
       let result: SendResult;
       try {
@@ -108,7 +109,7 @@ export class MailCommands {
           from: settings.mailFrom || undefined
         });
       } catch (err) {
-        this.fail("send", "Schreibstube: send failed", err);
+        this.fail("send", t().mailNotices.failSend, err);
         return;
       } finally {
         progress.hide();
@@ -135,9 +136,7 @@ export class MailCommands {
 
       this.logger.debug("Sent note as email:", result.messageId);
       new Notice(
-        result.filedInSent
-          ? "Schreibstube: email sent."
-          : "Schreibstube: email sent (no copy filed in Sent)."
+        t().common.notice(result.filedInSent ? t().mailNotices.sent : t().mailNotices.sentNoCopy)
       );
     });
   }
@@ -157,25 +156,25 @@ export class MailCommands {
 
   private async performQuery(bridge: MailBridgeConfig, criteria: SearchCriteria): Promise<void> {
     if (!hasCriteria(criteria)) {
-      new Notice("Schreibstube: enter at least one search criterion.");
+      new Notice(t().common.notice(t().mailNotices.noCriteria));
       return;
     }
 
     await this.withBusy("search", async () => {
-      const progress = new Notice("Schreibstube: searching mailbox…", 0);
+      const progress = new Notice(t().common.notice(t().mailNotices.searching), 0);
 
       let messages: MailMessage[];
       try {
         messages = await this.runSearch(bridge, criteria);
       } catch (err) {
-        this.fail("search", "Schreibstube: mailbox search failed", err);
+        this.fail("search", t().mailNotices.failSearch, err);
         return;
       } finally {
         progress.hide();
       }
 
       if (messages.length === 0) {
-        new Notice("Schreibstube: no messages matched.");
+        new Notice(t().common.notice(t().mailNotices.noMessages));
         return;
       }
 
@@ -205,7 +204,7 @@ export class MailCommands {
     const fields = this.readFields(file);
     const messageId = fields.messageId;
     if (!messageId) {
-      new Notice(`Schreibstube: this note has no ${FM_MESSAGE_ID} — send it as an email first.`);
+      new Notice(t().common.notice(t().mailNotices.needsMessageId(FM_MESSAGE_ID)));
       return;
     }
 
@@ -214,13 +213,13 @@ export class MailCommands {
     // append the same replies twice.
     await this.withBusy("fetch replies", async () => {
       const settings = this.getSettings();
-      const progress = new Notice("Schreibstube: searching mailbox…", 0);
+      const progress = new Notice(t().common.notice(t().mailNotices.searching), 0);
 
       let messages: MailMessage[];
       try {
         messages = await this.runSearch(bridge, { references: messageId });
       } catch (err) {
-        this.fail("fetch replies", "Schreibstube: mailbox search failed", err);
+        this.fail("fetch replies", t().mailNotices.failSearch, err);
         return;
       } finally {
         progress.hide();
@@ -228,7 +227,7 @@ export class MailCommands {
 
       const fresh = selectUnmerged(messages, fields.mergedIds);
       if (fresh.length === 0) {
-        new Notice("Schreibstube: no new replies.");
+        new Notice(t().common.notice(t().mailNotices.noReplies));
         return;
       }
 
@@ -240,7 +239,7 @@ export class MailCommands {
           appendToSection(data, settings.mailMergeHeading, formatMessages(fresh))
         );
       } catch (err) {
-        this.fail("fetch replies", "Schreibstube: merging replies failed", err);
+        this.fail("fetch replies", t().mailNotices.failMerge, err);
         return;
       }
 
@@ -264,7 +263,7 @@ export class MailCommands {
       }
 
       this.logger.debug(`Merged ${fresh.length} new message(s) into`, file.path);
-      new Notice(`Schreibstube: merged ${fresh.length} new message(s).`);
+      new Notice(t().common.notice(t().mailNotices.merged(fresh.length)));
     });
   }
 
@@ -292,7 +291,7 @@ export class MailCommands {
   private insertMessage(message: MailMessage): void {
     const view = this.app.workspace.getActiveViewOfType(MarkdownView);
     if (!view) {
-      new Notice("Schreibstube: open a note in editing mode to insert the message.");
+      new Notice(t().common.notice(t().mailNotices.needsEditor));
       return;
     }
     view.editor.replaceSelection(`${formatMessage(message)}\n`);
@@ -328,7 +327,7 @@ export class MailCommands {
   private async withBusy(label: string, work: () => Promise<void>): Promise<void> {
     if (this.busy) {
       this.logger.debug(`Ignoring ${label}: another mail command is already running.`);
-      new Notice("Schreibstube: a mail command is already running — please wait.");
+      new Notice(t().common.notice(t().mailNotices.busy));
       return;
     }
     this.busy = true;

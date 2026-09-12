@@ -11,11 +11,11 @@ describe("resolveApiKey", () => {
     expect(result).toEqual({ ok: true, apiKey: "sk-123" });
   });
 
-  it("fails with a 'no secret selected' message when the name is empty", () => {
+  it("fails with a 'not selected' message when the name is empty", () => {
     const result = resolveApiKey(store({}), "");
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      expect(result.message).toMatch(/no secret selected/i);
+      expect(result.message).toMatch(/no API key selected/i);
     }
   });
 

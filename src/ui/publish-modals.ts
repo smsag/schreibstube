@@ -1,3 +1,4 @@
+import { t } from "../i18n";
 import { App, Modal, Setting, SuggestModal } from "obsidian";
 import type { PublishAccount } from "../types";
 import type { PublishPlan } from "../services/publish-protocol";
@@ -22,23 +23,26 @@ export class PublishPlanModal extends Modal {
   onOpen(): void {
     const { contentEl } = this;
     contentEl.empty();
-    contentEl.createEl("h3", { text: `Veröffentlichen: ${this.account.name}` });
+    contentEl.createEl("h3", { text: t().publish.planTitle(this.account.name) });
 
     const summary = contentEl.createEl("ul", { cls: "schreibstube-publish-summary" });
-    this.line(summary, `${this.plan.notes} Notiz(en) im Ordner ${this.account.folder}`);
-    this.line(summary, `${this.plan.uploadSources.length} Notiz(en) zu übertragen`);
-    this.line(summary, `${this.plan.uploadAssets.length} Medien zu übertragen`);
-    this.line(summary, `${this.plan.unchangedSources} unverändert`);
-    this.line(summary, `${this.plan.willDelete.length} Datei(en) werden gelöscht`);
+    this.line(summary, t().publish.planNotes(this.plan.notes, this.account.folder));
+    this.line(summary, t().publish.planUploadNotes(this.plan.uploadSources.length));
+    this.line(summary, t().publish.planUploadAssets(this.plan.uploadAssets.length));
+    this.line(summary, t().publish.planUnchanged(this.plan.unchangedSources));
+    this.line(summary, t().publish.planDelete(this.plan.willDelete.length));
 
     if (this.plan.willDelete.length > 0) {
-      contentEl.createEl("p", { text: "Wird gelöscht:", cls: "schreibstube-publish-heading" });
+      contentEl.createEl("p", {
+        text: t().publish.planDeleteHeading,
+        cls: "schreibstube-publish-heading"
+      });
       const list = contentEl.createEl("ul", { cls: "schreibstube-publish-list" });
       for (const path of this.plan.willDelete.slice(0, 20)) {
         list.createEl("li", { text: path });
       }
       if (this.plan.willDelete.length > 20) {
-        list.createEl("li", { text: `… und ${this.plan.willDelete.length - 20} weitere` });
+        list.createEl("li", { text: t().publish.planMore(this.plan.willDelete.length - 20) });
       }
     }
 
@@ -49,10 +53,10 @@ export class PublishPlanModal extends Modal {
 
     new Setting(contentEl).addButton((button) => {
       if (!this.onConfirm) {
-        return button.setButtonText("Schließen").onClick(() => this.close());
+        return button.setButtonText(t().common.close).onClick(() => this.close());
       }
       return button
-        .setButtonText("Veröffentlichen")
+        .setButtonText(t().publish.planConfirm)
         .setCta()
         .onClick(() => {
           this.close();
@@ -78,7 +82,7 @@ export class PublishAccountModal extends SuggestModal<PublishAccount> {
     private readonly onChoose: (account: PublishAccount) => void
   ) {
     super(app);
-    this.setPlaceholder("Konto wählen");
+    this.setPlaceholder(t().publish.chooseAccount);
   }
 
   getSuggestions(query: string): PublishAccount[] {

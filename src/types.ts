@@ -1,5 +1,6 @@
 import type { SyncRecord } from "./services/sync-document";
 import type { PublishKeyMap } from "./services/publish-index";
+import type { LanguagePreference } from "./i18n";
 
 export type HeadingLevel = 1 | 2 | 3 | 4 | 5 | 6;
 
@@ -27,6 +28,8 @@ export interface PublishAccount {
 }
 
 export interface SchreibstubeSettings {
+  /** Interface language; "auto" follows Obsidian's own. */
+  language: LanguagePreference;
   overlayEnabled: boolean;
   focusMode: FocusMode;
   focusDimOpacity: number;

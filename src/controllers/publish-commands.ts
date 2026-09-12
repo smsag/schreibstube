@@ -1,3 +1,4 @@
+import { t } from "../i18n";
 import { Notice, TFile, type App } from "obsidian";
 import type { PublishAccount, SchreibstubeSettings } from "../types";
 import type { Logger } from "../services/logger";
@@ -82,7 +83,7 @@ export class PublishCommands {
         // is the point of keeping the hosting configuration on the bridge.
         const target = (await listTargets(bridge)).find((entry) => entry.name === account.target);
         if (!target) {
-          new Notice(`Schreibstube: die Bridge kennt kein Ziel namens ${account.target}.`);
+          new Notice(t().common.notice(t().publish.unknownTarget(account.target)));
           return;
         }
         window.open(target.baseUrl, "_blank");
@@ -94,12 +95,12 @@ export class PublishCommands {
 
   private async run(account: PublishAccount, prepared: Prepared): Promise<void> {
     if (this.busy) {
-      new Notice("Schreibstube: eine Veröffentlichung läuft bereits.");
+      new Notice(t().common.notice(t().publish.busy));
       return;
     }
     this.busy = true;
 
-    const notice = new Notice("Schreibstube: Veröffentlichung läuft …", 0);
+    const notice = new Notice(t().common.notice(t().publish.running), 0);
     try {
       const { bridge, index, plan, sources, assets } = prepared;
 
@@ -109,30 +110,29 @@ export class PublishCommands {
       for (const entry of plan.uploadSources) {
         const content = sources.get(entry.sha256);
         if (!content) {
-          throw new Error(`die Quelle zu ${entry.sourcePath} fehlt — bitte erneut versuchen.`);
+          throw new Error(t().publish.missingSource(entry.sourcePath));
         }
         await uploadSource(bridge, account.target, entry.sha256, content);
         done += 1;
-        notice.setMessage(`Schreibstube: überträgt ${done}/${total} …`);
+        notice.setMessage(t().common.notice(t().publish.uploading(done, total)));
       }
 
       for (const entry of plan.uploadAssets) {
         const asset = assets.get(entry.sha256);
         if (!asset) {
-          throw new Error(`die Datei zu ${entry.sourcePath} fehlt — bitte erneut versuchen.`);
+          throw new Error(t().publish.missingSource(entry.sourcePath));
         }
         await uploadAsset(bridge, account.target, entry.sha256, asset.name, asset.content);
         done += 1;
-        notice.setMessage(`Schreibstube: überträgt ${done}/${total} …`);
+        notice.setMessage(t().common.notice(t().publish.uploading(done, total)));
       }
 
-      notice.setMessage("Schreibstube: baut die Website …");
+      notice.setMessage(t().common.notice(t().publish.building));
       const summary = await commitPublish(bridge, account.target, index);
 
       notice.hide();
       new Notice(
-        `Schreibstube: veröffentlicht — ${summary.written} geschrieben, ` +
-          `${summary.unchanged} unverändert, ${summary.deleted} gelöscht.`
+        t().common.notice(t().publish.done(summary.written, summary.unchanged, summary.deleted))
       );
       this.logger.debug("Publish finished.", summary);
 
@@ -142,7 +142,7 @@ export class PublishCommands {
     } catch (error) {
       notice.hide();
       const message = error instanceof Error ? error.message : String(error);
-      new Notice(`Schreibstube: Veröffentlichung fehlgeschlagen — ${message}`);
+      new Notice(t().common.notice(t().publish.failed(message)));
       this.logger.debug("Publish failed.", error);
     } finally {
       this.busy = false;
@@ -229,9 +229,7 @@ export class PublishCommands {
     }
 
     if (notes.length === 0) {
-      new Notice(
-        `Schreibstube: keine Notiz in ${account.folder} ist zur Veröffentlichung markiert.`
-      );
+      new Notice(t().common.notice(t().publish.noNotes(account.folder)));
       return null;
     }
 
@@ -284,9 +282,7 @@ export class PublishCommands {
         });
       } catch (error) {
         this.logger.debug(`Could not record the publish in ${note.sourcePath}.`, error);
-        new Notice(
-          `Schreibstube: veröffentlicht, aber ${note.sourcePath} konnte nicht aktualisiert werden.`
-        );
+        new Notice(t().common.notice(t().publish.writeBackFailed(note.sourcePath)));
       }
     }
   }
@@ -296,7 +292,7 @@ export class PublishCommands {
     const accounts = this.getSettings().publishAccounts;
 
     if (accounts.length === 0) {
-      new Notice("Schreibstube: kein Veröffentlichungs-Konto eingerichtet — siehe Einstellungen.");
+      new Notice(t().common.notice(t().publish.noAccount));
       return;
     }
     if (accounts.length === 1) {
@@ -327,7 +323,7 @@ export class PublishCommands {
     const token = resolveApiKey(
       this.app.secretStorage,
       settings.publishTokenSecretName,
-      "Publish-Token"
+      t().secrets.publishToken
     );
     if (!token.ok) {
       new Notice(token.message);

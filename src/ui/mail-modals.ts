@@ -1,3 +1,4 @@
+import { t } from "../i18n";
 import { App, Modal, Setting, SuggestModal } from "obsidian";
 import { formatIsoMinutes } from "../utils/format-date";
 import type { MailMessage, SearchCriteria } from "../services/mail-protocol";
@@ -21,19 +22,19 @@ export class MailSearchModal extends Modal {
   onOpen(): void {
     const { contentEl } = this;
     contentEl.empty();
-    contentEl.createEl("h3", { text: `Search ${this.mailbox}` });
+    contentEl.createEl("h3", { text: t().mail.searchTitle(this.mailbox) });
 
-    this.addField(contentEl, "From", "sender@example.com", (value) => {
+    this.addField(contentEl, t().mail.searchFrom, t().mail.searchPlaceholderFrom, (value) => {
       this.criteria.from = value;
     });
-    this.addField(contentEl, "Subject", "contains…", (value) => {
+    this.addField(contentEl, t().mail.searchSubject, t().mail.searchPlaceholderSubject, (value) => {
       this.criteria.subject = value;
     });
-    this.addField(contentEl, "Text", "anywhere in the message", (value) => {
+    this.addField(contentEl, t().mail.searchText, t().mail.searchPlaceholderText, (value) => {
       this.criteria.text = value;
     });
 
-    new Setting(contentEl).setName("Since").addText((text) => {
+    new Setting(contentEl).setName(t().mail.searchSince).addText((text) => {
       text.inputEl.type = "date";
       text.onChange((value) => {
         this.criteria.since = value;
@@ -42,7 +43,7 @@ export class MailSearchModal extends Modal {
 
     new Setting(contentEl).addButton((button) =>
       button
-        .setButtonText("Search")
+        .setButtonText(t().mail.search)
         .setCta()
         .onClick(() => this.submit())
     );
@@ -140,28 +141,26 @@ export class MailConfirmModal extends Modal {
   onOpen(): void {
     const { contentEl } = this;
     contentEl.empty();
-    contentEl.createEl("h3", { text: "Send note as email" });
+    contentEl.createEl("h3", { text: t().mail.confirmTitle });
 
-    new Setting(contentEl).setName("To").setDesc(this.details.to.join(", ") || "—");
+    new Setting(contentEl).setName(t().mail.confirmTo).setDesc(this.details.to.join(", ") || "—");
     if (this.details.cc.length > 0) {
-      new Setting(contentEl).setName("Cc").setDesc(this.details.cc.join(", "));
+      new Setting(contentEl).setName(t().mail.confirmCc).setDesc(this.details.cc.join(", "));
     }
-    new Setting(contentEl).setName("Subject").setDesc(this.details.subject);
+    new Setting(contentEl).setName(t().mail.confirmSubject).setDesc(this.details.subject);
 
     if (this.details.alreadySent) {
       contentEl.createEl("p", {
-        text:
-          "This note already has a message_id — it was sent before. " +
-          "Sending again delivers a second, separate email.",
+        text: t().mail.resendWarning,
         cls: "schreibstube-mail-warning"
       });
     }
 
     new Setting(contentEl)
-      .addButton((button) => button.setButtonText("Cancel").onClick(() => this.close()))
+      .addButton((button) => button.setButtonText(t().common.cancel).onClick(() => this.close()))
       .addButton((button) =>
         button
-          .setButtonText("Send")
+          .setButtonText(t().mail.send)
           .setCta()
           .onClick(() => {
             this.close();

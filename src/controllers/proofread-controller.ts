@@ -11,6 +11,7 @@
 import { MarkdownView, Notice, type App, type TFile } from "obsidian";
 import type { SchreibstubeSettings } from "../types";
 import type { Logger } from "../services/logger";
+import { t } from "../i18n";
 import { compileGlossaries, type GlossaryMatcher } from "../services/glossary-matcher";
 import {
   parseFolderRules,
@@ -222,7 +223,7 @@ export class ProofreadController {
 
   private async runGlossaryPass(): Promise<void> {
     if (this.activeEditorText() === null) {
-      new Notice("Schreibstube: keine Notiz im Editor geöffnet.");
+      new Notice(t().common.notice(t().ai.noNote));
       return;
     }
 
@@ -249,12 +250,12 @@ export class ProofreadController {
 
   private async runModelPass(): Promise<void> {
     if (this.activeEditorText() === null) {
-      new Notice("Schreibstube: keine Notiz im Editor geöffnet.");
+      new Notice(t().common.notice(t().ai.noNote));
       return;
     }
 
     if (this.running) {
-      new Notice("Schreibstube: es läuft bereits eine Korrektur.");
+      new Notice(t().common.notice(t().proofread.busy));
       return;
     }
 
@@ -319,7 +320,7 @@ export class ProofreadController {
     } catch (err) {
       this.logger.error("Proofread failed:", err);
       const detail = err instanceof Error ? err.message : "unbekannter Fehler";
-      new Notice(`Schreibstube: Korrektur fehlgeschlagen — ${detail}`);
+      new Notice(t().common.notice(t().proofread.failed(detail)));
       this.message = "Korrektur fehlgeschlagen.";
     } finally {
       if (this.running === token) {
@@ -347,7 +348,7 @@ export class ProofreadController {
   private applyBatch(batch: Suggestion[]): void {
     const view = this.resolveTargetView();
     if (!view) {
-      new Notice("Schreibstube: die geprüfte Notiz ist nicht mehr geöffnet.");
+      new Notice(t().common.notice(t().proofread.noteClosed));
       return;
     }
 
@@ -401,7 +402,7 @@ export class ProofreadController {
 
     const anchor = resolveAnchor(view.editor.getValue(), suggestion);
     if (!anchor) {
-      new Notice("Schreibstube: Stelle nicht mehr auffindbar.");
+      new Notice(t().common.notice(t().proofread.spotGone));
       return;
     }
 
@@ -631,7 +632,7 @@ export class ProofreadController {
 
     const raw = this.app.metadataCache.getFileCache(file)?.frontmatter?.[SYNC_FRONTMATTER_KEY];
     if (typeof raw !== "string" || raw.trim().length === 0) {
-      if (manual) new Notice("Schreibstube: diese Notiz ist an keine Quelle gebunden.");
+      if (manual) new Notice(t().common.notice(t().sync.notBound));
       return;
     }
 

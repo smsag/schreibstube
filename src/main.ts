@@ -21,6 +21,7 @@ import { REVIEW_VIEW_TYPE, ReviewPanelView } from "./ui/review-panel";
 import { MailCommands } from "./controllers/mail-commands";
 import { PublishCommands } from "./controllers/publish-commands";
 import { SchreibstubeSettingTab } from "./settings";
+import { setLanguage, t } from "./i18n";
 import type { FocusMode, HeadingEntry, SchreibstubeSettings } from "./types";
 
 /** How often the poll ticker wakes. Well under a minute so a scheduled minute
@@ -51,6 +52,8 @@ export default class SchreibstubePlugin extends Plugin {
 
   async onload(): Promise<void> {
     await this.loadSettings();
+    // Before anything builds a string: commands are named once, at registration.
+    setLanguage(this.settings.language);
     this.logger.debug("Loading Schreibstube.");
 
     this.refreshScheduler = new RefreshScheduler(
@@ -213,9 +216,7 @@ export default class SchreibstubePlugin extends Plugin {
     await this.saveSettings();
 
     if (summary && summary.withChanges > 0) {
-      new Notice(
-        `Schreibstube: ${summary.withChanges} Notiz(en) mit Aktualisierungen aus der Quelle.`
-      );
+      new Notice(t().common.notice(t().sync.withUpdates(summary.withChanges)));
     }
   }
 
@@ -282,7 +283,7 @@ export default class SchreibstubePlugin extends Plugin {
   private registerCommands(): void {
     this.addCommand({
       id: "set-focus-sentence-mode",
-      name: "Focus Mode: Sentence",
+      name: t().commands.focusSentence,
       callback: () => {
         void this.setFocusMode("sentence");
       }
@@ -290,7 +291,7 @@ export default class SchreibstubePlugin extends Plugin {
 
     this.addCommand({
       id: "set-focus-paragraph-mode",
-      name: "Focus Mode: Paragraph",
+      name: t().commands.focusParagraph,
       callback: () => {
         void this.setFocusMode("paragraph");
       }
@@ -298,7 +299,7 @@ export default class SchreibstubePlugin extends Plugin {
 
     this.addCommand({
       id: "disable-focus-mode",
-      name: "Focus Mode: Disable",
+      name: t().commands.focusDisable,
       callback: () => {
         void this.setFocusMode("off");
       }
@@ -306,7 +307,7 @@ export default class SchreibstubePlugin extends Plugin {
 
     this.addCommand({
       id: "rename-from-content",
-      name: "Rename file from content",
+      name: t().commands.renameFile,
       callback: () => {
         void this.llm?.renameFromContent();
       }
@@ -314,7 +315,7 @@ export default class SchreibstubePlugin extends Plugin {
 
     this.addCommand({
       id: "rename-image-from-content",
-      name: "Rename image from content",
+      name: t().commands.renameImage,
       callback: () => {
         void this.llm?.renameImageFromContent();
       }
@@ -322,7 +323,7 @@ export default class SchreibstubePlugin extends Plugin {
 
     this.addCommand({
       id: "summarize-selection",
-      name: "Summarize selection",
+      name: t().commands.summarize,
       editorCallback: () => {
         void this.llm?.summarizeSelection();
       }
@@ -330,7 +331,7 @@ export default class SchreibstubePlugin extends Plugin {
 
     this.addCommand({
       id: "open-review-panel",
-      name: "Open proof-read sidebar",
+      name: t().commands.openReview,
       callback: () => {
         void this.activateReviewPanel();
       }
@@ -338,7 +339,7 @@ export default class SchreibstubePlugin extends Plugin {
 
     this.addCommand({
       id: "proof-read-note",
-      name: "Proof-read note",
+      name: t().commands.proofread,
       editorCallback: () => {
         void this.activateReviewPanel().then(() => this.proofread?.handlers().onProofread());
       }
@@ -346,7 +347,7 @@ export default class SchreibstubePlugin extends Plugin {
 
     this.addCommand({
       id: "glossary-check-note",
-      name: "Check note against glossary",
+      name: t().commands.checkGlossary,
       editorCallback: () => {
         void this.activateReviewPanel().then(() => this.proofread?.handlers().onGlossaryCheck());
       }
@@ -354,15 +355,17 @@ export default class SchreibstubePlugin extends Plugin {
 
     this.addCommand({
       id: "poll-all-sources",
-      name: "Check all bound notes for updates",
+      name: t().commands.syncAll,
       callback: () => {
         void this.proofread?.pollAllSources("manual").then(async (summary) => {
           this.settings.syncLastPollAt = Date.now();
           await this.saveSettings();
           new Notice(
-            summary.checked === 0
-              ? "Schreibstube: keine gebundenen Notizen geprüft."
-              : `Schreibstube: ${summary.checked} geprüft, ${summary.withChanges} mit Aktualisierungen, ${summary.failed} fehlgeschlagen.`
+            t().common.notice(
+              summary.checked === 0
+                ? t().sync.noneChecked
+                : t().sync.checked(summary.checked, summary.withChanges, summary.failed)
+            )
           );
         });
       }
@@ -370,7 +373,7 @@ export default class SchreibstubePlugin extends Plugin {
 
     this.addCommand({
       id: "check-note-source",
-      name: "Check note source for updates",
+      name: t().commands.syncNote,
       callback: () => {
         void this.activateReviewPanel().then(() => this.proofread?.handlers().onCheckSource());
       }
@@ -378,7 +381,7 @@ export default class SchreibstubePlugin extends Plugin {
 
     this.addCommand({
       id: "send-note-as-email",
-      name: "Send note as email",
+      name: t().commands.sendMail,
       callback: () => {
         void this.mail?.sendNoteAsEmail();
       }
@@ -386,7 +389,7 @@ export default class SchreibstubePlugin extends Plugin {
 
     this.addCommand({
       id: "query-mailbox",
-      name: "Query mailbox",
+      name: t().commands.queryMailbox,
       callback: () => {
         void this.mail?.queryMailbox();
       }
@@ -394,7 +397,7 @@ export default class SchreibstubePlugin extends Plugin {
 
     this.addCommand({
       id: "fetch-replies",
-      name: "Fetch replies into note",
+      name: t().commands.fetchReplies,
       callback: () => {
         void this.mail?.fetchReplies();
       }
@@ -402,7 +405,7 @@ export default class SchreibstubePlugin extends Plugin {
 
     this.addCommand({
       id: "publish-folder",
-      name: "Veröffentlichen",
+      name: t().commands.publish,
       callback: () => {
         void this.publish?.publish();
       }
@@ -410,7 +413,7 @@ export default class SchreibstubePlugin extends Plugin {
 
     this.addCommand({
       id: "publish-preview",
-      name: "Veröffentlichung prüfen",
+      name: t().commands.publishPreview,
       callback: () => {
         void this.publish?.preview();
       }
@@ -418,7 +421,7 @@ export default class SchreibstubePlugin extends Plugin {
 
     this.addCommand({
       id: "publish-open-site",
-      name: "Website öffnen",
+      name: t().commands.openSite,
       callback: () => {
         void this.publish?.openSite();
       }
@@ -426,7 +429,7 @@ export default class SchreibstubePlugin extends Plugin {
 
     this.addCommand({
       id: "open-links-left",
-      name: "Open links to the left",
+      name: t().commands.linksLeft,
       callback: () => {
         this.linkMode?.setMode("left");
       }
@@ -434,7 +437,7 @@ export default class SchreibstubePlugin extends Plugin {
 
     this.addCommand({
       id: "open-links-right",
-      name: "Open links to the right",
+      name: t().commands.linksRight,
       callback: () => {
         this.linkMode?.setMode("right");
       }
@@ -442,7 +445,7 @@ export default class SchreibstubePlugin extends Plugin {
 
     this.addCommand({
       id: "open-links-default",
-      name: "Open links normally",
+      name: t().commands.linksNormal,
       callback: () => {
         this.linkMode?.setMode("default");
       }
