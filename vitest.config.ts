@@ -1,3 +1,4 @@
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
 
 /**
@@ -10,25 +11,39 @@ import { defineConfig } from "vitest/config";
  * counting their glue would only dilute the number.
  */
 export default defineConfig({
+  resolve: {
+    alias: {
+      // `obsidian` is a types-only dependency: there is no runtime module to
+      // import, which is why the controllers had no tests. The stub is the
+      // smallest surface they actually touch.
+      obsidian: fileURLToPath(new URL("./src/testing/obsidian-stub.ts", import.meta.url))
+    }
+  },
   test: {
     include: ["src/**/*.test.ts", "bridge/**/*.test.mjs"],
     exclude: ["**/node_modules/**"],
     coverage: {
       provider: "v8",
-      include: ["src/services/**/*.ts", "src/utils/**/*.ts", "bridge/**/*.mjs"],
+      include: [
+        "src/services/**/*.ts",
+        "src/utils/**/*.ts",
+        "src/controllers/publish-commands.ts",
+        "bridge/**/*.mjs"
+      ],
       exclude: [
         "**/*.test.ts",
         "**/*.test.mjs",
         "bridge/publish/sftp-fixture.mjs",
-        "src/services/workspace-internals.ts"
+        "src/services/workspace-internals.ts",
+        "src/testing/**"
       ],
       reporter: ["text-summary"],
       // A floor, not a target: it fails the build when a change takes the suite
       // backwards. Raise it when the number rises, never lower it to pass.
       thresholds: {
-        lines: 68,
+        lines: 70,
         functions: 85,
-        statements: 68,
+        statements: 70,
         branches: 85
       }
     }
