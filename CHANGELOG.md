@@ -7,6 +7,9 @@ All notable changes to this project will be documented in this file.
 ### Changed
 
 - **The pin and the sync mark sit against the name.** The name stretched across the row, which pushed both marks to the far right where they read as belonging to the row rather than to the file they describe. They now follow the last character with a hair of space, and the menu button takes the slack instead.
+- **The plugin's icon is drawn to the size the others are.** It covered 16 of its 24 units where Lucide, which every icon beside it in the ribbon comes from, covers about 20: Obsidian's own `folder` measures 91.7% of its box once the stroke counts, against 73.8% for the house. Among them it read as a smaller, lighter icon. The artwork is unchanged and the transform now carries the difference.
+- **A picture or a recording is drawn as one.** Every attachment shared the blank-sheet icon, so a folder of screenshots was a column of identical rows. The common image, video and audio extensions get the photo icon; everything else keeps the sheet.
+- **The Latest header shows a clock**, which is the icon the design names. It was drawing a history arrow.
 - **Created and Modified sit over the lists they name.** Both labels started at the row inset, a chevron's width to the left of every filename under them, so neither read as belonging to its list. They now begin in the icon column.
 - **The row's menu button lost its chip.** A filled background on a control that appears on hover is louder than the row it belongs to.
 

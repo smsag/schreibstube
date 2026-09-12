@@ -59,6 +59,27 @@ const MEMORY_KEY = "schreibstube:explorer:view";
  *  cannot hold this. */
 const FOLDER_SEP = "\u001f";
 
+/** Attachments drawn as a picture rather than a blank sheet. */
+const MEDIA_EXTENSIONS = new Set([
+  "png",
+  "jpg",
+  "jpeg",
+  "gif",
+  "webp",
+  "svg",
+  "bmp",
+  "avif",
+  "mp4",
+  "mov",
+  "webm",
+  "mkv",
+  "mp3",
+  "m4a",
+  "ogg",
+  "wav",
+  "flac"
+]);
+
 type SectionId = "pinned" | "bookmarks" | "latest" | "files";
 
 interface PaneMemory {
@@ -382,7 +403,7 @@ export class ExplorerPaneView extends ItemView {
 
   private renderLatest(host: HTMLElement): void {
     const sections = this.host?.sections;
-    const body = this.renderSection(host, "latest", "history");
+    const body = this.renderSection(host, "latest", "clock");
     if (!body || !sections) return;
 
     const { created, modified } = sections.latestFiles();
@@ -612,7 +633,14 @@ export class ExplorerPaneView extends ItemView {
     if (chosen) return chosen;
 
     if (file instanceof TFolder) return this.isExpanded(file) ? "folder-open" : "folder";
-    return file instanceof TFile && file.extension === "md" ? "file-text" : "file";
+    if (!(file instanceof TFile)) return "file";
+
+    const extension = file.extension.toLowerCase();
+    if (extension === "md") return "file-text";
+    // A vault's attachments are mostly pictures and recordings, and a row of
+    // identical blank sheets says nothing about which is which.
+    if (MEDIA_EXTENSIONS.has(extension)) return "photo";
+    return "file";
   }
 
   private scrollToRevealed(): void {
