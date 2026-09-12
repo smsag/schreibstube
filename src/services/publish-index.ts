@@ -11,8 +11,10 @@
  * Which frontmatter key carries which meaning.
  *
  * A vault that already has its own conventions should not have to adopt ours,
- * so every key is a setting. The defaults are what the plugin shipped with, so
- * a vault that never touches this keeps working.
+ * so every key is a setting. The defaults are therefore the plain names most
+ * vaults already use: a collision with another plugin's property is exactly
+ * what the mapping is there to resolve, and paying for it up front with a
+ * prefix would make the common case read worse.
  */
 export interface PublishKeyMap {
   published: string;
@@ -25,13 +27,13 @@ export interface PublishKeyMap {
 }
 
 export const DEFAULT_PUBLISH_KEYS: PublishKeyMap = {
-  published: "schreibstubePublished",
-  title: "schreibstubeTitle",
-  date: "schreibstubeDate",
-  description: "schreibstubeDescription",
-  slug: "schreibstubeSlug",
-  publishedAt: "schreibstubePublishedAt",
-  publishedUrl: "schreibstubePublishedUrl"
+  published: "published",
+  title: "title",
+  date: "date",
+  description: "description",
+  slug: "slug",
+  publishedAt: "publishedAt",
+  publishedUrl: "publishedUrl"
 };
 
 /** The roles in the order the settings tab shows them. */
