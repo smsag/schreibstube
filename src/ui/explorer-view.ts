@@ -311,7 +311,7 @@ export class ExplorerPaneView extends ItemView {
     if (!controller) return;
 
     const isFolder = file instanceof TFolder;
-    const row = host.createDiv({ cls: "schreibstube-explorer-row is-pinned" });
+    const row = host.createDiv({ cls: "schreibstube-explorer-row is-pinned-entry" });
     indent(row, 0);
     row.setAttribute("title", file.path);
     row.setAttribute("data-path", file.path);
@@ -682,10 +682,17 @@ export class ExplorerPaneView extends ItemView {
     row.addEventListener("pointercancel", finish);
   }
 
-  /** Every pinned row on screen, shelf and scroller alike, in drawn order. */
+  /**
+   * Every row of the Pinned section on screen, shelf and scroller alike, in
+   * drawn order. Deliberately not `.is-pinned`, which the tree also puts on a
+   * pinned row: dropping onto one of those would reorder against a row that is
+   * not part of this list.
+   */
   private pinnedRows(): HTMLElement[] {
     const root = this.contentEl;
-    return Array.from(root.querySelectorAll<HTMLElement>(".schreibstube-explorer-row.is-pinned"));
+    return Array.from(
+      root.querySelectorAll<HTMLElement>(".schreibstube-explorer-row.is-pinned-entry")
+    );
   }
 
   /** Which row the pointer is over, and whether it is above that row's middle. */

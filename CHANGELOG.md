@@ -11,8 +11,13 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- **The accent bar means the open file, and nothing else.** 1.12.0 gave the active row a bar down its left edge without noticing the tree had used one since 1.9.0 to mark a pinned row. Two meanings, 2px against 2.5px, in two accent colours a theme usually makes identical: a vault with a few pins looked like several files were open at once. A pin is marked by its glyph, which is what the glyph is for.
 - **The pane is called Schreibstube Explorer** in both languages. It was "Schreibstube files" and "Schreibstube-Dateien", which named the contents rather than the thing, and read as a folder on the tab and in a phone's pane switcher.
 - **The strip is separated by a soft shadow rather than a rule**, so the list appears to pass beneath it instead of stopping at a border.
+
+### Fixed
+
+- **A drag in the Pinned section cannot drop onto a row in the tree.** Both carried the same marker, so a pinned row further down the vault counted as a place to drop and reordered the block against a row that was not part of it. Rows of the section now have a name of their own.
 
 ## 1.12.2 - 2026-09-12
 
