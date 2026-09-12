@@ -403,12 +403,19 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Obsidian pads a leaf's content box (12px at the sides, 32px at the foot).
-   That inset would keep the "Files and folders" band from reaching the edges
-   and would strand the footer above a gap, so this view takes the padding over
-   and spends it on its own grid instead. */
+/* Obsidian pads a leaf's content box and lets it scroll: 12px at the sides,
+   32px at the foot, `overflow: auto`, and in a side split `height: 100%` too.
+   The padding would keep a section's rule from reaching the edges, and the
+   scrolling would sit outside the one this pane already runs, so a tall vault
+   could scroll in two places at once.
+
+   This view takes all of it over, the way Obsidian's own markdown, pdf and
+   sync views do, and spends it on its own grid instead. */
 .workspace-leaf-content[data-type="schreibstube-explorer"] .view-content {
+  display: flex;
+  flex-direction: column;
   padding: 0;
+  overflow: hidden;
 }
 
 .schreibstube-explorer {
@@ -445,6 +452,9 @@
 .schreibstube-explorer-body {
   flex: 1 1 auto;
   overflow-y: auto;
+  /* Taking the leaf's padding over took its safe-area inset with it, and the
+     last row of a vault should not sit under a phone's home indicator. */
+  padding-bottom: var(--safe-area-inset-bottom, 0px);
 }
 
 .schreibstube-explorer-tree {
