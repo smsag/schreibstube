@@ -28,6 +28,7 @@ route that does not exist yet.
 
 | Bridge | Protocol | Plugin          | Notes                                             |
 | ------ | -------- | --------------- | ------------------------------------------------- |
+| 2.2.x  | 1        | 1.8.0 and later | Per-target switches, publish history, JSON logs   |
 | 2.1.x  | 1        | 1.8.0 and later | Mail and publishing                               |
 | 2.0.x  | 1        | 1.8.0 and later | Mail only; `BRIDGE_TOKEN` renamed to `MAIL_TOKEN` |
 | 1.0.x  | —        | 1.7.0           | Mail only, single token, no version handshake     |
