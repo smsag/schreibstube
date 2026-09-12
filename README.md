@@ -184,17 +184,17 @@ Publishing is opt-in per note. A note is published when its frontmatter says so,
 
 ```yaml
 ---
-schreibstubePublished: true
-schreibstubeTitle: Hallo Welt          # default: the first heading, else the filename
-schreibstubeDate: 2026-09-12           # default: the file's creation date
-schreibstubeDescription: Kurzfassung   # optional; page head and index entry
-schreibstubeSlug: hallo-welt           # default: from the filename
-schreibstubePublishedAt: …             # written back after publishing
-schreibstubePublishedUrl: …            # written back after publishing
+published: true
+title: Hallo Welt          # default: the first heading, else the filename
+date: 2026-09-12           # default: the file's creation date
+description: Kurzfassung   # optional; page head and index entry
+slug: hallo-welt           # default: from the filename
+publishedAt: …             # written back after publishing
+publishedUrl: …            # written back after publishing
 ---
 ```
 
-**The key names are settings.** A vault that already calls these fields something else does not have to rename them: map each role to the key you use, under **Frontmatter-Felder** in the publish settings. A configured key replaces the default rather than adding to it, so notes still carrying the old name stop being recognised.
+**The key names are settings.** The defaults are the plain names most vaults already use. If yours calls these fields something else, or another plugin has claimed one of the names, map each role to the key you use under **Frontmatter-Felder** in the publish settings. A configured key replaces the default rather than adding to it, so notes still carrying the old name stop being recognised.
 
 ```yaml
 ---
@@ -308,7 +308,7 @@ Requires a bridge with the publish capability configured — see [`bridge/README
 | Publish token | The bridge's `PUBLISH_TOKEN`, stored in Obsidian's secret storage | — |
 | Accounts | Site name, vault folder, and the name of a target the bridge knows | — |
 | Write-back | Record the publish time and URL in each note's frontmatter | On |
-| Frontmatter fields | Which key carries which meaning — published, title, date, description, slug, and the two written back | `schreibstube…` |
+| Frontmatter fields | Which key carries which meaning — published, title, date, description, slug, and the two written back | the plain names |
 
 The token is deliberately separate from the mail token, so a leaked publish token cannot reach the mailbox. **Verbindung testen** proves the token, the target, the SSH login, the host key and the web root in one request, without writing anything.
 

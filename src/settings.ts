@@ -706,7 +706,7 @@ export class SchreibstubeSettingTab extends PluginSettingTab {
 
     new Setting(containerEl).setDesc(
       "Ein Ordner des Vaults wird als Website veröffentlicht. Nur Notizen mit " +
-        "`schreibstubePublished: true` im Frontmatter werden übertragen. Die Bridge rendert " +
+        "`published: true` im Frontmatter werden übertragen. Die Bridge rendert " +
         "das Markdown und schreibt es per SFTP — die Zugangsdaten des Webspace liegen dort, " +
         "nicht im Vault. Deshalb funktioniert das Veröffentlichen auch mobil."
     );
@@ -790,7 +790,8 @@ export class SchreibstubeSettingTab extends PluginSettingTab {
       .setDesc(
         "Welcher Frontmatter-Schlüssel welche Bedeutung hat. Leer lassen, um den Standard zu " +
           "behalten. Ein geänderter Schlüssel ersetzt den Standard: Notizen mit dem alten Namen " +
-          "werden dann nicht mehr erkannt."
+          "werden dann nicht mehr erkannt. Hier umbenennen, wenn ein anderes Plugin dieselben " +
+          "Namen belegt."
       );
 
     for (const role of PUBLISH_KEY_ROLES) {

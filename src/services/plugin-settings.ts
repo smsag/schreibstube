@@ -99,39 +99,30 @@ export const DEFAULT_SETTINGS: SchreibstubeSettings = {
   debugLogging: false,
 };
 
-/** Settings as persisted may predate the rename→llm rename of the shared LLM
- *  keys, so `normalizeSettings` accepts the legacy field names too. */
-interface LegacyLlmSettings {
-  renameProvider?: unknown;
-  renameModel?: unknown;
-  renameModelCustom?: unknown;
-  renameSecretName?: unknown;
-}
-
-type LoadedSettings = (Partial<SchreibstubeSettings> & LegacyLlmSettings) | null | undefined;
+/** Settings as persisted: a data file a user can also edit by hand, so every
+ *  field is validated rather than trusted. */
+type LoadedSettings = Partial<SchreibstubeSettings> | null | undefined;
 
 export function normalizeSettings(loaded: LoadedSettings): SchreibstubeSettings {
   const focus = normalizeFocusSettings(loaded);
 
-  // Prefer the current key, falling back to the pre-1.4 `rename*` name so
-  // existing users keep their configured provider/model/key across the rename.
-  const loadedProvider = loaded?.llmProvider ?? loaded?.renameProvider ?? "";
+  const loadedProvider = loaded?.llmProvider ?? "";
   const provider: LlmProvider = ALLOWED_PROVIDERS.has(loadedProvider as LlmProvider)
     ? (loadedProvider as LlmProvider)
     : DEFAULT_SETTINGS.llmProvider;
 
   const providerModels = PROVIDER_MODELS[provider];
   const modelValues = providerModels.map((m) => m.value);
-  const loadedModel = loaded?.llmModel ?? loaded?.renameModel ?? "";
+  const loadedModel = loaded?.llmModel ?? "";
   const model = modelValues.includes(loadedModel as string)
     ? (loadedModel as string)
     : providerModels[0].value;
 
-  const loadedModelCustom = loaded?.llmModelCustom ?? loaded?.renameModelCustom;
+  const loadedModelCustom = loaded?.llmModelCustom;
   const llmModelCustom =
     typeof loadedModelCustom === "string" ? loadedModelCustom : DEFAULT_SETTINGS.llmModelCustom;
 
-  const loadedSecretName = loaded?.llmSecretName ?? loaded?.renameSecretName;
+  const loadedSecretName = loaded?.llmSecretName;
   const llmSecretName =
     typeof loadedSecretName === "string" ? loadedSecretName : DEFAULT_SETTINGS.llmSecretName;
 

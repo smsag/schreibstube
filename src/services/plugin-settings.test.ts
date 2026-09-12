@@ -57,26 +57,10 @@ describe("normalizeSettings", () => {
     ).toMatchObject({ llmModel: "claude-haiku-4-5-20251001" });
   });
 
-  it("migrates legacy rename* LLM keys to the llm* names", () => {
+  it("ignores a field it does not know", () => {
     expect(
-      normalizeSettings({
-        renameProvider: "openai",
-        renameModel: "gpt-4o",
-        renameModelCustom: "gpt-5-mini",
-        renameSecretName: "my-key",
-      } as never)
-    ).toMatchObject({
-      llmProvider: "openai",
-      llmModel: "gpt-4o",
-      llmModelCustom: "gpt-5-mini",
-      llmSecretName: "my-key",
-    });
-  });
-
-  it("prefers a current llm* key over a legacy rename* key when both exist", () => {
-    expect(
-      normalizeSettings({ llmProvider: "anthropic", renameProvider: "openai" } as never).llmProvider
-    ).toBe("anthropic");
+      normalizeSettings({ renameProvider: "openai" } as never).llmProvider
+    ).toBe(DEFAULT_SETTINGS.llmProvider);
   });
 
   it("defaults debugLogging to false", () => {

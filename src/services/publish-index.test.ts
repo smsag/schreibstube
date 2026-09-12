@@ -30,6 +30,11 @@ describe("readPublishFields", () => {
     expect(readPublishFields({ title: "Hallo" }, DEFAULT_PUBLISH_KEYS).published).toBe(false);
   });
 
+  it("defaults to the plain names a vault already uses", () => {
+    expect(DEFAULT_PUBLISH_KEYS.published).toBe("published");
+    expect(DEFAULT_PUBLISH_KEYS.title).toBe("title");
+  });
+
   it("reads the flag", () => {
     expect(readPublishFields({ [DEFAULT_PUBLISH_KEYS.published]: true }, DEFAULT_PUBLISH_KEYS).published).toBe(true);
     expect(readPublishFields({ [DEFAULT_PUBLISH_KEYS.published]: false }, DEFAULT_PUBLISH_KEYS).published).toBe(false);
@@ -79,7 +84,8 @@ describe("a configured key map", () => {
   });
 
   it("stops reading the key it replaced, so one note cannot mean two things", () => {
-    expect(readPublishFields({ schreibstubePublished: true }, keys).published).toBe(false);
+    const frontmatter = { [DEFAULT_PUBLISH_KEYS.published]: true };
+    expect(readPublishFields(frontmatter, keys).published).toBe(false);
   });
 
   it("keeps the default for a role left unconfigured", () => {
