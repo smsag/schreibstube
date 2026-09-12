@@ -16,6 +16,7 @@ export const en = {
     renameFile: "Rename file from content",
     renameImage: "Rename image from content",
     summarize: "Summarize selection",
+    openExplorer: "Open file pane",
     openReview: "Open proof-read sidebar",
     proofread: "Proof-read note",
     checkGlossary: "Check note against glossary",

@@ -219,6 +219,16 @@ export class ProofreadController {
     return this.poller.pollAllSources(trigger);
   }
 
+  /** Check one note the user pointed at, open or not. */
+  async checkFile(file: TFile): Promise<PollSummary> {
+    return this.poller.checkFile(file);
+  }
+
+  /** Check the bound notes inside one folder. */
+  async checkFolder(folderPath: string): Promise<PollSummary> {
+    return this.poller.pollFolder(folderPath);
+  }
+
   stop(): void {
     if (this.running) {
       this.running.cancelled = true;

@@ -7,6 +7,7 @@
     "setup": "npm install && npm install --prefix bridge",
     "dev": "node esbuild.config.mjs --watch",
     "build": "tsc --noEmit && node esbuild.config.mjs --production && node scripts/check-bundle.mjs",
+    "build:icons": "node scripts/build-icon-font.mjs",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",

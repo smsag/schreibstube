@@ -208,6 +208,29 @@ The site is one page per note plus an index sorted by date, newest first. Wikili
 
 What the bridge does and the plugin does not: rendering the Markdown, holding the SFTP credentials, and deciding what may be deleted. Only files the bridge itself wrote are ever removed, and the hosting key never enters the vault. See [`bridge/README.md`](bridge/README.md).
 
+### File pane
+
+A file list of Schreibstube's own, opened with **Open file pane**. It exists because three things cannot be done to Obsidian's explorer from a plugin without fighting it: an icon per item, a mark for sync state, and an order that puts pinned files first.
+
+- **Icons.** Right-click, or long-press on a phone, and pick from 172 icons grouped by what they are for — documents, folders, property, business, status. The set is a subsetted [Tabler](https://tabler.io/icons) webfont carried inside the bundle, so it works offline and on mobile, with no request to a CDN.
+- **Sync marks.** A note bound to a source shows what its mirror is doing: in sync, changes waiting from the poll, never checked, or a source that cannot be fetched. Shape carries the state and colour only reinforces it. Nothing is shown while document sync is off.
+- **Pinning.** A pinned file or folder sits at the top of its folder, in the order it was pinned. Everything below keeps Obsidian's own arrangement: folders first, then files, numeric-aware so `Objekt 2` precedes `Objekt 10`.
+
+The context menu is the pane's own, in a fixed order: open, icon and pin, sync, create, rename and delete. Items other plugins contribute land behind one **More actions** entry at the end rather than in blocks between the actions — the pane fires Obsidian's `file-menu` event, so a plugin that adds to the file explorer's menu adds to this one without knowing the pane exists.
+
+The sync actions are why the menu is worth owning:
+
+| On a note             | Does                                                                              |
+| --------------------- | --------------------------------------------------------------------------------- |
+| Bind to a source      | Validates the URL and writes `schreibstubeSyncedFrom` into the note's frontmatter |
+| Check source now      | Fetches that one note, whether or not it is open, ignoring the minimum interval   |
+| Open source           | Opens the raw Markdown the note mirrors                                           |
+| Remove source binding | Drops the frontmatter key and the stored baseline                                 |
+
+On a folder, **Check every bound note here** refreshes the mirrors under it, which is the difference between refreshing one project and polling a vault of a thousand notes.
+
+Icons and pins live in `explorer.json` inside the plugin folder, deliberately not in `data.json`: that file is rewritten whole on every save, so a second device would clobber it. Each entry carries its own timestamp and every write re-reads and merges per entry, so two devices editing different files both keep their change. The pane also watches the file for writes delivered by iCloud, Obsidian Sync or Git while it is open. A file that moves keeps its icon; one that disappears keeps it for thirty days, in case it turns up somewhere else under the same name.
+
 ### Link open modes
 
 Control where internal links open, indicated in the status bar:
@@ -228,6 +251,13 @@ Control where internal links open, indicated in the status bar:
 | Setting     | Description                                                 | Default |
 | ----------- | ----------------------------------------------------------- | ------- |
 | Dim opacity | Opacity of out-of-focus lines (0.2 faint – 0.8 nearly full) | 0.4     |
+
+### File pane
+
+| Setting                  | Description                                                                   | Default             |
+| ------------------------ | ----------------------------------------------------------------------------- | ------------------- |
+| Items from other plugins | Where contributed menu items go: behind "More actions", inline, or not at all | Behind More actions |
+| Icon set                 | Which icon set is bundled, and how many icons it holds                        | Tabler Icons (MIT)  |
 
 ### AI models
 
@@ -345,3 +375,15 @@ npm run build     # production build
 npm run dev       # watch mode
 npm test          # run tests
 ```
+
+The icon font is generated, not hand-edited. Add a name to `scripts/icon-set.mjs` and run:
+
+```bash
+npm install --no-save @tabler/icons-webfont
+pip install fonttools brotli
+npm run build:icons
+```
+
+That subsets the font to the names in the list and writes `src/ui/icon-font.generated.ts`, which is committed — a normal build needs neither the font package nor Python. Icons are stored by name, never by codepoint, so a font upgrade that moves a glyph changes the generated map instead of every vault's icons.
+
+Tabler Icons is MIT licensed; see `LICENSE` in `@tabler/icons-webfont` for the notice.

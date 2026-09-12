@@ -1,4 +1,10 @@
-import type { LlmProvider, PublishAccount, PublishRunRecord, SchreibstubeSettings } from "../types";
+import type {
+  ExplorerForeignMenu,
+  LlmProvider,
+  PublishAccount,
+  PublishRunRecord,
+  SchreibstubeSettings
+} from "../types";
 import type { LanguagePreference } from "../i18n";
 import type { SyncRecord } from "./sync-document";
 import {
@@ -88,6 +94,7 @@ export const DEFAULT_SETTINGS: SchreibstubeSettings = {
   syncLastPollAt: 0,
   githubSecretName: "",
   syncState: {},
+  explorerForeignMenu: "submenu",
   mailBridgeUrl: "",
   mailTokenSecretName: "",
   mailFrom: "",
@@ -226,6 +233,7 @@ export function normalizeSettings(loaded: LoadedSettings): SchreibstubeSettings 
         ? loaded.githubSecretName
         : DEFAULT_SETTINGS.githubSecretName,
     syncState: syncStateOrDefault(loaded?.syncState),
+    explorerForeignMenu: foreignMenuOrDefault(loaded?.explorerForeignMenu),
     mailBridgeUrl: trimmedStringOrDefault(loaded?.mailBridgeUrl, DEFAULT_SETTINGS.mailBridgeUrl),
     mailTokenSecretName:
       typeof loaded?.mailTokenSecretName === "string"
@@ -308,6 +316,13 @@ function publishRunsOrDefault(value: unknown): Record<string, PublishRunRecord> 
     };
   }
   return runs;
+}
+
+/** Where the explorer pane puts other plugins' menu items. */
+function foreignMenuOrDefault(value: unknown): ExplorerForeignMenu {
+  return value === "submenu" || value === "inline" || value === "off"
+    ? value
+    : DEFAULT_SETTINGS.explorerForeignMenu;
 }
 
 function languageOrDefault(value: unknown): LanguagePreference {

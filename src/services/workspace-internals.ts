@@ -1,4 +1,4 @@
-import type { Workspace, WorkspaceLeaf } from "obsidian";
+import type { Menu, MenuItem, Workspace, WorkspaceLeaf } from "obsidian";
 import type { Logger } from "./logger";
 
 /**
@@ -87,4 +87,27 @@ export function createLeafBySplit(
     return null;
   }
   return split(sourceLeaf, direction, before);
+}
+
+interface MenuItemInternals {
+  setSubmenu?: () => Menu;
+}
+
+/**
+ * Turn a menu item into a submenu.
+ *
+ * Obsidian has had submenus since 1.4 and its own menus use them, but the API
+ * has never declared `setSubmenu`, so it is treated like every other internal
+ * here: feature-detected, and reported once when it is gone. The caller falls
+ * back to a flat block, which is uglier but never missing.
+ */
+export function openSubmenu(item: MenuItem, logger: Logger): Menu | null {
+  const factory = (item as unknown as MenuItemInternals).setSubmenu;
+
+  if (typeof factory !== "function") {
+    logger.warn("Menu.setSubmenu is unavailable; showing other plugins' items inline.");
+    return null;
+  }
+
+  return factory.call(item);
 }

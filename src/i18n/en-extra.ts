@@ -16,6 +16,22 @@ export const enExtra = {
     focusOpacityDesc:
       "Opacity of out-of-focus lines in focus mode (0.2 = very faint, 0.8 = nearly full).",
 
+    explorerHeading: "File pane",
+    explorerIntro:
+      "Schreibstube's own file list: an icon per file and folder, a sync mark on notes bound " +
+      "to a source, and a pinned block at the top of each folder. Open it with the " +
+      '"Open file pane" command.',
+    explorerForeign: "Items from other plugins",
+    explorerForeignDesc:
+      "The pane fires Obsidian's file-menu event, so other plugins can contribute. Keeping " +
+      "them behind one entry is what stops the menu turning into a list of unrelated blocks.",
+    explorerForeignSubmenu: 'Behind "More actions"',
+    explorerForeignInline: "At the end of the menu",
+    explorerForeignOff: "Not at all",
+    explorerIcons: "Icon set",
+    explorerIconsDesc: (count: number, version: string) =>
+      `${count} icons from Tabler Icons ${version} (MIT), bundled with the plugin so they work offline and on mobile.`,
+
     aiHeading: "AI models",
     aiIntro: "Provider, model, and API key shared by every AI command (rename and summarize).",
     provider: "LLM provider",
@@ -200,6 +216,90 @@ export const enExtra = {
     failSend: "Schreibstube: send failed",
     failSearch: "Schreibstube: mailbox search failed",
     failMerge: "Schreibstube: merging replies failed"
+  },
+
+  explorer: {
+    title: "Schreibstube files",
+    empty: "This vault has no files yet.",
+    searchPlaceholder: "Filter files…",
+    pinnedSection: "Pinned",
+
+    menu: {
+      open: "Open",
+      openNewTab: "Open in new tab",
+      setIcon: "Set icon…",
+      changeIcon: "Change icon…",
+      clearIcon: "Remove icon",
+      pin: "Pin to top",
+      unpin: "Unpin",
+      bindSource: "Bind to a source…",
+      checkSource: "Check source now",
+      openSource: "Open source",
+      unbindSource: "Remove source binding",
+      syncFolder: "Check every bound note here",
+      newNote: "New note",
+      newFolder: "New folder",
+      rename: "Rename…",
+      delete: "Delete",
+      more: "More actions"
+    },
+
+    icons: {
+      title: "Choose an icon",
+      search: "Search icons…",
+      none: "No icon matches that.",
+      clear: "Remove icon",
+      groups: {
+        documents: "Documents",
+        folders: "Folders",
+        property: "Property",
+        business: "Business",
+        status: "Status",
+        misc: "Everything else"
+      }
+    },
+
+    badge: {
+      synced: "In sync with its source",
+      pending: (count: number) => `${count} change(s) waiting from the source`,
+      unchecked: "Bound to a source, never checked",
+      error: "The source cannot be fetched",
+      checkedAt: (when: string) => `last checked ${when}`,
+      never: "never checked"
+    },
+
+    bind: {
+      title: "Bind to a source",
+      desc:
+        "The note mirrors this Markdown file: the source is the truth and nothing is ever " +
+        "pushed back. HTTPS only; a GitHub page URL is rewritten to its raw form.",
+      placeholder: "https://raw.githubusercontent.com/owner/repo/main/note.md",
+      submit: "Bind",
+      bound: (name: string) => `${name} is now bound to its source.`,
+      unbound: (name: string) => `${name} is no longer bound to a source.`,
+      noSource: "this note has no source to open.",
+      checked: (name: string) => `${name} is up to date with its source.`,
+      folderChecked: (checked: number, changed: number, failed: number) =>
+        `${checked} checked, ${changed} with updates, ${failed} failed.`,
+      folderEmpty: "no bound notes in this folder."
+    },
+
+    create: {
+      noteTitle: "New note",
+      folderTitle: "New folder",
+      namePlaceholder: "Name",
+      renameTitle: "Rename",
+      exists: "something with that name is already there.",
+      invalid: "that name cannot be used."
+    },
+
+    delete: {
+      title: "Delete",
+      confirm: (name: string) => `Move "${name}" to the vault's trash?`,
+      folderConfirm: (name: string, count: number) =>
+        `Move "${name}" and the ${count} item(s) inside it to the vault's trash?`,
+      submit: "Delete"
+    }
   },
 
   secrets: {

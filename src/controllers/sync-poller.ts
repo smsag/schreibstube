@@ -61,18 +61,56 @@ export class SyncPoller {
    * full of bound notes does not turn one tick into a burst of traffic.
    */
   async pollAllSources(trigger: "schedule" | "manual"): Promise<PollSummary> {
-    const settings = this.getSettings();
-    const empty: PollSummary = { checked: 0, withChanges: 0, failed: 0, notes: [] };
+    return this.check(this.boundNotes(), trigger, false);
+  }
 
-    if (!settings.syncEnabled || this.polling) return empty;
+  /**
+   * Check the notes bound to a source inside one folder.
+   *
+   * The explorer offers this on a folder, so a person can refresh one project
+   * without waiting for a poll across a vault of a thousand notes.
+   */
+  async pollFolder(folderPath: string): Promise<PollSummary> {
+    const prefix = folderPath === "/" ? "" : `${folderPath}/`;
+    return this.check(
+      this.boundNotes().filter((file) => file.path.startsWith(prefix)),
+      "manual",
+      true
+    );
+  }
 
-    const bound = this.app.vault.getMarkdownFiles().filter((file) => {
+  /**
+   * Check one note, open or not.
+   *
+   * This is the entry point the explorer's context menu uses, and the reason it
+   * exists: everything else here either walks the whole vault or works on the
+   * note that happens to be open. `force` skips the minimum interval, because
+   * someone who asked for a check means now rather than in ten minutes.
+   */
+  async checkFile(file: TFile, force = true): Promise<PollSummary> {
+    return this.check([file], "manual", force);
+  }
+
+  /** Every Markdown note that names a source in its frontmatter. */
+  private boundNotes(): TFile[] {
+    return this.app.vault.getMarkdownFiles().filter((file) => {
       const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter;
       const value = frontmatter?.[SYNC_FRONTMATTER_KEY];
       return typeof value === "string" && value.trim().length > 0;
     });
+  }
 
-    if (bound.length === 0) return empty;
+  /** The shared machinery: a bounded pool, one save, one summary. */
+  private async check(
+    files: TFile[],
+    trigger: "schedule" | "manual",
+    force: boolean
+  ): Promise<PollSummary> {
+    const settings = this.getSettings();
+    const empty: PollSummary = { checked: 0, withChanges: 0, failed: 0, notes: [] };
+
+    if (!settings.syncEnabled || this.polling) return empty;
+    if (files.length === 0) return empty;
 
     this.polling = true;
     const summary: PollSummary = { checked: 0, withChanges: 0, failed: 0, notes: [] };
@@ -84,14 +122,14 @@ export class SyncPoller {
       const worker = async (): Promise<void> => {
         while (true) {
           const index = next;
-          if (index >= bound.length) return;
+          if (index >= files.length) return;
           next += 1;
-          await this.pollOne(bound[index], token, summary, updates);
+          await this.pollOne(files[index], token, summary, updates, force);
         }
       };
 
       await Promise.all(
-        Array.from({ length: Math.min(POLL_CONCURRENCY, bound.length) }, () => worker())
+        Array.from({ length: Math.min(POLL_CONCURRENCY, files.length) }, () => worker())
       );
 
       if (Object.keys(updates).length > 0) {
@@ -114,7 +152,8 @@ export class SyncPoller {
     file: TFile,
     token: string | undefined,
     summary: PollSummary,
-    updates: Record<string, SyncRecord>
+    updates: Record<string, SyncRecord>,
+    force = false
   ): Promise<void> {
     const settings = this.getSettings();
     const raw = this.app.metadataCache.getFileCache(file)?.frontmatter?.[SYNC_FRONTMATTER_KEY];
@@ -125,7 +164,7 @@ export class SyncPoller {
     }
 
     const record = this.syncStore.get(file.path);
-    if (!this.isCheckDue(record, settings.syncMinIntervalMinutes)) return;
+    if (!force && !this.isCheckDue(record, settings.syncMinIntervalMinutes)) return;
 
     const checkedAt = Date.now();
     const conditional = (record?.pendingChanges ?? 0) > 0 ? undefined : record?.etag;
