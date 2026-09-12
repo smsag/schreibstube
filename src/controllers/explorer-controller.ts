@@ -26,6 +26,7 @@ import {
   reattachOrphans,
   renamePath,
   setIcon,
+  reorderPinned,
   setPinned,
   type ExplorerData
 } from "../services/explorer-state";
@@ -136,6 +137,11 @@ export class ExplorerController {
    * order it was pinned. A path whose file is gone is skipped rather than
    * dropped from the state, because it may be a move sync has not delivered yet.
    */
+  /** Put the pinned block in a new order, as a drag has just arranged it. */
+  reorderPinned(orderedPaths: readonly string[]): void {
+    this.store.mutate((data, now) => reorderPinned(data, orderedPaths, now));
+  }
+
   pinnedItems(): TAbstractFile[] {
     const items: TAbstractFile[] = [];
 

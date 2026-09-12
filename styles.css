@@ -444,9 +444,38 @@
 
 .schreibstube-explorer-filter {
   width: calc(100% - 2 * var(--schreibstube-padding));
-  height: 32px;
+  height: 28px;
   margin: 0 var(--schreibstube-padding);
   flex: 0 0 auto;
+  font-size: var(--font-ui-smaller);
+}
+
+/* The strip that does not scroll: the pinned block, directly under the filter.
+   What a person pinned should be on screen wherever they have scrolled to,
+   which is the whole point of having pinned it. */
+.schreibstube-explorer-shelf {
+  position: relative;
+  flex: 0 0 auto;
+  z-index: 1;
+  background: var(--background-secondary);
+}
+
+/* A short gradient rather than a rule, so the list appears to pass beneath the
+   shelf instead of stopping at a border. Drawn outside the shelf's own box and
+   deaf to the pointer, so it never intercepts a click on the row below. */
+.schreibstube-explorer-shelf:not(:empty)::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  height: 8px;
+  pointer-events: none;
+  background: linear-gradient(
+    to bottom,
+    var(--background-modifier-box-shadow, rgba(0, 0, 0, 0.18)),
+    transparent
+  );
 }
 
 .schreibstube-explorer-body {
@@ -539,6 +568,22 @@
 
 .schreibstube-explorer-row.is-revealed {
   background: var(--text-selection);
+}
+
+/* The row under the pointer while it is being dragged. */
+.schreibstube-explorer-row.is-dragging {
+  opacity: 0.5;
+  cursor: grabbing;
+}
+
+/* Where it would land. A line on the edge it would join, rather than moving
+   every other row, so the list does not shuffle under the finger. */
+.schreibstube-explorer-row.is-drop-before {
+  box-shadow: inset 0 2px 0 var(--interactive-accent);
+}
+
+.schreibstube-explorer-row.is-drop-after {
+  box-shadow: inset 0 -2px 0 var(--interactive-accent);
 }
 
 .schreibstube-explorer-empty {
