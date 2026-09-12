@@ -33,16 +33,15 @@ import {
 import type { LatestCandidate } from "../services/latest-files";
 import type { SchreibstubeSettings } from "../types";
 import { applyIcon, installIconFont } from "./icon-font";
+import { SCHREIBSTUBE_ICON } from "./schreibstube-icon";
 
 export const EXPLORER_VIEW_TYPE = "schreibstube-explorer";
 
 /** One icon for the pane's tab and for the ribbon entry that opens it, so the
- *  thing a person clicks and the thing that appears look like each other. */
-export const EXPLORER_RIBBON_ICON = "folder-tree";
-
-/** Where the ribbon goes when Obsidian's set has no `folder-tree`. Plain enough
- *  to have been there since the first release. */
-export const EXPLORER_RIBBON_FALLBACK_ICON = "folder";
+ *  thing a person clicks and the thing that appears look like each other. The
+ *  plugin registers it itself, so it cannot be absent the way a name borrowed
+ *  from Obsidian's own set can. */
+export const EXPLORER_RIBBON_ICON = SCHREIBSTUBE_ICON;
 
 /** Long enough not to fire while scrolling, short enough to feel deliberate. */
 const LONG_PRESS_MS = 500;
@@ -59,6 +58,19 @@ const MEMORY_KEY = "schreibstube:explorer:view";
 /** Separator inside a bookmark folder key. A vault name can hold a slash; it
  *  cannot hold this. */
 const FOLDER_SEP = "\u001f";
+
+/** Where the footer's help button goes. The project's own repository, which is
+ *  the only documentation there is. */
+const HELP_URL = "https://github.com/smsag/schreibstube#readme";
+
+/** Matches `id` in the manifest, which is what Obsidian keys settings tabs by. */
+const PLUGIN_ID = "schreibstube";
+
+/** Obsidian's settings window, which `App` carries but does not declare. */
+interface SettingWindow {
+  open: () => void;
+  openTabById: (id: string) => void;
+}
 
 type SectionId = "pinned" | "bookmarks" | "latest" | "files";
 
@@ -96,7 +108,7 @@ export class ExplorerPaneView extends ItemView {
   constructor(leaf: WorkspaceLeaf) {
     super(leaf);
     this.navigation = false;
-    this.icon = "folder-tree";
+    this.icon = SCHREIBSTUBE_ICON;
   }
 
   getViewType(): string {
@@ -140,6 +152,7 @@ export class ExplorerPaneView extends ItemView {
     });
 
     this.body = root.createDiv({ cls: "schreibstube-explorer-body" });
+    this.renderFooter(root);
 
     // The vault changes under the pane: a note created by a template, a file
     // deleted on another device and delivered by sync, frontmatter that binds a
@@ -199,6 +212,44 @@ export class ExplorerPaneView extends ItemView {
     this.scrollToRevealed();
   }
 
+  /**
+   * The strip along the bottom: which vault this is, and the two places a
+   * person goes when the pane is not doing what they expected.
+   *
+   * It is drawn once rather than on every render, because nothing in it changes
+   * while the pane is open.
+   */
+  private renderFooter(root: HTMLElement): void {
+    const footer = root.createDiv({ cls: "schreibstube-explorer-footer" });
+    footer.createSpan({
+      cls: "schreibstube-explorer-vault",
+      text: this.app.vault.getName()
+    });
+
+    const help = footer.createEl("button", {
+      cls: "schreibstube-explorer-footer-button",
+      attr: { type: "button", "aria-label": t().explorer.footer.help }
+    });
+    applyIcon(help, "help");
+    help.addEventListener("click", () => {
+      window.open(HELP_URL, "_blank");
+    });
+
+    const settings = footer.createEl("button", {
+      cls: "schreibstube-explorer-footer-button",
+      attr: { type: "button", "aria-label": t().explorer.footer.settings }
+    });
+    applyIcon(settings, "settings");
+    settings.addEventListener("click", () => this.openSettings());
+  }
+
+  /** Obsidian exposes the settings window on `app`, but not in its types. */
+  private openSettings(): void {
+    const setting = (this.app as unknown as { setting?: SettingWindow }).setting;
+    setting?.open();
+    setting?.openTabById(PLUGIN_ID);
+  }
+
   // --- sections -----------------------------------------------------------
 
   /**
@@ -210,8 +261,11 @@ export class ExplorerPaneView extends ItemView {
     const section = host.createDiv({ cls: "schreibstube-explorer-section" });
     const collapsed = this.collapsedSections.has(id);
 
+    // "Files and folders" is drawn as a band across the pane, because it is the
+    // one header that separates two kinds of thing: the three curated lists
+    // above it and the vault itself below.
     const header = section.createEl("button", {
-      cls: "schreibstube-explorer-section-header",
+      cls: `schreibstube-explorer-section-header${id === "files" ? " is-divider" : ""}`,
       attr: { type: "button", "aria-expanded": String(!collapsed) }
     });
     applyIcon(
@@ -257,7 +311,7 @@ export class ExplorerPaneView extends ItemView {
     for (const file of items) {
       const isFolder = file instanceof TFolder;
       const row = body.createDiv({ cls: "schreibstube-explorer-row is-pinned" });
-      row.style.paddingLeft = "4px";
+      indent(row, 0);
       row.setAttribute("title", file.path);
       if (isFolder) row.addClass("is-folder");
       if (this.app.workspace.getActiveFile()?.path === file.path) row.addClass("is-active");
@@ -267,15 +321,7 @@ export class ExplorerPaneView extends ItemView {
       row.createSpan({ cls: "schreibstube-explorer-name", text: displayName(file) });
       if (file instanceof TFile) this.renderBadge(row, file);
 
-      const more = row.createEl("button", {
-        cls: "schreibstube-explorer-more",
-        attr: { type: "button", "aria-label": t().explorer.menu.more }
-      });
-      applyIcon(more, "dots");
-      more.addEventListener("click", (event) => {
-        event.stopPropagation();
-        controller.showMenu(file, event);
-      });
+      this.renderRowActions(row, file);
 
       row.addEventListener("contextmenu", (event) => {
         event.preventDefault();
@@ -336,7 +382,7 @@ export class ExplorerPaneView extends ItemView {
     const collapsed = this.query.length === 0 && this.collapsedBookmarks.has(key);
 
     const row = host.createDiv({ cls: "schreibstube-explorer-row is-folder" });
-    row.style.paddingLeft = `${depth * 17 + 4}px`;
+    indent(row, depth);
 
     applyIcon(
       row.createSpan({ cls: "schreibstube-explorer-twisty" }),
@@ -368,7 +414,7 @@ export class ExplorerPaneView extends ItemView {
     if (!this.matchesQuery(bookmark.name)) return 0;
 
     const row = host.createDiv({ cls: "schreibstube-explorer-row is-bookmark" });
-    row.style.paddingLeft = `${depth * 17 + 4}px`;
+    indent(row, depth);
     row.setAttribute("data-kind", bookmark.kind);
     row.setAttribute("title", bookmark.url);
 
@@ -415,7 +461,7 @@ export class ExplorerPaneView extends ItemView {
 
     for (const file of matching) {
       const row = host.createDiv({ cls: "schreibstube-explorer-row is-latest" });
-      row.style.paddingLeft = "21px";
+      indent(row, 0);
       row.setAttribute("title", file.path);
       if (this.app.workspace.getActiveFile()?.path === file.path) row.addClass("is-active");
 
@@ -503,7 +549,7 @@ export class ExplorerPaneView extends ItemView {
 
     const isFolder = file instanceof TFolder;
     const row = host.createDiv({ cls: "schreibstube-explorer-row" });
-    row.style.paddingLeft = `${depth * 17 + 4}px`;
+    indent(row, depth);
     row.setAttribute("data-path", file.path);
     row.setAttribute("role", "treeitem");
     if (isFolder) row.addClass("is-folder");
@@ -526,6 +572,33 @@ export class ExplorerPaneView extends ItemView {
 
     if (file instanceof TFile) this.renderBadge(row, file);
 
+    this.renderRowActions(row, file);
+
+    this.wireRow(row, file, isFolder);
+  }
+
+  /**
+   * The two buttons that appear at the right of a row on hover.
+   *
+   * Delete sits outside the menu because it is the one destructive thing a file
+   * list is asked for often enough to be worth a shortcut, and it is the one
+   * that must never happen on a mis-tap. The button opens the same confirmation
+   * the menu entry does; nothing here deletes anything by itself.
+   */
+  private renderRowActions(row: HTMLElement, file: TAbstractFile): void {
+    const controller = this.host?.explorer;
+    if (!controller) return;
+
+    const remove = row.createEl("button", {
+      cls: "schreibstube-explorer-delete",
+      attr: { type: "button", "aria-label": t().explorer.menu.delete }
+    });
+    applyIcon(remove, "trash");
+    remove.addEventListener("click", (event) => {
+      event.stopPropagation();
+      controller.confirmDelete(file);
+    });
+
     const more = row.createEl("button", {
       cls: "schreibstube-explorer-more",
       attr: { type: "button", "aria-label": t().explorer.menu.more }
@@ -535,8 +608,6 @@ export class ExplorerPaneView extends ItemView {
       event.stopPropagation();
       controller.showMenu(file, event);
     });
-
-    this.wireRow(row, file, isFolder);
   }
 
   private renderBadge(row: HTMLElement, file: TFile): void {
@@ -664,6 +735,19 @@ export class ExplorerPaneView extends ItemView {
       // Nothing here is worth failing a click over.
     }
   }
+}
+
+/**
+ * Put a row at its depth.
+ *
+ * Depth is handed to CSS rather than resolved to pixels here, so the base
+ * padding and the step per level are stated once in the stylesheet and every
+ * section — pinned, bookmarks, latest, the tree — sits on the same grid. A row
+ * at depth 0 in one section lines up with a row at depth 0 in another, which is
+ * what makes the icon column read as a column.
+ */
+function indent(row: HTMLElement, depth: number): void {
+  row.style.setProperty("--schreibstube-depth", String(depth));
 }
 
 function toSet(value: unknown): Set<string> {

@@ -239,7 +239,12 @@ export const enExtra = {
   explorer: {
     title: "Schreibstube files",
     empty: "This vault has no files yet.",
-    searchPlaceholder: "Filter files…",
+    searchPlaceholder: "Filter all sections…",
+
+    footer: {
+      help: "Schreibstube help",
+      settings: "Schreibstube settings"
+    },
 
     sections: {
       pinned: "Pinned",

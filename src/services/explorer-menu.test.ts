@@ -84,9 +84,18 @@ describe("buildExplorerMenu", () => {
       "sync-folder",
       "new-note",
       "new-folder",
+      "copy-path",
       "rename",
       "delete"
     ]);
+  });
+
+  it("offers copy-path on a folder and never on a file", () => {
+    const folder = buildExplorerMenu(target({ kind: "folder", markdown: false }), "off");
+    const file = buildExplorerMenu(target({ path: "Notizen/Brief.md" }), "off");
+
+    expect(ids(folder)).toContain("copy-path");
+    expect(ids(file)).not.toContain("copy-path");
   });
 
   it("leaves out the folder sync action when nothing under it is bound", () => {

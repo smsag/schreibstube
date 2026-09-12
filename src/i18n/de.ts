@@ -415,7 +415,12 @@ export const de: Messages = {
   explorer: {
     title: "Schreibstube-Dateien",
     empty: "In diesem Vault liegt noch keine Datei.",
-    searchPlaceholder: "Dateien filtern …",
+    searchPlaceholder: "Alle Sektionen filtern …",
+
+    footer: {
+      help: "Hilfe zu Schreibstube",
+      settings: "Einstellungen zu Schreibstube"
+    },
 
     sections: {
       pinned: "Angeheftet",
