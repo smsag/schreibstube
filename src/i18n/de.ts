@@ -14,6 +14,7 @@ export const de: Messages = {
     renameFile: "Datei aus Inhalt benennen",
     renameImage: "Bild aus Inhalt benennen",
     summarize: "Auswahl zusammenfassen",
+    openExplorer: "Dateibereich öffnen",
     openReview: "Korrektur-Seitenleiste öffnen",
     proofread: "Notiz korrigieren",
     checkGlossary: "Notiz gegen Glossar prüfen",
@@ -185,6 +186,22 @@ export const de: Messages = {
     focusOpacity: "Abdunklung",
     focusOpacityDesc:
       "Deckkraft der Zeilen außerhalb des Fokus (0,2 = sehr blass, 0,8 = fast voll).",
+
+    explorerHeading: "Dateibereich",
+    explorerIntro:
+      "Die eigene Dateiliste der Schreibstube: ein Symbol je Datei und Ordner, eine " +
+      "Sync-Markierung an Notizen mit Quelle und ein angehefteter Block oben in jedem Ordner. " +
+      "Öffnen über den Befehl „Dateibereich öffnen“.",
+    explorerForeign: "Einträge anderer Plugins",
+    explorerForeignDesc:
+      "Der Bereich löst Obsidians file-menu-Event aus, andere Plugins können also beitragen. " +
+      "Hinter einem Eintrag gesammelt bleibt das Menü lesbar statt in fremde Blöcke zu zerfallen.",
+    explorerForeignSubmenu: "Unter „Weitere Aktionen“",
+    explorerForeignInline: "Am Ende des Menüs",
+    explorerForeignOff: "Gar nicht",
+    explorerIcons: "Symbolsatz",
+    explorerIconsDesc: (count: number, version: string) =>
+      `${count} Symbole aus Tabler Icons ${version} (MIT), im Plugin enthalten — offline und mobil verfügbar.`,
 
     aiHeading: "KI-Modelle",
     aiIntro:
@@ -371,6 +388,91 @@ export const de: Messages = {
     failSend: "Schreibstube: Senden fehlgeschlagen",
     failSearch: "Schreibstube: Postfachsuche fehlgeschlagen",
     failMerge: "Schreibstube: Übernehmen der Antworten fehlgeschlagen"
+  },
+
+  explorer: {
+    title: "Schreibstube-Dateien",
+    empty: "In diesem Vault liegt noch keine Datei.",
+    searchPlaceholder: "Dateien filtern …",
+    pinnedSection: "Angeheftet",
+
+    menu: {
+      open: "Öffnen",
+      openNewTab: "In neuem Tab öffnen",
+      setIcon: "Symbol wählen …",
+      changeIcon: "Symbol ändern …",
+      clearIcon: "Symbol entfernen",
+      pin: "Nach oben anheften",
+      unpin: "Anheften lösen",
+      bindSource: "Mit Quelle verbinden …",
+      checkSource: "Quelle jetzt prüfen",
+      openSource: "Quelle öffnen",
+      unbindSource: "Quellbindung entfernen",
+      syncFolder: "Alle gebundenen Notizen hier prüfen",
+      newNote: "Neue Notiz",
+      newFolder: "Neuer Ordner",
+      rename: "Umbenennen …",
+      delete: "Löschen",
+      more: "Weitere Aktionen"
+    },
+
+    icons: {
+      title: "Symbol wählen",
+      search: "Symbole suchen …",
+      none: "Dazu passt kein Symbol.",
+      clear: "Symbol entfernen",
+      groups: {
+        documents: "Dokumente",
+        folders: "Ordner",
+        property: "Immobilien",
+        business: "Geschäft",
+        status: "Status",
+        misc: "Sonstiges"
+      }
+    },
+
+    badge: {
+      synced: "Mit der Quelle abgeglichen",
+      pending: (count: number) => `${count} Änderung(en) aus der Quelle warten`,
+      unchecked: "An eine Quelle gebunden, noch nie geprüft",
+      error: "Die Quelle lässt sich nicht laden",
+      checkedAt: (when: string) => `zuletzt geprüft ${when}`,
+      never: "noch nie geprüft"
+    },
+
+    bind: {
+      title: "Mit Quelle verbinden",
+      desc:
+        "Die Notiz spiegelt diese Markdown-Datei: die Quelle ist die Wahrheit, zurück " +
+        "geschrieben wird nie. Nur HTTPS; eine GitHub-Seiten-URL wird auf die Rohform " +
+        "umgeschrieben.",
+      placeholder: "https://raw.githubusercontent.com/owner/repo/main/notiz.md",
+      submit: "Verbinden",
+      bound: (name: string) => `${name} ist jetzt an die Quelle gebunden.`,
+      unbound: (name: string) => `${name} ist nicht mehr an eine Quelle gebunden.`,
+      noSource: "diese Notiz hat keine Quelle zum Öffnen.",
+      checked: (name: string) => `${name} ist auf dem Stand der Quelle.`,
+      folderChecked: (checked: number, changed: number, failed: number) =>
+        `${checked} geprüft, ${changed} mit Aktualisierungen, ${failed} fehlgeschlagen.`,
+      folderEmpty: "keine gebundenen Notizen in diesem Ordner."
+    },
+
+    create: {
+      noteTitle: "Neue Notiz",
+      folderTitle: "Neuer Ordner",
+      namePlaceholder: "Name",
+      renameTitle: "Umbenennen",
+      exists: "unter dem Namen liegt dort schon etwas.",
+      invalid: "dieser Name ist nicht verwendbar."
+    },
+
+    delete: {
+      title: "Löschen",
+      confirm: (name: string) => `„${name}“ in den Papierkorb des Vaults verschieben?`,
+      folderConfirm: (name: string, count: number) =>
+        `„${name}“ mit ${count} enthaltenen Objekt(en) in den Papierkorb des Vaults verschieben?`,
+      submit: "Löschen"
+    }
   },
 
   secrets: {

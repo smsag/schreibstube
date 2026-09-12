@@ -20,6 +20,7 @@ a module resolution error.
 | `npm test`              | The whole suite, plugin and bridge                             |
 | `npm run test:coverage` | The same, against the coverage floor                           |
 | `npm run build`         | Type check, bundle, and prove the bundle has no Node built-ins |
+| `npm run build:icons`   | Regenerate the bundled icon font, only when the set changes    |
 
 The coverage floor is a floor, not a target. Raise it when the number rises;
 never lower it to make a change pass.
@@ -33,6 +34,20 @@ never lower it to make a change pass.
   not compile.
 - Comments explain why, not what. If a line needs a comment to say what it does,
   the line is the problem.
+- Undocumented Obsidian internals live in `src/services/workspace-internals.ts`,
+  feature-detected, and nowhere else.
+- The icon set is a list of names in `scripts/icon-set.mjs`. Changing it needs
+  the font package and Python once:
+
+  ```bash
+  npm install --no-save @tabler/icons-webfont
+  pip install fonttools brotli
+  npm run build:icons
+  ```
+
+  The generated `src/ui/icon-font.generated.ts` is committed, so nobody else
+  needs either. Icons are stored by name; a font upgrade changes the generated
+  map, never a vault's data.
 
 ## Before a release: the mobile checklist
 
@@ -47,6 +62,9 @@ half is worth ten minutes on a phone, once per release:
 5. Run **Publish** on a small folder against a throwaway target, and open the
    site in the phone's browser.
 6. Send one note as an email and confirm it arrives.
+7. Open the file pane: the icons draw (an empty square means the font did not
+   load), a long press opens the menu, and "More actions" opens as a drill-down
+   rather than doing nothing.
 
 Record the result in the release notes. A claim that has not been checked on a
 phone since the last release is a claim about the code, not about the app.

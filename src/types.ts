@@ -34,6 +34,8 @@ export interface PublishRunRecord {
   deleted: number;
 }
 
+export type ExplorerForeignMenu = "submenu" | "inline" | "off";
+
 export interface SchreibstubeSettings {
   /** Interface language; "auto" follows Obsidian's own. */
   language: LanguagePreference;
@@ -75,6 +77,11 @@ export interface SchreibstubeSettings {
   /** Epoch ms of the last completed poll, so a schedule missed while Obsidian
    *  was closed can be caught up once on load. */
   syncLastPollAt: number;
+  /**
+   * Where the explorer pane puts menu items contributed by other plugins:
+   * behind one "more actions" entry, inline at the end, or nowhere.
+   */
+  explorerForeignMenu: ExplorerForeignMenu;
   /** Secret-storage name of a GitHub token, for private repositories. */
   githubSecretName: string;
   /** Per-note sync state, keyed by vault path. Persisted, not user-editable. */

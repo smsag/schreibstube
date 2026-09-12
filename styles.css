@@ -388,3 +388,182 @@
   color: var(--text-muted);
   font-size: var(--font-smaller);
 }
+
+/* --- File pane -------------------------------------------------------- */
+
+.schreibstube-icon {
+  font-family: "schreibstube-icons";
+  font-style: normal;
+  font-weight: normal;
+  font-variant: normal;
+  line-height: 1;
+  speak: none;
+  text-transform: none;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.schreibstube-explorer {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: var(--schreibstube-padding);
+  height: 100%;
+  overflow: hidden;
+}
+
+.schreibstube-explorer-filter {
+  width: 100%;
+  flex: 0 0 auto;
+}
+
+.schreibstube-explorer-tree {
+  flex: 1 1 auto;
+  overflow-y: auto;
+}
+
+.schreibstube-explorer-empty {
+  color: var(--text-muted);
+  padding: var(--schreibstube-padding);
+}
+
+.schreibstube-explorer-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-top: 3px;
+  padding-bottom: 3px;
+  padding-right: 4px;
+  border-radius: var(--schreibstube-border-radius);
+  cursor: default;
+  /* A file list is tapped, not selected. */
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.schreibstube-explorer-row:hover {
+  background: var(--background-modifier-hover);
+}
+
+.schreibstube-explorer-row.is-active {
+  background: var(--background-modifier-active-hover, var(--background-modifier-hover));
+  font-weight: var(--font-medium);
+}
+
+.schreibstube-explorer-twisty {
+  width: 14px;
+  flex: 0 0 auto;
+  color: var(--text-faint);
+  font-size: 14px;
+}
+
+.schreibstube-explorer-glyph {
+  flex: 0 0 auto;
+  font-size: 16px;
+  color: var(--text-muted);
+}
+
+.schreibstube-explorer-row.is-folder .schreibstube-explorer-glyph {
+  color: var(--text-accent);
+}
+
+.schreibstube-explorer-name {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.schreibstube-explorer-pin,
+.schreibstube-explorer-badge {
+  flex: 0 0 auto;
+  font-size: 13px;
+  color: var(--text-faint);
+}
+
+/* Shape carries the state; colour only reinforces it. */
+.schreibstube-explorer-badge[data-sync="synced"] {
+  color: var(--text-success, var(--color-green));
+}
+
+.schreibstube-explorer-badge[data-sync="pending"] {
+  color: var(--text-accent);
+}
+
+.schreibstube-explorer-badge[data-sync="error"] {
+  color: var(--text-error, var(--color-red));
+}
+
+.schreibstube-explorer-more {
+  flex: 0 0 auto;
+  padding: 0 4px;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  color: var(--text-faint);
+  cursor: var(--cursor);
+  opacity: 0;
+}
+
+.schreibstube-explorer-row:hover .schreibstube-explorer-more,
+.schreibstube-explorer-more:focus-visible {
+  opacity: 1;
+}
+
+/* Touch has no hover, so the way into the menu is always visible. */
+.is-mobile .schreibstube-explorer-more {
+  opacity: 1;
+  padding: 0 8px;
+}
+
+.schreibstube-icon-picker .schreibstube-icon-search,
+.schreibstube-prompt-input {
+  width: 100%;
+  margin-bottom: 8px;
+}
+
+.schreibstube-icon-groups {
+  max-height: 45vh;
+  overflow-y: auto;
+}
+
+.schreibstube-icon-groups h4 {
+  margin: 12px 0 4px;
+  color: var(--text-muted);
+}
+
+.schreibstube-icon-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(38px, 1fr));
+  gap: 4px;
+}
+
+.schreibstube-icon-choice {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 38px;
+  padding: 0;
+  font-size: 20px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--schreibstube-border-radius);
+  cursor: var(--cursor);
+}
+
+.schreibstube-icon-choice:hover {
+  background: var(--background-modifier-hover);
+}
+
+.schreibstube-icon-choice.is-current {
+  border-color: var(--interactive-accent);
+  color: var(--text-accent);
+}
+
+.schreibstube-prompt-desc {
+  color: var(--text-muted);
+}
+
+.schreibstube-prompt-error {
+  color: var(--text-error);
+}

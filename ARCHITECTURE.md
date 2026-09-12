@@ -35,6 +35,7 @@ controllers/         one per feature; they own flow and talk to Obsidian
   mail-commands      send, search, merge replies
   proofread-controller  the review sidebar
   sync-poller        checks bound notes against their sources
+  explorer-controller  the file pane: icons, pins, its menu, its sync actions
 services/            pure decisions, no Obsidian imports, heavily tested
 ui/                  panels and modals
 settings/            one module per settings area
@@ -82,6 +83,21 @@ Uploads are incremental; rendering is total. A title that changed in one note
 changes the index page and every link pointing at it, and only a full render
 gets that right. Output is hashed before writing, so an unchanged page is left
 alone.
+
+## Why the file pane has its own state file
+
+Icons and pins are keyed by vault path, and they live in `explorer.json` beside
+`data.json` rather than inside it. `data.json` is saved by writing the whole
+settings object, so a second device holding a stale copy in memory overwrites
+everything the first one wrote — mailbox and publishing state included. A
+separate file limits that to icons, and small independent entries make the cheap
+fix possible: every entry carries a timestamp, every write re-reads the file and
+merges per entry, and the pane polls the file's modification time so a write
+delivered by iCloud or Obsidian Sync is picked up rather than clobbered.
+
+Paths move, so the map follows renames (a renamed folder moves everything under
+it) and keeps a tombstone for thirty days when a file disappears, because a move
+made outside Obsidian arrives as a delete and a create.
 
 ## The three rules worth knowing
 

@@ -18,6 +18,13 @@ import { createGlossaryUnderlineExtension } from "./processors/glossary-underlin
 import { compileGlossaries } from "./services/glossary-matcher";
 import { minuteOf, parseCron, previousRun, shouldFire } from "./services/cron";
 import { REVIEW_VIEW_TYPE, ReviewPanelView } from "./ui/review-panel";
+import { EXPLORER_VIEW_TYPE, ExplorerPaneView } from "./ui/explorer-view";
+import {
+  EXPLORER_STATE_FILE,
+  EXTERNAL_CHECK_MS,
+  ExplorerController
+} from "./controllers/explorer-controller";
+import type { ExplorerFileStore } from "./services/explorer-store";
 import { MailCommands } from "./controllers/mail-commands";
 import { PublishCommands } from "./controllers/publish-commands";
 import { SchreibstubeSettingTab } from "./settings/index";
@@ -45,6 +52,7 @@ export default class SchreibstubePlugin extends Plugin {
   private linkMode: LinkModeController | null = null;
   private llm: LlmCommands | null = null;
   private proofread: ProofreadController | null = null;
+  private explorer: ExplorerController | null = null;
   /** Guards against firing twice inside one scheduled minute. */
   private lastPollMinute = -1;
   private mail: MailCommands | null = null;
@@ -90,7 +98,22 @@ export default class SchreibstubePlugin extends Plugin {
       }
     });
 
+    this.explorer = new ExplorerController(
+      this.app,
+      () => this.settings,
+      {
+        checkFile: async (file) => this.requireProofread().checkFile(file),
+        checkFolder: async (path) => this.requireProofread().checkFolder(path),
+        forget: async (path) => this.requireProofread().handleNoteDeleted(path)
+      },
+      this.logger,
+      this.explorerStateFile()
+    );
+    await this.explorer.start();
+
     this.registerView(REVIEW_VIEW_TYPE, (leaf) => this.createReviewView(leaf));
+    this.registerView(EXPLORER_VIEW_TYPE, (leaf) => this.createExplorerView(leaf));
+    this.registerExplorerEvents();
     this.registerEditorExtension(
       createGlossaryUnderlineExtension({
         getSettings: () => this.settings,
@@ -132,6 +155,7 @@ export default class SchreibstubePlugin extends Plugin {
   onunload(): void {
     this.linkMode?.stop();
     this.proofread?.stop();
+    void this.explorer?.stop();
     this.clearOverlay();
   }
 
@@ -149,6 +173,76 @@ export default class SchreibstubePlugin extends Plugin {
     }
     await leaf.setViewState({ type: REVIEW_VIEW_TYPE, active: true });
     await this.app.workspace.revealLeaf(leaf);
+  }
+
+  /** Open the file pane, reusing the existing leaf if it is already open. */
+  async activateExplorerPane(): Promise<void> {
+    const existing = this.app.workspace.getLeavesOfType(EXPLORER_VIEW_TYPE);
+    if (existing.length > 0) {
+      await this.app.workspace.revealLeaf(existing[0]);
+      return;
+    }
+
+    const leaf = this.app.workspace.getLeftLeaf(false);
+    if (!leaf) {
+      return;
+    }
+    await leaf.setViewState({ type: EXPLORER_VIEW_TYPE, active: true });
+    await this.app.workspace.revealLeaf(leaf);
+  }
+
+  private createExplorerView(leaf: WorkspaceLeaf): ExplorerPaneView {
+    const view = new ExplorerPaneView(leaf);
+    if (this.explorer) {
+      view.setController(this.explorer);
+    }
+    return view;
+  }
+
+  /**
+   * The state file, next to the plugin's own data file.
+   *
+   * Separate from `data.json` on purpose: that one is rewritten whole on every
+   * save, so a device holding a stale copy would clobber another device's
+   * icons along with everything else. See services/explorer-store.
+   */
+  private explorerStateFile(): ExplorerFileStore {
+    const adapter = this.app.vault.adapter;
+    const dir = this.manifest.dir ?? `${this.app.vault.configDir}/plugins/${this.manifest.id}`;
+    const path = `${dir}/${EXPLORER_STATE_FILE}`;
+
+    return {
+      read: async () => ((await adapter.exists(path)) ? adapter.read(path) : null),
+      write: async (text) => adapter.write(path, text),
+      mtime: async () => (await adapter.stat(path))?.mtime ?? null
+    };
+  }
+
+  private registerExplorerEvents(): void {
+    this.registerEvent(
+      this.app.vault.on("rename", (file, oldPath) => this.explorer?.handleRename(file, oldPath))
+    );
+    this.registerEvent(this.app.vault.on("delete", (file) => this.explorer?.handleDelete(file)));
+    // Obsidian replays a create for every file while the vault indexes, so this
+    // one waits: before layout is ready there is nothing a create can tell us
+    // that the state file does not already say.
+    this.app.workspace.onLayoutReady(() => {
+      this.registerEvent(this.app.vault.on("create", (file) => this.explorer?.handleCreate(file)));
+    });
+
+    // A sync client drops a new state file in without telling anyone, so the
+    // pane looks for one while it is on screen. Closed panes cost nothing.
+    this.registerInterval(
+      window.setInterval(() => {
+        if (this.app.workspace.getLeavesOfType(EXPLORER_VIEW_TYPE).length === 0) return;
+        void this.explorer?.checkForExternalChange();
+      }, EXTERNAL_CHECK_MS)
+    );
+  }
+
+  private requireProofread(): ProofreadController {
+    if (!this.proofread) throw new Error("Schreibstube: the proofread controller is not ready.");
+    return this.proofread;
   }
 
   private createReviewView(leaf: WorkspaceLeaf): ReviewPanelView {
@@ -334,6 +428,14 @@ export default class SchreibstubePlugin extends Plugin {
       name: t().commands.summarize,
       editorCallback: () => {
         void this.llm?.summarizeSelection();
+      }
+    });
+
+    this.addCommand({
+      id: "open-explorer-pane",
+      name: t().commands.openExplorer,
+      callback: () => {
+        void this.activateExplorerPane();
       }
     });
 

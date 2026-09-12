@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Added
+
+- **A file pane of Schreibstube's own** (`Open file pane`), because three things cannot be done to Obsidian's explorer from a plugin without fighting it.
+  - **An icon per file and per folder**, chosen from 172 icons in a searchable picker, grouped by what they are for. The set is a subsetted Tabler webfont carried inside the bundle — 24 KB of woff2 — so it works offline and on mobile with no request to a CDN. Icons are stored by name, so a font upgrade never scrambles a vault.
+  - **A sync mark on notes bound to a source**: in sync, changes waiting, never checked, or a source that cannot be fetched. Derived from what the poller already records, so a mark costs no request. Shape carries the state, colour only reinforces it, and nothing is shown while document sync is off.
+  - **Pinning to the top of a folder**, in the order things were pinned. Below the pinned block, Obsidian's own arrangement: folders first, then files, numeric-aware.
+  - **One context menu instead of several.** The pane builds its own, in a fixed order, and every item other plugins contribute goes behind a single "More actions" entry at the end. The pane fires Obsidian's own `file-menu` event, so those plugins need to know nothing about it; a setting moves their items inline or removes them.
+  - **Sync lives in that menu**: bind a note to a source with the URL validated before it is written, check one note now whether or not it is open, open the source, remove the binding, or refresh every bound note in a folder.
+- **A per-note source check** (`SyncPoller.checkFile`) and a per-folder one, next to the existing whole-vault poll. The poll walked the vault or the open note and had nothing in between, which is exactly what a file list needs.
+
+### Changed
+
+- **Icons and pins live in their own file**, `explorer.json` in the plugin folder, rather than in `data.json`. That file is written by overwriting the whole settings object, so a device holding a stale copy in memory would clobber another device's changes along with mailbox and publishing state. The new file is merged per entry, newest wins, re-read before every write, and watched for writes delivered by iCloud, Obsidian Sync or Git while the pane is open. Writes are debounced, so pinning three notes is one write.
+- **A file that moves keeps its icon.** Renames are followed, including every file under a renamed folder. A file that disappears keeps its entry for thirty days, so a move made outside Obsidian — which arrives as a delete and a create — can hand the icon back when the file turns up under the same name. An ambiguous match is left alone rather than guessed.
+
 ## 1.8.0 - 2026-09-12
 
 ### Added
