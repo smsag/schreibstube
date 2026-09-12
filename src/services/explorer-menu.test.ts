@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import { setLanguage } from "../i18n";
 import { syncBadgeFor, syncBadgeIcon } from "./explorer-badge";
 import {
-  MENU_REPEAT_WINDOW_MS,
-  shouldOpenMenu,
+  LONG_PRESS_ECHO_MS,
+  isLongPressEcho,
   buildExplorerMenu,
   type ExplorerTarget
 } from "./explorer-menu";
@@ -153,27 +153,22 @@ describe("syncBadgeFor", () => {
   });
 });
 
-describe("shouldOpenMenu", () => {
-  it("opens when nothing has been opened yet", () => {
-    expect(shouldOpenMenu("a.md", 1000, null)).toBe(true);
+describe("isLongPressEcho", () => {
+  it("is not an echo when the pane has answered nothing", () => {
+    // A right click: the timer never ran, so there is nothing to be an echo of.
+    expect(isLongPressEcho(1000, null)).toBe(false);
   });
 
-  it("refuses the second half of one long press on the same row", () => {
-    // The pane's timer answers first; the browser's own context menu follows.
-    const opened = { path: "a.md", at: 1000 };
-
-    expect(shouldOpenMenu("a.md", 1000 + 300, opened)).toBe(false);
+  it("recognises the browser's context menu for a press already answered", () => {
+    expect(isLongPressEcho(1000 + 300, 1000)).toBe(true);
   });
 
-  it("opens again once the window has passed", () => {
-    const opened = { path: "a.md", at: 1000 };
-
-    expect(shouldOpenMenu("a.md", 1000 + MENU_REPEAT_WINDOW_MS, opened)).toBe(true);
+  it("stops recognising it once the window has passed", () => {
+    expect(isLongPressEcho(1000 + LONG_PRESS_ECHO_MS, 1000)).toBe(false);
   });
 
-  it("always opens for a different row, however quickly", () => {
-    const opened = { path: "a.md", at: 1000 };
-
-    expect(shouldOpenMenu("b.md", 1001, opened)).toBe(true);
+  it("lets a second right click on the same row open again at once", () => {
+    // Nothing answered it, however recently the last menu was opened.
+    expect(isLongPressEcho(1001, null)).toBe(false);
   });
 });

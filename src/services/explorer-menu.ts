@@ -64,31 +64,24 @@ export interface ExplorerMenuSection {
 }
 
 /**
- * How long one gesture's menu stays the only menu.
+ * How long after the pane answers a long press the browser's own context menu
+ * still counts as the same press.
  *
- * A long press on a touch screen raises two events: the pane's own timer, and
- * the browser's native context menu once its own threshold passes. Both mean
- * the same press, and both ask for a menu. They arrive within a few hundred
- * milliseconds of each other, so a window of a second covers the gap while
- * staying far shorter than a deliberate second opening.
+ * The two arrive within a few hundred milliseconds of each other, so a second
+ * covers the gap. Nothing else is suppressed for that second: a right click and
+ * the row's own button are never the echo of anything.
  */
-export const MENU_REPEAT_WINDOW_MS = 1000;
-
-export interface MenuOpening {
-  path: string;
-  at: number;
-}
+export const LONG_PRESS_ECHO_MS = 1000;
 
 /**
- * Whether a request to open the menu is a new one, or the second half of a
- * press that has already been answered.
+ * Whether a context menu event is the browser's echo of a long press the pane
+ * has already answered.
  *
- * A different row is always a new request: moving to another file and opening
- * its menu is a thing people do quickly.
+ * `answeredAt` is null until the pane's own timer has opened a menu for the
+ * press in progress, which is why a mouse never reaches this at all.
  */
-export function shouldOpenMenu(path: string, now: number, last: MenuOpening | null): boolean {
-  if (last === null || last.path !== path) return true;
-  return now - last.at >= MENU_REPEAT_WINDOW_MS;
+export function isLongPressEcho(now: number, answeredAt: number | null): boolean {
+  return answeredAt !== null && now - answeredAt < LONG_PRESS_ECHO_MS;
 }
 
 export function buildExplorerMenu(

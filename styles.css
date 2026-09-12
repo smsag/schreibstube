@@ -97,11 +97,15 @@
    decoration has nothing to attach to and the block stayed at full strength
    while the prose around it faded.
 
-   It is dimmed directly, and never restored, because it cannot be the passage
-   in focus: the moment the cursor enters one, Obsidian puts the source lines
-   back and the line decorations take over again. Dimmed in both modes, since a
-   callout carries its own colours and cannot be muted the way a line can. */
-.schreibstube-focus-enabled .cm-embed-block {
+   It is dimmed directly and in both modes, since a callout carries its own
+   colours and cannot be muted the way a line can.
+
+   Except the one holding the cursor. A callout or a code preview un-renders
+   when entered, so the question does not arise there, but a table stays a
+   widget while being edited — it carries its own editor inside — and dimming
+   it would dim the cell being typed into, with no way back: opacity on an
+   ancestor is a ceiling its children cannot rise above. */
+.schreibstube-focus-enabled .cm-embed-block:not(:focus-within) {
   opacity: var(--schreibstube-focus-dim-opacity);
 }
 
