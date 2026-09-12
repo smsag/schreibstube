@@ -49,11 +49,21 @@ export interface Suggestion {
 /** How far from the recorded offset to look before searching the whole note. */
 const NEARBY_WINDOW = 400;
 
-export function createSuggestion(
-  id: string,
-  fields: Omit<Suggestion, "id" | "status">
-): Suggestion {
-  return { id, status: "pending", ...fields };
+/**
+ * A suggestion's identity is its span and what it proposes there.
+ *
+ * The panel dispatches Accept, Reject and Reveal by id, and `mergeSuggestions`
+ * decides what is the same card by span, so the two must be the same thing. A
+ * producer-local counter is not: `glossary-0` names a different change on every
+ * scan, and a re-run that keeps a decided card from the previous one leaves two
+ * cards answering to one id, where a click reaches whichever comes first.
+ */
+export function suggestionId(fields: Pick<Suggestion, "from" | "to" | "replacement">): string {
+  return `${fields.from}:${fields.to}:${fields.replacement}`;
+}
+
+export function createSuggestion(fields: Omit<Suggestion, "id" | "status">): Suggestion {
+  return { id: suggestionId(fields), status: "pending", ...fields };
 }
 
 export interface ResolvedAnchor {
@@ -248,7 +258,7 @@ export function mergeSuggestions(
   const decided = new Map<string, Suggestion>();
   for (const suggestion of existing) {
     if (suggestion.status === "accepted" || suggestion.status === "rejected") {
-      decided.set(spanKey(suggestion), suggestion);
+      decided.set(suggestion.id, suggestion);
     }
   }
 
@@ -258,7 +268,7 @@ export function mergeSuggestions(
 
   const merged = new Map<string, Suggestion>();
   for (const suggestion of [...kept, ...incoming]) {
-    const key = spanKey(suggestion);
+    const key = suggestion.id;
     merged.set(key, decided.get(key) ?? merged.get(key) ?? suggestion);
   }
 
@@ -267,8 +277,4 @@ export function mergeSuggestions(
 
 function isDecided(suggestion: Suggestion): boolean {
   return suggestion.status === "accepted" || suggestion.status === "rejected";
-}
-
-function spanKey(suggestion: Suggestion): string {
-  return `${suggestion.from}:${suggestion.to}:${suggestion.replacement}`;
 }

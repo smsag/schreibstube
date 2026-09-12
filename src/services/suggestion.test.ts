@@ -10,9 +10,9 @@ import {
   type Suggestion
 } from "./suggestion";
 
-function at(text: string, original: string, replacement: string, id = "s1"): Suggestion {
+function at(text: string, original: string, replacement: string): Suggestion {
   const from = text.indexOf(original);
-  return createSuggestion(id, {
+  return createSuggestion({
     kind: "replace",
     source: "glossary",
     category: "terminology",
@@ -68,7 +68,7 @@ describe("resolveAnchor", () => {
   });
 
   it("refuses to move a pure insertion", () => {
-    const suggestion = createSuggestion("i1", {
+    const suggestion = createSuggestion({
       kind: "insert",
       source: "llm",
       category: "punctuation",
@@ -88,18 +88,12 @@ describe("planApply", () => {
   const text = "Die Immobilie und der Broker sind da.";
 
   it("orders changes last-first so offsets stay valid", () => {
-    const plan = planApply(text, [
-      at(text, "Immobilie", "Objekt", "a"),
-      at(text, "Broker", "Makler", "b")
-    ]);
-    expect(plan.changes.map((c) => c.id)).toEqual(["b", "a"]);
+    const plan = planApply(text, [at(text, "Immobilie", "Objekt"), at(text, "Broker", "Makler")]);
+    expect(plan.changes.map((c) => c.text)).toEqual(["Makler", "Objekt"]);
   });
 
   it("applies a batch correctly", () => {
-    const plan = planApply(text, [
-      at(text, "Immobilie", "Objekt", "a"),
-      at(text, "Broker", "Makler", "b")
-    ]);
+    const plan = planApply(text, [at(text, "Immobilie", "Objekt"), at(text, "Broker", "Makler")]);
     expect(applyPlan(text, plan)).toBe("Die Objekt und der Makler sind da.");
   });
 
@@ -109,25 +103,23 @@ describe("planApply", () => {
   });
 
   it("reports a suggestion that can no longer be placed", () => {
-    const plan = planApply("Ganz anderer Text.", [at(text, "Broker", "Makler", "b")]);
-    expect(plan.stale).toEqual(["b"]);
+    const gone = at(text, "Broker", "Makler");
+    const plan = planApply("Ganz anderer Text.", [gone]);
+    expect(plan.stale).toEqual([gone.id]);
     expect(plan.changes).toEqual([]);
   });
 
   it("drops the second of two overlapping changes", () => {
-    const first = at(text, "Die Immobilie", "Das Objekt", "a");
-    const second = at(text, "Immobilie", "Liegenschaft", "b");
+    const first = at(text, "Die Immobilie", "Das Objekt");
+    const second = at(text, "Immobilie", "Liegenschaft");
     const plan = planApply(text, [first, second]);
     expect(plan.changes).toHaveLength(1);
-    expect(plan.conflicted).toEqual(["b"]);
+    expect(plan.conflicted).toEqual([second.id]);
   });
 
   it("survives a note edited between scan and accept", () => {
     const edited = `Neue Zeile.\n\n${text}`;
-    const plan = planApply(edited, [
-      at(text, "Immobilie", "Objekt", "a"),
-      at(text, "Broker", "Makler", "b")
-    ]);
+    const plan = planApply(edited, [at(text, "Immobilie", "Objekt"), at(text, "Broker", "Makler")]);
     expect(applyPlan(edited, plan)).toBe("Neue Zeile.\n\nDie Objekt und der Makler sind da.");
   });
 });
@@ -136,17 +128,17 @@ describe("settleStatuses", () => {
   const text = "Die Immobilie und der Broker.";
 
   it("marks applied suggestions accepted and conflicts stale", () => {
-    const first = at(text, "Die Immobilie", "Das Objekt", "a");
-    const second = at(text, "Immobilie", "Liegenschaft", "b");
+    const first = at(text, "Die Immobilie", "Das Objekt");
+    const second = at(text, "Immobilie", "Liegenschaft");
     const plan = planApply(text, [first, second]);
-    const settled = settleStatuses([first, second], plan, new Set(["a"]));
+    const settled = settleStatuses([first, second], plan, new Set([first.id]));
     expect(settled[0].status).toBe("accepted");
     expect(settled[1].status).toBe("stale");
   });
 
   it("leaves untouched suggestions alone", () => {
-    const first = at(text, "Immobilie", "Objekt", "a");
-    const other = at(text, "Broker", "Makler", "b");
+    const first = at(text, "Immobilie", "Objekt");
+    const other = at(text, "Broker", "Makler");
     const plan = planApply(text, [first]);
     const settled = settleStatuses([first, other], plan, new Set(["a"]));
     expect(settled[1].status).toBe("pending");
@@ -184,33 +176,33 @@ describe("mergeSuggestions", () => {
 
   it("adds new suggestions in document order", () => {
     const merged = mergeSuggestions(
-      [at(text, "Broker", "Makler", "b")],
-      [at(text, "Immobilie", "Objekt", "a")]
+      [at(text, "Broker", "Makler")],
+      [at(text, "Immobilie", "Objekt")]
     );
     expect(merged.map((s) => s.original)).toEqual(["Immobilie", "Broker"]);
   });
 
   it("does not duplicate a suggestion found by a second scan", () => {
-    const first = at(text, "Immobilie", "Objekt", "a");
-    const again = at(text, "Immobilie", "Objekt", "a-again");
+    const first = at(text, "Immobilie", "Objekt");
+    const again = at(text, "Immobilie", "Objekt");
     expect(mergeSuggestions([first], [again])).toHaveLength(1);
   });
 
   it("keeps a rejection when the same span is found again", () => {
-    const rejected = { ...at(text, "Immobilie", "Objekt", "a"), status: "rejected" as const };
-    const merged = mergeSuggestions([rejected], [at(text, "Immobilie", "Objekt", "a2")]);
+    const rejected = { ...at(text, "Immobilie", "Objekt"), status: "rejected" as const };
+    const merged = mergeSuggestions([rejected], [at(text, "Immobilie", "Objekt")]);
     expect(merged[0].status).toBe("rejected");
   });
 
   it("keeps an acceptance when the same span is found again", () => {
-    const accepted = { ...at(text, "Immobilie", "Objekt", "a"), status: "accepted" as const };
-    const merged = mergeSuggestions([accepted], [at(text, "Immobilie", "Objekt", "a2")]);
+    const accepted = { ...at(text, "Immobilie", "Objekt"), status: "accepted" as const };
+    const merged = mergeSuggestions([accepted], [at(text, "Immobilie", "Objekt")]);
     expect(merged[0].status).toBe("accepted");
   });
 
   it("treats a different replacement for the same span as a new suggestion", () => {
-    const rejected = { ...at(text, "Immobilie", "Objekt", "a"), status: "rejected" as const };
-    const merged = mergeSuggestions([rejected], [at(text, "Immobilie", "Liegenschaft", "b")]);
+    const rejected = { ...at(text, "Immobilie", "Objekt"), status: "rejected" as const };
+    const merged = mergeSuggestions([rejected], [at(text, "Immobilie", "Liegenschaft")]);
     expect(merged).toHaveLength(2);
   });
 
@@ -222,29 +214,39 @@ describe("mergeSuggestions", () => {
 describe("mergeSuggestions with a replaced source", () => {
   const text = "Die Immobilie und der Broker.";
 
-  function llm(original: string, replacement: string, id: string): Suggestion {
-    return { ...at(text, original, replacement, id), source: "llm" };
+  function llm(original: string, replacement: string): Suggestion {
+    return { ...at(text, original, replacement), source: "llm" };
   }
 
   it("drops the previous run's undecided cards", () => {
-    const merged = mergeSuggestions([llm("Broker", "Makler", "old")], [], "llm");
+    const merged = mergeSuggestions([llm("Broker", "Makler")], [], "llm");
     expect(merged).toEqual([]);
   });
 
   it("keeps decided cards from the previous run", () => {
-    const rejected = { ...llm("Broker", "Makler", "old"), status: "rejected" as const };
+    const rejected = { ...llm("Broker", "Makler"), status: "rejected" as const };
     expect(mergeSuggestions([rejected], [], "llm")).toHaveLength(1);
   });
 
   it("leaves cards from the other source alone", () => {
-    const glossaryCard = at(text, "Immobilie", "Objekt", "g");
-    const merged = mergeSuggestions([glossaryCard], [llm("Broker", "Makler", "n")], "llm");
+    const glossaryCard = at(text, "Immobilie", "Objekt");
+    const merged = mergeSuggestions([glossaryCard], [llm("Broker", "Makler")], "llm");
     expect(merged.map((s) => s.source)).toEqual(["glossary", "llm"]);
   });
 
+  it("never leaves two cards answering to one id", () => {
+    // A decided card from an earlier scan sits alongside a new one for a
+    // different span. Accept and Reject reach a card by id, so a shared id
+    // would send the click to whichever of the two comes first.
+    const accepted = { ...llm("Broker", "Makler"), status: "accepted" as const };
+    const merged = mergeSuggestions([accepted], [llm("Immobilie", "Objekt")], "llm");
+    expect(merged).toHaveLength(2);
+    expect(new Set(merged.map((s) => s.id)).size).toBe(2);
+  });
+
   it("replaces rather than duplicates on a re-scan", () => {
-    const first = mergeSuggestions([], [llm("Broker", "Makler", "a")], "llm");
-    const second = mergeSuggestions(first, [llm("Broker", "Makler", "b")], "llm");
+    const first = mergeSuggestions([], [llm("Broker", "Makler")], "llm");
+    const second = mergeSuggestions(first, [llm("Broker", "Makler")], "llm");
     expect(second).toHaveLength(1);
   });
 });

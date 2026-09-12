@@ -154,18 +154,3 @@ export function joinRemote(root, relative) {
   checkRelativePath(relative);
   return `${root.replace(/\/+$/, "")}/${relative}`;
 }
-
-/** The directories a set of paths needs, shallowest first, each one once. */
-export function directoriesFor(paths) {
-  const directories = new Set();
-  for (const path of paths) {
-    const segments = path.split("/");
-    segments.pop();
-    let current = "";
-    for (const segment of segments) {
-      current = current ? `${current}/${segment}` : segment;
-      directories.add(current);
-    }
-  }
-  return [...directories].sort((a, b) => a.split("/").length - b.split("/").length);
-}

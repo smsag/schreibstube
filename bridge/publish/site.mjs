@@ -65,16 +65,6 @@ export function orderNotes(notes) {
   });
 }
 
-/** Where each output file will live, without rendering anything. */
-export function expectedOutputPaths(index) {
-  return [
-    "index.html",
-    "assets/theme.css",
-    ...index.notes.map((note) => pagePath(note.slug)),
-    ...index.assets.map((asset) => assetPath(asset.sha256, asset.name ?? asset.sourcePath))
-  ];
-}
-
 /**
  * Build every file of the site.
  *

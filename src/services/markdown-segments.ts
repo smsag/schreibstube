@@ -107,7 +107,12 @@ export function segmentMarkdown(text: string): SegmentResult {
     }
 
     if (MATH_BLOCK.test(line.text)) {
-      const close = findLine(lines, index + 1, (l) => l.text.trim().endsWith("$$"));
+      // `$$x$$` on one line is a whole block. Looking for the closer on a later
+      // line would swallow every paragraph up to the next `$$`, or to the end of
+      // the note when there is none — the rest of the note silently unreviewed.
+      const close = closesItself(trimmed)
+        ? index
+        : findLine(lines, index + 1, (l) => l.text.trim().endsWith("$$"));
       index = close === -1 ? lines.length : close + 1;
       continue;
     }
@@ -181,6 +186,12 @@ function countTokens(tokens: string[]): Map<string, number> {
     counts.set(token, (counts.get(token) ?? 0) + 1);
   }
   return counts;
+}
+
+/** True when a `$$` line carries its own closing `$$`, so the block opens and
+ *  shuts on that line. Four characters is the shortest that can: `$$$$`. */
+function closesItself(trimmedLine: string): boolean {
+  return trimmedLine.length >= 4 && trimmedLine.endsWith("$$");
 }
 
 function isParagraphLine(text: string): boolean {

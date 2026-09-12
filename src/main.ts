@@ -237,10 +237,14 @@ export default class SchreibstubePlugin extends Plugin {
   }
 
   /** Show a folder in every open file pane. What a `vault://` bookmark does. */
-  private revealInExplorerPanes(path: string): void {
+  private revealInExplorerPanes(path: string, mayOpen = true): void {
     const leaves = this.app.workspace.getLeavesOfType(EXPLORER_VIEW_TYPE);
     if (leaves.length === 0) {
-      void this.activateExplorerPane().then(() => this.revealInExplorerPanes(path));
+      // One attempt only. `activateExplorerPane` gives up quietly when the
+      // workspace has no left sidebar to put the pane in, and retrying on that
+      // would call straight back into here for the rest of the session.
+      if (!mayOpen) return;
+      void this.activateExplorerPane().then(() => this.revealInExplorerPanes(path, false));
       return;
     }
 
