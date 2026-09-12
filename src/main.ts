@@ -4,6 +4,7 @@ import {
   Plugin,
   TFile,
   TFolder,
+  getIconIds,
   type TAbstractFile,
   type WorkspaceLeaf
 } from "obsidian";
@@ -26,7 +27,13 @@ import { createGlossaryUnderlineExtension } from "./processors/glossary-underlin
 import { compileGlossaries } from "./services/glossary-matcher";
 import { minuteOf, parseCron, previousRun, shouldFire } from "./services/cron";
 import { REVIEW_VIEW_TYPE, ReviewPanelView } from "./ui/review-panel";
-import { EXPLORER_RIBBON_ICON, EXPLORER_VIEW_TYPE, ExplorerPaneView } from "./ui/explorer-view";
+import {
+  EXPLORER_RIBBON_FALLBACK_ICON,
+  EXPLORER_RIBBON_ICON,
+  EXPLORER_VIEW_TYPE,
+  ExplorerPaneView
+} from "./ui/explorer-view";
+import { resolveIconName } from "./services/ribbon-icon";
 import {
   EXPLORER_STATE_FILE,
   EXTERNAL_CHECK_MS,
@@ -172,11 +179,21 @@ export default class SchreibstubePlugin extends Plugin {
     // is a command. Without a ribbon icon there is nothing to find: enabling
     // the plugin changes nothing anyone can see until they open the palette
     // and already know what to search for.
-    this.addRibbonIcon(EXPLORER_RIBBON_ICON, t().commands.openExplorer, () => {
+    this.addRibbonIcon(this.ribbonIcon(), t().commands.openExplorer, () => {
       void this.activateExplorerPane();
     });
     this.addSettingTab(new SchreibstubeSettingTab(this.app, this));
     this.requestOverlayRefresh();
+  }
+
+  /** The ribbon's icon, checked against the set Obsidian actually ships so a
+   *  name it does not have becomes a log line rather than a blank button. */
+  private ribbonIcon(): string {
+    const icon = resolveIconName(EXPLORER_RIBBON_ICON, getIconIds(), EXPLORER_RIBBON_FALLBACK_ICON);
+    if (icon !== EXPLORER_RIBBON_ICON) {
+      this.logger.warn(`Obsidian has no "${EXPLORER_RIBBON_ICON}" icon; using "${icon}".`);
+    }
+    return icon;
   }
 
   onunload(): void {

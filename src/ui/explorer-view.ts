@@ -40,6 +40,10 @@ export const EXPLORER_VIEW_TYPE = "schreibstube-explorer";
  *  thing a person clicks and the thing that appears look like each other. */
 export const EXPLORER_RIBBON_ICON = "folder-tree";
 
+/** Where the ribbon goes when Obsidian's set has no `folder-tree`. Plain enough
+ *  to have been there since the first release. */
+export const EXPLORER_RIBBON_FALLBACK_ICON = "folder";
+
 /** Long enough not to fire while scrolling, short enough to feel deliberate. */
 const LONG_PRESS_MS = 500;
 
