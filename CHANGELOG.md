@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## 1.14.0 - 2026-09-12
+
+### Added
+
+- **A file or folder can be dragged onto a folder to move it.** Dropping on the "Files and folders" header moves the item to the vault root, which is the only way to drag something out of every folder it sits in. Whether a move is allowed is decided away from the pointer: a folder cannot be dropped into itself or into its own subtree, a name already taken is refused rather than overwritten, and a refusal says which it was. The move goes through Obsidian's own rename, so links follow. Mouse only — the tree's long press opens the context menu, and on a phone that is the only way to reach a row's actions, so it is not a gesture to take.
+
+### Fixed
+
+- **A press that ended outside its row left that row armed.** The pointer was captured only once a drag had begun, so a release delivered elsewhere never reached the row that started it. The next pointer merely passing over that row began a drag with nothing held down. The pointer is captured on the press now, and a mouse with no button held is treated as hovering.
+- **A redraw during a drag left the pane unable to open anything.** The row being dragged was destroyed, its release never arrived, and the flag that suppresses the click after a drag stayed set, so every later click on a pinned row was swallowed. Losing the capture now ends the drag, and a redraw clears the flag.
+- **Dragging a pinned row on a phone could not work.** The list took the gesture as a scroll and the browser cancelled the drag. The hold now takes the gesture from the scroller, and only after the hold, so an ordinary swipe still scrolls.
+
 ## 1.13.0 - 2026-09-12
 
 ### Added

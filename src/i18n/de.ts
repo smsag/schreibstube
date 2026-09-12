@@ -417,6 +417,12 @@ export const de: Messages = {
     empty: "In diesem Vault liegt noch keine Datei.",
     searchPlaceholder: "Alle Sektionen filtern …",
 
+    move: {
+      intoItself: (name: string) => `${name} lässt sich nicht in sich selbst verschieben.`,
+      nameTaken: (name: string) => `Dort liegt bereits ${name}.`,
+      failed: (name: string) => `${name} konnte nicht verschoben werden.`
+    },
+
     sections: {
       pinned: "Angeheftet",
       bookmarks: "Lesezeichen",
