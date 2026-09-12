@@ -26,7 +26,7 @@ import { createGlossaryUnderlineExtension } from "./processors/glossary-underlin
 import { compileGlossaries } from "./services/glossary-matcher";
 import { minuteOf, parseCron, previousRun, shouldFire } from "./services/cron";
 import { REVIEW_VIEW_TYPE, ReviewPanelView } from "./ui/review-panel";
-import { EXPLORER_VIEW_TYPE, ExplorerPaneView } from "./ui/explorer-view";
+import { EXPLORER_RIBBON_ICON, EXPLORER_VIEW_TYPE, ExplorerPaneView } from "./ui/explorer-view";
 import {
   EXPLORER_STATE_FILE,
   EXTERNAL_CHECK_MS,
@@ -168,6 +168,13 @@ export default class SchreibstubePlugin extends Plugin {
     );
 
     this.registerCommands();
+    // The file pane is the plugin's main surface and everything else it offers
+    // is a command. Without a ribbon icon there is nothing to find: enabling
+    // the plugin changes nothing anyone can see until they open the palette
+    // and already know what to search for.
+    this.addRibbonIcon(EXPLORER_RIBBON_ICON, t().commands.openExplorer, () => {
+      void this.activateExplorerPane();
+    });
     this.addSettingTab(new SchreibstubeSettingTab(this.app, this));
     this.requestOverlayRefresh();
   }
@@ -190,6 +197,7 @@ export default class SchreibstubePlugin extends Plugin {
 
     const leaf = this.app.workspace.getRightLeaf(false);
     if (!leaf) {
+      new Notice(t().common.notice(t().common.sidebarMissing(t().proofread.panelTitle)));
       return;
     }
     await leaf.setViewState({ type: REVIEW_VIEW_TYPE, active: true });
@@ -206,6 +214,7 @@ export default class SchreibstubePlugin extends Plugin {
 
     const leaf = this.app.workspace.getLeftLeaf(false);
     if (!leaf) {
+      new Notice(t().common.notice(t().common.sidebarMissing(t().explorer.title)));
       return;
     }
     await leaf.setViewState({ type: EXPLORER_VIEW_TYPE, active: true });
@@ -240,7 +249,7 @@ export default class SchreibstubePlugin extends Plugin {
   private revealInExplorerPanes(path: string, mayOpen = true): void {
     const leaves = this.app.workspace.getLeavesOfType(EXPLORER_VIEW_TYPE);
     if (leaves.length === 0) {
-      // One attempt only. `activateExplorerPane` gives up quietly when the
+      // One attempt only. `activateExplorerPane` reports and returns when the
       // workspace has no left sidebar to put the pane in, and retrying on that
       // would call straight back into here for the rest of the session.
       if (!mayOpen) return;

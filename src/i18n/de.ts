@@ -40,7 +40,9 @@ export const de: Messages = {
     remove: "Entfernen",
     copy: "Kopieren",
     copied: "Kopiert",
-    notice: (message: string) => `Schreibstube: ${message}`
+    notice: (message: string) => `Schreibstube: ${message}`,
+    sidebarMissing: (pane: string) =>
+      `keine Seitenleiste für ${pane} verfügbar. Seitenleiste einblenden und den Befehl erneut ausführen.`
   },
 
   publish: {
