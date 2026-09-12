@@ -479,22 +479,31 @@
   text-align: left;
 }
 
-/* The one header that separates two kinds of thing: the curated lists above
-   it and the vault below. It is a band across the pane rather than a label. */
-.schreibstube-explorer .schreibstube-explorer-section-header.is-divider {
-  margin: 10px 0 4px;
-  background: var(--background-modifier-border-hover, var(--background-modifier-hover));
-  border-top: 1px solid var(--background-modifier-border);
-  border-bottom: 1px solid var(--background-modifier-border);
-  color: var(--text-muted);
+/* A rule runs from the label to the right edge, so a header reads as the start
+   of a section rather than a word floating above one. It is drawn by the
+   header itself: nothing in the markup exists only to be a line. */
+.schreibstube-explorer .schreibstube-explorer-section-header::after {
+  content: "";
+  flex: 1 1 auto;
+  height: 1px;
+  background: var(--background-modifier-border);
 }
 
-.schreibstube-explorer .schreibstube-explorer-section-header:hover {
-  background: var(--background-modifier-hover);
+/* The one header that separates two kinds of thing, the curated lists above it
+   and the vault below. It carries no fill of its own: a darker label and a
+   firmer rule are enough to set it apart, and they leave the pane quiet. */
+.schreibstube-explorer .schreibstube-explorer-section-header.is-divider {
+  margin-top: 4px;
   color: var(--text-normal);
 }
 
-.schreibstube-explorer .schreibstube-explorer-section-header.is-divider:hover {
+.schreibstube-explorer .schreibstube-explorer-section-header.is-divider::after {
+  /* One step firmer than the others. Obsidian's next border tone up, so the
+     difference holds in a theme that redefines either of them. */
+  background: var(--background-modifier-border-focus, var(--text-faint));
+}
+
+.schreibstube-explorer .schreibstube-explorer-section-header:hover {
   color: var(--text-normal);
 }
 
