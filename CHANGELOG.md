@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Added
+
+- **Publishing: a vault folder becomes a website, from desktop and from mobile.** Three commands — **Veröffentlichen**, **Veröffentlichung prüfen** and **Website öffnen** — publish a folder as a static site over SFTP.
+  - **Opt-in per note.** A note is published when its frontmatter carries `schreibstubePublished: true`; removing the flag takes the page down on the next publish. Title, date, description and slug come from frontmatter, each with a sensible default. After publishing, the time and the address are written back into the note.
+  - **The bridge renders the Markdown**, so the output is identical from a phone and a laptop, can be snapshot-tested, and can be rebuilt months later without the vault. Wikilinks between published notes become site links; a link to an unpublished note degrades to plain text rather than a dead link. Callouts, footnotes, tables, definition lists, task lists, highlights, maths and Mermaid diagrams all render, and comments never reach the page.
+  - **Images and video** referenced by a published note are uploaded under a content-addressed name, so a changed picture cannot be served from a cache.
+  - **A plan before anything moves.** The confirmation dialog lists what will be uploaded and, in full, what will be deleted.
+  - **Only what changed travels.** Sources are addressed by content, so an unchanged note is never uploaded twice and a renamed one uploads nothing at all. Re-publishing an untouched folder writes nothing.
+  - **Deletions are safe by construction.** The bridge keeps a manifest of every file it wrote; a file it has never heard of is never touched. The manifest is written last, so an interrupted publish costs repeated work rather than a lost file.
+  - **The hosting credentials stay on the bridge.** The vault holds a target name and a token, and the publish token is separate from the mail token. The host key is checked against a configured fingerprint.
+- **Publish settings section** — bridge URL (falling back to the mail bridge), publish token in Obsidian's secret storage, and one entry per account with a connection test that proves token, target, SSH login, host key and web root in one request.
+
 ### Changed
 
 - **The bridge is now capability-based** (`bridge/` 2.0.0), in preparation for publishing. Each capability brings its own token, credentials and limits; a capability whose variables are absent is not offered, and a deployment that offers nothing refuses to start. One capability's token never opens another's routes.
@@ -22,6 +34,7 @@ All notable changes to this project will be documented in this file.
 - **The bridge has tests.** 151 of them, covering configuration, routing, authorisation, the throttle, deadlines, the send path, the search path and the HTTP layer. They run under the repository's own `npm test`; the mail paths use a fake SMTP transport and a fake IMAP client, so nothing touches the network.
 - **A CI workflow** runs the test suite and the production build on every pull request.
 - **The plugin explains the bridge's new statuses** — throttled, restarting and timed out — instead of echoing the status code.
+- **The bridge gained a publish capability** with its own token, targets, limits and 145 tests, including an end-to-end suite that drives a real SSH connection into a real SFTP server.
 
 - **Email commands, working on mobile as well as desktop.** Three new commands:
   - **Send note as email** — addressing comes from the note's frontmatter (`schreibstubeTo`, `schreibstubeCc`, `schreibstubeSubject`), the body is the note with its frontmatter stripped. A confirmation dialog shows recipients and subject before anything leaves the vault. On success the assigned `schreibstubeMessageId` and `schreibstubeSentAt` are written back to the note.

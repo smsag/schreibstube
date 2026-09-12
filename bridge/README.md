@@ -38,9 +38,16 @@ token must belong to the capability that owns the route.
 | Method | Path | Capability | Body | Returns |
 |---|---|---|---|---|
 | `GET` | `/health` | — | — | `{status, version, protocol, capabilities[]}` |
-| `POST` | `/diagnostics` | any | — | per-protocol reachability for that capability |
+| `POST` | `/diagnostics` | mail | — | per-protocol reachability |
 | `POST` | `/send` | mail | `{to, cc?, bcc?, subject, text, from?, inReplyTo?, references?}` | `{messageId, sentAt, filedInSent}` |
 | `POST` | `/search` | mail | `{criteria:{from?,to?,subject?,text?,since?,references?}, mailbox?, limit?}` | `{messages[], mailbox, truncated}` |
+| `GET` | `/publish/targets` | publish | — | `{targets:[{name, baseUrl, siteTitle}]}` |
+| `POST` | `/publish/diagnostics` | publish | `{target}` | `{ok, root, entries}` or `{ok:false, error}` |
+| `POST` | `/publish/plan` | publish | `{target, index}` | what to upload, and what will be deleted |
+| `PUT` | `/publish/source` | publish | raw Markdown, `?target=&sha256=` | `{sha256, bytes}` |
+| `PUT` | `/publish/asset` | publish | raw bytes, `?target=&sha256=&name=` | `{sha256, bytes, path}` |
+| `POST` | `/publish/commit` | publish | `{target, index}` | `{written, unchanged, deleted, pruned, collected}` |
+| `POST` | `/publish/render` | publish | `{target}` | the same, rebuilt from stored state |
 
 `/health` is the version handshake: plugin and bridge deploy separately, and
 `protocol` is what lets the plugin say "redeploy the bridge" instead of failing
@@ -89,9 +96,43 @@ as a real process and drives it over HTTP, because configuration is read and the
 port bound at import time, and because routing, auth and the body limits are
 properties of the running service.
 
+## Publishing
+
+A publish folder becomes a static site: the plugin uploads Markdown and
+attachments, the bridge renders the HTML and writes it over SFTP.
+
+**Uploads are incremental, rendering is total.** Sources are addressed by
+content, so an unchanged note is never uploaded twice and a renamed one uploads
+nothing at all. Every commit then renders the whole site, because a title or a
+date that changed in one note changes the index page and every link pointing at
+it. Output is hashed before it is written, so an unchanged page is left alone.
+
+**The manifest is what makes deletion safe.** `<state>/manifest.json` records
+every file the bridge wrote. A page whose note was unpublished is removed; a
+file the bridge has never heard of is never touched. It is written last, so a
+crash means the next publish repeats work rather than losing a file.
+
+**Sources are kept.** `<state>/src/<sha256>.md` holds the Markdown, so
+`/publish/render` can rebuild the whole site after a template change with
+nothing uploaded and no vault in reach.
+
+Every write goes to a temporary name and is renamed over its target, so a reader
+never sees a half-written page. The host key is checked against a configured
+fingerprint: a stateless container cannot trust on first use, because it would
+re-trust a new key after every restart.
+
+The rendered site is static. Maths is rendered to HTML by KaTeX at publish time;
+only Mermaid needs JavaScript, and only on pages that contain a diagram, from a
+bundle the bridge writes itself rather than from a content delivery network.
+
 ## Configuration
 
-Copy `.env.example` and fill it in. To offer mail, set `MAIL_TOKEN`,
+Copy `.env.example` and fill it in. To offer publishing, set `PUBLISH_TOKEN`,
+`PUBLISH_TARGETS`, and one block of variables per target — host, user, a key or
+a password, the host fingerprint, the web root and the site URL. Read the
+fingerprint with `ssh-keyscan -t rsa your-host | ssh-keygen -lf -`.
+
+To offer mail, set `MAIL_TOKEN`,
 `IMAP_HOST`, `SMTP_HOST`, `MAIL_USER`, `MAIL_PASSWORD` and `MAIL_FROM`;
 everything else has a sensible default. Set none of them and the bridge does not
 offer mail; set some, and it names the ones still missing. Missing or weak

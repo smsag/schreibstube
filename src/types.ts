@@ -14,6 +14,17 @@ export type FocusMode = "off" | "sentence" | "paragraph";
 
 export type LlmProvider = "anthropic" | "openai";
 
+/** One hosting account: a vault folder published to a target on the bridge. */
+export interface PublishAccount {
+  /** Stable id, so renaming the folder does not orphan the entry. */
+  id: string;
+  name: string;
+  folder: string;
+  target: string;
+  /** Write the published time and URL back into each note's frontmatter. */
+  writeBack: boolean;
+}
+
 export interface SchreibstubeSettings {
   overlayEnabled: boolean;
   focusMode: FocusMode;
@@ -64,6 +75,11 @@ export interface SchreibstubeSettings {
   mailMailbox: string;
   mailMaxResults: number;
   mailMergeHeading: string;
+  // Publishing. The bridge holds the SFTP credentials; the plugin stores a
+  // target name and a token, so no key material enters the vault.
+  publishBridgeUrl: string;
+  publishTokenSecretName: string;
+  publishAccounts: PublishAccount[];
   // Diagnostics.
   debugLogging: boolean;
 }

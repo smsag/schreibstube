@@ -172,6 +172,32 @@ Two consequences worth knowing:
 - The plugin needs **no Node dependencies** and stays available on mobile.
 - Your **mailbox password lives on the bridge**, not in the vault. The plugin only stores a bridge token, which you can rotate without touching the mailbox.
 
+### Publishing
+
+Publishes a vault folder as a static website over SFTP, from desktop and from mobile.
+
+- **Veröffentlichen** — collect the folder, show what will change, upload and publish
+- **Veröffentlichung prüfen** — the same, stopping at the plan
+- **Website öffnen** — open the published site
+
+Publishing is opt-in per note. A note is published when its frontmatter says so, and taking the flag away removes the page on the next publish:
+
+```yaml
+---
+schreibstubePublished: true
+schreibstubeTitle: Hallo Welt          # default: the first heading, else the filename
+schreibstubeDate: 2026-09-12           # default: the file's creation date
+schreibstubeDescription: Kurzfassung   # optional; page head and index entry
+schreibstubeSlug: hallo-welt           # default: from the filename
+schreibstubePublishedAt: …             # written back after publishing
+schreibstubePublishedUrl: …            # written back after publishing
+---
+```
+
+The site is one page per note plus an index sorted by date, newest first. Wikilinks between published notes become site links; a link to an unpublished note degrades to plain text rather than a dead link. Embedded images and video are uploaded under a content-addressed name, so a changed picture can never be served from a cache. Callouts, footnotes, tables, task lists, maths and Mermaid diagrams all render. A `theme.css` in the publish folder replaces the built-in stylesheet.
+
+What the bridge does and the plugin does not: rendering the Markdown, holding the SFTP credentials, and deciding what may be deleted. Only files the bridge itself wrote are ever removed, and the hosting key never enters the vault. See [`bridge/README.md`](bridge/README.md).
+
 ### Link open modes
 
 Control where internal links open, indicated in the status bar:
@@ -261,6 +287,19 @@ Requires a deployed bridge — see [`bridge/README.md`](bridge/README.md).
 | Mailbox | IMAP mailbox searched by the query and reply commands | INBOX |
 | Maximum results | How many messages a search returns (newest kept) | 25 |
 | Merge heading | Heading that fetched replies are appended under | Correspondence |
+
+### Publishing
+
+Requires a bridge with the publish capability configured — see [`bridge/README.md`](bridge/README.md).
+
+| Setting | Description | Default |
+|---|---|---|
+| Bridge URL | Leave empty to use the mail bridge's URL | — |
+| Publish token | The bridge's `PUBLISH_TOKEN`, stored in Obsidian's secret storage | — |
+| Accounts | Site name, vault folder, and the name of a target the bridge knows | — |
+| Write-back | Record the publish time and URL in each note's frontmatter | On |
+
+The token is deliberately separate from the mail token, so a leaked publish token cannot reach the mailbox. **Verbindung testen** proves the token, the target, the SSH login, the host key and the web root in one request, without writing anything.
 
 ### Diagnostics
 

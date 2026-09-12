@@ -4,8 +4,9 @@ Publish a vault folder as a static site. The plugin uploads Markdown sources
 and attachments through the Schreibstube bridge; the bridge renders the HTML,
 holds the SFTP credentials, and writes to the web root.
 
-Status: specification, not yet implemented. Targets plugin version 1.8.0 and
-bridge version 2.0.0.
+Status: implemented and unreleased; bridge 2.1.0. This document is the design
+and the reasoning behind it, kept as the record of why publishing is shaped this
+way. `bridge/README.md` and the plugin README document what was built.
 
 ## Decisions
 
@@ -14,7 +15,7 @@ bridge version 2.0.0.
 | Markdown to HTML | Rendered on the bridge | Deterministic, snapshot-testable, identical from every device |
 | Publish set | Folder per account, `published: true` in frontmatter | Opt-in per note; the folder bounds what is even read |
 | Ordering | By `date`, newest first | The index is a blog index |
-| Attachments | Images and video, up to 25 MB each | Single streamed upload per file, no chunking |
+| Attachments | Images and video, up to 25 MB each | One raw-bytes upload per file, no chunking |
 | Render scope | Obsidian syntax, math, diagrams | KaTeX server-side; Mermaid as self-hosted client-side script |
 | Sources on the server | Kept in a state directory | A template change re-renders the site without the vault |
 | Deletions | Manifest-based mirror | Only files the bridge wrote are ever deleted |
@@ -92,9 +93,9 @@ different limits and different auth:
 
 A route declares which token opens it, so a mail token on a publish route is
 rejected before the body is read. Body limits become per route: mail keeps its
-1 MB, source uploads get 2 MB, asset uploads get 25 MB and are streamed rather
-than buffered. `bodyType` is `json` or `stream`; a JSON base64 payload would
-inflate a 25 MB video to 33 MB in memory on a small container.
+1 MB, source uploads get 2 MB, asset uploads get 25 MB. `bodyType` is `json` or
+`raw`; a JSON base64 payload would inflate a 25 MB video by a third on the way
+through both processes, so an upload sends bytes.
 
 ## Seven improvements worth making while it is open
 
@@ -450,7 +451,7 @@ preview has proven itself in practice.
 - **Story 3.1** Path safety module with its own tests.
 - **Story 3.2** SFTP transport with fingerprint pinning. *Accepts when:* a
   mismatched fingerprint aborts before authentication.
-- **Story 3.3** Plan, source and asset upload, streamed and hash-verified.
+- **Story 3.3** Plan, source and asset upload, as raw bytes and hash-verified.
 - **Story 3.4** Commit: render, write changed, delete removed, prune, collect,
   manifest last. *Accepts when:* a process killed between upload and commit
   leaves site and manifest consistent and the next plan resumes correctly.

@@ -29,13 +29,18 @@ import { authenticate, resolve } from "./router.mjs";
 import { createThrottle } from "./throttle.mjs";
 import { TimeoutError, withDeadline } from "./timeout.mjs";
 import { createMailRoutes } from "./mail-routes.mjs";
+import { createPublishRoutes } from "./publish/routes.mjs";
 
 const VERSION = createRequire(import.meta.url)("./package.json").version;
 
 const config = loadConfig();
 const capabilities = capabilityNames(config);
 const tokens = Object.fromEntries(capabilities.map((name) => [name, config[name].token]));
-const routes = [healthRoute(), ...(config.mail ? createMailRoutes(config) : [])];
+const routes = [
+  healthRoute(),
+  ...(config.mail ? createMailRoutes(config) : []),
+  ...(config.publish ? createPublishRoutes(config, { version: VERSION }) : [])
+];
 const throttle = createThrottle({
   limit: config.authFailureLimit,
   windowMs: config.authFailureWindowMs
@@ -74,7 +79,8 @@ async function handle(req, res, requestId) {
     return sendError(res, 503, "shutting_down", "Bridge is shutting down.", requestId);
   }
 
-  const pathname = new URL(req.url ?? "/", "http://bridge").pathname;
+  const url = new URL(req.url ?? "/", "http://bridge");
+  const pathname = url.pathname;
   const method = req.method ?? "GET";
   const address = clientAddress(req);
   const open = routes.some((route) => route.path === pathname && route.public);
@@ -110,17 +116,29 @@ async function handle(req, res, requestId) {
   if (!open) throttle.recordSuccess(address);
 
   const { route } = resolution;
+  // Notes and images differ by three orders of magnitude, so a route says both
+  // how much it will accept and whether it wants that parsed at all: base64 in
+  // a JSON payload would inflate a video by a third on the way through memory.
+  const bodyType = route.bodyType ?? (route.method === "GET" ? "none" : "json");
   let body;
   try {
-    body = route.method === "GET" ? {} : parseJson(await readBody(req, route.maxBytes));
+    const raw = bodyType === "none" ? Buffer.alloc(0) : await readBody(req, route.maxBytes);
+    body = bodyType === "json" ? parseJson(raw) : raw;
   } catch (err) {
     return fail(res, err, requestId);
   }
 
   try {
     const payload = await withDeadline(
-      route.handler({ body, requestId, log: (level, message) => log(level, message, requestId) }),
-      config.requestTimeoutMs,
+      route.handler({
+        body,
+        query: url.searchParams,
+        requestId,
+        log: (level, message) => log(level, message, requestId)
+      }),
+      // A route may need longer than the default: uploading a video over a slow
+      // line, or rendering and writing a whole site.
+      route.timeoutMs ?? config.requestTimeoutMs,
       "Request"
     );
     return sendJson(res, 200, payload);
@@ -152,6 +170,7 @@ function healthRoute() {
     path: "/health",
     public: true,
     maxBytes: 0,
+    bodyType: "none",
     handler: async () => ({
       status: "ok",
       version: VERSION,

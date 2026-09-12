@@ -1,6 +1,9 @@
-import { App, PluginSettingTab, SecretComponent, Setting } from "obsidian";
+import { App, Notice, PluginSettingTab, SecretComponent, Setting } from "obsidian";
 import type SchreibstubePlugin from "./main";
-import type { LlmProvider } from "./types";
+import type { LlmProvider, PublishAccount } from "./types";
+import { normalizeBaseUrl } from "./services/bridge-protocol";
+import { checkTarget } from "./services/publish-client";
+import { resolveApiKey } from "./services/secret";
 import {
   DEFAULT_PROOFREAD_PROMPT,
   MAX_SYNC_INTERVAL_MINUTES,
@@ -665,6 +668,8 @@ export class SchreibstubeSettingTab extends PluginSettingTab {
         });
       });
 
+    this.renderPublish(containerEl);
+
     new Setting(containerEl).setName("Diagnostics").setHeading();
 
     new Setting(containerEl)
@@ -681,5 +686,178 @@ export class SchreibstubeSettingTab extends PluginSettingTab {
             await this.plugin.saveSettings();
           });
       });
+  }
+
+  /**
+   * Publishing.
+   *
+   * The hosting credentials live on the bridge, so an account here is only a
+   * folder, the name of a target the bridge already knows, and what to call the
+   * site. Adding a target is a redeploy of the bridge, which is the price of
+   * keeping an SSH key out of the vault.
+   */
+  private renderPublish(containerEl: HTMLElement): void {
+    new Setting(containerEl).setName("Veröffentlichen").setHeading();
+
+    new Setting(containerEl).setDesc(
+      "Ein Ordner des Vaults wird als Website veröffentlicht. Nur Notizen mit " +
+        "`schreibstubePublished: true` im Frontmatter werden übertragen. Die Bridge rendert " +
+        "das Markdown und schreibt es per SFTP — die Zugangsdaten des Webspace liegen dort, " +
+        "nicht im Vault. Deshalb funktioniert das Veröffentlichen auch mobil."
+    );
+
+    new Setting(containerEl)
+      .setName("Bridge-URL")
+      .setDesc("Leer lassen, wenn dieselbe Bridge wie für E-Mail genutzt wird.")
+      .addText((text) => {
+        text.setPlaceholder(this.plugin.settings.mailBridgeUrl || "https://…");
+        text.setValue(this.plugin.settings.publishBridgeUrl);
+        text.onChange(async (value) => {
+          this.plugin.settings = normalizeSettings({
+            ...this.plugin.settings,
+            publishBridgeUrl: value,
+          });
+          await this.plugin.saveSettings();
+        });
+      });
+
+    new Setting(containerEl)
+      .setName("Publish-Token")
+      .setDesc(
+        "Der PUBLISH_TOKEN der Bridge — bewusst ein anderer als der Mail-Token, damit ein " +
+          "verlorenes Token nicht beides öffnet. Liegt in Obsidians Secret Storage."
+      )
+      .addComponent((el) =>
+        new SecretComponent(this.app, el)
+          .setValue(this.plugin.settings.publishTokenSecretName)
+          .onChange(async (value) => {
+            this.plugin.settings = normalizeSettings({
+              ...this.plugin.settings,
+              publishTokenSecretName: value,
+            });
+            await this.plugin.saveSettings();
+          })
+      );
+
+    for (const [position, account] of this.plugin.settings.publishAccounts.entries()) {
+      this.renderPublishAccount(containerEl, position, account);
+    }
+
+    new Setting(containerEl).addButton((button) =>
+      button.setButtonText("Konto hinzufügen").onClick(async () => {
+        await this.savePublishAccounts([
+          ...this.plugin.settings.publishAccounts,
+          {
+            id: `konto-${Date.now()}`,
+            name: "Website",
+            folder: "",
+            target: "",
+            writeBack: true
+          }
+        ]);
+      })
+    );
+  }
+
+  private renderPublishAccount(
+    containerEl: HTMLElement,
+    position: number,
+    account: PublishAccount
+  ): void {
+    const update = async (changes: Partial<PublishAccount>): Promise<void> => {
+      const accounts = [...this.plugin.settings.publishAccounts];
+      accounts[position] = { ...accounts[position], ...changes };
+      await this.savePublishAccounts(accounts, { redraw: false });
+    };
+
+    new Setting(containerEl)
+      .setName(account.name || "Website")
+      .setDesc("Name der Website, Ordner im Vault und Ziel auf der Bridge.")
+      .addText((text) =>
+        text
+          .setPlaceholder("Name")
+          .setValue(account.name)
+          .onChange((value) => void update({ name: value }))
+      )
+      .addText((text) =>
+        text
+          .setPlaceholder("Ordner")
+          .setValue(account.folder)
+          .onChange((value) => void update({ folder: value }))
+      )
+      .addText((text) =>
+        text
+          .setPlaceholder("Ziel")
+          .setValue(account.target)
+          .onChange((value) => void update({ target: value }))
+      );
+
+    new Setting(containerEl)
+      .setName("Veröffentlichung in die Notiz schreiben")
+      .setDesc("Trägt Zeitpunkt und Adresse nach dem Veröffentlichen ins Frontmatter ein.")
+      .addToggle((toggle) =>
+        toggle.setValue(account.writeBack).onChange((value) => void update({ writeBack: value }))
+      )
+      .addButton((button) =>
+        button.setButtonText("Verbindung testen").onClick(async () => {
+          await this.testPublishTarget(account);
+        })
+      )
+      .addButton((button) =>
+        button
+          .setButtonText("Entfernen")
+          .setWarning()
+          .onClick(async () => {
+            const accounts = this.plugin.settings.publishAccounts.filter(
+              (_, index) => index !== position
+            );
+            await this.savePublishAccounts(accounts);
+          })
+      );
+  }
+
+  private async savePublishAccounts(
+    accounts: PublishAccount[],
+    { redraw = true }: { redraw?: boolean } = {}
+  ): Promise<void> {
+    // An incomplete account is kept here but dropped by normalisation on load,
+    // so a half-typed entry does not vanish under the cursor.
+    this.plugin.settings = { ...this.plugin.settings, publishAccounts: accounts };
+    await this.plugin.saveSettings();
+    if (redraw) this.display();
+  }
+
+  /**
+   * Prove the whole path in one request: token, target, SSH login, host key and
+   * root directory, without writing anything.
+   */
+  private async testPublishTarget(account: PublishAccount): Promise<void> {
+    const settings = this.plugin.settings;
+    const url = normalizeBaseUrl(settings.publishBridgeUrl || settings.mailBridgeUrl);
+    if (!url.ok) {
+      new Notice(`Schreibstube: ${url.message}`);
+      return;
+    }
+
+    const token = resolveApiKey(
+      this.app.secretStorage,
+      settings.publishTokenSecretName,
+      "Publish-Token"
+    );
+    if (!token.ok) {
+      new Notice(token.message);
+      return;
+    }
+
+    try {
+      const result = await checkTarget({ baseUrl: url.url, token: token.apiKey }, account.target);
+      new Notice(
+        result.ok
+          ? `Schreibstube: Verbindung zu ${account.target} steht (${result.entries ?? 0} Einträge).`
+          : `Schreibstube: ${result.error ?? "Verbindung fehlgeschlagen."}`
+      );
+    } catch (error) {
+      new Notice(`Schreibstube: ${error instanceof Error ? error.message : String(error)}`);
+    }
   }
 }

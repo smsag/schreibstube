@@ -1,6 +1,6 @@
 {
   "name": "schreibstube-bridge",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "private": true,
   "type": "module",
   "description": "Stateless HTTP bridge that lets the Schreibstube Obsidian plugin reach protocols a WebView cannot speak, from desktop and mobile.",
@@ -12,8 +12,20 @@
     "node": ">=20"
   },
   "dependencies": {
+    "@vscode/markdown-it-katex": "^1.1.2",
     "imapflow": "^1.0.181",
+    "katex": "^0.18.7",
     "mailparser": "^3.7.2",
-    "nodemailer": "^6.9.16"
+    "markdown-it": "^15.0.2",
+    "markdown-it-anchor": "^10.0.0",
+    "markdown-it-deflist": "^4.0.0",
+    "markdown-it-footnote": "^4.0.0",
+    "markdown-it-mark": "^4.0.0",
+    "markdown-it-sub": "^2.0.0",
+    "markdown-it-sup": "^2.0.0",
+    "markdown-it-task-lists": "^2.1.1",
+    "mermaid": "^12.0.0",
+    "nodemailer": "^6.9.16",
+    "ssh2-sftp-client": "^12.1.1"
   }
 }

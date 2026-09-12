@@ -1,0 +1,254 @@
+/**
+ * The Obsidian-specific Markdown rules.
+ *
+ * Everything here is syntax that means something in a vault and nothing in
+ * CommonMark: wikilinks, embeds, callouts and comments. Each one is a token
+ * transformation, so the output is a pure function of the source and the site
+ * index, and can be snapshot-tested.
+ *
+ * Link resolution needs the index because the bridge has no vault: it is told
+ * which notes exist, what they are called and where they will be served.
+ */
+
+const CALLOUT = /^\[!([A-Za-z]+)\]([+-]?)[ \t]*(.*)$/;
+
+export function obsidian(md) {
+  md.inline.ruler.before("link", "wikilink", wikilink);
+  md.core.ruler.after("block", "callout", callouts);
+  overrideFence(md);
+  overrideLinks(md);
+}
+
+/**
+ * `[[Note]]`, `[[Note|alias]]`, `[[Note#Abschnitt]]` and their embedded forms.
+ *
+ * A link to a note that is not published becomes plain text. A dead link on a
+ * public site is worse than a missing one, and silently publishing the note
+ * instead would be worse still.
+ */
+function wikilink(state, silent) {
+  const start = state.pos;
+  const src = state.src;
+  let pos = start;
+
+  const embed = src.charCodeAt(pos) === 0x21; /* ! */
+  if (embed) pos += 1;
+
+  if (src.charCodeAt(pos) !== 0x5b || src.charCodeAt(pos + 1) !== 0x5b) return false;
+
+  const close = src.indexOf("]]", pos + 2);
+  if (close < 0) return false;
+
+  const body = src.slice(pos + 2, close);
+  if (body.includes("\n") || body.includes("[[")) return false;
+
+  if (!silent) {
+    const [rawTarget, rawAlias] = splitOnce(body, "|");
+    const [path, heading] = splitOnce(rawTarget.trim(), "#");
+    const alias = rawAlias?.trim();
+    const site = state.env?.site ?? emptySite();
+
+    if (embed) {
+      pushEmbed(state, { path, alias, site });
+    } else {
+      pushLink(state, { path, heading, alias, site });
+    }
+  }
+
+  state.pos = close + 2;
+  return true;
+}
+
+function pushEmbed(state, { path, alias, site }) {
+  const asset = site.assets?.get(key(path));
+  if (asset) {
+    if (asset.kind === "video") {
+      const token = state.push("html_inline", "", 0);
+      token.content =
+        `<video class="embed" controls preload="metadata" src="${escapeAttribute(asset.url)}">` +
+        `</video>`;
+      return;
+    }
+    const token = state.push("image", "img", 0);
+    const alt = alias || asset.name;
+    token.attrs = [
+      ["src", asset.url],
+      ["alt", alt],
+      ["loading", "lazy"]
+    ];
+    // markdown-it renders the alt text from the token's children, not from the
+    // attribute, so an image with no children publishes with an empty alt.
+    const caption = new state.Token("text", "", 0);
+    caption.content = alt;
+    token.children = [caption];
+    token.content = alt;
+    return;
+  }
+
+  // An embedded note is linked rather than inlined: inlining would duplicate a
+  // page that is published in its own right, and would need loop detection.
+  const note = site.notes?.get(key(path));
+  if (note) {
+    pushAnchor(state, note.url, alias || note.title);
+    return;
+  }
+
+  pushText(state, alias || path);
+}
+
+function pushLink(state, { path, heading, alias, site }) {
+  const note = site.notes?.get(key(path));
+  if (!note) {
+    pushText(state, alias || path);
+    return;
+  }
+  const fragment = heading ? `#${site.slugify(heading)}` : "";
+  pushAnchor(state, `${note.url}${fragment}`, alias || note.title);
+}
+
+function pushAnchor(state, href, text) {
+  const open = state.push("link_open", "a", 1);
+  open.attrs = [
+    ["href", href],
+    ["class", "internal"]
+  ];
+  pushText(state, text);
+  state.push("link_close", "a", -1);
+}
+
+function pushText(state, value) {
+  const token = state.push("text", "", 0);
+  token.content = value;
+}
+
+/**
+ * `> [!note]` and friends.
+ *
+ * The collapsible variants become `<details>`, so folding needs no JavaScript.
+ * The rest stay blockquotes with a class and a title line.
+ */
+function callouts(state) {
+  const tokens = state.tokens;
+
+  for (let i = 0; i < tokens.length; i += 1) {
+    if (tokens[i].type !== "blockquote_open") continue;
+    if (tokens[i + 1]?.type !== "paragraph_open" || tokens[i + 2]?.type !== "inline") continue;
+
+    const inline = tokens[i + 2];
+    const [first, ...rest] = inline.content.split("\n");
+    const match = CALLOUT.exec(first);
+    if (!match) continue;
+
+    const [, rawType, fold, rawTitle] = match;
+    const type = rawType.toLowerCase();
+    const title = rawTitle.trim() || capitalise(type);
+
+    // The marker line is consumed by the title; the rest stays as written. The
+    // rule runs before inline parsing, so the remaining text is parsed once, by
+    // the normal inline pass.
+    inline.content = rest.join("\n");
+
+    if (fold) {
+      const open = tokens[i];
+      open.type = "html_block";
+      open.tag = "";
+      open.nesting = 0;
+      open.block = true;
+      open.content =
+        `<details class="callout callout-${escapeAttribute(type)}"${fold === "+" ? " open" : ""}>` +
+        `<summary>${escapeHtml(title)}</summary>\n`;
+
+      const close = findClose(tokens, i);
+      if (close >= 0) {
+        tokens[close].type = "html_block";
+        tokens[close].tag = "";
+        tokens[close].nesting = 0;
+        tokens[close].block = true;
+        tokens[close].content = "</details>\n";
+      }
+      continue;
+    }
+
+    tokens[i].attrJoin("class", `callout callout-${type}`);
+    const heading = new state.Token("html_block", "", 0);
+    heading.block = true;
+    heading.content = `<p class="callout-title">${escapeHtml(title)}</p>\n`;
+    tokens.splice(i + 1, 0, heading);
+  }
+}
+
+function findClose(tokens, openIndex) {
+  let depth = 0;
+  for (let i = openIndex + 1; i < tokens.length; i += 1) {
+    if (tokens[i].type === "blockquote_open") depth += 1;
+    if (tokens[i].type === "blockquote_close") {
+      if (depth === 0) return i;
+      depth -= 1;
+    }
+  }
+  return -1;
+}
+
+/**
+ * A `mermaid` fence becomes a block the client-side bundle picks up.
+ *
+ * Mermaid is the one thing the bridge cannot render, because it needs a browser
+ * to measure text. The page loads a self-hosted bundle instead, and only a page
+ * that contains a diagram loads it at all.
+ */
+function overrideFence(md) {
+  const fallback = md.renderer.rules.fence;
+  md.renderer.rules.fence = (tokens, index, options, env, self) => {
+    const info = tokens[index].info.trim().split(/\s+/)[0]?.toLowerCase();
+    if (info === "mermaid") {
+      env.usedMermaid = true;
+      return `<pre class="mermaid">${escapeHtml(tokens[index].content)}</pre>\n`;
+    }
+    return fallback(tokens, index, options, env, self);
+  };
+}
+
+/** Outbound links get `rel="noopener"`; internal ones are ours already. */
+function overrideLinks(md) {
+  const fallback =
+    md.renderer.rules.link_open ??
+    ((tokens, index, options, env, self) => self.renderToken(tokens, index, options));
+
+  md.renderer.rules.link_open = (tokens, index, options, env, self) => {
+    const href = tokens[index].attrGet("href") ?? "";
+    if (/^[a-z][a-z0-9+.-]*:/i.test(href) && !href.startsWith("mailto:")) {
+      tokens[index].attrSet("rel", "noopener");
+    }
+    return fallback(tokens, index, options, env, self);
+  };
+}
+
+function splitOnce(value, separator) {
+  const at = value.indexOf(separator);
+  return at < 0 ? [value, undefined] : [value.slice(0, at), value.slice(at + 1)];
+}
+
+/** Links are written as they read in the vault, so lookup ignores case. */
+export function key(value) {
+  return String(value).trim().toLowerCase().replace(/\.md$/, "");
+}
+
+function emptySite() {
+  return { notes: new Map(), assets: new Map(), slugify: (value) => value };
+}
+
+function capitalise(value) {
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
+export function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function escapeAttribute(value) {
+  return escapeHtml(value).replace(/'/g, "&#39;");
+}

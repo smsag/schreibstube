@@ -1,4 +1,4 @@
-import type { LlmProvider, SchreibstubeSettings } from "../types";
+import type { LlmProvider, PublishAccount, SchreibstubeSettings } from "../types";
 import type { SyncRecord } from "./sync-document";
 import {
   DEFAULT_SETTINGS as DEFAULT_FOCUS_SETTINGS,
@@ -91,6 +91,9 @@ export const DEFAULT_SETTINGS: SchreibstubeSettings = {
   mailMailbox: "INBOX",
   mailMaxResults: 25,
   mailMergeHeading: DEFAULT_MAIL_MERGE_HEADING,
+  publishBridgeUrl: "",
+  publishTokenSecretName: "",
+  publishAccounts: [],
   debugLogging: false,
 };
 
@@ -243,7 +246,51 @@ export function normalizeSettings(loaded: LoadedSettings): SchreibstubeSettings 
       loaded?.mailMergeHeading,
       DEFAULT_SETTINGS.mailMergeHeading
     ),
+    publishBridgeUrl: trimmedStringOrDefault(
+      loaded?.publishBridgeUrl,
+      DEFAULT_SETTINGS.publishBridgeUrl
+    ),
+    publishTokenSecretName:
+      typeof loaded?.publishTokenSecretName === "string"
+        ? loaded.publishTokenSecretName
+        : DEFAULT_SETTINGS.publishTokenSecretName,
+    publishAccounts: publishAccountsOrDefault(loaded?.publishAccounts),
   };
+}
+
+/**
+ * Accounts are user-edited through the settings tab but live in the same data
+ * file a user can open, so each entry is validated rather than trusted. An
+ * entry without a folder or a target cannot publish anything and is dropped.
+ */
+function publishAccountsOrDefault(value: unknown): PublishAccount[] {
+  if (!Array.isArray(value)) return [];
+
+  const accounts: PublishAccount[] = [];
+  const seen = new Set<string>();
+
+  for (const entry of value) {
+    if (!entry || typeof entry !== "object") continue;
+    const record = entry as Partial<PublishAccount>;
+
+    const folder = typeof record.folder === "string" ? record.folder.replace(/^\/+|\/+$/g, "") : "";
+    const target = typeof record.target === "string" ? record.target.trim() : "";
+    if (!folder || !target) continue;
+
+    const id = typeof record.id === "string" && record.id ? record.id : `${target}:${folder}`;
+    if (seen.has(id)) continue;
+    seen.add(id);
+
+    accounts.push({
+      id,
+      name: typeof record.name === "string" && record.name.trim() ? record.name.trim() : folder,
+      folder,
+      target,
+      writeBack: record.writeBack !== false
+    });
+  }
+
+  return accounts;
 }
 
 /** Sync state is plugin-written, but it lives in the same data file a user can
