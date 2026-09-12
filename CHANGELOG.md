@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## 1.10.1 - 2026-09-12
+
+### Fixed
+
+- **The tag, the repository and the published assets name the same version again.** 1.10.0 was released from a branch whose version bump had not yet reached `main`, so its tag sits on a tree that still says 1.9.0 while its assets say 1.10.0. No code changed between the two releases; this one exists so a checkout of the tag matches what was published under it.
+
 ## 1.10.0 - 2026-09-12
 
 ### Added
