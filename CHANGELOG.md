@@ -11,7 +11,6 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
-- **The filter field is shorter**, 28px rather than 32px, so the strip above the list costs less of it.
 - **The strip is separated by a soft shadow rather than a rule**, so the list appears to pass beneath it instead of stopping at a border.
 
 ## 1.12.2 - 2026-09-12
