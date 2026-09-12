@@ -209,6 +209,10 @@ export class ExplorerPaneView extends ItemView {
     this.registerEvent(this.app.metadataCache.on("changed", () => this.requestRender()));
     this.registerEvent(this.app.workspace.on("file-open", () => this.requestRender()));
     this.registerEvent(this.app.workspace.on("layout-change", () => this.requestRender()));
+    // A theme swap repaints everything the ground was measured from.
+    this.registerEvent(this.app.workspace.on("css-change", () => this.measureGround()));
+
+    this.measureGround();
 
     this.render();
   }
@@ -232,6 +236,32 @@ export class ExplorerPaneView extends ItemView {
 
     this.revealing = path;
     this.requestRender();
+  }
+
+  /**
+   * Find the colour actually painted behind the pane.
+   *
+   * A header that holds the top of the list has to paint something, or rows
+   * show through where it sits. Naming a variable for that was wrong: which one
+   * is right depends on where the pane was docked and on what the theme does to
+   * its sidebar, and getting it wrong leaves a grey block on every header.
+   *
+   * The one colour that is certainly right is the one already behind the pane,
+   * so it is read off the first ancestor that paints at all.
+   */
+  private measureGround(): void {
+    let element: HTMLElement | null = this.containerEl;
+
+    while (element) {
+      const colour = getComputedStyle(element).backgroundColor;
+      if (colour && colour !== "transparent" && !colour.startsWith("rgba(0, 0, 0, 0")) {
+        this.contentEl.style.setProperty("--schreibstube-ground", colour);
+        return;
+      }
+      element = element.parentElement;
+    }
+
+    this.contentEl.style.removeProperty("--schreibstube-ground");
   }
 
   /** Collapse the redraws a burst of vault events would otherwise cause. */
