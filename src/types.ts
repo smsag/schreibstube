@@ -27,6 +27,13 @@ export interface PublishAccount {
   writeBack: boolean;
 }
 
+/** The summary of one publish, kept so the settings can show it afterwards. */
+export interface PublishRunRecord {
+  at: string;
+  written: number;
+  deleted: number;
+}
+
 export interface SchreibstubeSettings {
   /** Interface language; "auto" follows Obsidian's own. */
   language: LanguagePreference;
@@ -87,6 +94,8 @@ export interface SchreibstubeSettings {
   /** Which frontmatter key carries which meaning, so a vault can keep its own
    *  conventions instead of adopting the plugin's. */
   publishFrontmatterKeys: PublishKeyMap;
+  /** What each account last published, keyed by account id. Plugin-written. */
+  publishLastRun: Record<string, PublishRunRecord>;
   // Diagnostics.
   debugLogging: boolean;
 }

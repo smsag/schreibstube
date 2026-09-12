@@ -1,4 +1,4 @@
-import type { LlmProvider, PublishAccount, SchreibstubeSettings } from "../types";
+import type { LlmProvider, PublishAccount, PublishRunRecord, SchreibstubeSettings } from "../types";
 import type { LanguagePreference } from "../i18n";
 import type { SyncRecord } from "./sync-document";
 import {
@@ -98,6 +98,7 @@ export const DEFAULT_SETTINGS: SchreibstubeSettings = {
   publishTokenSecretName: "",
   publishAccounts: [],
   publishFrontmatterKeys: DEFAULT_PUBLISH_KEYS,
+  publishLastRun: {},
   debugLogging: false
 };
 
@@ -251,7 +252,8 @@ export function normalizeSettings(loaded: LoadedSettings): SchreibstubeSettings 
         ? loaded.publishTokenSecretName
         : DEFAULT_SETTINGS.publishTokenSecretName,
     publishAccounts: publishAccountsOrDefault(loaded?.publishAccounts),
-    publishFrontmatterKeys: normalizePublishKeys(loaded?.publishFrontmatterKeys)
+    publishFrontmatterKeys: normalizePublishKeys(loaded?.publishFrontmatterKeys),
+    publishLastRun: publishRunsOrDefault(loaded?.publishLastRun)
   };
 }
 
@@ -288,6 +290,24 @@ function publishAccountsOrDefault(value: unknown): PublishAccount[] {
   }
 
   return accounts;
+}
+
+/** Plugin-written, but it shares a file a user can edit, so it is validated. */
+function publishRunsOrDefault(value: unknown): Record<string, PublishRunRecord> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+
+  const runs: Record<string, PublishRunRecord> = {};
+  for (const [id, record] of Object.entries(value as Record<string, unknown>)) {
+    if (!record || typeof record !== "object") continue;
+    const { at, written, deleted } = record as Partial<PublishRunRecord>;
+    if (typeof at !== "string") continue;
+    runs[id] = {
+      at,
+      written: typeof written === "number" ? written : 0,
+      deleted: typeof deleted === "number" ? deleted : 0
+    };
+  }
+  return runs;
 }
 
 function languageOrDefault(value: unknown): LanguagePreference {

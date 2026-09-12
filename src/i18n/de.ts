@@ -188,8 +188,7 @@ export const de: Messages = {
 
     aiHeading: "KI-Modelle",
     aiIntro:
-      "Gilt für alle KI-gestützten Befehle. Der API-Schlüssel liegt in Obsidians Secret Storage, " +
-      "nie im Vault.",
+      "Anbieter, Modell und API-Schlüssel für alle KI-Befehle (Benennen und Zusammenfassen).",
     provider: "LLM-Anbieter",
     model: "Modell",
     customModel: "Eigene Modell-ID",
@@ -201,7 +200,8 @@ export const de: Messages = {
     renameHeading: "Datei aus Inhalt benennen",
     renameImageSize: "Maximale Bildgröße",
     renameImageSizeDesc:
-      "Bilder werden vor dem Senden auf diese Kantenlänge der längeren Seite verkleinert.",
+      "Bilder werden vor dem Senden auf diese maximale Kantenlänge (px) verkleinert. Kleiner ist " +
+      "günstiger und schneller.",
     renameMinChars: "Mindestlänge des Inhalts",
     renameMinCharsDesc: "Der Befehl tut nichts, wenn die Notiz weniger Zeichen hat.",
     renameMaxChars: "Maximal gesendeter Inhalt",
@@ -210,16 +210,20 @@ export const de: Messages = {
     renameMaxFilenameDesc: "Der erzeugte Dateiname wird auf so viele Zeichen gekürzt.",
 
     summarizeHeading: "Auswahl zusammenfassen",
-    summarizeIntro: "Ersetzt den markierten Text durch eine Zusammenfassung.",
+    summarizeIntro:
+      "„Auswahl zusammenfassen“ schickt den markierten Text an das LLM und ersetzt ihn durch das " +
+      "Ergebnis. Es nutzt das oben konfigurierte Modell.",
     summarizePrompt: "Prompt für die Zusammenfassung",
-    summarizePromptDesc: "Systemanweisung. Leer lassen, um den Standard wiederherzustellen.",
+    summarizePromptDesc:
+      "Systemanweisung, wie das LLM die Auswahl zusammenfassen soll. Leer lassen für den Standard.",
     summarizeTokens: "Maximale Antwortlänge",
-    summarizeTokensDesc: "Obergrenze für die Länge der Zusammenfassung.",
+    summarizeTokensDesc: (min: number, max: number) =>
+      `Obergrenze für die Länge der Zusammenfassung (${min}–${max}).`,
 
     proofreadHeading: "Korrektur",
     proofreadIntro:
-      "Die Seitenleiste schlägt eine Änderung nach der anderen vor. Nichts wird in die Notiz " +
-      "geschrieben, bevor sie übernommen wurde.",
+      "Wird von der Korrektur-Seitenleiste genutzt. Vorschläge kommen einzeln und werden erst " +
+      "geschrieben, wenn sie übernommen wurden.",
     proofreadPrompt: "Prompt für die Korrektur",
     proofreadPromptDesc: "Systemanweisung. Leer lassen, um den Standard wiederherzustellen.",
     proofreadTokens: "Maximale Antwortlänge",
@@ -237,7 +241,8 @@ export const de: Messages = {
     glossaryDefault: "Standard-Glossare",
     glossaryDefaultDesc: "Pfade im Vault, einer pro Zeile. Gilt, wenn nichts Genaueres passt.",
     glossaryRules: "Ordnerregeln",
-    glossaryRulesDesc: "Eine Regel pro Zeile: Ordner | Glossarpfad. Die erste Übereinstimmung gilt.",
+    glossaryRulesDesc:
+      "Eine Regel pro Zeile: Ordner | Glossarpfad. Die erste Übereinstimmung gilt.",
     glossaryUnderline: "Glossartreffer im Editor unterstreichen",
     glossaryUnderlineDesc:
       "Markiert Begriffe der Stufe „Fehler“ beim Schreiben. Standardmäßig aus, damit lange " +
@@ -245,18 +250,24 @@ export const de: Messages = {
 
     syncHeading: "Dokument-Sync",
     syncIntro:
-      "Eine an eine entfernte Markdown-Quelle gebundene Notiz spiegelt diese. Die Quelle ist die " +
-      "Wahrheit; zurückgeschrieben wird nie.",
+      "Eine Notiz wird an eine entfernte Markdown-Datei gebunden, indem schreibstubeSyncedFrom: " +
+      "<url> ins Frontmatter kommt. Die Quelle ist die einzige Wahrheit: Änderungen erscheinen " +
+      "als Karten in der Korrektur-Seitenleiste, zurückgeschrieben wird nie.",
     syncEnabled: "Dokument-Sync aktivieren",
     syncEnabledDesc: "Standardmäßig aus. Gebundene Notizen werden bis dahin ignoriert.",
     syncOnOpen: "Beim Öffnen einer gebundenen Notiz prüfen",
-    syncOnOpenDesc: "Prüft die Quelle beim Öffnen, im Rahmen des Intervalls unten.",
+    syncOnOpenDesc:
+      "Prüft zusätzlich beim Öffnen, im Rahmen des Intervalls unten. Sonst nur auf Befehl.",
     syncInterval: "Mindestabstand automatischer Prüfungen in Minuten",
     syncIntervalDesc: "Pro Notiz. Null prüft bei jedem Öffnen. Eine manuelle Prüfung läuft immer.",
     syncToken: "GitHub-Token",
-    syncTokenDesc: "Nur für private Repositories nötig. Liegt in Obsidians Secret Storage.",
+    syncTokenDesc:
+      "Optional. Nötig für Quellen in privaten Repositories, und erhöht GitHubs Ratenlimit. " +
+      "Liegt in Obsidians Secret Storage.",
     syncPoll: "Alle gebundenen Notizen im Hintergrund prüfen",
-    syncPollDesc: "Läuft nach dem Zeitplan unten, und einmal beim Start, falls ein Lauf ausfiel.",
+    syncPollDesc:
+      "Prüft alle gebundenen Notizen nach Zeitplan, nicht nur die geöffnete. Änderungen werden " +
+      "gezählt und erscheinen als Karten, sobald die Notiz geöffnet wird.",
     syncSchedule: "Zeitplan",
     syncScheduleDesc: (examples: string) =>
       "Fünf Cron-Felder: Minute, Stunde, Tag des Monats, Monat, Wochentag. Gilt in Ortszeit. Ein " +
@@ -278,7 +289,7 @@ export const de: Messages = {
     unsupportedImage: "nicht unterstütztes Format — möglich sind jpg, png, gif, webp.",
     failRename: "Schreibstube: Umbenennen fehlgeschlagen",
     failImage: "Schreibstube: Bild konnte nicht verarbeitet werden",
-    failSummarize: "Schreibstube: Zusammenfassen fehlgeschlagen",
+    failSummarize: "Schreibstube: Zusammenfassen fehlgeschlagen"
   },
 
   proofread: {
@@ -363,8 +374,7 @@ export const de: Messages = {
   },
 
   secrets: {
-    notSelected: (label: string) =>
-      `kein ${label} ausgewählt — in den Einstellungen einen wählen.`,
+    notSelected: (label: string) => `kein ${label} ausgewählt — in den Einstellungen einen wählen.`,
     notFound: (label: string) => `${label} nicht gefunden — Einstellungen prüfen.`,
     apiKey: "API-Schlüssel",
     mailToken: "Mail-Token",

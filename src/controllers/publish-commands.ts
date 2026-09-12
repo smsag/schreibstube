@@ -5,6 +5,7 @@ import type { Logger } from "../services/logger";
 import { resolveApiKey } from "../services/secret";
 import { normalizeBaseUrl } from "../services/bridge-protocol";
 import {
+  bridgeHealth,
   commitPublish,
   listTargets,
   planPublish,
@@ -12,6 +13,7 @@ import {
   uploadSource
 } from "../services/publish-client";
 import {
+  PROTOCOL_VERSION,
   summarisePlan,
   type PublishAsset,
   type PublishBridgeConfig,
@@ -43,10 +45,13 @@ import { PublishAccountModal, PublishPlanModal } from "../ui/publish-modals";
  */
 export class PublishCommands {
   private busy = false;
+  /** The handshake runs once per session, not once per request. */
+  private handshakeDone = false;
 
   constructor(
     private readonly app: App,
     private readonly getSettings: () => SchreibstubeSettings,
+    private readonly saveSettings: (patch: Partial<SchreibstubeSettings>) => Promise<void>,
     private readonly logger: Logger
   ) {}
 
@@ -136,6 +141,10 @@ export class PublishCommands {
       );
       this.logger.debug("Publish finished.", summary);
 
+      // The notice is gone in seconds; the settings pane keeps the answer to
+      // "did that go through".
+      await this.recordRun(account, summary.written, summary.deleted);
+
       // Separate from the publish itself: the site is live either way, and a
       // failed note write must not be reported as a failed publish.
       await this.writeBack(account, index, summary.baseUrl);
@@ -155,6 +164,7 @@ export class PublishCommands {
     if (!bridge) return null;
 
     try {
+      await this.checkBridgeVersion(bridge);
       const collected = await this.collect(account);
       if (!collected) return null;
 
@@ -249,6 +259,19 @@ export class PublishCommands {
     return { index, sources, assets };
   }
 
+  private async recordRun(
+    account: PublishAccount,
+    written: number,
+    deleted: number
+  ): Promise<void> {
+    await this.saveSettings({
+      publishLastRun: {
+        ...this.getSettings().publishLastRun,
+        [account.id]: { at: new Date().toISOString(), written, deleted }
+      }
+    });
+  }
+
   /** A `theme.css` in the publish folder replaces the built-in stylesheet. */
   private async readTheme(account: PublishAccount): Promise<string | undefined> {
     const path = account.folder ? `${account.folder}/theme.css` : "theme.css";
@@ -284,6 +307,31 @@ export class PublishCommands {
         this.logger.debug(`Could not record the publish in ${note.sourcePath}.`, error);
         new Notice(t().common.notice(t().publish.writeBackFailed(note.sourcePath)));
       }
+    }
+  }
+
+  /**
+   * Say plainly when the bridge is behind the plugin.
+   *
+   * The two are deployed separately and will drift. Without this, an older
+   * bridge answers a request for a route it does not have with a 404, which
+   * reads as a wrong URL rather than as a missing redeploy.
+   */
+  private async checkBridgeVersion(bridge: PublishBridgeConfig): Promise<void> {
+    if (this.handshakeDone) return;
+    this.handshakeDone = true;
+
+    try {
+      const health = await bridgeHealth(bridge);
+      if (health.protocol < PROTOCOL_VERSION) {
+        new Notice(
+          t().common.notice(t().publish.bridgeOutdated(health.protocol, PROTOCOL_VERSION))
+        );
+      }
+    } catch (error) {
+      // A bridge that cannot answer /health will fail the real request in a
+      // moment, with a better message than anything this could add.
+      this.logger.debug("Bridge health check failed.", error);
     }
   }
 

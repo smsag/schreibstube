@@ -5,9 +5,11 @@ import {
   PUBLISH_REQUEST_TIMEOUT_MS,
   UPLOAD_REQUEST_TIMEOUT_MS,
   describePublishError,
+  parseHealth,
   parsePlan,
   parseSummary,
   parseTargets,
+  type BridgeHealth,
   type PublishBridgeConfig,
   type PublishIndex,
   type PublishPlan,
@@ -26,6 +28,29 @@ import {
  * Uploads send raw bytes rather than base64 in JSON. A video would otherwise
  * grow by a third on the way through both processes.
  */
+
+/**
+ * What the bridge says it is.
+ *
+ * Unauthenticated, so it also works before a token is configured, and cheap
+ * enough to call once per session before the first real request.
+ */
+export async function bridgeHealth(config: PublishBridgeConfig): Promise<BridgeHealth> {
+  const response = await withTimeout(
+    requestUrl({
+      url: buildEndpoint(config.baseUrl, "/health"),
+      method: "GET",
+      throw: false
+    }),
+    PUBLISH_REQUEST_TIMEOUT_MS,
+    (seconds) => `bridge did not respond within ${seconds}s.`
+  );
+
+  if (response.status < 200 || response.status >= 300) {
+    throw new Error(describePublishError(response.status, response.text));
+  }
+  return parseHealth(response.json);
+}
 
 export async function listTargets(config: PublishBridgeConfig): Promise<PublishTarget[]> {
   return parseTargets(await send(config, "GET", "/publish/targets"));

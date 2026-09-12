@@ -8,7 +8,8 @@ export const enExtra = {
   settings: {
     overlayHeading: "Heading stack",
     overlayEnabled: "Enable heading stack overlay",
-    overlayEnabledDesc: "Show the sticky ancestor-heading breadcrumb at the top of the active note.",
+    overlayEnabledDesc:
+      "Show the sticky ancestor-heading breadcrumb at the top of the active note.",
 
     focusHeading: "Focus mode",
     focusOpacity: "Dim opacity",
@@ -16,9 +17,7 @@ export const enExtra = {
       "Opacity of out-of-focus lines in focus mode (0.2 = very faint, 0.8 = nearly full).",
 
     aiHeading: "AI models",
-    aiIntro:
-      "Shared by every AI-backed command. The API key is stored in Obsidian's secret storage, " +
-      "never in the vault.",
+    aiIntro: "Provider, model, and API key shared by every AI command (rename and summarize).",
     provider: "LLM provider",
     model: "Model",
     customModel: "Custom model ID",
@@ -30,7 +29,8 @@ export const enExtra = {
     renameHeading: "Rename file from content",
     renameImageSize: "Max image size",
     renameImageSizeDesc:
-      "Images are downscaled to this many pixels on the longer edge before they are sent.",
+      "Images are resized to this maximum dimension (px) before being sent. Smaller is cheaper " +
+      "and faster.",
     renameMinChars: "Minimum content length",
     renameMinCharsDesc:
       "The rename command does nothing if the note has fewer characters than this.",
@@ -40,21 +40,27 @@ export const enExtra = {
     renameMaxFilenameDesc: "Generated filename will be truncated to this many characters.",
 
     summarizeHeading: "Summarize selection",
-    summarizeIntro: "Replaces the selected text with a summary of it.",
+    summarizeIntro:
+      "The Summarize selection command sends the selected text to the LLM and replaces it with " +
+      "the result. It uses the shared AI model configured above.",
     summarizePrompt: "Summarize prompt",
-    summarizePromptDesc: "System instruction for the summary. Leave empty to restore the default.",
+    summarizePromptDesc:
+      "System instruction that tells the LLM how to summarize the selection. Leave blank to " +
+      "restore the default.",
     summarizeTokens: "Maximum response tokens",
-    summarizeTokensDesc: "Upper bound on the length of the summary.",
+    summarizeTokensDesc: (min: number, max: number) =>
+      `Upper bound on the length of the generated summary (${min}–${max}).`,
 
     proofreadHeading: "Proofreading",
     proofreadIntro:
-      "The review sidebar proposes one change at a time. Nothing is written to the note until " +
-      "you accept it.",
+      "Used by the proof-read sidebar. Corrections are proposed one by one and applied only when " +
+      "you accept them.",
     proofreadPrompt: "Proofread prompt",
     proofreadPromptDesc:
       "System instruction for the correction pass. Leave empty to restore the default.",
     proofreadTokens: "Maximum response tokens",
-    proofreadTokensDesc: "Upper bound per request. The actual budget follows the size of each chunk.",
+    proofreadTokensDesc:
+      "Upper bound per request. The actual budget follows the size of each chunk.",
     proofreadChunk: "Characters per request",
     proofreadChunkDesc: "Smaller chunks show the first suggestions sooner but cost more requests.",
     proofreadConcurrency: "Parallel requests",
@@ -74,18 +80,24 @@ export const enExtra = {
 
     syncHeading: "Document sync",
     syncIntro:
-      "A note bound to a remote Markdown source mirrors it. The source is the truth and nothing " +
-      "is ever pushed back.",
+      "Bind a note to a remote Markdown file by adding schreibstubeSyncedFrom: <url> to its " +
+      "frontmatter. The source is the single truth: incoming changes are proposed as cards in " +
+      "the review sidebar, and nothing is ever pushed back.",
     syncEnabled: "Enable document sync",
     syncEnabledDesc: "Off by default. Bound notes are ignored entirely until this is on.",
     syncOnOpen: "Check when a bound note opens",
-    syncOnOpenDesc: "Checks the source when the note is opened, respecting the interval below.",
+    syncOnOpenDesc:
+      "Also check automatically on open, subject to the interval below. Otherwise only on command.",
     syncInterval: "Minimum minutes between automatic checks",
     syncIntervalDesc: "Per note. Zero checks on every open. A manual check always runs.",
     syncToken: "GitHub token",
-    syncTokenDesc: "Needed only for private repositories. Stored in Obsidian's secret storage.",
+    syncTokenDesc:
+      "Optional. Needed for sources in a private repository, and it raises GitHub's rate limit. " +
+      "Stored in Obsidian's secret storage.",
     syncPoll: "Poll all bound notes in the background",
-    syncPollDesc: "Runs on the schedule below, and once at startup if a run was missed.",
+    syncPollDesc:
+      "Checks every bound note on a schedule, not just the one you have open. Changes are " +
+      "counted and surface as cards when you next open the note.",
     syncSchedule: "Schedule",
     syncScheduleDesc: (examples: string) =>
       "Five cron fields: minute, hour, day of month, month, day of week. Evaluated in local " +

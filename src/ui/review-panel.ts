@@ -307,7 +307,9 @@ export class ReviewPanelView extends ItemView {
         this.handlers?.onAccept(suggestion.id)
       );
     }
-    this.button(actions, t().proofread.reject, "x", false, () => this.handlers?.onReject(suggestion.id));
+    this.button(actions, t().proofread.reject, "x", false, () =>
+      this.handlers?.onReject(suggestion.id)
+    );
     this.button(actions, t().proofread.show, "crosshair", false, () =>
       this.handlers?.onReveal(suggestion.id)
     );

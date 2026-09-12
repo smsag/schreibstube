@@ -20,7 +20,7 @@ import { minuteOf, parseCron, previousRun, shouldFire } from "./services/cron";
 import { REVIEW_VIEW_TYPE, ReviewPanelView } from "./ui/review-panel";
 import { MailCommands } from "./controllers/mail-commands";
 import { PublishCommands } from "./controllers/publish-commands";
-import { SchreibstubeSettingTab } from "./settings";
+import { SchreibstubeSettingTab } from "./settings/index";
 import { setLanguage, t } from "./i18n";
 import type { FocusMode, HeadingEntry, SchreibstubeSettings } from "./types";
 
@@ -64,7 +64,15 @@ export default class SchreibstubePlugin extends Plugin {
     this.linkMode = new LinkModeController(this.app, this.logger);
     this.llm = new LlmCommands(this.app, () => this.settings, this.logger);
     this.mail = new MailCommands(this.app, () => this.settings, this.logger);
-    this.publish = new PublishCommands(this.app, () => this.settings, this.logger);
+    this.publish = new PublishCommands(
+      this.app,
+      () => this.settings,
+      async (patch) => {
+        this.settings = normalizeSettings({ ...this.settings, ...patch });
+        await this.saveSettings();
+      },
+      this.logger
+    );
     this.proofread = new ProofreadController(this.app, () => this.settings, this.logger, {
       get: (path) => this.settings.syncState[path],
       set: async (path, record) => {
