@@ -44,6 +44,22 @@ Two details worth knowing:
   reported in `filedInSent` but is not treated as a failed send — the mail is
   already delivered.
 
+## Tests
+
+The bridge is covered by the repository's Vitest suite, so its tests run with
+the plugin's:
+
+```bash
+npm ci --prefix bridge   # once; the tests import imapflow and nodemailer
+npm test                 # from the repository root
+```
+
+`config.test.mjs`, `mail-send.test.mjs` and `mail-search.test.mjs` exercise the
+modules directly, with a fake SMTP transport and a fake IMAP client, so nothing
+touches the network. `server.test.mjs` starts the bridge as a real process and
+drives it over HTTP, because configuration is read and the port bound at import
+time.
+
 ## Configuration
 
 Copy `.env.example` and fill it in. Required: `BRIDGE_TOKEN`, `IMAP_HOST`,
