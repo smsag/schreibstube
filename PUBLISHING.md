@@ -127,12 +127,10 @@ inflate a 25 MB video to 33 MB in memory on a small container.
    Repeated authentication failures from one address earn a delay and then a
    429.
 
-Two further points that need a decision rather than code. The bridge must run
-as a **single instance**: the per-target publish lock is in memory, and two
-instances behind a load balancer would interleave writes to one site. And
-**graceful shutdown** should refuse new publishes while draining in-flight
-ones, because a restart mid-publish is otherwise only survivable thanks to the
-manifest being written last.
+One further point is operational rather than code. **Graceful shutdown** should
+refuse new publishes while draining in-flight ones, because a Sliplane redeploy
+mid-publish is otherwise survivable only thanks to the manifest being written
+last.
 
 # Part two: publish capability
 
@@ -161,9 +159,16 @@ has no host fingerprint. Host key verification cannot be trust-on-first-use
 here: the container is stateless and would re-trust a new key after every
 restart, which is not verification at all.
 
-`STATE_ROOT` should sit outside the served tree. The default keeps it under the
-web root for hosts that allow nothing else, and the deployment notes then
-require a deny rule for `/.schreibstube/`.
+`STATE_ROOT` is a path on the SFTP host, not on the bridge. The bridge keeps no
+disk state of its own, so it stays as disposable as it is today and Sliplane
+needs no volume. The state root should sit outside the served tree; the default
+keeps it under the web root for hosts that allow nothing else, and the
+deployment notes then require a deny rule for `/.schreibstube/`.
+
+The one deployment constraint is that the service runs as a **single
+instance**. The per-target publish lock is in memory, and two instances behind a
+load balancer would interleave writes to one site. On Sliplane that means not
+enabling more than one replica.
 
 ## Protocol
 
