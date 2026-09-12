@@ -470,11 +470,21 @@
   z-index: 1;
 }
 
-/* The rule appears only once something has actually scrolled under the strip,
-   which is the moment it starts holding rows back. Drawn as a shadow rather
-   than a border so its arrival costs no layout. */
-.schreibstube-explorer-shelf.is-scrolled {
-  box-shadow: 0 1px 0 var(--background-modifier-border);
+/* What separates the strip, and a header holding the top, from the rows sliding
+   under them: a short fall of the pane's own ground rather than a rule. The row
+   fades into the background instead of being cut by a line.
+
+   It is a shadow in the ground colour, so the blur does the fading and nothing
+   has to be positioned. Only drawn while something is actually scrolled
+   underneath. */
+.schreibstube-explorer-shelf.is-scrolled,
+.schreibstube-explorer .schreibstube-explorer-section-header.is-stuck {
+  box-shadow: 0 4px 6px -1px var(--background-secondary);
+}
+
+.workspace-split.mod-root .schreibstube-explorer-shelf.is-scrolled,
+.workspace-split.mod-root .schreibstube-explorer .schreibstube-explorer-section-header.is-stuck {
+  box-shadow: 0 4px 6px -1px var(--background-primary);
 }
 
 .schreibstube-explorer-body {

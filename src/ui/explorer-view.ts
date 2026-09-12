@@ -59,6 +59,9 @@ const LONG_PRESS_MS = 500;
  *  block continues in the scrolling list, so the shelf cannot eat the pane. */
 const FIXED_PINNED_ROWS = 3;
 
+/** How close to the top a held header lands, allowing for sub-pixel layout. */
+const STUCK_TOLERANCE_PX = 1.5;
+
 /** Movement, in pixels, that turns a press into a drag rather than a click. */
 const DRAG_THRESHOLD_PX = 4;
 
@@ -271,6 +274,27 @@ export class ExplorerPaneView extends ItemView {
   private syncShelfRule(): void {
     if (!this.shelf || !this.body) return;
     this.shelf.toggleClass("is-scrolled", this.body.scrollTop > 0);
+    this.syncStuckHeaders();
+  }
+
+  /**
+   * Mark whichever header is currently holding the top of the list.
+   *
+   * CSS can hold an element there but cannot say that it is doing so, and the
+   * fade below a header belongs only to the one that has rows sliding under it.
+   * A header sitting in its natural place in the list must not cast it.
+   */
+  private syncStuckHeaders(): void {
+    const body = this.body;
+    if (!body) return;
+
+    const top = body.getBoundingClientRect().top;
+    for (const header of Array.from(
+      body.querySelectorAll<HTMLElement>(".schreibstube-explorer-section-header")
+    )) {
+      const held = Math.abs(header.getBoundingClientRect().top - top) < STUCK_TOLERANCE_PX;
+      header.toggleClass("is-stuck", held);
+    }
   }
 
   // --- sections -----------------------------------------------------------
