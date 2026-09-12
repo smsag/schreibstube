@@ -423,6 +423,8 @@
   --schreibstube-glyph-size: 15px;
   --schreibstube-badge-size: 12px;
   --schreibstube-pin-size: 11px;
+  /* What separates the pin and the sync mark from the name. */
+  --schreibstube-glyph-gap: 4px;
   --schreibstube-depth: 0;
 
   display: flex;
@@ -503,9 +505,13 @@
 }
 
 /* Created / Modified inside Latest: a label, not a row, so it carries no
-   chevron slot and no icon. */
+   chevron slot and no icon. It starts where the icons under it start, rather
+   than at the row inset, so each label sits over the list it names. */
 .schreibstube-explorer-subheading {
-  padding: 9px var(--schreibstube-row-inset) 3px;
+  padding: 9px var(--schreibstube-row-inset) 3px
+    calc(
+      var(--schreibstube-row-inset) + var(--schreibstube-twisty-size) + var(--schreibstube-row-gap)
+    );
   color: var(--text-faint);
   font-size: 10px;
   letter-spacing: 0.08em;
@@ -569,24 +575,28 @@
 }
 
 .schreibstube-explorer-name {
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-/* Both sit directly behind the name, not against the right edge: they belong
-   to the name, and a state never replaces another one. */
-.schreibstube-explorer-pin {
+/* Both sit just after the name's last character, not against the right edge:
+   they belong to the name, and a state never replaces another one. The negative
+   margin trims the row's shared gap down to a hair for these two. */
+.schreibstube-explorer-pin,
+.schreibstube-explorer-badge {
   flex: 0 0 auto;
-  font-size: var(--schreibstube-pin-size);
+  margin-left: calc(var(--schreibstube-glyph-gap) - var(--schreibstube-row-gap));
   color: var(--text-faint);
 }
 
+.schreibstube-explorer-pin {
+  font-size: var(--schreibstube-pin-size);
+}
+
 .schreibstube-explorer-badge {
-  flex: 0 0 auto;
   font-size: var(--schreibstube-badge-size);
-  color: var(--text-faint);
 }
 
 /* Shape carries the state; colour only reinforces it. */
@@ -602,86 +612,34 @@
   color: var(--text-error);
 }
 
-.schreibstube-explorer .schreibstube-explorer-delete,
 .schreibstube-explorer .schreibstube-explorer-more {
   flex: 0 0 auto;
   display: flex;
   align-items: center;
   justify-content: center;
+  /* Takes the slack the name gave up, so the button stays at the right edge. */
+  margin-left: auto;
   height: 20px;
   padding: 0 4px;
+  background-color: transparent;
   border: none;
+  border-radius: 0;
   box-shadow: none;
   cursor: pointer;
+  color: var(--text-muted);
   opacity: 0;
 }
 
 /* The trash stands free in the danger colour; the menu button is the neutral
    chip. Neither deletes anything: the trash opens the confirmation. */
-/* Free-standing, with no chip behind it, so the danger colour is the only
-   thing that marks it out. */
-.schreibstube-explorer .schreibstube-explorer-delete {
-  background-color: transparent;
-  border-radius: 0;
-  color: var(--text-error);
-}
-
-.schreibstube-explorer .schreibstube-explorer-more {
-  background-color: var(--background-modifier-border);
-  border-radius: 4px;
-  color: var(--text-muted);
-}
-
-.schreibstube-explorer .schreibstube-explorer-row:hover .schreibstube-explorer-delete,
 .schreibstube-explorer .schreibstube-explorer-row:hover .schreibstube-explorer-more,
-.schreibstube-explorer .schreibstube-explorer-delete:focus-visible,
 .schreibstube-explorer .schreibstube-explorer-more:focus-visible {
   opacity: 1;
 }
 
-/* A phone has no hover, so the buttons are simply always there. */
-.is-mobile .schreibstube-explorer-delete,
+/* A phone has no hover, so the button is simply always there. */
 .is-mobile .schreibstube-explorer-more {
   opacity: 1;
-}
-
-.schreibstube-explorer-footer {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex: 0 0 auto;
-  height: 38px;
-  padding: 0 14px;
-  border-top: 1px solid var(--background-modifier-border);
-}
-
-.schreibstube-explorer-vault {
-  flex: 1 1 auto;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 12.5px;
-  font-weight: var(--font-semibold);
-  color: var(--text-muted);
-}
-
-.schreibstube-explorer .schreibstube-explorer-footer-button {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  background-color: transparent;
-  border: none;
-  border-radius: 0;
-  box-shadow: none;
-  cursor: pointer;
-  font-size: var(--schreibstube-glyph-size);
-  color: var(--icon-color, var(--text-muted));
-}
-
-.schreibstube-explorer .schreibstube-explorer-footer-button:hover {
-  color: var(--text-normal);
 }
 
 /* A pinned row is worth recognising at a glance; the pin glyph alone is easy

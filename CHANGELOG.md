@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## 1.12.2 - 2026-09-12
+
+### Changed
+
+- **The pin and the sync mark sit against the name.** The name stretched across the row, which pushed both marks to the far right where they read as belonging to the row rather than to the file they describe. They now follow the last character with a hair of space, and the menu button takes the slack instead.
+- **Created and Modified sit over the lists they name.** Both labels started at the row inset, a chevron's width to the left of every filename under them, so neither read as belonging to its list. They now begin in the icon column.
+- **The row's menu button lost its chip.** A filled background on a control that appears on hover is louder than the row it belongs to.
+
+### Removed
+
+- **The trash button on each row.** Delete stays on the context menu behind the same confirmation. A destructive action does not need to be one pixel from the name of every file in the vault.
+- **The footer.** Obsidian already shows the vault name and a settings gear directly beneath the pane, so it said the same thing twice.
+
 ## 1.12.1 - 2026-09-12
 
 ### Fixed

@@ -241,11 +241,6 @@ export const enExtra = {
     empty: "This vault has no files yet.",
     searchPlaceholder: "Filter all sections…",
 
-    footer: {
-      help: "Schreibstube help",
-      settings: "Schreibstube settings"
-    },
-
     sections: {
       pinned: "Pinned",
       bookmarks: "Bookmarks",

@@ -508,15 +508,6 @@ export class ExplorerController {
     ).open();
   }
 
-  /**
-   * The delete confirmation, reachable from the menu and from the trash button
-   * a row shows on hover. Both go through here, so there is one dialog and one
-   * place that decides what deleting means.
-   */
-  confirmDelete(file: TAbstractFile): void {
-    this.remove(file);
-  }
-
   private remove(file: TAbstractFile): void {
     const inside = file instanceof TFolder ? countChildren(file) : 0;
 
