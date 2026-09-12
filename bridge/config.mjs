@@ -159,6 +159,12 @@ function loadTarget(env, name) {
     ),
     baseUrl,
     siteTitle: read("SITE_TITLE") || name,
+    // A personal site is the author's own HTML; a shared vault is not. The
+    // switch exists so that judgement belongs to whoever deploys the bridge.
+    allowHtml: boolean(read("ALLOW_HTML"), true),
+    // A page with a diagram loads a five megabyte bundle. A site that never
+    // draws one should not have to carry the possibility.
+    allowDiagrams: boolean(read("ALLOW_DIAGRAMS"), true),
     assetExtensions: new Set(
       (read("ALLOWED_EXT") || DEFAULT_ASSET_EXTENSIONS)
         .split(",")

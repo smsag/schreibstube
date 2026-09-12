@@ -241,7 +241,8 @@ async function publishSite({ remote, target, index, generator, log }) {
 
   const files = await buildSite(
     { ...index, siteTitle: index.siteTitle || target.siteTitle },
-    sources
+    sources,
+    { allowHtml: target.allowHtml, allowDiagrams: target.allowDiagrams }
   );
   for (const path of files.keys()) safePath(path, target, { output: true });
 

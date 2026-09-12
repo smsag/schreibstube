@@ -125,6 +125,20 @@ The rendered site is static. Maths is rendered to HTML by KaTeX at publish time;
 only Mermaid needs JavaScript, and only on pages that contain a diagram, from a
 bundle the bridge writes itself rather than from a content delivery network.
 
+## Dependencies and advisories
+
+`npm audit` reports findings against `lodash-es`, reached through Mermaid's
+parser. They are worth stating precisely rather than silencing:
+
+- The bridge never runs Mermaid. It copies one prebuilt file into the published
+  site, where the browser runs it against diagrams the site's own author wrote.
+- No fixed version of `lodash-es` exists; the advisories have no upstream patch.
+- A site that does not draw diagrams can set `PUBLISH_<TARGET>_ALLOW_DIAGRAMS`
+  to `false`, and then nothing of Mermaid reaches the site at all.
+
+Moving Mermaid to a development dependency would clear the audit output without
+changing a byte of what ships, so it stays where it is.
+
 ## Configuration
 
 Copy `.env.example` and fill it in. To offer publishing, set `PUBLISH_TOKEN`,

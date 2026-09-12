@@ -1,5 +1,6 @@
 import { requestUrl } from "obsidian";
 import { withTimeout } from "../utils/with-timeout";
+import { withRetry } from "../utils/retry";
 import { buildEndpoint, authHeaders } from "./bridge-protocol";
 import {
   PUBLISH_REQUEST_TIMEOUT_MS,
@@ -137,7 +138,23 @@ async function send(
   return response.json;
 }
 
+/**
+ * Uploads are the one request worth repeating.
+ *
+ * They are addressed by the hash of their content, so a repeat is either a
+ * no-op or the same write again. Without this, one dropped connection during a
+ * fifty-file publish reported failure even though the next run would have
+ * resumed for free.
+ */
 async function upload(
+  config: PublishBridgeConfig,
+  path: string,
+  content: ArrayBuffer
+): Promise<void> {
+  await withRetry(() => sendUpload(config, path, content));
+}
+
+async function sendUpload(
   config: PublishBridgeConfig,
   path: string,
   content: ArrayBuffer

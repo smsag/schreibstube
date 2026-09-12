@@ -82,10 +82,10 @@ export function expectedOutputPaths(index) {
  * the state directory stores them: a note that has not changed keeps its hash
  * and is never uploaded twice.
  */
-export async function buildSite(index, sources) {
+export async function buildSite(index, sources, options = {}) {
   const ordered = orderNotes(index.notes);
   const site = lookups(index);
-  const md = createRenderer();
+  const md = createRenderer(options);
 
   const files = new Map();
   let usedMath = false;
