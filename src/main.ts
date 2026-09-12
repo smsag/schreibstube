@@ -566,6 +566,18 @@ export default class SchreibstubePlugin extends Plugin {
       }
     });
 
+    // Obsidian's own collapse-all is a button on its explorer's header and
+    // nothing else: no command, so no hotkey. This one is both.
+    this.addCommand({
+      id: "collapse-explorer-folders",
+      name: t().commands.collapseExplorer,
+      callback: () => {
+        for (const leaf of this.app.workspace.getLeavesOfType(EXPLORER_VIEW_TYPE)) {
+          if (leaf.view instanceof ExplorerPaneView) leaf.view.collapseAll();
+        }
+      }
+    });
+
     this.addCommand({
       id: "open-bookmark",
       name: t().commands.openBookmark,

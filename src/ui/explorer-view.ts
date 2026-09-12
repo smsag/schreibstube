@@ -247,6 +247,12 @@ export class ExplorerPaneView extends ItemView {
     // A theme swap repaints everything the ground was measured from.
     this.registerEvent(this.app.workspace.on("css-change", () => this.measureGround()));
 
+    // The same button Obsidian's own explorer carries, in the same place and
+    // with the same icon. Obsidian raises no event when its own is pressed and
+    // registers no command for it, so the pane cannot follow along; it brings
+    // its own instead.
+    this.addAction("chevrons-down-up", t().explorer.collapseAll, () => this.collapseAll());
+
     this.measureGround();
     this.revealActiveFile(false);
 
@@ -321,6 +327,23 @@ export class ExplorerPaneView extends ItemView {
     }
 
     this.contentEl.style.removeProperty("--schreibstube-ground");
+  }
+
+  /**
+   * Close every folder in the tree.
+   *
+   * Both sets go: what a person opened by hand and what a reveal opened for
+   * them. Closing everything and leaving a folder open because the pane had
+   * shown a file in it would be the one thing this button must not do.
+   *
+   * Sections are left alone. They are not folders, and a person who closed the
+   * bookmarks list did not ask about them.
+   */
+  collapseAll(): void {
+    this.expanded.clear();
+    this.revealedFolders.clear();
+    this.writeMemory();
+    this.requestRender();
   }
 
   /** Collapse the redraws a burst of vault events would otherwise cause. */

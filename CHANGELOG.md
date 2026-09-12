@@ -7,6 +7,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - **Opening the pane shows the file you are editing.** A note is usually reached some other way — the quick switcher, a link, a search hit — and the pane would open on whatever folders happened to be left open, with no sign of the note in front of you. It now opens the folders above that file and scrolls to it, both when the pane is first opened and when an already open one is brought forward. What a reveal opens is held apart from what you opened by hand and never written to storage, so being shown where a file lives does not quietly rearrange the pane for every session to come. Clicking such a folder closes it, as it would any other.
+- **Collapse all, on the pane's own header.** The same button Obsidian's explorer carries, in the same place and with the same icon. It could not simply follow Obsidian's: that one is a header button and nothing else, raising no event and registering no command, so there is nothing for a plugin to hear. This one is also a command, so unlike Obsidian's it can take a hotkey. It closes what you opened by hand and what a reveal opened for you, and leaves the sections alone, since a section is not a folder.
 - **The filter field can be emptied with one click.** A small cross appears inside the field once there is something in it, and clearing puts the cursor back in the field, since the reason to clear it is usually to type something else. It is not there while the field is empty, because there would be nothing for it to do.
 
 ### Fixed

@@ -241,6 +241,7 @@ export const enExtra = {
     empty: "This vault has no files yet.",
     searchPlaceholder: "Filter all sections…",
     clearFilter: "Clear the filter",
+    collapseAll: "Collapse all",
 
     move: {
       intoItself: (name: string) => `${name} cannot be moved inside itself.`,
