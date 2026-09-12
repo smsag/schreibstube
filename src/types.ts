@@ -1,4 +1,5 @@
 import type { SyncRecord } from "./services/sync-document";
+import type { PublishKeyMap } from "./services/publish-index";
 
 export type HeadingLevel = 1 | 2 | 3 | 4 | 5 | 6;
 
@@ -80,6 +81,9 @@ export interface SchreibstubeSettings {
   publishBridgeUrl: string;
   publishTokenSecretName: string;
   publishAccounts: PublishAccount[];
+  /** Which frontmatter key carries which meaning, so a vault can keep its own
+   *  conventions instead of adopting the plugin's. */
+  publishFrontmatterKeys: PublishKeyMap;
   // Diagnostics.
   debugLogging: boolean;
 }

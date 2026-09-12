@@ -194,6 +194,16 @@ schreibstubePublishedUrl: …            # written back after publishing
 ---
 ```
 
+**The key names are settings.** A vault that already calls these fields something else does not have to rename them: map each role to the key you use, under **Frontmatter-Felder** in the publish settings. A configured key replaces the default rather than adding to it, so notes still carrying the old name stop being recognised.
+
+```yaml
+---
+veroeffentlicht: true
+titel: Hallo Welt
+datum: 2026-09-12
+---
+```
+
 The site is one page per note plus an index sorted by date, newest first. Wikilinks between published notes become site links; a link to an unpublished note degrades to plain text rather than a dead link. Embedded images and video are uploaded under a content-addressed name, so a changed picture can never be served from a cache. Callouts, footnotes, tables, task lists, maths and Mermaid diagrams all render. A `theme.css` in the publish folder replaces the built-in stylesheet.
 
 What the bridge does and the plugin does not: rendering the Markdown, holding the SFTP credentials, and deciding what may be deleted. Only files the bridge itself wrote are ever removed, and the hosting key never enters the vault. See [`bridge/README.md`](bridge/README.md).
@@ -298,6 +308,7 @@ Requires a bridge with the publish capability configured — see [`bridge/README
 | Publish token | The bridge's `PUBLISH_TOKEN`, stored in Obsidian's secret storage | — |
 | Accounts | Site name, vault folder, and the name of a target the bridge knows | — |
 | Write-back | Record the publish time and URL in each note's frontmatter | On |
+| Frontmatter fields | Which key carries which meaning — published, title, date, description, slug, and the two written back | `schreibstube…` |
 
 The token is deliberately separate from the mail token, so a leaked publish token cannot reach the mailbox. **Verbindung testen** proves the token, the target, the SSH login, the host key and the web root in one request, without writing anything.
 

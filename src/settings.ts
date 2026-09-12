@@ -1,6 +1,11 @@
 import { App, Notice, PluginSettingTab, SecretComponent, Setting } from "obsidian";
 import type SchreibstubePlugin from "./main";
 import type { LlmProvider, PublishAccount } from "./types";
+import {
+  DEFAULT_PUBLISH_KEYS,
+  PUBLISH_KEY_ROLES,
+  type PublishKeyMap
+} from "./services/publish-index";
 import { normalizeBaseUrl } from "./services/bridge-protocol";
 import { checkTarget } from "./services/publish-client";
 import { resolveApiKey } from "./services/secret";
@@ -757,6 +762,55 @@ export class SchreibstubeSettingTab extends PluginSettingTab {
         ]);
       })
     );
+
+    this.renderPublishKeys(containerEl);
+  }
+
+  /**
+   * Which frontmatter key carries which meaning.
+   *
+   * A vault that already names these fields its own way should not have to
+   * rename them, so each role is a field here. A blank field means "unchanged",
+   * and two roles cannot share a key — the plugin would have no way to tell
+   * which meaning was intended.
+   */
+  private renderPublishKeys(containerEl: HTMLElement): void {
+    const labels: Record<keyof PublishKeyMap, string> = {
+      published: "Veröffentlichen (ja/nein)",
+      title: "Titel",
+      date: "Datum",
+      description: "Beschreibung",
+      slug: "Adresse (Slug)",
+      publishedAt: "Veröffentlicht am (wird geschrieben)",
+      publishedUrl: "Veröffentlicht unter (wird geschrieben)"
+    };
+
+    new Setting(containerEl)
+      .setName("Frontmatter-Felder")
+      .setDesc(
+        "Welcher Frontmatter-Schlüssel welche Bedeutung hat. Leer lassen, um den Standard zu " +
+          "behalten. Ein geänderter Schlüssel ersetzt den Standard: Notizen mit dem alten Namen " +
+          "werden dann nicht mehr erkannt."
+      );
+
+    for (const role of PUBLISH_KEY_ROLES) {
+      new Setting(containerEl)
+        .setName(labels[role])
+        .addText((text) => {
+          text.setPlaceholder(DEFAULT_PUBLISH_KEYS[role]);
+          text.setValue(this.plugin.settings.publishFrontmatterKeys[role]);
+          text.onChange(async (value) => {
+            this.plugin.settings = normalizeSettings({
+              ...this.plugin.settings,
+              publishFrontmatterKeys: {
+                ...this.plugin.settings.publishFrontmatterKeys,
+                [role]: value
+              },
+            });
+            await this.plugin.saveSettings();
+          });
+        });
+    }
   }
 
   private renderPublishAccount(
