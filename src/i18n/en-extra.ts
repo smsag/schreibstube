@@ -241,6 +241,12 @@ export const enExtra = {
     empty: "This vault has no files yet.",
     searchPlaceholder: "Filter all sections…",
 
+    move: {
+      intoItself: (name: string) => `${name} cannot be moved inside itself.`,
+      nameTaken: (name: string) => `A file called ${name} is already there.`,
+      failed: (name: string) => `${name} could not be moved.`
+    },
+
     sections: {
       pinned: "Pinned",
       bookmarks: "Bookmarks",

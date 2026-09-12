@@ -21,6 +21,7 @@
 import {
   FileView,
   ItemView,
+  Notice,
   TFile,
   TFolder,
   type TAbstractFile,
@@ -38,6 +39,7 @@ import {
   type BookmarkFolder
 } from "../services/bookmark-file";
 import type { LatestCandidate } from "../services/latest-files";
+import { isMovePlan, planMove, type MoveContext, type MoveRefusal } from "../services/tree-move";
 import type { SchreibstubeSettings } from "../types";
 import { applyIcon, installIconFont } from "./icon-font";
 import { SCHREIBSTUBE_ICON } from "./schreibstube-icon";
@@ -103,6 +105,18 @@ interface PaneMemory {
   collapsedBookmarks?: string[];
   /** Tree folders the person opened. */
   expandedFolders?: string[];
+}
+
+/** What a row hands the shared gesture. */
+interface DragHandlers {
+  /** Identifies the drag in progress, so one row's release cannot end another's. */
+  path: string;
+  /** Whether a press here may become a drag at all. */
+  canStart?: () => boolean;
+  onStart: () => void;
+  onMove: (clientX: number, clientY: number) => void;
+  onDrop: (clientX: number, clientY: number) => void;
+  onEnd: () => void;
 }
 
 interface LocalStorageApi {
@@ -181,6 +195,7 @@ export class ExplorerPaneView extends ItemView {
 
     this.shelf = root.createDiv({ cls: "schreibstube-explorer-shelf" });
     this.body = root.createDiv({ cls: "schreibstube-explorer-body" });
+    this.body.addEventListener("scroll", () => this.syncShelfRule(), { passive: true });
 
     // The vault changes under the pane: a note created by a template, a file
     // deleted on another device and delivered by sync, frontmatter that binds a
@@ -232,6 +247,8 @@ export class ExplorerPaneView extends ItemView {
 
     host.empty();
     this.shelf?.empty();
+    // The rows a drag was holding are about to be thrown away.
+    this.dragging = null;
     this.openPaths = this.collectOpenPaths();
     const settings = this.host.settings();
 
@@ -241,6 +258,19 @@ export class ExplorerPaneView extends ItemView {
     this.renderFiles(host);
 
     this.scrollToRevealed();
+    this.syncShelfRule();
+  }
+
+  /**
+   * Show the strip's rule only while something is scrolled under it.
+   *
+   * At rest the strip is part of the pane and needs no line around it. The
+   * moment a fourth pinned row, or the section below, has gone past, the line
+   * says the strip is holding rows back rather than simply being first.
+   */
+  private syncShelfRule(): void {
+    if (!this.shelf || !this.body) return;
+    this.shelf.toggleClass("is-scrolled", this.body.scrollTop > 0);
   }
 
   // --- sections -----------------------------------------------------------
@@ -587,6 +617,7 @@ export class ExplorerPaneView extends ItemView {
     this.renderRowActions(row, file);
 
     this.wireRow(row, file, isFolder);
+    this.wireTreeDrag(row, file.path);
   }
 
   /** The menu button a row shows on hover. Every action lives behind it. */
@@ -606,21 +637,19 @@ export class ExplorerPaneView extends ItemView {
   }
 
   /**
-   * Dragging a pinned row to reorder the block.
+   * The press-hold-move gesture both drags are built on.
    *
-   * A mouse begins the drag as soon as the pointer leaves the row it pressed;
-   * a finger has to hold first, because on a touch surface a short drag down a
-   * list is how a person scrolls, and taking that gesture would make the pane
-   * impossible to move. Pinned rows carry no long-press menu of their own, so
-   * holding is free here in a way it would not be in the tree.
+   * A mouse begins as soon as the pointer leaves the row it pressed. A finger
+   * has to hold first, because on a touch surface a short drag down a list is
+   * how a person scrolls, and taking that gesture would make the pane
+   * impossible to move.
    *
-   * Nothing is written until the finger or button comes up, and a drag that
-   * ends where it started writes nothing at all.
+   * The pointer is captured on the press rather than when the drag begins, so
+   * the release always comes back to this row. Without that, a press that ends
+   * somewhere else leaves the row armed, and the next pointer to merely pass
+   * over it starts a drag with no button held.
    */
-  private wirePinnedDrag(row: HTMLElement, path: string, order: string[]): void {
-    const controller = this.host?.explorer;
-    if (!controller) return;
-
+  private wireDrag(row: HTMLElement, handlers: DragHandlers): void {
     let startX = 0;
     let startY = 0;
     let armed = false;
@@ -635,8 +664,8 @@ export class ExplorerPaneView extends ItemView {
       clearHold();
       armed = false;
       row.removeClass("is-dragging");
-      this.clearDropMarks();
-      // The click that follows a pointerup would otherwise open the file the
+      handlers.onEnd();
+      // The click that follows a pointerup would otherwise act on the row the
       // drag just moved.
       window.setTimeout(() => {
         this.dragging = null;
@@ -645,8 +674,14 @@ export class ExplorerPaneView extends ItemView {
 
     row.addEventListener("pointerdown", (event: PointerEvent) => {
       if (event.button !== 0) return;
+      if (handlers.canStart && !handlers.canStart()) return;
+
       startX = event.clientX;
       startY = event.clientY;
+
+      // Captured now, so pointerup and pointercancel cannot be delivered
+      // anywhere else and leave this row armed for ever.
+      row.setPointerCapture(event.pointerId);
 
       if (event.pointerType === "touch") {
         holdTimer = window.setTimeout(() => {
@@ -658,7 +693,24 @@ export class ExplorerPaneView extends ItemView {
       }
     });
 
+    // Once the hold has armed, the finger is dragging rather than scrolling.
+    // The listener has to be non-passive to be allowed to say so, and the
+    // gesture is only taken after the hold, so a plain swipe still scrolls.
+    row.addEventListener(
+      "touchmove",
+      (event: TouchEvent) => {
+        if (armed) event.preventDefault();
+      },
+      { passive: false }
+    );
+
     row.addEventListener("pointermove", (event: PointerEvent) => {
+      // A mouse with nothing held down is hovering, not dragging.
+      if (event.pointerType !== "touch" && event.buttons === 0) {
+        if (this.dragging === null) armed = false;
+        return;
+      }
+
       const moved = Math.hypot(event.clientX - startX, event.clientY - startY);
 
       // A finger that moves before the hold has elapsed is scrolling the pane.
@@ -669,26 +721,159 @@ export class ExplorerPaneView extends ItemView {
       if (this.dragging === null && moved <= DRAG_THRESHOLD_PX) return;
 
       if (this.dragging === null) {
-        this.dragging = path;
+        this.dragging = handlers.path;
         row.addClass("is-dragging");
-        row.setPointerCapture(event.pointerId);
+        handlers.onStart();
       }
 
-      this.markDropTarget(event.clientY);
+      handlers.onMove(event.clientX, event.clientY);
     });
 
     row.addEventListener("pointerup", (event: PointerEvent) => {
-      if (this.dragging !== path) {
+      if (this.dragging !== handlers.path) {
         finish();
         return;
       }
 
-      const next = this.orderAfterDrop(path, order, event.clientY);
+      const x = event.clientX;
+      const y = event.clientY;
       finish();
-      if (next) controller.reorderPinned(next);
+      handlers.onDrop(x, y);
     });
 
     row.addEventListener("pointercancel", finish);
+    // A redraw mid-drag destroys the row, and with it the capture. Without
+    // this the gesture never ends and every later click is swallowed.
+    row.addEventListener("lostpointercapture", () => {
+      if (this.dragging === handlers.path) finish();
+    });
+  }
+
+  /**
+   * Moving a file or a folder by dragging it onto a folder.
+   *
+   * Mouse only. The tree's long press already opens the context menu, and that
+   * is the only way to reach a row's actions on a phone, so it is not a gesture
+   * to take. Moving on touch stays where it is, in that menu.
+   *
+   * The drop target is a folder row, or the section header, which stands for
+   * the vault root. Whether a move is allowed at all is decided in `planMove`,
+   * away from the pointer, and a refusal says why rather than doing nothing.
+   */
+  private wireTreeDrag(row: HTMLElement, path: string): void {
+    this.wireDrag(row, {
+      path,
+      canStart: () => !this.isTouchPane(),
+      onStart: () => undefined,
+      onMove: (x, y) => this.markMoveTarget(x, y),
+      onEnd: () => this.clearMoveMarks(),
+      onDrop: (x, y) => void this.dropInto(path, this.moveTargetAt(x, y))
+    });
+  }
+
+  /** Obsidian marks a phone or tablet on the body; a mouse drag is not for it. */
+  private isTouchPane(): boolean {
+    return this.containerEl.doc.body.classList.contains("is-mobile");
+  }
+
+  /** Rows and headers a tree drag may land on. */
+  private moveTargets(): HTMLElement[] {
+    const root = this.body;
+    if (!root) return [];
+
+    return Array.from(
+      root.querySelectorAll<HTMLElement>(
+        ".schreibstube-explorer-row.is-folder[data-path], .schreibstube-explorer-section-header.is-divider"
+      )
+    );
+  }
+
+  /**
+   * The folder under the pointer, or null when there is none. The section
+   * header answers with the vault root, which is the only way to drag
+   * something out of every folder it is in.
+   */
+  private moveTargetAt(clientX: number, clientY: number): string | null {
+    for (const element of this.moveTargets()) {
+      const box = element.getBoundingClientRect();
+      if (clientY < box.top || clientY > box.bottom) continue;
+      if (clientX < box.left || clientX > box.right) continue;
+
+      if (element.hasClass("schreibstube-explorer-section-header")) return "";
+      return element.getAttribute("data-path");
+    }
+    return null;
+  }
+
+  private markMoveTarget(clientX: number, clientY: number): void {
+    this.clearMoveMarks();
+    const target = this.moveTargetAt(clientX, clientY);
+    if (target === null) return;
+
+    for (const element of this.moveTargets()) {
+      const isRoot = element.hasClass("schreibstube-explorer-section-header");
+      const path = isRoot ? "" : element.getAttribute("data-path");
+      if (path !== target) continue;
+      // A folder that cannot take this row should not look as if it could.
+      if (isMovePlan(this.planFor(this.dragging ?? "", target))) element.addClass("is-drop-into");
+    }
+  }
+
+  private clearMoveMarks(): void {
+    for (const element of this.moveTargets()) element.removeClass("is-drop-into");
+  }
+
+  private planFor(source: string, targetFolder: string): ReturnType<typeof planMove> {
+    const taken = new Set<string>();
+    const folders = new Set<string>();
+
+    for (const entry of this.app.vault.getAllLoadedFiles()) {
+      taken.add(entry.path);
+      if (entry instanceof TFolder) folders.add(entry.path);
+    }
+
+    const context: MoveContext = { taken, folders };
+    return planMove(source, targetFolder, context);
+  }
+
+  private async dropInto(source: string, targetFolder: string | null): Promise<void> {
+    if (targetFolder === null) return;
+
+    const plan = this.planFor(source, targetFolder);
+    if (!isMovePlan(plan)) {
+      // Landing back where it started is the commonest "refusal" and is not
+      // worth a message; the rest are worth saying out loud.
+      if (plan !== "same-folder") {
+        new Notice(t().common.notice(moveRefusalMessage(plan, basenameOf(source))));
+      }
+      return;
+    }
+
+    const file = this.app.vault.getAbstractFileByPath(source);
+    if (!file) return;
+
+    try {
+      await this.app.fileManager.renameFile(file, plan.destination);
+    } catch {
+      new Notice(t().common.notice(t().explorer.move.failed(basenameOf(source))));
+    }
+  }
+
+  /** Reordering the pinned block by dragging one of its rows. */
+  private wirePinnedDrag(row: HTMLElement, path: string, order: string[]): void {
+    const controller = this.host?.explorer;
+    if (!controller) return;
+
+    this.wireDrag(row, {
+      path,
+      onStart: () => undefined,
+      onMove: (_x, y) => this.markDropTarget(y),
+      onEnd: () => this.clearDropMarks(),
+      onDrop: (_x, y) => {
+        const next = this.orderAfterDrop(path, order, y);
+        if (next) controller.reorderPinned(next);
+      }
+    });
   }
 
   /**
@@ -947,6 +1132,25 @@ function ancestorsOf(path: string): string[] {
     ancestors.push(current);
   }
   return ancestors;
+}
+
+function basenameOf(path: string): string {
+  const cut = path.lastIndexOf("/");
+  return cut === -1 ? path : path.slice(cut + 1);
+}
+
+/** Why a drop was refused, in words a person can act on. */
+function moveRefusalMessage(refusal: MoveRefusal, name: string): string {
+  const messages = t().explorer.move;
+  switch (refusal) {
+    case "into-itself":
+    case "into-descendant":
+      return messages.intoItself(name);
+    case "name-taken":
+      return messages.nameTaken(name);
+    default:
+      return messages.failed(name);
+  }
 }
 
 function displayName(file: TAbstractFile): string {
