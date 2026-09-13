@@ -2,7 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## 1.24.0 - 2026-09-13
+
+Mobile checklist: not run for this release. Printing is the whole of it, and
+two of its steps cannot be checked anywhere but a device — the first fetch of
+the 28 MB typesetter, and a diagram drawn by another plugin coming out light
+and complete. Ten minutes on a phone before relying on either is still worth
+having.
 
 ### Added
 
