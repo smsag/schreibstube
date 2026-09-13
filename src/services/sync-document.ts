@@ -51,6 +51,62 @@ export interface SyncRecord {
   changedAt?: number;
 }
 
+export interface SyncOutcomeInput {
+  /** What the last check left behind, if anything. */
+  record: SyncRecord | undefined;
+  /** The note's body as it stands. */
+  body: string;
+  /** The source's body, or null when the fetch answered "unchanged". */
+  remoteBody: string | null;
+  /** The validator to keep for the next conditional request. */
+  etag: string;
+  checkedAt: number;
+  /** How many changed regions the note still owes a person's attention. */
+  pendingChanges: number;
+  /** Whether the note now matches the source, which is what advances the
+   *  baseline the divergence check is made against. */
+  settled: boolean;
+}
+
+/**
+ * The record a successful check leaves behind.
+ *
+ * Written here rather than at each call site because there are two — a poll
+ * over the vault and a check on the note in front of you — and when they
+ * disagreed about what to record, half of what the plugin knows was written by
+ * one of them and not the other.
+ */
+export function nextSyncRecord(input: SyncOutcomeInput): SyncRecord {
+  const { record, body, remoteBody, etag, checkedAt, pendingChanges, settled } = input;
+  const remoteHash = remoteBody === null ? record?.remoteHash : hashText(remoteBody);
+
+  // A source seen for the first time counts as having changed: the document
+  // arrived, which from the note's point of view is its first version and the
+  // moment worth recording. After that it is a change only when the hash moves.
+  const remoteChanged =
+    remoteBody !== null && (record?.remoteHash === undefined || record.remoteHash !== remoteHash);
+
+  return {
+    hash: settled ? hashText(body) : (record?.hash ?? hashText(body)),
+    etag,
+    checkedAt,
+    pendingChanges,
+    ...(remoteHash === undefined ? {} : { remoteHash }),
+    ...(remoteChanged
+      ? { changedAt: checkedAt }
+      : record?.changedAt !== undefined
+        ? { changedAt: record.changedAt }
+        : {})
+  };
+}
+
+/** Whether this outcome is one that should stamp the note's `updatedAt`. */
+export function isRemoteChange(record: SyncRecord | undefined, remoteBody: string | null): boolean {
+  if (remoteBody === null) return false;
+  const hash = hashText(remoteBody);
+  return record?.remoteHash === undefined || record.remoteHash !== hash;
+}
+
 export type LocalState =
   /** Never synced, so there is no baseline to judge divergence against. */
   | "unsynced"

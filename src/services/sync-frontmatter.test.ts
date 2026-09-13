@@ -95,3 +95,11 @@ describe("the date a check writes", () => {
     expect(early < late).toBe(true);
   });
 });
+
+describe("the date on a source seen for the first time", () => {
+  it("is stamped, because a document arriving is the version a note starts from", () => {
+    // Read literally, "after the first change" would leave a note with no date
+    // at all until its source happened to move, which may be never.
+    expect(plan({ remoteChanged: true })[SYNC_UPDATED_KEY]).toBe("2026-09-13T07:05:09");
+  });
+});

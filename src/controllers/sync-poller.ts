@@ -13,6 +13,7 @@ import { resolveApiKey } from "../services/secret";
 import { fetchSource } from "../services/sync-fetcher";
 import { resolveSourceUrl, SYNC_FRONTMATTER_KEY } from "../services/sync-source";
 import { diffHunks } from "../services/line-diff";
+import { sourceUrlFromNote } from "../services/sync-source";
 import {
   planSyncFrontmatter,
   SYNC_TITLE_KEY,
@@ -20,6 +21,8 @@ import {
 } from "../services/sync-frontmatter";
 import {
   hashText,
+  isRemoteChange,
+  nextSyncRecord,
   normalizeNewlines,
   splitNote,
   stripRemoteFrontmatter,
@@ -165,7 +168,7 @@ export class SyncPoller {
     force = false
   ): Promise<void> {
     const settings = this.getSettings();
-    const raw = this.app.metadataCache.getFileCache(file)?.frontmatter?.[SYNC_FRONTMATTER_KEY];
+    const raw = await this.readBinding(file);
     const resolved = resolveSourceUrl(raw);
     if (!resolved.ok) {
       summary.failed += 1;
@@ -203,24 +206,28 @@ export class SyncPoller {
       summary.failed += 1;
       // The clock advances even on failure, so a dead binding is not retried
       // on every tick. The note itself is never touched.
-      updates[file.path] = {
-        hash: record?.hash ?? hashText(body),
+      updates[file.path] = nextSyncRecord({
+        record,
+        body,
+        remoteBody: null,
         etag: record?.etag ?? "",
         checkedAt,
-        pendingChanges: record?.pendingChanges ?? 0
-      };
+        pendingChanges: record?.pendingChanges ?? 0,
+        settled: false
+      });
       return;
     }
 
     if (outcome.status === "unchanged") {
-      updates[file.path] = {
-        hash: record?.hash ?? hashText(body),
+      updates[file.path] = nextSyncRecord({
+        record,
+        body,
+        remoteBody: null,
         etag: outcome.etag,
         checkedAt,
         pendingChanges: record?.pendingChanges ?? 0,
-        ...(record?.remoteHash ? { remoteHash: record.remoteHash } : {}),
-        ...(record?.changedAt ? { changedAt: record.changedAt } : {})
-      };
+        settled: false
+      });
       // Nothing came back to read a title out of, but the note's own body may
       // still hold one, and a note without a title has never had it written.
       await this.writeFrontmatter(file, null, body, false);
@@ -229,27 +236,17 @@ export class SyncPoller {
 
     const remoteBody = stripRemoteFrontmatter(outcome.body);
     const changes = diffHunks(body, remoteBody).length;
-    const remoteHash = hashText(remoteBody);
+    const remoteChanged = isRemoteChange(record, remoteBody);
 
-    // "Changed" from the fetch only means the validator did not match, and once
-    // changes are waiting there is no validator to match: the source's own hash
-    // is what says whether the document moved. A first fetch is not a change —
-    // arriving is not changing — so there is nothing to compare against yet.
-    const remoteChanged = record?.remoteHash !== undefined && record.remoteHash !== remoteHash;
-
-    updates[file.path] = {
-      hash: changes === 0 ? hashText(body) : (record?.hash ?? hashText(body)),
+    updates[file.path] = nextSyncRecord({
+      record,
+      body,
+      remoteBody,
       etag: outcome.etag,
       checkedAt,
       pendingChanges: changes,
-      remoteHash,
-      // The same moment the note's own `updatedAt` records, kept for the pane.
-      ...(remoteChanged
-        ? { changedAt: checkedAt }
-        : record?.changedAt
-          ? { changedAt: record.changedAt }
-          : {})
-    };
+      settled: changes === 0
+    });
 
     await this.writeFrontmatter(file, remoteBody, body, remoteChanged);
 
@@ -268,6 +265,42 @@ export class SyncPoller {
    * plugin ever is. The frontmatter is not part of the diff, so writing here
    * cannot turn into a change the next check reports.
    */
+  /**
+   * The source this note names.
+   *
+   * The metadata cache first, and the note itself when the cache has nothing:
+   * a check made in the same breath as the binding — which is what happens
+   * when somebody has just typed a URL in — would otherwise be told the note
+   * names no source and report an error for a note that had just been bound.
+   */
+  private async readBinding(file: TFile): Promise<unknown> {
+    const cached = this.app.metadataCache.getFileCache(file)?.frontmatter?.[SYNC_FRONTMATTER_KEY];
+    if (typeof cached === "string" && cached.trim().length > 0) return cached;
+
+    try {
+      return sourceUrlFromNote(await this.app.vault.read(file));
+    } catch (err) {
+      this.logger.warn(`Could not read ${file.path} for its binding:`, err);
+      return cached;
+    }
+  }
+
+  /**
+   * Keep the note's own `title` and `updatedAt` current.
+   *
+   * Public because the review panel fetches a source itself, for the note in
+   * front of you, and a note's properties should not depend on which of the two
+   * ways it was checked.
+   */
+  async writeNoteProperties(
+    file: TFile,
+    remoteBody: string | null,
+    noteBody: string,
+    remoteChanged: boolean
+  ): Promise<void> {
+    return this.writeFrontmatter(file, remoteBody, noteBody, remoteChanged);
+  }
+
   private async writeFrontmatter(
     file: TFile,
     remoteBody: string | null,

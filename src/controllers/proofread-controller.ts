@@ -33,13 +33,15 @@ import { fetchSource } from "../services/sync-fetcher";
 import {
   buildSyncSuggestions,
   hashText,
+  isRemoteChange,
   localState,
+  nextSyncRecord,
   splitNote,
   stripRemoteFrontmatter,
   type LocalState,
   type SyncRecord
 } from "../services/sync-document";
-import { resolveSourceUrl, SYNC_FRONTMATTER_KEY } from "../services/sync-source";
+import { resolveSourceUrl, sourceUrlFromNote, SYNC_FRONTMATTER_KEY } from "../services/sync-source";
 import { SyncPoller, githubToken, isCheckDue } from "./sync-poller";
 import {
   mergeSuggestions,
@@ -495,7 +497,14 @@ export class ProofreadController {
     const file = this.app.workspace.getActiveFile();
     if (!file || file.path !== this.filePath) return;
 
-    const raw = this.app.metadataCache.getFileCache(file)?.frontmatter?.[SYNC_FRONTMATTER_KEY];
+    // The cache is updated after a write, not during one, so a check made in
+    // the same breath as the binding asks it a question it cannot answer yet.
+    const cached = this.app.metadataCache.getFileCache(file)?.frontmatter?.[SYNC_FRONTMATTER_KEY];
+    const raw =
+      typeof cached === "string" && cached.trim().length > 0
+        ? cached
+        : sourceUrlFromNote(await this.app.vault.read(file));
+
     if (typeof raw !== "string" || raw.trim().length === 0) {
       if (manual) new Notice(t().common.notice(t().sync.notBound));
       return;
@@ -556,12 +565,18 @@ export class ProofreadController {
         // The clock still advances, so a dead binding does not fire a request
         // every time the note is opened. A manual check ignores the interval,
         // which is the way back from a source that was only briefly away.
-        await this.syncStore.set(file.path, {
-          hash: record?.hash ?? hashText(body),
-          etag: record?.etag ?? "",
-          checkedAt,
-          pendingChanges: record?.pendingChanges ?? 0
-        });
+        await this.syncStore.set(
+          file.path,
+          nextSyncRecord({
+            record,
+            body,
+            remoteBody: null,
+            etag: record?.etag ?? "",
+            checkedAt,
+            pendingChanges: record?.pendingChanges ?? 0,
+            settled: false
+          })
+        );
         this.sync = {
           bound: true,
           status: outcome.status,
@@ -574,12 +589,21 @@ export class ProofreadController {
       }
 
       if (outcome.status === "unchanged") {
-        await this.syncStore.set(file.path, {
-          hash: record?.hash ?? hashText(body),
-          etag: outcome.etag,
-          checkedAt,
-          pendingChanges: 0
-        });
+        await this.syncStore.set(
+          file.path,
+          nextSyncRecord({
+            record,
+            body,
+            remoteBody: null,
+            etag: outcome.etag,
+            checkedAt,
+            pendingChanges: 0,
+            settled: false
+          })
+        );
+        // Nothing came back to read a title out of, but a note that has never
+        // been given one may still name itself in its own first heading.
+        await this.poller.writeNoteProperties(file, null, body, false);
         this.sync = {
           bound: true,
           status: state === "diverged" ? "diverged" : "clean",
@@ -594,15 +618,33 @@ export class ProofreadController {
       const remoteBody = stripRemoteFrontmatter(outcome.body);
       const suggestions = buildSyncSuggestions({ noteText, remoteBody, state });
 
-      await this.syncStore.set(file.path, {
-        // The baseline only advances once the note actually matches the source,
-        // so an unaccepted update is still pending on the next check.
-        hash: suggestions.length === 0 ? hashText(body) : (record?.hash ?? hashText(body)),
-        etag: outcome.etag,
-        checkedAt,
-        // The changes are on screen now, so nothing is owed to a later visit.
-        pendingChanges: 0
-      });
+      await this.syncStore.set(
+        file.path,
+        nextSyncRecord({
+          record,
+          body,
+          remoteBody,
+          etag: outcome.etag,
+          checkedAt,
+          // The changes are on screen now, so nothing is owed to a later visit.
+          pendingChanges: 0,
+          // The baseline only advances once the note actually matches the
+          // source, so an unaccepted update is still pending on the next check.
+          settled: suggestions.length === 0
+        })
+      );
+
+      // The same properties a poll would have written. A note's title and the
+      // date its source last moved must not depend on which of the two ways it
+      // happened to be checked — this path wrote neither, so a note checked
+      // from the panel got no properties and never reached the pane's list of
+      // what a source has changed.
+      await this.poller.writeNoteProperties(
+        file,
+        remoteBody,
+        body,
+        isRemoteChange(record, remoteBody)
+      );
 
       this.suggestions = mergeSuggestions(this.suggestions, suggestions, "remote");
       this.sync = {
