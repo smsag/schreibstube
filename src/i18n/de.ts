@@ -347,6 +347,31 @@ export const de: Messages = {
     panelSource: (status: string) => `Quelle (${status})`,
     panelGlossary: (source: string) => `Glossar (${source})`,
     panelCheckedAt: (when: string) => `Zuletzt geprüft: ${when}`,
+    panelProofread: "Korrektur lesen",
+    panelGlossaryCheck: "Glossar prüfen",
+    panelStop: "Abbrechen",
+    panelCheckSource: "Quelle prüfen",
+    noTerms: "Kein Glossar ausgewählt oder keine prüfbaren Begriffe.",
+    running: "Korrektur läuft …",
+    cancelled: "Korrektur abgebrochen.",
+    failedShort: "Korrektur fehlgeschlagen.",
+    unknownError: "Unbekannter Fehler.",
+    applied: (count: number) => `${count} Änderungen übernommen.`,
+    appliedWithSkipped: (applied: number, skipped: number) =>
+      `${applied} übernommen, ${skipped} nicht mehr zuordenbar.`,
+    noSuggestions: "Keine Vorschläge.",
+    suggestions: (count: number) => `${count} Vorschläge.`,
+    blocksRejected: (count: number) =>
+      `${count} Abschnitt(e) verworfen (geschützter Inhalt verändert).`,
+    chunksFailed: (count: number) => `${count} Anfrage(n) fehlgeschlagen.`,
+    sourceMatches: "Notiz entspricht der Quelle.",
+    sourceUnchangedLocalEdits: "Quelle unverändert, die Notiz enthält lokale Änderungen.",
+    divergedChanges: (count: number) =>
+      `${count} Unterschied(e). Die Notiz wurde lokal geändert, Übernehmen stellt die Quelle ` +
+      `wieder her.`,
+    sourceChanges: (count: number) => `${count} Änderung(en) aus der Quelle.`,
+    pendingFromPoll: (count: number) =>
+      `${count} Änderung(en) aus der letzten Hintergrundprüfung. "Quelle prüfen" holt sie.`,
     badgeGlossary: "Glossar",
     badgeSource: "Quelle",
     badgeStale: "veraltet",

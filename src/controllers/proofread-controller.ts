@@ -258,7 +258,7 @@ export class ProofreadController {
     if (text === null) return;
 
     if (this.matcher.isEmpty()) {
-      this.message = "Kein Glossar ausgewählt oder keine prüfbaren Begriffe.";
+      this.message = t().proofread.noTerms;
       this.emit();
       return;
     }
@@ -298,7 +298,7 @@ export class ProofreadController {
     const token = createCancelToken();
     this.running = token;
     this.progress = { completed: 0, total: 0 };
-    this.message = "Korrektur läuft …";
+    this.message = t().proofread.running;
     this.emit();
 
     // The glossary pass costs nothing and catches terms the model is only asked
@@ -330,7 +330,7 @@ export class ProofreadController {
       );
 
       if (token.cancelled) {
-        this.message = "Korrektur abgebrochen.";
+        this.message = t().proofread.cancelled;
       } else {
         this.suggestions = mergeSuggestions(this.suggestions, result.suggestions, "llm");
         this.message = summarize(
@@ -343,7 +343,7 @@ export class ProofreadController {
       this.logger.error("Proofread failed:", err);
       const detail = err instanceof Error ? err.message : "unbekannter Fehler";
       new Notice(t().common.notice(t().proofread.failed(detail)));
-      this.message = "Korrektur fehlgeschlagen.";
+      this.message = t().proofread.failedShort;
     } finally {
       if (this.running === token) {
         this.running = null;
@@ -402,9 +402,9 @@ export class ProofreadController {
 
     const skipped = plan.stale.length + plan.conflicted.length;
     if (skipped > 0) {
-      this.message = `${applied.size} übernommen, ${skipped} nicht mehr zuordenbar.`;
+      this.message = t().proofread.appliedWithSkipped(applied.size, skipped);
     } else if (applied.size > 1) {
-      this.message = `${applied.size} Änderungen übernommen.`;
+      this.message = t().proofread.applied(applied.size);
     }
 
     this.emit();
@@ -619,7 +619,7 @@ export class ProofreadController {
         ...this.sync,
         bound: true,
         status: "error",
-        message: err instanceof Error ? err.message : "Unbekannter Fehler."
+        message: err instanceof Error ? err.message : t().proofread.unknownError
       };
       this.emit();
     } finally {
@@ -657,20 +657,20 @@ export class ProofreadController {
       pendingChanges: 0
     });
 
-    this.sync = { ...this.sync, status: "clean", message: "Notiz entspricht der Quelle." };
+    this.sync = { ...this.sync, status: "clean", message: t().proofread.sourceMatches };
     this.emit();
   }
 
   private describeState(state: LocalState, changes: number): string {
     if (changes === 0) {
       return state === "diverged"
-        ? "Quelle unverändert, die Notiz enthält lokale Änderungen."
-        : "Notiz entspricht der Quelle.";
+        ? t().proofread.sourceUnchangedLocalEdits
+        : t().proofread.sourceMatches;
     }
     if (state === "diverged") {
-      return `${changes} Unterschied(e). Die Notiz wurde lokal geändert, Übernehmen stellt die Quelle wieder her.`;
+      return t().proofread.divergedChanges(changes);
     }
-    return `${changes} Änderung(en) aus der Quelle.`;
+    return t().proofread.sourceChanges(changes);
   }
 
   /** Reflect the binding in the panel without fetching anything. */
@@ -698,7 +698,7 @@ export class ProofreadController {
       checkedAt: record?.checkedAt ?? 0,
       message: resolved.ok
         ? pending > 0
-          ? `${pending} Änderung(en) aus der letzten Hintergrundprüfung. "Quelle prüfen" holt sie.`
+          ? t().proofread.pendingFromPoll(pending)
           : ""
         : resolved.reason
     };
@@ -765,12 +765,12 @@ export class ProofreadController {
 }
 
 function summarize(count: number, rejectedBlocks: number, failedChunks: number): string {
-  const parts = [count === 0 ? "Keine Vorschläge." : `${count} Vorschläge.`];
+  const parts = [count === 0 ? t().proofread.noSuggestions : t().proofread.suggestions(count)];
   if (rejectedBlocks > 0) {
-    parts.push(`${rejectedBlocks} Abschnitt(e) verworfen (geschützter Inhalt verändert).`);
+    parts.push(t().proofread.blocksRejected(rejectedBlocks));
   }
   if (failedChunks > 0) {
-    parts.push(`${failedChunks} Anfrage(n) fehlgeschlagen.`);
+    parts.push(t().proofread.chunksFailed(failedChunks));
   }
   return parts.join(" ");
 }

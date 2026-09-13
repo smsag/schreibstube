@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- **The review panel speaks the language the rest of the plugin does.** Nineteen of its lines were written straight into the code in German: the buttons that start a correction, check the glossary and fetch a source, and every status line the panel shows while doing it — what was applied, what could no longer be placed, whether the note still matches its source. Everything around them was translated, so an English install asked a person to accept changes to their own writing using buttons they could not read. The strings now sit in the same place as the rest, in both languages.
 - **"Never show these" now excludes a folder, not only a file named outright.** It compared whole paths, so naming a folder — which is what anyone types into a field asking which paths to never show — excluded nothing at all, and said nothing about it. The one setting whose failure leaves a private note on screen was the one that failed silently. A folder now stands for everything under it, a separator is required so `Familie` cannot take `Familienrecht` with it, case is ignored as it is by the filesystems this runs on, and a stray leading or trailing slash is forgiven.
 
 ### Added
