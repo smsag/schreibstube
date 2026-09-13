@@ -1,11 +1,13 @@
 /**
  * What "latest" means, given a vault.
  *
- * Two lists: the notes most recently created, and the notes most recently
- * changed. They overlap almost completely in a young vault, because a note
- * created ten minutes ago was also changed ten minutes ago, and a section that
- * shows the same five notes twice is a section nobody reads. So the modified
- * list is drawn from what the created list did not already take.
+ * Three lists: the notes whose source last changed, the notes most recently
+ * created, and the notes most recently changed. They overlap almost completely
+ * in a young vault, because a note created ten minutes ago was also changed ten
+ * minutes ago, and a section that shows the same five notes three times is a
+ * section nobody reads. So each list is drawn from what the lists above it did
+ * not already take, and a note updated by its source is claimed by that list
+ * first: it is the most specific thing that can be said about why it moved.
  *
  * Only Markdown counts. An attachment written by a paste is the most recently
  * created file in the vault more often than any note is, and it is never what
@@ -19,9 +21,18 @@ export interface LatestCandidate {
   name: string;
   createdAt: number;
   modifiedAt: number;
+  /**
+   * When this note's source was last seen to have changed, if it mirrors one.
+   *
+   * Not when it was checked, and not when its changes were applied: the moment
+   * the document at the other end moved.
+   */
+  syncedAt?: number;
 }
 
 export interface LatestSelection {
+  /** Mirrored notes whose source changed, newest first. */
+  synced: LatestCandidate[];
   created: LatestCandidate[];
   modified: LatestCandidate[];
 }
@@ -45,7 +56,7 @@ export function selectLatest(
   candidates: readonly LatestCandidate[],
   { count, excluded }: LatestOptions
 ): LatestSelection {
-  if (count <= 0) return { created: [], modified: [] };
+  if (count <= 0) return { synced: [], created: [], modified: [] };
 
   // Normalised once rather than per file: the list is a handful of entries and
   // the vault is thousands of notes.
@@ -56,17 +67,24 @@ export function selectLatest(
       ? candidates.filter((file) => !isExcluded(file.path, barred))
       : [...candidates];
 
-  const created = [...eligible]
+  const synced = eligible
+    .filter((file) => file.syncedAt !== undefined)
+    .sort((a, b) => (b.syncedAt ?? 0) - (a.syncedAt ?? 0) || compareName(a, b))
+    .slice(0, count);
+
+  const taken = new Set(synced.map((file) => file.path));
+  const created = eligible
+    .filter((file) => !taken.has(file.path))
     .sort((a, b) => b.createdAt - a.createdAt || compareName(a, b))
     .slice(0, count);
 
-  const taken = new Set(created.map((file) => file.path));
+  for (const file of created) taken.add(file.path);
   const modified = eligible
     .filter((file) => !taken.has(file.path))
     .sort((a, b) => b.modifiedAt - a.modifiedAt || compareName(a, b))
     .slice(0, count);
 
-  return { created, modified };
+  return { synced, created, modified };
 }
 
 /**

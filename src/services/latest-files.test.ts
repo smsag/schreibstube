@@ -46,7 +46,7 @@ describe("selectLatest", () => {
   });
 
   it("returns nothing when the count is zero", () => {
-    expect(selectLatest(VAULT, { count: 0 })).toEqual({ created: [], modified: [] });
+    expect(selectLatest(VAULT, { count: 0 })).toEqual({ synced: [], created: [], modified: [] });
   });
 
   it("breaks a tie by path, so a redraw does not reorder rows", () => {
@@ -127,5 +127,70 @@ describe("excluding a folder", () => {
 
     expect(isExcluded("Familiäres/Scheidung.md", barred)).toBe(true);
     expect(isExcluded("Arbeit/Notiz.md", barred)).toBe(true);
+  });
+});
+
+describe("notes whose source changed", () => {
+  function synced(path: string, createdAt: number, syncedAt?: number): LatestCandidate {
+    return { ...note(path, createdAt), ...(syncedAt === undefined ? {} : { syncedAt }) };
+  }
+
+  const MIRRORS: LatestCandidate[] = [
+    synced("Quellen/Alt.md", 100, 500),
+    synced("Quellen/Neu.md", 200, 900),
+    synced("Eigene/Notiz.md", 300)
+  ];
+
+  it("lists them newest first, and only the ones a source changed", () => {
+    const { synced: list } = selectLatest(MIRRORS, { count: 5 });
+
+    expect(list.map((file) => file.path)).toEqual(["Quellen/Neu.md", "Quellen/Alt.md"]);
+  });
+
+  it("claims a note before the other two lists do", () => {
+    // "Eigene/Notiz.md" is the newest by creation, but a mirrored note that
+    // moved because its source did should say so once, in that list.
+    const { synced: list, created, modified } = selectLatest(MIRRORS, { count: 5 });
+
+    expect(list.map((file) => file.path)).toContain("Quellen/Neu.md");
+    expect(created.map((file) => file.path)).not.toContain("Quellen/Neu.md");
+    expect(modified.map((file) => file.path)).not.toContain("Quellen/Neu.md");
+    expect(created.map((file) => file.path)).toEqual(["Eigene/Notiz.md"]);
+  });
+
+  it("keeps to the same count as the other lists", () => {
+    const many = [
+      synced("a.md", 1, 10),
+      synced("b.md", 2, 20),
+      synced("c.md", 3, 30),
+      synced("d.md", 4, 40)
+    ];
+
+    expect(selectLatest(many, { count: 2 }).synced.map((file) => file.path)).toEqual([
+      "d.md",
+      "c.md"
+    ]);
+  });
+
+  it("is empty in a vault that mirrors nothing", () => {
+    expect(selectLatest(VAULT, { count: 5 }).synced).toEqual([]);
+  });
+
+  it("obeys the exclusion list like everything else", () => {
+    const { synced: list } = selectLatest(MIRRORS, {
+      count: 5,
+      excluded: parseExcludedPaths("Quellen")
+    });
+
+    expect(list).toEqual([]);
+  });
+
+  it("breaks a tie by path, so a redraw does not reorder rows", () => {
+    const tied = [synced("B.md", 1, 50), synced("A.md", 1, 50)];
+
+    expect(selectLatest(tied, { count: 5 }).synced.map((file) => file.path)).toEqual([
+      "A.md",
+      "B.md"
+    ]);
   });
 });

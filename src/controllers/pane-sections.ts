@@ -26,6 +26,7 @@ import {
   type BookmarkEntry,
   type BookmarkTree
 } from "../services/bookmark-file";
+import type { SyncRecord } from "../services/sync-document";
 import {
   parseExcludedPaths,
   selectLatest,
@@ -259,7 +260,7 @@ export class PaneSectionsController {
   // --- latest -------------------------------------------------------------
 
   /**
-   * The two recent-note lists.
+   * The three recent-note lists.
    *
    * Computed on demand and kept until something changes it, because the pane
    * redraws on every vault event and a vault of a few thousand notes cannot be
@@ -267,7 +268,13 @@ export class PaneSectionsController {
    */
   latestFiles(): LatestSelection {
     const settings = this.getSettings();
-    const key = `${settings.explorerLatestCount}${settings.explorerLatestExcluded}`;
+    // The sync records are part of the answer now, so a poll that found a
+    // source changed reaches the next draw rather than the cached answer.
+    const key = [
+      settings.explorerLatestCount,
+      settings.explorerLatestExcluded,
+      syncSignature(settings.syncState)
+    ].join("|");
 
     if (this.latest && key === this.latestKey) return this.latest;
 
@@ -289,11 +296,16 @@ export class PaneSectionsController {
   }
 
   private candidates(): LatestCandidate[] {
+    const syncState = this.getSettings().syncState;
+
     return this.app.vault.getMarkdownFiles().map((file) => ({
       path: file.path,
       name: file.basename,
       createdAt: file.stat.ctime,
-      modifiedAt: file.stat.mtime
+      modifiedAt: file.stat.mtime,
+      ...(syncState[file.path]?.changedAt !== undefined
+        ? { syncedAt: syncState[file.path].changedAt }
+        : {})
     }));
   }
 
@@ -313,4 +325,25 @@ export class PaneSectionsController {
   private emit(): void {
     for (const listener of this.listeners) listener();
   }
+}
+
+/**
+ * A short stand-in for the sync records, so the recent lists notice a poll.
+ *
+ * The lists are cached until something changes them, and a source changing is
+ * now one of those things — but it happens in the plugin's data file rather
+ * than in the vault, where no event reaches the pane. Counting the records and
+ * taking the newest change is enough to tell two states apart without walking
+ * anything twice.
+ */
+function syncSignature(syncState: Record<string, SyncRecord>): string {
+  let newest = 0;
+  let counted = 0;
+
+  for (const record of Object.values(syncState)) {
+    counted += 1;
+    if (record.changedAt !== undefined && record.changedAt > newest) newest = record.changedAt;
+  }
+
+  return `${counted}:${newest}`;
 }

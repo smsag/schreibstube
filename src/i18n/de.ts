@@ -478,6 +478,7 @@ export const de: Messages = {
     clearFilter: "Filter leeren",
     filterMore: (count: number) => `${count} weitere Treffer. Filter eingrenzen, um sie zu sehen.`,
     collapseAll: "Alle zuklappen",
+    folderCount: (count: string) => `${count} Dateien`,
 
     move: {
       intoItself: (name: string) => `${name} lässt sich nicht in sich selbst verschieben.`,
@@ -513,6 +514,7 @@ export const de: Messages = {
     },
 
     latest: {
+      synced: "Aus der Quelle aktualisiert",
       created: "Erstellt",
       modified: "Geändert",
       empty: "Noch keine Notizen."

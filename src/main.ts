@@ -105,6 +105,9 @@ export default class SchreibstubePlugin extends Plugin {
       setMany: async (records) => {
         this.settings.syncState = { ...this.settings.syncState, ...records };
         await this.saveSettings();
+        // A source that changed belongs in the recent lists, and the records
+        // are written to the data file, where no vault event reaches the pane.
+        this.sections?.invalidateLatest();
       },
       forget: async (path) => {
         const { [path]: _removed, ...rest } = this.settings.syncState;

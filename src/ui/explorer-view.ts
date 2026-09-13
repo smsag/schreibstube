@@ -49,6 +49,7 @@ import {
 } from "../services/tree-move";
 import type { SchreibstubeSettings } from "../types";
 import { isLongPressEcho } from "../services/explorer-menu";
+import { countFilesUnder, folderCountLabel } from "../services/folder-count";
 import { applyIcon, installIconFont } from "./icon-font";
 import { SCHREIBSTUBE_ICON } from "./schreibstube-icon";
 
@@ -87,15 +88,38 @@ const FILTER_ROW_CAP = 200;
  */
 const LONG_PRESS_MOVE_PX = 10;
 
-/** How many pinned rows sit in the shelf above the scroller. Beyond this the
- *  block continues in the scrolling list, so the shelf cannot eat the pane. */
+/**
+ * How many pinned rows the shelf holds while the block is closed.
+ *
+ * They cost nothing to leave there: the strip is on screen at every scroll
+ * position anyway, so closing the block takes away the rows below these rather
+ * than all of them.
+ */
 const FIXED_PINNED_ROWS = 3;
+
+/**
+ * The most of the pane an open pinned strip may take.
+ *
+ * Sticky rows are only worth having while there is something for them to stay
+ * in front of: a strip that fills the pane is a pane with no vault in it. Half
+ * leaves as much shortlist as vault, and being a share rather than a count it
+ * answers a phone, a tall sidebar and a keyboard covering the screen by itself.
+ */
+const SHELF_SHARE_OF_PANE = 0.5;
+
+/** Used only until the pane has been laid out and can be measured. */
+const FALLBACK_ROW_HEIGHT_PX = 27;
 
 /** How close to the top a held header lands, allowing for sub-pixel layout. */
 const STUCK_TOLERANCE_PX = 1.5;
 
 /** Movement, in pixels, that turns a press into a drag rather than a click. */
 const DRAG_THRESHOLD_PX = 4;
+
+/** How close to the top or bottom of the list a drag has to be before the list
+ *  starts moving under it, and how far it moves in one frame at the very edge. */
+const EDGE_SCROLL_PX = 48;
+const EDGE_SCROLL_MAX_PX = 12;
 
 /**
  * What the pane remembers between sessions, per device.
@@ -105,6 +129,12 @@ const DRAG_THRESHOLD_PX = 4;
  * laptop should inherit, and it is not worth a sync conflict.
  */
 const MEMORY_KEY = "schreibstube:explorer:view";
+
+/**
+ * Bumped when a section's default state changes, so the new default is applied
+ * once per device and a person's own choice is never overwritten afterwards.
+ */
+const PANE_MEMORY_VERSION = 1;
 
 /** Separator inside a bookmark folder key. A vault name can hold a slash; it
  *  cannot hold this. */
@@ -133,7 +163,27 @@ const MEDIA_EXTENSIONS = new Set([
 
 type SectionId = "pinned" | "bookmarks" | "latest" | "files";
 
+/** What a section wants from its header beyond a title and a chevron. */
+interface SectionOptions {
+  /** Draw the body even while closed, for a section that keeps some of it. */
+  keepBodyWhenClosed?: boolean;
+  /** How many rows the section holds in all, named on the header while closed. */
+  total?: number;
+  /** False when there is nothing behind the chevron, so it is not drawn. */
+  closable?: boolean;
+  /** Drawn open whatever was remembered, for as long as a filter is set. */
+  forceOpen?: boolean;
+}
+
 interface PaneMemory {
+  /**
+   * Which defaults this device has already been given.
+   *
+   * Without it, "closed unless you opened it" and "never recorded either way"
+   * are the same absence, and a default that changes could not be applied once
+   * without undoing the person's own choice every time the pane opens.
+   */
+  version?: number;
   /** Sections the person closed. Absent means open, which is the default. */
   collapsedSections?: string[];
   /** Bookmark folders the person closed. */
@@ -146,8 +196,7 @@ interface PaneMemory {
 interface DragHandlers {
   /** Identifies the drag in progress, so one row's release cannot end another's. */
   path: string;
-  /** Whether a press here may become a drag at all. */
-  canStart?: () => boolean;
+  /** Called once, when a press has become a drag. */
   onStart: () => void;
   onMove: (clientX: number, clientY: number) => void;
   onDrop: (clientX: number, clientY: number) => void;
@@ -198,8 +247,15 @@ export class ExplorerPaneView extends ItemView {
    *  them, so a capped list can say what it is holding back. */
   private matchCount = 0;
   private drawnMatches = 0;
+  /** Files under each folder, counted once per draw. */
+  private folderCounts = new Map<string, number>();
   /** A redraw a drag held back, to be run as soon as the drag has ended. */
   private deferred = false;
+  /** Where the pointer is during a drag, and the frame loop that scrolls the
+   *  list while it rests near an edge. */
+  private dragPointer = { x: 0, y: 0 };
+  private dragScroll: number | null = null;
+  private dragHandlers: DragHandlers | null = null;
   /** A path to scroll to once the next draw has put it on screen. */
   private revealing: string | null = null;
 
@@ -295,6 +351,9 @@ export class ExplorerPaneView extends ItemView {
     this.registerEvent(this.app.workspace.on("layout-change", () => this.requestRender()));
     // A theme swap repaints everything the ground was measured from.
     this.registerEvent(this.app.workspace.on("css-change", () => this.measureGround()));
+    // How many pinned rows the strip may hold is a share of the pane, so a
+    // phone turning on its side or a sidebar dragged wider changes the answer.
+    this.registerEvent(this.app.workspace.on("resize", () => this.requestRender()));
 
     // A pointer coming up anywhere ends whatever was being dragged. A row the
     // pane destroyed mid-gesture never delivers its own release, and a drag
@@ -429,6 +488,54 @@ export class ExplorerPaneView extends ItemView {
   }
 
   /**
+   * Scroll the list while a drag rests near its top or bottom edge.
+   *
+   * Without it only what is already on screen can be dropped on, which on a
+   * phone is a folder or two. The loop runs per frame rather than per move,
+   * because a finger held at the edge is not moving and would otherwise scroll
+   * nothing, and it re-marks the target as the list slides underneath it.
+   */
+  private startEdgeScroll(): void {
+    if (this.dragScroll !== null) return;
+
+    const step = (): void => {
+      const body = this.body;
+      if (!body || this.dragging === null) {
+        this.dragScroll = null;
+        return;
+      }
+
+      this.dragScroll = window.requestAnimationFrame(step);
+
+      const box = body.getBoundingClientRect();
+      const above = this.dragPointer.y - box.top;
+      const below = box.bottom - this.dragPointer.y;
+      const speed = (distance: number): number =>
+        Math.ceil(((EDGE_SCROLL_PX - distance) / EDGE_SCROLL_PX) * EDGE_SCROLL_MAX_PX);
+
+      let moved = 0;
+      if (above < EDGE_SCROLL_PX) moved = -speed(Math.max(0, above));
+      else if (below < EDGE_SCROLL_PX) moved = speed(Math.max(0, below));
+      if (moved === 0) return;
+
+      const before = body.scrollTop;
+      body.scrollTop += moved;
+      // The rows moved under a finger that did not: what it is over now is not
+      // what it was over a frame ago.
+      if (body.scrollTop !== before) {
+        this.dragHandlers?.onMove(this.dragPointer.x, this.dragPointer.y);
+      }
+    };
+
+    this.dragScroll = window.requestAnimationFrame(step);
+  }
+
+  private stopEdgeScroll(): void {
+    if (this.dragScroll !== null) window.cancelAnimationFrame(this.dragScroll);
+    this.dragScroll = null;
+  }
+
+  /**
    * Let go of a drag, and run the redraw it held back.
    *
    * A tick late, because the click the release raises has to find the flag
@@ -454,6 +561,7 @@ export class ExplorerPaneView extends ItemView {
     this.shelf?.empty();
     this.matches = this.collectMatches();
     this.drawnMatches = 0;
+    this.folderCounts.clear();
     // The rows a drag was holding are about to be thrown away.
     this.dragging = null;
     this.deferred = false;
@@ -509,9 +617,20 @@ export class ExplorerPaneView extends ItemView {
    * the section is closed. Keeping the rows out of the document rather than
    * hiding them is what keeps a vault of thousands of notes cheap to redraw.
    */
-  private renderSection(host: HTMLElement, id: SectionId, icon: string): HTMLElement | null {
+  private renderSection(
+    host: HTMLElement,
+    id: SectionId,
+    icon: string,
+    options: SectionOptions = {}
+  ): HTMLElement | null {
     const section = host.createDiv({ cls: "schreibstube-explorer-section" });
-    const collapsed = this.collapsedSections.has(id) && !(id === "files" && this.revealedTree);
+    const collapsed =
+      this.collapsedSections.has(id) &&
+      !(id === "files" && this.revealedTree) &&
+      options.forceOpen !== true;
+    // Nothing behind the chevron is nothing to click: a section that hides
+    // nothing while closed must not offer to open.
+    const closable = options.closable ?? true;
 
     // "Files and folders" is drawn as a band across the pane, because it is the
     // one header that separates two kinds of thing: the three curated lists
@@ -520,49 +639,46 @@ export class ExplorerPaneView extends ItemView {
       cls: `schreibstube-explorer-section-header${id === "files" ? " is-divider" : ""}`,
       attr: { type: "button", "aria-expanded": String(!collapsed) }
     });
-    applyIcon(
-      header.createSpan({ cls: "schreibstube-explorer-twisty" }),
-      collapsed ? "chevron-right" : "chevron-down"
-    );
-    applyIcon(header.createSpan({ cls: "schreibstube-explorer-glyph" }), icon);
+    const twisty = header.createSpan({ cls: "schreibstube-explorer-twisty" });
+    if (closable) applyIcon(twisty, collapsed ? "chevron-right" : "chevron-down");
+
+    // How many there are in all, on the section's own icon: a closed section
+    // showing rows does not look closed, and the rows on screen are not the
+    // whole of it. The same badge a closed folder carries, in the same place,
+    // because it answers the same question.
+    const glyph = header.createSpan({ cls: "schreibstube-explorer-glyph-box" });
+    applyIcon(glyph.createSpan({ cls: "schreibstube-explorer-glyph" }), icon);
+
+    const total = collapsed ? folderCountLabel(options.total ?? 0) : null;
+    if (total !== null) {
+      glyph.createSpan({ cls: "schreibstube-explorer-count", text: total });
+    }
+
     header.createSpan({
       cls: "schreibstube-explorer-section-title",
       text: t().explorer.sections[id]
     });
 
-    header.addEventListener("click", () => {
-      if (collapsed) {
-        this.collapsedSections.delete(id);
-      } else {
-        this.collapsedSections.add(id);
-        if (id === "files") this.revealedTree = false;
-      }
-      this.writeMemory();
-      this.requestRender();
-    });
+    if (closable) {
+      header.addEventListener("click", () => {
+        if (collapsed) {
+          this.collapsedSections.delete(id);
+        } else {
+          this.collapsedSections.add(id);
+          if (id === "files") this.revealedTree = false;
+        }
+        this.writeMemory();
+        this.requestRender();
+      });
+    }
 
-    return collapsed ? null : section.createDiv({ cls: "schreibstube-explorer-section-body" });
+    const body = section.createDiv({ cls: "schreibstube-explorer-section-body" });
+    if (!collapsed || options.keepBodyWhenClosed) return body;
+
+    body.detach();
+    return null;
   }
 
-  /**
-   * Everything pinned, wherever it lives.
-   *
-   * A pin also moves an item to the top of its own folder, but that is invisible
-   * from anywhere else: a note pinned four folders down sits at the top of a
-   * folder nobody has open. This section is where a pin is worth setting.
-   *
-   * It is drawn only when something is pinned, so a vault that does not use
-   * pinning never pays a header for it.
-   */
-  /**
-   * The pinned block, drawn in two places.
-   *
-   * The header and the first few rows go into the shelf above the scroller, so
-   * what a person pinned is on screen whatever they have scrolled to — which is
-   * the whole point of pinning something. Anything beyond that count is drawn at
-   * the top of the scrolling list, directly beneath, so the block still reads as
-   * one list and the shelf can never grow to eat the pane.
-   */
   private renderPinned(shelf: HTMLElement, scroller: HTMLElement): void {
     const controller = this.host?.explorer;
     if (!controller) return;
@@ -577,13 +693,64 @@ export class ExplorerPaneView extends ItemView {
     if (items.length === 0) return;
 
     const order = items.map((file) => file.path);
-    const body = this.renderSection(shelf, "pinned", "pinned");
+    // Closing the block keeps the rows that were always on screen anyway — the
+    // strip is sticky, so those three cost nothing to leave — and takes away
+    // the ones that continue into the scrolling list below.
+    // A filter opens the block for as long as it is set. A row that matches
+    // what was typed must not be the one row the chevron is sitting on.
+    const filtering = this.query.length > 0;
+    // Closed, the header carries the number of pins there are — the three on
+    // the strip are not the block, and the count says how much of it is behind
+    // the chevron without arithmetic.
+    const more = !filtering && items.length > FIXED_PINNED_ROWS;
+    const body = this.renderSection(shelf, "pinned", "pinned", {
+      keepBodyWhenClosed: true,
+      total: more ? items.length : 0,
+      closable: items.length > FIXED_PINNED_ROWS,
+      forceOpen: filtering
+    });
     if (!body) return;
 
-    for (const [index, file] of items.entries()) {
-      const host = index < FIXED_PINNED_ROWS ? body : scroller;
+    const closed = !filtering && this.collapsedSections.has("pinned");
+    const drawn = closed ? items.slice(0, FIXED_PINNED_ROWS) : items;
+    // Open, the strip holds as many as half the pane has room for; the rest
+    // continue in the scrolling list, as they always have.
+    const sticky = closed ? FIXED_PINNED_ROWS : this.shelfCapacity();
+
+    for (const [index, file] of drawn.entries()) {
+      const host = index < sticky ? body : scroller;
       this.renderPinnedRow(host, file, order);
     }
+  }
+
+  /**
+   * How many rows the open strip may hold, in rows rather than pixels.
+   *
+   * Measured against the pane it is in rather than assumed, so the answer
+   * follows the window being resized, a sidebar being dragged wider, and a
+   * phone turning on its side. Never fewer than the strip keeps while closed:
+   * opening a block must not show less of it than closing it does.
+   */
+  private shelfCapacity(): number {
+    const root = this.shelf?.parentElement;
+    if (!root) return FIXED_PINNED_ROWS;
+
+    const rowHeight = this.rowHeight();
+    // The section's own header sits in the strip and takes a row's worth.
+    const budget = root.clientHeight * SHELF_SHARE_OF_PANE - rowHeight;
+
+    return Math.max(FIXED_PINNED_ROWS, Math.floor(budget / rowHeight));
+  }
+
+  /** The row height the theme is actually using, from the pane's own variable. */
+  private rowHeight(): number {
+    const root = this.shelf?.parentElement;
+    if (!root) return FALLBACK_ROW_HEIGHT_PX;
+
+    const declared = getComputedStyle(root).getPropertyValue("--schreibstube-row-height");
+    const height = Number.parseFloat(declared);
+
+    return Number.isFinite(height) && height > 0 ? height : FALLBACK_ROW_HEIGHT_PX;
   }
 
   private renderPinnedRow(host: HTMLElement, file: TAbstractFile, order: string[]): void {
@@ -726,10 +893,13 @@ export class ExplorerPaneView extends ItemView {
     const body = this.renderSection(host, "latest", "clock");
     if (!body || !sections) return;
 
-    const { created, modified } = sections.latestFiles();
+    const { synced, created, modified } = sections.latestFiles();
     const labels = t().explorer.latest;
 
+    // The source having changed is the most specific thing that can be said
+    // about why a note moved, so it is said first.
     const drawn =
+      this.renderLatestGroup(body, labels.synced, synced, true) +
       this.renderLatestGroup(body, labels.created, created) +
       this.renderLatestGroup(body, labels.modified, modified);
 
@@ -741,7 +911,8 @@ export class ExplorerPaneView extends ItemView {
   private renderLatestGroup(
     host: HTMLElement,
     label: string,
-    files: readonly LatestCandidate[]
+    files: readonly LatestCandidate[],
+    withBadge = false
   ): number {
     const matching = files.filter((file) => this.matchesQuery(file.name));
     if (matching.length === 0) return 0;
@@ -757,6 +928,12 @@ export class ExplorerPaneView extends ItemView {
       row.createSpan({ cls: "schreibstube-explorer-twisty" });
       applyIcon(row.createSpan({ cls: "schreibstube-explorer-glyph" }), "file-text");
       row.createSpan({ cls: "schreibstube-explorer-name", text: file.name });
+      // The same mark the tree carries, so a row here says whether the change
+      // is waiting to be looked at or already in the note.
+      if (withBadge) {
+        const target = this.app.vault.getAbstractFileByPath(file.path);
+        if (target instanceof TFile) this.renderBadge(row, target);
+      }
 
       row.addEventListener("click", () => void this.host?.sections.openLatest(file.path));
     }
@@ -881,12 +1058,17 @@ export class ExplorerPaneView extends ItemView {
     if (controller.isKept(file.path)) row.addClass("is-pinned");
     if (file instanceof TFile) this.markOpenState(row, file.path);
 
+    const open = isFolder && this.isExpanded(file);
     const twisty = row.createSpan({ cls: "schreibstube-explorer-twisty" });
     if (isFolder) {
-      applyIcon(twisty, this.isExpanded(file) ? "chevron-down" : "chevron-right");
+      applyIcon(twisty, open ? "chevron-down" : "chevron-right");
     }
 
-    applyIcon(row.createSpan({ cls: "schreibstube-explorer-glyph" }), this.glyphFor(file));
+    // The glyph and its badge share a box, so the figure can sit on the corner
+    // of the icon rather than after it.
+    const glyph = row.createSpan({ cls: "schreibstube-explorer-glyph-box" });
+    applyIcon(glyph.createSpan({ cls: "schreibstube-explorer-glyph" }), this.glyphFor(file));
+    if (isFolder && !open) this.renderFolderCount(glyph, file);
     row.createSpan({ cls: "schreibstube-explorer-name", text: displayName(file) });
 
     if (controller.isKept(file.path)) {
@@ -944,6 +1126,8 @@ export class ExplorerPaneView extends ItemView {
     const finish = (): void => {
       clearHold();
       armed = false;
+      this.stopEdgeScroll();
+      this.dragHandlers = null;
       row.removeClass("is-dragging");
       handlers.onEnd();
       // The click that follows a pointerup would otherwise act on the row the
@@ -953,7 +1137,6 @@ export class ExplorerPaneView extends ItemView {
 
     row.addEventListener("pointerdown", (event: PointerEvent) => {
       if (event.button !== 0) return;
-      if (handlers.canStart && !handlers.canStart()) return;
 
       startX = event.clientX;
       startY = event.clientY;
@@ -1001,10 +1184,13 @@ export class ExplorerPaneView extends ItemView {
 
       if (this.dragging === null) {
         this.dragging = handlers.path;
+        this.dragHandlers = handlers;
         row.addClass("is-dragging");
         handlers.onStart();
+        this.startEdgeScroll();
       }
 
+      this.dragPointer = { x: event.clientX, y: event.clientY };
       handlers.onMove(event.clientX, event.clientY);
     });
 
@@ -1031,28 +1217,26 @@ export class ExplorerPaneView extends ItemView {
   /**
    * Moving a file or a folder by dragging it onto a folder.
    *
-   * Mouse only. The tree's long press already opens the context menu, and that
-   * is the only way to reach a row's actions on a phone, so it is not a gesture
-   * to take. Moving on touch stays where it is, in that menu.
+   * A finger drags as a mouse does. The press that opens the context menu at
+   * half a second is the same press that arms the drag, so holding still and
+   * letting go gives the menu, and holding and then moving gives the drag —
+   * which is the gesture a phone has taught everybody. The menu is taken away
+   * the moment the row starts moving: the actions asked for by holding still
+   * are not the ones wanted once something is being carried.
    *
-   * The drop target is a folder row, or the section header, which stands for
-   * the vault root. Whether a move is allowed at all is decided in `planMove`,
-   * away from the pointer, and a refusal says why rather than doing nothing.
+   * The drop target is a folder row, one of the rows inside a folder, or the
+   * section header, which stands for the vault root. Whether a move is allowed
+   * at all is decided in `planMove`, away from the pointer, and a refusal says
+   * why rather than doing nothing.
    */
   private wireTreeDrag(row: HTMLElement, path: string): void {
     this.wireDrag(row, {
       path,
-      canStart: () => !this.isTouchPane(),
-      onStart: () => undefined,
+      onStart: () => this.host?.explorer.closeMenu(),
       onMove: (x, y) => this.markMoveTarget(x, y),
       onEnd: () => this.clearMoveMarks(),
       onDrop: (x, y) => void this.dropInto(path, this.moveTargetAt(x, y))
     });
-  }
-
-  /** Obsidian marks a phone or tablet on the body; a mouse drag is not for it. */
-  private isTouchPane(): boolean {
-    return this.containerEl.doc.body.classList.contains("is-mobile");
   }
 
   /** Rows and headers a tree drag may land on. */
@@ -1065,6 +1249,34 @@ export class ExplorerPaneView extends ItemView {
         ".schreibstube-explorer-row.is-folder[data-path], .schreibstube-explorer-section-header.is-divider"
       )
     );
+  }
+
+  /**
+   * What a closed folder is holding, on the folder's own icon.
+   *
+   * Counted once per draw and kept, because a folder's count is its children's
+   * counts and a vault is walked once that way rather than once per row.
+   */
+  private renderFolderCount(host: HTMLElement, folder: TAbstractFile): void {
+    if (!(folder instanceof TFolder)) return;
+
+    const label = folderCountLabel(this.countFilesIn(folder));
+    if (label === null) return;
+
+    host.createSpan({
+      cls: "schreibstube-explorer-count",
+      text: label,
+      attr: { "aria-label": t().explorer.folderCount(label) }
+    });
+  }
+
+  private countFilesIn(folder: TFolder): number {
+    const known = this.folderCounts.get(folder.path);
+    if (known !== undefined) return known;
+
+    const count = countFilesUnder(folder);
+    this.folderCounts.set(folder.path, count);
+    return count;
   }
 
   /**
@@ -1465,22 +1677,32 @@ export class ExplorerPaneView extends ItemView {
 
   private readMemory(): void {
     const storage = this.app as unknown as LocalStorageApi;
-    if (typeof storage.loadLocalStorage !== "function") return;
+    let memory: PaneMemory | null = null;
 
-    let memory: PaneMemory;
-    try {
-      const raw = storage.loadLocalStorage(MEMORY_KEY);
-      if (!raw || typeof raw !== "object") return;
-      memory = raw as PaneMemory;
-    } catch {
-      // A hardened setup can refuse storage entirely; the pane opens with
-      // everything expanded rather than failing to open.
-      return;
+    if (typeof storage.loadLocalStorage === "function") {
+      try {
+        const raw = storage.loadLocalStorage(MEMORY_KEY);
+        if (raw && typeof raw === "object") memory = raw as PaneMemory;
+      } catch {
+        // A hardened setup can refuse storage entirely; the pane opens on its
+        // defaults rather than failing to open.
+        memory = null;
+      }
     }
 
-    this.collapsedSections = toSet(memory.collapsedSections);
-    this.collapsedBookmarks = toSet(memory.collapsedBookmarks);
-    this.expanded = toSet(memory.expandedFolders);
+    if (memory) {
+      this.collapsedSections = toSet(memory.collapsedSections);
+      this.collapsedBookmarks = toSet(memory.collapsedBookmarks);
+      this.expanded = toSet(memory.expandedFolders);
+    }
+
+    // The pinned block keeps its first rows while closed, so closed is what it
+    // opens on: the shortlist and then the vault, with the rest a tap away.
+    // Applied once per device — after that the chevron is the person's.
+    if (memory?.version !== PANE_MEMORY_VERSION) {
+      this.collapsedSections.add("pinned");
+      this.writeMemory();
+    }
   }
 
   private writeMemory(): void {
@@ -1489,6 +1711,7 @@ export class ExplorerPaneView extends ItemView {
 
     try {
       storage.saveLocalStorage(MEMORY_KEY, {
+        version: PANE_MEMORY_VERSION,
         collapsedSections: [...this.collapsedSections],
         collapsedBookmarks: [...this.collapsedBookmarks],
         expandedFolders: [...this.expanded]

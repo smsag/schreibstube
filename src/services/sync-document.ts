@@ -30,6 +30,24 @@ export interface SyncRecord {
    * answer "unchanged" and the update would be lost.
    */
   pendingChanges?: number;
+  /**
+   * Hash of the source's body as the last check received it.
+   *
+   * The validator cannot answer this: once changes are waiting the next fetch
+   * is unconditional, so every poll would report "changed" whether or not
+   * anything at the other end had. This is what "the document changed" is
+   * decided against, and what keeps `updatedAt` from following the polling
+   * rather than the source.
+   */
+  remoteHash?: string;
+  /**
+   * Epoch milliseconds of the last check that found the source different.
+   *
+   * The moment the note's own `updatedAt` records, kept here as well so the
+   * pane can order by it without reading and parsing every note's frontmatter,
+   * and so it survives a note whose properties could not be written.
+   */
+  changedAt?: number;
 }
 
 export type LocalState =
