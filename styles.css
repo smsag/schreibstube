@@ -549,8 +549,6 @@
 .schreibstube-explorer .schreibstube-explorer-section-header {
   display: flex;
   align-items: center;
-  /* `button` sets this to center, which would put every header's label in the
-     middle of the pane. */
   justify-content: flex-start;
   gap: var(--schreibstube-row-gap);
   width: 100%;
@@ -568,8 +566,24 @@
   top: 0;
   z-index: 1;
   background-color: var(--schreibstube-ground, transparent);
+  /* Said rather than assumed: a div brings none of these, but a theme that
+     styles [role="button"] rather than button would put them back, and this
+     header answers to nobody's idea of a button but the pane's. */
+  border: none;
+  border-radius: 0;
+  padding-block: 0;
   box-shadow: none;
   cursor: pointer;
+  /* What a button gave and a div does not. A long press on a label is a phone's
+     invitation to select it — the magnifier, the callout, "Copy" — and a press
+     on this one belongs to the section it opens. The rows below already say the
+     same thing for the same reason. */
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  /* The grey rectangle a mobile browser paints over whatever was tapped. The
+     pane says what it is doing with its own colours. */
+  -webkit-tap-highlight-color: transparent;
   color: var(--text-muted);
   font-size: 10.5px;
   font-weight: var(--font-semibold);
@@ -656,6 +670,7 @@
   line-height: 1;
   background: none;
   cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
 }
 
 /* Whichever of the two drew it: the bundled glyph is text, Obsidian's is an
@@ -795,6 +810,11 @@
    than growing into the name. */
 .schreibstube-explorer-count {
   position: absolute;
+  /* A section header spaces its label out as small capitals, and the badge on
+     its icon inherits that: two digits drift apart and the one glyph in an
+     alert badge sits off its own centre. */
+  letter-spacing: normal;
+  text-transform: none;
   right: -5px;
   bottom: -4px;
   min-width: 13px;
@@ -830,6 +850,7 @@
   color: var(--text-on-accent);
   pointer-events: auto;
   cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .schreibstube-explorer-count.is-alert::after {

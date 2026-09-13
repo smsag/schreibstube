@@ -711,7 +711,11 @@ export class ExplorerPaneView extends ItemView {
     // of the section's own from being a button inside a button.
     const header = section.createDiv({
       cls: `schreibstube-explorer-section-header${id === "files" ? " is-divider" : ""}`,
-      attr: { role: "button", tabindex: "0", "aria-expanded": String(!collapsed) }
+      // A header that hides nothing is a label, and says so: a role and a tab
+      // stop on it would promise a keyboard something to press that is not
+      // there. The class is what the pane styles and the drag aims at, either
+      // way.
+      attr: closable ? { role: "button", tabindex: "0", "aria-expanded": String(!collapsed) } : {}
     });
     const twisty = header.createSpan({ cls: "schreibstube-explorer-twisty" });
     if (closable && options.twisty !== false) {
@@ -784,14 +788,19 @@ export class ExplorerPaneView extends ItemView {
       attr: { role: "button", tabindex: "0", "aria-label": action.label, title: action.label }
     });
 
-    // The bundled font first, as everywhere else in the pane — and Obsidian's
+    // The glyph goes in a child of the control, never on the control itself:
+    // drawing an icon marks what it is drawn on `aria-hidden`, which is right
+    // for the icon and wrong for the labelled, focusable thing carrying it —
+    // a control nothing can read is worse than one nobody can see.
+    //
+    // The bundled font first, as everywhere else in the pane, and Obsidian's
     // own icon if that font has nothing under the name. A control drawn as an
-    // empty box is indistinguishable from a control that is broken, and this
-    // one sits alone at the end of a band with no label to explain it.
-    if (!applyIcon(control, action.icon)) {
-      control.removeClass("schreibstube-icon");
-      control.empty();
-      setIcon(control, action.fallbackIcon);
+    // empty box is indistinguishable from one that is broken, and this one
+    // sits alone at the end of a band with no label beside it to explain it.
+    const glyph = control.createSpan();
+    if (!applyIcon(glyph, action.icon)) {
+      glyph.removeClass("schreibstube-icon");
+      setIcon(glyph, action.fallbackIcon);
     }
 
     const run = (event: Event): void => {
