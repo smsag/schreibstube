@@ -1,6 +1,6 @@
 # Dependencies are installed in a stage of their own so the image that runs
 # carries no npm cache, no lockfile churn, and no Mermaid tree.
-FROM node:24-alpine AS deps
+FROM node:26-alpine AS deps
 WORKDIR /app
 
 # `npm ci` only: a lockfile that no longer matches package.json fails the build
@@ -17,7 +17,7 @@ RUN mkdir -p vendor \
   && cp node_modules/mermaid/dist/mermaid.min.js vendor/ \
   && npm uninstall mermaid --no-save --omit=dev
 
-FROM node:24-alpine
+FROM node:26-alpine
 
 ENV NODE_ENV=production
 WORKDIR /app
