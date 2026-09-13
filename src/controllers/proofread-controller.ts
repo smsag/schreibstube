@@ -71,6 +71,13 @@ export interface PollSummary {
   failed: number;
   /** Paths of notes with changes waiting, for the summary notice. */
   notes: string[];
+  /**
+   * Why nothing was checked, when that was not the notes' doing.
+   *
+   * Without this a poll that never ran is indistinguishable from a note that
+   * names no source, and the notice blames the note for a switch being off.
+   */
+  skipped?: "disabled" | "busy";
 }
 
 /** Persists sync bookkeeping between sessions. Implemented by the plugin, which

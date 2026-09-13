@@ -385,10 +385,14 @@ export const de: Messages = {
 
   sync: {
     notBound: "diese Notiz ist an keine Quelle gebunden.",
+    disabled:
+      "Dokument-Sync ist aus. Einschalten unter Einstellungen → Schreibstube → Dokument-Sync.",
+    busy: "es läuft bereits eine Prüfung.",
     noneChecked: "keine gebundenen Notizen geprüft.",
     checked: (checked: number, changed: number, failed: number) =>
       `${checked} geprüft, ${changed} mit Aktualisierungen, ${failed} fehlgeschlagen.`,
-    withUpdates: (count: number) => `${count} Notiz(en) mit Aktualisierungen aus der Quelle.`
+    withUpdates: (count: number) =>
+      `${count} Notiz(en) mit Aktualisierungen aus der Quelle — im Überprüfungsbereich übernehmen.`
   },
 
   mailNotices: {

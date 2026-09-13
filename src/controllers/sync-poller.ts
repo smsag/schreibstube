@@ -109,7 +109,11 @@ export class SyncPoller {
     const settings = this.getSettings();
     const empty: PollSummary = { checked: 0, withChanges: 0, failed: 0, notes: [] };
 
-    if (!settings.syncEnabled || this.polling) return empty;
+    // Said out loud rather than returned as an empty result: a note that is
+    // bound to a source and a plugin that is not checking anything look the
+    // same from the summary, and only one of them is the person's mistake.
+    if (!settings.syncEnabled) return { ...empty, skipped: "disabled" };
+    if (this.polling) return { ...empty, skipped: "busy" };
     if (files.length === 0) return empty;
 
     this.polling = true;

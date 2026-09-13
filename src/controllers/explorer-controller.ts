@@ -190,6 +190,18 @@ export class ExplorerController {
     });
   }
 
+  /**
+   * Whether the note names a source.
+   *
+   * Separate from the badge on purpose: the badge answers "what is this mirror
+   * doing", which is nothing at all while document sync is off, and the menu
+   * has to keep offering a bound note the way out of that.
+   */
+  private isBound(file: TFile): boolean {
+    if (file.extension !== "md") return false;
+    return hasSourceBinding(this.app.metadataCache.getFileCache(file)?.frontmatter);
+  }
+
   /** How many changes the poll saw and nobody has looked at yet. */
   pendingChangesFor(file: TFile): number {
     return this.getSettings().syncState[file.path]?.pendingChanges ?? 0;
@@ -285,11 +297,11 @@ export class ExplorerController {
       kind: isFile ? "file" : "folder",
       path: file.path,
       markdown: isFile && file.extension === "md",
+      bound: isFile && this.isBound(file),
       hasIcon: this.iconFor(file.path) !== undefined,
       kept: this.isKept(file.path),
       pinned: this.isPinned(file.path),
-      sync: isFile ? this.badgeFor(file) : "none",
-      hasBoundNotes: !isFile && this.getSettings().syncEnabled && this.hasBoundNotes(file.path)
+      hasBoundNotes: !isFile && this.hasBoundNotes(file.path)
     };
   }
 
@@ -451,15 +463,27 @@ export class ExplorerController {
 
     new Notice(
       t().common.notice(
-        summary.checked === 0 && summary.failed === 0
-          ? t().explorer.bind.folderEmpty
-          : t().explorer.bind.folderChecked(summary.checked, summary.withChanges, summary.failed)
+        summary.skipped === "disabled"
+          ? t().sync.disabled
+          : summary.skipped === "busy"
+            ? t().sync.busy
+            : summary.checked === 0 && summary.failed === 0
+              ? t().explorer.bind.folderEmpty
+              : t().explorer.bind.folderChecked(
+                  summary.checked,
+                  summary.withChanges,
+                  summary.failed
+                )
       )
     );
     this.emit();
   }
 
   private describeSummary(summary: PollSummary, name: string): string {
+    // Why nothing happened comes first: a switch being off is not something the
+    // note can be blamed for, and it is the only answer that says what to do.
+    if (summary.skipped === "disabled") return t().sync.disabled;
+    if (summary.skipped === "busy") return t().sync.busy;
     if (summary.failed > 0) return t().explorer.badge.error;
     if (summary.withChanges > 0) return t().sync.withUpdates(summary.withChanges);
     if (summary.checked === 0) return t().sync.notBound;

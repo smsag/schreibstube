@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Fixed
+
+- **A bound note keeps its sync actions while document sync is switched off.** The menu decided what to offer from the sync mark, and that mark is deliberately hidden while sync is off — so a note that had just been bound was offered "Bind source" again and nothing else: no way to check it by hand, no way to unbind it. Which is exactly the state anyone is in the first time they bind a note, since document sync is off by default. The menu now goes by the binding in the note's own frontmatter. The mark stays hidden while sync is off, because a mark for something that is not running would say nothing true.
+- **A check that never ran says so, instead of blaming the note.** With document sync off, checking a source returned an empty result, and an empty result reads as "this note is bound to no source" — the one thing that was certainly not true, said immediately after binding it. The summary now carries why nothing was checked, and the notice names the setting to turn on. The same answer is given for a folder check and for "Check all sources".
+- **The notice for waiting changes says where to apply them.** It reported that notes have updates from their source and left it there, although a check never writes to a note: changes wait in the review panel until they are accepted. It now says so.
+
 ### Changed
 
 - **A pin and the top of a folder are now two separate marks.** One flag meant both: marking a file as the one that matters inside its folder also put a row in the **Pinned** block above the tree, whether or not it belonged there — and a vault where a dozen folders each have a first file ended up with a pinned block naming all twelve. **Keep at top of folder** is now its own entry on the context menu and is the mark the tree draws, because it is the one that explains why a row sits where it does. **Add to Pinned** stays what it always was: wherever I am, I want this row. A file can carry both, either, or neither, and removing one leaves the other alone. Everything pinned before this version keeps both, which is what a pin did when it was set, so nothing moves on upgrade.

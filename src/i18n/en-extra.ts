@@ -209,10 +209,13 @@ export const enExtra = {
 
   sync: {
     notBound: "this note is not bound to a source.",
+    disabled: "document sync is off. Turn it on in Settings → Schreibstube → Document sync.",
+    busy: "a check is already running.",
     noneChecked: "no bound notes were checked.",
     checked: (checked: number, changed: number, failed: number) =>
       `${checked} checked, ${changed} with updates, ${failed} failed.`,
-    withUpdates: (count: number) => `${count} note(s) have updates from their source.`
+    withUpdates: (count: number) =>
+      `${count} note(s) have updates from their source — open the review panel to apply them.`
   },
 
   mailNotices: {
