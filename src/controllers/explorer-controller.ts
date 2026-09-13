@@ -26,6 +26,8 @@ import {
   reattachOrphans,
   renamePath,
   setIcon,
+  setTitle,
+  titleOf,
   reorderPinned,
   setKept,
   setPinned,
@@ -192,6 +194,17 @@ export class ExplorerController {
   }
 
   /**
+   * What the pane was told to call this file.
+   *
+   * The answer for everything Obsidian's properties cannot describe — a PDF, an
+   * image, a spreadsheet, a folder — and the one a person typed for this file,
+   * so it is drawn wherever the file appears rather than in one section only.
+   */
+  storedTitleFor(path: string): string | undefined {
+    return titleOf(this.store.data(), path);
+  }
+
+  /**
    * What a note calls itself, or null when it says nothing.
    *
    * Read from the frontmatter's `title`, which is the key everything else that
@@ -315,6 +328,7 @@ export class ExplorerController {
       markdown: isFile && file.extension === "md",
       bound: isFile && this.isBound(file),
       hasIcon: this.iconFor(file.path) !== undefined,
+      hasTitle: this.storedTitleFor(file.path) !== undefined,
       kept: this.isKept(file.path),
       pinned: this.isPinned(file.path),
       hasBoundNotes: !isFile && this.hasBoundNotes(file.path)
@@ -344,6 +358,11 @@ export class ExplorerController {
         return this.chooseIcon(file);
       case "clear-icon":
         this.store.mutate((data, now) => setIcon(data, file.path, null, now));
+        return;
+      case "set-title":
+        return this.chooseTitle(file);
+      case "clear-title":
+        this.store.mutate((data, now) => setTitle(data, file.path, null, now));
         return;
       case "keep-top":
       case "release-top":
@@ -406,6 +425,33 @@ export class ExplorerController {
         this.logger.warn(`Could not copy ${url} to the clipboard:`, error);
         new Notice(t().common.notice(t().explorer.bookmarks.copyFailed));
       });
+  }
+
+  /**
+   * Name a file in the pane.
+   *
+   * The dialogue starts on whatever the row shows now, so changing a name is an
+   * edit rather than retyping it, and an empty box hands the row back to the
+   * filename. Nothing is written to the file itself.
+   */
+  private chooseTitle(file: TAbstractFile): void {
+    const current = this.storedTitleFor(file.path);
+
+    new PromptModal(
+      this.app,
+      {
+        title: t().explorer.titles.title,
+        description: t().explorer.titles.desc,
+        placeholder: t().explorer.titles.placeholder,
+        initial: current ?? "",
+        submitLabel: t().explorer.titles.submit
+      },
+      (value) => {
+        this.store.mutate((data, now) =>
+          setTitle(data, file.path, value.length > 0 ? value : null, now)
+        );
+      }
+    ).open();
   }
 
   private chooseIcon(file: TAbstractFile): void {

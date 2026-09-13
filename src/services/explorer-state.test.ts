@@ -16,6 +16,8 @@ import {
   setIcon,
   setKept,
   setPinned,
+  setTitle,
+  titleOf,
   pinnedPaths,
   sortSiblings,
   type ExplorerData,
@@ -386,6 +388,55 @@ describe("keeping an item at the top of its folder", () => {
     const data = setKept(emptyExplorerData(), "a.md", true, T0);
 
     expect(pruneExplorerData(data, T0 + 31 * DAY).entries["a.md"]).toBeDefined();
+  });
+});
+
+describe("naming a file in the pane", () => {
+  it("records a name and hands it back", () => {
+    const data = setTitle(emptyExplorerData(), "Anhang/scan_0042.pdf", "Exposé Musterstraße 4", T0);
+
+    expect(titleOf(data, "Anhang/scan_0042.pdf")).toBe("Exposé Musterstraße 4");
+  });
+
+  it("trims it and folds it onto one line, because a row is one line high", () => {
+    const data = setTitle(emptyExplorerData(), "a.pdf", "  Grundriss\n  Erdgeschoss ", T0);
+
+    expect(titleOf(data, "a.pdf")).toBe("Grundriss Erdgeschoss");
+  });
+
+  it("hands the row back to the filename when the name is cleared or blank", () => {
+    const named = setTitle(emptyExplorerData(), "a.pdf", "Exposé", T0);
+
+    expect(titleOf(setTitle(named, "a.pdf", null, T0 + MINUTE), "a.pdf")).toBeUndefined();
+    expect(titleOf(setTitle(named, "a.pdf", "   ", T0 + MINUTE), "a.pdf")).toBeUndefined();
+  });
+
+  it("keeps the entry after a clear, so an older name elsewhere cannot come back", () => {
+    const cleared = setTitle(
+      setTitle(emptyExplorerData(), "a.pdf", "Exposé", T0),
+      "a.pdf",
+      null,
+      T0 + MINUTE
+    );
+
+    expect(cleared.entries["a.pdf"]).toEqual({ updatedAt: T0 + MINUTE });
+  });
+
+  it("moves with the file, and survives the prune that clears an empty entry", () => {
+    const data = setTitle(emptyExplorerData(), "Anhang/a.pdf", "Exposé", T0);
+    const moved = renamePath(data, "Anhang/a.pdf", "Objekte/a.pdf", T0 + MINUTE);
+
+    expect(titleOf(moved, "Objekte/a.pdf")).toBe("Exposé");
+    expect(pruneExplorerData(moved, T0 + 31 * DAY).entries["Objekte/a.pdf"]).toBeDefined();
+  });
+
+  it("is independent of the icon and both marks", () => {
+    let data = setTitle(emptyExplorerData(), "a.pdf", "Exposé", T0);
+    data = setIcon(data, "a.pdf", "home", T0);
+    data = setTitle(data, "a.pdf", null, T0 + MINUTE);
+
+    expect(iconFor(data, "a.pdf")).toBe("home");
+    expect(titleOf(data, "a.pdf")).toBeUndefined();
   });
 });
 

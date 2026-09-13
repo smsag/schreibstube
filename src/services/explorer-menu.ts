@@ -18,6 +18,8 @@ export type ExplorerAction =
   | "open-new-tab"
   | "set-icon"
   | "clear-icon"
+  | "set-title"
+  | "clear-title"
   | "keep-top"
   | "release-top"
   | "pin"
@@ -48,6 +50,8 @@ export interface ExplorerTarget {
    */
   bound: boolean;
   hasIcon: boolean;
+  /** Whether the pane has been told what to call this file. */
+  hasTitle: boolean;
   /** Held at the top of the folder it sits in. */
   kept: boolean;
   /** Drawn in the pinned block above the tree. */
@@ -116,6 +120,17 @@ export function buildExplorerMenu(
   ];
   if (target.hasIcon) {
     appearance.push({ id: "clear-icon", label: menu.clearIcon, icon: "image-off" });
+  }
+
+  // Naming a file in the pane, which is the only metadata a PDF or an image can
+  // carry: Obsidian's own properties are Markdown and nothing else.
+  appearance.push({
+    id: "set-title",
+    label: target.hasTitle ? menu.changeTitle : menu.setTitle,
+    icon: "text-cursor-input"
+  });
+  if (target.hasTitle) {
+    appearance.push({ id: "clear-title", label: menu.clearTitle, icon: "eraser" });
   }
   // The two marks, in the order they are reached for. Keeping a file at the top
   // of its folder is the everyday one — this note first, in this folder —

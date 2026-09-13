@@ -469,6 +469,9 @@ export const de: Messages = {
       setIcon: "Symbol wählen …",
       changeIcon: "Symbol ändern …",
       clearIcon: "Symbol entfernen",
+      setTitle: "Im Bereich benennen …",
+      changeTitle: "Benennung im Bereich ändern …",
+      clearTitle: "Wieder den Dateinamen zeigen",
       keepTop: "Im Ordner oben halten",
       releaseTop: "Nicht mehr oben halten",
       pin: "Zu „Angeheftet“ hinzufügen",
@@ -484,6 +487,13 @@ export const de: Messages = {
       move: "Verschieben nach …",
       delete: "Löschen",
       more: "Weitere Aktionen"
+    },
+
+    titles: {
+      title: "Im Bereich benennen",
+      desc: "Wird statt des Dateinamens angezeigt, nur in diesem Bereich. Die Datei behält ihren Namen, geschrieben wird nichts.",
+      placeholder: "Wonach Sie suchen würden",
+      submit: "Speichern"
     },
 
     icons: {
