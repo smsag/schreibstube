@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Added
+
+- **A row in the tree can be dragged with a finger.** Dragging to move was mouse-only, because the tree's long press already belonged to the context menu — which meant that on the device the pane was built for, the one gesture everybody tries did nothing at all. The same press now serves both: it arms the drag and opens the menu at half a second, so holding still and letting go gives you the menu, holding and then moving gives you the drag, and the menu steps aside the moment the row starts moving. The list scrolls while a drag rests near its top or bottom edge, so a folder off screen is still reachable — on a mouse as well, where it was just as unreachable. **Move to…** stays on the menu for a target nowhere near the row.
+
 ## 1.18.0 - 2026-09-13
 
 ### Added

@@ -74,6 +74,8 @@ export interface ExplorerSyncBridge {
 export class ExplorerController {
   private readonly store: ExplorerStore;
   private readonly listeners = new Set<() => void>();
+  /** The menu on screen, so a drag begun out of it can take it away again. */
+  private openMenu: Menu | null = null;
   private submenusSupported: boolean | null = null;
 
   constructor(
@@ -248,11 +250,28 @@ export class ExplorerController {
       }
     });
 
+    this.openMenu = menu;
+    menu.onHide(() => {
+      if (this.openMenu === menu) this.openMenu = null;
+    });
+
     if (event instanceof MouseEvent) {
       menu.showAtMouseEvent(event);
     } else {
       menu.showAtPosition(event);
     }
+  }
+
+  /**
+   * Take the menu away.
+   *
+   * A press on a touch screen opens this menu at half a second, and the same
+   * press, kept moving, is how a row is dragged: the menu asked for by holding
+   * still is not the menu you want once you have started moving.
+   */
+  closeMenu(): void {
+    this.openMenu?.hide();
+    this.openMenu = null;
   }
 
   private fill(entry: MenuItem, item: ExplorerMenuItem, file: TAbstractFile): void {

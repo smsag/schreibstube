@@ -97,6 +97,11 @@ const STUCK_TOLERANCE_PX = 1.5;
 /** Movement, in pixels, that turns a press into a drag rather than a click. */
 const DRAG_THRESHOLD_PX = 4;
 
+/** How close to the top or bottom of the list a drag has to be before the list
+ *  starts moving under it, and how far it moves in one frame at the very edge. */
+const EDGE_SCROLL_PX = 48;
+const EDGE_SCROLL_MAX_PX = 12;
+
 /**
  * What the pane remembers between sessions, per device.
  *
@@ -146,8 +151,7 @@ interface PaneMemory {
 interface DragHandlers {
   /** Identifies the drag in progress, so one row's release cannot end another's. */
   path: string;
-  /** Whether a press here may become a drag at all. */
-  canStart?: () => boolean;
+  /** Called once, when a press has become a drag. */
   onStart: () => void;
   onMove: (clientX: number, clientY: number) => void;
   onDrop: (clientX: number, clientY: number) => void;
@@ -200,6 +204,11 @@ export class ExplorerPaneView extends ItemView {
   private drawnMatches = 0;
   /** A redraw a drag held back, to be run as soon as the drag has ended. */
   private deferred = false;
+  /** Where the pointer is during a drag, and the frame loop that scrolls the
+   *  list while it rests near an edge. */
+  private dragPointer = { x: 0, y: 0 };
+  private dragScroll: number | null = null;
+  private dragHandlers: DragHandlers | null = null;
   /** A path to scroll to once the next draw has put it on screen. */
   private revealing: string | null = null;
 
@@ -426,6 +435,54 @@ export class ExplorerPaneView extends ItemView {
 
       this.render();
     });
+  }
+
+  /**
+   * Scroll the list while a drag rests near its top or bottom edge.
+   *
+   * Without it only what is already on screen can be dropped on, which on a
+   * phone is a folder or two. The loop runs per frame rather than per move,
+   * because a finger held at the edge is not moving and would otherwise scroll
+   * nothing, and it re-marks the target as the list slides underneath it.
+   */
+  private startEdgeScroll(): void {
+    if (this.dragScroll !== null) return;
+
+    const step = (): void => {
+      const body = this.body;
+      if (!body || this.dragging === null) {
+        this.dragScroll = null;
+        return;
+      }
+
+      this.dragScroll = window.requestAnimationFrame(step);
+
+      const box = body.getBoundingClientRect();
+      const above = this.dragPointer.y - box.top;
+      const below = box.bottom - this.dragPointer.y;
+      const speed = (distance: number): number =>
+        Math.ceil(((EDGE_SCROLL_PX - distance) / EDGE_SCROLL_PX) * EDGE_SCROLL_MAX_PX);
+
+      let moved = 0;
+      if (above < EDGE_SCROLL_PX) moved = -speed(Math.max(0, above));
+      else if (below < EDGE_SCROLL_PX) moved = speed(Math.max(0, below));
+      if (moved === 0) return;
+
+      const before = body.scrollTop;
+      body.scrollTop += moved;
+      // The rows moved under a finger that did not: what it is over now is not
+      // what it was over a frame ago.
+      if (body.scrollTop !== before) {
+        this.dragHandlers?.onMove(this.dragPointer.x, this.dragPointer.y);
+      }
+    };
+
+    this.dragScroll = window.requestAnimationFrame(step);
+  }
+
+  private stopEdgeScroll(): void {
+    if (this.dragScroll !== null) window.cancelAnimationFrame(this.dragScroll);
+    this.dragScroll = null;
   }
 
   /**
@@ -944,6 +1001,8 @@ export class ExplorerPaneView extends ItemView {
     const finish = (): void => {
       clearHold();
       armed = false;
+      this.stopEdgeScroll();
+      this.dragHandlers = null;
       row.removeClass("is-dragging");
       handlers.onEnd();
       // The click that follows a pointerup would otherwise act on the row the
@@ -953,7 +1012,6 @@ export class ExplorerPaneView extends ItemView {
 
     row.addEventListener("pointerdown", (event: PointerEvent) => {
       if (event.button !== 0) return;
-      if (handlers.canStart && !handlers.canStart()) return;
 
       startX = event.clientX;
       startY = event.clientY;
@@ -1001,10 +1059,13 @@ export class ExplorerPaneView extends ItemView {
 
       if (this.dragging === null) {
         this.dragging = handlers.path;
+        this.dragHandlers = handlers;
         row.addClass("is-dragging");
         handlers.onStart();
+        this.startEdgeScroll();
       }
 
+      this.dragPointer = { x: event.clientX, y: event.clientY };
       handlers.onMove(event.clientX, event.clientY);
     });
 
@@ -1031,28 +1092,26 @@ export class ExplorerPaneView extends ItemView {
   /**
    * Moving a file or a folder by dragging it onto a folder.
    *
-   * Mouse only. The tree's long press already opens the context menu, and that
-   * is the only way to reach a row's actions on a phone, so it is not a gesture
-   * to take. Moving on touch stays where it is, in that menu.
+   * A finger drags as a mouse does. The press that opens the context menu at
+   * half a second is the same press that arms the drag, so holding still and
+   * letting go gives the menu, and holding and then moving gives the drag —
+   * which is the gesture a phone has taught everybody. The menu is taken away
+   * the moment the row starts moving: the actions asked for by holding still
+   * are not the ones wanted once something is being carried.
    *
-   * The drop target is a folder row, or the section header, which stands for
-   * the vault root. Whether a move is allowed at all is decided in `planMove`,
-   * away from the pointer, and a refusal says why rather than doing nothing.
+   * The drop target is a folder row, one of the rows inside a folder, or the
+   * section header, which stands for the vault root. Whether a move is allowed
+   * at all is decided in `planMove`, away from the pointer, and a refusal says
+   * why rather than doing nothing.
    */
   private wireTreeDrag(row: HTMLElement, path: string): void {
     this.wireDrag(row, {
       path,
-      canStart: () => !this.isTouchPane(),
-      onStart: () => undefined,
+      onStart: () => this.host?.explorer.closeMenu(),
       onMove: (x, y) => this.markMoveTarget(x, y),
       onEnd: () => this.clearMoveMarks(),
       onDrop: (x, y) => void this.dropInto(path, this.moveTargetAt(x, y))
     });
-  }
-
-  /** Obsidian marks a phone or tablet on the body; a mouse drag is not for it. */
-  private isTouchPane(): boolean {
-    return this.containerEl.doc.body.classList.contains("is-mobile");
   }
 
   /** Rows and headers a tree drag may land on. */
