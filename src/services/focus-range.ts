@@ -125,6 +125,62 @@ function resolveFenceRange(doc: LineDoc, cursorLine: number): FocusRange | null 
   return null;
 }
 
+/**
+ * German abbreviations whose full stop is not the end of anything.
+ *
+ * A heuristic, and deliberately short: the cost of missing one is a sentence
+ * that reads as two, the cost of a long list is a stop that never ends a
+ * sentence. Single letters and bare numbers are handled by rule rather than
+ * listed, which covers "z. B.", "u. a." and every ordinal date.
+ */
+const ABBREVIATIONS = new Set([
+  "abb",
+  "bzw",
+  "ca",
+  "dr",
+  "evtl",
+  "ggf",
+  "hrsg",
+  "inkl",
+  "nr",
+  "prof",
+  "str",
+  "tel",
+  "vgl",
+  "usw",
+  "zzgl"
+]);
+
+/** The word immediately before a full stop, lowercased. */
+function tokenBefore(text: string, dot: number): string {
+  let start = dot;
+  while (start > 0 && /[\p{L}\p{N}]/u.test(text[start - 1])) start -= 1;
+  return text.slice(start, dot).toLowerCase();
+}
+
+/**
+ * Whether a full stop ends a sentence, or merely a word that is written short.
+ *
+ * Splitting on every stop turned "Das gilt z. B. für Objekte" into three
+ * sentences and focused the last fragment of it, which is the opposite of what
+ * focus mode is for.
+ */
+function endsSentence(text: string, dot: number): boolean {
+  const rest = text.slice(dot + 1);
+  const next = rest.trimStart().charAt(0);
+
+  // A lowercase letter after a stop means the sentence is still going.
+  if (next && next.toLowerCase() === next && next.toUpperCase() !== next) return false;
+
+  const token = tokenBefore(text, dot);
+  // "z.", "B.", "1.", "2026." — a single letter or a bare number is a short
+  // form or an ordinal, never the end of a thought.
+  if (token.length === 1) return false;
+  if (/^\p{N}+$/u.test(token)) return false;
+
+  return !ABBREVIATIONS.has(token);
+}
+
 function resolveSentenceSpan(
   text: string,
   cursorColumn: number
@@ -134,13 +190,14 @@ function resolveSentenceSpan(
 
   for (let i = 0; i < text.length; i += 1) {
     const char = text[i];
-    if (char === "." || char === "!" || char === "?") {
-      spans.push({ startCh, endCh: i + 1 });
-      startCh = i + 1;
+    if (char !== "." && char !== "!" && char !== "?") continue;
+    if (char === "." && !endsSentence(text, i)) continue;
 
-      while (startCh < text.length && /\s/.test(text[startCh])) {
-        startCh += 1;
-      }
+    spans.push({ startCh, endCh: i + 1 });
+    startCh = i + 1;
+
+    while (startCh < text.length && /\s/.test(text[startCh])) {
+      startCh += 1;
     }
   }
 
@@ -148,13 +205,15 @@ function resolveSentenceSpan(
     spans.push({ startCh, endCh: text.length });
   }
 
+  // The first span the cursor has not passed the end of. Written this way so
+  // every column belongs to exactly one sentence: the caret sitting after the
+  // final full stop — which is where it sits while the line is being written —
+  // used to match nothing at all, and the whole line lit up instead.
   for (const span of spans) {
-    if (cursorColumn >= span.startCh && cursorColumn < span.endCh) {
-      return span;
-    }
+    if (cursorColumn <= span.endCh) return span;
   }
 
-  return null;
+  return spans.length > 0 ? spans[spans.length - 1] : null;
 }
 
 function clampLineNumber(lineNumber: number, maxLines: number): number {
