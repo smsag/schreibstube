@@ -22,6 +22,7 @@ import {
   FileView,
   ItemView,
   Notice,
+  setIcon,
   TFile,
   TFolder,
   type TAbstractFile,
@@ -183,9 +184,20 @@ type SectionId = "pinned" | "bookmarks" | "latest" | "files";
 
 /** A control a header carries at its far end, past the rule. */
 interface SectionAction {
+  /** A name in the bundled set, which is what the rest of the pane draws with. */
   icon: string;
+  /** Obsidian's own name for the same thing, drawn if the set has not got it. */
+  fallbackIcon: string;
   /** Named for a screen reader and on hover, because the icon alone is a guess. */
   label: string;
+  /**
+   * Set only by a control that opens and closes its own section.
+   *
+   * The pinned block's chevron is the one: its section has none in the twisty
+   * slot, so this control is where a state that would have been said there has
+   * to be said instead.
+   */
+  expanded?: boolean;
   run: () => void;
 }
 
@@ -209,6 +221,13 @@ interface SectionOptions {
   action?: SectionAction;
   /** A mark on the section's icon that something came in while nobody looked. */
   alert?: SectionAlert;
+  /**
+   * False for a section whose chevron is drawn at the other end of the header.
+   *
+   * The slot itself stays, empty: every icon in the pane lines up on it, and a
+   * header that dropped it would sit a chevron's width left of its own rows.
+   */
+  twisty?: boolean;
 }
 
 interface PaneMemory {
@@ -691,12 +710,30 @@ export class ExplorerPaneView extends ItemView {
     // "Files and folders" is drawn as a band across the pane, because it is the
     // one header that separates two kinds of thing: the three curated lists
     // above it and the vault itself below.
-    const header = section.createEl("button", {
-      cls: `schreibstube-explorer-section-header${id === "files" ? " is-divider" : ""}`,
-      attr: { type: "button", "aria-expanded": String(!collapsed) }
+    //
+    // A div and not a button, though it behaves as one. A button carries every
+    // theme's idea of what a button looks like — a fill, a hover fill, a
+    // pressed fill — and a header that lit up grey under the finger that had
+    // just opened it, and stayed lit, was that idea arriving where it was not
+    // wanted. A row in this pane is drawn by this pane. It also stops a control
+    // of the section's own from being a button inside a button.
+    const header = section.createDiv({
+      cls:
+        `schreibstube-explorer-section-header` +
+        `${id === "files" ? " is-divider" : ""}${closable ? " is-clickable" : ""}`
     });
+
+    // The band is pressable and does not say it is a button, because the things
+    // standing on it are. A button's children are not read out — that is what
+    // the role means — so a header calling itself one would have taken the
+    // chevron beside it and the mark on its icon down with it, which is the
+    // same silence moving one level up. The chevron carries the role instead,
+    // and a pointer still has the whole band.
     const twisty = header.createSpan({ cls: "schreibstube-explorer-twisty" });
-    if (closable) applyIcon(twisty, collapsed ? "chevron-right" : "chevron-down");
+    if (closable && options.twisty !== false) {
+      applyIcon(twisty, collapsed ? "chevron-right" : "chevron-down");
+      this.wireSectionToggle(twisty, id, collapsed, t().explorer.sections[id]);
+    }
 
     // How many there are in all, on the section's own icon: a closed section
     // showing rows does not look closed, and the rows on screen are not the
@@ -722,17 +759,14 @@ export class ExplorerPaneView extends ItemView {
 
     if (options.action) this.renderSectionAction(header, options.action);
 
-    if (closable) {
-      header.addEventListener("click", () => {
-        if (collapsed) {
-          this.collapsedSections.delete(id);
-        } else {
-          this.collapsedSections.add(id);
-          if (id === "files") this.revealedTree = false;
-        }
-        this.writeMemory();
-        this.requestRender();
-      });
+    // With a mark on it the whole band is the way to take it down — the chevron
+    // excepted, which stops the press at itself and goes on opening and closing
+    // the section. Without a mark the band is the toggle it always was.
+    const alert = options.alert;
+    if (alert) {
+      header.addEventListener("click", () => this.acknowledgeAlert(id, alert));
+    } else if (closable) {
+      header.addEventListener("click", () => this.toggleSection(id, collapsed));
     }
 
     const body = section.createDiv({ cls: "schreibstube-explorer-section-body" });
@@ -743,19 +777,87 @@ export class ExplorerPaneView extends ItemView {
   }
 
   /**
+   * The chevron, as the one thing on the band that says what the band does.
+   *
+   * A pointer has the whole header and always did. This is for everything else:
+   * a name, a state, a tab stop, and a key that works — on the element the eye
+   * was going to anyway.
+   */
+  private wireSectionToggle(
+    twisty: HTMLElement,
+    id: SectionId,
+    collapsed: boolean,
+    label: string
+  ): void {
+    twisty.setAttrs({
+      role: "button",
+      tabindex: "0",
+      "aria-label": label,
+      "aria-expanded": String(!collapsed)
+    });
+    // Drawing an icon marks what it was drawn on as decoration; this one is the
+    // control, and a control nothing can read is worse than one nobody can see.
+    twisty.removeAttribute("aria-hidden");
+
+    const run = (event: Event): void => {
+      // The band under it would otherwise toggle the section a second time,
+      // which is the section not moving at all.
+      event.preventDefault();
+      event.stopPropagation();
+      this.toggleSection(id, collapsed);
+    };
+
+    twisty.addEventListener("click", run);
+    twisty.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") run(event);
+    });
+  }
+
+  private toggleSection(id: SectionId, collapsed: boolean): void {
+    if (collapsed) {
+      this.collapsedSections.delete(id);
+    } else {
+      this.collapsedSections.add(id);
+      if (id === "files") this.revealedTree = false;
+    }
+    this.writeMemory();
+    this.requestRender();
+  }
+
+  /**
    * A control of the section's own, inside the header that opens the section.
    *
    * It has to stop the press reaching that header, or opening every folder in
    * the vault would close the section they are in — the one thing a control put
-   * there must not do. It is a span rather than a button because the header is
-   * already one, and a button inside a button is not a thing a page may hold.
+   * there must not do. Like the header around it, it is drawn rather than being
+   * a button: nothing here should arrive wearing a theme's button.
    */
   private renderSectionAction(header: HTMLElement, action: SectionAction): void {
     const control = header.createSpan({
       cls: "schreibstube-explorer-section-action",
-      attr: { role: "button", tabindex: "0", "aria-label": action.label, title: action.label }
+      attr: {
+        role: "button",
+        tabindex: "0",
+        "aria-label": action.label,
+        title: action.label,
+        ...(action.expanded === undefined ? {} : { "aria-expanded": String(action.expanded) })
+      }
     });
-    applyIcon(control, action.icon);
+
+    // The glyph goes in a child of the control, never on the control itself:
+    // drawing an icon marks what it is drawn on `aria-hidden`, which is right
+    // for the icon and wrong for the labelled, focusable thing carrying it —
+    // a control nothing can read is worse than one nobody can see.
+    //
+    // The bundled font first, as everywhere else in the pane, and Obsidian's
+    // own icon if that font has nothing under the name. A control drawn as an
+    // empty box is indistinguishable from one that is broken, and this one
+    // sits alone at the end of a band with no label beside it to explain it.
+    const glyph = control.createSpan();
+    if (!applyIcon(glyph, action.icon)) {
+      glyph.removeClass("schreibstube-icon");
+      setIcon(glyph, action.fallbackIcon);
+    }
 
     const run = (event: Event): void => {
       event.preventDefault();
@@ -781,27 +883,41 @@ export class ExplorerPaneView extends ItemView {
    * what it was about.
    */
   private renderSectionAlert(glyph: HTMLElement, id: SectionId, alert: SectionAlert): void {
+    // A dot, in the colour the interface uses for its own voice. It says one
+    // thing — something came in — and a figure or a character beside it would
+    // be answering a question nobody asked of a mark this size. The list under
+    // the header says which notes, exactly.
+    //
+    // The band around it is what a finger presses; this is a control as well,
+    // so the same thing can be reached by a keyboard.
     const mark = glyph.createSpan({
-      cls: "schreibstube-explorer-count is-alert",
-      text: "!",
+      cls: "schreibstube-explorer-alert",
       attr: { role: "button", tabindex: "0", "aria-label": alert.label, title: alert.label }
     });
 
     const run = (event: Event): void => {
       event.preventDefault();
       event.stopPropagation();
-      // Opened rather than toggled: the mark is an invitation to look, and a
-      // tap that answered it by closing the list would be a joke.
-      this.collapsedSections.delete(id);
-      this.writeMemory();
-      alert.acknowledge();
-      this.requestRender();
+      this.acknowledgeAlert(id, alert);
     };
 
     mark.addEventListener("click", run);
     mark.addEventListener("keydown", (event) => {
       if (event.key === "Enter" || event.key === " ") run(event);
     });
+  }
+
+  /**
+   * Take the mark down, and show what it was about.
+   *
+   * Opened rather than toggled: the mark is an invitation to look, and a press
+   * that answered it by closing the list would be a joke.
+   */
+  private acknowledgeAlert(id: SectionId, alert: SectionAlert): void {
+    this.collapsedSections.delete(id);
+    this.writeMemory();
+    alert.acknowledge();
+    this.requestRender();
   }
 
   private renderPinned(shelf: HTMLElement, scroller: HTMLElement): void {
@@ -828,15 +944,36 @@ export class ExplorerPaneView extends ItemView {
     // the strip are not the block, and the count says how much of it is behind
     // the chevron without arithmetic.
     const more = !filtering && items.length > FIXED_PINNED_ROWS;
+    const closed = !filtering && this.collapsedSections.has("pinned");
     const body = this.renderSection(shelf, "pinned", "pinned", {
       keepBodyWhenClosed: true,
       total: more ? items.length : 0,
-      closable: items.length > FIXED_PINNED_ROWS,
-      forceOpen: filtering
+      // Only while there is a rest to bring out, which a filter never leaves:
+      // the filter opens the block for as long as it is set, and a band that
+      // took a press while it had nothing to hide would pocket a collapse that
+      // nothing on screen could show and nothing could take back.
+      closable: more,
+      forceOpen: filtering,
+      // The chevron sits at the far end of the band instead, where the tree's
+      // own control is: this one does not open and close a list, it lets the
+      // shortlist past the three rows that are on screen whatever it says. It
+      // points the way the list will move — down to bring the rest out, up to
+      // put them away — and it is drawn only when there is a rest to bring out.
+      twisty: false,
+      ...(more
+        ? {
+            action: {
+              icon: closed ? "chevron-down" : "chevron-up",
+              fallbackIcon: closed ? "chevron-down" : "chevron-up",
+              label: closed ? t().explorer.pinnedMore : t().explorer.pinnedFewer,
+              expanded: !closed,
+              run: () => this.toggleSection("pinned", closed)
+            }
+          }
+        : {})
     });
     if (!body) return;
 
-    const closed = !filtering && this.collapsedSections.has("pinned");
     const drawn = closed ? items.slice(0, FIXED_PINNED_ROWS) : items;
     // Open, the strip holds as many as half the pane has room for; the rest
     // continue in the scrolling list, as they always have.
@@ -1102,6 +1239,7 @@ export class ExplorerPaneView extends ItemView {
     if (treeAction(paths, (path) => this.isFolderOpen(path)) === "collapse") {
       return {
         icon: "chevrons-up",
+        fallbackIcon: "chevrons-down-up",
         label: t().explorer.collapseAll,
         run: () => this.collapseAll()
       };
@@ -1109,6 +1247,7 @@ export class ExplorerPaneView extends ItemView {
 
     return {
       icon: "chevrons-down",
+      fallbackIcon: "chevrons-up-down",
       label: t().explorer.expandAll,
       run: () => this.expandAll(paths)
     };

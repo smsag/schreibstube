@@ -320,6 +320,8 @@ export const enExtra = {
     filterMore: (count: number) => `${count} more match. Narrow the filter to see them.`,
     collapseAll: "Collapse all",
     expandAll: "Expand all",
+    pinnedMore: "Show all pinned",
+    pinnedFewer: "Show three again",
     folderCount: (count: string) => `${count} files`,
 
     move: {

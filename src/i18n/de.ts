@@ -498,6 +498,8 @@ export const de: Messages = {
     filterMore: (count: number) => `${count} weitere Treffer. Filter eingrenzen, um sie zu sehen.`,
     collapseAll: "Alle zuklappen",
     expandAll: "Alle aufklappen",
+    pinnedMore: "Alle Angehefteten zeigen",
+    pinnedFewer: "Wieder drei zeigen",
     folderCount: (count: string) => `${count} Dateien`,
 
     move: {

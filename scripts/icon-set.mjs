@@ -16,6 +16,8 @@
 export const UI_ICONS = [
   "chevron-right",
   "chevron-down",
+  // The pinned block's own control, which points the way it will move the list.
+  "chevron-up",
   // The one control over the whole tree: the row twisty doubled, so opening
   // and closing everything reads as more of what opening one folder does.
   "chevrons-down",

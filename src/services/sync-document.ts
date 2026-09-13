@@ -79,12 +79,9 @@ export interface SyncOutcomeInput {
 export function nextSyncRecord(input: SyncOutcomeInput): SyncRecord {
   const { record, body, remoteBody, etag, checkedAt, pendingChanges, settled } = input;
   const remoteHash = remoteBody === null ? record?.remoteHash : hashText(remoteBody);
-
-  // A source seen for the first time counts as having changed: the document
-  // arrived, which from the note's point of view is its first version and the
-  // moment worth recording. After that it is a change only when the hash moves.
-  const remoteChanged =
-    remoteBody !== null && (record?.remoteHash === undefined || record.remoteHash !== remoteHash);
+  // One rule, asked once. Two spellings of it drifted apart the moment one of
+  // them learned something the other did not.
+  const remoteChanged = isRemoteChange(record, remoteBody);
 
   return {
     hash: settled ? hashText(body) : (record?.hash ?? hashText(body)),
@@ -100,11 +97,32 @@ export function nextSyncRecord(input: SyncOutcomeInput): SyncRecord {
   };
 }
 
-/** Whether this outcome is one that should stamp the note's `updatedAt`. */
+/**
+ * Whether this outcome is one that changed the document.
+ *
+ * Three cases, and the middle one is the one that was wrong.
+ *
+ * **No record at all** — the source has never been fetched. That counts: the
+ * document arriving is, from the note's point of view, its first version and
+ * the moment worth recording.
+ *
+ * **A record from before this plugin kept a hash of the source.** It has no
+ * baseline, and that is a fact about the bookkeeping rather than about the
+ * document. Treating it as a change stamped every mirrored note in a vault the
+ * first time it was checked after updating — a date they had not earned, a
+ * place at the top of "Zuletzt" they had not earned, and a mark on the pane
+ * saying something had come in when nothing had. The hash is adopted quietly
+ * instead, and the next check has a baseline to compare against.
+ *
+ * **A record with a hash** — the only case where an answer can be given: the
+ * document changed if its text is not the text last seen.
+ */
 export function isRemoteChange(record: SyncRecord | undefined, remoteBody: string | null): boolean {
   if (remoteBody === null) return false;
-  const hash = hashText(remoteBody);
-  return record?.remoteHash === undefined || record.remoteHash !== hash;
+  if (record === undefined) return true;
+  if (record.remoteHash === undefined) return false;
+
+  return record.remoteHash !== hashText(remoteBody);
 }
 
 export type LocalState =

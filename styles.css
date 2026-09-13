@@ -473,6 +473,27 @@
   padding-right: 26px;
 }
 
+/* The field sits at the very top of a pane that clips what leaves it, and a
+   focus ring drawn outside the box loses its upper edge to that clip — half a
+   rectangle, which reads as a rendering fault rather than as focus. So focus is
+   said on the inside: the same box, a line drawn within it, nothing to crop.
+   Stated for both, because the ring comes from a border and a shadow at once
+   and taking away one leaves the other. */
+.schreibstube-explorer .schreibstube-explorer-filter,
+.schreibstube-explorer .schreibstube-explorer-filter:hover {
+  border: none;
+  box-shadow: none;
+  background-color: var(--background-modifier-form-field);
+}
+
+.schreibstube-explorer .schreibstube-explorer-filter:focus,
+.schreibstube-explorer .schreibstube-explorer-filter:focus-visible,
+.schreibstube-explorer .schreibstube-explorer-filter:active {
+  border: none;
+  outline: none;
+  box-shadow: inset 0 0 0 1px var(--background-modifier-border-focus, var(--text-faint));
+}
+
 .schreibstube-explorer .schreibstube-explorer-filter-clear {
   position: absolute;
   right: 3px;
@@ -549,8 +570,6 @@
 .schreibstube-explorer .schreibstube-explorer-section-header {
   display: flex;
   align-items: center;
-  /* `button` sets this to center, which would put every header's label in the
-     middle of the pane. */
   justify-content: flex-start;
   gap: var(--schreibstube-row-gap);
   width: 100%;
@@ -568,10 +587,23 @@
   top: 0;
   z-index: 1;
   background-color: var(--schreibstube-ground, transparent);
+  /* Said rather than assumed: a div brings none of these, but a theme that
+     styles [role="button"] rather than button would put them back, and this
+     header answers to nobody's idea of a button but the pane's. */
   border: none;
   border-radius: 0;
+  padding-block: 0;
   box-shadow: none;
-  cursor: pointer;
+  /* What a button gave and a div does not. A long press on a label is a phone's
+     invitation to select it — the magnifier, the callout, "Copy" — and a press
+     on this one belongs to the section it opens. The rows below already say the
+     same thing for the same reason. */
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  /* The grey rectangle a mobile browser paints over whatever was tapped. The
+     pane says what it is doing with its own colours. */
+  -webkit-tap-highlight-color: transparent;
   color: var(--text-muted);
   font-size: 10.5px;
   font-weight: var(--font-semibold);
@@ -591,21 +623,52 @@
 }
 
 /* The one header that separates two kinds of thing, the curated lists above it
-   and the vault below. It carries no fill of its own: a darker label and a
-   firmer rule are enough to set it apart, and they leave the pane quiet. */
+   and the vault below. It carries no fill of its own: a darker label and the
+   space above it are enough to set it apart, and they leave the pane quiet.
+
+   Its rule is the rule every other header draws. Four lines down one pane at
+   two weights is not a hierarchy, it is one line looking like a mistake — and
+   the eye reads the difference long before it works out what it was for. */
 .schreibstube-explorer .schreibstube-explorer-section-header.is-divider {
   margin-top: 4px;
   color: var(--text-normal);
 }
 
-.schreibstube-explorer .schreibstube-explorer-section-header.is-divider::after {
-  /* One step firmer than the others. Obsidian's next border tone up, so the
-     difference holds in a theme that redefines either of them. */
-  background: var(--background-modifier-border-focus, var(--text-faint));
+/* A header answers a pointer with its label, never with a fill: the colour of
+   what is behind the pane is the only thing it may paint, because being sticky
+   is the only reason it paints at all. Stated for every state, since a header
+   under a finger that has just opened it keeps :hover until something else is
+   touched, and a band of grey left lying across the pane is what that looked
+   like. */
+.schreibstube-explorer .schreibstube-explorer-section-header:hover,
+.schreibstube-explorer .schreibstube-explorer-section-header:focus,
+.schreibstube-explorer .schreibstube-explorer-section-header:focus-visible,
+.schreibstube-explorer .schreibstube-explorer-section-header:active {
+  background-color: var(--schreibstube-ground, transparent);
 }
 
-.schreibstube-explorer .schreibstube-explorer-section-header:hover {
-  color: var(--text-normal);
+/* Only where a pointer can hover without pressing. A phone has no such state,
+   and one it cannot leave is worse than none. */
+@media (hover: hover) {
+  .schreibstube-explorer .schreibstube-explorer-section-header:hover {
+    color: var(--text-normal);
+  }
+}
+
+/* A header that hides nothing is a label: it does not offer a pointer a press
+   it will not answer. */
+.schreibstube-explorer .schreibstube-explorer-section-header.is-clickable {
+  cursor: pointer;
+}
+
+/* The chevron is the control on the band, so it is the one thing on it that
+   takes focus — visibly, and in the shape it already has. */
+.schreibstube-explorer
+  .schreibstube-explorer-section-header
+  .schreibstube-explorer-twisty:focus-visible {
+  outline: 1px solid var(--background-modifier-border-focus, var(--text-faint));
+  outline-offset: 1px;
+  border-radius: 2px;
 }
 
 .schreibstube-explorer-section-title {
@@ -630,16 +693,41 @@
   width: 24px;
   height: 24px;
   margin-right: calc(-1 * var(--schreibstube-row-inset) / 2);
-  color: var(--nav-collapse-icon-color, var(--text-faint));
+  /* The tone a row's own chevron carries, not the fainter one a header's label
+     has: it is an icon standing alone at the end of a band, with nothing beside
+     it to be read against. */
+  color: var(--text-muted);
   font-size: var(--schreibstube-glyph-size);
-  border-radius: var(--schreibstube-border-radius);
+  /* The header spaces its label out as small capitals; one glyph wants neither,
+     and inherited letter-spacing would push it off its own centre. */
+  letter-spacing: normal;
+  line-height: 1;
+  background: none;
   cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
 }
 
+/* Whichever of the two drew it: the bundled glyph is text, Obsidian's is an
+   svg, and the box is sized for the icon either way. */
+.schreibstube-explorer .schreibstube-explorer-section-action svg {
+  width: var(--schreibstube-glyph-size);
+  height: var(--schreibstube-glyph-size);
+}
+
+/* Never a fill, in any state. A chip of grey behind it reads as a button that
+   is somehow pressed, and on a phone it is one that cannot be un-pressed. The
+   icon darkens instead, and only where hovering is a thing that happens. */
 .schreibstube-explorer .schreibstube-explorer-section-action:hover,
-.schreibstube-explorer .schreibstube-explorer-section-action:focus-visible {
-  color: var(--text-normal);
-  background: var(--nav-item-background-hover, var(--background-modifier-hover));
+.schreibstube-explorer .schreibstube-explorer-section-action:focus,
+.schreibstube-explorer .schreibstube-explorer-section-action:focus-visible,
+.schreibstube-explorer .schreibstube-explorer-section-action:active {
+  background: none;
+}
+
+@media (hover: hover) {
+  .schreibstube-explorer .schreibstube-explorer-section-action:hover {
+    color: var(--text-normal);
+  }
 }
 
 /* Created / Modified inside Latest: a label, not a row, so it carries no
@@ -677,9 +765,13 @@
 }
 
 /* A folder that would take the dragged row. Outlined rather than lined on one
-   edge, because the row is going inside it rather than next to it. */
+   edge, because the row is going inside it rather than next to it.
+
+   The header is named through the pane, because the pane is what states a
+   header's background for every state it can be in — and a pointer dragged
+   over this one holds it in :hover the whole way across. */
 .schreibstube-explorer-row.is-drop-into,
-.schreibstube-explorer-section-header.is-drop-into {
+.schreibstube-explorer .schreibstube-explorer-section-header.is-drop-into {
   background: var(--nav-item-background-hover, var(--background-modifier-hover));
   box-shadow: inset 0 0 0 1px var(--interactive-accent);
   border-radius: var(--schreibstube-border-radius);
@@ -756,6 +848,11 @@
    than growing into the name. */
 .schreibstube-explorer-count {
   position: absolute;
+  /* A section header spaces its label out as small capitals, and the badge on
+     its icon inherits that: two digits drift apart and the one glyph in an
+     alert badge sits off its own centre. */
+  letter-spacing: normal;
+  text-transform: none;
   right: -5px;
   bottom: -4px;
   min-width: 13px;
@@ -786,22 +883,35 @@
    of it is new. It is a control, so it takes the pointer events the figure
    refuses, and it is given a box worth aiming at — nine pixels of glyph is not
    a target for a finger. */
-.schreibstube-explorer-count.is-alert {
+/* Something came in: a dot on the section's icon, in the colour the interface
+   speaks in. It is the corner a closed folder puts its count in, saying the one
+   thing a mark this size can say — the list under the header says which notes.
+
+   Pressable itself, so a keyboard can reach it, though a finger has the whole
+   band the header occupies. */
+.schreibstube-explorer-alert {
+  position: absolute;
+  right: -3px;
+  bottom: -2px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
   background: var(--interactive-accent);
-  color: var(--text-on-accent);
-  pointer-events: auto;
+  /* Against the row it sits on, so the dot keeps its shape over a folder icon
+     rather than merging into whatever is behind it. */
+  box-shadow: 0 0 0 1.5px var(--schreibstube-ground, var(--background-secondary));
   cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
 }
 
-.schreibstube-explorer-count.is-alert::after {
-  content: "";
-  position: absolute;
-  inset: -7px;
+.schreibstube-explorer-alert:focus-visible {
+  outline: 1px solid var(--background-modifier-border-focus, var(--text-faint));
+  outline-offset: 2px;
 }
 
 /* A row under the pointer paints its own background; the badge would otherwise
    read as a hole in it. */
-.schreibstube-explorer-row:hover .schreibstube-explorer-count:not(.is-alert) {
+.schreibstube-explorer-row:hover .schreibstube-explorer-count {
   background: var(--background-modifier-border-hover, var(--background-modifier-border));
 }
 
