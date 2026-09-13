@@ -513,6 +513,7 @@ export const de: Messages = {
     },
 
     latest: {
+      synced: "Aus der Quelle aktualisiert",
       created: "Erstellt",
       modified: "Geändert",
       empty: "Noch keine Notizen."

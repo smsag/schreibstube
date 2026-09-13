@@ -40,6 +40,14 @@ export interface SyncRecord {
    * rather than the source.
    */
   remoteHash?: string;
+  /**
+   * Epoch milliseconds of the last check that found the source different.
+   *
+   * The moment the note's own `updatedAt` records, kept here as well so the
+   * pane can order by it without reading and parsing every note's frontmatter,
+   * and so it survives a note whose properties could not be written.
+   */
+  changedAt?: number;
 }
 
 export type LocalState =

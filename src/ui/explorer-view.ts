@@ -783,10 +783,13 @@ export class ExplorerPaneView extends ItemView {
     const body = this.renderSection(host, "latest", "clock");
     if (!body || !sections) return;
 
-    const { created, modified } = sections.latestFiles();
+    const { synced, created, modified } = sections.latestFiles();
     const labels = t().explorer.latest;
 
+    // The source having changed is the most specific thing that can be said
+    // about why a note moved, so it is said first.
     const drawn =
+      this.renderLatestGroup(body, labels.synced, synced, true) +
       this.renderLatestGroup(body, labels.created, created) +
       this.renderLatestGroup(body, labels.modified, modified);
 
@@ -798,7 +801,8 @@ export class ExplorerPaneView extends ItemView {
   private renderLatestGroup(
     host: HTMLElement,
     label: string,
-    files: readonly LatestCandidate[]
+    files: readonly LatestCandidate[],
+    withBadge = false
   ): number {
     const matching = files.filter((file) => this.matchesQuery(file.name));
     if (matching.length === 0) return 0;
@@ -814,6 +818,12 @@ export class ExplorerPaneView extends ItemView {
       row.createSpan({ cls: "schreibstube-explorer-twisty" });
       applyIcon(row.createSpan({ cls: "schreibstube-explorer-glyph" }), "file-text");
       row.createSpan({ cls: "schreibstube-explorer-name", text: file.name });
+      // The same mark the tree carries, so a row here says whether the change
+      // is waiting to be looked at or already in the note.
+      if (withBadge) {
+        const target = this.app.vault.getAbstractFileByPath(file.path);
+        if (target instanceof TFile) this.renderBadge(row, target);
+      }
 
       row.addEventListener("click", () => void this.host?.sections.openLatest(file.path));
     }

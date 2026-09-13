@@ -366,14 +366,16 @@ function syncStateOrDefault(value: unknown): Record<string, SyncRecord> {
   const result: Record<string, SyncRecord> = {};
   for (const [path, record] of Object.entries(value as Record<string, unknown>)) {
     if (!record || typeof record !== "object") continue;
-    const { hash, etag, checkedAt, pendingChanges, remoteHash } = record as Partial<SyncRecord>;
+    const { hash, etag, checkedAt, pendingChanges, remoteHash, changedAt } =
+      record as Partial<SyncRecord>;
     if (typeof hash !== "string" || hash.length === 0) continue;
     result[path] = {
       hash,
       etag: typeof etag === "string" ? etag : "",
       checkedAt: Number.isFinite(checkedAt) ? Number(checkedAt) : 0,
       pendingChanges: Number.isFinite(pendingChanges) ? Number(pendingChanges) : 0,
-      ...(typeof remoteHash === "string" && remoteHash.length > 0 ? { remoteHash } : {})
+      ...(typeof remoteHash === "string" && remoteHash.length > 0 ? { remoteHash } : {}),
+      ...(Number.isFinite(changedAt) ? { changedAt: Number(changedAt) } : {})
     };
   }
   return result;

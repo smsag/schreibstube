@@ -335,6 +335,7 @@ export const enExtra = {
     },
 
     latest: {
+      synced: "Updated from the source",
       created: "Created",
       modified: "Modified",
       empty: "No notes yet."

@@ -218,7 +218,8 @@ export class SyncPoller {
         etag: outcome.etag,
         checkedAt,
         pendingChanges: record?.pendingChanges ?? 0,
-        ...(record?.remoteHash ? { remoteHash: record.remoteHash } : {})
+        ...(record?.remoteHash ? { remoteHash: record.remoteHash } : {}),
+        ...(record?.changedAt ? { changedAt: record.changedAt } : {})
       };
       // Nothing came back to read a title out of, but the note's own body may
       // still hold one, and a note without a title has never had it written.
@@ -241,7 +242,13 @@ export class SyncPoller {
       etag: outcome.etag,
       checkedAt,
       pendingChanges: changes,
-      remoteHash
+      remoteHash,
+      // The same moment the note's own `updatedAt` records, kept for the pane.
+      ...(remoteChanged
+        ? { changedAt: checkedAt }
+        : record?.changedAt
+          ? { changedAt: record.changedAt }
+          : {})
     };
 
     await this.writeFrontmatter(file, remoteBody, body, remoteChanged);
