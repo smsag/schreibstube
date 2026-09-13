@@ -52,6 +52,21 @@ asks for them.
   needs either. Icons are stored by name; a font upgrade changes the generated
   map, never a vault's data.
 
+## Reading a stack trace from a report
+
+The release's `main.js` is minified, so a trace from a user names positions
+like `plugin:schreibstube:12:48213`. The map that reads them is attached to
+every release as `main.js.map`, and never installed in a vault:
+
+```bash
+npm run trace -- 1.23.0 "at t.onload (plugin:schreibstube:12:48213)"
+pbpaste | npm run trace -- 1.23.0          # a whole console dump
+npm run trace -- ./main.js.map < report.txt  # against a local build
+```
+
+Every position the map knows becomes `src/…​.ts:line:column`; the rest of the
+trace passes through untouched.
+
 ## Before a release: the mobile checklist
 
 The plugin's mobile support is architectural — no Node built-ins in the bundle,

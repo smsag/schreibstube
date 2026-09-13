@@ -48,9 +48,9 @@ export default tseslint.config(
     }
   },
 
-  // The bridge: Node, plain modules, no build step.
+  // The bridge and the repository's scripts: Node, plain modules, no build step.
   {
-    files: ["bridge/**/*.mjs"],
+    files: ["bridge/**/*.mjs", "scripts/**/*.mjs"],
     extends: [js.configs.recommended],
     languageOptions: {
       globals: { ...globals.node },

@@ -68,9 +68,13 @@ the map is 989 KB on its own.
 
 The map is now written beside the bundle and attached to the GitHub release.
 Obsidian installs three files and the map is not one of them, so no vault ever
-loads it; a reported stack trace is symbolicated against the release's map. The
-bundle check gained a size budget so the next inlined artefact fails the build
-rather than shipping.
+loads it. esbuild's `external` mode adds no `sourceMappingURL` comment either,
+so devtools never look for a file that is not there. A reported stack trace is
+read with `npm run trace -- <release>`, which fetches that release's map and
+rewrites every `plugin:schreibstube:line:column` in a pasted console dump to
+its TypeScript position (`scripts/source-map.mjs`, pure and tested). The bundle
+check gained a size budget so the next inlined artefact fails the build rather
+than shipping.
 
 ### Security: the throttle could not tell callers apart behind a proxy
 

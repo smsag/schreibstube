@@ -20,7 +20,7 @@ export default defineConfig({
     }
   },
   test: {
-    include: ["src/**/*.test.ts", "bridge/**/*.test.mjs"],
+    include: ["src/**/*.test.ts", "bridge/**/*.test.mjs", "scripts/**/*.test.mjs"],
     exclude: ["**/node_modules/**"],
     coverage: {
       provider: "v8",
