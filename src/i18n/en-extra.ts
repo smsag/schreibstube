@@ -269,6 +269,7 @@ export const enExtra = {
     empty: "This vault has no files yet.",
     searchPlaceholder: "Filter all sections…",
     clearFilter: "Clear the filter",
+    filterMore: (count: number) => `${count} more match. Narrow the filter to see them.`,
     collapseAll: "Collapse all",
 
     move: {

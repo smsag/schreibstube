@@ -447,6 +447,7 @@ export const de: Messages = {
     empty: "In diesem Vault liegt noch keine Datei.",
     searchPlaceholder: "Alle Sektionen filtern …",
     clearFilter: "Filter leeren",
+    filterMore: (count: number) => `${count} weitere Treffer. Filter eingrenzen, um sie zu sehen.`,
     collapseAll: "Alle zuklappen",
 
     move: {
