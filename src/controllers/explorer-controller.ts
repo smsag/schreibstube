@@ -532,6 +532,9 @@ export class ExplorerController {
         // wrong tap in a file list must be undoable.
         void this.app.fileManager.trashFile(file).catch((error: unknown) => {
           this.logger.warn(`Could not delete ${file.path}:`, error);
+          // A row that stays put after a confirmed delete otherwise reads as
+          // the pane having missed the change rather than the delete failing.
+          new Notice(t().common.notice(t().explorer.delete.failed(file.name)));
         });
       }
     ).open();

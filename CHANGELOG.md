@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Fixed
+
+- **The context menu a long press opens can now be used.** The menu appeared while the finger was still down, and the lift that ended the press raised a click on the row underneath it — so the browser opened the file, Obsidian closed the menu over it as a press outside, and on a phone opening a file closes the sidebar as well. The menu was gone before an item could be tapped, which made every action behind it, deleting above all, look as if it did nothing. The row that owns the gesture now swallows what its own lift raises: the press it answered ends there instead of reaching the file.
+- **A long press survives a finger that is not perfectly still.** Any movement at all cancelled it, down to a single pixel of tremor, so the menu often never appeared and the press read as a tap. A press now tolerates ten pixels, past which the list is being scrolled and the press is not a long one.
+- **A delete that fails says so.** It was written to the console and nowhere else, so a refused delete was indistinguishable from a pane that had missed the change: the dialogue closed, the row stayed, and nothing explained why. Moving to the system trash is the case that can fail on a phone, where there is no system trash to move to.
+
 ## 1.16.0 - 2026-09-12
 
 ### Added

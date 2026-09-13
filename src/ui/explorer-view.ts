@@ -62,6 +62,12 @@ export const EXPLORER_RIBBON_ICON = SCHREIBSTUBE_ICON;
 /** Long enough not to fire while scrolling, short enough to feel deliberate. */
 const LONG_PRESS_MS = 500;
 
+/**
+ * How far a finger may travel during a long press before the press is taken
+ * as the start of a scroll.
+ */
+const LONG_PRESS_MOVE_PX = 10;
+
 /** How many pinned rows sit in the shelf above the scroller. Beyond this the
  *  block continues in the scrolling list, so the shelf cannot eat the pane. */
 const FIXED_PINNED_ROWS = 3;
@@ -1130,14 +1136,6 @@ export class ExplorerPaneView extends ItemView {
     const controller = this.host?.explorer;
     if (!controller) return;
 
-    row.addEventListener("click", () => {
-      if (isFolder) {
-        this.toggle(file.path);
-        return;
-      }
-      void controller.open(file, false);
-    });
-
     // Mobile has no right click and Obsidian's own long-press belongs to its
     // explorer, so the pane brings its own. The button on the row stays as the
     // way that always works.
@@ -1145,11 +1143,41 @@ export class ExplorerPaneView extends ItemView {
     // When the pane's own timer last answered a press on this row, so the
     // browser's context menu for the same press can be recognised.
     let answeredAt: number | null = null;
+    // Whether the press in progress has been answered with a menu. Unlike the
+    // timestamp above this is not a window: a finger may rest on the row for as
+    // long as the menu is being read, and everything that press raises after
+    // the menu opened still belongs to it.
+    let answered = false;
+    // Whether a finger is on the row at all, so the browser's own context menu
+    // can tell a long press from a right click without guessing at the event.
+    let touching = false;
+    let startX = 0;
+    let startY = 0;
 
     const cancel = (): void => {
       if (timer !== null) window.clearTimeout(timer);
       timer = null;
     };
+
+    row.addEventListener("click", (event) => {
+      // The lift that ends a long press raises a click on the row the menu is
+      // standing on. Acting on it opens the file and closes the menu that the
+      // press was held to open — and on a phone opening a file closes the pane
+      // with it, which is why the menu looked as if it could not be used at
+      // all. The row that owns the gesture swallows it instead.
+      if (answered) {
+        answered = false;
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
+
+      if (isFolder) {
+        this.toggle(file.path);
+        return;
+      }
+      void controller.open(file, false);
+    });
 
     row.addEventListener("contextmenu", (event) => {
       event.preventDefault();
@@ -1158,8 +1186,11 @@ export class ExplorerPaneView extends ItemView {
       // click on the same row always opens again.
       if (isLongPressEcho(Date.now(), answeredAt)) return;
       // Arriving first instead: the browser is handling the press, so the
-      // pane's pending timer would only add a second menu.
+      // pane's pending timer would only add a second menu. A finger still on
+      // the row has a lift to come, and that lift must not reach the row; a
+      // right click has nothing to come.
       cancel();
+      if (touching) answered = true;
       controller.showMenu(file, event);
     });
 
@@ -1169,18 +1200,59 @@ export class ExplorerPaneView extends ItemView {
         const touch = event.touches[0];
         cancel();
         answeredAt = null;
+        answered = false;
+        touching = true;
+        if (!touch) return;
+
+        startX = touch.clientX;
+        startY = touch.clientY;
         timer = window.setTimeout(() => {
           timer = null;
           answeredAt = Date.now();
+          answered = true;
           controller.showMenu(file, { x: touch.clientX, y: touch.clientY });
         }, LONG_PRESS_MS);
       },
       { passive: true }
     );
 
-    for (const event of ["touchend", "touchmove", "touchcancel"] as const) {
-      row.addEventListener(event, cancel, { passive: true });
-    }
+    // A finger never holds perfectly still, so a press survives a little
+    // movement. Past that the list is being scrolled, and a scroll is not a
+    // long press.
+    row.addEventListener(
+      "touchmove",
+      (event) => {
+        const touch = event.touches[0];
+        if (!touch) {
+          cancel();
+          return;
+        }
+        const moved = Math.hypot(touch.clientX - startX, touch.clientY - startY);
+        if (moved > LONG_PRESS_MOVE_PX) cancel();
+      },
+      { passive: true }
+    );
+
+    // Not passive: refusing the default is the whole point. A lift the browser
+    // is allowed to complete raises mouse events and a click on whatever is
+    // under the finger, and Obsidian closes a menu on any press outside it — so
+    // the menu the press just opened would be gone before it could be used.
+    row.addEventListener("touchend", (event) => {
+      cancel();
+      touching = false;
+      if (!answered) return;
+      event.preventDefault();
+      event.stopPropagation();
+    });
+
+    row.addEventListener(
+      "touchcancel",
+      () => {
+        cancel();
+        touching = false;
+      },
+      { passive: true }
+    );
   }
 
   private toggle(path: string): void {

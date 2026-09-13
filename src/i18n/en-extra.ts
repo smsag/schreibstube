@@ -352,7 +352,8 @@ export const enExtra = {
       confirm: (name: string) => `Move "${name}" to the vault's trash?`,
       folderConfirm: (name: string, count: number) =>
         `Move "${name}" and the ${count} item(s) inside it to the vault's trash?`,
-      submit: "Delete"
+      submit: "Delete",
+      failed: (name: string) => `"${name}" could not be deleted.`
     }
   },
 

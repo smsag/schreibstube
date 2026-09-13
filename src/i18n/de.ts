@@ -530,7 +530,8 @@ export const de: Messages = {
       confirm: (name: string) => `„${name}“ in den Papierkorb des Vaults verschieben?`,
       folderConfirm: (name: string, count: number) =>
         `„${name}“ mit ${count} enthaltenen Objekt(en) in den Papierkorb des Vaults verschieben?`,
-      submit: "Löschen"
+      submit: "Löschen",
+      failed: (name: string) => `„${name}“ konnte nicht gelöscht werden.`
     }
   },
 
