@@ -2,7 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
-## 1.21.1 - 2026-09-13
+## 1.22.0 - 2026-09-13
+
+### Changed
+
+- **The pinned block's chevron moved to the end of its band, and only appears when it has something to show.** It sat on the left in the slot every icon in the pane lines up on, which is where a chevron that opens and closes a list belongs — and this one does not do that. Three pinned rows are on screen whatever it says; what it controls is whether the rest of the shortlist comes out past them. So it sits at the far end now, where the tree's own control is, and it points the way the list will move: down to bring the rest out, up to put them away again. With three pins or fewer there is nothing behind it and it is not drawn at all. The band itself still opens and closes the block wherever it is pressed, because a finger should not have to find a chevron, and the count on the pin icon still says how many there are in total while the block is closed.
 
 ### Fixed
 

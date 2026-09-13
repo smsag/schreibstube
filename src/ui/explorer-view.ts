@@ -213,6 +213,13 @@ interface SectionOptions {
   action?: SectionAction;
   /** A mark on the section's icon that something came in while nobody looked. */
   alert?: SectionAlert;
+  /**
+   * False for a section whose chevron is drawn at the other end of the header.
+   *
+   * The slot itself stays, empty: every icon in the pane lines up on it, and a
+   * header that dropped it would sit a chevron's width left of its own rows.
+   */
+  twisty?: boolean;
 }
 
 interface PaneMemory {
@@ -707,7 +714,9 @@ export class ExplorerPaneView extends ItemView {
       attr: { role: "button", tabindex: "0", "aria-expanded": String(!collapsed) }
     });
     const twisty = header.createSpan({ cls: "schreibstube-explorer-twisty" });
-    if (closable) applyIcon(twisty, collapsed ? "chevron-right" : "chevron-down");
+    if (closable && options.twisty !== false) {
+      applyIcon(twisty, collapsed ? "chevron-right" : "chevron-down");
+    }
 
     // How many there are in all, on the section's own icon: a closed section
     // showing rows does not look closed, and the rows on screen are not the
@@ -734,23 +743,12 @@ export class ExplorerPaneView extends ItemView {
     if (options.action) this.renderSectionAction(header, options.action);
 
     if (closable) {
-      const toggle = (): void => {
-        if (collapsed) {
-          this.collapsedSections.delete(id);
-        } else {
-          this.collapsedSections.add(id);
-          if (id === "files") this.revealedTree = false;
-        }
-        this.writeMemory();
-        this.requestRender();
-      };
-
-      header.addEventListener("click", toggle);
+      header.addEventListener("click", () => this.toggleSection(id, collapsed));
       // What the button it no longer is gave for nothing.
       header.addEventListener("keydown", (event) => {
         if (event.key !== "Enter" && event.key !== " ") return;
         event.preventDefault();
-        toggle();
+        this.toggleSection(id, collapsed);
       });
     }
 
@@ -759,6 +757,17 @@ export class ExplorerPaneView extends ItemView {
 
     body.detach();
     return null;
+  }
+
+  private toggleSection(id: SectionId, collapsed: boolean): void {
+    if (collapsed) {
+      this.collapsedSections.delete(id);
+    } else {
+      this.collapsedSections.add(id);
+      if (id === "files") this.revealedTree = false;
+    }
+    this.writeMemory();
+    this.requestRender();
   }
 
   /**
@@ -856,15 +865,31 @@ export class ExplorerPaneView extends ItemView {
     // the strip are not the block, and the count says how much of it is behind
     // the chevron without arithmetic.
     const more = !filtering && items.length > FIXED_PINNED_ROWS;
+    const closed = !filtering && this.collapsedSections.has("pinned");
     const body = this.renderSection(shelf, "pinned", "pinned", {
       keepBodyWhenClosed: true,
       total: more ? items.length : 0,
       closable: items.length > FIXED_PINNED_ROWS,
-      forceOpen: filtering
+      forceOpen: filtering,
+      // The chevron sits at the far end of the band instead, where the tree's
+      // own control is: this one does not open and close a list, it lets the
+      // shortlist past the three rows that are on screen whatever it says. It
+      // points the way the list will move — down to bring the rest out, up to
+      // put them away — and it is drawn only when there is a rest to bring out.
+      twisty: false,
+      ...(more
+        ? {
+            action: {
+              icon: closed ? "chevron-down" : "chevron-up",
+              fallbackIcon: closed ? "chevron-down" : "chevron-up",
+              label: closed ? t().explorer.pinnedMore(items.length) : t().explorer.pinnedFewer,
+              run: () => this.toggleSection("pinned", closed)
+            }
+          }
+        : {})
     });
     if (!body) return;
 
-    const closed = !filtering && this.collapsedSections.has("pinned");
     const drawn = closed ? items.slice(0, FIXED_PINNED_ROWS) : items;
     // Open, the strip holds as many as half the pane has room for; the rest
     // continue in the scrolling list, as they always have.
