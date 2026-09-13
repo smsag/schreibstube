@@ -1,4 +1,5 @@
 import { formatIsoMinutes } from "../utils/format-date";
+import { fencedLines } from "./markdown-fence";
 import type { MailMessage } from "./mail-protocol";
 
 /**
@@ -35,6 +36,35 @@ export function selectUnmerged(messages: MailMessage[], mergedIds: string[]): Ma
 }
 
 /**
+ * Everything an email brings with it is written by whoever sent it.
+ *
+ * Quoting the body stops a line that begins with `#` or `-` becoming a heading
+ * or a list, which is what the quoting was for. It does not stop an embed: a
+ * `![[…]]` renders inside a quote as happily as anywhere else, and it renders
+ * whatever it names — a private note, a scan, a contract. Merge such a reply
+ * into a note and publish that note, which are two things this plugin is for,
+ * and the file it names is uploaded to a website by a stranger's choosing.
+ *
+ * So the sequences that make a link or an embed are escaped wherever mail text
+ * is written into a note. They are escaped rather than stripped, because the
+ * point is to show what the sender wrote, not to quietly edit it.
+ */
+function escapeMailMarkdown(text: string): string {
+  return text.replace(/!?\[\[/g, (match) => match.replace(/\[/g, "\\["));
+}
+
+/**
+ * A single line of somebody else's text.
+ *
+ * A subject may hold newlines, and a subject written into a heading takes the
+ * rest of the note's structure with it: everything after the first line lands
+ * outside the heading as Markdown of the sender's choosing.
+ */
+function oneLine(text: string): string {
+  return escapeMailMarkdown(text.replace(/\s+/g, " ").trim());
+}
+
+/**
  * Render one message as Markdown.
  *
  * The body is quoted rather than inlined. That is not decoration: an email line
@@ -43,16 +73,17 @@ export function selectUnmerged(messages: MailMessage[], mergedIds: string[]): Ma
  * plugin renders.
  */
 export function formatMessage(message: MailMessage): string {
-  const heading = message.subject.trim() || "(no subject)";
+  const heading = oneLine(message.subject) || "(no subject)";
+  const from = oneLine(message.from);
   const meta = [
-    message.from ? `**From:** ${message.from}` : "",
+    from ? `**From:** ${from}` : "",
     message.date ? `**Date:** ${formatIsoMinutes(message.date)}` : ""
   ]
     .filter(Boolean)
     .join(" · ");
 
   const body = message.text.trim() || "_(no text content)_";
-  const quoted = body
+  const quoted = escapeMailMarkdown(body)
     .split(/\r?\n/)
     .map((line) => (line.trim() ? `> ${line}` : ">"))
     .join("\n");
@@ -80,7 +111,11 @@ export function appendToSection(body: string, heading: string, addition: string)
   const headingLine = `## ${heading.trim()}`;
   const lines = trimmedBody.split("\n");
 
-  const start = lines.findIndex((line) => line.trim() === headingLine);
+  // A heading is only a heading outside a code block. Without this the section
+  // ended at a "## " inside a fence and the reply was appended into the middle
+  // of somebody's code sample.
+  const fenced = fencedLines(lines);
+  const start = lines.findIndex((line, index) => !fenced[index] && line.trim() === headingLine);
   if (start === -1) {
     const prefix = trimmedBody ? `${trimmedBody}\n\n` : "";
     return `${prefix}${headingLine}\n\n${addition}\n`;
@@ -89,7 +124,7 @@ export function appendToSection(body: string, heading: string, addition: string)
   // The section ends at the next heading of the same or a higher level.
   let end = lines.length;
   for (let i = start + 1; i < lines.length; i++) {
-    if (/^#{1,2}\s/.test(lines[i])) {
+    if (!fenced[i] && /^#{1,2}\s/.test(lines[i])) {
       end = i;
       break;
     }

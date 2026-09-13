@@ -134,3 +134,62 @@ describe("appendToSection — heading whitespace", () => {
     );
   });
 });
+
+describe("mail is written by whoever sent it", () => {
+  it("keeps a subject to one line, so it cannot write the note's structure", () => {
+    const rendered = formatMessage(
+      message({ subject: "Rechnung\n# Eigene Überschrift\n\nund mehr" })
+    );
+
+    expect(rendered.split("\n")[0]).toBe("### Rechnung # Eigene Überschrift und mehr");
+  });
+
+  it("escapes an embed in the subject, which would otherwise render a vault file", () => {
+    // Merged into a note and published, that embed uploads whatever it names.
+    const rendered = formatMessage(message({ subject: "Angebot ![[Privat/Gehalt.png]]" }));
+
+    expect(rendered).not.toContain("![[Privat/Gehalt.png]]");
+    expect(rendered).toContain("!\\[\\[Privat/Gehalt.png]]");
+  });
+
+  it("escapes an embed in the body, which a quote does not stop rendering", () => {
+    const rendered = formatMessage(message({ text: "Anbei:\n![[Vertraege/Kauf.pdf]]" }));
+
+    expect(rendered).not.toContain("![[Vertraege/Kauf.pdf]]");
+  });
+
+  it("escapes a wikilink as well as an embed", () => {
+    expect(formatMessage(message({ text: "[[Privat/Notiz]]" }))).toContain("\\[\\[Privat/Notiz]]");
+  });
+
+  it("keeps the sender on one line too", () => {
+    const rendered = formatMessage(message({ from: "Kunde\n**Date:** gefälscht" }));
+
+    expect(rendered).toContain("**From:** Kunde **Date:** gefälscht");
+  });
+});
+
+describe("appendToSection and code fences", () => {
+  const FENCE = "```";
+
+  it("does not end the section at a heading inside a fence", () => {
+    const note = ["## Antworten", "", "> alt", "", FENCE + "md", "## kein Titel", FENCE].join("\n");
+    const merged = appendToSection(note, "Antworten", "> neu");
+
+    // The reply was written inside somebody's code sample before this. The
+    // section runs to the end of the note now, so the reply lands after the
+    // block, and the block itself comes through whole.
+    expect(merged).toContain([FENCE + "md", "## kein Titel", FENCE].join("\n"));
+    expect(merged.trimEnd().endsWith("> neu")).toBe(true);
+  });
+
+  it("does not take a fenced line for the section heading itself", () => {
+    const note = [FENCE, "## Antworten", FENCE, "", "Text."].join("\n");
+    const merged = appendToSection(note, "Antworten", "> neu");
+
+    // The real section is missing, so one is added at the end rather than the
+    // reply being written into the example.
+    expect(merged.trimEnd().endsWith("> neu")).toBe(true);
+    expect(merged.lastIndexOf("## Antworten")).toBeGreaterThan(merged.indexOf("Text."));
+  });
+});
