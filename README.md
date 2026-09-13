@@ -442,6 +442,9 @@ The token is deliberately separate from the mail token, so a leaked publish toke
 | [`PUBLISHING.md`](PUBLISHING.md)       | Why publishing is shaped this way                                 |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md)   | Setup, the checks, the mobile checklist, releasing                |
 | [`bridge/README.md`](bridge/README.md) | The bridge's API, configuration and deployment                    |
+| [`SECURITY.md`](SECURITY.md)           | What holds a secret, the perimeter, how to report                 |
+| [`QUALITY.md`](QUALITY.md)             | The codebase graded by attribute, and what the guards protect     |
+| [`CLAUDE.md`](CLAUDE.md)               | The three principles every change is measured against             |
 | [`examples/blog/`](examples/blog/)     | A publish folder to copy into a vault                             |
 
 ## Installation

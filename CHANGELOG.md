@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Changed
+
+- **`main.js` is a fifth of its size.** The production bundle carried its own source map inline — 1.6 MB parsed by Obsidian on every start, on every phone, so that a stack trace would name a TypeScript line. The map now travels with the GitHub release instead, where it is used to read a reported trace, and the file every vault loads is 277 KB. The build refuses to ship anything over 400 KB.
+- **The plugin's one-line description says what it is.** It still called itself a heading overlay.
+
+### Security
+
+- **The bridge can tell callers apart behind a proxy.** Hosted behind a platform's TLS proxy, every request arrived from the proxy's own address, and the throttle that slows repeated bad tokens keyed on exactly that: five wrong guesses from a stranger locked the plugin's owner out for a minute. With `TRUST_PROXY=true` the bridge reads the address the proxy appended, which a client cannot forge. Off by default, since without a proxy the header is the client's to choose.
+- **Both dependency trees audit clean.** Vitest 5 and esbuild 0.28 in the plugin's tooling, a patched `lodash-es` under Mermaid in the bridge; CI audits the bridge's runtime tree on every change and Dependabot keeps both moving. The bridge now requires Node 22.12, which is what its image has always run.
+
+### Fixed
+
+- **The bridge README named a variable that has not existed since 2.0.** `BRIDGE_TOKEN` is `MAIL_TOKEN` and `PUBLISH_TOKEN`, and the SSH key and password are secrets too.
+
 ## 1.22.0 - 2026-09-13
 
 ### Changed
