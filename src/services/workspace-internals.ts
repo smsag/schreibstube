@@ -126,9 +126,10 @@ export function openSubmenu(item: MenuItem, logger: Logger): Menu | null {
  * each of them is simply "no export offered", which the caller already handles.
  */
 export interface CanvasExportOptions {
+  /** Device pixels per CSS pixel. */
   scale?: number;
+  /** Draw as the light theme would, whatever the vault is set to. */
   light?: boolean;
-  chrome?: boolean;
 }
 
 export interface CanvasExportApi {

@@ -318,8 +318,7 @@ export class PrintCommands {
     try {
       const blob = await api.exportCanvas(root, {
         scale: CAPTURE_SCALE,
-        light: true,
-        chrome: false
+        light: true
       });
       return new Uint8Array(await blob.arrayBuffer());
     } catch (error) {
