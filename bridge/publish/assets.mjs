@@ -10,10 +10,22 @@
  */
 import { readFile, readdir } from "node:fs/promises";
 import { createRequire } from "node:module";
+import { fileURLToPath } from "node:url";
 import { THEME_CSS } from "./render/page.mjs";
 
 const require = createRequire(import.meta.url);
 const cache = new Map();
+
+/**
+ * Where the Mermaid bundle may be.
+ *
+ * The bridge copies one prebuilt file into a published site and never runs
+ * Mermaid itself, but the package brings 167 MB of parser dependencies with
+ * it. The image keeps the one file under `vendor/` and drops the rest, so that
+ * location is looked in first; a checkout with the package installed, which is
+ * what the tests run against, falls through to the package.
+ */
+const VENDORED_MERMAID = fileURLToPath(new URL("../vendor/mermaid.min.js", import.meta.url));
 
 /**
  * The files a site needs, given what its pages turned out to use.
@@ -52,8 +64,28 @@ async function katexAssets() {
 
 async function mermaidBundle() {
   return cached("mermaid", () =>
-    readFile(`${distDirectory("mermaid/package.json")}/mermaid.min.js`)
+    firstReadable([
+      VENDORED_MERMAID,
+      () => `${distDirectory("mermaid/package.json")}/mermaid.min.js`
+    ])
   );
+}
+
+/**
+ * The first of the candidates that can be read. A candidate may be a function,
+ * so that resolving a package that is not installed does not throw before an
+ * earlier candidate has been tried.
+ */
+export async function firstReadable(candidates) {
+  let lastError;
+  for (const candidate of candidates) {
+    try {
+      return await readFile(typeof candidate === "function" ? candidate() : candidate);
+    } catch (err) {
+      lastError = err;
+    }
+  }
+  throw new Error(`No readable candidate: ${lastError?.message ?? "none tried"}`);
 }
 
 function distDirectory(manifestPath) {

@@ -6,11 +6,15 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- **One Node everywhere.** The bridge's image, CI, the release workflow and both `engines` fields say Node 24, the current long-term-support line; `.nvmrc` at the root says it once for everyone's machine. The bridge had claimed 20, run 22 and been tested on both.
+- **The bridge's image is a tenth of its size.** Mermaid is one prebuilt file the bridge copies into a published site and never runs, and the package brought 205 MB of parser dependencies for it. The image now keeps the one file and drops the tree; CI checks that both halves of that happened. `imapflow` is on 2.x, whose only breaking change is the Node floor the image already had.
+- **The file pane's view is four modules and a decision.** Its 2,100 lines held the drag gesture, the long-press menu, where a drag may land, how a section header is drawn, what the pane remembers, and which icon a file gets, each entangled with the rest. Those are their own modules now, the icon decision is a service with tests, and the view draws. Nothing a person can see or do changed.
 - **`main.js` is a fifth of its size.** The production bundle carried its own source map inline — 1.6 MB parsed by Obsidian on every start, on every phone, so that a stack trace would name a TypeScript line. The map now travels with the GitHub release instead, where it is used to read a reported trace, and the file every vault loads is 277 KB. The build refuses to ship anything over 400 KB.
 - **The plugin's one-line description says what it is.** It still called itself a heading overlay.
 
 ### Security
 
+- **Releases carry a provenance attestation, and actions are pinned by commit.** A vault owner can check that the `main.js` on a release was built by this repository's workflow from the tagged commit, and a tag moved on an action's repository no longer changes what CI runs. Dependabot keeps the pins current.
 - **The bridge can tell callers apart behind a proxy.** Hosted behind a platform's TLS proxy, every request arrived from the proxy's own address, and the throttle that slows repeated bad tokens keyed on exactly that: five wrong guesses from a stranger locked the plugin's owner out for a minute. With `TRUST_PROXY=true` the bridge reads the address the proxy appended, which a client cannot forge. Off by default, since without a proxy the header is the client's to choose.
 - **Both dependency trees audit clean.** Vitest 5 and esbuild 0.28 in the plugin's tooling, a patched `lodash-es` under Mermaid in the bridge; CI audits the bridge's runtime tree on every change and Dependabot keeps both moving. The bridge now requires Node 22.12, which is what its image has always run.
 

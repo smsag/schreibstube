@@ -13,19 +13,15 @@ permissions:
 jobs:
   check:
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        # The bridge declares support from Node 22; CI should say whether that
-        # is true rather than assume it. 24 is the current LTS.
-        node: ["22", "24"]
-
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
 
-      - uses: actions/setup-node@v5
+      # One Node everywhere: .nvmrc here, the image's base, and both engines
+      # fields say 24. A version that is only claimed is not a version anyone
+      # has run.
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
-          node-version: ${{ matrix.node }}
+          node-version-file: .nvmrc
           cache: npm
           cache-dependency-path: |
             package-lock.json
@@ -55,8 +51,14 @@ jobs:
   bridge-image:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       - run: docker build --tag schreibstube-bridge:ci bridge
+      # The deps stage vendors Mermaid and drops its tree; both halves of that
+      # have to have happened, or a published diagram would fail at commit.
+      - name: Check the image kept Mermaid's file and not its tree
+        run: |
+          docker run --rm schreibstube-bridge:ci sh -c \
+            'test -s vendor/mermaid.min.js && test ! -e node_modules/mermaid && du -sh node_modules'
       - name: Boot the image and probe /health
         run: |
           docker run --detach --name bridge --publish 8080:8080 \

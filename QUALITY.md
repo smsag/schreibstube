@@ -137,31 +137,91 @@ described the plugin as a heading overlay. The bridge README told operators to
 mark `BRIDGE_TOKEN` as a secret, a variable that has not existed since bridge
 2.0, and did not mention the SSH key or the publish token. Both are fixed.
 
+## The second pass
+
+Everything the first pass left open, done on the same branch.
+
+### Cost: the bridge image carried 205 MB it never ran
+
+A production install of the bridge is 238 MB, and 167 MB of that exists only
+because Mermaid's package declares its parser's dependencies. The bridge reads
+one 5.4 MB file from the package and copies it into a published site; nothing
+in the tree executes. The Dockerfile now installs in a build stage, keeps that
+one file under `vendor/`, and uninstalls the package; the runtime tree is 33 MB.
+`assets.mjs` looks in `vendor/` first and falls through to the package, which
+is what a checkout uses, and `firstReadable` is tested. CI's image job checks
+that the file is present and the tree is gone.
+
+### One Node everywhere
+
+The bridge's `engines` said 20, its image ran 22, CI tested 20 and 22, the
+release used 22. Now `.nvmrc` says 24 — the current LTS — and the image, CI,
+the release and both `engines` fields read from or agree with it. One CI leg
+instead of two, and a version that is claimed is the version that is run.
+
+### Supply chain: pinned actions and provenance
+
+`actions/checkout`, `actions/setup-node` and `actions/attest-build-provenance`
+are pinned by commit with the version in a comment, which Dependabot keeps
+current. The release workflow attests the four assets it publishes, so a vault
+owner can verify that the `main.js` on a release was built by this workflow
+from the tagged commit. The repository is public, which is what makes the
+attestation verifiable.
+
+### `imapflow` 2
+
+Its only breaking changes are a Node floor the image already had and the
+removal of a `lib/` path the bridge never imported. The API the bridge uses —
+connect, mailbox lock, search, fetch, append, logout — is unchanged, and the
+suite's fake IMAP client still exercises every path.
+
+### The file pane's view, split
+
+`explorer-view.ts` was 2,091 lines. It is 1,296, and what left it is now
+readable on its own:
+
+| Module                    | Holds                                                         | Tests |
+| ------------------------- | ------------------------------------------------------------- | :---: |
+| `ui/explorer-gestures.ts` | the press-hold-move drag, edge scrolling, the long-press menu |   —   |
+| `ui/explorer-drop.ts`     | where a drag may land, in the tree and in the pinned block    |   4   |
+| `ui/explorer-section.ts`  | a section header: chevron, count, mark, end control           |   —   |
+| `ui/explorer-memory.ts`   | what the pane remembers per device, read defensively          |   8   |
+| `services/file-glyph.ts`  | which icon a file gets — a decision, so a service             |   5   |
+
+The cut was made at the seams the code already had: the drag gesture shared
+one piece of state with the view (which row is being carried), the drop
+targets needed only a root element, the header needed only to be told whether
+it is closed, and the memory needed only the app's storage. Every function
+moved with its comment; no behaviour changed, which the mobile checklist
+should confirm before the next release since nothing here can run a phone.
+
+### The last two strict flags
+
+`exactOptionalPropertyTypes` and `noUncheckedIndexedAccess` are on. See the
+commit for the count of sites each touched; the rule for fixing them was a
+guard or a default where undefined is genuinely possible, and a non-null
+assertion only where the preceding lines prove the invariant, with a comment.
+
 ## What was not changed, and why
 
-- **`explorer-view.ts` at 2,091 lines and `main.ts` at 876.** Both are wiring,
-  not decisions, and both are excluded from coverage by design. Splitting the
-  pane view into its sections (pinned, bookmarks, latest, tree, drag) would
-  make each reviewable; it is a refactor that deserves its own change with the
-  mobile checklist run after it.
-- **`imapflow` 1 → 2.** A major with no mailbox to test against here.
-- **Pinning actions to commit SHAs.** Worth doing once Dependabot is opening
-  the update pull requests that make pinned SHAs maintainable.
+- **`main.ts` at 876 lines.** Command registration and lifecycle wiring; it
+  reads top to bottom and is excluded from coverage by design. Worth splitting
+  only when a fourth controller arrives.
 - **Vitest's `isolate: false`.** It reports 2.4 s to gain; the i18n module
   and the `window` stub hold global state that would need auditing first.
-- **The remaining strict flags** above.
+- **A coverage floor for controllers.** The fake app does not cover the pane
+  view yet; a floor over code it cannot reach would be a number, not a guard.
 
 ## Now / Next / Later
 
-**Now** (this change): everything in the table.
+**Now** (this branch): everything above.
 
-**Next**: split `explorer-view.ts` by section; pin action SHAs; `imapflow` 2 with
-a mailbox to test against; measure the bridge image and consider a multi-stage
-build if Mermaid's tree dominates it.
+**Next**: run the mobile checklist on the split pane before releasing 1.23.0;
+set `TRUST_PROXY=true` on the deployed bridge; confirm the first attested
+release verifies with `gh attestation verify`.
 
-**Later**: `exactOptionalPropertyTypes`, then `noUncheckedIndexedAccess`;
-provenance attestation on releases; a coverage floor for controllers once the
-fake app covers the pane.
+**Later**: `main.ts` when a fourth controller arrives; controller coverage once
+the fake app covers the pane.
 
 ## The three principles
 

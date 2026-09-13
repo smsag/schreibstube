@@ -2,6 +2,9 @@
   "name": "schreibstube",
   "version": "1.22.0",
   "private": true,
+  "engines": {
+    "node": ">=24"
+  },
   "description": "Schreibstube Obsidian community plugin",
   "scripts": {
     "setup": "npm install && npm install --prefix bridge",

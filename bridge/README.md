@@ -161,6 +161,13 @@ reaches the site at all.
 Dependabot opens one grouped pull request a week for this tree. A major version
 arrives on its own, since that is the one worth reading.
 
+The image does not carry Mermaid's dependency tree at all. The `Dockerfile`
+installs the package in a build stage, keeps the one prebuilt file under
+`vendor/mermaid.min.js`, and removes the rest — 205 MB of parser dependencies
+that would never run. `assets.mjs` looks in `vendor/` first and only then in
+the package, which is what a checkout with `node_modules` uses. CI boots the
+image and checks that both halves of that happened.
+
 ## Configuration
 
 Copy `.env.example` and fill it in. To offer publishing, set `PUBLISH_TOKEN`,
@@ -244,6 +251,9 @@ are the entire perimeter:
   offers one.
 
 ## Running locally
+
+Node 24, as everywhere in this repository: `.nvmrc` at the root says so, the
+image runs it, and both `engines` fields require it.
 
 ```bash
 cd bridge

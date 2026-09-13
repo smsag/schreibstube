@@ -1,4 +1,6 @@
 node_modules
+# The image builds its own from the package in the deps stage.
+vendor
 npm-debug.log
 .env
 

@@ -2,6 +2,9 @@
 
 ## Setup
 
+Node 24 — `.nvmrc` names it, and it is the one version CI runs, the bridge's
+image ships, and both `engines` fields require. Then:
+
 ```bash
 npm run setup     # installs the plugin's dependencies and the bridge's
 npm run check     # lint, format, tests with coverage, build
