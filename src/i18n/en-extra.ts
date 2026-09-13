@@ -218,6 +218,8 @@ export const enExtra = {
     blocksRejected: (count: number) =>
       `${count} section(s) discarded (protected content was altered).`,
     chunksFailed: (count: number) => `${count} request(s) failed.`,
+    cardDiverged: "Edited locally — accepting restores what the source says.",
+    cardFirstSync: "First comparison with the source.",
     sourceMatches: "The note matches its source.",
     sourceUnchangedLocalEdits: "Source unchanged; the note carries local edits.",
     divergedChanges: (count: number) =>

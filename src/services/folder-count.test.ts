@@ -53,3 +53,28 @@ describe("folderCountLabel", () => {
     expect(folderCountLabel(Number.NaN)).toBeNull();
   });
 });
+
+describe("counting around a file that is already gone", () => {
+  it("leaves out what the pane has stopped drawing", () => {
+    const vault = folder(
+      "Objekte",
+      file("Objekte/a.md"),
+      file("Objekte/b.md"),
+      folder("Objekte/Bilder", file("Objekte/Bilder/1.png"))
+    );
+    const gone = (path: string): boolean =>
+      path === "Objekte/b.md" || path === "Objekte/Bilder/1.png";
+
+    expect(countFilesUnder(vault, gone)).toBe(1);
+  });
+
+  it("leaves out a whole folder that went with it", () => {
+    const vault = folder(
+      "Objekte",
+      file("Objekte/a.md"),
+      folder("Objekte/Alt", file("Objekte/Alt/x.md"), file("Objekte/Alt/y.md"))
+    );
+
+    expect(countFilesUnder(vault, (path) => path === "Objekte/Alt")).toBe(1);
+  });
+});

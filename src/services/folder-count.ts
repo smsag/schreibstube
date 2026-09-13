@@ -29,13 +29,20 @@ export const FOLDER_COUNT_MAX = 99;
  * Every file underneath a folder, its subfolders included.
  *
  * Folders themselves are not counted: a folder is not a thing the vault holds,
- * it is where the vault holds things.
+ * it is where the vault holds things. `gone` takes out what the vault still
+ * lists but the pane has already stopped drawing.
  */
-export function countFilesUnder(folder: CountableNode): number {
+export function countFilesUnder(
+  folder: CountableNode,
+  gone: (path: string) => boolean = () => false
+): number {
   let total = 0;
 
   for (const child of folder.children ?? []) {
-    total += child.children === undefined ? 1 : countFilesUnder(child);
+    // A file deleted a moment ago is out of the tree already; the badge over
+    // that tree must not still be counting it.
+    if (gone(child.path)) continue;
+    total += child.children === undefined ? 1 : countFilesUnder(child, gone);
   }
 
   return total;

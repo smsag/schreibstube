@@ -13,6 +13,7 @@
  * rather than quietly presenting their own words back as a remote change.
  */
 
+import { t } from "../i18n";
 import { diffHunks } from "./line-diff";
 import { createSuggestion, type Suggestion } from "./suggestion";
 
@@ -154,11 +155,13 @@ export function buildSyncSuggestions(options: SyncSuggestionOptions): Suggestion
 }
 
 function noteFor(state: LocalState): string {
+  const cards = t().proofread;
+
   switch (state) {
     case "diverged":
-      return "Lokale Änderung — Übernehmen stellt den Stand der Quelle wieder her.";
+      return cards.cardDiverged;
     case "unsynced":
-      return "Erster Abgleich mit der Quelle.";
+      return cards.cardFirstSync;
     default:
       return "";
   }

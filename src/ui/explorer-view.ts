@@ -938,7 +938,12 @@ export class ExplorerPaneView extends ItemView {
     files: readonly LatestCandidate[],
     withBadge = false
   ): number {
-    const matching = files.filter((file) => this.matchesQuery(file.name));
+    const controller = this.host?.explorer;
+    // A file deleted a moment ago is gone from the tree at once; it would be
+    // odd for it to sit on in a list two sections above.
+    const matching = files.filter(
+      (file) => this.matchesQuery(file.name) && controller?.isTrashed(file.path) !== true
+    );
     if (matching.length === 0) return 0;
 
     host.createDiv({ cls: "schreibstube-explorer-subheading", text: label });
@@ -1303,7 +1308,8 @@ export class ExplorerPaneView extends ItemView {
     const known = this.folderCounts.get(folder.path);
     if (known !== undefined) return known;
 
-    const count = countFilesUnder(folder);
+    const controller = this.host?.explorer;
+    const count = countFilesUnder(folder, (path) => controller?.isTrashed(path) === true);
     this.folderCounts.set(folder.path, count);
     return count;
   }

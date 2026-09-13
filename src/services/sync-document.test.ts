@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { setLanguage } from "../i18n";
 import { applyPlan, planApply } from "./suggestion";
 import {
   buildSyncSuggestions,
@@ -9,6 +10,10 @@ import {
   stripRemoteFrontmatter,
   type SyncRecord
 } from "./sync-document";
+
+// A card explains itself to a person, so the line is translated; the suite
+// fixes a language rather than asserting whichever one happens to be set.
+setLanguage("en");
 
 const NOTE = `---
 schreibstubeSyncedFrom: https://example.com/a.md
@@ -165,7 +170,7 @@ describe("buildSyncSuggestions", () => {
       state: "diverged"
     });
     expect(suggestion.needsReview).toBe(true);
-    expect(suggestion.note).toContain("Lokale Änderung");
+    expect(suggestion.note).toContain("Edited locally");
   });
 
   it("explains the first sync", () => {
@@ -175,7 +180,7 @@ describe("buildSyncSuggestions", () => {
       remoteBody: remote,
       state: "unsynced"
     });
-    expect(suggestion.note).toContain("Erster Abgleich");
+    expect(suggestion.note).toContain("First comparison");
   });
 
   it("says nothing extra for a clean note", () => {
