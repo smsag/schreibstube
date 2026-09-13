@@ -614,6 +614,34 @@
   white-space: nowrap;
 }
 
+/* The one control over the whole tree, at the far end of its header: past the
+   rule the header draws, where it is clear of the label and lines up with the
+   menu buttons on the rows below it. The order puts it after that rule, which
+   is a pseudo-element and therefore otherwise last.
+
+   It fills the header's height so a finger has something to hit — the glyph
+   inside it is the size of a row's chevron, and no bigger. */
+.schreibstube-explorer .schreibstube-explorer-section-action {
+  order: 1;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  margin-right: calc(-1 * var(--schreibstube-row-inset) / 2);
+  color: var(--nav-collapse-icon-color, var(--text-faint));
+  font-size: var(--schreibstube-glyph-size);
+  border-radius: var(--schreibstube-border-radius);
+  cursor: pointer;
+}
+
+.schreibstube-explorer .schreibstube-explorer-section-action:hover,
+.schreibstube-explorer .schreibstube-explorer-section-action:focus-visible {
+  color: var(--text-normal);
+  background: var(--nav-item-background-hover, var(--background-modifier-hover));
+}
+
 /* Created / Modified inside Latest: a label, not a row, so it carries no
    chevron slot and no icon. It starts where the icons under it start, rather
    than at the row inset, so each label sits over the list it names. */

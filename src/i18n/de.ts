@@ -480,6 +480,7 @@ export const de: Messages = {
     clearFilter: "Filter leeren",
     filterMore: (count: number) => `${count} weitere Treffer. Filter eingrenzen, um sie zu sehen.`,
     collapseAll: "Alle zuklappen",
+    expandAll: "Alle aufklappen",
     folderCount: (count: string) => `${count} Dateien`,
 
     move: {

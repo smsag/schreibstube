@@ -10,17 +10,7 @@
  * the counting and the capping are decided here with tests rather than inside a
  * row being drawn.
  */
-
-/**
- * A vault node as counting sees it: a folder has children, a file does not.
- *
- * The path is not used, only required: a shape whose every field is optional
- * accepts anything at all, and this one should accept a vault.
- */
-export interface CountableNode {
-  path: string;
-  children?: readonly CountableNode[];
-}
+import type { VaultNode } from "./vault-tree";
 
 /** Beyond this the badge stops counting and starts saying "many". */
 export const FOLDER_COUNT_MAX = 99;
@@ -33,7 +23,7 @@ export const FOLDER_COUNT_MAX = 99;
  * lists but the pane has already stopped drawing.
  */
 export function countFilesUnder(
-  folder: CountableNode,
+  folder: VaultNode,
   gone: (path: string) => boolean = () => false
 ): number {
   let total = 0;

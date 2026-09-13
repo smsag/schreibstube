@@ -16,6 +16,10 @@
 export const UI_ICONS = [
   "chevron-right",
   "chevron-down",
+  // The one control over the whole tree: the row twisty doubled, so opening
+  // and closing everything reads as more of what opening one folder does.
+  "chevrons-down",
+  "chevrons-up",
   "folder",
   "folder-open",
   "file-text",

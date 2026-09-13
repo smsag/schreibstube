@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## 1.21.0 - 2026-09-13
+
+### Added
+
+- **One control opens or closes the whole tree, on the tree's own header.** "Files and folders" carries it at the far end of its band, where the row menus line up. It is one button and not two: while any folder is open it offers to close them all, and only a tree that is shut all the way offers to open — so pressing it twice puts the tree back where it was. Opening everything opens the section too, since folders opened inside a closed section are a button that visibly does nothing, and while a filter is set the control is not drawn at all, because the filter already opens every folder holding a match. The pane's title bar keeps its own collapse-all; this one sits on the list it acts on, and opens as well as closes.
+
 ## 1.20.0 - 2026-09-13
 
 ### Security
