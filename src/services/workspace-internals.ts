@@ -176,11 +176,12 @@ export interface CanvasSettleOptions {
 export interface CanvasExportApi {
   version: number;
   /**
-   * The name of the class above, when the plugin publishes it on its API.
+   * The name of the class above, as the plugin itself gives it.
    *
-   * Not part of the frozen contract — the contract exports it as a module
-   * constant, which no other plugin can import — so it is read if offered and
-   * done without otherwise.
+   * The contract requires this; it is optional here so that a plugin which has
+   * the export but not the field still gets its canvases drawn, under the name
+   * pinned above. Losing a diagram over a string that is only ever a name would
+   * be a poor trade.
    */
   readonly noEnrichClass?: string;
   /** Every canvas under this element, in document order, hidden ones included. */
