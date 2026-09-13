@@ -5,7 +5,8 @@ import {
   canvasExportApi,
   checkExportResult,
   exportErrorCode,
-  NO_ENRICH_CLASS
+  NO_ENRICH_CLASS,
+  noEnrichClass
 } from "./workspace-internals";
 
 /** A plugin registry holding whatever a test wants to offer as an API. */
@@ -110,5 +111,25 @@ describe("exportErrorCode", () => {
 describe("the no-enrich class", () => {
   it("is a plain class name, since it goes on an element before any API exists", () => {
     expect(NO_ENRICH_CLASS).toMatch(/^[a-z][a-z0-9-]*$/);
+  });
+
+  it("falls back to the pinned name when there is no plugin to ask", () => {
+    expect(noEnrichClass(null)).toBe(NO_ENRICH_CLASS);
+    expect(noEnrichClass(canvasExportApi(appWith(complete), "vizardry"))).toBe(NO_ENRICH_CLASS);
+  });
+
+  it("prefers the name the plugin publishes, so a rename there needs no release here", () => {
+    const renamed = canvasExportApi(
+      appWith({ ...complete, noEnrichClass: "vzd-no-net" }),
+      "vizardry"
+    );
+    expect(noEnrichClass(renamed)).toBe("vzd-no-net");
+  });
+
+  it("refuses a name that would add a second class or break the attribute", () => {
+    for (const bad of ["two classes", "", "-leading", 'x" onload="', 42, null]) {
+      const api = canvasExportApi(appWith({ ...complete, noEnrichClass: bad }), "vizardry");
+      expect(noEnrichClass(api)).toBe(NO_ENRICH_CLASS);
+    }
   });
 });

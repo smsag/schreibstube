@@ -232,11 +232,11 @@ time there is nothing to match.
 That container carries three classes, all of them the stylesheet's rather than
 an inline style, so a theme can see what printing does instead of fighting it:
 
-| Class                      | Why                                                                                                                                                                                                  |
-| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `schreibstube-print-stage` | Off-screen but laid out, 900 px wide, on white. Not `display: none`: a diagram measures itself while it draws, and a box with no width draws nothing.                                                |
-| `theme-light`              | Obsidian's own. A canvas resolves its colours from the variables in scope while it renders, so rendering under this class bakes the light ones in — which paper needs, whatever the vault is set to. |
-| `vzd-print-scratch`        | Asks a canvas plugin to skip the enrichment it would otherwise fetch from the network. Printing is meant to work offline, and this is what keeps that true when a plugin would rather call out.      |
+| Class                      | Why                                                                                                                                                                                                                                                                                                                                                                        |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `schreibstube-print-stage` | Off-screen but laid out, 900 px wide, on white. Not `display: none`: a diagram measures itself while it draws, and a box with no width draws nothing.                                                                                                                                                                                                                      |
+| `theme-light`              | Obsidian's own. A canvas resolves its colours from the variables in scope while it renders, so rendering under this class bakes the light ones in — which paper needs, whatever the vault is set to.                                                                                                                                                                       |
+| `vizardry-no-enrich`       | Asks a canvas plugin to skip the enrichment it would otherwise fetch from the network. Printing is meant to work offline, and this is what keeps that true when a plugin would rather call out. The plugin may publish its own name for this class on its API, and that name wins; the one here is the fallback, pinned because a class cannot be imported across plugins. |
 
 What is captured, in order:
 
@@ -302,6 +302,19 @@ Still to confirm on a device: that Mermaid and a Vizardry canvas both come out
 light and complete. Vizardry's export API is agreed and frozen at version 1;
 this plugin is written against it. Until it ships, a canvas is captured only if
 it drew a single SVG.
+
+The tests here prove this plugin's half against a contract nothing implements
+yet, so three things need running once Vizardry 0.65.0 is out and cannot be
+proven before then:
+
+1. A wide canvas — a Wardley map or a story map — at `maxEdge: 4000`. Capture
+   expands to the full scroll width, so this is the path where the scale comes
+   back **below** 1. A picture is what should arrive, not a `too-large`
+   rejection and a source block.
+2. `header: false`, which should leave the canvas's own title row out while
+   keeping the drawing's own column headers. A doubled title means it did not.
+3. The class that asks the plugin to skip its network enrichment, checked by
+   printing with the device offline and seeing a complete drawing.
 
 ### Epic 4: the two example templates — done
 

@@ -43,7 +43,8 @@ import {
   canvasExportApi,
   checkExportResult,
   exportErrorCode,
-  NO_ENRICH_CLASS
+  noEnrichClass,
+  type CanvasExportApi
 } from "../services/workspace-internals";
 import { TypstCompiler } from "../print/typst-compiler";
 import { activeLocale } from "../i18n";
@@ -282,12 +283,17 @@ export class PrintCommands {
    * nothing to match — the container holds one drawing, and that is the one.
    */
   private async draw(block: DiagramBlock, sourcePath: string): Promise<Uint8Array[]> {
+    // The plugin is found before the container is made, not after: the class
+    // that asks it to leave the network alone only works if it is in place
+    // before the drawing renders, and by export time those calls have gone.
+    const pluginId = DIAGRAM_PLUGINS[block.language] ?? "";
+    const api = pluginId ? canvasExportApi(this.app, pluginId) : null;
+
     // Three classes, all of them the stylesheet's rather than an inline style,
     // so a theme can see what printing does instead of fighting it: off-screen
-    // but laid out, light because paper is, and asking a plugin that enriches
-    // its drawing from the network to leave the network out of it.
+    // but laid out, light because paper is, and offline because a print is.
     const host = document.body.createDiv({
-      cls: `schreibstube-print-stage theme-light ${NO_ENRICH_CLASS}`
+      cls: `schreibstube-print-stage theme-light ${noEnrichClass(api)}`
     });
 
     const component = new Component();
@@ -308,7 +314,7 @@ export class PrintCommands {
       // what is drawing and what is a control, which panel of a carousel is
       // hidden, and what its colours mean — all of which from out here is a
       // guess.
-      const exported = await this.exportThroughPlugin(block, host);
+      const exported = api ? await this.exportThroughPlugin(pluginId, api, host) : [];
       if (exported.length > 0) return exported;
 
       const svg = host.querySelector("svg");
@@ -346,13 +352,11 @@ export class PrintCommands {
    * prints as its source, which the converter already arranges, and the reason
    * goes to the log by the code the contract rejects with.
    */
-  private async exportThroughPlugin(block: DiagramBlock, host: HTMLElement): Promise<Uint8Array[]> {
-    const pluginId = DIAGRAM_PLUGINS[block.language];
-    if (!pluginId) return [];
-
-    const api = canvasExportApi(this.app, pluginId);
-    if (!api) return [];
-
+  private async exportThroughPlugin(
+    pluginId: string,
+    api: CanvasExportApi,
+    host: HTMLElement
+  ): Promise<Uint8Array[]> {
     let canvases: HTMLElement[];
     try {
       canvases = api.getCanvases(host);

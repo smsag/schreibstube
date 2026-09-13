@@ -135,11 +135,13 @@ export function openSubmenu(item: MenuItem, logger: Logger): Menu | null {
  * a phone on mobile data it is a surprise, because printing otherwise never
  * leaves the device. The class asks for the drawing without it.
  *
- * It is a constant here rather than a value read from the API because it has to
- * be on the host before rendering starts, and the rendering is over by the time
- * an export would be asked for. Vizardry publishes the same string.
+ * The name is pinned here because a class cannot be imported across plugins:
+ * one plugin's module exports are not reachable from another's, and this has to
+ * be on the host before rendering starts. `noEnrichClass` below prefers the name
+ * the plugin gives at run time, when it offers one, so a rename there does not
+ * have to wait for a release here.
  */
-export const NO_ENRICH_CLASS = "vzd-print-scratch";
+export const NO_ENRICH_CLASS = "vizardry-no-enrich";
 
 export interface CanvasExportOptions {
   /** The only picture a page needs; named because the contract names it. */
@@ -173,6 +175,14 @@ export interface CanvasSettleOptions {
 
 export interface CanvasExportApi {
   version: number;
+  /**
+   * The name of the class above, when the plugin publishes it on its API.
+   *
+   * Not part of the frozen contract — the contract exports it as a module
+   * constant, which no other plugin can import — so it is read if offered and
+   * done without otherwise.
+   */
+  readonly noEnrichClass?: string;
   /** Every canvas under this element, in document order, hidden ones included. */
   getCanvases(root: HTMLElement): HTMLElement[];
   /** Resolves once the drawing has stopped changing. */
@@ -204,6 +214,19 @@ export function canvasExportApi(app: App, pluginId: string): CanvasExportApi | n
     if (typeof candidate[method] !== "function") return null;
   }
   return candidate as CanvasExportApi;
+}
+
+/**
+ * The class to render under, preferring the plugin's own name for it.
+ *
+ * Checked before it is used like anything else from outside: the value goes
+ * into a class attribute, and a string with a space in it would quietly add a
+ * second class, while an empty one would leave the attribute malformed.
+ */
+export function noEnrichClass(api: CanvasExportApi | null): string {
+  const named = api?.noEnrichClass;
+  if (typeof named === "string" && /^[A-Za-z][\w-]*$/.test(named)) return named;
+  return NO_ENRICH_CLASS;
 }
 
 /**
