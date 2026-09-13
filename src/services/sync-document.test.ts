@@ -5,6 +5,7 @@ import { sourceUrlFromNote } from "./sync-source";
 import {
   buildSyncSuggestions,
   hashText,
+  isRemoteChange,
   localState,
   nextSyncRecord,
   normalizeNewlines,
@@ -242,6 +243,49 @@ describe("nextSyncRecord", () => {
     expect(next.remoteHash).toBe(hashText(remote));
   });
 
+  it("counts nothing for a record that predates the hash, and adopts one", () => {
+    // The one case that made the pane say something had come in when nothing
+    // had: every note bound before the plugin kept a hash of its source had no
+    // baseline, and no baseline was being read as "this is new". It is a fact
+    // about the bookkeeping, not about the document.
+    const next = nextSyncRecord({
+      record: record({ checkedAt: 5 }),
+      body,
+      remoteBody: remote,
+      etag: "e2",
+      checkedAt: T,
+      pendingChanges: 0,
+      settled: true
+    });
+
+    expect(next.changedAt).toBeUndefined();
+    expect(next.remoteHash).toBe(hashText(remote));
+  });
+
+  it("counts the next real change after adopting a hash", () => {
+    const adopted = nextSyncRecord({
+      record: record({ checkedAt: 5 }),
+      body,
+      remoteBody: remote,
+      etag: "e2",
+      checkedAt: T,
+      pendingChanges: 0,
+      settled: true
+    });
+
+    const moved = nextSyncRecord({
+      record: adopted,
+      body,
+      remoteBody: `${remote}\n\nEin Absatz mehr.`,
+      etag: "e3",
+      checkedAt: T + 1000,
+      pendingChanges: 1,
+      settled: false
+    });
+
+    expect(moved.changedAt).toBe(T + 1000);
+  });
+
   it("counts nothing when the source came back the same", () => {
     const next = nextSyncRecord({
       record: record({ remoteHash: hashText(remote), changedAt: 5 }),
@@ -334,5 +378,33 @@ describe("sourceUrlFromNote", () => {
   it("says nothing for a note with no frontmatter or no binding", () => {
     expect(sourceUrlFromNote("Nur Text")).toBeNull();
     expect(sourceUrlFromNote(["---", "title: X", "---"].join("\n"))).toBeNull();
+  });
+});
+
+describe("what stamps a note's updatedAt", () => {
+  const remote = "# Titel\n\nEin Text.\n";
+
+  function record(over: Partial<SyncRecord> = {}): SyncRecord {
+    return { hash: "h", etag: "e", checkedAt: 0, pendingChanges: 0, ...over };
+  }
+
+  it("says yes to a source never fetched before", () => {
+    expect(isRemoteChange(undefined, remote)).toBe(true);
+  });
+
+  it("says no to a record that has no baseline to compare against", () => {
+    expect(isRemoteChange(record(), remote)).toBe(false);
+  });
+
+  it("says no when the source is what it was", () => {
+    expect(isRemoteChange(record({ remoteHash: hashText(remote) }), remote)).toBe(false);
+  });
+
+  it("says yes when the source is not what it was", () => {
+    expect(isRemoteChange(record({ remoteHash: "etwas anderes" }), remote)).toBe(true);
+  });
+
+  it("says no when nothing came back at all", () => {
+    expect(isRemoteChange(record({ remoteHash: "abc" }), null)).toBe(false);
   });
 });
