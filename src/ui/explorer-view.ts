@@ -64,6 +64,24 @@ export const EXPLORER_RIBBON_ICON = SCHREIBSTUBE_ICON;
 const LONG_PRESS_MS = 500;
 
 /**
+ * How long the filter waits after the last keystroke before redrawing.
+ *
+ * A redraw builds every matching row and everything on it, so doing one per
+ * character is what a person feels as the pane fighting the keyboard. Short
+ * enough to feel immediate on the pause between words.
+ */
+const FILTER_DEBOUNCE_MS = 150;
+
+/**
+ * How many rows a filter draws before it stops and says how many more matched.
+ *
+ * A filter of one letter matches most of a vault, and a phone cannot build
+ * thousands of rows between keystrokes. Nobody reads past the first screenful
+ * anyway: past this the answer is a narrower filter, not a longer list.
+ */
+const FILTER_ROW_CAP = 200;
+
+/**
  * How far a finger may travel during a long press before the press is taken
  * as the start of a scroll.
  */
@@ -171,6 +189,15 @@ export class ExplorerPaneView extends ItemView {
   private revealedFolders = new Set<string>();
   private revealedTree = false;
   private pending = false;
+  /** Waiting for the typing to stop before the filter redraws. */
+  private filterTimer: number | null = null;
+  /** Paths the filter keeps, with every folder on the way to one. Null when no
+   *  filter is set, which is the difference between "everything" and "nothing". */
+  private matches: Set<string> | null = null;
+  /** How many files the filter matched, and how many rows have been drawn for
+   *  them, so a capped list can say what it is holding back. */
+  private matchCount = 0;
+  private drawnMatches = 0;
   /** A redraw a drag held back, to be run as soon as the drag has ended. */
   private deferred = false;
   /** A path to scroll to once the next draw has put it on screen. */
@@ -221,8 +248,20 @@ export class ExplorerPaneView extends ItemView {
       }
     });
     search.addEventListener("input", () => {
-      this.query = search.value.trim().toLowerCase();
-      this.requestRender();
+      const value = search.value.trim().toLowerCase();
+      this.cancelFilter();
+      // Emptying the field is the one case that must not wait: it is how a
+      // person gets the tree back, and there is nothing to compute for it.
+      if (value.length === 0) {
+        this.query = "";
+        this.requestRender();
+        return;
+      }
+      this.filterTimer = window.setTimeout(() => {
+        this.filterTimer = null;
+        this.query = value;
+        this.requestRender();
+      }, FILTER_DEBOUNCE_MS);
     });
 
     // Drawn after the field so CSS can hide it while the field is empty,
@@ -234,6 +273,7 @@ export class ExplorerPaneView extends ItemView {
     applyIcon(clear, "x");
     clear.addEventListener("click", () => {
       search.value = "";
+      this.cancelFilter();
       this.query = "";
       this.requestRender();
       // The point of clearing is to type something else.
@@ -275,7 +315,13 @@ export class ExplorerPaneView extends ItemView {
   }
 
   protected async onClose(): Promise<void> {
+    this.cancelFilter();
     this.contentEl.empty();
+  }
+
+  private cancelFilter(): void {
+    if (this.filterTimer !== null) window.clearTimeout(this.filterTimer);
+    this.filterTimer = null;
   }
 
   /**
@@ -406,6 +452,8 @@ export class ExplorerPaneView extends ItemView {
 
     host.empty();
     this.shelf?.empty();
+    this.matches = this.collectMatches();
+    this.drawnMatches = 0;
     // The rows a drag was holding are about to be thrown away.
     this.dragging = null;
     this.deferred = false;
@@ -519,7 +567,13 @@ export class ExplorerPaneView extends ItemView {
     const controller = this.host?.explorer;
     if (!controller) return;
 
-    const items = controller.pinnedItems().filter((file) => this.matchesQuery(file.name));
+    // A filter has to match what the row shows as well as what the file is
+    // called, or typing the name on screen would hide the row showing it.
+    const items = controller
+      .pinnedItems()
+      .filter(
+        (file) => this.matchesQuery(file.name) || this.matchesQuery(controller.titleFor(file) ?? "")
+      );
     if (items.length === 0) return;
 
     const order = items.map((file) => file.path);
@@ -546,7 +600,13 @@ export class ExplorerPaneView extends ItemView {
 
     row.createSpan({ cls: "schreibstube-explorer-twisty" });
     applyIcon(row.createSpan({ cls: "schreibstube-explorer-glyph" }), this.glyphFor(file));
-    row.createSpan({ cls: "schreibstube-explorer-name", text: displayName(file) });
+    // A pinned row is a shortlist entry, there to be recognised rather than
+    // located, so it draws what the note calls itself when it says. The tree
+    // below keeps filenames: that is where a file is looked for by name.
+    row.createSpan({
+      cls: "schreibstube-explorer-name",
+      text: controller.titleFor(file) ?? displayName(file)
+    });
     if (file instanceof TFile) this.renderBadge(row, file);
 
     this.renderRowActions(row, file);
@@ -713,6 +773,17 @@ export class ExplorerPaneView extends ItemView {
 
     if (drawn === 0) {
       tree.createEl("p", { cls: "schreibstube-explorer-empty", text: t().explorer.empty });
+      return;
+    }
+
+    // A list that stopped has to say so, or the file you are looking for is
+    // simply missing and nothing explains why.
+    const held = this.matchCount - this.drawnMatches;
+    if (this.matches && held > 0) {
+      tree.createEl("p", {
+        cls: "schreibstube-explorer-empty",
+        text: t().explorer.filterMore(held)
+      });
     }
   }
 
@@ -736,34 +807,53 @@ export class ExplorerPaneView extends ItemView {
       const child = byPath.get(node.path);
       if (!child) continue;
 
-      if (child instanceof TFolder) {
-        // While filtering, a folder is worth a row only if something inside it
-        // matches; the alternative is a tree of empty branches.
-        const matches = this.query.length === 0 || this.folderMatches(child);
-        if (!matches) continue;
+      // While filtering, a row is drawn only if it matched or holds something
+      // that did; the alternative is a tree of empty branches. The set was
+      // built once for this draw and answers for folders and files alike.
+      if (this.matches && !this.matches.has(child.path)) continue;
+      if (this.matches && this.drawnMatches >= FILTER_ROW_CAP) break;
 
+      if (child instanceof TFolder) {
         this.renderRow(host, child, depth);
         drawn += 1;
         if (this.isExpanded(child)) drawn += this.renderChildren(host, child, depth + 1);
         continue;
       }
 
-      if (!this.matchesQuery(child.name)) continue;
       this.renderRow(host, child, depth);
       drawn += 1;
+      this.drawnMatches += 1;
     }
 
     return drawn;
   }
 
-  private folderMatches(folder: TFolder): boolean {
-    return folder.children.some((child) =>
-      child instanceof TFolder ? this.folderMatches(child) : this.matchesQuery(child.name)
-    );
-  }
-
   private matchesQuery(name: string): boolean {
     return this.query.length === 0 || name.toLowerCase().includes(this.query);
+  }
+
+  /**
+   * Every path the filter keeps, with every folder on the way to one.
+   *
+   * One pass over the vault, once per draw. The tree used to ask each folder
+   * whether anything under it matched, and that question walked the folder's
+   * whole subtree — so a subtree was walked again for every folder above it,
+   * and a deep vault paid for its own depth on every keystroke.
+   */
+  private collectMatches(): Set<string> | null {
+    this.matchCount = 0;
+    if (this.query.length === 0) return null;
+
+    const matches = new Set<string>();
+    for (const entry of this.app.vault.getAllLoadedFiles()) {
+      if (entry instanceof TFolder || !this.matchesQuery(entry.name)) continue;
+
+      this.matchCount += 1;
+      matches.add(entry.path);
+      for (const ancestor of ancestorsOf(entry.path)) matches.add(ancestor);
+    }
+
+    return matches;
   }
 
   /** A filter expands the tree for as long as it is set, without disturbing
@@ -786,7 +876,9 @@ export class ExplorerPaneView extends ItemView {
     row.setAttribute("data-path", file.path);
     row.setAttribute("role", "treeitem");
     if (isFolder) row.addClass("is-folder");
-    if (controller.isPinned(file.path)) row.addClass("is-pinned");
+    // The mark in the tree is the one that explains the row's place, which is
+    // being held at the top of the folder rather than being pinned above it.
+    if (controller.isKept(file.path)) row.addClass("is-pinned");
     if (file instanceof TFile) this.markOpenState(row, file.path);
 
     const twisty = row.createSpan({ cls: "schreibstube-explorer-twisty" });
@@ -797,7 +889,7 @@ export class ExplorerPaneView extends ItemView {
     applyIcon(row.createSpan({ cls: "schreibstube-explorer-glyph" }), this.glyphFor(file));
     row.createSpan({ cls: "schreibstube-explorer-name", text: displayName(file) });
 
-    if (controller.isPinned(file.path)) {
+    if (controller.isKept(file.path)) {
       applyIcon(row.createSpan({ cls: "schreibstube-explorer-pin" }), "pinned");
     }
 

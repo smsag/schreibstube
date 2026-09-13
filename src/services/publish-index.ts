@@ -217,12 +217,28 @@ export function referencedAttachments(content: string): string[] {
   }
 
   for (const match of body.matchAll(/!\[[^\]]*\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g)) {
-    const target = decodeURI(match[1]).trim();
+    const target = decodeTarget(match[1]).trim();
     // A remote image is already served from somewhere; only vault files travel.
     if (target && !/^[a-z][a-z0-9+.-]*:/i.test(target)) found.add(target);
   }
 
   return [...found];
+}
+
+/**
+ * A link target as written, with percent escapes resolved where they are valid.
+ *
+ * `decodeURI` throws on a stray percent, and a stray percent is an ordinary
+ * thing for a filename to contain — `100%-Finanzierung.png` is a file somebody
+ * has. Thrown from here it took the whole publish with it, for every note,
+ * naming nothing. A name that cannot be decoded is simply a name.
+ */
+function decodeTarget(raw: string): string {
+  try {
+    return decodeURI(raw);
+  } catch {
+    return raw;
+  }
 }
 
 /** Whether a vault file is something a site may serve as an attachment. */

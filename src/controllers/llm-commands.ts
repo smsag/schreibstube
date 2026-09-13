@@ -7,7 +7,8 @@ import { MAX_IMAGE_BYTES, getImageMimeType, resizeImageToBase64 } from "../servi
 import {
   generateImageRenameFilename,
   generateRenameFilename,
-  sanitizeFilename
+  sanitizeFilename,
+  stripFilenameExtension
 } from "../services/llm-rename";
 import { generateSummary } from "../services/llm-summarize";
 
@@ -56,7 +57,10 @@ export class LlmCommands {
         return;
       }
 
-      const sanitized = sanitizeFilename(proposed, settings.renameMaxFilenameLength);
+      const sanitized = stripFilenameExtension(
+        sanitizeFilename(proposed, settings.renameMaxFilenameLength),
+        "md"
+      );
       if (!sanitized) {
         this.logger.warn("Rename produced an unusable filename:", proposed);
         new Notice(t().common.notice(t().ai.renameFailedName));
@@ -111,7 +115,10 @@ export class LlmCommands {
         return;
       }
 
-      const sanitized = sanitizeFilename(proposed, settings.renameMaxFilenameLength);
+      const sanitized = stripFilenameExtension(
+        sanitizeFilename(proposed, settings.renameMaxFilenameLength),
+        file.extension
+      );
       if (!sanitized) {
         this.logger.warn("Image rename produced an unusable filename:", proposed);
         new Notice(t().common.notice(t().ai.renameFailedName));

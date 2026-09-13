@@ -27,11 +27,13 @@ import {
   renamePath,
   setIcon,
   reorderPinned,
+  setKept,
   setPinned,
   type ExplorerData
 } from "../services/explorer-state";
 import { ExplorerStore, type ExplorerFileStore } from "../services/explorer-store";
 import { vaultUrlFor } from "../services/bookmark-file";
+import { frontmatterTitle } from "../services/note-title";
 import {
   isMovePlan,
   moveDestinations,
@@ -140,6 +142,16 @@ export class ExplorerController {
   }
 
   /**
+   * Whether the row is held at the top of its folder.
+   *
+   * What the tree marks, because it is the mark that explains the row's place.
+   * A pin draws a row above the tree and says nothing about this one.
+   */
+  isKept(path: string): boolean {
+    return entryFor(this.store.data(), path)?.keptAt !== undefined;
+  }
+
+  /**
    * What the pinned section draws: every pinned item that still exists, in the
    * order it was pinned. A path whose file is gone is skipped rather than
    * dropped from the state, because it may be a move sync has not delivered yet.
@@ -177,6 +189,33 @@ export class ExplorerController {
       sourceValid: resolveSourceUrl(frontmatter?.[SYNC_FRONTMATTER_KEY]).ok,
       record: this.getSettings().syncState[file.path]
     });
+  }
+
+  /**
+   * What a note calls itself, or null when it says nothing.
+   *
+   * Read from the frontmatter's `title`, which is the key everything else that
+   * reads Markdown uses for this. The file is never touched: a title is what a
+   * note is called, a filename is where it lives, and renaming one to match the
+   * other would move the file and rewrite every link into it.
+   */
+  titleFor(file: TAbstractFile): string | null {
+    if (!(file instanceof TFile) || file.extension !== "md") return null;
+
+    const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter;
+    return frontmatterTitle(frontmatter?.title);
+  }
+
+  /**
+   * Whether the note names a source.
+   *
+   * Separate from the badge on purpose: the badge answers "what is this mirror
+   * doing", which is nothing at all while document sync is off, and the menu
+   * has to keep offering a bound note the way out of that.
+   */
+  private isBound(file: TFile): boolean {
+    if (file.extension !== "md") return false;
+    return hasSourceBinding(this.app.metadataCache.getFileCache(file)?.frontmatter);
   }
 
   /** How many changes the poll saw and nobody has looked at yet. */
@@ -274,10 +313,11 @@ export class ExplorerController {
       kind: isFile ? "file" : "folder",
       path: file.path,
       markdown: isFile && file.extension === "md",
+      bound: isFile && this.isBound(file),
       hasIcon: this.iconFor(file.path) !== undefined,
+      kept: this.isKept(file.path),
       pinned: this.isPinned(file.path),
-      sync: isFile ? this.badgeFor(file) : "none",
-      hasBoundNotes: !isFile && this.getSettings().syncEnabled && this.hasBoundNotes(file.path)
+      hasBoundNotes: !isFile && this.hasBoundNotes(file.path)
     };
   }
 
@@ -304,6 +344,10 @@ export class ExplorerController {
         return this.chooseIcon(file);
       case "clear-icon":
         this.store.mutate((data, now) => setIcon(data, file.path, null, now));
+        return;
+      case "keep-top":
+      case "release-top":
+        this.store.mutate((data, now) => setKept(data, file.path, action === "keep-top", now));
         return;
       case "pin":
       case "unpin":
@@ -435,15 +479,27 @@ export class ExplorerController {
 
     new Notice(
       t().common.notice(
-        summary.checked === 0 && summary.failed === 0
-          ? t().explorer.bind.folderEmpty
-          : t().explorer.bind.folderChecked(summary.checked, summary.withChanges, summary.failed)
+        summary.skipped === "disabled"
+          ? t().sync.disabled
+          : summary.skipped === "busy"
+            ? t().sync.busy
+            : summary.checked === 0 && summary.failed === 0
+              ? t().explorer.bind.folderEmpty
+              : t().explorer.bind.folderChecked(
+                  summary.checked,
+                  summary.withChanges,
+                  summary.failed
+                )
       )
     );
     this.emit();
   }
 
   private describeSummary(summary: PollSummary, name: string): string {
+    // Why nothing happened comes first: a switch being off is not something the
+    // note can be blamed for, and it is the only answer that says what to do.
+    if (summary.skipped === "disabled") return t().sync.disabled;
+    if (summary.skipped === "busy") return t().sync.busy;
     if (summary.failed > 0) return t().explorer.badge.error;
     if (summary.withChanges > 0) return t().sync.withUpdates(summary.withChanges);
     if (summary.checked === 0) return t().sync.notBound;

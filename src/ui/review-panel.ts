@@ -151,15 +151,15 @@ export class ReviewPanelView extends ItemView {
     const running = this.state.phase === "running";
     const hasFile = this.state.phase !== "no-file";
 
-    this.button(actions, "Korrektur lesen", "wand", !hasFile || running, () =>
+    this.button(actions, t().proofread.panelProofread, "wand", !hasFile || running, () =>
       this.handlers?.onProofread()
     );
-    this.button(actions, "Glossar prüfen", "book-open", !hasFile || running, () =>
+    this.button(actions, t().proofread.panelGlossaryCheck, "book-open", !hasFile || running, () =>
       this.handlers?.onGlossaryCheck()
     );
 
     if (running) {
-      this.button(actions, "Abbrechen", "x", false, () => this.handlers?.onStop());
+      this.button(actions, t().proofread.panelStop, "x", false, () => this.handlers?.onStop());
     }
 
     const pending = this.pendingSuggestions();
@@ -191,7 +191,7 @@ export class ReviewPanelView extends ItemView {
       cls: "schreibstube-review-glossary-label",
       text: t().proofread.panelSource(t().proofread.syncStatus[sync.status])
     });
-    this.button(row, "Quelle prüfen", "refresh-cw", sync.status === "checking", () =>
+    this.button(row, t().proofread.panelCheckSource, "refresh-cw", sync.status === "checking", () =>
       this.handlers?.onCheckSource()
     );
 

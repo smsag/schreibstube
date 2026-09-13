@@ -619,9 +619,13 @@ export default class SchreibstubePlugin extends Plugin {
           await this.saveSettings();
           new Notice(
             t().common.notice(
-              summary.checked === 0
-                ? t().sync.noneChecked
-                : t().sync.checked(summary.checked, summary.withChanges, summary.failed)
+              summary.skipped === "disabled"
+                ? t().sync.disabled
+                : summary.skipped === "busy"
+                  ? t().sync.busy
+                  : summary.checked === 0
+                    ? t().sync.noneChecked
+                    : t().sync.checked(summary.checked, summary.withChanges, summary.failed)
             )
           );
         });

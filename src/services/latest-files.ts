@@ -29,7 +29,10 @@ export interface LatestSelection {
 export interface LatestOptions {
   /** How many rows each subsection shows. */
   count: number;
-  /** Vault paths never shown; the bookmarks file is the usual one. */
+  /**
+   * Paths never shown: a file, or a folder standing for everything under it.
+   * The bookmarks file is the usual single file.
+   */
   excluded?: ReadonlySet<string>;
 }
 
@@ -44,9 +47,13 @@ export function selectLatest(
 ): LatestSelection {
   if (count <= 0) return { created: [], modified: [] };
 
+  // Normalised once rather than per file: the list is a handful of entries and
+  // the vault is thousands of notes.
+  const barred = excluded && excluded.size > 0 ? normalizeExcluded(excluded) : [];
+
   const eligible =
-    excluded && excluded.size > 0
-      ? candidates.filter((file) => !excluded.has(file.path))
+    barred.length > 0
+      ? candidates.filter((file) => !isExcluded(file.path, barred))
       : [...candidates];
 
   const created = [...eligible]
@@ -70,9 +77,40 @@ export function parseExcludedPaths(value: string): Set<string> {
   return new Set(
     value
       .split(/[,\n]/)
-      .map((entry) => entry.trim().replace(/^\/+/, ""))
+      .map((entry) => entry.trim().replace(/^\/+/, "").replace(/\/+$/, ""))
       .filter((entry) => entry.length > 0)
   );
+}
+
+/**
+ * Whether a path is excluded by one of the entries.
+ *
+ * A folder stands for everything under it. Nobody types out every note in a
+ * private folder, and a folder is what a person means when they write one into
+ * a field called "never show these" — so an entry that names a folder excluded
+ * nothing at all, silently, which is the worst way for this particular setting
+ * to fail.
+ *
+ * Compared without case, because the filesystems this runs on — macOS, iOS,
+ * Windows — do not distinguish it either, and a person typing the path from
+ * memory should not have to.
+ */
+export function isExcluded(path: string, excluded: readonly string[]): boolean {
+  const candidate = path.toLowerCase();
+
+  // A separator is required, so "Familie" does not take "Familienrecht/x.md"
+  // with it.
+  return excluded.some((entry) => candidate === entry || candidate.startsWith(`${entry}/`));
+}
+
+/** The entries as `isExcluded` wants them: trimmed of slashes, lower case. */
+export function normalizeExcluded(excluded: Iterable<string>): string[] {
+  const entries: string[] = [];
+  for (const entry of excluded) {
+    const cleaned = entry.trim().replace(/^\/+/, "").replace(/\/+$/, "").toLowerCase();
+    if (cleaned.length > 0) entries.push(cleaned);
+  }
+  return entries;
 }
 
 /** A stable tie-break, so two notes written in the same millisecond do not

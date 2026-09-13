@@ -220,15 +220,44 @@ const WHITESPACE = /\s+/g;
 const EDGE_DOTS_HYPHENS = /^[.-]+|[.-]+$/g;
 
 export function sanitizeFilename(raw: string, maxLength: number): string {
-  return raw
+  const cleaned = raw
     .trim()
     .replace(ILLEGAL_CHARS, "")
     .replace(WHITESPACE, "-")
     .replace(MULTIPLE_HYPHENS, "-")
-    .replace(EDGE_DOTS_HYPHENS, "")
-    .slice(0, maxLength)
     .replace(EDGE_DOTS_HYPHENS, "");
+
+  // Cut by characters, not by the units a string is stored in: slicing in the
+  // middle of a pair leaves half an emoji, which is not a character at all and
+  // which a filesystem may refuse for reasons it does not explain.
+  return [...cleaned].slice(0, maxLength).join("").replace(EDGE_DOTS_HYPHENS, "");
 }
+
+/**
+ * Drop an extension the model volunteered.
+ *
+ * "Filename only" is in the prompt and models answer "Quartalsbericht.md"
+ * anyway, which the caller then gave its own extension: `Quartalsbericht.md.md`,
+ * and `foto.jpg.png` for an image whose extension the model also guessed wrong.
+ * The file's real extension is the caller's to decide, so a matching one here
+ * is noise and any other one is a guess about a file the model never saw.
+ */
+export function stripFilenameExtension(name: string, extension: string): string {
+  const match = /\.([A-Za-z0-9]+)$/.exec(name);
+  if (!match) return name;
+
+  const found = match[1].toLowerCase();
+  const target = extension.toLowerCase();
+  const sameKind =
+    found === target ||
+    (MARKDOWN_EXTENSIONS.has(found) && MARKDOWN_EXTENSIONS.has(target)) ||
+    (IMAGE_EXTENSIONS.has(found) && IMAGE_EXTENSIONS.has(target));
+
+  return sameKind ? name.slice(0, -match[0].length) : name;
+}
+
+const MARKDOWN_EXTENSIONS = new Set(["md", "markdown", "mdown", "mkd"]);
+const IMAGE_EXTENSIONS = new Set(["jpg", "jpeg", "png", "gif", "webp", "avif"]);
 
 /** Models don't always obey "filename only" — they may wrap the answer in a
  *  code fence, quotes, or a "Filename:" label. Recover the bare candidate

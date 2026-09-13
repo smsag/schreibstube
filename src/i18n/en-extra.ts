@@ -45,7 +45,8 @@ export const enExtra = {
       `How many notes each of the two lists shows (1 to ${max}).`,
     explorerLatestExclude: "Never show these",
     explorerLatestExcludeDesc:
-      "Vault paths, separated by commas or line breaks. The bookmarks file is always excluded.",
+      "Vault paths, separated by commas or line breaks. A folder excludes everything inside it. " +
+      "The bookmarks file is always excluded.",
     explorerIcons: "Icon set",
     explorerIconsDesc: (count: number, version: string) =>
       `${count} icons from Tabler Icons ${version} (MIT), bundled with the plugin so they work offline and on mobile.`,
@@ -156,6 +157,35 @@ export const enExtra = {
     failSummarize: "Schreibstube: summarize failed"
   },
 
+  cron: {
+    empty: "No expression given.",
+    fieldCount: (found: number) =>
+      `Five fields expected (minute hour day month weekday), ${found} found.`,
+    invalidField: (name: string, value: string) => `Field ${name}: "${value}" is not valid.`,
+    fields: {
+      minute: "Minute",
+      hour: "Hour",
+      dayOfMonth: "Day of month",
+      month: "Month",
+      dayOfWeek: "Weekday"
+    },
+    presets: {
+      hourly: "Hourly",
+      everyFourHours: "Every 4 hours",
+      dailyEight: "Daily at 8:00",
+      weekdaysEight: "Weekdays at 8:00"
+    },
+    nextRun: (when: string) => `Next check: ${when}`,
+    never: "Valid, but this time never comes round."
+  },
+
+  source: {
+    missing: "No source URL given.",
+    notAUrl: "The source URL is not a valid URL.",
+    notHttps: "Only HTTPS sources are fetched.",
+    notMarkdown: "The source is not a Markdown file (.md)."
+  },
+
   proofread: {
     busy: "a correction is already running.",
     noteClosed: "the checked note is no longer open.",
@@ -171,6 +201,30 @@ export const enExtra = {
     panelSource: (status: string) => `Source (${status})`,
     panelGlossary: (source: string) => `Glossary (${source})`,
     panelCheckedAt: (when: string) => `Last checked: ${when}`,
+    panelProofread: "Read correction",
+    panelGlossaryCheck: "Check glossary",
+    panelStop: "Cancel",
+    panelCheckSource: "Check source",
+    noTerms: "No glossary chosen, or no terms to check against.",
+    running: "Correction running …",
+    cancelled: "Correction cancelled.",
+    failedShort: "Correction failed.",
+    unknownError: "Unknown error.",
+    applied: (count: number) => `${count} changes applied.`,
+    appliedWithSkipped: (applied: number, skipped: number) =>
+      `${applied} applied, ${skipped} no longer placeable.`,
+    noSuggestions: "No suggestions.",
+    suggestions: (count: number) => `${count} suggestions.`,
+    blocksRejected: (count: number) =>
+      `${count} section(s) discarded (protected content was altered).`,
+    chunksFailed: (count: number) => `${count} request(s) failed.`,
+    sourceMatches: "The note matches its source.",
+    sourceUnchangedLocalEdits: "Source unchanged; the note carries local edits.",
+    divergedChanges: (count: number) =>
+      `${count} difference(s). The note was edited locally; accepting restores the source.`,
+    sourceChanges: (count: number) => `${count} change(s) from the source.`,
+    pendingFromPoll: (count: number) =>
+      `${count} change(s) from the last background check. "Check source" fetches them.`,
     badgeGlossary: "Glossary",
     badgeSource: "Source",
     badgeStale: "stale",
@@ -209,10 +263,13 @@ export const enExtra = {
 
   sync: {
     notBound: "this note is not bound to a source.",
+    disabled: "document sync is off. Turn it on in Settings → Schreibstube → Document sync.",
+    busy: "a check is already running.",
     noneChecked: "no bound notes were checked.",
     checked: (checked: number, changed: number, failed: number) =>
       `${checked} checked, ${changed} with updates, ${failed} failed.`,
-    withUpdates: (count: number) => `${count} note(s) have updates from their source.`
+    withUpdates: (count: number) =>
+      `${count} note(s) have updates from their source — open the review panel to apply them.`
   },
 
   mailNotices: {
@@ -241,6 +298,7 @@ export const enExtra = {
     empty: "This vault has no files yet.",
     searchPlaceholder: "Filter all sections…",
     clearFilter: "Clear the filter",
+    filterMore: (count: number) => `${count} more match. Narrow the filter to see them.`,
     collapseAll: "Collapse all",
 
     move: {
@@ -288,8 +346,10 @@ export const enExtra = {
       setIcon: "Set icon…",
       changeIcon: "Change icon…",
       clearIcon: "Remove icon",
-      pin: "Pin to top",
-      unpin: "Unpin",
+      keepTop: "Keep at top of folder",
+      releaseTop: "Stop keeping at top",
+      pin: "Add to Pinned",
+      unpin: "Remove from Pinned",
       bindSource: "Bind to a source…",
       checkSource: "Check source now",
       openSource: "Open source",

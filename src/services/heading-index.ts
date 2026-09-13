@@ -2,6 +2,13 @@ import type { HeadingEntry, HeadingIndex } from "../types";
 
 const HEADING_PATTERN = /^(#{1,6})\s+(.+)$/;
 
+/**
+ * A fence opens and closes with the same character, and closes only with at
+ * least as many of it — so a block fenced with four backticks can hold a line
+ * of three.
+ */
+const FENCE_PATTERN = /^\s*([`~])\1{2,}/;
+
 function stripMarkdownFormatting(text: string): string {
   return text
     .replace(/!\[([^\]]*)\]\([^)]*\)/g, "$1")
@@ -15,12 +22,32 @@ function stripMarkdownFormatting(text: string): string {
     .trim();
 }
 
+/** The run of backticks or tildes opening or closing a fence, if the line is one. */
+function fenceMarker(line: string): string | null {
+  const match = FENCE_PATTERN.exec(line);
+  return match ? (match[0].trimStart() ?? null) : null;
+}
+
 export function buildHeadingIndex(content: string): HeadingIndex {
   const lines = content.split(/\r?\n/);
   const result: HeadingEntry[] = [];
+  let fence: string | null = null;
 
   for (let lineNumber = 0; lineNumber < lines.length; lineNumber += 1) {
     const line = lines[lineNumber];
+
+    // A `#` inside a code block is a comment, a shell prompt or a CSS colour,
+    // and the stack above the note claimed it as the section being read.
+    const marker = fenceMarker(line);
+    if (fence) {
+      if (marker && marker[0] === fence[0] && marker.length >= fence.length) fence = null;
+      continue;
+    }
+    if (marker) {
+      fence = marker;
+      continue;
+    }
+
     const match = line.match(HEADING_PATTERN);
 
     if (!match) {

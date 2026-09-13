@@ -220,8 +220,8 @@ export const de: Messages = {
       `Wie viele Notizen jede der beiden Listen zeigt (1 bis ${max}).`,
     explorerLatestExclude: "Nie anzeigen",
     explorerLatestExcludeDesc:
-      "Vault-Pfade, durch Komma oder Zeilenumbruch getrennt. Die Lesezeichen-Datei ist immer " +
-      "ausgenommen.",
+      "Vault-Pfade, durch Komma oder Zeilenumbruch getrennt. Ein Ordner schließt alles darin " +
+      "aus. Die Lesezeichen-Datei ist immer ausgenommen.",
     explorerIcons: "Symbolsatz",
     explorerIconsDesc: (count: number, version: string) =>
       `${count} Symbole aus Tabler Icons ${version} (MIT), im Plugin enthalten — offline und mobil verfügbar.`,
@@ -332,6 +332,35 @@ export const de: Messages = {
     failSummarize: "Schreibstube: Zusammenfassen fehlgeschlagen"
   },
 
+  cron: {
+    empty: "Kein Ausdruck angegeben.",
+    fieldCount: (found: number) =>
+      `Fünf Felder erwartet (Minute Stunde Tag Monat Wochentag), ${found} gefunden.`,
+    invalidField: (name: string, value: string) => `Feld ${name}: "${value}" ist ungültig.`,
+    fields: {
+      minute: "Minute",
+      hour: "Stunde",
+      dayOfMonth: "Tag des Monats",
+      month: "Monat",
+      dayOfWeek: "Wochentag"
+    },
+    presets: {
+      hourly: "Stündlich",
+      everyFourHours: "Alle 4 Stunden",
+      dailyEight: "Täglich 8:00",
+      weekdaysEight: "Werktags 8:00"
+    },
+    nextRun: (when: string) => `Nächste Prüfung: ${when}`,
+    never: "Gültig, aber dieser Zeitpunkt tritt nie ein."
+  },
+
+  source: {
+    missing: "Keine Quell-URL angegeben.",
+    notAUrl: "Quell-URL ist keine gültige URL.",
+    notHttps: "Nur HTTPS-Quellen werden geladen.",
+    notMarkdown: "Quelle ist keine Markdown-Datei (.md)."
+  },
+
   proofread: {
     busy: "es läuft bereits eine Korrektur.",
     noteClosed: "die geprüfte Notiz ist nicht mehr geöffnet.",
@@ -347,6 +376,31 @@ export const de: Messages = {
     panelSource: (status: string) => `Quelle (${status})`,
     panelGlossary: (source: string) => `Glossar (${source})`,
     panelCheckedAt: (when: string) => `Zuletzt geprüft: ${when}`,
+    panelProofread: "Korrektur lesen",
+    panelGlossaryCheck: "Glossar prüfen",
+    panelStop: "Abbrechen",
+    panelCheckSource: "Quelle prüfen",
+    noTerms: "Kein Glossar ausgewählt oder keine prüfbaren Begriffe.",
+    running: "Korrektur läuft …",
+    cancelled: "Korrektur abgebrochen.",
+    failedShort: "Korrektur fehlgeschlagen.",
+    unknownError: "Unbekannter Fehler.",
+    applied: (count: number) => `${count} Änderungen übernommen.`,
+    appliedWithSkipped: (applied: number, skipped: number) =>
+      `${applied} übernommen, ${skipped} nicht mehr zuordenbar.`,
+    noSuggestions: "Keine Vorschläge.",
+    suggestions: (count: number) => `${count} Vorschläge.`,
+    blocksRejected: (count: number) =>
+      `${count} Abschnitt(e) verworfen (geschützter Inhalt verändert).`,
+    chunksFailed: (count: number) => `${count} Anfrage(n) fehlgeschlagen.`,
+    sourceMatches: "Notiz entspricht der Quelle.",
+    sourceUnchangedLocalEdits: "Quelle unverändert, die Notiz enthält lokale Änderungen.",
+    divergedChanges: (count: number) =>
+      `${count} Unterschied(e). Die Notiz wurde lokal geändert, Übernehmen stellt die Quelle ` +
+      `wieder her.`,
+    sourceChanges: (count: number) => `${count} Änderung(en) aus der Quelle.`,
+    pendingFromPoll: (count: number) =>
+      `${count} Änderung(en) aus der letzten Hintergrundprüfung. "Quelle prüfen" holt sie.`,
     badgeGlossary: "Glossar",
     badgeSource: "Quelle",
     badgeStale: "veraltet",
@@ -385,10 +439,14 @@ export const de: Messages = {
 
   sync: {
     notBound: "diese Notiz ist an keine Quelle gebunden.",
+    disabled:
+      "Dokument-Sync ist aus. Einschalten unter Einstellungen → Schreibstube → Dokument-Sync.",
+    busy: "es läuft bereits eine Prüfung.",
     noneChecked: "keine gebundenen Notizen geprüft.",
     checked: (checked: number, changed: number, failed: number) =>
       `${checked} geprüft, ${changed} mit Aktualisierungen, ${failed} fehlgeschlagen.`,
-    withUpdates: (count: number) => `${count} Notiz(en) mit Aktualisierungen aus der Quelle.`
+    withUpdates: (count: number) =>
+      `${count} Notiz(en) mit Aktualisierungen aus der Quelle — im Überprüfungsbereich übernehmen.`
   },
 
   mailNotices: {
@@ -418,6 +476,7 @@ export const de: Messages = {
     empty: "In diesem Vault liegt noch keine Datei.",
     searchPlaceholder: "Alle Sektionen filtern …",
     clearFilter: "Filter leeren",
+    filterMore: (count: number) => `${count} weitere Treffer. Filter eingrenzen, um sie zu sehen.`,
     collapseAll: "Alle zuklappen",
 
     move: {
@@ -465,8 +524,10 @@ export const de: Messages = {
       setIcon: "Symbol wählen …",
       changeIcon: "Symbol ändern …",
       clearIcon: "Symbol entfernen",
-      pin: "Nach oben anheften",
-      unpin: "Anheften lösen",
+      keepTop: "Im Ordner oben halten",
+      releaseTop: "Nicht mehr oben halten",
+      pin: "Zu „Angeheftet“ hinzufügen",
+      unpin: "Aus „Angeheftet“ entfernen",
       bindSource: "Mit Quelle verbinden …",
       checkSource: "Quelle jetzt prüfen",
       openSource: "Quelle öffnen",

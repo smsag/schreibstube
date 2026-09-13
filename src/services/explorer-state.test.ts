@@ -3,6 +3,7 @@ import {
   emptyExplorerData,
   entryFor,
   iconFor,
+  isKept,
   isPinned,
   markMissing,
   mergeExplorerData,
@@ -13,6 +14,7 @@ import {
   renamePath,
   serializeExplorerData,
   setIcon,
+  setKept,
   setPinned,
   pinnedPaths,
   sortSiblings,
@@ -299,17 +301,17 @@ describe("pinnedPaths", () => {
 });
 
 describe("sortSiblings", () => {
-  it("puts pinned items first, in the order they were pinned", () => {
-    let data = setPinned(emptyExplorerData(), "Zebra.md", true, T0);
-    data = setPinned(data, "Anfang.md", true, T0 + MINUTE);
+  it("puts items kept at the top first, in the order they were kept", () => {
+    let data = setKept(emptyExplorerData(), "Zebra.md", true, T0);
+    data = setKept(data, "Anfang.md", true, T0 + MINUTE);
 
     const sorted = sortSiblings([node("Anfang.md"), node("Mitte.md"), node("Zebra.md")], data);
 
     expect(sorted.map((entry) => entry.path)).toEqual(["Zebra.md", "Anfang.md", "Mitte.md"]);
   });
 
-  it("pins a folder above an unpinned folder, then sorts folders before files", () => {
-    const data = setPinned(emptyExplorerData(), "Notizen", true, T0);
+  it("holds a folder above the others, then sorts folders before files", () => {
+    const data = setKept(emptyExplorerData(), "Notizen", true, T0);
 
     const sorted = sortSiblings(
       [node("Anhang.md"), node("Archiv", "folder"), node("Notizen", "folder")],
@@ -332,21 +334,80 @@ describe("sortSiblings", () => {
     ]);
   });
 
-  it("falls back to the name when two items were pinned in the same millisecond", () => {
-    let data = setPinned(emptyExplorerData(), "b.md", true, T0);
-    data = setPinned(data, "a.md", true, T0);
+  it("falls back to the name when two items were kept in the same millisecond", () => {
+    let data = setKept(emptyExplorerData(), "b.md", true, T0);
+    data = setKept(data, "a.md", true, T0);
 
     const sorted = sortSiblings([node("b.md"), node("a.md")], data);
 
     expect(sorted.map((entry) => entry.path)).toEqual(["a.md", "b.md"]);
   });
 
-  it("ignores a pin on a tombstone", () => {
-    const data = markMissing(setPinned(emptyExplorerData(), "a.md", true, T0), "a.md", T0);
+  it("ignores a mark on a tombstone", () => {
+    const data = markMissing(setKept(emptyExplorerData(), "a.md", true, T0), "a.md", T0);
 
     const sorted = sortSiblings([node("a.md"), node("Ordner", "folder")], data);
 
     expect(sorted.map((entry) => entry.path)).toEqual(["Ordner", "a.md"]);
+  });
+
+  it("leaves the folder's order alone for something that is only pinned", () => {
+    // The pinned block above the tree is a different question from where a row
+    // sits inside its folder, and answering one must not answer the other.
+    const data = setPinned(emptyExplorerData(), "Zebra.md", true, T0);
+
+    const sorted = sortSiblings([node("Anfang.md"), node("Zebra.md")], data);
+
+    expect(sorted.map((entry) => entry.path)).toEqual(["Anfang.md", "Zebra.md"]);
+  });
+});
+
+describe("keeping an item at the top of its folder", () => {
+  it("is independent of the pin, in both directions", () => {
+    let data = setKept(emptyExplorerData(), "a.md", true, T0);
+    expect(isKept(data, "a.md")).toBe(true);
+    expect(isPinned(data, "a.md")).toBe(false);
+
+    data = setPinned(data, "a.md", true, T0 + MINUTE);
+    data = setKept(data, "a.md", false, T0 + 2 * MINUTE);
+
+    expect(isKept(data, "a.md")).toBe(false);
+    expect(isPinned(data, "a.md")).toBe(true);
+  });
+
+  it("leaves an item where it is when it is kept again", () => {
+    const first = setKept(emptyExplorerData(), "a.md", true, T0);
+    const again = setKept(first, "a.md", true, T0 + MINUTE);
+
+    expect(again.entries["a.md"].keptAt).toBe(T0);
+  });
+
+  it("survives the prune that clears an entry holding nothing", () => {
+    const data = setKept(emptyExplorerData(), "a.md", true, T0);
+
+    expect(pruneExplorerData(data, T0 + 31 * DAY).entries["a.md"]).toBeDefined();
+  });
+});
+
+describe("reading a file written before the two marks were separated", () => {
+  it("hands a version 1 pin the top of its folder as well, which is what it did", () => {
+    const data = parseExplorerData({
+      version: 1,
+      entries: { "a.md": { pinnedAt: T0, updatedAt: T0 } }
+    });
+
+    expect(isKept(data, "a.md")).toBe(true);
+    expect(isPinned(data, "a.md")).toBe(true);
+  });
+
+  it("leaves a version 2 pin alone, so removing the top stays removed", () => {
+    const data = parseExplorerData({
+      version: 2,
+      entries: { "a.md": { pinnedAt: T0, updatedAt: T0 } }
+    });
+
+    expect(isKept(data, "a.md")).toBe(false);
+    expect(isPinned(data, "a.md")).toBe(true);
   });
 });
 

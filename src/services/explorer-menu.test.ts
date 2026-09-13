@@ -16,8 +16,9 @@ function target(overrides: Partial<ExplorerTarget> = {}): ExplorerTarget {
     path: "Objekte/Haus.md",
     markdown: true,
     hasIcon: false,
+    kept: false,
     pinned: false,
-    sync: "none",
+    bound: false,
     ...overrides
   };
 }
@@ -59,16 +60,36 @@ describe("buildExplorerMenu", () => {
     expect(ids(buildExplorerMenu(target({ pinned: true }), "off"))).toContain("unpin");
   });
 
+  it("offers the two marks separately, the folder's top first", () => {
+    const [, appearance] = buildExplorerMenu(target(), "off");
+
+    expect(appearance.items.map((item) => item.id)).toEqual(["set-icon", "keep-top", "pin"]);
+  });
+
+  it("offers the opposite of the current top state, whatever the pin says", () => {
+    expect(ids(buildExplorerMenu(target({ kept: true }), "off"))).toContain("release-top");
+    expect(ids(buildExplorerMenu(target({ kept: true, pinned: true }), "off"))).toEqual(
+      expect.arrayContaining(["release-top", "unpin"])
+    );
+    expect(ids(buildExplorerMenu(target({ pinned: true }), "off"))).toContain("keep-top");
+  });
+
   it("offers to bind an unbound note, and to refresh a bound one", () => {
     expect(ids(buildExplorerMenu(target(), "off"))).toContain("bind-source");
 
-    const bound = ids(buildExplorerMenu(target({ sync: "synced" }), "off"));
+    const bound = ids(buildExplorerMenu(target({ bound: true }), "off"));
     expect(bound).toEqual(expect.arrayContaining(["check-source", "open-source", "unbind-source"]));
     expect(bound).not.toContain("bind-source");
   });
 
-  it("offers a note bound to something broken the same repair actions", () => {
-    expect(ids(buildExplorerMenu(target({ sync: "error" }), "off"))).toContain("unbind-source");
+  it("goes by the binding, so a bound note keeps its actions while sync is off", () => {
+    // The badge is hidden while document sync is switched off. A menu that read
+    // it offered a bound note nothing but "Bind source": no manual check, and
+    // no way back out of the binding.
+    const bound = ids(buildExplorerMenu(target({ bound: true }), "off"));
+
+    expect(bound).toContain("check-source");
+    expect(bound).toContain("unbind-source");
   });
 
   it("says nothing about sync for an attachment", () => {
@@ -85,6 +106,7 @@ describe("buildExplorerMenu", () => {
 
     expect(ids(sections)).toEqual([
       "set-icon",
+      "keep-top",
       "pin",
       "sync-folder",
       "new-note",

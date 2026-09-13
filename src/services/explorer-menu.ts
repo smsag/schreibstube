@@ -12,13 +12,14 @@
  * menu item is the view's job.
  */
 import { t } from "../i18n";
-import type { SyncBadge } from "./explorer-badge";
 
 export type ExplorerAction =
   | "open"
   | "open-new-tab"
   | "set-icon"
   | "clear-icon"
+  | "keep-top"
+  | "release-top"
   | "pin"
   | "unpin"
   | "bind-source"
@@ -39,10 +40,18 @@ export interface ExplorerTarget {
   path: string;
   /** Only a Markdown note can be bound to a source. */
   markdown: boolean;
+  /**
+   * Whether the note names a source in its frontmatter.
+   *
+   * Read from the note, not from the sync badge: the badge is hidden while
+   * document sync is switched off, and a note that is bound is still bound.
+   */
+  bound: boolean;
   hasIcon: boolean;
+  /** Held at the top of the folder it sits in. */
+  kept: boolean;
+  /** Drawn in the pinned block above the tree. */
   pinned: boolean;
-  /** "none" when the note carries no binding. */
-  sync: SyncBadge;
   /** For a folder: whether anything under it is bound to a source. */
   hasBoundNotes?: boolean;
 }
@@ -108,6 +117,14 @@ export function buildExplorerMenu(
   if (target.hasIcon) {
     appearance.push({ id: "clear-icon", label: menu.clearIcon, icon: "image-off" });
   }
+  // The two marks, in the order they are reached for. Keeping a file at the top
+  // of its folder is the everyday one — this note first, in this folder —
+  // while pinning is the rarer "wherever I am, I want this row".
+  appearance.push(
+    target.kept
+      ? { id: "release-top", label: menu.releaseTop, icon: "arrow-down-to-line" }
+      : { id: "keep-top", label: menu.keepTop, icon: "arrow-up-to-line" }
+  );
   appearance.push(
     target.pinned
       ? { id: "unpin", label: menu.unpin, icon: "pin-off" }
@@ -156,9 +173,16 @@ export function buildExplorerMenu(
 /**
  * The sync block, which is the reason the pane has its own menu at all.
  *
- * A note that is not bound offers to bind; a bound one offers the two things
- * worth doing to a mirror, refreshing it and looking at where it comes from.
- * An attachment offers nothing, because only Markdown can mirror a source.
+ * A note that is not bound offers to bind; a bound one offers the three things
+ * worth doing to a mirror: refreshing it, looking at where it comes from, and
+ * letting it go. An attachment offers nothing, because only Markdown can mirror
+ * a source.
+ *
+ * What decides is the binding itself, never the sync mark. The mark is hidden
+ * while document sync is switched off, and a menu that followed it offered a
+ * bound note nothing but "Bind source" — no way to check it by hand and no way
+ * to unbind it — which is the state a person is in the moment they bind their
+ * first note and find the switch is still off.
  */
 function syncItems(target: ExplorerTarget): ExplorerMenuItem[] {
   const menu = t().explorer.menu;
@@ -171,7 +195,7 @@ function syncItems(target: ExplorerTarget): ExplorerMenuItem[] {
 
   if (!target.markdown) return [];
 
-  if (target.sync === "none") {
+  if (!target.bound) {
     return [{ id: "bind-source", label: menu.bindSource, icon: "link" }];
   }
 
