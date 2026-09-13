@@ -106,7 +106,6 @@ export class TypstCompiler {
     return readCompileResult({ diagnostics: reply.diagnostics ?? [] });
   }
 
-  /** Whether the runtime is already on this device, so a command can say so. */
   /**
    * Fetch and check the typesetter without setting anything.
    *
@@ -118,6 +117,7 @@ export class TypstCompiler {
     await this.load(progress);
   }
 
+  /** Whether the runtime is already on this device, so a command can say so. */
   async isInstalled(): Promise<boolean> {
     for (const asset of RUNTIME_ASSETS) {
       if (!(await this.app.vault.adapter.exists(runtimeCachePath(this.pluginDir, asset)))) {
@@ -127,7 +127,6 @@ export class TypstCompiler {
     return true;
   }
 
-  /** Let go of the worker and the module; the next print starts them again. */
   /**
    * Take the typesetter off the device.
    *
@@ -148,6 +147,7 @@ export class TypstCompiler {
     }
   }
 
+  /** Let go of the worker and the module; the next print starts them again. */
   dispose(): void {
     this.worker?.terminate();
     if (this.workerUrl) URL.revokeObjectURL(this.workerUrl);

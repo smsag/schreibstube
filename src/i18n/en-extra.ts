@@ -136,8 +136,9 @@ export const enExtra = {
       "typeface, since fonts are licensed; a template with none is set in Typst's own.",
     printTemplateRoot: "Templates folder",
     printTemplateRootDesc:
-      "Vault folder searched for print templates. Every subfolder with a template.md marked " +
-      "schreibstubePrintTemplate is one.",
+      "Where a new template goes by default. A template is any folder with a template.md marked " +
+      "schreibstubePrintTemplate, and one is found wherever you keep it — this only says where " +
+      "the suggestion points.",
     printOutputFolder: "Output folder",
     printOutputFolderDesc:
       "Where a printed PDF is written. Leave empty to put it beside the note it came from.",
@@ -481,11 +482,11 @@ export const enExtra = {
 
   print: {
     noNote: "open a note first — printing sets the note you are looking at.",
-    noTemplates: (root: string) =>
-      `no print template found in ${root}. A template is a folder with a template.md and a ` +
-      "template.typ; copy one from examples/print/ to start.",
+    noTemplates:
+      "no print template in this vault. A template is a folder holding a template.md and a " +
+      'template.typ; run "Print: add a template" to put one in.',
     unknownTemplate: (name: string) =>
-      `this note asks for the template "${name}", which is not in the templates folder.`,
+      `this note asks for the template "${name}", and no folder in this vault is one.`,
     noLayout: (name: string) => `${name} has no template.typ, so there is nothing to print with.`,
     working: (name: string) => `printing with ${name}…`,
     drawing: (index: number, total: number) => `drawing diagram ${index} of ${total}…`,

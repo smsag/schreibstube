@@ -248,6 +248,8 @@ Run **Drucken: Vorlage anlegen**. It asks which of the two examples you want and
 
 The same two templates are in [`examples/print/`](examples/print/) if you would rather copy them by hand.
 
+A template is found wherever you keep it. What makes a folder a template is the flag in its `template.md`, not its location, so the templates folder setting only says where a new one is suggested — a template beside the notes that use it works exactly the same.
+
 #### What a template is
 
 A folder. That is the whole of it:
@@ -550,12 +552,12 @@ The token is deliberately separate from the mail token, so a leaked publish toke
 
 ### Printing
 
-| Setting          | What it does                                                                      |
-| ---------------- | --------------------------------------------------------------------------------- |
-| Enable printing  | Off until you switch it on. Switching it on is what fetches the 28 MB typesetter. |
-| Templates folder | Vault folder searched for print templates. Default `Vorlagen/Druck`.              |
-| Output folder    | Where a PDF is written. Empty means beside the note it came from.                 |
-| The typesetter   | Whether it is on this device, with a button to fetch or remove it.                |
+| Setting          | What it does                                                                               |
+| ---------------- | ------------------------------------------------------------------------------------------ |
+| Enable printing  | Off until you switch it on. Switching it on is what fetches the 28 MB typesetter.          |
+| Templates folder | Where a new template is suggested. Templates are found anywhere. Default `Vorlagen/Druck`. |
+| Output folder    | Where a PDF is written. Empty means beside the note it came from.                          |
+| The typesetter   | Whether it is on this device, with a button to fetch or remove it.                         |
 
 Only the switch shows while printing is off: there is nothing to configure for a feature with no typesetter on the device and no print to aim anywhere.
 

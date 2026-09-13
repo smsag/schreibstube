@@ -27,9 +27,10 @@ describe("the templates the plugin carries", () => {
     }
   });
 
-  it("gives every template the two files one is made of", () => {
+  it("gives every template the two files one cannot do without, first", () => {
     for (const template of EXAMPLE_TEMPLATES) {
-      expect(template.files.map((file) => file.name)).toEqual(["template.md", "template.typ"]);
+      const names = template.files.map((file) => file.name);
+      expect(names.slice(0, 2)).toEqual(["template.md", "template.typ"]);
       for (const file of template.files) expect(file.text.length).toBeGreaterThan(0);
     }
   });

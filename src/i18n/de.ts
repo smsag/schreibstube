@@ -313,8 +313,9 @@ export const de: Messages = {
       "Schrift mit, denn Schriften sind lizenziert; eine Vorlage ohne wird in Typsts eigener gesetzt.",
     printTemplateRoot: "Vorlagenordner",
     printTemplateRootDesc:
-      "Ordner im Vault, in dem nach Druckvorlagen gesucht wird. Jeder Unterordner mit einer " +
-      "template.md, die schreibstubePrintTemplate setzt, ist eine.",
+      "Wohin eine neue Vorlage standardmäßig kommt. Eine Vorlage ist jeder Ordner mit einer " +
+      "template.md, die schreibstubePrintTemplate setzt — gefunden wird sie überall im Vault; " +
+      "das hier bestimmt nur den Vorschlag.",
     printOutputFolder: "Zielordner",
     printOutputFolderDesc:
       "Wohin ein gedrucktes PDF geschrieben wird. Leer lassen, damit es neben der Notiz liegt.",
@@ -662,11 +663,11 @@ export const de: Messages = {
 
   print: {
     noNote: "zuerst eine Notiz öffnen — gedruckt wird die Notiz, die vor dir liegt.",
-    noTemplates: (root: string) =>
-      `keine Druckvorlage in ${root} gefunden. Eine Vorlage ist ein Ordner mit template.md und ` +
-      "template.typ; kopiere zum Anfangen eine aus examples/print/.",
+    noTemplates:
+      "keine Druckvorlage in diesem Vault. Eine Vorlage ist ein Ordner mit template.md und " +
+      "template.typ; „Drucken: Vorlage anlegen“ legt eine an.",
     unknownTemplate: (name: string) =>
-      `diese Notiz verlangt die Vorlage „${name}“, die es im Vorlagenordner nicht gibt.`,
+      `diese Notiz verlangt die Vorlage „${name}“, und kein Ordner in diesem Vault ist eine.`,
     noLayout: (name: string) => `${name} hat keine template.typ — damit lässt sich nichts drucken.`,
     working: (name: string) => `drucke mit ${name} …`,
     drawing: (index: number, total: number) => `zeichne Diagramm ${index} von ${total} …`,

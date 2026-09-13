@@ -17,8 +17,11 @@ import { execFileSync } from "node:child_process";
 const ROOT = "examples/print";
 const OUT = "src/services/print-examples.ts";
 
-/** The files a template is made of, in the order a reader meets them. */
-const FILES = ["template.md", "template.typ"];
+/** What a template must have, whatever else it carries. */
+const REQUIRED = ["template.md", "template.typ"];
+
+/** What can be carried as text. A font or a logo is neither, and is skipped. */
+const TEXT = /\.(md|typ|txt|json|ya?ml|csv)$/i;
 
 const folders = readdirSync(ROOT, { withFileTypes: true })
   .filter((entry) => entry.isDirectory())
@@ -26,10 +29,32 @@ const folders = readdirSync(ROOT, { withFileTypes: true })
   .sort();
 
 const entries = folders.map((folder) => {
-  const files = FILES.map((name) => ({
-    name,
-    text: readFileSync(join(ROOT, folder, name), "utf8")
-  }));
+  // Read from the folder rather than from a list written here: an example that
+  // grows a third file should arrive by being added, not by somebody
+  // remembering to edit this script, and the test that compares the two would
+  // not notice a file that was never read in the first place.
+  const present = readdirSync(join(ROOT, folder), { withFileTypes: true })
+    .filter((entry) => entry.isFile())
+    .map((entry) => entry.name)
+    .sort();
+
+  for (const required of REQUIRED) {
+    if (!present.includes(required)) {
+      throw new Error(`${ROOT}/${folder} has no ${required}, so it is not a template`);
+    }
+  }
+
+  const skipped = present.filter((name) => !TEXT.test(name));
+  if (skipped.length > 0) {
+    console.warn(`${ROOT}/${folder}: not carried, because it is not text: ${skipped.join(", ")}`);
+  }
+
+  // Required first, in the order a reader meets them, then the rest.
+  const ordered = [...REQUIRED, ...present.filter((name) => !REQUIRED.includes(name))];
+  const files = ordered
+    .filter((name) => TEXT.test(name))
+    .map((name) => ({ name, text: readFileSync(join(ROOT, folder, name), "utf8") }));
+
   const name = folder.charAt(0).toUpperCase() + folder.slice(1);
   return { folder, name, files };
 });

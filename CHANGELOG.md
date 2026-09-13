@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- **A template is found wherever you keep it.** Only the configured folder was searched, so a template kept beside the notes that use it was invisible and printing said there were none. What makes a folder a template is the flag in its descriptor, which somebody set on purpose; the setting now says where a new one is suggested, not where one is allowed to be.
 - **A template can be added from inside the app.** Until now the only way to get one was to copy a folder out of the repository, which is a drag on a laptop and not possible at all on a phone — the platform the whole feature was built for. **Drucken: Vorlage anlegen** asks which of the two examples you want and which folder to put it in, writes it, and opens its descriptor so the instructions are the first thing you read. Any folder in the vault is offered, not only the templates folder, because keeping a template beside the notes that use it is not wrong.
 
 ### Changed

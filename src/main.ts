@@ -543,13 +543,6 @@ export default class SchreibstubePlugin extends Plugin {
   }
 
   /**
-   * What is on screen, as the availability rules ask about it.
-   *
-   * Built fresh for every check: Obsidian asks a command whether it applies
-   * each time the palette opens, which is exactly when the answer can have
-   * changed.
-   */
-  /**
    * The typesetter, as the settings tab needs to talk about it.
    *
    * Three narrow methods rather than handing the tab the print controller: the
@@ -568,6 +561,13 @@ export default class SchreibstubePlugin extends Plugin {
     await this.print?.removeRuntime();
   }
 
+  /**
+   * What is on screen, as the availability rules ask about it.
+   *
+   * Built fresh for every check: Obsidian asks a command whether it applies
+   * each time the palette opens, which is exactly when the answer can have
+   * changed.
+   */
   private commandContext(): CommandContext {
     const file = this.app.workspace.getActiveFile();
     const view = this.app.workspace.getActiveViewOfType(MarkdownView);
