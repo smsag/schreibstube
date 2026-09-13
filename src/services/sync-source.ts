@@ -89,11 +89,21 @@ function describeHost(url: URL): SourceTarget {
  * ago, not a YAML parser.
  */
 export function sourceUrlFromNote(text: string): string | null {
+  return frontmatterLine(text, SYNC_FRONTMATTER_KEY);
+}
+
+/**
+ * One key's value, read off the note's own frontmatter block.
+ *
+ * A plain line and not YAML: this is the fallback for a value written moments
+ * ago, where the whole of the question is what a single key says.
+ */
+export function frontmatterLine(text: string, key: string): string | null {
   const block = /^---\r?\n([\s\S]*?)\r?\n---/.exec(text);
   if (!block) return null;
 
   for (const line of block[1].split(/\r?\n/)) {
-    const match = new RegExp(`^${SYNC_FRONTMATTER_KEY}\\s*:\\s*(.+)$`).exec(line);
+    const match = new RegExp(`^${key}\\s*:\\s*(.+)$`).exec(line);
     if (!match) continue;
 
     const value = match[1]

@@ -124,7 +124,10 @@ export const enExtra = {
     syncOnOpenDesc:
       "Also check automatically on open, subject to the interval below. Otherwise only on command.",
     syncInterval: "Minimum minutes between automatic checks",
-    syncIntervalDesc: "Per note. Zero checks on every open. A manual check always runs.",
+    syncIntervalDesc:
+      "Per note. Zero checks on every open. A manual check always runs. A note that carries " +
+      'schreibstubeSyncEvery — "every 2 days", "weekly", or a cron expression — keeps to its ' +
+      "own interval instead of this one.",
     syncToken: "GitHub token",
     syncTokenDesc:
       "Optional. Needed for sources in a private repository, and it raises GitHub's rate limit. " +
@@ -271,7 +274,16 @@ export const enExtra = {
     checked: (checked: number, changed: number, failed: number) =>
       `${checked} checked, ${changed} with updates, ${failed} failed.`,
     withUpdates: (count: number) =>
-      `${count} note(s) have updates from their source — open the review panel to apply them.`
+      `${count} note(s) have updates from their source — open the review panel to apply them.`,
+
+    every: {
+      notWords:
+        'this note\'s check interval could not be read. Write it as "every 2 days", ' +
+        '"weekly", or a five-field cron expression.',
+      tooSmall: "a check interval has to be at least one minute.",
+      panel: (words: string, cron: string) => `Checked at most ${words} (${cron})`,
+      panelCron: (cron: string) => `Checked on the note's own schedule (${cron})`
+    }
   },
 
   mailNotices: {

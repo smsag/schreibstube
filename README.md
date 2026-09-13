@@ -82,6 +82,25 @@ schreibstubeSyncedFrom: https://github.com/org/repo/blob/main/docs/guide.md
 
 A GitHub page URL is rewritten to its raw form automatically, so you can paste the link straight from the browser. Only HTTPS sources whose path ends in a Markdown extension are fetched.
 
+**How often one note is checked.** A note may set its own interval, which replaces the vault-wide minimum for that note alone — a press release and a contract are not worth the same traffic:
+
+```markdown
+---
+schreibstubeSyncedFrom: https://github.com/org/repo/blob/main/docs/guide.md
+schreibstubeSyncEvery: Alle 2 Tage
+---
+```
+
+Words are read in German and English — `Alle 2 Tage`, `Every 2 days`, `jede Woche`, `weekly`, `täglich`, `every 6 hours` — and mean _at most that often_, counted from the note's last check: a device that was asleep at the hour catches up at the next poll rather than waiting out another round. The review panel says the interval back as cron (`0 0 */2 * *`), so you can see how a phrase was understood.
+
+A five-field cron expression is taken as itself, for the schedules words cannot reach:
+
+```markdown
+schreibstubeSyncEvery: 0 9 * * 1-5
+```
+
+Such a note is due once a minute the expression named has gone by unchecked. A value that cannot be read is reported rather than guessed at, and the note keeps the vault-wide interval until it is fixed.
+
 - **Check note source for updates** — fetch now and queue any differences
 
 With **Check when a bound note opens** on, a bound note is also checked as you open it, no more often than the configured interval. Checks use a conditional request, so an unchanged source costs one small round trip and no download.

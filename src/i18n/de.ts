@@ -299,7 +299,10 @@ export const de: Messages = {
     syncOnOpenDesc:
       "Prüft zusätzlich beim Öffnen, im Rahmen des Intervalls unten. Sonst nur auf Befehl.",
     syncInterval: "Mindestabstand automatischer Prüfungen in Minuten",
-    syncIntervalDesc: "Pro Notiz. Null prüft bei jedem Öffnen. Eine manuelle Prüfung läuft immer.",
+    syncIntervalDesc:
+      "Pro Notiz. Null prüft bei jedem Öffnen. Eine manuelle Prüfung läuft immer. Eine Notiz " +
+      "mit schreibstubeSyncEvery — „Alle 2 Tage“, „wöchentlich“ oder ein Cron-Ausdruck — hält " +
+      "sich an ihr eigenes Intervall statt an dieses.",
     syncToken: "GitHub-Token",
     syncTokenDesc:
       "Optional. Nötig für Quellen in privaten Repositories, und erhöht GitHubs Ratenlimit. " +
@@ -448,7 +451,16 @@ export const de: Messages = {
     checked: (checked: number, changed: number, failed: number) =>
       `${checked} geprüft, ${changed} mit Aktualisierungen, ${failed} fehlgeschlagen.`,
     withUpdates: (count: number) =>
-      `${count} Notiz(en) mit Aktualisierungen aus der Quelle — im Überprüfungsbereich übernehmen.`
+      `${count} Notiz(en) mit Aktualisierungen aus der Quelle — im Überprüfungsbereich übernehmen.`,
+
+    every: {
+      notWords:
+        "das Prüfintervall dieser Notiz ist nicht lesbar. Schreibe es als „Alle 2 Tage“, " +
+        "„wöchentlich“ oder als fünfteiligen Cron-Ausdruck.",
+      tooSmall: "ein Prüfintervall muss mindestens eine Minute betragen.",
+      panel: (words: string, cron: string) => `Höchstens ${words} geprüft (${cron})`,
+      panelCron: (cron: string) => `Nach dem Zeitplan der Notiz geprüft (${cron})`
+    }
   },
 
   mailNotices: {
