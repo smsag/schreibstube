@@ -42,9 +42,9 @@ import type { LatestCandidate } from "../services/latest-files";
 import {
   ancestorsOf,
   isMovePlan,
+  moveRefusalMessage,
   planMove,
-  type MoveContext,
-  type MoveRefusal
+  type MoveContext
 } from "../services/tree-move";
 import type { SchreibstubeSettings } from "../types";
 import { isLongPressEcho } from "../services/explorer-menu";
@@ -170,6 +170,8 @@ export class ExplorerPaneView extends ItemView {
   private revealedFolders = new Set<string>();
   private revealedTree = false;
   private pending = false;
+  /** A redraw a drag held back, to be run as soon as the drag has ended. */
+  private deferred = false;
   /** A path to scroll to once the next draw has put it on screen. */
   private revealing: string | null = null;
 
@@ -252,6 +254,12 @@ export class ExplorerPaneView extends ItemView {
     this.registerEvent(this.app.workspace.on("layout-change", () => this.requestRender()));
     // A theme swap repaints everything the ground was measured from.
     this.registerEvent(this.app.workspace.on("css-change", () => this.measureGround()));
+
+    // A pointer coming up anywhere ends whatever was being dragged. A row the
+    // pane destroyed mid-gesture never delivers its own release, and a drag
+    // left standing holds back every redraw after it.
+    this.registerDomEvent(this.containerEl.win, "pointerup", () => this.endDrag());
+    this.registerDomEvent(this.containerEl.win, "pointercancel", () => this.endDrag());
 
     // The same button Obsidian's own explorer carries, in the same place and
     // with the same icon. Obsidian raises no event when its own is pressed and
@@ -358,8 +366,37 @@ export class ExplorerPaneView extends ItemView {
     this.pending = true;
     window.requestAnimationFrame(() => {
       this.pending = false;
+
+      // A redraw throws away the row the pointer is holding, and with it the
+      // gesture: the capture is lost, the drop never arrives, and the move the
+      // person was making silently does not happen. The vault raises events
+      // throughout a drag — a note saving itself is enough — so the redraw
+      // waits for the button to come up instead.
+      if (this.dragging !== null) {
+        this.deferred = true;
+        return;
+      }
+
       this.render();
     });
+  }
+
+  /**
+   * Let go of a drag, and run the redraw it held back.
+   *
+   * A tick late, because the click the release raises has to find the flag
+   * still set: that click is on the row the drag just moved, and acting on it
+   * would open the file that was being filed away.
+   */
+  private endDrag(): void {
+    if (this.dragging === null && !this.deferred) return;
+
+    window.setTimeout(() => {
+      this.dragging = null;
+      if (!this.deferred) return;
+      this.deferred = false;
+      this.requestRender();
+    }, 0);
   }
 
   private render(): void {
@@ -370,6 +407,7 @@ export class ExplorerPaneView extends ItemView {
     this.shelf?.empty();
     // The rows a drag was holding are about to be thrown away.
     this.dragging = null;
+    this.deferred = false;
     this.openPaths = this.collectOpenPaths();
     const settings = this.host.settings();
 
@@ -816,10 +854,8 @@ export class ExplorerPaneView extends ItemView {
       row.removeClass("is-dragging");
       handlers.onEnd();
       // The click that follows a pointerup would otherwise act on the row the
-      // drag just moved.
-      window.setTimeout(() => {
-        this.dragging = null;
-      }, 0);
+      // drag just moved, so the flag outlives the release by a tick.
+      this.endDrag();
     };
 
     row.addEventListener("pointerdown", (event: PointerEvent) => {
@@ -1172,6 +1208,10 @@ export class ExplorerPaneView extends ItemView {
         return;
       }
 
+      // A drop is not a click. Without this the row the drag just moved opens
+      // as well, and a folder dropped somewhere closes itself on arrival.
+      if (this.dragging !== null) return;
+
       if (isFolder) {
         this.toggle(file.path);
         return;
@@ -1358,20 +1398,6 @@ function toSet(value: unknown): Set<string> {
 function basenameOf(path: string): string {
   const cut = path.lastIndexOf("/");
   return cut === -1 ? path : path.slice(cut + 1);
-}
-
-/** Why a drop was refused, in words a person can act on. */
-function moveRefusalMessage(refusal: MoveRefusal, name: string): string {
-  const messages = t().explorer.move;
-  switch (refusal) {
-    case "into-itself":
-    case "into-descendant":
-      return messages.intoItself(name);
-    case "name-taken":
-      return messages.nameTaken(name);
-    default:
-      return messages.failed(name);
-  }
 }
 
 function displayName(file: TAbstractFile): string {

@@ -4,8 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Added
+
+- **"Move to…" on the context menu.** Dragging a row onto a folder needs a mouse, and on a phone the long press belongs to the menu, so until now nothing in the vault could be moved from this pane at all on the device the pane was built for. The entry offers the folders the item may actually go into — the vault root first, then the rest in order — and leaves out the folder it already sits in, its own subtree, and anything already holding a file of that name, so a choice is never answered with a refusal. The move goes through Obsidian's own rename, so links follow it.
+
 ### Fixed
 
+- **A drag no longer dies when the pane redraws under it.** The pane redraws on any vault event, and a vault raises them throughout a drag — the note you are editing saving itself is enough. The redraw threw away the row the pointer was holding, the capture went with it, and the drop never arrived: the file simply stayed where it was, with nothing to say why. A redraw now waits for the button to come up. A release anywhere ends the drag, so a row that does go missing cannot leave the pane holding redraws back for ever.
+- **A row no longer opens itself at the end of a drag.** The click that follows the release landed on the row the drag had just moved, so a file opened on arrival and a folder closed itself. The pinned strip had guarded against this since the drag was pinned-only; the tree never did.
+- **A name can no longer be selected out of a row mid-drag.** Dragging across the list selected the text in it, which looks like a mistake and is one: a selection dragged across a page is a drag the browser thinks it owns, and it cancels the pointer that the move was riding on.
 - **The context menu a long press opens can now be used.** The menu appeared while the finger was still down, and the lift that ended the press raised a click on the row underneath it — so the browser opened the file, Obsidian closed the menu over it as a press outside, and on a phone opening a file closes the sidebar as well. The menu was gone before an item could be tapped, which made every action behind it, deleting above all, look as if it did nothing. The row that owns the gesture now swallows what its own lift raises: the press it answered ends there instead of reaching the file.
 - **A long press survives a finger that is not perfectly still.** Any movement at all cancelled it, down to a single pixel of tremor, so the menu often never appeared and the press read as a tap. A press now tolerates ten pixels, past which the list is being scrolled and the press is not a long one.
 - **A delete that fails says so.** It was written to the console and nowhere else, so a refused delete was indistinguishable from a pane that had missed the change: the dialogue closed, the row stayed, and nothing explained why. Moving to the system trash is the case that can fail on a phone, where there is no system trash to move to.

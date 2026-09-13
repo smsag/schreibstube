@@ -423,7 +423,11 @@ export const de: Messages = {
     move: {
       intoItself: (name: string) => `${name} lässt sich nicht in sich selbst verschieben.`,
       nameTaken: (name: string) => `Dort liegt bereits ${name}.`,
-      failed: (name: string) => `${name} konnte nicht verschoben werden.`
+      failed: (name: string) => `${name} konnte nicht verschoben werden.`,
+      title: (name: string) => `„${name}“ verschieben nach …`,
+      root: "Vault-Wurzel",
+      nowhere: (name: string) => `Es gibt keinen Ort, an den ${name} verschoben werden kann.`,
+      done: (name: string, folder: string) => `${name} nach ${folder} verschoben.`
     },
 
     sections: {
@@ -471,6 +475,7 @@ export const de: Messages = {
       newNote: "Neue Notiz",
       newFolder: "Neuer Ordner",
       rename: "Umbenennen …",
+      move: "Verschieben nach …",
       delete: "Löschen",
       more: "Weitere Aktionen"
     },
