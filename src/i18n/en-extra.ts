@@ -485,6 +485,8 @@ export const enExtra = {
       `the typesetter could not be fetched (${detail}). It is needed once per device; try again when online.`,
     compilerRefused: (detail: string) => `the template did not compile — ${detail}`,
     pictureFailed: (name: string) => `${name} could not be read and was left out`,
+    panelsLost: (index: number, missing: number, total: number) =>
+      `diagram ${index}: ${missing} of ${total} drawings could not be captured and are missing`,
     done: (path: string, kilobytes: number) => `printed ${path} (${kilobytes} KB).`,
     withWarnings: (detail: string) => `printed, with something left out — ${detail}`,
     failed: (detail: string) => `printing failed — ${detail}`,

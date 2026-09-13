@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { CAPTURE_SCALE, captureSize, MAX_CAPTURE_PX, standaloneSvg, svgSize } from "./svg-capture";
+import {
+  CAPTURE_SCALE,
+  captureSize,
+  MAX_CAPTURE_PX,
+  standaloneSvg,
+  svgSize,
+  missingPanels
+} from "./svg-capture";
 
 const MERMAID =
   '<svg id="m1" width="100%" viewBox="0 0 620 310" style="max-width:620px"><g/></svg>';
@@ -91,5 +98,28 @@ describe("standaloneSvg", () => {
 
   it("leaves something that is not an SVG alone rather than corrupting it", () => {
     expect(standaloneSvg("<div>no drawing</div>", size)).toBe("<div>no drawing</div>");
+  });
+});
+
+describe("missingPanels", () => {
+  it("counts the drawings a fence lost when some of them survived", () => {
+    expect(missingPanels(4, 3)).toBe(1);
+    expect(missingPanels(3, 1)).toBe(2);
+  });
+
+  it("says nothing when every drawing was captured", () => {
+    expect(missingPanels(1, 1)).toBe(0);
+    expect(missingPanels(4, 4)).toBe(0);
+  });
+
+  it("says nothing when none was, because that fence prints as its source", () => {
+    expect(missingPanels(4, 0)).toBe(0);
+    expect(missingPanels(0, 0)).toBe(0);
+  });
+
+  it("says nothing rather than a strange number when the counts are not counts", () => {
+    expect(missingPanels(Number.NaN, 2)).toBe(0);
+    expect(missingPanels(4, Number.POSITIVE_INFINITY)).toBe(0);
+    expect(missingPanels(2, 5)).toBe(0);
   });
 });

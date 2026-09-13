@@ -665,6 +665,8 @@ export const de: Messages = {
       `der Satzteil ließ sich nicht laden (${detail}). Er wird einmal pro Gerät gebraucht; mit Netz erneut versuchen.`,
     compilerRefused: (detail: string) => `die Vorlage ließ sich nicht setzen — ${detail}`,
     pictureFailed: (name: string) => `${name} ließ sich nicht lesen und fehlt`,
+    panelsLost: (index: number, missing: number, total: number) =>
+      `Diagramm ${index}: ${missing} von ${total} Zeichnungen ließen sich nicht aufnehmen und fehlen`,
     done: (path: string, kilobytes: number) => `${path} gedruckt (${kilobytes} KB).`,
     withWarnings: (detail: string) => `gedruckt, aber etwas fehlt — ${detail}`,
     failed: (detail: string) => `Drucken fehlgeschlagen — ${detail}`,

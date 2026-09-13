@@ -249,12 +249,20 @@ export function checkExportResult(value: unknown): CanvasExportResult | null {
   const scale = positive(record.scale);
   if (width === null || height === null || scale === null) return null;
 
+  // The picture is written under a name ending in .png and handed to a
+  // typesetter that decodes by content. Anything else answered here would be
+  // saved under the wrong name and fail the whole document rather than one
+  // drawing, so it is refused while refusing is still cheap. An answer that
+  // names no format is taken at its word: png is what was asked for.
+  const format = record.format === undefined ? "png" : record.format;
+  if (format !== "png") return null;
+
   return {
     blob: record.blob,
     width,
     height,
     scale,
-    format: typeof record.format === "string" ? record.format : "png",
+    format,
     title: typeof record.title === "string" ? record.title : ""
   };
 }

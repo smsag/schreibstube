@@ -260,6 +260,12 @@ What is captured, in order:
    and rasterised to PNG at twice the page's resolution.
 3. **Nothing**, which prints the fence's source with a warning.
 
+A fence that captured some of its drawings and not others keeps the ones it got
+and says how many are missing. That notice is the only thing standing between a
+reader and a page that quietly holds three of four panels, so it is raised where
+the fence is drawn rather than left to the converter, which by then can only see
+that something arrived.
+
 The pictures replace the fence through the template's own diagram rule, which
 is given all of them at once: each full text width, aspect kept, none split
 across a page, and one caption from the heading above the fence, placed under
@@ -299,13 +305,12 @@ the messages in both languages. The command is gated like every other: offered
 on a Markdown note, and saying what it needs when it is run without a template.
 
 Still to confirm on a device: that Mermaid and a Vizardry canvas both come out
-light and complete. Vizardry's export API is agreed and frozen at version 1;
-this plugin is written against it. Until it ships, a canvas is captured only if
-it drew a single SVG.
+light and complete. Vizardry's export API is agreed, frozen at version 1, and
+released in Vizardry 0.65.0; this plugin is written against it.
 
-The tests here prove this plugin's half against a contract nothing implements
-yet, so three things need running once Vizardry 0.65.0 is out and cannot be
-proven before then:
+The tests here prove this plugin's half against a contract they cannot run, so
+three things need running on a device with both plugins installed and cannot be
+proven anywhere else:
 
 1. A wide canvas — a Wardley map or a story map — at `maxEdge: 4000`. Capture
    expands to the full scroll width, so this is the path where the scale comes

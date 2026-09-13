@@ -26,6 +26,7 @@ import {
   FONT_DIRECTORY,
   isFontFile,
   LAYOUT_FILE,
+  MAX_DIAGRAM_BYTES,
   parseTemplate,
   TEMPLATE_FLAG,
   TEMPLATE_ROOT_DEFAULT,
@@ -35,6 +36,7 @@ import {
   captureSize,
   CAPTURE_SCALE,
   MAX_CAPTURE_PX,
+  missingPanels,
   standaloneSvg,
   svgSize
 } from "../services/svg-capture";
@@ -55,6 +57,19 @@ const TEMPLATE_ASSET = /\.(png|jpe?g|gif|webp|svg)$/i;
 
 /** Which plugin owns which kind of block, for asking it to export its own. */
 const DIAGRAM_PLUGINS: Record<string, string> = { vizardry: "vizardry" };
+
+/**
+ * What one fence's drawings came to.
+ *
+ * The count matters as much as the pictures: a fence whose panels partly failed
+ * would otherwise print the survivors and say nothing, and a page that is
+ * quietly missing a panel is a page that lies about what the note holds.
+ */
+interface Capture {
+  pictures: Uint8Array[];
+  /** How many drawings the fence had, whether or not each was captured. */
+  expected: number;
+}
 
 /** How long a drawing may go on settling before it is captured as it stands. */
 const SETTLE_MS = 4_000;
@@ -219,12 +234,23 @@ export class PrintCommands {
     const drawings = new Map<number, string[]>();
     const assets = new Map<string, JobFile>();
 
+    // Warnings raised while drawing, kept beside the converter's own so that a
+    // panel lost here is reported in the same notice as a picture lost there.
+    const captureWarnings: string[] = [];
+
     for (const block of found) {
       progress(messages.drawing(block.index + 1, found.length));
-      const pictures = await this.draw(block, file.path);
-      if (pictures.length === 0) continue;
+      const drawn = await this.draw(block, file.path);
 
-      const paths = pictures.map((bytes, panel) => {
+      // A fence that drew four panels and captured three prints three. Saying
+      // so is the whole point: the reader of the PDF cannot tell.
+      const missing = missingPanels(drawn.expected, drawn.pictures.length);
+      if (missing > 0) {
+        captureWarnings.push(messages.panelsLost(block.index + 1, missing, drawn.expected));
+      }
+      if (drawn.pictures.length === 0) continue;
+
+      const paths = drawn.pictures.map((bytes, panel) => {
         const path = `assets/diagram-${block.index}-${panel}.png`;
         assets.set(path, { path, bytes });
         return path;
@@ -248,7 +274,7 @@ export class PrintCommands {
       }
     });
 
-    const warnings = [...conversion.warnings];
+    const warnings = [...captureWarnings, ...conversion.warnings];
     for (const [path, target] of wanted) {
       const bytes = await this.picture(target, template);
       if (bytes) assets.set(path, { path, bytes });
@@ -282,7 +308,7 @@ export class PrintCommands {
    * them back up by position is a guess. Rendered one at a time there is
    * nothing to match — the container holds one drawing, and that is the one.
    */
-  private async draw(block: DiagramBlock, sourcePath: string): Promise<Uint8Array[]> {
+  private async draw(block: DiagramBlock, sourcePath: string): Promise<Capture> {
     // The plugin is found before the container is made, not after: the class
     // that asks it to leave the network alone only works if it is in place
     // before the drawing renders, and by export time those calls have gone.
@@ -314,32 +340,27 @@ export class PrintCommands {
       // what is drawing and what is a control, which panel of a carousel is
       // hidden, and what its colours mean — all of which from out here is a
       // guess.
-      const exported = api ? await this.exportThroughPlugin(pluginId, api, host) : [];
-      if (exported.length > 0) return exported;
+      const exported = api
+        ? await this.exportThroughPlugin(pluginId, api, host)
+        : { pictures: [], expected: 0 };
+      if (exported.expected > 0) return exported;
 
       const svg = host.querySelector("svg");
       if (!svg) {
         this.logger.warn(`print: ${block.language} drew nothing to capture`);
-        return [];
+        return { pictures: [], expected: 0 };
       }
       const picture = await rasterise(svg);
-      return picture ? [picture] : [];
+      return picture ? { pictures: [picture], expected: 1 } : { pictures: [], expected: 1 };
     } catch (error) {
       this.logger.warn(`print: ${block.language} could not be drawn`, error);
-      return [];
+      return { pictures: [], expected: 0 };
     } finally {
       component.unload();
       host.detach();
     }
   }
 
-  /**
-   * The drawing, from the plugin that drew it.
-   *
-   * Only for a block whose language names a plugin that offers the export, and
-   * only at the contract version this plugin was written against. Anything else
-   * falls through to capturing the drawing from the document.
-   */
   /**
    * Every canvas of one fence, exported by the plugin that drew it.
    *
@@ -356,25 +377,39 @@ export class PrintCommands {
     pluginId: string,
     api: CanvasExportApi,
     host: HTMLElement
-  ): Promise<Uint8Array[]> {
+  ): Promise<Capture> {
     let canvases: HTMLElement[];
     try {
-      canvases = api.getCanvases(host);
+      const answer: unknown = api.getCanvases(host);
+      // Guarded against throwing and against answering something that cannot be
+      // walked: a bare `for…of` over a non-array would throw out of this method
+      // and past the fallback that captures the drawing from the document.
+      if (!Array.isArray(answer)) {
+        this.logger.warn(`print: ${pluginId} did not answer with a list of canvases`);
+        return { pictures: [], expected: 0 };
+      }
+      canvases = answer.filter((entry): entry is HTMLElement => entry instanceof HTMLElement);
     } catch (error) {
       this.logger.warn(`print: ${pluginId} could not list its canvases`, error);
-      return [];
+      return { pictures: [], expected: 0 };
     }
 
     const pictures: Uint8Array[] = [];
     for (const canvas of canvases) {
       try {
         // The plugin knows when its drawing has stopped moving; this only says
-        // how long a print is willing to wait to be told.
-        await withTimeout(
-          api.whenSettled(canvas, { maxMs: SETTLE_MS }),
-          SETTLE_MS + 1_000,
-          (seconds) => `${pluginId} kept drawing for more than ${seconds}s`
-        );
+        // how long a print is willing to wait to be told. Waiting too long is
+        // not a reason to lose the drawing — it is captured as it stands, which
+        // is what the deadline is for.
+        try {
+          await withTimeout(
+            api.whenSettled(canvas, { maxMs: SETTLE_MS }),
+            SETTLE_MS + 1_000,
+            (seconds) => `${pluginId} kept drawing for more than ${seconds}s`
+          );
+        } catch (error) {
+          this.logger.warn(`print: ${pluginId} was still drawing; capturing as it stands`, error);
+        }
 
         const answer = await withTimeout(
           api.exportCanvas(canvas, {
@@ -394,6 +429,15 @@ export class PrintCommands {
           this.logger.warn(`print: ${pluginId} answered in a shape this version cannot read`);
           continue;
         }
+        // Bounded before it is read, not after: a plugin that ignored the edge
+        // it was given would otherwise be materialised in full, and one
+        // oversized drawing would take the whole document down with it.
+        if (result.blob.size > MAX_DIAGRAM_BYTES) {
+          this.logger.warn(
+            `print: ${pluginId} returned ${Math.round(result.blob.size / 1024)} KB for one canvas, over the limit`
+          );
+          continue;
+        }
         pictures.push(new Uint8Array(await result.blob.arrayBuffer()));
       } catch (error) {
         this.logger.warn(
@@ -402,7 +446,7 @@ export class PrintCommands {
         );
       }
     }
-    return pictures;
+    return { pictures, expected: canvases.length };
   }
 
   private async picture(file: TFile, template: PrintTemplate): Promise<Uint8Array | null> {

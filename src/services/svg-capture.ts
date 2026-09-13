@@ -115,3 +115,21 @@ function lengthAttribute(svg: string, name: string): number | null {
 function isUsable(value: number | undefined): value is number {
   return typeof value === "number" && Number.isFinite(value) && value >= MIN_CAPTURE_PX;
 }
+
+/**
+ * How many of a fence's drawings never became pictures.
+ *
+ * A fence may hold several drawings, and a plugin may fail on some of them and
+ * not others. The survivors are still worth printing — but a page showing three
+ * of four panels, with nothing to say a fourth existed, is a page that lies
+ * about what the note holds, so the count is what the notice needs.
+ *
+ * Nothing captured at all is not counted here: that fence prints as its own
+ * source, and the converter already says so. Reporting it twice would be
+ * telling a person the same thing in two different sentences.
+ */
+export function missingPanels(expected: number, captured: number): number {
+  if (!Number.isFinite(expected) || !Number.isFinite(captured)) return 0;
+  if (captured <= 0 || captured >= expected) return 0;
+  return expected - captured;
+}

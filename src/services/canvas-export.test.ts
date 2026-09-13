@@ -88,6 +88,12 @@ describe("checkExportResult", () => {
     expect(bare).toMatchObject({ format: "png", title: "" });
   });
 
+  it("refuses a picture that is not the format the page was promised", () => {
+    expect(checkExportResult({ ...answer, format: "svg" })).toBeNull();
+    expect(checkExportResult({ ...answer, format: "PNG" })).toBeNull();
+    expect(checkExportResult({ ...answer, format: 1 })).toBeNull();
+  });
+
   it("refuses anything that is not an answer at all", () => {
     expect(checkExportResult(null)).toBeNull();
     expect(checkExportResult("ok")).toBeNull();

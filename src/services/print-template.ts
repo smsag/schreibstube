@@ -32,8 +32,24 @@ export const TEMPLATE_ROOT_DEFAULT = "Vorlagen/Druck";
  */
 export const MAX_FONT_FILES = 12;
 export const MAX_FONT_BYTES = 8 * 1024 * 1024;
-export const MAX_IMAGE_FILES = 40;
+// Raised from 40 when a diagram fence stopped meaning one picture: a canvas
+// plugin may hold a carousel, whose panels all go on the page, so a note with
+// a few of them reaches numbers a note with a few diagrams never could. The
+// byte total below is the bound that actually protects the device; this one
+// only keeps a pathological note from building a job table of thousands.
+export const MAX_IMAGE_FILES = 120;
 export const MAX_IMAGE_BYTES = 24 * 1024 * 1024;
+
+/**
+ * What one captured drawing may weigh.
+ *
+ * A plugin is asked for a picture no wider than the capture limit, but it is
+ * another plugin: it may ignore that and answer with something enormous. Bound
+ * per picture rather than only in total, so an oversized one is skipped with a
+ * line in the log instead of taking a whole document down when the total is
+ * checked later.
+ */
+export const MAX_DIAGRAM_BYTES = 8 * 1024 * 1024;
 export const MAX_LAYOUT_BYTES = 256 * 1024;
 export const MAX_PDF_BYTES = 30 * 1024 * 1024;
 export const COMPILE_TIMEOUT_MS = 20_000;

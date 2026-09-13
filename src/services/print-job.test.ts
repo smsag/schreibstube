@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildJob, checkJobLimits, MAIN_FILE, type JobInput } from "./print-job";
 import { PRELUDE_FILE } from "./print-prelude";
-import { LAYOUT_FILE, MAX_FONT_FILES, parseTemplate } from "./print-template";
+import { LAYOUT_FILE, MAX_FONT_FILES, MAX_IMAGE_FILES, parseTemplate } from "./print-template";
 
 const bytes = (size: number): Uint8Array => new Uint8Array(size);
 
@@ -101,11 +101,15 @@ describe("checkJobLimits", () => {
   });
 
   it("holds pictures to their own count and their own total", () => {
-    const many = Array.from({ length: 41 }, (_, i) => ({
+    // Counted from the limit rather than written out, so that raising the limit
+    // moves the test with it instead of breaking it.
+    const over = MAX_IMAGE_FILES + 1;
+    const many = Array.from({ length: over }, (_, i) => ({
       path: `assets/${i}.png`,
       bytes: bytes(10)
     }));
-    expect(checkJobLimits(input({ assets: many })).join()).toContain("41 pictures");
+    expect(checkJobLimits(input({ assets: many })).join()).toContain(`${over} pictures`);
+    expect(checkJobLimits(input({ assets: many.slice(0, MAX_IMAGE_FILES) }))).toEqual([]);
 
     const heavy = [{ path: "assets/a.png", bytes: bytes(25 * 1024 * 1024) }];
     expect(checkJobLimits(input({ assets: heavy })).join()).toContain("pictures total 25 MB");
