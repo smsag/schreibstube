@@ -41,8 +41,8 @@ describe("parseSearchResult", () => {
     expect(result.mailbox).toBe("INBOX");
     expect(result.truncated).toBe(true);
     expect(result.messages).toHaveLength(1);
-    expect(result.messages[0].uid).toBe(42);
-    expect(result.messages[0].subject).toBe("Re: Angebot");
+    expect(result.messages[0]?.uid).toBe(42);
+    expect(result.messages[0]?.subject).toBe("Re: Angebot");
   });
 
   it("survives a malformed or partial response", () => {

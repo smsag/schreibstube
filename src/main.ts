@@ -205,9 +205,9 @@ export default class SchreibstubePlugin extends Plugin {
 
   /** Open the review sidebar, reusing the existing leaf if it is already open. */
   async activateReviewPanel(): Promise<void> {
-    const existing = this.app.workspace.getLeavesOfType(REVIEW_VIEW_TYPE);
-    if (existing.length > 0) {
-      await this.app.workspace.revealLeaf(existing[0]);
+    const [existing] = this.app.workspace.getLeavesOfType(REVIEW_VIEW_TYPE);
+    if (existing) {
+      await this.app.workspace.revealLeaf(existing);
       return;
     }
 
@@ -222,9 +222,9 @@ export default class SchreibstubePlugin extends Plugin {
 
   /** Open the file pane, reusing the existing leaf if it is already open. */
   async activateExplorerPane(): Promise<void> {
-    const existing = this.app.workspace.getLeavesOfType(EXPLORER_VIEW_TYPE);
-    if (existing.length > 0) {
-      await this.app.workspace.revealLeaf(existing[0]);
+    const [existing] = this.app.workspace.getLeavesOfType(EXPLORER_VIEW_TYPE);
+    if (existing) {
+      await this.app.workspace.revealLeaf(existing);
       // Already open, so nothing redraws on its own: it has to be told to go
       // to whatever is being edited now.
       this.revealActiveFileInExplorerPanes();
@@ -275,7 +275,8 @@ export default class SchreibstubePlugin extends Plugin {
   /** Show a folder in every open file pane. What a `vault://` bookmark does. */
   private revealInExplorerPanes(path: string, mayOpen = true): void {
     const leaves = this.app.workspace.getLeavesOfType(EXPLORER_VIEW_TYPE);
-    if (leaves.length === 0) {
+    const [first] = leaves;
+    if (!first) {
       // One attempt only. `activateExplorerPane` reports and returns when the
       // workspace has no left sidebar to put the pane in, and retrying on that
       // would call straight back into here for the rest of the session.
@@ -287,7 +288,7 @@ export default class SchreibstubePlugin extends Plugin {
     for (const leaf of leaves) {
       if (leaf.view instanceof ExplorerPaneView) leaf.view.revealFolder(path);
     }
-    void this.app.workspace.revealLeaf(leaves[0]);
+    void this.app.workspace.revealLeaf(first);
   }
 
   /**

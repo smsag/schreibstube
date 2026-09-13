@@ -375,15 +375,16 @@ export class PaneSectionsController {
   private candidates(): LatestCandidate[] {
     const syncState = this.getSettings().syncState;
 
-    return this.app.vault.getMarkdownFiles().map((file) => ({
-      path: file.path,
-      name: file.basename,
-      createdAt: file.stat.ctime,
-      modifiedAt: file.stat.mtime,
-      ...(syncState[file.path]?.changedAt !== undefined
-        ? { syncedAt: syncState[file.path].changedAt }
-        : {})
-    }));
+    return this.app.vault.getMarkdownFiles().map((file) => {
+      const syncedAt = syncState[file.path]?.changedAt;
+      return {
+        path: file.path,
+        name: file.basename,
+        createdAt: file.stat.ctime,
+        modifiedAt: file.stat.mtime,
+        ...(syncedAt !== undefined ? { syncedAt } : {})
+      };
+    });
   }
 
   async openLatest(path: string): Promise<void> {

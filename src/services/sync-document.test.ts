@@ -122,7 +122,7 @@ describe("buildSyncSuggestions", () => {
       remoteBody: remote,
       state: "clean"
     });
-    expect(NOTE.slice(suggestion.from, suggestion.to)).toBe(suggestion.original);
+    expect(NOTE.slice(suggestion?.from, suggestion?.to)).toBe(suggestion?.original);
   });
 
   it("never touches the binding when a card is applied", () => {
@@ -172,8 +172,8 @@ describe("buildSyncSuggestions", () => {
       remoteBody: remote,
       state: "diverged"
     });
-    expect(suggestion.needsReview).toBe(true);
-    expect(suggestion.note).toContain("Edited locally");
+    expect(suggestion?.needsReview).toBe(true);
+    expect(suggestion?.note).toContain("Edited locally");
   });
 
   it("explains the first sync", () => {
@@ -183,7 +183,7 @@ describe("buildSyncSuggestions", () => {
       remoteBody: remote,
       state: "unsynced"
     });
-    expect(suggestion.note).toContain("First comparison");
+    expect(suggestion?.note).toContain("First comparison");
   });
 
   it("says nothing extra for a clean note", () => {
@@ -193,8 +193,8 @@ describe("buildSyncSuggestions", () => {
       remoteBody: remote,
       state: "clean"
     });
-    expect(suggestion.note).toBe("");
-    expect(suggestion.needsReview).toBe(false);
+    expect(suggestion?.note).toBe("");
+    expect(suggestion?.needsReview).toBe(false);
   });
 
   it("fills an empty note from the source", () => {

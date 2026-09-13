@@ -81,8 +81,8 @@ export async function checkTarget(
   const record = (json ?? {}) as Record<string, unknown>;
   return {
     ok: record.ok === true,
-    error: typeof record.error === "string" ? record.error : undefined,
-    entries: typeof record.entries === "number" ? record.entries : undefined
+    ...(typeof record.error === "string" ? { error: record.error } : {}),
+    ...(typeof record.entries === "number" ? { entries: record.entries } : {})
   };
 }
 
@@ -125,7 +125,7 @@ async function send(
       url: buildEndpoint(config.baseUrl, path),
       method,
       headers: authHeaders(config.token),
-      body: body === undefined ? undefined : JSON.stringify(body),
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       throw: false
     }),
     PUBLISH_REQUEST_TIMEOUT_MS,

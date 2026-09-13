@@ -49,8 +49,7 @@ export class OverlayController {
 
     const lastIndex = input.ancestorStack.length - 1;
 
-    for (let i = 0; i < input.ancestorStack.length; i++) {
-      const entry = input.ancestorStack[i];
+    for (const [i, entry] of input.ancestorStack.entries()) {
       const isLast = i === lastIndex;
 
       const row = this.listEl.createEl("li", {

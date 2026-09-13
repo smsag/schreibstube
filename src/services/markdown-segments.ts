@@ -85,13 +85,12 @@ export function segmentMarkdown(text: string): SegmentResult {
   let blockIndex = 0;
 
   // A frontmatter block is only frontmatter on the very first line.
-  if (lines.length > 0 && lines[0].text.trim() === "---") {
+  if (lines[0]?.text.trim() === "---") {
     const close = findLine(lines, 1, (line) => line.text.trim() === "---");
     index = close === -1 ? lines.length : close + 1;
   }
 
-  while (index < lines.length) {
-    const line = lines[index];
+  for (let line = lines[index]; line !== undefined; line = lines[index]) {
     const trimmed = line.text.trim();
 
     if (trimmed.length === 0) {
@@ -118,9 +117,8 @@ export function segmentMarkdown(text: string): SegmentResult {
     }
 
     if (TABLE_ROW.test(line.text)) {
-      while (index < lines.length && TABLE_ROW.test(lines[index].text)) {
-        index += 1;
-      }
+      const end = findLine(lines, index + 1, (l) => !TABLE_ROW.test(l.text));
+      index = end === -1 ? lines.length : end;
       continue;
     }
 
@@ -132,11 +130,13 @@ export function segmentMarkdown(text: string): SegmentResult {
       continue;
     }
 
-    const start = index;
-    while (index < lines.length && isParagraphLine(lines[index].text)) {
+    let last = line;
+    for (let next = lines[index + 1]; next && isParagraphLine(next.text); next = lines[index + 1]) {
       index += 1;
+      last = next;
     }
-    pushBlock(lines[start].from, lines[index - 1].to);
+    index += 1;
+    pushBlock(line.from, last.to);
   }
 
   return { blocks, placeholders };
@@ -230,10 +230,7 @@ function findLine(
   start: number,
   predicate: (line: SourceLine) => boolean
 ): number {
-  for (let i = start; i < lines.length; i += 1) {
-    if (predicate(lines[i])) return i;
-  }
-  return -1;
+  return lines.findIndex((line, i) => i >= start && predicate(line));
 }
 
 function collectMaskRanges(text: string): TextRange[] {
@@ -260,15 +257,16 @@ function collectMaskRanges(text: string): TextRange[] {
 }
 
 function mergeRanges(ranges: TextRange[]): TextRange[] {
-  if (ranges.length === 0) return ranges;
-  const sorted = [...ranges].sort((a, b) => a.from - b.from || b.to - a.to);
-  const merged: TextRange[] = [sorted[0]];
-  for (const range of sorted.slice(1)) {
-    const last = merged[merged.length - 1];
+  const [first, ...rest] = [...ranges].sort((a, b) => a.from - b.from || b.to - a.to);
+  if (first === undefined) return ranges;
+  const merged: TextRange[] = [first];
+  let last = first;
+  for (const range of rest) {
     if (range.from < last.to) {
       last.to = Math.max(last.to, range.to);
     } else {
-      merged.push({ ...range });
+      last = { ...range };
+      merged.push(last);
     }
   }
   return merged;

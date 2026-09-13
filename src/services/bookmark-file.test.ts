@@ -32,9 +32,9 @@ describe("parseBookmarkFile", () => {
 
     expect(tree.loose.map((b) => b.name)).toEqual(["Loose"]);
     expect(tree.folders.map((f) => f.name)).toEqual(["Work", "Personal"]);
-    expect(tree.folders[0].bookmarks.map((b) => b.name)).toEqual(["Linear", "Vault folder"]);
-    expect(tree.folders[0].subfolders.map((f) => f.name)).toEqual(["Design"]);
-    expect(tree.folders[0].subfolders[0].bookmarks.map((b) => b.name)).toEqual([
+    expect(tree.folders[0]?.bookmarks.map((b) => b.name)).toEqual(["Linear", "Vault folder"]);
+    expect(tree.folders[0]?.subfolders.map((f) => f.name)).toEqual(["Design"]);
+    expect(tree.folders[0]?.subfolders[0]?.bookmarks.map((b) => b.name)).toEqual([
       "Design Brief",
       "Figma"
     ]);
@@ -43,9 +43,9 @@ describe("parseBookmarkFile", () => {
   it("derives the kind from the scheme", () => {
     const tree = parseBookmarkFile(FILE);
 
-    expect(tree.folders[0].bookmarks[0].kind).toBe("web");
-    expect(tree.folders[0].bookmarks[1].kind).toBe("folder");
-    expect(tree.folders[0].subfolders[0].bookmarks[0].kind).toBe("note");
+    expect(tree.folders[0]?.bookmarks[0]?.kind).toBe("web");
+    expect(tree.folders[0]?.bookmarks[1]?.kind).toBe("folder");
+    expect(tree.folders[0]?.subfolders[0]?.bookmarks[0]?.kind).toBe("note");
   });
 
   it("turns a wikilink into a note URL and keeps its label", () => {
@@ -81,21 +81,21 @@ describe("parseBookmarkFile", () => {
   it("keeps a name with a bracket and a URL with parentheses", () => {
     const tree = parseBookmarkFile("- [Stack Overflow [closed]](https://example.com/a_(b)?q=(1))");
 
-    expect(tree.loose[0].name).toBe("Stack Overflow [closed]");
-    expect(tree.loose[0].url).toBe("https://example.com/a_(b)?q=(1)");
+    expect(tree.loose[0]?.name).toBe("Stack Overflow [closed]");
+    expect(tree.loose[0]?.url).toBe("https://example.com/a_(b)?q=(1)");
   });
 
   it("strips control characters rather than drawing them into a row", () => {
     const tree = parseBookmarkFile("- [Two\tlines\u0000](https://example.com)");
 
-    expect(tree.loose[0].name).toBe("Two lines");
+    expect(tree.loose[0]?.name).toBe("Two lines");
   });
 
   it("treats a subheading before any heading as a top-level folder", () => {
     const tree = parseBookmarkFile("## Orphan\n- [A](https://example.com)");
 
     expect(tree.folders.map((f) => f.name)).toEqual(["Orphan"]);
-    expect(tree.folders[0].bookmarks).toHaveLength(1);
+    expect(tree.folders[0]?.bookmarks).toHaveLength(1);
   });
 
   it("ignores prose, empty headings and malformed items", () => {

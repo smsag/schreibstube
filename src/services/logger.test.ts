@@ -1,8 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import { createLogger, type LogSink } from "./logger";
 
-function fakeSink(): LogSink & { calls: Record<string, unknown[][]> } {
-  const calls: Record<string, unknown[][]> = { debug: [], info: [], warn: [], error: [] };
+type Calls = Record<"debug" | "info" | "warn" | "error", unknown[][]>;
+
+function fakeSink(): LogSink & { calls: Calls } {
+  const calls: Calls = { debug: [], info: [], warn: [], error: [] };
   return {
     calls,
     debug: (...args) => calls.debug.push(args),
@@ -45,7 +47,7 @@ describe("createLogger", () => {
 
     expect(sink.calls.warn).toHaveLength(1);
     expect(sink.calls.error).toHaveLength(1);
-    expect(sink.calls.error[0][1]).toBe("boom");
+    expect(sink.calls.error[0]?.[1]).toBe("boom");
   });
 
   it("re-reads the flag on every call so toggling takes effect immediately", () => {

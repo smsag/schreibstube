@@ -35,7 +35,8 @@ export interface ProviderModel {
 
 interface ProviderAdapter {
   label: string;
-  models: ProviderModel[];
+  /** Never empty: the first entry is the default for a fresh install. */
+  models: [ProviderModel, ...ProviderModel[]];
   url: string;
   headers(apiKey: string): Record<string, string>;
   textBody(model: string, systemPrompt: string, userMessage: string, maxTokens: number): unknown;
@@ -128,9 +129,9 @@ export const LLM_PROVIDERS: Record<LlmProvider, ProviderAdapter> = {
 
 export const LLM_PROVIDER_IDS = Object.keys(LLM_PROVIDERS) as LlmProvider[];
 
-export const PROVIDER_MODELS: Record<LlmProvider, ProviderModel[]> = Object.fromEntries(
+export const PROVIDER_MODELS: Record<LlmProvider, ProviderAdapter["models"]> = Object.fromEntries(
   LLM_PROVIDER_IDS.map((id) => [id, LLM_PROVIDERS[id].models])
-) as Record<LlmProvider, ProviderModel[]>;
+) as Record<LlmProvider, ProviderAdapter["models"]>;
 
 export function providerLabel(provider: LlmProvider): string {
   return LLM_PROVIDERS[provider].label;
@@ -246,7 +247,7 @@ export function stripFilenameExtension(name: string, extension: string): string 
   const match = /\.([A-Za-z0-9]+)$/.exec(name);
   if (!match) return name;
 
-  const found = match[1].toLowerCase();
+  const found = (match[1] ?? "").toLowerCase();
   const target = extension.toLowerCase();
   const sameKind =
     found === target ||

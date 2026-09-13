@@ -253,10 +253,11 @@ export class ExplorerController {
     const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter;
     if (!hasSourceBinding(frontmatter)) return "none";
 
+    const record = this.getSettings().syncState[file.path];
     return syncBadgeFor({
       bound: true,
       sourceValid: resolveSourceUrl(frontmatter?.[SYNC_FRONTMATTER_KEY]).ok,
-      record: this.getSettings().syncState[file.path]
+      ...(record ? { record } : {})
     });
   }
 

@@ -159,11 +159,10 @@ export async function runProofread(
 
   const worker = async (): Promise<void> => {
     while (!token.cancelled) {
-      const index = nextChunk;
-      if (index >= chunks.length) return;
+      const chunk = chunks[nextChunk];
+      if (chunk === undefined) return;
       nextChunk += 1;
 
-      const chunk = chunks[index];
       let rewrites: Map<string, string>;
       try {
         rewrites = await send(chunk, token);
@@ -254,8 +253,8 @@ function categorize(before: string, after: string): SuggestionCategory {
   }
 
   if (beforeWords.length === 1 && afterWords.length === 1) {
-    const a = beforeWords[0];
-    const b = afterWords[0];
+    const a = beforeWords[0] ?? "";
+    const b = afterWords[0] ?? "";
     if (a.toLowerCase() === b.toLowerCase()) return "capitalization";
     if (stripPunctuation(a) === stripPunctuation(b)) return "punctuation";
     if (isNearMiss(a, b)) return "spelling";
@@ -280,7 +279,7 @@ function isNearMiss(a: string, b: string): boolean {
   const longer = shorter === left ? right : left;
   let shared = 0;
   for (let i = 0; i < shorter.length; i += 1) {
-    if (longer.includes(shorter[i])) shared += 1;
+    if (longer.includes(shorter.charAt(i))) shared += 1;
   }
   return shared >= Math.ceil(shorter.length * 0.7);
 }

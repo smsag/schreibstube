@@ -29,9 +29,9 @@ function reason(expression: string): string {
 
 /** Local time, since a cron schedule means the user's wall clock. */
 function at(iso: string): Date {
-  const [date, time] = iso.split(" ");
-  const [y, m, d] = date.split("-").map(Number);
-  const [hh, mm] = time.split(":").map(Number);
+  const [date = "", time = ""] = iso.split(" ");
+  const [y = NaN, m = NaN, d = NaN] = date.split("-").map(Number);
+  const [hh = NaN, mm = NaN] = time.split(":").map(Number);
   return new Date(y, m - 1, d, hh, mm, 0, 0);
 }
 

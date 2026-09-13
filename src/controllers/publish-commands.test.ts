@@ -418,7 +418,7 @@ describe("publishing", () => {
     const { commands, state } = controller(target, {
       publishAccounts: [{ ...account, writeBack: false }]
     });
-    expect(state.settings.publishAccounts[0].writeBack).toBe(false);
+    expect(state.settings.publishAccounts[0]?.writeBack).toBe(false);
     await commands.publish();
 
     expect(target.frontmatterOf("Blog/Erste.md").publishedUrl).toBeUndefined();

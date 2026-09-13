@@ -33,9 +33,9 @@ export interface FetchOptions {
   url: string;
   target: SourceTarget;
   /** Validator from the previous fetch, or empty on the first one. */
-  etag?: string;
+  etag?: string | undefined;
   /** A GitHub token from secret storage. Only ever sent to GitHub. */
-  token?: string;
+  token?: string | undefined;
 }
 
 /**
@@ -121,7 +121,7 @@ export async function fetchSource(options: FetchOptions): Promise<FetchOutcome> 
     // The contents API answers with the file body only when it honours the raw
     // media type. If it fell back to its JSON representation, that JSON must
     // never be written into a note as if it were the document.
-    if (contentType && contentType.split(";")[0].trim().toLowerCase() === "application/json") {
+    if (contentType && contentType.split(";")[0]?.trim().toLowerCase() === "application/json") {
       return { status: "error", message: "GitHub lieferte Metadaten statt Dateiinhalt." };
     }
   } else if (contentType && !isMarkdownType(contentType)) {
@@ -152,7 +152,7 @@ function rateLimited(headers: Record<string, string> | undefined): boolean {
 }
 
 function isMarkdownType(contentType: string): boolean {
-  const base = contentType.split(";")[0].trim().toLowerCase();
+  const base = contentType.split(";")[0]?.trim().toLowerCase() ?? "";
   return MARKDOWN_CONTENT_TYPES.includes(base);
 }
 

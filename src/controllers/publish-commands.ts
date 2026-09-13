@@ -249,11 +249,12 @@ export class PublishCommands {
       return null;
     }
 
+    const themeCss = await this.readTheme(account);
     const index: PublishIndex = {
       siteTitle: account.name,
       notes,
       assets: assetEntries,
-      themeCss: await this.readTheme(account)
+      ...(themeCss !== undefined ? { themeCss } : {})
     };
 
     return { index, sources, assets };
@@ -343,8 +344,9 @@ export class PublishCommands {
       new Notice(t().common.notice(t().publish.noAccount));
       return;
     }
-    if (accounts.length === 1) {
-      await work(accounts[0]);
+    const [only] = accounts;
+    if (accounts.length === 1 && only) {
+      await work(only);
       return;
     }
 

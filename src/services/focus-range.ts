@@ -154,7 +154,7 @@ const ABBREVIATIONS = new Set([
 /** The word immediately before a full stop, lowercased. */
 function tokenBefore(text: string, dot: number): string {
   let start = dot;
-  while (start > 0 && /[\p{L}\p{N}]/u.test(text[start - 1])) start -= 1;
+  while (start > 0 && /[\p{L}\p{N}]/u.test(text.charAt(start - 1))) start -= 1;
   return text.slice(start, dot).toLowerCase();
 }
 
@@ -196,7 +196,7 @@ function resolveSentenceSpan(
     spans.push({ startCh, endCh: i + 1 });
     startCh = i + 1;
 
-    while (startCh < text.length && /\s/.test(text[startCh])) {
+    while (startCh < text.length && /\s/.test(text.charAt(startCh))) {
       startCh += 1;
     }
   }
@@ -213,7 +213,7 @@ function resolveSentenceSpan(
     if (cursorColumn <= span.endCh) return span;
   }
 
-  return spans.length > 0 ? spans[spans.length - 1] : null;
+  return spans[spans.length - 1] ?? null;
 }
 
 function clampLineNumber(lineNumber: number, maxLines: number): number {
@@ -245,6 +245,5 @@ function isFenceDelimiter(line: string): boolean {
 }
 
 function getFenceMarker(line: string): string | null {
-  const match = line.match(FENCE_REGEX);
-  return match ? match[1] : null;
+  return line.match(FENCE_REGEX)?.[1] ?? null;
 }

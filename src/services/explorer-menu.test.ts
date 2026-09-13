@@ -31,7 +31,7 @@ describe("buildExplorerMenu", () => {
   it("leads with opening the file and ends with the other plugins", () => {
     const sections = buildExplorerMenu(target(), "submenu");
 
-    expect(sections[0].items.map((item) => item.id)).toEqual(["open", "open-new-tab"]);
+    expect(sections[0]?.items.map((item) => item.id)).toEqual(["open", "open-new-tab"]);
     expect(sections[sections.length - 1]).toEqual({
       id: "plugins",
       items: [{ id: "more", label: "More actions", icon: "more-horizontal" }]
@@ -48,11 +48,11 @@ describe("buildExplorerMenu", () => {
   });
 
   it("names the icon action for what it does", () => {
-    const [set] = buildExplorerMenu(target(), "off")[1].items;
-    const [change] = buildExplorerMenu(target({ hasIcon: true }), "off")[1].items;
+    const [set] = buildExplorerMenu(target(), "off")[1]?.items ?? [];
+    const [change] = buildExplorerMenu(target({ hasIcon: true }), "off")[1]?.items ?? [];
 
-    expect(set.label).toBe("Set icon…");
-    expect(change.label).toBe("Change icon…");
+    expect(set?.label).toBe("Set icon…");
+    expect(change?.label).toBe("Change icon…");
   });
 
   it("offers the opposite of the current pin state", () => {
@@ -63,7 +63,7 @@ describe("buildExplorerMenu", () => {
   it("offers the two marks separately, the folder's top first", () => {
     const [, appearance] = buildExplorerMenu(target(), "off");
 
-    expect(appearance.items.map((item) => item.id)).toEqual(["set-icon", "keep-top", "pin"]);
+    expect(appearance?.items.map((item) => item.id)).toEqual(["set-icon", "keep-top", "pin"]);
   });
 
   it("offers the opposite of the current top state, whatever the pin says", () => {

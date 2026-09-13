@@ -73,28 +73,28 @@ describe("segmentMarkdown", () => {
     const result = segmentMarkdown(
       "See `code` and [[Note]] at https://example.com about #thema now."
     );
-    const masked = result.blocks[0].masked;
+    const masked = result.blocks[0]?.masked;
     expect(masked).not.toContain("`code`");
     expect(masked).not.toContain("[[Note]]");
     expect(masked).not.toContain("https://example.com");
     expect(masked).not.toContain("#thema");
     expect(masked).toContain("See ");
     expect(masked).toContain(" about ");
-    expect(restorePlaceholders(masked, result.placeholders)).toBe(result.blocks[0].text);
+    expect(restorePlaceholders(masked ?? "", result.placeholders)).toBe(result.blocks[0]?.text);
   });
 
   it("masks a link target but keeps the label reviewable", () => {
     const result = segmentMarkdown("Read [the report](https://example.com/a_b) today.");
-    const masked = result.blocks[0].masked;
+    const masked = result.blocks[0]?.masked;
     expect(masked).toContain("[the report](");
     expect(masked).not.toContain("example.com");
-    expect(restorePlaceholders(masked, result.placeholders)).toBe(result.blocks[0].text);
+    expect(restorePlaceholders(masked ?? "", result.placeholders)).toBe(result.blocks[0]?.text);
   });
 
   it("gives every block distinct placeholder tokens", () => {
     const result = segmentMarkdown("`one` here.\n\n`two` there.");
-    const first = listPlaceholders(result.blocks[0].masked);
-    const second = listPlaceholders(result.blocks[1].masked);
+    const first = listPlaceholders(result.blocks[0]?.masked ?? "");
+    const second = listPlaceholders(result.blocks[1]?.masked ?? "");
     expect(first).toHaveLength(1);
     expect(second).toHaveLength(1);
     expect(first[0]).not.toBe(second[0]);

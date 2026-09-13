@@ -26,7 +26,7 @@ export interface GlossarySelectionInput {
    * have not touched it; an empty array is an explicit "no glossary" and is
    * honoured rather than falling through to the default.
    */
-  session?: string[];
+  session?: string[] | undefined;
   /** The vault-wide fallback from settings. */
   fallback?: string[];
 }

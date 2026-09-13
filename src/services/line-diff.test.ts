@@ -28,16 +28,16 @@ describe("diffHunks", () => {
   it("locates a changed line by offset", () => {
     const before = "eins\nzwei\ndrei\n";
     const [hunk] = diffHunks(before, "eins\nZWEI\ndrei\n");
-    expect(before.slice(hunk.from, hunk.to)).toBe(hunk.before);
-    expect(hunk.before).toBe("zwei\n");
-    expect(hunk.after).toBe("ZWEI\n");
+    expect(before.slice(hunk?.from, hunk?.to)).toBe(hunk?.before);
+    expect(hunk?.before).toBe("zwei\n");
+    expect(hunk?.after).toBe("ZWEI\n");
   });
 
   it("groups adjacent changed lines into one hunk", () => {
     const hunks = diffHunks("a\nb\nc\nd\n", "a\nX\nY\nd\n");
     expect(hunks).toHaveLength(1);
-    expect(hunks[0].before).toBe("b\nc\n");
-    expect(hunks[0].after).toBe("X\nY\n");
+    expect(hunks[0]?.before).toBe("b\nc\n");
+    expect(hunks[0]?.after).toBe("X\nY\n");
   });
 
   it("splits changes separated by unchanged lines", () => {
@@ -47,33 +47,33 @@ describe("diffHunks", () => {
 
   it("records a pure insertion as an empty range", () => {
     const [hunk] = diffHunks("a\nc\n", "a\nb\nc\n");
-    expect(hunk.before).toBe("");
-    expect(hunk.from).toBe(hunk.to);
-    expect(hunk.after).toBe("b\n");
+    expect(hunk?.before).toBe("");
+    expect(hunk?.from).toBe(hunk?.to);
+    expect(hunk?.after).toBe("b\n");
   });
 
   it("records a pure deletion with an empty replacement", () => {
     const [hunk] = diffHunks("a\nb\nc\n", "a\nc\n");
-    expect(hunk.before).toBe("b\n");
-    expect(hunk.after).toBe("");
+    expect(hunk?.before).toBe("b\n");
+    expect(hunk?.after).toBe("");
   });
 
   it("handles an append at the end of the document", () => {
     const [hunk] = diffHunks("a\n", "a\nb\n");
-    expect(hunk.after).toBe("b\n");
-    expect(hunk.from).toBe(2);
+    expect(hunk?.after).toBe("b\n");
+    expect(hunk?.from).toBe(2);
   });
 
   it("handles a document that was empty", () => {
     const [hunk] = diffHunks("", "neu\n");
-    expect(hunk.from).toBe(0);
-    expect(hunk.before).toBe("");
-    expect(hunk.after).toBe("neu\n");
+    expect(hunk?.from).toBe(0);
+    expect(hunk?.before).toBe("");
+    expect(hunk?.after).toBe("neu\n");
   });
 
   it("handles a document emptied at the source", () => {
     const [hunk] = diffHunks("alt\n", "");
-    expect(hunk.after).toBe("");
+    expect(hunk?.after).toBe("");
   });
 
   it("keeps every offset valid against the original", () => {

@@ -106,12 +106,13 @@ export function parseGlossary(path: string, text: string): GlossaryParseResult {
   }
 
   const rows = readTableRows(text);
-  if (rows.length === 0) {
+  const [headerRow] = rows;
+  if (headerRow === undefined) {
     errors.push("No term table found.");
     return { glossary: emptyGlossary(path, language, defaultSeverity), errors };
   }
 
-  const columns = indexColumns(rows[0]);
+  const columns = indexColumns(headerRow);
   const missing = REQUIRED_COLUMNS.filter((name) => columns[name] === undefined);
   if (missing.length > 0) {
     errors.push(`Missing required column(s): ${missing.join(", ")}.`);
@@ -214,8 +215,7 @@ function readFrontmatter(text: string): Map<string, string> {
     return result;
   }
 
-  for (let i = 1; i < lines.length; i += 1) {
-    const line = lines[i];
+  for (const line of lines.slice(1)) {
     if (line.trim() === "---") break;
     const separator = line.indexOf(":");
     if (separator === -1) continue;

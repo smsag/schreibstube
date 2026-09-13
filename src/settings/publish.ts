@@ -89,7 +89,7 @@ function renderAccount(ctx: SettingsContext, position: number, account: PublishA
 
   const update = async (changes: Partial<PublishAccount>): Promise<void> => {
     const accounts = [...ctx.plugin.settings.publishAccounts];
-    accounts[position] = { ...accounts[position], ...changes };
+    accounts[position] = { ...(accounts[position] ?? account), ...changes };
     await saveAccounts(ctx, accounts, { redraw: false });
   };
 
