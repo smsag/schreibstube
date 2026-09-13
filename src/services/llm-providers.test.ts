@@ -10,7 +10,8 @@ import {
   extractModelFilename,
   parseResponse,
   providerLabel,
-  sanitizeFilename
+  sanitizeFilename,
+  stripFilenameExtension
 } from "./llm-providers";
 
 describe("sanitizeFilename", () => {
@@ -215,5 +216,34 @@ describe("parseResponse", () => {
 
   it("returns empty string for a malformed response", () => {
     expect(parseResponse("openai", {})).toBe("");
+  });
+});
+
+describe("an extension the model volunteered", () => {
+  it("is dropped, so the caller's own is not doubled", () => {
+    // The prompt says filename only; models answer with the extension anyway,
+    // and the file became "Quartalsbericht.md.md".
+    expect(stripFilenameExtension("Quartalsbericht.md", "md")).toBe("Quartalsbericht");
+    expect(stripFilenameExtension("foto.jpeg", "jpg")).toBe("foto");
+  });
+
+  it("leaves alone an ending that is part of the name", () => {
+    expect(stripFilenameExtension("Objekt-Nr-4", "md")).toBe("Objekt-Nr-4");
+    expect(stripFilenameExtension("Version-1.2", "md")).toBe("Version-1.2");
+    // A guess about a file the model never saw is not an extension to drop.
+    expect(stripFilenameExtension("Vertrag.pdf", "md")).toBe("Vertrag.pdf");
+  });
+});
+
+describe("sanitizeFilename and characters that are pairs", () => {
+  it("never cuts an emoji in half", () => {
+    const cut = sanitizeFilename("Haus🏠Plan", 5);
+
+    expect(cut).toBe("Haus🏠");
+    expect(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/.test(cut)).toBe(false);
+  });
+
+  it("counts characters as a person counts them", () => {
+    expect([...sanitizeFilename("ä".repeat(80), 60)].length).toBe(60);
   });
 });
