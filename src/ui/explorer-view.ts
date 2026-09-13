@@ -129,6 +129,10 @@ const DRAG_THRESHOLD_PX = 4;
  */
 const DRAG_TOUCH_THRESHOLD_PX = 16;
 
+/** The longest a drag may hold a redraw back. Long enough for any gesture a
+ *  person makes, short enough that a flag left standing is a hiccup. */
+const DRAG_DEFER_MAX_MS = 5_000;
+
 /** How close to the top or bottom of the list a drag has to be before the list
  *  starts moving under it, and how far it moves in one frame at the very edge. */
 const EDGE_SCROLL_PX = 48;
@@ -268,6 +272,9 @@ export class ExplorerPaneView extends ItemView {
    *  list while it rests near an edge. */
   private dragPointer = { x: 0, y: 0 };
   private dragScroll: number | null = null;
+  /** When the drag in progress began, so a flag that somehow outlives its
+   *  gesture cannot hold every redraw back with it. */
+  private dragStartedAt = 0;
   private dragHandlers: DragHandlers | null = null;
   /** A path to scroll to once the next draw has put it on screen. */
   private revealing: string | null = null;
@@ -491,7 +498,11 @@ export class ExplorerPaneView extends ItemView {
       // person was making silently does not happen. The vault raises events
       // throughout a drag — a note saving itself is enough — so the redraw
       // waits for the button to come up instead.
-      if (this.dragging !== null) {
+      //
+      // Only for as long as a drag can plausibly last. Holding redraws is worth
+      // it for the seconds a gesture takes and never worth a pane that has
+      // stopped answering because a flag was left standing.
+      if (this.dragging !== null && Date.now() - this.dragStartedAt < DRAG_DEFER_MAX_MS) {
         this.deferred = true;
         return;
       }
@@ -996,6 +1007,9 @@ export class ExplorerPaneView extends ItemView {
     for (const node of sortSiblings(nodes, controller.data())) {
       const child = byPath.get(node.path);
       if (!child) continue;
+      // Deleted a moment ago: the vault has not said so yet, and a row that
+      // stays put after a confirmed delete reads as the delete having failed.
+      if (controller.isTrashed(child.path)) continue;
 
       // While filtering, a row is drawn only if it matched or holds something
       // that did; the alternative is a tree of empty branches. The set was
@@ -1198,6 +1212,7 @@ export class ExplorerPaneView extends ItemView {
 
       if (this.dragging === null) {
         this.dragging = handlers.path;
+        this.dragStartedAt = Date.now();
         this.dragHandlers = handlers;
         row.addClass("is-dragging");
         handlers.onStart();
