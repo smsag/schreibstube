@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Fixed
+
+- **"Never show these" now excludes a folder, not only a file named outright.** It compared whole paths, so naming a folder — which is what anyone types into a field asking which paths to never show — excluded nothing at all, and said nothing about it. The one setting whose failure leaves a private note on screen was the one that failed silently. A folder now stands for everything under it, a separator is required so `Familie` cannot take `Familienrecht` with it, case is ignored as it is by the filesystems this runs on, and a stray leading or trailing slash is forgiven.
+
 ### Added
 
 - **A pinned note is drawn by the `title` in its frontmatter.** A filename is a handle — short, unique, often a slug — and renaming a file to read well moves it and rewrites every link into it. The pinned block is a shortlist built by hand, where a row is there to be recognised rather than located, so it now draws the note's own `title` when the note names one and the filename when it does not. Nothing is written: the file keeps its name, the tree below keeps showing it, and the row's tooltip still carries the full path. The filter matches both, so typing what is on screen cannot hide the row showing it. A title that wrapped across lines in the frontmatter is folded onto one; a `title` that YAML turned into a list, a date or a boolean is not a title and the filename is drawn instead.

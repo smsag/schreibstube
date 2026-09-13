@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { parseExcludedPaths, selectLatest, type LatestCandidate } from "./latest-files";
+import {
+  isExcluded,
+  normalizeExcluded,
+  parseExcludedPaths,
+  selectLatest,
+  type LatestCandidate
+} from "./latest-files";
 
 function note(path: string, createdAt: number, modifiedAt = createdAt): LatestCandidate {
   return { path, name: path.split("/").pop() ?? path, createdAt, modifiedAt };
@@ -70,5 +76,56 @@ describe("parseExcludedPaths", () => {
 
   it("reads an empty field as no exclusions", () => {
     expect(parseExcludedPaths("  ,\n ")).toEqual(new Set());
+  });
+});
+
+describe("excluding a folder", () => {
+  const PRIVATE: LatestCandidate[] = [
+    note("Familiäres/Scheidung.md", 900),
+    note("Familiäres/Kinder/Zeugnis.md", 800),
+    note("Familienrecht/Urteil.md", 700),
+    note("Arbeit/Notiz.md", 600)
+  ];
+
+  it("takes everything under the folder out of both lists", () => {
+    // The setting used to match a file path exactly, so naming a folder — which
+    // is what anyone types into a field called "never show these" — excluded
+    // nothing at all, without saying so.
+    const { created } = selectLatest(PRIVATE, {
+      count: 5,
+      excluded: parseExcludedPaths("Familiäres")
+    });
+
+    expect(created.map((file) => file.path)).toEqual([
+      "Familienrecht/Urteil.md",
+      "Arbeit/Notiz.md"
+    ]);
+  });
+
+  it("needs a separator, so a shared prefix is not swept up with it", () => {
+    const barred = normalizeExcluded(new Set(["Familie"]));
+
+    expect(isExcluded("Familie/Brief.md", barred)).toBe(true);
+    expect(isExcluded("Familienrecht/Urteil.md", barred)).toBe(false);
+  });
+
+  it("still excludes a single file named outright", () => {
+    const barred = normalizeExcluded(new Set(["Arbeit/Notiz.md"]));
+
+    expect(isExcluded("Arbeit/Notiz.md", barred)).toBe(true);
+    expect(isExcluded("Arbeit/Andere.md", barred)).toBe(false);
+  });
+
+  it("ignores case, as the filesystems it runs on do", () => {
+    const barred = normalizeExcluded(parseExcludedPaths("familiäres"));
+
+    expect(isExcluded("Familiäres/Scheidung.md", barred)).toBe(true);
+  });
+
+  it("forgives a leading or trailing slash", () => {
+    const barred = normalizeExcluded(parseExcludedPaths("/Familiäres/, Arbeit/"));
+
+    expect(isExcluded("Familiäres/Scheidung.md", barred)).toBe(true);
+    expect(isExcluded("Arbeit/Notiz.md", barred)).toBe(true);
   });
 });

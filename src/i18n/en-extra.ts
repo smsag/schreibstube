@@ -45,7 +45,8 @@ export const enExtra = {
       `How many notes each of the two lists shows (1 to ${max}).`,
     explorerLatestExclude: "Never show these",
     explorerLatestExcludeDesc:
-      "Vault paths, separated by commas or line breaks. The bookmarks file is always excluded.",
+      "Vault paths, separated by commas or line breaks. A folder excludes everything inside it. " +
+      "The bookmarks file is always excluded.",
     explorerIcons: "Icon set",
     explorerIconsDesc: (count: number, version: string) =>
       `${count} icons from Tabler Icons ${version} (MIT), bundled with the plugin so they work offline and on mobile.`,

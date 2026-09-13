@@ -220,8 +220,8 @@ export const de: Messages = {
       `Wie viele Notizen jede der beiden Listen zeigt (1 bis ${max}).`,
     explorerLatestExclude: "Nie anzeigen",
     explorerLatestExcludeDesc:
-      "Vault-Pfade, durch Komma oder Zeilenumbruch getrennt. Die Lesezeichen-Datei ist immer " +
-      "ausgenommen.",
+      "Vault-Pfade, durch Komma oder Zeilenumbruch getrennt. Ein Ordner schließt alles darin " +
+      "aus. Die Lesezeichen-Datei ist immer ausgenommen.",
     explorerIcons: "Symbolsatz",
     explorerIconsDesc: (count: number, version: string) =>
       `${count} Symbole aus Tabler Icons ${version} (MIT), im Plugin enthalten — offline und mobil verfügbar.`,
