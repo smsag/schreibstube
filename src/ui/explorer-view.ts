@@ -43,6 +43,7 @@ import {
   ancestorsOf,
   isMovePlan,
   moveRefusalMessage,
+  parentOf,
   planMove,
   type MoveContext
 } from "../services/tree-move";
@@ -975,19 +976,49 @@ export class ExplorerPaneView extends ItemView {
   }
 
   /**
-   * The folder under the pointer, or null when there is none. The section
-   * header answers with the vault root, which is the only way to drag
-   * something out of every folder it is in.
+   * File rows in the tree, each of which stands for the folder holding it.
+   *
+   * A file is not somewhere to put anything, but pointing at one is how a
+   * person says "in there": the folder is what they are aiming at and the rows
+   * inside it are what the folder looks like. Only the tree counts — the
+   * curated lists above it are not a place in the vault.
+   */
+  private fileRows(): HTMLElement[] {
+    const root = this.body;
+    if (!root) return [];
+
+    return Array.from(
+      root.querySelectorAll<HTMLElement>(
+        ".schreibstube-explorer-tree .schreibstube-explorer-row[data-path]:not(.is-folder)"
+      )
+    );
+  }
+
+  /**
+   * The folder under the pointer, or null when there is none.
+   *
+   * A folder row answers with itself and the section header with the vault
+   * root, which is the only way to drag something out of every folder it is in.
+   * A file row answers with the folder it sits in, so the target a person aims
+   * at is the whole block a folder occupies rather than the one row naming it.
    */
   private moveTargetAt(clientX: number, clientY: number): string | null {
     for (const element of this.moveTargets()) {
-      const box = element.getBoundingClientRect();
-      if (clientY < box.top || clientY > box.bottom) continue;
-      if (clientX < box.left || clientX > box.right) continue;
+      if (!containsPoint(element, clientX, clientY)) continue;
 
       if (element.hasClass("schreibstube-explorer-section-header")) return "";
       return element.getAttribute("data-path");
     }
+
+    for (const element of this.fileRows()) {
+      if (!containsPoint(element, clientX, clientY)) continue;
+
+      const path = element.getAttribute("data-path");
+      // A file at the root answers with the root, as every other file answers
+      // with the folder holding it.
+      if (path !== null) return parentOf(path);
+    }
+
     return null;
   }
 
@@ -1398,6 +1429,12 @@ function toSet(value: unknown): Set<string> {
 function basenameOf(path: string): string {
   const cut = path.lastIndexOf("/");
   return cut === -1 ? path : path.slice(cut + 1);
+}
+
+/** Whether a point on screen is inside an element's box. */
+function containsPoint(element: HTMLElement, clientX: number, clientY: number): boolean {
+  const box = element.getBoundingClientRect();
+  return clientY >= box.top && clientY <= box.bottom && clientX >= box.left && clientX <= box.right;
 }
 
 function displayName(file: TAbstractFile): string {
