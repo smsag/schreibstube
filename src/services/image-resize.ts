@@ -22,11 +22,33 @@ export function scaleDimensions(
   return { width: Math.round(width * scale), height: Math.round(height * scale) };
 }
 
+/**
+ * What a canvas can actually encode.
+ *
+ * `toBlob` takes any type and quietly returns PNG for one it cannot write —
+ * GIF among them. The bytes then went to the model declared as `image/gif`,
+ * which is a mismatch the API rejects, so renaming any GIF failed with an
+ * error about the request rather than about the picture. What comes back is
+ * declared honestly instead: re-encoded as PNG, and called PNG.
+ */
+const ENCODABLE = new Set(["image/jpeg", "image/png", "image/webp"]);
+
+/** The type a canvas will really produce for a source of this type. */
+export function encodedMimeType(mimeType: string): string {
+  return ENCODABLE.has(mimeType.toLowerCase()) ? mimeType.toLowerCase() : "image/png";
+}
+
+export interface ResizedImage {
+  base64: string;
+  /** What the bytes actually are, which is not always what went in. */
+  mimeType: string;
+}
+
 export async function resizeImageToBase64(
   buffer: ArrayBuffer,
   mimeType: string,
   maxPx: number
-): Promise<string> {
+): Promise<ResizedImage> {
   const blob = new Blob([buffer], { type: mimeType });
   const url = URL.createObjectURL(blob);
 
@@ -42,8 +64,10 @@ export async function resizeImageToBase64(
     if (!ctx) throw new Error("canvas 2d context unavailable");
     ctx.drawImage(img, 0, 0, dims.width, dims.height);
 
-    const outBlob = await canvasToBlob(canvas, mimeType);
-    return blobToBase64(outBlob);
+    const encoded = encodedMimeType(mimeType);
+    const outBlob = await canvasToBlob(canvas, encoded);
+
+    return { base64: await blobToBase64(outBlob), mimeType: encoded };
   } finally {
     URL.revokeObjectURL(url);
   }

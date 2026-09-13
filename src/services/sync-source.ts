@@ -77,6 +77,35 @@ function describeHost(url: URL): SourceTarget {
   return { kind: "github", owner, repo, ref, path: rest.join("/") };
 }
 
+/**
+ * The binding as the note itself spells it, for when the cache does not have it.
+ *
+ * Obsidian's metadata cache is updated after a write, not during one, so a
+ * check made in the same breath as the binding — which is exactly what happens
+ * when somebody has just typed a URL in — asks the cache a question it cannot
+ * answer yet and is told the note names no source. Reading the note's own
+ * frontmatter answers it now. Only this one key is looked for, and only as a
+ * plain line: it is a fallback for a value this plugin wrote itself moments
+ * ago, not a YAML parser.
+ */
+export function sourceUrlFromNote(text: string): string | null {
+  const block = /^---\r?\n([\s\S]*?)\r?\n---/.exec(text);
+  if (!block) return null;
+
+  for (const line of block[1].split(/\r?\n/)) {
+    const match = new RegExp(`^${SYNC_FRONTMATTER_KEY}\\s*:\\s*(.+)$`).exec(line);
+    if (!match) continue;
+
+    const value = match[1]
+      .trim()
+      .replace(/^["'<]|[">']$/g, "")
+      .trim();
+    return value.length > 0 ? value : null;
+  }
+
+  return null;
+}
+
 /** True when a URL is worth showing as a source at all, used to decide whether
  *  a note counts as bound before validation messages matter. */
 export function hasSourceBinding(frontmatter: Record<string, unknown> | undefined): boolean {

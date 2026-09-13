@@ -116,6 +116,23 @@ const STUCK_TOLERANCE_PX = 1.5;
 /** Movement, in pixels, that turns a press into a drag rather than a click. */
 const DRAG_THRESHOLD_PX = 4;
 
+/**
+ * How far a finger must travel before a press becomes a drag.
+ *
+ * Far further than a mouse, and the reason is the menu. On a touch screen the
+ * same press opens the context menu and arms the drag at the same instant, and
+ * a drag taking over closes that menu — so at a mouse's four pixels, a finger
+ * resting on glass or rolling as it lifts was enough to take the menu away
+ * before it could be tapped, which left no way to delete, rename or move
+ * anything. Sixteen is more than half a row: a hand on its way somewhere,
+ * rather than a hand staying put.
+ */
+const DRAG_TOUCH_THRESHOLD_PX = 16;
+
+/** The longest a drag may hold a redraw back. Long enough for any gesture a
+ *  person makes, short enough that a flag left standing is a hiccup. */
+const DRAG_DEFER_MAX_MS = 5_000;
+
 /** How close to the top or bottom of the list a drag has to be before the list
  *  starts moving under it, and how far it moves in one frame at the very edge. */
 const EDGE_SCROLL_PX = 48;
@@ -255,6 +272,9 @@ export class ExplorerPaneView extends ItemView {
    *  list while it rests near an edge. */
   private dragPointer = { x: 0, y: 0 };
   private dragScroll: number | null = null;
+  /** When the drag in progress began, so a flag that somehow outlives its
+   *  gesture cannot hold every redraw back with it. */
+  private dragStartedAt = 0;
   private dragHandlers: DragHandlers | null = null;
   /** A path to scroll to once the next draw has put it on screen. */
   private revealing: string | null = null;
@@ -478,7 +498,11 @@ export class ExplorerPaneView extends ItemView {
       // person was making silently does not happen. The vault raises events
       // throughout a drag — a note saving itself is enough — so the redraw
       // waits for the button to come up instead.
-      if (this.dragging !== null) {
+      //
+      // Only for as long as a drag can plausibly last. Holding redraws is worth
+      // it for the seconds a gesture takes and never worth a pane that has
+      // stopped answering because a flag was left standing.
+      if (this.dragging !== null && Date.now() - this.dragStartedAt < DRAG_DEFER_MAX_MS) {
         this.deferred = true;
         return;
       }
@@ -914,7 +938,12 @@ export class ExplorerPaneView extends ItemView {
     files: readonly LatestCandidate[],
     withBadge = false
   ): number {
-    const matching = files.filter((file) => this.matchesQuery(file.name));
+    const controller = this.host?.explorer;
+    // A file deleted a moment ago is gone from the tree at once; it would be
+    // odd for it to sit on in a list two sections above.
+    const matching = files.filter(
+      (file) => this.matchesQuery(file.name) && controller?.isTrashed(file.path) !== true
+    );
     if (matching.length === 0) return 0;
 
     host.createDiv({ cls: "schreibstube-explorer-subheading", text: label });
@@ -983,6 +1012,9 @@ export class ExplorerPaneView extends ItemView {
     for (const node of sortSiblings(nodes, controller.data())) {
       const child = byPath.get(node.path);
       if (!child) continue;
+      // Deleted a moment ago: the vault has not said so yet, and a row that
+      // stays put after a confirmed delete reads as the delete having failed.
+      if (controller.isTrashed(child.path)) continue;
 
       // While filtering, a row is drawn only if it matched or holds something
       // that did; the alternative is a tree of empty branches. The set was
@@ -1174,16 +1206,18 @@ export class ExplorerPaneView extends ItemView {
       }
 
       const moved = Math.hypot(event.clientX - startX, event.clientY - startY);
+      const threshold = event.pointerType === "touch" ? DRAG_TOUCH_THRESHOLD_PX : DRAG_THRESHOLD_PX;
 
       // A finger that moves before the hold has elapsed is scrolling the pane.
       if (!armed) {
-        if (moved > DRAG_THRESHOLD_PX) clearHold();
+        if (moved > threshold) clearHold();
         return;
       }
-      if (this.dragging === null && moved <= DRAG_THRESHOLD_PX) return;
+      if (this.dragging === null && moved <= threshold) return;
 
       if (this.dragging === null) {
         this.dragging = handlers.path;
+        this.dragStartedAt = Date.now();
         this.dragHandlers = handlers;
         row.addClass("is-dragging");
         handlers.onStart();
@@ -1274,7 +1308,8 @@ export class ExplorerPaneView extends ItemView {
     const known = this.folderCounts.get(folder.path);
     if (known !== undefined) return known;
 
-    const count = countFilesUnder(folder);
+    const controller = this.host?.explorer;
+    const count = countFilesUnder(folder, (path) => controller?.isTrashed(path) === true);
     this.folderCounts.set(folder.path, count);
     return count;
   }

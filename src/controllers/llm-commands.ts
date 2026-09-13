@@ -99,9 +99,9 @@ export class LlmCommands {
     await this.withBusy("image rename", async () => {
       const buffer = await this.app.vault.readBinary(file);
 
-      let base64Image: string;
+      let image: Awaited<ReturnType<typeof resizeImageToBase64>>;
       try {
-        base64Image = await resizeImageToBase64(buffer, mimeType, settings.renameMaxImagePx);
+        image = await resizeImageToBase64(buffer, mimeType, settings.renameMaxImagePx);
       } catch (err) {
         this.fail("image resize", t().ai.failImage, err);
         return;
@@ -109,7 +109,14 @@ export class LlmCommands {
 
       let proposed: string;
       try {
-        proposed = await generateImageRenameFilename(base64Image, mimeType, settings, apiKey);
+        // The type the canvas produced, not the one the file had: a GIF comes
+        // back as PNG, and the model is told what it is actually being sent.
+        proposed = await generateImageRenameFilename(
+          image.base64,
+          image.mimeType,
+          settings,
+          apiKey
+        );
       } catch (err) {
         this.fail("image rename", t().ai.failRename, err);
         return;

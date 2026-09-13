@@ -1,13 +1,7 @@
 import type { HeadingEntry, HeadingIndex } from "../types";
+import { fenceMarker } from "./markdown-fence";
 
 const HEADING_PATTERN = /^(#{1,6})\s+(.+)$/;
-
-/**
- * A fence opens and closes with the same character, and closes only with at
- * least as many of it — so a block fenced with four backticks can hold a line
- * of three.
- */
-const FENCE_PATTERN = /^\s*([`~])\1{2,}/;
 
 function stripMarkdownFormatting(text: string): string {
   return text
@@ -20,12 +14,6 @@ function stripMarkdownFormatting(text: string): string {
     .replace(/==([^=\n]+)==/g, "$1")
     .replace(/`([^`\n]+)`/g, "$1")
     .trim();
-}
-
-/** The run of backticks or tildes opening or closing a fence, if the line is one. */
-function fenceMarker(line: string): string | null {
-  const match = FENCE_PATTERN.exec(line);
-  return match ? (match[0].trimStart() ?? null) : null;
 }
 
 export function buildHeadingIndex(content: string): HeadingIndex {

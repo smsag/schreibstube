@@ -36,6 +36,7 @@ import { vaultUrlFor } from "../services/bookmark-file";
 import { frontmatterTitle } from "../services/note-title";
 import {
   isMovePlan,
+  isUnder,
   moveDestinations,
   moveRefusalMessage,
   planMove,
@@ -52,6 +53,18 @@ export const EXPLORER_STATE_FILE = "explorer.json";
 
 /** How often the state file is checked for a write from another device. */
 export const EXTERNAL_CHECK_MS = 15_000;
+
+/**
+ * How long a trashed row is taken on trust before the vault is believed again.
+ *
+ * The pane draws what the vault says it holds, and the vault says a file is
+ * gone when its own watcher has noticed — which on a phone, behind a sync
+ * client, is not the moment the file went. The row is taken away as soon as
+ * the trash call returns, and this is the outer limit on that: if no delete
+ * event ever arrives, the row comes back rather than a file being hidden by a
+ * plugin that was only ever guessing.
+ */
+export const TRASH_GRACE_MS = 10_000;
 
 /**
  * The source string handed to other plugins.
@@ -76,6 +89,8 @@ export class ExplorerController {
   private readonly listeners = new Set<() => void>();
   /** The menu on screen, so a drag begun out of it can take it away again. */
   private openMenu: Menu | null = null;
+  /** Paths trashed whose disappearance the vault has not reported yet. */
+  private readonly trashed = new Set<string>();
   private submenusSupported: boolean | null = null;
 
   constructor(
@@ -124,13 +139,48 @@ export class ExplorerController {
   }
 
   handleDelete(file: TAbstractFile): void {
+    // The vault has caught up with what the pane already drew.
+    this.forgetTrashed(file.path);
     this.store.mutate((data, now) => markMissing(data, file.path, now));
+    // Not every delete changes the state file — a note with no icon and no
+    // mark changes nothing — and the pane still has a row to take away.
+    this.emit();
   }
 
   /** A file appearing may be one that moved outside Obsidian, so it can claim
    *  the icon of a tombstone with the same name. */
   handleCreate(file: TAbstractFile): void {
+    // A path written again is a path that exists, whatever was trashed there.
+    this.forgetTrashed(file.path);
     this.store.mutate((data, now) => reattachOrphans(data, [file.path], now));
+  }
+
+  /**
+   * Whether the pane should act as though this path were already gone.
+   *
+   * True between the trash call returning and the vault reporting the
+   * disappearance, which is not the same instant: the vault answers when its
+   * own watcher has noticed, and on a phone that is after a sync client has.
+   * A folder takes everything under it.
+   */
+  isTrashed(path: string): boolean {
+    if (this.trashed.size === 0) return false;
+    if (this.trashed.has(path)) return true;
+
+    for (const gone of this.trashed) {
+      if (isUnder(path, gone)) return true;
+    }
+    return false;
+  }
+
+  /** Drop a path and everything under it from what is being held back. */
+  private forgetTrashed(path: string): void {
+    if (this.trashed.size === 0) return;
+
+    const prefix = `${path}/`;
+    for (const gone of [...this.trashed]) {
+      if (gone === path || gone.startsWith(prefix)) this.trashed.delete(gone);
+    }
   }
 
   // --- what the view draws ------------------------------------------------
@@ -167,6 +217,7 @@ export class ExplorerController {
     const items: TAbstractFile[] = [];
 
     for (const path of pinnedPaths(this.store.data())) {
+      if (this.isTrashed(path)) continue;
       const file = this.app.vault.getAbstractFileByPath(path);
       if (file) items.push(file);
     }
@@ -675,12 +726,29 @@ export class ExplorerController {
       () => {
         // Trashed, never erased: which trash is the user's own setting, and a
         // wrong tap in a file list must be undoable.
-        void this.app.fileManager.trashFile(file).catch((error: unknown) => {
-          this.logger.warn(`Could not delete ${file.path}:`, error);
-          // A row that stays put after a confirmed delete otherwise reads as
-          // the pane having missed the change rather than the delete failing.
-          new Notice(t().common.notice(t().explorer.delete.failed(file.name)));
-        });
+        void this.app.fileManager
+          .trashFile(file)
+          .then(() => {
+            // The file is gone the moment this returns. The vault's own delete
+            // event is what the pane listens to, and it arrives when a watcher
+            // notices rather than when the file went — seconds later on a
+            // phone, which is a row sitting there after you deleted it. So the
+            // row goes now, and the event, when it comes, only confirms it.
+            this.trashed.add(file.path);
+            this.emit();
+
+            window.setTimeout(() => {
+              if (!this.trashed.has(file.path)) return;
+              this.forgetTrashed(file.path);
+              this.emit();
+            }, TRASH_GRACE_MS);
+          })
+          .catch((error: unknown) => {
+            this.logger.warn(`Could not delete ${file.path}:`, error);
+            // A row that stays put after a confirmed delete otherwise reads as
+            // the pane having missed the change rather than the delete failing.
+            new Notice(t().common.notice(t().explorer.delete.failed(file.name)));
+          });
       }
     ).open();
   }

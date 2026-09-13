@@ -393,6 +393,8 @@ export const de: Messages = {
     blocksRejected: (count: number) =>
       `${count} Abschnitt(e) verworfen (geschützter Inhalt verändert).`,
     chunksFailed: (count: number) => `${count} Anfrage(n) fehlgeschlagen.`,
+    cardDiverged: "Lokale Änderung — Übernehmen stellt den Stand der Quelle wieder her.",
+    cardFirstSync: "Erster Abgleich mit der Quelle.",
     sourceMatches: "Notiz entspricht der Quelle.",
     sourceUnchangedLocalEdits: "Quelle unverändert, die Notiz enthält lokale Änderungen.",
     divergedChanges: (count: number) =>

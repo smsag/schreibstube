@@ -1,14 +1,21 @@
 import { describe, expect, it } from "vitest";
+import { setLanguage } from "../i18n";
 import { applyPlan, planApply } from "./suggestion";
+import { sourceUrlFromNote } from "./sync-source";
 import {
   buildSyncSuggestions,
   hashText,
   localState,
+  nextSyncRecord,
   normalizeNewlines,
   splitNote,
   stripRemoteFrontmatter,
   type SyncRecord
 } from "./sync-document";
+
+// A card explains itself to a person, so the line is translated; the suite
+// fixes a language rather than asserting whichever one happens to be set.
+setLanguage("en");
 
 const NOTE = `---
 schreibstubeSyncedFrom: https://example.com/a.md
@@ -165,7 +172,7 @@ describe("buildSyncSuggestions", () => {
       state: "diverged"
     });
     expect(suggestion.needsReview).toBe(true);
-    expect(suggestion.note).toContain("Lokale Änderung");
+    expect(suggestion.note).toContain("Edited locally");
   });
 
   it("explains the first sync", () => {
@@ -175,7 +182,7 @@ describe("buildSyncSuggestions", () => {
       remoteBody: remote,
       state: "unsynced"
     });
-    expect(suggestion.note).toContain("Erster Abgleich");
+    expect(suggestion.note).toContain("First comparison");
   });
 
   it("says nothing extra for a clean note", () => {
@@ -208,5 +215,124 @@ describe("buildSyncSuggestions", () => {
       state: "clean"
     });
     expect(suggestions.every((s) => s.source === "remote" && s.category === "update")).toBe(true);
+  });
+});
+
+describe("nextSyncRecord", () => {
+  const body = "Ein Text.\n";
+  const remote = "Ein anderer Text.\n";
+  const T = Date.UTC(2026, 8, 13, 9, 0);
+
+  function record(over: Partial<SyncRecord> = {}): SyncRecord {
+    return { hash: hashText(body), etag: "e1", checkedAt: 0, pendingChanges: 0, ...over };
+  }
+
+  it("counts a source seen for the first time as a change", () => {
+    const next = nextSyncRecord({
+      record: undefined,
+      body,
+      remoteBody: remote,
+      etag: "e2",
+      checkedAt: T,
+      pendingChanges: 1,
+      settled: false
+    });
+
+    expect(next.changedAt).toBe(T);
+    expect(next.remoteHash).toBe(hashText(remote));
+  });
+
+  it("counts nothing when the source came back the same", () => {
+    const next = nextSyncRecord({
+      record: record({ remoteHash: hashText(remote), changedAt: 5 }),
+      body,
+      remoteBody: remote,
+      etag: "e2",
+      checkedAt: T,
+      pendingChanges: 0,
+      settled: true
+    });
+
+    expect(next.changedAt).toBe(5);
+  });
+
+  it("counts a source whose text moved, whatever the validator said", () => {
+    // Once changes are waiting the fetch is unconditional, so "changed" from
+    // the response means nothing; the hash is what answers.
+    const next = nextSyncRecord({
+      record: record({ remoteHash: hashText("etwas anderes"), changedAt: 5 }),
+      body,
+      remoteBody: remote,
+      etag: "e2",
+      checkedAt: T,
+      pendingChanges: 2,
+      settled: false
+    });
+
+    expect(next.changedAt).toBe(T);
+  });
+
+  it("keeps what it knew when nothing was fetched", () => {
+    const next = nextSyncRecord({
+      record: record({ remoteHash: "abc", changedAt: 5 }),
+      body,
+      remoteBody: null,
+      etag: "e2",
+      checkedAt: T,
+      pendingChanges: 0,
+      settled: false
+    });
+
+    expect(next.remoteHash).toBe("abc");
+    expect(next.changedAt).toBe(5);
+  });
+
+  it("advances the baseline only once the note matches its source", () => {
+    const settled = nextSyncRecord({
+      record: record({ hash: "alt" }),
+      body,
+      remoteBody: remote,
+      etag: "e2",
+      checkedAt: T,
+      pendingChanges: 0,
+      settled: true
+    });
+    const waiting = nextSyncRecord({
+      record: record({ hash: "alt" }),
+      body,
+      remoteBody: remote,
+      etag: "e2",
+      checkedAt: T,
+      pendingChanges: 3,
+      settled: false
+    });
+
+    expect(settled.hash).toBe(hashText(body));
+    expect(waiting.hash).toBe("alt");
+  });
+});
+
+describe("sourceUrlFromNote", () => {
+  it("reads the binding the cache has not caught up with yet", () => {
+    const note = [
+      "---",
+      "schreibstubeSyncedFrom: https://example.test/a.md",
+      "---",
+      "",
+      "Text"
+    ].join("\n");
+
+    expect(sourceUrlFromNote(note)).toBe("https://example.test/a.md");
+  });
+
+  it("takes the quotes off a value that has them", () => {
+    const note = ["---", 'schreibstubeSyncedFrom: "https://example.test/a.md"', "---"].join("\n");
+
+    expect(sourceUrlFromNote(note)).toBe("https://example.test/a.md");
+  });
+
+  it("says nothing for a note with no frontmatter or no binding", () => {
+    expect(sourceUrlFromNote("Nur Text")).toBeNull();
+    expect(sourceUrlFromNote(["---", "title: X", "---"].join("\n"))).toBeNull();
   });
 });
