@@ -31,8 +31,20 @@ import {
   TEMPLATE_ROOT_DEFAULT,
   type PrintTemplate
 } from "../services/print-template";
-import { captureSize, CAPTURE_SCALE, standaloneSvg, svgSize } from "../services/svg-capture";
-import { canvasExportApi } from "../services/workspace-internals";
+import {
+  captureSize,
+  CAPTURE_SCALE,
+  MAX_CAPTURE_PX,
+  standaloneSvg,
+  svgSize
+} from "../services/svg-capture";
+import { withTimeout } from "../utils/with-timeout";
+import {
+  canvasExportApi,
+  checkExportResult,
+  exportErrorCode,
+  NO_ENRICH_CLASS
+} from "../services/workspace-internals";
 import { TypstCompiler } from "../print/typst-compiler";
 import { activeLocale } from "../i18n";
 import { PrintTemplateModal } from "../ui/print-modals";
@@ -42,6 +54,12 @@ const TEMPLATE_ASSET = /\.(png|jpe?g|gif|webp|svg)$/i;
 
 /** Which plugin owns which kind of block, for asking it to export its own. */
 const DIAGRAM_PLUGINS: Record<string, string> = { vizardry: "vizardry" };
+
+/** How long a drawing may go on settling before it is captured as it stands. */
+const SETTLE_MS = 4_000;
+
+/** How long one capture may take. A print must end, even badly. */
+const EXPORT_MS = 15_000;
 
 export class PrintCommands {
   private compiler: TypstCompiler | null = null;
@@ -197,16 +215,20 @@ export class PrintCommands {
     // so the answer is the list and nothing else.
     const found = markdownToTypst(source, { hrIsPageBreak: template.hrIsPageBreak }).diagrams;
 
-    const drawings = new Map<number, string>();
+    const drawings = new Map<number, string[]>();
     const assets = new Map<string, JobFile>();
 
     for (const block of found) {
       progress(messages.drawing(block.index + 1, found.length));
-      const picture = await this.draw(block, file.path);
-      if (!picture) continue;
-      const path = `assets/diagram-${block.index}.png`;
-      assets.set(path, { path, bytes: picture });
-      drawings.set(block.index, path);
+      const pictures = await this.draw(block, file.path);
+      if (pictures.length === 0) continue;
+
+      const paths = pictures.map((bytes, panel) => {
+        const path = `assets/diagram-${block.index}-${panel}.png`;
+        assets.set(path, { path, bytes });
+        return path;
+      });
+      drawings.set(block.index, paths);
     }
 
     // The second pass writes the body, knowing which drawings exist. The
@@ -259,10 +281,14 @@ export class PrintCommands {
    * them back up by position is a guess. Rendered one at a time there is
    * nothing to match — the container holds one drawing, and that is the one.
    */
-  private async draw(block: DiagramBlock, sourcePath: string): Promise<Uint8Array | null> {
-    // Off-screen and forced light; both are the stylesheet's, so a theme can
-    // see what printing does rather than fight an inline style.
-    const host = document.body.createDiv({ cls: "schreibstube-print-stage theme-light" });
+  private async draw(block: DiagramBlock, sourcePath: string): Promise<Uint8Array[]> {
+    // Three classes, all of them the stylesheet's rather than an inline style,
+    // so a theme can see what printing does instead of fighting it: off-screen
+    // but laid out, light because paper is, and asking a plugin that enriches
+    // its drawing from the network to leave the network out of it.
+    const host = document.body.createDiv({
+      cls: `schreibstube-print-stage theme-light ${NO_ENRICH_CLASS}`
+    });
 
     const component = new Component();
     try {
@@ -274,23 +300,27 @@ export class PrintCommands {
         component
       );
       // A plugin that draws asynchronously has had a frame by now; mermaid and
-      // the canvases both draw within one.
+      // the canvases both draw within one. A plugin that needs longer says so
+      // itself, below.
       await settle();
 
       // A canvas its own plugin can export is exported by that plugin: it knows
-      // what is drawing and what is a control, which from out here is a guess.
+      // what is drawing and what is a control, which panel of a carousel is
+      // hidden, and what its colours mean — all of which from out here is a
+      // guess.
       const exported = await this.exportThroughPlugin(block, host);
-      if (exported) return exported;
+      if (exported.length > 0) return exported;
 
       const svg = host.querySelector("svg");
       if (!svg) {
         this.logger.warn(`print: ${block.language} drew nothing to capture`);
-        return null;
+        return [];
       }
-      return await rasterise(svg);
+      const picture = await rasterise(svg);
+      return picture ? [picture] : [];
     } catch (error) {
       this.logger.warn(`print: ${block.language} could not be drawn`, error);
-      return null;
+      return [];
     } finally {
       component.unload();
       host.detach();
@@ -304,27 +334,71 @@ export class PrintCommands {
    * only at the contract version this plugin was written against. Anything else
    * falls through to capturing the drawing from the document.
    */
-  private async exportThroughPlugin(
-    block: DiagramBlock,
-    host: HTMLElement
-  ): Promise<Uint8Array | null> {
+  /**
+   * Every canvas of one fence, exported by the plugin that drew it.
+   *
+   * The plugin finds its own canvases rather than this reaching for the first
+   * child: a fence may hold a carousel, whose other panels are hidden on screen
+   * and would silently be left out of a document — which is the worst thing a
+   * print can do, because nothing in the page says a panel is missing.
+   *
+   * A canvas that fails is skipped, never fatal. The fence it belongs to then
+   * prints as its source, which the converter already arranges, and the reason
+   * goes to the log by the code the contract rejects with.
+   */
+  private async exportThroughPlugin(block: DiagramBlock, host: HTMLElement): Promise<Uint8Array[]> {
     const pluginId = DIAGRAM_PLUGINS[block.language];
-    if (!pluginId) return null;
+    if (!pluginId) return [];
 
     const api = canvasExportApi(this.app, pluginId);
-    const root = host.firstElementChild;
-    if (!api || !(root instanceof HTMLElement) || !api.isCanvas(root)) return null;
+    if (!api) return [];
 
+    let canvases: HTMLElement[];
     try {
-      const blob = await api.exportCanvas(root, {
-        scale: CAPTURE_SCALE,
-        light: true
-      });
-      return new Uint8Array(await blob.arrayBuffer());
+      canvases = api.getCanvases(host);
     } catch (error) {
-      this.logger.warn(`print: ${pluginId} could not export its canvas`, error);
-      return null;
+      this.logger.warn(`print: ${pluginId} could not list its canvases`, error);
+      return [];
     }
+
+    const pictures: Uint8Array[] = [];
+    for (const canvas of canvases) {
+      try {
+        // The plugin knows when its drawing has stopped moving; this only says
+        // how long a print is willing to wait to be told.
+        await withTimeout(
+          api.whenSettled(canvas, { maxMs: SETTLE_MS }),
+          SETTLE_MS + 1_000,
+          (seconds) => `${pluginId} kept drawing for more than ${seconds}s`
+        );
+
+        const answer = await withTimeout(
+          api.exportCanvas(canvas, {
+            format: "png",
+            scale: CAPTURE_SCALE,
+            maxEdge: MAX_CAPTURE_PX,
+            light: true,
+            background: "#ffffff",
+            header: false
+          }),
+          EXPORT_MS,
+          (seconds) => `${pluginId} took more than ${seconds}s over one canvas`
+        );
+
+        const result = checkExportResult(answer);
+        if (!result) {
+          this.logger.warn(`print: ${pluginId} answered in a shape this version cannot read`);
+          continue;
+        }
+        pictures.push(new Uint8Array(await result.blob.arrayBuffer()));
+      } catch (error) {
+        this.logger.warn(
+          `print: ${pluginId} could not export a canvas (${exportErrorCode(error)})`,
+          error
+        );
+      }
+    }
+    return pictures;
   }
 
   private async picture(file: TFile, template: PrintTemplate): Promise<Uint8Array | null> {

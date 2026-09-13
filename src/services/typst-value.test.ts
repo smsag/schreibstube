@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { typstDictionary, typstKey, typstLength, typstString } from "./typst-value";
+import { typstDictionary, typstKey, typstLength, typstString, typstArray } from "./typst-value";
 
 describe("typstString", () => {
   it("quotes plain text", () => {
@@ -65,5 +65,23 @@ describe("typstLength", () => {
     for (const value of ["25", "25 px", "calc(1)", "", "25mm; #panic()"]) {
       expect(typstLength(value)).toBeNull();
     }
+  });
+});
+
+describe("typstArray", () => {
+  it("gives one value its trailing comma, so a helper iterates panels not letters", () => {
+    expect(typstArray(["a.png"])).toBe('("a.png",)');
+  });
+
+  it("separates several", () => {
+    expect(typstArray(["a.png", "b.png"])).toBe('("a.png", "b.png")');
+  });
+
+  it("is empty for nothing", () => {
+    expect(typstArray([])).toBe("()");
+  });
+
+  it("escapes each value rather than trusting a file name", () => {
+    expect(typstArray(['a"b.png'])).toBe('("a\\"b.png",)');
   });
 });

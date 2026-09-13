@@ -6,7 +6,7 @@ const convert = (source: string, options = {}): string =>
 
 /** Diagrams and images resolved, as a caller with a successful capture would. */
 const resolved = {
-  diagramImage: (block: { index: number }) => `assets/diagram-${block.index}.png`,
+  diagramImage: (block: { index: number }) => [`assets/diagram-${block.index}-0.png`],
   image: ({ source }: { source: string }) => `assets/${source}`
 };
 
@@ -159,8 +159,23 @@ describe("diagrams", () => {
 
   it("places the captured picture when the caller supplied one", () => {
     expect(markdownToTypst(source, resolved).body).toContain(
-      '#schreibstube-diagram("assets/diagram-0.png", "Der Ablauf")'
+      '#schreibstube-diagram(("assets/diagram-0-0.png",), "Der Ablauf")'
     );
+  });
+
+  it("places every panel of a fence that drew more than one", () => {
+    const conversion = markdownToTypst(source, {
+      diagramImage: () => ["assets/a.png", "assets/b.png", "assets/c.png"]
+    });
+    expect(conversion.body).toContain(
+      '#schreibstube-diagram(("assets/a.png", "assets/b.png", "assets/c.png"), "Der Ablauf")'
+    );
+  });
+
+  it("prints the source when the capture produced no panel at all", () => {
+    const conversion = markdownToTypst(source, { diagramImage: () => [] });
+    expect(conversion.body).toContain('#schreibstube-code("flowchart TD\\n  A --> B", "mermaid")');
+    expect(conversion.warnings).toContain("mermaid: could not be drawn, printed as source");
   });
 
   it("prints the source and warns when the capture failed, rather than losing it", () => {

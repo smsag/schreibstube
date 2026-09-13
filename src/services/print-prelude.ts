@@ -20,17 +20,23 @@ export const PRELUDE_SOURCE = `// Defaults the converted note calls. A template 
   figure(image(path, width: 100%), caption: none)
 }
 
-// A drawn diagram: full text width, never split over a page, and scaled down
-// rather than cropped when it is taller than the page it lands on.
-#let schreibstube-diagram(path, caption) = {
-  block(breakable: false, width: 100%)[
-    #set align(center)
-    #image(path, width: 100%, fit: "contain")
-    #if caption != "" [
-      #v(0.3em)
-      #text(size: 0.85em, fill: luma(90))[#caption]
+// The drawings of one fence: each full text width, none split over a page, and
+// scaled down rather than cropped when one is taller than the page it lands on.
+// Several arrive when a fence holds a carousel, whose panels a page shows all
+// at once. The caption belongs to the fence, so it follows the last of them and
+// stays in the same unbreakable block, where a page break cannot separate them.
+#let schreibstube-diagram(paths, caption) = {
+  let last = paths.len() - 1
+  for (index, path) in paths.enumerate() {
+    block(breakable: false, width: 100%)[
+      #set align(center)
+      #image(path, width: 100%, fit: "contain")
+      #if index == last and caption != "" [
+        #v(0.3em)
+        #text(size: 0.85em, fill: luma(90))[#caption]
+      ]
     ]
-  ]
+  }
 }
 
 #let schreibstube-code(source, language) = {

@@ -171,6 +171,26 @@ The plugin generates `main.typ`:
 // the converted body follows
 ```
 
+### The helpers a note calls
+
+The converter never emits Typst's own primitives for the four things a template
+should own. It calls these instead, defined in `services/print-prelude.ts` and
+placed in the job as `schreibstube.typ`. A template that wants a different look
+defines any of them itself before the body is placed, and its definition wins.
+
+| Helper                 | Signature                             | Given                                                                       |
+| ---------------------- | ------------------------------------- | --------------------------------------------------------------------------- |
+| `schreibstube-image`   | `(path, alt)`                         | one embedded picture                                                        |
+| `schreibstube-diagram` | `(paths, caption)`                    | **an array** of pictures, all from one fence, and one caption for the group |
+| `schreibstube-code`    | `(source, language)`                  | a fence that is not a diagram, or one that could not be drawn               |
+| `schreibstube-callout` | `(kind, title)` returning `body => …` | an Obsidian callout, `kind` one of `note`, `tip`, `warning`, `danger`       |
+
+`schreibstube-diagram` takes an array rather than a single path because a fence
+may draw more than one picture — a carousel's panels are one fence and several
+canvases. A one-picture fence passes a one-element array, which in Typst needs
+its trailing comma: `("a.png",)`. `typstArray` in `services/typst-value.ts`
+writes it, and that comma is the reason the function exists.
+
 ### Data resolution
 
 For every key the template reads, the first of these wins:
@@ -204,26 +224,47 @@ fails validation is reported by name and reason:
 Mermaid and the canvas plugins cannot run inside Typst, so each diagram is
 drawn by whoever draws it and captured as a picture.
 
-Each fence is rendered **on its own**, into a detached container carrying the
-`theme-light` class, rather than found in a rendering of the whole note. A note
-may hold four diagrams from two plugins, and matching them back up by position
-is a guess; rendered one at a time there is nothing to match.
+Each fence is rendered **on its own**, into an off-screen container, rather
+than found in a rendering of the whole note. A note may hold four diagrams from
+two plugins, and matching them back up by position is a guess; rendered one at a
+time there is nothing to match.
+
+That container carries three classes, all of them the stylesheet's rather than
+an inline style, so a theme can see what printing does instead of fighting it:
+
+| Class                      | Why                                                                                                                                                                                                  |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `schreibstube-print-stage` | Off-screen but laid out, 900 px wide, on white. Not `display: none`: a diagram measures itself while it draws, and a box with no width draws nothing.                                                |
+| `theme-light`              | Obsidian's own. A canvas resolves its colours from the variables in scope while it renders, so rendering under this class bakes the light ones in — which paper needs, whatever the vault is set to. |
+| `vzd-print-scratch`        | Asks a canvas plugin to skip the enrichment it would otherwise fetch from the network. Printing is meant to work offline, and this is what keeps that true when a plugin would rather call out.      |
 
 What is captured, in order:
 
 1. **The plugin's own export**, when the block's language names a plugin that
-   offers one at the contract version this plugin knows
+   offers one at or above the contract version this plugin knows
    (`canvasExportApi` in `services/workspace-internals.ts`). A plugin knows
-   which part of its canvas is the drawing and which is a control; from out
-   here that is a guess. Vizardry is the first such plugin.
+   which part of its canvas is the drawing and which is a control, which panel
+   of a carousel is hidden, and what its colours mean; from out here each of
+   those is a guess. Vizardry is the first such plugin.
+
+   The plugin is asked for **every** canvas under the container, not the first:
+   a fence may hold a carousel, whose other panels are hidden on screen and
+   would otherwise be dropped from the document silently, which is the worst
+   thing a print can do — nothing in the page says a panel is missing. Each
+   canvas is then waited on until the plugin says it has stopped moving, and
+   captured. A canvas that fails is skipped and logged by the code the contract
+   rejects with; it never ends the print.
+
 2. **The SVG it drew**, serialised, made standalone — namespace stated, size in
    pixels rather than percent, a white ground so a light stroke is not lost —
    and rasterised to PNG at twice the page's resolution.
 3. **Nothing**, which prints the fence's source with a warning.
 
-The picture replaces the fence through the template's own diagram rule: full
-text width, aspect kept, never split across a page, and a caption from the
-heading above it.
+The pictures replace the fence through the template's own diagram rule, which
+is given all of them at once: each full text width, aspect kept, none split
+across a page, and one caption from the heading above the fence, placed under
+the last picture and inside the same unbreakable block so a page break cannot
+separate them.
 
 ## Output
 
@@ -258,8 +299,9 @@ the messages in both languages. The command is gated like every other: offered
 on a Markdown note, and saying what it needs when it is run without a template.
 
 Still to confirm on a device: that Mermaid and a Vizardry canvas both come out
-light and complete. Vizardry's export API is the plan sent to that repository;
-until it ships, a canvas is captured only if it drew a single SVG.
+light and complete. Vizardry's export API is agreed and frozen at version 1;
+this plugin is written against it. Until it ships, a canvas is captured only if
+it drew a single SVG.
 
 ### Epic 4: the two example templates — done
 

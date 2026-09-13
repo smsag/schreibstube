@@ -14,6 +14,7 @@
  * testable in a few milliseconds.
  */
 import { fenceMarker } from "./markdown-fence";
+import { typstArray, typstString } from "./typst-value";
 
 /** A fenced block a drawing plugin owns, in the order the note holds them. */
 export interface DiagramBlock {
@@ -42,7 +43,7 @@ export interface ConvertOptions {
    * in a code block, with a warning, because a silently missing diagram is a
    * page that lies about what the note says.
    */
-  diagramImage?: (block: DiagramBlock) => string | null;
+  diagramImage?: (block: DiagramBlock) => readonly string[] | null;
   /** The same for an embedded image: a path inside the job, or null. */
   image?: (request: ImageRequest) => string | null;
 }
@@ -222,9 +223,12 @@ class Converter {
       };
       this.diagrams.push(block);
 
-      const path = this.options.diagramImage?.(block) ?? null;
-      if (path !== null) {
-        return `#schreibstube-diagram(${quote(path)}, ${quote(block.caption)})\n`;
+      // A fence may hold several drawings — a carousel shows one panel and
+      // hides the rest, and a page has no carousel — so the helper is given
+      // every picture that was captured, not the first of them.
+      const paths = this.options.diagramImage?.(block) ?? null;
+      if (paths !== null && paths.length > 0) {
+        return `#schreibstube-diagram(${typstArray(paths)}, ${quote(block.caption)})\n`;
       }
       this.warnings.push(`${language}: could not be drawn, printed as source`);
     }
@@ -604,7 +608,7 @@ export function escapeText(text: string): string {
 }
 
 function quote(value: string): string {
-  return JSON.stringify(value);
+  return typstString(value);
 }
 
 function stripFrontmatter(source: string): string {

@@ -54,3 +54,17 @@ export function typstLength(value: string): string | null {
   const match = /^(-?\d+(?:\.\d+)?)\s*(mm|cm|in|pt|em)$/.exec(value.trim());
   return match ? `${match[1]}${match[2]}` : null;
 }
+
+/**
+ * A list of values as Typst reads one.
+ *
+ * The single-element case needs its trailing comma: `("a")` is a parenthesised
+ * string and `("a",)` is an array of one, and a helper that iterates the first
+ * would iterate its characters. One diagram in a fence is the common case, so
+ * this is the case that has to be right.
+ */
+export function typstArray(values: readonly string[]): string {
+  if (values.length === 0) return "()";
+  if (values.length === 1) return `(${typstString(values[0] as string)},)`;
+  return `(${values.map((value) => typstString(value)).join(", ")})`;
+}
