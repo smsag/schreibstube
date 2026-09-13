@@ -47,10 +47,10 @@ export default defineConfig({
       // did, and these are the same margin under the new one (measured 79 / 74
       // / 78 / 76 on the day).
       thresholds: {
-        lines: 77,
-        functions: 72,
-        statements: 76,
-        branches: 74
+        lines: 80,
+        functions: 75,
+        statements: 79,
+        branches: 75
       }
     }
   }

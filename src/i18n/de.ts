@@ -8,6 +8,7 @@ import type { Messages } from "./en";
 
 export const de: Messages = {
   commands: {
+    print: "Drucken: diese Notiz als PDF",
     focusSentence: "Fokus: Satz",
     focusParagraph: "Fokus: Absatz",
     focusDisable: "Fokus: aus",
@@ -288,6 +289,20 @@ export const de: Messages = {
       "Markiert Begriffe der Stufe „Fehler“ beim Schreiben. Standardmäßig aus, damit lange " +
       "Notizen ruhig bleiben.",
 
+    printHeading: "Drucken",
+    printIntro: (typst: string) =>
+      `Aus einer Notiz wird ein PDF über eine Vorlage: ein Ordner mit einer template.md, die sagt, ` +
+      `was die Vorlage braucht, einer template.typ, die die Seite setzt, und ihren Schriften. ` +
+      `Gesetzt wird auf dem Gerät mit Typst ${typst} — also offline und auch am Telefon. Der Satzteil ` +
+      "wird beim ersten Drucken einmal pro Gerät geladen. Zum Anfangen eine Vorlage aus examples/print/ kopieren.",
+    printTemplateRoot: "Vorlagenordner",
+    printTemplateRootDesc:
+      "Ordner im Vault, in dem nach Druckvorlagen gesucht wird. Jeder Unterordner mit einer " +
+      "template.md, die schreibstubePrintTemplate setzt, ist eine.",
+    printOutputFolder: "Zielordner",
+    printOutputFolderDesc:
+      "Wohin ein gedrucktes PDF geschrieben wird. Leer lassen, damit es neben der Notiz liegt.",
+    printOutputBesideNote: "neben der Notiz",
     commandsHeading: "Befehle",
     commandsIntro: "In der Befehlspalette, jeweils mit „Schreibstube: “ davor.",
 
@@ -627,6 +642,34 @@ export const de: Messages = {
       submit: "Löschen",
       failed: (name: string) => `„${name}“ konnte nicht gelöscht werden.`
     }
+  },
+
+  print: {
+    noNote: "zuerst eine Notiz öffnen — gedruckt wird die Notiz, die vor dir liegt.",
+    noTemplates: (root: string) =>
+      `keine Druckvorlage in ${root} gefunden. Eine Vorlage ist ein Ordner mit template.md und ` +
+      "template.typ; kopiere zum Anfangen eine aus examples/print/.",
+    unknownTemplate: (name: string) =>
+      `diese Notiz verlangt die Vorlage „${name}“, die es im Vorlagenordner nicht gibt.`,
+    noLayout: (name: string) => `${name} hat keine template.typ — damit lässt sich nichts drucken.`,
+    working: (name: string) => `drucke mit ${name} …`,
+    drawing: (index: number, total: number) => `zeichne Diagramm ${index} von ${total} …`,
+    downloading: (label: string, megabytes: number) =>
+      `lade den Satzteil „${label}“ (${megabytes} MB, einmal pro Gerät) …`,
+    verifying: "prüfe das Geladene …",
+    starting: "starte den Satz …",
+    compiling: "setze …",
+    mismatch: (detail: string) =>
+      `der geladene Satzteil ist nicht der erwartete und wurde nicht benutzt (${detail}).`,
+    unreachable: (detail: string) =>
+      `der Satzteil ließ sich nicht laden (${detail}). Er wird einmal pro Gerät gebraucht; mit Netz erneut versuchen.`,
+    compilerRefused: (detail: string) => `die Vorlage ließ sich nicht setzen — ${detail}`,
+    pictureFailed: (name: string) => `${name} ließ sich nicht lesen und fehlt`,
+    done: (path: string, kilobytes: number) => `${path} gedruckt (${kilobytes} KB).`,
+    withWarnings: (detail: string) => `gedruckt, aber etwas fehlt — ${detail}`,
+    failed: (detail: string) => `Drucken fehlgeschlagen — ${detail}`,
+    chooseTemplate: "Mit welcher Vorlage drucken?",
+    templateHint: "schreibstubePrintTemplate in der Notiz setzen, um das zu überspringen."
   },
 
   secrets: {

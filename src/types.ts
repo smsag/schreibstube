@@ -114,6 +114,10 @@ export interface SchreibstubeSettings {
   publishFrontmatterKeys: PublishKeyMap;
   /** What each account last published, keyed by account id. Plugin-written. */
   publishLastRun: Record<string, PublishRunRecord>;
+  /** Vault folder holding the print templates. */
+  printTemplateRoot: string;
+  /** Where a printed PDF is written; empty means beside the note. */
+  printOutputFolder: string;
   // Diagnostics.
   debugLogging: boolean;
 }

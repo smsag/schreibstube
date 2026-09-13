@@ -86,6 +86,9 @@ half is worth ten minutes on a phone, once per release:
 7. Open the file pane: the icons draw (an empty square means the font did not
    load), a long press opens the menu, and "More actions" opens as a drill-down
    rather than doing nothing.
+8. Print a note with the letter example. The first print downloads the
+   typesetter, which is 28 MB and the one step that needs the network; the
+   second should be a second or two with nothing fetched.
 
 Record the result in the release notes. A claim that has not been checked on a
 phone since the last release is a claim about the code, not about the app.

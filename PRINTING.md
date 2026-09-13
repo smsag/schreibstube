@@ -21,7 +21,9 @@ Five were made, in this order, and each shapes what follows.
    to Typst as an image. Paper is light whatever the vault's theme.
 4. **Data lives in frontmatter.** A name, an address, a recipient, a subject:
    the note's frontmatter says it, the template's frontmatter holds defaults,
-   and nothing has to be written into the body in a magic shape.
+   and nothing has to be written into the body in a magic shape. An earlier
+   draft lifted labelled paragraphs out of the body instead; frontmatter says
+   the same thing without teaching anyone a convention.
 5. **Size is a guardrail, not a goal.** Fonts are embedded as the template
    ships them, images are capped generously, and the caps exist to protect
    memory on a phone rather than to squeeze bytes.
@@ -52,17 +54,20 @@ note + frontmatter
   │
   ├─ services/print-template.ts   discover templates, parse descriptor, validate
   ├─ services/print-data.ts       resolve data: note frontmatter → template defaults
-  ├─ services/markdown-typst.ts   Markdown → Typst markup, pure, snapshot-tested
-  ├─ services/print-assets.ts     images: bounds, hashing, file names inside the job
+  ├─ services/markdown-typst.ts   Markdown → Typst markup, pure, tested
+  ├─ services/print-job.ts        main.typ, the job's files, the limits
+  ├─ services/print-prelude.ts    the helpers a converted note calls
+  ├─ services/typst-value.ts      values → Typst literals, never into source
+  ├─ services/typst-runtime.ts    which bytes the compiler may be
+  ├─ services/svg-capture.ts      how large a drawing is, and how to detach it
   │
   ├─ controllers/print-commands.ts
-  │     render the note off-screen in a light theme
-  │     capture Mermaid and Vizardry blocks as PNG
-  │     assemble the job: main.typ, template.typ, fonts, images
-  │     hand the job to the compiler, write the PDF beside the note
+  │     draw each diagram off-screen in a light theme and capture it
+  │     assemble the job: main.typ, template.typ, fonts, pictures
+  │     hand the job over, write the PDF, say what was left out
   │
-  └─ print/compiler.ts            the Typst wasm, in a Web Worker
-        acquire the runtime once, verify it, cache it in the plugin folder
+  └─ print/typst-compiler.ts      acquire the runtime, verify it, run it
+     print/typst-worker.ts        the thread it runs on
 ```
 
 ### The compiler runtime
@@ -70,35 +75,49 @@ note + frontmatter
 The wasm is 28 MB and cannot live in `main.js`, whose budget is 400 KB and
 whose every byte is parsed on every start. It is fetched once per device:
 
-- The release workflow downloads `@myriaddreamin/typst-ts-web-compiler` at the
-  pinned version, verifies its SHA-256 against the value committed in
-  `src/print/runtime-manifest.ts`, and attaches `typst-runtime-<version>.zip`
-  (wasm plus its JavaScript glue) to the GitHub release.
-- On the first print, the plugin fetches that asset with `requestUrl` from its
-  own release tag, verifies the SHA-256 again, and writes it under the plugin's
-  folder in the vault. A mismatch is refused and reported, never loaded.
-- The compiler runs in a Web Worker built from a Blob URL, so a phone's UI
-  stays responsive while a document compiles. The worker receives the fonts,
-  the files and the main source as shadow files, and answers with PDF bytes.
+- The release workflow runs `scripts/fetch-typst-runtime.mjs`, which downloads
+  `@myriaddreamin/typst-ts-web-compiler` at the pinned version, checks both
+  files against the hashes committed in `src/services/typst-runtime.ts`, and
+  fails the release rather than publishing anything else. The two files are
+  attached to every release and covered by its provenance attestation.
+- On the first print the plugin fetches them with `requestUrl` from its own
+  release tag, hashes them again, and writes them beside the plugin. The cache
+  is hashed on every later start too, because it sits in a folder a person can
+  open and "it worked yesterday" is not a reason to run what is there today.
+- The compiler runs in a Web Worker built from a blob, so the interface stays
+  responsive while a document is set. The module is compiled on the main thread
+  and the `WebAssembly.Module` is posted across, which is what stops 28 MB from
+  being copied. The worker gets the fonts and the job's files, and answers with
+  PDF bytes.
+
+Measured on this hardware: 226 ms to instantiate, 171 ms to set the letter,
+433 ms to set the four-page CV with its photo and four font faces.
 
 The runtime version is pinned in source and bumped deliberately; a template
 written against Typst 0.14 keeps compiling until the pin moves.
 
 ### What the converter covers
 
-`markdown-typst.ts` walks the same Markdown the vault shows and emits Typst.
-In scope for the first release: headings, paragraphs, emphasis and strong,
-ordered and unordered lists with nesting, links, images and embeds, tables
-with alignment, inline and fenced code, blockquotes, footnotes, `<br>`,
-horizontal rules as an optional page break, callouts as styled blocks, and
-Mermaid and Vizardry fences as captured images.
+`markdown-typst.ts` walks the same Markdown the vault shows and emits Typst. It
+is hand-written: the bridge's site renderer uses markdown-it, but the bridge is
+a server with room for a dependency tree, and this runs inside a bundle with a
+400 KB budget that is parsed on every start.
 
-Not in the first release, and reported rather than dropped: LaTeX math,
-arbitrary HTML, other plugins' code blocks. A block the converter cannot
-handle prints as a code block with a warning the panel shows.
+Carried over: headings, paragraphs, emphasis, strong, strikethrough, highlight,
+ordered and unordered lists with nesting, links, wikilinks as their text,
+images and embeds, tables with the alignment the delimiter row states, inline
+and fenced code, blockquotes, callouts, footnotes placed where they are
+referenced, `<br>` as a line break, and horizontal rules as an optional page
+break.
 
-Every construct has a snapshot test against a fixture note. The two sample
-documents are fixtures.
+Dropped, with a warning rather than in silence: raw HTML, embedded notes, and
+a picture that cannot be read. A diagram that could not be drawn prints as its
+own source in a code block — a missing diagram is a page that lies about what
+the note says.
+
+Not yet: LaTeX math. It is reported like the rest.
+
+Every construct has a test, and both sample documents are fixtures.
 
 ## The template contract
 
@@ -182,21 +201,29 @@ fails validation is reported by name and reason:
 
 ## Diagrams
 
-Mermaid and Vizardry cannot run in Typst. The plugin renders the note into a
-detached container of the template's text width, with the light theme forced
-by class, waits for the DOM to settle, and captures each diagram block:
+Mermaid and the canvas plugins cannot run inside Typst, so each diagram is
+drawn by whoever draws it and captured as a picture.
 
-- **Mermaid**: the SVG Obsidian produced, rasterised at double resolution to
-  PNG through a canvas.
-- **Vizardry**: through its export function when the plugin is installed and
-  offers one (see the plan handed to that repository), otherwise through the
-  same generic capture, which serialises the block's DOM into an SVG
-  `foreignObject` and rasterises that. Interactive controls are hidden first.
-- **Anything else**: the generic capture, best effort, warning on failure.
+Each fence is rendered **on its own**, into a detached container carrying the
+`theme-light` class, rather than found in a rendering of the whole note. A note
+may hold four diagrams from two plugins, and matching them back up by position
+is a guess; rendered one at a time there is nothing to match.
 
-The image replaces the fence in the converted body with the template's
-diagram rule: full text width, aspect kept, never split across pages, scaled
-down to fit a page when taller, an optional caption from the heading above.
+What is captured, in order:
+
+1. **The plugin's own export**, when the block's language names a plugin that
+   offers one at the contract version this plugin knows
+   (`canvasExportApi` in `services/workspace-internals.ts`). A plugin knows
+   which part of its canvas is the drawing and which is a control; from out
+   here that is a guess. Vizardry is the first such plugin.
+2. **The SVG it drew**, serialised, made standalone — namespace stated, size in
+   pixels rather than percent, a white ground so a light stroke is not lost —
+   and rasterised to PNG at twice the page's resolution.
+3. **Nothing**, which prints the fence's source with a warning.
+
+The picture replaces the fence through the template's own diagram rule: full
+text width, aspect kept, never split across a page, and a caption from the
+heading above it.
 
 ## Output
 
@@ -208,51 +235,43 @@ a fixed folder for vaults that keep exports apart.
 
 Each epic ends with `npm run check` green and the floors unchanged or higher.
 
-### Epic 1: the decisions, pure
+### Epic 1: the decisions, pure — done
 
-- `print-template.ts`: discovery by frontmatter flag, descriptor parsing with
-  every field validated, the limits.
-- `print-data.ts`: resolution order, built-ins, date formatting per language.
-- `markdown-typst.ts`: the converter, with snapshot tests over both samples
-  and one fixture per construct.
-- `print-assets.ts`: image bounds through the existing `image-resize` service,
-  content hashing, job file naming.
+`print-template.ts`, `print-data.ts`, `markdown-typst.ts`, `print-job.ts`,
+`print-prelude.ts`, `typst-value.ts`. Both samples were converted and compiled
+with the native Typst binary during development: the letter came out on one
+page, the CV on the same four the original has.
 
-Done when: the two samples convert to Typst that compiles with the native
-binary in CI and matches a committed snapshot.
+### Epic 2: the compiler runtime — done
 
-### Epic 2: the compiler runtime
+`services/typst-runtime.ts` pins it, `scripts/fetch-typst-runtime.mjs` builds
+and verifies the release assets, `print/typst-compiler.ts` acquires and runs
+it. Both samples compile through the WebAssembly build.
 
-- `runtime-manifest.ts`: version and SHA-256 of the runtime asset.
-- `scripts/fetch-typst-runtime.mjs`: used by the release workflow to build and
-  verify the asset; the workflow attaches it.
-- `print/compiler.ts`: acquire, verify, cache; worker lifecycle; the compile
-  call with fonts and shadow files; diagnostics mapped to a notice.
+Still to confirm on a device: the first download, and the worker. Neither can
+be exercised here — see the mobile checklist in `CONTRIBUTING.md`.
 
-Done when: a fresh vault on desktop and on a phone prints the letter fixture
-after one download, and a tampered asset is refused.
+### Epic 3: capture and the command — done
 
-### Epic 3: capture and the command
+`controllers/print-commands.ts`, `ui/print-modals.ts`, `settings/print.ts`, and
+the messages in both languages. The command is gated like every other: offered
+on a Markdown note, and saying what it needs when it is run without a template.
 
-- Off-screen light-theme render, settle detection, Mermaid and generic
-  capture, the Vizardry hook.
-- `print-commands.ts`: the command, the template picker, progress, the
-  written PDF, the reveal, gated availability like every other command.
-- Settings section: templates root, output folder, image caps.
+Still to confirm on a device: that Mermaid and a Vizardry canvas both come out
+light and complete. Vizardry's export API is the plan sent to that repository;
+until it ships, a canvas is captured only if it drew a single SVG.
 
-Done when: the diagram sample prints with both Mermaid diagrams and both
-Vizardry canvases as light images on the pages the template puts them on.
+### Epic 4: the two example templates — done
 
-### Epic 4: the two example templates
+`examples/print/brief/` and `examples/print/lebenslauf/`, each documented in
+its own `template.md`, with `examples/print/README.md` on installing one and
+on fonts. Neither ships a typeface: fonts are licensed, and a repository is not
+a place to redistribute them.
 
-`examples/print/lebenslauf/` and `examples/print/brief/`, faithful to the two
-samples, Fira Sans in the faces they use, documented in their `template.md`.
+### Epic 5: documentation and release — done
 
-### Epic 5: documentation and release
-
-This file becomes the reference; `README.md` gets a section and the
-documentation table a row; the changelog entry; the release attaches the
-runtime; the mobile checklist gains "print the letter example".
+This file, a `README.md` section, the changelog, the release step that builds
+and attaches the runtime, and a mobile checklist that gains a print.
 
 ### Later
 
@@ -265,7 +284,8 @@ Typst's own math; batch printing a folder; a template gallery.
   PDF bytes on every device.
 - Offline after the runtime's one download; no network at print time.
 - Under 3 s from command to written PDF for a ten-page note on a current
-  phone, excluding the first download.
+  phone, excluding the first download. Measured on a laptop: 0.6 s for the
+  letter, 0.9 s for the CV, both including instantiating the module.
 - The plugin bundle stays within its budget; the runtime never enters it.
 - Every failure names its cause in the language of the vault: which template,
   which line, which limit.

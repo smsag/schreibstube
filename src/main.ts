@@ -46,6 +46,7 @@ import { BookmarkQuickOpenModal } from "./ui/bookmark-quick-open";
 import { vaultUrlFor } from "./services/bookmark-file";
 import { MailCommands } from "./controllers/mail-commands";
 import { PublishCommands } from "./controllers/publish-commands";
+import { PrintCommands } from "./controllers/print-commands";
 import { SchreibstubeSettingTab } from "./settings/index";
 import { setLanguage, t } from "./i18n";
 import type { FocusMode, HeadingEntry, SchreibstubeSettings } from "./types";
@@ -77,6 +78,7 @@ export default class SchreibstubePlugin extends Plugin {
   private lastPollMinute = -1;
   private mail: MailCommands | null = null;
   private publish: PublishCommands | null = null;
+  private print: PrintCommands | null = null;
 
   override async onload(): Promise<void> {
     await this.loadSettings();
@@ -101,6 +103,13 @@ export default class SchreibstubePlugin extends Plugin {
         this.settings = normalizeSettings({ ...this.settings, ...patch });
         await this.saveSettings();
       },
+      this.logger
+    );
+    this.print = new PrintCommands(
+      this.app,
+      () => this.settings,
+      this.manifest.dir ?? `${this.app.vault.configDir}/plugins/${this.manifest.id}`,
+      this.manifest.version,
       this.logger
     );
     this.proofread = new ProofreadController(this.app, () => this.settings, this.logger, {
@@ -197,6 +206,7 @@ export default class SchreibstubePlugin extends Plugin {
 
   override onunload(): void {
     this.linkMode?.stop();
+    this.print?.stop();
     this.proofread?.stop();
     void this.explorer?.stop();
     this.sections?.stop();
@@ -703,6 +713,10 @@ export default class SchreibstubePlugin extends Plugin {
 
     this.addGatedCommand("fetch-replies", t().commands.fetchReplies, "fetch-replies", () => {
       void this.mail?.fetchReplies();
+    });
+
+    this.addGatedCommand("print-note", t().commands.print, "print", () => {
+      void this.print?.printActiveNote();
     });
 
     this.addCommand({

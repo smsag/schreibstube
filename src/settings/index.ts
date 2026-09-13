@@ -8,6 +8,7 @@ import { renderProofreading } from "./proofreading";
 import { renderSync } from "./sync";
 import { renderMail } from "./mail";
 import { renderPublish } from "./publish";
+import { renderPrint } from "./print";
 import { renderDiagnostics } from "./diagnostics";
 
 /**
@@ -38,6 +39,7 @@ export class SchreibstubeSettingTab extends PluginSettingTab {
     renderSync(ctx);
     renderMail(ctx);
     renderPublish(ctx);
+    renderPrint(ctx);
     renderDiagnostics(ctx);
   }
 }

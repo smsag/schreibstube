@@ -1,4 +1,4 @@
-import type { Menu, MenuItem, Workspace, WorkspaceLeaf } from "obsidian";
+import type { App, Menu, MenuItem, Workspace, WorkspaceLeaf } from "obsidian";
 import type { Logger } from "./logger";
 
 /**
@@ -110,4 +110,48 @@ export function openSubmenu(item: MenuItem, logger: Logger): Menu | null {
   }
 
   return factory.call(item);
+}
+
+/**
+ * What another plugin offers printing, if it offers anything.
+ *
+ * A canvas drawn by a plugin is that plugin's to export: it knows which parts
+ * are the drawing and which are the controls around it, and it already draws
+ * the thing in a light theme for its own export. Asking it beats guessing from
+ * the outside — so printing asks, and falls back to capturing the drawing
+ * itself when there is nobody to ask.
+ *
+ * Everything here is checked before it is used. A plugin that is not installed,
+ * an older version without the function, a version whose contract has moved on:
+ * each of them is simply "no export offered", which the caller already handles.
+ */
+export interface CanvasExportOptions {
+  scale?: number;
+  light?: boolean;
+  chrome?: boolean;
+}
+
+export interface CanvasExportApi {
+  version: number;
+  isCanvas(el: HTMLElement): boolean;
+  exportCanvas(el: HTMLElement, options?: CanvasExportOptions): Promise<Blob>;
+}
+
+/** The contract version this plugin knows how to talk to. */
+export const CANVAS_EXPORT_VERSION = 1;
+
+interface PluginsInternals {
+  plugins?: { plugins?: Record<string, { api?: unknown } | undefined> };
+}
+
+export function canvasExportApi(app: App, pluginId: string): CanvasExportApi | null {
+  const api = (app as unknown as PluginsInternals).plugins?.plugins?.[pluginId]?.api;
+  if (!api || typeof api !== "object") return null;
+
+  const candidate = api as Partial<CanvasExportApi>;
+  if (candidate.version !== CANVAS_EXPORT_VERSION) return null;
+  if (typeof candidate.isCanvas !== "function" || typeof candidate.exportCanvas !== "function") {
+    return null;
+  }
+  return candidate as CanvasExportApi;
 }
