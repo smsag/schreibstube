@@ -479,6 +479,7 @@ export const de: Messages = {
     filterMore: (count: number) => `${count} weitere Treffer. Filter eingrenzen, um sie zu sehen.`,
     collapseAll: "Alle zuklappen",
     sectionCount: (count: number) => `(${count})`,
+    folderCount: (count: string) => `${count} Dateien`,
 
     move: {
       intoItself: (name: string) => `${name} lässt sich nicht in sich selbst verschieben.`,

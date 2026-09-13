@@ -301,6 +301,7 @@ export const enExtra = {
     filterMore: (count: number) => `${count} more match. Narrow the filter to see them.`,
     collapseAll: "Collapse all",
     sectionCount: (count: number) => `(${count})`,
+    folderCount: (count: string) => `${count} files`,
 
     move: {
       intoItself: (name: string) => `${name} cannot be moved inside itself.`,

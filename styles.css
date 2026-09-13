@@ -713,6 +713,37 @@
   font-size: var(--schreibstube-twisty-size);
 }
 
+/* The glyph and the count share a box so the figure can sit on the corner of
+   the icon. The box takes the glyph's place in the row; the glyph inside it
+   keeps its own size and colour. */
+.schreibstube-explorer-glyph-box {
+  position: relative;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+}
+
+/* What a closed folder is holding, on the folder itself. Small, quiet and
+   never wider than a couple of digits — past ninety-nine it says 99+ rather
+   than growing into the name. */
+.schreibstube-explorer-count {
+  position: absolute;
+  right: -5px;
+  bottom: -4px;
+  min-width: 13px;
+  padding: 0 2px;
+  border-radius: 7px;
+  background: var(--background-modifier-border);
+  color: var(--text-muted);
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 13px;
+  text-align: center;
+  /* The row it sits on may be the one being dragged or filtered away; the
+     badge is part of the icon and goes with it. */
+  pointer-events: none;
+}
+
 .schreibstube-explorer-glyph {
   flex: 0 0 auto;
   font-size: var(--schreibstube-glyph-size);
@@ -721,6 +752,12 @@
 
 .schreibstube-explorer-row.is-folder .schreibstube-explorer-glyph {
   color: var(--text-accent);
+}
+
+/* A row under the pointer paints its own background; the badge would otherwise
+   read as a hole in it. */
+.schreibstube-explorer-row:hover .schreibstube-explorer-count {
+  background: var(--background-modifier-border-hover, var(--background-modifier-border));
 }
 
 .schreibstube-explorer-name {

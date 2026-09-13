@@ -49,6 +49,7 @@ import {
 } from "../services/tree-move";
 import type { SchreibstubeSettings } from "../types";
 import { isLongPressEcho } from "../services/explorer-menu";
+import { countFilesUnder, folderCountLabel } from "../services/folder-count";
 import { applyIcon, installIconFont } from "./icon-font";
 import { SCHREIBSTUBE_ICON } from "./schreibstube-icon";
 
@@ -246,6 +247,8 @@ export class ExplorerPaneView extends ItemView {
    *  them, so a capped list can say what it is holding back. */
   private matchCount = 0;
   private drawnMatches = 0;
+  /** Files under each folder, counted once per draw. */
+  private folderCounts = new Map<string, number>();
   /** A redraw a drag held back, to be run as soon as the drag has ended. */
   private deferred = false;
   /** Where the pointer is during a drag, and the frame loop that scrolls the
@@ -558,6 +561,7 @@ export class ExplorerPaneView extends ItemView {
     this.shelf?.empty();
     this.matches = this.collectMatches();
     this.drawnMatches = 0;
+    this.folderCounts.clear();
     // The rows a drag was holding are about to be thrown away.
     this.dragging = null;
     this.deferred = false;
@@ -1052,12 +1056,17 @@ export class ExplorerPaneView extends ItemView {
     if (controller.isKept(file.path)) row.addClass("is-pinned");
     if (file instanceof TFile) this.markOpenState(row, file.path);
 
+    const open = isFolder && this.isExpanded(file);
     const twisty = row.createSpan({ cls: "schreibstube-explorer-twisty" });
     if (isFolder) {
-      applyIcon(twisty, this.isExpanded(file) ? "chevron-down" : "chevron-right");
+      applyIcon(twisty, open ? "chevron-down" : "chevron-right");
     }
 
-    applyIcon(row.createSpan({ cls: "schreibstube-explorer-glyph" }), this.glyphFor(file));
+    // The glyph and its badge share a box, so the figure can sit on the corner
+    // of the icon rather than after it.
+    const glyph = row.createSpan({ cls: "schreibstube-explorer-glyph-box" });
+    applyIcon(glyph.createSpan({ cls: "schreibstube-explorer-glyph" }), this.glyphFor(file));
+    if (isFolder && !open) this.renderFolderCount(glyph, file);
     row.createSpan({ cls: "schreibstube-explorer-name", text: displayName(file) });
 
     if (controller.isKept(file.path)) {
@@ -1238,6 +1247,34 @@ export class ExplorerPaneView extends ItemView {
         ".schreibstube-explorer-row.is-folder[data-path], .schreibstube-explorer-section-header.is-divider"
       )
     );
+  }
+
+  /**
+   * What a closed folder is holding, on the folder's own icon.
+   *
+   * Counted once per draw and kept, because a folder's count is its children's
+   * counts and a vault is walked once that way rather than once per row.
+   */
+  private renderFolderCount(host: HTMLElement, folder: TAbstractFile): void {
+    if (!(folder instanceof TFolder)) return;
+
+    const label = folderCountLabel(this.countFilesIn(folder));
+    if (label === null) return;
+
+    host.createSpan({
+      cls: "schreibstube-explorer-count",
+      text: label,
+      attr: { "aria-label": t().explorer.folderCount(label) }
+    });
+  }
+
+  private countFilesIn(folder: TFolder): number {
+    const known = this.folderCounts.get(folder.path);
+    if (known !== undefined) return known;
+
+    const count = countFilesUnder(folder);
+    this.folderCounts.set(folder.path, count);
+    return count;
   }
 
   /**
