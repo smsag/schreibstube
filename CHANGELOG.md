@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## 1.19.1 - 2026-09-13
+
+### Fixed
+
+- **The context menu stays open again, so a file can be deleted.** 1.19.0 let a finger drag a row, and the press that arms that drag is the same press that opens the menu. What it inherited was the mouse's idea of when a press becomes a drag: four pixels. A finger resting on glass moves further than that, and rolls further still as it lifts — so the menu opened and was taken away again by the drag starting, before anything on it could be tapped. Deleting, renaming, moving and every other action behind that menu became unreachable on a phone. A finger now has to travel sixteen pixels, more than half a row, before the drag takes over: a hand on its way somewhere rather than a hand staying put. A mouse is unchanged at four.
+
 ## 1.19.0 - 2026-09-13
 
 ### Added

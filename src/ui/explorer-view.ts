@@ -116,6 +116,19 @@ const STUCK_TOLERANCE_PX = 1.5;
 /** Movement, in pixels, that turns a press into a drag rather than a click. */
 const DRAG_THRESHOLD_PX = 4;
 
+/**
+ * How far a finger must travel before a press becomes a drag.
+ *
+ * Far further than a mouse, and the reason is the menu. On a touch screen the
+ * same press opens the context menu and arms the drag at the same instant, and
+ * a drag taking over closes that menu — so at a mouse's four pixels, a finger
+ * resting on glass or rolling as it lifts was enough to take the menu away
+ * before it could be tapped, which left no way to delete, rename or move
+ * anything. Sixteen is more than half a row: a hand on its way somewhere,
+ * rather than a hand staying put.
+ */
+const DRAG_TOUCH_THRESHOLD_PX = 16;
+
 /** How close to the top or bottom of the list a drag has to be before the list
  *  starts moving under it, and how far it moves in one frame at the very edge. */
 const EDGE_SCROLL_PX = 48;
@@ -1174,13 +1187,14 @@ export class ExplorerPaneView extends ItemView {
       }
 
       const moved = Math.hypot(event.clientX - startX, event.clientY - startY);
+      const threshold = event.pointerType === "touch" ? DRAG_TOUCH_THRESHOLD_PX : DRAG_THRESHOLD_PX;
 
       // A finger that moves before the hold has elapsed is scrolling the pane.
       if (!armed) {
-        if (moved > DRAG_THRESHOLD_PX) clearHold();
+        if (moved > threshold) clearHold();
         return;
       }
-      if (this.dragging === null && moved <= DRAG_THRESHOLD_PX) return;
+      if (this.dragging === null && moved <= threshold) return;
 
       if (this.dragging === null) {
         this.dragging = handlers.path;
