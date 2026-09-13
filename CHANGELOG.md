@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## 1.21.1 - 2026-09-13
+
+### Fixed
+
+- **A section header no longer keeps the grey it lit up with.** The headers were buttons, and a button wears whatever a theme thinks a button looks like: a fill under the pointer, and on a phone a fill that stays, because a finger that taps leaves the hover state behind it and nothing takes it away. "Dateien und Ordner" sat there afterwards as a grey band across the pane. A header is drawn by the pane now rather than being a button dressed down, and no state it can be in paints anything but the colour behind the pane — which it paints only because it is sticky and rows slide under it.
+- **The control that opens and closes the tree shows its icon, and stands on nothing.** It had a hover fill of its own, which on a phone was the same one-way state: a grey chip at the end of the header with a faint glyph inside it that could not be read against it. The fill is gone in every state, the icon carries the tone a row's own chevron has, and if the bundled icon set were ever without the glyph, Obsidian's own is drawn instead — an empty box and a broken control look the same from the outside.
+
 ## 1.21.0 - 2026-09-13
 
 ### Added

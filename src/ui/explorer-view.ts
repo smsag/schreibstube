@@ -22,6 +22,7 @@ import {
   FileView,
   ItemView,
   Notice,
+  setIcon,
   TFile,
   TFolder,
   type TAbstractFile,
@@ -183,7 +184,10 @@ type SectionId = "pinned" | "bookmarks" | "latest" | "files";
 
 /** A control a header carries at its far end, past the rule. */
 interface SectionAction {
+  /** A name in the bundled set, which is what the rest of the pane draws with. */
   icon: string;
+  /** Obsidian's own name for the same thing, drawn if the set has not got it. */
+  fallbackIcon: string;
   /** Named for a screen reader and on hover, because the icon alone is a guess. */
   label: string;
   run: () => void;
@@ -691,9 +695,16 @@ export class ExplorerPaneView extends ItemView {
     // "Files and folders" is drawn as a band across the pane, because it is the
     // one header that separates two kinds of thing: the three curated lists
     // above it and the vault itself below.
-    const header = section.createEl("button", {
+    //
+    // A div and not a button, though it behaves as one. A button carries every
+    // theme's idea of what a button looks like — a fill, a hover fill, a
+    // pressed fill — and a header that lit up grey under the finger that had
+    // just opened it, and stayed lit, was that idea arriving where it was not
+    // wanted. A row in this pane is drawn by this pane. It also stops a control
+    // of the section's own from being a button inside a button.
+    const header = section.createDiv({
       cls: `schreibstube-explorer-section-header${id === "files" ? " is-divider" : ""}`,
-      attr: { type: "button", "aria-expanded": String(!collapsed) }
+      attr: { role: "button", tabindex: "0", "aria-expanded": String(!collapsed) }
     });
     const twisty = header.createSpan({ cls: "schreibstube-explorer-twisty" });
     if (closable) applyIcon(twisty, collapsed ? "chevron-right" : "chevron-down");
@@ -723,7 +734,7 @@ export class ExplorerPaneView extends ItemView {
     if (options.action) this.renderSectionAction(header, options.action);
 
     if (closable) {
-      header.addEventListener("click", () => {
+      const toggle = (): void => {
         if (collapsed) {
           this.collapsedSections.delete(id);
         } else {
@@ -732,6 +743,14 @@ export class ExplorerPaneView extends ItemView {
         }
         this.writeMemory();
         this.requestRender();
+      };
+
+      header.addEventListener("click", toggle);
+      // What the button it no longer is gave for nothing.
+      header.addEventListener("keydown", (event) => {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        event.preventDefault();
+        toggle();
       });
     }
 
@@ -747,15 +766,24 @@ export class ExplorerPaneView extends ItemView {
    *
    * It has to stop the press reaching that header, or opening every folder in
    * the vault would close the section they are in — the one thing a control put
-   * there must not do. It is a span rather than a button because the header is
-   * already one, and a button inside a button is not a thing a page may hold.
+   * there must not do. Like the header around it, it is drawn rather than being
+   * a button: nothing here should arrive wearing a theme's button.
    */
   private renderSectionAction(header: HTMLElement, action: SectionAction): void {
     const control = header.createSpan({
       cls: "schreibstube-explorer-section-action",
       attr: { role: "button", tabindex: "0", "aria-label": action.label, title: action.label }
     });
-    applyIcon(control, action.icon);
+
+    // The bundled font first, as everywhere else in the pane — and Obsidian's
+    // own icon if that font has nothing under the name. A control drawn as an
+    // empty box is indistinguishable from a control that is broken, and this
+    // one sits alone at the end of a band with no label to explain it.
+    if (!applyIcon(control, action.icon)) {
+      control.removeClass("schreibstube-icon");
+      control.empty();
+      setIcon(control, action.fallbackIcon);
+    }
 
     const run = (event: Event): void => {
       event.preventDefault();
@@ -1102,6 +1130,7 @@ export class ExplorerPaneView extends ItemView {
     if (treeAction(paths, (path) => this.isFolderOpen(path)) === "collapse") {
       return {
         icon: "chevrons-up",
+        fallbackIcon: "chevrons-down-up",
         label: t().explorer.collapseAll,
         run: () => this.collapseAll()
       };
@@ -1109,6 +1138,7 @@ export class ExplorerPaneView extends ItemView {
 
     return {
       icon: "chevrons-down",
+      fallbackIcon: "chevrons-up-down",
       label: t().explorer.expandAll,
       run: () => this.expandAll(paths)
     };

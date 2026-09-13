@@ -568,8 +568,6 @@
   top: 0;
   z-index: 1;
   background-color: var(--schreibstube-ground, transparent);
-  border: none;
-  border-radius: 0;
   box-shadow: none;
   cursor: pointer;
   color: var(--text-muted);
@@ -604,8 +602,25 @@
   background: var(--background-modifier-border-focus, var(--text-faint));
 }
 
-.schreibstube-explorer .schreibstube-explorer-section-header:hover {
-  color: var(--text-normal);
+/* A header answers a pointer with its label, never with a fill: the colour of
+   what is behind the pane is the only thing it may paint, because being sticky
+   is the only reason it paints at all. Stated for every state, since a header
+   under a finger that has just opened it keeps :hover until something else is
+   touched, and a band of grey left lying across the pane is what that looked
+   like. */
+.schreibstube-explorer .schreibstube-explorer-section-header:hover,
+.schreibstube-explorer .schreibstube-explorer-section-header:focus,
+.schreibstube-explorer .schreibstube-explorer-section-header:focus-visible,
+.schreibstube-explorer .schreibstube-explorer-section-header:active {
+  background-color: var(--schreibstube-ground, transparent);
+}
+
+/* Only where a pointer can hover without pressing. A phone has no such state,
+   and one it cannot leave is worse than none. */
+@media (hover: hover) {
+  .schreibstube-explorer .schreibstube-explorer-section-header:hover {
+    color: var(--text-normal);
+  }
 }
 
 .schreibstube-explorer-section-title {
@@ -630,16 +645,40 @@
   width: 24px;
   height: 24px;
   margin-right: calc(-1 * var(--schreibstube-row-inset) / 2);
-  color: var(--nav-collapse-icon-color, var(--text-faint));
+  /* The tone a row's own chevron carries, not the fainter one a header's label
+     has: it is an icon standing alone at the end of a band, with nothing beside
+     it to be read against. */
+  color: var(--text-muted);
   font-size: var(--schreibstube-glyph-size);
-  border-radius: var(--schreibstube-border-radius);
+  /* The header spaces its label out as small capitals; one glyph wants neither,
+     and inherited letter-spacing would push it off its own centre. */
+  letter-spacing: normal;
+  line-height: 1;
+  background: none;
   cursor: pointer;
 }
 
+/* Whichever of the two drew it: the bundled glyph is text, Obsidian's is an
+   svg, and the box is sized for the icon either way. */
+.schreibstube-explorer .schreibstube-explorer-section-action svg {
+  width: var(--schreibstube-glyph-size);
+  height: var(--schreibstube-glyph-size);
+}
+
+/* Never a fill, in any state. A chip of grey behind it reads as a button that
+   is somehow pressed, and on a phone it is one that cannot be un-pressed. The
+   icon darkens instead, and only where hovering is a thing that happens. */
 .schreibstube-explorer .schreibstube-explorer-section-action:hover,
-.schreibstube-explorer .schreibstube-explorer-section-action:focus-visible {
-  color: var(--text-normal);
-  background: var(--nav-item-background-hover, var(--background-modifier-hover));
+.schreibstube-explorer .schreibstube-explorer-section-action:focus,
+.schreibstube-explorer .schreibstube-explorer-section-action:focus-visible,
+.schreibstube-explorer .schreibstube-explorer-section-action:active {
+  background: none;
+}
+
+@media (hover: hover) {
+  .schreibstube-explorer .schreibstube-explorer-section-action:hover {
+    color: var(--text-normal);
+  }
 }
 
 /* Created / Modified inside Latest: a label, not a row, so it carries no
