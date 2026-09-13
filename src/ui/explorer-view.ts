@@ -87,9 +87,27 @@ const FILTER_ROW_CAP = 200;
  */
 const LONG_PRESS_MOVE_PX = 10;
 
-/** How many pinned rows sit in the shelf above the scroller. Beyond this the
- *  block continues in the scrolling list, so the shelf cannot eat the pane. */
+/**
+ * How many pinned rows the shelf holds while the block is closed.
+ *
+ * They cost nothing to leave there: the strip is on screen at every scroll
+ * position anyway, so closing the block takes away the rows below these rather
+ * than all of them.
+ */
 const FIXED_PINNED_ROWS = 3;
+
+/**
+ * The most of the pane an open pinned strip may take.
+ *
+ * Sticky rows are only worth having while there is something for them to stay
+ * in front of: a strip that fills the pane is a pane with no vault in it. Half
+ * leaves as much shortlist as vault, and being a share rather than a count it
+ * answers a phone, a tall sidebar and a keyboard covering the screen by itself.
+ */
+const SHELF_SHARE_OF_PANE = 0.5;
+
+/** Used only until the pane has been laid out and can be measured. */
+const FALLBACK_ROW_HEIGHT_PX = 27;
 
 /** How close to the top a held header lands, allowing for sub-pixel layout. */
 const STUCK_TOLERANCE_PX = 1.5;
@@ -330,6 +348,9 @@ export class ExplorerPaneView extends ItemView {
     this.registerEvent(this.app.workspace.on("layout-change", () => this.requestRender()));
     // A theme swap repaints everything the ground was measured from.
     this.registerEvent(this.app.workspace.on("css-change", () => this.measureGround()));
+    // How many pinned rows the strip may hold is a share of the pane, so a
+    // phone turning on its side or a sidebar dragged wider changes the answer.
+    this.registerEvent(this.app.workspace.on("resize", () => this.requestRender()));
 
     // A pointer coming up anywhere ends whatever was being dragged. A row the
     // pane destroyed mid-gesture never delivers its own release, and a drag
@@ -683,11 +704,44 @@ export class ExplorerPaneView extends ItemView {
 
     const closed = !filtering && this.collapsedSections.has("pinned");
     const drawn = closed ? items.slice(0, FIXED_PINNED_ROWS) : items;
+    // Open, the strip holds as many as half the pane has room for; the rest
+    // continue in the scrolling list, as they always have.
+    const sticky = closed ? FIXED_PINNED_ROWS : this.shelfCapacity();
 
     for (const [index, file] of drawn.entries()) {
-      const host = index < FIXED_PINNED_ROWS ? body : scroller;
+      const host = index < sticky ? body : scroller;
       this.renderPinnedRow(host, file, order);
     }
+  }
+
+  /**
+   * How many rows the open strip may hold, in rows rather than pixels.
+   *
+   * Measured against the pane it is in rather than assumed, so the answer
+   * follows the window being resized, a sidebar being dragged wider, and a
+   * phone turning on its side. Never fewer than the strip keeps while closed:
+   * opening a block must not show less of it than closing it does.
+   */
+  private shelfCapacity(): number {
+    const root = this.shelf?.parentElement;
+    if (!root) return FIXED_PINNED_ROWS;
+
+    const rowHeight = this.rowHeight();
+    // The section's own header sits in the strip and takes a row's worth.
+    const budget = root.clientHeight * SHELF_SHARE_OF_PANE - rowHeight;
+
+    return Math.max(FIXED_PINNED_ROWS, Math.floor(budget / rowHeight));
+  }
+
+  /** The row height the theme is actually using, from the pane's own variable. */
+  private rowHeight(): number {
+    const root = this.shelf?.parentElement;
+    if (!root) return FALLBACK_ROW_HEIGHT_PX;
+
+    const declared = getComputedStyle(root).getPropertyValue("--schreibstube-row-height");
+    const height = Number.parseFloat(declared);
+
+    return Number.isFinite(height) && height > 0 ? height : FALLBACK_ROW_HEIGHT_PX;
   }
 
   private renderPinnedRow(host: HTMLElement, file: TAbstractFile, order: string[]): void {
