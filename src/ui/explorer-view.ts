@@ -111,6 +111,12 @@ const EDGE_SCROLL_MAX_PX = 12;
  */
 const MEMORY_KEY = "schreibstube:explorer:view";
 
+/**
+ * Bumped when a section's default state changes, so the new default is applied
+ * once per device and a person's own choice is never overwritten afterwards.
+ */
+const PANE_MEMORY_VERSION = 1;
+
 /** Separator inside a bookmark folder key. A vault name can hold a slash; it
  *  cannot hold this. */
 const FOLDER_SEP = "\u001f";
@@ -138,7 +144,27 @@ const MEDIA_EXTENSIONS = new Set([
 
 type SectionId = "pinned" | "bookmarks" | "latest" | "files";
 
+/** What a section wants from its header beyond a title and a chevron. */
+interface SectionOptions {
+  /** Draw the body even while closed, for a section that keeps some of it. */
+  keepBodyWhenClosed?: boolean;
+  /** How many rows are being held back, named on the header while closed. */
+  hidden?: number;
+  /** False when there is nothing behind the chevron, so it is not drawn. */
+  closable?: boolean;
+  /** Drawn open whatever was remembered, for as long as a filter is set. */
+  forceOpen?: boolean;
+}
+
 interface PaneMemory {
+  /**
+   * Which defaults this device has already been given.
+   *
+   * Without it, "closed unless you opened it" and "never recorded either way"
+   * are the same absence, and a default that changes could not be applied once
+   * without undoing the person's own choice every time the pane opens.
+   */
+  version?: number;
   /** Sections the person closed. Absent means open, which is the default. */
   collapsedSections?: string[];
   /** Bookmark folders the person closed. */
@@ -566,9 +592,20 @@ export class ExplorerPaneView extends ItemView {
    * the section is closed. Keeping the rows out of the document rather than
    * hiding them is what keeps a vault of thousands of notes cheap to redraw.
    */
-  private renderSection(host: HTMLElement, id: SectionId, icon: string): HTMLElement | null {
+  private renderSection(
+    host: HTMLElement,
+    id: SectionId,
+    icon: string,
+    options: SectionOptions = {}
+  ): HTMLElement | null {
     const section = host.createDiv({ cls: "schreibstube-explorer-section" });
-    const collapsed = this.collapsedSections.has(id) && !(id === "files" && this.revealedTree);
+    const collapsed =
+      this.collapsedSections.has(id) &&
+      !(id === "files" && this.revealedTree) &&
+      options.forceOpen !== true;
+    // Nothing behind the chevron is nothing to click: a section that hides
+    // nothing while closed must not offer to open.
+    const closable = options.closable ?? true;
 
     // "Files and folders" is drawn as a band across the pane, because it is the
     // one header that separates two kinds of thing: the three curated lists
@@ -577,49 +614,44 @@ export class ExplorerPaneView extends ItemView {
       cls: `schreibstube-explorer-section-header${id === "files" ? " is-divider" : ""}`,
       attr: { type: "button", "aria-expanded": String(!collapsed) }
     });
-    applyIcon(
-      header.createSpan({ cls: "schreibstube-explorer-twisty" }),
-      collapsed ? "chevron-right" : "chevron-down"
-    );
+    const twisty = header.createSpan({ cls: "schreibstube-explorer-twisty" });
+    if (closable) applyIcon(twisty, collapsed ? "chevron-right" : "chevron-down");
     applyIcon(header.createSpan({ cls: "schreibstube-explorer-glyph" }), icon);
     header.createSpan({
       cls: "schreibstube-explorer-section-title",
       text: t().explorer.sections[id]
     });
 
-    header.addEventListener("click", () => {
-      if (collapsed) {
-        this.collapsedSections.delete(id);
-      } else {
-        this.collapsedSections.add(id);
-        if (id === "files") this.revealedTree = false;
-      }
-      this.writeMemory();
-      this.requestRender();
-    });
+    // What a closed section is holding back, since with rows still on screen it
+    // does not look closed.
+    const hidden = collapsed ? (options.hidden ?? 0) : 0;
+    if (hidden > 0) {
+      header.createSpan({
+        cls: "schreibstube-explorer-section-hidden",
+        text: t().explorer.moreHidden(hidden)
+      });
+    }
 
-    return collapsed ? null : section.createDiv({ cls: "schreibstube-explorer-section-body" });
+    if (closable) {
+      header.addEventListener("click", () => {
+        if (collapsed) {
+          this.collapsedSections.delete(id);
+        } else {
+          this.collapsedSections.add(id);
+          if (id === "files") this.revealedTree = false;
+        }
+        this.writeMemory();
+        this.requestRender();
+      });
+    }
+
+    const body = section.createDiv({ cls: "schreibstube-explorer-section-body" });
+    if (!collapsed || options.keepBodyWhenClosed) return body;
+
+    body.detach();
+    return null;
   }
 
-  /**
-   * Everything pinned, wherever it lives.
-   *
-   * A pin also moves an item to the top of its own folder, but that is invisible
-   * from anywhere else: a note pinned four folders down sits at the top of a
-   * folder nobody has open. This section is where a pin is worth setting.
-   *
-   * It is drawn only when something is pinned, so a vault that does not use
-   * pinning never pays a header for it.
-   */
-  /**
-   * The pinned block, drawn in two places.
-   *
-   * The header and the first few rows go into the shelf above the scroller, so
-   * what a person pinned is on screen whatever they have scrolled to — which is
-   * the whole point of pinning something. Anything beyond that count is drawn at
-   * the top of the scrolling list, directly beneath, so the block still reads as
-   * one list and the shelf can never grow to eat the pane.
-   */
   private renderPinned(shelf: HTMLElement, scroller: HTMLElement): void {
     const controller = this.host?.explorer;
     if (!controller) return;
@@ -634,10 +666,25 @@ export class ExplorerPaneView extends ItemView {
     if (items.length === 0) return;
 
     const order = items.map((file) => file.path);
-    const body = this.renderSection(shelf, "pinned", "pinned");
+    // Closing the block keeps the rows that were always on screen anyway — the
+    // strip is sticky, so those three cost nothing to leave — and takes away
+    // the ones that continue into the scrolling list below.
+    // A filter opens the block for as long as it is set. A row that matches
+    // what was typed must not be the one row the chevron is sitting on.
+    const filtering = this.query.length > 0;
+    const hidden = filtering ? 0 : Math.max(0, items.length - FIXED_PINNED_ROWS);
+    const body = this.renderSection(shelf, "pinned", "pinned", {
+      keepBodyWhenClosed: true,
+      hidden,
+      closable: items.length > FIXED_PINNED_ROWS,
+      forceOpen: filtering
+    });
     if (!body) return;
 
-    for (const [index, file] of items.entries()) {
+    const closed = !filtering && this.collapsedSections.has("pinned");
+    const drawn = closed ? items.slice(0, FIXED_PINNED_ROWS) : items;
+
+    for (const [index, file] of drawn.entries()) {
       const host = index < FIXED_PINNED_ROWS ? body : scroller;
       this.renderPinnedRow(host, file, order);
     }
@@ -1534,22 +1581,32 @@ export class ExplorerPaneView extends ItemView {
 
   private readMemory(): void {
     const storage = this.app as unknown as LocalStorageApi;
-    if (typeof storage.loadLocalStorage !== "function") return;
+    let memory: PaneMemory | null = null;
 
-    let memory: PaneMemory;
-    try {
-      const raw = storage.loadLocalStorage(MEMORY_KEY);
-      if (!raw || typeof raw !== "object") return;
-      memory = raw as PaneMemory;
-    } catch {
-      // A hardened setup can refuse storage entirely; the pane opens with
-      // everything expanded rather than failing to open.
-      return;
+    if (typeof storage.loadLocalStorage === "function") {
+      try {
+        const raw = storage.loadLocalStorage(MEMORY_KEY);
+        if (raw && typeof raw === "object") memory = raw as PaneMemory;
+      } catch {
+        // A hardened setup can refuse storage entirely; the pane opens on its
+        // defaults rather than failing to open.
+        memory = null;
+      }
     }
 
-    this.collapsedSections = toSet(memory.collapsedSections);
-    this.collapsedBookmarks = toSet(memory.collapsedBookmarks);
-    this.expanded = toSet(memory.expandedFolders);
+    if (memory) {
+      this.collapsedSections = toSet(memory.collapsedSections);
+      this.collapsedBookmarks = toSet(memory.collapsedBookmarks);
+      this.expanded = toSet(memory.expandedFolders);
+    }
+
+    // The pinned block keeps its first rows while closed, so closed is what it
+    // opens on: the shortlist and then the vault, with the rest a tap away.
+    // Applied once per device — after that the chevron is the person's.
+    if (memory?.version !== PANE_MEMORY_VERSION) {
+      this.collapsedSections.add("pinned");
+      this.writeMemory();
+    }
   }
 
   private writeMemory(): void {
@@ -1558,6 +1615,7 @@ export class ExplorerPaneView extends ItemView {
 
     try {
       storage.saveLocalStorage(MEMORY_KEY, {
+        version: PANE_MEMORY_VERSION,
         collapsedSections: [...this.collapsedSections],
         collapsedBookmarks: [...this.collapsedBookmarks],
         expandedFolders: [...this.expanded]

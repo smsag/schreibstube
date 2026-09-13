@@ -478,6 +478,7 @@ export const de: Messages = {
     clearFilter: "Filter leeren",
     filterMore: (count: number) => `${count} weitere Treffer. Filter eingrenzen, um sie zu sehen.`,
     collapseAll: "Alle zuklappen",
+    moreHidden: (count: number) => `(${count} weitere)`,
 
     move: {
       intoItself: (name: string) => `${name} lässt sich nicht in sich selbst verschieben.`,

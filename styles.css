@@ -791,6 +791,14 @@
   opacity: 1;
 }
 
+/* What a closed section is holding back, said next to its name rather than
+   instead of it: the name stays the thing you read. */
+.schreibstube-explorer .schreibstube-explorer-section-hidden {
+  margin-left: 4px;
+  color: var(--text-faint);
+  font-weight: normal;
+}
+
 /* The "Move to…" list: a glyph and the folder's path on one line. */
 .schreibstube-folder-suggestion {
   display: flex;
