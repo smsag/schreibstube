@@ -34,7 +34,7 @@ expensive default that nobody had measured.
 | Timeliness        |   4    |   4   | Release script and workflow were sound; the workflow now fails fast on the two mistakes it could not catch.                                                  |
 | Visibility        |   3    |   4   | `SECURITY.md`, this review, `CLAUDE.md`; audit and image build in CI; source map attached to each release for symbolicating reports.                         |
 | Security          |  3.5   |  4.5  | Both audits clean (were 8 root, 1 bridge); workflow token read-only; deterministic image build; proxy-aware throttle.                                        |
-| Cost of ownership |   3    |   4   | One fewer CI matrix leg; a bundle a fifth the size on every start and every sync; no manual dependency chasing; no rebuild-to-discover image failures.       |
+| Cost of ownership |   3    |  4.5  | One CI leg; a bundle a fifth and an image a tenth of the size; no manual dependency chasing; no rebuild-to-discover image failures.                          |
 
 ### Measured
 
@@ -197,10 +197,12 @@ should confirm before the next release since nothing here can run a phone.
 
 ### The last two strict flags
 
-`exactOptionalPropertyTypes` and `noUncheckedIndexedAccess` are on. See the
-commit for the count of sites each touched; the rule for fixing them was a
-guard or a default where undefined is genuinely possible, and a non-null
-assertion only where the preceding lines prove the invariant, with a comment.
+`exactOptionalPropertyTypes` and `noUncheckedIndexedAccess` are on, across
+55 files. The rule for fixing them was a guard or a default where undefined is
+genuinely possible, and a non-null assertion only where the preceding lines
+prove the invariant: six of those, all loop indices in the diff algorithms
+bounded by the loop's own condition. No `any` was added, and the suite is
+unchanged at 1,262 tests.
 
 ## What was not changed, and why
 
