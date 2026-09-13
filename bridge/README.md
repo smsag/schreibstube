@@ -146,17 +146,27 @@ bundle the bridge writes itself rather than from a content delivery network.
 
 ## Dependencies and advisories
 
-`npm audit` reports findings against `lodash-es`, reached through Mermaid's
-parser. They are worth stating precisely rather than silencing:
+CI runs `npm audit --omit=dev --audit-level=high` over this tree on every
+change, because the bridge's runtime dependencies are the only ones in the
+repository that ship anywhere: the plugin bundles nothing.
 
-- The bridge never runs Mermaid. It copies one prebuilt file into the published
-  site, where the browser runs it against diagrams the site's own author wrote.
-- No fixed version of `lodash-es` exists; the advisories have no upstream patch.
-- A site that does not draw diagrams can set `PUBLISH_<TARGET>_ALLOW_DIAGRAMS`
-  to `false`, and then nothing of Mermaid reaches the site at all.
+`lodash-es` is pinned by an `overrides` entry to a patched line. Mermaid's parser
+still declares the vulnerable range, and the bridge never runs Mermaid at all —
+it copies one prebuilt file into the published site, where the browser runs it
+against diagrams the site's own author wrote — but a finding that has a fix is
+cheaper to take than to explain. A site that does not draw diagrams can set
+`PUBLISH_<TARGET>_ALLOW_DIAGRAMS` to `false`, and then nothing of Mermaid
+reaches the site at all.
 
-Moving Mermaid to a development dependency would clear the audit output without
-changing a byte of what ships, so it stays where it is.
+Dependabot opens one grouped pull request a week for this tree. A major version
+arrives on its own, since that is the one worth reading.
+
+The image does not carry Mermaid's dependency tree at all. The `Dockerfile`
+installs the package in a build stage, keeps the one prebuilt file under
+`vendor/mermaid.min.js`, and removes the rest — 205 MB of parser dependencies
+that would never run. `assets.mjs` looks in `vendor/` first and only then in
+the package, which is what a checkout with `node_modules` uses. CI boots the
+image and checks that both halves of that happened.
 
 ## Configuration
 
@@ -203,7 +213,10 @@ labels change over time, but the settings you need are:
 3. **Port**: `8080` (or set `PORT` and match it).
 4. **Health check path**: `/health`.
 5. **Environment variables**: everything from `.env.example`. Mark
-   `MAIL_PASSWORD` and `BRIDGE_TOKEN` as secrets.
+   `MAIL_PASSWORD`, `MAIL_TOKEN`, `PUBLISH_TOKEN` and any `PUBLISH_*_KEY` or
+   `PUBLISH_*_PASSWORD` as secrets. Set `TRUST_PROXY=true`: the platform's
+   proxy terminates TLS, so without it the throttle sees one address for
+   everyone.
 6. Deploy, then confirm:
 
    ```bash
@@ -223,17 +236,24 @@ region and data-processing terms yourself before relying on that.
 The bridge is reachable from the public internet, so the bearer token and TLS
 are the entire perimeter:
 
-- Use a long random `BRIDGE_TOKEN` (the service refuses anything under 24
-  characters) and rotate it by changing the env var and the plugin setting.
+- Use a long random token per capability (the service refuses anything under
+  24 characters) and rotate it by changing the env var and the plugin setting.
+  A mail token never opens a publish route, or the other way round.
 - The plugin refuses a plain `http://` bridge URL unless it is loopback, so a
   misconfiguration cannot silently send the token in the clear.
 - Token comparison is constant-time, and a missing token is indistinguishable
   from a wrong one.
-- Request bodies are capped (`MAX_BODY_BYTES`, default 1 MB).
+- Request bodies are capped (`MAX_BODY_BYTES`, default 1 MB), every outbound
+  operation has a deadline, and repeated token failures from one address are
+  throttled. Behind a proxy that throttle needs `TRUST_PROXY=true`, or the
+  address it sees is the proxy's and one stranger's failures lock everyone out.
 - Add an IP allowlist or rate limit at the platform level if your provider
   offers one.
 
 ## Running locally
+
+Node 24, as everywhere in this repository: `.nvmrc` at the root says so, the
+image runs it, and both `engines` fields require it.
 
 ```bash
 cd bridge

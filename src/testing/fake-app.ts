@@ -97,7 +97,10 @@ export function fakeVault({
       getAbstractFileByPath: (path) => files.get(path) ?? null
     },
     metadataCache: {
-      getFileCache: (file) => ({ frontmatter: frontmatter.get(file.path) }),
+      getFileCache: (file) => {
+        const fm = frontmatter.get(file.path);
+        return fm ? { frontmatter: fm } : {};
+      },
       getFirstLinkpathDest: (linkpath) => find(linkpath)
     },
     fileManager: {

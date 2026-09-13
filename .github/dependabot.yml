@@ -1,0 +1,28 @@
+# One pull request per ecosystem per week, with minor and patch updates grouped
+# so the plugin's dev tooling and the bridge's runtime tree each arrive as a
+# single reviewable change. Majors come on their own, since those are the ones
+# that need reading.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      plugin-tooling:
+        update-types: [minor, patch]
+  - package-ecosystem: npm
+    directory: /bridge
+    schedule:
+      interval: weekly
+    groups:
+      bridge-runtime:
+        update-types: [minor, patch]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+  - package-ecosystem: docker
+    directory: /bridge
+    schedule:
+      interval: weekly

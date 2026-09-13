@@ -92,7 +92,7 @@ export class ReviewPanelView extends ItemView {
     return t().proofread.panelTitle;
   }
 
-  getIcon(): string {
+  override getIcon(): string {
     return "spell-check";
   }
 
@@ -107,11 +107,11 @@ export class ReviewPanelView extends ItemView {
     this.render();
   }
 
-  async onOpen(): Promise<void> {
+  override async onOpen(): Promise<void> {
     this.render();
   }
 
-  async onClose(): Promise<void> {
+  override async onClose(): Promise<void> {
     this.contentEl.empty();
   }
 
@@ -191,7 +191,7 @@ export class ReviewPanelView extends ItemView {
     const row = section.createDiv({ cls: "schreibstube-review-sync-row" });
     row.createSpan({
       cls: "schreibstube-review-glossary-label",
-      text: t().proofread.panelSource(t().proofread.syncStatus[sync.status])
+      text: t().proofread.panelSource(t().proofread.syncStatus[sync.status] ?? sync.status)
     });
     this.button(row, t().proofread.panelCheckSource, "refresh-cw", sync.status === "checking", () =>
       this.handlers?.onCheckSource()
@@ -227,7 +227,7 @@ export class ReviewPanelView extends ItemView {
 
     section.createSpan({
       cls: "schreibstube-review-glossary-label",
-      text: t().proofread.panelGlossary(t().proofread.glossarySource[source])
+      text: t().proofread.panelGlossary(t().proofread.glossarySource[source] ?? source)
     });
 
     if (available.length === 0) {

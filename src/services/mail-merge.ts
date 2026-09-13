@@ -124,7 +124,7 @@ export function appendToSection(body: string, heading: string, addition: string)
   // The section ends at the next heading of the same or a higher level.
   let end = lines.length;
   for (let i = start + 1; i < lines.length; i++) {
-    if (!fenced[i] && /^#{1,2}\s/.test(lines[i])) {
+    if (!fenced[i] && /^#{1,2}\s/.test(lines[i] ?? "")) {
       end = i;
       break;
     }

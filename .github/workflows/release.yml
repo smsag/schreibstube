@@ -8,18 +8,35 @@ on:
         required: true
         type: string
 
+# contents to create the release; id-token and attestations to sign a
+# provenance statement for its assets, which is how a vault owner can check
+# that the main.js they installed was built by this workflow from this commit.
 permissions:
   contents: write
+  id-token: write
+  attestations: write
 
 jobs:
   release:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
-          node-version: "22"
+          node-version-file: .nvmrc
+
+      # The input has to agree with what `npm run release` wrote, or the tag
+      # says one version and the manifest inside it says another. Obsidian
+      # reads the manifest, so that release would install as the wrong thing.
+      - name: Check the version matches the manifest
+        run: |
+          manifest=$(node -p "require('./manifest.json').version")
+          package=$(node -p "require('./package.json').version")
+          if [ "${{ github.event.inputs.version }}" != "$manifest" ] || [ "$manifest" != "$package" ]; then
+            echo "Input ${{ github.event.inputs.version }}, manifest.json $manifest, package.json $package: these must agree. Run: npm run release -- <version>"
+            exit 1
+          fi
 
       - run: npm ci
 
@@ -28,7 +45,22 @@ jobs:
       - name: Extract release notes
         run: |
           awk "/^## ${{ github.event.inputs.version }} /{found=1; next} found && /^## /{exit} found{print}" CHANGELOG.md > release_notes.md
+          if [ ! -s release_notes.md ]; then
+            echo "CHANGELOG.md has no section for ${{ github.event.inputs.version }}."
+            exit 1
+          fi
 
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@96278af6caaf10aea03fd8d33a09a777ca52d62f # v3.2.0
+        with:
+          subject-path: |
+            main.js
+            main.js.map
+            manifest.json
+            styles.css
+
+      # main.js.map is attached for symbolicating a reported stack trace. It is
+      # not one of the three files Obsidian installs, so no vault ever loads it.
       - name: Create release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -36,4 +68,4 @@ jobs:
           gh release create "${{ github.event.inputs.version }}" \
             --title "${{ github.event.inputs.version }}" \
             --notes-file release_notes.md \
-            main.js manifest.json styles.css
+            main.js manifest.json styles.css main.js.map

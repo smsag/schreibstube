@@ -133,10 +133,10 @@ export class SyncPoller {
       let next = 0;
       const worker = async (): Promise<void> => {
         while (true) {
-          const index = next;
-          if (index >= files.length) return;
+          const file = files[next];
+          if (file === undefined) return;
           next += 1;
-          await this.pollOne(files[index], token, summary, updates, force);
+          await this.pollOne(file, token, summary, updates, force);
         }
       };
 

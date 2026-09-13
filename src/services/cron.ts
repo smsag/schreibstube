@@ -73,35 +73,37 @@ export function parseCron(expression: string): CronParseResult {
   if (parts.length === 0) {
     return { ok: false, reason: t().cron.empty };
   }
-  if (parts.length !== 5) {
+  if (parts.length !== FIELDS.length) {
     return { ok: false, reason: t().cron.fieldCount(parts.length) };
   }
 
-  const sets: Set<number>[] = [];
-  for (let i = 0; i < FIELDS.length; i += 1) {
-    const parsed = parseField(parts[i], FIELDS[i]);
+  const sets = {} as Record<FieldSpec["key"], Set<number>>;
+  for (const [i, spec] of FIELDS.entries()) {
+    // One part per field: the lengths were compared above.
+    const raw = parts[i]!;
+    const parsed = parseField(raw, spec);
     if (!parsed) {
       return {
         ok: false,
-        reason: t().cron.invalidField(t().cron.fields[FIELDS[i].key], parts[i])
+        reason: t().cron.invalidField(t().cron.fields[spec.key], raw)
       };
     }
-    sets.push(parsed);
+    sets[spec.key] = parsed;
   }
 
   // Sunday is both 0 and 7 in cron; normalize so matching only has to check 0.
   const dayOfWeek = new Set<number>();
-  for (const value of sets[4]) {
+  for (const value of sets.dayOfWeek) {
     dayOfWeek.add(value === 7 ? 0 : value);
   }
 
   return {
     ok: true,
     schedule: {
-      minute: sets[0],
-      hour: sets[1],
-      dayOfMonth: sets[2],
-      month: sets[3],
+      minute: sets.minute,
+      hour: sets.hour,
+      dayOfMonth: sets.dayOfMonth,
+      month: sets.month,
       dayOfWeek,
       dayOfMonthRestricted: parts[2] !== "*",
       dayOfWeekRestricted: parts[4] !== "*"
@@ -187,7 +189,7 @@ function parseField(raw: string, spec: FieldSpec): Set<number> | null {
   for (const part of raw.split(",")) {
     if (part.length === 0) return null;
 
-    const [rangePart, stepPart, ...extra] = part.split("/");
+    const [rangePart = "", stepPart, ...extra] = part.split("/");
     if (extra.length > 0) return null;
 
     let step = 1;
@@ -204,7 +206,7 @@ function parseField(raw: string, spec: FieldSpec): Set<number> | null {
       start = spec.min;
       end = spec.max;
     } else if (rangePart.includes("-")) {
-      const [fromRaw, toRaw, ...rest] = rangePart.split("-");
+      const [fromRaw = "", toRaw = "", ...rest] = rangePart.split("-");
       if (rest.length > 0) return null;
       const from = toValue(fromRaw, spec);
       const to = toValue(toRaw, spec);

@@ -106,7 +106,7 @@ export class MailCommands {
           cc: fields.cc,
           subject: fields.subject,
           text: body,
-          from: settings.mailFrom || undefined
+          ...(settings.mailFrom ? { from: settings.mailFrom } : {})
         });
       } catch (err) {
         this.fail("send", t().mailNotices.failSend, err);

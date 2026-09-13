@@ -200,7 +200,7 @@ export class ProofreadController {
     if (text === null) return;
 
     const refreshed = refreshStaleness(text, this.suggestions);
-    if (refreshed.some((s, i) => s.status !== this.suggestions[i].status)) {
+    if (refreshed.some((s, i) => s.status !== this.suggestions[i]?.status)) {
       this.suggestions = refreshed;
       this.emit();
     }

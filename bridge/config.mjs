@@ -64,6 +64,11 @@ export function loadConfig(env = process.env) {
     // "json" for a hosting dashboard that can search fields; the default stays
     // human, because most of the time a person is reading these.
     logFormat: env.LOG_FORMAT?.trim() === "json" ? "json" : "text",
+    // Whether the throttle may believe X-Forwarded-For. True behind the
+    // platform's TLS-terminating proxy, where the socket address is the proxy's
+    // and would otherwise be shared by every caller; false anywhere a client
+    // can reach the bridge directly, because then the header is the client's.
+    trustProxy: boolean(env.TRUST_PROXY, false),
     mail,
     publish
   };

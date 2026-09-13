@@ -115,7 +115,7 @@ describe("encodeChunk and parseChunkResponse", () => {
   it("preserves placeholders through a round trip", () => {
     const { blocks } = segmentMarkdown("Siehe `x_y` hier.");
     const rewrites = parseChunkResponse(encodeChunk(blocks), blocks);
-    expect(rewrites.get("b0")).toBe(blocks[0].masked);
+    expect(rewrites.get("b0")).toBe(blocks[0]?.masked);
   });
 
   it("keeps a heading marker that leads a block", () => {

@@ -224,7 +224,7 @@ function matchCase(replacement: string, matched: string): string {
   }
   const first = matched[0] ?? "";
   if (first && first === first.toUpperCase() && first !== first.toLowerCase()) {
-    return replacement[0].toUpperCase() + replacement.slice(1);
+    return replacement.charAt(0).toUpperCase() + replacement.slice(1);
   }
   return replacement;
 }

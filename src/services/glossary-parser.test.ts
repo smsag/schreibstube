@@ -51,17 +51,19 @@ describe("parseGlossary", () => {
     const { glossary, errors } = parseGlossary("G.md", NOTE);
     expect(errors).toEqual([]);
     expect(glossary.concepts.map((c) => c.id)).toEqual(["objekt", "makler"]);
-    expect(glossary.concepts[0].terms).toHaveLength(3);
+    expect(glossary.concepts[0]?.terms).toHaveLength(3);
   });
 
   it("exposes the preferred term of a concept", () => {
     const { glossary } = parseGlossary("G.md", NOTE);
-    expect(preferredTerm(glossary.concepts[0])).toBe("Objekt");
+    const [objekt] = glossary.concepts;
+    expect(objekt && preferredTerm(objekt)).toBe("Objekt");
   });
 
   it("returns null preferred term for a concept that only forbids", () => {
     const { glossary } = parseGlossary("G.md", NOTE);
-    expect(preferredTerm(glossary.concepts[1])).toBe(null);
+    const [, makler] = glossary.concepts;
+    expect(makler && preferredTerm(makler)).toBe(null);
   });
 
   it("ignores an unprefixed language key", () => {
@@ -111,7 +113,7 @@ describe("parseGlossary", () => {
       "| Concept | Term | Status |\n|---|---|---|\n| a | X | deprecatedTerm-admn-sts |"
     );
     expect(errors).toEqual([]);
-    expect(glossary.concepts[0].terms[0].status).toBe("deprecated");
+    expect(glossary.concepts[0]?.terms[0]?.status).toBe("deprecated");
   });
 
   it("accepts the informal notRecommended and obsolete spellings", () => {
@@ -119,7 +121,7 @@ describe("parseGlossary", () => {
       "G.md",
       "| Concept | Term | Status |\n|---|---|---|\n| a | X | notRecommended |\n| a | Y | obsolete |"
     );
-    expect(glossary.concepts[0].terms.map((t) => t.status)).toEqual(["deprecated", "superseded"]);
+    expect(glossary.concepts[0]?.terms.map((t) => t.status)).toEqual(["deprecated", "superseded"]);
   });
 
   it("accepts German column headers", () => {
@@ -128,8 +130,8 @@ describe("parseGlossary", () => {
       "| Konzept | Benennung | Status | Hinweis |\n|---|---|---|---|\n| a | Objekt | preferred | ok |"
     );
     expect(errors).toEqual([]);
-    expect(glossary.concepts[0].terms[0].text).toBe("Objekt");
-    expect(glossary.concepts[0].terms[0].note).toBe("ok");
+    expect(glossary.concepts[0]?.terms[0]?.text).toBe("Objekt");
+    expect(glossary.concepts[0]?.terms[0]?.note).toBe("ok");
   });
 
   it("skips a row with an unknown status and reports it", () => {
@@ -137,7 +139,7 @@ describe("parseGlossary", () => {
       "G.md",
       "| Concept | Term | Status |\n|---|---|---|\n| a | X | vielleicht |\n| a | Y | preferred |"
     );
-    expect(glossary.concepts[0].terms).toHaveLength(1);
+    expect(glossary.concepts[0]?.terms).toHaveLength(1);
     expect(errors[0]).toContain("vielleicht");
   });
 
@@ -156,7 +158,8 @@ describe("parseGlossary", () => {
       "| Concept | Term | Status |\n|---|---|---|\n| a | X | preferred |\n| a | Y | preferred |"
     );
     expect(errors[0]).toContain("preferred terms");
-    expect(preferredTerm(glossary.concepts[0])).toBe("X");
+    const [concept] = glossary.concepts;
+    expect(concept && preferredTerm(concept)).toBe("X");
   });
 
   it("skips a duplicate term inside one concept", () => {
@@ -164,7 +167,7 @@ describe("parseGlossary", () => {
       "G.md",
       "| Concept | Term | Status |\n|---|---|---|\n| a | X | preferred |\n| a | x | deprecated |"
     );
-    expect(glossary.concepts[0].terms).toHaveLength(1);
+    expect(glossary.concepts[0]?.terms).toHaveLength(1);
     expect(errors[0]).toContain("already defined");
   });
 
@@ -173,7 +176,7 @@ describe("parseGlossary", () => {
       "G.md",
       "| Concept | Term | Status | Match |\n|---|---|---|---|\n| a | X | preferred | fuzzy |"
     );
-    expect(glossary.concepts[0].terms[0].match).toBe("word");
+    expect(glossary.concepts[0]?.terms[0]?.match).toBe("word");
     expect(errors[0]).toContain("fuzzy");
   });
 

@@ -37,10 +37,12 @@ function lcsTable<T>(a: T[], b: T[]): Uint32Array {
 
   for (let i = a.length - 1; i >= 0; i -= 1) {
     for (let j = b.length - 1; j >= 0; j -= 1) {
+      // The border row and column stay zero, which is also what a read past
+      // the table would mean.
       table[i * width + j] =
         a[i] === b[j]
-          ? table[(i + 1) * width + j + 1] + 1
-          : Math.max(table[(i + 1) * width + j], table[i * width + j + 1]);
+          ? (table[(i + 1) * width + j + 1] ?? 0) + 1
+          : Math.max(table[(i + 1) * width + j] ?? 0, table[i * width + j + 1] ?? 0);
     }
   }
 
@@ -62,26 +64,28 @@ function backtrack<T>(a: T[], b: T[], table: Uint32Array): DiffRun<T>[] {
     runs.push({ op, items: [item] });
   };
 
+  // `T` may itself include undefined, so the loop bounds, not a check on the
+  // element, are what say an index is inside the array.
   while (i < a.length && j < b.length) {
     if (a[i] === b[j]) {
-      push("equal", a[i]);
+      push("equal", a[i]!);
       i += 1;
       j += 1;
-    } else if (table[(i + 1) * width + j] >= table[i * width + j + 1]) {
-      push("delete", a[i]);
+    } else if ((table[(i + 1) * width + j] ?? 0) >= (table[i * width + j + 1] ?? 0)) {
+      push("delete", a[i]!);
       i += 1;
     } else {
-      push("insert", b[j]);
+      push("insert", b[j]!);
       j += 1;
     }
   }
 
   while (i < a.length) {
-    push("delete", a[i]);
+    push("delete", a[i]!);
     i += 1;
   }
   while (j < b.length) {
-    push("insert", b[j]);
+    push("insert", b[j]!);
     j += 1;
   }
 

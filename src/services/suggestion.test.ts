@@ -132,8 +132,8 @@ describe("settleStatuses", () => {
     const second = at(text, "Immobilie", "Liegenschaft");
     const plan = planApply(text, [first, second]);
     const settled = settleStatuses([first, second], plan, new Set([first.id]));
-    expect(settled[0].status).toBe("accepted");
-    expect(settled[1].status).toBe("stale");
+    expect(settled[0]?.status).toBe("accepted");
+    expect(settled[1]?.status).toBe("stale");
   });
 
   it("leaves untouched suggestions alone", () => {
@@ -141,7 +141,7 @@ describe("settleStatuses", () => {
     const other = at(text, "Broker", "Makler");
     const plan = planApply(text, [first]);
     const settled = settleStatuses([first, other], plan, new Set(["a"]));
-    expect(settled[1].status).toBe("pending");
+    expect(settled[1]?.status).toBe("pending");
   });
 });
 
@@ -151,23 +151,23 @@ describe("refreshStaleness", () => {
   it("marks a suggestion stale once its text is gone", () => {
     const suggestion = at(text, "Immobilie", "Objekt");
     const [refreshed] = refreshStaleness("Alles anders.", [suggestion]);
-    expect(refreshed.status).toBe("stale");
+    expect(refreshed?.status).toBe("stale");
   });
 
   it("revives a stale suggestion when the text comes back", () => {
     const suggestion = { ...at(text, "Immobilie", "Objekt"), status: "stale" as const };
     const [refreshed] = refreshStaleness(text, [suggestion]);
-    expect(refreshed.status).toBe("pending");
+    expect(refreshed?.status).toBe("pending");
   });
 
   it("never reopens an accepted suggestion", () => {
     const suggestion = { ...at(text, "Immobilie", "Objekt"), status: "accepted" as const };
-    expect(refreshStaleness("Alles anders.", [suggestion])[0].status).toBe("accepted");
+    expect(refreshStaleness("Alles anders.", [suggestion])[0]?.status).toBe("accepted");
   });
 
   it("never reopens a rejected suggestion", () => {
     const suggestion = { ...at(text, "Immobilie", "Objekt"), status: "rejected" as const };
-    expect(refreshStaleness(text, [suggestion])[0].status).toBe("rejected");
+    expect(refreshStaleness(text, [suggestion])[0]?.status).toBe("rejected");
   });
 });
 
@@ -191,13 +191,13 @@ describe("mergeSuggestions", () => {
   it("keeps a rejection when the same span is found again", () => {
     const rejected = { ...at(text, "Immobilie", "Objekt"), status: "rejected" as const };
     const merged = mergeSuggestions([rejected], [at(text, "Immobilie", "Objekt")]);
-    expect(merged[0].status).toBe("rejected");
+    expect(merged[0]?.status).toBe("rejected");
   });
 
   it("keeps an acceptance when the same span is found again", () => {
     const accepted = { ...at(text, "Immobilie", "Objekt"), status: "accepted" as const };
     const merged = mergeSuggestions([accepted], [at(text, "Immobilie", "Objekt")]);
-    expect(merged[0].status).toBe("accepted");
+    expect(merged[0]?.status).toBe("accepted");
   });
 
   it("treats a different replacement for the same span as a new suggestion", () => {

@@ -54,9 +54,9 @@ describe("diffToEdits", () => {
   it("locates a substitution by offset", () => {
     const before = "der rote Wagen";
     const [edit] = diffToEdits(before, "der blaue Wagen");
-    expect(before.slice(edit.from, edit.to)).toBe(edit.before);
-    expect(edit.before).toBe("rote");
-    expect(edit.after).toBe("blaue");
+    expect(before.slice(edit?.from, edit?.to)).toBe(edit?.before);
+    expect(edit?.before).toBe("rote");
+    expect(edit?.after).toBe("blaue");
   });
 
   it("splits independent changes into separate edits", () => {
@@ -65,8 +65,8 @@ describe("diffToEdits", () => {
       "ein Fehler und noch ein Fehler hier"
     );
     expect(edits).toHaveLength(2);
-    expect(edits[0].after).toBe("Fehler");
-    expect(edits[1].after).toBe("Fehler");
+    expect(edits[0]?.after).toBe("Fehler");
+    expect(edits[1]?.after).toBe("Fehler");
   });
 
   it("keeps every edit offset valid against the original", () => {
@@ -89,14 +89,14 @@ describe("diffToEdits", () => {
 
   it("records a pure insertion as an empty range", () => {
     const [edit] = diffToEdits("zwei Worte", "zwei ganze Worte");
-    expect(edit.before.trim()).toBe("");
-    expect(edit.after).toContain("ganze");
+    expect(edit?.before.trim()).toBe("");
+    expect(edit?.after).toContain("ganze");
   });
 
   it("records a pure deletion with an empty replacement", () => {
     const edits = diffToEdits("ein sehr guter Satz", "ein guter Satz");
     expect(edits).toHaveLength(1);
-    expect(edits[0].after.trim()).toBe("");
+    expect(edits[0]?.after.trim()).toBe("");
   });
 
   it("ignores a whitespace-only rewrite", () => {

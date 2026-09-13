@@ -31,7 +31,7 @@ export class PromptModal extends Modal {
     this.value = options.initial ?? "";
   }
 
-  onOpen(): void {
+  override onOpen(): void {
     const { contentEl } = this;
     contentEl.empty();
     contentEl.createEl("h3", { text: this.options.title });
@@ -89,7 +89,7 @@ export class PromptModal extends Modal {
     }, 0);
   }
 
-  onClose(): void {
+  override onClose(): void {
     this.contentEl.empty();
   }
 }
@@ -103,7 +103,7 @@ export class ConfirmModal extends Modal {
     super(app);
   }
 
-  onOpen(): void {
+  override onOpen(): void {
     const { contentEl } = this;
     contentEl.empty();
     contentEl.createEl("h3", { text: this.options.title });
@@ -122,7 +122,7 @@ export class ConfirmModal extends Modal {
       );
   }
 
-  onClose(): void {
+  override onClose(): void {
     this.contentEl.empty();
   }
 }

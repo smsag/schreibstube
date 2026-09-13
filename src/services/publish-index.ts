@@ -137,7 +137,7 @@ export function slugify(value: string): string {
 /** The first heading of a note, which is what a reader would call it. */
 export function firstHeading(content: string): string {
   const match = /^#{1,6}[ \t]+(.+?)[ \t]*#*[ \t]*$/m.exec(stripFrontmatter(content));
-  return match ? match[1].trim() : "";
+  return match?.[1]?.trim() ?? "";
 }
 
 export function stripFrontmatter(content: string): string {
@@ -178,7 +178,7 @@ export function resolveNote(input: NoteInput, keys: PublishKeyMap): ResolvedNote
     slug: fields.slug ? slugify(fields.slug) : slugify(input.basename),
     title,
     date: fields.date || isoDate(input.createdMs),
-    description: fields.description || undefined
+    ...(fields.description ? { description: fields.description } : {})
   };
 }
 
@@ -212,12 +212,12 @@ export function referencedAttachments(content: string): string[] {
   const found = new Set<string>();
 
   for (const match of body.matchAll(/!\[\[([^\]|\n]+)(?:\|[^\]\n]*)?\]\]/g)) {
-    const target = match[1].split("#")[0].trim();
+    const target = match[1]?.split("#")[0]?.trim();
     if (target) found.add(target);
   }
 
   for (const match of body.matchAll(/!\[[^\]]*\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g)) {
-    const target = decodeTarget(match[1]).trim();
+    const target = decodeTarget(match[1] ?? "").trim();
     // A remote image is already served from somewhere; only vault files travel.
     if (target && !/^[a-z][a-z0-9+.-]*:/i.test(target)) found.add(target);
   }
@@ -243,8 +243,8 @@ function decodeTarget(raw: string): string {
 
 /** Whether a vault file is something a site may serve as an attachment. */
 export function isPublishableAttachment(name: string, extensions: Set<string>): boolean {
-  const match = /\.([A-Za-z0-9]+)$/.exec(name);
-  return match ? extensions.has(match[1].toLowerCase()) : false;
+  const extension = /\.([A-Za-z0-9]+)$/.exec(name)?.[1];
+  return extension !== undefined && extensions.has(extension.toLowerCase());
 }
 
 export const ATTACHMENT_EXTENSIONS = new Set([

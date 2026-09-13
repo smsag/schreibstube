@@ -1,12 +1,29 @@
-FROM node:22-alpine
+# Dependencies are installed in a stage of their own so the image that runs
+# carries no npm cache, no lockfile churn, and no Mermaid tree.
+FROM node:24-alpine AS deps
+WORKDIR /app
+
+# `npm ci` only: a lockfile that no longer matches package.json fails the build
+# here, which is where it should fail, rather than silently resolving to
+# whatever the registry had that day.
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev
+
+# Mermaid is one prebuilt file the bridge copies into a published site; the
+# bridge never runs it. The package brings 167 MB of parser dependencies for
+# that one 5 MB file, so the file is kept under vendor/ and the tree removed.
+# assets.mjs looks in vendor/ first and only then in the package.
+RUN mkdir -p vendor \
+  && cp node_modules/mermaid/dist/mermaid.min.js vendor/ \
+  && npm uninstall mermaid --no-save --omit=dev
+
+FROM node:24-alpine
 
 ENV NODE_ENV=production
 WORKDIR /app
 
-# Copy manifests first so dependency installation is cached across code changes.
-COPY package.json package-lock.json* ./
-RUN npm ci --omit=dev || npm install --omit=dev
-
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/vendor ./vendor
 COPY . .
 
 # Drop privileges: the bridge needs no write access to its own image.

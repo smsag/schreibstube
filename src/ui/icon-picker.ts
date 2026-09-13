@@ -22,7 +22,7 @@ export class IconPickerModal extends Modal {
     super(app);
   }
 
-  onOpen(): void {
+  override onOpen(): void {
     const { contentEl } = this;
     contentEl.empty();
     contentEl.addClass("schreibstube-icon-picker");
@@ -92,7 +92,7 @@ export class IconPickerModal extends Modal {
     }
   }
 
-  onClose(): void {
+  override onClose(): void {
     this.contentEl.empty();
   }
 }

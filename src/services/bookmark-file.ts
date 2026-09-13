@@ -164,22 +164,22 @@ export function parseBookmarkFile(text: string): BookmarkTree {
 function parseItem(line: string): Bookmark | null {
   const wiki = line.match(WIKILINK);
   if (wiki) {
-    const linkpath = clean(wiki[1]);
+    const linkpath = clean(wiki[1] ?? "");
     if (linkpath.length === 0) return null;
-    const name = clean(wiki[2] ?? wiki[1]);
+    const name = clean(wiki[2] ?? linkpath);
     return { name, url: `note://${linkpath}`, kind: "note" };
   }
 
   const item = line.match(ITEM);
   if (!item) return null;
 
-  const name = clean(item[1]);
-  const url = clean(item[2]);
+  const name = clean(item[1] ?? "");
+  const url = clean(item[2] ?? "");
   if (name.length === 0 || url.length === 0) return null;
 
   const inner = url.match(/^\[\[([^\]|]+)(?:\|[^\]]+)?\]\]$/);
   if (inner) {
-    const linkpath = clean(inner[1]);
+    const linkpath = clean(inner[1] ?? "");
     return linkpath.length > 0 ? { name, url: `note://${linkpath}`, kind: "note" } : null;
   }
 

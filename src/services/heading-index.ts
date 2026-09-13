@@ -21,9 +21,7 @@ export function buildHeadingIndex(content: string): HeadingIndex {
   const result: HeadingEntry[] = [];
   let fence: string | null = null;
 
-  for (let lineNumber = 0; lineNumber < lines.length; lineNumber += 1) {
-    const line = lines[lineNumber];
-
+  for (const [lineNumber, line] of lines.entries()) {
     // A `#` inside a code block is a comment, a shell prompt or a CSS colour,
     // and the stack above the note claimed it as the section being read.
     const marker = fenceMarker(line);
@@ -42,8 +40,8 @@ export function buildHeadingIndex(content: string): HeadingIndex {
       continue;
     }
 
-    const hashes = match[1];
-    const text = stripMarkdownFormatting(match[2]);
+    const hashes = match[1] ?? "";
+    const text = stripMarkdownFormatting(match[2] ?? "");
 
     if (!text) {
       continue;

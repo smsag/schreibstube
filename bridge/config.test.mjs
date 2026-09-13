@@ -139,6 +139,17 @@ describe("loadConfig, defaults", () => {
   });
 });
 
+describe("loadConfig, proxy", () => {
+  it("does not trust X-Forwarded-For unless told to", () => {
+    expect(loadConfig(env()).trustProxy).toBe(false);
+  });
+
+  it("trusts the proxy when TRUST_PROXY is set", () => {
+    expect(loadConfig(env({ TRUST_PROXY: "true" })).trustProxy).toBe(true);
+    expect(loadConfig(env({ TRUST_PROXY: "false" })).trustProxy).toBe(false);
+  });
+});
+
 describe("loadConfig, parsing", () => {
   it("ignores a non-numeric or non-positive integer and falls back", () => {
     for (const value of ["abc", "0", "-5", ""]) {

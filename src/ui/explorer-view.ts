@@ -16,13 +16,14 @@
  *
  * It draws and reports. Every decision — what an icon means, what the menu
  * offers, what a pin does to the order, what a bookmark points at — lives in a
- * controller and in the services behind it.
+ * controller and in the services behind it. The gestures a row answers to, the
+ * places a drag may land, a section's header and what the pane remembers each
+ * live in a module beside this one.
  */
 import {
   FileView,
   ItemView,
   Notice,
-  setIcon,
   TFile,
   TFolder,
   type TAbstractFile,
@@ -39,19 +40,36 @@ import {
   type Bookmark,
   type BookmarkFolder
 } from "../services/bookmark-file";
+import { fileGlyph } from "../services/file-glyph";
 import type { LatestCandidate } from "../services/latest-files";
 import {
   ancestorsOf,
   isMovePlan,
   moveRefusalMessage,
-  parentOf,
   planMove,
   type MoveContext
 } from "../services/tree-move";
 import type { SchreibstubeSettings } from "../types";
-import { isLongPressEcho } from "../services/explorer-menu";
 import { countFilesUnder, folderCountLabel } from "../services/folder-count";
 import { folderPathsUnder, treeAction } from "../services/vault-tree";
+import {
+  clearDropMarks,
+  clearMoveMarks,
+  dropAt,
+  markDropTarget,
+  markMoveTarget,
+  moveTargetAt,
+  orderAfterDrop
+} from "./explorer-drop";
+import { DragGesture, wirePress } from "./explorer-gestures";
+import { readPaneMemory, stateFromMemory, writePaneMemory } from "./explorer-memory";
+import {
+  renderSection as renderSectionHeader,
+  type SectionAction,
+  type SectionAlert,
+  type SectionId,
+  type SectionOptions
+} from "./explorer-section";
 import { applyIcon, installIconFont } from "./icon-font";
 import { SCHREIBSTUBE_ICON } from "./schreibstube-icon";
 
@@ -62,9 +80,6 @@ export const EXPLORER_VIEW_TYPE = "schreibstube-explorer";
  *  plugin registers it itself, so it cannot be absent the way a name borrowed
  *  from Obsidian's own set can. */
 export const EXPLORER_RIBBON_ICON = SCHREIBSTUBE_ICON;
-
-/** Long enough not to fire while scrolling, short enough to feel deliberate. */
-const LONG_PRESS_MS = 500;
 
 /**
  * How long the filter waits after the last keystroke before redrawing.
@@ -83,12 +98,6 @@ const FILTER_DEBOUNCE_MS = 150;
  * anyway: past this the answer is a narrower filter, not a longer list.
  */
 const FILTER_ROW_CAP = 200;
-
-/**
- * How far a finger may travel during a long press before the press is taken
- * as the start of a scroll.
- */
-const LONG_PRESS_MOVE_PX = 10;
 
 /**
  * How many pinned rows the shelf holds while the block is closed.
@@ -115,153 +124,9 @@ const FALLBACK_ROW_HEIGHT_PX = 27;
 /** How close to the top a held header lands, allowing for sub-pixel layout. */
 const STUCK_TOLERANCE_PX = 1.5;
 
-/** Movement, in pixels, that turns a press into a drag rather than a click. */
-const DRAG_THRESHOLD_PX = 4;
-
-/**
- * How far a finger must travel before a press becomes a drag.
- *
- * Far further than a mouse, and the reason is the menu. On a touch screen the
- * same press opens the context menu and arms the drag at the same instant, and
- * a drag taking over closes that menu — so at a mouse's four pixels, a finger
- * resting on glass or rolling as it lifts was enough to take the menu away
- * before it could be tapped, which left no way to delete, rename or move
- * anything. Sixteen is more than half a row: a hand on its way somewhere,
- * rather than a hand staying put.
- */
-const DRAG_TOUCH_THRESHOLD_PX = 16;
-
-/** The longest a drag may hold a redraw back. Long enough for any gesture a
- *  person makes, short enough that a flag left standing is a hiccup. */
-const DRAG_DEFER_MAX_MS = 5_000;
-
-/** How close to the top or bottom of the list a drag has to be before the list
- *  starts moving under it, and how far it moves in one frame at the very edge. */
-const EDGE_SCROLL_PX = 48;
-const EDGE_SCROLL_MAX_PX = 12;
-
-/**
- * What the pane remembers between sessions, per device.
- *
- * Obsidian's local storage is per vault and per device, which is the right home
- * for it: which folders a person has open on their phone is not a thing their
- * laptop should inherit, and it is not worth a sync conflict.
- */
-const MEMORY_KEY = "schreibstube:explorer:view";
-
-/**
- * Bumped when a section's default state changes, so the new default is applied
- * once per device and a person's own choice is never overwritten afterwards.
- */
-const PANE_MEMORY_VERSION = 1;
-
 /** Separator inside a bookmark folder key. A vault name can hold a slash; it
  *  cannot hold this. */
 const FOLDER_SEP = "\u001f";
-
-/** Attachments drawn as a picture rather than a blank sheet. */
-const MEDIA_EXTENSIONS = new Set([
-  "png",
-  "jpg",
-  "jpeg",
-  "gif",
-  "webp",
-  "svg",
-  "bmp",
-  "avif",
-  "mp4",
-  "mov",
-  "webm",
-  "mkv",
-  "mp3",
-  "m4a",
-  "ogg",
-  "wav",
-  "flac"
-]);
-
-type SectionId = "pinned" | "bookmarks" | "latest" | "files";
-
-/** A control a header carries at its far end, past the rule. */
-interface SectionAction {
-  /** A name in the bundled set, which is what the rest of the pane draws with. */
-  icon: string;
-  /** Obsidian's own name for the same thing, drawn if the set has not got it. */
-  fallbackIcon: string;
-  /** Named for a screen reader and on hover, because the icon alone is a guess. */
-  label: string;
-  /**
-   * Set only by a control that opens and closes its own section.
-   *
-   * The pinned block's chevron is the one: its section has none in the twisty
-   * slot, so this control is where a state that would have been said there has
-   * to be said instead.
-   */
-  expanded?: boolean;
-  run: () => void;
-}
-
-/** A mark on a section's icon, and what a tap on the mark does. */
-interface SectionAlert {
-  label: string;
-  acknowledge: () => void;
-}
-
-/** What a section wants from its header beyond a title and a chevron. */
-interface SectionOptions {
-  /** Draw the body even while closed, for a section that keeps some of it. */
-  keepBodyWhenClosed?: boolean;
-  /** How many rows the section holds in all, named on the header while closed. */
-  total?: number;
-  /** False when there is nothing behind the chevron, so it is not drawn. */
-  closable?: boolean;
-  /** Drawn open whatever was remembered, for as long as a filter is set. */
-  forceOpen?: boolean;
-  /** A control of the section's own, drawn at the far end of the header. */
-  action?: SectionAction;
-  /** A mark on the section's icon that something came in while nobody looked. */
-  alert?: SectionAlert;
-  /**
-   * False for a section whose chevron is drawn at the other end of the header.
-   *
-   * The slot itself stays, empty: every icon in the pane lines up on it, and a
-   * header that dropped it would sit a chevron's width left of its own rows.
-   */
-  twisty?: boolean;
-}
-
-interface PaneMemory {
-  /**
-   * Which defaults this device has already been given.
-   *
-   * Without it, "closed unless you opened it" and "never recorded either way"
-   * are the same absence, and a default that changes could not be applied once
-   * without undoing the person's own choice every time the pane opens.
-   */
-  version?: number;
-  /** Sections the person closed. Absent means open, which is the default. */
-  collapsedSections?: string[];
-  /** Bookmark folders the person closed. */
-  collapsedBookmarks?: string[];
-  /** Tree folders the person opened. */
-  expandedFolders?: string[];
-}
-
-/** What a row hands the shared gesture. */
-interface DragHandlers {
-  /** Identifies the drag in progress, so one row's release cannot end another's. */
-  path: string;
-  /** Called once, when a press has become a drag. */
-  onStart: () => void;
-  onMove: (clientX: number, clientY: number) => void;
-  onDrop: (clientX: number, clientY: number) => void;
-  onEnd: () => void;
-}
-
-interface LocalStorageApi {
-  loadLocalStorage?: (key: string) => unknown;
-  saveLocalStorage?: (key: string, value: unknown) => void;
-}
 
 export interface ExplorerPaneHost {
   explorer: ExplorerController;
@@ -278,8 +143,11 @@ export class ExplorerPaneView extends ItemView {
   private body: HTMLElement | null = null;
   /** The fixed strip above the scroller: the filter and the pinned block. */
   private shelf: HTMLElement | null = null;
-  /** Path of the row being dragged, or null when nothing is being dragged. */
-  private dragging: string | null = null;
+  /** The one drag the pane allows at a time, and the redraw it holds back. */
+  private drag = new DragGesture(
+    () => this.body,
+    () => this.requestRender()
+  );
   /** Files open in some tab, recomputed once per draw rather than per row. */
   private openPaths = new Set<string>();
   /**
@@ -304,16 +172,6 @@ export class ExplorerPaneView extends ItemView {
   private drawnMatches = 0;
   /** Files under each folder, counted once per draw. */
   private folderCounts = new Map<string, number>();
-  /** A redraw a drag held back, to be run as soon as the drag has ended. */
-  private deferred = false;
-  /** Where the pointer is during a drag, and the frame loop that scrolls the
-   *  list while it rests near an edge. */
-  private dragPointer = { x: 0, y: 0 };
-  private dragScroll: number | null = null;
-  /** When the drag in progress began, so a flag that somehow outlives its
-   *  gesture cannot hold every redraw back with it. */
-  private dragStartedAt = 0;
-  private dragHandlers: DragHandlers | null = null;
   /** A path to scroll to once the next draw has put it on screen. */
   private revealing: string | null = null;
 
@@ -331,7 +189,7 @@ export class ExplorerPaneView extends ItemView {
     return t().explorer.title;
   }
 
-  getIcon(): string {
+  override getIcon(): string {
     return EXPLORER_RIBBON_ICON;
   }
 
@@ -342,7 +200,7 @@ export class ExplorerPaneView extends ItemView {
     this.requestRender();
   }
 
-  protected async onOpen(): Promise<void> {
+  protected override async onOpen(): Promise<void> {
     installIconFont(this.containerEl.doc);
     this.readMemory();
 
@@ -416,8 +274,8 @@ export class ExplorerPaneView extends ItemView {
     // A pointer coming up anywhere ends whatever was being dragged. A row the
     // pane destroyed mid-gesture never delivers its own release, and a drag
     // left standing holds back every redraw after it.
-    this.registerDomEvent(this.containerEl.win, "pointerup", () => this.endDrag());
-    this.registerDomEvent(this.containerEl.win, "pointercancel", () => this.endDrag());
+    this.registerDomEvent(this.containerEl.win, "pointerup", () => this.drag.end());
+    this.registerDomEvent(this.containerEl.win, "pointercancel", () => this.drag.end());
 
     // The same button Obsidian's own explorer carries, in the same place and
     // with the same icon. Obsidian raises no event when its own is pressed and
@@ -431,7 +289,7 @@ export class ExplorerPaneView extends ItemView {
     this.render();
   }
 
-  protected async onClose(): Promise<void> {
+  protected override async onClose(): Promise<void> {
     this.cancelFilter();
     this.contentEl.empty();
   }
@@ -543,89 +401,10 @@ export class ExplorerPaneView extends ItemView {
     this.pending = true;
     window.requestAnimationFrame(() => {
       this.pending = false;
-
-      // A redraw throws away the row the pointer is holding, and with it the
-      // gesture: the capture is lost, the drop never arrives, and the move the
-      // person was making silently does not happen. The vault raises events
-      // throughout a drag — a note saving itself is enough — so the redraw
-      // waits for the button to come up instead.
-      //
-      // Only for as long as a drag can plausibly last. Holding redraws is worth
-      // it for the seconds a gesture takes and never worth a pane that has
-      // stopped answering because a flag was left standing.
-      if (this.dragging !== null && Date.now() - this.dragStartedAt < DRAG_DEFER_MAX_MS) {
-        this.deferred = true;
-        return;
-      }
-
+      // A drag in progress holds the redraw and runs it when it ends.
+      if (this.drag.holdsRedraw()) return;
       this.render();
     });
-  }
-
-  /**
-   * Scroll the list while a drag rests near its top or bottom edge.
-   *
-   * Without it only what is already on screen can be dropped on, which on a
-   * phone is a folder or two. The loop runs per frame rather than per move,
-   * because a finger held at the edge is not moving and would otherwise scroll
-   * nothing, and it re-marks the target as the list slides underneath it.
-   */
-  private startEdgeScroll(): void {
-    if (this.dragScroll !== null) return;
-
-    const step = (): void => {
-      const body = this.body;
-      if (!body || this.dragging === null) {
-        this.dragScroll = null;
-        return;
-      }
-
-      this.dragScroll = window.requestAnimationFrame(step);
-
-      const box = body.getBoundingClientRect();
-      const above = this.dragPointer.y - box.top;
-      const below = box.bottom - this.dragPointer.y;
-      const speed = (distance: number): number =>
-        Math.ceil(((EDGE_SCROLL_PX - distance) / EDGE_SCROLL_PX) * EDGE_SCROLL_MAX_PX);
-
-      let moved = 0;
-      if (above < EDGE_SCROLL_PX) moved = -speed(Math.max(0, above));
-      else if (below < EDGE_SCROLL_PX) moved = speed(Math.max(0, below));
-      if (moved === 0) return;
-
-      const before = body.scrollTop;
-      body.scrollTop += moved;
-      // The rows moved under a finger that did not: what it is over now is not
-      // what it was over a frame ago.
-      if (body.scrollTop !== before) {
-        this.dragHandlers?.onMove(this.dragPointer.x, this.dragPointer.y);
-      }
-    };
-
-    this.dragScroll = window.requestAnimationFrame(step);
-  }
-
-  private stopEdgeScroll(): void {
-    if (this.dragScroll !== null) window.cancelAnimationFrame(this.dragScroll);
-    this.dragScroll = null;
-  }
-
-  /**
-   * Let go of a drag, and run the redraw it held back.
-   *
-   * A tick late, because the click the release raises has to find the flag
-   * still set: that click is on the row the drag just moved, and acting on it
-   * would open the file that was being filed away.
-   */
-  private endDrag(): void {
-    if (this.dragging === null && !this.deferred) return;
-
-    window.setTimeout(() => {
-      this.dragging = null;
-      if (!this.deferred) return;
-      this.deferred = false;
-      this.requestRender();
-    }, 0);
   }
 
   private render(): void {
@@ -638,8 +417,7 @@ export class ExplorerPaneView extends ItemView {
     this.drawnMatches = 0;
     this.folderCounts.clear();
     // The rows a drag was holding are about to be thrown away.
-    this.dragging = null;
-    this.deferred = false;
+    this.drag.reset();
     this.openPaths = this.collectOpenPaths();
     const settings = this.host.settings();
 
@@ -688,9 +466,10 @@ export class ExplorerPaneView extends ItemView {
   // --- sections -----------------------------------------------------------
 
   /**
-   * A section: a header that toggles, and a body that is simply not drawn while
-   * the section is closed. Keeping the rows out of the document rather than
-   * hiding them is what keeps a vault of thousands of notes cheap to redraw.
+   * A section's header and, when it is open, the body to draw into.
+   *
+   * Whether it is open is decided here, from what the pane remembers, what a
+   * reveal opened and what a filter forces; the header itself is drawn beside.
    */
   private renderSection(
     host: HTMLElement,
@@ -698,118 +477,18 @@ export class ExplorerPaneView extends ItemView {
     icon: string,
     options: SectionOptions = {}
   ): HTMLElement | null {
-    const section = host.createDiv({ cls: "schreibstube-explorer-section" });
     const collapsed =
       this.collapsedSections.has(id) &&
       !(id === "files" && this.revealedTree) &&
       options.forceOpen !== true;
-    // Nothing behind the chevron is nothing to click: a section that hides
-    // nothing while closed must not offer to open.
-    const closable = options.closable ?? true;
 
-    // "Files and folders" is drawn as a band across the pane, because it is the
-    // one header that separates two kinds of thing: the three curated lists
-    // above it and the vault itself below.
-    //
-    // A div and not a button, though it behaves as one. A button carries every
-    // theme's idea of what a button looks like — a fill, a hover fill, a
-    // pressed fill — and a header that lit up grey under the finger that had
-    // just opened it, and stayed lit, was that idea arriving where it was not
-    // wanted. A row in this pane is drawn by this pane. It also stops a control
-    // of the section's own from being a button inside a button.
-    const header = section.createDiv({
-      cls:
-        `schreibstube-explorer-section-header` +
-        `${id === "files" ? " is-divider" : ""}${closable ? " is-clickable" : ""}`
-    });
-
-    // The band is pressable and does not say it is a button, because the things
-    // standing on it are. A button's children are not read out — that is what
-    // the role means — so a header calling itself one would have taken the
-    // chevron beside it and the mark on its icon down with it, which is the
-    // same silence moving one level up. The chevron carries the role instead,
-    // and a pointer still has the whole band.
-    const twisty = header.createSpan({ cls: "schreibstube-explorer-twisty" });
-    if (closable && options.twisty !== false) {
-      applyIcon(twisty, collapsed ? "chevron-right" : "chevron-down");
-      this.wireSectionToggle(twisty, id, collapsed, t().explorer.sections[id]);
-    }
-
-    // How many there are in all, on the section's own icon: a closed section
-    // showing rows does not look closed, and the rows on screen are not the
-    // whole of it. The same badge a closed folder carries, in the same place,
-    // because it answers the same question.
-    const glyph = header.createSpan({ cls: "schreibstube-explorer-glyph-box" });
-    applyIcon(glyph.createSpan({ cls: "schreibstube-explorer-glyph" }), icon);
-
-    const total = collapsed ? folderCountLabel(options.total ?? 0) : null;
-    // News first: a figure says how much is there and the mark says that some of
-    // it is new, and one corner of one icon can only carry the more urgent of
-    // the two. No section asks for both today.
-    if (options.alert) {
-      this.renderSectionAlert(glyph, id, options.alert);
-    } else if (total !== null) {
-      glyph.createSpan({ cls: "schreibstube-explorer-count", text: total });
-    }
-
-    header.createSpan({
-      cls: "schreibstube-explorer-section-title",
-      text: t().explorer.sections[id]
-    });
-
-    if (options.action) this.renderSectionAction(header, options.action);
-
-    // With a mark on it the whole band is the way to take it down — the chevron
-    // excepted, which stops the press at itself and goes on opening and closing
-    // the section. Without a mark the band is the toggle it always was.
-    const alert = options.alert;
-    if (alert) {
-      header.addEventListener("click", () => this.acknowledgeAlert(id, alert));
-    } else if (closable) {
-      header.addEventListener("click", () => this.toggleSection(id, collapsed));
-    }
-
-    const body = section.createDiv({ cls: "schreibstube-explorer-section-body" });
-    if (!collapsed || options.keepBodyWhenClosed) return body;
-
-    body.detach();
-    return null;
-  }
-
-  /**
-   * The chevron, as the one thing on the band that says what the band does.
-   *
-   * A pointer has the whole header and always did. This is for everything else:
-   * a name, a state, a tab stop, and a key that works — on the element the eye
-   * was going to anyway.
-   */
-  private wireSectionToggle(
-    twisty: HTMLElement,
-    id: SectionId,
-    collapsed: boolean,
-    label: string
-  ): void {
-    twisty.setAttrs({
-      role: "button",
-      tabindex: "0",
-      "aria-label": label,
-      "aria-expanded": String(!collapsed)
-    });
-    // Drawing an icon marks what it was drawn on as decoration; this one is the
-    // control, and a control nothing can read is worse than one nobody can see.
-    twisty.removeAttribute("aria-hidden");
-
-    const run = (event: Event): void => {
-      // The band under it would otherwise toggle the section a second time,
-      // which is the section not moving at all.
-      event.preventDefault();
-      event.stopPropagation();
-      this.toggleSection(id, collapsed);
-    };
-
-    twisty.addEventListener("click", run);
-    twisty.addEventListener("keydown", (event) => {
-      if (event.key === "Enter" || event.key === " ") run(event);
+    return renderSectionHeader(host, {
+      id,
+      icon,
+      collapsed,
+      options,
+      toggle: () => this.toggleSection(id, collapsed),
+      acknowledge: (alert) => this.acknowledgeAlert(id, alert)
     });
   }
 
@@ -822,89 +501,6 @@ export class ExplorerPaneView extends ItemView {
     }
     this.writeMemory();
     this.requestRender();
-  }
-
-  /**
-   * A control of the section's own, inside the header that opens the section.
-   *
-   * It has to stop the press reaching that header, or opening every folder in
-   * the vault would close the section they are in — the one thing a control put
-   * there must not do. Like the header around it, it is drawn rather than being
-   * a button: nothing here should arrive wearing a theme's button.
-   */
-  private renderSectionAction(header: HTMLElement, action: SectionAction): void {
-    const control = header.createSpan({
-      cls: "schreibstube-explorer-section-action",
-      attr: {
-        role: "button",
-        tabindex: "0",
-        "aria-label": action.label,
-        title: action.label,
-        ...(action.expanded === undefined ? {} : { "aria-expanded": String(action.expanded) })
-      }
-    });
-
-    // The glyph goes in a child of the control, never on the control itself:
-    // drawing an icon marks what it is drawn on `aria-hidden`, which is right
-    // for the icon and wrong for the labelled, focusable thing carrying it —
-    // a control nothing can read is worse than one nobody can see.
-    //
-    // The bundled font first, as everywhere else in the pane, and Obsidian's
-    // own icon if that font has nothing under the name. A control drawn as an
-    // empty box is indistinguishable from one that is broken, and this one
-    // sits alone at the end of a band with no label beside it to explain it.
-    const glyph = control.createSpan();
-    if (!applyIcon(glyph, action.icon)) {
-      glyph.removeClass("schreibstube-icon");
-      setIcon(glyph, action.fallbackIcon);
-    }
-
-    const run = (event: Event): void => {
-      event.preventDefault();
-      event.stopPropagation();
-      action.run();
-    };
-
-    control.addEventListener("click", run);
-    control.addEventListener("keydown", (event) => {
-      if (event.key === "Enter" || event.key === " ") run(event);
-    });
-  }
-
-  /**
-   * The mark that something came in, worn where a folder wears its count.
-   *
-   * A mark and not a figure: how many sources changed is not what a person
-   * wants from the corner of an icon, and the list under it says it exactly.
-   *
-   * It comes down when it is tapped and at no other time — not when the section
-   * is merely on screen, which a pane left open all day would do by itself. The
-   * tap opens the section with it, so one press both answers the mark and shows
-   * what it was about.
-   */
-  private renderSectionAlert(glyph: HTMLElement, id: SectionId, alert: SectionAlert): void {
-    // A dot, in the colour the interface uses for its own voice. It says one
-    // thing — something came in — and a figure or a character beside it would
-    // be answering a question nobody asked of a mark this size. The list under
-    // the header says which notes, exactly.
-    //
-    // The band around it is what a finger presses; this is a control as well,
-    // so the same thing can be reached by a keyboard.
-    const mark = glyph.createSpan({
-      cls: "schreibstube-explorer-alert",
-      attr: { role: "button", tabindex: "0", "aria-label": alert.label, title: alert.label }
-    });
-
-    const run = (event: Event): void => {
-      event.preventDefault();
-      event.stopPropagation();
-      this.acknowledgeAlert(id, alert);
-    };
-
-    mark.addEventListener("click", run);
-    mark.addEventListener("keydown", (event) => {
-      if (event.key === "Enter" || event.key === " ") run(event);
-    });
   }
 
   /**
@@ -1049,7 +645,7 @@ export class ExplorerPaneView extends ItemView {
     // A pinned folder shows where it is rather than opening a second copy of
     // the tree inside the section.
     row.addEventListener("click", () => {
-      if (this.dragging) return;
+      if (this.drag.active) return;
       if (isFolder) this.revealFolder(file.path);
       else void controller.open(file, false);
     });
@@ -1254,7 +850,8 @@ export class ExplorerPaneView extends ItemView {
   }
 
   private renderFiles(host: HTMLElement): void {
-    const body = this.renderSection(host, "files", "folder", { action: this.treeToggle() });
+    const action = this.treeToggle();
+    const body = this.renderSection(host, "files", "folder", action ? { action } : {});
     if (!body) return;
 
     const tree = body.createDiv({ cls: "schreibstube-explorer-tree" });
@@ -1415,123 +1012,6 @@ export class ExplorerPaneView extends ItemView {
   }
 
   /**
-   * The press-hold-move gesture both drags are built on.
-   *
-   * A mouse begins as soon as the pointer leaves the row it pressed. A finger
-   * has to hold first, because on a touch surface a short drag down a list is
-   * how a person scrolls, and taking that gesture would make the pane
-   * impossible to move.
-   *
-   * The pointer is captured on the press rather than when the drag begins, so
-   * the release always comes back to this row. Without that, a press that ends
-   * somewhere else leaves the row armed, and the next pointer to merely pass
-   * over it starts a drag with no button held.
-   */
-  private wireDrag(row: HTMLElement, handlers: DragHandlers): void {
-    let startX = 0;
-    let startY = 0;
-    let armed = false;
-    let holdTimer: number | null = null;
-
-    const clearHold = (): void => {
-      if (holdTimer !== null) window.clearTimeout(holdTimer);
-      holdTimer = null;
-    };
-
-    const finish = (): void => {
-      clearHold();
-      armed = false;
-      this.stopEdgeScroll();
-      this.dragHandlers = null;
-      row.removeClass("is-dragging");
-      handlers.onEnd();
-      // The click that follows a pointerup would otherwise act on the row the
-      // drag just moved, so the flag outlives the release by a tick.
-      this.endDrag();
-    };
-
-    row.addEventListener("pointerdown", (event: PointerEvent) => {
-      if (event.button !== 0) return;
-
-      startX = event.clientX;
-      startY = event.clientY;
-
-      // Captured now, so pointerup and pointercancel cannot be delivered
-      // anywhere else and leave this row armed for ever.
-      row.setPointerCapture(event.pointerId);
-
-      if (event.pointerType === "touch") {
-        holdTimer = window.setTimeout(() => {
-          armed = true;
-          row.addClass("is-dragging");
-        }, LONG_PRESS_MS);
-      } else {
-        armed = true;
-      }
-    });
-
-    // Once the hold has armed, the finger is dragging rather than scrolling.
-    // The listener has to be non-passive to be allowed to say so, and the
-    // gesture is only taken after the hold, so a plain swipe still scrolls.
-    row.addEventListener(
-      "touchmove",
-      (event: TouchEvent) => {
-        if (armed) event.preventDefault();
-      },
-      { passive: false }
-    );
-
-    row.addEventListener("pointermove", (event: PointerEvent) => {
-      // A mouse with nothing held down is hovering, not dragging.
-      if (event.pointerType !== "touch" && event.buttons === 0) {
-        if (this.dragging === null) armed = false;
-        return;
-      }
-
-      const moved = Math.hypot(event.clientX - startX, event.clientY - startY);
-      const threshold = event.pointerType === "touch" ? DRAG_TOUCH_THRESHOLD_PX : DRAG_THRESHOLD_PX;
-
-      // A finger that moves before the hold has elapsed is scrolling the pane.
-      if (!armed) {
-        if (moved > threshold) clearHold();
-        return;
-      }
-      if (this.dragging === null && moved <= threshold) return;
-
-      if (this.dragging === null) {
-        this.dragging = handlers.path;
-        this.dragStartedAt = Date.now();
-        this.dragHandlers = handlers;
-        row.addClass("is-dragging");
-        handlers.onStart();
-        this.startEdgeScroll();
-      }
-
-      this.dragPointer = { x: event.clientX, y: event.clientY };
-      handlers.onMove(event.clientX, event.clientY);
-    });
-
-    row.addEventListener("pointerup", (event: PointerEvent) => {
-      if (this.dragging !== handlers.path) {
-        finish();
-        return;
-      }
-
-      const x = event.clientX;
-      const y = event.clientY;
-      finish();
-      handlers.onDrop(x, y);
-    });
-
-    row.addEventListener("pointercancel", finish);
-    // A redraw mid-drag destroys the row, and with it the capture. Without
-    // this the gesture never ends and every later click is swallowed.
-    row.addEventListener("lostpointercapture", () => {
-      if (this.dragging === handlers.path) finish();
-    });
-  }
-
-  /**
    * Moving a file or a folder by dragging it onto a folder.
    *
    * A finger drags as a mouse does. The press that opens the context menu at
@@ -1547,25 +1027,27 @@ export class ExplorerPaneView extends ItemView {
    * why rather than doing nothing.
    */
   private wireTreeDrag(row: HTMLElement, path: string): void {
-    this.wireDrag(row, {
+    const list = (): HTMLElement | null => this.body;
+    this.drag.wire(row, {
       path,
       onStart: () => this.host?.explorer.closeMenu(),
-      onMove: (x, y) => this.markMoveTarget(x, y),
-      onEnd: () => this.clearMoveMarks(),
-      onDrop: (x, y) => void this.dropInto(path, this.moveTargetAt(x, y))
+      onMove: (x, y) => {
+        const root = list();
+        if (root) {
+          markMoveTarget(root, x, y, (target) =>
+            isMovePlan(this.planFor(this.drag.active ?? "", target))
+          );
+        }
+      },
+      onEnd: () => {
+        const root = list();
+        if (root) clearMoveMarks(root);
+      },
+      onDrop: (x, y) => {
+        const root = list();
+        void this.dropInto(path, root ? moveTargetAt(root, x, y) : null);
+      }
     });
-  }
-
-  /** Rows and headers a tree drag may land on. */
-  private moveTargets(): HTMLElement[] {
-    const root = this.body;
-    if (!root) return [];
-
-    return Array.from(
-      root.querySelectorAll<HTMLElement>(
-        ".schreibstube-explorer-row.is-folder[data-path], .schreibstube-explorer-section-header.is-divider"
-      )
-    );
   }
 
   /**
@@ -1595,71 +1077,6 @@ export class ExplorerPaneView extends ItemView {
     const count = countFilesUnder(folder, (path) => controller?.isTrashed(path) === true);
     this.folderCounts.set(folder.path, count);
     return count;
-  }
-
-  /**
-   * File rows in the tree, each of which stands for the folder holding it.
-   *
-   * A file is not somewhere to put anything, but pointing at one is how a
-   * person says "in there": the folder is what they are aiming at and the rows
-   * inside it are what the folder looks like. Only the tree counts — the
-   * curated lists above it are not a place in the vault.
-   */
-  private fileRows(): HTMLElement[] {
-    const root = this.body;
-    if (!root) return [];
-
-    return Array.from(
-      root.querySelectorAll<HTMLElement>(
-        ".schreibstube-explorer-tree .schreibstube-explorer-row[data-path]:not(.is-folder)"
-      )
-    );
-  }
-
-  /**
-   * The folder under the pointer, or null when there is none.
-   *
-   * A folder row answers with itself and the section header with the vault
-   * root, which is the only way to drag something out of every folder it is in.
-   * A file row answers with the folder it sits in, so the target a person aims
-   * at is the whole block a folder occupies rather than the one row naming it.
-   */
-  private moveTargetAt(clientX: number, clientY: number): string | null {
-    for (const element of this.moveTargets()) {
-      if (!containsPoint(element, clientX, clientY)) continue;
-
-      if (element.hasClass("schreibstube-explorer-section-header")) return "";
-      return element.getAttribute("data-path");
-    }
-
-    for (const element of this.fileRows()) {
-      if (!containsPoint(element, clientX, clientY)) continue;
-
-      const path = element.getAttribute("data-path");
-      // A file at the root answers with the root, as every other file answers
-      // with the folder holding it.
-      if (path !== null) return parentOf(path);
-    }
-
-    return null;
-  }
-
-  private markMoveTarget(clientX: number, clientY: number): void {
-    this.clearMoveMarks();
-    const target = this.moveTargetAt(clientX, clientY);
-    if (target === null) return;
-
-    for (const element of this.moveTargets()) {
-      const isRoot = element.hasClass("schreibstube-explorer-section-header");
-      const path = isRoot ? "" : element.getAttribute("data-path");
-      if (path !== target) continue;
-      // A folder that cannot take this row should not look as if it could.
-      if (isMovePlan(this.planFor(this.dragging ?? "", target))) element.addClass("is-drop-into");
-    }
-  }
-
-  private clearMoveMarks(): void {
-    for (const element of this.moveTargets()) element.removeClass("is-drop-into");
   }
 
   private planFor(source: string, targetFolder: string): ReturnType<typeof planMove> {
@@ -1698,18 +1115,20 @@ export class ExplorerPaneView extends ItemView {
     }
   }
 
-  /** Reordering the pinned block by dragging one of its rows. */
+  /** Reordering the pinned block by dragging one of its rows. Its rows sit on
+   *  the shelf and in the scroller alike, so the whole pane is searched. */
   private wirePinnedDrag(row: HTMLElement, path: string, order: string[]): void {
     const controller = this.host?.explorer;
     if (!controller) return;
 
-    this.wireDrag(row, {
+    const root = this.contentEl;
+    this.drag.wire(row, {
       path,
       onStart: () => undefined,
-      onMove: (_x, y) => this.markDropTarget(y),
-      onEnd: () => this.clearDropMarks(),
+      onMove: (_x, y) => markDropTarget(root, y, this.drag.active),
+      onEnd: () => clearDropMarks(root),
       onDrop: (_x, y) => {
-        const next = this.orderAfterDrop(path, order, y);
+        const next = orderAfterDrop(order, path, dropAt(root, y));
         if (next) controller.reorderPinned(next);
       }
     });
@@ -1747,65 +1166,6 @@ export class ExplorerPaneView extends ItemView {
     if (this.openPaths.has(path)) row.addClass("is-open");
   }
 
-  /**
-   * Every row of the Pinned section on screen, shelf and scroller alike, in
-   * drawn order. Deliberately not `.is-pinned`, which the tree also puts on a
-   * pinned row: dropping onto one of those would reorder against a row that is
-   * not part of this list.
-   */
-  private pinnedRows(): HTMLElement[] {
-    const root = this.contentEl;
-    return Array.from(
-      root.querySelectorAll<HTMLElement>(".schreibstube-explorer-row.is-pinned-entry")
-    );
-  }
-
-  /** Which row the pointer is over, and whether it is above that row's middle. */
-  private dropAt(clientY: number): { path: string; before: boolean } | null {
-    for (const row of this.pinnedRows()) {
-      const box = row.getBoundingClientRect();
-      if (clientY < box.top || clientY > box.bottom) continue;
-
-      const path = row.getAttribute("data-path");
-      if (!path) continue;
-      return { path, before: clientY < box.top + box.height / 2 };
-    }
-    return null;
-  }
-
-  private markDropTarget(clientY: number): void {
-    this.clearDropMarks();
-    const target = this.dropAt(clientY);
-    if (!target || target.path === this.dragging) return;
-
-    for (const row of this.pinnedRows()) {
-      if (row.getAttribute("data-path") !== target.path) continue;
-      row.addClass(target.before ? "is-drop-before" : "is-drop-after");
-    }
-  }
-
-  private clearDropMarks(): void {
-    for (const row of this.pinnedRows()) {
-      row.removeClass("is-drop-before");
-      row.removeClass("is-drop-after");
-    }
-  }
-
-  /** The order the block should take, or null when the drag changed nothing. */
-  private orderAfterDrop(path: string, order: string[], clientY: number): string[] | null {
-    const target = this.dropAt(clientY);
-    if (!target || target.path === path) return null;
-
-    const without = order.filter((entry) => entry !== path);
-    const at = without.indexOf(target.path);
-    if (at === -1) return null;
-
-    const next = [...without];
-    next.splice(target.before ? at : at + 1, 0, path);
-
-    return next.join("\u0000") === order.join("\u0000") ? null : next;
-  }
-
   private renderBadge(row: HTMLElement, file: TFile): void {
     const controller = this.host?.explorer;
     if (!controller) return;
@@ -1825,127 +1185,17 @@ export class ExplorerPaneView extends ItemView {
     const controller = this.host?.explorer;
     if (!controller) return;
 
-    // Mobile has no right click and Obsidian's own long-press belongs to its
-    // explorer, so the pane brings its own. The button on the row stays as the
-    // way that always works.
-    let timer: number | null = null;
-    // When the pane's own timer last answered a press on this row, so the
-    // browser's context menu for the same press can be recognised.
-    let answeredAt: number | null = null;
-    // Whether the press in progress has been answered with a menu. Unlike the
-    // timestamp above this is not a window: a finger may rest on the row for as
-    // long as the menu is being read, and everything that press raises after
-    // the menu opened still belongs to it.
-    let answered = false;
-    // Whether a finger is on the row at all, so the browser's own context menu
-    // can tell a long press from a right click without guessing at the event.
-    let touching = false;
-    let startX = 0;
-    let startY = 0;
-
-    const cancel = (): void => {
-      if (timer !== null) window.clearTimeout(timer);
-      timer = null;
-    };
-
-    row.addEventListener("click", (event) => {
-      // The lift that ends a long press raises a click on the row the menu is
-      // standing on. Acting on it opens the file and closes the menu that the
-      // press was held to open — and on a phone opening a file closes the pane
-      // with it, which is why the menu looked as if it could not be used at
-      // all. The row that owns the gesture swallows it instead.
-      if (answered) {
-        answered = false;
-        event.preventDefault();
-        event.stopPropagation();
-        return;
-      }
-
-      // A drop is not a click. Without this the row the drag just moved opens
-      // as well, and a folder dropped somewhere closes itself on arrival.
-      if (this.dragging !== null) return;
-
-      if (isFolder) {
-        this.toggle(file.path);
-        return;
-      }
-      void controller.open(file, false);
-    });
-
-    row.addEventListener("contextmenu", (event) => {
-      event.preventDefault();
-      // A long press on a touch screen raises this after the pane's timer has
-      // already opened a menu. A right click never does, so a second right
-      // click on the same row always opens again.
-      if (isLongPressEcho(Date.now(), answeredAt)) return;
-      // Arriving first instead: the browser is handling the press, so the
-      // pane's pending timer would only add a second menu. A finger still on
-      // the row has a lift to come, and that lift must not reach the row; a
-      // right click has nothing to come.
-      cancel();
-      if (touching) answered = true;
-      controller.showMenu(file, event);
-    });
-
-    row.addEventListener(
-      "touchstart",
-      (event) => {
-        const touch = event.touches[0];
-        cancel();
-        answeredAt = null;
-        answered = false;
-        touching = true;
-        if (!touch) return;
-
-        startX = touch.clientX;
-        startY = touch.clientY;
-        timer = window.setTimeout(() => {
-          timer = null;
-          answeredAt = Date.now();
-          answered = true;
-          controller.showMenu(file, { x: touch.clientX, y: touch.clientY });
-        }, LONG_PRESS_MS);
-      },
-      { passive: true }
-    );
-
-    // A finger never holds perfectly still, so a press survives a little
-    // movement. Past that the list is being scrolled, and a scroll is not a
-    // long press.
-    row.addEventListener(
-      "touchmove",
-      (event) => {
-        const touch = event.touches[0];
-        if (!touch) {
-          cancel();
+    wirePress(row, {
+      isDragging: () => this.drag.active !== null,
+      activate: () => {
+        if (isFolder) {
+          this.toggle(file.path);
           return;
         }
-        const moved = Math.hypot(touch.clientX - startX, touch.clientY - startY);
-        if (moved > LONG_PRESS_MOVE_PX) cancel();
+        void controller.open(file, false);
       },
-      { passive: true }
-    );
-
-    // Not passive: refusing the default is the whole point. A lift the browser
-    // is allowed to complete raises mouse events and a click on whatever is
-    // under the finger, and Obsidian closes a menu on any press outside it — so
-    // the menu the press just opened would be gone before it could be used.
-    row.addEventListener("touchend", (event) => {
-      cancel();
-      touching = false;
-      if (!answered) return;
-      event.preventDefault();
-      event.stopPropagation();
+      showMenu: (at) => controller.showMenu(file, at)
     });
-
-    row.addEventListener(
-      "touchcancel",
-      () => {
-        cancel();
-        touching = false;
-      },
-      { passive: true }
-    );
   }
 
   private toggle(path: string): void {
@@ -1963,17 +1213,13 @@ export class ExplorerPaneView extends ItemView {
 
   private glyphFor(file: TAbstractFile): string {
     const chosen = this.host?.explorer.iconFor(file.path);
-    if (chosen) return chosen;
-
-    if (file instanceof TFolder) return this.isExpanded(file) ? "folder-open" : "folder";
-    if (!(file instanceof TFile)) return "file";
-
-    const extension = file.extension.toLowerCase();
-    if (extension === "md") return "file-text";
-    // A vault's attachments are mostly pictures and recordings, and a row of
-    // identical blank sheets says nothing about which is which.
-    if (MEDIA_EXTENSIONS.has(extension)) return "photo";
-    return "file";
+    if (file instanceof TFolder) {
+      return fileGlyph(chosen, { kind: "folder", open: this.isExpanded(file) });
+    }
+    if (file instanceof TFile) {
+      return fileGlyph(chosen, { kind: "file", extension: file.extension });
+    }
+    return fileGlyph(chosen, { kind: "other" });
   }
 
   private scrollToRevealed(): void {
@@ -1994,49 +1240,20 @@ export class ExplorerPaneView extends ItemView {
   // --- what the pane remembers --------------------------------------------
 
   private readMemory(): void {
-    const storage = this.app as unknown as LocalStorageApi;
-    let memory: PaneMemory | null = null;
-
-    if (typeof storage.loadLocalStorage === "function") {
-      try {
-        const raw = storage.loadLocalStorage(MEMORY_KEY);
-        if (raw && typeof raw === "object") memory = raw as PaneMemory;
-      } catch {
-        // A hardened setup can refuse storage entirely; the pane opens on its
-        // defaults rather than failing to open.
-        memory = null;
-      }
-    }
-
-    if (memory) {
-      this.collapsedSections = toSet(memory.collapsedSections);
-      this.collapsedBookmarks = toSet(memory.collapsedBookmarks);
-      this.expanded = toSet(memory.expandedFolders);
-    }
-
-    // The pinned block keeps its first rows while closed, so closed is what it
-    // opens on: the shortlist and then the vault, with the rest a tap away.
-    // Applied once per device — after that the chevron is the person's.
-    if (memory?.version !== PANE_MEMORY_VERSION) {
-      this.collapsedSections.add("pinned");
-      this.writeMemory();
-    }
+    const { state, defaultsApplied } = stateFromMemory(readPaneMemory(this.app));
+    this.collapsedSections = state.collapsedSections;
+    this.collapsedBookmarks = state.collapsedBookmarks;
+    this.expanded = state.expandedFolders;
+    // A default applied once is written at once, so it is not applied again.
+    if (defaultsApplied) this.writeMemory();
   }
 
   private writeMemory(): void {
-    const storage = this.app as unknown as LocalStorageApi;
-    if (typeof storage.saveLocalStorage !== "function") return;
-
-    try {
-      storage.saveLocalStorage(MEMORY_KEY, {
-        version: PANE_MEMORY_VERSION,
-        collapsedSections: [...this.collapsedSections],
-        collapsedBookmarks: [...this.collapsedBookmarks],
-        expandedFolders: [...this.expanded]
-      } satisfies PaneMemory);
-    } catch {
-      // Nothing here is worth failing a click over.
-    }
+    writePaneMemory(this.app, {
+      collapsedSections: this.collapsedSections,
+      collapsedBookmarks: this.collapsedBookmarks,
+      expandedFolders: this.expanded
+    });
   }
 }
 
@@ -2053,21 +1270,9 @@ function indent(row: HTMLElement, depth: number): void {
   row.style.setProperty("--schreibstube-depth", String(depth));
 }
 
-function toSet(value: unknown): Set<string> {
-  return new Set(
-    Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === "string") : []
-  );
-}
-
 function basenameOf(path: string): string {
   const cut = path.lastIndexOf("/");
   return cut === -1 ? path : path.slice(cut + 1);
-}
-
-/** Whether a point on screen is inside an element's box. */
-function containsPoint(element: HTMLElement, clientX: number, clientY: number): boolean {
-  const box = element.getBoundingClientRect();
-  return clientY >= box.top && clientY <= box.bottom && clientX >= box.left && clientX <= box.right;
 }
 
 function displayName(file: TAbstractFile): string {

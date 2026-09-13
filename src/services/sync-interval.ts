@@ -104,12 +104,13 @@ export function parseSyncEvery(raw: unknown): SyncIntervalResult | null {
   }
 
   const words = fields.filter((word) => !OPENERS.includes(word.replace(/[.,;]$/, "")));
-  const shorthand = words.length === 1 ? SHORTHANDS[words[0]] : undefined;
+  const [firstWord = ""] = words;
+  const shorthand = words.length === 1 ? SHORTHANDS[firstWord] : undefined;
   if (shorthand) return everySchedule(1, shorthand, raw.trim());
 
   // "2 days", and "days" on its own, which reads as one of them.
-  const count = words.length === 2 ? Number(words[0].replace(",", ".")) : 1;
-  const unitWord = words[words.length - 1];
+  const count = words.length === 2 ? Number(firstWord.replace(",", ".")) : 1;
+  const unitWord = words[words.length - 1] ?? "";
   const unit = unitOf(unitWord);
 
   if (words.length > 2 || unit === null || !Number.isFinite(count)) {

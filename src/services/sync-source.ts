@@ -70,10 +70,11 @@ function describeHost(url: URL): SourceTarget {
     return { kind: "url" };
   }
 
-  const segments = url.pathname.split("/").filter(Boolean);
-  if (segments.length < 4) return { kind: "url" };
+  const [owner, repo, ref, ...rest] = url.pathname.split("/").filter(Boolean);
+  if (owner === undefined || repo === undefined || ref === undefined || rest.length === 0) {
+    return { kind: "url" };
+  }
 
-  const [owner, repo, ref, ...rest] = segments;
   return { kind: "github", owner, repo, ref, path: rest.join("/") };
 }
 
@@ -102,11 +103,11 @@ export function frontmatterLine(text: string, key: string): string | null {
   const block = /^---\r?\n([\s\S]*?)\r?\n---/.exec(text);
   if (!block) return null;
 
-  for (const line of block[1].split(/\r?\n/)) {
-    const match = new RegExp(`^${key}\\s*:\\s*(.+)$`).exec(line);
-    if (!match) continue;
+  for (const line of (block[1] ?? "").split(/\r?\n/)) {
+    const raw = new RegExp(`^${key}\\s*:\\s*(.+)$`).exec(line)?.[1];
+    if (raw === undefined) continue;
 
-    const value = match[1]
+    const value = raw
       .trim()
       .replace(/^["'<]|[">']$/g, "")
       .trim();
@@ -140,10 +141,10 @@ function rewriteGitHubUrl(url: URL): { url: URL; target: SourceTarget } | null {
     return null;
   }
 
-  const segments = url.pathname.split("/").filter(Boolean);
-  if (segments.length < 5) return null;
-
-  const [owner, repo, kind, ref, ...rest] = segments;
+  const [owner, repo, kind, ref, ...rest] = url.pathname.split("/").filter(Boolean);
+  if (owner === undefined || repo === undefined || ref === undefined || rest.length === 0) {
+    return null;
+  }
   if (kind !== "blob" && kind !== "raw") return null;
 
   const path = rest.join("/");

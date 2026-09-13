@@ -149,11 +149,13 @@ function parseUploads(value: unknown): UploadRequest[] {
   if (!Array.isArray(value)) return [];
   return value.map((entry) => {
     const record = asRecord(entry);
+    const name = str(record.name);
+    const path = str(record.path);
     return {
       sourcePath: str(record.sourcePath),
       sha256: str(record.sha256),
-      name: str(record.name) || undefined,
-      path: str(record.path) || undefined
+      ...(name ? { name } : {}),
+      ...(path ? { path } : {})
     };
   });
 }

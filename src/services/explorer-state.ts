@@ -128,7 +128,8 @@ function parseEntry(value: unknown): ExplorerEntry | null {
 export function serializeExplorerData(data: ExplorerData): string {
   const entries: Record<string, ExplorerEntry> = {};
   for (const path of Object.keys(data.entries).sort()) {
-    entries[path] = data.entries[path];
+    const entry = data.entries[path];
+    if (entry) entries[path] = entry;
   }
   return `${JSON.stringify({ version: EXPLORER_DATA_VERSION, entries }, null, 2)}\n`;
 }
@@ -330,8 +331,9 @@ export function reattachOrphans(
 
   for (const [orphanPath, entry] of stillMissing) {
     const name = entry.name ?? basename(orphanPath);
-    const candidates = byName.get(name);
-    if (!candidates || candidates.length !== 1) continue;
+    const candidates = byName.get(name) ?? [];
+    const [candidate] = candidates;
+    if (candidate === undefined || candidates.length !== 1) continue;
 
     const sameName = stillMissing.filter(
       ([path, other]) => (other.name ?? basename(path)) === name
@@ -339,7 +341,7 @@ export function reattachOrphans(
     if (sameName.length !== 1) continue;
 
     const { orphanedAt: _gone, name: _remembered, ...live } = entry;
-    entries[candidates[0]] = { ...live, updatedAt: now };
+    entries[candidate] = { ...live, updatedAt: now };
     delete entries[orphanPath];
     touched = true;
   }

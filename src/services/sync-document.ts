@@ -147,12 +147,12 @@ export function splitNote(text: string): NoteParts {
   }
 
   const lines = text.split("\n");
-  if (lines[0].trim() !== "---") {
+  if (lines[0]?.trim() !== "---") {
     return { frontmatter: "", body: text };
   }
 
   for (let i = 1; i < lines.length; i += 1) {
-    if (lines[i].trim() !== "---") continue;
+    if (lines[i]?.trim() !== "---") continue;
     const frontmatter = `${lines.slice(0, i + 1).join("\n")}\n`;
     return { frontmatter, body: text.slice(frontmatter.length) };
   }

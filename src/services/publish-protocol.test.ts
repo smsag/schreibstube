@@ -41,7 +41,7 @@ describe("parsePlan", () => {
     expect(plan.uploadSources).toEqual([
       { sourcePath: "a.md", sha256: "abc", name: undefined, path: undefined }
     ]);
-    expect(plan.uploadAssets[0].name).toBe("b.png");
+    expect(plan.uploadAssets[0]?.name).toBe("b.png");
     expect(plan.willDelete).toEqual(["alt/index.html"]);
     expect(plan.unchangedSources).toBe(4);
   });

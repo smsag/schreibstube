@@ -75,7 +75,7 @@ async function handle(req, res, requestId) {
   const url = new URL(req.url ?? "/", "http://bridge");
   const pathname = url.pathname;
   const method = req.method ?? "GET";
-  const address = clientAddress(req);
+  const address = clientAddress(req, { trustProxy: config.trustProxy });
   const open = routes.some((route) => route.path === pathname && route.public);
 
   if (!open) {

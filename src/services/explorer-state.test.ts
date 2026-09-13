@@ -90,7 +90,7 @@ describe("setting an icon and a pin", () => {
     const first = setPinned(emptyExplorerData(), "a.md", true, T0);
     const again = setPinned(first, "a.md", true, T0 + MINUTE);
 
-    expect(again.entries["a.md"].pinnedAt).toBe(T0);
+    expect(again.entries["a.md"]?.pinnedAt).toBe(T0);
   });
 
   it("revives a tombstone when the user changes the same path again", () => {
@@ -140,14 +140,14 @@ describe("a file that disappears", () => {
       T0 + MINUTE
     );
 
-    expect(data.entries["Alt/Haus.md"].orphanedAt).toBe(T0 + MINUTE);
+    expect(data.entries["Alt/Haus.md"]?.orphanedAt).toBe(T0 + MINUTE);
   });
 
   it("keeps the first tombstone time when it is reported twice", () => {
     let data = markMissing(setIcon(emptyExplorerData(), "a.md", "home", T0), "a.md", T0 + MINUTE);
     data = markMissing(data, "a.md", T0 + 2 * MINUTE);
 
-    expect(data.entries["a.md"].orphanedAt).toBe(T0 + MINUTE);
+    expect(data.entries["a.md"]?.orphanedAt).toBe(T0 + MINUTE);
   });
 
   it("does not rewrite the map when there was nothing to forget", () => {
@@ -175,7 +175,7 @@ describe("a file that disappears", () => {
     );
     const still = reattachOrphans(gone, ["Eins/Haus.md", "Zwei/Haus.md"], T0 + MINUTE);
 
-    expect(still.entries["Alt/Haus.md"].orphanedAt).toBe(T0);
+    expect(still.entries["Alt/Haus.md"]?.orphanedAt).toBe(T0);
   });
 
   it("leaves two tombstones with one candidate alone", () => {
@@ -379,7 +379,7 @@ describe("keeping an item at the top of its folder", () => {
     const first = setKept(emptyExplorerData(), "a.md", true, T0);
     const again = setKept(first, "a.md", true, T0 + MINUTE);
 
-    expect(again.entries["a.md"].keptAt).toBe(T0);
+    expect(again.entries["a.md"]?.keptAt).toBe(T0);
   });
 
   it("survives the prune that clears an entry holding nothing", () => {
@@ -432,8 +432,8 @@ describe("reorderPinned", () => {
 
     const next = reorderPinned(data, ["b.md", "a.md"], 500);
 
-    expect(next.entries["a.md"].updatedAt).toBe(500);
-    expect(next.entries["b.md"].updatedAt).toBe(500);
+    expect(next.entries["a.md"]?.updatedAt).toBe(500);
+    expect(next.entries["b.md"]?.updatedAt).toBe(500);
   });
 
   it("keeps a pin the caller did not mention, after the ones it did", () => {
@@ -461,10 +461,11 @@ describe("reorderPinned", () => {
 
   it("does not disturb an icon already on a reordered entry", () => {
     const data = pinnedData("a.md", "b.md");
-    data.entries["a.md"] = { ...data.entries["a.md"], icon: "key" };
+    const entry = data.entries["a.md"];
+    if (entry) data.entries["a.md"] = { ...entry, icon: "key" };
 
     const next = reorderPinned(data, ["b.md", "a.md"], 500);
 
-    expect(next.entries["a.md"].icon).toBe("key");
+    expect(next.entries["a.md"]?.icon).toBe("key");
   });
 });

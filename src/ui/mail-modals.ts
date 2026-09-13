@@ -19,7 +19,7 @@ export class MailSearchModal extends Modal {
     super(app);
   }
 
-  onOpen(): void {
+  override onOpen(): void {
     const { contentEl } = this;
     contentEl.empty();
     contentEl.createEl("h3", { text: t().mail.searchTitle(this.mailbox) });
@@ -59,7 +59,7 @@ export class MailSearchModal extends Modal {
     contentEl.querySelector("input")?.focus();
   }
 
-  onClose(): void {
+  override onClose(): void {
     this.contentEl.empty();
   }
 
@@ -138,7 +138,7 @@ export class MailConfirmModal extends Modal {
     super(app);
   }
 
-  onOpen(): void {
+  override onOpen(): void {
     const { contentEl } = this;
     contentEl.empty();
     contentEl.createEl("h3", { text: t().mail.confirmTitle });
@@ -169,7 +169,7 @@ export class MailConfirmModal extends Modal {
       );
   }
 
-  onClose(): void {
+  override onClose(): void {
     this.contentEl.empty();
   }
 }

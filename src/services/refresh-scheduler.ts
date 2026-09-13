@@ -3,8 +3,8 @@ export interface RefreshOptions {
 }
 
 export interface RefreshPayload {
-  viewportTopLine?: number;
-  options?: RefreshOptions;
+  viewportTopLine?: number | undefined;
+  options?: RefreshOptions | undefined;
 }
 
 type ScheduleFrame = (callback: () => void) => void;

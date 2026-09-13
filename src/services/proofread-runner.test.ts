@@ -55,17 +55,17 @@ describe("scanGlossary", () => {
 
   it("marks an inflected match as needing review", () => {
     const [suggestion] = scanGlossary("Alle Immobilien sind frei.", MATCHER);
-    expect(suggestion.needsReview).toBe(true);
+    expect(suggestion?.needsReview).toBe(true);
   });
 
   it("marks a flag-only hit as having nothing to apply", () => {
     const [suggestion] = scanGlossary("Der Broker kommt.", MATCHER);
-    expect(isFlagOnly(suggestion)).toBe(true);
+    expect(suggestion && isFlagOnly(suggestion)).toBe(true);
   });
 
   it("carries the glossary note onto the card", () => {
     const [suggestion] = scanGlossary("Die Immobilie.", MATCHER);
-    expect(suggestion.note).toBe("Hausbegriff");
+    expect(suggestion?.note).toBe("Hausbegriff");
   });
 
   it("returns nothing for an empty matcher", () => {
@@ -112,8 +112,8 @@ describe("runProofread", () => {
       createCancelToken()
     );
     expect(result.suggestions).toHaveLength(1);
-    expect(result.suggestions[0].original).toBe("Fhler");
-    expect(result.suggestions[0].replacement).toBe("Fehler");
+    expect(result.suggestions[0]?.original).toBe("Fhler");
+    expect(result.suggestions[0]?.replacement).toBe("Fehler");
   });
 
   it("reports offsets valid against the whole document", async () => {
@@ -236,7 +236,7 @@ describe("runProofread", () => {
       options,
       createCancelToken()
     );
-    expect(result.suggestions[0].category).toBe("capitalization");
+    expect(result.suggestions[0]?.category).toBe("capitalization");
   });
 
   it("classifies a typo fix as spelling", async () => {
@@ -246,6 +246,6 @@ describe("runProofread", () => {
       options,
       createCancelToken()
     );
-    expect(result.suggestions[0].category).toBe("spelling");
+    expect(result.suggestions[0]?.category).toBe("spelling");
   });
 });

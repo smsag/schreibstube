@@ -15,10 +15,12 @@ const context = await esbuild.context({
   format: "cjs",
   target: "es2020",
   logLevel: "info",
-  // Inline in both modes: the release ships only main.js, so an external .map
-  // would never reach users. Inline keeps production stack traces readable,
-  // which pairs with the plugin's debug logging for diagnosing user reports.
-  sourcemap: "inline",
+  // Inline while developing, so a stack trace in the console points at a
+  // TypeScript line. In production the map is written beside the bundle and
+  // attached to the release instead: inlining it made main.js six times its
+  // size, and Obsidian parses that file on every start, on every phone. A
+  // report's stack trace is symbolicated against the release's map by hand.
+  sourcemap: prod ? "external" : "inline",
   treeShaking: true,
   outfile: "main.js",
   minify: prod

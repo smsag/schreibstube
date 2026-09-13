@@ -216,7 +216,7 @@ describe("normalizeSettings", () => {
   it("defaults a missing pending count to zero", () => {
     expect(
       normalizeSettings({ syncState: { "a.md": { hash: "abcd1234" } as never } }).syncState["a.md"]
-        .pendingChanges
+        ?.pendingChanges
     ).toBe(0);
   });
 
@@ -328,14 +328,14 @@ describe("normalizeSettings — publishing", () => {
         { id: "a", name: "Blog", folder: "/Blog/", target: "blog", writeBack: true }
       ]
     }).publishAccounts;
-    expect(accounts[0].folder).toBe("Blog");
+    expect(accounts[0]?.folder).toBe("Blog");
   });
 
   it("names an account after its folder when no name was given", () => {
     const accounts = normalizeSettings({
       publishAccounts: [{ id: "a", name: "", folder: "Blog", target: "blog", writeBack: true }]
     }).publishAccounts;
-    expect(accounts[0].name).toBe("Blog");
+    expect(accounts[0]?.name).toBe("Blog");
   });
 
   it("defaults the frontmatter keys to the ones the plugin ships with", () => {

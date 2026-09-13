@@ -2,6 +2,9 @@
 
 ## Setup
 
+Node 24 — `.nvmrc` names it, and it is the one version CI runs, the bridge's
+image ships, and both `engines` fields require. Then:
+
 ```bash
 npm run setup     # installs the plugin's dependencies and the bridge's
 npm run check     # lint, format, tests with coverage, build
@@ -13,17 +16,20 @@ a module resolution error.
 
 ## The checks
 
-| Command                 | What it does                                                   |
-| ----------------------- | -------------------------------------------------------------- |
-| `npm run lint`          | ESLint over the plugin and the bridge                          |
-| `npm run format`        | Prettier, in place                                             |
-| `npm test`              | The whole suite, plugin and bridge                             |
-| `npm run test:coverage` | The same, against the coverage floor                           |
-| `npm run build`         | Type check, bundle, and prove the bundle has no Node built-ins |
-| `npm run build:icons`   | Regenerate the bundled icon font, only when the set changes    |
+| Command                 | What it does                                                           |
+| ----------------------- | ---------------------------------------------------------------------- |
+| `npm run lint`          | ESLint over the plugin and the bridge                                  |
+| `npm run format`        | Prettier, in place                                                     |
+| `npm test`              | The whole suite, plugin and bridge                                     |
+| `npm run test:coverage` | The same, against the coverage floor                                   |
+| `npm run build`         | Type check, bundle, prove it has no Node built-ins and fits the budget |
+| `npm run build:icons`   | Regenerate the bundled icon font, only when the set changes            |
 
 The coverage floor is a floor, not a target. Raise it when the number rises;
-never lower it to make a change pass.
+never lower it to make a change pass. The same goes for the bundle budget in
+`scripts/check-bundle.mjs` and the lint rules: `CLAUDE.md` states the three
+principles every change is measured against, and the pull request template
+asks for them.
 
 ## Conventions
 
@@ -48,6 +54,21 @@ never lower it to make a change pass.
   The generated `src/ui/icon-font.generated.ts` is committed, so nobody else
   needs either. Icons are stored by name; a font upgrade changes the generated
   map, never a vault's data.
+
+## Reading a stack trace from a report
+
+The release's `main.js` is minified, so a trace from a user names positions
+like `plugin:schreibstube:12:48213`. The map that reads them is attached to
+every release as `main.js.map`, and never installed in a vault:
+
+```bash
+npm run trace -- 1.23.0 "at t.onload (plugin:schreibstube:12:48213)"
+pbpaste | npm run trace -- 1.23.0          # a whole console dump
+npm run trace -- ./main.js.map < report.txt  # against a local build
+```
+
+Every position the map knows becomes `src/…​.ts:line:column`; the rest of the
+trace passes through untouched.
 
 ## Before a release: the mobile checklist
 
