@@ -90,6 +90,7 @@ describe("buildExplorerMenu", () => {
       "new-note",
       "new-folder",
       "copy-path",
+      "move",
       "rename",
       "delete"
     ]);
@@ -110,6 +111,12 @@ describe("buildExplorerMenu", () => {
     );
 
     expect(ids(sections)).not.toContain("sync-folder");
+  });
+
+  it("offers a move on the file block, above renaming", () => {
+    const file = buildExplorerMenu(target(), "off").find((section) => section.id === "file");
+
+    expect(file?.items.map((item) => item.id)).toEqual(["move", "rename", "delete"]);
   });
 
   it("marks deleting as the destructive one", () => {

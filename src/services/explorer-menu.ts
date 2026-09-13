@@ -29,6 +29,7 @@ export type ExplorerAction =
   | "new-note"
   | "new-folder"
   | "copy-path"
+  | "move"
   | "rename"
   | "delete"
   | "more";
@@ -133,6 +134,10 @@ export function buildExplorerMenu(
   sections.push({
     id: "file",
     items: [
+      // Moving is on the menu rather than only on a drag, because a drag needs
+      // a mouse: on a phone the long press belongs to this menu, so without an
+      // entry here nothing in the vault could be moved at all.
+      { id: "move", label: menu.move, icon: "folder-input" },
       { id: "rename", label: menu.rename, icon: "pencil" },
       { id: "delete", label: menu.delete, icon: "trash-2", warning: true }
     ]

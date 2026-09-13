@@ -7,6 +7,7 @@
  *
  * The vault root is the empty string, which is how Obsidian names it too.
  */
+import { t } from "../i18n";
 
 export type MoveRefusal =
   "same-folder" | "into-itself" | "into-descendant" | "name-taken" | "not-a-folder";
@@ -47,6 +48,43 @@ export function planMove(
 
 export function isMovePlan(result: MovePlan | MoveRefusal): result is MovePlan {
   return typeof result !== "string";
+}
+
+/**
+ * Every folder the item could be moved into, the vault root first.
+ *
+ * What the "Move to…" list offers. A destination that would be refused is left
+ * out rather than shown and then rejected: the folder it already sits in, its
+ * own subtree, and anything already holding a file of that name. On a touch
+ * screen this list is the only way to move anything, since the long press
+ * belongs to the context menu.
+ */
+export function moveDestinations(sourcePath: string, context: MoveContext): string[] {
+  const folders = ["", ...context.folders];
+
+  return folders
+    .filter((folder) => isMovePlan(planMove(sourcePath, folder, context)))
+    .sort((left, right) => {
+      // The root is where a file is moved to be got out of everywhere, so it
+      // leads rather than sorting under the empty string.
+      if (left.length === 0) return -1;
+      if (right.length === 0) return 1;
+      return left.localeCompare(right);
+    });
+}
+
+/** Why a move was refused, as a line to show the person who asked for it. */
+export function moveRefusalMessage(refusal: MoveRefusal, name: string): string {
+  const messages = t().explorer.move;
+  switch (refusal) {
+    case "into-itself":
+    case "into-descendant":
+      return messages.intoItself(name);
+    case "name-taken":
+      return messages.nameTaken(name);
+    default:
+      return messages.failed(name);
+  }
 }
 
 /** Whether `path` sits anywhere inside `folder`. */

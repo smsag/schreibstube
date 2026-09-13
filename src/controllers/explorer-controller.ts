@@ -32,10 +32,17 @@ import {
 } from "../services/explorer-state";
 import { ExplorerStore, type ExplorerFileStore } from "../services/explorer-store";
 import { vaultUrlFor } from "../services/bookmark-file";
+import {
+  isMovePlan,
+  moveDestinations,
+  moveRefusalMessage,
+  planMove,
+  type MoveContext
+} from "../services/tree-move";
 import { hasSourceBinding, resolveSourceUrl, SYNC_FRONTMATTER_KEY } from "../services/sync-source";
 import { openSubmenu } from "../services/workspace-internals";
 import type { PollSummary } from "./proofread-controller";
-import { ConfirmModal, PromptModal } from "../ui/explorer-modals";
+import { ConfirmModal, FolderPickerModal, PromptModal } from "../ui/explorer-modals";
 import { IconPickerModal } from "../ui/icon-picker";
 
 /** The file the pane's state lives in, inside the plugin's own folder. */
@@ -318,6 +325,8 @@ export class ExplorerController {
         return this.create(file, "folder");
       case "copy-path":
         return this.copyPath(file);
+      case "move":
+        return this.moveTo(file);
       case "rename":
         return this.rename(file);
       case "delete":
@@ -514,6 +523,67 @@ export class ExplorerController {
     ).open();
   }
 
+  /**
+   * Moving, without a mouse.
+   *
+   * The tree's drag needs one, and on a phone the long press opens this menu,
+   * so a list of folders is the only way anything can be moved there. Only
+   * destinations that would be accepted are offered, and the move goes through
+   * Obsidian's own rename, so links follow it.
+   */
+  private moveTo(file: TAbstractFile): void {
+    const destinations = moveDestinations(file.path, this.moveContext());
+
+    if (destinations.length === 0) {
+      new Notice(t().common.notice(t().explorer.move.nowhere(file.name)));
+      return;
+    }
+
+    new FolderPickerModal(this.app, destinations, t().explorer.move.title(file.name), (folder) => {
+      // Checked again rather than trusted: the list was built when the menu
+      // opened, and a sync may have delivered something since.
+      const plan = planMove(file.path, folder, this.moveContext());
+      if (!isMovePlan(plan)) {
+        new Notice(t().common.notice(moveRefusalMessage(plan, file.name)));
+        return;
+      }
+
+      const where = folder.length > 0 ? folder : t().explorer.move.root;
+      void this.app.fileManager
+        .renameFile(file, plan.destination)
+        .then(() => {
+          // The pane may be behind the note the move was started from, so the
+          // only sign it happened would otherwise be a row that is no longer
+          // where it was.
+          new Notice(t().common.notice(t().explorer.move.done(file.name, where)));
+        })
+        .catch((error: unknown) => {
+          this.logger.warn(`Could not move ${file.path}:`, error);
+          new Notice(t().common.notice(t().explorer.move.failed(file.name)));
+        });
+    }).open();
+  }
+
+  /**
+   * Every path in the vault, and which of them are folders.
+   *
+   * The root is left out: it is the empty string everywhere a move is decided,
+   * never the "/" Obsidian gives its own root folder.
+   */
+  private moveContext(): MoveContext {
+    const taken = new Set<string>();
+    const folders = new Set<string>();
+    const root = this.app.vault.getRoot();
+
+    for (const entry of this.app.vault.getAllLoadedFiles()) {
+      if (entry === root) continue;
+      taken.add(entry.path);
+      if (entry instanceof TFolder) folders.add(entry.path);
+    }
+
+    return { taken, folders };
+  }
+
   private remove(file: TAbstractFile): void {
     const inside = file instanceof TFolder ? countChildren(file) : 0;
 
@@ -532,6 +602,9 @@ export class ExplorerController {
         // wrong tap in a file list must be undoable.
         void this.app.fileManager.trashFile(file).catch((error: unknown) => {
           this.logger.warn(`Could not delete ${file.path}:`, error);
+          // A row that stays put after a confirmed delete otherwise reads as
+          // the pane having missed the change rather than the delete failing.
+          new Notice(t().common.notice(t().explorer.delete.failed(file.name)));
         });
       }
     ).open();

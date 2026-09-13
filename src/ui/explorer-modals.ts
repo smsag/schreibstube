@@ -5,8 +5,9 @@
  * Deliberately plain. Obsidian has no prompt of its own that a plugin may use,
  * and a bespoke one per action would be three near-identical modals.
  */
-import { App, Modal, Setting } from "obsidian";
+import { App, Modal, Setting, SuggestModal } from "obsidian";
 import { t } from "../i18n";
+import { applyIcon, installIconFont } from "./icon-font";
 
 export interface PromptOptions {
   title: string;
@@ -123,5 +124,51 @@ export class ConfirmModal extends Modal {
 
   onClose(): void {
     this.contentEl.empty();
+  }
+}
+
+/**
+ * Where to move a file or a folder: a list of the folders it may go into.
+ *
+ * The drag in the tree needs a mouse, and on a phone the long press belongs to
+ * the context menu, so this list is the only way to move anything there. It
+ * offers only destinations that would be accepted, the vault root first, so a
+ * choice is never answered with a refusal.
+ */
+export class FolderPickerModal extends SuggestModal<string> {
+  constructor(
+    app: App,
+    private readonly folders: readonly string[],
+    placeholder: string,
+    private readonly onChoose: (folder: string) => void
+  ) {
+    super(app);
+    this.setPlaceholder(placeholder);
+    installIconFont(this.containerEl.doc);
+  }
+
+  getSuggestions(query: string): string[] {
+    const needle = query.trim().toLowerCase();
+    if (needle.length === 0) return [...this.folders];
+
+    return this.folders.filter((folder) => this.label(folder).toLowerCase().includes(needle));
+  }
+
+  renderSuggestion(folder: string, el: HTMLElement): void {
+    el.addClass("schreibstube-folder-suggestion");
+    applyIcon(
+      el.createSpan({ cls: "schreibstube-explorer-glyph" }),
+      folder.length === 0 ? "home" : "folder"
+    );
+    el.createSpan({ text: this.label(folder) });
+  }
+
+  onChooseSuggestion(folder: string): void {
+    this.onChoose(folder);
+  }
+
+  /** The root has no path to show, so it is named instead. */
+  private label(folder: string): string {
+    return folder.length === 0 ? t().explorer.move.root : folder;
   }
 }

@@ -667,6 +667,11 @@
   display: flex;
   align-items: center;
   gap: var(--schreibstube-row-gap);
+  /* A row is a control, not prose. Selecting its name is of no use, and a
+     selection dragged across the list is what the browser takes to be a drag of
+     its own — which cancels the pointer and with it the move being made. */
+  user-select: none;
+  -webkit-user-select: none;
   height: var(--schreibstube-row-height);
   padding-right: 8px;
   padding-left: calc(
@@ -784,6 +789,13 @@
 /* A phone has no hover, so the button is simply always there. */
 .is-mobile .schreibstube-explorer-more {
   opacity: 1;
+}
+
+/* The "Move to…" list: a glyph and the folder's path on one line. */
+.schreibstube-folder-suggestion {
+  display: flex;
+  align-items: center;
+  gap: var(--schreibstube-row-gap);
 }
 
 .schreibstube-icon-picker .schreibstube-icon-search,

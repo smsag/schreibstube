@@ -1,5 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { ancestorsOf, isMovePlan, isUnder, planMove, type MoveContext } from "./tree-move";
+import { setLanguage } from "../i18n";
+import {
+  ancestorsOf,
+  isMovePlan,
+  isUnder,
+  moveDestinations,
+  moveRefusalMessage,
+  planMove,
+  type MoveContext
+} from "./tree-move";
+
+setLanguage("en");
 
 function context(paths: string[], folders: string[]): MoveContext {
   return { taken: new Set(paths), folders: new Set(folders) };
@@ -65,6 +76,61 @@ describe("planMove", () => {
     const tricky = context(["Beruf", "Berufliches"], ["Beruf", "Berufliches"]);
 
     expect(isMovePlan(planMove("Beruf", "Berufliches", tricky))).toBe(true);
+  });
+});
+
+describe("moveDestinations", () => {
+  it("offers the vault root first, then the folders in order", () => {
+    expect(moveDestinations("Berufliches/Karriere/Briefing.md", vault)).toEqual([
+      "",
+      "Berufliches",
+      "Privates"
+    ]);
+  });
+
+  it("leaves out the folder the item already sits in", () => {
+    expect(moveDestinations("Privates/Notiz.md", vault)).not.toContain("Privates");
+  });
+
+  it("leaves out the root for something already sitting at the root", () => {
+    expect(moveDestinations("Wurzel.md", vault)).not.toContain("");
+    expect(moveDestinations("Privates/Notiz.md", vault)).toContain("");
+  });
+
+  it("leaves out a folder that already holds that name", () => {
+    // "Berufliches/Notiz.md" would collide with "Privates/Notiz.md".
+    expect(moveDestinations("Berufliches/Notiz.md", vault)).not.toContain("Privates");
+  });
+
+  it("leaves out a folder's own subtree, and the folder itself", () => {
+    const destinations = moveDestinations("Berufliches", vault);
+
+    expect(destinations).not.toContain("Berufliches");
+    expect(destinations).not.toContain("Berufliches/Karriere");
+    expect(destinations).toContain("Privates");
+  });
+
+  it("offers nothing when there is nowhere left to go", () => {
+    const only = context(["Privates", "Privates/Notiz.md"], ["Privates"]);
+
+    expect(moveDestinations("Privates", only)).toEqual([]);
+  });
+});
+
+describe("moveRefusalMessage", () => {
+  it("says the same thing for a folder dropped in itself or under itself", () => {
+    const inside = moveRefusalMessage("into-itself", "Objekte");
+
+    expect(moveRefusalMessage("into-descendant", "Objekte")).toBe(inside);
+    expect(inside).toContain("Objekte");
+  });
+
+  it("names the collision when something is already there", () => {
+    expect(moveRefusalMessage("name-taken", "Haus.md")).toContain("Haus.md");
+  });
+
+  it("falls back to a plain refusal for everything else", () => {
+    expect(moveRefusalMessage("not-a-folder", "Haus.md")).toContain("Haus.md");
   });
 });
 

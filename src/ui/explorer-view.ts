@@ -42,9 +42,10 @@ import type { LatestCandidate } from "../services/latest-files";
 import {
   ancestorsOf,
   isMovePlan,
+  moveRefusalMessage,
+  parentOf,
   planMove,
-  type MoveContext,
-  type MoveRefusal
+  type MoveContext
 } from "../services/tree-move";
 import type { SchreibstubeSettings } from "../types";
 import { isLongPressEcho } from "../services/explorer-menu";
@@ -61,6 +62,12 @@ export const EXPLORER_RIBBON_ICON = SCHREIBSTUBE_ICON;
 
 /** Long enough not to fire while scrolling, short enough to feel deliberate. */
 const LONG_PRESS_MS = 500;
+
+/**
+ * How far a finger may travel during a long press before the press is taken
+ * as the start of a scroll.
+ */
+const LONG_PRESS_MOVE_PX = 10;
 
 /** How many pinned rows sit in the shelf above the scroller. Beyond this the
  *  block continues in the scrolling list, so the shelf cannot eat the pane. */
@@ -164,6 +171,8 @@ export class ExplorerPaneView extends ItemView {
   private revealedFolders = new Set<string>();
   private revealedTree = false;
   private pending = false;
+  /** A redraw a drag held back, to be run as soon as the drag has ended. */
+  private deferred = false;
   /** A path to scroll to once the next draw has put it on screen. */
   private revealing: string | null = null;
 
@@ -246,6 +255,12 @@ export class ExplorerPaneView extends ItemView {
     this.registerEvent(this.app.workspace.on("layout-change", () => this.requestRender()));
     // A theme swap repaints everything the ground was measured from.
     this.registerEvent(this.app.workspace.on("css-change", () => this.measureGround()));
+
+    // A pointer coming up anywhere ends whatever was being dragged. A row the
+    // pane destroyed mid-gesture never delivers its own release, and a drag
+    // left standing holds back every redraw after it.
+    this.registerDomEvent(this.containerEl.win, "pointerup", () => this.endDrag());
+    this.registerDomEvent(this.containerEl.win, "pointercancel", () => this.endDrag());
 
     // The same button Obsidian's own explorer carries, in the same place and
     // with the same icon. Obsidian raises no event when its own is pressed and
@@ -352,8 +367,37 @@ export class ExplorerPaneView extends ItemView {
     this.pending = true;
     window.requestAnimationFrame(() => {
       this.pending = false;
+
+      // A redraw throws away the row the pointer is holding, and with it the
+      // gesture: the capture is lost, the drop never arrives, and the move the
+      // person was making silently does not happen. The vault raises events
+      // throughout a drag — a note saving itself is enough — so the redraw
+      // waits for the button to come up instead.
+      if (this.dragging !== null) {
+        this.deferred = true;
+        return;
+      }
+
       this.render();
     });
+  }
+
+  /**
+   * Let go of a drag, and run the redraw it held back.
+   *
+   * A tick late, because the click the release raises has to find the flag
+   * still set: that click is on the row the drag just moved, and acting on it
+   * would open the file that was being filed away.
+   */
+  private endDrag(): void {
+    if (this.dragging === null && !this.deferred) return;
+
+    window.setTimeout(() => {
+      this.dragging = null;
+      if (!this.deferred) return;
+      this.deferred = false;
+      this.requestRender();
+    }, 0);
   }
 
   private render(): void {
@@ -364,6 +408,7 @@ export class ExplorerPaneView extends ItemView {
     this.shelf?.empty();
     // The rows a drag was holding are about to be thrown away.
     this.dragging = null;
+    this.deferred = false;
     this.openPaths = this.collectOpenPaths();
     const settings = this.host.settings();
 
@@ -810,10 +855,8 @@ export class ExplorerPaneView extends ItemView {
       row.removeClass("is-dragging");
       handlers.onEnd();
       // The click that follows a pointerup would otherwise act on the row the
-      // drag just moved.
-      window.setTimeout(() => {
-        this.dragging = null;
-      }, 0);
+      // drag just moved, so the flag outlives the release by a tick.
+      this.endDrag();
     };
 
     row.addEventListener("pointerdown", (event: PointerEvent) => {
@@ -933,19 +976,49 @@ export class ExplorerPaneView extends ItemView {
   }
 
   /**
-   * The folder under the pointer, or null when there is none. The section
-   * header answers with the vault root, which is the only way to drag
-   * something out of every folder it is in.
+   * File rows in the tree, each of which stands for the folder holding it.
+   *
+   * A file is not somewhere to put anything, but pointing at one is how a
+   * person says "in there": the folder is what they are aiming at and the rows
+   * inside it are what the folder looks like. Only the tree counts — the
+   * curated lists above it are not a place in the vault.
+   */
+  private fileRows(): HTMLElement[] {
+    const root = this.body;
+    if (!root) return [];
+
+    return Array.from(
+      root.querySelectorAll<HTMLElement>(
+        ".schreibstube-explorer-tree .schreibstube-explorer-row[data-path]:not(.is-folder)"
+      )
+    );
+  }
+
+  /**
+   * The folder under the pointer, or null when there is none.
+   *
+   * A folder row answers with itself and the section header with the vault
+   * root, which is the only way to drag something out of every folder it is in.
+   * A file row answers with the folder it sits in, so the target a person aims
+   * at is the whole block a folder occupies rather than the one row naming it.
    */
   private moveTargetAt(clientX: number, clientY: number): string | null {
     for (const element of this.moveTargets()) {
-      const box = element.getBoundingClientRect();
-      if (clientY < box.top || clientY > box.bottom) continue;
-      if (clientX < box.left || clientX > box.right) continue;
+      if (!containsPoint(element, clientX, clientY)) continue;
 
       if (element.hasClass("schreibstube-explorer-section-header")) return "";
       return element.getAttribute("data-path");
     }
+
+    for (const element of this.fileRows()) {
+      if (!containsPoint(element, clientX, clientY)) continue;
+
+      const path = element.getAttribute("data-path");
+      // A file at the root answers with the root, as every other file answers
+      // with the folder holding it.
+      if (path !== null) return parentOf(path);
+    }
+
     return null;
   }
 
@@ -1130,14 +1203,6 @@ export class ExplorerPaneView extends ItemView {
     const controller = this.host?.explorer;
     if (!controller) return;
 
-    row.addEventListener("click", () => {
-      if (isFolder) {
-        this.toggle(file.path);
-        return;
-      }
-      void controller.open(file, false);
-    });
-
     // Mobile has no right click and Obsidian's own long-press belongs to its
     // explorer, so the pane brings its own. The button on the row stays as the
     // way that always works.
@@ -1145,11 +1210,45 @@ export class ExplorerPaneView extends ItemView {
     // When the pane's own timer last answered a press on this row, so the
     // browser's context menu for the same press can be recognised.
     let answeredAt: number | null = null;
+    // Whether the press in progress has been answered with a menu. Unlike the
+    // timestamp above this is not a window: a finger may rest on the row for as
+    // long as the menu is being read, and everything that press raises after
+    // the menu opened still belongs to it.
+    let answered = false;
+    // Whether a finger is on the row at all, so the browser's own context menu
+    // can tell a long press from a right click without guessing at the event.
+    let touching = false;
+    let startX = 0;
+    let startY = 0;
 
     const cancel = (): void => {
       if (timer !== null) window.clearTimeout(timer);
       timer = null;
     };
+
+    row.addEventListener("click", (event) => {
+      // The lift that ends a long press raises a click on the row the menu is
+      // standing on. Acting on it opens the file and closes the menu that the
+      // press was held to open — and on a phone opening a file closes the pane
+      // with it, which is why the menu looked as if it could not be used at
+      // all. The row that owns the gesture swallows it instead.
+      if (answered) {
+        answered = false;
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
+
+      // A drop is not a click. Without this the row the drag just moved opens
+      // as well, and a folder dropped somewhere closes itself on arrival.
+      if (this.dragging !== null) return;
+
+      if (isFolder) {
+        this.toggle(file.path);
+        return;
+      }
+      void controller.open(file, false);
+    });
 
     row.addEventListener("contextmenu", (event) => {
       event.preventDefault();
@@ -1158,8 +1257,11 @@ export class ExplorerPaneView extends ItemView {
       // click on the same row always opens again.
       if (isLongPressEcho(Date.now(), answeredAt)) return;
       // Arriving first instead: the browser is handling the press, so the
-      // pane's pending timer would only add a second menu.
+      // pane's pending timer would only add a second menu. A finger still on
+      // the row has a lift to come, and that lift must not reach the row; a
+      // right click has nothing to come.
       cancel();
+      if (touching) answered = true;
       controller.showMenu(file, event);
     });
 
@@ -1169,18 +1271,59 @@ export class ExplorerPaneView extends ItemView {
         const touch = event.touches[0];
         cancel();
         answeredAt = null;
+        answered = false;
+        touching = true;
+        if (!touch) return;
+
+        startX = touch.clientX;
+        startY = touch.clientY;
         timer = window.setTimeout(() => {
           timer = null;
           answeredAt = Date.now();
+          answered = true;
           controller.showMenu(file, { x: touch.clientX, y: touch.clientY });
         }, LONG_PRESS_MS);
       },
       { passive: true }
     );
 
-    for (const event of ["touchend", "touchmove", "touchcancel"] as const) {
-      row.addEventListener(event, cancel, { passive: true });
-    }
+    // A finger never holds perfectly still, so a press survives a little
+    // movement. Past that the list is being scrolled, and a scroll is not a
+    // long press.
+    row.addEventListener(
+      "touchmove",
+      (event) => {
+        const touch = event.touches[0];
+        if (!touch) {
+          cancel();
+          return;
+        }
+        const moved = Math.hypot(touch.clientX - startX, touch.clientY - startY);
+        if (moved > LONG_PRESS_MOVE_PX) cancel();
+      },
+      { passive: true }
+    );
+
+    // Not passive: refusing the default is the whole point. A lift the browser
+    // is allowed to complete raises mouse events and a click on whatever is
+    // under the finger, and Obsidian closes a menu on any press outside it — so
+    // the menu the press just opened would be gone before it could be used.
+    row.addEventListener("touchend", (event) => {
+      cancel();
+      touching = false;
+      if (!answered) return;
+      event.preventDefault();
+      event.stopPropagation();
+    });
+
+    row.addEventListener(
+      "touchcancel",
+      () => {
+        cancel();
+        touching = false;
+      },
+      { passive: true }
+    );
   }
 
   private toggle(path: string): void {
@@ -1288,18 +1431,10 @@ function basenameOf(path: string): string {
   return cut === -1 ? path : path.slice(cut + 1);
 }
 
-/** Why a drop was refused, in words a person can act on. */
-function moveRefusalMessage(refusal: MoveRefusal, name: string): string {
-  const messages = t().explorer.move;
-  switch (refusal) {
-    case "into-itself":
-    case "into-descendant":
-      return messages.intoItself(name);
-    case "name-taken":
-      return messages.nameTaken(name);
-    default:
-      return messages.failed(name);
-  }
+/** Whether a point on screen is inside an element's box. */
+function containsPoint(element: HTMLElement, clientX: number, clientY: number): boolean {
+  const box = element.getBoundingClientRect();
+  return clientY >= box.top && clientY <= box.bottom && clientX >= box.left && clientX <= box.right;
 }
 
 function displayName(file: TAbstractFile): string {

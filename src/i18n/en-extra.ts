@@ -246,7 +246,11 @@ export const enExtra = {
     move: {
       intoItself: (name: string) => `${name} cannot be moved inside itself.`,
       nameTaken: (name: string) => `A file called ${name} is already there.`,
-      failed: (name: string) => `${name} could not be moved.`
+      failed: (name: string) => `${name} could not be moved.`,
+      title: (name: string) => `Move "${name}" to…`,
+      root: "Vault root",
+      nowhere: (name: string) => `There is nowhere ${name} can be moved to.`,
+      done: (name: string, folder: string) => `${name} moved to ${folder}.`
     },
 
     sections: {
@@ -294,6 +298,7 @@ export const enExtra = {
       newNote: "New note",
       newFolder: "New folder",
       rename: "Rename…",
+      move: "Move to…",
       delete: "Delete",
       more: "More actions"
     },
@@ -352,7 +357,8 @@ export const enExtra = {
       confirm: (name: string) => `Move "${name}" to the vault's trash?`,
       folderConfirm: (name: string, count: number) =>
         `Move "${name}" and the ${count} item(s) inside it to the vault's trash?`,
-      submit: "Delete"
+      submit: "Delete",
+      failed: (name: string) => `"${name}" could not be deleted.`
     }
   },
 
