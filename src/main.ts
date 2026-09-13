@@ -110,7 +110,11 @@ export default class SchreibstubePlugin extends Plugin {
       () => this.settings,
       this.manifest.dir ?? `${this.app.vault.configDir}/plugins/${this.manifest.id}`,
       this.manifest.version,
-      this.logger
+      this.logger,
+      async () => {
+        this.settings = normalizeSettings({ ...this.settings, printEnabled: true });
+        await this.saveSettings();
+      }
     );
     this.proofread = new ProofreadController(this.app, () => this.settings, this.logger, {
       get: (path) => this.settings.syncState[path],
@@ -545,6 +549,25 @@ export default class SchreibstubePlugin extends Plugin {
    * each time the palette opens, which is exactly when the answer can have
    * changed.
    */
+  /**
+   * The typesetter, as the settings tab needs to talk about it.
+   *
+   * Three narrow methods rather than handing the tab the print controller: the
+   * tab asks whether the download has happened, starts it, or undoes it, and
+   * has no business with anything else printing can do.
+   */
+  printRuntimeInstalled(): Promise<boolean> {
+    return this.print?.runtimeInstalled() ?? Promise.resolve(false);
+  }
+
+  async downloadPrintRuntime(): Promise<void> {
+    await this.print?.fetchRuntime();
+  }
+
+  async removePrintRuntime(): Promise<void> {
+    await this.print?.removeRuntime();
+  }
+
   private commandContext(): CommandContext {
     const file = this.app.workspace.getActiveFile();
     const view = this.app.workspace.getActiveViewOfType(MarkdownView);
@@ -717,6 +740,16 @@ export default class SchreibstubePlugin extends Plugin {
 
     this.addGatedCommand("print-note", t().commands.print, "print", () => {
       void this.print?.printActiveNote();
+    });
+
+    // Not gated: adding a template is what somebody does before they have
+    // anything to print with, and often before a note is even open.
+    this.addCommand({
+      id: "add-print-template",
+      name: t().commands.addPrintTemplate,
+      callback: () => {
+        void this.print?.addTemplate();
+      }
     });
 
     this.addCommand({

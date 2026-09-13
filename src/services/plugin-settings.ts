@@ -114,6 +114,7 @@ export const DEFAULT_SETTINGS: SchreibstubeSettings = {
   publishAccounts: [],
   publishFrontmatterKeys: DEFAULT_PUBLISH_KEYS,
   publishLastRun: {},
+  printEnabled: false,
   printTemplateRoot: TEMPLATE_ROOT_DEFAULT,
   printOutputFolder: "",
   debugLogging: false
@@ -294,6 +295,7 @@ export function normalizeSettings(loaded: LoadedSettings): SchreibstubeSettings 
     publishAccounts: publishAccountsOrDefault(loaded?.publishAccounts),
     publishFrontmatterKeys: normalizePublishKeys(loaded?.publishFrontmatterKeys),
     publishLastRun: publishRunsOrDefault(loaded?.publishLastRun),
+    printEnabled: loaded?.printEnabled === true,
     printTemplateRoot: nonEmptyStringOrDefault(
       loaded?.printTemplateRoot,
       DEFAULT_SETTINGS.printTemplateRoot

@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Added
+
+- **A template can be added from inside the app.** Until now the only way to get one was to copy a folder out of the repository, which is a drag on a laptop and not possible at all on a phone — the platform the whole feature was built for. **Drucken: Vorlage anlegen** asks which of the two examples you want and which folder to put it in, writes it, and opens its descriptor so the instructions are the first thing you read. Any folder in the vault is offered, not only the templates folder, because keeping a template beside the notes that use it is not wrong.
+
+### Changed
+
+- **Printing is off until you switch it on, and switching it on is what downloads the typesetter.** It is 28 MB, and nobody should spend that on a feature they have not asked for, least of all over mobile data. The settings now show whether the typesetter is on this device, with a button to fetch it in advance so a first print is not also a download, or to remove it again and take the space back. Running the print command while printing is off explains this and offers to turn it on, rather than the command quietly not being there.
+- **Printing says plainly when a device cannot run it.** It needs WebAssembly, a worker and a digest, which every platform Obsidian supports has. Asked as three questions rather than as "which device is this", because a browser engine moves and a platform test goes stale.
+
+### Documentation
+
+- **The README explains printing properly, including how to write a template.** What a template is, the layout function and what it is given, the four helpers a template may override, where each word on the page comes from, what carries over from the note and what does not, and what happens to a diagram. It had a summary; a feature this size needs the walkthrough.
+
 ## 1.24.0 - 2026-09-13
 
 Mobile checklist: steps 1 to 7 confirmed on a phone. Steps 8 and 9 — printing

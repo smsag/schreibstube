@@ -231,20 +231,90 @@ What the bridge does and the plugin does not: rendering the Markdown, holding th
 
 ### Printing
 
-Turns the note you are looking at into a PDF, through a template you keep in the vault. Works on desktop and on mobile, offline, with no bridge: Typst is compiled to WebAssembly and typesets on the device.
+Turns the note you are looking at into a PDF, through a template you keep in the vault. It works on every platform Obsidian runs on — Windows, macOS, Linux, iOS, Android — offline, with no bridge and no account: Typst is compiled to WebAssembly and typesets on the device. A letter written on a train becomes a PDF on that train.
 
 - **Drucken: diese Notiz als PDF** — print the active note
+- **Drucken: Vorlage anlegen** — write an example template into a folder you choose
 
-A template is a folder: a `template.md` saying what it needs, a `template.typ` laying the page out, and its fonts.
+#### Switching it on
+
+Printing is off until you turn it on, under **Einstellungen → Drucken**. That switch is what fetches the typesetter, which is 28 MB, so nothing is downloaded for a feature you have not asked for. Running the print command while it is off explains this and offers to turn it on.
+
+Once on, the settings show whether the typesetter is on this device, with a button to fetch it now or to remove it again. Fetching it in advance means your first print is not also a download. It comes from this plugin's own GitHub release and is checked against a hash committed in the source, on download and on every later start; a mismatch is refused and reported rather than repaired quietly. After that, printing never touches the network.
+
+#### Getting a template
+
+Run **Drucken: Vorlage anlegen**. It asks which of the two examples you want and which folder to put it in — any folder in the vault, not only the templates folder — then writes it and opens its `template.md`. You do not need to leave the app, which on a phone you could not do anyway.
+
+The same two templates are in [`examples/print/`](examples/print/) if you would rather copy them by hand.
+
+#### What a template is
+
+A folder. That is the whole of it:
 
 ```
 Vorlagen/Druck/Brief/
-  template.md     the descriptor, and how to use it
-  template.typ    the layout
-  fonts/*.ttf     embedded and subset into the PDF
+  template.md     the descriptor: what it needs, and how to use it
+  template.typ    the layout: one function, body in, page out
+  fonts/*.ttf     embedded and subset into the PDF; .otf works too
+  logo.png        optional; anything the layout wants to place
 ```
 
-Everything that is not prose — a sender, a recipient, a subject — is frontmatter. The note wins over the template, so "who is writing" is said once in the template and "who is being written to" once in the note:
+The folder's name is the template's name, and a note asks for it by that name. Neither example carries a typeface, because fonts are licensed and a repository is no place to redistribute one. A template with no font still prints: Typst sets it in its own.
+
+#### Writing one
+
+`template.md` is frontmatter and prose. The frontmatter says what the template is; the prose is for whoever opens the folder in six months.
+
+```yaml
+---
+schreibstubePrintTemplate: true
+schreibstubeEntry: letter
+schreibstubePage: { size: a4, margin: "25mm" }
+schreibstubeHrIsPageBreak: true
+schreibstubeData:
+  senderName: Vorname Nachname
+  senderAddress: "Musterstraße 1\n12345 Musterstadt"
+---
+```
+
+`schreibstubeEntry` names the function in `template.typ` that lays out the page. It takes the converted note as content and the resolved data as a dictionary, and returns the page:
+
+```typst
+#let letter(body, data) = {
+  set page(paper: "a4", margin: 25mm)
+  set text(font: "Fira Sans", size: 11pt, lang: "de")
+
+  align(right)[#data.senderName \ #data.senderAddress]
+  v(2cm)
+  data.recipient
+  align(right, data.date)
+  v(1cm)
+  text(weight: 700, data.subject)
+  v(0.5cm)
+
+  body
+}
+```
+
+Everything Typst can do is available. What a layout may not do is reach outside its own folder or import a package, because printing happens on the device with no network — both are refused before anything compiles, along with a layout over 256 KB.
+
+The converted note does not call Typst's own primitives for the four things a template should own. It calls these, and a template that wants a different look defines its own before the body is placed:
+
+| Helper                                 | Given                                                         |
+| -------------------------------------- | ------------------------------------------------------------- |
+| `schreibstube-image(path, alt)`        | one embedded picture                                          |
+| `schreibstube-diagram(paths, caption)` | an **array** of pictures from one fence, and one caption      |
+| `schreibstube-code(source, language)`  | a fence that is not a diagram, or one that could not be drawn |
+| `schreibstube-callout(kind, title)`    | an Obsidian callout; returns `body => …`                      |
+
+#### Where the words come from
+
+Everything that is not prose — a sender, a recipient, a subject, a date — is frontmatter. For each key the template reads, the first of these wins:
+
+1. The note's `schreibstubePrint:`, so a letter says its own recipient.
+2. The template's `schreibstubeData:`, so a sender is typed once.
+3. Built-ins: `date` is today in the note's language, `title` the note's title, `noteName` its file name.
 
 ```markdown
 ---
@@ -259,11 +329,25 @@ Sehr geehrte Damen und Herren,
 
 Without `schreibstubePrintTemplate` the command asks which template to use.
 
-Mermaid diagrams and other plugins' canvases cannot run inside a typesetter, so each is drawn off-screen in a light theme and captured as a picture — paper is white whatever the vault is set to. One that cannot be drawn prints as its own source with a warning, rather than vanishing.
+#### What carries over from the note
 
-The typesetter itself is 28 MB and is fetched once per device, from this plugin's own release, checked against a hash committed in the source. Everything after that is offline.
+Headings, paragraphs, emphasis, strong, strikethrough, highlight, nested lists, links, wikilinks, images and embeds, tables with their alignment, inline and fenced code, blockquotes, callouts, footnotes, `<br>`, and horizontal rules as an optional page break.
 
-Two templates to copy are in [`examples/print/`](examples/print/); [`PRINTING.md`](PRINTING.md) is the whole contract.
+Dropped with a warning rather than in silence: raw HTML, embedded notes, and a picture that cannot be read. LaTeX math is not converted yet and is reported like the rest.
+
+#### Diagrams
+
+Mermaid diagrams and other plugins' canvases cannot run inside a typesetter, so each fence is drawn off-screen under the light theme and captured as a picture. Paper is white whatever your vault is set to.
+
+A plugin that offers its own export is asked to do the drawing rather than guessed at from outside, and asked for every canvas in the fence rather than the first, so a carousel prints all its panels instead of the one that happened to be visible. It is also told the drawing is for paper, which asks it not to go to the network: a print stays offline however it is made.
+
+A diagram that cannot be drawn prints as its own source with a warning. One that drew several panels and captured only some keeps what it got and says how many are missing. A page that quietly lost a panel lies about what the note says, which is the one thing printing must not do.
+
+#### Where the PDF goes
+
+Beside the note, with the note's name, overwritten on reprint, then revealed in the file pane. A setting redirects output to a fixed folder for vaults that keep exports apart.
+
+[`PRINTING.md`](PRINTING.md) is the whole contract, including the limits every job is held to and why the feature is shaped this way.
 
 ### Schreibstube Explorer
 
@@ -466,10 +550,14 @@ The token is deliberately separate from the mail token, so a leaked publish toke
 
 ### Printing
 
-| Setting          | What it does                                                         |
-| ---------------- | -------------------------------------------------------------------- |
-| Templates folder | Vault folder searched for print templates. Default `Vorlagen/Druck`. |
-| Output folder    | Where a PDF is written. Empty means beside the note it came from.    |
+| Setting          | What it does                                                                      |
+| ---------------- | --------------------------------------------------------------------------------- |
+| Enable printing  | Off until you switch it on. Switching it on is what fetches the 28 MB typesetter. |
+| Templates folder | Vault folder searched for print templates. Default `Vorlagen/Druck`.              |
+| Output folder    | Where a PDF is written. Empty means beside the note it came from.                 |
+| The typesetter   | Whether it is on this device, with a button to fetch or remove it.                |
+
+Only the switch shows while printing is off: there is nothing to configure for a feature with no typesetter on the device and no print to aim anywhere.
 
 Everything else about a printed page — paper, margins, fonts, the sender's name — belongs to the template, which is a folder you can open. A setting for any of it here would be a second place to look.
 

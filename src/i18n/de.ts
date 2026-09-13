@@ -9,6 +9,7 @@ import type { Messages } from "./en";
 export const de: Messages = {
   commands: {
     print: "Drucken: diese Notiz als PDF",
+    addPrintTemplate: "Drucken: Vorlage anlegen",
     focusSentence: "Fokus: Satz",
     focusParagraph: "Fokus: Absatz",
     focusDisable: "Fokus: aus",
@@ -293,8 +294,23 @@ export const de: Messages = {
     printIntro: (typst: string) =>
       `Aus einer Notiz wird ein PDF über eine Vorlage: ein Ordner mit einer template.md, die sagt, ` +
       `was die Vorlage braucht, einer template.typ, die die Seite setzt, und ihren Schriften. ` +
-      `Gesetzt wird auf dem Gerät mit Typst ${typst} — also offline und auch am Telefon. Der Satzteil ` +
-      "wird beim ersten Drucken einmal pro Gerät geladen. Zum Anfangen eine Vorlage aus examples/print/ kopieren.",
+      `Gesetzt wird auf dem Gerät mit Typst ${typst} — also offline, auch am Telefon, und auf jeder ` +
+      "Plattform, auf der Obsidian läuft.",
+    printEnabled: "Drucken einschalten",
+    printEnabledDesc: (megabytes: number) =>
+      `Aus, bis du es einschaltest — denn das Einschalten lädt den Satzteil: ${megabytes} MB, ` +
+      "einmal pro Gerät. Vorher wird nichts geladen.",
+    printRuntimeInstalled: (megabytes: number) =>
+      `Der Satzteil liegt auf diesem Gerät (${megabytes} MB). Drucken geht offline.`,
+    printRuntimeMissing: (megabytes: number) =>
+      `Der Satzteil liegt noch nicht auf diesem Gerät. Er ist ${megabytes} MB groß und wird einmal ` +
+      "geladen — jetzt oder beim ersten Drucken.",
+    printRuntimeHeading: "Der Satzteil",
+    printDownloadNow: "Jetzt laden",
+    printRemoveRuntime: "Satzteil entfernen",
+    printAddTemplateDesc:
+      "Legt eine der beiden Beispielvorlagen in einem Ordner deiner Wahl an. Keine bringt eine " +
+      "Schrift mit, denn Schriften sind lizenziert; eine Vorlage ohne wird in Typsts eigener gesetzt.",
     printTemplateRoot: "Vorlagenordner",
     printTemplateRootDesc:
       "Ordner im Vault, in dem nach Druckvorlagen gesucht wird. Jeder Unterordner mit einer " +
@@ -671,7 +687,24 @@ export const de: Messages = {
     withWarnings: (detail: string) => `gedruckt, aber etwas fehlt — ${detail}`,
     failed: (detail: string) => `Drucken fehlgeschlagen — ${detail}`,
     chooseTemplate: "Mit welcher Vorlage drucken?",
-    templateHint: "schreibstubePrintTemplate in der Notiz setzen, um das zu überspringen."
+    templateHint: "schreibstubePrintTemplate in der Notiz setzen, um das zu überspringen.",
+    offTitle: "Drucken ist aus",
+    offMessage: (megabytes: number) =>
+      `Gesetzt wird auf diesem Gerät statt auf einem Server — dafür braucht es einen Satzteil: ` +
+      `${megabytes} MB, einmal geladen und dann behalten. Zum Laden das Drucken einschalten.`,
+    offSubmit: "Drucken einschalten",
+    unsupported:
+      "dieses Gerät kann den Satzteil nicht ausführen, hier lässt sich also nicht drucken. " +
+      "Drucken braucht WebAssembly, einen Worker und eine Prüfsumme — was jede Plattform, auf " +
+      "der Obsidian läuft, normalerweise hat.",
+    runtimeReady: "der Satzteil liegt auf diesem Gerät. Ab jetzt geht Drucken offline.",
+    runtimeRemoved: "der Satzteil wurde entfernt. Der nächste Druck lädt ihn erneut.",
+    chooseExample: "Welche Vorlage soll ich anlegen?",
+    chooseFolder: "In welchen Ordner soll die Vorlage?",
+    templateExists: (path: string) => `${path} gibt es schon und blieb unangetastet.`,
+    templateAdded: (path: string) =>
+      `${path} angelegt. Die template.md darin sagt, was die Vorlage braucht; eine Schrift kommt ` +
+      "in ihren fonts/-Ordner."
   },
 
   secrets: {

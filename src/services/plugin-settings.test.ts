@@ -356,3 +356,25 @@ describe("normalizeSettings — publishing", () => {
     ).toEqual(DEFAULT_PUBLISH_KEYS);
   });
 });
+
+describe("printing is off until somebody says otherwise", () => {
+  it("is off in a fresh vault", () => {
+    expect(DEFAULT_SETTINGS.printEnabled).toBe(false);
+  });
+
+  it("stays off for a vault that has never heard of the setting", () => {
+    expect(normalizeSettings({}).printEnabled).toBe(false);
+  });
+
+  it("is on only for the value that actually means yes", () => {
+    expect(normalizeSettings({ printEnabled: true }).printEnabled).toBe(true);
+
+    // Cast because the type says boolean and the file says whatever a person
+    // typed into it. data.json is edited by hand, so "true" and 1 are exactly
+    // the values that turn up, and neither should switch a download on.
+    for (const nearly of ["true", 1, "yes", {}, null, [true]]) {
+      const loaded = { printEnabled: nearly } as unknown as Parameters<typeof normalizeSettings>[0];
+      expect(normalizeSettings(loaded).printEnabled).toBe(false);
+    }
+  });
+});
