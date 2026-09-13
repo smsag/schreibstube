@@ -327,6 +327,8 @@ export const de: Messages = {
     summarizing: "fasst zusammen …",
     summarizeFailed: "Zusammenfassung fehlgeschlagen — das LLM lieferte eine leere Antwort.",
     renameFailedName: "Umbenennen fehlgeschlagen — das LLM lieferte keinen brauchbaren Namen.",
+    renameTooShort: "diese Notiz ist zu kurz, um aus ihrem Inhalt benannt zu werden.",
+    cannotName: "nur eine Notiz oder ein Bild lässt sich aus dem Inhalt benennen.",
     renameFailedExists: "Umbenennen fehlgeschlagen — eine Datei dieses Namens existiert bereits.",
     imageTooLarge: "das Bild überschreitet 10 MB.",
     unsupportedImage: "nicht unterstütztes Format — möglich sind jpg, png, gif, webp.",
@@ -554,6 +556,9 @@ export const de: Messages = {
       newNote: "Neue Notiz",
       newFolder: "Neuer Ordner",
       rename: "Umbenennen …",
+      renameNoteAi: "Aus dem Text benennen …",
+      renameImageAi: "Aus dem Bild benennen …",
+      renaming: "Liest …",
       move: "Verschieben nach …",
       delete: "Löschen",
       more: "Weitere Aktionen"

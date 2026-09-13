@@ -153,6 +153,8 @@ Assigns a filename to the active note or image based on its content:
 
 The rename does nothing if the note is shorter than the configured minimum length, or if no API key has been set.
 
+The same thing is on the explorer's context menu, as one entry that follows the file: **Rename from the text…** on a note, **Rename from the picture…** on an image, and nothing at all on a file neither path can read. From the menu the proposed name is not applied outright — it opens the pane's rename dialog with the suggestion in the field, where it can be read, corrected or cancelled, because a menu acts on a row in a tree rather than on the note in front of you.
+
 ### Summarize selection
 
 Select any text and run **Summarize selection** to send it to an LLM and replace the selection with the result. Built for turning raw text pasted from analytics and reporting tools into a running insight log: copy the numbers into a note, select them, summarize, and keep the distilled takeaway in place of the raw dump.
@@ -246,7 +248,7 @@ The pane has four sections, each one collapsible, each remembering whether it wa
 
 A footer along the bottom names the vault and holds the two ways out of a pane that is not behaving: help, and the plugin's settings.
 
-The context menu is the pane's own, in a fixed order: open, icon and the two marks, sync, create, move, rename and delete. Items other plugins contribute land behind one **More actions** entry at the end rather than in blocks between the actions — the pane fires Obsidian's `file-menu` event, so a plugin that adds to the file explorer's menu adds to this one without knowing the pane exists.
+The context menu is the pane's own, in a fixed order: open, icon and the two marks, sync, create, move, rename, rename from content and delete. Items other plugins contribute land behind one **More actions** entry at the end rather than in blocks between the actions — the pane fires Obsidian's `file-menu` event, so a plugin that adds to the file explorer's menu adds to this one without knowing the pane exists.
 
 The sync actions are why the menu is worth owning:
 

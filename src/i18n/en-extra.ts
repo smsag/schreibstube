@@ -152,6 +152,8 @@ export const enExtra = {
     summarizing: "summarizing…",
     summarizeFailed: "summarize failed — the LLM returned an empty response.",
     renameFailedName: "rename failed — the LLM returned an unusable filename.",
+    renameTooShort: "this note is too short to be named from its content.",
+    cannotName: "only a note or a picture can be named from what is inside it.",
     renameFailedExists: "rename failed — a file with that name may already exist.",
     imageTooLarge: "image exceeds the 10 MB limit.",
     unsupportedImage: "unsupported format — supported image types: jpg, png, gif, webp.",
@@ -376,6 +378,9 @@ export const enExtra = {
       newNote: "New note",
       newFolder: "New folder",
       rename: "Rename…",
+      renameNoteAi: "Rename from the text…",
+      renameImageAi: "Rename from the picture…",
+      renaming: "Reading it…",
       move: "Move to…",
       delete: "Delete",
       more: "More actions"

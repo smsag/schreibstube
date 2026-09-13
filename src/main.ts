@@ -127,6 +127,9 @@ export default class SchreibstubePlugin extends Plugin {
       this.logger,
       this.explorerStateFile()
     );
+    // The pane's menu names a file from what is inside it; the AI commands are
+    // what can do that, and they were built a moment ago.
+    this.explorer.useNamer((file) => this.requireLlm().proposeName(file));
     await this.explorer.start();
 
     this.sections = new PaneSectionsController(
@@ -369,6 +372,11 @@ export default class SchreibstubePlugin extends Plugin {
   private requireProofread(): ProofreadController {
     if (!this.proofread) throw new Error("Schreibstube: the proofread controller is not ready.");
     return this.proofread;
+  }
+
+  private requireLlm(): LlmCommands {
+    if (!this.llm) throw new Error("Schreibstube: the AI commands are not ready.");
+    return this.llm;
   }
 
   private createReviewView(leaf: WorkspaceLeaf): ReviewPanelView {

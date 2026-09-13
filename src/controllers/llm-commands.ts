@@ -47,29 +47,11 @@ export class LlmCommands {
     }
 
     await this.withBusy("rename", async () => {
-      const truncated = content.slice(0, settings.renameMaxContentChars);
-
-      let proposed: string;
-      try {
-        proposed = await generateRenameFilename(truncated, settings, apiKey);
-      } catch (err) {
-        this.fail("rename", t().ai.failRename, err);
-        return;
-      }
-
-      const sanitized = stripFilenameExtension(
-        sanitizeFilename(proposed, settings.renameMaxFilenameLength),
-        "md"
-      );
-      if (!sanitized) {
-        this.logger.warn("Rename produced an unusable filename:", proposed);
-        new Notice(t().common.notice(t().ai.renameFailedName));
-        return;
-      }
+      const sanitized = await this.nameForNote(content, apiKey);
+      if (!sanitized) return;
 
       const folder = file.parent?.path ?? "";
-      const newPath = normalizePath(`${folder}/${sanitized}.md`);
-      await this.renameFile(file, newPath);
+      await this.renameFile(file, normalizePath(`${folder}/${sanitized}.md`));
     });
   }
 
@@ -79,7 +61,6 @@ export class LlmCommands {
       return;
     }
 
-    const settings = this.getSettings();
     const mimeType = getImageMimeType(file.extension);
     if (!mimeType) {
       new Notice(t().common.notice(t().ai.unsupportedImage));
@@ -97,45 +78,116 @@ export class LlmCommands {
     }
 
     await this.withBusy("image rename", async () => {
-      const buffer = await this.app.vault.readBinary(file);
-
-      let image: Awaited<ReturnType<typeof resizeImageToBase64>>;
-      try {
-        image = await resizeImageToBase64(buffer, mimeType, settings.renameMaxImagePx);
-      } catch (err) {
-        this.fail("image resize", t().ai.failImage, err);
-        return;
-      }
-
-      let proposed: string;
-      try {
-        // The type the canvas produced, not the one the file had: a GIF comes
-        // back as PNG, and the model is told what it is actually being sent.
-        proposed = await generateImageRenameFilename(
-          image.base64,
-          image.mimeType,
-          settings,
-          apiKey
-        );
-      } catch (err) {
-        this.fail("image rename", t().ai.failRename, err);
-        return;
-      }
-
-      const sanitized = stripFilenameExtension(
-        sanitizeFilename(proposed, settings.renameMaxFilenameLength),
-        file.extension
-      );
-      if (!sanitized) {
-        this.logger.warn("Image rename produced an unusable filename:", proposed);
-        new Notice(t().common.notice(t().ai.renameFailedName));
-        return;
-      }
+      const sanitized = await this.nameForImage(file, mimeType, apiKey);
+      if (!sanitized) return;
 
       const folder = file.parent?.path ?? "";
-      const newPath = normalizePath(`${folder}/${sanitized}.${file.extension}`);
-      await this.renameFile(file, newPath);
+      await this.renameFile(file, normalizePath(`${folder}/${sanitized}.${file.extension}`));
     });
+  }
+
+  /**
+   * A name for a file the person is not looking at, without renaming anything.
+   *
+   * What the pane's menu asks for: the proposal goes into the rename dialog
+   * beside the name the file has, where it can be read, edited and refused. A
+   * command renames a note in front of you and a menu acts on a row somewhere
+   * in a tree, and the second is no place for a silent rename.
+   *
+   * Null when nothing usable came back. Whoever could not be served has been
+   * told by then — an unreadable picture, a note too short to describe itself,
+   * a missing key — so the caller opens no dialog and says nothing further.
+   */
+  async proposeName(file: TFile): Promise<string | null> {
+    const apiKey = this.requireApiKey();
+    if (!apiKey) return null;
+
+    const mimeType = getImageMimeType(file.extension);
+    if (mimeType) {
+      if (file.stat.size > MAX_IMAGE_BYTES) {
+        new Notice(t().common.notice(t().ai.imageTooLarge));
+        return null;
+      }
+
+      return this.withBusy("image rename", () => this.nameForImage(file, mimeType, apiKey));
+    }
+
+    if (file.extension !== "md") {
+      new Notice(t().common.notice(t().ai.cannotName));
+      return null;
+    }
+
+    // Read from the vault and not from an editor: this note is not open, and
+    // when it is, what was last saved is what a check like this is entitled to.
+    const content = (await this.app.vault.cachedRead(file)).trim();
+    if (content.length < this.getSettings().renameMinContentChars) {
+      new Notice(t().common.notice(t().ai.renameTooShort));
+      return null;
+    }
+
+    return this.withBusy("rename", () => this.nameForNote(content, apiKey));
+  }
+
+  /** The model's name for a note's text, sanitized, or null with a notice. */
+  private async nameForNote(content: string, apiKey: string): Promise<string | null> {
+    const settings = this.getSettings();
+
+    let proposed: string;
+    try {
+      proposed = await generateRenameFilename(
+        content.slice(0, settings.renameMaxContentChars),
+        settings,
+        apiKey
+      );
+    } catch (err) {
+      this.fail("rename", t().ai.failRename, err);
+      return null;
+    }
+
+    return this.usableName(proposed, "md");
+  }
+
+  /** The model's name for a picture, sanitized, or null with a notice. */
+  private async nameForImage(
+    file: TFile,
+    mimeType: string,
+    apiKey: string
+  ): Promise<string | null> {
+    const settings = this.getSettings();
+    const buffer = await this.app.vault.readBinary(file);
+
+    let image: Awaited<ReturnType<typeof resizeImageToBase64>>;
+    try {
+      image = await resizeImageToBase64(buffer, mimeType, settings.renameMaxImagePx);
+    } catch (err) {
+      this.fail("image resize", t().ai.failImage, err);
+      return null;
+    }
+
+    let proposed: string;
+    try {
+      // The type the canvas produced, not the one the file had: a GIF comes
+      // back as PNG, and the model is told what it is actually being sent.
+      proposed = await generateImageRenameFilename(image.base64, image.mimeType, settings, apiKey);
+    } catch (err) {
+      this.fail("image rename", t().ai.failRename, err);
+      return null;
+    }
+
+    return this.usableName(proposed, file.extension);
+  }
+
+  /** What the model said, cut to a filename, or null once it has been reported. */
+  private usableName(proposed: string, extension: string): string | null {
+    const sanitized = stripFilenameExtension(
+      sanitizeFilename(proposed, this.getSettings().renameMaxFilenameLength),
+      extension
+    );
+    if (sanitized) return sanitized;
+
+    this.logger.warn("Rename produced an unusable filename:", proposed);
+    new Notice(t().common.notice(t().ai.renameFailedName));
+    return null;
   }
 
   async summarizeSelection(): Promise<void> {
@@ -196,16 +248,21 @@ export class LlmCommands {
     return result.apiKey;
   }
 
-  /** Run `work` under the in-flight guard, declining if a command is running. */
-  private async withBusy(label: string, work: () => Promise<void>): Promise<void> {
+  /**
+   * Run `work` under the in-flight guard, declining if a command is running.
+   *
+   * What the work returned comes back with it, and a declined run answers null:
+   * the pane's menu needs the name, not only the fact that something happened.
+   */
+  private async withBusy<T>(label: string, work: () => Promise<T>): Promise<T | null> {
     if (this.busy) {
       this.logger.debug(`Ignoring ${label}: another AI command is already running.`);
       new Notice(t().common.notice(t().ai.busy));
-      return;
+      return null;
     }
     this.busy = true;
     try {
-      await work();
+      return await work();
     } finally {
       this.busy = false;
     }

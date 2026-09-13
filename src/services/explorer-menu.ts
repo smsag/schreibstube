@@ -32,6 +32,7 @@ export type ExplorerAction =
   | "copy-path"
   | "move"
   | "rename"
+  | "rename-ai"
   | "delete"
   | "more";
 
@@ -40,6 +41,8 @@ export interface ExplorerTarget {
   path: string;
   /** Only a Markdown note can be bound to a source. */
   markdown: boolean;
+  /** A picture, which is named by being looked at rather than by being read. */
+  image?: boolean;
   /**
    * Whether the note names a source in its frontmatter.
    *
@@ -156,6 +159,7 @@ export function buildExplorerMenu(
       // entry here nothing in the vault could be moved at all.
       { id: "move", label: menu.move, icon: "folder-input" },
       { id: "rename", label: menu.rename, icon: "pencil" },
+      ...aiRenameItem(target),
       { id: "delete", label: menu.delete, icon: "trash-2", warning: true }
     ]
   });
@@ -168,6 +172,29 @@ export function buildExplorerMenu(
   }
 
   return sections;
+}
+
+/**
+ * Naming a file from what is inside it, next to naming it by hand.
+ *
+ * One entry and not two, because a person picking a row has already said which
+ * file they mean and the file says which of the two things it is: a note is
+ * read, a picture is looked at. The wording follows it — "from the text" and
+ * "from the picture" are what actually happens, and a single label covering
+ * both would name neither.
+ *
+ * Anything else offers nothing. A PDF, a canvas or a drawing cannot be read by
+ * either path, and a menu entry that answers a tap with a refusal is worse than
+ * one that was never there.
+ */
+function aiRenameItem(target: ExplorerTarget): ExplorerMenuItem[] {
+  const menu = t().explorer.menu;
+
+  if (target.kind !== "file") return [];
+  if (target.image) return [{ id: "rename-ai", label: menu.renameImageAi, icon: "wand-2" }];
+  if (target.markdown) return [{ id: "rename-ai", label: menu.renameNoteAi, icon: "wand-2" }];
+
+  return [];
 }
 
 /**
