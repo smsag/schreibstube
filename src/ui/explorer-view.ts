@@ -943,7 +943,7 @@ export class ExplorerPaneView extends ItemView {
             action: {
               icon: closed ? "chevron-down" : "chevron-up",
               fallbackIcon: closed ? "chevron-down" : "chevron-up",
-              label: closed ? t().explorer.pinnedMore(items.length) : t().explorer.pinnedFewer,
+              label: closed ? t().explorer.pinnedMore : t().explorer.pinnedFewer,
               expanded: !closed,
               run: () => this.toggleSection("pinned", closed)
             }
