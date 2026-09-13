@@ -20,7 +20,6 @@ import {
   SYNC_UPDATED_KEY
 } from "../services/sync-frontmatter";
 import {
-  hashText,
   isRemoteChange,
   nextSyncRecord,
   normalizeNewlines,
