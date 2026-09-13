@@ -1061,3 +1061,32 @@
 .schreibstube-command-list li {
   margin: 0;
 }
+
+/* --- Printing ---------------------------------------------------------- */
+
+/*
+ * Where a diagram is drawn so it can be captured.
+ *
+ * Off-screen rather than hidden: `display: none` measures as nothing, and a
+ * diagram that measured as nothing captures as nothing. The light theme is
+ * forced by the class the container carries, because paper is white whatever
+ * the vault is set to.
+ */
+.schreibstube-print-stage {
+  position: fixed;
+  left: -10000px;
+  top: 0;
+  width: 900px;
+  z-index: -1;
+  background: #ffffff;
+  color: #000000;
+  pointer-events: none;
+}
+
+/* The folder under a template's name in the picker, so two templates called
+   the same thing in different folders can be told apart. */
+.schreibstube-print-folder {
+  display: block;
+  color: var(--text-muted);
+  font-size: var(--font-smallest);
+}

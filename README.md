@@ -229,6 +229,42 @@ The site is one page per note plus an index sorted by date, newest first. Wikili
 
 What the bridge does and the plugin does not: rendering the Markdown, holding the SFTP credentials, and deciding what may be deleted. Only files the bridge itself wrote are ever removed, and the hosting key never enters the vault. See [`bridge/README.md`](bridge/README.md).
 
+### Printing
+
+Turns the note you are looking at into a PDF, through a template you keep in the vault. Works on desktop and on mobile, offline, with no bridge: Typst is compiled to WebAssembly and typesets on the device.
+
+- **Drucken: diese Notiz als PDF** — print the active note
+
+A template is a folder: a `template.md` saying what it needs, a `template.typ` laying the page out, and its fonts.
+
+```
+Vorlagen/Druck/Brief/
+  template.md     the descriptor, and how to use it
+  template.typ    the layout
+  fonts/*.ttf     embedded and subset into the PDF
+```
+
+Everything that is not prose — a sender, a recipient, a subject — is frontmatter. The note wins over the template, so "who is writing" is said once in the template and "who is being written to" once in the note:
+
+```markdown
+---
+schreibstubePrintTemplate: Brief
+schreibstubePrint:
+  recipient: "Frau Handan Ekinci\nHintere Marktstraße 83\n90441 Nürnberg"
+  subject: Kündigung Tanzkurs
+---
+
+Sehr geehrte Damen und Herren,
+```
+
+Without `schreibstubePrintTemplate` the command asks which template to use.
+
+Mermaid diagrams and other plugins' canvases cannot run inside a typesetter, so each is drawn off-screen in a light theme and captured as a picture — paper is white whatever the vault is set to. One that cannot be drawn prints as its own source with a warning, rather than vanishing.
+
+The typesetter itself is 28 MB and is fetched once per device, from this plugin's own release, checked against a hash committed in the source. Everything after that is offline.
+
+Two templates to copy are in [`examples/print/`](examples/print/); [`PRINTING.md`](PRINTING.md) is the whole contract.
+
 ### Schreibstube Explorer
 
 A file list of Schreibstube's own, opened from the ribbon icon in the left margin or with **Open Schreibstube Explorer**. It exists because three things cannot be done to Obsidian's explorer from a plugin without fighting it: an icon per item, a mark for sync state, and an order you can lift a file to the top of.
@@ -428,6 +464,15 @@ Requires a bridge with the publish capability configured — see [`bridge/README
 
 The token is deliberately separate from the mail token, so a leaked publish token cannot reach the mailbox. **Verbindung testen** proves the token, the target, the SSH login, the host key and the web root in one request, without writing anything.
 
+### Printing
+
+| Setting          | What it does                                                         |
+| ---------------- | -------------------------------------------------------------------- |
+| Templates folder | Vault folder searched for print templates. Default `Vorlagen/Druck`. |
+| Output folder    | Where a PDF is written. Empty means beside the note it came from.    |
+
+Everything else about a printed page — paper, margins, fonts, the sender's name — belongs to the template, which is a folder you can open. A setting for any of it here would be a second place to look.
+
 ### Diagnostics
 
 | Setting       | Description                                                                  | Default |
@@ -440,6 +485,7 @@ The token is deliberately separate from the mail token, so a leaked publish toke
 | -------------------------------------- | ----------------------------------------------------------------- |
 | [`ARCHITECTURE.md`](ARCHITECTURE.md)   | What runs in the vault, what runs on the bridge, and what crosses |
 | [`PUBLISHING.md`](PUBLISHING.md)       | Why publishing is shaped this way                                 |
+| [`PRINTING.md`](PRINTING.md)           | Printing a note to PDF through a Typst template: the plan         |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md)   | Setup, the checks, the mobile checklist, releasing                |
 | [`bridge/README.md`](bridge/README.md) | The bridge's API, configuration and deployment                    |
 | [`SECURITY.md`](SECURITY.md)           | What holds a secret, the perimeter, how to report                 |

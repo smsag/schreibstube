@@ -19,15 +19,23 @@ export type LanguagePreference = Locale | "auto";
 const CATALOGUES: Record<Locale, Messages> = { de, en };
 
 let active: Messages = en;
+let activeCode: Locale = "en";
 
 /** The messages in the language currently in force. */
 export function t(): Messages {
   return active;
 }
 
+/** Which language that is, for the few decisions that need the name and not
+ *  the words — a date written the way the language writes one. */
+export function activeLocale(): Locale {
+  return activeCode;
+}
+
 export function setLanguage(preference: LanguagePreference): Locale {
   const locale = preference === "auto" ? obsidianLocale() : preference;
   active = CATALOGUES[locale];
+  activeCode = locale;
   return locale;
 }
 

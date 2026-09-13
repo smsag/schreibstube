@@ -113,6 +113,20 @@ export const enExtra = {
     glossaryUnderlineDesc:
       "Marks error-severity terms as you write. Off by default to keep long notes quiet.",
 
+    printHeading: "Printing",
+    printIntro: (typst: string) =>
+      `A note becomes a PDF through a template: a folder holding a template.md that says what the ` +
+      `template needs, a template.typ that lays the page out, and its fonts. Typesetting is done on ` +
+      `the device by Typst ${typst}, so printing works offline and on a phone. The typesetter is ` +
+      "fetched once per device the first time you print. Copy a template from examples/print/ to start.",
+    printTemplateRoot: "Templates folder",
+    printTemplateRootDesc:
+      "Vault folder searched for print templates. Every subfolder with a template.md marked " +
+      "schreibstubePrintTemplate is one.",
+    printOutputFolder: "Output folder",
+    printOutputFolderDesc:
+      "Where a printed PDF is written. Leave empty to put it beside the note it came from.",
+    printOutputBesideNote: "beside the note",
     commandsHeading: "Commands",
     commandsIntro: 'In the command palette, each one prefixed with "Schreibstube: ".',
 
@@ -448,6 +462,36 @@ export const enExtra = {
       submit: "Delete",
       failed: (name: string) => `"${name}" could not be deleted.`
     }
+  },
+
+  print: {
+    noNote: "open a note first — printing sets the note you are looking at.",
+    noTemplates: (root: string) =>
+      `no print template found in ${root}. A template is a folder with a template.md and a ` +
+      "template.typ; copy one from examples/print/ to start.",
+    unknownTemplate: (name: string) =>
+      `this note asks for the template "${name}", which is not in the templates folder.`,
+    noLayout: (name: string) => `${name} has no template.typ, so there is nothing to print with.`,
+    working: (name: string) => `printing with ${name}…`,
+    drawing: (index: number, total: number) => `drawing diagram ${index} of ${total}…`,
+    downloading: (label: string, megabytes: number) =>
+      `fetching the ${label} (${megabytes} MB, once per device)…`,
+    verifying: "checking what was downloaded…",
+    starting: "starting the typesetter…",
+    compiling: "typesetting…",
+    mismatch: (detail: string) =>
+      `the downloaded typesetter is not what this version expects and was not used (${detail}).`,
+    unreachable: (detail: string) =>
+      `the typesetter could not be fetched (${detail}). It is needed once per device; try again when online.`,
+    compilerRefused: (detail: string) => `the template did not compile — ${detail}`,
+    pictureFailed: (name: string) => `${name} could not be read and was left out`,
+    panelsLost: (index: number, missing: number, total: number) =>
+      `diagram ${index}: ${missing} of ${total} drawings could not be captured and are missing`,
+    done: (path: string, kilobytes: number) => `printed ${path} (${kilobytes} KB).`,
+    withWarnings: (detail: string) => `printed, with something left out — ${detail}`,
+    failed: (detail: string) => `printing failed — ${detail}`,
+    chooseTemplate: "Print with which template?",
+    templateHint: "Set schreibstubePrintTemplate in the note to skip this."
   },
 
   secrets: {

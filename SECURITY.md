@@ -35,6 +35,20 @@ target allows it (`PUBLISH_<TARGET>_ALLOW_HTML`, on by default for a personal
 site); a vault with more than one author should turn it off. Mail bodies merged
 into a note are escaped so a sender cannot embed a vault file into it.
 
+## The typesetter the plugin downloads
+
+Printing runs Typst as WebAssembly on the device. The module is 28 MB, so it is
+not in the plugin bundle: it is fetched once per device from this repository's
+own release and kept beside the plugin.
+
+Those bytes are executed, so they are pinned. `src/services/typst-runtime.ts`
+holds a SHA-256 for each of the two files; the release workflow downloads them
+from npm and refuses to publish if they do not match, and the plugin hashes
+them again — after the download and on every later start, since the cache sits
+in a folder a person can open — and refuses to load anything else. A template
+is compiled with no file system and no network: only the job's own files, and
+no Typst package may be imported.
+
 ## What CI checks
 
 Every change runs the bridge's runtime tree through `npm audit` at the high

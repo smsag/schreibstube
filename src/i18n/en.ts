@@ -10,6 +10,7 @@ import { enExtra } from "./en-extra";
  */
 export const en = {
   commands: {
+    print: "Print: this note as PDF",
     focusSentence: "Focus: sentence",
     focusParagraph: "Focus: paragraph",
     focusDisable: "Focus: off",

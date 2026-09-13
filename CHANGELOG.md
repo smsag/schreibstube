@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## 1.24.0 - 2026-09-13
+
+Mobile checklist: not run for this release. Printing is the whole of it, and
+two of its steps cannot be checked anywhere but a device — the first fetch of
+the 28 MB typesetter, and a diagram drawn by another plugin coming out light
+and complete. Ten minutes on a phone before relying on either is still worth
+having.
+
+### Added
+
+- **A note can be printed as a PDF, through a template you keep in the vault.** Not Obsidian's print, which gives you whatever the screen had: a template is a folder with a layout, its fonts and a descriptor, and the page comes out set rather than screenshotted. It works the same on a phone as on a laptop and needs nothing running anywhere — Typst is compiled to WebAssembly and typesets on the device, so a letter written on a train becomes a PDF on that train. The typesetter is 28 MB and is fetched once per device from this plugin's own release, checked against a hash committed in the source, and kept beside the plugin; everything after that is offline.
+
+  What goes on the page that is not prose — a sender, a recipient, a subject, a date — is frontmatter. The template says what is always the same and the note says what is not, so an address is typed once and a recipient once. A note that names its template prints without being asked anything; one that does not is asked which.
+
+  Diagrams are the one thing a typesetter cannot do: Mermaid and the canvas plugins draw into a document, not onto a page. Each is drawn off-screen in a light theme and captured as a picture — paper is white whatever the vault is set to — and one that cannot be drawn prints as its own source with a warning, because a diagram that silently vanished is a page that lies about what the note says. A fence that drew several and captured only some keeps what it got and says how many are missing, for the same reason. A plugin that offers its own export is asked to do the drawing rather than guessed at from outside, and asked for every canvas in the fence rather than the first — a carousel shows one panel at a time and a page has no carousel, so all of them print. It is also told the drawing is for paper, which asks it not to go to the network for anything: a print stays offline however it is made.
+
+  Two templates to copy are in `examples/print/`: a German business letter and a CV. Neither ships a typeface, since fonts are licensed; put your own in the template's `fonts/` folder. `PRINTING.md` is the whole contract.
+
 ## 1.23.0 - 2026-09-13
 
 Mobile checklist: not run for this release. The file pane's view was split

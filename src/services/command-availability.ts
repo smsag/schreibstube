@@ -20,6 +20,7 @@ export type GatedCommand =
   | "check-source"
   | "send-mail"
   | "fetch-replies"
+  | "print"
   | "collapse-explorer";
 
 /** What the screen says, reduced to what the answers depend on. */
@@ -56,6 +57,10 @@ export function commandAvailable(command: GatedCommand, context: CommandContext)
     // not visible here, so it is not asked: that refusal belongs to the command.
     case "send-mail":
     case "fetch-replies":
+      return context.markdown;
+    // Printing sets the note that is open. Whether a template exists is not
+    // visible from the palette, so that refusal belongs to the command.
+    case "print":
       return context.markdown;
     case "collapse-explorer":
       return context.explorerOpen;

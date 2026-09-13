@@ -15,6 +15,7 @@ import { BOOKMARK_FILE_DEFAULT } from "./bookmark-file";
 import { LATEST_COUNT_DEFAULT, LATEST_COUNT_MAX } from "./latest-files";
 import { LLM_PROVIDER_IDS, PROVIDER_MODELS } from "./llm-providers";
 import { DEFAULT_PUBLISH_KEYS, normalizePublishKeys } from "./publish-index";
+import { TEMPLATE_ROOT_DEFAULT } from "./print-template";
 
 export { PROVIDER_MODELS } from "./llm-providers";
 
@@ -113,6 +114,8 @@ export const DEFAULT_SETTINGS: SchreibstubeSettings = {
   publishAccounts: [],
   publishFrontmatterKeys: DEFAULT_PUBLISH_KEYS,
   publishLastRun: {},
+  printTemplateRoot: TEMPLATE_ROOT_DEFAULT,
+  printOutputFolder: "",
   debugLogging: false
 };
 
@@ -290,7 +293,15 @@ export function normalizeSettings(loaded: LoadedSettings): SchreibstubeSettings 
         : DEFAULT_SETTINGS.publishTokenSecretName,
     publishAccounts: publishAccountsOrDefault(loaded?.publishAccounts),
     publishFrontmatterKeys: normalizePublishKeys(loaded?.publishFrontmatterKeys),
-    publishLastRun: publishRunsOrDefault(loaded?.publishLastRun)
+    publishLastRun: publishRunsOrDefault(loaded?.publishLastRun),
+    printTemplateRoot: nonEmptyStringOrDefault(
+      loaded?.printTemplateRoot,
+      DEFAULT_SETTINGS.printTemplateRoot
+    ),
+    printOutputFolder: trimmedStringOrDefault(
+      loaded?.printOutputFolder,
+      DEFAULT_SETTINGS.printOutputFolder
+    )
   };
 }
 

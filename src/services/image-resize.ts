@@ -44,13 +44,44 @@ export interface ResizedImage {
   mimeType: string;
 }
 
+/** The default a vision model gets; printing passes the template's own. */
+export const DEFAULT_QUALITY = 0.85;
+
 export async function resizeImageToBase64(
   buffer: ArrayBuffer,
   mimeType: string,
-  maxPx: number
+  maxPx: number,
+  quality = DEFAULT_QUALITY
 ): Promise<ResizedImage> {
-  const blob = new Blob([buffer], { type: mimeType });
-  const url = URL.createObjectURL(blob);
+  const { blob, mimeType: encoded } = await resizeImage(buffer, mimeType, maxPx, quality);
+  return { base64: await blobToBase64(blob), mimeType: encoded };
+}
+
+/**
+ * The same resize, as bytes.
+ *
+ * Printing embeds the picture in a document rather than posting it to an API,
+ * so it wants the bytes rather than their base64 form — which would otherwise
+ * be encoded here and decoded again a moment later, a third larger in between.
+ */
+export async function resizeImageToBytes(
+  buffer: ArrayBuffer,
+  mimeType: string,
+  maxPx: number,
+  quality = DEFAULT_QUALITY
+): Promise<{ bytes: Uint8Array; mimeType: string }> {
+  const { blob, mimeType: encoded } = await resizeImage(buffer, mimeType, maxPx, quality);
+  return { bytes: new Uint8Array(await blob.arrayBuffer()), mimeType: encoded };
+}
+
+async function resizeImage(
+  buffer: ArrayBuffer,
+  mimeType: string,
+  maxPx: number,
+  quality: number
+): Promise<{ blob: Blob; mimeType: string }> {
+  const source = new Blob([buffer], { type: mimeType });
+  const url = URL.createObjectURL(source);
 
   try {
     const img = await loadImage(url);
@@ -65,9 +96,7 @@ export async function resizeImageToBase64(
     ctx.drawImage(img, 0, 0, dims.width, dims.height);
 
     const encoded = encodedMimeType(mimeType);
-    const outBlob = await canvasToBlob(canvas, encoded);
-
-    return { base64: await blobToBase64(outBlob), mimeType: encoded };
+    return { blob: await canvasToBlob(canvas, encoded, quality), mimeType: encoded };
   } finally {
     URL.revokeObjectURL(url);
   }
@@ -82,12 +111,16 @@ function loadImage(url: string): Promise<HTMLImageElement> {
   });
 }
 
-function canvasToBlob(canvas: HTMLCanvasElement, mimeType: string): Promise<Blob> {
+export function canvasToBlob(
+  canvas: HTMLCanvasElement,
+  mimeType: string,
+  quality = DEFAULT_QUALITY
+): Promise<Blob> {
   return new Promise((resolve, reject) => {
     canvas.toBlob(
       (blob) => (blob ? resolve(blob) : reject(new Error("canvas.toBlob returned null"))),
       mimeType,
-      0.85
+      quality
     );
   });
 }

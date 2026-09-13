@@ -42,6 +42,13 @@ jobs:
 
       - run: npm run build
 
+      # The typesetter the plugin fetches on a device's first print. Downloaded
+      # from npm here and checked against the hashes committed in
+      # src/services/typst-runtime.ts, so a release can only carry the bytes
+      # this version of the plugin will agree to load.
+      - name: Build and verify the Typst runtime
+        run: node scripts/fetch-typst-runtime.mjs
+
       - name: Extract release notes
         run: |
           awk "/^## ${{ github.event.inputs.version }} /{found=1; next} found && /^## /{exit} found{print}" CHANGELOG.md > release_notes.md
@@ -58,6 +65,7 @@ jobs:
             main.js.map
             manifest.json
             styles.css
+            dist/typst-runtime-*
 
       # main.js.map is attached for symbolicating a reported stack trace. It is
       # not one of the three files Obsidian installs, so no vault ever loads it.
@@ -68,4 +76,4 @@ jobs:
           gh release create "${{ github.event.inputs.version }}" \
             --title "${{ github.event.inputs.version }}" \
             --notes-file release_notes.md \
-            main.js manifest.json styles.css main.js.map
+            main.js manifest.json styles.css main.js.map dist/typst-runtime-*
