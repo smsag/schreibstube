@@ -331,7 +331,7 @@ export class ExplorerPaneView extends ItemView {
     return t().explorer.title;
   }
 
-  getIcon(): string {
+  override getIcon(): string {
     return EXPLORER_RIBBON_ICON;
   }
 
@@ -342,7 +342,7 @@ export class ExplorerPaneView extends ItemView {
     this.requestRender();
   }
 
-  protected async onOpen(): Promise<void> {
+  protected override async onOpen(): Promise<void> {
     installIconFont(this.containerEl.doc);
     this.readMemory();
 
@@ -431,7 +431,7 @@ export class ExplorerPaneView extends ItemView {
     this.render();
   }
 
-  protected async onClose(): Promise<void> {
+  protected override async onClose(): Promise<void> {
     this.cancelFilter();
     this.contentEl.empty();
   }

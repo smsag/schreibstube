@@ -21,7 +21,14 @@ export default tseslint.config(
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
     languageOptions: {
       globals: { ...globals.browser },
-      parserOptions: { ecmaVersion: 2022, sourceType: "module" }
+      parserOptions: {
+        ecmaVersion: 2022,
+        sourceType: "module",
+        // The promise rules below need types: without them a dropped promise
+        // is indistinguishable from a dropped number.
+        projectService: true,
+        tsconfigRootDir: import.meta.dirname
+      }
     },
     rules: {
       "@typescript-eslint/no-unused-vars": [
@@ -29,6 +36,12 @@ export default tseslint.config(
         { argsIgnorePattern: "^_", varsIgnorePattern: "^_" }
       ],
       "@typescript-eslint/no-explicit-any": "error",
+      // A promise nobody awaits fails silently, in a plugin whose failures are
+      // reported as "it didn't work". Obsidian's own callbacks take a void
+      // return, so an async handler passed to them is fine.
+      "@typescript-eslint/no-floating-promises": "error",
+      "@typescript-eslint/no-misused-promises": ["error", { checksVoidReturn: false }],
+      "@typescript-eslint/await-thenable": "error",
       "no-console": ["error", { allow: ["error"] }],
       eqeqeq: ["error", "smart"],
       "prefer-const": "error"

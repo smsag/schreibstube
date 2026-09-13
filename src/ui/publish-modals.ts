@@ -20,7 +20,7 @@ export class PublishPlanModal extends Modal {
     super(app);
   }
 
-  onOpen(): void {
+  override onOpen(): void {
     const { contentEl } = this;
     contentEl.empty();
     contentEl.createEl("h3", { text: t().publish.planTitle(this.account.name) });
@@ -69,7 +69,7 @@ export class PublishPlanModal extends Modal {
     list.createEl("li", { text });
   }
 
-  onClose(): void {
+  override onClose(): void {
     this.contentEl.empty();
   }
 }

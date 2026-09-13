@@ -5,15 +5,20 @@ on:
   push:
     branches: [main]
 
+# The workflow only reads the repository. Nothing here needs to write, so the
+# token it receives cannot either.
+permissions:
+  contents: read
+
 jobs:
   check:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        # The bridge declares support from Node 20; CI should say whether that
-        # is true rather than assume it.
-        node: ["20", "22"]
+        # The bridge declares support from Node 22; CI should say whether that
+        # is true rather than assume it. 24 is the current LTS.
+        node: ["22", "24"]
 
     steps:
       - uses: actions/checkout@v5
@@ -31,12 +36,38 @@ jobs:
       # The suite covers the bridge, which keeps its own dependency tree.
       - run: npm ci --prefix bridge
 
+      # The bridge's runtime dependencies are the only ones that ship anywhere.
+      # The plugin has none: everything in the root tree is build tooling.
+      - run: npm audit --prefix bridge --omit=dev --audit-level=high
+
       - run: npm run lint
 
       - run: npm run format:check
 
       - run: npm run test:coverage
 
-      # Builds the plugin and proves the bundle stays free of Node built-ins,
-      # which is what keeps it working on mobile.
+      # Builds the plugin and proves the bundle stays free of Node built-ins
+      # and within its size budget, which is what keeps it working on mobile.
       - run: npm run build
+
+  # The Dockerfile is what the hosting platform runs. Building it here means a
+  # broken image is found by CI rather than by the next deploy.
+  bridge-image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - run: docker build --tag schreibstube-bridge:ci bridge
+      - name: Boot the image and probe /health
+        run: |
+          docker run --detach --name bridge --publish 8080:8080 \
+            --env MAIL_TOKEN=ci-only-token-that-is-long-enough \
+            --env IMAP_HOST=127.0.0.1 --env SMTP_HOST=127.0.0.1 \
+            --env MAIL_USER=ci@example.com --env MAIL_PASSWORD=ci \
+            --env MAIL_FROM=ci@example.com \
+            schreibstube-bridge:ci
+          for attempt in $(seq 1 20); do
+            if curl --fail --silent http://127.0.0.1:8080/health; then exit 0; fi
+            sleep 1
+          done
+          docker logs bridge
+          exit 1

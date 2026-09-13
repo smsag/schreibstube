@@ -58,7 +58,7 @@ const POLL_TICK_MS = 20_000;
 const POLL_CATCHUP_DELAY_MS = 8_000;
 
 export default class SchreibstubePlugin extends Plugin {
-  settings: SchreibstubeSettings = DEFAULT_SETTINGS;
+  override settings: SchreibstubeSettings = DEFAULT_SETTINGS;
   private logger: Logger = createLogger(() => this.settings.debugLogging);
   private currentView: MarkdownView | null = null;
   private viewportTopLine = 0;
@@ -78,7 +78,7 @@ export default class SchreibstubePlugin extends Plugin {
   private mail: MailCommands | null = null;
   private publish: PublishCommands | null = null;
 
-  async onload(): Promise<void> {
+  override async onload(): Promise<void> {
     await this.loadSettings();
     // Before anything builds a string: commands are named once, at registration.
     setLanguage(this.settings.language);
@@ -195,7 +195,7 @@ export default class SchreibstubePlugin extends Plugin {
     this.requestOverlayRefresh();
   }
 
-  onunload(): void {
+  override onunload(): void {
     this.linkMode?.stop();
     this.proofread?.stop();
     void this.explorer?.stop();

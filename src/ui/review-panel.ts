@@ -92,7 +92,7 @@ export class ReviewPanelView extends ItemView {
     return t().proofread.panelTitle;
   }
 
-  getIcon(): string {
+  override getIcon(): string {
     return "spell-check";
   }
 
@@ -107,11 +107,11 @@ export class ReviewPanelView extends ItemView {
     this.render();
   }
 
-  async onOpen(): Promise<void> {
+  override async onOpen(): Promise<void> {
     this.render();
   }
 
-  async onClose(): Promise<void> {
+  override async onClose(): Promise<void> {
     this.contentEl.empty();
   }
 

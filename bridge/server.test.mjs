@@ -81,12 +81,16 @@ async function start(overrides = {}) {
   }
 }
 
-async function call(path, { method = "POST", token = TOKEN, body, at = undefined } = {}) {
+async function call(
+  path,
+  { method = "POST", token = TOKEN, body, at = undefined, headers = {} } = {}
+) {
   const response = await fetch(`${at ?? base}${path}`, {
     method,
     headers: {
       ...(token ? { authorization: `Bearer ${token}` } : {}),
-      ...(body === undefined ? {} : { "content-type": "application/json" })
+      ...(body === undefined ? {} : { "content-type": "application/json" }),
+      ...headers
     },
     body: typeof body === "string" || body === undefined ? body : JSON.stringify(body)
   });
@@ -366,6 +370,35 @@ describe("throttle", () => {
     const response = await call("/health", { method: "GET", token: null, at: throttled });
     expect(response.status).toBe(200);
   });
+});
+
+describe("throttle behind a proxy", () => {
+  it("keys on the socket and ignores X-Forwarded-For by default, so a client cannot pick its own address", async () => {
+    const direct = await start({ AUTH_FAILURE_LIMIT: "2", AUTH_FAILURE_WINDOW_MS: "60000" });
+    for (const claimed of ["10.0.0.1", "10.0.0.2", "10.0.0.3"]) {
+      await call("/send", { token: null, at: direct, headers: { "x-forwarded-for": claimed } });
+    }
+    const blocked = await call("/send", { token: null, at: direct });
+    expect(blocked.status).toBe(429);
+  }, 20_000);
+
+  it("keys on the last forwarded hop when TRUST_PROXY is set, so one stranger cannot lock everyone out", async () => {
+    const proxied = await start({
+      AUTH_FAILURE_LIMIT: "2",
+      AUTH_FAILURE_WINDOW_MS: "60000",
+      TRUST_PROXY: "true"
+    });
+    const stranger = { "x-forwarded-for": "203.0.113.9" };
+    await call("/send", { token: null, at: proxied, headers: stranger });
+    await call("/send", { token: null, at: proxied, headers: stranger });
+    expect((await call("/send", { token: null, at: proxied, headers: stranger })).status).toBe(429);
+
+    // The real user arrives through the same proxy from another address. A
+    // spoofed first hop changes nothing: only the hop the proxy appended counts.
+    const user = { "x-forwarded-for": "203.0.113.9, 198.51.100.4" };
+    const response = await call("/send", { body: valid, at: proxied, headers: user });
+    expect(response.status).not.toBe(429);
+  }, 20_000);
 });
 
 describe("shutdown", () => {

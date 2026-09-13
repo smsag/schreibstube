@@ -40,11 +40,17 @@ export default defineConfig({
       reporter: ["text-summary"],
       // A floor, not a target: it fails the build when a change takes the suite
       // backwards. Raise it when the number rises, never lower it to pass.
+      //
+      // Re-based once, with Vitest 5: its coverage maps the V8 profile through
+      // the AST, so it counts arrow functions and short-circuit branches that
+      // the old remapping never saw. The suite did not change; the instrument
+      // did, and these are the same margin under the new one (measured 79 / 74
+      // / 78 / 76 on the day).
       thresholds: {
-        lines: 70,
-        functions: 85,
-        statements: 70,
-        branches: 85
+        lines: 77,
+        functions: 72,
+        statements: 76,
+        branches: 74
       }
     }
   }

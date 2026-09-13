@@ -4,8 +4,11 @@ ENV NODE_ENV=production
 WORKDIR /app
 
 # Copy manifests first so dependency installation is cached across code changes.
-COPY package.json package-lock.json* ./
-RUN npm ci --omit=dev || npm install --omit=dev
+# `npm ci` only: a lockfile that no longer matches package.json fails the build
+# here, which is where it should fail, rather than silently resolving to
+# whatever the registry had that day.
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev
 
 COPY . .
 

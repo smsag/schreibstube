@@ -8,7 +8,28 @@ export function newRequestId() {
   return `req_${randomBytes(4).toString("hex")}`;
 }
 
-export function clientAddress(req) {
+/**
+ * The address the authentication throttle keys on.
+ *
+ * Behind a reverse proxy — which is every hosting platform that terminates
+ * TLS — the socket belongs to the proxy, and every caller in the world shares
+ * that one address. The throttle would then lock the real user out after a
+ * stranger's five bad guesses. With `TRUST_PROXY` set, the address is read from
+ * the last hop of `X-Forwarded-For`: the one the trusted proxy appended, which
+ * a client cannot forge. Earlier hops are whatever the client claimed.
+ *
+ * Off by default, because trusting the header without a proxy in front lets
+ * anyone pick the address they are throttled as.
+ */
+export function clientAddress(req, { trustProxy = false } = {}) {
+  if (trustProxy) {
+    const forwarded = req.headers?.["x-forwarded-for"];
+    const chain = (Array.isArray(forwarded) ? forwarded.join(",") : (forwarded ?? ""))
+      .split(",")
+      .map((hop) => hop.trim())
+      .filter(Boolean);
+    if (chain.length > 0) return chain[chain.length - 1];
+  }
   return req.socket?.remoteAddress ?? "unknown";
 }
 
