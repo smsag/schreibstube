@@ -603,17 +603,15 @@
 }
 
 /* The one header that separates two kinds of thing, the curated lists above it
-   and the vault below. It carries no fill of its own: a darker label and a
-   firmer rule are enough to set it apart, and they leave the pane quiet. */
+   and the vault below. It carries no fill of its own: a darker label and the
+   space above it are enough to set it apart, and they leave the pane quiet.
+
+   Its rule is the rule every other header draws. Four lines down one pane at
+   two weights is not a hierarchy, it is one line looking like a mistake — and
+   the eye reads the difference long before it works out what it was for. */
 .schreibstube-explorer .schreibstube-explorer-section-header.is-divider {
   margin-top: 4px;
   color: var(--text-normal);
-}
-
-.schreibstube-explorer .schreibstube-explorer-section-header.is-divider::after {
-  /* One step firmer than the others. Obsidian's next border tone up, so the
-     difference holds in a theme that redefines either of them. */
-  background: var(--background-modifier-border-focus, var(--text-faint));
 }
 
 /* A header answers a pointer with its label, never with a fill: the colour of
