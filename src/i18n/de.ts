@@ -517,7 +517,8 @@ export const de: Messages = {
     },
 
     latest: {
-      synced: "Aus der Quelle aktualisiert",
+      synced: "Extern aktualisiert",
+      alert: "Eine Quelle wurde im Hintergrund aktualisiert",
       created: "Erstellt",
       modified: "Geändert",
       empty: "Noch keine Notizen."

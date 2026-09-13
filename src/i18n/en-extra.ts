@@ -339,7 +339,8 @@ export const enExtra = {
     },
 
     latest: {
-      synced: "Updated from the source",
+      synced: "Updated externally",
+      alert: "A source was updated in the background",
       created: "Created",
       modified: "Modified",
       empty: "No notes yet."

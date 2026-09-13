@@ -52,6 +52,36 @@ export interface LatestOptions {
 export const LATEST_COUNT_MAX = 50;
 export const LATEST_COUNT_DEFAULT = 5;
 
+/**
+ * The newest moment a source changed, across the notes shown as updated.
+ *
+ * Read from the list the pane draws rather than from every record, so what the
+ * mark stands for is exactly what a tap on it shows: a note excluded from the
+ * section, or beyond the count it holds, cannot leave a mark pointing at a list
+ * it is not in.
+ */
+export function newestSync(files: readonly LatestCandidate[]): number | null {
+  let newest: number | null = null;
+
+  for (const file of files) {
+    if (file.syncedAt === undefined) continue;
+    if (newest === null || file.syncedAt > newest) newest = file.syncedAt;
+  }
+
+  return newest;
+}
+
+/**
+ * Whether a source has changed since this device last looked.
+ *
+ * Strictly newer than the moment that was acknowledged: a change is seen once,
+ * and acknowledging the newest one acknowledges everything older with it.
+ */
+export function hasUnseenSync(files: readonly LatestCandidate[], seenAt: number): boolean {
+  const newest = newestSync(files);
+  return newest !== null && newest > seenAt;
+}
+
 export function selectLatest(
   candidates: readonly LatestCandidate[],
   { count, excluded }: LatestOptions

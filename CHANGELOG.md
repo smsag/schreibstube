@@ -6,7 +6,12 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- **"Zuletzt" says when a source changed while you were not looking.** A poll runs in the background and, until now, said so once in a notice that is gone by the time you come back to the vault. The section's clock icon now wears a mark — where a closed folder wears its count, and a mark rather than a figure, because how many sources moved is not what a corner of an icon is for; the list underneath says exactly which. It comes down when you tap it, and at no other time: a pane left open on a desk all day must not clear its own news. The tap opens the section with it, so one press both answers the mark and shows what it was about. Which changes count as seen is remembered per device, since having looked is a fact about a person at a screen: a change noticed on the laptop is still news on the phone.
 - **One control opens or closes the whole tree, on the tree's own header.** "Files and folders" carries it at the far end of its band, where the row menus line up. It is one button and not two: while any folder is open it offers to close them all, and only a tree that is shut all the way offers to open — so pressing it twice puts the tree back where it was. Opening everything opens the section too, since folders opened inside a closed section are a button that visibly does nothing, and while a filter is set the control is not drawn at all, because the filter already opens every folder holding a match. The pane's title bar keeps its own collapse-all; this one sits on the list it acts on, and opens as well as closes.
+
+### Changed
+
+- **"Aus der Quelle aktualisiert" is now "Extern aktualisiert"** — "Updated externally" in English. Shorter, and it says the thing that matters about those notes: the change came from outside the vault.
 
 ## 1.20.0 - 2026-09-13
 

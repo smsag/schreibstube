@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  hasUnseenSync,
   isExcluded,
   normalizeExcluded,
+  newestSync,
   parseExcludedPaths,
   selectLatest,
   type LatestCandidate
@@ -192,5 +194,38 @@ describe("notes whose source changed", () => {
       "A.md",
       "B.md"
     ]);
+  });
+});
+
+describe("the mark that a source changed", () => {
+  const updated: LatestCandidate[] = [
+    { ...note("Alt.md", 1), syncedAt: 300 },
+    { ...note("Neu.md", 1), syncedAt: 900 }
+  ];
+
+  it("takes the newest change, whatever order the list is in", () => {
+    expect(newestSync(updated)).toBe(900);
+    expect(newestSync([...updated].reverse())).toBe(900);
+  });
+
+  it("says nothing about a list holding no mirrored note", () => {
+    expect(newestSync([note("Alt.md", 1)])).toBeNull();
+    expect(newestSync([])).toBeNull();
+  });
+
+  it("shows while a change is newer than what was acknowledged", () => {
+    expect(hasUnseenSync(updated, 899)).toBe(true);
+    expect(hasUnseenSync(updated, 0)).toBe(true);
+  });
+
+  it("comes down once the newest change is the one acknowledged", () => {
+    // Acknowledging the newest acknowledges everything older with it: a person
+    // who looked at the list looked at all of it.
+    expect(hasUnseenSync(updated, 900)).toBe(false);
+    expect(hasUnseenSync(updated, 1000)).toBe(false);
+  });
+
+  it("never shows for a vault that mirrors nothing", () => {
+    expect(hasUnseenSync([note("Alt.md", 1)], 0)).toBe(false);
   });
 });

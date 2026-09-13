@@ -189,6 +189,12 @@ interface SectionAction {
   run: () => void;
 }
 
+/** A mark on a section's icon, and what a tap on the mark does. */
+interface SectionAlert {
+  label: string;
+  acknowledge: () => void;
+}
+
 /** What a section wants from its header beyond a title and a chevron. */
 interface SectionOptions {
   /** Draw the body even while closed, for a section that keeps some of it. */
@@ -201,6 +207,8 @@ interface SectionOptions {
   forceOpen?: boolean;
   /** A control of the section's own, drawn at the far end of the header. */
   action?: SectionAction;
+  /** A mark on the section's icon that something came in while nobody looked. */
+  alert?: SectionAlert;
 }
 
 interface PaneMemory {
@@ -698,7 +706,12 @@ export class ExplorerPaneView extends ItemView {
     applyIcon(glyph.createSpan({ cls: "schreibstube-explorer-glyph" }), icon);
 
     const total = collapsed ? folderCountLabel(options.total ?? 0) : null;
-    if (total !== null) {
+    // News first: a figure says how much is there and the mark says that some of
+    // it is new, and one corner of one icon can only carry the more urgent of
+    // the two. No section asks for both today.
+    if (options.alert) {
+      this.renderSectionAlert(glyph, id, options.alert);
+    } else if (total !== null) {
       glyph.createSpan({ cls: "schreibstube-explorer-count", text: total });
     }
 
@@ -752,6 +765,41 @@ export class ExplorerPaneView extends ItemView {
 
     control.addEventListener("click", run);
     control.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") run(event);
+    });
+  }
+
+  /**
+   * The mark that something came in, worn where a folder wears its count.
+   *
+   * A mark and not a figure: how many sources changed is not what a person
+   * wants from the corner of an icon, and the list under it says it exactly.
+   *
+   * It comes down when it is tapped and at no other time — not when the section
+   * is merely on screen, which a pane left open all day would do by itself. The
+   * tap opens the section with it, so one press both answers the mark and shows
+   * what it was about.
+   */
+  private renderSectionAlert(glyph: HTMLElement, id: SectionId, alert: SectionAlert): void {
+    const mark = glyph.createSpan({
+      cls: "schreibstube-explorer-count is-alert",
+      text: "!",
+      attr: { role: "button", tabindex: "0", "aria-label": alert.label, title: alert.label }
+    });
+
+    const run = (event: Event): void => {
+      event.preventDefault();
+      event.stopPropagation();
+      // Opened rather than toggled: the mark is an invitation to look, and a
+      // tap that answered it by closing the list would be a joke.
+      this.collapsedSections.delete(id);
+      this.writeMemory();
+      alert.acknowledge();
+      this.requestRender();
+    };
+
+    mark.addEventListener("click", run);
+    mark.addEventListener("keydown", (event) => {
       if (event.key === "Enter" || event.key === " ") run(event);
     });
   }
@@ -967,8 +1015,19 @@ export class ExplorerPaneView extends ItemView {
 
   private renderLatest(host: HTMLElement): void {
     const sections = this.host?.sections;
-    const body = this.renderSection(host, "latest", "clock");
-    if (!body || !sections) return;
+    if (!sections) return;
+
+    const body = this.renderSection(host, "latest", "clock", {
+      ...(sections.syncAlert()
+        ? {
+            alert: {
+              label: t().explorer.latest.alert,
+              acknowledge: () => sections.acknowledgeSync()
+            }
+          }
+        : {})
+    });
+    if (!body) return;
 
     const { synced, created, modified } = sections.latestFiles();
     const labels = t().explorer.latest;

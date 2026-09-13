@@ -28,6 +28,8 @@ import {
 } from "../services/bookmark-file";
 import type { SyncRecord } from "../services/sync-document";
 import {
+  hasUnseenSync,
+  newestSync,
   parseExcludedPaths,
   selectLatest,
   type LatestCandidate,
@@ -46,6 +48,16 @@ export const RECENT_BOOKMARKS_MAX = 5;
  */
 const RECENTS_KEY = "schreibstube:bookmarks:recent";
 
+/**
+ * Where the mark's "already seen" lives.
+ *
+ * Device-local for the same reason the recents are: having looked at something
+ * is a fact about a person at a screen, not about the vault. A change noticed on
+ * the laptop is still news on the phone, and a mark that cleared itself on one
+ * device would be a mark nobody ever saw.
+ */
+const LATEST_SEEN_KEY = "schreibstube:latest:seen";
+
 /** The subset of Obsidian's App that keeps device-local state. Older builds
  *  may not have it, so every use is feature-detected. */
 interface LocalStorageApi {
@@ -62,6 +74,8 @@ export class PaneSectionsController {
 
   private latest: LatestSelection | null = null;
   private latestKey = "";
+  /** Null until this device has said what it has seen, which is not zero. */
+  private seenAt: number | null = null;
 
   private readonly listeners = new Set<() => void>();
 
@@ -76,6 +90,7 @@ export class PaneSectionsController {
 
   async start(): Promise<void> {
     this.recents = this.readRecents();
+    this.seenAt = this.readSeenAt();
     await this.reload();
   }
 
@@ -293,6 +308,68 @@ export class PaneSectionsController {
   invalidateLatest(): void {
     this.latest = null;
     this.emit();
+  }
+
+  /**
+   * Whether a source has changed since this device last acknowledged one.
+   *
+   * What the pane marks, and nothing more: the mark is read off the list a tap
+   * on it opens, so it can never point at a note that list does not hold.
+   */
+  syncAlert(): boolean {
+    const synced = this.latestFiles().synced;
+
+    // Nothing is stored on a device that has never taken the mark down — which
+    // is every device the first time this version runs. What a vault already
+    // holds is not news, so the first look settles the score rather than
+    // reporting every change a note ever had as unseen.
+    if (this.seenAt === null) {
+      this.seenAt = newestSync(synced) ?? 0;
+      this.writeSeenAt();
+      return false;
+    }
+
+    return hasUnseenSync(synced, this.seenAt);
+  }
+
+  /**
+   * Take the mark down.
+   *
+   * Acknowledged up to the newest change rather than to this moment, so a poll
+   * landing between the draw and the tap is not cleared unseen — it marks the
+   * header again on the next draw.
+   */
+  acknowledgeSync(): void {
+    const newest = newestSync(this.latestFiles().synced);
+    if (newest === null || newest <= (this.seenAt ?? 0)) return;
+
+    this.seenAt = newest;
+    this.writeSeenAt();
+    this.emit();
+  }
+
+  private readSeenAt(): number | null {
+    const storage = this.app as unknown as LocalStorageApi;
+    if (typeof storage.loadLocalStorage !== "function") return null;
+
+    try {
+      const raw = storage.loadLocalStorage(LATEST_SEEN_KEY);
+      return typeof raw === "number" && Number.isFinite(raw) ? raw : null;
+    } catch (error) {
+      this.logger.debug("Could not read when the updates were last seen:", error);
+      return null;
+    }
+  }
+
+  private writeSeenAt(): void {
+    const storage = this.app as unknown as LocalStorageApi;
+    if (typeof storage.saveLocalStorage !== "function") return;
+
+    try {
+      storage.saveLocalStorage(LATEST_SEEN_KEY, this.seenAt ?? 0);
+    } catch (error) {
+      this.logger.debug("Could not store when the updates were last seen:", error);
+    }
   }
 
   private candidates(): LatestCandidate[] {
