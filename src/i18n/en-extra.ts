@@ -300,7 +300,6 @@ export const enExtra = {
     clearFilter: "Clear the filter",
     filterMore: (count: number) => `${count} more match. Narrow the filter to see them.`,
     collapseAll: "Collapse all",
-    sectionCount: (count: number) => `(${count})`,
     folderCount: (count: string) => `${count} files`,
 
     move: {

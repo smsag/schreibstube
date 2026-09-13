@@ -641,21 +641,23 @@ export class ExplorerPaneView extends ItemView {
     });
     const twisty = header.createSpan({ cls: "schreibstube-explorer-twisty" });
     if (closable) applyIcon(twisty, collapsed ? "chevron-right" : "chevron-down");
-    applyIcon(header.createSpan({ cls: "schreibstube-explorer-glyph" }), icon);
+
+    // How many there are in all, on the section's own icon: a closed section
+    // showing rows does not look closed, and the rows on screen are not the
+    // whole of it. The same badge a closed folder carries, in the same place,
+    // because it answers the same question.
+    const glyph = header.createSpan({ cls: "schreibstube-explorer-glyph-box" });
+    applyIcon(glyph.createSpan({ cls: "schreibstube-explorer-glyph" }), icon);
+
+    const total = collapsed ? folderCountLabel(options.total ?? 0) : null;
+    if (total !== null) {
+      glyph.createSpan({ cls: "schreibstube-explorer-count", text: total });
+    }
+
     header.createSpan({
       cls: "schreibstube-explorer-section-title",
       text: t().explorer.sections[id]
     });
-
-    // How many there are in all, since a closed section showing rows does not
-    // look closed and the rows on screen are not the whole of it.
-    const total = collapsed ? (options.total ?? 0) : 0;
-    if (total > 0) {
-      header.createSpan({
-        cls: "schreibstube-explorer-section-hidden",
-        text: t().explorer.sectionCount(total)
-      });
-    }
 
     if (closable) {
       header.addEventListener("click", () => {
