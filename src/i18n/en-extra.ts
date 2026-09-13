@@ -117,12 +117,28 @@ export const enExtra = {
     printIntro: (typst: string) =>
       `A note becomes a PDF through a template: a folder holding a template.md that says what the ` +
       `template needs, a template.typ that lays the page out, and its fonts. Typesetting is done on ` +
-      `the device by Typst ${typst}, so printing works offline and on a phone. The typesetter is ` +
-      "fetched once per device the first time you print. Copy a template from examples/print/ to start.",
+      `the device by Typst ${typst}, so printing works offline and on a phone, on every platform ` +
+      "Obsidian runs on.",
+    printEnabled: "Enable printing",
+    printEnabledDesc: (megabytes: number) =>
+      `Off until you switch it on, because switching it on is what fetches the typesetter: ` +
+      `${megabytes} MB, once per device. Nothing is downloaded before then.`,
+    printRuntimeInstalled: (megabytes: number) =>
+      `The typesetter is on this device (${megabytes} MB). Printing works offline.`,
+    printRuntimeMissing: (megabytes: number) =>
+      `The typesetter is not on this device yet. It is ${megabytes} MB and is fetched once, ` +
+      "either now or the first time you print.",
+    printRuntimeHeading: "The typesetter",
+    printDownloadNow: "Download now",
+    printRemoveRuntime: "Remove the typesetter",
+    printAddTemplateDesc:
+      "Writes one of the two example templates into a folder you choose. Neither carries a " +
+      "typeface, since fonts are licensed; a template with none is set in Typst's own.",
     printTemplateRoot: "Templates folder",
     printTemplateRootDesc:
-      "Vault folder searched for print templates. Every subfolder with a template.md marked " +
-      "schreibstubePrintTemplate is one.",
+      "Where a new template goes by default. A template is any folder with a template.md marked " +
+      "schreibstubePrintTemplate, and one is found wherever you keep it — this only says where " +
+      "the suggestion points.",
     printOutputFolder: "Output folder",
     printOutputFolderDesc:
       "Where a printed PDF is written. Leave empty to put it beside the note it came from.",
@@ -466,11 +482,11 @@ export const enExtra = {
 
   print: {
     noNote: "open a note first — printing sets the note you are looking at.",
-    noTemplates: (root: string) =>
-      `no print template found in ${root}. A template is a folder with a template.md and a ` +
-      "template.typ; copy one from examples/print/ to start.",
+    noTemplates:
+      "no print template in this vault. A template is a folder holding a template.md and a " +
+      'template.typ; run "Print: add a template" to put one in.',
     unknownTemplate: (name: string) =>
-      `this note asks for the template "${name}", which is not in the templates folder.`,
+      `this note asks for the template "${name}", and no folder in this vault is one.`,
     noLayout: (name: string) => `${name} has no template.typ, so there is nothing to print with.`,
     working: (name: string) => `printing with ${name}…`,
     drawing: (index: number, total: number) => `drawing diagram ${index} of ${total}…`,
@@ -491,7 +507,23 @@ export const enExtra = {
     withWarnings: (detail: string) => `printed, with something left out — ${detail}`,
     failed: (detail: string) => `printing failed — ${detail}`,
     chooseTemplate: "Print with which template?",
-    templateHint: "Set schreibstubePrintTemplate in the note to skip this."
+    templateHint: "Set schreibstubePrintTemplate in the note to skip this.",
+    offTitle: "Printing is off",
+    offMessage: (megabytes: number) =>
+      `Printing sets the note on this device rather than on a server, so it needs a typesetter: ` +
+      `${megabytes} MB, fetched once and then kept. Turn printing on to fetch it.`,
+    offSubmit: "Turn on printing",
+    unsupported:
+      "this device cannot run the typesetter, so printing is not available here. " +
+      "Printing needs WebAssembly, a worker and a digest, which every platform Obsidian " +
+      "supports normally has.",
+    runtimeReady: "the typesetter is on this device. Printing works offline from here.",
+    runtimeRemoved: "the typesetter was removed. The next print fetches it again.",
+    chooseExample: "Which template shall I add?",
+    chooseFolder: "Put the template in which folder?",
+    templateExists: (path: string) => `${path} already exists and was left alone.`,
+    templateAdded: (path: string) =>
+      `${path} added. Open its template.md to see what it needs, and put a font in its fonts/ folder.`
   },
 
   secrets: {

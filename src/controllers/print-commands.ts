@@ -50,7 +50,11 @@ import {
 } from "../services/workspace-internals";
 import { TypstCompiler } from "../print/typst-compiler";
 import { activeLocale } from "../i18n";
-import { PrintTemplateModal } from "../ui/print-modals";
+import { RUNTIME_MEGABYTES } from "../services/typst-runtime";
+import { PrintExampleModal, PrintTemplateModal } from "../ui/print-modals";
+import { ConfirmModal, FolderPickerModal } from "../ui/explorer-modals";
+import { EXAMPLE_TEMPLATES, type ExampleTemplate } from "../services/print-examples";
+import { missingCapability, readPlatformFeatures } from "../services/print-capability";
 
 /** Pictures a template folder may carry for its own layout to place. */
 const TEMPLATE_ASSET = /\.(png|jpe?g|gif|webp|svg)$/i;
@@ -85,7 +89,9 @@ export class PrintCommands {
     private readonly settings: () => SchreibstubeSettings,
     private readonly pluginDir: string,
     private readonly pluginVersion: string,
-    private readonly logger: Logger
+    private readonly logger: Logger,
+    /** Switch printing on, for the one moment somebody is asked whether to. */
+    private readonly enable: () => Promise<void>
   ) {}
 
   stop(): void {
@@ -93,14 +99,21 @@ export class PrintCommands {
     this.compiler = null;
   }
 
-  /** Every template the vault holds, by folder name. */
+  /**
+   * Every template the vault holds, by folder name.
+   *
+   * The whole vault, not the templates folder. What makes a folder a template
+   * is the flag in its descriptor, which is a thing a person set on purpose;
+   * where they keep it is their business, and somebody who puts a template
+   * beside the notes that use it is not making a mistake. The setting names
+   * where a new one goes by default, not where one is allowed to be — a folder
+   * a person chose and a plugin then could not see would be the worse surprise.
+   */
   templates(): PrintTemplate[] {
-    const root = this.templateRoot();
     const found: PrintTemplate[] = [];
 
     for (const file of this.app.vault.getMarkdownFiles()) {
       if (file.name !== DESCRIPTOR_FILE) continue;
-      if (root !== "" && !file.path.startsWith(`${root}/`)) continue;
 
       const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter;
       if (frontmatter?.[TEMPLATE_FLAG] !== true) continue;
@@ -124,6 +137,40 @@ export class PrintCommands {
    */
   async printActiveNote(): Promise<void> {
     const messages = t().print;
+
+    // Asked before anything else, because a device that cannot run the
+    // typesetter cannot print however the rest of it is set up.
+    const missing = missingCapability(readPlatformFeatures(window));
+    if (missing) {
+      this.logger.warn(`print: this platform has no ${missing}`);
+      new Notice(t().common.notice(messages.unsupported), 10_000);
+      return;
+    }
+
+    // The command stays in the palette when printing is off, and says so when
+    // it is run. A command that vanishes because of a setting in another tab
+    // reads as a plugin that broke; this is the moment somebody is listening.
+    if (!this.settings().printEnabled) {
+      new ConfirmModal(
+        this.app,
+        {
+          title: messages.offTitle,
+          message: messages.offMessage(RUNTIME_MEGABYTES),
+          submitLabel: messages.offSubmit
+        },
+        () => {
+          void this.enable()
+            .then(() => this.printActiveNote())
+            .catch((error: unknown) => {
+              const detail = error instanceof Error ? error.message : String(error);
+              this.logger.error("print: printing could not be switched on", error);
+              new Notice(t().common.notice(messages.failed(detail)), 10_000);
+            });
+        }
+      ).open();
+      return;
+    }
+
     const file = this.app.workspace.getActiveFile();
     if (!file || file.extension !== "md") {
       new Notice(t().common.notice(messages.noNote));
@@ -132,7 +179,7 @@ export class PrintCommands {
 
     const templates = this.templates();
     if (templates.length === 0) {
-      new Notice(t().common.notice(messages.noTemplates(this.templateRoot())), 8000);
+      new Notice(t().common.notice(messages.noTemplates), 8000);
       return;
     }
 
@@ -493,6 +540,165 @@ export class PrintCommands {
       if (bytes) assets.push({ path: child.name, bytes });
     }
     return assets;
+  }
+
+  /**
+   * Put a template in the vault, without leaving the app to find one.
+   *
+   * The examples live in the repository, which is fine on a laptop and no use
+   * at all on a phone: there is no way to fetch a folder from a web page and
+   * drop it into a vault. So the plugin carries them, and this lays one down
+   * wherever a person says — any folder, not only the configured root, because
+   * somebody keeping templates beside the notes that use them is not wrong.
+   *
+   * Nothing here needs the typesetter, so it works whether or not printing has
+   * been switched on: reading what a template is made of is a good way to
+   * decide whether to switch it on at all.
+   */
+  async addTemplate(): Promise<void> {
+    const messages = t().print;
+
+    const example = await this.askExample();
+    if (!example) return;
+
+    const folder = await this.askFolder();
+    if (folder === null) return;
+
+    const target = folder.length > 0 ? `${folder}/${example.name}` : example.name;
+    const adapter = this.app.vault.adapter;
+
+    if (await adapter.exists(target)) {
+      new Notice(t().common.notice(messages.templateExists(target)), 8000);
+      return;
+    }
+
+    try {
+      await this.makeFolder(target);
+      for (const file of example.files) {
+        await this.app.vault.create(`${target}/${file.name}`, file.text);
+      }
+      // The fonts folder is made empty and on purpose: it is where a person
+      // puts a typeface, and an empty folder says that better than prose does.
+      await this.makeFolder(`${target}/${FONT_DIRECTORY}`);
+
+      new Notice(t().common.notice(messages.templateAdded(target)), 10_000);
+      await this.openDescriptor(`${target}/${DESCRIPTOR_FILE}`);
+    } catch (error) {
+      // A template half written is worse than none: the descriptor alone still
+      // announces itself as a template, so every print of it fails and adding
+      // it again is refused because the folder is there. Take it back out.
+      await this.discard(target);
+      const detail = error instanceof Error ? error.message : String(error);
+      this.logger.error("print: a template could not be added", error);
+      new Notice(t().common.notice(messages.failed(detail)), 10_000);
+    }
+  }
+
+  /**
+   * Make a folder and whatever it sits in.
+   *
+   * The first template goes into a folder that does not exist yet — the
+   * default answer names one nobody has made — and creating a folder whose
+   * parent is missing is not something to rely on being forgiven.
+   */
+  private async makeFolder(path: string): Promise<void> {
+    const parts = path.split("/").filter((part) => part.length > 0);
+    let walked = "";
+    for (const part of parts) {
+      walked = walked.length > 0 ? `${walked}/${part}` : part;
+      if (!(await this.app.vault.adapter.exists(walked))) {
+        await this.app.vault.createFolder(walked);
+      }
+    }
+  }
+
+  /** Undo a template that was only partly written. */
+  private async discard(path: string): Promise<void> {
+    try {
+      const folder = this.app.vault.getAbstractFileByPath(path);
+      if (folder instanceof TFolder) await this.app.vault.delete(folder, true);
+    } catch (error) {
+      this.logger.warn(`print: ${path} was left behind after a failed add`, error);
+    }
+  }
+
+  private askExample(): Promise<ExampleTemplate | null> {
+    return new Promise((resolve) => {
+      new PrintExampleModal(this.app, EXAMPLE_TEMPLATES, resolve).open();
+    });
+  }
+
+  /**
+   * Which folder to put it in.
+   *
+   * Every folder in the vault, the configured templates root first so that the
+   * ordinary answer is the first one offered. The root itself is offered too,
+   * for a vault that keeps everything flat.
+   */
+  private askFolder(): Promise<string | null> {
+    const root = this.templateRoot();
+    const all = this.app.vault
+      .getAllLoadedFiles()
+      .filter((file): file is TFolder => file instanceof TFolder)
+      .map((folder) => folder.path)
+      .filter((path) => path !== "/");
+
+    const folders = [root, ...all.filter((path) => path !== root), ""];
+
+    return new Promise((resolve) => {
+      let answered = false;
+      const modal = new FolderPickerModal(this.app, folders, t().print.chooseFolder, (folder) => {
+        answered = true;
+        resolve(folder);
+      });
+      const close = modal.onClose.bind(modal);
+      modal.onClose = () => {
+        close();
+        if (!answered) resolve(null);
+      };
+      modal.open();
+    });
+  }
+
+  /** Open what was just written, since the prose in it is the instructions. */
+  private async openDescriptor(path: string): Promise<void> {
+    const file = this.app.vault.getAbstractFileByPath(path);
+    if (file instanceof TFile) await this.app.workspace.getLeaf(true).openFile(file);
+  }
+
+  /** Whether this device already has the typesetter, for the settings tab. */
+  runtimeInstalled(): Promise<boolean> {
+    return this.compilerFor().isInstalled();
+  }
+
+  /** Fetch it now, reporting progress the way a print does. */
+  async fetchRuntime(): Promise<void> {
+    const messages = t().print;
+    const missing = missingCapability(readPlatformFeatures(window));
+    if (missing) {
+      this.logger.warn(`print: this platform has no ${missing}`);
+      new Notice(t().common.notice(messages.unsupported), 10_000);
+      return;
+    }
+
+    const notice = new Notice(t().common.notice(messages.verifying), 0);
+    try {
+      await this.compilerFor().prepare((message) => notice.setMessage(t().common.notice(message)));
+      new Notice(t().common.notice(messages.runtimeReady), 6000);
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      this.logger.error("print: the typesetter could not be fetched", error);
+      new Notice(t().common.notice(messages.failed(detail)), 10_000);
+    } finally {
+      notice.hide();
+    }
+  }
+
+  /** Take it off the device again, for somebody reclaiming the space. */
+  async removeRuntime(): Promise<void> {
+    await this.compilerFor().remove();
+    this.compiler = null;
+    new Notice(t().common.notice(t().print.runtimeRemoved), 6000);
   }
 
   private compilerFor(): TypstCompiler {

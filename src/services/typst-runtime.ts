@@ -16,6 +16,15 @@
 /** The typst.ts release these hashes belong to. Bumped deliberately. */
 export const RUNTIME_VERSION = "0.7.0";
 
+/**
+ * Roughly what a device downloads, in megabytes, for a sentence a person reads.
+ *
+ * Rounded and stated rather than measured: it is used to warn somebody before
+ * they spend it, and "about 28 MB" is what that sentence needs. The exact size
+ * is whatever the pinned bytes weigh.
+ */
+export const RUNTIME_MEGABYTES = 28;
+
 /** The Typst language version that build compiles. Templates are written for it. */
 export const TYPST_VERSION = "0.14";
 

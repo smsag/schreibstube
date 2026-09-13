@@ -121,7 +121,9 @@ Every construct has a test, and both sample documents are fixtures.
 
 ## The template contract
 
-A template is a folder under a configurable root, default `Vorlagen/Druck/`:
+A template is a folder anywhere in the vault. What makes it one is the flag in its descriptor,
+not where it sits; the configurable root, default `Vorlagen/Druck/`, is where a new one is
+suggested and nothing more:
 
 ```
 Vorlagen/Druck/Brief/

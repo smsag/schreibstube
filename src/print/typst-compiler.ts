@@ -106,6 +106,17 @@ export class TypstCompiler {
     return readCompileResult({ diagnostics: reply.diagnostics ?? [] });
   }
 
+  /**
+   * Fetch and check the typesetter without setting anything.
+   *
+   * So that somebody who has just switched printing on can spend the download
+   * while they are on wifi and thinking about it, rather than meeting it in
+   * the middle of their first print on a train.
+   */
+  async prepare(progress: ProgressReport): Promise<void> {
+    await this.load(progress);
+  }
+
   /** Whether the runtime is already on this device, so a command can say so. */
   async isInstalled(): Promise<boolean> {
     for (const asset of RUNTIME_ASSETS) {
@@ -114,6 +125,26 @@ export class TypstCompiler {
       }
     }
     return true;
+  }
+
+  /**
+   * Take the typesetter off the device.
+   *
+   * Somebody switching printing off has 28 MB sitting in their vault folder
+   * for a feature they stopped using, and no way to see it from inside the app.
+   * Removing it is safe: the next print fetches and checks it again.
+   */
+  async remove(): Promise<void> {
+    this.dispose();
+    const adapter = this.app.vault.adapter;
+    for (const asset of RUNTIME_ASSETS) {
+      const path = runtimeCachePath(this.pluginDir, asset);
+      try {
+        if (await adapter.exists(path)) await adapter.remove(path);
+      } catch (error) {
+        this.logger.warn(`print: ${asset.name} could not be removed`, error);
+      }
+    }
   }
 
   /** Let go of the worker and the module; the next print starts them again. */

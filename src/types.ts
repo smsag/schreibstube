@@ -114,6 +114,14 @@ export interface SchreibstubeSettings {
   publishFrontmatterKeys: PublishKeyMap;
   /** What each account last published, keyed by account id. Plugin-written. */
   publishLastRun: Record<string, PublishRunRecord>;
+  /**
+   * Whether printing is switched on.
+   *
+   * Off until a person says otherwise, because switching it on is what fetches
+   * the typesetter: 28 MB onto a device, possibly over mobile data. Nobody
+   * should pay that for a feature they have not asked for.
+   */
+  printEnabled: boolean;
   /** Vault folder holding the print templates. */
   printTemplateRoot: string;
   /** Where a printed PDF is written; empty means beside the note. */
