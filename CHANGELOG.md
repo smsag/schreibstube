@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Added
+
+- **A pinned note is drawn by the `title` in its frontmatter.** A filename is a handle — short, unique, often a slug — and renaming a file to read well moves it and rewrites every link into it. The pinned block is a shortlist built by hand, where a row is there to be recognised rather than located, so it now draws the note's own `title` when the note names one and the filename when it does not. Nothing is written: the file keeps its name, the tree below keeps showing it, and the row's tooltip still carries the full path. The filter matches both, so typing what is on screen cannot hide the row showing it. A title that wrapped across lines in the frontmatter is folded onto one; a `title` that YAML turned into a list, a date or a boolean is not a title and the filename is drawn instead.
+
 ### Fixed
 
 - **A bound note keeps its sync actions while document sync is switched off.** The menu decided what to offer from the sync mark, and that mark is deliberately hidden while sync is off — so a note that had just been bound was offered "Bind source" again and nothing else: no way to check it by hand, no way to unbind it. Which is exactly the state anyone is in the first time they bind a note, since document sync is off by default. The menu now goes by the binding in the note's own frontmatter. The mark stays hidden while sync is off, because a mark for something that is not running would say nothing true.

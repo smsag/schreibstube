@@ -33,6 +33,7 @@ import {
 } from "../services/explorer-state";
 import { ExplorerStore, type ExplorerFileStore } from "../services/explorer-store";
 import { vaultUrlFor } from "../services/bookmark-file";
+import { frontmatterTitle } from "../services/note-title";
 import {
   isMovePlan,
   moveDestinations,
@@ -188,6 +189,21 @@ export class ExplorerController {
       sourceValid: resolveSourceUrl(frontmatter?.[SYNC_FRONTMATTER_KEY]).ok,
       record: this.getSettings().syncState[file.path]
     });
+  }
+
+  /**
+   * What a note calls itself, or null when it says nothing.
+   *
+   * Read from the frontmatter's `title`, which is the key everything else that
+   * reads Markdown uses for this. The file is never touched: a title is what a
+   * note is called, a filename is where it lives, and renaming one to match the
+   * other would move the file and rewrite every link into it.
+   */
+  titleFor(file: TAbstractFile): string | null {
+    if (!(file instanceof TFile) || file.extension !== "md") return null;
+
+    const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter;
+    return frontmatterTitle(frontmatter?.title);
   }
 
   /**

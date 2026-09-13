@@ -519,7 +519,13 @@ export class ExplorerPaneView extends ItemView {
     const controller = this.host?.explorer;
     if (!controller) return;
 
-    const items = controller.pinnedItems().filter((file) => this.matchesQuery(file.name));
+    // A filter has to match what the row shows as well as what the file is
+    // called, or typing the name on screen would hide the row showing it.
+    const items = controller
+      .pinnedItems()
+      .filter(
+        (file) => this.matchesQuery(file.name) || this.matchesQuery(controller.titleFor(file) ?? "")
+      );
     if (items.length === 0) return;
 
     const order = items.map((file) => file.path);
@@ -546,7 +552,13 @@ export class ExplorerPaneView extends ItemView {
 
     row.createSpan({ cls: "schreibstube-explorer-twisty" });
     applyIcon(row.createSpan({ cls: "schreibstube-explorer-glyph" }), this.glyphFor(file));
-    row.createSpan({ cls: "schreibstube-explorer-name", text: displayName(file) });
+    // A pinned row is a shortlist entry, there to be recognised rather than
+    // located, so it draws what the note calls itself when it says. The tree
+    // below keeps filenames: that is where a file is looked for by name.
+    row.createSpan({
+      cls: "schreibstube-explorer-name",
+      text: controller.titleFor(file) ?? displayName(file)
+    });
     if (file instanceof TFile) this.renderBadge(row, file);
 
     this.renderRowActions(row, file);
