@@ -89,6 +89,11 @@ half is worth ten minutes on a phone, once per release:
 8. Print a note with the letter example. The first print downloads the
    typesetter, which is 28 MB and the one step that needs the network; the
    second should be a second or two with nothing fetched.
+9. Print a note holding a Mermaid diagram and a Vizardry canvas, with Vizardry
+   0.65.0 or later installed. Three things this cannot be checked for anywhere
+   else: a wide canvas comes out as a picture rather than as its source, the
+   canvas's own title row is absent while the drawing's column headers are
+   there, and the same print with the device offline still draws everything.
 
 Record the result in the release notes. A claim that has not been checked on a
 phone since the last release is a claim about the code, not about the app.
