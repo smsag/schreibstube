@@ -190,6 +190,14 @@ interface SectionAction {
   fallbackIcon: string;
   /** Named for a screen reader and on hover, because the icon alone is a guess. */
   label: string;
+  /**
+   * Set only by a control that opens and closes its own section.
+   *
+   * The pinned block's chevron is the one: its section has none in the twisty
+   * slot, so this control is where a state that would have been said there has
+   * to be said instead.
+   */
+  expanded?: boolean;
   run: () => void;
 }
 
@@ -710,16 +718,21 @@ export class ExplorerPaneView extends ItemView {
     // wanted. A row in this pane is drawn by this pane. It also stops a control
     // of the section's own from being a button inside a button.
     const header = section.createDiv({
-      cls: `schreibstube-explorer-section-header${id === "files" ? " is-divider" : ""}`,
-      // A header that hides nothing is a label, and says so: a role and a tab
-      // stop on it would promise a keyboard something to press that is not
-      // there. The class is what the pane styles and the drag aims at, either
-      // way.
-      attr: closable ? { role: "button", tabindex: "0", "aria-expanded": String(!collapsed) } : {}
+      cls:
+        `schreibstube-explorer-section-header` +
+        `${id === "files" ? " is-divider" : ""}${closable ? " is-clickable" : ""}`
     });
+
+    // The band is pressable and does not say it is a button, because the things
+    // standing on it are. A button's children are not read out — that is what
+    // the role means — so a header calling itself one would have taken the
+    // chevron beside it and the mark on its icon down with it, which is the
+    // same silence moving one level up. The chevron carries the role instead,
+    // and a pointer still has the whole band.
     const twisty = header.createSpan({ cls: "schreibstube-explorer-twisty" });
     if (closable && options.twisty !== false) {
       applyIcon(twisty, collapsed ? "chevron-right" : "chevron-down");
+      this.wireSectionToggle(twisty, id, collapsed, t().explorer.sections[id]);
     }
 
     // How many there are in all, on the section's own icon: a closed section
@@ -746,21 +759,50 @@ export class ExplorerPaneView extends ItemView {
 
     if (options.action) this.renderSectionAction(header, options.action);
 
-    if (closable) {
-      header.addEventListener("click", () => this.toggleSection(id, collapsed));
-      // What the button it no longer is gave for nothing.
-      header.addEventListener("keydown", (event) => {
-        if (event.key !== "Enter" && event.key !== " ") return;
-        event.preventDefault();
-        this.toggleSection(id, collapsed);
-      });
-    }
+    if (closable) header.addEventListener("click", () => this.toggleSection(id, collapsed));
 
     const body = section.createDiv({ cls: "schreibstube-explorer-section-body" });
     if (!collapsed || options.keepBodyWhenClosed) return body;
 
     body.detach();
     return null;
+  }
+
+  /**
+   * The chevron, as the one thing on the band that says what the band does.
+   *
+   * A pointer has the whole header and always did. This is for everything else:
+   * a name, a state, a tab stop, and a key that works — on the element the eye
+   * was going to anyway.
+   */
+  private wireSectionToggle(
+    twisty: HTMLElement,
+    id: SectionId,
+    collapsed: boolean,
+    label: string
+  ): void {
+    twisty.setAttrs({
+      role: "button",
+      tabindex: "0",
+      "aria-label": label,
+      "aria-expanded": String(!collapsed)
+    });
+    // Drawing an icon marks what it was drawn on as decoration; this one is the
+    // control, and a control nothing can read is worse than one nobody can see.
+    twisty.removeAttribute("aria-hidden");
+
+    const run = (event: Event): void => {
+      // The band under it would otherwise toggle the section a second time,
+      // which is the section not moving at all.
+      event.preventDefault();
+      event.stopPropagation();
+      this.toggleSection(id, collapsed);
+    };
+
+    twisty.addEventListener("click", run);
+    twisty.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") run(event);
+    });
   }
 
   private toggleSection(id: SectionId, collapsed: boolean): void {
@@ -785,7 +827,13 @@ export class ExplorerPaneView extends ItemView {
   private renderSectionAction(header: HTMLElement, action: SectionAction): void {
     const control = header.createSpan({
       cls: "schreibstube-explorer-section-action",
-      attr: { role: "button", tabindex: "0", "aria-label": action.label, title: action.label }
+      attr: {
+        role: "button",
+        tabindex: "0",
+        "aria-label": action.label,
+        title: action.label,
+        ...(action.expanded === undefined ? {} : { "aria-expanded": String(action.expanded) })
+      }
     });
 
     // The glyph goes in a child of the control, never on the control itself:
@@ -878,7 +926,11 @@ export class ExplorerPaneView extends ItemView {
     const body = this.renderSection(shelf, "pinned", "pinned", {
       keepBodyWhenClosed: true,
       total: more ? items.length : 0,
-      closable: items.length > FIXED_PINNED_ROWS,
+      // Only while there is a rest to bring out, which a filter never leaves:
+      // the filter opens the block for as long as it is set, and a band that
+      // took a press while it had nothing to hide would pocket a collapse that
+      // nothing on screen could show and nothing could take back.
+      closable: more,
       forceOpen: filtering,
       // The chevron sits at the far end of the band instead, where the tree's
       // own control is: this one does not open and close a list, it lets the
@@ -892,6 +944,7 @@ export class ExplorerPaneView extends ItemView {
               icon: closed ? "chevron-down" : "chevron-up",
               fallbackIcon: closed ? "chevron-down" : "chevron-up",
               label: closed ? t().explorer.pinnedMore(items.length) : t().explorer.pinnedFewer,
+              expanded: !closed,
               run: () => this.toggleSection("pinned", closed)
             }
           }

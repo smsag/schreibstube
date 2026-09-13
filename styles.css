@@ -573,7 +573,6 @@
   border-radius: 0;
   padding-block: 0;
   box-shadow: none;
-  cursor: pointer;
   /* What a button gave and a div does not. A long press on a label is a phone's
      invitation to select it — the magnifier, the callout, "Copy" — and a press
      on this one belongs to the section it opens. The rows below already say the
@@ -633,6 +632,22 @@
   .schreibstube-explorer .schreibstube-explorer-section-header:hover {
     color: var(--text-normal);
   }
+}
+
+/* A header that hides nothing is a label: it does not offer a pointer a press
+   it will not answer. */
+.schreibstube-explorer .schreibstube-explorer-section-header.is-clickable {
+  cursor: pointer;
+}
+
+/* The chevron is the control on the band, so it is the one thing on it that
+   takes focus — visibly, and in the shape it already has. */
+.schreibstube-explorer
+  .schreibstube-explorer-section-header
+  .schreibstube-explorer-twisty:focus-visible {
+  outline: 1px solid var(--background-modifier-border-focus, var(--text-faint));
+  outline-offset: 1px;
+  border-radius: 2px;
 }
 
 .schreibstube-explorer-section-title {
@@ -729,9 +744,13 @@
 }
 
 /* A folder that would take the dragged row. Outlined rather than lined on one
-   edge, because the row is going inside it rather than next to it. */
+   edge, because the row is going inside it rather than next to it.
+
+   The header is named through the pane, because the pane is what states a
+   header's background for every state it can be in — and a pointer dragged
+   over this one holds it in :hover the whole way across. */
 .schreibstube-explorer-row.is-drop-into,
-.schreibstube-explorer-section-header.is-drop-into {
+.schreibstube-explorer .schreibstube-explorer-section-header.is-drop-into {
   background: var(--nav-item-background-hover, var(--background-modifier-hover));
   box-shadow: inset 0 0 0 1px var(--interactive-accent);
   border-radius: var(--schreibstube-border-radius);
