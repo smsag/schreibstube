@@ -786,7 +786,9 @@ export class ExplorerPaneView extends ItemView {
     row.setAttribute("data-path", file.path);
     row.setAttribute("role", "treeitem");
     if (isFolder) row.addClass("is-folder");
-    if (controller.isPinned(file.path)) row.addClass("is-pinned");
+    // The mark in the tree is the one that explains the row's place, which is
+    // being held at the top of the folder rather than being pinned above it.
+    if (controller.isKept(file.path)) row.addClass("is-pinned");
     if (file instanceof TFile) this.markOpenState(row, file.path);
 
     const twisty = row.createSpan({ cls: "schreibstube-explorer-twisty" });
@@ -797,7 +799,7 @@ export class ExplorerPaneView extends ItemView {
     applyIcon(row.createSpan({ cls: "schreibstube-explorer-glyph" }), this.glyphFor(file));
     row.createSpan({ cls: "schreibstube-explorer-name", text: displayName(file) });
 
-    if (controller.isPinned(file.path)) {
+    if (controller.isKept(file.path)) {
       applyIcon(row.createSpan({ cls: "schreibstube-explorer-pin" }), "pinned");
     }
 

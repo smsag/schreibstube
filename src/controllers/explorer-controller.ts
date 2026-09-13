@@ -27,6 +27,7 @@ import {
   renamePath,
   setIcon,
   reorderPinned,
+  setKept,
   setPinned,
   type ExplorerData
 } from "../services/explorer-state";
@@ -137,6 +138,16 @@ export class ExplorerController {
 
   isPinned(path: string): boolean {
     return entryFor(this.store.data(), path)?.pinnedAt !== undefined;
+  }
+
+  /**
+   * Whether the row is held at the top of its folder.
+   *
+   * What the tree marks, because it is the mark that explains the row's place.
+   * A pin draws a row above the tree and says nothing about this one.
+   */
+  isKept(path: string): boolean {
+    return entryFor(this.store.data(), path)?.keptAt !== undefined;
   }
 
   /**
@@ -275,6 +286,7 @@ export class ExplorerController {
       path: file.path,
       markdown: isFile && file.extension === "md",
       hasIcon: this.iconFor(file.path) !== undefined,
+      kept: this.isKept(file.path),
       pinned: this.isPinned(file.path),
       sync: isFile ? this.badgeFor(file) : "none",
       hasBoundNotes: !isFile && this.getSettings().syncEnabled && this.hasBoundNotes(file.path)
@@ -304,6 +316,10 @@ export class ExplorerController {
         return this.chooseIcon(file);
       case "clear-icon":
         this.store.mutate((data, now) => setIcon(data, file.path, null, now));
+        return;
+      case "keep-top":
+      case "release-top":
+        this.store.mutate((data, now) => setKept(data, file.path, action === "keep-top", now));
         return;
       case "pin":
       case "unpin":

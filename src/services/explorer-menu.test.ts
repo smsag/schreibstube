@@ -16,6 +16,7 @@ function target(overrides: Partial<ExplorerTarget> = {}): ExplorerTarget {
     path: "Objekte/Haus.md",
     markdown: true,
     hasIcon: false,
+    kept: false,
     pinned: false,
     sync: "none",
     ...overrides
@@ -59,6 +60,20 @@ describe("buildExplorerMenu", () => {
     expect(ids(buildExplorerMenu(target({ pinned: true }), "off"))).toContain("unpin");
   });
 
+  it("offers the two marks separately, the folder's top first", () => {
+    const [, appearance] = buildExplorerMenu(target(), "off");
+
+    expect(appearance.items.map((item) => item.id)).toEqual(["set-icon", "keep-top", "pin"]);
+  });
+
+  it("offers the opposite of the current top state, whatever the pin says", () => {
+    expect(ids(buildExplorerMenu(target({ kept: true }), "off"))).toContain("release-top");
+    expect(ids(buildExplorerMenu(target({ kept: true, pinned: true }), "off"))).toEqual(
+      expect.arrayContaining(["release-top", "unpin"])
+    );
+    expect(ids(buildExplorerMenu(target({ pinned: true }), "off"))).toContain("keep-top");
+  });
+
   it("offers to bind an unbound note, and to refresh a bound one", () => {
     expect(ids(buildExplorerMenu(target(), "off"))).toContain("bind-source");
 
@@ -85,6 +100,7 @@ describe("buildExplorerMenu", () => {
 
     expect(ids(sections)).toEqual([
       "set-icon",
+      "keep-top",
       "pin",
       "sync-folder",
       "new-note",

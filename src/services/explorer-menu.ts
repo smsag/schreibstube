@@ -19,6 +19,8 @@ export type ExplorerAction =
   | "open-new-tab"
   | "set-icon"
   | "clear-icon"
+  | "keep-top"
+  | "release-top"
   | "pin"
   | "unpin"
   | "bind-source"
@@ -40,6 +42,9 @@ export interface ExplorerTarget {
   /** Only a Markdown note can be bound to a source. */
   markdown: boolean;
   hasIcon: boolean;
+  /** Held at the top of the folder it sits in. */
+  kept: boolean;
+  /** Drawn in the pinned block above the tree. */
   pinned: boolean;
   /** "none" when the note carries no binding. */
   sync: SyncBadge;
@@ -108,6 +113,14 @@ export function buildExplorerMenu(
   if (target.hasIcon) {
     appearance.push({ id: "clear-icon", label: menu.clearIcon, icon: "image-off" });
   }
+  // The two marks, in the order they are reached for. Keeping a file at the top
+  // of its folder is the everyday one — this note first, in this folder —
+  // while pinning is the rarer "wherever I am, I want this row".
+  appearance.push(
+    target.kept
+      ? { id: "release-top", label: menu.releaseTop, icon: "arrow-down-to-line" }
+      : { id: "keep-top", label: menu.keepTop, icon: "arrow-up-to-line" }
+  );
   appearance.push(
     target.pinned
       ? { id: "unpin", label: menu.unpin, icon: "pin-off" }

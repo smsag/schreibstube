@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Changed
+
+- **A pin and the top of a folder are now two separate marks.** One flag meant both: marking a file as the one that matters inside its folder also put a row in the **Pinned** block above the tree, whether or not it belonged there — and a vault where a dozen folders each have a first file ended up with a pinned block naming all twelve. **Keep at top of folder** is now its own entry on the context menu and is the mark the tree draws, because it is the one that explains why a row sits where it does. **Add to Pinned** stays what it always was: wherever I am, I want this row. A file can carry both, either, or neither, and removing one leaves the other alone. Everything pinned before this version keeps both, which is what a pin did when it was set, so nothing moves on upgrade.
+
 ## 1.17.0 - 2026-09-13
 
 ### Added
