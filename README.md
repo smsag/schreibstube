@@ -440,6 +440,7 @@ The token is deliberately separate from the mail token, so a leaked publish toke
 | -------------------------------------- | ----------------------------------------------------------------- |
 | [`ARCHITECTURE.md`](ARCHITECTURE.md)   | What runs in the vault, what runs on the bridge, and what crosses |
 | [`PUBLISHING.md`](PUBLISHING.md)       | Why publishing is shaped this way                                 |
+| [`PRINTING.md`](PRINTING.md)           | Printing a note to PDF through a Typst template: the plan         |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md)   | Setup, the checks, the mobile checklist, releasing                |
 | [`bridge/README.md`](bridge/README.md) | The bridge's API, configuration and deployment                    |
 | [`SECURITY.md`](SECURITY.md)           | What holds a secret, the perimeter, how to report                 |
