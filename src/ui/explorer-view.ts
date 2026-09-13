@@ -166,8 +166,8 @@ type SectionId = "pinned" | "bookmarks" | "latest" | "files";
 interface SectionOptions {
   /** Draw the body even while closed, for a section that keeps some of it. */
   keepBodyWhenClosed?: boolean;
-  /** How many rows are being held back, named on the header while closed. */
-  hidden?: number;
+  /** How many rows the section holds in all, named on the header while closed. */
+  total?: number;
   /** False when there is nothing behind the chevron, so it is not drawn. */
   closable?: boolean;
   /** Drawn open whatever was remembered, for as long as a filter is set. */
@@ -643,13 +643,13 @@ export class ExplorerPaneView extends ItemView {
       text: t().explorer.sections[id]
     });
 
-    // What a closed section is holding back, since with rows still on screen it
-    // does not look closed.
-    const hidden = collapsed ? (options.hidden ?? 0) : 0;
-    if (hidden > 0) {
+    // How many there are in all, since a closed section showing rows does not
+    // look closed and the rows on screen are not the whole of it.
+    const total = collapsed ? (options.total ?? 0) : 0;
+    if (total > 0) {
       header.createSpan({
         cls: "schreibstube-explorer-section-hidden",
-        text: t().explorer.moreHidden(hidden)
+        text: t().explorer.sectionCount(total)
       });
     }
 
@@ -693,10 +693,13 @@ export class ExplorerPaneView extends ItemView {
     // A filter opens the block for as long as it is set. A row that matches
     // what was typed must not be the one row the chevron is sitting on.
     const filtering = this.query.length > 0;
-    const hidden = filtering ? 0 : Math.max(0, items.length - FIXED_PINNED_ROWS);
+    // Closed, the header carries the number of pins there are — the three on
+    // the strip are not the block, and the count says how much of it is behind
+    // the chevron without arithmetic.
+    const more = !filtering && items.length > FIXED_PINNED_ROWS;
     const body = this.renderSection(shelf, "pinned", "pinned", {
       keepBodyWhenClosed: true,
-      hidden,
+      total: more ? items.length : 0,
       closable: items.length > FIXED_PINNED_ROWS,
       forceOpen: filtering
     });

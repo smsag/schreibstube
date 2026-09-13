@@ -300,7 +300,7 @@ export const enExtra = {
     clearFilter: "Clear the filter",
     filterMore: (count: number) => `${count} more match. Narrow the filter to see them.`,
     collapseAll: "Collapse all",
-    moreHidden: (count: number) => `(${count} more)`,
+    sectionCount: (count: number) => `(${count})`,
 
     move: {
       intoItself: (name: string) => `${name} cannot be moved inside itself.`,
