@@ -14,6 +14,11 @@ import { fetchSource } from "../services/sync-fetcher";
 import { resolveSourceUrl, SYNC_FRONTMATTER_KEY } from "../services/sync-source";
 import { diffHunks } from "../services/line-diff";
 import {
+  planSyncFrontmatter,
+  SYNC_TITLE_KEY,
+  SYNC_UPDATED_KEY
+} from "../services/sync-frontmatter";
+import {
   hashText,
   normalizeNewlines,
   splitNote,
@@ -212,24 +217,75 @@ export class SyncPoller {
         hash: record?.hash ?? hashText(body),
         etag: outcome.etag,
         checkedAt,
-        pendingChanges: record?.pendingChanges ?? 0
+        pendingChanges: record?.pendingChanges ?? 0,
+        ...(record?.remoteHash ? { remoteHash: record.remoteHash } : {})
       };
+      // Nothing came back to read a title out of, but the note's own body may
+      // still hold one, and a note without a title has never had it written.
+      await this.writeFrontmatter(file, null, body, false);
       return;
     }
 
     const remoteBody = stripRemoteFrontmatter(outcome.body);
     const changes = diffHunks(body, remoteBody).length;
+    const remoteHash = hashText(remoteBody);
+
+    // "Changed" from the fetch only means the validator did not match, and once
+    // changes are waiting there is no validator to match: the source's own hash
+    // is what says whether the document moved. A first fetch is not a change —
+    // arriving is not changing — so there is nothing to compare against yet.
+    const remoteChanged = record?.remoteHash !== undefined && record.remoteHash !== remoteHash;
 
     updates[file.path] = {
       hash: changes === 0 ? hashText(body) : (record?.hash ?? hashText(body)),
       etag: outcome.etag,
       checkedAt,
-      pendingChanges: changes
+      pendingChanges: changes,
+      remoteHash
     };
+
+    await this.writeFrontmatter(file, remoteBody, body, remoteChanged);
 
     if (changes > 0) {
       summary.withChanges += 1;
       summary.notes.push(file.path);
+    }
+  }
+
+  /**
+   * Keep the note's own `title` and `updatedAt` current.
+   *
+   * Written into the note rather than into the plugin's bookkeeping, so the two
+   * things a mirrored document has — a name and the date it last changed — are
+   * visible in Obsidian's own properties, searchable, and left behind if the
+   * plugin ever is. The frontmatter is not part of the diff, so writing here
+   * cannot turn into a change the next check reports.
+   */
+  private async writeFrontmatter(
+    file: TFile,
+    remoteBody: string | null,
+    noteBody: string,
+    remoteChanged: boolean
+  ): Promise<void> {
+    const plan = planSyncFrontmatter({
+      frontmatter: this.app.metadataCache.getFileCache(file)?.frontmatter,
+      remoteBody,
+      noteBody,
+      remoteChanged,
+      now: new Date()
+    });
+
+    if (plan.title === undefined && plan.updatedAt === undefined) return;
+
+    try {
+      await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
+        if (plan.title !== undefined) frontmatter[SYNC_TITLE_KEY] = plan.title;
+        if (plan.updatedAt !== undefined) frontmatter[SYNC_UPDATED_KEY] = plan.updatedAt;
+      });
+    } catch (err) {
+      // A note whose properties could not be written is still a note that was
+      // checked; the check is not failed over its bookkeeping.
+      this.logger.warn(`Could not write properties for ${file.path}:`, err);
     }
   }
 
