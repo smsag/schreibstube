@@ -2,7 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## 1.23.0 - 2026-09-13
+
+Mobile checklist: not run for this release. The file pane's view was split
+into modules with every function moved verbatim, which is a claim about the
+code; ten minutes on a phone before relying on it is still worth having.
 
 ### Changed
 

@@ -26,12 +26,13 @@ compatible. `/health` reports what a deployment is actually running, and the
 plugin says plainly when the bridge is behind rather than failing later on a
 route that does not exist yet.
 
-| Bridge | Protocol | Plugin          | Notes                                             |
-| ------ | -------- | --------------- | ------------------------------------------------- |
-| 2.2.x  | 1        | 1.8.0 and later | Per-target switches, publish history, JSON logs   |
-| 2.1.x  | 1        | 1.8.0 and later | Mail and publishing                               |
-| 2.0.x  | 1        | 1.8.0 and later | Mail only; `BRIDGE_TOKEN` renamed to `MAIL_TOKEN` |
-| 1.0.x  | —        | 1.7.0           | Mail only, single token, no version handshake     |
+| Bridge | Protocol | Plugin          | Notes                                                |
+| ------ | -------- | --------------- | ---------------------------------------------------- |
+| 2.3.x  | 1        | 1.8.0 and later | `TRUST_PROXY`, Node 24, image without Mermaid's tree |
+| 2.2.x  | 1        | 1.8.0 and later | Per-target switches, publish history, JSON logs      |
+| 2.1.x  | 1        | 1.8.0 and later | Mail and publishing                                  |
+| 2.0.x  | 1        | 1.8.0 and later | Mail only; `BRIDGE_TOKEN` renamed to `MAIL_TOKEN`    |
+| 1.0.x  | —        | 1.7.0           | Mail only, single token, no version handshake        |
 
 ## Capabilities
 
