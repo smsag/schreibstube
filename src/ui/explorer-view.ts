@@ -759,7 +759,15 @@ export class ExplorerPaneView extends ItemView {
 
     if (options.action) this.renderSectionAction(header, options.action);
 
-    if (closable) header.addEventListener("click", () => this.toggleSection(id, collapsed));
+    // With a mark on it the whole band is the way to take it down — the chevron
+    // excepted, which stops the press at itself and goes on opening and closing
+    // the section. Without a mark the band is the toggle it always was.
+    const alert = options.alert;
+    if (alert) {
+      header.addEventListener("click", () => this.acknowledgeAlert(id, alert));
+    } else if (closable) {
+      header.addEventListener("click", () => this.toggleSection(id, collapsed));
+    }
 
     const body = section.createDiv({ cls: "schreibstube-explorer-section-body" });
     if (!collapsed || options.keepBodyWhenClosed) return body;
@@ -875,27 +883,41 @@ export class ExplorerPaneView extends ItemView {
    * what it was about.
    */
   private renderSectionAlert(glyph: HTMLElement, id: SectionId, alert: SectionAlert): void {
+    // A dot, in the colour the interface uses for its own voice. It says one
+    // thing — something came in — and a figure or a character beside it would
+    // be answering a question nobody asked of a mark this size. The list under
+    // the header says which notes, exactly.
+    //
+    // The band around it is what a finger presses; this is a control as well,
+    // so the same thing can be reached by a keyboard.
     const mark = glyph.createSpan({
-      cls: "schreibstube-explorer-count is-alert",
-      text: "!",
+      cls: "schreibstube-explorer-alert",
       attr: { role: "button", tabindex: "0", "aria-label": alert.label, title: alert.label }
     });
 
     const run = (event: Event): void => {
       event.preventDefault();
       event.stopPropagation();
-      // Opened rather than toggled: the mark is an invitation to look, and a
-      // tap that answered it by closing the list would be a joke.
-      this.collapsedSections.delete(id);
-      this.writeMemory();
-      alert.acknowledge();
-      this.requestRender();
+      this.acknowledgeAlert(id, alert);
     };
 
     mark.addEventListener("click", run);
     mark.addEventListener("keydown", (event) => {
       if (event.key === "Enter" || event.key === " ") run(event);
     });
+  }
+
+  /**
+   * Take the mark down, and show what it was about.
+   *
+   * Opened rather than toggled: the mark is an invitation to look, and a press
+   * that answered it by closing the list would be a joke.
+   */
+  private acknowledgeAlert(id: SectionId, alert: SectionAlert): void {
+    this.collapsedSections.delete(id);
+    this.writeMemory();
+    alert.acknowledge();
+    this.requestRender();
   }
 
   private renderPinned(shelf: HTMLElement, scroller: HTMLElement): void {

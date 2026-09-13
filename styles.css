@@ -473,6 +473,27 @@
   padding-right: 26px;
 }
 
+/* The field sits at the very top of a pane that clips what leaves it, and a
+   focus ring drawn outside the box loses its upper edge to that clip — half a
+   rectangle, which reads as a rendering fault rather than as focus. So focus is
+   said on the inside: the same box, a line drawn within it, nothing to crop.
+   Stated for both, because the ring comes from a border and a shadow at once
+   and taking away one leaves the other. */
+.schreibstube-explorer .schreibstube-explorer-filter,
+.schreibstube-explorer .schreibstube-explorer-filter:hover {
+  border: none;
+  box-shadow: none;
+  background-color: var(--background-modifier-form-field);
+}
+
+.schreibstube-explorer .schreibstube-explorer-filter:focus,
+.schreibstube-explorer .schreibstube-explorer-filter:focus-visible,
+.schreibstube-explorer .schreibstube-explorer-filter:active {
+  border: none;
+  outline: none;
+  box-shadow: inset 0 0 0 1px var(--background-modifier-border-focus, var(--text-faint));
+}
+
 .schreibstube-explorer .schreibstube-explorer-filter-clear {
   position: absolute;
   right: 3px;
@@ -862,23 +883,35 @@
    of it is new. It is a control, so it takes the pointer events the figure
    refuses, and it is given a box worth aiming at — nine pixels of glyph is not
    a target for a finger. */
-.schreibstube-explorer-count.is-alert {
+/* Something came in: a dot on the section's icon, in the colour the interface
+   speaks in. It is the corner a closed folder puts its count in, saying the one
+   thing a mark this size can say — the list under the header says which notes.
+
+   Pressable itself, so a keyboard can reach it, though a finger has the whole
+   band the header occupies. */
+.schreibstube-explorer-alert {
+  position: absolute;
+  right: -3px;
+  bottom: -2px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
   background: var(--interactive-accent);
-  color: var(--text-on-accent);
-  pointer-events: auto;
+  /* Against the row it sits on, so the dot keeps its shape over a folder icon
+     rather than merging into whatever is behind it. */
+  box-shadow: 0 0 0 1.5px var(--schreibstube-ground, var(--background-secondary));
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
 
-.schreibstube-explorer-count.is-alert::after {
-  content: "";
-  position: absolute;
-  inset: -7px;
+.schreibstube-explorer-alert:focus-visible {
+  outline: 1px solid var(--background-modifier-border-focus, var(--text-faint));
+  outline-offset: 2px;
 }
 
 /* A row under the pointer paints its own background; the badge would otherwise
    read as a hole in it. */
-.schreibstube-explorer-row:hover .schreibstube-explorer-count:not(.is-alert) {
+.schreibstube-explorer-row:hover .schreibstube-explorer-count {
   background: var(--background-modifier-border-hover, var(--background-modifier-border));
 }
 
