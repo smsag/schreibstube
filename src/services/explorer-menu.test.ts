@@ -16,7 +16,6 @@ function target(overrides: Partial<ExplorerTarget> = {}): ExplorerTarget {
     path: "Objekte/Haus.md",
     markdown: true,
     hasIcon: false,
-    hasTitle: false,
     kept: false,
     pinned: false,
     bound: false,
@@ -64,25 +63,7 @@ describe("buildExplorerMenu", () => {
   it("offers the two marks separately, the folder's top first", () => {
     const [, appearance] = buildExplorerMenu(target(), "off");
 
-    expect(appearance.items.map((item) => item.id)).toEqual([
-      "set-icon",
-      "set-title",
-      "keep-top",
-      "pin"
-    ]);
-  });
-
-  it("offers to take a name back only once one has been given", () => {
-    expect(ids(buildExplorerMenu(target(), "off"))).not.toContain("clear-title");
-    expect(ids(buildExplorerMenu(target({ hasTitle: true }), "off"))).toContain("clear-title");
-  });
-
-  it("names the entry for what it does, as the icon entry does", () => {
-    const [, plain] = buildExplorerMenu(target(), "off");
-    const [, named] = buildExplorerMenu(target({ hasTitle: true }), "off");
-
-    expect(plain.items[1].label).toBe("Name in the pane…");
-    expect(named.items[1].label).toBe("Change the name in the pane…");
+    expect(appearance.items.map((item) => item.id)).toEqual(["set-icon", "keep-top", "pin"]);
   });
 
   it("offers the opposite of the current top state, whatever the pin says", () => {
@@ -125,7 +106,6 @@ describe("buildExplorerMenu", () => {
 
     expect(ids(sections)).toEqual([
       "set-icon",
-      "set-title",
       "keep-top",
       "pin",
       "sync-folder",

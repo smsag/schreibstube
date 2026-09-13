@@ -39,16 +39,6 @@ export const ORPHAN_GRACE_MS = 30 * 24 * 60 * 60 * 1000;
 export interface ExplorerEntry {
   /** Icon name from the catalogue, absent when none is set. */
   icon?: string;
-  /**
-   * What to call this file in the pane, when its name is not what a person
-   * would look for.
-   *
-   * Obsidian's own properties are Markdown-only, so a PDF, an image or a
-   * spreadsheet has nothing but its filename — which is why this is held here
-   * and not in the file. It is never written to the file, and a note that
-   * carries a `title` of its own is not overruled by it.
-   */
-  title?: string;
   /** When the item was pinned to the block above the tree, which is also its
    *  order within that block. */
   pinnedAt?: number;
@@ -120,7 +110,6 @@ function parseEntry(value: unknown): ExplorerEntry | null {
   };
 
   if (typeof record.icon === "string" && record.icon.length > 0) entry.icon = record.icon;
-  if (typeof record.title === "string" && record.title.length > 0) entry.title = record.title;
   if (Number.isFinite(record.pinnedAt)) entry.pinnedAt = Number(record.pinnedAt);
   if (Number.isFinite(record.keptAt)) entry.keptAt = Number(record.keptAt);
   if (typeof record.name === "string" && record.name.length > 0) entry.name = record.name;
@@ -158,11 +147,6 @@ export function isPinned(data: ExplorerData, path: string): boolean {
   return entryFor(data, path)?.pinnedAt !== undefined;
 }
 
-/** What the pane was told to call this file, if anything. */
-export function titleOf(data: ExplorerData, path: string): string | undefined {
-  return entryFor(data, path)?.title;
-}
-
 /** Whether the item is held at the top of the folder it sits in. */
 export function isKept(data: ExplorerData, path: string): boolean {
   return entryFor(data, path)?.keptAt !== undefined;
@@ -195,29 +179,6 @@ export function setIcon(
       return rest;
     }
     return { ...entry, icon };
-  });
-}
-
-/**
- * Name a file in the pane, or take the name back.
- *
- * Folded onto one line and trimmed, because a row is one line high and a title
- * that is only whitespace is not a title.
- */
-export function setTitle(
-  data: ExplorerData,
-  path: string,
-  title: string | null,
-  now: number
-): ExplorerData {
-  const cleaned = title === null ? "" : title.replace(/\s+/g, " ").trim();
-
-  return withEntry(data, path, now, (entry) => {
-    if (cleaned.length === 0) {
-      const { title: _removed, ...rest } = entry;
-      return rest;
-    }
-    return { ...entry, title: cleaned };
   });
 }
 
@@ -404,7 +365,6 @@ export function pruneExplorerData(
       entry.orphanedAt !== undefined
         ? now - entry.orphanedAt > graceMs
         : entry.icon === undefined &&
-          entry.title === undefined &&
           entry.pinnedAt === undefined &&
           entry.keptAt === undefined &&
           now - entry.updatedAt > graceMs;

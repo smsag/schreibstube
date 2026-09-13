@@ -291,9 +291,6 @@ export const enExtra = {
       setIcon: "Set icon…",
       changeIcon: "Change icon…",
       clearIcon: "Remove icon",
-      setTitle: "Name in the pane…",
-      changeTitle: "Change the name in the pane…",
-      clearTitle: "Use the filename again",
       keepTop: "Keep at top of folder",
       releaseTop: "Stop keeping at top",
       pin: "Add to Pinned",
@@ -309,13 +306,6 @@ export const enExtra = {
       move: "Move to…",
       delete: "Delete",
       more: "More actions"
-    },
-
-    titles: {
-      title: "Name in the pane",
-      desc: "Shown instead of the filename, in this pane only. The file keeps its name, and nothing is written to it.",
-      placeholder: "What you would look for",
-      submit: "Save"
     },
 
     icons: {

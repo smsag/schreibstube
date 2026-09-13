@@ -100,7 +100,7 @@ before it can become a row on a screen.
 
 ## Why the file pane has its own state file
 
-Names, icons and the two marks are keyed by vault path, and they live in `explorer.json` beside
+Icons and the two marks are keyed by vault path, and they live in `explorer.json` beside
 `data.json` rather than inside it. `data.json` is saved by writing the whole
 settings object, so a second device holding a stale copy in memory overwrites
 everything the first one wrote — mailbox and publishing state included. A

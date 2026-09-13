@@ -521,7 +521,11 @@ export class ExplorerPaneView extends ItemView {
 
     // A filter has to match what the row shows as well as what the file is
     // called, or typing the name on screen would hide the row showing it.
-    const items = controller.pinnedItems().filter((file) => this.rowMatches(file, true));
+    const items = controller
+      .pinnedItems()
+      .filter(
+        (file) => this.matchesQuery(file.name) || this.matchesQuery(controller.titleFor(file) ?? "")
+      );
     if (items.length === 0) return;
 
     const order = items.map((file) => file.path);
@@ -553,7 +557,7 @@ export class ExplorerPaneView extends ItemView {
     // below keeps filenames: that is where a file is looked for by name.
     row.createSpan({
       cls: "schreibstube-explorer-name",
-      text: controller.storedTitleFor(file.path) ?? controller.titleFor(file) ?? displayName(file)
+      text: controller.titleFor(file) ?? displayName(file)
     });
     if (file instanceof TFile) this.renderBadge(row, file);
 
@@ -691,12 +695,7 @@ export class ExplorerPaneView extends ItemView {
     label: string,
     files: readonly LatestCandidate[]
   ): number {
-    const controller = this.host?.explorer;
-    const matching = files.filter(
-      (file) =>
-        this.matchesQuery(file.name) ||
-        this.matchesQuery(controller?.storedTitleFor(file.path) ?? "")
-    );
+    const matching = files.filter((file) => this.matchesQuery(file.name));
     if (matching.length === 0) return 0;
 
     host.createDiv({ cls: "schreibstube-explorer-subheading", text: label });
@@ -709,10 +708,7 @@ export class ExplorerPaneView extends ItemView {
 
       row.createSpan({ cls: "schreibstube-explorer-twisty" });
       applyIcon(row.createSpan({ cls: "schreibstube-explorer-glyph" }), "file-text");
-      row.createSpan({
-        cls: "schreibstube-explorer-name",
-        text: controller?.storedTitleFor(file.path) ?? file.name
-      });
+      row.createSpan({ cls: "schreibstube-explorer-name", text: file.name });
 
       row.addEventListener("click", () => void this.host?.sections.openLatest(file.path));
     }
@@ -764,7 +760,7 @@ export class ExplorerPaneView extends ItemView {
         continue;
       }
 
-      if (!this.rowMatches(child)) continue;
+      if (!this.matchesQuery(child.name)) continue;
       this.renderRow(host, child, depth);
       drawn += 1;
     }
@@ -774,42 +770,12 @@ export class ExplorerPaneView extends ItemView {
 
   private folderMatches(folder: TFolder): boolean {
     return folder.children.some((child) =>
-      child instanceof TFolder ? this.folderMatches(child) : this.rowMatches(child)
+      child instanceof TFolder ? this.folderMatches(child) : this.matchesQuery(child.name)
     );
   }
 
   private matchesQuery(name: string): boolean {
     return this.query.length === 0 || name.toLowerCase().includes(this.query);
-  }
-
-  /**
-   * What a row says: what the pane was told to call the file, else its name.
-   *
-   * A stored name is typed for one file by hand, so it is drawn wherever that
-   * file appears. A note's own frontmatter `title` is not consulted here — it
-   * belongs to every note at once, and the tree is where a file is looked for
-   * by the name it actually has. The pinned block asks for both.
-   */
-  private labelFor(file: TAbstractFile): string {
-    return this.host?.explorer.storedTitleFor(file.path) ?? displayName(file);
-  }
-
-  /**
-   * Whether the filter keeps this row.
-   *
-   * Everything the row could be known by, not only what it happens to show:
-   * a file named in the pane is still findable by its filename, and one found
-   * by its filename still shows the name it was given.
-   */
-  private rowMatches(file: TAbstractFile, includeNoteTitle = false): boolean {
-    if (this.query.length === 0) return true;
-    const controller = this.host?.explorer;
-
-    return (
-      this.matchesQuery(file.name) ||
-      this.matchesQuery(controller?.storedTitleFor(file.path) ?? "") ||
-      (includeNoteTitle && this.matchesQuery(controller?.titleFor(file) ?? ""))
-    );
   }
 
   /** A filter expands the tree for as long as it is set, without disturbing
