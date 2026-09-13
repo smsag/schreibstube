@@ -44,6 +44,8 @@ export interface ConvertOptions {
    * page that lies about what the note says.
    */
   diagramImage?: (block: DiagramBlock) => readonly string[] | null;
+  /** What the plugin that drew it calls it, when it has a name for it. */
+  diagramTitle?: (block: DiagramBlock) => string | null;
   /** The same for an embedded image: a path inside the job, or null. */
   image?: (request: ImageRequest) => string | null;
 }
@@ -228,7 +230,8 @@ class Converter {
       // every picture that was captured, not the first of them.
       const paths = this.options.diagramImage?.(block) ?? null;
       if (paths !== null && paths.length > 0) {
-        return `#schreibstube-diagram(${typstArray(paths)}, ${quote(block.caption)})\n`;
+        const caption = diagramCaption(block.caption, this.options.diagramTitle?.(block) ?? "");
+        return `#schreibstube-diagram(${typstArray(paths)}, ${quote(caption)})\n`;
       }
       this.warnings.push(`${language}: could not be drawn, printed as source`);
     }
@@ -605,6 +608,21 @@ export function escapeText(text: string): string {
   return escaped.replace(/^(\s*)([=+/-]|\d+[.)])/gm, (_all, space: string, token: string) => {
     return `${space}\\${token}`;
   });
+}
+
+/**
+ * What to write under a drawing.
+ *
+ * The note first: a heading above the fence is what the person writing the note
+ * chose to call it, in the words of the document it belongs to. A canvas's own
+ * title is the drawing's name for itself, which is better than nothing and
+ * worse than that. Neither, and the picture stands unlabelled rather than
+ * carrying a caption nobody wrote.
+ */
+export function diagramCaption(fromNote: string, fromDrawing: string): string {
+  const note = fromNote.trim();
+  if (note.length > 0) return note;
+  return fromDrawing.trim();
 }
 
 function quote(value: string): string {

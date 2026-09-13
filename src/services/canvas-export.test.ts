@@ -5,6 +5,7 @@ import {
   canvasExportApi,
   checkExportResult,
   exportErrorCode,
+  isElementLike,
   NO_ENRICH_CLASS,
   noEnrichClass
 } from "./workspace-internals";
@@ -137,5 +138,31 @@ describe("the no-enrich class", () => {
       const api = canvasExportApi(appWith({ ...complete, noEnrichClass: bad }), "vizardry");
       expect(noEnrichClass(api)).toBe(NO_ENRICH_CLASS);
     }
+  });
+});
+
+describe("isElementLike", () => {
+  // Shapes rather than real nodes: these tests run without a document, which
+  // is the point — the check must not depend on one particular window's idea
+  // of what an element is.
+  const element = { nodeType: 1, classList: { add() {}, remove() {} } };
+
+  it("takes an element, including one from another window", () => {
+    // A note in a pop-out window has its own realm, so its elements fail
+    // `instanceof HTMLElement` against this one while being perfectly good
+    // elements. What matters is what it can do, not which document made it.
+    expect(isElementLike(element)).toBe(true);
+  });
+
+  it("refuses a node that is not an element", () => {
+    expect(isElementLike({ nodeType: 3, classList: {} })).toBe(false);
+    expect(isElementLike({ nodeType: 9, classList: {} })).toBe(false);
+  });
+
+  it("refuses anything that is not a node at all", () => {
+    expect(isElementLike(null)).toBe(false);
+    expect(isElementLike(undefined)).toBe(false);
+    expect(isElementLike("div")).toBe(false);
+    expect(isElementLike({ nodeType: 1 })).toBe(false);
   });
 });

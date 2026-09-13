@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { escapeText, markdownToTypst } from "./markdown-typst";
+import { diagramCaption, escapeText, markdownToTypst } from "./markdown-typst";
 
 const convert = (source: string, options = {}): string =>
   markdownToTypst(source, options).body.trim();
@@ -256,5 +256,52 @@ describe("the sample documents", () => {
     expect(conversion.body).toContain("==== #strong[Senior Technical PM]");
     expect(conversion.body).toContain("===== #emph[Propstack GmbH] | #emph[Oktober 2025 – heute]");
     expect(conversion.body).toContain("- Ein Punkt mit 3.000 Anfragen.");
+  });
+});
+
+describe("diagramCaption", () => {
+  it("prefers what the note calls it", () => {
+    expect(diagramCaption("Der Ablauf", "Wardley Map")).toBe("Der Ablauf");
+  });
+
+  it("falls back to what the drawing calls itself", () => {
+    expect(diagramCaption("", "Wardley Map")).toBe("Wardley Map");
+    expect(diagramCaption("   ", "Wardley Map")).toBe("Wardley Map");
+  });
+
+  it("leaves a picture unlabelled rather than inventing a label", () => {
+    expect(diagramCaption("", "")).toBe("");
+    expect(diagramCaption("  ", "  ")).toBe("");
+  });
+
+  it("trims, because a heading carries its own spacing", () => {
+    expect(diagramCaption("  Der Ablauf  ", "")).toBe("Der Ablauf");
+  });
+});
+
+describe("a diagram the drawing named itself", () => {
+  const withHeading = "## Der Ablauf\n\n```vizardry\ncanvas: wardley\n```";
+  const bare = "```vizardry\ncanvas: wardley\n```";
+  const drawn = {
+    diagramImage: () => ["assets/diagram-0-0.png"],
+    diagramTitle: () => "Wardley Map"
+  };
+
+  it("keeps the heading when the note gave one", () => {
+    expect(markdownToTypst(withHeading, drawn).body).toContain('"Der Ablauf"');
+  });
+
+  it("uses the drawing's own name when the note gave none", () => {
+    expect(markdownToTypst(bare, drawn).body).toContain('"Wardley Map"');
+  });
+
+  it("carries a fence through whatever the fence says inside it", () => {
+    // A canvas that renders minimized is still a canvas, and its source is
+    // passed through untouched: what the fence means is the plugin's business.
+    const collapsed = "```vizardry\ncanvas: wardley\ncollapsed: true\n```";
+    const conversion = markdownToTypst(collapsed, drawn);
+    expect(conversion.diagrams).toHaveLength(1);
+    expect(conversion.diagrams[0]?.source).toContain("collapsed: true");
+    expect(conversion.body).toContain("#schreibstube-diagram");
   });
 });
