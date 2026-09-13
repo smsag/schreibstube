@@ -322,3 +322,15 @@ describe("isoDate", () => {
     expect(isoDate(new Date(2026, 0, 5).getTime())).toBe("2026-01-05");
   });
 });
+
+describe("referencedAttachments and a name that is not a URI", () => {
+  it("keeps a percent that escapes nothing, rather than throwing", () => {
+    // decodeURI refuses "100%-" outright, and the throw came out of the plan
+    // for the whole publish: one such file and nothing was published at all.
+    expect(referencedAttachments("![f](100%-Finanzierung.png)")).toEqual(["100%-Finanzierung.png"]);
+  });
+
+  it("still decodes an escape that is valid", () => {
+    expect(referencedAttachments("![f](Grundriss%20EG.png)")).toEqual(["Grundriss EG.png"]);
+  });
+});
