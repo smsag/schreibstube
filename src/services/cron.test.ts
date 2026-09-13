@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { setLanguage } from "../i18n";
 import {
-  CRON_PRESETS,
+  cronPresets,
   matchesCron,
   minuteOf,
   nextRun,
@@ -9,6 +10,10 @@ import {
   shouldFire,
   type CronSchedule
 } from "./cron";
+
+// The refusals are read by a person, so they are translated; the suite fixes a
+// language rather than asserting whichever one happens to be set.
+setLanguage("en");
 
 function schedule(expression: string): CronSchedule {
   const result = parseCron(expression);
@@ -78,24 +83,24 @@ describe("parseCron", () => {
   });
 
   it("rejects the wrong number of fields", () => {
-    expect(reason("* * * *")).toContain("Fünf Felder");
-    expect(reason("* * * * * *")).toContain("Fünf Felder");
+    expect(reason("* * * *")).toContain("Five fields");
+    expect(reason("* * * * * *")).toContain("Five fields");
   });
 
   it("rejects an empty expression", () => {
-    expect(reason("   ")).toContain("Kein Ausdruck");
+    expect(reason("   ")).toContain("No expression");
   });
 
   it("rejects an out-of-range value", () => {
     expect(reason("60 * * * *")).toContain("Minute");
-    expect(reason("* 24 * * *")).toContain("Stunde");
-    expect(reason("* * 32 * *")).toContain("Tag");
-    expect(reason("* * * 13 *")).toContain("Monat");
-    expect(reason("* * * * 8")).toContain("Wochentag");
+    expect(reason("* 24 * * *")).toContain("Hour");
+    expect(reason("* * 32 * *")).toContain("Day of month");
+    expect(reason("* * * 13 *")).toContain("Month");
+    expect(reason("* * * * 8")).toContain("Weekday");
   });
 
   it("rejects an inverted range", () => {
-    expect(reason("* 11-9 * * *")).toContain("Stunde");
+    expect(reason("* 11-9 * * *")).toContain("Hour");
   });
 
   it("rejects a zero or negative step", () => {
@@ -103,12 +108,12 @@ describe("parseCron", () => {
   });
 
   it("rejects nonsense", () => {
-    expect(reason("jeden tag um acht")).toContain("Fünf Felder");
+    expect(reason("jeden tag um acht")).toContain("Five fields");
     expect(reason("a * * * *")).toContain("Minute");
   });
 
   it("parses every preset", () => {
-    for (const preset of CRON_PRESETS) {
+    for (const preset of cronPresets()) {
       expect(parseCron(preset.expression).ok).toBe(true);
     }
   });

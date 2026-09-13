@@ -332,6 +332,35 @@ export const de: Messages = {
     failSummarize: "Schreibstube: Zusammenfassen fehlgeschlagen"
   },
 
+  cron: {
+    empty: "Kein Ausdruck angegeben.",
+    fieldCount: (found: number) =>
+      `Fünf Felder erwartet (Minute Stunde Tag Monat Wochentag), ${found} gefunden.`,
+    invalidField: (name: string, value: string) => `Feld ${name}: "${value}" ist ungültig.`,
+    fields: {
+      minute: "Minute",
+      hour: "Stunde",
+      dayOfMonth: "Tag des Monats",
+      month: "Monat",
+      dayOfWeek: "Wochentag"
+    },
+    presets: {
+      hourly: "Stündlich",
+      everyFourHours: "Alle 4 Stunden",
+      dailyEight: "Täglich 8:00",
+      weekdaysEight: "Werktags 8:00"
+    },
+    nextRun: (when: string) => `Nächste Prüfung: ${when}`,
+    never: "Gültig, aber dieser Zeitpunkt tritt nie ein."
+  },
+
+  source: {
+    missing: "Keine Quell-URL angegeben.",
+    notAUrl: "Quell-URL ist keine gültige URL.",
+    notHttps: "Nur HTTPS-Quellen werden geladen.",
+    notMarkdown: "Quelle ist keine Markdown-Datei (.md)."
+  },
+
   proofread: {
     busy: "es läuft bereits eine Korrektur.",
     noteClosed: "die geprüfte Notiz ist nicht mehr geöffnet.",

@@ -7,6 +7,8 @@
  * page URLs rewritten to the raw form rather than fetched as HTML.
  */
 
+import { t } from "../i18n";
+
 export const SYNC_FRONTMATTER_KEY = "schreibstubeSyncedFrom";
 
 /** Where a source lives, which decides how it is fetched and, crucially,
@@ -28,7 +30,7 @@ const MARKDOWN_EXTENSIONS = [".md", ".markdown", ".mdown", ".mkd"];
  */
 export function resolveSourceUrl(raw: unknown): SourceResult {
   if (typeof raw !== "string" || raw.trim().length === 0) {
-    return { ok: false, reason: "Keine Quell-URL angegeben." };
+    return { ok: false, reason: t().source.missing };
   }
 
   const trimmed = raw.trim().replace(/^["'<]|[">']$/g, "");
@@ -37,11 +39,11 @@ export function resolveSourceUrl(raw: unknown): SourceResult {
   try {
     parsed = new URL(trimmed);
   } catch {
-    return { ok: false, reason: "Quell-URL ist keine gültige URL." };
+    return { ok: false, reason: t().source.notAUrl };
   }
 
   if (parsed.protocol !== "https:") {
-    return { ok: false, reason: "Nur HTTPS-Quellen werden geladen." };
+    return { ok: false, reason: t().source.notHttps };
   }
 
   const rewrite = rewriteGitHubUrl(parsed);
@@ -50,7 +52,7 @@ export function resolveSourceUrl(raw: unknown): SourceResult {
   // The extension is the filter, on every host. A source without one is either
   // a rendered page or something that is not a document at all.
   if (!hasMarkdownPath(resolved.pathname)) {
-    return { ok: false, reason: "Quelle ist keine Markdown-Datei (.md)." };
+    return { ok: false, reason: t().source.notMarkdown };
   }
 
   return {

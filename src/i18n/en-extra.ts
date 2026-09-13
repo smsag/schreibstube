@@ -157,6 +157,35 @@ export const enExtra = {
     failSummarize: "Schreibstube: summarize failed"
   },
 
+  cron: {
+    empty: "No expression given.",
+    fieldCount: (found: number) =>
+      `Five fields expected (minute hour day month weekday), ${found} found.`,
+    invalidField: (name: string, value: string) => `Field ${name}: "${value}" is not valid.`,
+    fields: {
+      minute: "Minute",
+      hour: "Hour",
+      dayOfMonth: "Day of month",
+      month: "Month",
+      dayOfWeek: "Weekday"
+    },
+    presets: {
+      hourly: "Hourly",
+      everyFourHours: "Every 4 hours",
+      dailyEight: "Daily at 8:00",
+      weekdaysEight: "Weekdays at 8:00"
+    },
+    nextRun: (when: string) => `Next check: ${when}`,
+    never: "Valid, but this time never comes round."
+  },
+
+  source: {
+    missing: "No source URL given.",
+    notAUrl: "The source URL is not a valid URL.",
+    notHttps: "Only HTTPS sources are fetched.",
+    notMarkdown: "The source is not a Markdown file (.md)."
+  },
+
   proofread: {
     busy: "a correction is already running.",
     noteClosed: "the checked note is no longer open.",

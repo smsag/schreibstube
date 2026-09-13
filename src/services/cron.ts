@@ -8,7 +8,12 @@
  *
  * Standard five fields: minute, hour, day of month, month, day of week.
  * Supported syntax is `*`, a number, a list, a range, and a step on either.
+ *
+ * The field names and the refusals are looked up when they are needed rather
+ * than named here: they are read by a person in the settings, and this file
+ * loads before a language is chosen.
  */
+import { t } from "../i18n";
 
 export interface CronSchedule {
   minute: Set<number>;
@@ -25,7 +30,8 @@ export interface CronSchedule {
 export type CronParseResult = { ok: true; schedule: CronSchedule } | { ok: false; reason: string };
 
 interface FieldSpec {
-  name: string;
+  /** Names the label, which is looked up in whichever language is set. */
+  key: keyof ReturnType<typeof t>["cron"]["fields"];
   min: number;
   max: number;
   /** Names accepted in place of numbers, lowercase, in value order from min. */
@@ -33,17 +39,17 @@ interface FieldSpec {
 }
 
 const FIELDS: FieldSpec[] = [
-  { name: "Minute", min: 0, max: 59 },
-  { name: "Stunde", min: 0, max: 23 },
-  { name: "Tag des Monats", min: 1, max: 31 },
+  { key: "minute", min: 0, max: 59 },
+  { key: "hour", min: 0, max: 23 },
+  { key: "dayOfMonth", min: 1, max: 31 },
   {
-    name: "Monat",
+    key: "month",
     min: 1,
     max: 12,
     names: ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"]
   },
   {
-    name: "Wochentag",
+    key: "dayOfWeek",
     min: 0,
     max: 7,
     names: ["sun", "mon", "tue", "wed", "thu", "fri", "sat"]
@@ -51,30 +57,34 @@ const FIELDS: FieldSpec[] = [
 ];
 
 /** A few schedules worth offering as a starting point. */
-export const CRON_PRESETS: { label: string; expression: string }[] = [
-  { label: "Stündlich", expression: "0 * * * *" },
-  { label: "Alle 4 Stunden", expression: "0 */4 * * *" },
-  { label: "Täglich 8:00", expression: "0 8 * * *" },
-  { label: "Werktags 8:00", expression: "0 8 * * 1-5" }
-];
+export function cronPresets(): { label: string; expression: string }[] {
+  const labels = t().cron.presets;
+
+  return [
+    { label: labels.hourly, expression: "0 * * * *" },
+    { label: labels.everyFourHours, expression: "0 */4 * * *" },
+    { label: labels.dailyEight, expression: "0 8 * * *" },
+    { label: labels.weekdaysEight, expression: "0 8 * * 1-5" }
+  ];
+}
 
 export function parseCron(expression: string): CronParseResult {
   const parts = expression.trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) {
-    return { ok: false, reason: "Kein Ausdruck angegeben." };
+    return { ok: false, reason: t().cron.empty };
   }
   if (parts.length !== 5) {
-    return {
-      ok: false,
-      reason: `Fünf Felder erwartet (Minute Stunde Tag Monat Wochentag), ${parts.length} gefunden.`
-    };
+    return { ok: false, reason: t().cron.fieldCount(parts.length) };
   }
 
   const sets: Set<number>[] = [];
   for (let i = 0; i < FIELDS.length; i += 1) {
     const parsed = parseField(parts[i], FIELDS[i]);
     if (!parsed) {
-      return { ok: false, reason: `Feld ${FIELDS[i].name}: "${parts[i]}" ist ungültig.` };
+      return {
+        ok: false,
+        reason: t().cron.invalidField(t().cron.fields[FIELDS[i].key], parts[i])
+      };
     }
     sets.push(parsed);
   }
@@ -225,7 +235,10 @@ function toValue(raw: string, spec: FieldSpec): number | null {
   if (spec.names) {
     const index = spec.names.indexOf(trimmed);
     if (index !== -1) {
-      return spec.name === "Monat" ? index + 1 : index;
+      // Months are one-based, weekdays zero-based. This asked the field for its
+      // display name and compared it against "Monat", so translating that name
+      // would have quietly turned "jan" into month zero.
+      return spec.key === "month" ? index + 1 : index;
     }
   }
 

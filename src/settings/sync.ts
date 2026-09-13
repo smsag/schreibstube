@@ -3,7 +3,7 @@
  */
 import { SecretComponent, Setting } from "obsidian";
 import { t } from "../i18n";
-import { CRON_PRESETS, nextRun, parseCron } from "../services/cron";
+import { cronPresets, nextRun, parseCron } from "../services/cron";
 import { MAX_SYNC_INTERVAL_MINUTES, MIN_SYNC_INTERVAL_MINUTES } from "../services/plugin-settings";
 import type { SettingsContext } from "./context";
 
@@ -87,16 +87,12 @@ function renderPollSchedule(ctx: SettingsContext): void {
     feedback.removeClass("schreibstube-setting-error");
     feedback.addClass("schreibstube-setting-hint");
     const next = nextRun(parsed.schedule, new Date());
-    feedback.setText(
-      next
-        ? `Nächste Prüfung: ${next.toLocaleString()}`
-        : "Gültig, aber dieser Zeitpunkt tritt nie ein."
-    );
+    feedback.setText(next ? t().cron.nextRun(next.toLocaleString()) : t().cron.never);
   };
 
-  const examples = CRON_PRESETS.map((preset) => `${preset.expression} (${preset.label})`).join(
-    ", "
-  );
+  const examples = cronPresets()
+    .map((preset) => `${preset.expression} (${preset.label})`)
+    .join(", ");
 
   new Setting(ctx.containerEl)
     .setName(t().settings.syncSchedule)

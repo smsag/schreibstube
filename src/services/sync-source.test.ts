@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { setLanguage } from "../i18n";
 import {
   githubApiUrl,
   hasSourceBinding,
@@ -6,6 +7,9 @@ import {
   SYNC_FRONTMATTER_KEY,
   type SourceTarget
 } from "./sync-source";
+
+// The refusals reach the bind dialogue and the badge, so they are translated.
+setLanguage("en");
 
 function target(raw: string): SourceTarget {
   const result = resolveSourceUrl(raw);
@@ -88,13 +92,13 @@ describe("resolveSourceUrl", () => {
   });
 
   it("rejects nonsense", () => {
-    expect(reason("nicht wirklich eine url")).toContain("gültige");
+    expect(reason("nicht wirklich eine url")).toContain("not a valid URL");
   });
 
   it("rejects an empty or missing value", () => {
-    expect(reason("")).toContain("Keine");
-    expect(reason(undefined)).toContain("Keine");
-    expect(reason(42)).toContain("Keine");
+    expect(reason("")).toContain("No source URL");
+    expect(reason(undefined)).toContain("No source URL");
+    expect(reason(42)).toContain("No source URL");
   });
 });
 
