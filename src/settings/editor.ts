@@ -5,6 +5,7 @@ import { Setting } from "obsidian";
 import { t } from "../i18n";
 import { MAX_DIM_OPACITY, MIN_DIM_OPACITY } from "../services/focus-settings";
 import type { SettingsContext } from "./context";
+import { renderCommands } from "./commands";
 
 export function renderEditor(ctx: SettingsContext): void {
   new Setting(ctx.containerEl).setName(t().settings.overlayHeading).setHeading();
@@ -33,4 +34,13 @@ export function renderEditor(ctx: SettingsContext): void {
           await ctx.plugin.updateDimOpacity(value);
         });
     });
+
+  renderCommands(ctx, [
+    t().commands.focusSentence,
+    t().commands.focusParagraph,
+    t().commands.focusDisable,
+    t().commands.linksLeft,
+    t().commands.linksRight,
+    t().commands.linksNormal
+  ]);
 }

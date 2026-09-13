@@ -19,6 +19,13 @@ import { OverlayCoordinator } from "./services/overlay-coordinator";
 import { bootstrapSchreibstubeRuntime } from "./services/plugin-bootstrap";
 import { DEFAULT_SETTINGS, normalizeSettings } from "./services/plugin-settings";
 import { createLogger, type Logger } from "./services/logger";
+import {
+  commandAvailable,
+  type CommandContext,
+  type GatedCommand
+} from "./services/command-availability";
+import { getImageMimeType } from "./services/image-resize";
+import { hasSourceBinding } from "./services/sync-source";
 import { LinkModeController } from "./controllers/link-mode-controller";
 import { LlmCommands } from "./controllers/llm-commands";
 import { ProofreadController } from "./controllers/proofread-controller";
@@ -520,6 +527,46 @@ export default class SchreibstubePlugin extends Plugin {
     this.notifyFocusSettingsChanged();
   }
 
+  /**
+   * What is on screen, as the availability rules ask about it.
+   *
+   * Built fresh for every check: Obsidian asks a command whether it applies
+   * each time the palette opens, which is exactly when the answer can have
+   * changed.
+   */
+  private commandContext(): CommandContext {
+    const file = this.app.workspace.getActiveFile();
+    const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+
+    return {
+      markdown: file?.extension === "md",
+      image: file !== null && getImageMimeType(file.extension) !== null,
+      selection: (view?.editor.getSelection().trim().length ?? 0) > 0,
+      bound:
+        file !== null && hasSourceBinding(this.app.metadataCache.getFileCache(file)?.frontmatter),
+      explorerOpen: this.app.workspace.getLeavesOfType(EXPLORER_VIEW_TYPE).length > 0
+    };
+  }
+
+  /**
+   * A command that is only offered when it could do something.
+   *
+   * Obsidian calls the check twice: once to ask whether to list the command,
+   * and again with `checking` false to run it. The condition is the same both
+   * times, so a command cannot be run from a state it was hidden in.
+   */
+  private addGatedCommand(id: string, name: string, gate: GatedCommand, run: () => void): void {
+    this.addCommand({
+      id,
+      name,
+      checkCallback: (checking) => {
+        if (!commandAvailable(gate, this.commandContext())) return false;
+        if (!checking) run();
+        return true;
+      }
+    });
+  }
+
   private registerCommands(): void {
     this.addCommand({
       id: "set-focus-sentence-mode",
@@ -545,28 +592,21 @@ export default class SchreibstubePlugin extends Plugin {
       }
     });
 
-    this.addCommand({
-      id: "rename-from-content",
-      name: t().commands.renameFile,
-      callback: () => {
-        void this.llm?.renameFromContent();
-      }
+    this.addGatedCommand("rename-from-content", t().commands.renameFile, "rename-note", () => {
+      void this.llm?.renameFromContent();
     });
 
-    this.addCommand({
-      id: "rename-image-from-content",
-      name: t().commands.renameImage,
-      callback: () => {
+    this.addGatedCommand(
+      "rename-image-from-content",
+      t().commands.renameImage,
+      "rename-image",
+      () => {
         void this.llm?.renameImageFromContent();
       }
-    });
+    );
 
-    this.addCommand({
-      id: "summarize-selection",
-      name: t().commands.summarize,
-      editorCallback: () => {
-        void this.llm?.summarizeSelection();
-      }
+    this.addGatedCommand("summarize-selection", t().commands.summarize, "summarize", () => {
+      void this.llm?.summarizeSelection();
     });
 
     this.addCommand({
@@ -579,15 +619,16 @@ export default class SchreibstubePlugin extends Plugin {
 
     // Obsidian's own collapse-all is a button on its explorer's header and
     // nothing else: no command, so no hotkey. This one is both.
-    this.addCommand({
-      id: "collapse-explorer-folders",
-      name: t().commands.collapseExplorer,
-      callback: () => {
+    this.addGatedCommand(
+      "collapse-explorer-folders",
+      t().commands.collapseExplorer,
+      "collapse-explorer",
+      () => {
         for (const leaf of this.app.workspace.getLeavesOfType(EXPLORER_VIEW_TYPE)) {
           if (leaf.view instanceof ExplorerPaneView) leaf.view.collapseAll();
         }
       }
-    });
+    );
 
     this.addCommand({
       id: "open-bookmark",
@@ -643,20 +684,12 @@ export default class SchreibstubePlugin extends Plugin {
       }
     });
 
-    this.addCommand({
-      id: "check-note-source",
-      name: t().commands.syncNote,
-      callback: () => {
-        void this.activateReviewPanel().then(() => this.proofread?.handlers().onCheckSource());
-      }
+    this.addGatedCommand("check-note-source", t().commands.syncNote, "check-source", () => {
+      void this.activateReviewPanel().then(() => this.proofread?.handlers().onCheckSource());
     });
 
-    this.addCommand({
-      id: "send-note-as-email",
-      name: t().commands.sendMail,
-      callback: () => {
-        void this.mail?.sendNoteAsEmail();
-      }
+    this.addGatedCommand("send-note-as-email", t().commands.sendMail, "send-mail", () => {
+      void this.mail?.sendNoteAsEmail();
     });
 
     this.addCommand({
@@ -667,12 +700,8 @@ export default class SchreibstubePlugin extends Plugin {
       }
     });
 
-    this.addCommand({
-      id: "fetch-replies",
-      name: t().commands.fetchReplies,
-      callback: () => {
-        void this.mail?.fetchReplies();
-      }
+    this.addGatedCommand("fetch-replies", t().commands.fetchReplies, "fetch-replies", () => {
+      void this.mail?.fetchReplies();
     });
 
     this.addCommand({

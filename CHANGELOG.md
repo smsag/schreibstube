@@ -13,6 +13,9 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- **Every command says which part of the plugin it belongs to.** Two dozen entries had grown into one flat alphabetical list where "Notiz korrigieren", "Veröffentlichen" and "Postfach durchsuchen" sat side by side with nothing to say they came from different halves of the plugin. Each is now prefixed with its area — `Fokus:`, `KI:`, `Explorer:`, `Korrektur:`, `Sync:`, `Mail:`, `Veröffentlichen:`, `Links:` — so typing the area into the palette narrows the list to three. Hotkeys are unaffected: they are bound to a command's id, and no id changed.
+- **A command that cannot do anything is not offered.** The palette listed everything always: renaming an image with no picture open, checking the source of a note bound to nothing, summarizing with nothing selected, closing the folders of a pane that is not open. Seven commands now appear only where they apply, which is roughly half the list gone on an ordinary note. Only what can be seen on screen hides anything — a command that needs a setting filled in stays listed and says what it needs when it is run, because a command missing for a reason three tabs away reads as a plugin that broke rather than as a plugin being tidy.
+- **Each settings section lists the commands its feature brings.** The palette is alphabetical and knows nothing about which entries belong together; the settings tab already groups the plugin by what it does. Switching something on and finding out what to type is now one page rather than two.
 - **"Aus der Quelle aktualisiert" is now "Extern aktualisiert"** — "Updated externally" in English. Shorter, and it says the thing that matters about those notes: the change came from outside the vault.
 
 ## 1.20.0 - 2026-09-13

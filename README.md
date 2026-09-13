@@ -312,6 +312,12 @@ Control where internal links open, indicated in the status bar:
 - **Open links to the left** / **Open links to the right** — open links in a reused side split pane
 - **Open links normally** — restore default link behaviour
 
+### Commands
+
+Every command is prefixed with the part of the plugin it belongs to — `Fokus:`, `KI:`, `Explorer:`, `Korrektur:`, `Sync:`, `Mail:`, `Veröffentlichen:`, `Links:` — so typing the area into the palette narrows two dozen entries to three. Each settings section also lists the commands its feature brings, so switching something on and learning what to type is one page rather than two.
+
+A command that cannot do anything where you are is not offered at all: the image rename without a picture open, `Sync: Quelle dieser Notiz prüfen` on a note bound to nothing, `KI: Auswahl zusammenfassen` with nothing selected, `Explorer: alle Ordner zuklappen` with the pane closed. Only conditions visible on screen hide anything — a command that needs a setting filled in stays listed and says so when it is run, because a command missing for a reason three tabs away reads as a plugin that broke.
+
 ## Settings
 
 ### Heading stack

@@ -113,6 +113,9 @@ export const enExtra = {
     glossaryUnderlineDesc:
       "Marks error-severity terms as you write. Off by default to keep long notes quiet.",
 
+    commandsHeading: "Commands",
+    commandsIntro: 'In the command palette, each one prefixed with "Schreibstube: ".',
+
     syncHeading: "Document sync",
     syncIntro:
       "Bind a note to a remote Markdown file by adding schreibstubeSyncedFrom: <url> to its " +

@@ -11,26 +11,26 @@ export const de: Messages = {
     focusSentence: "Fokus: Satz",
     focusParagraph: "Fokus: Absatz",
     focusDisable: "Fokus: aus",
-    renameFile: "Datei aus Inhalt benennen",
-    renameImage: "Bild aus Inhalt benennen",
-    summarize: "Auswahl zusammenfassen",
-    openExplorer: "Schreibstube Explorer öffnen",
-    collapseExplorer: "Alle Ordner zuklappen",
-    openBookmark: "Lesezeichen öffnen",
-    openReview: "Korrektur-Seitenleiste öffnen",
-    proofread: "Notiz korrigieren",
-    checkGlossary: "Notiz gegen Glossar prüfen",
-    syncAll: "Alle gebundenen Notizen prüfen",
-    syncNote: "Quelle dieser Notiz prüfen",
-    sendMail: "Notiz als E-Mail senden",
-    queryMailbox: "Postfach durchsuchen",
-    fetchReplies: "Antworten in die Notiz holen",
-    publish: "Veröffentlichen",
-    publishPreview: "Veröffentlichung prüfen",
-    openSite: "Website öffnen",
-    linksLeft: "Links nach links öffnen",
-    linksRight: "Links nach rechts öffnen",
-    linksNormal: "Links normal öffnen"
+    renameFile: "KI: Notiz aus ihrem Text benennen",
+    renameImage: "KI: Bild aus dem Bild benennen",
+    summarize: "KI: Auswahl zusammenfassen",
+    openExplorer: "Explorer: Bereich öffnen",
+    collapseExplorer: "Explorer: alle Ordner zuklappen",
+    openBookmark: "Explorer: Lesezeichen öffnen",
+    openReview: "Korrektur: Seitenleiste öffnen",
+    proofread: "Korrektur: diese Notiz korrigieren",
+    checkGlossary: "Korrektur: diese Notiz gegen das Glossar prüfen",
+    syncAll: "Sync: alle gebundenen Notizen prüfen",
+    syncNote: "Sync: Quelle dieser Notiz prüfen",
+    sendMail: "Mail: diese Notiz senden",
+    queryMailbox: "Mail: Postfach durchsuchen",
+    fetchReplies: "Mail: Antworten in diese Notiz holen",
+    publish: "Veröffentlichen: Ordner veröffentlichen",
+    publishPreview: "Veröffentlichen: Veröffentlichung prüfen",
+    openSite: "Veröffentlichen: Website öffnen",
+    linksLeft: "Links: nach links öffnen",
+    linksRight: "Links: nach rechts öffnen",
+    linksNormal: "Links: normal öffnen"
   },
 
   common: {
@@ -287,6 +287,9 @@ export const de: Messages = {
     glossaryUnderlineDesc:
       "Markiert Begriffe der Stufe „Fehler“ beim Schreiben. Standardmäßig aus, damit lange " +
       "Notizen ruhig bleiben.",
+
+    commandsHeading: "Befehle",
+    commandsIntro: "In der Befehlspalette, jeweils mit „Schreibstube: “ davor.",
 
     syncHeading: "Dokument-Sync",
     syncIntro:

@@ -940,3 +940,14 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* The command index under a settings section: a list, read at a glance, at the
+   size of the description it belongs to rather than of body text. */
+.schreibstube-command-list {
+  margin: 4px 0 0;
+  padding-left: 18px;
+}
+
+.schreibstube-command-list li {
+  margin: 0;
+}

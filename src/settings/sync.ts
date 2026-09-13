@@ -6,6 +6,7 @@ import { t } from "../i18n";
 import { cronPresets, nextRun, parseCron } from "../services/cron";
 import { MAX_SYNC_INTERVAL_MINUTES, MIN_SYNC_INTERVAL_MINUTES } from "../services/plugin-settings";
 import type { SettingsContext } from "./context";
+import { renderCommands } from "./commands";
 
 export function renderSync(ctx: SettingsContext): void {
   new Setting(ctx.containerEl).setName(t().settings.syncHeading).setHeading();
@@ -67,6 +68,8 @@ export function renderSync(ctx: SettingsContext): void {
   if (ctx.plugin.settings.syncPollEnabled) {
     renderPollSchedule(ctx);
   }
+
+  renderCommands(ctx, [t().commands.syncAll, t().commands.syncNote]);
 }
 
 function renderPollSchedule(ctx: SettingsContext): void {
