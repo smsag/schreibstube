@@ -2,7 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## 1.25.0 - 2026-09-13
+
+Mobile checklist: steps 1 to 7 confirmed on a phone for 1.24.0 and untouched
+since. Steps 8 and 9 — printing itself and a diagram from another plugin — have
+still not been run on a device, and this release changes printing, so they are
+the two to run before relying on it.
 
 ### Added
 
