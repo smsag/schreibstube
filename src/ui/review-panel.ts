@@ -38,6 +38,8 @@ export interface SyncPanelState {
   source: string;
   /** Epoch milliseconds of the last check, or zero if never. */
   checkedAt: number;
+  /** What the note's own interval key says, already said back as a sentence. */
+  interval: string;
   message: string;
 }
 
@@ -70,7 +72,7 @@ export const EMPTY_REVIEW_STATE: ReviewState = {
   suggestions: [],
   progress: null,
   glossary: { selected: [], available: [], source: "none", errors: [], missing: [] },
-  sync: { bound: false, status: "none", source: "", checkedAt: 0, message: "" },
+  sync: { bound: false, status: "none", source: "", checkedAt: 0, interval: "", message: "" },
   message: ""
 };
 
@@ -198,6 +200,12 @@ export class ReviewPanelView extends ItemView {
     if (sync.source) {
       section.createDiv({ cls: "schreibstube-review-hint", text: sync.source });
     }
+    // What the note asked for, said back as cron: a person who wrote "Alle 2
+    // Tage" can see here that it was understood, and as what.
+    if (sync.interval) {
+      section.createDiv({ cls: "schreibstube-review-hint", text: sync.interval });
+    }
+
     if (sync.checkedAt > 0) {
       section.createDiv({
         cls: "schreibstube-review-hint",

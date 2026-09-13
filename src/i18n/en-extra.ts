@@ -113,6 +113,9 @@ export const enExtra = {
     glossaryUnderlineDesc:
       "Marks error-severity terms as you write. Off by default to keep long notes quiet.",
 
+    commandsHeading: "Commands",
+    commandsIntro: 'In the command palette, each one prefixed with "Schreibstube: ".',
+
     syncHeading: "Document sync",
     syncIntro:
       "Bind a note to a remote Markdown file by adding schreibstubeSyncedFrom: <url> to its " +
@@ -124,7 +127,10 @@ export const enExtra = {
     syncOnOpenDesc:
       "Also check automatically on open, subject to the interval below. Otherwise only on command.",
     syncInterval: "Minimum minutes between automatic checks",
-    syncIntervalDesc: "Per note. Zero checks on every open. A manual check always runs.",
+    syncIntervalDesc:
+      "Per note. Zero checks on every open. A manual check always runs. A note that carries " +
+      'schreibstubeSyncEvery — "every 2 days", "weekly", or a cron expression — keeps to its ' +
+      "own interval instead of this one.",
     syncToken: "GitHub token",
     syncTokenDesc:
       "Optional. Needed for sources in a private repository, and it raises GitHub's rate limit. " +
@@ -149,6 +155,8 @@ export const enExtra = {
     summarizing: "summarizing…",
     summarizeFailed: "summarize failed — the LLM returned an empty response.",
     renameFailedName: "rename failed — the LLM returned an unusable filename.",
+    renameTooShort: "this note is too short to be named from its content.",
+    cannotName: "only a note or a picture can be named from what is inside it.",
     renameFailedExists: "rename failed — a file with that name may already exist.",
     imageTooLarge: "image exceeds the 10 MB limit.",
     unsupportedImage: "unsupported format — supported image types: jpg, png, gif, webp.",
@@ -271,7 +279,16 @@ export const enExtra = {
     checked: (checked: number, changed: number, failed: number) =>
       `${checked} checked, ${changed} with updates, ${failed} failed.`,
     withUpdates: (count: number) =>
-      `${count} note(s) have updates from their source — open the review panel to apply them.`
+      `${count} note(s) have updates from their source — open the review panel to apply them.`,
+
+    every: {
+      notWords:
+        'this note\'s check interval could not be read. Write it as "every 2 days", ' +
+        '"weekly", or a five-field cron expression.',
+      tooSmall: "a check interval has to be at least one minute.",
+      panel: (words: string, cron: string) => `Checked at most ${words} (${cron})`,
+      panelCron: (cron: string) => `Checked on the note's own schedule (${cron})`
+    }
   },
 
   mailNotices: {
@@ -302,6 +319,7 @@ export const enExtra = {
     clearFilter: "Clear the filter",
     filterMore: (count: number) => `${count} more match. Narrow the filter to see them.`,
     collapseAll: "Collapse all",
+    expandAll: "Expand all",
     folderCount: (count: string) => `${count} files`,
 
     move: {
@@ -338,7 +356,8 @@ export const enExtra = {
     },
 
     latest: {
-      synced: "Updated from the source",
+      synced: "Updated externally",
+      alert: "A source was updated in the background",
       created: "Created",
       modified: "Modified",
       empty: "No notes yet."
@@ -362,6 +381,9 @@ export const enExtra = {
       newNote: "New note",
       newFolder: "New folder",
       rename: "Rename…",
+      renameNoteAi: "Rename from the text…",
+      renameImageAi: "Rename from the picture…",
+      renaming: "Reading it…",
       move: "Move to…",
       delete: "Delete",
       more: "More actions"

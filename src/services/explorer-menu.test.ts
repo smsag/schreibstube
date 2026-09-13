@@ -138,7 +138,7 @@ describe("buildExplorerMenu", () => {
   it("offers a move on the file block, above renaming", () => {
     const file = buildExplorerMenu(target(), "off").find((section) => section.id === "file");
 
-    expect(file?.items.map((item) => item.id)).toEqual(["move", "rename", "delete"]);
+    expect(file?.items.map((item) => item.id)).toEqual(["move", "rename", "rename-ai", "delete"]);
   });
 
   it("marks deleting as the destructive one", () => {
@@ -199,5 +199,36 @@ describe("isLongPressEcho", () => {
   it("lets a second right click on the same row open again at once", () => {
     // Nothing answered it, however recently the last menu was opened.
     expect(isLongPressEcho(1001, null)).toBe(false);
+  });
+});
+
+describe("naming a file from what is inside it", () => {
+  function fileItems(overrides: Partial<ExplorerTarget>) {
+    return buildExplorerMenu(target(overrides), "off")
+      .find((section) => section.id === "file")
+      ?.items.filter((item) => item.id === "rename-ai");
+  }
+
+  it("offers to read a note", () => {
+    expect(fileItems({ markdown: true })).toEqual([
+      { id: "rename-ai", label: "Rename from the text…", icon: "wand-2" }
+    ]);
+  });
+
+  it("offers to look at a picture, and says so", () => {
+    // One entry, two wordings: which of the two things happens is the file's
+    // to decide, and a label covering both would name neither.
+    expect(fileItems({ markdown: false, image: true })).toEqual([
+      { id: "rename-ai", label: "Rename from the picture…", icon: "wand-2" }
+    ]);
+  });
+
+  it("offers nothing on a file neither path can read", () => {
+    expect(fileItems({ markdown: false, image: false })).toEqual([]);
+    expect(fileItems({ path: "Vertrag.pdf", markdown: false })).toEqual([]);
+  });
+
+  it("offers nothing on a folder, which has no contents of that kind", () => {
+    expect(fileItems({ kind: "folder", markdown: false, image: true })).toEqual([]);
   });
 });

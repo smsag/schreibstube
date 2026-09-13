@@ -82,6 +82,25 @@ schreibstubeSyncedFrom: https://github.com/org/repo/blob/main/docs/guide.md
 
 A GitHub page URL is rewritten to its raw form automatically, so you can paste the link straight from the browser. Only HTTPS sources whose path ends in a Markdown extension are fetched.
 
+**How often one note is checked.** A note may set its own interval, which replaces the vault-wide minimum for that note alone — a press release and a contract are not worth the same traffic:
+
+```markdown
+---
+schreibstubeSyncedFrom: https://github.com/org/repo/blob/main/docs/guide.md
+schreibstubeSyncEvery: Alle 2 Tage
+---
+```
+
+Words are read in German and English — `Alle 2 Tage`, `Every 2 days`, `jede Woche`, `weekly`, `täglich`, `every 6 hours` — and mean _at most that often_, counted from the note's last check: a device that was asleep at the hour catches up at the next poll rather than waiting out another round. The review panel says the interval back as cron (`0 0 */2 * *`), so you can see how a phrase was understood.
+
+A five-field cron expression is taken as itself, for the schedules words cannot reach:
+
+```markdown
+schreibstubeSyncEvery: 0 9 * * 1-5
+```
+
+Such a note is due once a minute the expression named has gone by unchecked. A value that cannot be read is reported rather than guessed at, and the note keeps the vault-wide interval until it is fixed.
+
 - **Check note source for updates** — fetch now and queue any differences
 
 With **Check when a bound note opens** on, a bound note is also checked as you open it, no more often than the configured interval. Checks use a conditional request, so an unchanged source costs one small round trip and no download.
@@ -133,6 +152,8 @@ Assigns a filename to the active note or image based on its content:
 - **Rename image from content** — the image (jpg, png, gif, webp; up to 10 MB) is resized and sent to a vision model, and the file is renamed.
 
 The rename does nothing if the note is shorter than the configured minimum length, or if no API key has been set.
+
+The same thing is on the explorer's context menu, as one entry that follows the file: **Rename from the text…** on a note, **Rename from the picture…** on an image, and nothing at all on a file neither path can read. From the menu the proposed name is not applied outright — it opens the pane's rename dialog with the suggestion in the field, where it can be read, corrected or cancelled, because a menu acts on a row in a tree rather than on the note in front of you.
 
 ### Summarize selection
 
@@ -227,7 +248,7 @@ The pane has four sections, each one collapsible, each remembering whether it wa
 
 A footer along the bottom names the vault and holds the two ways out of a pane that is not behaving: help, and the plugin's settings.
 
-The context menu is the pane's own, in a fixed order: open, icon and the two marks, sync, create, move, rename and delete. Items other plugins contribute land behind one **More actions** entry at the end rather than in blocks between the actions — the pane fires Obsidian's `file-menu` event, so a plugin that adds to the file explorer's menu adds to this one without knowing the pane exists.
+The context menu is the pane's own, in a fixed order: open, icon and the two marks, sync, create, move, rename, rename from content and delete. Items other plugins contribute land behind one **More actions** entry at the end rather than in blocks between the actions — the pane fires Obsidian's `file-menu` event, so a plugin that adds to the file explorer's menu adds to this one without knowing the pane exists.
 
 The sync actions are why the menu is worth owning:
 
@@ -290,6 +311,12 @@ Control where internal links open, indicated in the status bar:
 
 - **Open links to the left** / **Open links to the right** — open links in a reused side split pane
 - **Open links normally** — restore default link behaviour
+
+### Commands
+
+Every command is prefixed with the part of the plugin it belongs to — `Fokus:`, `KI:`, `Explorer:`, `Korrektur:`, `Sync:`, `Mail:`, `Veröffentlichen:`, `Links:` — so typing the area into the palette narrows two dozen entries to three. Each settings section also lists the commands its feature brings, so switching something on and learning what to type is one page rather than two.
+
+A command that cannot do anything where you are is not offered at all: the image rename without a picture open, `Sync: Quelle dieser Notiz prüfen` on a note bound to nothing, `KI: Auswahl zusammenfassen` with nothing selected, `Explorer: alle Ordner zuklappen` with the pane closed. Only conditions visible on screen hide anything — a command that needs a setting filled in stays listed and says so when it is run, because a command missing for a reason three tabs away reads as a plugin that broke.
 
 ## Settings
 

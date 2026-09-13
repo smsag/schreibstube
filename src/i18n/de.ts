@@ -11,26 +11,26 @@ export const de: Messages = {
     focusSentence: "Fokus: Satz",
     focusParagraph: "Fokus: Absatz",
     focusDisable: "Fokus: aus",
-    renameFile: "Datei aus Inhalt benennen",
-    renameImage: "Bild aus Inhalt benennen",
-    summarize: "Auswahl zusammenfassen",
-    openExplorer: "Schreibstube Explorer öffnen",
-    collapseExplorer: "Alle Ordner zuklappen",
-    openBookmark: "Lesezeichen öffnen",
-    openReview: "Korrektur-Seitenleiste öffnen",
-    proofread: "Notiz korrigieren",
-    checkGlossary: "Notiz gegen Glossar prüfen",
-    syncAll: "Alle gebundenen Notizen prüfen",
-    syncNote: "Quelle dieser Notiz prüfen",
-    sendMail: "Notiz als E-Mail senden",
-    queryMailbox: "Postfach durchsuchen",
-    fetchReplies: "Antworten in die Notiz holen",
-    publish: "Veröffentlichen",
-    publishPreview: "Veröffentlichung prüfen",
-    openSite: "Website öffnen",
-    linksLeft: "Links nach links öffnen",
-    linksRight: "Links nach rechts öffnen",
-    linksNormal: "Links normal öffnen"
+    renameFile: "KI: Notiz aus ihrem Text benennen",
+    renameImage: "KI: Bild aus dem Bild benennen",
+    summarize: "KI: Auswahl zusammenfassen",
+    openExplorer: "Explorer: Bereich öffnen",
+    collapseExplorer: "Explorer: alle Ordner zuklappen",
+    openBookmark: "Explorer: Lesezeichen öffnen",
+    openReview: "Korrektur: Seitenleiste öffnen",
+    proofread: "Korrektur: diese Notiz korrigieren",
+    checkGlossary: "Korrektur: diese Notiz gegen das Glossar prüfen",
+    syncAll: "Sync: alle gebundenen Notizen prüfen",
+    syncNote: "Sync: Quelle dieser Notiz prüfen",
+    sendMail: "Mail: diese Notiz senden",
+    queryMailbox: "Mail: Postfach durchsuchen",
+    fetchReplies: "Mail: Antworten in diese Notiz holen",
+    publish: "Veröffentlichen: Ordner veröffentlichen",
+    publishPreview: "Veröffentlichen: Veröffentlichung prüfen",
+    openSite: "Veröffentlichen: Website öffnen",
+    linksLeft: "Links: nach links öffnen",
+    linksRight: "Links: nach rechts öffnen",
+    linksNormal: "Links: normal öffnen"
   },
 
   common: {
@@ -288,6 +288,9 @@ export const de: Messages = {
       "Markiert Begriffe der Stufe „Fehler“ beim Schreiben. Standardmäßig aus, damit lange " +
       "Notizen ruhig bleiben.",
 
+    commandsHeading: "Befehle",
+    commandsIntro: "In der Befehlspalette, jeweils mit „Schreibstube: “ davor.",
+
     syncHeading: "Dokument-Sync",
     syncIntro:
       "Eine Notiz wird an eine entfernte Markdown-Datei gebunden, indem schreibstubeSyncedFrom: " +
@@ -299,7 +302,10 @@ export const de: Messages = {
     syncOnOpenDesc:
       "Prüft zusätzlich beim Öffnen, im Rahmen des Intervalls unten. Sonst nur auf Befehl.",
     syncInterval: "Mindestabstand automatischer Prüfungen in Minuten",
-    syncIntervalDesc: "Pro Notiz. Null prüft bei jedem Öffnen. Eine manuelle Prüfung läuft immer.",
+    syncIntervalDesc:
+      "Pro Notiz. Null prüft bei jedem Öffnen. Eine manuelle Prüfung läuft immer. Eine Notiz " +
+      "mit schreibstubeSyncEvery — „Alle 2 Tage“, „wöchentlich“ oder ein Cron-Ausdruck — hält " +
+      "sich an ihr eigenes Intervall statt an dieses.",
     syncToken: "GitHub-Token",
     syncTokenDesc:
       "Optional. Nötig für Quellen in privaten Repositories, und erhöht GitHubs Ratenlimit. " +
@@ -324,6 +330,8 @@ export const de: Messages = {
     summarizing: "fasst zusammen …",
     summarizeFailed: "Zusammenfassung fehlgeschlagen — das LLM lieferte eine leere Antwort.",
     renameFailedName: "Umbenennen fehlgeschlagen — das LLM lieferte keinen brauchbaren Namen.",
+    renameTooShort: "diese Notiz ist zu kurz, um aus ihrem Inhalt benannt zu werden.",
+    cannotName: "nur eine Notiz oder ein Bild lässt sich aus dem Inhalt benennen.",
     renameFailedExists: "Umbenennen fehlgeschlagen — eine Datei dieses Namens existiert bereits.",
     imageTooLarge: "das Bild überschreitet 10 MB.",
     unsupportedImage: "nicht unterstütztes Format — möglich sind jpg, png, gif, webp.",
@@ -448,7 +456,16 @@ export const de: Messages = {
     checked: (checked: number, changed: number, failed: number) =>
       `${checked} geprüft, ${changed} mit Aktualisierungen, ${failed} fehlgeschlagen.`,
     withUpdates: (count: number) =>
-      `${count} Notiz(en) mit Aktualisierungen aus der Quelle — im Überprüfungsbereich übernehmen.`
+      `${count} Notiz(en) mit Aktualisierungen aus der Quelle — im Überprüfungsbereich übernehmen.`,
+
+    every: {
+      notWords:
+        "das Prüfintervall dieser Notiz ist nicht lesbar. Schreibe es als „Alle 2 Tage“, " +
+        "„wöchentlich“ oder als fünfteiligen Cron-Ausdruck.",
+      tooSmall: "ein Prüfintervall muss mindestens eine Minute betragen.",
+      panel: (words: string, cron: string) => `Höchstens ${words} geprüft (${cron})`,
+      panelCron: (cron: string) => `Nach dem Zeitplan der Notiz geprüft (${cron})`
+    }
   },
 
   mailNotices: {
@@ -480,6 +497,7 @@ export const de: Messages = {
     clearFilter: "Filter leeren",
     filterMore: (count: number) => `${count} weitere Treffer. Filter eingrenzen, um sie zu sehen.`,
     collapseAll: "Alle zuklappen",
+    expandAll: "Alle aufklappen",
     folderCount: (count: string) => `${count} Dateien`,
 
     move: {
@@ -516,7 +534,8 @@ export const de: Messages = {
     },
 
     latest: {
-      synced: "Aus der Quelle aktualisiert",
+      synced: "Extern aktualisiert",
+      alert: "Eine Quelle wurde im Hintergrund aktualisiert",
       created: "Erstellt",
       modified: "Geändert",
       empty: "Noch keine Notizen."
@@ -540,6 +559,9 @@ export const de: Messages = {
       newNote: "Neue Notiz",
       newFolder: "Neuer Ordner",
       rename: "Umbenennen …",
+      renameNoteAi: "Aus dem Text benennen …",
+      renameImageAi: "Aus dem Bild benennen …",
+      renaming: "Liest …",
       move: "Verschieben nach …",
       delete: "Löschen",
       more: "Weitere Aktionen"

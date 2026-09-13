@@ -50,6 +50,7 @@ import {
 import type { SchreibstubeSettings } from "../types";
 import { isLongPressEcho } from "../services/explorer-menu";
 import { countFilesUnder, folderCountLabel } from "../services/folder-count";
+import { folderPathsUnder, treeAction } from "../services/vault-tree";
 import { applyIcon, installIconFont } from "./icon-font";
 import { SCHREIBSTUBE_ICON } from "./schreibstube-icon";
 
@@ -180,6 +181,20 @@ const MEDIA_EXTENSIONS = new Set([
 
 type SectionId = "pinned" | "bookmarks" | "latest" | "files";
 
+/** A control a header carries at its far end, past the rule. */
+interface SectionAction {
+  icon: string;
+  /** Named for a screen reader and on hover, because the icon alone is a guess. */
+  label: string;
+  run: () => void;
+}
+
+/** A mark on a section's icon, and what a tap on the mark does. */
+interface SectionAlert {
+  label: string;
+  acknowledge: () => void;
+}
+
 /** What a section wants from its header beyond a title and a chevron. */
 interface SectionOptions {
   /** Draw the body even while closed, for a section that keeps some of it. */
@@ -190,6 +205,10 @@ interface SectionOptions {
   closable?: boolean;
   /** Drawn open whatever was remembered, for as long as a filter is set. */
   forceOpen?: boolean;
+  /** A control of the section's own, drawn at the far end of the header. */
+  action?: SectionAction;
+  /** A mark on the section's icon that something came in while nobody looked. */
+  alert?: SectionAlert;
 }
 
 interface PaneMemory {
@@ -486,6 +505,19 @@ export class ExplorerPaneView extends ItemView {
     this.requestRender();
   }
 
+  /**
+   * Open every folder in the tree.
+   *
+   * The section holding them is opened with them: folders opened inside a
+   * section that is closed are a button that visibly does nothing.
+   */
+  expandAll(paths: readonly string[] = folderPathsUnder(this.app.vault.getRoot())): void {
+    for (const path of paths) this.expanded.add(path);
+    this.collapsedSections.delete("files");
+    this.writeMemory();
+    this.requestRender();
+  }
+
   /** Collapse the redraws a burst of vault events would otherwise cause. */
   private requestRender(): void {
     if (this.pending) return;
@@ -674,7 +706,12 @@ export class ExplorerPaneView extends ItemView {
     applyIcon(glyph.createSpan({ cls: "schreibstube-explorer-glyph" }), icon);
 
     const total = collapsed ? folderCountLabel(options.total ?? 0) : null;
-    if (total !== null) {
+    // News first: a figure says how much is there and the mark says that some of
+    // it is new, and one corner of one icon can only carry the more urgent of
+    // the two. No section asks for both today.
+    if (options.alert) {
+      this.renderSectionAlert(glyph, id, options.alert);
+    } else if (total !== null) {
       glyph.createSpan({ cls: "schreibstube-explorer-count", text: total });
     }
 
@@ -682,6 +719,8 @@ export class ExplorerPaneView extends ItemView {
       cls: "schreibstube-explorer-section-title",
       text: t().explorer.sections[id]
     });
+
+    if (options.action) this.renderSectionAction(header, options.action);
 
     if (closable) {
       header.addEventListener("click", () => {
@@ -701,6 +740,68 @@ export class ExplorerPaneView extends ItemView {
 
     body.detach();
     return null;
+  }
+
+  /**
+   * A control of the section's own, inside the header that opens the section.
+   *
+   * It has to stop the press reaching that header, or opening every folder in
+   * the vault would close the section they are in — the one thing a control put
+   * there must not do. It is a span rather than a button because the header is
+   * already one, and a button inside a button is not a thing a page may hold.
+   */
+  private renderSectionAction(header: HTMLElement, action: SectionAction): void {
+    const control = header.createSpan({
+      cls: "schreibstube-explorer-section-action",
+      attr: { role: "button", tabindex: "0", "aria-label": action.label, title: action.label }
+    });
+    applyIcon(control, action.icon);
+
+    const run = (event: Event): void => {
+      event.preventDefault();
+      event.stopPropagation();
+      action.run();
+    };
+
+    control.addEventListener("click", run);
+    control.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") run(event);
+    });
+  }
+
+  /**
+   * The mark that something came in, worn where a folder wears its count.
+   *
+   * A mark and not a figure: how many sources changed is not what a person
+   * wants from the corner of an icon, and the list under it says it exactly.
+   *
+   * It comes down when it is tapped and at no other time — not when the section
+   * is merely on screen, which a pane left open all day would do by itself. The
+   * tap opens the section with it, so one press both answers the mark and shows
+   * what it was about.
+   */
+  private renderSectionAlert(glyph: HTMLElement, id: SectionId, alert: SectionAlert): void {
+    const mark = glyph.createSpan({
+      cls: "schreibstube-explorer-count is-alert",
+      text: "!",
+      attr: { role: "button", tabindex: "0", "aria-label": alert.label, title: alert.label }
+    });
+
+    const run = (event: Event): void => {
+      event.preventDefault();
+      event.stopPropagation();
+      // Opened rather than toggled: the mark is an invitation to look, and a
+      // tap that answered it by closing the list would be a joke.
+      this.collapsedSections.delete(id);
+      this.writeMemory();
+      alert.acknowledge();
+      this.requestRender();
+    };
+
+    mark.addEventListener("click", run);
+    mark.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") run(event);
+    });
   }
 
   private renderPinned(shelf: HTMLElement, scroller: HTMLElement): void {
@@ -914,8 +1015,19 @@ export class ExplorerPaneView extends ItemView {
 
   private renderLatest(host: HTMLElement): void {
     const sections = this.host?.sections;
-    const body = this.renderSection(host, "latest", "clock");
-    if (!body || !sections) return;
+    if (!sections) return;
+
+    const body = this.renderSection(host, "latest", "clock", {
+      ...(sections.syncAlert()
+        ? {
+            alert: {
+              label: t().explorer.latest.alert,
+              acknowledge: () => sections.acknowledgeSync()
+            }
+          }
+        : {})
+    });
+    if (!body) return;
 
     const { synced, created, modified } = sections.latestFiles();
     const labels = t().explorer.latest;
@@ -970,8 +1082,40 @@ export class ExplorerPaneView extends ItemView {
     return matching.length;
   }
 
+  /**
+   * The one control over the whole tree, on the header of the section it acts
+   * on rather than on the pane's title bar, where a phone does not show it.
+   *
+   * One button and not two: it offers to close while anything is open and to
+   * open only once everything is shut, so pressing it twice puts the tree back
+   * where it was.
+   */
+  private treeToggle(): SectionAction | undefined {
+    // A filter opens every folder holding a match for as long as it is set.
+    // Closing them would undo itself on the next keystroke, and opening them is
+    // what the filter is already doing.
+    if (this.query.length > 0) return undefined;
+
+    const paths = folderPathsUnder(this.app.vault.getRoot());
+    if (paths.length === 0) return undefined;
+
+    if (treeAction(paths, (path) => this.isFolderOpen(path)) === "collapse") {
+      return {
+        icon: "chevrons-up",
+        label: t().explorer.collapseAll,
+        run: () => this.collapseAll()
+      };
+    }
+
+    return {
+      icon: "chevrons-down",
+      label: t().explorer.expandAll,
+      run: () => this.expandAll(paths)
+    };
+  }
+
   private renderFiles(host: HTMLElement): void {
-    const body = this.renderSection(host, "files", "folder");
+    const body = this.renderSection(host, "files", "folder", { action: this.treeToggle() });
     if (!body) return;
 
     const tree = body.createDiv({ cls: "schreibstube-explorer-tree" });
@@ -1068,11 +1212,11 @@ export class ExplorerPaneView extends ItemView {
   /** A filter expands the tree for as long as it is set, without disturbing
    *  what the person had opened by hand. */
   private isExpanded(folder: TFolder): boolean {
-    return (
-      this.query.length > 0 ||
-      this.expanded.has(folder.path) ||
-      this.revealedFolders.has(folder.path)
-    );
+    return this.isFolderOpen(folder.path);
+  }
+
+  private isFolderOpen(path: string): boolean {
+    return this.query.length > 0 || this.expanded.has(path) || this.revealedFolders.has(path);
   }
 
   private renderRow(host: HTMLElement, file: TAbstractFile, depth: number): void {

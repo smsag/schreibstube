@@ -5,6 +5,7 @@ import { SecretComponent, Setting } from "obsidian";
 import { t } from "../i18n";
 import { MAX_MAIL_RESULTS, MIN_MAIL_RESULTS } from "../services/plugin-settings";
 import type { SettingsContext } from "./context";
+import { renderCommands } from "./commands";
 
 export function renderMail(ctx: SettingsContext): void {
   new Setting(ctx.containerEl).setName(t().mail.heading).setHeading();
@@ -78,4 +79,10 @@ export function renderMail(ctx: SettingsContext): void {
         await ctx.update({ mailMergeHeading: value });
       });
     });
+
+  renderCommands(ctx, [
+    t().commands.sendMail,
+    t().commands.queryMailbox,
+    t().commands.fetchReplies
+  ]);
 }

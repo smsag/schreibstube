@@ -614,6 +614,34 @@
   white-space: nowrap;
 }
 
+/* The one control over the whole tree, at the far end of its header: past the
+   rule the header draws, where it is clear of the label and lines up with the
+   menu buttons on the rows below it. The order puts it after that rule, which
+   is a pseudo-element and therefore otherwise last.
+
+   It fills the header's height so a finger has something to hit — the glyph
+   inside it is the size of a row's chevron, and no bigger. */
+.schreibstube-explorer .schreibstube-explorer-section-action {
+  order: 1;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  margin-right: calc(-1 * var(--schreibstube-row-inset) / 2);
+  color: var(--nav-collapse-icon-color, var(--text-faint));
+  font-size: var(--schreibstube-glyph-size);
+  border-radius: var(--schreibstube-border-radius);
+  cursor: pointer;
+}
+
+.schreibstube-explorer .schreibstube-explorer-section-action:hover,
+.schreibstube-explorer .schreibstube-explorer-section-action:focus-visible {
+  color: var(--text-normal);
+  background: var(--nav-item-background-hover, var(--background-modifier-hover));
+}
+
 /* Created / Modified inside Latest: a label, not a row, so it carries no
    chevron slot and no icon. It starts where the icons under it start, rather
    than at the row inset, so each label sits over the list it names. */
@@ -754,9 +782,26 @@
   color: var(--text-accent);
 }
 
+/* The same badge, saying something else: not how much is in there but that some
+   of it is new. It is a control, so it takes the pointer events the figure
+   refuses, and it is given a box worth aiming at — nine pixels of glyph is not
+   a target for a finger. */
+.schreibstube-explorer-count.is-alert {
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.schreibstube-explorer-count.is-alert::after {
+  content: "";
+  position: absolute;
+  inset: -7px;
+}
+
 /* A row under the pointer paints its own background; the badge would otherwise
    read as a hole in it. */
-.schreibstube-explorer-row:hover .schreibstube-explorer-count {
+.schreibstube-explorer-row:hover .schreibstube-explorer-count:not(.is-alert) {
   background: var(--background-modifier-border-hover, var(--background-modifier-border));
 }
 
@@ -894,4 +939,15 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* The command index under a settings section: a list, read at a glance, at the
+   size of the description it belongs to rather than of body text. */
+.schreibstube-command-list {
+  margin: 4px 0 0;
+  padding-left: 18px;
+}
+
+.schreibstube-command-list li {
+  margin: 0;
 }

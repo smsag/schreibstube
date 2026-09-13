@@ -14,6 +14,7 @@ import {
 } from "../services/plugin-settings";
 import { GLOSSARY_CHANGED_EVENT } from "../utils/constants";
 import type { SettingsContext } from "./context";
+import { renderCommands } from "./commands";
 
 export function renderProofreading(ctx: SettingsContext): void {
   new Setting(ctx.containerEl).setName(t().settings.proofreadHeading).setHeading();
@@ -115,4 +116,10 @@ export function renderProofreading(ctx: SettingsContext): void {
         window.dispatchEvent(new Event(GLOSSARY_CHANGED_EVENT));
       });
     });
+
+  renderCommands(ctx, [
+    t().commands.openReview,
+    t().commands.proofread,
+    t().commands.checkGlossary
+  ]);
 }

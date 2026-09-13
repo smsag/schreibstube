@@ -12,8 +12,9 @@ import type { Logger } from "../services/logger";
 import { resolveApiKey } from "../services/secret";
 import { fetchSource } from "../services/sync-fetcher";
 import { resolveSourceUrl, SYNC_FRONTMATTER_KEY } from "../services/sync-source";
+import { isNoteDue, parseSyncEvery, SYNC_EVERY_KEY } from "../services/sync-interval";
 import { diffHunks } from "../services/line-diff";
-import { sourceUrlFromNote } from "../services/sync-source";
+import { frontmatterLine, sourceUrlFromNote } from "../services/sync-source";
 import {
   planSyncFrontmatter,
   SYNC_TITLE_KEY,
@@ -175,7 +176,21 @@ export class SyncPoller {
     }
 
     const record = this.syncStore.get(file.path);
-    if (!force && !this.isCheckDue(record, settings.syncMinIntervalMinutes)) return;
+    // What the note itself asks for comes first: a poll across the vault is one
+    // schedule for every source, and only the note knows how often its own is
+    // worth asking about.
+    const own = await this.readInterval(file);
+    if (own !== null && !own.ok) {
+      this.logger.warn(`${file.path}: ${own.reason}`);
+      summary.failed += 1;
+      return;
+    }
+
+    const due =
+      own === null
+        ? this.isCheckDue(record, settings.syncMinIntervalMinutes)
+        : isNoteDue(own.schedule, record?.checkedAt, new Date());
+    if (!force && !due) return;
 
     const checkedAt = Date.now();
     const conditional = (record?.pendingChanges ?? 0) > 0 ? undefined : record?.etag;
@@ -252,6 +267,25 @@ export class SyncPoller {
     if (changes > 0) {
       summary.withChanges += 1;
       summary.notes.push(file.path);
+    }
+  }
+
+  /**
+   * How often this note asks to be checked, or null when it does not say.
+   *
+   * Read the way the binding beside it is read, cache first and the note's own
+   * frontmatter when the cache has nothing to say, so a note bound and given an
+   * interval in the same breath is not checked on the wrong one.
+   */
+  private async readInterval(file: TFile): Promise<ReturnType<typeof parseSyncEvery>> {
+    const cached = this.app.metadataCache.getFileCache(file)?.frontmatter?.[SYNC_EVERY_KEY];
+    if (cached !== undefined && cached !== null) return parseSyncEvery(cached);
+
+    try {
+      return parseSyncEvery(frontmatterLine(await this.app.vault.read(file), SYNC_EVERY_KEY));
+    } catch (err) {
+      this.logger.warn(`Could not read ${file.path} for its check interval:`, err);
+      return null;
     }
   }
 

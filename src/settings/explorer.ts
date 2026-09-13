@@ -12,6 +12,7 @@ import { LATEST_COUNT_MAX } from "../services/latest-files";
 import { ICON_FONT_VERSION, allIconNames } from "../ui/icon-font";
 import type { ExplorerForeignMenu } from "../types";
 import type { SettingsContext } from "./context";
+import { renderCommands } from "./commands";
 
 export function renderExplorer(ctx: SettingsContext): void {
   new Setting(ctx.containerEl).setName(t().settings.explorerHeading).setHeading();
@@ -90,4 +91,10 @@ export function renderExplorer(ctx: SettingsContext): void {
   new Setting(ctx.containerEl)
     .setName(t().settings.explorerIcons)
     .setDesc(t().settings.explorerIconsDesc(allIconNames().length, ICON_FONT_VERSION));
+
+  renderCommands(ctx, [
+    t().commands.openExplorer,
+    t().commands.collapseExplorer,
+    t().commands.openBookmark
+  ]);
 }

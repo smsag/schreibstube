@@ -12,6 +12,7 @@ import {
   MIN_SUMMARY_TOKENS
 } from "../services/plugin-settings";
 import type { SettingsContext } from "./context";
+import { renderCommands } from "./commands";
 
 export function renderAi(ctx: SettingsContext): void {
   new Setting(ctx.containerEl).setName(t().settings.aiHeading).setHeading();
@@ -160,4 +161,6 @@ export function renderAi(ctx: SettingsContext): void {
         }
       });
     });
+
+  renderCommands(ctx, [t().commands.renameFile, t().commands.renameImage, t().commands.summarize]);
 }

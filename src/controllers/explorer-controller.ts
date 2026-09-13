@@ -34,6 +34,7 @@ import {
 import { ExplorerStore, type ExplorerFileStore } from "../services/explorer-store";
 import { vaultUrlFor } from "../services/bookmark-file";
 import { frontmatterTitle } from "../services/note-title";
+import { getImageMimeType } from "../services/image-resize";
 import {
   isMovePlan,
   isUnder,
@@ -76,6 +77,14 @@ export const TRASH_GRACE_MS = 10_000;
  */
 export const FOREIGN_MENU_SOURCE = "file-explorer";
 
+/**
+ * What the explorer needs to name a file from what is inside it.
+ *
+ * A proposal and nothing else: the pane opens its own rename dialog with it, so
+ * the naming and the renaming stay in the hands they were already in.
+ */
+export type FileNamer = (file: TFile) => Promise<string | null>;
+
 /** What the explorer needs from the sync machinery, and nothing more. */
 export interface ExplorerSyncBridge {
   checkFile(file: TFile): Promise<PollSummary>;
@@ -92,6 +101,8 @@ export class ExplorerController {
   /** Paths trashed whose disappearance the vault has not reported yet. */
   private readonly trashed = new Set<string>();
   private submenusSupported: boolean | null = null;
+  /** Set once the AI commands exist, which is after this controller is built. */
+  private namer: FileNamer | null = null;
 
   constructor(
     private readonly app: App,
@@ -102,6 +113,11 @@ export class ExplorerController {
   ) {
     this.store = new ExplorerStore({ file: stateFile, logger });
     this.store.onChange(() => this.emit());
+  }
+
+  /** Hand over the thing that can name a file from its contents. */
+  useNamer(namer: FileNamer): void {
+    this.namer = namer;
   }
 
   async start(): Promise<void> {
@@ -383,6 +399,7 @@ export class ExplorerController {
       kind: isFile ? "file" : "folder",
       path: file.path,
       markdown: isFile && file.extension === "md",
+      image: isFile && getImageMimeType(file.extension) !== null,
       bound: isFile && this.isBound(file),
       hasIcon: this.iconFor(file.path) !== undefined,
       kept: this.isKept(file.path),
@@ -443,6 +460,8 @@ export class ExplorerController {
         return this.moveTo(file);
       case "rename":
         return this.rename(file);
+      case "rename-ai":
+        return this.renameByContent(file);
       case "delete":
         return this.remove(file);
       default:
@@ -623,10 +642,40 @@ export class ExplorerController {
     }
   }
 
-  private rename(file: TAbstractFile): void {
+  /**
+   * The same dialog, opened on a name the model proposed.
+   *
+   * The proposal is a suggestion and not a decision: it arrives in the field
+   * with the file's own name replaced, where it can be read, corrected or
+   * simply cancelled. A menu acts on a row in a tree rather than on the note in
+   * front of you, which is no place for a rename that just happens.
+   *
+   * Nothing is said here when no name comes back. Whoever could not be served
+   * has already been told which of the reasons it was.
+   */
+  private async renameByContent(file: TAbstractFile): Promise<void> {
+    if (!(file instanceof TFile) || !this.namer) return;
+
+    const notice = new Notice(t().common.notice(t().explorer.menu.renaming), 0);
+    let proposed: string | null;
+    try {
+      proposed = await this.namer(file);
+    } finally {
+      notice.hide();
+    }
+
+    // Renamed, moved or deleted while the request was in flight: the dialog
+    // would be about a file that is no longer there.
+    if (proposed === null || this.app.vault.getAbstractFileByPath(file.path) === null) return;
+
+    this.rename(file, proposed);
+  }
+
+  private rename(file: TAbstractFile, proposed?: string): void {
     const parent = file.parent?.path ?? "";
     const extension = file instanceof TFile && file.extension ? `.${file.extension}` : "";
-    const initial = file instanceof TFile ? file.basename : file.name;
+    const current = file instanceof TFile ? file.basename : file.name;
+    const initial = proposed ?? current;
 
     new PromptModal(
       this.app,
@@ -635,10 +684,10 @@ export class ExplorerController {
         initial,
         submitLabel: t().explorer.create.renameTitle,
         validate: (value) =>
-          value === initial ? null : this.validateName(value, parent, extension)
+          value === current ? null : this.validateName(value, parent, extension)
       },
       (value) => {
-        if (value === initial) return;
+        if (value === current) return;
         void this.app.fileManager
           .renameFile(file, joinPath(parent, `${value}${extension}`))
           .catch((error: unknown) => {

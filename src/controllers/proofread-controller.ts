@@ -44,6 +44,12 @@ import {
 import { resolveSourceUrl, sourceUrlFromNote, SYNC_FRONTMATTER_KEY } from "../services/sync-source";
 import { SyncPoller, githubToken, isCheckDue } from "./sync-poller";
 import {
+  isNoteDue,
+  parseSyncEvery,
+  SYNC_EVERY_KEY,
+  type SyncSchedule
+} from "../services/sync-interval";
+import {
   mergeSuggestions,
   planApply,
   refreshStaleness,
@@ -109,6 +115,9 @@ export class ProofreadController {
   private message = "";
   private running: CancelToken | null = null;
   private sync: SyncPanelState = EMPTY_REVIEW_STATE.sync;
+  /** The note's own check interval, as a line for the panel. Empty when the
+   *  note says nothing about it, which is the ordinary case. */
+  private syncInterval = "";
   private checking = false;
   private polling = false;
 
@@ -524,7 +533,12 @@ export class ProofreadController {
     }
 
     const record = this.syncStore.get(file.path);
-    if (!manual && !isCheckDue(record, settings.syncMinIntervalMinutes)) {
+    const own = this.readInterval(file);
+    const due =
+      own.schedule === null
+        ? isCheckDue(record, settings.syncMinIntervalMinutes)
+        : isNoteDue(own.schedule, record?.checkedAt, new Date());
+    if (!manual && !due) {
       return;
     }
 
@@ -582,6 +596,7 @@ export class ProofreadController {
           status: outcome.status,
           source: resolved.url,
           checkedAt,
+          interval: this.syncInterval,
           message: outcome.message
         };
         this.emit();
@@ -609,6 +624,7 @@ export class ProofreadController {
           status: state === "diverged" ? "diverged" : "clean",
           source: resolved.url,
           checkedAt,
+          interval: this.syncInterval,
           message: this.describeState(state, 0)
         };
         this.emit();
@@ -652,6 +668,7 @@ export class ProofreadController {
         status: suggestions.length === 0 ? "clean" : state === "diverged" ? "diverged" : "idle",
         source: resolved.url,
         checkedAt,
+        interval: this.syncInterval,
         message: this.describeState(state, suggestions.length)
       };
       this.emit();
@@ -715,14 +732,40 @@ export class ProofreadController {
     return t().proofread.sourceChanges(changes);
   }
 
+  /**
+   * What the note's own interval key says, as a schedule and as a sentence.
+   *
+   * Read once when the binding is reflected and kept, because every line the
+   * panel draws about the source is rebuilt from scratch on each check and this
+   * one does not change between them.
+   */
+  private readInterval(file: TFile): { schedule: SyncSchedule | null; sentence: string } {
+    const result = parseSyncEvery(
+      this.app.metadataCache.getFileCache(file)?.frontmatter?.[SYNC_EVERY_KEY]
+    );
+    if (result === null) return { schedule: null, sentence: "" };
+    if (!result.ok) return { schedule: null, sentence: result.reason };
+
+    const words = t().sync.every;
+    return {
+      schedule: result.schedule,
+      sentence:
+        result.schedule.kind === "every"
+          ? words.panel(result.schedule.text, result.schedule.cron)
+          : words.panelCron(result.schedule.cron)
+    };
+  }
+
   /** Reflect the binding in the panel without fetching anything. */
   private refreshSyncBinding(file: TFile | null): void {
     if (!file) {
       this.sync = EMPTY_REVIEW_STATE.sync;
+      this.syncInterval = "";
       return;
     }
 
     const raw = this.app.metadataCache.getFileCache(file)?.frontmatter?.[SYNC_FRONTMATTER_KEY];
+    this.syncInterval = this.readInterval(file).sentence;
     if (typeof raw !== "string" || raw.trim().length === 0) {
       this.sync = EMPTY_REVIEW_STATE.sync;
       return;
@@ -738,6 +781,7 @@ export class ProofreadController {
       status: resolved.ok ? (record ? "idle" : "unsynced") : "error",
       source: resolved.ok ? resolved.url : raw,
       checkedAt: record?.checkedAt ?? 0,
+      interval: this.syncInterval,
       message: resolved.ok
         ? pending > 0
           ? t().proofread.pendingFromPoll(pending)

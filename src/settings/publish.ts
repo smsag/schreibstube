@@ -21,6 +21,7 @@ import { checkTarget, listTargets } from "../services/publish-client";
 import type { PublishBridgeConfig, PublishTarget } from "../services/publish-protocol";
 import { resolveApiKey } from "../services/secret";
 import type { SettingsContext } from "./context";
+import { renderCommands } from "./commands";
 
 /**
  * Targets the bridge offered, for as long as the settings tab stays open.
@@ -79,6 +80,8 @@ export function renderPublish(ctx: SettingsContext): void {
   );
 
   renderKeys(ctx);
+
+  renderCommands(ctx, [t().commands.publish, t().commands.publishPreview, t().commands.openSite]);
 }
 
 function renderAccount(ctx: SettingsContext, position: number, account: PublishAccount): void {

@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { countFilesUnder, folderCountLabel, type CountableNode } from "./folder-count";
+import { countFilesUnder, folderCountLabel } from "./folder-count";
+import type { VaultNode } from "./vault-tree";
 
-function file(path: string): CountableNode {
+function file(path: string): VaultNode {
   return { path };
 }
 
-function folder(path: string, ...children: CountableNode[]): CountableNode {
+function folder(path: string, ...children: VaultNode[]): VaultNode {
   return { path, children };
 }
 
