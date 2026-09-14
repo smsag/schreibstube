@@ -2,7 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## 1.27.0 - 2026-09-14
+
+Mobile checklist: not run for this release. Everything in it was checked by
+the test suite and the build's own guards, not on a device. Three things in
+this release are the ones a phone would show first: the file pane's rows with
+the menu button gone, so a long press has to be the way to the menu; the
+filter field's lighter fill and its hairline; and the redrawn icon in the
+drawer's tab strip. Step 7 of the checklist covers all three.
 
 ### Added
 
