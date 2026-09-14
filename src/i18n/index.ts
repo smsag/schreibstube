@@ -42,17 +42,31 @@ export function setLanguage(preference: LanguagePreference): Locale {
 /**
  * What language Obsidian itself is set to.
  *
- * Obsidian records it in local storage. Anything other than German is served
- * English, which is the honest behaviour for a plugin that speaks two
- * languages: a Spanish interface with German buttons would be worse than one
- * consistent fallback.
+ * Obsidian records an explicit choice in local storage and, when nobody ever
+ * chose, follows the system: that is the app's own rule, read from the app.
+ * Reading only the stored choice was wrong on every machine where German came
+ * from macOS rather than from the settings — Obsidian's palette spoke German
+ * and this plugin's commands were named in English, so "Aufgaben" found
+ * nothing. Anything other than German is served English, which is the honest
+ * behaviour for a plugin that speaks two languages: a Spanish interface with
+ * German buttons would be worse than one consistent fallback.
  */
 export function obsidianLocale(): Locale {
+  return localeFrom(storedLanguage(), typeof navigator === "undefined" ? "" : navigator.language);
+}
+
+/** The locale for Obsidian's stored language, or the system's when none is stored. */
+export function localeFrom(stored: string | null, system: string): Locale {
+  const language = (stored ?? system ?? "").trim().toLowerCase();
+  return language.split(/[-_]/)[0] === "de" ? "de" : "en";
+}
+
+function storedLanguage(): string | null {
   try {
-    return window.localStorage.getItem("language") === "de" ? "de" : "en";
+    return window.localStorage.getItem("language");
   } catch {
     // Private windows and hardened setups can refuse local storage entirely.
-    return "en";
+    return null;
   }
 }
 

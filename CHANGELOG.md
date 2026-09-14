@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Fixed
+
+- **The plugin now speaks the language Obsidian speaks, even when nobody chose one.** Obsidian records an explicit language choice and otherwise follows the system. The plugin read only the recorded choice, so on a Mac set to German where the Obsidian language was never touched, Obsidian's palette was German and every Schreibstube command was named in English: typing "Aufgaben" found nothing, and the file pane's headers read PINNED and LATEST. The plugin now falls back to the system language the way Obsidian does. An explicit choice under Settings → Schreibstube → Language still wins.
+
 ## 1.26.0 - 2026-09-14
 
 Mobile checklist: not run for this release. Everything in it was checked by
