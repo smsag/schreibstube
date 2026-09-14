@@ -144,6 +144,10 @@ Dims everything except the passage you are working on. Available as three comman
 
 The dim strength is configurable.
 
+- **Focus: new note in its own window** — a blank note in a new window, in front of everything
+
+That last command makes a new empty note where Obsidian's _Default location for new notes_ says, named the way Obsidian names one (**Untitled**, then **Untitled 1**, and so on; **Unbenannt** in German), opens it in a new window, brings that window to the front whatever windows and tabs are already open, and puts the cursor in the editor. A pop-out window has no sidebars, so the screen holds the note and nothing else. On a phone, which has no windows, the note opens in a new tab and both drawers close instead. Nothing about the vault differs from a note made the usual way.
+
 ### Rename file from content
 
 Assigns a filename to the active note or image based on its content:

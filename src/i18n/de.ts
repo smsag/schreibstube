@@ -13,6 +13,7 @@ export const de: Messages = {
     focusSentence: "Fokus: Satz",
     focusParagraph: "Fokus: Absatz",
     focusDisable: "Fokus: aus",
+    newNote: "Fokus: neue Notiz im eigenen Fenster",
     insertTaskSummary: "Aufgaben: Zusammenfassung einfügen",
     sendToReminders: "Aufgaben: an Erinnerungen senden",
     checkNoteReminders: "Aufgaben: diese Notiz mit Erinnerungen abgleichen",
@@ -72,6 +73,11 @@ export const de: Messages = {
     checking: "Erinnerungen wird gefragt…",
     nothingDone: "Erinnerungen meldet nichts Neues als erledigt.",
     ticked: (count: number) => `${count} Aufgabe(n) als in Erinnerungen erledigt abgehakt.`
+  },
+
+  notes: {
+    untitled: "Unbenannt",
+    createFailed: "die Notiz konnte nicht angelegt werden."
   },
 
   publish: {

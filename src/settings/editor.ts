@@ -36,6 +36,7 @@ export function renderEditor(ctx: SettingsContext): void {
     });
 
   renderCommands(ctx, [
+    t().commands.newNote,
     t().commands.focusSentence,
     t().commands.focusParagraph,
     t().commands.focusDisable,

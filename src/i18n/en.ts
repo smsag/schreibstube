@@ -15,6 +15,7 @@ export const en = {
     focusSentence: "Focus: sentence",
     focusParagraph: "Focus: paragraph",
     focusDisable: "Focus: off",
+    newNote: "Focus: new note in its own window",
     insertTaskSummary: "Tasks: insert the summary ribbon",
     sendToReminders: "Tasks: send to Erinnerungen",
     checkNoteReminders: "Tasks: check this note against Erinnerungen",
@@ -78,6 +79,12 @@ export const en = {
     checking: "asking Erinnerungen…",
     nothingDone: "Erinnerungen reports nothing new as done.",
     ticked: (count: number) => `${count} task(s) ticked as done in Erinnerungen.`
+  },
+
+  notes: {
+    /** The base of a new note's name, the word Obsidian itself uses. */
+    untitled: "Untitled",
+    createFailed: "the note could not be created."
   },
 
   publish: {
