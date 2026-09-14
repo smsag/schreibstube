@@ -11,6 +11,8 @@ All notable changes to this project will be documented in this file.
 ### Changed
 
 - **The menu button on a row is gone.** Every row carried a three-dot button, shown on hover and always on a phone, that opened the same menu a right-click or a long press opens. It was one more thing lighting up on the pane for nothing the pointer could not already do, and its place at the right edge is where the task count now sits.
+- **The file pane's filter field says it is a field.** A hairline now runs round it, so a bare tint on a tinted pane no longer has to carry the whole meaning of "type here". On a phone the tint steps back to half strength: at full strength it was a grey block on a pane that is itself grey.
+- **The plugin's icon is drawn to the rules of the icons beside it.** It sits in a row of Lucide icons in the sidebar's tab strip, and was scaled to a folder's width with a heavier stroke, which made it a stranger among the three beside it and put it closer to the window's edge than they stand. It is now Lucide's own house outline, on Lucide's grid, stroke and margins, with the quill in the doorway.
 
 ### Fixed
 
