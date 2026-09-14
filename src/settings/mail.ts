@@ -3,7 +3,11 @@
  */
 import { SecretComponent, Setting } from "obsidian";
 import { t } from "../i18n";
-import { MAX_MAIL_RESULTS, MIN_MAIL_RESULTS } from "../services/plugin-settings";
+import {
+  DEFAULT_MAIL_MERGE_HEADING,
+  MAX_MAIL_RESULTS,
+  MIN_MAIL_RESULTS
+} from "../services/plugin-settings";
 import type { SettingsContext } from "./context";
 import { renderCommands } from "./commands";
 
@@ -73,7 +77,7 @@ export function renderMail(ctx: SettingsContext): void {
     .setName(t().mail.mergeHeading)
     .setDesc(t().mail.mergeHeadingDesc)
     .addText((text) => {
-      text.setPlaceholder(ctx.plugin.settings.mailMergeHeading || "Correspondence");
+      text.setPlaceholder(ctx.plugin.settings.mailMergeHeading || DEFAULT_MAIL_MERGE_HEADING);
       text.setValue(ctx.plugin.settings.mailMergeHeading);
       text.onChange(async (value) => {
         await ctx.update({ mailMergeHeading: value });

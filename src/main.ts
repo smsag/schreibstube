@@ -30,6 +30,7 @@ import {
 } from "./services/command-availability";
 import { getImageMimeType } from "./services/image-resize";
 import { hasSourceBinding } from "./services/sync-source";
+import { describePollSummary } from "./services/sync-summary";
 import { isTaskLine, TASK_PROTOCOL_ACTION } from "./services/reminder-export";
 import { sentTaskIds } from "./services/reminder-status";
 import { ReminderCommands } from "./controllers/reminder-commands";
@@ -70,6 +71,9 @@ export default class SchreibstubePlugin extends Plugin {
   override settings: SchreibstubeSettings = DEFAULT_SETTINGS;
   private logger: Logger = createLogger(() => this.settings.debugLogging);
   private currentView: MarkdownView | null = null;
+  /** Set first thing in `onunload`, so a frame or a callback that was already
+   *  queued when the plugin went away finds nothing left to draw on. */
+  private unloaded = false;
   private viewportTopLine = 0;
   private headingIndex: HeadingEntry[] = [];
   private lastIndexedContent = "";
@@ -238,6 +242,7 @@ export default class SchreibstubePlugin extends Plugin {
   }
 
   override onunload(): void {
+    this.unloaded = true;
     this.linkMode?.stop();
     this.print?.stop();
     this.proofread?.stop();
@@ -362,6 +367,10 @@ export default class SchreibstubePlugin extends Plugin {
     // one waits: before layout is ready there is nothing a create can tell us
     // that the state file does not already say.
     this.app.workspace.onLayoutReady(() => {
+      // A plugin disabled while the vault was still indexing would otherwise
+      // register a listener on a component that has already been unloaded,
+      // and nothing would ever take it off again.
+      if (this.unloaded) return;
       this.registerEvent(this.app.vault.on("create", (file) => this.explorer?.handleCreate(file)));
     });
 
@@ -503,10 +512,15 @@ export default class SchreibstubePlugin extends Plugin {
 
   private async runPoll(): Promise<void> {
     const summary = await this.proofread?.pollAllSources("schedule");
+    if (!summary || summary.skipped) return;
+
+    // Only a poll that ran counts as the last one: a daily schedule that met
+    // a check already in progress used to be recorded as done, and the
+    // catch-up on the next start then saw nothing owed.
     this.settings.syncLastPollAt = Date.now();
     await this.saveSettings();
 
-    if (summary && summary.withChanges > 0) {
+    if (summary.withChanges > 0) {
       new Notice(t().common.notice(t().sync.withUpdates(summary.withChanges)));
     }
   }
@@ -788,19 +802,11 @@ export default class SchreibstubePlugin extends Plugin {
       name: t().commands.syncAll,
       callback: () => {
         void this.proofread?.pollAllSources("manual").then(async (summary) => {
-          this.settings.syncLastPollAt = Date.now();
-          await this.saveSettings();
-          new Notice(
-            t().common.notice(
-              summary.skipped === "disabled"
-                ? t().sync.disabled
-                : summary.skipped === "busy"
-                  ? t().sync.busy
-                  : summary.checked === 0
-                    ? t().sync.noneChecked
-                    : t().sync.checked(summary.checked, summary.withChanges, summary.failed)
-            )
-          );
+          if (!summary.skipped) {
+            this.settings.syncLastPollAt = Date.now();
+            await this.saveSettings();
+          }
+          new Notice(t().common.notice(describePollSummary(summary, { scope: "vault" })));
         });
       }
     });
@@ -945,7 +951,10 @@ export default class SchreibstubePlugin extends Plugin {
   }
 
   private refreshForActiveView(viewportTopLine?: number, options?: RefreshOptions): void {
-    if (!this.settings.overlayEnabled) {
+    // A scroll queues a frame; disabling the plugin does not cancel it. The
+    // frame used to arrive after `onunload` had cleared the overlay and draw a
+    // fresh one into a live view, with no owner left to take it down.
+    if (this.unloaded || !this.settings.overlayEnabled) {
       this.clearOverlay();
       return;
     }

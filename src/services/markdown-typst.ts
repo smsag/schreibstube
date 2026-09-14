@@ -13,8 +13,11 @@
  * by callbacks the caller supplies, which is what keeps the whole conversion
  * testable in a few milliseconds.
  */
-import { fenceMarker } from "./markdown-fence";
+import { fencedLines, fenceMarker } from "./markdown-fence";
 import { typstArray, typstString } from "./typst-value";
+
+/** What a tab is worth when a list's nesting is measured, as in the editor. */
+const TAB_COLUMNS = 4;
 
 /** A fenced block a drawing plugin owns, in the order the note holds them. */
 export interface DiagramBlock {
@@ -308,9 +311,7 @@ class Converter {
 
       // Everything indented past the marker belongs to this item: a nested
       // list, a second paragraph, a fenced block.
-      const contentIndent = indent + (match[2] ?? "").length + 2;
-      const nested = this.blocks(Math.min(contentIndent, indent + 2));
-      parts.push(...nested);
+      parts.push(...this.blocks(indent + 2));
 
       const text = parts.join("\n").trimEnd();
       out.push(`${" ".repeat(indent)}${marker} ${indentContinuation(text, indent + 2)}`);
@@ -452,6 +453,17 @@ class Converter {
           i += br[0].length;
           continue;
         }
+        // Before the tag rule, not after: `<https://example.de>` starts with
+        // a letter too, so the generic rule used to swallow every autolink
+        // and report it as HTML that had been dropped.
+        const autolink = /^<(https?:\/\/[^>\s]+|mailto:[^>\s]+)>/.exec(rest);
+        if (autolink?.[1] !== undefined) {
+          flush();
+          out += `#link(${quote(autolink[1])})`;
+          i += autolink[0].length;
+          continue;
+        }
+
         const tag = /^<\/?[A-Za-z][^>]*>/.exec(rest);
         if (tag) {
           // Raw HTML has no meaning on paper and no safe rendering; dropping
@@ -516,19 +528,11 @@ class Converter {
         }
       }
 
-      const emphasis = matchEmphasis(rest);
+      const emphasis = matchEmphasis(rest, plain.slice(-1) || text[i - 1] || "");
       if (emphasis) {
         flush();
-        out += `${emphasis.open}[${this.inline(emphasis.content)}]`;
+        out += `${emphasis.open}[${this.inline(emphasis.content)}${emphasis.close}`;
         i += emphasis.length;
-        continue;
-      }
-
-      const autolink = /^<(https?:\/\/[^>\s]+|mailto:[^>\s]+)>/.exec(rest);
-      if (autolink?.[1] !== undefined) {
-        flush();
-        out += `#link(${quote(autolink[1])})`;
-        i += autolink[0].length;
         continue;
       }
 
@@ -562,33 +566,50 @@ class Converter {
   }
 }
 
-/** Emphasis, strong, strikethrough and highlight, longest marker first. */
-function matchEmphasis(rest: string): { open: string; content: string; length: number } | null {
-  const markers: [string, string][] = [
-    ["***", "#strong[#emph"],
-    ["___", "#strong[#emph"],
-    ["**", "#strong"],
-    ["__", "#strong"],
-    ["~~", "#strike"],
-    ["==", "#highlight"],
-    ["*", "#emph"],
-    ["_", "#emph"]
+interface Emphasis {
+  open: string;
+  /** The brackets that close it: bold italic opens two and closes two. */
+  close: string;
+  content: string;
+  length: number;
+}
+
+/**
+ * Emphasis, strong, strikethrough and highlight, longest marker first.
+ *
+ * `before` is the character the text had just before the marker, which is the
+ * whole of the intra-word rule: an underscore between two word characters is
+ * part of the word. Only the closing side was checked, so `my_var` opened
+ * emphasis on its own underscore and swallowed the rest of the sentence.
+ */
+function matchEmphasis(rest: string, before: string): Emphasis | null {
+  const markers: [string, string, string][] = [
+    // Two brackets opened, two closed. One of them used to be missing, and
+    // Typst refuses the whole document for one bold italic word.
+    ["***", "#strong[#emph", "]]"],
+    ["___", "#strong[#emph", "]]"],
+    ["**", "#strong", "]"],
+    ["__", "#strong", "]"],
+    ["~~", "#strike", "]"],
+    ["==", "#highlight", "]"],
+    ["*", "#emph", "]"],
+    ["_", "#emph", "]"]
   ];
 
-  for (const [marker, open] of markers) {
+  for (const [marker, open, close] of markers) {
     if (!rest.startsWith(marker)) continue;
-    const close = rest.indexOf(marker, marker.length);
-    if (close === -1) continue;
-    const content = rest.slice(marker.length, close);
+    const end = rest.indexOf(marker, marker.length);
+    if (end === -1) continue;
+    const content = rest.slice(marker.length, end);
     if (content.trim() === "") continue;
-    // An underscore inside a word is a word, not emphasis: snake_case names
-    // would otherwise come out italic and missing their underscores.
-    if (marker.startsWith("_") && /\w$/.test(rest.slice(0, 0) + content.slice(-1))) {
-      const after = rest[close + marker.length];
-      if (after !== undefined && /\w/.test(after)) continue;
+
+    if (marker.startsWith("_")) {
+      if (/\w/.test(before)) continue;
+      const after = rest[end + marker.length];
+      if (/\w$/.test(content) && after !== undefined && /\w/.test(after)) continue;
     }
-    const length = close + marker.length;
-    return marker.length === 3 ? { open, content, length: length } : { open, content, length };
+
+    return { open, close, content, length: end + marker.length };
   }
 
   return null;
@@ -603,7 +624,12 @@ function matchEmphasis(rest: string): { open: string; content: string; length: n
  * are what is wanted.
  */
 export function escapeText(text: string): string {
-  const escaped = text.replace(/[\\#$*_`<>@~[\]]/g, (char) => `\\${char}`);
+  const escaped = text
+    .replace(/[\\#$*_`<>@~[\]]/g, (char) => `\\${char}`)
+    // `//` opens a line comment in Typst, so a bare URL in prose used to take
+    // the rest of its line off the page without a word about it. (`/*`, the
+    // block comment, is already broken up by the escaped `*` above.)
+    .replace(/\/\//g, "\\//");
   // At the start of a line these would open a heading, a list or a term list.
   return escaped.replace(/^(\s*)([=+/-]|\d+[.)])/gm, (_all, space: string, token: string) => {
     return `${space}\\${token}`;
@@ -634,13 +660,65 @@ function stripFrontmatter(source: string): string {
   return match ? source.slice(match[0].length) : source;
 }
 
-/** `%%…%%` is a note to oneself and never reaches paper. */
+/**
+ * `%%…%%` is a note to oneself and never reaches paper.
+ *
+ * Outside a fenced block only: Obsidian shows `%%` inside one as the two
+ * characters they are, and a pre-pass over the whole note used to delete from
+ * one line of code to another.
+ */
 function stripComments(source: string): string {
-  return source.replace(/%%[\s\S]*?%%/g, "");
+  const lines = source.split("\n");
+  const fenced = fencedLines(lines);
+
+  let out = "";
+  let open = false;
+
+  for (const [index, line] of lines.entries()) {
+    const suffix = index === lines.length - 1 ? "" : "\n";
+
+    if (fenced[index] && !open) {
+      out += line + suffix;
+      continue;
+    }
+
+    let text = line;
+    if (open) {
+      const close = text.indexOf("%%");
+      if (close === -1) continue;
+      text = text.slice(close + 2);
+      open = false;
+    }
+
+    text = text.replace(/%%[\s\S]*?%%/g, "");
+    const dangling = text.indexOf("%%");
+    if (dangling !== -1) {
+      text = text.slice(0, dangling);
+      open = true;
+    }
+
+    out += text + suffix;
+  }
+
+  return out;
 }
 
+/**
+ * How far a line is indented, in columns.
+ *
+ * A tab counts four, as it does in the editor: counted as one character, a
+ * tab-indented sub-item — which is what Obsidian inserts by default — never
+ * reached the two columns that make it a child, and every level flattened
+ * into one.
+ */
 function indentOf(line: string): number {
-  return line.length - line.trimStart().length;
+  let columns = 0;
+  for (const char of line) {
+    if (char === " ") columns += 1;
+    else if (char === "\t") columns += TAB_COLUMNS;
+    else break;
+  }
+  return columns;
 }
 
 /** Continuation lines of a list item line up under its text. */

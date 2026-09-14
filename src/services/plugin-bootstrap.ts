@@ -35,11 +35,11 @@ export function bootstrapSchreibstubeRuntime(plugin: Plugin, handlers: Bootstrap
   registerTaskRibbon(plugin);
   registerSlideshow(plugin);
 
-  plugin.registerMarkdownPostProcessor(
-    createReadingPostProcessor(({ viewportTopLine, scrollTop }) => {
-      handlers.onViewportFromReading({ viewportTopLine, scrollTop });
-    })
-  );
+  const reading = createReadingPostProcessor(({ viewportTopLine, scrollTop }) => {
+    handlers.onViewportFromReading({ viewportTopLine, scrollTop });
+  });
+  plugin.registerMarkdownPostProcessor(reading.processor);
+  plugin.register(reading.dispose);
 
   plugin.registerEvent(
     plugin.app.workspace.on("active-leaf-change", () => {

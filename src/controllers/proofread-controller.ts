@@ -42,13 +42,12 @@ import {
   type SyncRecord
 } from "../services/sync-document";
 import { resolveSourceUrl, sourceUrlFromNote, SYNC_FRONTMATTER_KEY } from "../services/sync-source";
-import { SyncPoller, githubToken, isCheckDue } from "./sync-poller";
-import {
-  isNoteDue,
-  parseSyncEvery,
-  SYNC_EVERY_KEY,
-  type SyncSchedule
-} from "../services/sync-interval";
+import { SyncPoller, githubToken } from "./sync-poller";
+import { planSourceCheck } from "../services/sync-interval";
+import type { PollSummary } from "../services/sync-summary";
+
+export type { PollSummary } from "../services/sync-summary";
+import { parseSyncEvery, SYNC_EVERY_KEY, type SyncSchedule } from "../services/sync-interval";
 import {
   mergeSuggestions,
   planApply,
@@ -69,26 +68,6 @@ import {
 export const GLOSSARY_FRONTMATTER_KEY = "schreibstubeGlossaries";
 
 export type ReviewStateListener = (state: ReviewState) => void;
-
-/** Requests in flight during a background poll. Deliberately small: a poll is
- *  never the urgent thing the user is waiting on. */
-
-export interface PollSummary {
-  checked: number;
-  withChanges: number;
-  failed: number;
-  /** Paths of notes with changes waiting, for the summary notice. */
-  notes: string[];
-  /**
-   * Why nothing was checked, when that was not the notes' doing.
-   *
-   * Without this a poll that never ran is indistinguishable from a note that
-   * names no source, and the notice blames the note for a switch being off.
-   */
-  skipped?: "disabled" | "busy";
-  /** Why the first failed note failed, for a notice that names one note. */
-  reason?: string;
-}
 
 /** Persists sync bookkeeping between sessions. Implemented by the plugin, which
  *  owns the data file. */
@@ -121,7 +100,6 @@ export class ProofreadController {
    *  note says nothing about it, which is the ordinary case. */
   private syncInterval = "";
   private checking = false;
-  private polling = false;
 
   constructor(
     private readonly app: App,
@@ -278,8 +256,7 @@ export class ProofreadController {
 
     const found = scanGlossary(text, this.matcher);
     this.suggestions = mergeSuggestions(this.suggestions, found, "glossary");
-    this.message =
-      found.length === 0 ? "Glossar: keine Treffer." : `Glossar: ${found.length} Treffer.`;
+    this.message = t().proofread.glossaryHits(found.length);
     this.emit();
   }
 
@@ -354,7 +331,7 @@ export class ProofreadController {
       }
     } catch (err) {
       this.logger.error("Proofread failed:", err);
-      const detail = err instanceof Error ? err.message : "unbekannter Fehler";
+      const detail = err instanceof Error ? err.message : t().proofread.unknownError;
       new Notice(t().common.notice(t().proofread.failed(detail)));
       this.message = t().proofread.failedShort;
     } finally {
@@ -485,6 +462,10 @@ export class ProofreadController {
     });
 
     const loaded = await this.registry.load(this.selection.paths, file.path);
+    // Two notes opened in quick succession load their glossaries side by
+    // side, and the slower load used to land last: the matcher and the panel
+    // then described the note that was left, under the name of the one open.
+    if (this.filePath !== file.path) return;
     this.matcher = compileGlossaries(loaded.glossaries);
     this.glossaryPanel = {
       selected: this.selection.paths,
@@ -508,60 +489,63 @@ export class ProofreadController {
     const file = this.app.workspace.getActiveFile();
     if (!file || file.path !== this.filePath) return;
 
-    // The cache is updated after a write, not during one, so a check made in
-    // the same breath as the binding asks it a question it cannot answer yet.
-    const cached = this.app.metadataCache.getFileCache(file)?.frontmatter?.[SYNC_FRONTMATTER_KEY];
-    const raw =
-      typeof cached === "string" && cached.trim().length > 0
-        ? cached
-        : sourceUrlFromNote(await this.app.vault.read(file));
+    // Taken before the first await, not after: the guard above and the flag
+    // used to be separated by a read of the note, and the check on open and a
+    // click on the button in the same moment both got through.
+    this.checking = true;
 
-    if (typeof raw !== "string" || raw.trim().length === 0) {
-      if (manual) new Notice(t().common.notice(t().sync.notBound));
-      return;
-    }
+    try {
+      // The cache is updated after a write, not during one, so a check made
+      // in the same breath as the binding asks it a question it cannot answer
+      // yet.
+      const cached = this.app.metadataCache.getFileCache(file)?.frontmatter?.[SYNC_FRONTMATTER_KEY];
+      const raw =
+        typeof cached === "string" && cached.trim().length > 0
+          ? cached
+          : sourceUrlFromNote(await this.app.vault.read(file));
 
-    const resolved = resolveSourceUrl(raw);
-    if (!resolved.ok) {
+      if (typeof raw !== "string" || raw.trim().length === 0) {
+        if (manual) new Notice(t().common.notice(t().sync.notBound));
+        return;
+      }
+
+      const resolved = resolveSourceUrl(raw);
+      if (!resolved.ok) {
+        this.sync = {
+          ...this.sync,
+          bound: true,
+          status: "error",
+          source: raw,
+          message: resolved.reason
+        };
+        this.emit();
+        return;
+      }
+
+      const record = this.syncStore.get(file.path);
+      const plan = planSourceCheck({
+        record,
+        schedule: this.readInterval(file).schedule,
+        minIntervalMinutes: settings.syncMinIntervalMinutes,
+        now: new Date()
+      });
+      if (!manual && !plan.due) {
+        return;
+      }
+
       this.sync = {
         ...this.sync,
         bound: true,
-        status: "error",
-        source: raw,
-        message: resolved.reason
+        status: "checking",
+        source: resolved.url,
+        message: ""
       };
       this.emit();
-      return;
-    }
 
-    const record = this.syncStore.get(file.path);
-    const own = this.readInterval(file);
-    const due =
-      own.schedule === null
-        ? isCheckDue(record, settings.syncMinIntervalMinutes)
-        : isNoteDue(own.schedule, record?.checkedAt, new Date());
-    if (!manual && !due) {
-      return;
-    }
-
-    this.checking = true;
-    this.sync = {
-      ...this.sync,
-      bound: true,
-      status: "checking",
-      source: resolved.url,
-      message: ""
-    };
-    this.emit();
-
-    try {
-      // A poll that found changes already advanced the validator, so asking
-      // conditionally here would answer "unchanged" and lose the update.
-      const conditional = (record?.pendingChanges ?? 0) > 0 ? undefined : record?.etag;
       const outcome = await fetchSource({
         url: resolved.url,
         target: resolved.target,
-        etag: conditional,
+        etag: plan.etag,
         token: githubToken(this.app, this.getSettings())
       });
       const view = this.resolveTargetView();

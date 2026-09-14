@@ -154,10 +154,13 @@ export class LlmCommands {
     apiKey: string
   ): Promise<string | null> {
     const settings = this.getSettings();
-    const buffer = await this.app.vault.readBinary(file);
 
     let image: Awaited<ReturnType<typeof resizeImageToBase64>>;
     try {
+      // Inside the guard with the resize: a picture gone between the menu and
+      // this read used to reject past every notice and leave "renaming…" as
+      // the last word.
+      const buffer = await this.app.vault.readBinary(file);
       image = await resizeImageToBase64(buffer, mimeType, settings.renameMaxImagePx);
     } catch (err) {
       this.fail("image resize", t().ai.failImage, err);
@@ -208,8 +211,10 @@ export class LlmCommands {
       return;
     }
 
-    // Capture the exact range now, so the replacement targets the original
-    // selection even if the cursor moves while the request is in flight.
+    // The range is captured now, so the replacement targets the original
+    // selection even if the cursor moves while the request is in flight; and
+    // checked again before writing, because an edit above the selection moves
+    // the text out from under those coordinates.
     const from = editor.getCursor("from");
     const to = editor.getCursor("to");
 
@@ -231,6 +236,10 @@ export class LlmCommands {
         return;
       }
 
+      if (editor.getRange(from, to) !== selection) {
+        new Notice(t().common.notice(t().ai.selectionMoved));
+        return;
+      }
       editor.replaceRange(summary, from, to);
     });
   }
@@ -274,13 +283,24 @@ export class LlmCommands {
       this.logger.debug("Renamed file to", newPath);
     } catch (err) {
       this.logger.warn("File rename failed for", newPath, err);
-      new Notice(t().common.notice(t().ai.renameFailedExists));
+      // A collision is the likely reason, but not the only one: the file may
+      // have been moved or deleted while the model was thinking, and blaming a
+      // name that is free sends the person looking for a file that is not
+      // there.
+      const taken = this.app.vault.getAbstractFileByPath(newPath) !== null;
+      new Notice(
+        t().common.notice(
+          taken
+            ? t().ai.renameFailedExists
+            : t().ai.renameFailed(err instanceof Error ? err.message : String(err))
+        )
+      );
     }
   }
 
   private fail(label: string, userMessage: string, err: unknown): void {
     this.logger.error(`${label} failed:`, err);
-    const detail = err instanceof Error ? err.message : "unknown error";
+    const detail = err instanceof Error ? err.message : t().proofread.unknownError;
     new Notice(`${userMessage} — ${detail}`);
   }
 }

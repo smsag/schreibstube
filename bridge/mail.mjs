@@ -153,7 +153,14 @@ export async function searchMessages(config, request) {
       // Newest UIDs are highest, so the tail is the most recent window.
       const window = uids.slice(-limit);
       const messages = [];
-      for await (const msg of client.fetch(window, { uid: true, source: true }, { uid: true })) {
+      // A bound on the download, not only on what is kept: without one, fifty
+      // messages with attachments were pulled into memory in full and parsed
+      // before `maxTextChars` trimmed anything.
+      for await (const msg of client.fetch(
+        window,
+        { uid: true, source: { maxLength: config.maxMessageBytes } },
+        { uid: true }
+      )) {
         messages.push(await toMessage(msg, config.maxTextChars));
       }
       messages.sort((a, b) => (a.date ?? "").localeCompare(b.date ?? ""));

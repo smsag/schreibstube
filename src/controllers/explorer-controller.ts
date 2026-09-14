@@ -44,8 +44,9 @@ import {
   type MoveContext
 } from "../services/tree-move";
 import { hasSourceBinding, resolveSourceUrl, SYNC_FRONTMATTER_KEY } from "../services/sync-source";
+import { someFileUnder } from "../services/vault-tree";
 import { openSubmenu } from "../services/workspace-internals";
-import type { PollSummary } from "./proofread-controller";
+import { describePollSummary, type PollSummary } from "../services/sync-summary";
 import { ConfirmModal, FolderPickerModal, PromptModal } from "../ui/explorer-modals";
 import { IconPickerModal } from "../ui/icon-picker";
 
@@ -405,19 +406,19 @@ export class ExplorerController {
       hasIcon: this.iconFor(file.path) !== undefined,
       kept: this.isKept(file.path),
       pinned: this.isPinned(file.path),
-      hasBoundNotes: !isFile && this.hasBoundNotes(file.path)
+      hasBoundNotes: file instanceof TFolder && this.hasBoundNotes(file)
     };
   }
 
-  private hasBoundNotes(folderPath: string): boolean {
-    const prefix = folderPath === "/" ? "" : `${folderPath}/`;
-    return this.app.vault
-      .getMarkdownFiles()
-      .some(
-        (file) =>
-          file.path.startsWith(prefix) &&
-          hasSourceBinding(this.app.metadataCache.getFileCache(file)?.frontmatter)
-      );
+  /**
+   * Whether this folder holds a note bound to a source.
+   *
+   * Walked from the folder rather than across the vault: the menu asks this
+   * every time it opens on a folder, and listing every Markdown file in the
+   * vault to keep the few under one folder cost the whole vault per press.
+   */
+  private hasBoundNotes(folder: TFolder): boolean {
+    return someFileUnder(folder, (file) => file instanceof TFile && this.isBound(file));
   }
 
   // --- the actions --------------------------------------------------------
@@ -560,44 +561,16 @@ export class ExplorerController {
     if (!(file instanceof TFile)) return;
 
     const summary = await this.sync.checkFile(file);
-    new Notice(t().common.notice(this.describeSummary(summary, file.basename)));
+    new Notice(
+      t().common.notice(describePollSummary(summary, { scope: "note", name: file.basename }))
+    );
     this.emit();
   }
 
   private async checkFolder(file: TAbstractFile): Promise<void> {
     const summary = await this.sync.checkFolder(file.path);
-
-    new Notice(
-      t().common.notice(
-        summary.skipped === "disabled"
-          ? t().sync.disabled
-          : summary.skipped === "busy"
-            ? t().sync.busy
-            : summary.checked === 0 && summary.failed === 0
-              ? t().explorer.bind.folderEmpty
-              : t().explorer.bind.folderChecked(
-                  summary.checked,
-                  summary.withChanges,
-                  summary.failed
-                )
-      )
-    );
+    new Notice(t().common.notice(describePollSummary(summary, { scope: "folder" })));
     this.emit();
-  }
-
-  private describeSummary(summary: PollSummary, name: string): string {
-    // Why nothing happened comes first: a switch being off is not something the
-    // note can be blamed for, and it is the only answer that says what to do.
-    if (summary.skipped === "disabled") return t().sync.disabled;
-    if (summary.skipped === "busy") return t().sync.busy;
-    if (summary.failed > 0) {
-      return summary.reason === undefined
-        ? t().explorer.badge.error
-        : t().explorer.bind.failed(summary.reason);
-    }
-    if (summary.withChanges > 0) return t().sync.withUpdates(summary.withChanges);
-    if (summary.checked === 0) return t().sync.notBound;
-    return t().explorer.bind.checked(name);
   }
 
   private openSource(file: TAbstractFile): void {

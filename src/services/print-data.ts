@@ -10,6 +10,7 @@
  * template and "who is being written to" once in the note.
  */
 import type { Locale } from "../i18n";
+import { fencedLines } from "./markdown-fence";
 import type { PrintTemplate } from "./print-template";
 
 /** The frontmatter key a note puts its print data under. */
@@ -125,7 +126,14 @@ export function isoDate(date: Date): string {
  * heading inside it is what the document is called.
  */
 export function noteTitle(source: string, fallback: string): string {
-  for (const line of source.split(/\r?\n/)) {
+  const lines = source.split(/\r?\n/);
+  const fenced = fencedLines(lines);
+
+  for (const [index, line] of lines.entries()) {
+    // A `#` inside a fenced block is a shell comment or a colour, not the
+    // document's name: a note that opened with a code block used to print
+    // "install deps" as its title.
+    if (fenced[index]) continue;
     const match = /^ {0,3}#\s+(.+?)\s*#*\s*$/.exec(line);
     if (match?.[1] !== undefined) return match[1].trim();
   }

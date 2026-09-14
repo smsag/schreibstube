@@ -361,7 +361,7 @@ A file list of Schreibstube's own, opened from the ribbon icon in the left margi
 
 The pane has four sections, each one collapsible, each remembering whether it was open on that device: **Pinned**, **Bookmarks**, **Latest**, and **Files and folders**. Pinned is drawn only when something is pinned and opens closed. Closed, it keeps three rows on the sticky strip and its icon carries the number of pins there are, the badge a closed folder carries; open, the strip holds as many as fit in half the pane and the rest continue in the scrolling list. A filter opens it for as long as it is set.
 
-- **Icons.** Right-click, or long-press on a phone, and pick from 172 icons grouped by what they are for — documents, folders, property, business, status. The set is a subsetted [Tabler](https://tabler.io/icons) webfont carried inside the bundle, so it works offline and on mobile, with no request to a CDN.
+- **Icons.** Right-click, or long-press on a phone, and pick from a set of icons grouped by what they are for — documents, folders, property, business, status. The set is a subsetted [Tabler](https://tabler.io/icons) webfont carried inside the bundle, so it works offline and on mobile, with no request to a CDN.
 - **Latest.** Three lists, each as long as the count in the settings: the notes whose source last changed, then the most recently created, then the most recently changed. Each note appears in only one of them, the first that claims it, so the section never says the same thing three times. The first list carries the sync mark, so it doubles as what is waiting to be looked at.
 - **Properties on a mirrored note.** A check keeps two of the note's own properties: `title`, taken from the document's first heading and written only once — a title already in the file is yours and is never overwritten — and `updatedAt`, stamped whenever the source has actually changed, not merely been checked. Properties only: a check never writes the body, which still waits in the review panel.
 - **Sync marks.** A note bound to a source shows what its mirror is doing: in sync, changes waiting from the poll, never checked, or a source that cannot be fetched. Shape carries the state and colour only reinforces it. Nothing is shown while document sync is off.
@@ -428,7 +428,7 @@ Right-click a folder anywhere in Obsidian and choose **Copy path for Schreibstub
 
 #### Latest
 
-Two short lists: the notes created most recently, and those changed most recently. A note shown as created is not repeated as changed, because in a young vault the two lists are otherwise the same list twice. Only Markdown counts, so an attachment written by a paste never takes the top row. The bookmarks file is always excluded, and further paths can be.
+Three short lists: the notes whose source last changed, those created most recently, and those changed most recently. A note shown as created is not repeated as changed, because in a young vault the two lists are otherwise the same list twice. Only Markdown counts, so an attachment written by a paste never takes the top row. The bookmarks file is always excluded, and further paths can be.
 
 Icons and the two marks live in `explorer.json` inside the plugin folder, deliberately not in `data.json`: that file is rewritten whole on every save, so a second device would clobber it. Each entry carries its own timestamp and every write re-reads and merges per entry, so two devices editing different files both keep their change. The pane also watches the file for writes delivered by iCloud, Obsidian Sync or Git while it is open. A file that moves keeps its icon; one that disappears keeps it for thirty days, in case it turns up somewhere else under the same name.
 
@@ -648,11 +648,15 @@ Copy `main.js`, `manifest.json`, and `styles.css` into your vault plugin folder:
 ## Development
 
 ```bash
-npm install       # install dependencies
+npm run setup     # the plugin's dependencies and the bridge's
 npm run build     # production build
 npm run dev       # watch mode
-npm test          # run tests
+npm test          # run tests, plugin and bridge
+npm run check     # the whole gate: lint, format, tests with coverage, build
 ```
+
+The suite covers the bridge, which keeps its own dependency tree, so `npm install`
+on its own leaves `npm test` unable to run. `npm run setup` installs both.
 
 The icon font is generated, not hand-edited. Add a name to `scripts/icon-set.mjs` and run:
 

@@ -1,4 +1,4 @@
-import { type App, type Editor, MarkdownView, type Menu, Notice, type TFile } from "obsidian";
+import { type App, type Editor, MarkdownView, type Menu, Notice, TFile } from "obsidian";
 import { t } from "../i18n";
 import type { Logger } from "../services/logger";
 import {
@@ -185,14 +185,24 @@ export class ReminderCommands {
     if (ids.length === 0) return 0;
 
     let ticked = 0;
-    for (const file of this.app.vault.getMarkdownFiles()) {
+    // Notes this session already sent a task from come first, and the vault
+    // only for the ids they did not account for. A report naming one task
+    // used to read every note in the vault to find it.
+    const remaining = new Set(ids);
+    for (const file of this.filesForReport(ids)) {
+      if (remaining.size === 0) break;
+
+      const wanted = [...remaining];
       const before = await this.app.vault.cachedRead(file);
-      if (applyDone(before, ids).ticked.length === 0) continue;
+      if (applyDone(before, wanted).ticked.length === 0) continue;
 
       await this.app.vault.process(file, (current) => {
-        const result = applyDone(current, ids);
+        const result = applyDone(current, wanted);
         ticked += result.ticked.length;
-        for (const id of result.ticked) this.located.set(id, file.path);
+        for (const id of result.ticked) {
+          this.located.set(id, file.path);
+          remaining.delete(id);
+        }
         return result.content;
       });
     }
@@ -259,6 +269,28 @@ export class ReminderCommands {
       }
     }
     return null;
+  }
+
+  /**
+   * The notes worth reading for a report, nearest first.
+   *
+   * Every task this session sent was remembered along with the note it was
+   * in, and nothing ever asked. The vault still follows, because a report can
+   * name a task sent from another device, or before a restart.
+   */
+  private filesForReport(ids: readonly string[]): TFile[] {
+    const known: TFile[] = [];
+    const seen = new Set<string>();
+
+    for (const id of ids) {
+      const path = this.located.get(id);
+      if (path === undefined || seen.has(path)) continue;
+      seen.add(path);
+      const file = this.app.vault.getAbstractFileByPath(path);
+      if (file instanceof TFile) known.push(file);
+    }
+
+    return [...known, ...this.app.vault.getMarkdownFiles().filter((f) => !seen.has(f.path))];
   }
 
   private async lineIn(file: TFile, id: string): Promise<TaskLocation | null> {

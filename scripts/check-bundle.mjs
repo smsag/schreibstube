@@ -18,7 +18,26 @@ const MAX_BUNDLE_KB = 400;
 const bundle = fileURLToPath(new URL("../main.js", import.meta.url));
 const source = readFileSync(bundle, "utf8");
 
-const builtins = [...source.matchAll(/["'`](node:[a-z/]+)["'`]/g)].map((match) => match[1]);
+/**
+ * A Node built-in the bundle actually reaches for.
+ *
+ * Both spellings: esbuild writes the bare form for an un-prefixed import, so a
+ * `require("fs")` used to pass a check that only looked for `node:`. And only
+ * where a module is named — after `require(`, `import(` or `from` — because
+ * `{ type: "module" }` on a Worker and a property called `url` are strings
+ * that say nothing about what the bundle imports.
+ */
+const BARE_BUILTINS =
+  "assert|buffer|child_process|cluster|crypto|dgram|dns|events|fs|http|http2|https|" +
+  "inspector|module|net|os|path|perf_hooks|process|querystring|readline|repl|stream|" +
+  "string_decoder|tls|tty|url|util|v8|vm|worker_threads|zlib";
+const MODULE_NAME = `(node:[a-z_/]+|(?:${BARE_BUILTINS})(?:/[a-z]+)?)`;
+const BUILTIN_PATTERN = new RegExp(
+  `(?:require\\(|import\\(|from)\\s*["'\`]${MODULE_NAME}["'\`]`,
+  "g"
+);
+
+const builtins = [...source.matchAll(BUILTIN_PATTERN)].map((match) => match[1]);
 const unique = [...new Set(builtins)];
 
 if (unique.length > 0) {
@@ -29,7 +48,10 @@ if (unique.length > 0) {
   process.exit(1);
 }
 
-const kb = source.length / 1024;
+// Bytes, not UTF-16 code units: the German catalogue and the typographic
+// glyphs make the file larger on disk than its length suggests, so the budget
+// was being compared against an under-count.
+const kb = Buffer.byteLength(source, "utf8") / 1024;
 if (kb > MAX_BUNDLE_KB) {
   console.error(
     `main.js is ${kb.toFixed(0)} KB, over the ${MAX_BUNDLE_KB} KB budget.\n` +

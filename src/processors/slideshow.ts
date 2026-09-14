@@ -157,22 +157,7 @@ class Slideshow extends MarkdownRenderChild {
       }
     });
 
-    let touchStartX = 0;
-    wrapper.addEventListener(
-      "touchstart",
-      (e) => {
-        touchStartX = e.touches[0]?.clientX ?? 0;
-      },
-      { passive: true }
-    );
-    wrapper.addEventListener(
-      "touchend",
-      (e) => {
-        const dx = (e.changedTouches[0]?.clientX ?? 0) - touchStartX;
-        if (Math.abs(dx) > SWIPE_THRESHOLD_PX) goTo(dx < 0 ? current + 1 : current - 1);
-      },
-      { passive: true }
-    );
+    wireSwipe(wrapper, (direction) => goTo(current + direction));
   }
 
   private openFullscreen(images: SlideshowImage[], resolved: string[], startAt: number): void {
@@ -230,25 +215,41 @@ class Slideshow extends MarkdownRenderChild {
     });
     doc.addEventListener("keydown", onKey);
 
-    let touchX = 0;
-    overlay.addEventListener(
-      "touchstart",
-      (e) => {
-        touchX = e.touches[0]?.clientX ?? 0;
-      },
-      { passive: true }
-    );
-    overlay.addEventListener(
-      "touchend",
-      (e) => {
-        const dx = (e.changedTouches[0]?.clientX ?? 0) - touchX;
-        if (Math.abs(dx) > SWIPE_THRESHOLD_PX) fsGoTo(dx < 0 ? fsCurrent + 1 : fsCurrent - 1);
-      },
-      { passive: true }
-    );
+    wireSwipe(overlay, (direction) => fsGoTo(fsCurrent + direction));
 
     // The block can be unloaded (note closed, view re-rendered) while the
     // overlay is open; onunload runs this to tear it down.
     this.teardown.push(dismiss);
   }
+}
+
+/**
+ * A horizontal swipe, and only a horizontal one.
+ *
+ * Measured on the width alone, a thumb scrolling the note down with a little
+ * drift to the side turned the page. A swipe now has to travel further
+ * sideways than up or down, which is what makes it a swipe and not a scroll.
+ */
+function wireSwipe(el: HTMLElement, onSwipe: (direction: 1 | -1) => void): void {
+  let startX = 0;
+  let startY = 0;
+  el.addEventListener(
+    "touchstart",
+    (e) => {
+      startX = e.touches[0]?.clientX ?? 0;
+      startY = e.touches[0]?.clientY ?? 0;
+    },
+    { passive: true }
+  );
+  el.addEventListener(
+    "touchend",
+    (e) => {
+      const dx = (e.changedTouches[0]?.clientX ?? 0) - startX;
+      const dy = (e.changedTouches[0]?.clientY ?? 0) - startY;
+      if (Math.abs(dx) > SWIPE_THRESHOLD_PX && Math.abs(dx) > Math.abs(dy)) {
+        onSwipe(dx < 0 ? 1 : -1);
+      }
+    },
+    { passive: true }
+  );
 }

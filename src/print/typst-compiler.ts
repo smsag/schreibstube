@@ -11,6 +11,7 @@
  * compiler's answer means — is decided in `services/typst-runtime.ts` and
  * tested there.
  */
+import { withTimeout } from "../utils/with-timeout";
 import { requestUrl, type App } from "obsidian";
 import { WORKER_SOURCE } from "./typst-worker";
 import type { Logger } from "../services/logger";
@@ -43,6 +44,7 @@ export interface RuntimeStrings {
   compiling: string;
   mismatch: (detail: string) => string;
   unreachable: (detail: string) => string;
+  timeout: (seconds: number) => string;
 }
 
 interface Pending {
@@ -149,16 +151,21 @@ export class TypstCompiler {
 
   /** Let go of the worker and the module; the next print starts them again. */
   dispose(): void {
-    this.worker?.terminate();
-    if (this.workerUrl) URL.revokeObjectURL(this.workerUrl);
-    this.worker = null;
-    this.workerUrl = null;
+    this.stopWorker();
     this.ready = null;
     for (const pending of this.pending.values()) {
       window.clearTimeout(pending.timer);
       pending.reject(new Error("printing was stopped"));
     }
     this.pending.clear();
+  }
+
+  /** The thread and the URL it was started from, both let go. */
+  private stopWorker(): void {
+    this.worker?.terminate();
+    if (this.workerUrl) URL.revokeObjectURL(this.workerUrl);
+    this.worker = null;
+    this.workerUrl = null;
   }
 
   /** One acquisition at a time, however many prints ask for it at once. */
@@ -179,6 +186,9 @@ export class TypstCompiler {
     this.module ??= await WebAssembly.compile(wasm as BufferSource);
     this.loader = new TextDecoder().decode(loader);
 
+    // A start that failed leaves a thread and a blob URL behind unless they
+    // are let go before the next attempt takes their place.
+    this.stopWorker();
     this.worker = this.startWorker();
     await this.request("init", { module: this.module, loader: this.loader }, DOWNLOAD_TIMEOUT_MS);
   }
@@ -219,9 +229,10 @@ export class TypstCompiler {
 
     let response: Awaited<ReturnType<typeof requestUrl>>;
     try {
-      response = await withDeadline(
+      response = await withTimeout(
         requestUrl({ url, method: "GET", throw: false }),
-        DOWNLOAD_TIMEOUT_MS
+        DOWNLOAD_TIMEOUT_MS,
+        (seconds) => this.strings.timeout(seconds)
       );
     } catch (error) {
       throw new Error(
@@ -297,15 +308,4 @@ function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
 
 function megabytesOf(asset: RuntimeAsset): number {
   return asset.label === "compiler" ? 28 : 1;
-}
-
-function withDeadline<T>(promise: Promise<T>, ms: number): Promise<T> {
-  let timer = 0;
-  const deadline = new Promise<never>((_resolve, reject) => {
-    timer = window.setTimeout(
-      () => reject(new Error(`no answer within ${Math.round(ms / 1000)}s`)),
-      ms
-    );
-  });
-  return Promise.race([promise.finally(() => window.clearTimeout(timer)), deadline]);
 }

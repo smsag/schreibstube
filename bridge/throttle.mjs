@@ -7,7 +7,15 @@
  *
  * State is per address and in memory: the bridge runs as a single instance, and
  * a throttle that forgets on restart is still a throttle.
+ *
+ * What it must not do is remember forever. An address was only forgotten when
+ * it was asked about again, so every address that ever failed stayed in the
+ * map — nothing for a handful of callers, unbounded for a scanner walking a
+ * range, on a process meant to run for months.
  */
+
+/** Above this many remembered addresses, a failure also sweeps the map. */
+const SWEEP_ABOVE = 1000;
 
 export function createThrottle({ limit = 5, windowMs = 60_000, now = () => Date.now() } = {}) {
   const failures = new Map();
@@ -22,6 +30,21 @@ export function createThrottle({ limit = 5, windowMs = 60_000, now = () => Date.
       failures.delete(key);
     }
     return kept;
+  }
+
+  /**
+   * Drop the addresses whose failures have all aged out.
+   *
+   * Only when the map has grown past a size a real deployment reaches, so the
+   * ordinary case stays two map operations and the pathological one stays
+   * bounded.
+   */
+  function sweep() {
+    if (failures.size <= SWEEP_ABOVE) return;
+    const cutoff = now() - windowMs;
+    for (const [key, at] of failures) {
+      if (at.every((time) => time <= cutoff)) failures.delete(key);
+    }
   }
 
   return {
@@ -39,6 +62,7 @@ export function createThrottle({ limit = 5, windowMs = 60_000, now = () => Date.
       const at = recent(key);
       at.push(now());
       failures.set(key, at);
+      sweep();
     },
 
     /** A success clears the record: the caller has proved it holds a token. */

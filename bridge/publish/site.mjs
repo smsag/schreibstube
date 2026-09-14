@@ -10,13 +10,18 @@
 import { createHash } from "node:crypto";
 import { createRenderer, renderMarkdown } from "./render/markdown.mjs";
 import { indexPage, notePage } from "./render/page.mjs";
-import { assetPath, isValidSlug, pagePath, slugify } from "./path.mjs";
+import {
+  assetPath,
+  extensionOf,
+  isValidSlug,
+  pagePath,
+  slugify,
+  VIDEO_EXTENSIONS
+} from "./path.mjs";
 import { generatorAssets } from "./assets.mjs";
 import { key } from "./render/obsidian.mjs";
 
 export class IndexError extends Error {}
-
-const VIDEO_EXTENSIONS = new Set(["mp4", "webm", "ogv", "mov", "m4v"]);
 
 export function sha256(content) {
   return createHash("sha256").update(content).digest("hex");
@@ -140,7 +145,10 @@ function lookups(index) {
   for (const asset of index.assets) {
     const name = asset.name ?? basename(asset.sourcePath);
     const path = assetPath(asset.sha256, name);
-    const extension = name.split(".").pop()?.toLowerCase() ?? "";
+    // The shared reading, which requires letters and digits: `video.mp 4`
+    // used to count as an extension here and not in the route that admitted
+    // it, so one file could be two kinds of thing.
+    const extension = extensionOf(name);
     const entry = {
       url: `../${path}`,
       name,

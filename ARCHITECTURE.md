@@ -38,6 +38,8 @@ controllers/         one per feature; they own flow and talk to Obsidian
   explorer-controller  the file pane: icons, pins, its menu, its sync actions
   pane-sections        the two read-only lists above the tree: bookmarks, latest
 services/            pure decisions, no Obsidian imports, heavily tested
+processors/          editor extensions and reading-view post-processors
+print/               the Typst compiler and the worker it runs in
 ui/                  panels and modals
 settings/            one module per settings area
 i18n/                German and English catalogues

@@ -48,9 +48,13 @@ export function selectUnmerged(messages: MailMessage[], mergedIds: string[]): Ma
  * So the sequences that make a link or an embed are escaped wherever mail text
  * is written into a note. They are escaped rather than stripped, because the
  * point is to show what the sender wrote, not to quietly edit it.
+ *
+ * A wikilink embed was escaped and a Markdown one was not, though they do the
+ * same thing: `![](Privat/Gehalt.png)` renders the vault file it names, and a
+ * remote one is a tracking pixel that reports when the note is read.
  */
 function escapeMailMarkdown(text: string): string {
-  return text.replace(/!?\[\[/g, (match) => match.replace(/\[/g, "\\["));
+  return text.replace(/!?\[\[|!\[/g, (match) => match.replace(/\[/g, "\\["));
 }
 
 /**

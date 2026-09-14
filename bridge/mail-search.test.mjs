@@ -288,3 +288,27 @@ describe("searchMessages, the parsed message", () => {
     expect(msg.text).toBe("Erste Zeile\n\nZweite & letzte");
   });
 });
+
+describe("a search body the caller got wrong", () => {
+  it("is answered as a bad request, not as a bad gateway", async () => {
+    const { createMailRoutes } = await import("./mail-routes.mjs");
+    const routes = createMailRoutes({
+      mail: { ...config(), smtp: { host: "smtp.example.com", port: 465, secure: true, auth: {} } },
+      upstreamTimeoutMs: 1000
+    });
+    const search = routes.find((route) => route.path === "/search");
+
+    for (const body of [
+      { mailbox: 5 },
+      { criteria: { from: 1 } },
+      { criteria: "kunde" },
+      { criteria: { since: "irgendwann" } }
+    ]) {
+      // A wrongly typed field used to reach the IMAP call, throw a TypeError
+      // there, and come back as a 502 quoting the bridge's own source.
+      const error = await search.handler({ body, log: () => {} }).catch((err) => err);
+      expect(error.status).toBe(400);
+      expect(error.code).toBe("invalid_request");
+    }
+  });
+});

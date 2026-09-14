@@ -1,4 +1,5 @@
 import { MarkdownView, type App, type WorkspaceLeaf } from "obsidian";
+import { t } from "../i18n";
 import type { Logger } from "../services/logger";
 import {
   createLeafBySplit,
@@ -151,7 +152,7 @@ export class LinkModeController {
       this.statusEl.setText("");
     } else {
       this.statusEl.style.display = "";
-      this.statusEl.setText(this.mode === "left" ? "← links" : "links →");
+      this.statusEl.setText(this.mode === "left" ? t().links.toLeft : t().links.toRight);
     }
   }
 }

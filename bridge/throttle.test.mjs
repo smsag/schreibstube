@@ -90,3 +90,28 @@ describe("createThrottle", () => {
     expect(gate.size).toBe(0);
   });
 });
+
+describe("what the throttle keeps", () => {
+  it("forgets an address whose failures have all aged out", () => {
+    let clock = 0;
+    const throttle = createThrottle({ limit: 5, windowMs: 1000, now: () => clock });
+
+    // Past the sweep threshold, so the map is walked.
+    for (let i = 0; i < 1200; i += 1) throttle.recordFailure(`10.0.0.${i}`);
+    expect(throttle.size).toBeGreaterThan(1000);
+
+    clock += 2000;
+    throttle.recordFailure("10.9.9.9");
+    expect(throttle.size).toBe(1);
+  });
+
+  it("does not forget one that is still inside the window", () => {
+    let clock = 0;
+    const throttle = createThrottle({ limit: 5, windowMs: 10_000, now: () => clock });
+
+    for (let i = 0; i < 1200; i += 1) throttle.recordFailure(`10.0.0.${i}`);
+    clock += 1000;
+    throttle.recordFailure("10.9.9.9");
+    expect(throttle.size).toBe(1201);
+  });
+});

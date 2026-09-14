@@ -21,12 +21,11 @@ import {
   orphanSources,
   planUploads
 } from "./manifest.mjs";
-import { assetPath, checkRelativePath, extensionOf, PathError } from "./path.mjs";
+import { assetPath, checkRelativePath, extensionOf, PathError, VIDEO_EXTENSIONS } from "./path.mjs";
 import { RENDER_VERSION } from "./render/markdown.mjs";
 import { buildSite, checkIndex, IndexError, sha256 } from "./site.mjs";
 import { connect, SftpError } from "./sftp.mjs";
 
-const VIDEO_EXTENSIONS = new Set(["mp4", "webm", "ogv", "mov", "m4v"]);
 const MANIFEST_FILE = "manifest.json";
 const HISTORY_FILE = "history.json";
 /** How many publishes the history keeps. Enough to answer "when did that page
@@ -126,7 +125,11 @@ export function createPublishRoutes(config, { version }) {
     route(
       "PUT",
       "/publish/asset",
-      publish.maxVideoBytes,
+      // The limit for the kind of file the name says, decided before the body
+      // is read: held to the video limit and checked against the image one
+      // afterwards, an image upload could occupy two and a half times the
+      // memory its own limit allows.
+      (query) => assetLimit(publish, query.get("name") ?? ""),
       "raw",
       async ({ body, query, log }) => {
         const target = targetOf(publish, query.get("target"));
@@ -140,13 +143,6 @@ export function createPublishRoutes(config, { version }) {
             "asset_rejected",
             `Not an allowed asset type: ${extension || name}.`
           );
-        }
-
-        const limit = VIDEO_EXTENSIONS.has(extension)
-          ? publish.maxVideoBytes
-          : publish.maxImageBytes;
-        if (body.length > limit) {
-          throw httpError(413, "body_too_large", `${name} exceeds the ${limit} byte limit.`);
         }
 
         // The name from the vault never becomes a path: it is slugified and
@@ -408,14 +404,14 @@ async function withRemote(target, config, work) {
   try {
     remote = await open(target, config);
   } catch (err) {
-    throw httpError(502, "sftp_unreachable", message(err));
+    throw httpError(502, "sftp_unreachable", message(err), detailOf(err));
   }
 
   try {
     return await work(remote);
   } catch (err) {
     if (err.status) throw err;
-    throw httpError(502, "sftp_error", message(err));
+    throw httpError(502, "sftp_error", message(err), detailOf(err));
   } finally {
     await remote.end();
   }
@@ -442,5 +438,19 @@ async function exclusive(busy, name, work) {
  */
 function message(err) {
   if (err instanceof SftpError) return err.message;
-  return err?.message ? `SFTP failed: ${err.message}` : "SFTP failed.";
+  // Summarised, as the paragraph above promises: an ssh2 error carries the
+  // absolute path it was working on, and the vault has no business learning
+  // where the web root lives. The detail is in the bridge's own log, with the
+  // request id.
+  return "SFTP failed.";
+}
+
+/** How much a named asset may weigh: a video's allowance or an image's. */
+function assetLimit(publish, name) {
+  return VIDEO_EXTENSIONS.has(extensionOf(name)) ? publish.maxVideoBytes : publish.maxImageBytes;
+}
+
+/** What the operator's log gets, which is everything the client does not. */
+function detailOf(err) {
+  return err?.stack ?? err?.message ?? String(err);
 }

@@ -13,6 +13,8 @@
  * already defines.
  */
 
+import { fencedLines } from "./markdown-fence";
+
 export type TermStatus = "preferred" | "admitted" | "deprecated" | "superseded";
 export type MatchMode = "word" | "exact" | "prefix";
 export type Severity = "suggestion" | "warning" | "error";
@@ -112,7 +114,7 @@ export function parseGlossary(path: string, text: string): GlossaryParseResult {
     return { glossary: emptyGlossary(path, language, defaultSeverity), errors };
   }
 
-  const columns = indexColumns(headerRow);
+  const columns = indexColumns(headerRow.cells);
   const missing = REQUIRED_COLUMNS.filter((name) => columns[name] === undefined);
   if (missing.length > 0) {
     errors.push(`Missing required column(s): ${missing.join(", ")}.`);
@@ -121,8 +123,8 @@ export function parseGlossary(path: string, text: string): GlossaryParseResult {
 
   const byConcept = new Map<string, GlossaryTerm[]>();
 
-  rows.slice(1).forEach((cells, offset) => {
-    const lineLabel = `row ${offset + 1}`;
+  rows.slice(1).forEach(({ cells, line }) => {
+    const lineLabel = `line ${line}`;
 
     if (isSeparatorRow(cells)) {
       return;
@@ -230,15 +232,42 @@ function readFrontmatter(text: string): Map<string, string> {
   return result;
 }
 
-/** Cells of every pipe-table row in the note, in document order. */
-function readTableRows(text: string): string[][] {
-  const rows: string[][] = [];
-  for (const line of text.split("\n")) {
+/**
+ * Cells of the note's first pipe table, with the line each row came from.
+ *
+ * The first table and not every `|` line in the note: a glossary note with a
+ * second table below it — a changelog, a list of examples — had that table's
+ * rows read as terms, and a `|` inside a fenced block with it. The table ends
+ * where the pipes stop, which is how Markdown ends one.
+ *
+ * The line number travels with the row because it is what a person can act
+ * on. A message naming "row 2" for the first row of the table (the separator
+ * counts, to the code and to nobody else) sent them to the wrong line.
+ */
+function readTableRows(text: string): TableRow[] {
+  const lines = text.split("\n");
+  const fenced = fencedLines(lines);
+  const rows: TableRow[] = [];
+
+  for (const [index, line] of lines.entries()) {
+    if (fenced[index]) continue;
     const trimmed = line.trim();
-    if (!trimmed.startsWith("|")) continue;
-    rows.push(splitRow(trimmed));
+
+    if (!trimmed.startsWith("|")) {
+      if (rows.length > 0) break;
+      continue;
+    }
+
+    rows.push({ cells: splitRow(trimmed), line: index + 1 });
   }
+
   return rows;
+}
+
+/** One table row: its cells, and the note line it was written on. */
+interface TableRow {
+  cells: string[];
+  line: number;
 }
 
 function splitRow(line: string): string[] {

@@ -89,7 +89,7 @@ export class MailResultModal extends SuggestModal<MailMessage> {
     private readonly onChoose: (message: MailMessage) => void
   ) {
     super(app);
-    this.setPlaceholder("Filter results…");
+    this.setPlaceholder(t().mail.filterResults);
   }
 
   getSuggestions(query: string): MailMessage[] {
@@ -103,7 +103,7 @@ export class MailResultModal extends SuggestModal<MailMessage> {
   }
 
   renderSuggestion(message: MailMessage, el: HTMLElement): void {
-    el.createEl("div", { text: message.subject || "(no subject)" });
+    el.createEl("div", { text: message.subject || t().mail.noSubject });
     el.createEl("small", {
       text: [message.from, formatIsoMinutes(message.date)].filter(Boolean).join(" · "),
       cls: "schreibstube-mail-result-meta"

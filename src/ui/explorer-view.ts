@@ -671,17 +671,17 @@ export class ExplorerPaneView extends ItemView {
 
     this.wirePinnedDrag(row, file.path, order);
 
-    row.addEventListener("contextmenu", (event) => {
-      event.preventDefault();
-      controller.showMenu(file, event);
-    });
-
-    // A pinned folder shows where it is rather than opening a second copy of
-    // the tree inside the section.
-    row.addEventListener("click", () => {
-      if (this.drag.active) return;
-      if (isFolder) this.revealFolder(file.path);
-      else void controller.open(file, false);
+    // The same press the tree answers: a pinned row wired to a bare click and
+    // right click had no way to its menu on a phone, where a long press is the
+    // only right click there is. A pinned folder shows where it is rather
+    // than opening a second copy of the tree inside the section.
+    wirePress(row, {
+      isDragging: () => this.drag.active !== null,
+      activate: () => {
+        if (isFolder) this.revealFolder(file.path);
+        else void controller.open(file, false);
+      },
+      showMenu: (at) => controller.showMenu(file, at)
     });
   }
 

@@ -76,7 +76,8 @@ export const enExtra = {
       "list item is a link.",
     explorerLatest: "Latest section",
     explorerLatestDesc:
-      "Two short lists between the bookmarks and the tree: the notes most recently created, and " +
+      "Three short lists between the bookmarks and the tree: the notes whose source last " +
+      "changed, the notes most recently created, and " +
       "those most recently changed. A note shown as created is not repeated as changed.",
     explorerLatestCount: "Notes per list",
     explorerLatestCountDesc: (max: number) =>
@@ -149,8 +150,10 @@ export const enExtra = {
       "Glossary checks run locally and need no API key.",
     glossaryDefault: "Default glossaries",
     glossaryDefaultDesc: "Vault paths, one per line. Used when nothing more specific applies.",
+    glossaryDefaultPlaceholder: "Glossaries/House.md",
     glossaryRules: "Folder rules",
     glossaryRulesDesc: "One rule per line: folder | glossary path. The first match wins.",
+    glossaryRulesPlaceholder: "Clients | Glossaries/Clients.md",
     glossaryUnderline: "Underline glossary hits in the editor",
     glossaryUnderlineDesc:
       "Marks error-severity terms as you write. Off by default to keep long notes quiet.",
@@ -230,6 +233,8 @@ export const enExtra = {
     renameTooShort: "this note is too short to be named from its content.",
     cannotName: "only a note or a picture can be named from what is inside it.",
     renameFailedExists: "rename failed — a file with that name may already exist.",
+    renameFailed: (detail: string) => `rename failed — ${detail}`,
+    selectionMoved: "the selection changed while the summary was being written; nothing replaced.",
     imageTooLarge: "image exceeds the 10 MB limit.",
     unsupportedImage: "unsupported format — supported image types: jpg, png, gif, webp.",
     failRename: "Schreibstube: rename failed",
@@ -299,6 +304,8 @@ export const enExtra = {
     panelStop: "Cancel",
     panelCheckSource: "Check source",
     noTerms: "No glossary chosen, or no terms to check against.",
+    glossaryHits: (count: number) =>
+      count === 0 ? "Glossary: no matches." : `Glossary: ${count} match(es).`,
     running: "Correction running …",
     cancelled: "Correction cancelled.",
     failedShort: "Correction failed.",
@@ -513,8 +520,6 @@ export const enExtra = {
       noSource: "this note has no source to open.",
       checked: (name: string) => `${name} is up to date with its source.`,
       failed: (reason: string) => `the source could not be fetched — ${reason}`,
-      folderChecked: (checked: number, changed: number, failed: number) =>
-        `${checked} checked, ${changed} with updates, ${failed} failed.`,
       folderEmpty: "no bound notes in this folder."
     },
 
@@ -554,6 +559,7 @@ export const enExtra = {
     compiling: "typesetting…",
     mismatch: (detail: string) =>
       `the downloaded typesetter is not what this version expects and was not used (${detail}).`,
+    timeout: (seconds: number) => `no answer within ${seconds}s`,
     unreachable: (detail: string) =>
       `the typesetter could not be fetched (${detail}). It is needed once per device; try again when online.`,
     compilerRefused: (detail: string) => `the template did not compile — ${detail}`,

@@ -13,6 +13,8 @@
  *   token is rejected by the caller rather than applied.
  */
 
+import { fencedLines, fenceMarker } from "./markdown-fence";
+
 /** A run of source text that may be sent for review. */
 export interface ProseBlock {
   /** Stable within one segmentation pass; used as the wire marker. */
@@ -52,7 +54,6 @@ export function placeholderToken(index: number): string {
 
 const PLACEHOLDER_PATTERN = /§P\d+§/g;
 
-const FENCE = /^\s{0,3}(```|~~~)/;
 const TABLE_ROW = /^\s{0,3}\|/;
 const MATH_BLOCK = /^\s{0,3}\$\$/;
 const HEADING = /^\s{0,3}#{1,6}\s/;
@@ -66,7 +67,10 @@ const MASK_PATTERNS: RegExp[] = [
   /<!--[\s\S]*?-->/g,
   /`[^`\n]+`/g,
   /!?\[\[[^\]\n]*\]\]/g,
-  /\$[^$\n]+\$/g,
+  // A closing `$` followed by a digit is a second price, not the end of a
+  // formula: "$5 bis $10" used to mask the words between them out of the
+  // review entirely.
+  /\$(?!\s)[^$\n]+?(?<!\s)\$(?!\d)/g,
   /\bhttps?:\/\/\S+/gu,
   /<\/?[a-zA-Z][^>\n]*>/g
 ];
@@ -80,6 +84,8 @@ export function segmentMarkdown(text: string): SegmentResult {
   const placeholders = new Map<string, string>();
   const blocks: ProseBlock[] = [];
   const lines = splitLines(text);
+
+  const fenced = fencedLines(lines.map((line) => line.text));
 
   let index = 0;
   let blockIndex = 0;
@@ -98,10 +104,11 @@ export function segmentMarkdown(text: string): SegmentResult {
       continue;
     }
 
-    if (FENCE.test(line.text)) {
-      const marker = line.text.trim().slice(0, 3);
-      const close = findLine(lines, index + 1, (l) => l.text.trim().startsWith(marker));
-      index = close === -1 ? lines.length : close + 1;
+    if (fenced[index]) {
+      // The shared rule, not a second one: a fence of four backticks quoting
+      // one of three used to end at the inner fence, and the code below it
+      // went to the model as prose to be corrected.
+      index += 1;
       continue;
     }
 
@@ -197,7 +204,7 @@ function closesItself(trimmedLine: string): boolean {
 function isParagraphLine(text: string): boolean {
   if (text.trim().length === 0) return false;
   return (
-    !FENCE.test(text) &&
+    fenceMarker(text) === null &&
     !TABLE_ROW.test(text) &&
     !MATH_BLOCK.test(text) &&
     !HEADING.test(text) &&

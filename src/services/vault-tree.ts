@@ -38,6 +38,29 @@ export function folderPathsUnder(folder: VaultNode): string[] {
 }
 
 /**
+ * Whether anything under this folder answers the question.
+ *
+ * Asked of a folder, and so walked from that folder: the pane used to answer
+ * "does this folder hold a bound note" by listing every Markdown file in the
+ * vault and filtering by path prefix, which costs the whole vault every time
+ * a folder's menu opens. Stops at the first yes.
+ */
+export function someFileUnder<T extends VaultNode>(
+  folder: T,
+  matches: (file: T) => boolean
+): boolean {
+  for (const child of (folder.children ?? []) as readonly T[]) {
+    if (child.children === undefined) {
+      if (matches(child)) return true;
+      continue;
+    }
+    if (someFileUnder(child, matches)) return true;
+  }
+
+  return false;
+}
+
+/**
  * What one control over the whole tree should do next.
  *
  * A single button, because two would need a person to read which is which. It
