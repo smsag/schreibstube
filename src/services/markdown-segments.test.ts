@@ -122,3 +122,21 @@ describe("placeholdersIntact", () => {
     expect(placeholdersIntact("a §P0§", "a §P0§ §P9§")).toBe(false);
   });
 });
+
+describe("what the review must not be shown", () => {
+  it("keeps a fence of four backticks closed until its own marker", () => {
+    const result = segmentMarkdown("````md\n```\ncode inside\n```\n````\n\nProsa danach.");
+    expect(result.blocks.map((block) => block.text)).toEqual(["Prosa danach."]);
+  });
+
+  it("does not read two prices as a formula", () => {
+    const [block] = segmentMarkdown("Kostet $5 bis $10 pro Stück.").blocks;
+    // The words between two prices used to be masked out of the review.
+    expect(block?.masked).toBe("Kostet $5 bis $10 pro Stück.");
+  });
+
+  it("still masks real inline maths", () => {
+    const [block] = segmentMarkdown("Die Formel $a + b$ gilt.").blocks;
+    expect(block?.masked).not.toContain("a + b");
+  });
+});

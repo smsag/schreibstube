@@ -94,8 +94,14 @@ export const de: Messages = {
     createFailed: "die Notiz konnte nicht angelegt werden."
   },
 
+  links: {
+    toLeft: "← links",
+    toRight: "rechts →"
+  },
+
   publish: {
     heading: "Veröffentlichen",
+    newAccountName: "Website",
     intro:
       "Veröffentlicht einen Ordner des Vaults als Website. Übertragen werden nur Notizen, deren " +
       "Frontmatter das sagt. Die Bridge rendert das Markdown und schreibt es per SFTP — die " +
@@ -188,6 +194,8 @@ export const de: Messages = {
     mailboxDesc: "IMAP-Postfach, das Suche und Antwortabruf durchsuchen.",
     maxResults: "Maximale Treffer",
     maxResultsDesc: "Wie viele Nachrichten eine Suche liefert. Nur die neuesten werden behalten.",
+    filterResults: "Ergebnisse filtern …",
+    noSubject: "(kein Betreff)",
     mergeHeading: "Überschrift für Antworten",
     mergeHeadingDesc: "Abgeholte Antworten werden unter dieser Überschrift angehängt.",
 
@@ -302,8 +310,9 @@ export const de: Messages = {
       "ist ein Ordner, ein Listenpunkt ein Link.",
     explorerLatest: "Bereich Zuletzt",
     explorerLatestDesc:
-      "Zwei kurze Listen zwischen Lesezeichen und Baum: die zuletzt erstellten und die zuletzt " +
-      "geänderten Notizen. Was als erstellt erscheint, wiederholt sich nicht als geändert.",
+      "Drei kurze Listen zwischen Lesezeichen und Baum: Notizen, deren Quelle sich zuletzt " +
+      "geändert hat, die zuletzt erstellten und die zuletzt geänderten. Was als erstellt " +
+      "erscheint, wiederholt sich nicht als geändert.",
     explorerLatestCount: "Notizen je Liste",
     explorerLatestCountDesc: (max: number) =>
       `Wie viele Notizen jede der beiden Listen zeigt (1 bis ${max}).`,
@@ -373,9 +382,11 @@ export const de: Messages = {
       "Begriffstabelle. Die Prüfung läuft lokal und braucht keinen API-Schlüssel.",
     glossaryDefault: "Standard-Glossare",
     glossaryDefaultDesc: "Pfade im Vault, einer pro Zeile. Gilt, wenn nichts Genaueres passt.",
+    glossaryDefaultPlaceholder: "Glossare/Haus.md",
     glossaryRules: "Ordnerregeln",
     glossaryRulesDesc:
       "Eine Regel pro Zeile: Ordner | Glossarpfad. Die erste Übereinstimmung gilt.",
+    glossaryRulesPlaceholder: "Kunden | Glossare/Kunden.md",
     glossaryUnderline: "Glossartreffer im Editor unterstreichen",
     glossaryUnderlineDesc:
       "Markiert Begriffe der Stufe „Fehler“ beim Schreiben. Standardmäßig aus, damit lange " +
@@ -455,6 +466,8 @@ export const de: Messages = {
     renameFailedName: "Umbenennen fehlgeschlagen — das LLM lieferte keinen brauchbaren Namen.",
     renameTooShort: "diese Notiz ist zu kurz, um aus ihrem Inhalt benannt zu werden.",
     cannotName: "nur eine Notiz oder ein Bild lässt sich aus dem Inhalt benennen.",
+    renameFailed: (detail: string) => `Umbenennen fehlgeschlagen — ${detail}`,
+    selectionMoved: "die Auswahl hat sich während der Zusammenfassung verändert; nichts ersetzt.",
     renameFailedExists: "Umbenennen fehlgeschlagen — eine Datei dieses Namens existiert bereits.",
     imageTooLarge: "das Bild überschreitet 10 MB.",
     unsupportedImage: "nicht unterstütztes Format — möglich sind jpg, png, gif, webp.",
@@ -525,6 +538,8 @@ export const de: Messages = {
     panelStop: "Abbrechen",
     panelCheckSource: "Quelle prüfen",
     noTerms: "Kein Glossar ausgewählt oder keine prüfbaren Begriffe.",
+    glossaryHits: (count: number) =>
+      count === 0 ? "Glossar: keine Treffer." : `Glossar: ${count} Treffer.`,
     running: "Korrektur läuft …",
     cancelled: "Korrektur abgebrochen.",
     failedShort: "Korrektur fehlgeschlagen.",
@@ -743,8 +758,6 @@ export const de: Messages = {
       noSource: "diese Notiz hat keine Quelle zum Öffnen.",
       checked: (name: string) => `${name} ist auf dem Stand der Quelle.`,
       failed: (reason: string) => `Quelle konnte nicht geladen werden — ${reason}`,
-      folderChecked: (checked: number, changed: number, failed: number) =>
-        `${checked} geprüft, ${changed} mit Aktualisierungen, ${failed} fehlgeschlagen.`,
       folderEmpty: "keine gebundenen Notizen in diesem Ordner."
     },
 
@@ -784,6 +797,7 @@ export const de: Messages = {
     compiling: "setze …",
     mismatch: (detail: string) =>
       `der geladene Satzteil ist nicht der erwartete und wurde nicht benutzt (${detail}).`,
+    timeout: (seconds: number) => `keine Antwort innerhalb von ${seconds}s`,
     unreachable: (detail: string) =>
       `der Satzteil ließ sich nicht laden (${detail}). Er wird einmal pro Gerät gebraucht; mit Netz erneut versuchen.`,
     compilerRefused: (detail: string) => `die Vorlage ließ sich nicht setzen — ${detail}`,

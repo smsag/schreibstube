@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_PUBLISH_KEYS } from "./publish-index";
-import { DEFAULT_SETTINGS, normalizeSettings } from "./plugin-settings";
+import {
+  DEFAULT_SETTINGS,
+  MAX_FILENAME_LENGTH,
+  MAX_RENAME_CONTENT_CHARS,
+  MIN_FILENAME_LENGTH,
+  MIN_RENAME_CONTENT_CHARS,
+  normalizeSettings
+} from "./plugin-settings";
 
 describe("normalizeSettings", () => {
   it("returns defaults when called with undefined", () => {
@@ -99,22 +106,48 @@ describe("normalizeSettings", () => {
     expect(normalizeSettings({ debugLogging: true }).debugLogging).toBe(true);
   });
 
-  it("falls back for non-positive renameMinContentChars", () => {
-    expect(normalizeSettings({ renameMinContentChars: 0 })).toMatchObject({
-      renameMinContentChars: DEFAULT_SETTINGS.renameMinContentChars
-    });
+  it("clamps the rename limits into their range", () => {
+    expect(normalizeSettings({ renameMinContentChars: 0 }).renameMinContentChars).toBe(
+      MIN_RENAME_CONTENT_CHARS
+    );
+    expect(normalizeSettings({ renameMaxContentChars: -1 }).renameMaxContentChars).toBe(
+      DEFAULT_SETTINGS.renameMinContentChars
+    );
+    expect(normalizeSettings({ renameMaxContentChars: 10_000_000 }).renameMaxContentChars).toBe(
+      MAX_RENAME_CONTENT_CHARS
+    );
+    expect(normalizeSettings({ renameMaxFilenameLength: 0 }).renameMaxFilenameLength).toBe(
+      MIN_FILENAME_LENGTH
+    );
+    expect(normalizeSettings({ renameMaxFilenameLength: 9999 }).renameMaxFilenameLength).toBe(
+      MAX_FILENAME_LENGTH
+    );
   });
 
-  it("falls back for non-positive renameMaxContentChars", () => {
-    expect(normalizeSettings({ renameMaxContentChars: -1 })).toMatchObject({
-      renameMaxContentChars: DEFAULT_SETTINGS.renameMaxContentChars
+  it("does not let the minimum content length exceed the maximum", () => {
+    const settings = normalizeSettings({
+      renameMinContentChars: 5000,
+      renameMaxContentChars: 100
     });
+    expect(settings.renameMinContentChars).toBe(5000);
+    // Every note would otherwise be refused for being too short and then
+    // truncated below that same floor.
+    expect(settings.renameMaxContentChars).toBe(5000);
   });
 
-  it("falls back for non-positive renameMaxFilenameLength", () => {
-    expect(normalizeSettings({ renameMaxFilenameLength: 0 })).toMatchObject({
-      renameMaxFilenameLength: DEFAULT_SETTINGS.renameMaxFilenameLength
-    });
+  it("does not read a nulled or blank key as the number zero", () => {
+    expect(
+      normalizeSettings({ proofreadConcurrency: null as unknown as number }).proofreadConcurrency
+    ).toBe(DEFAULT_SETTINGS.proofreadConcurrency);
+    expect(
+      normalizeSettings({ summarizeMaxTokens: "" as unknown as number }).summarizeMaxTokens
+    ).toBe(DEFAULT_SETTINGS.summarizeMaxTokens);
+    expect(
+      normalizeSettings({ renameMaxImagePx: true as unknown as number }).renameMaxImagePx
+    ).toBe(DEFAULT_SETTINGS.renameMaxImagePx);
+    expect(normalizeSettings({ mailMaxResults: [] as unknown as number }).mailMaxResults).toBe(
+      DEFAULT_SETTINGS.mailMaxResults
+    );
   });
 
   it("preserves focus settings from loaded data", () => {

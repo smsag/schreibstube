@@ -191,3 +191,37 @@ describe("parseGlossary", () => {
     expect(errors[0]).toContain("Missing required column");
   });
 });
+
+describe("where the term table ends", () => {
+  const header = "| concept | term | status |\n| --- | --- | --- |\n";
+
+  it("reads only the first table", () => {
+    const { glossary } = parseGlossary(
+      "G.md",
+      `${header}| c1 | Mandant | preferred |\n\nAnderes\n\n| a | b | c |\n`
+    );
+    expect(glossary.concepts).toHaveLength(1);
+  });
+
+  it("does not report a second table's rows as broken terms", () => {
+    const { errors } = parseGlossary(
+      "G.md",
+      `${header}| c1 | Mandant | preferred |\n\n| Datum | Was |\n| --- | --- |\n| heute | nichts |\n`
+    );
+    expect(errors).toEqual([]);
+  });
+
+  it("ignores a pipe inside a fenced block", () => {
+    const { glossary, errors } = parseGlossary(
+      "G.md",
+      "```text\n| c9 | Falsch | preferred |\n```\n\n" + `${header}| c1 | Mandant | preferred |\n`
+    );
+    expect(glossary.concepts).toHaveLength(1);
+    expect(errors).toEqual([]);
+  });
+
+  it("names the note line a skipped row is on", () => {
+    const { errors } = parseGlossary("G.md", `${header}| c1 | Mandant | vielleicht |\n`);
+    expect(errors[0]).toContain("line 3");
+  });
+});

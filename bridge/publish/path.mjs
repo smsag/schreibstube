@@ -79,6 +79,9 @@ export function slugify(value) {
   return slug || "datei";
 }
 
+/** The extensions the site treats as video rather than picture. */
+export const VIDEO_EXTENSIONS = new Set(["mp4", "webm", "ogv", "mov", "m4v"]);
+
 /** The extension of a name, lowercased, without the dot. */
 export function extensionOf(name) {
   const match = /\.([A-Za-z0-9]+)$/.exec(String(name ?? ""));

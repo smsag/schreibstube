@@ -11,10 +11,15 @@ import type { SchreibstubeSettings } from "../types";
 import type { Logger } from "../services/logger";
 import { resolveApiKey } from "../services/secret";
 import { fetchSource } from "../services/sync-fetcher";
-import { resolveSourceUrl, SYNC_FRONTMATTER_KEY } from "../services/sync-source";
-import { isNoteDue, parseSyncEvery, SYNC_EVERY_KEY } from "../services/sync-interval";
+import {
+  frontmatterLine,
+  hasSourceBinding,
+  resolveSourceUrl,
+  sourceUrlFromNote,
+  SYNC_FRONTMATTER_KEY
+} from "../services/sync-source";
+import { parseSyncEvery, planSourceCheck, SYNC_EVERY_KEY } from "../services/sync-interval";
 import { diffHunks } from "../services/line-diff";
-import { frontmatterLine, sourceUrlFromNote } from "../services/sync-source";
 import {
   planSyncFrontmatter,
   SYNC_TITLE_KEY,
@@ -28,7 +33,8 @@ import {
   stripRemoteFrontmatter,
   type SyncRecord
 } from "../services/sync-document";
-import type { PollSummary, SyncStore } from "./proofread-controller";
+import type { SyncStore } from "./proofread-controller";
+import type { PollSummary } from "../services/sync-summary";
 
 /** How many sources are fetched at once, so one tick is not a burst. */
 const POLL_CONCURRENCY = 4;
@@ -44,13 +50,6 @@ export class SyncPoller {
     private readonly logger: Logger
   ) {}
 
-  /**
-   * Check the bound source and turn any difference into cards.
-   *
-   * `manual` separates a deliberate check from the automatic one on note open:
-   * the automatic check respects the minimum interval and stays silent when the
-   * note is not bound, while a manual one always runs and always reports.
-   */
   /** The GitHub token, if one is configured. Absent is normal: public sources
    *  need none, and the fetcher only ever sends it to GitHub anyway. */
   private githubToken(): string | undefined {
@@ -101,11 +100,9 @@ export class SyncPoller {
 
   /** Every Markdown note that names a source in its frontmatter. */
   private boundNotes(): TFile[] {
-    return this.app.vault.getMarkdownFiles().filter((file) => {
-      const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter;
-      const value = frontmatter?.[SYNC_FRONTMATTER_KEY];
-      return typeof value === "string" && value.trim().length > 0;
-    });
+    return this.app.vault
+      .getMarkdownFiles()
+      .filter((file) => hasSourceBinding(this.app.metadataCache.getFileCache(file)?.frontmatter));
   }
 
   /** The shared machinery: a bounded pool, one save, one summary. */
@@ -187,34 +184,38 @@ export class SyncPoller {
       return;
     }
 
-    const due =
-      own === null
-        ? this.isCheckDue(record, settings.syncMinIntervalMinutes)
-        : isNoteDue(own.schedule, record?.checkedAt, new Date());
-    if (!force && !due) return;
+    const plan = planSourceCheck({
+      record,
+      schedule: own === null ? null : own.schedule,
+      minIntervalMinutes: settings.syncMinIntervalMinutes,
+      now: new Date()
+    });
+    if (!force && !plan.due) return;
 
     const checkedAt = Date.now();
-    const conditional = (record?.pendingChanges ?? 0) > 0 ? undefined : record?.etag;
 
     let outcome: Awaited<ReturnType<typeof fetchSource>>;
+    let body: string;
     try {
       outcome = await fetchSource({
         url: resolved.url,
         target: resolved.target,
-        etag: conditional,
+        etag: plan.etag,
         token
       });
+      // Read from the vault rather than an editor: this note is not open. The
+      // baseline is needed on every path, because a record stored without one
+      // is discarded as malformed the next time settings load. Inside the
+      // guard, because a note a sync client took away between the listing and
+      // this read used to reject the whole poll, and every other note's result
+      // with it.
+      body = splitNote(normalizeNewlines(await this.app.vault.cachedRead(file))).body;
     } catch (err) {
       this.fail(file, err instanceof Error ? err.message : String(err), summary);
       return;
     }
 
     summary.checked += 1;
-
-    // Read from the vault rather than an editor: this note is not open. The
-    // baseline is needed on every path, because a record stored without one is
-    // discarded as malformed the next time settings load.
-    const body = splitNote(normalizeNewlines(await this.app.vault.cachedRead(file))).body;
 
     if (outcome.status === "missing" || outcome.status === "error") {
       this.fail(file, outcome.message, summary);
@@ -306,15 +307,6 @@ export class SyncPoller {
   }
 
   /**
-   * Keep the note's own `title` and `updatedAt` current.
-   *
-   * Written into the note rather than into the plugin's bookkeeping, so the two
-   * things a mirrored document has — a name and the date it last changed — are
-   * visible in Obsidian's own properties, searchable, and left behind if the
-   * plugin ever is. The frontmatter is not part of the diff, so writing here
-   * cannot turn into a change the next check reports.
-   */
-  /**
    * The source this note names.
    *
    * The metadata cache first, and the note itself when the cache has nothing:
@@ -377,21 +369,6 @@ export class SyncPoller {
       this.logger.warn(`Could not write properties for ${file.path}:`, err);
     }
   }
-
-  private isCheckDue(record: SyncRecord | undefined, minIntervalMinutes: number): boolean {
-    return isCheckDue(record, minIntervalMinutes);
-  }
-}
-
-/**
- * Whether enough time has passed to check this note's source again.
- *
- * Zero means every open, which is the setting for a source that changes often.
- * A note with no record has never been checked, so it is always due.
- */
-export function isCheckDue(record: SyncRecord | undefined, minIntervalMinutes: number): boolean {
-  if (!record || minIntervalMinutes <= 0) return true;
-  return Date.now() - record.checkedAt >= minIntervalMinutes * 60_000;
 }
 
 /** The GitHub token, when one is configured and still present. */

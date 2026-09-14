@@ -19,6 +19,7 @@
  */
 import { parseCron, previousRun, type CronSchedule } from "./cron";
 import { t } from "../i18n";
+import type { SyncRecord } from "./sync-document";
 
 /** Where a note says how often it should be checked. */
 export const SYNC_EVERY_KEY = "schreibstubeSyncEvery";
@@ -137,6 +138,57 @@ export function isNoteDue(
   // the round entirely.
   const last = previousRun(schedule.schedule, now);
   return last !== null && last.getTime() > checkedAt;
+}
+
+/**
+ * Whether enough time has passed to check this note's source again.
+ *
+ * Zero means every open, which is the setting for a source that changes often.
+ * A note with no record has never been checked, so it is always due.
+ */
+export function isCheckDue(
+  record: SyncRecord | undefined,
+  minIntervalMinutes: number,
+  now = Date.now()
+): boolean {
+  if (!record || minIntervalMinutes <= 0) return true;
+  return now - record.checkedAt >= minIntervalMinutes * 60_000;
+}
+
+export interface SourceCheckInput {
+  record: SyncRecord | undefined;
+  /** What the note itself asks for, or null when it says nothing. */
+  schedule: SyncSchedule | null;
+  /** The setting that applies when the note says nothing. */
+  minIntervalMinutes: number;
+  now: Date;
+}
+
+export interface SourceCheckPlan {
+  due: boolean;
+  /** The validator to send, or none when the fetch must be unconditional. */
+  etag: string | undefined;
+}
+
+/**
+ * Whether to check a source now, and how.
+ *
+ * Two callers — the poll over the vault and the check on the note in front of
+ * you — each answered this with the same two lines, and two copies of a rule
+ * is one more than it needs. What the note asks for comes first; the setting
+ * applies when it says nothing. And a poll that found changes has already
+ * advanced the validator, so asking conditionally would answer "unchanged"
+ * and lose the update: the fetch is unconditional until those changes have
+ * been looked at.
+ */
+export function planSourceCheck(input: SourceCheckInput): SourceCheckPlan {
+  const { record, schedule, minIntervalMinutes, now } = input;
+  const due =
+    schedule === null
+      ? isCheckDue(record, minIntervalMinutes, now.getTime())
+      : isNoteDue(schedule, record?.checkedAt, now);
+  const etag = (record?.pendingChanges ?? 0) > 0 ? undefined : record?.etag;
+  return { due, etag };
 }
 
 /** The phrase as cron says it, for showing a person what they asked for. */

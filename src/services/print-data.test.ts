@@ -100,3 +100,11 @@ describe("noteTitle", () => {
     expect(noteTitle("## Abschnitt", "datei")).toBe("datei");
   });
 });
+
+describe("a note that opens with a code block", () => {
+  it("does not take a shell comment for the document's title", () => {
+    expect(noteTitle("```bash\n# install deps\nnpm ci\n```\n\n# Echter Titel", "Datei")).toBe(
+      "Echter Titel"
+    );
+  });
+});

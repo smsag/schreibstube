@@ -20,6 +20,12 @@ import { DEFAULT_REPORT_FILE } from "./reminder-status";
 
 export { PROVIDER_MODELS } from "./llm-providers";
 
+/** What the rename command may be told about a note's length and its name. */
+export const MIN_RENAME_CONTENT_CHARS = 1;
+export const MAX_RENAME_CONTENT_CHARS = 100_000;
+export const MIN_FILENAME_LENGTH = 10;
+export const MAX_FILENAME_LENGTH = 255;
+
 export const MIN_IMAGE_PX = 256;
 export const MAX_IMAGE_PX = 2048;
 
@@ -173,16 +179,11 @@ export function normalizeSettings(loaded: LoadedSettings): SchreibstubeSettings 
       typeof loaded?.debugLogging === "boolean"
         ? loaded.debugLogging
         : DEFAULT_SETTINGS.debugLogging,
-    renameMinContentChars: positiveIntOrDefault(
-      loaded?.renameMinContentChars,
-      DEFAULT_SETTINGS.renameMinContentChars
-    ),
-    renameMaxContentChars: positiveIntOrDefault(
-      loaded?.renameMaxContentChars,
-      DEFAULT_SETTINGS.renameMaxContentChars
-    ),
-    renameMaxFilenameLength: positiveIntOrDefault(
+    ...renameLimits(loaded),
+    renameMaxFilenameLength: clampIntOrDefault(
       loaded?.renameMaxFilenameLength,
+      MIN_FILENAME_LENGTH,
+      MAX_FILENAME_LENGTH,
       DEFAULT_SETTINGS.renameMaxFilenameLength
     ),
     renameMaxImagePx: clampIntOrDefault(
@@ -437,12 +438,52 @@ function nonEmptyStringOrDefault(value: unknown, fallback: string): string {
   return typeof value === "string" && value.trim().length > 0 ? value : fallback;
 }
 
-function positiveIntOrDefault(value: unknown, fallback: number): number {
-  const n = Number(value);
-  return Number.isInteger(n) && n > 0 ? n : fallback;
+/**
+ * The two content limits, bounded and in order.
+ *
+ * Each was accepted on its own as any positive integer, so a minimum above
+ * the maximum refused every note shorter than the minimum and truncated the
+ * rest to the maximum — a setting that could not be satisfied, saved without
+ * a word. A maximum below the minimum is now raised to meet it.
+ */
+function renameLimits(
+  loaded: LoadedSettings
+): Pick<SchreibstubeSettings, "renameMinContentChars" | "renameMaxContentChars"> {
+  const min = clampIntOrDefault(
+    loaded?.renameMinContentChars,
+    MIN_RENAME_CONTENT_CHARS,
+    MAX_RENAME_CONTENT_CHARS,
+    DEFAULT_SETTINGS.renameMinContentChars
+  );
+  const max = clampIntOrDefault(
+    loaded?.renameMaxContentChars,
+    MIN_RENAME_CONTENT_CHARS,
+    MAX_RENAME_CONTENT_CHARS,
+    DEFAULT_SETTINGS.renameMaxContentChars
+  );
+  return { renameMinContentChars: min, renameMaxContentChars: Math.max(min, max) };
 }
 
 function clampIntOrDefault(value: unknown, min: number, max: number, fallback: number): number {
-  const n = Number(value);
-  return Number.isInteger(n) ? Math.max(min, Math.min(max, n)) : fallback;
+  const n = integerOf(value);
+  return n === null ? fallback : Math.max(min, Math.min(max, n));
+}
+
+/**
+ * The integer a stored value holds, or none.
+ *
+ * `Number(null)` is zero and `Number("")` is zero, so a key someone nulled by
+ * hand in the data file used to pass as an integer and be clamped to the
+ * floor — a proof-read at one request in flight and a summary of sixty-four
+ * tokens, from a file that never said either. A number is a number; a numeric
+ * string is read for a settings tab that stores what was typed; nothing else
+ * is.
+ */
+function integerOf(value: unknown): number | null {
+  if (typeof value === "number") return Number.isInteger(value) ? value : null;
+  if (typeof value === "string" && value.trim() !== "") {
+    const n = Number(value);
+    return Number.isInteger(n) ? n : null;
+  }
+  return null;
 }

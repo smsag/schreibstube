@@ -171,3 +171,15 @@ describe("compileGlossaries", () => {
     expect(constraints[1]?.use).toBe(null);
   });
 });
+
+describe("a language the frontmatter made up", () => {
+  it("does not take a prototype key for a suffix list", () => {
+    const made = glossary(
+      "| objekt | Immobilie | deprecated | word | |\n",
+      "language: constructor"
+    );
+    const matcher = compileGlossaries([made]);
+    expect(() => matcher.findHits("Die Immobilie ist frei.")).not.toThrow();
+    expect(matcher.findHits("Die Immobilie ist frei.")).toHaveLength(1);
+  });
+});

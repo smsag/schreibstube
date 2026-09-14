@@ -37,6 +37,9 @@ export function createMailRoutes(config) {
     }),
 
     route("/search", async ({ body, log }) => {
+      const problem = validateSearch(body ?? {});
+      if (problem) throw httpError(400, "invalid_request", problem);
+
       const result = await upstream(
         () => searchMessages(mail, body ?? {}),
         config.upstreamTimeoutMs,
@@ -83,6 +86,43 @@ function validateSend(body, maxTextChars) {
   if (body.text.length > maxTextChars) {
     return `Body exceeds the ${maxTextChars} character limit.`;
   }
+  return null;
+}
+
+/**
+ * The search body, checked before anything reads it.
+ *
+ * Every field here was used with `?.trim()` on whatever arrived, so
+ * `{"mailbox": 5}` threw a TypeError deep in the IMAP call and came back as a
+ * 502 quoting the bridge's own source. A wrongly typed field is the caller's
+ * mistake and is answered as one.
+ */
+function validateSearch(body) {
+  if (body.mailbox !== undefined && typeof body.mailbox !== "string") {
+    return "mailbox must be a string.";
+  }
+  if (
+    body.limit !== undefined &&
+    typeof body.limit !== "number" &&
+    typeof body.limit !== "string"
+  ) {
+    return "limit must be a number.";
+  }
+  if (body.criteria === undefined) return null;
+  if (typeof body.criteria !== "object" || body.criteria === null || Array.isArray(body.criteria)) {
+    return "criteria must be an object.";
+  }
+
+  for (const field of ["from", "to", "subject", "text"]) {
+    if (body.criteria[field] !== undefined && typeof body.criteria[field] !== "string") {
+      return `criteria.${field} must be a string.`;
+    }
+  }
+  if (body.criteria.since !== undefined) {
+    const since = new Date(body.criteria.since);
+    if (Number.isNaN(since.getTime())) return "criteria.since must be a date.";
+  }
+
   return null;
 }
 

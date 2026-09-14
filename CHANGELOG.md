@@ -6,6 +6,52 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- **A poll that could not run is no longer recorded as having run.** A scheduled poll that met a check already in progress, or one that fired with sync switched off, still stamped the clock, so the catch-up on the next start saw nothing owed and that round never happened.
+- **A check that a note could not be read no longer throws away every other note's result.** One note taken away by a sync client between the listing and the read rejected the whole poll, and every record already computed — validators, timestamps, counts — was discarded with it.
+- **Two checks of the same note can no longer run at once.** The guard was set after the note was read, so the check on open and a press of the button in the same moment both fetched, and the second wrote a record built before either had landed.
+- **The glossary of the note you left no longer arrives for the note you opened.** Two notes opened in quick succession loaded their glossaries side by side, and whichever finished last was applied — under the other note's name.
+- **A summary no longer replaces the wrong words.** The range was taken before the request and written afterwards without looking: an edit above the selection moved the text out from under it. The text is checked before it is replaced, and left alone with a notice when it has moved.
+- **A picture that vanished mid-rename says so.** The read of its bytes sat outside every guard, so it failed past all of them and left "renaming…" as the last word on screen.
+- **A failed rename no longer always blames a name collision.** Any failure said a file of that name may exist, including one that had just been moved or deleted, which sent people looking for a file that was not there.
+- **The heading overlay no longer comes back after the plugin is switched off.** A scroll queues a frame, and disabling the plugin does not cancel it: the frame arrived after the teardown and drew a fresh overlay into a live note, with nothing left to take it down.
+- **A reading view stops reporting to a plugin that is gone.** Obsidian takes back the post-processor on unload but not the listeners it attached, so every reading view still open kept watching its scroll position for a controller that no longer existed.
+- **A pinned row answers a long press.** It was wired to a click and a right click only, which on a phone is no way to its menu at all — the same row one section below has had one for months.
+- **A slideshow no longer turns the page when you scroll past it.** The swipe was measured on width alone, so a thumb scrolling the note with a little sideways drift counted as a swipe.
+- **A typesetter that failed to start no longer leaves its thread behind.** Each retry started another and let go of the last, worker and blob URL both.
+- **A glossary can name its language without taking the review down.** The language comes out of frontmatter and was looked up on a plain object, so `constructor` resolved to a function and the run ended in "suffixes.map is not a function".
+- **A glossary linked with an alias or a heading resolves.** `[[Glossar|G]]` was read as a file called "Glossar|G" — offered by the picker, reported missing by the note.
+- **A second table in a glossary note is no longer read as terms.** Every line starting with a pipe was, fenced blocks included, so a changelog below the terms became broken rows to complain about. A skipped row now names the line it is on, rather than a row number that counted the separator.
+- **Bold italic no longer refuses to print.** `***so***` emitted one closing bracket where Typst wanted two, and Typst rejects the whole document for it.
+- **A link in angle brackets prints as a link.** It starts with a letter, so the rule that drops HTML swallowed every one of them and reported them as HTML that had been dropped.
+- **A URL in prose no longer takes the rest of its line off the page.** `//` opens a comment in Typst, and nothing was escaping it.
+- **`%%` inside a code block stays on the page.** Comments were stripped before fences were known, so two markers in a SQL sample deleted the code between them.
+- **A list indented with a tab nests.** A tab counted as one column where two are needed, so every level of an Obsidian-indented list came out flat.
+- **An underscore inside a word stays inside the word.** Only the closing side was checked, so `my_var` opened emphasis and ran to the next underscore in the sentence.
+- **A four-backtick fence holds the code in it back from the review.** The proof-read segmenter kept its own fence rule, which ended at the first inner fence and sent the rest to the model as prose.
+- **Two prices are no longer read as a formula.** "$5 bis $10" masked the words between them out of the review entirely.
+- **A shell comment is no longer printed as the document's title.** The first `#` in the note was taken, fenced blocks included.
+- **A Markdown image embed in an email is escaped, as the wikilink form already was.** They do the same thing: `![](Privat/Gehalt.png)` renders the vault file it names, and a remote one reports when the note is read.
+- **A rename limit that cannot be satisfied is no longer saved.** A minimum above the maximum refused every note for being too short and truncated the rest below that same floor; the two are now bounded and kept in order, and the fields say so.
+- **A nulled key in the data file no longer reads as the number zero.** `proofreadConcurrency: null` became one request in flight and `summarizeMaxTokens: ""` became sixty-four tokens, from a file that said neither.
+- **The bridge answers a malformed search as the caller's mistake.** A wrongly typed field reached the IMAP call, threw there, and came back as a bad gateway quoting the bridge's own source.
+- **A publish no longer orphans pages when the manifest cannot be read.** A permission error or a dropped connection read as "no manifest", and the commit then wrote a fresh one naming only that build — every page an earlier publish had put up became a file nothing knew about.
+- **An SFTP failure no longer tells the vault where the web root is.** The summary the code promised was never applied; the detail now goes to the bridge's log with the request id, where it belongs.
+- **The bridge refuses to boot on a variable it cannot read.** `PORT=808O` and `AUTH_FAILURE_LIMIT=0` were silently replaced by defaults, and `TRUST_PROXY=flase` read as true — in a module whose whole promise is that a misconfigured deployment does not start.
+
+### Changed
+
+- **A folder's menu no longer reads the whole vault.** Asking whether a folder holds a bound note listed every Markdown file in the vault and filtered by path; it now walks the folder and stops at the first one.
+- **A Reminders report no longer reads every note to find one task.** The note each sent task came from was already remembered and never consulted.
+- **An image upload is held to the image limit before its bytes are in memory,** rather than to the video limit it shares a route with and the image one afterwards.
+- **A mailbox search bounds what it downloads.** Fifty messages with attachments were pulled down and parsed in full before anything trimmed them.
+- **The throttle forgets addresses whose failures have aged out,** instead of remembering every address that ever failed for as long as the process runs.
+- **The release workflow reads its version from the environment,** rather than expanding a person's typing into a shell line and an `awk` program before any check has run.
+- **The bundle guard measures bytes and knows every Node built-in,** where it counted UTF-16 units and looked only for the `node:` prefix.
+- **One rule for where a fenced block starts and stops,** now used by the segmenter, the glossary parser, the Typst converter and the title reader, each of which had its own.
+- **One wording for what a check of several notes found,** where the vault command, the folder menu and the note menu each had their own and had already drifted.
+- **One decision for whether a source is due and which validator to send,** shared by the poll and the panel, which had answered it separately and disagreed about what to keep.
+
+
 - **A private repository now syncs from the link GitHub's Raw button gives you.** That button has written `raw.githubusercontent.com/owner/repo/refs/heads/main/…` for some time, and the bind dialogue's placeholder invites exactly that link. Without a token the raw host resolved it and the note synced; with a token the fetch goes through GitHub's contents API instead, and the plugin read `refs` as the branch and `heads/main/…` as the file, so the API answered 404 for every check. The `refs/heads/` and `refs/tags/` forms are now read as the ref they name, on raw and page links alike.
 - **A private repository now syncs a file whose name has a space or an umlaut in it.** The URL spells `Mein Dokument/Über.md` as `Mein%20Dokument/%C3%9Cber.md`, and the contents API request encoded that spelling a second time, asking GitHub for a file no repository has. The raw host, which serves a public repository, was handed the URL unchanged and found the file. The API is now asked for the name as the repository has it.
 - **A check that fails says why.** A check from the file pane counted a failure and reported "The source cannot be fetched", and nothing anywhere said what the source had answered. A note bound to a private repository whose token was not granted that repository therefore looked, from the notice, like a note that was fine. The notice for a single note now carries the reason, every failed note is named in the console, and a GitHub 404 with a token says the token may not be able to see the repository, since GitHub answers a token without access exactly as it answers no token at all.

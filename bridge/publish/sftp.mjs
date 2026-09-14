@@ -17,6 +17,12 @@ import { joinRemote } from "./path.mjs";
 
 export class SftpError extends Error {}
 
+/** ssh2 reports a missing file as SFTP status 2, under several names. */
+function isMissing(err) {
+  const code = err?.code;
+  return code === 2 || code === "ENOENT" || /no such file/i.test(err?.message ?? "");
+}
+
 /** OpenSSH prints `SHA256:` and drops the padding; accept it either way. */
 export function fingerprintOf(key) {
   return `SHA256:${createHash("sha256").update(key).digest("base64").replace(/=+$/, "")}`;
@@ -135,11 +141,30 @@ class Remote {
     return Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer);
   }
 
+  /**
+   * A JSON file the bridge keeps for itself, or null when there is none.
+   *
+   * Absent means null; anything else is raised. The manifest decides what may
+   * be deleted, so a read that failed for a reason other than "no such file" —
+   * a permission, a dropped connection — used to be read as an empty manifest:
+   * the commit then wrote a fresh one naming only this build, and every page
+   * an earlier one had published became a file nothing knew about and nothing
+   * would ever remove.
+   */
   async readJson(path) {
+    let text;
     try {
-      return JSON.parse((await this.readFile(path)).toString("utf8"));
+      text = (await this.readFile(path)).toString("utf8");
+    } catch (err) {
+      if (isMissing(err)) return null;
+      throw err;
+    }
+
+    try {
+      return JSON.parse(text);
     } catch {
-      // Absent, unreadable or not JSON: all of them mean "nothing to go on".
+      // Present but not JSON is a file this bridge did not write. Starting
+      // over is the only thing it can do with one.
       return null;
     }
   }

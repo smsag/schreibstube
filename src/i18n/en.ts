@@ -103,8 +103,17 @@ export const en = {
     createFailed: "the note could not be created."
   },
 
+  links: {
+    /** The status bar while link mode is on, so a mode with no other mark on
+     *  screen says which way the next link opens. */
+    toLeft: "← left",
+    toRight: "right →"
+  },
+
   publish: {
     heading: "Publishing",
+    /** The name a freshly added account carries until it is given one. */
+    newAccountName: "Website",
     intro:
       "Publishes a folder of the vault as a website. Only notes whose frontmatter says so are " +
       "transferred. The bridge renders the Markdown and writes it over SFTP, so the hosting " +
@@ -194,6 +203,8 @@ export const en = {
     mailboxDesc: "IMAP mailbox searched by the query and reply commands.",
     maxResults: "Maximum results",
     maxResultsDesc: "Number of messages a search returns. Only the newest matches are kept.",
+    filterResults: "Filter results…",
+    noSubject: "(no subject)",
     mergeHeading: "Merge heading",
     mergeHeadingDesc: "Fetched replies are appended under this heading in the note.",
 

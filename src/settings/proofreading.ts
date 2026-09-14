@@ -81,7 +81,7 @@ export function renderProofreading(ctx: SettingsContext): void {
     .setDesc(t().settings.glossaryDefaultDesc)
     .addTextArea((text) => {
       text.inputEl.rows = 3;
-      text.setPlaceholder("Glossare/Haus.md");
+      text.setPlaceholder(t().settings.glossaryDefaultPlaceholder);
       text.setValue(ctx.plugin.settings.glossaryDefault.join("\n"));
       text.onChange(async (value) => {
         await ctx.update({
@@ -99,7 +99,7 @@ export function renderProofreading(ctx: SettingsContext): void {
     .setDesc(t().settings.glossaryRulesDesc)
     .addTextArea((text) => {
       text.inputEl.rows = 4;
-      text.setPlaceholder("Kunden | Glossare/Kunden.md");
+      text.setPlaceholder(t().settings.glossaryRulesPlaceholder);
       text.setValue(ctx.plugin.settings.glossaryFolderRules);
       text.onChange(async (value) => {
         await ctx.update({ glossaryFolderRules: value });

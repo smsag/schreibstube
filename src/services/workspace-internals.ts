@@ -1,4 +1,4 @@
-import type { App, Menu, MenuItem, Workspace, WorkspaceLeaf } from "obsidian";
+import type { App, Editor, Menu, MenuItem, Workspace, WorkspaceLeaf } from "obsidian";
 import type { Logger } from "./logger";
 
 /**
@@ -62,6 +62,19 @@ export function installOpenLinkTextPatch(
     ws.openLinkText = original;
     logger.debug("Restored original workspace.openLinkText.");
   };
+}
+
+/**
+ * The editor behind a reading view's element.
+ *
+ * Obsidian hangs the owning `MarkdownView` off the reading view's root
+ * element under `view`, which no type declares. Read here and nowhere else,
+ * and absent rather than thrown when a build stops doing that.
+ */
+export function editorOfReadingView(el: HTMLElement): Editor | null {
+  const owner = (el as unknown as { view?: { editor?: unknown } }).view;
+  const editor = owner?.editor;
+  return editor !== null && typeof editor === "object" ? (editor as Editor) : null;
 }
 
 /** Whether a leaf's container element contains the given node. */

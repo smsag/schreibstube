@@ -129,7 +129,10 @@ function clean(values: string[] | undefined): string[] {
   for (const raw of values) {
     const value = String(raw)
       .trim()
-      .replace(/^\[\[(.*)\]\]$/s, "$1")
+      // A wikilink may carry an alias or a heading, and neither is part of the
+      // path: `[[Glossar|G]]` used to resolve to a file called "Glossar|G",
+      // which the picker had just offered and the note then reported missing.
+      .replace(/^\[\[([^\]|#]*)(?:[#|][^\]]*)?\]\]$/s, "$1")
       .replace(/^["']|["']$/g, "")
       .trim();
     if (!value || seen.has(value)) continue;

@@ -151,9 +151,17 @@ describe("loadConfig, proxy", () => {
 });
 
 describe("loadConfig, parsing", () => {
-  it("ignores a non-numeric or non-positive integer and falls back", () => {
-    for (const value of ["abc", "0", "-5", ""]) {
-      expect(loadConfig(env({ PORT: value })).port).toBe(8080);
+  it("falls back only when the variable is unset", () => {
+    expect(loadConfig(env({ PORT: "" })).port).toBe(8080);
+    expect(loadConfig(env({ PORT: "9090" })).port).toBe(9090);
+  });
+
+  it("refuses to boot on a number that is set and unreadable", () => {
+    // Silently substituting the default is what let PORT=808O and
+    // AUTH_FAILURE_LIMIT=0 through, in a module whose promise is that a
+    // misconfigured deployment does not start.
+    for (const value of ["abc", "0", "-5", "808O", "1.5"]) {
+      expect(() => loadConfig(env({ PORT: value }))).toThrow(/PORT/);
     }
   });
 
@@ -163,10 +171,15 @@ describe("loadConfig, parsing", () => {
     }
   });
 
-  it("treats any other value as true", () => {
-    for (const value of ["1", "true", "yes", "ja"]) {
+  it("reads the true-ish spellings of a boolean", () => {
+    for (const value of ["1", "true", "yes", "on", "TRUE", " On "]) {
       expect(loadConfig(env({ IMAP_SECURE: value })).mail.imap.secure).toBe(true);
     }
+  });
+
+  it("refuses a boolean spelled as neither", () => {
+    // "flase" used to read as true — the reading furthest from what was typed.
+    expect(() => loadConfig(env({ IMAP_SECURE: "flase" }))).toThrow(/IMAP_SECURE/);
   });
 
   it("trims hosts and the user but never the password", () => {

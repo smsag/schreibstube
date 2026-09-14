@@ -83,7 +83,13 @@ export function compileGlossaries(glossaries: Glossary[]): GlossaryMatcher {
   const compiled: CompiledTerm[] = [];
 
   glossaries.forEach((glossary, glossaryOrder) => {
-    const suffixes = SUFFIXES[glossary.language] ?? FALLBACK_SUFFIXES;
+    // `Object.hasOwn`, not a plain lookup: the language comes out of a note's
+    // frontmatter, and `schreibstubeLanguage: constructor` used to resolve to
+    // a function, sail past the `??`, and take the whole review run down with
+    // "suffixes.map is not a function".
+    const suffixes = Object.hasOwn(SUFFIXES, glossary.language)
+      ? (SUFFIXES[glossary.language] ?? FALLBACK_SUFFIXES)
+      : FALLBACK_SUFFIXES;
 
     for (const concept of glossary.concepts) {
       const preferred = preferredTerm(concept);
@@ -91,8 +97,11 @@ export function compileGlossaries(glossaries: Glossary[]): GlossaryMatcher {
       for (const term of concept.terms) {
         // An admitted term is acceptable usage: never flagged, never proposed.
         if (term.status === "admitted") continue;
-        // A preferred term is only checked for how it is written.
-        if (term.status === "preferred" && term.match === "prefix") continue;
+        // A preferred term is only checked for how it is written, so the two
+        // modes that cannot report a difference in writing are not compiled
+        // at all. `exact` was compiled and run over every block to find only
+        // matches it then threw away for being identical to the term.
+        if (term.status === "preferred" && term.match !== "word") continue;
 
         compiled.push({
           pattern: buildPattern(term, suffixes),

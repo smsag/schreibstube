@@ -70,7 +70,7 @@ export function renderPublish(ctx: SettingsContext): void {
         ...ctx.plugin.settings.publishAccounts,
         {
           id: `account-${Date.now()}`,
-          name: "Website",
+          name: t().publish.newAccountName,
           folder: "",
           target: "",
           writeBack: true
@@ -215,7 +215,7 @@ export function environmentBlock(account: PublishAccount): string {
     `${prefix}_ROOT=`,
     `${prefix}_STATE_ROOT=`,
     `${prefix}_BASE_URL=`,
-    `${prefix}_SITE_TITLE=${account.name || "Website"}`
+    `${prefix}_SITE_TITLE=${account.name || t().publish.newAccountName}`
   ].join("\n");
 }
 

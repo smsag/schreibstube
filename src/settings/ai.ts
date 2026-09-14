@@ -6,9 +6,13 @@ import { t } from "../i18n";
 import type { LlmProvider } from "../types";
 import { LLM_PROVIDER_IDS, PROVIDER_MODELS, providerLabel } from "../services/llm-providers";
 import {
+  MAX_FILENAME_LENGTH,
   MAX_IMAGE_PX,
+  MAX_RENAME_CONTENT_CHARS,
   MAX_SUMMARY_TOKENS,
+  MIN_FILENAME_LENGTH,
   MIN_IMAGE_PX,
+  MIN_RENAME_CONTENT_CHARS,
   MIN_SUMMARY_TOKENS
 } from "../services/plugin-settings";
 import type { SettingsContext } from "./context";
@@ -84,13 +88,15 @@ export function renderAi(ctx: SettingsContext): void {
     .addText((text) => {
       text.setValue(String(ctx.plugin.settings.renameMinContentChars));
       text.inputEl.type = "number";
-      text.inputEl.min = "1";
+      text.inputEl.min = String(MIN_RENAME_CONTENT_CHARS);
+      text.inputEl.max = String(MAX_RENAME_CONTENT_CHARS);
       text.inputEl.style.width = "80px";
       text.inputEl.addEventListener("blur", async () => {
-        const n = parseInt(text.inputEl.value, 10);
-        if (Number.isInteger(n) && n > 0) {
-          await ctx.update({ renameMinContentChars: n });
-        }
+        // Sent as typed and bounded where the bound lives, then shown back:
+        // a field that quietly kept an impossible number was the only place
+        // that said what the setting was.
+        await ctx.update({ renameMinContentChars: Number(text.inputEl.value) });
+        text.setValue(String(ctx.plugin.settings.renameMinContentChars));
       });
     });
 
@@ -100,13 +106,12 @@ export function renderAi(ctx: SettingsContext): void {
     .addText((text) => {
       text.setValue(String(ctx.plugin.settings.renameMaxContentChars));
       text.inputEl.type = "number";
-      text.inputEl.min = "100";
+      text.inputEl.min = String(MIN_RENAME_CONTENT_CHARS);
+      text.inputEl.max = String(MAX_RENAME_CONTENT_CHARS);
       text.inputEl.style.width = "80px";
       text.inputEl.addEventListener("blur", async () => {
-        const n = parseInt(text.inputEl.value, 10);
-        if (Number.isInteger(n) && n > 0) {
-          await ctx.update({ renameMaxContentChars: n });
-        }
+        await ctx.update({ renameMaxContentChars: Number(text.inputEl.value) });
+        text.setValue(String(ctx.plugin.settings.renameMaxContentChars));
       });
     });
 
@@ -116,14 +121,12 @@ export function renderAi(ctx: SettingsContext): void {
     .addText((text) => {
       text.setValue(String(ctx.plugin.settings.renameMaxFilenameLength));
       text.inputEl.type = "number";
-      text.inputEl.min = "10";
-      text.inputEl.max = "255";
+      text.inputEl.min = String(MIN_FILENAME_LENGTH);
+      text.inputEl.max = String(MAX_FILENAME_LENGTH);
       text.inputEl.style.width = "80px";
       text.inputEl.addEventListener("blur", async () => {
-        const n = parseInt(text.inputEl.value, 10);
-        if (Number.isInteger(n) && n > 0) {
-          await ctx.update({ renameMaxFilenameLength: n });
-        }
+        await ctx.update({ renameMaxFilenameLength: Number(text.inputEl.value) });
+        text.setValue(String(ctx.plugin.settings.renameMaxFilenameLength));
       });
     });
 

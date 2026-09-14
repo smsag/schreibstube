@@ -726,7 +726,8 @@ export class PrintCommands {
         starting: messages.starting,
         compiling: messages.compiling,
         mismatch: (detail) => messages.mismatch(detail),
-        unreachable: (detail) => messages.unreachable(detail)
+        unreachable: (detail) => messages.unreachable(detail),
+        timeout: (seconds) => messages.timeout(seconds)
       },
       this.logger
     );

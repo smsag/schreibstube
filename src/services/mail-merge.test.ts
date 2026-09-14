@@ -193,3 +193,23 @@ describe("appendToSection and code fences", () => {
     expect(merged.lastIndexOf("## Antworten")).toBeGreaterThan(merged.indexOf("Text."));
   });
 });
+
+describe("a Markdown embed in somebody else's mail", () => {
+  it("escapes it as the wikilink form already was", () => {
+    const escaped = formatMessage({
+      uid: 1,
+      messageId: "<1@example.com>",
+      inReplyTo: null,
+      references: [],
+      from: "Kunde <k@example.com>",
+      to: "post@example.com",
+      subject: "Angebot",
+      date: "2026-09-07T10:12:00.000Z",
+      text: "Anbei ![](Privat/Gehalt.png) und ![pixel](https://tracker.example/p.gif)",
+      truncated: false
+    });
+    expect(escaped).not.toContain("![](");
+    expect(escaped).not.toContain("![pixel](");
+    expect(escaped).toContain("!\\[](Privat/Gehalt.png)");
+  });
+});

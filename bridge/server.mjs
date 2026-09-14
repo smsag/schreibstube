@@ -115,7 +115,12 @@ async function handle(req, res, requestId) {
   const bodyType = route.bodyType ?? (route.method === "GET" ? "none" : "json");
   let body;
   try {
-    const raw = bodyType === "none" ? Buffer.alloc(0) : await readBody(req, route.maxBytes);
+    // A route may say what it will accept from the request itself: an image
+    // upload is held to the image limit rather than to the video one it
+    // shares a route with, before the bytes are in memory rather than after.
+    const maxBytes =
+      typeof route.maxBytes === "function" ? route.maxBytes(url.searchParams) : route.maxBytes;
+    const raw = bodyType === "none" ? Buffer.alloc(0) : await readBody(req, maxBytes);
     body = bodyType === "json" ? parseJson(raw) : raw;
   } catch (err) {
     return fail(res, err, requestId);
@@ -146,7 +151,7 @@ function fail(res, err, requestId) {
     return sendError(res, 504, "timeout", "The request took too long.", requestId);
   }
   if (err.status) {
-    if (err.status >= 500) log("error", err.message, requestId);
+    if (err.status >= 500) log("error", err.detail ?? err.message, requestId);
     return sendError(res, err.status, err.code, err.message, requestId);
   }
   throw err;

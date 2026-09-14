@@ -1,7 +1,8 @@
 # Schreibstube bridge
 
 A small, stateless HTTP service that lets the Schreibstube Obsidian plugin reach
-protocols a WebView cannot speak. Today that is mail; publishing is next.
+protocols a WebView cannot speak: mail over IMAP and SMTP, and publishing over
+SFTP.
 
 ## Why this exists
 
@@ -181,7 +182,16 @@ To offer mail, set `MAIL_TOKEN`,
 everything else has a sensible default. Set none of them and the bridge does not
 offer mail; set some, and it names the ones still missing. Missing or weak
 values fail at startup with a precise message rather than on the first
-request.
+request. So does a variable that is set and unreadable: a numeric one that is
+not a positive integer, or a flag spelled as neither true nor false. Leave a
+variable out to take its default; do not leave it half-written.
+
+The size limits are variables too: `MAX_BODY_BYTES` for a request body,
+`MAX_TEXT_CHARS` for the text kept from a message and `MAX_MESSAGE_BYTES` for
+what one message may weigh on the wire; `PUBLISH_MAX_SOURCE_BYTES`,
+`PUBLISH_MAX_IMAGE_BYTES`, `PUBLISH_MAX_VIDEO_BYTES`, `PUBLISH_MAX_INDEX_BYTES`
+and `PUBLISH_MAX_FILES` for a publication. `.env.example` lists them with their
+defaults.
 
 Generate the token with:
 

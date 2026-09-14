@@ -57,7 +57,6 @@ export class OverlayController {
       });
       row.dataset.lineNumber = String(entry.lineNumber);
       row.dataset.level = String(entry.level);
-      row.dataset.text = entry.text;
 
       const connector = i === 0 ? "" : "   ".repeat(i - 1) + "└─ ";
       if (connector) {

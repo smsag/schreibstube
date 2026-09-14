@@ -1,7 +1,7 @@
 /**
  * Environment-driven configuration for the bridge.
  *
- * The bridge hosts capabilities — mail today, publishing next — and each one
+ * The bridge hosts capabilities — mail and publishing — and each one
  * brings its own credentials, its own token and its own limits. Configuration
  * is therefore read per capability: a capability whose variables are absent is
  * simply not offered, and a deployment that offers nothing fails at startup.
@@ -48,19 +48,19 @@ export function loadConfig(env = process.env) {
   }
 
   return {
-    port: integer(env.PORT, 8080),
+    port: integer(env.PORT, 8080, "PORT"),
     // A request that has not finished by now is not going to. The budget covers
     // the whole request, including whatever it is waiting for upstream.
-    requestTimeoutMs: integer(env.REQUEST_TIMEOUT_MS, 30_000),
+    requestTimeoutMs: integer(env.REQUEST_TIMEOUT_MS, 30_000, "REQUEST_TIMEOUT_MS"),
     // Every outbound protocol operation carries its own deadline, so a hung
     // connection cannot hold a request open until the client gives up.
-    upstreamTimeoutMs: integer(env.UPSTREAM_TIMEOUT_MS, 20_000),
+    upstreamTimeoutMs: integer(env.UPSTREAM_TIMEOUT_MS, 20_000, "UPSTREAM_TIMEOUT_MS"),
     // Repeated authentication failures from one address earn a delay. A long
     // token makes brute force impractical, not impossible.
-    authFailureLimit: integer(env.AUTH_FAILURE_LIMIT, 5),
-    authFailureWindowMs: integer(env.AUTH_FAILURE_WINDOW_MS, 60_000),
+    authFailureLimit: integer(env.AUTH_FAILURE_LIMIT, 5, "AUTH_FAILURE_LIMIT"),
+    authFailureWindowMs: integer(env.AUTH_FAILURE_WINDOW_MS, 60_000, "AUTH_FAILURE_WINDOW_MS"),
     // How long a shutdown waits for in-flight work before exiting anyway.
-    drainTimeoutMs: integer(env.DRAIN_TIMEOUT_MS, 10_000),
+    drainTimeoutMs: integer(env.DRAIN_TIMEOUT_MS, 10_000, "DRAIN_TIMEOUT_MS"),
     // "json" for a hosting dashboard that can search fields; the default stays
     // human, because most of the time a person is reading these.
     logFormat: env.LOG_FORMAT?.trim() === "json" ? "json" : "text",
@@ -68,7 +68,7 @@ export function loadConfig(env = process.env) {
     // platform's TLS-terminating proxy, where the socket address is the proxy's
     // and would otherwise be shared by every caller; false anywhere a client
     // can reach the bridge directly, because then the header is the client's.
-    trustProxy: boolean(env.TRUST_PROXY, false),
+    trustProxy: boolean(env.TRUST_PROXY, false, "TRUST_PROXY"),
     mail,
     publish
   };
@@ -109,11 +109,11 @@ function loadPublish(env) {
     token: token(env.PUBLISH_TOKEN, "PUBLISH_TOKEN"),
     // Markdown is text; an image is an image; a video is the reason the upload
     // route streams instead of buffering a base64 payload.
-    maxSourceBytes: integer(env.PUBLISH_MAX_SOURCE_BYTES, 2_000_000),
-    maxImageBytes: integer(env.PUBLISH_MAX_IMAGE_BYTES, 10_000_000),
-    maxVideoBytes: integer(env.PUBLISH_MAX_VIDEO_BYTES, 25_000_000),
-    maxIndexBytes: integer(env.PUBLISH_MAX_INDEX_BYTES, 4_000_000),
-    maxFiles: integer(env.PUBLISH_MAX_FILES, 2000),
+    maxSourceBytes: integer(env.PUBLISH_MAX_SOURCE_BYTES, 2_000_000, "PUBLISH_MAX_SOURCE_BYTES"),
+    maxImageBytes: integer(env.PUBLISH_MAX_IMAGE_BYTES, 10_000_000, "PUBLISH_MAX_IMAGE_BYTES"),
+    maxVideoBytes: integer(env.PUBLISH_MAX_VIDEO_BYTES, 25_000_000, "PUBLISH_MAX_VIDEO_BYTES"),
+    maxIndexBytes: integer(env.PUBLISH_MAX_INDEX_BYTES, 4_000_000, "PUBLISH_MAX_INDEX_BYTES"),
+    maxFiles: integer(env.PUBLISH_MAX_FILES, 2000, "PUBLISH_MAX_FILES"),
     targets
   };
 }
@@ -188,26 +188,27 @@ function loadMail(env) {
     throw new Error(`Missing required environment variables: ${missing.join(", ")}`);
   }
 
-  const imapSecure = boolean(env.IMAP_SECURE, true);
-  const smtpSecure = boolean(env.SMTP_SECURE, true);
+  const imapSecure = boolean(env.IMAP_SECURE, true, "IMAP_SECURE");
+  const smtpSecure = boolean(env.SMTP_SECURE, true, "SMTP_SECURE");
   const auth = { user: env.MAIL_USER.trim(), pass: env.MAIL_PASSWORD };
 
   return {
     token: token(env.MAIL_TOKEN, "MAIL_TOKEN"),
     // Requests are capped well below any realistic note size so a malformed or
     // hostile client cannot exhaust memory on a small container.
-    maxBodyBytes: integer(env.MAX_BODY_BYTES, 1_000_000),
-    maxTextChars: integer(env.MAX_TEXT_CHARS, 40_000),
-    maxResults: integer(env.MAX_RESULTS, 50),
+    maxBodyBytes: integer(env.MAX_BODY_BYTES, 1_000_000, "MAX_BODY_BYTES"),
+    maxTextChars: integer(env.MAX_TEXT_CHARS, 40_000, "MAX_TEXT_CHARS"),
+    maxMessageBytes: integer(env.MAX_MESSAGE_BYTES, 10_000_000, "MAX_MESSAGE_BYTES"),
+    maxResults: integer(env.MAX_RESULTS, 50, "MAX_RESULTS"),
     imap: {
       host: env.IMAP_HOST.trim(),
-      port: integer(env.IMAP_PORT, imapSecure ? 993 : 143),
+      port: integer(env.IMAP_PORT, imapSecure ? 993 : 143, "IMAP_PORT"),
       secure: imapSecure,
       auth
     },
     smtp: {
       host: env.SMTP_HOST.trim(),
-      port: integer(env.SMTP_PORT, smtpSecure ? 465 : 587),
+      port: integer(env.SMTP_PORT, smtpSecure ? 465 : 587, "SMTP_PORT"),
       secure: smtpSecure,
       auth
     },
@@ -239,14 +240,38 @@ function present(value) {
   return Boolean(value?.trim());
 }
 
-function integer(value, fallback) {
-  const n = Number.parseInt(value ?? "", 10);
-  return Number.isInteger(n) && n > 0 ? n : fallback;
+/**
+ * A positive integer from the environment, or the default when unset.
+ *
+ * Set and unreadable is a mistake, not a default: `PORT=808O` and
+ * `PUBLISH_MAX_FILES=-1` were silently replaced by whatever the code happened
+ * to prefer, in a module whose whole promise is that a misconfigured
+ * deployment does not boot.
+ */
+function integer(value, fallback, name) {
+  if (value === undefined || value === null || String(value).trim() === "") return fallback;
+
+  const text = String(value).trim();
+  const n = Number(text);
+  if (!Number.isInteger(n) || n <= 0) {
+    throw new Error(`${name ?? "A numeric variable"} must be a positive integer, not "${text}".`);
+  }
+  return n;
 }
 
-function boolean(value, fallback) {
-  if (value === undefined || value === null || value === "") {
+/**
+ * A flag from the environment, spelled the way flags are spelled.
+ *
+ * Anything unrecognised used to read as true, so `TRUST_PROXY=flase` turned
+ * the proxy trust on — the reading furthest from what was typed.
+ */
+function boolean(value, fallback, name) {
+  if (value === undefined || value === null || String(value).trim() === "") {
     return fallback;
   }
-  return !["0", "false", "no", "off"].includes(String(value).trim().toLowerCase());
+
+  const text = String(value).trim().toLowerCase();
+  if (["1", "true", "yes", "on"].includes(text)) return true;
+  if (["0", "false", "no", "off"].includes(text)) return false;
+  throw new Error(`${name ?? "A boolean variable"} must be true or false, not "${text}".`);
 }

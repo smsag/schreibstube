@@ -168,3 +168,11 @@ describe("parseGlossaryList", () => {
     expect(parseGlossaryList(42)).toEqual([]);
   });
 });
+
+describe("a wikilink with more than a path in it", () => {
+  it("keeps the path from an alias and from a heading", () => {
+    expect(parseGlossaryList("[[Glossare/Haus|Haus]]")).toEqual(["Glossare/Haus"]);
+    expect(parseGlossaryList("[[Glossare/Haus#Begriffe]]")).toEqual(["Glossare/Haus"]);
+    expect(parseGlossaryList("[[Glossare/Haus]]")).toEqual(["Glossare/Haus"]);
+  });
+});

@@ -100,10 +100,18 @@ export function parseJson(buffer) {
   return parsed;
 }
 
-export function httpError(status, code, message) {
+/**
+ * An error with a status the client sees, and optionally a detail it does not.
+ *
+ * `detail` is for what the operator needs and the caller must not be told —
+ * a remote path, a library's own wording. It is logged with the request id and
+ * never sent.
+ */
+export function httpError(status, code, message, detail) {
   const err = new Error(message);
   err.status = status;
   err.code = code;
+  if (detail !== undefined) err.detail = detail;
   return err;
 }
 

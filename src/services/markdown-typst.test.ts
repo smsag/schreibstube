@@ -305,3 +305,40 @@ describe("a diagram the drawing named itself", () => {
     expect(conversion.body).toContain("#schreibstube-diagram");
   });
 });
+
+describe("what Typst would have refused or swallowed", () => {
+  it("closes both brackets of a bold italic word", () => {
+    expect(convert("***fett kursiv***")).toBe("#strong[#emph[fett kursiv]]");
+    expect(convert("___fett kursiv___")).toBe("#strong[#emph[fett kursiv]]");
+  });
+
+  it("keeps an autolink as a link rather than dropping it as HTML", () => {
+    const result = markdownToTypst("Siehe <https://example.de> hier.");
+    expect(result.body).toContain('#link("https://example.de")');
+    expect(result.warnings).toEqual([]);
+  });
+
+  it("escapes what Typst reads as a comment", () => {
+    expect(escapeText("Siehe https://example.de jetzt")).not.toContain("://");
+    // The block comment is already broken up by the escape on the asterisk.
+    expect(escapeText("a /* b */ c")).not.toContain("/*");
+  });
+
+  it("does not open emphasis on an underscore inside a word", () => {
+    expect(convert("my_var and _this_ end")).toBe("my\\_var and #emph[this] end");
+  });
+
+  it("leaves a comment marker inside a fenced block alone", () => {
+    const body = markdownToTypst("```sql\nSELECT 1 %% a\nSELECT 2 %% b\n```").body;
+    expect(body).toContain("SELECT 1 %% a");
+    expect(body).toContain("SELECT 2 %% b");
+  });
+
+  it("still strips a comment written in prose", () => {
+    expect(markdownToTypst("Vorher %%geheim%% nachher.").body).toContain("Vorher  nachher.");
+  });
+
+  it("nests a list indented with a tab", () => {
+    expect(convert("- eins\n\t- zwei\n- drei")).toContain("  - zwei");
+  });
+});
