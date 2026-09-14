@@ -2,17 +2,30 @@
 
 All notable changes to this project will be documented in this file.
 
-## 1.27.0 - 2026-09-14
+## 1.28.0 - 2026-09-14
 
 ### Added
 
 - **An image slideshow you can drop into a note.** Write a ` ```schreibstube-slideshow ` block with one Markdown image per line (`![caption](path.png)`), at least two, and the note shows them one at a time with a caption, prev/next buttons, arrow keys, swipe on mobile, and a fullscreen view (the expand button, dismissed with ✕, Escape, or a swipe). Blank lines and `//` comments inside the block are ignored. **Slideshow: insert an image slideshow** in the command palette drops an empty block at the cursor. Moved here from Vizardry, where it was the `type: carousel` canvas.
+
+## 1.27.0 - 2026-09-14
+
+Mobile checklist: not run for this release. Everything in it was checked by
+the test suite and the build's own guards, not on a device. Three things in
+this release are the ones a phone would show first: the file pane's rows with
+the menu button gone, so a long press has to be the way to the menu; the
+filter field's lighter fill and its hairline; and the redrawn icon in the
+drawer's tab strip. Step 7 of the checklist covers all three.
+
+### Added
 
 - **A note's task count in the file pane.** With **Task counts** on under Settings → Schreibstube → Schreibstube Explorer, a note that holds tasks shows `1 / 7` after its name — open over total — at the row's right edge, in the tree, on the pinned strip and in the latest lists. A note without tasks shows nothing. Read from Obsidian's metadata, so a thousand rows cost no file reads. Off until switched on.
 
 ### Changed
 
 - **The menu button on a row is gone.** Every row carried a three-dot button, shown on hover and always on a phone, that opened the same menu a right-click or a long press opens. It was one more thing lighting up on the pane for nothing the pointer could not already do, and its place at the right edge is where the task count now sits.
+- **The file pane's filter field says it is a field.** A hairline now runs round it, so a bare tint on a tinted pane no longer has to carry the whole meaning of "type here". On a phone the tint steps back to half strength: at full strength it was a grey block on a pane that is itself grey.
+- **The plugin's icon is drawn to the rules of the icons beside it.** It sits in a row of Lucide icons in the sidebar's tab strip, and was scaled to a folder's width with a heavier stroke, which made it a stranger among the three beside it and put it closer to the window's edge than they stand. It is now Lucide's own house outline, on Lucide's grid, stroke and margins, with the quill in the doorway.
 
 ### Fixed
 

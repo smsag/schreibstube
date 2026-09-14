@@ -544,8 +544,18 @@ a.external-link.schreibstube-reminder-mark {
 .schreibstube-explorer .schreibstube-explorer-filter,
 .schreibstube-explorer .schreibstube-explorer-filter:hover {
   border: none;
-  box-shadow: none;
+  /* A hairline, drawn inside for the same reason the focus ring is: it says
+     "a field, type here" where a bare tint on a tinted pane said nothing. */
+  box-shadow: inset 0 0 0 1px var(--background-modifier-border);
   background-color: var(--background-modifier-form-field);
+}
+
+/* On a phone the tint is Obsidian's form-field colour at half strength. At
+   full strength it was a grey block on a pane that is itself grey; the
+   hairline now carries the affordance, so the fill can step back. */
+.is-mobile .schreibstube-explorer .schreibstube-explorer-filter,
+.is-mobile .schreibstube-explorer .schreibstube-explorer-filter:hover {
+  background-color: color-mix(in srgb, var(--background-modifier-form-field) 45%, transparent);
 }
 
 .schreibstube-explorer .schreibstube-explorer-filter:focus,
