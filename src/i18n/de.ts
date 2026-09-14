@@ -15,6 +15,8 @@ export const de: Messages = {
     focusDisable: "Fokus: aus",
     insertTaskSummary: "Aufgaben: Zusammenfassung einfügen",
     sendToReminders: "Aufgaben: an Erinnerungen senden",
+    checkNoteReminders: "Aufgaben: diese Notiz mit Erinnerungen abgleichen",
+    fetchReminders: "Aufgaben: Erledigtes aus Erinnerungen holen",
     renameFile: "KI: Notiz aus ihrem Text benennen",
     renameImage: "KI: Bild aus dem Bild benennen",
     summarize: "KI: Auswahl zusammenfassen",
@@ -63,7 +65,13 @@ export const de: Messages = {
       "kein Kurzbefehl eingetragen. Namen eintragen unter Einstellungen → Schreibstube → Erinnerungen.",
     notATask: "der Cursor steht auf keiner Aufgabe.",
     sent: (title: string) => `an Erinnerungen gesendet: ${title}`,
-    taskNotFound: "keine Notiz in diesem Vault enthält diese Aufgabe."
+    taskNotFound: "keine Notiz in diesem Vault enthält diese Aufgabe.",
+    noStatusShortcut:
+      "kein Status-Kurzbefehl eingetragen. Namen eintragen unter Einstellungen → Schreibstube → Erinnerungen.",
+    noneSent: "keine Aufgabe dieser Notiz wurde an Erinnerungen gesendet.",
+    checking: "Erinnerungen wird gefragt…",
+    nothingDone: "Erinnerungen meldet nichts Neues als erledigt.",
+    ticked: (count: number) => `${count} Aufgabe(n) als in Erinnerungen erledigt abgehakt.`
   },
 
   publish: {
@@ -233,6 +241,24 @@ export const de: Messages = {
       'aus Eingabe abrufen" hinzufügen, dann "Neue Erinnerung hinzufügen" mit Titel aus title, ' +
       "Notizen aus notes und der Liste aus list. Als #tag geschriebene Tags bleiben Text: " +
       "Erinnerungen bietet keinen Weg, von außen ein echtes Tag zu setzen.",
+    remindersStatusShortcut: "Name des Status-Kurzbefehls",
+    remindersStatusShortcutDesc:
+      "Der Kurzbefehl, der meldet, welche Erinnerungen erledigt sind. Er erhält JSON mit ids, " +
+      "links und list; seine Ausgabe geht zurück ans Plugin: beliebiger Text, der die Links der " +
+      "Erinnerungen enthält, etwa ihre Notizen.",
+    remindersStatusSetup: "Den Status-Kurzbefehl anlegen",
+    remindersStatusSetupDesc:
+      'Einen Kurzbefehl mit diesem Namen anlegen, der Text annimmt. "Erinnerungen suchen" ' +
+      'hinzufügen mit „Ist erledigt“, der verwendeten Liste und Notizen enthält "schreibstube?task=". ' +
+      'Dann "Details von Erinnerungen abrufen" für die Notizen, "Text kombinieren" mit Zeilenumbrüchen, ' +
+      "und diesen Text als Ausgabe. Damit Notizen ohne Zutun aktuell bleiben, im selben Kurzbefehl " +
+      '"Datei sichern" hinzufügen, das die Berichtsdatei im Vault überschreibt, und ihn per ' +
+      "Automation ausführen.",
+    remindersReportFile: "Berichtsdatei",
+    remindersReportFileDesc:
+      "Pfad im Vault, in den eine Automation die Ausgabe des Status-Kurzbefehls schreibt. Das " +
+      "Plugin liest die Datei bei jeder Änderung und hakt die genannten Aufgaben ab. Leer lassen, " +
+      "um das abzuschalten.",
 
     explorerHeading: "Schreibstube Explorer",
     explorerIntro:

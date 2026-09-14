@@ -42,5 +42,31 @@ export function renderReminders(ctx: SettingsContext): void {
     .setName(t().settings.remindersSetup)
     .setDesc(t().settings.remindersSetupDesc);
 
-  renderCommands(ctx, [t().commands.sendToReminders]);
+  new Setting(ctx.containerEl)
+    .setName(t().settings.remindersStatusShortcut)
+    .setDesc(t().settings.remindersStatusShortcutDesc)
+    .addText((text) => {
+      text.setValue(ctx.plugin.settings.remindersStatusShortcut).onChange(async (value) => {
+        await ctx.update({ remindersStatusShortcut: value });
+      });
+    });
+
+  new Setting(ctx.containerEl)
+    .setName(t().settings.remindersStatusSetup)
+    .setDesc(t().settings.remindersStatusSetupDesc);
+
+  new Setting(ctx.containerEl)
+    .setName(t().settings.remindersReportFile)
+    .setDesc(t().settings.remindersReportFileDesc)
+    .addText((text) => {
+      text.setValue(ctx.plugin.settings.remindersReportFile).onChange(async (value) => {
+        await ctx.update({ remindersReportFile: value });
+      });
+    });
+
+  renderCommands(ctx, [
+    t().commands.sendToReminders,
+    t().commands.checkNoteReminders,
+    t().commands.fetchReminders
+  ]);
 }

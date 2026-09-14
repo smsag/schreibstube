@@ -136,6 +136,10 @@ export interface SchreibstubeSettings {
   remindersList: string;
   /** Name of the Shortcut that creates the reminder. */
   remindersShortcut: string;
+  /** Name of the Shortcut that reports which reminders are done. */
+  remindersStatusShortcut: string;
+  /** Vault path of the file an automation writes that report to; empty turns the poll off. */
+  remindersReportFile: string;
   // Diagnostics.
   debugLogging: boolean;
 }

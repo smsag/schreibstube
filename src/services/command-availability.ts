@@ -22,7 +22,9 @@ export type GatedCommand =
   | "fetch-replies"
   | "print"
   | "collapse-explorer"
-  | "send-reminder";
+  | "send-reminder"
+  | "check-note-reminders"
+  | "fetch-reminders";
 
 /** What the screen says, reduced to what the answers depend on. */
 export interface CommandContext {
@@ -40,6 +42,8 @@ export interface CommandContext {
   task: boolean;
   /** Running where Apple's Reminders exists: macOS or iOS. */
   apple: boolean;
+  /** The open note has at least one task that was sent to Reminders. */
+  sentTask: boolean;
 }
 
 export function commandAvailable(command: GatedCommand, context: CommandContext): boolean {
@@ -75,5 +79,13 @@ export function commandAvailable(command: GatedCommand, context: CommandContext)
     // command.
     case "send-reminder":
       return context.markdown && context.task && context.apple;
+    // Checking a note against Reminders is about the marks on its tasks, which
+    // are on screen; a note without one has nothing to ask about.
+    case "check-note-reminders":
+      return context.markdown && context.sentTask && context.apple;
+    // Fetching for every note asks about the list, not the note in front of
+    // you, so the only visible condition is the platform.
+    case "fetch-reminders":
+      return context.apple;
   }
 }
