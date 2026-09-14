@@ -70,12 +70,74 @@ function describeHost(url: URL): SourceTarget {
     return { kind: "url" };
   }
 
-  const [owner, repo, ref, ...rest] = url.pathname.split("/").filter(Boolean);
-  if (owner === undefined || repo === undefined || ref === undefined || rest.length === 0) {
+  const [owner, repo, ...tail] = url.pathname.split("/").filter(Boolean);
+  const split = splitRef(tail);
+  if (owner === undefined || repo === undefined || split === null) {
     return { kind: "url" };
   }
 
-  return { kind: "github", owner, repo, ref, path: rest.join("/") };
+  return githubTarget(owner, repo, split);
+}
+
+/**
+ * The target as the repository names things, not as the URL spells them.
+ *
+ * The URL parser writes a space as `%20` and an umlaut as its UTF-8 bytes,
+ * and the API URL encodes each segment itself. Handed the URL's spelling it
+ * encoded the percent sign a second time and asked for `Mein%2520Dokument`,
+ * which no repository has. The raw host was handed the URL unchanged and
+ * found the file, so again a public repository worked where a private one
+ * did not.
+ */
+function githubTarget(
+  owner: string,
+  repo: string,
+  split: { ref: string; path: string }
+): SourceTarget {
+  return {
+    kind: "github",
+    owner: decodeSegment(owner),
+    repo: decodeSegment(repo),
+    ref: split.ref.split("/").map(decodeSegment).join("/"),
+    path: split.path.split("/").map(decodeSegment).join("/")
+  };
+}
+
+/** A malformed escape is left as written rather than turned into a throw. */
+function decodeSegment(segment: string): string {
+  try {
+    return decodeURIComponent(segment);
+  } catch {
+    return segment;
+  }
+}
+
+/**
+ * Where the ref ends and the file path begins.
+ *
+ * A raw URL names the ref as one segment — `main`, a tag, a commit — except
+ * when GitHub itself wrote it: the "Raw" button has produced
+ * `refs/heads/main/…` for some time, and the placeholder in the bind dialogue
+ * invites exactly that link. Read as a single segment, the ref came out as
+ * `refs` and the branch became the first folder of the path, so the contents
+ * API was asked for a file that does not exist and answered 404. The raw host
+ * resolved the same URL fine, which is why a public repository worked and a
+ * private one, fetched through the API, silently did not.
+ *
+ * A branch with a slash in its name is still ambiguous here, with or without
+ * the prefix, and is read as its first segment; there is nothing in the URL
+ * to say otherwise.
+ */
+function splitRef(segments: string[]): { ref: string; path: string } | null {
+  const [first, second, third] = segments;
+  if (first === "refs" && (second === "heads" || second === "tags") && third !== undefined) {
+    const rest = segments.slice(3);
+    return rest.length === 0 ? null : { ref: `${first}/${second}/${third}`, path: rest.join("/") };
+  }
+
+  const [ref, ...rest] = segments;
+  if (ref === undefined || rest.length === 0) return null;
+  return { ref, path: rest.join("/") };
 }
 
 /**
@@ -141,16 +203,18 @@ function rewriteGitHubUrl(url: URL): { url: URL; target: SourceTarget } | null {
     return null;
   }
 
-  const [owner, repo, kind, ref, ...rest] = url.pathname.split("/").filter(Boolean);
-  if (owner === undefined || repo === undefined || ref === undefined || rest.length === 0) {
+  const [owner, repo, kind, ...tail] = url.pathname.split("/").filter(Boolean);
+  const split = splitRef(tail);
+  if (owner === undefined || repo === undefined || split === null) {
     return null;
   }
   if (kind !== "blob" && kind !== "raw") return null;
 
-  const path = rest.join("/");
+  // The raw host resolves ref and path itself, so the URL keeps the page's
+  // own spelling; only the target needs them apart.
   return {
-    url: new URL(`https://raw.githubusercontent.com/${owner}/${repo}/${ref}/${path}`),
-    target: { kind: "github", owner, repo, ref, path }
+    url: new URL(`https://raw.githubusercontent.com/${owner}/${repo}/${tail.join("/")}`),
+    target: githubTarget(owner, repo, split)
   };
 }
 

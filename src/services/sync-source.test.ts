@@ -137,6 +137,56 @@ describe("source targets", () => {
     });
   });
 
+  it("reads the ref GitHub's Raw button writes, refs/heads included", () => {
+    expect(target("https://raw.githubusercontent.com/org/repo/refs/heads/main/docs/a.md")).toEqual({
+      kind: "github",
+      owner: "org",
+      repo: "repo",
+      ref: "refs/heads/main",
+      path: "docs/a.md"
+    });
+  });
+
+  it("reads a tag the same way", () => {
+    expect(target("https://raw.githubusercontent.com/org/repo/refs/tags/v1/a.md")).toMatchObject({
+      ref: "refs/tags/v1",
+      path: "a.md"
+    });
+  });
+
+  it("does not mistake a folder called refs for the prefix", () => {
+    expect(target("https://raw.githubusercontent.com/org/repo/main/refs/heads/a.md")).toMatchObject(
+      { ref: "main", path: "refs/heads/a.md" }
+    );
+  });
+
+  it("wants a file after the prefixed ref", () => {
+    expect(target("https://raw.githubusercontent.com/org/repo/refs/heads/main.md")).toEqual({
+      kind: "url"
+    });
+  });
+
+  it("names the file as the repository does, not as the URL spells it", () => {
+    expect(
+      target("https://raw.githubusercontent.com/org/repo/main/Mein Dokument/Über.md")
+    ).toMatchObject({ ref: "main", path: "Mein Dokument/Über.md" });
+    expect(
+      target("https://github.com/org/repo/blob/main/Mein%20Dokument/%C3%9Cber.md")
+    ).toMatchObject({ ref: "main", path: "Mein Dokument/Über.md" });
+  });
+
+  it("keeps the URL's own spelling when rewriting a page link", () => {
+    expect(ok("https://github.com/org/repo/blob/main/Mein Dokument/Über.md")).toBe(
+      "https://raw.githubusercontent.com/org/repo/main/Mein%20Dokument/%C3%9Cber.md"
+    );
+  });
+
+  it("leaves a malformed escape as written", () => {
+    expect(target("https://raw.githubusercontent.com/org/repo/main/100%.md")).toMatchObject({
+      path: "100%.md"
+    });
+  });
+
   it("keeps a branch name with no slashes intact", () => {
     const result = target("https://github.com/org/repo/blob/feature-x/a.md");
     expect(result).toMatchObject({ ref: "feature-x", path: "a.md" });
@@ -148,6 +198,16 @@ describe("source targets", () => {
 });
 
 describe("githubApiUrl", () => {
+  it("encodes a resolved source's path exactly once", () => {
+    const result = resolveSourceUrl(
+      "https://raw.githubusercontent.com/org/repo/main/Mein Dokument/Über.md"
+    );
+    if (!result.ok || result.target.kind !== "github") throw new Error("expected a GitHub target");
+    expect(githubApiUrl(result.target)).toBe(
+      "https://api.github.com/repos/org/repo/contents/Mein%20Dokument/%C3%9Cber.md?ref=main"
+    );
+  });
+
   it("builds a contents endpoint with the ref", () => {
     expect(
       githubApiUrl({ kind: "github", owner: "org", repo: "repo", ref: "main", path: "docs/a.md" })

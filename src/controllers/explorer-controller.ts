@@ -590,7 +590,11 @@ export class ExplorerController {
     // note can be blamed for, and it is the only answer that says what to do.
     if (summary.skipped === "disabled") return t().sync.disabled;
     if (summary.skipped === "busy") return t().sync.busy;
-    if (summary.failed > 0) return t().explorer.badge.error;
+    if (summary.failed > 0) {
+      return summary.reason === undefined
+        ? t().explorer.badge.error
+        : t().explorer.bind.failed(summary.reason);
+    }
     if (summary.withChanges > 0) return t().sync.withUpdates(summary.withChanges);
     if (summary.checked === 0) return t().sync.notBound;
     return t().explorer.bind.checked(name);

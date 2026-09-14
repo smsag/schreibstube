@@ -263,7 +263,20 @@ export const enExtra = {
     missing: "No source URL given.",
     notAUrl: "The source URL is not a valid URL.",
     notHttps: "Only HTTPS sources are fetched.",
-    notMarkdown: "The source is not a Markdown file (.md)."
+    notMarkdown: "The source is not a Markdown file (.md).",
+    notFound: (status: number) => `Source not found (HTTP ${status}).`,
+    privateNeedsToken: "A private repository needs a GitHub token.",
+    tokenNoAccess:
+      "GitHub answers the same when the token cannot see this repository — " +
+      "check the token's repository access.",
+    rateLimited: "GitHub rate limit reached. A token raises the limit considerably.",
+    denied: (status: number) => `Access denied (HTTP ${status}). Check the token.`,
+    httpStatus: (status: number) => `The source answered with HTTP ${status}.`,
+    metadataNotFile: "GitHub returned metadata instead of the file's contents.",
+    notMarkdownType: (type: string) => `The source is not Markdown (${type}).`,
+    tooLarge: "The source exceeds the size limit.",
+    timeout: (seconds: number) => `The source did not answer within ${seconds}s.`,
+    networkError: "Network error."
   },
 
   proofread: {
@@ -499,6 +512,7 @@ export const enExtra = {
       unbound: (name: string) => `${name} is no longer bound to a source.`,
       noSource: "this note has no source to open.",
       checked: (name: string) => `${name} is up to date with its source.`,
+      failed: (reason: string) => `the source could not be fetched — ${reason}`,
       folderChecked: (checked: number, changed: number, failed: number) =>
         `${checked} checked, ${changed} with updates, ${failed} failed.`,
       folderEmpty: "no bound notes in this folder."

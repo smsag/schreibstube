@@ -489,7 +489,20 @@ export const de: Messages = {
     missing: "Keine Quell-URL angegeben.",
     notAUrl: "Quell-URL ist keine gültige URL.",
     notHttps: "Nur HTTPS-Quellen werden geladen.",
-    notMarkdown: "Quelle ist keine Markdown-Datei (.md)."
+    notMarkdown: "Quelle ist keine Markdown-Datei (.md).",
+    notFound: (status: number) => `Quelle nicht gefunden (HTTP ${status}).`,
+    privateNeedsToken: "Für ein privates Repository wird ein GitHub-Token benötigt.",
+    tokenNoAccess:
+      "GitHub antwortet so auch, wenn das Token dieses Repository nicht sehen darf — " +
+      "Repository-Zugriff des Tokens prüfen.",
+    rateLimited: "GitHub-Ratenlimit erreicht. Ein Token erhöht das Limit deutlich.",
+    denied: (status: number) => `Zugriff verweigert (HTTP ${status}). Token prüfen.`,
+    httpStatus: (status: number) => `Quelle antwortete mit HTTP ${status}.`,
+    metadataNotFile: "GitHub lieferte Metadaten statt Dateiinhalt.",
+    notMarkdownType: (type: string) => `Quelle ist kein Markdown (${type}).`,
+    tooLarge: "Quelle überschreitet die Größengrenze.",
+    timeout: (seconds: number) => `Quelle antwortete nicht innerhalb von ${seconds}s.`,
+    networkError: "Netzwerkfehler."
   },
 
   proofread: {
@@ -729,6 +742,7 @@ export const de: Messages = {
       unbound: (name: string) => `${name} ist nicht mehr an eine Quelle gebunden.`,
       noSource: "diese Notiz hat keine Quelle zum Öffnen.",
       checked: (name: string) => `${name} ist auf dem Stand der Quelle.`,
+      failed: (reason: string) => `Quelle konnte nicht geladen werden — ${reason}`,
       folderChecked: (checked: number, changed: number, failed: number) =>
         `${checked} geprüft, ${changed} mit Aktualisierungen, ${failed} fehlgeschlagen.`,
       folderEmpty: "keine gebundenen Notizen in diesem Ordner."

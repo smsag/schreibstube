@@ -126,10 +126,12 @@ export class SyncPoller {
 
     this.polling = true;
     const summary: PollSummary = { checked: 0, withChanges: 0, failed: 0, notes: [] };
-    const token = this.githubToken();
     const updates: Record<string, SyncRecord> = {};
 
     try {
+      // Inside the guard, not before it: anything that throws between setting
+      // the flag and clearing it leaves every later check answering "busy".
+      const token = this.githubToken();
       let next = 0;
       const worker = async (): Promise<void> => {
         while (true) {
@@ -171,7 +173,7 @@ export class SyncPoller {
     const raw = await this.readBinding(file);
     const resolved = resolveSourceUrl(raw);
     if (!resolved.ok) {
-      summary.failed += 1;
+      this.fail(file, resolved.reason, summary);
       return;
     }
 
@@ -181,8 +183,7 @@ export class SyncPoller {
     // worth asking about.
     const own = await this.readInterval(file);
     if (own !== null && !own.ok) {
-      this.logger.warn(`${file.path}: ${own.reason}`);
-      summary.failed += 1;
+      this.fail(file, own.reason, summary);
       return;
     }
 
@@ -204,8 +205,7 @@ export class SyncPoller {
         token
       });
     } catch (err) {
-      this.logger.warn(`Poll failed for ${file.path}:`, err);
-      summary.failed += 1;
+      this.fail(file, err instanceof Error ? err.message : String(err), summary);
       return;
     }
 
@@ -217,7 +217,7 @@ export class SyncPoller {
     const body = splitNote(normalizeNewlines(await this.app.vault.cachedRead(file))).body;
 
     if (outcome.status === "missing" || outcome.status === "error") {
-      summary.failed += 1;
+      this.fail(file, outcome.message, summary);
       // The clock advances even on failure, so a dead binding is not retried
       // on every tick. The note itself is never touched.
       updates[file.path] = nextSyncRecord({
@@ -268,6 +268,22 @@ export class SyncPoller {
       summary.withChanges += 1;
       summary.notes.push(file.path);
     }
+  }
+
+  /**
+   * Count a failure, and say what it was.
+   *
+   * A poll has no panel to put a message on, and for a long time it put it
+   * nowhere: a source that answered 404 to every check was counted and not
+   * named, so a token that could not see its repository looked, from the
+   * notice, exactly like a note that was fine. The reason goes to the console
+   * for every note and into the summary for the first, which is what the
+   * notice for a single note shows.
+   */
+  private fail(file: TFile, reason: string, summary: PollSummary): void {
+    summary.failed += 1;
+    summary.reason ??= reason;
+    this.logger.warn(`${file.path}: ${reason}`);
   }
 
   /**

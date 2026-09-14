@@ -86,6 +86,8 @@ export interface PollSummary {
    * names no source, and the notice blames the note for a switch being off.
    */
   skipped?: "disabled" | "busy";
+  /** Why the first failed note failed, for a notice that names one note. */
+  reason?: string;
 }
 
 /** Persists sync bookkeeping between sessions. Implemented by the plugin, which
