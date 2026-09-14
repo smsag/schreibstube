@@ -108,6 +108,7 @@ export const DEFAULT_SETTINGS: SchreibstubeSettings = {
   explorerLatestEnabled: true,
   explorerLatestCount: LATEST_COUNT_DEFAULT,
   explorerLatestExcluded: "",
+  explorerTaskCounts: false,
   mailBridgeUrl: "",
   mailTokenSecretName: "",
   mailFrom: "",
@@ -277,6 +278,7 @@ export function normalizeSettings(loaded: LoadedSettings): SchreibstubeSettings 
       typeof loaded?.explorerLatestExcluded === "string"
         ? loaded.explorerLatestExcluded
         : DEFAULT_SETTINGS.explorerLatestExcluded,
+    explorerTaskCounts: loaded?.explorerTaskCounts === true,
     mailBridgeUrl: trimmedStringOrDefault(loaded?.mailBridgeUrl, DEFAULT_SETTINGS.mailBridgeUrl),
     mailTokenSecretName:
       typeof loaded?.mailTokenSecretName === "string"

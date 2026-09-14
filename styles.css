@@ -1015,34 +1015,17 @@ a.external-link.schreibstube-reminder-mark {
   color: var(--text-error);
 }
 
-.schreibstube-explorer .schreibstube-explorer-more {
+/* How many tasks a note holds and how many are open, at the row's right
+   edge. It takes the slack the name gives up, so it sits where a button once
+   did, and it is quiet: a figure to be read when wanted, never a control. */
+.schreibstube-explorer-tasks {
   flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  /* Takes the slack the name gave up, so the button stays at the right edge. */
   margin-left: auto;
-  height: 20px;
-  padding: 0 4px;
-  background-color: transparent;
-  border: none;
-  border-radius: 0;
-  box-shadow: none;
-  cursor: pointer;
-  color: var(--text-muted);
-  opacity: 0;
-}
-
-/* The trash stands free in the danger colour; the menu button is the neutral
-   chip. Neither deletes anything: the trash opens the confirmation. */
-.schreibstube-explorer .schreibstube-explorer-row:hover .schreibstube-explorer-more,
-.schreibstube-explorer .schreibstube-explorer-more:focus-visible {
-  opacity: 1;
-}
-
-/* A phone has no hover, so the button is simply always there. */
-.is-mobile .schreibstube-explorer-more {
-  opacity: 1;
+  padding-left: var(--schreibstube-row-gap);
+  color: var(--text-faint);
+  font-size: var(--font-ui-smaller);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 /* The "Move to…" list: a glyph and the folder's path on one line. */

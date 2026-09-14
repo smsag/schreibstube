@@ -93,6 +93,8 @@ export interface SchreibstubeSettings {
   explorerLatestCount: number;
   /** Vault paths kept out of the recent-notes lists, comma or newline separated. */
   explorerLatestExcluded: string;
+  /** Show "open / total" tasks after a note's name in the file pane. */
+  explorerTaskCounts: boolean;
   /** Secret-storage name of a GitHub token, for private repositories. */
   githubSecretName: string;
   /** Per-note sync state, keyed by vault path. Persisted, not user-editable. */

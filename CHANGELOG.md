@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Added
+
+- **A note's task count in the file pane.** With **Task counts** on under Settings → Schreibstube → Schreibstube Explorer, a note that holds tasks shows `1 / 7` after its name — open over total — at the row's right edge, in the tree, on the pinned strip and in the latest lists. A note without tasks shows nothing. Read from Obsidian's metadata, so a thousand rows cost no file reads. Off until switched on.
+
+### Changed
+
+- **The menu button on a row is gone.** Every row carried a three-dot button, shown on hover and always on a phone, that opened the same menu a right-click or a long press opens. It was one more thing lighting up on the pane for nothing the pointer could not already do, and its place at the right edge is where the task count now sits.
+
 ## 1.26.0 - 2026-09-14
 
 Mobile checklist: not run for this release. Everything in it was checked by

@@ -85,6 +85,10 @@ export const enExtra = {
     explorerLatestExcludeDesc:
       "Vault paths, separated by commas or line breaks. A folder excludes everything inside it. " +
       "The bookmarks file is always excluded.",
+    explorerTaskCounts: "Task counts",
+    explorerTaskCountsDesc:
+      'Show how many tasks a note holds and how many are still open, as "1 / 7" after its ' +
+      "name. Notes without tasks show nothing.",
     explorerIcons: "Icon set",
     explorerIconsDesc: (count: number, version: string) =>
       `${count} icons from Tabler Icons ${version} (MIT), bundled with the plugin so they work offline and on mobile.`,
@@ -385,6 +389,7 @@ export const enExtra = {
     empty: "This vault has no files yet.",
     searchPlaceholder: "Filter all sections…",
     clearFilter: "Clear the filter",
+    taskCount: (open: number, total: number) => `${open} of ${total} tasks open`,
     filterMore: (count: number) => `${count} more match. Narrow the filter to see them.`,
     collapseAll: "Collapse all",
     expandAll: "Expand all",
