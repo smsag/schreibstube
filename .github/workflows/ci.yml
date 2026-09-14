@@ -14,7 +14,7 @@ jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       # One Node everywhere: .nvmrc here, the image's base, and both engines
       # fields say 24. A version that is only claimed is not a version anyone
@@ -51,7 +51,7 @@ jobs:
   bridge-image:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: docker build --tag schreibstube-bridge:ci bridge
       # The deps stage vendors Mermaid and drops its tree; both halves of that
       # have to have happened, or a published diagram would fail at commit.
