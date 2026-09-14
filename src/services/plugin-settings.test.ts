@@ -53,6 +53,12 @@ describe("normalizeSettings", () => {
     expect(normalizeSettings({ remindersReportFile: "" }).remindersReportFile).toBe("");
   });
 
+  it("keeps the task counts in the file pane off unless switched on", () => {
+    expect(normalizeSettings({}).explorerTaskCounts).toBe(false);
+    expect(normalizeSettings({ explorerTaskCounts: "on" as never }).explorerTaskCounts).toBe(false);
+    expect(normalizeSettings({ explorerTaskCounts: true }).explorerTaskCounts).toBe(true);
+  });
+
   it("defaults llmModelCustom to an empty string", () => {
     expect(normalizeSettings({}).llmModelCustom).toBe("");
   });

@@ -42,6 +42,7 @@ import {
 } from "../services/bookmark-file";
 import { fileGlyph } from "../services/file-glyph";
 import { groundColour } from "../services/ground-colour";
+import { tallyTasks, taskCountLabel } from "../services/task-count";
 import type { LatestCandidate } from "../services/latest-files";
 import {
   ancestorsOf,
@@ -663,9 +664,11 @@ export class ExplorerPaneView extends ItemView {
       cls: "schreibstube-explorer-name",
       text: controller.titleFor(file) ?? displayName(file)
     });
-    if (file instanceof TFile) this.renderBadge(row, file);
+    if (file instanceof TFile) {
+      this.renderBadge(row, file);
+      this.renderTaskCount(row, file);
+    }
 
-    this.renderRowActions(row, file);
     this.wirePinnedDrag(row, file.path, order);
 
     row.addEventListener("contextmenu", (event) => {
@@ -835,9 +838,10 @@ export class ExplorerPaneView extends ItemView {
       row.createSpan({ cls: "schreibstube-explorer-name", text: file.name });
       // The same mark the tree carries, so a row here says whether the change
       // is waiting to be looked at or already in the note.
-      if (withBadge) {
-        const target = this.app.vault.getAbstractFileByPath(file.path);
-        if (target instanceof TFile) this.renderBadge(row, target);
+      const target = this.app.vault.getAbstractFileByPath(file.path);
+      if (target instanceof TFile) {
+        if (withBadge) this.renderBadge(row, target);
+        this.renderTaskCount(row, target);
       }
 
       row.addEventListener("click", () => void this.host?.sections.openLatest(file.path));
@@ -1018,28 +1022,34 @@ export class ExplorerPaneView extends ItemView {
       applyIcon(row.createSpan({ cls: "schreibstube-explorer-pin" }), "pinned");
     }
 
-    if (file instanceof TFile) this.renderBadge(row, file);
-
-    this.renderRowActions(row, file);
+    if (file instanceof TFile) {
+      this.renderBadge(row, file);
+      this.renderTaskCount(row, file);
+    }
 
     this.wireRow(row, file, isFolder);
     this.wireTreeDrag(row, file.path);
   }
 
-  /** The menu button a row shows on hover. Every action lives behind it. */
-  private renderRowActions(row: HTMLElement, file: TAbstractFile): void {
-    const controller = this.host?.explorer;
-    if (!controller) return;
+  /**
+   * How many tasks a note holds and how many are open, at the row's right
+   * edge, where a menu button used to sit. That button went: a right-click
+   * on a laptop and a long press on a phone reach the same menu, and a row
+   * of chips that light up on hover was one more thing moving on the pane.
+   *
+   * Read from Obsidian's metadata, so a thousand rows cost no file reads,
+   * and only where a person asked for it: most vaults have more notes than
+   * task lists, and a figure on every row is noise on most of them.
+   */
+  private renderTaskCount(row: HTMLElement, file: TFile): void {
+    if (!this.host?.settings().explorerTaskCounts || file.extension !== "md") return;
 
-    const more = row.createEl("button", {
-      cls: "schreibstube-explorer-more",
-      attr: { type: "button", "aria-label": t().explorer.menu.more }
-    });
-    applyIcon(more, "dots");
-    more.addEventListener("click", (event) => {
-      event.stopPropagation();
-      controller.showMenu(file, event);
-    });
+    const tally = tallyTasks(this.app.metadataCache.getFileCache(file)?.listItems);
+    const label = taskCountLabel(tally);
+    if (label === null) return;
+
+    const el = row.createSpan({ cls: "schreibstube-explorer-tasks", text: label });
+    el.setAttribute("aria-label", t().explorer.taskCount(tally.open, tally.total));
   }
 
   /**

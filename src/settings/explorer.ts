@@ -89,6 +89,15 @@ export function renderExplorer(ctx: SettingsContext): void {
     });
 
   new Setting(ctx.containerEl)
+    .setName(t().settings.explorerTaskCounts)
+    .setDesc(t().settings.explorerTaskCountsDesc)
+    .addToggle((toggle) => {
+      toggle.setValue(ctx.plugin.settings.explorerTaskCounts).onChange(async (value) => {
+        await ctx.update({ explorerTaskCounts: value });
+      });
+    });
+
+  new Setting(ctx.containerEl)
     .setName(t().settings.explorerIcons)
     .setDesc(t().settings.explorerIconsDesc(allIconNames().length, ICON_FONT_VERSION));
 

@@ -297,6 +297,10 @@ export const de: Messages = {
     explorerLatestExcludeDesc:
       "Vault-Pfade, durch Komma oder Zeilenumbruch getrennt. Ein Ordner schließt alles darin " +
       "aus. Die Lesezeichen-Datei ist immer ausgenommen.",
+    explorerTaskCounts: "Aufgabenzähler",
+    explorerTaskCountsDesc:
+      'Zeigt hinter dem Namen einer Notiz, wie viele Aufgaben sie enthält und wie viele davon offen sind, als "1 / 7". ' +
+      "Notizen ohne Aufgaben zeigen nichts.",
     explorerIcons: "Symbolsatz",
     explorerIconsDesc: (count: number, version: string) =>
       `${count} Symbole aus Tabler Icons ${version} (MIT), im Plugin enthalten — offline und mobil verfügbar.`,
@@ -600,6 +604,7 @@ export const de: Messages = {
     empty: "In diesem Vault liegt noch keine Datei.",
     searchPlaceholder: "Alle Sektionen filtern …",
     clearFilter: "Filter leeren",
+    taskCount: (open: number, total: number) => `${open} von ${total} Aufgaben offen`,
     filterMore: (count: number) => `${count} weitere Treffer. Filter eingrenzen, um sie zu sehen.`,
     collapseAll: "Alle zuklappen",
     expandAll: "Alle aufklappen",
