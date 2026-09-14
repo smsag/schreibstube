@@ -2,7 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## 1.26.0 - 2026-09-14
+
+Mobile checklist: not run for this release. Everything in it was checked by
+the test suite and the build's own guards, not on a device. Four things in
+this release are the ones a phone would tell you about first: a ticked task
+folding its body away, the Reminders mark at the end of a sent task, the
+hand-off to Shortcuts when a task is sent and when the note is checked, and
+the file pane's section headers after a switch between light and dark. Step 7
+of the checklist covers the pane; the rest are new and not on the list yet.
 
 ### Added
 
