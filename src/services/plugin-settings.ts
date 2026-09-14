@@ -66,6 +66,9 @@ export const DEFAULT_PROOFREAD_PROMPT =
   "Grammatik, Zeichensetzung und offensichtliche Stilfehler. Ändere niemals die " +
   "Aussage, den Ton oder die Fachbegriffe des Textes. Kürze nicht und ergänze nichts.";
 
+/** The name the README tells a person to give the Shortcut, so the default works as is. */
+export const DEFAULT_REMINDERS_SHORTCUT = "Schreibstube Reminder";
+
 const ALLOWED_PROVIDERS = new Set<LlmProvider>(LLM_PROVIDER_IDS);
 
 export const DEFAULT_SETTINGS: SchreibstubeSettings = {
@@ -117,6 +120,9 @@ export const DEFAULT_SETTINGS: SchreibstubeSettings = {
   printEnabled: false,
   printTemplateRoot: TEMPLATE_ROOT_DEFAULT,
   printOutputFolder: "",
+  remindersEnabled: false,
+  remindersList: "",
+  remindersShortcut: DEFAULT_REMINDERS_SHORTCUT,
   debugLogging: false
 };
 
@@ -303,6 +309,12 @@ export function normalizeSettings(loaded: LoadedSettings): SchreibstubeSettings 
     printOutputFolder: trimmedStringOrDefault(
       loaded?.printOutputFolder,
       DEFAULT_SETTINGS.printOutputFolder
+    ),
+    remindersEnabled: loaded?.remindersEnabled === true,
+    remindersList: trimmedStringOrDefault(loaded?.remindersList, DEFAULT_SETTINGS.remindersList),
+    remindersShortcut: trimmedStringOrDefault(
+      loaded?.remindersShortcut,
+      DEFAULT_SETTINGS.remindersShortcut
     )
   };
 }

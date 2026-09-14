@@ -73,6 +73,12 @@ function scanLines(
   }
 }
 
+/** The character inside a task line's checkbox, or null when the line is not a task. */
+export function taskMarker(line: string): string | null {
+  const match = TASK_PATTERN.exec(line);
+  return match ? (match[1] ?? "") : null;
+}
+
 export interface TaskLine {
   /** Zero-based line number of the task's first line. */
   line: number;

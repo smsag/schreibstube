@@ -8,6 +8,8 @@ function screen(overrides: Partial<CommandContext> = {}): CommandContext {
     selection: false,
     bound: false,
     explorerOpen: false,
+    task: false,
+    apple: true,
     ...overrides
   };
 }
@@ -20,7 +22,8 @@ function offered(context: CommandContext): GatedCommand[] {
     "check-source",
     "send-mail",
     "fetch-replies",
-    "collapse-explorer"
+    "collapse-explorer",
+    "send-reminder"
   ];
 
   return all.filter((command) => commandAvailable(command, context));
@@ -54,6 +57,13 @@ describe("what the palette offers", () => {
 
   it("offers nothing at all with a PDF open, rather than four refusals", () => {
     expect(offered(screen({ markdown: false, image: false }))).toEqual([]);
+  });
+
+  it("offers a reminder for the task under the cursor, on Apple's platforms only", () => {
+    expect(offered(screen({ task: true }))).toContain("send-reminder");
+    expect(offered(screen({ task: false }))).not.toContain("send-reminder");
+    expect(offered(screen({ task: true, apple: false }))).not.toContain("send-reminder");
+    expect(offered(screen({ task: true, markdown: false }))).not.toContain("send-reminder");
   });
 
   it("offers to close the folders only where there are folders to close", () => {

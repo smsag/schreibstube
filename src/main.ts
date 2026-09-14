@@ -2,6 +2,7 @@ import {
   type Editor,
   MarkdownView,
   Notice,
+  Platform,
   Plugin,
   TFile,
   TFolder,
@@ -28,6 +29,8 @@ import {
 } from "./services/command-availability";
 import { getImageMimeType } from "./services/image-resize";
 import { hasSourceBinding } from "./services/sync-source";
+import { isTaskLine, TASK_PROTOCOL_ACTION } from "./services/reminder-export";
+import { ReminderCommands } from "./controllers/reminder-commands";
 import { LinkModeController } from "./controllers/link-mode-controller";
 import { LlmCommands } from "./controllers/llm-commands";
 import { ProofreadController } from "./controllers/proofread-controller";
@@ -81,6 +84,7 @@ export default class SchreibstubePlugin extends Plugin {
   private mail: MailCommands | null = null;
   private publish: PublishCommands | null = null;
   private print: PrintCommands | null = null;
+  private reminders: ReminderCommands | null = null;
 
   override async onload(): Promise<void> {
     await this.loadSettings();
@@ -118,6 +122,7 @@ export default class SchreibstubePlugin extends Plugin {
         await this.saveSettings();
       }
     );
+    this.reminders = new ReminderCommands(this.app, () => this.settings, this.logger);
     this.proofread = new ProofreadController(this.app, () => this.settings, this.logger, {
       get: (path) => this.settings.syncState[path],
       set: async (path, record) => {
@@ -199,6 +204,22 @@ export default class SchreibstubePlugin extends Plugin {
     );
 
     this.registerCommands();
+
+    // The same action as the command, where a right-click or a long press
+    // lands. Obsidian puts the cursor on the clicked line before it asks for
+    // the menu, so the task under the cursor is the task under the pointer.
+    this.registerEvent(
+      this.app.workspace.on("editor-menu", (menu, editor, view) => {
+        if (!(view instanceof MarkdownView) || !view.file) return;
+        if (!commandAvailable("send-reminder", this.commandContext())) return;
+        this.reminders?.addMenuItem(menu, editor, view.file);
+      })
+    );
+    // The link a reminder carries: obsidian://schreibstube?task=<block id>.
+    this.registerObsidianProtocolHandler(TASK_PROTOCOL_ACTION, (params) => {
+      void this.reminders?.openTask(params);
+    });
+
     // The file pane is the plugin's main surface and everything else it offers
     // is a command. Without a ribbon icon there is nothing to find: enabling
     // the plugin changes nothing anyone can see until they open the palette
@@ -580,7 +601,9 @@ export default class SchreibstubePlugin extends Plugin {
       selection: (view?.editor.getSelection().trim().length ?? 0) > 0,
       bound:
         file !== null && hasSourceBinding(this.app.metadataCache.getFileCache(file)?.frontmatter),
-      explorerOpen: this.app.workspace.getLeavesOfType(EXPLORER_VIEW_TYPE).length > 0
+      explorerOpen: this.app.workspace.getLeavesOfType(EXPLORER_VIEW_TYPE).length > 0,
+      task: view !== null && isTaskLine(view.editor.getLine(view.editor.getCursor().line)),
+      apple: Platform.isMacOS || Platform.isIosApp
     };
   }
 
@@ -652,6 +675,15 @@ export default class SchreibstubePlugin extends Plugin {
     this.addGatedCommand("summarize-selection", t().commands.summarize, "summarize", () => {
       void this.llm?.summarizeSelection();
     });
+
+    this.addGatedCommand(
+      "send-task-to-reminders",
+      t().commands.sendToReminders,
+      "send-reminder",
+      () => {
+        this.reminders?.sendTaskAtCursor();
+      }
+    );
 
     this.addCommand({
       id: "open-explorer-pane",

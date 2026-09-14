@@ -447,6 +447,22 @@ The badges appear in Live Preview and Source mode. The ribbon also renders in Re
 
 A task can carry more than its first line: a paragraph typed with Shift+Enter, a note under it, sub-items — anything indented deeper than the task's own marker. While the task is open that text stays in view. Tick the task and it folds away, leaving the first line; untick it and it comes back. In the editor this is an ordinary fold, so the fold indicator opens a done task by hand and it stays open until its state changes again. Tasks that are already done when a note opens are folded from the start. In Reading view there is no folding, so the body is hidden instead. This works in every note, with or without the ribbon.
 
+#### Sending a task to Erinnerungen
+
+On macOS and iOS a task can be handed to Apple's Reminders. Put the cursor on the task and run **Tasks: send to Erinnerungen**, or right-click the line (long-press on a phone) and choose **Send to Erinnerungen**. The task's line becomes the reminder's title, tags included, and the text indented under it becomes the note. The command is offered only when the cursor is on a task; switch the feature on under **Settings → Schreibstube → Erinnerungen** first.
+
+Obsidian cannot talk to Reminders directly, so the work is done by a Shortcut you build once in the Shortcuts app, named as in the settings (**Schreibstube Reminder** by default):
+
+1. Create a shortcut that accepts **Text** as input.
+2. Add **Get Dictionary from Input**.
+3. Add **Add New Reminder** with Title from the dictionary's `title`, Notes from `notes`, and the list from `list`. If the list field will not take a variable, choose the list inside the Shortcut instead.
+
+The plugin sends one JSON object: `title`, `notes`, `list`, `link` and `note` (the note's title). `notes` already holds the body, a line `↩ Note title`, and the link, so the simplest Shortcut needs only `title` and `notes`.
+
+The link is `obsidian://schreibstube?task=<id>`, where the id is a block id the command appends to the task line, as Obsidian does for block links. Following the link from the reminder opens the vault, the note and the task, however the note has been renamed or moved since. The task line keeps its `^id` suffix; remove it and the link stops working.
+
+What does not carry over: Reminders' own tags. There is no way to set one from outside, so `#tag` stays as text in the title, visible and searchable but not coloured. Editing a reminder after it is created, and completing the task from the reminder, are not part of this.
+
 ### Commands
 
 Every command is prefixed with the part of the plugin it belongs to — `Fokus:`, `KI:`, `Explorer:`, `Korrektur:`, `Sync:`, `Mail:`, `Veröffentlichen:`, `Links:` — so typing the area into the palette narrows two dozen entries to three. Each settings section also lists the commands its feature brings, so switching something on and learning what to type is one page rather than two.

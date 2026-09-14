@@ -14,6 +14,7 @@ export const de: Messages = {
     focusParagraph: "Fokus: Absatz",
     focusDisable: "Fokus: aus",
     insertTaskSummary: "Aufgaben: Zusammenfassung einfügen",
+    sendToReminders: "Aufgaben: an Erinnerungen senden",
     renameFile: "KI: Notiz aus ihrem Text benennen",
     renameImage: "KI: Bild aus dem Bild benennen",
     summarize: "KI: Auswahl zusammenfassen",
@@ -53,7 +54,15 @@ export const de: Messages = {
     alreadyPresent: "diese Notiz hat schon eine Aufgaben-Zusammenfassung.",
     none: "Keine Aufgaben",
     ribbon: (open: number, total: number) => `${open} offen von ${total}`,
-    badge: (open: number, total: number) => `${open} von ${total} offen`
+    badge: (open: number, total: number) => `${open} von ${total} offen`,
+    menuSend: "An Erinnerungen senden",
+    remindersOff:
+      "Senden an Erinnerungen ist aus. Einschalten unter Einstellungen → Schreibstube → Erinnerungen.",
+    noShortcut:
+      "kein Kurzbefehl eingetragen. Namen eintragen unter Einstellungen → Schreibstube → Erinnerungen.",
+    notATask: "der Cursor steht auf keiner Aufgabe.",
+    sent: (title: string) => `an Erinnerungen gesendet: ${title}`,
+    taskNotFound: "keine Notiz in diesem Vault enthält diese Aufgabe."
   },
 
   publish: {
@@ -200,6 +209,29 @@ export const de: Messages = {
     focusOpacity: "Abdunklung",
     focusOpacityDesc:
       "Deckkraft der Zeilen außerhalb des Fokus (0,2 = sehr blass, 0,8 = fast voll).",
+
+    remindersHeading: "Erinnerungen",
+    remindersIntro:
+      "Sendet eine Aufgabe über einen einmal eingerichteten Kurzbefehl an Apples Erinnerungen. " +
+      "Die Zeile der Aufgabe wird zum Titel, der darunter eingerückte Text zur Notiz, und ein " +
+      "Link zurück zur Aufgabe kommt dazu, damit die Erinnerung die Notiz an der richtigen " +
+      "Stelle wieder öffnet. Nur macOS und iOS.",
+    remindersEnabled: "Aufgaben an Erinnerungen senden",
+    remindersEnabledDesc: "Bietet den Befehl und den Eintrag im Kontextmenü des Editors an.",
+    remindersList: "Erinnerungen-Liste",
+    remindersListDesc:
+      "Name der Liste, in der die Erinnerung angelegt wird; wird dem Kurzbefehl übergeben. Leer " +
+      "lassen, damit der Kurzbefehl wählt.",
+    remindersShortcut: "Name des Kurzbefehls",
+    remindersShortcutDesc:
+      "Der Kurzbefehl, der die Erinnerung anlegt. Er erhält eine Texteingabe: JSON mit title, " +
+      "notes, list, link und note.",
+    remindersSetup: "Den Kurzbefehl anlegen",
+    remindersSetupDesc:
+      'In der App Kurzbefehle einen Kurzbefehl mit diesem Namen anlegen, der Text annimmt. "Wörterbuch ' +
+      'aus Eingabe abrufen" hinzufügen, dann "Neue Erinnerung hinzufügen" mit Titel aus title, ' +
+      "Notizen aus notes und der Liste aus list. Als #tag geschriebene Tags bleiben Text: " +
+      "Erinnerungen bietet keinen Weg, von außen ein echtes Tag zu setzen.",
 
     explorerHeading: "Schreibstube Explorer",
     explorerIntro:

@@ -16,6 +16,7 @@ export const en = {
     focusParagraph: "Focus: paragraph",
     focusDisable: "Focus: off",
     insertTaskSummary: "Tasks: insert the summary ribbon",
+    sendToReminders: "Tasks: send to Erinnerungen",
     renameFile: "AI: rename note from its text",
     renameImage: "AI: rename image from the picture",
     summarize: "AI: summarize the selection",
@@ -60,7 +61,14 @@ export const en = {
      *  numbers have to appear as plain digits here. */
     ribbon: (open: number, total: number) => `${open} open of ${total}`,
     /** The badge after a heading. */
-    badge: (open: number, total: number) => `${open} of ${total} open`
+    badge: (open: number, total: number) => `${open} of ${total} open`,
+    menuSend: "Send to Erinnerungen",
+    remindersOff:
+      "sending to Erinnerungen is off. Turn it on in Settings → Schreibstube → Erinnerungen.",
+    noShortcut: "no Shortcut name is set. Enter it in Settings → Schreibstube → Erinnerungen.",
+    notATask: "the cursor is not on a task.",
+    sent: (title: string) => `sent to Erinnerungen: ${title}`,
+    taskNotFound: "no note in this vault holds that task."
   },
 
   publish: {
