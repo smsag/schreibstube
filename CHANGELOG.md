@@ -2,7 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## 1.29.0 - 2026-09-14
+
+Mobile checklist: not run for this release. Everything in it was checked by the
+test suite and the build's own guards, not on a device. Three things here are
+the ones a phone would show first: a pinned row now opens its menu on a long
+press, where it answered only a click before; a slideshow no longer turns the
+page when a scrolling thumb drifts sideways; and the file pane's folder menu
+no longer reads the whole vault to open. Steps 3, 5 and 7 of the checklist
+cover them.
+
+Bridge 2.4.0 accompanies this release. The protocol is unchanged, so an older
+bridge still serves this plugin, but the byte bounds and the validated search
+body are worth deploying.
 
 ### Fixed
 
