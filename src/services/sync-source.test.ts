@@ -137,6 +137,35 @@ describe("source targets", () => {
     });
   });
 
+  it("reads the ref GitHub's Raw button writes, refs/heads included", () => {
+    expect(target("https://raw.githubusercontent.com/org/repo/refs/heads/main/docs/a.md")).toEqual({
+      kind: "github",
+      owner: "org",
+      repo: "repo",
+      ref: "refs/heads/main",
+      path: "docs/a.md"
+    });
+  });
+
+  it("reads a tag the same way", () => {
+    expect(target("https://raw.githubusercontent.com/org/repo/refs/tags/v1/a.md")).toMatchObject({
+      ref: "refs/tags/v1",
+      path: "a.md"
+    });
+  });
+
+  it("does not mistake a folder called refs for the prefix", () => {
+    expect(target("https://raw.githubusercontent.com/org/repo/main/refs/heads/a.md")).toMatchObject(
+      { ref: "main", path: "refs/heads/a.md" }
+    );
+  });
+
+  it("wants a file after the prefixed ref", () => {
+    expect(target("https://raw.githubusercontent.com/org/repo/refs/heads/main.md")).toEqual({
+      kind: "url"
+    });
+  });
+
   it("keeps a branch name with no slashes intact", () => {
     const result = target("https://github.com/org/repo/blob/feature-x/a.md");
     expect(result).toMatchObject({ ref: "feature-x", path: "a.md" });

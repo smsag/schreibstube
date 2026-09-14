@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Fixed
+
+- **A private repository now syncs from the link GitHub's Raw button gives you.** That button has written `raw.githubusercontent.com/owner/repo/refs/heads/main/…` for some time, and the bind dialogue's placeholder invites exactly that link. Without a token the raw host resolved it and the note synced; with a token the fetch goes through GitHub's contents API instead, and the plugin read `refs` as the branch and `heads/main/…` as the file, so the API answered 404 for every check. The `refs/heads/` and `refs/tags/` forms are now read as the ref they name, on raw and page links alike.
+- **A check that fails says why.** A check from the file pane counted a failure and reported "The source cannot be fetched", and nothing anywhere said what the source had answered. A note bound to a private repository whose token was not granted that repository therefore looked, from the notice, like a note that was fine. The notice for a single note now carries the reason, every failed note is named in the console, and a GitHub 404 with a token says the token may not be able to see the repository, since GitHub answers a token without access exactly as it answers no token at all.
+- **A token pasted with a stray newline is sent as the token.** It was sent with the newline, which the platform refuses as a header value, and the refusal named nothing.
+- **A check that threw before it began no longer wedges every later one.** The token was looked up after the "check running" flag was set and before the guard that clears it, so a lookup that threw left the plugin answering "a check is already running" until Obsidian restarted.
+
 ## 1.27.0 - 2026-09-14
 
 Mobile checklist: not run for this release. Everything in it was checked by
