@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Changed
+
+- **The file pane's filter field says it is a field.** A hairline now runs round it, so a bare tint on a tinted pane no longer has to carry the whole meaning of "type here". On a phone the tint steps back to half strength: at full strength it was a grey block on a pane that is itself grey.
+- **The plugin's icon is drawn to the rules of the icons beside it.** It sits in a row of Lucide icons in the sidebar's tab strip, and was scaled to a folder's width with a heavier stroke, which made it a stranger among the three beside it and put it closer to the window's edge than they stand. It is now Lucide's own house outline, on Lucide's grid, stroke and margins, with the quill in the doorway.
+
 ### Fixed
 
 - **The plugin now speaks the language Obsidian speaks, even when nobody chose one.** Obsidian records an explicit language choice and otherwise follows the system. The plugin read only the recorded choice, so on a Mac set to German where the Obsidian language was never touched, Obsidian's palette was German and every Schreibstube command was named in English: typing "Aufgaben" found nothing, and the file pane's headers read PINNED and LATEST. The plugin now falls back to the system language the way Obsidian does. An explicit choice under Settings → Schreibstube → Language still wins.
