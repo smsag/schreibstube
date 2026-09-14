@@ -15,6 +15,7 @@ export const de: Messages = {
     focusDisable: "Fokus: aus",
     newNote: "Fokus: neue Notiz im eigenen Fenster",
     insertTaskSummary: "Aufgaben: Zusammenfassung einfügen",
+    insertSlideshow: "Diaschau: Bild-Diaschau einfügen",
     sendToReminders: "Aufgaben: an Erinnerungen senden",
     checkNoteReminders: "Aufgaben: diese Notiz mit Erinnerungen abgleichen",
     fetchReminders: "Aufgaben: Erledigtes aus Erinnerungen holen",
@@ -73,6 +74,19 @@ export const de: Messages = {
     checking: "Erinnerungen wird gefragt…",
     nothingDone: "Erinnerungen meldet nichts Neues als erledigt.",
     ticked: (count: number) => `${count} Aufgabe(n) als in Erinnerungen erledigt abgehakt.`
+  },
+
+  slideshow: {
+    tooFew: (min: number) => `eine Diaschau braucht mindestens ${min} Bilder.`,
+    tooMany: (max: number) => `eine Diaschau fasst höchstens ${max} Bilder.`,
+    notImage: (line: number, text: string) =>
+      `Zeile ${line}: ein Bild „![alt](Pfad)“ erwartet — „${text}“ erhalten`,
+    emptyPath: (line: number) => `Zeile ${line}: der Bildpfad ist leer.`,
+    region: (n: number) => `Diaschau, ${n} Bilder`,
+    previous: "Voriges Bild",
+    next: "Nächstes Bild",
+    fullscreen: "Vollbild",
+    exit: "Vollbild verlassen"
   },
 
   notes: {

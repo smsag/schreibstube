@@ -12,6 +12,12 @@ All notable changes to this project will be documented in this file.
 - **A token pasted with a stray newline is sent as the token.** It was sent with the newline, which the platform refuses as a header value, and the refusal named nothing.
 - **A check that threw before it began no longer wedges every later one.** The token was looked up after the "check running" flag was set and before the guard that clears it, so a lookup that threw left the plugin answering "a check is already running" until Obsidian restarted.
 
+## 1.28.0 - 2026-09-14
+
+### Added
+
+- **An image slideshow you can drop into a note.** Write a ` ```schreibstube-slideshow ` block with one Markdown image per line (`![caption](path.png)`), at least two, and the note shows them one at a time with a caption, prev/next buttons, arrow keys, swipe on mobile, and a fullscreen view (the expand button, dismissed with ✕, Escape, or a swipe). Blank lines and `//` comments inside the block are ignored. **Slideshow: insert an image slideshow** in the command palette drops an empty block at the cursor. Moved here from Vizardry, where it was the `type: carousel` canvas.
+
 ## 1.27.0 - 2026-09-14
 
 Mobile checklist: not run for this release. Everything in it was checked by
