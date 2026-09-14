@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Added
+
+- **Task summary ribbon.** The new **Insert task summary ribbon** command inserts a ```` ```schreibstube-tasks ```` block at the cursor, which renders as a one-line "N open of M" ribbon for the whole note and updates the moment a checkbox is toggled.
+- **Per-heading task badges.** While the ribbon block is present, every heading with tasks directly beneath it shows a muted "N of M open" badge in Live Preview and Source mode. The badge is painted as a line attribute, so it stays visible when the heading is folded. Only `[ ]` counts as open; every other marker counts as done.
+
 ## 1.3.0 - 2026-08-28
 
 ### Changed

@@ -83,6 +83,37 @@
   font-weight: 600;
 }
 
+/* Task summary: per-heading "N of M open" badge (Live Preview and Source mode). */
+.cm-line.schreibstube-task-heading::after {
+  content: attr(data-schreibstube-tasks);
+  display: inline;
+  margin-left: 0.75em;
+  font-family: var(--font-text);
+  font-size: var(--font-ui-small);
+  font-weight: var(--font-normal);
+  font-style: normal;
+  letter-spacing: normal;
+  text-transform: none;
+  text-decoration: none;
+  color: var(--text-faint);
+  white-space: nowrap;
+  vertical-align: baseline;
+  pointer-events: none;
+}
+
+/* Task summary: the ribbon rendered by the ```schreibstube-tasks``` block. */
+.schreibstube-task-ribbon {
+  font-family: var(--font-text);
+  font-size: var(--font-text-size);
+  color: var(--text-muted);
+  margin: 0.25em 0;
+}
+
+.schreibstube-task-ribbon strong {
+  color: var(--text-normal);
+  font-weight: var(--bold-weight);
+}
+
 .schreibstube-focus-enabled .cm-line.schreibstube-focus-dimmed {
   opacity: var(--schreibstube-focus-dim-opacity);
 }

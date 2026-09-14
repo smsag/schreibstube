@@ -1,4 +1,4 @@
-import { MarkdownView, Notice, Plugin, WorkspaceLeaf, normalizePath } from "obsidian";
+import { type Editor, MarkdownView, Notice, Plugin, WorkspaceLeaf, normalizePath } from "obsidian";
 import { resolveAncestorStack } from "./services/ancestor-stack";
 import { buildHeadingIndex } from "./services/heading-index";
 import {
@@ -15,6 +15,7 @@ import { bootstrapSchreibstubeRuntime } from "./services/plugin-bootstrap";
 import { DEFAULT_SETTINGS, normalizeSettings } from "./services/plugin-settings";
 import { generateImageRenameFilename, generateRenameFilename, sanitizeFilename } from "./services/llm-rename";
 import { MAX_IMAGE_BYTES, getImageMimeType, resizeImageToBase64 } from "./services/image-resize";
+import { buildTaskSummaryInsertion, hasTaskSummaryBlock } from "./services/task-summary";
 import { SchreibstubeSettingTab } from "./settings";
 import type { FocusMode, HeadingEntry, SchreibstubeSettings } from "./types";
 
@@ -125,6 +126,12 @@ export default class SchreibstubePlugin extends Plugin {
     });
 
     this.addCommand({
+      id: "insert-task-summary",
+      name: "Insert task summary ribbon",
+      editorCallback: (editor) => { this.insertTaskSummary(editor); },
+    });
+
+    this.addCommand({
       id: "open-links-left",
       name: "Open links to the left",
       callback: () => { this.setLinkOpenMode("left"); },
@@ -141,6 +148,21 @@ export default class SchreibstubePlugin extends Plugin {
       name: "Open links normally",
       callback: () => { this.setLinkOpenMode("default"); },
     });
+  }
+
+  private insertTaskSummary(editor: Editor): void {
+    if (hasTaskSummaryBlock(editor.getValue())) {
+      new Notice("Schreibstube: this note already has a task summary ribbon.");
+      return;
+    }
+
+    const cursor = editor.getCursor();
+    const line = editor.getLine(cursor.line);
+    const insertion = buildTaskSummaryInsertion(line.slice(0, cursor.ch), line.slice(cursor.ch));
+    editor.replaceRange(insertion, cursor);
+
+    const insertedLines = insertion.split("\n").length - 1;
+    editor.setCursor({ line: cursor.line + insertedLines, ch: 0 });
   }
 
   private async setFocusMode(mode: FocusMode): Promise<void> {
