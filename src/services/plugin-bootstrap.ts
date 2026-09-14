@@ -7,6 +7,7 @@ import { createTaskFoldPostProcessor } from "../processors/task-fold-reading";
 import { createReminderMarkExtension } from "../processors/reminder-mark";
 import { createReminderMarkPostProcessor } from "../processors/reminder-mark-reading";
 import { registerTaskRibbon } from "../processors/task-ribbon";
+import { registerSlideshow } from "../processors/slideshow";
 import type { SchreibstubeSettings } from "../types";
 
 export interface BootstrapHandlers {
@@ -32,6 +33,7 @@ export function bootstrapSchreibstubeRuntime(plugin: Plugin, handlers: Bootstrap
   plugin.registerEditorExtension(createReminderMarkExtension());
   plugin.registerMarkdownPostProcessor(createReminderMarkPostProcessor());
   registerTaskRibbon(plugin);
+  registerSlideshow(plugin);
 
   plugin.registerMarkdownPostProcessor(
     createReadingPostProcessor(({ viewportTopLine, scrollTop }) => {

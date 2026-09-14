@@ -21,6 +21,7 @@ import { OverlayCoordinator } from "./services/overlay-coordinator";
 import { bootstrapSchreibstubeRuntime } from "./services/plugin-bootstrap";
 import { DEFAULT_SETTINGS, normalizeSettings } from "./services/plugin-settings";
 import { buildTaskSummaryInsertion, hasTaskSummaryBlock } from "./services/task-summary";
+import { buildSlideshowInsertion } from "./services/slideshow";
 import { createLogger, type Logger } from "./services/logger";
 import {
   commandAvailable,
@@ -677,6 +678,14 @@ export default class SchreibstubePlugin extends Plugin {
       }
     });
 
+    this.addCommand({
+      id: "insert-slideshow",
+      name: t().commands.insertSlideshow,
+      editorCallback: (editor) => {
+        this.insertSlideshow(editor);
+      }
+    });
+
     this.addGatedCommand("rename-from-content", t().commands.renameFile, "rename-note", () => {
       void this.llm?.renameFromContent();
     });
@@ -896,6 +905,20 @@ export default class SchreibstubePlugin extends Plugin {
 
     // Below the block, on the line the writer was heading for anyway; inside
     // it the cursor would show the raw fence instead of the ribbon.
+    const insertedLines = insertion.split("\n").length - 1;
+    editor.setCursor({ line: cursor.line + insertedLines, ch: 0 });
+  }
+
+  /**
+   * Drops an image-slideshow block at the cursor with two placeholder image
+   * lines, so the writer sees the shape and edits the paths in place. Unlike
+   * the task ribbon, a note may hold several slideshows, so nothing is checked.
+   */
+  private insertSlideshow(editor: Editor): void {
+    const cursor = editor.getCursor();
+    const line = editor.getLine(cursor.line);
+    const insertion = buildSlideshowInsertion(line.slice(0, cursor.ch), line.slice(cursor.ch));
+    editor.replaceRange(insertion, cursor);
     const insertedLines = insertion.split("\n").length - 1;
     editor.setCursor({ line: cursor.line + insertedLines, ch: 0 });
   }
