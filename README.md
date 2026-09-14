@@ -445,6 +445,8 @@ Turns a long note with checkboxes into a progress view without any extra state i
 
 The badges appear in Live Preview and Source mode. The ribbon also renders in Reading view.
 
+A task can carry more than its first line: a paragraph typed with Shift+Enter, a note under it, sub-items — anything indented deeper than the task's own marker. While the task is open that text stays in view. Tick the task and it folds away, leaving the first line; untick it and it comes back. In the editor this is an ordinary fold, so the fold indicator opens a done task by hand and it stays open until its state changes again. Tasks that are already done when a note opens are folded from the start. In Reading view there is no folding, so the body is hidden instead. This works in every note, with or without the ribbon.
+
 ### Commands
 
 Every command is prefixed with the part of the plugin it belongs to — `Fokus:`, `KI:`, `Explorer:`, `Korrektur:`, `Sync:`, `Mail:`, `Veröffentlichen:`, `Links:` — so typing the area into the palette narrows two dozen entries to three. Each settings section also lists the commands its feature brings, so switching something on and learning what to type is one page rather than two.

@@ -73,6 +73,21 @@ function scanLines(
   }
 }
 
+export interface TaskLine {
+  /** Zero-based line number of the task's first line. */
+  line: number;
+  open: boolean;
+}
+
+/** Every task in the note, in document order, with its state. */
+export function listTasks(content: string): TaskLine[] {
+  const tasks: TaskLine[] = [];
+  scanLines(content, (kind, lineNumber, detail) => {
+    if (kind === "task") tasks.push({ line: lineNumber, open: detail === " " });
+  });
+  return tasks;
+}
+
 export function summarizeTasks(content: string): TaskSummary {
   const summary: TaskSummary = { total: 0, open: 0, sections: [] };
   let current: SectionTaskCount | null = null;
