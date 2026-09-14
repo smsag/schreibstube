@@ -115,6 +115,42 @@ export class SecretComponent {
 
 export class MarkdownView {}
 export class ItemView {}
+
+/** Tests run where no Obsidian is; a test that cares sets the flags it needs. */
+export const Platform = {
+  isMacOS: false,
+  isIosApp: false,
+  isDesktopApp: false,
+  isMobile: false
+};
+
+export class MenuItem {
+  title = "";
+  icon = "";
+  handler: (() => void) | null = null;
+  setTitle(title: string): this {
+    this.title = title;
+    return this;
+  }
+  setIcon(icon: string): this {
+    this.icon = icon;
+    return this;
+  }
+  onClick(handler: () => void): this {
+    this.handler = handler;
+    return this;
+  }
+}
+
+export class Menu {
+  items: MenuItem[] = [];
+  addItem(build: (item: MenuItem) => void): this {
+    const item = new MenuItem();
+    build(item);
+    this.items.push(item);
+    return this;
+  }
+}
 export class MarkdownRenderChild {
   constructor(public containerEl: unknown) {}
 }
