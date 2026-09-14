@@ -166,6 +166,27 @@ describe("source targets", () => {
     });
   });
 
+  it("names the file as the repository does, not as the URL spells it", () => {
+    expect(
+      target("https://raw.githubusercontent.com/org/repo/main/Mein Dokument/Über.md")
+    ).toMatchObject({ ref: "main", path: "Mein Dokument/Über.md" });
+    expect(
+      target("https://github.com/org/repo/blob/main/Mein%20Dokument/%C3%9Cber.md")
+    ).toMatchObject({ ref: "main", path: "Mein Dokument/Über.md" });
+  });
+
+  it("keeps the URL's own spelling when rewriting a page link", () => {
+    expect(ok("https://github.com/org/repo/blob/main/Mein Dokument/Über.md")).toBe(
+      "https://raw.githubusercontent.com/org/repo/main/Mein%20Dokument/%C3%9Cber.md"
+    );
+  });
+
+  it("leaves a malformed escape as written", () => {
+    expect(target("https://raw.githubusercontent.com/org/repo/main/100%.md")).toMatchObject({
+      path: "100%.md"
+    });
+  });
+
   it("keeps a branch name with no slashes intact", () => {
     const result = target("https://github.com/org/repo/blob/feature-x/a.md");
     expect(result).toMatchObject({ ref: "feature-x", path: "a.md" });
@@ -177,6 +198,16 @@ describe("source targets", () => {
 });
 
 describe("githubApiUrl", () => {
+  it("encodes a resolved source's path exactly once", () => {
+    const result = resolveSourceUrl(
+      "https://raw.githubusercontent.com/org/repo/main/Mein Dokument/Über.md"
+    );
+    if (!result.ok || result.target.kind !== "github") throw new Error("expected a GitHub target");
+    expect(githubApiUrl(result.target)).toBe(
+      "https://api.github.com/repos/org/repo/contents/Mein%20Dokument/%C3%9Cber.md?ref=main"
+    );
+  });
+
   it("builds a contents endpoint with the ref", () => {
     expect(
       githubApiUrl({ kind: "github", owner: "org", repo: "repo", ref: "main", path: "docs/a.md" })

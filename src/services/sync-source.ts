@@ -76,7 +76,40 @@ function describeHost(url: URL): SourceTarget {
     return { kind: "url" };
   }
 
-  return { kind: "github", owner, repo, ...split };
+  return githubTarget(owner, repo, split);
+}
+
+/**
+ * The target as the repository names things, not as the URL spells them.
+ *
+ * The URL parser writes a space as `%20` and an umlaut as its UTF-8 bytes,
+ * and the API URL encodes each segment itself. Handed the URL's spelling it
+ * encoded the percent sign a second time and asked for `Mein%2520Dokument`,
+ * which no repository has. The raw host was handed the URL unchanged and
+ * found the file, so again a public repository worked where a private one
+ * did not.
+ */
+function githubTarget(
+  owner: string,
+  repo: string,
+  split: { ref: string; path: string }
+): SourceTarget {
+  return {
+    kind: "github",
+    owner: decodeSegment(owner),
+    repo: decodeSegment(repo),
+    ref: split.ref.split("/").map(decodeSegment).join("/"),
+    path: split.path.split("/").map(decodeSegment).join("/")
+  };
+}
+
+/** A malformed escape is left as written rather than turned into a throw. */
+function decodeSegment(segment: string): string {
+  try {
+    return decodeURIComponent(segment);
+  } catch {
+    return segment;
+  }
 }
 
 /**
@@ -177,10 +210,11 @@ function rewriteGitHubUrl(url: URL): { url: URL; target: SourceTarget } | null {
   }
   if (kind !== "blob" && kind !== "raw") return null;
 
-  const { ref, path } = split;
+  // The raw host resolves ref and path itself, so the URL keeps the page's
+  // own spelling; only the target needs them apart.
   return {
-    url: new URL(`https://raw.githubusercontent.com/${owner}/${repo}/${ref}/${path}`),
-    target: { kind: "github", owner, repo, ref, path }
+    url: new URL(`https://raw.githubusercontent.com/${owner}/${repo}/${tail.join("/")}`),
+    target: githubTarget(owner, repo, split)
   };
 }
 
