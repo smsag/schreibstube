@@ -29,6 +29,7 @@ route that does not exist yet.
 
 | Bridge | Protocol | Plugin          | Notes                                                |
 | ------ | -------- | --------------- | ---------------------------------------------------- |
+| 2.4.x  | 1        | 1.8.0 and later | Validated search body, fetch and asset byte bounds   |
 | 2.3.x  | 1        | 1.8.0 and later | `TRUST_PROXY`, Node 24, image without Mermaid's tree |
 | 2.2.x  | 1        | 1.8.0 and later | Per-target switches, publish history, JSON logs      |
 | 2.1.x  | 1        | 1.8.0 and later | Mail and publishing                                  |
