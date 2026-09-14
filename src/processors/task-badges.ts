@@ -1,17 +1,25 @@
-import { type DecorationSet, EditorView, ViewPlugin, type ViewUpdate, Decoration } from "@codemirror/view";
+import {
+  type DecorationSet,
+  type EditorView,
+  ViewPlugin,
+  type ViewUpdate,
+  Decoration
+} from "@codemirror/view";
 import { type EditorState, type Extension, RangeSetBuilder } from "@codemirror/state";
-import { formatSectionBadge, hasTaskSummaryBlock, summarizeTasks } from "../services/task-summary";
+import { t } from "../i18n";
+import { hasTaskSummaryBlock, summarizeTasks } from "../services/task-summary";
 
 export const TASK_BADGE_ATTRIBUTE = "data-schreibstube-tasks";
 
 /**
- * Paints an "N of M open" badge after every heading that owns tasks, but only
- * while the document contains a task summary ribbon block.
+ * An "N of M open" badge after every heading that owns tasks, while the note
+ * carries a ribbon block.
  *
- * The badge is a line decoration carrying a data attribute that CSS turns into
- * an `::after` pseudo-element. Unlike a widget at the end of the line, a line
- * attribute is untouched by heading folds, so the badge stays visible when the
- * heading is collapsed.
+ * The badge is a line decoration carrying a data attribute that the stylesheet
+ * turns into an `::after` pseudo-element. A widget at the end of the line would
+ * be swallowed by a heading fold, which replaces everything from the line's end
+ * onwards; a line attribute is not, and the count stays on the folded heading,
+ * where it is most wanted.
  */
 export function createTaskBadgeExtension(): Extension {
   return ViewPlugin.fromClass(
@@ -23,9 +31,7 @@ export function createTaskBadgeExtension(): Extension {
       }
 
       update(update: ViewUpdate): void {
-        if (update.docChanged) {
-          this.decorations = buildTaskBadges(update.state);
-        }
+        if (update.docChanged) this.decorations = buildTaskBadges(update.state);
       }
     },
     {
@@ -36,9 +42,7 @@ export function createTaskBadgeExtension(): Extension {
 
 function buildTaskBadges(state: EditorState): DecorationSet {
   const content = state.doc.toString();
-  if (!hasTaskSummaryBlock(content)) {
-    return Decoration.none;
-  }
+  if (!hasTaskSummaryBlock(content)) return Decoration.none;
 
   const builder = new RangeSetBuilder<Decoration>();
   for (const section of summarizeTasks(content).sections) {
@@ -49,7 +53,7 @@ function buildTaskBadges(state: EditorState): DecorationSet {
       line.from,
       Decoration.line({
         class: "schreibstube-task-heading",
-        attributes: { [TASK_BADGE_ATTRIBUTE]: formatSectionBadge(section) }
+        attributes: { [TASK_BADGE_ATTRIBUTE]: t().tasks.badge(section.open, section.total) }
       })
     );
   }

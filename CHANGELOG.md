@@ -6,8 +6,510 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
-- **Task summary ribbon.** The new **Insert task summary ribbon** command inserts a ```` ```schreibstube-tasks ```` block at the cursor, which renders as a one-line "N open of M" ribbon for the whole note and updates the moment a checkbox is toggled.
-- **Per-heading task badges.** While the ribbon block is present, every heading with tasks directly beneath it shows a muted "N of M open" badge in Live Preview and Source mode. The badge is painted as a line attribute, so it stays visible when the heading is folded. Only `[ ]` counts as open; every other marker counts as done.
+- **A note with checkboxes can carry a progress line.** **Tasks: insert the summary ribbon** puts a ```` ```schreibstube-tasks ```` block wherever the cursor is, and the block renders as one line — "20 open of 21" — counting every task in the note. It updates the moment a checkbox is toggled, in Live Preview and in Reading view, and it reads the editor's buffer rather than the saved file so an unsaved tick counts too.
+- **While the ribbon is there, every heading says how much is left beneath it.** A muted "3 of 3 open" after the heading, in the theme's body font and small, counting only the tasks directly under it up to the next heading of any level: a sub-heading's tasks are the sub-heading's. The badge is painted as an attribute on the heading's line rather than as a widget, which is what keeps it visible when the heading is folded. Only `[ ]` counts as open; every other marker counts as done, and a task inside a code fence is not a task.
+
+### Changed
+
+- **A diagram with no heading over it can be captioned by the drawing itself.** A canvas usually has a title, and a fence with no heading above it had nothing under the picture. The note still wins: a heading is what the person writing chose to call it, in the words of the document; the drawing's own name is better than nothing and worse than that. Neither, and the picture stands unlabelled rather than carrying a caption nobody wrote.
+- **A canvas from a pop-out window is no longer refused.** Obsidian can put a note in a window of its own, and an element from there fails `instanceof` against the main window while being a perfectly good element. The check now asks what it can do rather than which document made it, matching the plugin on the other side of the contract.
+
+## 1.25.0 - 2026-09-13
+
+Mobile checklist: steps 1 to 7 confirmed on a phone for 1.24.0 and untouched
+since. Steps 8 and 9 — printing itself and a diagram from another plugin — have
+still not been run on a device, and this release changes printing, so they are
+the two to run before relying on it.
+
+### Added
+
+- **A template is found wherever you keep it.** Only the configured folder was searched, so a template kept beside the notes that use it was invisible and printing said there were none. What makes a folder a template is the flag in its descriptor, which somebody set on purpose; the setting now says where a new one is suggested, not where one is allowed to be.
+- **A template can be added from inside the app.** Until now the only way to get one was to copy a folder out of the repository, which is a drag on a laptop and not possible at all on a phone — the platform the whole feature was built for. **Drucken: Vorlage anlegen** asks which of the two examples you want and which folder to put it in, writes it, and opens its descriptor so the instructions are the first thing you read. Any folder in the vault is offered, not only the templates folder, because keeping a template beside the notes that use it is not wrong.
+
+### Changed
+
+- **Printing is off until you switch it on, and switching it on is what downloads the typesetter.** It is 28 MB, and nobody should spend that on a feature they have not asked for, least of all over mobile data. The settings now show whether the typesetter is on this device, with a button to fetch it in advance so a first print is not also a download, or to remove it again and take the space back. Running the print command while printing is off explains this and offers to turn it on, rather than the command quietly not being there.
+- **Printing says plainly when a device cannot run it.** It needs WebAssembly, a worker and a digest, which every platform Obsidian supports has. Asked as three questions rather than as "which device is this", because a browser engine moves and a platform test goes stale.
+
+### Documentation
+
+- **The README explains printing properly, including how to write a template.** What a template is, the layout function and what it is given, the four helpers a template may override, where each word on the page comes from, what carries over from the note and what does not, and what happens to a diagram. It had a summary; a feature this size needs the walkthrough.
+
+## 1.24.0 - 2026-09-13
+
+Mobile checklist: steps 1 to 7 confirmed on a phone. Steps 8 and 9 — printing
+itself — were not, and they are the two that matter for this release: the first
+fetch of the 28 MB typesetter, and a diagram drawn by another plugin coming out
+light and complete. So the rest of the plugin is checked on a device and
+printing is not.
+
+### Added
+
+- **A note can be printed as a PDF, through a template you keep in the vault.** Not Obsidian's print, which gives you whatever the screen had: a template is a folder with a layout, its fonts and a descriptor, and the page comes out set rather than screenshotted. It works the same on a phone as on a laptop and needs nothing running anywhere — Typst is compiled to WebAssembly and typesets on the device, so a letter written on a train becomes a PDF on that train. The typesetter is 28 MB and is fetched once per device from this plugin's own release, checked against a hash committed in the source, and kept beside the plugin; everything after that is offline.
+
+  What goes on the page that is not prose — a sender, a recipient, a subject, a date — is frontmatter. The template says what is always the same and the note says what is not, so an address is typed once and a recipient once. A note that names its template prints without being asked anything; one that does not is asked which.
+
+  Diagrams are the one thing a typesetter cannot do: Mermaid and the canvas plugins draw into a document, not onto a page. Each is drawn off-screen in a light theme and captured as a picture — paper is white whatever the vault is set to — and one that cannot be drawn prints as its own source with a warning, because a diagram that silently vanished is a page that lies about what the note says. A fence that drew several and captured only some keeps what it got and says how many are missing, for the same reason. A plugin that offers its own export is asked to do the drawing rather than guessed at from outside, and asked for every canvas in the fence rather than the first — a carousel shows one panel at a time and a page has no carousel, so all of them print. It is also told the drawing is for paper, which asks it not to go to the network for anything: a print stays offline however it is made.
+
+  Two templates to copy are in `examples/print/`: a German business letter and a CV. Neither ships a typeface, since fonts are licensed; put your own in the template's `fonts/` folder. `PRINTING.md` is the whole contract.
+
+## 1.23.0 - 2026-09-13
+
+Mobile checklist: not run for this release. The file pane's view was split
+into modules with every function moved verbatim, which is a claim about the
+code; ten minutes on a phone before relying on it is still worth having.
+
+### Changed
+
+- **One Node everywhere.** The bridge's image, CI, the release workflow and both `engines` fields say Node 24, the current long-term-support line; `.nvmrc` at the root says it once for everyone's machine. The bridge had claimed 20, run 22 and been tested on both.
+- **The bridge's image is a tenth of its size.** Mermaid is one prebuilt file the bridge copies into a published site and never runs, and the package brought 205 MB of parser dependencies for it. The image now keeps the one file and drops the tree; CI checks that both halves of that happened. `imapflow` is on 2.x, whose only breaking change is the Node floor the image already had.
+- **The file pane's view is four modules and a decision.** Its 2,100 lines held the drag gesture, the long-press menu, where a drag may land, how a section header is drawn, what the pane remembers, and which icon a file gets, each entangled with the rest. Those are their own modules now, the icon decision is a service with tests, and the view draws. Nothing a person can see or do changed.
+- **`main.js` is a fifth of its size.** The production bundle carried its own source map inline — 1.6 MB parsed by Obsidian on every start, on every phone, so that a stack trace would name a TypeScript line. The map now travels with the GitHub release instead, where it is used to read a reported trace, and the file every vault loads is 277 KB. The build refuses to ship anything over 400 KB.
+- **The plugin's one-line description says what it is.** It still called itself a heading overlay.
+
+### Security
+
+- **Releases carry a provenance attestation, and actions are pinned by commit.** A vault owner can check that the `main.js` on a release was built by this repository's workflow from the tagged commit, and a tag moved on an action's repository no longer changes what CI runs. Dependabot keeps the pins current.
+- **The bridge can tell callers apart behind a proxy.** Hosted behind a platform's TLS proxy, every request arrived from the proxy's own address, and the throttle that slows repeated bad tokens keyed on exactly that: five wrong guesses from a stranger locked the plugin's owner out for a minute. With `TRUST_PROXY=true` the bridge reads the address the proxy appended, which a client cannot forge. Off by default, since without a proxy the header is the client's to choose.
+- **Both dependency trees audit clean.** Vitest 5 and esbuild 0.28 in the plugin's tooling, a patched `lodash-es` under Mermaid in the bridge; CI audits the bridge's runtime tree on every change and Dependabot keeps both moving. The bridge now requires Node 22.12, which is what its image has always run.
+
+### Fixed
+
+- **The bridge README named a variable that has not existed since 2.0.** `BRIDGE_TOKEN` is `MAIL_TOKEN` and `PUBLISH_TOKEN`, and the SSH key and password are secrets too.
+
+## 1.22.0 - 2026-09-13
+
+### Changed
+
+- **The pinned block's chevron moved to the end of its band, and only appears when it has something to show.** It sat on the left in the slot every icon in the pane lines up on, which is where a chevron that opens and closes a list belongs — and this one does not do that. Three pinned rows are on screen whatever it says; what it controls is whether the rest of the shortlist comes out past them. So it sits at the far end now, where the tree's own control is, and it points the way the list will move: down to bring the rest out, up to put them away again. With three pins or fewer there is nothing behind it and it is not drawn at all. The band itself still opens and closes the block wherever it is pressed, because a finger should not have to find a chevron, and the count on the pin icon still says how many there are in total while the block is closed.
+
+### Fixed
+
+- **The filter field says it has focus on the inside.** It sits at the very top of a pane that clips what leaves it, and the ring a focused input draws around itself lost its upper edge to that clip — half a rectangle, which reads as something rendering wrongly rather than as focus. The line is drawn within the field now: the same box, nothing to crop, and a field that stays where it was instead of growing a border when a cursor lands in it.
+- **The mark on "Zuletzt" is a dot, and the headline takes the press.** A character in a badge was answering a question nobody asked of a mark that size; a dot in the interface's own accent says the one thing it has to say, and the list under the header says which notes. Taking it down no longer means finding it: the whole headline is the target, the chevron excepted, which goes on opening and closing the section. The dot can still be tabbed to and pressed, for anyone not using a finger.
+- **A note whose source never moved is no longer reported as updated.** The plugin started keeping a hash of each source in 1.20.0, to tell a document that changed from a check that merely ran. Every note bound before that has a record with no hash in it — and no hash was being read as "this source has never been seen", which is the case that counts as a change. So the first check after updating stamped every mirrored note in the vault with today's date, put them all at the top of "Zuletzt" under "Extern aktualisiert", and raised the mark on the section saying something had come in when nothing had. A missing hash is a fact about the bookkeeping, not about the document: it is adopted quietly now, and the check after it has a baseline to compare against. A source genuinely fetched for the first time still counts, as it did. Notes already stamped keep the date they were given — nothing can now recover what it should have been — but they will not be stamped again, and the mark comes down for good the next time it is tapped.
+- **Every section header draws the same line.** "Dateien und Ordner" had a firmer one, meant to mark it as the break between the curated lists and the vault itself. Four lines down one pane at two weights is not a hierarchy — it is one line looking like a mistake, and the eye reads the difference well before it works out what it was for. The darker label and the space above it say the same thing quietly enough.
+- **A long press on a section header selects nothing and highlights nothing.** A header stopped being a button in this release, and a div is prose as far as a phone is concerned: a long press on one raises the magnifier, the selection handles and the "Copy" callout, on a band whose press belongs to the section it opens. It is a control again in the way that matters — no selection, no callout, and none of the grey rectangle a mobile browser paints over whatever was last tapped. The same for the control at the end of it and the mark on "Zuletzt".
+- **A section header stopped claiming to be a button, so the things standing on it can be read.** A button's children are not read out — that is what the role means — and a header calling itself one took the chevron beside it and the mark on its icon down with it, which is the same silence one level up. The chevron carries the role now, which is the thing on the band that says what the band does; a pointer still has the whole band, as it always had.
+- **A pinned block under a filter is no longer a control that does nothing visible.** Its chevron is not drawn while a filter is set — the filter opens the block for as long as it lasts — but the band went on answering a press, storing a collapse that only took effect once the filter was cleared, at which point the shortlist silently shrank to three. The band is a control exactly when its chevron is there to be seen.
+- **Dragging a file onto "Dateien und Ordner" shows the drop target again.** Stating the header's background for every state it can be in outspecified the fill that says a dragged row would land there, and a pointer dragged across the band holds it in `:hover` the whole way. Only the outline was left. The drop target is named the way the rest of the pane's headers are, and wins again.
+- **The control at the end of a header can be read by a screen reader again.** Drawing an icon marks what it is drawn on as decoration, and the icon was drawn straight onto the labelled, focusable control — so the one thing on that band with a name announced nothing at all. The icon sits in a child of the control now, decoration inside a control rather than instead of it.
+- **A section that hides nothing is a label, not a button.** "Zuletzt" and "Dateien und Ordner" always have something behind them; a pinned block of three or fewer does not, and it was still offering a keyboard a stop to press with nothing to press. It no longer claims to be a control it is not.
+- **A section header no longer keeps the grey it lit up with.** The headers were buttons, and a button wears whatever a theme thinks a button looks like: a fill under the pointer, and on a phone a fill that stays, because a finger that taps leaves the hover state behind it and nothing takes it away. "Dateien und Ordner" sat there afterwards as a grey band across the pane. A header is drawn by the pane now rather than being a button dressed down, and no state it can be in paints anything but the colour behind the pane — which it paints only because it is sticky and rows slide under it.
+- **The control that opens and closes the tree shows its icon, and stands on nothing.** It had a hover fill of its own, which on a phone was the same one-way state: a grey chip at the end of the header with a faint glyph inside it that could not be read against it. The fill is gone in every state, the icon carries the tone a row's own chevron has, and if the bundled icon set were ever without the glyph, Obsidian's own is drawn instead — an empty box and a broken control look the same from the outside.
+
+## 1.21.0 - 2026-09-13
+
+### Added
+
+- **A file can be named from what is inside it without leaving the pane.** The two AI renames were commands, which means they acted on whatever was open — and the file you want named is usually a row you are looking at in the tree, not the note in front of you. The context menu now carries one entry that follows the file: "Aus dem Text benennen …" on a note, "Aus dem Bild benennen …" on an image, and nothing at all on a file neither path can read, since an entry that answers a tap with a refusal is worse than one that was never there. From the menu the proposal is not applied outright: it opens the pane's own rename dialog with the suggested name in the field, to be read, corrected or cancelled. The commands stay as they are, hotkeys included.
+- **A note can say how often its own source is worth asking about.** `schreibstubeSyncEvery` in a note's frontmatter replaces the vault-wide minimum interval for that one note: a press release and a contract are not worth the same traffic, and until now the poll had one schedule for every source in the vault. It is written in words, in German or English — `Alle 2 Tage`, `Every 2 days`, `jede Woche`, `weekly`, `täglich`, `every 6 hours` — and words mean *at most that often*, counted from the note's last check rather than from the clock: a phone that was asleep at the hour catches up at the next poll instead of waiting out another round, and two days stays two days across the end of a month, which a cron step on the day field does not. The review panel says the interval back as cron (`0 0 */2 * *`), so a phrase can be checked against what was understood. A five-field cron expression is taken as itself, for the schedules words cannot reach — `0 9 * * 1-5` — and such a note is due once a minute it named has gone by unchecked. A value that cannot be read is reported rather than guessed at, and that note keeps the vault-wide interval until it is fixed.
+- **"Zuletzt" says when a source changed while you were not looking.** A poll runs in the background and, until now, said so once in a notice that is gone by the time you come back to the vault. The section's clock icon now wears a mark — where a closed folder wears its count, and a mark rather than a figure, because how many sources moved is not what a corner of an icon is for; the list underneath says exactly which. It comes down when you tap it, and at no other time: a pane left open on a desk all day must not clear its own news. The tap opens the section with it, so one press both answers the mark and shows what it was about. Which changes count as seen is remembered per device, since having looked is a fact about a person at a screen: a change noticed on the laptop is still news on the phone.
+- **One control opens or closes the whole tree, on the tree's own header.** "Files and folders" carries it at the far end of its band, where the row menus line up. It is one button and not two: while any folder is open it offers to close them all, and only a tree that is shut all the way offers to open — so pressing it twice puts the tree back where it was. Opening everything opens the section too, since folders opened inside a closed section are a button that visibly does nothing, and while a filter is set the control is not drawn at all, because the filter already opens every folder holding a match. The pane's title bar keeps its own collapse-all; this one sits on the list it acts on, and opens as well as closes.
+
+### Changed
+
+- **Every command says which part of the plugin it belongs to.** Two dozen entries had grown into one flat alphabetical list where "Notiz korrigieren", "Veröffentlichen" and "Postfach durchsuchen" sat side by side with nothing to say they came from different halves of the plugin. Each is now prefixed with its area — `Fokus:`, `KI:`, `Explorer:`, `Korrektur:`, `Sync:`, `Mail:`, `Veröffentlichen:`, `Links:` — so typing the area into the palette narrows the list to three. Hotkeys are unaffected: they are bound to a command's id, and no id changed.
+- **A command that cannot do anything is not offered.** The palette listed everything always: renaming an image with no picture open, checking the source of a note bound to nothing, summarizing with nothing selected, closing the folders of a pane that is not open. Seven commands now appear only where they apply, which is roughly half the list gone on an ordinary note. Only what can be seen on screen hides anything — a command that needs a setting filled in stays listed and says what it needs when it is run, because a command missing for a reason three tabs away reads as a plugin that broke rather than as a plugin being tidy.
+- **Each settings section lists the commands its feature brings.** The palette is alphabetical and knows nothing about which entries belong together; the settings tab already groups the plugin by what it does. Switching something on and finding out what to type is now one page rather than two.
+- **"Aus der Quelle aktualisiert" is now "Extern aktualisiert"** — "Updated externally" in English. Shorter, and it says the thing that matters about those notes: the change came from outside the vault.
+
+## 1.20.0 - 2026-09-13
+
+### Security
+
+- **A fetched reply cannot write Markdown of its own into your note.** Everything an email brings is written by whoever sent it, and the body was quoted so that a line beginning with `#` could not become a heading. Quoting does not stop an embed: `![[…]]` renders inside a quote as happily as anywhere else, and it renders whatever it names — a private note, a scan, a contract. Merge such a reply and publish that note, which are two things this plugin is for, and a stranger has chosen a file from your vault to put on your website. The sequences that make a link or an embed are now escaped wherever mail text is written, subject, sender and body alike, so what the sender wrote is shown rather than obeyed. A subject is also kept to one line: one with newlines in it used to carry the rest of the note's structure away with it.
+
+### Changed
+
+- **A source fetched for the first time counts as a change.** Not stamping one was a reading of "after the first change" that left a mirrored note with no `updatedAt` at all until its source happened to move, which for a document that is finished may be never. A document arriving is the version the note starts from, and that is worth a date.
+
+### Fixed
+
+- **A deleted file leaves the list at once.** It went when it was deleted; the row did not. The pane draws what the vault says it holds, and the vault says a file is gone when its own watcher has noticed — which on a phone, behind a sync client, is seconds after the file went, and seconds of a row sitting there is a delete that looks as though it failed. The row is now taken away the moment the trash call returns, and the vault's event, when it arrives, only confirms it. If no event ever arrives the row comes back within ten seconds rather than a file being hidden by a plugin that was only guessing, and a path written again is visible again immediately, whatever was trashed there before.
+- **Binding a note to a source no longer fails on the spot.** The check that runs the moment a URL is confirmed asked Obsidian's metadata cache what source the note names — and that cache is updated after a write, not during one, so it answered that the note names none. The check reported the source as unfetchable, seconds after the binding it had just written, and the note was only ever fetched by asking again later. The binding is now read from the note itself when the cache has nothing to say, which is exactly the moment this happens.
+- **A note checked from the review panel gets its properties and its place in "Zuletzt".** There are two ways a source is fetched — a poll across the vault, and a check on the note in front of you — and only the first wrote the note's `title` and `updatedAt` or recorded what the source's text was. Checking from the panel, which is what a person does with a note they have just bound, wrote none of it: no properties, and nothing to put the note in the pane's list of what a source has changed. Both ways now leave the same record behind, written in one place instead of two.
+- **The context menu stays open again, so a file can be deleted.** 1.19.0 let a finger drag a row, and the press that arms that drag is the same press that opens the menu. What it inherited was the mouse's idea of when a press becomes a drag: four pixels. A finger resting on glass moves further than that, and rolls further still as it lifts — so the menu opened and was taken away again by the drag starting, before anything on it could be tapped. Deleting, renaming, moving and every other action behind that menu became unreachable on a phone. A finger now has to travel sixteen pixels, more than half a row, before the drag takes over: a hand on its way somewhere rather than a hand staying put. A mouse is unchanged at four.
+- **A redraw held back by a drag cannot be held for ever.** Redraws wait for a drag to finish so the row being carried is not thrown away mid-gesture. If the flag that says a drag is in progress were ever left standing, every later redraw waited on it and the pane stopped answering. It is now held for at most five seconds — longer than any gesture, shorter than anything worth calling a freeze.
+- **A deleted note leaves "Zuletzt" and the folder counts with it.** The tree stopped drawing it at once and the lists two sections above did not, which is the same lag in a second place. Every list the pane draws now agrees about a file that has just gone, the badge on a closed folder included.
+- **A fetched reply lands in the right place in a note that contains code.** The section a reply is appended to ended at the next `##`, including one inside a fenced code block — so the reply was written into the middle of somebody's code sample. Fences are now followed, by the same rule the heading stack uses, which is now one rule in one place rather than two.
+- **An AI rename works on a GIF.** The canvas was asked to encode one and cannot: it quietly writes PNG for any type it does not know, so the picture went to the model declared as a GIF, and the request was refused for a mismatch that had nothing to do with the picture. What comes back is now declared as what it is — re-encoded as PNG, and called PNG.
+- **The review cards speak the set language.** The two lines a sync card carries — that a note was edited locally, and that this is its first comparison with a source — were German in the code, the last of them to be.
+
+## 1.19.0 - 2026-09-13
+
+### Added
+
+- **A row in the tree can be dragged with a finger.** Dragging to move was mouse-only, because the tree's long press already belonged to the context menu — which meant that on the device the pane was built for, the one gesture everybody tries did nothing at all. The same press now serves both: it arms the drag and opens the menu at half a second, so holding still and letting go gives you the menu, holding and then moving gives you the drag, and the menu steps aside the moment the row starts moving. The list scrolls while a drag rests near its top or bottom edge, so a folder off screen is still reachable — on a mouse as well, where it was just as unreachable. **Move to…** stays on the menu for a target nowhere near the row.
+- **A mirrored note keeps its own `title` and `updatedAt` in its frontmatter.** The two things a synced document has — what it is called and when it last changed — now sit in the note's own properties, where Obsidian's search, a Base and anything else can read them, and where they stay if the plugin ever goes. The title is taken from the document's first level-one heading, read through the same index the heading stack uses, so a `#` inside a code fence is not mistaken for one and the markup around a real one is stripped. It is written once and never again: a title already in the file belongs to whoever put it there, and a check on a timer must not undo somebody renaming their own note. `updatedAt` is the opposite — it follows the source rather than an opinion, so it is stamped whenever the document at the other end has actually changed, and not on a check that found it unchanged, nor on the first fetch, since arriving is not changing. Whether the source moved is decided against a hash of what the last check received, because once changes are waiting the fetch is unconditional and the validator would call every poll a change. This is the first time a check writes to a note at all; it writes properties only, never the body, and the frontmatter is not part of the diff, so it cannot turn into a change the next check reports.
+- **"Zuletzt" leads with what a source changed.** A third list sits above the other two: the notes whose source moved most recently, newest first, as many rows as the other lists show. It is the most specific thing that can be said about why a note is recent, so it says it first and claims those notes outright — a note in it is not repeated under "Erstellt" or "Geändert", the way "Erstellt" already suppresses "Geändert". What counts is the source having changed, not the note having been checked and not the changes having been accepted, so a note appears here the moment a check finds its source different. Each row carries the same sync mark the tree does, which is how the list doubles as what still needs looking at: how many changes are waiting, or none because they are already in the note. The list fills as sources change; nothing mirrored before this version appears in it until its source next moves.
+- **A closed folder says how much it is holding.** A folder that is shut is a name and an arrow: whether it holds two notes or two hundred was only ever learned by opening it. Its icon now carries a small figure counting every file underneath it, subfolders included — the folders themselves are not counted, since a folder is not a thing the vault holds but where it holds things. It is drawn only while the folder is closed, because once it is open the answer is on screen; an empty folder carries nothing, a nought being something a folder opening on nothing already says; and past ninety-nine it says `99+` rather than shrinking the digits until they cannot be read on a phone. The counting walks the vault once per draw however many folders ask, because a folder's count is its children's counts.
+
+### Changed
+
+- **Closing the pinned block keeps its first three rows.** Closing it used to take the whole thing away, which made the chevron an all-or-nothing switch on the one section that is a shortlist — and a shortlist with nothing showing is not one. The three rows that sit on the sticky strip stay whatever the chevron says, because they are on screen anyway, and what the chevron now holds is the rest: the rows that continue into the scrolling list below. While closed, the section's own icon carries the number of pins there are — the same badge a closed folder carries, in the same place, because it answers the same question: how much of this is not on screen. The three on the strip are not the block, and the total says how much is behind the chevron without anyone doing arithmetic. With three pins or fewer there is no chevron and no number at all. A filter opens the block for as long as it is set, so a row that matches what was typed is never the row being held back. **The block now opens closed**, which on this device is three pinned rows and then the vault — applied once, after which the chevron is yours; a pane you had already arranged keeps the arrangement.
+- **An open pinned block keeps every row it can on the strip.** Three rows were sticky and everything past them scrolled away with the vault, which made the block two different things depending on how far down it went. Opened, the strip now holds as many pinned rows as fit — up to half the pane, so there is always as much vault as shortlist — and only what will not fit continues in the scrolling list below, as before. The share is measured against the pane rather than fixed as a count, and measured again when the workspace resizes, so a phone turned on its side or a sidebar dragged wider answers for itself.
+
+## 1.18.0 - 2026-09-13
+
+### Added
+
+- **A pinned note is drawn by the `title` in its frontmatter.** A filename is a handle — short, unique, often a slug — and renaming a file to read well moves it and rewrites every link into it. The pinned block is a shortlist built by hand, where a row is there to be recognised rather than located, so it now draws the note's own `title` when the note names one and the filename when it does not. Nothing is written: the file keeps its name, the tree below keeps showing it, and the row's tooltip still carries the full path. The filter matches both, so typing what is on screen cannot hide the row showing it. A title that wrapped across lines in the frontmatter is folded onto one; a `title` that YAML turned into a list, a date or a boolean is not a title and the filename is drawn instead.
+
+### Changed
+
+- **A pin and the top of a folder are now two separate marks.** One flag meant both: marking a file as the one that matters inside its folder also put a row in the **Pinned** block above the tree, whether or not it belonged there — and a vault where a dozen folders each have a first file ended up with a pinned block naming all twelve. **Keep at top of folder** is now its own entry on the context menu and is the mark the tree draws, because it is the one that explains why a row sits where it does. **Add to Pinned** stays what it always was: wherever I am, I want this row. A file can carry both, either, or neither, and removing one leaves the other alone. Everything pinned before this version keeps both, which is what a pin did when it was set, so nothing moves on upgrade.
+
+### Fixed
+
+- **A bound note keeps its sync actions while document sync is switched off.** The menu decided what to offer from the sync mark, and that mark is deliberately hidden while sync is off — so a note that had just been bound was offered "Bind source" again and nothing else: no way to check it by hand, no way to unbind it. Which is exactly the state anyone is in the first time they bind a note, since document sync is off by default. The menu now goes by the binding in the note's own frontmatter. The mark stays hidden while sync is off, because a mark for something that is not running would say nothing true.
+- **A check that never ran says so, instead of blaming the note.** With document sync off, checking a source returned an empty result, and an empty result reads as "this note is bound to no source" — the one thing that was certainly not true, said immediately after binding it. The summary now carries why nothing was checked, and the notice names the setting to turn on. The same answer is given for a folder check and for "Check all sources".
+- **The notice for waiting changes says where to apply them.** It reported that notes have updates from their source and left it there, although a check never writes to a note: changes wait in the review panel until they are accepted. It now says so.
+- **"Never show these" now excludes a folder, not only a file named outright.** It compared whole paths, so naming a folder — which is what anyone types into a field asking which paths to never show — excluded nothing at all, and said nothing about it. The one setting whose failure leaves a private note on screen was the one that failed silently. A folder now stands for everything under it, a separator is required so `Familie` cannot take `Familienrecht` with it, case is ignored as it is by the filesystems this runs on, and a stray leading or trailing slash is forgiven.
+- **Filtering no longer rebuilds the whole vault on every keystroke.** Three things compounded: a filter counts every folder as open, so the draw walked the entire tree rather than the part you had opened; each folder then asked whether anything under it matched, and that question walked the folder's whole subtree, so a subtree was walked again for every folder above it; and the answer was redrawn per character, with every row of it rebuilt from nothing — thirteen event listeners apiece. The matches are now worked out in one pass over the vault, once per draw; the draw waits for a pause in the typing rather than following each letter; and a filter that matches most of a vault stops at two hundred rows and says how many more it is holding back, which is a narrower filter's job to reveal.
+- **One image filename no longer stops the whole publish.** Every Markdown image target was run through `decodeURI`, which refuses a percent that escapes nothing — and `100%-Finanzierung.png` is a file somebody has. The refusal was thrown out of the plan being built for the entire publish, so one such name meant nothing was published at all, with no mention of which file was at fault. A target that cannot be decoded is now taken as written, and a valid escape is still resolved.
+- **The heading stack no longer reads code comments as headings.** Every line starting with a `#` was indexed, fenced blocks included, so a shell block's `# Abhängigkeiten installieren` became a level-one heading and the stack above the note claimed it as the section being read — for the rest of the note. Fences are now followed: backticks or tildes, closing only on the same character and at least as many of them, and an unclosed fence stays open to the end rather than guessing where it stopped.
+- **Sentence focus holds the sentence you are writing.** The caret at the end of a line — where it is while a line is being written — matched no sentence at all, so focus quietly widened to the whole line and snapped back when the caret moved left. It now belongs to the sentence it is finishing, as does the caret resting on a full stop, and the gap between two sentences belongs to the one about to be written. Every column of a line now belongs to exactly one sentence.
+- **A full stop that ends no sentence no longer splits one.** "Das gilt z. B. für Objekte" was three sentences, and focus fell on the last fragment of it. A stop followed by a lowercase word continues the sentence, and so does one after a single letter, a bare number — every ordinal date — or a short list of German abbreviations.
+- **An AI rename no longer produces `Bericht.md.md`.** "Filename only" is in the prompt and a model answers "Quartalsbericht.md" regardless, on top of which the plugin added the extension itself — and for an image, a guessed `.jpeg` became `foto.jpeg.png`. An extension of the same kind as the one the file is getting is now dropped, while an ending that is part of the name, such as `Version-1.2`, is left alone. Cutting an over-long name to length also counts characters rather than the units a string is stored in, so it can no longer leave half an emoji behind — which a filesystem refuses for reasons it does not explain, and which arrived as "a file with that name may already exist".
+- **The review panel speaks the language the rest of the plugin does.** Nineteen of its lines were written straight into the code in German: the buttons that start a correction, check the glossary and fetch a source, and every status line the panel shows while doing it — what was applied, what could no longer be placed, whether the note still matches its source. Everything around them was translated, so an English install asked a person to accept changes to their own writing using buttons they could not read. The strings now sit in the same place as the rest, in both languages.
+- **The schedule and the source refusals speak the set language too.** The cron field names, both validation messages and the four schedule examples in the sync settings were German in the code, as was every reason a source URL can be refused — the lines that tell you why a binding was not accepted. They now sit with the rest of the translations. One thing fell out of it: the month field was recognised by comparing its display name against "Monat", so translating that name would have turned `jan` into month zero; it goes by a key now.
+
+## 1.17.0 - 2026-09-13
+
+### Added
+
+- **"Move to…" on the context menu.** Dragging a row onto a folder needs a mouse, and on a phone the long press belongs to the menu, so until now nothing in the vault could be moved from this pane at all on the device the pane was built for. The entry offers the folders the item may actually go into — the vault root first, then the rest in order — and leaves out the folder it already sits in, its own subtree, and anything already holding a file of that name, so a choice is never answered with a refusal. The move goes through Obsidian's own rename, so links follow it.
+
+### Fixed
+
+- **A folder takes a drop anywhere in its block, not only on the row naming it.** Aiming at a file inside a folder is how a person says "in there", and until now it was the one aim that did nothing at all: a file is not a destination, so the drop was discarded without a word. A file row now answers with the folder holding it, and a file at the vault root with the root. The mark stays on the folder that will actually receive the item — its own row, or the "Files and folders" header when that folder is the root — so what lights up is still the destination rather than whatever the pointer happens to be over. Only the tree counts: the pinned, bookmark and recent lists above it are not places in the vault.
+- **A drag no longer dies when the pane redraws under it.** The pane redraws on any vault event, and a vault raises them throughout a drag — the note you are editing saving itself is enough. The redraw threw away the row the pointer was holding, the capture went with it, and the drop never arrived: the file simply stayed where it was, with nothing to say why. A redraw now waits for the button to come up. A release anywhere ends the drag, so a row that does go missing cannot leave the pane holding redraws back for ever.
+- **A row no longer opens itself at the end of a drag.** The click that follows the release landed on the row the drag had just moved, so a file opened on arrival and a folder closed itself. The pinned strip had guarded against this since the drag was pinned-only; the tree never did.
+- **A name can no longer be selected out of a row mid-drag.** Dragging across the list selected the text in it, which looks like a mistake and is one: a selection dragged across a page is a drag the browser thinks it owns, and it cancels the pointer that the move was riding on.
+- **The context menu a long press opens can now be used.** The menu appeared while the finger was still down, and the lift that ended the press raised a click on the row underneath it — so the browser opened the file, Obsidian closed the menu over it as a press outside, and on a phone opening a file closes the sidebar as well. The menu was gone before an item could be tapped, which made every action behind it, deleting above all, look as if it did nothing. The row that owns the gesture now swallows what its own lift raises: the press it answered ends there instead of reaching the file.
+- **A long press survives a finger that is not perfectly still.** Any movement at all cancelled it, down to a single pixel of tremor, so the menu often never appeared and the press read as a tap. A press now tolerates ten pixels, past which the list is being scrolled and the press is not a long one.
+- **A delete that fails says so.** It was written to the console and nowhere else, so a refused delete was indistinguishable from a pane that had missed the change: the dialogue closed, the row stayed, and nothing explained why. Moving to the system trash is the case that can fail on a phone, where there is no system trash to move to.
+
+## 1.16.0 - 2026-09-12
+
+### Added
+
+- **Opening the pane shows the file you are editing.** A note is usually reached some other way — the quick switcher, a link, a search hit — and the pane would open on whatever folders happened to be left open, with no sign of the note in front of you. It now opens the folders above that file and scrolls to it, both when the pane is first opened and when an already open one is brought forward. What a reveal opens is held apart from what you opened by hand and never written to storage, so being shown where a file lives does not quietly rearrange the pane for every session to come. Clicking such a folder closes it, as it would any other.
+- **Collapse all, on the pane's own header.** The same button Obsidian's explorer carries, in the same place and with the same icon. It could not simply follow Obsidian's: that one is a header button and nothing else, raising no event and registering no command, so there is nothing for a plugin to hear. This one is also a command, so unlike Obsidian's it can take a hotkey. It closes what you opened by hand and what a reveal opened for you, and leaves the sections alone, since a section is not a folder.
+- **The filter field can be emptied with one click.** A small cross appears inside the field once there is something in it, and clearing puts the cursor back in the field, since the reason to clear it is usually to type something else. It is not there while the field is empty, because there would be nothing for it to do.
+
+### Fixed
+
+- **Focus mode dims callouts, tables and embeds.** It dimmed by marking lines, and a rendered block is not a line: Obsidian replaces the source with a widget, so the mark had nothing to attach to and the block stayed at full strength while the prose around it faded — which is the opposite of what focus mode is for, since the brightest thing on screen was the thing not being written. Every rendered block is dimmed directly now, in both modes, except the one holding the cursor. A callout or a code preview un-renders when entered, but a table stays a widget while being edited, carrying its own editor inside, and dimming it would dim the cell being typed into with no way back.
+- **A long press no longer opens the context menu twice.** A press on a touch screen asks for the menu twice over: once when the pane's own timer elapses at half a second, and again when the browser passes its own threshold and raises a context menu of its own. A short press only ever reached the first, which is why this showed up on a long one. Both mean the same press, so the row that owns the gesture turns the second away, whichever of the two arrives first. Nothing else is affected: a second right click on the same row opens again at once, because a right click is never the echo of anything.
+
+## 1.15.1 - 2026-09-12
+
+### Fixed
+
+- **A section header no longer sits on a grey block.** Holding a header at the top of the list means it has to paint something, or rows show through where it sits, and 1.15.0 named a colour for that: Obsidian's sidebar tone in a sidebar, its main tone elsewhere. Which one is right depends on the theme as much as the placement, and a theme that paints its sidebar anything else left every header on a visible rectangle. The pane reads the colour actually behind it instead, off the first ancestor that paints at all, and re-reads it when the theme changes. The header can then only be the colour it is sitting on.
+
+## 1.15.0 - 2026-09-12
+
+### Changed
+
+- **The pane is called Schreibstube Explorer everywhere, in both languages.** 1.13.0 renamed the tab and left the rest: the command, the ribbon's tooltip and the settings section still said "file pane", or "Dateibereich" in German, so the thing had two names depending on where you met it.
+- **A section header holds the top of the list while you are inside that section.** Holding the pinned block permanently at the top had a cost that only showed once you scrolled: whatever came next sat directly under it with nothing to say which section it belonged to, so bookmarks and folders read as pinned. Each header below the strip now stays at the top of the list until the next one pushes it out, so the list always says where you are. The pinned block is unaffected and stays where it was.
+- **A row fades into the background as it slides under a held header**, rather than meeting a rule. The fall is the pane's own ground, so the row dissolves into the page the way the bottom of Obsidian's own sidebar does. It is drawn only while something is actually scrolled underneath, so a header sitting in its natural place in the list casts nothing.
+- **The pane states its own background.** A header that holds position has to paint something or rows show through it. The pane now names its ground, following the same sidebar-and-main-area split Obsidian uses for every other view, and the header borrows it — so at rest the header looks like nothing at all.
+
+## 1.14.0 - 2026-09-12
+
+### Added
+
+- **A file or folder can be dragged onto a folder to move it.** Dropping on the "Files and folders" header moves the item to the vault root, which is the only way to drag something out of every folder it sits in. Whether a move is allowed is decided away from the pointer: a folder cannot be dropped into itself or into its own subtree, a name already taken is refused rather than overwritten, and a refusal says which it was. The move goes through Obsidian's own rename, so links follow. Mouse only — the tree's long press opens the context menu, and on a phone that is the only way to reach a row's actions, so it is not a gesture to take.
+
+### Changed
+
+- **The pinned strip stops looking like a panel.** It painted a background of its own and carried a permanent shadow, which made the top of the pane read as a separate box sitting on it. It paints nothing now: the list scrolls inside its own box below, so nothing ever passes under the strip and it needed no background in the first place. The rule under it appears only once something has actually scrolled past, which is the moment the strip starts holding rows back rather than simply being first, and is drawn as a shadow so its arrival costs no layout.
+
+### Fixed
+
+- **A press that ended outside its row left that row armed.** The pointer was captured only once a drag had begun, so a release delivered elsewhere never reached the row that started it. The next pointer merely passing over that row began a drag with nothing held down. The pointer is captured on the press now, and a mouse with no button held is treated as hovering.
+- **A redraw during a drag left the pane unable to open anything.** The row being dragged was destroyed, its release never arrived, and the flag that suppresses the click after a drag stayed set, so every later click on a pinned row was swallowed. Losing the capture now ends the drag, and a redraw clears the flag.
+- **Dragging a pinned row on a phone could not work.** The list took the gesture as a scroll and the browser cancelled the drag. The hold now takes the gesture from the scroller, and only after the hold, so an ordinary swipe still scrolls.
+
+## 1.13.0 - 2026-09-12
+
+### Added
+
+- **The pinned block stays on screen.** The filter and the first three pinned rows now sit on a strip above the list rather than inside it, so what you pinned is there whatever you have scrolled to — which is the point of having pinned it. A fourth pin and beyond continue at the top of the scrolling list, directly beneath, so the strip reads as one block with them and can never grow to eat the pane.
+- **A file open in another tab carries a faded accent.** The same bar as the row in front of you, at a little over a third of its strength, so the two read as one scale rather than two signals: this is open, that is the one you are looking at. It counts notes, images, PDFs and canvases alike, and a file open in a sidebar counts too, since it is on screen. The marks follow tabs opening and closing, not only the file you switch to.
+- **Pinned rows can be dragged into any order.** A mouse starts the drag as soon as the pointer leaves the row it pressed. A finger has to hold first, because on a touch surface a short drag down a list is how a person scrolls, and taking that gesture would make the pane impossible to move. A line marks the edge the row would join rather than shuffling every other row under the finger, and nothing is written until the button or finger comes up.
+
+### Changed
+
+- **The accent bar means the open file, and nothing else.** 1.12.0 gave the active row a bar down its left edge without noticing the tree had used one since 1.9.0 to mark a pinned row. Two meanings, 2px against 2.5px, in two accent colours a theme usually makes identical: a vault with a few pins looked like several files were open at once. A pin is marked by its glyph, which is what the glyph is for.
+- **The pane is called Schreibstube Explorer** in both languages. It was "Schreibstube files" and "Schreibstube-Dateien", which named the contents rather than the thing, and read as a folder on the tab and in a phone's pane switcher.
+- **The strip is separated by a soft shadow rather than a rule**, so the list appears to pass beneath it instead of stopping at a border.
+
+### Fixed
+
+- **A drag in the Pinned section cannot drop onto a row in the tree.** Both carried the same marker, so a pinned row further down the vault counted as a place to drop and reordered the block against a row that was not part of it. Rows of the section now have a name of their own.
+
+## 1.12.2 - 2026-09-12
+
+### Changed
+
+- **The pane owns its leaf's scrolling, not just its padding.** 1.12.1 took over the leaf's content padding so a rule could reach the edges, but left Obsidian's `overflow: auto` on it. In a side pane, which is where this one lives, that is a second scroller wrapped around the one the pane already runs. It now takes both, the way Obsidian's own markdown, pdf and sync views do, and carries the bottom safe-area inset on its scrolling list so the last row still clears a phone's home indicator.
+- **A section header is now a label and a rule.** The rule runs from the label to the right edge, so a header reads as the start of a section rather than a word floating above one. The filled band that marked "Files and folders" is gone: it sets itself apart with a darker label and a firmer rule instead, which leaves the pane quiet and still says where the curated lists end and the vault begins.
+- **The pin and the sync mark sit against the name.** The name stretched across the row, which pushed both marks to the far right where they read as belonging to the row rather than to the file they describe. They now follow the last character with a hair of space, and the menu button takes the slack instead.
+- **The plugin's icon is drawn to the size the others are.** It covered 16 of its 24 units where Lucide, which every icon beside it in the ribbon comes from, covers about 20: Obsidian's own `folder` measures 91.7% of its box once the stroke counts, against 73.8% for the house. Among them it read as a smaller, lighter icon. The artwork is unchanged and the transform now carries the difference.
+- **A picture or a recording is drawn as one.** Every attachment shared the blank-sheet icon, so a folder of screenshots was a column of identical rows. The common image, video and audio extensions get the photo icon; everything else keeps the sheet.
+- **The Latest header shows a clock**, which is the icon the design names. It was drawing a history arrow.
+- **Created and Modified sit over the lists they name.** Both labels started at the row inset, a chevron's width to the left of every filename under them, so neither read as belonging to its list. They now begin in the icon column.
+- **The row's menu button lost its chip.** A filled background on a control that appears on hover is louder than the row it belongs to.
+
+### Removed
+
+- **The trash button on each row.** Delete stays on the context menu behind the same confirmation. A destructive action does not need to be one pixel from the name of every file in the vault.
+- **The footer.** Obsidian already shows the vault name and a settings gear directly beneath the pane, so it said the same thing twice.
+
+## 1.12.1 - 2026-09-12
+
+### Fixed
+
+- **The pane's own styling reaches the screen.** Almost none of 1.12.0's design was visible, because every control in the pane is a `<button>` and Obsidian styles those with `button:not(.clickable-icon)` — one class and one element, which outranks a rule carrying a single class of ours. Obsidian's chip background and shadow therefore won on all four section headers, on the row menu and trash buttons, and on both footer buttons, and `button { justify-content: center }` centred every section header's label in the middle of the pane. Every rule that dresses a button is now scoped under the pane so it outranks Obsidian's, and each states the properties that rule sets rather than assuming a default.
+- **The band above the tree reaches both edges, and the footer sits on the floor.** Obsidian pads a leaf's content box by 12px at the sides and 32px at the foot. That inset held the "Files and folders" band away from the edges and stranded the footer above a gap. The view takes that padding over and spends it on its own grid instead.
+
+## 1.12.0 - 2026-09-12
+
+### Added
+
+- **The plugin has an icon of its own** — a house with a quill, for "Stube" — registered by the plugin and used for the ribbon button and the pane's tab. It replaces a name borrowed from Obsidian's own set, and with it the fallback that existed because a borrowed name can be missing: an icon the plugin registers itself cannot be.
+- **A trash button on every row**, next to the menu button, shown on hover and always on a phone. It opens the same confirmation the menu entry does. Delete was reachable only by opening a menu first, which is a lot of taps for the one action a file list is asked for most.
+- **A footer** naming the vault, with help and the plugin's settings beside it.
+- **Copy path for Schreibstube sits on the folder's own menu**, in the create block, rather than only on the menu Obsidian builds — where the pane's own rules put it behind "More actions", which is the opposite of what it is for.
+
+### Changed
+
+- **The pane is drawn on one grid.** Every row is a 12px chevron slot, a 7px gap and then its content, indented 15px per level from a 12px base, at a fixed 27px height. Rows without a chevron render the slot empty rather than swallowing it, so an icon at a given depth lines up with every other icon at that depth — across sections, not only inside the tree. Latest used to sit on a hardcoded inset of its own and the tree stepped 17px from a 4px base, so nothing quite lined up with anything.
+- **"Files and folders" is drawn as a band** across the pane with a rule above and below. It is the one header that separates two kinds of thing, the curated lists above and the vault below, and it used to look like the other three.
+- **An active row carries an accent bar** down its left edge rather than a background tint alone, which a theme whose hover and active colours are close together made nearly invisible.
+- **The filter says what it filters.** Its placeholder named files; it has always searched all four sections.
+- **Rows take their colours from Obsidian's navigation variables** rather than the generic background ones, so the pane matches the file explorer beside it in any theme.
+
+## 1.11.0 - 2026-09-12
+
+### Added
+
+- **A Pinned section at the top of the pane.** Pinning moved an item to the top of its own folder and nowhere else, which is invisible from the rest of the tree: a note pinned four folders down sat at the top of a folder nobody had open, and the pin read as having done nothing. Everything pinned now has a place of its own, in the order it was pinned, drawn only when something is pinned. A pinned folder in that section reveals itself in the tree rather than opening a second copy of it.
+- **A pinned row is marked in the tree**, so a pin is visible on a row that would have sorted near the top anyway.
+- **A ribbon icon opens the file pane.** It was reachable only through the command palette, so enabling the plugin changed nothing anyone could see until they went looking for a command they had to already know about. The icon name is checked against the set Obsidian actually ships and steps down to a plain folder when it is missing, because an unknown name draws an empty button with no error anywhere to say so.
+
+### Fixed
+
+- **A one-line `$$x$$` no longer swallows the rest of the note.** It opened a maths block that only a later `$$` closed, so every paragraph after it was dropped from the proof-read pass, to the end of the note when no later one came.
+- **A glossary card is identified by its span, not by a counter.** A re-scan renumbered from zero, so a card kept from the previous run could share an id with a new card somewhere else: Accept reached whichever came first and Reject took both.
+- **`explorer.json` stops growing.** Its thirty-day pruning ran only at load, against data the very next write merged back in from the file, so nothing was ever actually collected. Pruning now happens where it reaches disk.
+- **A failed chunk reports its progress**, so a run whose last chunk fails no longer leaves the review panel a chunk short.
+
+## 1.10.1 - 2026-09-12
+
+### Fixed
+
+- **The tag, the repository and the published assets name the same version again.** 1.10.0 was released from a branch whose version bump had not yet reached `main`, so its tag sits on a tree that still says 1.9.0 while its assets say 1.10.0. No code changed between the two releases; this one exists so a checkout of the tag matches what was published under it.
+
+## 1.10.0 - 2026-09-12
+
+### Added
+
+- **Bookmarks in the file pane.** A list of links above the tree for the places the tree cannot hold: a web page, an Obsidian URI, a vault folder, a note. Obsidian's own bookmarks cover the last two and have no room for the first two.
+  - **A Markdown file is the whole store.** `bookmarks.md` by default, anywhere in the vault by setting, in the format Launchpad used — a heading is a folder, a second-level heading a subfolder, a list item a link, a `[[wikilink]]` a note. An existing file is read as it stands.
+  - **The pane never writes it.** Links are added by editing the file, which is what keeps the list readable, versionable and mergeable, and what leaves exactly one writer per device: the person.
+  - **Five schemes open, everything else is dropped while reading** — `https`, `http`, `obsidian://`, `vault://` and `note://` — so a `javascript:` line pasted into a synced file never becomes a row that can be tapped. A `vault://` bookmark reveals the folder in this pane, ancestors opened, rather than handing the job to Obsidian's explorer.
+  - **Open bookmark**, a command that searches the list by name, folder or URL, offering what was opened most recently on that device first. Recents are stored per device and never written into the file.
+  - **Copy path for Schreibstube** on any folder's context menu, which is how a `vault://` URL is obtained without typing a path out by hand.
+- **Latest in the file pane.** The notes created most recently and those changed most recently, in two short lists. A note shown as created is not repeated as changed, only Markdown counts, and the bookmarks file is always excluded. The count and further exclusions are settings.
+- **The pane has sections**, each collapsible: bookmarks, latest, files and folders.
+
+### Changed
+
+- **The pane remembers what was open.** Which folders and which sections, stored per device in Obsidian's local storage rather than in a synced file — what is open on a phone is not a thing a laptop should inherit, and it is not worth a sync conflict. Folder expansion was previously lost on every restart.
+
+## 1.9.0 - 2026-09-12
+
+### Added
+
+- **A file pane of Schreibstube's own** (`Open file pane`), because three things cannot be done to Obsidian's explorer from a plugin without fighting it.
+  - **An icon per file and per folder**, chosen from 172 icons in a searchable picker, grouped by what they are for. The set is a subsetted Tabler webfont carried inside the bundle — 24 KB of woff2 — so it works offline and on mobile with no request to a CDN. Icons are stored by name, so a font upgrade never scrambles a vault.
+  - **A sync mark on notes bound to a source**: in sync, changes waiting, never checked, or a source that cannot be fetched. Derived from what the poller already records, so a mark costs no request. Shape carries the state, colour only reinforces it, and nothing is shown while document sync is off.
+  - **Pinning to the top of a folder**, in the order things were pinned. Below the pinned block, Obsidian's own arrangement: folders first, then files, numeric-aware.
+  - **One context menu instead of several.** The pane builds its own, in a fixed order, and every item other plugins contribute goes behind a single "More actions" entry at the end. The pane fires Obsidian's own `file-menu` event, so those plugins need to know nothing about it; a setting moves their items inline or removes them.
+  - **Sync lives in that menu**: bind a note to a source with the URL validated before it is written, check one note now whether or not it is open, open the source, remove the binding, or refresh every bound note in a folder.
+- **A per-note source check** (`SyncPoller.checkFile`) and a per-folder one, next to the existing whole-vault poll. The poll walked the vault or the open note and had nothing in between, which is exactly what a file list needs.
+
+### Changed
+
+- **Icons and pins live in their own file**, `explorer.json` in the plugin folder, rather than in `data.json`. That file is written by overwriting the whole settings object, so a device holding a stale copy in memory would clobber another device's changes along with mailbox and publishing state. The new file is merged per entry, newest wins, re-read before every write, and watched for writes delivered by iCloud, Obsidian Sync or Git while the pane is open. Writes are debounced, so pinning three notes is one write.
+- **A file that moves keeps its icon.** Renames are followed, including every file under a renamed folder. A file that disappears keeps its entry for thirty days, so a move made outside Obsidian — which arrives as a delete and a create — can hand the icon back when the file turns up under the same name. An ambiguous match is left alone rather than guessed.
+
+## 1.8.0 - 2026-09-12
+
+### Added
+
+- **The interface speaks German and English.** It was half of each; both are now first class. English is the reference catalogue and gives the message type, so a string added without a translation does not compile. The language follows Obsidian's own by default, with a setting for when it should not.
+- **A linter, a formatter and an editorconfig**, with the rules deliberately few: formatting belongs to Prettier, and what is left are the mistakes nobody should have to catch by eye.
+- **CI runs what it was not running**: both Node versions the bridge supports, the linter, the formatter, coverage against a floor, and an assertion that the built bundle reaches for no Node built-ins — the property that keeps the plugin working on mobile.
+- **The publish controller has tests**, behind a stub of Obsidian and a fake vault. It was the largest untested file in the plugin, and it decides what the bridge writes and what it deletes.
+- **One slug contract**, shared by both implementations. The rule existed twice, in two languages, and had to agree or a published page would stop being reachable.
+- **Property tests for the path rules** and an awkward vault fixture — emoji in a filename, a note that is one long line, a dead wikilink, a missing date — with the rendered pages snapshotted, so a layout change shows up as a diff rather than as nothing.
+- **Uploads retry** with backoff and jitter. They are addressed by the hash of their content, so a repeat is either a no-op or the same write again; one dropped connection used to fail a whole publish.
+- **Each account shows what it last published**, generates the bridge's environment block, and picks its target from a list the bridge provides rather than a retyped name.
+- **The plugin checks the bridge's protocol version** once per session, so a bridge that was not redeployed says so instead of answering a 404 that reads like a wrong URL.
+- **Each publish leaves a trace**: the last fifty summaries are kept next to the manifest, so "when did that page change" has an answer.
+- **Two per-target switches**: raw HTML inside a note, and diagrams. A page with a diagram loads five megabytes, now only when a diagram is about to be read.
+- **`ARCHITECTURE.md`, `CONTRIBUTING.md`, a mobile checklist, a bridge compatibility table, an example publish folder, and a release script** that bumps the three files carrying a version together.
+- **The publish frontmatter keys are configurable.** A vault that already names these fields its own way can map each role — published, title, date, description, slug, and the two written back after publishing — to the key it uses, under **Frontmatter-Felder** in the publish settings. The defaults are the plain names (`published`, `title`, `date`, …), since a collision with another plugin's property is what the mapping is there to resolve. A configured key replaces the default rather than adding to it; a blank field means "unchanged", and two roles cannot share a key, because the plugin would have no way to tell which meaning was intended.
+- **Publishing: a vault folder becomes a website, from desktop and from mobile.** Three commands — **Veröffentlichen**, **Veröffentlichung prüfen** and **Website öffnen** — publish a folder as a static site over SFTP.
+  - **Opt-in per note.** A note is published when its frontmatter carries `published: true`; removing the flag takes the page down on the next publish. Title, date, description and slug come from frontmatter, each with a sensible default. After publishing, the time and the address are written back into the note.
+  - **The bridge renders the Markdown**, so the output is identical from a phone and a laptop, can be snapshot-tested, and can be rebuilt months later without the vault. Wikilinks between published notes become site links; a link to an unpublished note degrades to plain text rather than a dead link. Callouts, footnotes, tables, definition lists, task lists, highlights, maths and Mermaid diagrams all render, and comments never reach the page.
+  - **Images and video** referenced by a published note are uploaded under a content-addressed name, so a changed picture cannot be served from a cache.
+  - **A plan before anything moves.** The confirmation dialog lists what will be uploaded and, in full, what will be deleted.
+  - **Only what changed travels.** Sources are addressed by content, so an unchanged note is never uploaded twice and a renamed one uploads nothing at all. Re-publishing an untouched folder writes nothing.
+  - **Deletions are safe by construction.** The bridge keeps a manifest of every file it wrote; a file it has never heard of is never touched. The manifest is written last, so an interrupted publish costs repeated work rather than a lost file.
+  - **The hosting credentials stay on the bridge.** The vault holds a target name and a token, and the publish token is separate from the mail token. The host key is checked against a configured fingerprint.
+- **Publish settings section** — bridge URL (falling back to the mail bridge), publish token in Obsidian's secret storage, and one entry per account with a connection test that proves token, target, SSH login, host key and web root in one request.
+- **The bridge has tests.** 295 of them, covering configuration, routing, authorisation, the throttle, deadlines, the mail paths, the path rules, the manifest, the renderer and the whole publish flow. They run under the repository's own `npm test`: the mail paths use a fake SMTP transport and a fake IMAP client, and the publish flow drives a real SSH connection into a real SFTP server, so nothing reaches the network.
+- **A CI workflow** runs the test suite and the production build on every pull request.
+- **The plugin explains the bridge's new statuses** — throttled, restarting and timed out — instead of echoing the status code.
+- **Email commands, working on mobile as well as desktop.** Three new commands:
+  - **Send note as email** — addressing comes from the note's frontmatter (`schreibstubeTo`, `schreibstubeCc`, `schreibstubeSubject`), the body is the note with its frontmatter stripped. A confirmation dialog shows recipients and subject before anything leaves the vault. On success the assigned `schreibstubeMessageId` and `schreibstubeSentAt` are written back to the note.
+  - **Query mailbox** — search IMAP by sender, subject, full text and date, then insert the chosen message into the active note.
+  - **Fetch replies into note** — find replies to the note's own `schreibstubeMessageId` and append the new ones under a configurable heading. Every merged message is recorded in `schreibstubeMergedIds`, so the command is idempotent and can be run as often as you like without duplicating content.
+- **Mail bridge** (`bridge/`) — a small, stateless self-hosted service that speaks IMAP/SMTP on the plugin's behalf. Ships with a Dockerfile and Sliplane deployment instructions.
+- **Email settings section** — bridge URL, bridge token (in Obsidian's secret storage), optional From override, mailbox, result limit, and merge heading.
+
+### Changed
+
+- **The settings tab is one module per area** rather than a 900-line class, and each control changes a setting through one call instead of repeating five lines.
+- **Background polling moved out of the review controller**, which was holding three concerns because they happened to share a store.
+- **Nodemailer moves to 10**, clearing its advisories. The findings that remain reach the bridge through Mermaid's parser; `bridge/README.md` says exactly what they are rather than silencing them.
+- **The bridge can log JSON**, behind a flag, for a hosting dashboard that searches fields.
+- **A JSON request body that is not an object is refused as one**, rather than falling through to a field check and being reported as a missing field.
+- **The bridge is now capability-based** (`bridge/` 2.0.0), in preparation for publishing. Each capability brings its own token, credentials and limits; a capability whose variables are absent is not offered, and a deployment that offers nothing refuses to start. One capability's token never opens another's routes.
+  - **`BRIDGE_TOKEN` is now `MAIL_TOKEN`.** Rename it in your deployment before updating the bridge. Nothing changes in the plugin: the token is still sent as `Authorization: Bearer`.
+  - **Errors carry a stable `code` and a `requestId`** alongside the message, so a report can be tied to a log line. Every log line about a request carries the same id.
+  - **`/health` reports the bridge version, the protocol version and the capabilities offered**, so a bridge that was not redeployed alongside the plugin can say so instead of failing on an unknown route.
+  - **New `/diagnostics` endpoint** opens a real connection with the configured credentials and reports each protocol separately.
+  - **The token is now checked before the path**, so an unauthorised caller cannot map the bridge by probing for routes.
+  - **Repeated authentication failures from one address are throttled**, then answered with a 429 and a `Retry-After`. The health probe stays reachable.
+  - **Every outbound operation has a deadline** and every request a budget, so a connection that neither answers nor closes can no longer hold a request open until the client gives up.
+  - **Shutdown drains in-flight requests** instead of cutting them off, so a redeploy is not a crash.
+- Run the bridge as a single instance. Shared state such as the throttle lives in memory.
+
+### Fixed
+
+- **Duplicate correspondence sections.** A merge heading configured with stray whitespace never matched the section it wrote last time, so every "Fetch replies" run appended a fresh `## Correspondence` block.
+- **A send is no longer reported as failed after the mail has gone out.** Persisting `schreibstubeMessageId` is now separate from the send itself: if it fails, the notice says the mail was delivered and shows the ID to add by hand, instead of inviting a re-send that would deliver a duplicate.
+- **"Fetch replies" reports its own failures.** It previously had no error handling, so a failed write surfaced only as an unhandled rejection — with `schreibstubeMergedIds` unwritten, making the next run duplicate the replies it had already merged.
+- **Merging no longer races the editor.** Replies are appended with an atomic read-modify-write, so a pending editor flush can no longer discard either unsaved typing or the merged replies.
+- **The in-flight guard now spans the whole reply merge**, not just the search, so two overlapping runs cannot append the same replies twice.
+- **Bridge: oversized requests return a readable 413** instead of dropping the connection, and the size is rejected from the declared `Content-Length` before any body is read.
+- **Bridge: the search limit is clamped from both ends.** A negative or non-numeric `limit` previously inverted the result window, returning the oldest matches and far more of them than configured — each one fully parsed.
+
+### Notes
+
+- The plugin gains no new dependencies and remains available on mobile. Obsidian's mobile runtime has no Node and no raw sockets, so IMAP/SMTP cannot be spoken from the plugin; all mail traffic goes to the bridge over HTTPS via `requestUrl`, the same transport the AI commands already use.
+- The mailbox password lives in the bridge's environment, never in the vault. The plugin stores only the bridge token, which can be rotated independently.
+- Fetched message bodies are quoted when merged into a note, so email content cannot inject headings or lists into the note's own structure.
+- Frontmatter keys follow the plugin-wide `schreibstube` prefix rule, so nothing the mail commands read can collide with another plugin's properties.
+
+## 1.7.0 - 2026-09-11
+
+### Added
+
+- **Background poll for bound notes.** Every note bound to a source can be checked on a schedule, not just the one you have open. Changes found while a note is closed are counted, so opening it later surfaces them immediately, and a single summary notice reports how many notes changed rather than one notice per note.
+  - The schedule is a five-field cron expression in local time, with lists, ranges, steps, and month and weekday names. Cron's OR rule for the two day fields is implemented, so `0 9 1 * 1` fires on the first of the month and on Mondays.
+  - The settings screen validates the expression as you type and shows the next fire time, since a schedule cannot be verified by waiting for it.
+  - Obsidian has no scheduler, so a poll runs only while the app is open. A schedule that came due while it was closed is caught up once shortly after the next start, which is what makes a daily poll usable on a machine that is not always on.
+  - Requests are capped and the per-note interval still applies, so one tick never becomes a burst. State for the whole poll is written in a single save rather than once per note.
+  - A poll that found changes has already advanced the validator, so the next interactive check fetches unconditionally. Without that the conditional request would answer "unchanged" and the update would be lost.
+  - New command **Check all bound notes for updates** runs the poll immediately, regardless of schedule.
+- **Private GitHub repositories.** A token stored in Obsidian's secret storage makes sources in a private repository work, and raises GitHub's rate limit. Authenticated reads go through the contents API, which is the path that serves a private file.
+  - The token is only ever sent to GitHub. A note's URL cannot cause it to be attached to any other host, and a raw GitHub URL is recognised as a GitHub source just as a page URL is.
+  - Without a token a private source reports that a token is needed rather than claiming the file was deleted, since GitHub answers 404 in both cases.
+  - A rate-limited response says so instead of reporting a generic failure, and a response that arrived as metadata rather than file content is refused rather than written into the note.
+
+### Settings
+
+- **Document sync** gains a GitHub token, a background poll toggle, and the cron schedule.
+
+## 1.6.0 - 2026-09-11
+
+### Added
+
+- **Document sync.** A note can be bound to a remote Markdown file with a `schreibstubeSyncedFrom` frontmatter key, and mirrors it. The source is the single truth and nothing is ever pushed back; incoming changes arrive in the review sidebar as cards you accept one at a time. A bound note can live in any folder, because it is found by its key rather than its location.
+  - Changes are hunk-level, so one card covers one coherent edit rather than scattering a rewritten paragraph across a dozen word changes.
+  - The note's own frontmatter is never part of the diff, and the remote file's frontmatter is stripped before comparison. Without the second rule the first sync of any source with frontmatter would overwrite the binding and orphan the note.
+  - Local edits are detected with a hash of the body as of the last sync, so an edited mirror is reported as diverged rather than having your own words presented back as a remote change. The baseline advances only once the note matches the source again.
+  - A deleted or moved source is reported on the card and the note is left untouched. It is never emptied.
+  - Only HTTPS sources with a Markdown path are fetched, with a size cap and a content-type check. GitHub page URLs are rewritten to their raw form. Checks are conditional, so an unchanged source costs no download.
+  - New command **Check note source for updates**, plus an optional check when a bound note opens, rate-limited per note.
+
+### Changed
+
+- **Every frontmatter key the plugin reads is now `schreibstube`-prefixed camelCase, and the old spellings are gone.** Obsidian frontmatter is one flat namespace shared with other plugins and with the user's own properties, so a bare key is a collision waiting to happen. Existing glossary notes need their frontmatter updated.
+
+  | Before | After |
+  |---|---|
+  | `schreibstube-glossary` | `schreibstubeGlossary` |
+  | `language` | `schreibstubeLanguage` |
+  | `default-severity` | `schreibstubeDefaultSeverity` |
+  | `glossary` | `schreibstubeGlossaries` |
+
+### Settings
+
+- New **Document sync** section: enable the feature, check on open, and the minimum interval between automatic checks.
+
+### Internal
+
+- The word-level and line-level diffs now share one longest-common-subsequence implementation, so they cannot drift apart in how they decide what changed.
+
+## 1.5.0 - 2026-09-11
+
+### Added
+
+- **Proof-read sidebar.** A side pane that reviews the active note and proposes changes one at a time, each as a word-level diff with accept, reject, and jump-to-place. Three commands drive it: **Open proof-read sidebar**, **Proof-read note**, and **Check note against glossary**. Accepting the whole queue applies it as a single undo step.
+  - The model is asked for clean prose, never for diffs or line numbers; every change and its offsets are derived locally, so what a card shows is what the document says.
+  - Frontmatter, fenced code, tables, and math blocks are excluded from a run. Inline code, wikilinks, link targets, tags, and bare URLs are masked before sending and restored afterwards; a response that lost one is discarded rather than applied.
+  - Cards are re-anchored against the live note before they are applied, so editing while the queue is open marks cards stale instead of rewriting the wrong words.
+  - Long notes are chunked, with suggestions appearing per chunk. A failing chunk no longer loses the chunks that succeeded, and a run can be cancelled.
+- **Glossary support.** A glossary is an ordinary note carrying `schreibstube-glossary: true` and a term table. Checks run locally and need no API key; the selected terms are also passed to the correction pass as constraints so a rewrite cannot undo them.
+  - The term model follows TBX-Basic (ISO 30042): concepts group terms, and each term is `preferred`, `admitted`, `deprecated`, or `superseded`. A forbidden term with no replacement is therefore an ordinary case, not a special one. TBX picklist identifiers and the `notRecommended` and `obsolete` spellings are accepted for pasted exports.
+  - Rule shapes follow Vale's vocabulary: substitution, existence, and capitalization, with suggestion, warning, and error severities.
+  - Matching is whole-word and Unicode-aware, tolerating German inflection endings, with `exact` and `prefix` modes per term. An inflected match is flagged for review rather than silently given a base-form ending.
+  - Which glossary applies is resolved in one order with no merging: the note's own `glossary` property, then a folder rule, then the sidebar pick, then the vault default.
+  - Optional live underline of error-severity terms in the editor, off by default.
+
+### Settings
+
+- New **Proofreading** section: prompt, maximum response tokens, characters per request, and parallel requests.
+- New **Glossary** section: default glossaries, folder rules, and the editor underline toggle.
+
+## 1.4.0 - 2026-09-04
+
+### Added
+
+- **Summarize selection** command — select text in a note and replace it with an LLM-generated summary. Built for turning raw text pasted from analytics and reporting tools into a running insight log. The summarize prompt is configurable (with an insight-log preset as the default) and a **Maximum response tokens** setting caps the summary length. The command uses the shared AI model configured under **AI models**.
+- **Debug logging** setting (under a new **Diagnostics** section). Errors are always logged to the developer console; enabling this adds verbose tracing to help diagnose issues.
+
+### Changed
+
+- **Shared AI configuration.** Provider, model, custom model ID, and API key now live under a dedicated **AI models** settings section and are shared by both rename and summarize (previously grouped under rename). Existing configurations are migrated automatically.
+- **Production builds now ship inline source maps**, so console stack traces from a release point at real source.
+
+### Internal
+
+- Extracted the link-open-mode feature and the LLM commands out of the main plugin class into dedicated controllers; isolated every access to undocumented Obsidian internals behind a single guarded adapter that degrades to a logged no-op if an internal changes.
+- Focus-mode decorations are now built only for the visible range, and the reading-view lifecycle observer no longer watches the whole document subtree — both reduce work on large notes and large workspaces.
+- AI commands now guard against overlapping runs, and summarize targets the originally selected range even if the cursor moves while the request is in flight.
 
 ## 1.3.0 - 2026-08-28
 

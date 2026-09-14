@@ -1,10 +1,16 @@
-import { type Editor, MarkdownView, Notice, Plugin, WorkspaceLeaf, normalizePath } from "obsidian";
+import {
+  type Editor,
+  MarkdownView,
+  Notice,
+  Plugin,
+  TFile,
+  TFolder,
+  type TAbstractFile,
+  type WorkspaceLeaf
+} from "obsidian";
 import { resolveAncestorStack } from "./services/ancestor-stack";
 import { buildHeadingIndex } from "./services/heading-index";
-import {
-  reduceOverlayRowEvent,
-  type OverlayRowEvent
-} from "./services/overlay-interaction";
+import { reduceOverlayRowEvent, type OverlayRowEvent } from "./services/overlay-interaction";
 import {
   resolveViewportLineForReadingView,
   scrollReadingHeadingIntoView
@@ -13,14 +19,50 @@ import { RefreshScheduler, type RefreshOptions } from "./services/refresh-schedu
 import { OverlayCoordinator } from "./services/overlay-coordinator";
 import { bootstrapSchreibstubeRuntime } from "./services/plugin-bootstrap";
 import { DEFAULT_SETTINGS, normalizeSettings } from "./services/plugin-settings";
-import { generateImageRenameFilename, generateRenameFilename, sanitizeFilename } from "./services/llm-rename";
-import { MAX_IMAGE_BYTES, getImageMimeType, resizeImageToBase64 } from "./services/image-resize";
 import { buildTaskSummaryInsertion, hasTaskSummaryBlock } from "./services/task-summary";
-import { SchreibstubeSettingTab } from "./settings";
+import { createLogger, type Logger } from "./services/logger";
+import {
+  commandAvailable,
+  type CommandContext,
+  type GatedCommand
+} from "./services/command-availability";
+import { getImageMimeType } from "./services/image-resize";
+import { hasSourceBinding } from "./services/sync-source";
+import { LinkModeController } from "./controllers/link-mode-controller";
+import { LlmCommands } from "./controllers/llm-commands";
+import { ProofreadController } from "./controllers/proofread-controller";
+import { createGlossaryUnderlineExtension } from "./processors/glossary-underline";
+import { compileGlossaries } from "./services/glossary-matcher";
+import { minuteOf, parseCron, previousRun, shouldFire } from "./services/cron";
+import { REVIEW_VIEW_TYPE, ReviewPanelView } from "./ui/review-panel";
+import { EXPLORER_RIBBON_ICON, EXPLORER_VIEW_TYPE, ExplorerPaneView } from "./ui/explorer-view";
+import { registerSchreibstubeIcon } from "./ui/schreibstube-icon";
+import {
+  EXPLORER_STATE_FILE,
+  EXTERNAL_CHECK_MS,
+  ExplorerController
+} from "./controllers/explorer-controller";
+import type { ExplorerFileStore } from "./services/explorer-store";
+import { PaneSectionsController } from "./controllers/pane-sections";
+import { BookmarkQuickOpenModal } from "./ui/bookmark-quick-open";
+import { vaultUrlFor } from "./services/bookmark-file";
+import { MailCommands } from "./controllers/mail-commands";
+import { PublishCommands } from "./controllers/publish-commands";
+import { PrintCommands } from "./controllers/print-commands";
+import { SchreibstubeSettingTab } from "./settings/index";
+import { setLanguage, t } from "./i18n";
 import type { FocusMode, HeadingEntry, SchreibstubeSettings } from "./types";
 
+/** How often the poll ticker wakes. Well under a minute so a scheduled minute
+ *  is never stepped over by a late tick. */
+const POLL_TICK_MS = 20_000;
+
+/** Delay before the catch-up poll, so it never competes with opening a vault. */
+const POLL_CATCHUP_DELAY_MS = 8_000;
+
 export default class SchreibstubePlugin extends Plugin {
-  settings: SchreibstubeSettings = DEFAULT_SETTINGS;
+  override settings: SchreibstubeSettings = DEFAULT_SETTINGS;
+  private logger: Logger = createLogger(() => this.settings.debugLogging);
   private currentView: MarkdownView | null = null;
   private viewportTopLine = 0;
   private headingIndex: HeadingEntry[] = [];
@@ -29,18 +71,108 @@ export default class SchreibstubePlugin extends Plugin {
   private lastRenderSignature = "";
   private overlayCoordinator = new OverlayCoordinator();
   private refreshScheduler: RefreshScheduler | null = null;
-  private linkOpenMode: "default" | "left" | "right" = "default";
-  private linkTargetLeaf: WorkspaceLeaf | null = null;
-  private linkModeStatusEl: HTMLElement | null = null;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private originalOpenLinkText: ((...args: any[]) => Promise<void>) | null = null;
+  private linkMode: LinkModeController | null = null;
+  private llm: LlmCommands | null = null;
+  private proofread: ProofreadController | null = null;
+  private explorer: ExplorerController | null = null;
+  private sections: PaneSectionsController | null = null;
+  /** Guards against firing twice inside one scheduled minute. */
+  private lastPollMinute = -1;
+  private mail: MailCommands | null = null;
+  private publish: PublishCommands | null = null;
+  private print: PrintCommands | null = null;
 
-  async onload(): Promise<void> {
+  override async onload(): Promise<void> {
     await this.loadSettings();
+    // Before anything builds a string: commands are named once, at registration.
+    setLanguage(this.settings.language);
+    // Before the ribbon, the pane's tab or any row asks for it by name.
+    registerSchreibstubeIcon();
+    this.logger.debug("Loading Schreibstube.");
+
     this.refreshScheduler = new RefreshScheduler(
       (callback) => window.requestAnimationFrame(callback),
       ({ viewportTopLine, options }) => this.refreshForActiveView(viewportTopLine, options)
     );
+
+    this.linkMode = new LinkModeController(this.app, this.logger);
+    this.llm = new LlmCommands(this.app, () => this.settings, this.logger);
+    this.mail = new MailCommands(this.app, () => this.settings, this.logger);
+    this.publish = new PublishCommands(
+      this.app,
+      () => this.settings,
+      async (patch) => {
+        this.settings = normalizeSettings({ ...this.settings, ...patch });
+        await this.saveSettings();
+      },
+      this.logger
+    );
+    this.print = new PrintCommands(
+      this.app,
+      () => this.settings,
+      this.manifest.dir ?? `${this.app.vault.configDir}/plugins/${this.manifest.id}`,
+      this.manifest.version,
+      this.logger,
+      async () => {
+        this.settings = normalizeSettings({ ...this.settings, printEnabled: true });
+        await this.saveSettings();
+      }
+    );
+    this.proofread = new ProofreadController(this.app, () => this.settings, this.logger, {
+      get: (path) => this.settings.syncState[path],
+      set: async (path, record) => {
+        this.settings.syncState = { ...this.settings.syncState, [path]: record };
+        await this.saveSettings();
+      },
+      setMany: async (records) => {
+        this.settings.syncState = { ...this.settings.syncState, ...records };
+        await this.saveSettings();
+        // A source that changed belongs in the recent lists, and the records
+        // are written to the data file, where no vault event reaches the pane.
+        this.sections?.invalidateLatest();
+      },
+      forget: async (path) => {
+        const { [path]: _removed, ...rest } = this.settings.syncState;
+        this.settings.syncState = rest;
+        await this.saveSettings();
+      }
+    });
+
+    this.explorer = new ExplorerController(
+      this.app,
+      () => this.settings,
+      {
+        checkFile: async (file) => this.requireProofread().checkFile(file),
+        checkFolder: async (path) => this.requireProofread().checkFolder(path),
+        forget: async (path) => this.requireProofread().handleNoteDeleted(path)
+      },
+      this.logger,
+      this.explorerStateFile()
+    );
+    // The pane's menu names a file from what is inside it; the AI commands are
+    // what can do that, and they were built a moment ago.
+    this.explorer.useNamer((file) => this.requireLlm().proposeName(file));
+    await this.explorer.start();
+
+    this.sections = new PaneSectionsController(
+      this.app,
+      () => this.settings,
+      this.logger,
+      (path) => this.revealInExplorerPanes(path)
+    );
+    await this.sections.start();
+
+    this.registerView(REVIEW_VIEW_TYPE, (leaf) => this.createReviewView(leaf));
+    this.registerView(EXPLORER_VIEW_TYPE, (leaf) => this.createExplorerView(leaf));
+    this.registerExplorerEvents();
+    this.registerEditorExtension(
+      createGlossaryUnderlineExtension({
+        getSettings: () => this.settings,
+        getMatcher: () => this.proofread?.activeMatcher() ?? compileGlossaries([])
+      })
+    );
+    this.registerProofreadEvents();
+    this.startPollTicker();
 
     bootstrapSchreibstubeRuntime(this, {
       onViewportFromEditor: (viewportTopLine) => {
@@ -52,24 +184,338 @@ export default class SchreibstubePlugin extends Plugin {
       getSettings: () => this.settings,
       onActiveLeafChange: () => {
         this.requestOverlayRefresh();
-      },
+        void this.proofread?.syncActiveFile();
+      }
     });
 
-    this.linkModeStatusEl = this.addStatusBarItem();
-    this.updateLinkModeStatus();
-    this.registerDomEvent(document, "click", (e: MouseEvent) => {
-      void this.handleLinkClick(e);
-    }, true);
+    this.linkMode.start(this.addStatusBarItem());
+    this.registerDomEvent(
+      document,
+      "click",
+      (e: MouseEvent) => {
+        void this.linkMode?.handleDocumentClick(e);
+      },
+      true
+    );
 
-    this.patchOpenLinkText();
     this.registerCommands();
+    // The file pane is the plugin's main surface and everything else it offers
+    // is a command. Without a ribbon icon there is nothing to find: enabling
+    // the plugin changes nothing anyone can see until they open the palette
+    // and already know what to search for.
+    this.addRibbonIcon(EXPLORER_RIBBON_ICON, t().commands.openExplorer, () => {
+      void this.activateExplorerPane();
+    });
     this.addSettingTab(new SchreibstubeSettingTab(this.app, this));
     this.requestOverlayRefresh();
   }
 
-  onunload(): void {
-    this.unpatchOpenLinkText();
+  override onunload(): void {
+    this.linkMode?.stop();
+    this.print?.stop();
+    this.proofread?.stop();
+    void this.explorer?.stop();
+    this.sections?.stop();
     this.clearOverlay();
+  }
+
+  /** Open the review sidebar, reusing the existing leaf if it is already open. */
+  async activateReviewPanel(): Promise<void> {
+    const [existing] = this.app.workspace.getLeavesOfType(REVIEW_VIEW_TYPE);
+    if (existing) {
+      await this.app.workspace.revealLeaf(existing);
+      return;
+    }
+
+    const leaf = this.app.workspace.getRightLeaf(false);
+    if (!leaf) {
+      new Notice(t().common.notice(t().common.sidebarMissing(t().proofread.panelTitle)));
+      return;
+    }
+    await leaf.setViewState({ type: REVIEW_VIEW_TYPE, active: true });
+    await this.app.workspace.revealLeaf(leaf);
+  }
+
+  /** Open the file pane, reusing the existing leaf if it is already open. */
+  async activateExplorerPane(): Promise<void> {
+    const [existing] = this.app.workspace.getLeavesOfType(EXPLORER_VIEW_TYPE);
+    if (existing) {
+      await this.app.workspace.revealLeaf(existing);
+      // Already open, so nothing redraws on its own: it has to be told to go
+      // to whatever is being edited now.
+      this.revealActiveFileInExplorerPanes();
+      return;
+    }
+
+    const leaf = this.app.workspace.getLeftLeaf(false);
+    if (!leaf) {
+      new Notice(t().common.notice(t().common.sidebarMissing(t().explorer.title)));
+      return;
+    }
+    await leaf.setViewState({ type: EXPLORER_VIEW_TYPE, active: true });
+    await this.app.workspace.revealLeaf(leaf);
+  }
+
+  private createExplorerView(leaf: WorkspaceLeaf): ExplorerPaneView {
+    const view = new ExplorerPaneView(leaf);
+    if (this.explorer && this.sections) {
+      view.connect({
+        explorer: this.explorer,
+        sections: this.sections,
+        settings: () => this.settings
+      });
+    }
+    return view;
+  }
+
+  private async copyBookmarkPath(folderPath: string): Promise<void> {
+    const url = vaultUrlFor(folderPath);
+
+    try {
+      await navigator.clipboard.writeText(url);
+      new Notice(t().common.notice(t().explorer.bookmarks.copied(folderPath)));
+    } catch (error) {
+      this.logger.warn(`Could not copy ${url} to the clipboard:`, error);
+      new Notice(t().common.notice(t().explorer.bookmarks.copyFailed));
+    }
+  }
+
+  /** Put the file being edited on screen in every open pane. */
+  private revealActiveFileInExplorerPanes(): void {
+    for (const leaf of this.app.workspace.getLeavesOfType(EXPLORER_VIEW_TYPE)) {
+      const view = leaf.view;
+      if (view instanceof ExplorerPaneView) view.revealActiveFile();
+    }
+  }
+
+  /** Show a folder in every open file pane. What a `vault://` bookmark does. */
+  private revealInExplorerPanes(path: string, mayOpen = true): void {
+    const leaves = this.app.workspace.getLeavesOfType(EXPLORER_VIEW_TYPE);
+    const [first] = leaves;
+    if (!first) {
+      // One attempt only. `activateExplorerPane` reports and returns when the
+      // workspace has no left sidebar to put the pane in, and retrying on that
+      // would call straight back into here for the rest of the session.
+      if (!mayOpen) return;
+      void this.activateExplorerPane().then(() => this.revealInExplorerPanes(path, false));
+      return;
+    }
+
+    for (const leaf of leaves) {
+      if (leaf.view instanceof ExplorerPaneView) leaf.view.revealFolder(path);
+    }
+    void this.app.workspace.revealLeaf(first);
+  }
+
+  /**
+   * The state file, next to the plugin's own data file.
+   *
+   * Separate from `data.json` on purpose: that one is rewritten whole on every
+   * save, so a device holding a stale copy would clobber another device's
+   * icons along with everything else. See services/explorer-store.
+   */
+  private explorerStateFile(): ExplorerFileStore {
+    const adapter = this.app.vault.adapter;
+    const dir = this.manifest.dir ?? `${this.app.vault.configDir}/plugins/${this.manifest.id}`;
+    const path = `${dir}/${EXPLORER_STATE_FILE}`;
+
+    return {
+      read: async () => ((await adapter.exists(path)) ? adapter.read(path) : null),
+      write: async (text) => adapter.write(path, text),
+      mtime: async () => (await adapter.stat(path))?.mtime ?? null
+    };
+  }
+
+  private registerExplorerEvents(): void {
+    this.registerEvent(
+      this.app.vault.on("rename", (file, oldPath) => this.explorer?.handleRename(file, oldPath))
+    );
+    this.registerEvent(this.app.vault.on("delete", (file) => this.explorer?.handleDelete(file)));
+    // Obsidian replays a create for every file while the vault indexes, so this
+    // one waits: before layout is ready there is nothing a create can tell us
+    // that the state file does not already say.
+    this.app.workspace.onLayoutReady(() => {
+      this.registerEvent(this.app.vault.on("create", (file) => this.explorer?.handleCreate(file)));
+    });
+
+    // The two lists above the tree are a snapshot of the vault, so any change to
+    // it makes them stale. The bookmarks file costs a re-read; everything else
+    // only marks the recent-notes lists for recomputing on the next draw.
+    const touched = (file: TAbstractFile): void => {
+      if (this.sections?.isBookmarksFile(file.path)) void this.sections.reload();
+      this.sections?.invalidateLatest();
+    };
+
+    this.registerEvent(this.app.vault.on("create", touched));
+    this.registerEvent(this.app.vault.on("delete", touched));
+    this.registerEvent(this.app.vault.on("modify", touched));
+
+    this.registerEvent(
+      this.app.vault.on("rename", (file, oldPath) => {
+        const sections = this.sections;
+        if (!sections) return;
+        if (sections.isBookmarksFile(file.path) || sections.isBookmarksFile(oldPath)) {
+          void sections.reload();
+        }
+        sections.invalidateLatest();
+      })
+    );
+
+    // A folder is bookmarked by pasting its `vault://` URL into the bookmarks
+    // file, so the path has to be obtainable without typing it out by hand.
+    this.registerEvent(
+      this.app.workspace.on("file-menu", (menu, file) => {
+        if (!(file instanceof TFolder)) return;
+        menu.addItem((item) =>
+          item
+            .setTitle(t().explorer.bookmarks.copyPath)
+            .setIcon("link")
+            .setSection("info")
+            .onClick(() => void this.copyBookmarkPath(file.path))
+        );
+      })
+    );
+
+    // The bookmarks file may not be indexed yet when the plugin loads, which is
+    // the normal case on a phone waiting for iCloud. Read it again once the
+    // vault says it is ready.
+    this.app.workspace.onLayoutReady(() => {
+      void this.sections?.reload();
+    });
+
+    // A sync client drops a new state file in without telling anyone, so the
+    // pane looks for one while it is on screen. Closed panes cost nothing.
+    this.registerInterval(
+      window.setInterval(() => {
+        if (this.app.workspace.getLeavesOfType(EXPLORER_VIEW_TYPE).length === 0) return;
+        void this.explorer?.checkForExternalChange();
+      }, EXTERNAL_CHECK_MS)
+    );
+  }
+
+  private requireProofread(): ProofreadController {
+    if (!this.proofread) throw new Error("Schreibstube: the proofread controller is not ready.");
+    return this.proofread;
+  }
+
+  private requireLlm(): LlmCommands {
+    if (!this.llm) throw new Error("Schreibstube: the AI commands are not ready.");
+    return this.llm;
+  }
+
+  private createReviewView(leaf: WorkspaceLeaf): ReviewPanelView {
+    const view = new ReviewPanelView(leaf);
+    const controller = this.proofread;
+    if (controller) {
+      view.setHandlers(controller.handlers());
+      // Registered on the view, so closing the panel unsubscribes it. Hanging
+      // the listener off the plugin instead would keep pushing state into a
+      // detached view for the rest of the session.
+      view.register(controller.onStateChange((state) => view.updateReviewState(state)));
+      void controller.syncActiveFile();
+    }
+    return view;
+  }
+
+  /**
+   * Drive the cron schedule.
+   *
+   * The ticker runs more often than once a minute so a drifting tick cannot
+   * step over a scheduled minute; `shouldFire` collapses the repeats back down
+   * to one fire per named minute.
+   */
+  private startPollTicker(): void {
+    this.registerInterval(
+      window.setInterval(() => {
+        this.handlePollTick(new Date());
+      }, POLL_TICK_MS)
+    );
+
+    // A schedule that came due while Obsidian was closed would otherwise never
+    // run, which would make a daily poll useless on a machine that is not
+    // always open. One catch-up on load, shortly after startup so it never
+    // competes with opening the vault.
+    const catchUp = window.setTimeout(() => {
+      void this.catchUpPoll();
+    }, POLL_CATCHUP_DELAY_MS);
+    this.register(() => window.clearTimeout(catchUp));
+  }
+
+  private handlePollTick(now: Date): void {
+    const schedule = this.activePollSchedule();
+    if (!schedule) return;
+    if (!shouldFire(schedule, now, this.lastPollMinute)) return;
+
+    this.lastPollMinute = minuteOf(now);
+    void this.runPoll();
+  }
+
+  private async catchUpPoll(): Promise<void> {
+    const schedule = this.activePollSchedule();
+    if (!schedule) return;
+
+    const due = previousRun(schedule, new Date());
+    if (!due || this.settings.syncLastPollAt >= due.getTime()) return;
+
+    this.logger.debug("Catching up a poll missed while Obsidian was closed.");
+    await this.runPoll();
+  }
+
+  /** The parsed schedule, or null when the poll is off or the expression is
+   *  unusable. An invalid expression silently does nothing here; the settings
+   *  tab is where it is reported. */
+  private activePollSchedule() {
+    if (!this.settings.syncEnabled || !this.settings.syncPollEnabled) return null;
+    const parsed = parseCron(this.settings.syncPollCron);
+    return parsed.ok ? parsed.schedule : null;
+  }
+
+  private async runPoll(): Promise<void> {
+    const summary = await this.proofread?.pollAllSources("schedule");
+    this.settings.syncLastPollAt = Date.now();
+    await this.saveSettings();
+
+    if (summary && summary.withChanges > 0) {
+      new Notice(t().common.notice(t().sync.withUpdates(summary.withChanges)));
+    }
+  }
+
+  private registerProofreadEvents(): void {
+    this.registerEvent(
+      this.app.workspace.on("editor-change", () => {
+        this.proofread?.notifyEditorChanged();
+      })
+    );
+
+    this.registerEvent(
+      this.app.vault.on("modify", (file) => {
+        if (file instanceof TFile && file.extension === "md") {
+          void this.proofread?.invalidateGlossary(file.path);
+        }
+      })
+    );
+
+    this.registerEvent(
+      this.app.workspace.on("file-open", () => {
+        void this.proofread?.syncActiveFile();
+      })
+    );
+
+    this.registerEvent(
+      this.app.vault.on("rename", (file, oldPath) => {
+        if (file instanceof TFile) {
+          void this.proofread?.handleNoteRenamed(oldPath, file.path);
+        }
+      })
+    );
+
+    this.registerEvent(
+      this.app.vault.on("delete", (file) => {
+        if (file instanceof TFile) {
+          void this.proofread?.handleNoteDeleted(file.path);
+        }
+      })
+    );
   }
 
   async loadSettings(): Promise<void> {
@@ -79,6 +525,10 @@ export default class SchreibstubePlugin extends Plugin {
 
   async saveSettings(): Promise<void> {
     await this.saveData(this.settings);
+    // A changed bookmarks path, count or exclusion list only matters once the
+    // pane has been told; nothing else watches the settings object.
+    void this.sections?.reloadIfPathChanged();
+    this.sections?.invalidateLatest();
   }
 
   requestOverlayRefresh(): void {
@@ -88,71 +538,286 @@ export default class SchreibstubePlugin extends Plugin {
   async updateDimOpacity(dimOpacity: number): Promise<void> {
     this.settings = normalizeSettings({
       ...this.settings,
-      focusDimOpacity: dimOpacity,
+      focusDimOpacity: dimOpacity
     });
     await this.saveSettings();
     this.notifyFocusSettingsChanged();
   }
 
+  /**
+   * The typesetter, as the settings tab needs to talk about it.
+   *
+   * Three narrow methods rather than handing the tab the print controller: the
+   * tab asks whether the download has happened, starts it, or undoes it, and
+   * has no business with anything else printing can do.
+   */
+  printRuntimeInstalled(): Promise<boolean> {
+    return this.print?.runtimeInstalled() ?? Promise.resolve(false);
+  }
+
+  async downloadPrintRuntime(): Promise<void> {
+    await this.print?.fetchRuntime();
+  }
+
+  async removePrintRuntime(): Promise<void> {
+    await this.print?.removeRuntime();
+  }
+
+  /**
+   * What is on screen, as the availability rules ask about it.
+   *
+   * Built fresh for every check: Obsidian asks a command whether it applies
+   * each time the palette opens, which is exactly when the answer can have
+   * changed.
+   */
+  private commandContext(): CommandContext {
+    const file = this.app.workspace.getActiveFile();
+    const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+
+    return {
+      markdown: file?.extension === "md",
+      image: file !== null && getImageMimeType(file.extension) !== null,
+      selection: (view?.editor.getSelection().trim().length ?? 0) > 0,
+      bound:
+        file !== null && hasSourceBinding(this.app.metadataCache.getFileCache(file)?.frontmatter),
+      explorerOpen: this.app.workspace.getLeavesOfType(EXPLORER_VIEW_TYPE).length > 0
+    };
+  }
+
+  /**
+   * A command that is only offered when it could do something.
+   *
+   * Obsidian calls the check twice: once to ask whether to list the command,
+   * and again with `checking` false to run it. The condition is the same both
+   * times, so a command cannot be run from a state it was hidden in.
+   */
+  private addGatedCommand(id: string, name: string, gate: GatedCommand, run: () => void): void {
+    this.addCommand({
+      id,
+      name,
+      checkCallback: (checking) => {
+        if (!commandAvailable(gate, this.commandContext())) return false;
+        if (!checking) run();
+        return true;
+      }
+    });
+  }
+
   private registerCommands(): void {
     this.addCommand({
       id: "set-focus-sentence-mode",
-      name: "Focus Mode: Sentence",
-      callback: () => { void this.setFocusMode("sentence"); },
+      name: t().commands.focusSentence,
+      callback: () => {
+        void this.setFocusMode("sentence");
+      }
     });
 
     this.addCommand({
       id: "set-focus-paragraph-mode",
-      name: "Focus Mode: Paragraph",
-      callback: () => { void this.setFocusMode("paragraph"); },
+      name: t().commands.focusParagraph,
+      callback: () => {
+        void this.setFocusMode("paragraph");
+      }
     });
 
     this.addCommand({
       id: "disable-focus-mode",
-      name: "Focus Mode: Disable",
-      callback: () => { void this.setFocusMode("off"); },
-    });
-
-    this.addCommand({
-      id: "rename-from-content",
-      name: "Rename file from content",
-      callback: () => { void this.executeRenameFromContent(); },
-    });
-
-    this.addCommand({
-      id: "rename-image-from-content",
-      name: "Rename image from content",
-      callback: () => { void this.executeRenameImageFromContent(); },
+      name: t().commands.focusDisable,
+      callback: () => {
+        void this.setFocusMode("off");
+      }
     });
 
     this.addCommand({
       id: "insert-task-summary",
-      name: "Insert task summary ribbon",
-      editorCallback: (editor) => { this.insertTaskSummary(editor); },
+      name: t().commands.insertTaskSummary,
+      editorCallback: (editor) => {
+        this.insertTaskSummary(editor);
+      }
+    });
+
+    this.addGatedCommand("rename-from-content", t().commands.renameFile, "rename-note", () => {
+      void this.llm?.renameFromContent();
+    });
+
+    this.addGatedCommand(
+      "rename-image-from-content",
+      t().commands.renameImage,
+      "rename-image",
+      () => {
+        void this.llm?.renameImageFromContent();
+      }
+    );
+
+    this.addGatedCommand("summarize-selection", t().commands.summarize, "summarize", () => {
+      void this.llm?.summarizeSelection();
+    });
+
+    this.addCommand({
+      id: "open-explorer-pane",
+      name: t().commands.openExplorer,
+      callback: () => {
+        void this.activateExplorerPane();
+      }
+    });
+
+    // Obsidian's own collapse-all is a button on its explorer's header and
+    // nothing else: no command, so no hotkey. This one is both.
+    this.addGatedCommand(
+      "collapse-explorer-folders",
+      t().commands.collapseExplorer,
+      "collapse-explorer",
+      () => {
+        for (const leaf of this.app.workspace.getLeavesOfType(EXPLORER_VIEW_TYPE)) {
+          if (leaf.view instanceof ExplorerPaneView) leaf.view.collapseAll();
+        }
+      }
+    );
+
+    this.addCommand({
+      id: "open-bookmark",
+      name: t().commands.openBookmark,
+      callback: () => {
+        if (this.sections) new BookmarkQuickOpenModal(this.app, this.sections).open();
+      }
+    });
+
+    this.addCommand({
+      id: "open-review-panel",
+      name: t().commands.openReview,
+      callback: () => {
+        void this.activateReviewPanel();
+      }
+    });
+
+    this.addCommand({
+      id: "proof-read-note",
+      name: t().commands.proofread,
+      editorCallback: () => {
+        void this.activateReviewPanel().then(() => this.proofread?.handlers().onProofread());
+      }
+    });
+
+    this.addCommand({
+      id: "glossary-check-note",
+      name: t().commands.checkGlossary,
+      editorCallback: () => {
+        void this.activateReviewPanel().then(() => this.proofread?.handlers().onGlossaryCheck());
+      }
+    });
+
+    this.addCommand({
+      id: "poll-all-sources",
+      name: t().commands.syncAll,
+      callback: () => {
+        void this.proofread?.pollAllSources("manual").then(async (summary) => {
+          this.settings.syncLastPollAt = Date.now();
+          await this.saveSettings();
+          new Notice(
+            t().common.notice(
+              summary.skipped === "disabled"
+                ? t().sync.disabled
+                : summary.skipped === "busy"
+                  ? t().sync.busy
+                  : summary.checked === 0
+                    ? t().sync.noneChecked
+                    : t().sync.checked(summary.checked, summary.withChanges, summary.failed)
+            )
+          );
+        });
+      }
+    });
+
+    this.addGatedCommand("check-note-source", t().commands.syncNote, "check-source", () => {
+      void this.activateReviewPanel().then(() => this.proofread?.handlers().onCheckSource());
+    });
+
+    this.addGatedCommand("send-note-as-email", t().commands.sendMail, "send-mail", () => {
+      void this.mail?.sendNoteAsEmail();
+    });
+
+    this.addCommand({
+      id: "query-mailbox",
+      name: t().commands.queryMailbox,
+      callback: () => {
+        void this.mail?.queryMailbox();
+      }
+    });
+
+    this.addGatedCommand("fetch-replies", t().commands.fetchReplies, "fetch-replies", () => {
+      void this.mail?.fetchReplies();
+    });
+
+    this.addGatedCommand("print-note", t().commands.print, "print", () => {
+      void this.print?.printActiveNote();
+    });
+
+    // Not gated: adding a template is what somebody does before they have
+    // anything to print with, and often before a note is even open.
+    this.addCommand({
+      id: "add-print-template",
+      name: t().commands.addPrintTemplate,
+      callback: () => {
+        void this.print?.addTemplate();
+      }
+    });
+
+    this.addCommand({
+      id: "publish-folder",
+      name: t().commands.publish,
+      callback: () => {
+        void this.publish?.publish();
+      }
+    });
+
+    this.addCommand({
+      id: "publish-preview",
+      name: t().commands.publishPreview,
+      callback: () => {
+        void this.publish?.preview();
+      }
+    });
+
+    this.addCommand({
+      id: "publish-open-site",
+      name: t().commands.openSite,
+      callback: () => {
+        void this.publish?.openSite();
+      }
     });
 
     this.addCommand({
       id: "open-links-left",
-      name: "Open links to the left",
-      callback: () => { this.setLinkOpenMode("left"); },
+      name: t().commands.linksLeft,
+      callback: () => {
+        this.linkMode?.setMode("left");
+      }
     });
 
     this.addCommand({
       id: "open-links-right",
-      name: "Open links to the right",
-      callback: () => { this.setLinkOpenMode("right"); },
+      name: t().commands.linksRight,
+      callback: () => {
+        this.linkMode?.setMode("right");
+      }
     });
 
     this.addCommand({
       id: "open-links-default",
-      name: "Open links normally",
-      callback: () => { this.setLinkOpenMode("default"); },
+      name: t().commands.linksNormal,
+      callback: () => {
+        this.linkMode?.setMode("default");
+      }
     });
   }
 
+  /**
+   * One ribbon per note. A second block would count the same tasks twice on
+   * screen, so the command says so rather than adding it.
+   */
   private insertTaskSummary(editor: Editor): void {
     if (hasTaskSummaryBlock(editor.getValue())) {
-      new Notice("Schreibstube: this note already has a task summary ribbon.");
+      new Notice(t().common.notice(t().tasks.alreadyPresent));
       return;
     }
 
@@ -161,6 +826,8 @@ export default class SchreibstubePlugin extends Plugin {
     const insertion = buildTaskSummaryInsertion(line.slice(0, cursor.ch), line.slice(cursor.ch));
     editor.replaceRange(insertion, cursor);
 
+    // Below the block, on the line the writer was heading for anyway; inside
+    // it the cursor would show the raw fence instead of the ribbon.
     const insertedLines = insertion.split("\n").length - 1;
     editor.setCursor({ line: cursor.line + insertedLines, ch: 0 });
   }
@@ -168,7 +835,7 @@ export default class SchreibstubePlugin extends Plugin {
   private async setFocusMode(mode: FocusMode): Promise<void> {
     this.settings = normalizeSettings({
       ...this.settings,
-      focusMode: mode,
+      focusMode: mode
     });
     await this.saveSettings();
     this.notifyFocusSettingsChanged();
@@ -178,10 +845,7 @@ export default class SchreibstubePlugin extends Plugin {
     window.dispatchEvent(new Event("schreibstube-focus-settings-changed"));
   }
 
-  private queueRefreshForActiveView(
-    viewportTopLine?: number,
-    options?: RefreshOptions
-  ): void {
+  private queueRefreshForActiveView(viewportTopLine?: number, options?: RefreshOptions): void {
     if (!this.refreshScheduler) {
       this.refreshForActiveView(viewportTopLine, options);
       return;
@@ -189,10 +853,7 @@ export default class SchreibstubePlugin extends Plugin {
     this.refreshScheduler.enqueue(viewportTopLine, options);
   }
 
-  private refreshForActiveView(
-    viewportTopLine?: number,
-    options?: RefreshOptions
-  ): void {
+  private refreshForActiveView(viewportTopLine?: number, options?: RefreshOptions): void {
     if (!this.settings.overlayEnabled) {
       this.clearOverlay();
       return;
@@ -242,9 +903,7 @@ export default class SchreibstubePlugin extends Plugin {
       return;
     }
 
-    const sig = this.ancestorStack
-      .map((e) => `${e.level}:${e.lineNumber}:${e.text}`)
-      .join("|");
+    const sig = this.ancestorStack.map((e) => `${e.level}:${e.lineNumber}:${e.text}`).join("|");
     if (sig === this.lastRenderSignature) return;
 
     const rendered = this.overlayCoordinator.renderForView(
@@ -292,208 +951,5 @@ export default class SchreibstubePlugin extends Plugin {
     );
     this.viewportTopLine = lineNumber;
     this.queueRefreshForActiveView(this.viewportTopLine);
-  }
-
-  private patchOpenLinkText(): void {
-    const ws = this.app.workspace as any;
-    this.originalOpenLinkText = ws.openLinkText.bind(ws);
-    ws.openLinkText = async (linkText: string, sourcePath: string, newLeaf?: unknown, openViewState?: unknown) => {
-      if (this.linkOpenMode !== "default") {
-        const leaves = this.app.workspace.getLeavesOfType("markdown");
-        let sourceLeaf: WorkspaceLeaf | null = null;
-        for (const leaf of leaves) {
-          if ((leaf.view as MarkdownView).file?.path === sourcePath) {
-            sourceLeaf = leaf;
-            break;
-          }
-        }
-        if (!sourceLeaf) sourceLeaf = this.app.workspace.getMostRecentLeaf();
-        if (sourceLeaf) await this.openLinkInSidePane(linkText, sourceLeaf);
-      } else {
-        return this.originalOpenLinkText!(linkText, sourcePath, newLeaf, openViewState);
-      }
-    };
-  }
-
-  private unpatchOpenLinkText(): void {
-    if (this.originalOpenLinkText) {
-      (this.app.workspace as any).openLinkText = this.originalOpenLinkText;
-      this.originalOpenLinkText = null;
-    }
-  }
-
-  private setLinkOpenMode(mode: "default" | "left" | "right"): void {
-    this.linkOpenMode = mode;
-    this.linkTargetLeaf = null;
-    this.updateLinkModeStatus();
-  }
-
-  private updateLinkModeStatus(): void {
-    if (!this.linkModeStatusEl) return;
-    if (this.linkOpenMode === "default") {
-      this.linkModeStatusEl.style.display = "none";
-      this.linkModeStatusEl.setText("");
-    } else {
-      this.linkModeStatusEl.style.display = "";
-      this.linkModeStatusEl.setText(this.linkOpenMode === "left" ? "← links" : "links →");
-    }
-  }
-
-  private async handleLinkClick(e: MouseEvent): Promise<void> {
-    if (this.linkOpenMode === "default") return;
-
-    const target = e.target as HTMLElement;
-    const linkEl = target.closest("a.internal-link") as HTMLAnchorElement | null;
-    if (!linkEl) return;
-
-    const href = linkEl.dataset.href ?? linkEl.getAttribute("href") ?? "";
-    if (!href || /^https?:\/\//.test(href)) return;
-
-    e.preventDefault();
-    e.stopPropagation();
-
-    // Identify which leaf the click originated in
-    let sourceLeaf: WorkspaceLeaf | null = null;
-    this.app.workspace.iterateAllLeaves((leaf) => {
-      if ((leaf as any).containerEl.contains(target)) sourceLeaf = leaf;
-    });
-    if (!sourceLeaf) return;
-
-    await this.openLinkInSidePane(href, sourceLeaf);
-  }
-
-  private async openLinkInSidePane(linkText: string, sourceLeaf: WorkspaceLeaf): Promise<void> {
-    const sourcePath = sourceLeaf.view instanceof MarkdownView
-      ? (sourceLeaf.view.file?.path ?? "")
-      : "";
-
-    // Separate the file path from any heading/block subpath
-    const subpathMatch = linkText.match(/^([^#^]*)([#^].*)?$/);
-    const linkPath = subpathMatch?.[1] ?? linkText;
-    const subpath = subpathMatch?.[2] ?? "";
-
-    const file = this.app.metadataCache.getFirstLinkpathDest(linkPath || linkText, sourcePath);
-    if (!file) return;
-
-    // Reuse existing side pane if still open, otherwise create one
-    if (this.linkTargetLeaf && !this.linkTargetLeaf.view.containerEl.isConnected) {
-      this.linkTargetLeaf = null;
-    }
-    if (!this.linkTargetLeaf) {
-      const before = this.linkOpenMode === "left";
-      this.linkTargetLeaf = (this.app.workspace as any).createLeafBySplit(sourceLeaf, "vertical", before);
-    }
-
-    const targetLeaf = this.linkTargetLeaf!;
-    await targetLeaf.openFile(file, subpath ? { eState: { subpath } } : undefined);
-
-    // Return focus to the note the user was reading
-    this.app.workspace.setActiveLeaf(sourceLeaf, { focus: true });
-  }
-
-  private async executeRenameImageFromContent(): Promise<void> {
-    const file = this.app.workspace.getActiveFile();
-    if (!file) return;
-
-    const mimeType = getImageMimeType(file.extension);
-    if (!mimeType) {
-      new Notice("Schreibstube: unsupported format — supported image types: jpg, png, gif, webp.");
-      return;
-    }
-
-    if (file.stat.size > MAX_IMAGE_BYTES) {
-      new Notice("Schreibstube: image exceeds the 10 MB limit.");
-      return;
-    }
-
-    const secretName = this.settings.renameSecretName;
-    if (!secretName) {
-      new Notice("Schreibstube: no secret selected — open Settings to choose one.");
-      return;
-    }
-    const apiKey = this.app.secretStorage.getSecret(secretName);
-    if (!apiKey) {
-      new Notice("Schreibstube: secret not found — check Settings.");
-      return;
-    }
-
-    const buffer = await this.app.vault.readBinary(file);
-
-    let base64Image: string;
-    try {
-      base64Image = await resizeImageToBase64(buffer, mimeType, this.settings.renameMaxImagePx);
-    } catch {
-      new Notice("Schreibstube: could not process image.");
-      return;
-    }
-
-    let proposed: string;
-    try {
-      proposed = await generateImageRenameFilename(base64Image, mimeType, this.settings, apiKey);
-    } catch (err) {
-      new Notice(`Schreibstube: rename failed — ${err instanceof Error ? err.message : "unknown error"}`);
-      return;
-    }
-
-    const sanitized = sanitizeFilename(proposed, this.settings.renameMaxFilenameLength);
-    if (!sanitized) {
-      new Notice("Schreibstube: rename failed — the LLM returned an unusable filename.");
-      return;
-    }
-
-    const folder = file.parent?.path ?? "";
-    const newPath = normalizePath(`${folder}/${sanitized}.${file.extension}`);
-
-    try {
-      await this.app.fileManager.renameFile(file, newPath);
-    } catch {
-      new Notice("Schreibstube: rename failed — a file with that name may already exist.");
-      return;
-    }
-  }
-
-  private async executeRenameFromContent(): Promise<void> {
-    const view = this.app.workspace.getActiveViewOfType(MarkdownView);
-    if (!view?.file) return;
-
-    const content = view.editor.getValue().trim();
-    if (content.length < this.settings.renameMinContentChars) return;
-
-    const secretName = this.settings.renameSecretName;
-    if (!secretName) {
-      new Notice("Schreibstube: no secret selected — open Settings to choose one.");
-      return;
-    }
-    const apiKey = this.app.secretStorage.getSecret(secretName);
-    if (!apiKey) {
-      new Notice("Schreibstube: secret not found — check Settings.");
-      return;
-    }
-
-    const truncated = content.slice(0, this.settings.renameMaxContentChars);
-
-    let proposed: string;
-    try {
-      proposed = await generateRenameFilename(truncated, this.settings, apiKey);
-    } catch (err) {
-      new Notice(`Schreibstube: rename failed — ${err instanceof Error ? err.message : "unknown error"}`);
-      return;
-    }
-
-    const sanitized = sanitizeFilename(proposed, this.settings.renameMaxFilenameLength);
-    if (!sanitized) {
-      new Notice("Schreibstube: rename failed — the LLM returned an unusable filename.");
-      return;
-    }
-
-    const folder = view.file.parent?.path ?? "";
-    const newPath = normalizePath(`${folder}/${sanitized}.md`);
-
-    try {
-      await this.app.fileManager.renameFile(view.file, newPath);
-    } catch {
-      new Notice("Schreibstube: rename failed — a file with that name may already exist.");
-      return;
-    }
   }
 }

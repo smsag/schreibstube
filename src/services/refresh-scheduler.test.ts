@@ -4,7 +4,10 @@ import { RefreshScheduler } from "./refresh-scheduler";
 describe("RefreshScheduler", () => {
   it("coalesces multiple enqueue calls into one frame", () => {
     const callbacks: Array<() => void> = [];
-    const flushed: Array<{ viewportTopLine?: number; readingScrollTop?: number }> = [];
+    const flushed: Array<{
+      viewportTopLine?: number | undefined;
+      readingScrollTop?: number | undefined;
+    }> = [];
 
     const scheduler = new RefreshScheduler(
       (cb) => callbacks.push(cb),
@@ -23,11 +26,9 @@ describe("RefreshScheduler", () => {
     expect(callbacks).toHaveLength(1);
     expect(flushed).toHaveLength(0);
 
-    callbacks[0]();
+    callbacks[0]?.();
 
-    expect(flushed).toEqual([
-      { viewportTopLine: 30, readingScrollTop: 240 }
-    ]);
+    expect(flushed).toEqual([{ viewportTopLine: 30, readingScrollTop: 240 }]);
   });
 
   it("schedules another frame after previous flush", () => {
@@ -42,12 +43,12 @@ describe("RefreshScheduler", () => {
     );
 
     scheduler.enqueue(5);
-    callbacks[0]();
+    callbacks[0]?.();
 
     scheduler.enqueue(15);
     expect(callbacks).toHaveLength(2);
 
-    callbacks[1]();
+    callbacks[1]?.();
 
     expect(flushCount).toBe(2);
   });

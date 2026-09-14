@@ -3,13 +3,15 @@ import {
   LLM_PROVIDER_IDS,
   PROVIDER_MODELS,
   buildImageRequest,
+  buildSummaryRequest,
   buildTextRequest,
   describeApiError,
   effectiveModel,
   extractModelFilename,
   parseResponse,
   providerLabel,
-  sanitizeFilename
+  sanitizeFilename,
+  stripFilenameExtension
 } from "./llm-providers";
 
 describe("sanitizeFilename", () => {
@@ -111,15 +113,15 @@ describe("describeApiError", () => {
 
 describe("effectiveModel", () => {
   it("uses the dropdown model when no custom value", () => {
-    expect(effectiveModel({ renameModel: "gpt-4o", renameModelCustom: "" })).toBe("gpt-4o");
+    expect(effectiveModel({ llmModel: "gpt-4o", llmModelCustom: "" })).toBe("gpt-4o");
   });
 
   it("prefers a non-empty custom model", () => {
-    expect(effectiveModel({ renameModel: "gpt-4o", renameModelCustom: "gpt-5-mini" })).toBe("gpt-5-mini");
+    expect(effectiveModel({ llmModel: "gpt-4o", llmModelCustom: "gpt-5-mini" })).toBe("gpt-5-mini");
   });
 
   it("ignores a whitespace-only custom model", () => {
-    expect(effectiveModel({ renameModel: "gpt-4o", renameModelCustom: "   " })).toBe("gpt-4o");
+    expect(effectiveModel({ llmModel: "gpt-4o", llmModelCustom: "   " })).toBe("gpt-4o");
   });
 });
 
@@ -159,6 +161,35 @@ describe("buildTextRequest", () => {
   });
 });
 
+describe("buildSummaryRequest", () => {
+  it("sends the prompt verbatim as the Anthropic system and the text as the user message", () => {
+    const req = buildSummaryRequest(
+      "anthropic",
+      "claude-x",
+      "sk-test",
+      "Be concise.",
+      "raw text",
+      512
+    );
+    expect(req.url).toBe("https://api.anthropic.com/v1/messages");
+    expect(req.headers["x-api-key"]).toBe("sk-test");
+    const body = JSON.parse(req.body);
+    expect(body.model).toBe("claude-x");
+    expect(body.system).toBe("Be concise.");
+    expect(body.max_tokens).toBe(512);
+    expect(body.messages[0].content).toBe("raw text");
+  });
+
+  it("uses the caller's token cap and a system message for OpenAI", () => {
+    const req = buildSummaryRequest("openai", "gpt-x", "sk-test", "Be concise.", "raw text", 256);
+    expect(req.url).toBe("https://api.openai.com/v1/chat/completions");
+    const body = JSON.parse(req.body);
+    expect(body.max_tokens).toBe(256);
+    expect(body.messages[0]).toEqual({ role: "system", content: "Be concise." });
+    expect(body.messages[1]).toEqual({ role: "user", content: "raw text" });
+  });
+});
+
 describe("buildImageRequest", () => {
   it("embeds an Anthropic base64 image block", () => {
     const req = buildImageRequest("anthropic", "claude-x", "sk", "AAAA", "image/png", 60);
@@ -185,5 +216,34 @@ describe("parseResponse", () => {
 
   it("returns empty string for a malformed response", () => {
     expect(parseResponse("openai", {})).toBe("");
+  });
+});
+
+describe("an extension the model volunteered", () => {
+  it("is dropped, so the caller's own is not doubled", () => {
+    // The prompt says filename only; models answer with the extension anyway,
+    // and the file became "Quartalsbericht.md.md".
+    expect(stripFilenameExtension("Quartalsbericht.md", "md")).toBe("Quartalsbericht");
+    expect(stripFilenameExtension("foto.jpeg", "jpg")).toBe("foto");
+  });
+
+  it("leaves alone an ending that is part of the name", () => {
+    expect(stripFilenameExtension("Objekt-Nr-4", "md")).toBe("Objekt-Nr-4");
+    expect(stripFilenameExtension("Version-1.2", "md")).toBe("Version-1.2");
+    // A guess about a file the model never saw is not an extension to drop.
+    expect(stripFilenameExtension("Vertrag.pdf", "md")).toBe("Vertrag.pdf");
+  });
+});
+
+describe("sanitizeFilename and characters that are pairs", () => {
+  it("never cuts an emoji in half", () => {
+    const cut = sanitizeFilename("Haus🏠Plan", 5);
+
+    expect(cut).toBe("Haus🏠");
+    expect(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/.test(cut)).toBe(false);
+  });
+
+  it("counts characters as a person counts them", () => {
+    expect([...sanitizeFilename("ä".repeat(80), 60)].length).toBe(60);
   });
 });

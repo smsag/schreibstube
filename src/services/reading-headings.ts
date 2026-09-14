@@ -14,8 +14,11 @@ export function resolveViewportLineFromRenderedHeadings(
   let resolved = fallbackLine;
 
   for (let i = 0; i < maxShared; i += 1) {
-    if (renderedHeadingOffsets[i] <= scrollTop + 1) {
-      resolved = headingIndex[i].lineNumber;
+    const offset = renderedHeadingOffsets[i];
+    const heading = headingIndex[i];
+    if (offset === undefined || heading === undefined) break;
+    if (offset <= scrollTop + 1) {
+      resolved = heading.lineNumber;
     } else {
       break;
     }

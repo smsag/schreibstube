@@ -1,9 +1,9 @@
 {
   "id": "schreibstube",
   "name": "Schreibstube",
-  "version": "1.3.0",
+  "version": "1.25.0",
   "minAppVersion": "1.11.4",
-  "description": "Sticky context-aware heading stack overlay for long notes.",
+  "description": "Writing tools for long notes: proof-read sidebar with glossary, document sync, email over a bridge, static publishing, heading stack, focus mode, and a file pane.",
   "author": "Schreibstube",
   "authorUrl": "",
   "isDesktopOnly": false

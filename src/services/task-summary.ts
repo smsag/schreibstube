@@ -1,9 +1,12 @@
 /**
  * Task counting for the task summary ribbon and the per-heading badges.
  *
- * Only two states exist: a task is open when its checkbox is `[ ]`, and done
- * for any other single-character marker (`[x]`, `[X]`, `[-]`, `[~]`, ...).
+ * Two states only. A task is open when its box is `[ ]` and done for any other
+ * single-character marker: `[x]`, `[X]`, `[-]`, `[~]` and whatever else a
+ * theme or another plugin gives a meaning to. Distinguishing those would be
+ * a task model, and the ribbon is a count.
  */
+import { fenceMarker } from "./markdown-fence";
 
 export const TASK_SUMMARY_LANGUAGE = "schreibstube-tasks";
 export const TASK_SUMMARY_SNIPPET = "```" + TASK_SUMMARY_LANGUAGE + "\n```";
@@ -21,51 +24,42 @@ export interface SectionTaskCount extends TaskCount {
 export interface TaskSummary extends TaskCount {
   /**
    * One entry per heading, in document order. A heading counts only the tasks
-   * between itself and the next heading of any level; tasks under a
-   * sub-heading belong to that sub-heading alone. Tasks before the first
-   * heading contribute to the totals but to no section.
+   * between itself and the next heading of any level, so a sub-heading's
+   * tasks are the sub-heading's. Tasks before the first heading are in the
+   * totals and in no section.
    */
   sections: SectionTaskCount[];
 }
 
 const TASK_PATTERN = /^\s*(?:[-*+]|\d+[.)])\s+\[(.)\](?:\s|$)/;
-const HEADING_PATTERN = /^(#{1,6})\s+\S/;
-const FENCE_PATTERN = /^\s{0,3}(`{3,}|~{3,})(.*)$/;
+const HEADING_PATTERN = /^#{1,6}\s+\S/;
 
-function fenceInfoLanguage(info: string): string {
-  return info.trim().split(/\s+/)[0] ?? "";
-}
+type LineKind = "heading" | "task" | "fence";
 
 /**
- * Walks the document line by line, skipping fenced code blocks, and reports
- * every heading and task line to the visitor.
+ * Walks the note line by line and reports every heading, task and fence
+ * opening, skipping whatever a fence encloses: a `- [ ]` in a code sample is
+ * a code sample.
  */
 function scanLines(
   content: string,
-  visit: (kind: "heading" | "task" | "fence", lineNumber: number, detail: string) => void
+  visit: (kind: LineKind, lineNumber: number, detail: string) => void
 ): void {
   const lines = content.split(/\r?\n/);
-  let openFence: { char: string; length: number } | null = null;
+  let fence: string | null = null;
 
-  for (let lineNumber = 0; lineNumber < lines.length; lineNumber += 1) {
-    const line = lines[lineNumber];
-    const fence = line.match(FENCE_PATTERN);
+  for (const [lineNumber, line] of lines.entries()) {
+    const marker = fenceMarker(line);
 
-    if (openFence) {
-      if (
-        fence &&
-        fence[1][0] === openFence.char &&
-        fence[1].length >= openFence.length &&
-        fence[2].trim() === ""
-      ) {
-        openFence = null;
-      }
+    if (fence) {
+      if (marker && marker[0] === fence[0] && marker.length >= fence.length) fence = null;
       continue;
     }
 
-    if (fence) {
-      openFence = { char: fence[1][0], length: fence[1].length };
-      visit("fence", lineNumber, fenceInfoLanguage(fence[2]));
+    if (marker) {
+      fence = marker;
+      const info = line.trimStart().slice(marker.length).trim();
+      visit("fence", lineNumber, info.split(/\s+/)[0] ?? "");
       continue;
     }
 
@@ -74,10 +68,8 @@ function scanLines(
       continue;
     }
 
-    const task = line.match(TASK_PATTERN);
-    if (task) {
-      visit("task", lineNumber, task[1]);
-    }
+    const task = TASK_PATTERN.exec(line);
+    if (task) visit("task", lineNumber, task[1] ?? "");
   }
 }
 
@@ -92,9 +84,7 @@ export function summarizeTasks(content: string): TaskSummary {
       return;
     }
 
-    if (kind !== "task") {
-      return;
-    }
+    if (kind !== "task") return;
 
     const isOpen = detail === " ";
     summary.total += 1;
@@ -108,35 +98,23 @@ export function summarizeTasks(content: string): TaskSummary {
   return summary;
 }
 
-/** True when the document contains a task summary ribbon block. */
+/** Whether the note carries a ribbon block, which is what switches the badges on. */
 export function hasTaskSummaryBlock(content: string): boolean {
   let found = false;
   scanLines(content, (kind, _lineNumber, detail) => {
-    if (kind === "fence" && detail === TASK_SUMMARY_LANGUAGE) {
-      found = true;
-    }
+    if (kind === "fence" && detail === TASK_SUMMARY_LANGUAGE) found = true;
   });
   return found;
 }
 
-/** Badge text shown after a heading, e.g. "3 of 3 open". */
-export function formatSectionBadge(count: TaskCount): string {
-  return `${count.open} of ${count.total} open`;
-}
-
-/** Plain-text form of the ribbon line, e.g. "20 open of 21". */
-export function formatRibbonText(count: TaskCount): string {
-  if (count.total === 0) {
-    return "No tasks";
-  }
-  return `${count.open} open of ${count.total}`;
-}
-
 /**
- * Builds the text to insert at the cursor so the ribbon block always sits on
- * its own lines, whatever surrounds the cursor.
+ * The text to insert at the cursor so the block lands on lines of its own,
+ * whatever is on either side of the cursor.
  */
-export function buildTaskSummaryInsertion(textBeforeCursor: string, textAfterCursor: string): string {
+export function buildTaskSummaryInsertion(
+  textBeforeCursor: string,
+  textAfterCursor: string
+): string {
   const prefix = textBeforeCursor.trim().length > 0 ? "\n" : "";
   const suffix = textAfterCursor.trim().length > 0 ? "\n" : "";
   return `${prefix}${TASK_SUMMARY_SNIPPET}\n${suffix}`;

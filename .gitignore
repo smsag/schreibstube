@@ -2,6 +2,8 @@ node_modules/
 
 # Build outputs
 main.js
+# The bridge image vendors Mermaid here; a local run resolves the package.
+bridge/vendor/
 dist/
 coverage/
 *.tsbuildinfo
@@ -17,6 +19,8 @@ pnpm-debug.log*
 # Environment files
 .env
 .env.*
+# ...but the bridge's template must ship.
+!bridge/.env.example
 
 # Editor and OS files
 .DS_Store

@@ -46,18 +46,24 @@ export function createReadingPostProcessor(
     // Initial sync
     handler();
 
-    const observer = new MutationObserver(() => {
-      if (!document.body.contains(view)) {
-        const cleanup = cleanupByReadingView.get(view);
-        cleanup?.();
-      }
-    });
+    // Detect the reading view leaving the DOM by observing only its parent's
+    // direct children — not a document-wide subtree, which would fire this
+    // callback on every mutation anywhere in the workspace. A detached view
+    // with no live listeners is also eligible for GC via the WeakMap.
+    const parent = view.parentElement;
+    const observer = parent
+      ? new MutationObserver(() => {
+          if (!parent.contains(view)) {
+            cleanupByReadingView.get(view)?.();
+          }
+        })
+      : null;
 
-    observer.observe(document.body, { childList: true, subtree: true });
+    observer?.observe(parent as HTMLElement, { childList: true });
 
     const cleanup = () => {
       view.removeEventListener("scroll", handler);
-      observer.disconnect();
+      observer?.disconnect();
       cleanupByReadingView.delete(view);
     };
 

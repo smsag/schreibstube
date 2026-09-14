@@ -122,6 +122,24 @@
   opacity: 1;
 }
 
+/* A rendered block — a callout, a table, an embed, the preview of a code block
+   — is a CodeMirror widget standing in place of its source lines, not a line.
+   Obsidian builds every one of them as `cm-embed-block` plus a kind, so a line
+   decoration has nothing to attach to and the block stayed at full strength
+   while the prose around it faded.
+
+   It is dimmed directly and in both modes, since a callout carries its own
+   colours and cannot be muted the way a line can.
+
+   Except the one holding the cursor. A callout or a code preview un-renders
+   when entered, so the question does not arise there, but a table stays a
+   widget while being edited — it carries its own editor inside — and dimming
+   it would dim the cell being typed into, with no way back: opacity on an
+   ancestor is a ceiling its children cannot rise above. */
+.schreibstube-focus-enabled .cm-embed-block:not(:focus-within) {
+  opacity: var(--schreibstube-focus-dim-opacity);
+}
+
 .schreibstube-focus-enabled.schreibstube-focus-mode-sentence .cm-line.schreibstube-focus-dimmed {
   opacity: 1;
   color: var(--text-muted);
@@ -129,4 +147,977 @@
 
 .schreibstube-focus-enabled.schreibstube-focus-mode-sentence .schreibstube-focus-sentence {
   color: var(--text-normal);
+}
+
+/* Review sidebar
+   ------------------------------------------------------------------ */
+
+.schreibstube-review {
+  padding: 10px 12px 24px;
+  font-size: var(--font-ui-small);
+}
+
+.schreibstube-review-header {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.schreibstube-review-file {
+  font-weight: var(--font-semibold);
+  color: var(--text-normal);
+  overflow-wrap: anywhere;
+}
+
+.schreibstube-review-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.schreibstube-review-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  font-size: var(--font-ui-smaller);
+  cursor: pointer;
+}
+
+.schreibstube-review-button[disabled] {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.schreibstube-review-icon {
+  display: inline-flex;
+}
+
+.schreibstube-review-icon svg {
+  width: 14px;
+  height: 14px;
+}
+
+.schreibstube-review-progress,
+.schreibstube-review-message,
+.schreibstube-review-hint,
+.schreibstube-review-empty {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+}
+
+.schreibstube-review-message,
+.schreibstube-review-empty {
+  padding: 8px 0;
+}
+
+.schreibstube-review-warning {
+  padding: 4px 0;
+  color: var(--text-warning);
+  font-size: var(--font-ui-smaller);
+}
+
+/* Glossary picker */
+
+.schreibstube-review-glossary {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.schreibstube-review-glossary-label {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.schreibstube-review-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.schreibstube-review-chip {
+  padding: 2px 8px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 999px;
+  background: var(--background-primary);
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  cursor: pointer;
+}
+
+.schreibstube-review-chip.is-active {
+  border-color: var(--interactive-accent);
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+.schreibstube-review-chip.is-locked {
+  cursor: default;
+  opacity: 0.7;
+}
+
+/* Change cards */
+
+.schreibstube-review-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 10px;
+}
+
+.schreibstube-review-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid var(--background-modifier-border);
+  border-left-width: 3px;
+  border-radius: var(--schreibstube-border-radius);
+  background: var(--background-primary);
+}
+
+.schreibstube-review-card.is-suggestion {
+  border-left-color: var(--background-modifier-border);
+}
+.schreibstube-review-card.is-warning {
+  border-left-color: var(--text-warning);
+}
+.schreibstube-review-card.is-error {
+  border-left-color: var(--text-error);
+}
+
+.schreibstube-review-card.is-stale {
+  opacity: 0.55;
+}
+
+.schreibstube-review-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.schreibstube-review-category {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.schreibstube-review-badge {
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--background-modifier-hover);
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+}
+
+.schreibstube-review-diff {
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.schreibstube-diff-equal {
+  color: var(--text-muted);
+}
+
+.schreibstube-diff-delete {
+  background: var(--background-modifier-error);
+  color: var(--text-normal);
+  text-decoration: line-through;
+}
+
+.schreibstube-diff-insert {
+  background: var(--background-modifier-success);
+  color: var(--text-normal);
+}
+
+.schreibstube-diff-flag {
+  background: var(--background-modifier-error);
+  color: var(--text-normal);
+}
+
+.schreibstube-review-note {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+}
+
+.schreibstube-review-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+/* Live glossary underline in the editor */
+
+.schreibstube-glossary-hit {
+  text-decoration: underline wavy var(--text-error);
+  text-underline-offset: 3px;
+}
+
+/* Source-bound notes */
+
+.schreibstube-review-sync {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.schreibstube-review-sync-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.schreibstube-review-sync .schreibstube-review-hint {
+  overflow-wrap: anywhere;
+}
+
+/* Settings feedback */
+
+.schreibstube-setting-hint,
+.schreibstube-setting-error {
+  margin: -8px 0 12px;
+  font-size: var(--font-ui-smaller);
+}
+
+.schreibstube-setting-hint {
+  color: var(--text-muted);
+}
+
+.schreibstube-setting-error {
+  color: var(--text-error);
+}
+
+/* Mail result picker: the metadata line under each subject. */
+.schreibstube-mail-result-meta {
+  display: block;
+  color: var(--text-muted);
+  font-size: var(--font-smaller);
+}
+
+/* Re-send warning in the send confirmation dialog. */
+.schreibstube-mail-warning {
+  color: var(--text-warning);
+  font-size: var(--font-smaller);
+}
+
+/* Publish plan dialog: the summary, the deletions, and the target it will go to. */
+.schreibstube-publish-summary,
+.schreibstube-publish-list {
+  margin: 0 0 var(--size-4-3);
+  padding-left: var(--size-4-4);
+}
+
+.schreibstube-publish-list {
+  max-height: 12em;
+  overflow-y: auto;
+  font-size: var(--font-smaller);
+  color: var(--text-muted);
+}
+
+.schreibstube-publish-heading {
+  margin-bottom: var(--size-4-1);
+  font-weight: var(--font-semibold);
+}
+
+.schreibstube-publish-target {
+  color: var(--text-muted);
+  font-size: var(--font-smaller);
+}
+
+/* --- File pane -------------------------------------------------------- */
+
+.schreibstube-icon {
+  font-family: "schreibstube-icons";
+  font-style: normal;
+  font-weight: normal;
+  font-variant: normal;
+  line-height: 1;
+  speak: none;
+  text-transform: none;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Obsidian pads a leaf's content box and lets it scroll: 12px at the sides,
+   32px at the foot, `overflow: auto`, and in a side split `height: 100%` too.
+   The padding would keep a section's rule from reaching the edges, and the
+   scrolling would sit outside the one this pane already runs, so a tall vault
+   could scroll in two places at once.
+
+   This view takes all of it over, the way Obsidian's own markdown, pdf and
+   sync views do, and spends it on its own grid instead. */
+.workspace-leaf-content[data-type="schreibstube-explorer"] .view-content {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+}
+
+.schreibstube-explorer {
+  /* The grid the whole pane sits on. A row is a 12px chevron slot, a 7px gap
+     and then its content, so every icon at a given depth lines up with every
+     other one — across sections, not only within the tree. */
+  --schreibstube-row-height: 27px;
+  --schreibstube-row-inset: 12px;
+  --schreibstube-row-step: 15px;
+  --schreibstube-twisty-size: 12px;
+  --schreibstube-row-gap: 7px;
+  --schreibstube-glyph-size: 15px;
+  --schreibstube-badge-size: 12px;
+  --schreibstube-pin-size: 11px;
+  /* What separates the pin and the sync mark from the name. */
+  --schreibstube-glyph-gap: 4px;
+  --schreibstube-depth: 0;
+
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: var(--schreibstube-padding) 0 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+.schreibstube-explorer-filter-row {
+  position: relative;
+  flex: 0 0 auto;
+  margin: 0 var(--schreibstube-padding);
+}
+
+.schreibstube-explorer-filter {
+  width: 100%;
+  height: 32px;
+  /* Room for the clear button, so a long filter does not run under it. */
+  padding-right: 26px;
+}
+
+/* The field sits at the very top of a pane that clips what leaves it, and a
+   focus ring drawn outside the box loses its upper edge to that clip — half a
+   rectangle, which reads as a rendering fault rather than as focus. So focus is
+   said on the inside: the same box, a line drawn within it, nothing to crop.
+   Stated for both, because the ring comes from a border and a shadow at once
+   and taking away one leaves the other. */
+.schreibstube-explorer .schreibstube-explorer-filter,
+.schreibstube-explorer .schreibstube-explorer-filter:hover {
+  border: none;
+  box-shadow: none;
+  background-color: var(--background-modifier-form-field);
+}
+
+.schreibstube-explorer .schreibstube-explorer-filter:focus,
+.schreibstube-explorer .schreibstube-explorer-filter:focus-visible,
+.schreibstube-explorer .schreibstube-explorer-filter:active {
+  border: none;
+  outline: none;
+  box-shadow: inset 0 0 0 1px var(--background-modifier-border-focus, var(--text-faint));
+}
+
+.schreibstube-explorer .schreibstube-explorer-filter-clear {
+  position: absolute;
+  right: 3px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  background-color: transparent;
+  border: none;
+  border-radius: var(--radius-s);
+  box-shadow: none;
+  cursor: pointer;
+  color: var(--text-faint);
+  font-size: 14px;
+}
+
+.schreibstube-explorer .schreibstube-explorer-filter-clear:hover {
+  background-color: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+/* Nothing to clear while the field still shows its placeholder, so the button
+   is simply not there. The field says so itself; the view does not have to. */
+.schreibstube-explorer-filter:placeholder-shown ~ .schreibstube-explorer-filter-clear {
+  display: none;
+}
+
+/* The strip that does not scroll: the pinned block, directly under the filter.
+   What a person pinned should be on screen wherever they have scrolled to,
+   which is the whole point of having pinned it.
+
+   It paints no background of its own. The list scrolls inside its own box
+   below, so nothing ever passes under the strip, and a background would only
+   make it a panel sitting on the pane. */
+.schreibstube-explorer-shelf {
+  position: relative;
+  flex: 0 0 auto;
+  z-index: 1;
+}
+
+/* What separates the strip, and a header holding the top, from the rows sliding
+   under them: a short fall of the pane's own ground rather than a rule. The row
+   fades into the background instead of being cut by a line.
+
+   It is a shadow in the ground colour, so the blur does the fading and nothing
+   has to be positioned. Only drawn while something is actually scrolled
+   underneath. */
+.schreibstube-explorer-shelf.is-scrolled,
+.schreibstube-explorer .schreibstube-explorer-section-header.is-stuck {
+  box-shadow: 0 4px 6px -1px var(--schreibstube-ground, transparent);
+}
+
+.schreibstube-explorer-body {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  /* Taking the leaf's padding over took its safe-area inset with it, and the
+     last row of a vault should not sit under a phone's home indicator. */
+  padding-bottom: var(--safe-area-inset-bottom, 0px);
+}
+
+.schreibstube-explorer-tree {
+  display: flex;
+  flex-direction: column;
+}
+
+.schreibstube-explorer-section + .schreibstube-explorer-section {
+  margin-top: 8px;
+}
+
+.schreibstube-explorer .schreibstube-explorer-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--schreibstube-row-gap);
+  width: 100%;
+  height: 24px;
+  padding: 0 var(--schreibstube-row-inset);
+  /* Sticky under the pinned strip, so the section a person has scrolled into
+     keeps saying which one it is. Held to its own section, so the next header
+     pushes it out rather than the two overlapping.
+
+     It has to paint something or rows show through where it holds, and the one
+     colour that is certainly right is the one actually behind the pane. The
+     view measures that and puts it here; naming a variable instead was wrong in
+     any theme that paints its sidebar something else. */
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background-color: var(--schreibstube-ground, transparent);
+  /* Said rather than assumed: a div brings none of these, but a theme that
+     styles [role="button"] rather than button would put them back, and this
+     header answers to nobody's idea of a button but the pane's. */
+  border: none;
+  border-radius: 0;
+  padding-block: 0;
+  box-shadow: none;
+  /* What a button gave and a div does not. A long press on a label is a phone's
+     invitation to select it — the magnifier, the callout, "Copy" — and a press
+     on this one belongs to the section it opens. The rows below already say the
+     same thing for the same reason. */
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  /* The grey rectangle a mobile browser paints over whatever was tapped. The
+     pane says what it is doing with its own colours. */
+  -webkit-tap-highlight-color: transparent;
+  color: var(--text-muted);
+  font-size: 10.5px;
+  font-weight: var(--font-semibold);
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  text-align: left;
+}
+
+/* A rule runs from the label to the right edge, so a header reads as the start
+   of a section rather than a word floating above one. It is drawn by the
+   header itself: nothing in the markup exists only to be a line. */
+.schreibstube-explorer .schreibstube-explorer-section-header::after {
+  content: "";
+  flex: 1 1 auto;
+  height: 1px;
+  background: var(--background-modifier-border);
+}
+
+/* The one header that separates two kinds of thing, the curated lists above it
+   and the vault below. It carries no fill of its own: a darker label and the
+   space above it are enough to set it apart, and they leave the pane quiet.
+
+   Its rule is the rule every other header draws. Four lines down one pane at
+   two weights is not a hierarchy, it is one line looking like a mistake — and
+   the eye reads the difference long before it works out what it was for. */
+.schreibstube-explorer .schreibstube-explorer-section-header.is-divider {
+  margin-top: 4px;
+  color: var(--text-normal);
+}
+
+/* A header answers a pointer with its label, never with a fill: the colour of
+   what is behind the pane is the only thing it may paint, because being sticky
+   is the only reason it paints at all. Stated for every state, since a header
+   under a finger that has just opened it keeps :hover until something else is
+   touched, and a band of grey left lying across the pane is what that looked
+   like. */
+.schreibstube-explorer .schreibstube-explorer-section-header:hover,
+.schreibstube-explorer .schreibstube-explorer-section-header:focus,
+.schreibstube-explorer .schreibstube-explorer-section-header:focus-visible,
+.schreibstube-explorer .schreibstube-explorer-section-header:active {
+  background-color: var(--schreibstube-ground, transparent);
+}
+
+/* Only where a pointer can hover without pressing. A phone has no such state,
+   and one it cannot leave is worse than none. */
+@media (hover: hover) {
+  .schreibstube-explorer .schreibstube-explorer-section-header:hover {
+    color: var(--text-normal);
+  }
+}
+
+/* A header that hides nothing is a label: it does not offer a pointer a press
+   it will not answer. */
+.schreibstube-explorer .schreibstube-explorer-section-header.is-clickable {
+  cursor: pointer;
+}
+
+/* The chevron is the control on the band, so it is the one thing on it that
+   takes focus — visibly, and in the shape it already has. */
+.schreibstube-explorer
+  .schreibstube-explorer-section-header
+  .schreibstube-explorer-twisty:focus-visible {
+  outline: 1px solid var(--background-modifier-border-focus, var(--text-faint));
+  outline-offset: 1px;
+  border-radius: 2px;
+}
+
+.schreibstube-explorer-section-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The one control over the whole tree, at the far end of its header: past the
+   rule the header draws, where it is clear of the label and lines up with the
+   menu buttons on the rows below it. The order puts it after that rule, which
+   is a pseudo-element and therefore otherwise last.
+
+   It fills the header's height so a finger has something to hit — the glyph
+   inside it is the size of a row's chevron, and no bigger. */
+.schreibstube-explorer .schreibstube-explorer-section-action {
+  order: 1;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  margin-right: calc(-1 * var(--schreibstube-row-inset) / 2);
+  /* The tone a row's own chevron carries, not the fainter one a header's label
+     has: it is an icon standing alone at the end of a band, with nothing beside
+     it to be read against. */
+  color: var(--text-muted);
+  font-size: var(--schreibstube-glyph-size);
+  /* The header spaces its label out as small capitals; one glyph wants neither,
+     and inherited letter-spacing would push it off its own centre. */
+  letter-spacing: normal;
+  line-height: 1;
+  background: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Whichever of the two drew it: the bundled glyph is text, Obsidian's is an
+   svg, and the box is sized for the icon either way. */
+.schreibstube-explorer .schreibstube-explorer-section-action svg {
+  width: var(--schreibstube-glyph-size);
+  height: var(--schreibstube-glyph-size);
+}
+
+/* Never a fill, in any state. A chip of grey behind it reads as a button that
+   is somehow pressed, and on a phone it is one that cannot be un-pressed. The
+   icon darkens instead, and only where hovering is a thing that happens. */
+.schreibstube-explorer .schreibstube-explorer-section-action:hover,
+.schreibstube-explorer .schreibstube-explorer-section-action:focus,
+.schreibstube-explorer .schreibstube-explorer-section-action:focus-visible,
+.schreibstube-explorer .schreibstube-explorer-section-action:active {
+  background: none;
+}
+
+@media (hover: hover) {
+  .schreibstube-explorer .schreibstube-explorer-section-action:hover {
+    color: var(--text-normal);
+  }
+}
+
+/* Created / Modified inside Latest: a label, not a row, so it carries no
+   chevron slot and no icon. It starts where the icons under it start, rather
+   than at the row inset, so each label sits over the list it names. */
+.schreibstube-explorer-subheading {
+  padding: 9px var(--schreibstube-row-inset) 3px
+    calc(
+      var(--schreibstube-row-inset) + var(--schreibstube-twisty-size) + var(--schreibstube-row-gap)
+    );
+  color: var(--text-faint);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.schreibstube-explorer-row.is-revealed {
+  background: var(--text-selection);
+}
+
+/* The row under the pointer while it is being dragged. */
+.schreibstube-explorer-row.is-dragging {
+  opacity: 0.5;
+  cursor: grabbing;
+}
+
+/* Where it would land. A line on the edge it would join, rather than moving
+   every other row, so the list does not shuffle under the finger. */
+.schreibstube-explorer-row.is-drop-before {
+  box-shadow: inset 0 2px 0 var(--interactive-accent);
+}
+
+.schreibstube-explorer-row.is-drop-after {
+  box-shadow: inset 0 -2px 0 var(--interactive-accent);
+}
+
+/* A folder that would take the dragged row. Outlined rather than lined on one
+   edge, because the row is going inside it rather than next to it.
+
+   The header is named through the pane, because the pane is what states a
+   header's background for every state it can be in — and a pointer dragged
+   over this one holds it in :hover the whole way across. */
+.schreibstube-explorer-row.is-drop-into,
+.schreibstube-explorer .schreibstube-explorer-section-header.is-drop-into {
+  background: var(--nav-item-background-hover, var(--background-modifier-hover));
+  box-shadow: inset 0 0 0 1px var(--interactive-accent);
+  border-radius: var(--schreibstube-border-radius);
+}
+
+.schreibstube-explorer-empty {
+  padding: 4px var(--schreibstube-row-inset);
+  color: var(--text-faint);
+  font-size: var(--font-ui-smaller);
+}
+
+.schreibstube-explorer-row {
+  display: flex;
+  align-items: center;
+  gap: var(--schreibstube-row-gap);
+  /* A row is a control, not prose. Selecting its name is of no use, and a
+     selection dragged across the list is what the browser takes to be a drag of
+     its own — which cancels the pointer and with it the move being made. */
+  user-select: none;
+  -webkit-user-select: none;
+  height: var(--schreibstube-row-height);
+  padding-right: 8px;
+  padding-left: calc(
+    var(--schreibstube-row-inset) + var(--schreibstube-depth) * var(--schreibstube-row-step)
+  );
+  font-size: 13px;
+  color: var(--nav-item-color, var(--text-normal));
+  cursor: pointer;
+}
+
+.schreibstube-explorer-row:hover {
+  background: var(--nav-item-background-hover, var(--background-modifier-hover));
+}
+
+/* A file waiting in another tab. The same bar as the active row, faded, so the
+   two read as one scale rather than two signals: this is open, that is the one
+   you are looking at. The plain colour comes first for a renderer without
+   color-mix, which then simply gets a quieter accent. */
+.schreibstube-explorer-row.is-open {
+  box-shadow: inset 2.5px 0 0 var(--background-modifier-border-focus);
+  box-shadow: inset 2.5px 0 0 color-mix(in srgb, var(--interactive-accent) 38%, transparent);
+}
+
+/* Active carries a bar rather than only a tint, so it survives a theme whose
+   hover and active backgrounds are nearly the same colour. */
+.schreibstube-explorer-row.is-active {
+  background: var(--nav-item-background-active, var(--background-modifier-hover));
+  box-shadow: inset 2.5px 0 0 var(--interactive-accent);
+  color: var(--nav-item-color-active, var(--text-normal));
+  font-weight: var(--font-medium);
+}
+
+/* Always drawn, even with no chevron in it: the empty slot is what keeps the
+   icon column straight. */
+.schreibstube-explorer-twisty {
+  width: var(--schreibstube-twisty-size);
+  flex: 0 0 auto;
+  color: var(--nav-collapse-icon-color, var(--text-faint));
+  font-size: var(--schreibstube-twisty-size);
+}
+
+/* The glyph and the count share a box so the figure can sit on the corner of
+   the icon. The box takes the glyph's place in the row; the glyph inside it
+   keeps its own size and colour. */
+.schreibstube-explorer-glyph-box {
+  position: relative;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+}
+
+/* What a closed folder is holding, on the folder itself. Small, quiet and
+   never wider than a couple of digits — past ninety-nine it says 99+ rather
+   than growing into the name. */
+.schreibstube-explorer-count {
+  position: absolute;
+  /* A section header spaces its label out as small capitals, and the badge on
+     its icon inherits that: two digits drift apart and the one glyph in an
+     alert badge sits off its own centre. */
+  letter-spacing: normal;
+  text-transform: none;
+  right: -5px;
+  bottom: -4px;
+  min-width: 13px;
+  padding: 0 2px;
+  border-radius: 7px;
+  background: var(--background-modifier-border);
+  color: var(--text-muted);
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 13px;
+  text-align: center;
+  /* The row it sits on may be the one being dragged or filtered away; the
+     badge is part of the icon and goes with it. */
+  pointer-events: none;
+}
+
+.schreibstube-explorer-glyph {
+  flex: 0 0 auto;
+  font-size: var(--schreibstube-glyph-size);
+  color: var(--icon-color, var(--text-muted));
+}
+
+.schreibstube-explorer-row.is-folder .schreibstube-explorer-glyph {
+  color: var(--text-accent);
+}
+
+/* The same badge, saying something else: not how much is in there but that some
+   of it is new. It is a control, so it takes the pointer events the figure
+   refuses, and it is given a box worth aiming at — nine pixels of glyph is not
+   a target for a finger. */
+/* Something came in: a dot on the section's icon, in the colour the interface
+   speaks in. It is the corner a closed folder puts its count in, saying the one
+   thing a mark this size can say — the list under the header says which notes.
+
+   Pressable itself, so a keyboard can reach it, though a finger has the whole
+   band the header occupies. */
+.schreibstube-explorer-alert {
+  position: absolute;
+  right: -3px;
+  bottom: -2px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--interactive-accent);
+  /* Against the row it sits on, so the dot keeps its shape over a folder icon
+     rather than merging into whatever is behind it. */
+  box-shadow: 0 0 0 1.5px var(--schreibstube-ground, var(--background-secondary));
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.schreibstube-explorer-alert:focus-visible {
+  outline: 1px solid var(--background-modifier-border-focus, var(--text-faint));
+  outline-offset: 2px;
+}
+
+/* A row under the pointer paints its own background; the badge would otherwise
+   read as a hole in it. */
+.schreibstube-explorer-row:hover .schreibstube-explorer-count {
+  background: var(--background-modifier-border-hover, var(--background-modifier-border));
+}
+
+.schreibstube-explorer-name {
+  flex: 0 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Both sit just after the name's last character, not against the right edge:
+   they belong to the name, and a state never replaces another one. The negative
+   margin trims the row's shared gap down to a hair for these two. */
+.schreibstube-explorer-pin,
+.schreibstube-explorer-badge {
+  flex: 0 0 auto;
+  margin-left: calc(var(--schreibstube-glyph-gap) - var(--schreibstube-row-gap));
+  color: var(--text-faint);
+}
+
+.schreibstube-explorer-pin {
+  font-size: var(--schreibstube-pin-size);
+}
+
+.schreibstube-explorer-badge {
+  font-size: var(--schreibstube-badge-size);
+}
+
+/* Shape carries the state; colour only reinforces it. */
+.schreibstube-explorer-badge[data-sync="synced"] {
+  color: var(--interactive-accent);
+}
+
+.schreibstube-explorer-badge[data-sync="pending"] {
+  color: var(--text-accent);
+}
+
+.schreibstube-explorer-badge[data-sync="error"] {
+  color: var(--text-error);
+}
+
+.schreibstube-explorer .schreibstube-explorer-more {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Takes the slack the name gave up, so the button stays at the right edge. */
+  margin-left: auto;
+  height: 20px;
+  padding: 0 4px;
+  background-color: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  opacity: 0;
+}
+
+/* The trash stands free in the danger colour; the menu button is the neutral
+   chip. Neither deletes anything: the trash opens the confirmation. */
+.schreibstube-explorer .schreibstube-explorer-row:hover .schreibstube-explorer-more,
+.schreibstube-explorer .schreibstube-explorer-more:focus-visible {
+  opacity: 1;
+}
+
+/* A phone has no hover, so the button is simply always there. */
+.is-mobile .schreibstube-explorer-more {
+  opacity: 1;
+}
+
+/* The "Move to…" list: a glyph and the folder's path on one line. */
+.schreibstube-folder-suggestion {
+  display: flex;
+  align-items: center;
+  gap: var(--schreibstube-row-gap);
+}
+
+.schreibstube-icon-picker .schreibstube-icon-search,
+.schreibstube-prompt-input {
+  width: 100%;
+  margin-bottom: 8px;
+}
+
+.schreibstube-icon-groups {
+  max-height: 45vh;
+  overflow-y: auto;
+}
+
+.schreibstube-icon-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(38px, 1fr));
+  gap: 4px;
+}
+
+.schreibstube-icon-choice {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 38px;
+  padding: 0;
+  font-size: 20px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--schreibstube-border-radius);
+  cursor: var(--cursor);
+}
+
+.schreibstube-icon-choice.is-current {
+  border-color: var(--interactive-accent);
+  color: var(--text-accent);
+}
+
+.schreibstube-prompt-desc {
+  color: var(--text-muted);
+}
+
+.schreibstube-prompt-error {
+  color: var(--text-error);
+}
+
+.schreibstube-bookmark-suggestion {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.schreibstube-bookmark-suggestion-text {
+  min-width: 0;
+}
+
+.schreibstube-bookmark-suggestion-path {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The command index under a settings section: a list, read at a glance, at the
+   size of the description it belongs to rather than of body text. */
+.schreibstube-command-list {
+  margin: 4px 0 0;
+  padding-left: 18px;
+}
+
+.schreibstube-command-list li {
+  margin: 0;
+}
+
+/* --- Printing ---------------------------------------------------------- */
+
+/*
+ * Where a diagram is drawn so it can be captured.
+ *
+ * Off-screen rather than hidden: `display: none` measures as nothing, and a
+ * diagram that measured as nothing captures as nothing. The light theme is
+ * forced by the class the container carries, because paper is white whatever
+ * the vault is set to.
+ */
+.schreibstube-print-stage {
+  position: fixed;
+  left: -10000px;
+  top: 0;
+  width: 900px;
+  z-index: -1;
+  background: #ffffff;
+  color: #000000;
+  pointer-events: none;
+}
+
+/* The folder under a template's name in the picker, so two templates called
+   the same thing in different folders can be told apart. */
+.schreibstube-print-folder {
+  display: block;
+  color: var(--text-muted);
+  font-size: var(--font-smallest);
 }
