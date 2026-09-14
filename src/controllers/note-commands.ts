@@ -1,19 +1,21 @@
-import { type App, MarkdownView, Notice } from "obsidian";
+import { type App, MarkdownView, Notice, Platform, type WorkspaceLeaf } from "obsidian";
 import { t } from "../i18n";
 import type { Logger } from "../services/logger";
 import { newNotePath } from "../services/new-note";
 
 /**
- * A blank note, and nothing else on screen.
+ * A blank note in a window of its own, in front of everything.
  *
- * Starting to write took three moves: make the note, open it, close the two
- * sidebars that crowd a writing session. This is the one command that does
- * all of them. The note is named and placed the way Obsidian's own new-note
- * command does it, so nothing about the vault changes; only the screen does.
+ * Starting to write took three moves: make the note, open it, get the rest
+ * of the workspace out of the way. This is the one command that does all of
+ * them. The note is named and placed the way Obsidian's own new-note command
+ * does it, so nothing about the vault changes; only what is on screen does.
  *
- * It opens a tab in the main window rather than a pop-out: a pop-out has no
- * sidebars to hide, does not exist on a phone, and is a different way of
- * working than "this note, full width, now".
+ * The note opens in a new window, whatever windows and tabs are already
+ * there, and that window takes the focus. A pop-out has no sidebars, so the
+ * screen holds the note and nothing else. A phone has no windows at all;
+ * there the note opens in a new tab and both drawers close, which is the
+ * nearest thing to the same experience.
  */
 export class NoteCommands {
   constructor(
@@ -45,14 +47,32 @@ export class NoteCommands {
       return;
     }
 
-    const leaf = this.app.workspace.getLeaf("tab");
+    const leaf = Platform.isDesktopApp
+      ? this.app.workspace.openPopoutLeaf()
+      : this.app.workspace.getLeaf("tab");
     await leaf.openFile(file);
 
-    // After the open, so nothing about opening can reveal a sidebar again.
-    this.app.workspace.leftSplit.collapse();
-    this.app.workspace.rightSplit.collapse();
+    if (!Platform.isDesktopApp) {
+      // After the open, so nothing about opening can reveal a drawer again.
+      this.app.workspace.leftSplit.collapse();
+      this.app.workspace.rightSplit.collapse();
+    }
 
-    // Last, so nothing after it takes the focus back.
+    // The window first, then the leaf in it, then the editor: each is
+    // needed for the next to mean anything, and the last one is what puts
+    // the cursor where the typing goes.
+    bringWindowToFront(leaf);
+    this.app.workspace.setActiveLeaf(leaf, { focus: true });
     if (leaf.view instanceof MarkdownView) leaf.view.editor.focus();
   }
+}
+
+/**
+ * A pop-out leaf lives in a `WorkspaceWindow`, whose `win` is the browser
+ * window itself. The main window's container has no `win`, and a phone has
+ * neither; both are left alone.
+ */
+function bringWindowToFront(leaf: WorkspaceLeaf): void {
+  const container = leaf.getContainer() as { win?: { focus?: () => void } };
+  if (typeof container.win?.focus === "function") container.win.focus();
 }

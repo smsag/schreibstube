@@ -15,7 +15,7 @@ export const en = {
     focusSentence: "Focus: sentence",
     focusParagraph: "Focus: paragraph",
     focusDisable: "Focus: off",
-    newNote: "Focus: new note, sidebars away",
+    newNote: "Focus: new note in its own window",
     insertTaskSummary: "Tasks: insert the summary ribbon",
     sendToReminders: "Tasks: send to Erinnerungen",
     checkNoteReminders: "Tasks: check this note against Erinnerungen",
