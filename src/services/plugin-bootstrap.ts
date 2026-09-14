@@ -2,6 +2,8 @@ import type { Plugin } from "obsidian";
 import { createEditorExtension } from "../processors/editor-extension";
 import { createReadingPostProcessor } from "../processors/markdown-processor";
 import { createTaskBadgeExtension } from "../processors/task-badges";
+import { createTaskFoldExtension } from "../processors/task-fold";
+import { createTaskFoldPostProcessor } from "../processors/task-fold-reading";
 import { registerTaskRibbon } from "../processors/task-ribbon";
 import type { SchreibstubeSettings } from "../types";
 
@@ -23,6 +25,8 @@ export function bootstrapSchreibstubeRuntime(plugin: Plugin, handlers: Bootstrap
   );
 
   plugin.registerEditorExtension(createTaskBadgeExtension());
+  plugin.registerEditorExtension(createTaskFoldExtension());
+  plugin.registerMarkdownPostProcessor(createTaskFoldPostProcessor());
   registerTaskRibbon(plugin);
 
   plugin.registerMarkdownPostProcessor(

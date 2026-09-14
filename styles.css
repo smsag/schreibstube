@@ -101,6 +101,11 @@
   pointer-events: none;
 }
 
+/* A ticked task's body in Reading view, where there is no fold to hide it. */
+.schreibstube-task-body {
+  display: none;
+}
+
 /* Task summary: the ribbon rendered by the ```schreibstube-tasks``` block. */
 .schreibstube-task-ribbon {
   font-family: var(--font-text);
