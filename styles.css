@@ -1135,3 +1135,190 @@ a.external-link.schreibstube-reminder-mark {
   color: var(--text-muted);
   font-size: var(--font-smallest);
 }
+
+/* ══ Image slideshow (```schreibstube-slideshow```) ══════════════════════════
+   Two or more images shown one at a time, with a caption row, prev/next
+   controls and a fullscreen overlay. */
+.schreibstube-slideshow {
+  margin: 1rem 0;
+  outline: none;
+}
+
+.schreibstube-slideshow:focus-visible {
+  outline: 2px solid var(--interactive-accent);
+  outline-offset: 4px;
+  border-radius: var(--radius-m);
+}
+
+.schreibstube-slideshow-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.schreibstube-slideshow-caption {
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.schreibstube-slideshow-actions {
+  display: flex;
+  gap: 0.25rem;
+  flex-shrink: 0;
+}
+
+.schreibstube-slideshow-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  padding: 0.25rem;
+  cursor: pointer;
+  color: var(--text-muted);
+  border-radius: var(--radius-s);
+}
+
+.schreibstube-slideshow-btn:hover {
+  color: var(--text-normal);
+  background: var(--background-modifier-hover);
+}
+
+.schreibstube-slideshow-track {
+  position: relative;
+  width: 100%;
+  /* aspect-ratio is set once via JS after preloading every image, locking the
+     height to the tallest so text below does not jump as images arrive. */
+}
+
+.schreibstube-slideshow-slide {
+  display: none;
+  position: absolute;
+  inset: 0;
+  align-items: center;
+  justify-content: center;
+}
+
+.schreibstube-slideshow-slide-active {
+  display: flex;
+  animation: schreibstube-slideshow-fade 0.2s ease;
+}
+
+@keyframes schreibstube-slideshow-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.schreibstube-slideshow-slide img {
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  display: block;
+  border-radius: var(--radius-s);
+  object-fit: contain;
+}
+
+.schreibstube-slideshow-error {
+  color: var(--text-error);
+  font-size: var(--font-ui-small);
+  padding: 0.5rem 0;
+}
+
+/* ── Fullscreen overlay ── */
+.schreibstube-slideshow-fs {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(0, 0, 0, 0.92);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3.5rem 4rem;
+}
+
+.schreibstube-slideshow-fs-img {
+  max-width: 90vw;
+  max-height: 85vh;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  border-radius: var(--radius-m);
+  display: block;
+  user-select: none;
+}
+
+.schreibstube-slideshow-fs-caption {
+  position: absolute;
+  bottom: 2rem;
+  left: 50%;
+  transform: translateX(-50%);
+  color: rgba(255, 255, 255, 0.75);
+  font-size: var(--font-ui-small);
+  text-align: center;
+  max-width: 60vw;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+
+.schreibstube-slideshow-fs-counter {
+  position: absolute;
+  top: 1.25rem;
+  left: 50%;
+  transform: translateX(-50%);
+  color: rgba(255, 255, 255, 0.55);
+  font-size: var(--font-ui-small);
+  pointer-events: none;
+}
+
+.schreibstube-slideshow-fs-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 2.5rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 1rem;
+  user-select: none;
+  transition: color 0.1s ease;
+}
+
+.schreibstube-slideshow-fs-nav:hover {
+  color: #fff;
+}
+
+.schreibstube-slideshow-fs-nav--prev {
+  left: 0.5rem;
+}
+
+.schreibstube-slideshow-fs-nav--next {
+  right: 0.5rem;
+}
+
+.schreibstube-slideshow-fs-close {
+  position: absolute;
+  top: 1rem;
+  right: 1.25rem;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 1.75rem;
+  line-height: 1;
+  cursor: pointer;
+  user-select: none;
+  transition: color 0.1s ease;
+}
+
+.schreibstube-slideshow-fs-close:hover {
+  color: #fff;
+}

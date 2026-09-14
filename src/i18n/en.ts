@@ -17,6 +17,7 @@ export const en = {
     focusDisable: "Focus: off",
     newNote: "Focus: new note in its own window",
     insertTaskSummary: "Tasks: insert the summary ribbon",
+    insertSlideshow: "Slideshow: insert an image slideshow",
     sendToReminders: "Tasks: send to Erinnerungen",
     checkNoteReminders: "Tasks: check this note against Erinnerungen",
     fetchReminders: "Tasks: fetch done tasks from Erinnerungen",
@@ -79,6 +80,21 @@ export const en = {
     checking: "asking Erinnerungen…",
     nothingDone: "Erinnerungen reports nothing new as done.",
     ticked: (count: number) => `${count} task(s) ticked as done in Erinnerungen.`
+  },
+
+  slideshow: {
+    /** Shown in place of the block when its text does not parse. */
+    tooFew: (min: number) => `a slideshow needs at least ${min} images.`,
+    tooMany: (max: number) => `a slideshow holds at most ${max} images.`,
+    notImage: (line: number, text: string) =>
+      `line ${line}: expected an image "![alt](path)" — got "${text}"`,
+    emptyPath: (line: number) => `line ${line}: the image path is empty.`,
+    /** The region's accessible name and the control labels. */
+    region: (n: number) => `Slideshow, ${n} images`,
+    previous: "Previous image",
+    next: "Next image",
+    fullscreen: "Present fullscreen",
+    exit: "Exit presentation"
   },
 
   notes: {

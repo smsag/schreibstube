@@ -6,6 +6,8 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- **An image slideshow you can drop into a note.** Write a ` ```schreibstube-slideshow ` block with one Markdown image per line (`![caption](path.png)`), at least two, and the note shows them one at a time with a caption, prev/next buttons, arrow keys, swipe on mobile, and a fullscreen view (the expand button, dismissed with ✕, Escape, or a swipe). Blank lines and `//` comments inside the block are ignored. **Slideshow: insert an image slideshow** in the command palette drops an empty block at the cursor. Moved here from Vizardry, where it was the `type: carousel` canvas.
+
 - **A note's task count in the file pane.** With **Task counts** on under Settings → Schreibstube → Schreibstube Explorer, a note that holds tasks shows `1 / 7` after its name — open over total — at the row's right edge, in the tree, on the pinned strip and in the latest lists. A note without tasks shows nothing. Read from Obsidian's metadata, so a thousand rows cost no file reads. Off until switched on.
 
 ### Changed
