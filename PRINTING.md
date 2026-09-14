@@ -270,8 +270,9 @@ that something arrived.
 
 The pictures replace the fence through the template's own diagram rule, which
 is given all of them at once: each full text width, aspect kept, none split
-across a page, and one caption from the heading above the fence, placed under
-the last picture and inside the same unbreakable block so a page break cannot
+across a page, and one caption placed under
+the last picture — the heading above the fence, or failing that what the plugin
+calls the drawing and inside the same unbreakable block so a page break cannot
 separate them.
 
 ## Output

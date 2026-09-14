@@ -45,6 +45,7 @@ import {
   canvasExportApi,
   checkExportResult,
   exportErrorCode,
+  isElementLike,
   noEnrichClass,
   type CanvasExportApi
 } from "../services/workspace-internals";
@@ -73,6 +74,8 @@ interface Capture {
   pictures: Uint8Array[];
   /** How many drawings the fence had, whether or not each was captured. */
   expected: number;
+  /** What the plugin calls the drawing, for a fence with no heading over it. */
+  title: string;
 }
 
 /** How long a drawing may go on settling before it is captured as it stands. */
@@ -279,6 +282,7 @@ export class PrintCommands {
     const found = markdownToTypst(source, { hrIsPageBreak: template.hrIsPageBreak }).diagrams;
 
     const drawings = new Map<number, string[]>();
+    const titles = new Map<number, string>();
     const assets = new Map<string, JobFile>();
 
     // Warnings raised while drawing, kept beside the converter's own so that a
@@ -303,6 +307,7 @@ export class PrintCommands {
         return path;
       });
       drawings.set(block.index, paths);
+      if (drawn.title !== "") titles.set(block.index, drawn.title);
     }
 
     // The second pass writes the body, knowing which drawings exist. The
@@ -312,6 +317,7 @@ export class PrintCommands {
     const conversion: Conversion = markdownToTypst(source, {
       hrIsPageBreak: template.hrIsPageBreak,
       diagramImage: (block) => drawings.get(block.index) ?? null,
+      diagramTitle: (block) => titles.get(block.index) ?? null,
       image: ({ source: link }) => {
         const target = this.app.metadataCache.getFirstLinkpathDest(link, file.path);
         if (!target || getImageMimeType(target.extension) === null) return null;
@@ -334,6 +340,7 @@ export class PrintCommands {
       const usable = markdownToTypst(source, {
         hrIsPageBreak: template.hrIsPageBreak,
         diagramImage: (block) => drawings.get(block.index) ?? null,
+        diagramTitle: (block) => titles.get(block.index) ?? null,
         image: ({ source: link }) => {
           const target = this.app.metadataCache.getFirstLinkpathDest(link, file.path);
           if (!target) return null;
@@ -389,19 +396,21 @@ export class PrintCommands {
       // guess.
       const exported = api
         ? await this.exportThroughPlugin(pluginId, api, host)
-        : { pictures: [], expected: 0 };
+        : { pictures: [], expected: 0, title: "" };
       if (exported.expected > 0) return exported;
 
       const svg = host.querySelector("svg");
       if (!svg) {
         this.logger.warn(`print: ${block.language} drew nothing to capture`);
-        return { pictures: [], expected: 0 };
+        return { pictures: [], expected: 0, title: "" };
       }
       const picture = await rasterise(svg);
-      return picture ? { pictures: [picture], expected: 1 } : { pictures: [], expected: 1 };
+      return picture
+        ? { pictures: [picture], expected: 1, title: "" }
+        : { pictures: [], expected: 1, title: "" };
     } catch (error) {
       this.logger.warn(`print: ${block.language} could not be drawn`, error);
-      return { pictures: [], expected: 0 };
+      return { pictures: [], expected: 0, title: "" };
     } finally {
       component.unload();
       host.detach();
@@ -433,15 +442,18 @@ export class PrintCommands {
       // and past the fallback that captures the drawing from the document.
       if (!Array.isArray(answer)) {
         this.logger.warn(`print: ${pluginId} did not answer with a list of canvases`);
-        return { pictures: [], expected: 0 };
+        return { pictures: [], expected: 0, title: "" };
       }
-      canvases = answer.filter((entry): entry is HTMLElement => entry instanceof HTMLElement);
+      canvases = answer.filter(isElementLike);
     } catch (error) {
       this.logger.warn(`print: ${pluginId} could not list its canvases`, error);
-      return { pictures: [], expected: 0 };
+      return { pictures: [], expected: 0, title: "" };
     }
 
     const pictures: Uint8Array[] = [];
+    // The first drawing that names itself names the fence. A carousel's panels
+    // are one figure on the page, so one caption is what there is room for.
+    let title = "";
     for (const canvas of canvases) {
       try {
         // The plugin knows when its drawing has stopped moving; this only says
@@ -485,6 +497,7 @@ export class PrintCommands {
           );
           continue;
         }
+        if (title === "") title = result.title;
         pictures.push(new Uint8Array(await result.blob.arrayBuffer()));
       } catch (error) {
         this.logger.warn(
@@ -493,7 +506,7 @@ export class PrintCommands {
         );
       }
     }
-    return { pictures, expected: canvases.length };
+    return { pictures, expected: canvases.length, title };
   }
 
   private async picture(file: TFile, template: PrintTemplate): Promise<Uint8Array | null> {

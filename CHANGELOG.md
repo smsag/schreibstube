@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Changed
+
+- **A diagram with no heading over it can be captioned by the drawing itself.** A canvas usually has a title, and a fence with no heading above it had nothing under the picture. The note still wins: a heading is what the person writing chose to call it, in the words of the document; the drawing's own name is better than nothing and worse than that. Neither, and the picture stands unlabelled rather than carrying a caption nobody wrote.
+- **A canvas from a pop-out window is no longer refused.** Obsidian can put a note in a window of its own, and an element from there fails `instanceof` against the main window while being a perfectly good element. The check now asks what it can do rather than which document made it, matching the plugin on the other side of the contract.
+
 ## 1.25.0 - 2026-09-13
 
 Mobile checklist: steps 1 to 7 confirmed on a phone for 1.24.0 and untouched

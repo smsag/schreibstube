@@ -218,6 +218,21 @@ export function canvasExportApi(app: App, pluginId: string): CanvasExportApi | n
 }
 
 /**
+ * Whether this is an element, without asking which window it came from.
+ *
+ * `instanceof HTMLElement` compares against the constructor of one document,
+ * and Obsidian can put a note in a window of its own. An element from there is
+ * a perfectly good element that fails that test, so the test is what it can do
+ * rather than which realm made it — the same reason the plugin on the other
+ * side of this contract stopped using `instanceof` for the argument it takes.
+ */
+export function isElementLike(value: unknown): value is HTMLElement {
+  if (typeof value !== "object" || value === null) return false;
+  const node = value as { nodeType?: unknown; classList?: unknown };
+  return node.nodeType === 1 && typeof node.classList === "object" && node.classList !== null;
+}
+
+/**
  * The class to render under, preferring the plugin's own name for it.
  *
  * Checked before it is used like anything else from outside: the value goes
