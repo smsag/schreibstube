@@ -1,6 +1,6 @@
 # Schreibstube
 
-A writing-focused Obsidian plugin: a proof-read review sidebar with glossary support, document sync from remote Markdown sources, email send/query/merge over IMAP and SMTP, a sticky heading-stack overlay, a distraction-reducing focus mode, LLM-powered file renaming, and side-pane link opening.
+A writing-focused Obsidian plugin: a proof-read review sidebar with glossary support, document sync from remote Markdown sources, email send/query/merge over IMAP and SMTP, a sticky heading-stack overlay, a distraction-reducing focus mode, a task summary ribbon with per-heading counts, LLM-powered file renaming, and side-pane link opening.
 
 ## Features
 
@@ -433,6 +433,17 @@ Control where internal links open, indicated in the status bar:
 
 - **Open links to the left** / **Open links to the right** — open links in a reused side split pane
 - **Open links normally** — restore default link behaviour
+
+### Task summary
+
+Turns a long note with checkboxes into a progress view without any extra state in the tasks themselves.
+
+- **Tasks: insert the summary ribbon** — inserts a ` ```schreibstube-tasks ` block at the cursor. The block renders as a one-line ribbon, e.g. **20** open of **21**, counting every task in the note.
+- While the note contains the ribbon block, every heading that owns tasks shows a muted badge such as `3 of 3 open`. A heading counts only the tasks directly beneath it, up to the next heading of any level; tasks under a sub-heading belong to that sub-heading.
+- Ribbon and badges update as soon as a checkbox is toggled. Badges stay visible when a heading is folded.
+- `[ ]` is open; any other marker (`[x]`, `[-]`, `[~]`, …) counts as done. Tasks inside fenced code blocks are ignored.
+
+The badges appear in Live Preview and Source mode. The ribbon also renders in Reading view.
 
 ### Commands
 

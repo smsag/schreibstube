@@ -115,6 +115,9 @@ export class SecretComponent {
 
 export class MarkdownView {}
 export class ItemView {}
+export class MarkdownRenderChild {
+  constructor(public containerEl: unknown) {}
+}
 
 export class Plugin {
   constructor(

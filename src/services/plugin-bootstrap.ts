@@ -1,6 +1,8 @@
 import type { Plugin } from "obsidian";
 import { createEditorExtension } from "../processors/editor-extension";
 import { createReadingPostProcessor } from "../processors/markdown-processor";
+import { createTaskBadgeExtension } from "../processors/task-badges";
+import { registerTaskRibbon } from "../processors/task-ribbon";
 import type { SchreibstubeSettings } from "../types";
 
 export interface BootstrapHandlers {
@@ -19,6 +21,9 @@ export function bootstrapSchreibstubeRuntime(plugin: Plugin, handlers: Bootstrap
       getSettings: handlers.getSettings
     })
   );
+
+  plugin.registerEditorExtension(createTaskBadgeExtension());
+  registerTaskRibbon(plugin);
 
   plugin.registerMarkdownPostProcessor(
     createReadingPostProcessor(({ viewportTopLine, scrollTop }) => {

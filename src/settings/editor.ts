@@ -39,6 +39,7 @@ export function renderEditor(ctx: SettingsContext): void {
     t().commands.focusSentence,
     t().commands.focusParagraph,
     t().commands.focusDisable,
+    t().commands.insertTaskSummary,
     t().commands.linksLeft,
     t().commands.linksRight,
     t().commands.linksNormal

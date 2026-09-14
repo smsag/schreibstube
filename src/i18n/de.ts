@@ -13,6 +13,7 @@ export const de: Messages = {
     focusSentence: "Fokus: Satz",
     focusParagraph: "Fokus: Absatz",
     focusDisable: "Fokus: aus",
+    insertTaskSummary: "Aufgaben: Zusammenfassung einfügen",
     renameFile: "KI: Notiz aus ihrem Text benennen",
     renameImage: "KI: Bild aus dem Bild benennen",
     summarize: "KI: Auswahl zusammenfassen",
@@ -46,6 +47,13 @@ export const de: Messages = {
     notice: (message: string) => `Schreibstube: ${message}`,
     sidebarMissing: (pane: string) =>
       `keine Seitenleiste für ${pane} verfügbar. Seitenleiste einblenden und den Befehl erneut ausführen.`
+  },
+
+  tasks: {
+    alreadyPresent: "diese Notiz hat schon eine Aufgaben-Zusammenfassung.",
+    none: "Keine Aufgaben",
+    ribbon: (open: number, total: number) => `${open} offen von ${total}`,
+    badge: (open: number, total: number) => `${open} von ${total} offen`
   },
 
   publish: {

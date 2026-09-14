@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Added
+
+- **A note with checkboxes can carry a progress line.** **Tasks: insert the summary ribbon** puts a ```` ```schreibstube-tasks ```` block wherever the cursor is, and the block renders as one line — "20 open of 21" — counting every task in the note. It updates the moment a checkbox is toggled, in Live Preview and in Reading view, and it reads the editor's buffer rather than the saved file so an unsaved tick counts too.
+- **While the ribbon is there, every heading says how much is left beneath it.** A muted "3 of 3 open" after the heading, in the theme's body font and small, counting only the tasks directly under it up to the next heading of any level: a sub-heading's tasks are the sub-heading's. The badge is painted as an attribute on the heading's line rather than as a widget, which is what keeps it visible when the heading is folded. Only `[ ]` counts as open; every other marker counts as done, and a task inside a code fence is not a task.
+
 ### Changed
 
 - **A diagram with no heading over it can be captioned by the drawing itself.** A canvas usually has a title, and a fence with no heading above it had nothing under the picture. The note still wins: a heading is what the person writing chose to call it, in the words of the document; the drawing's own name is better than nothing and worse than that. Neither, and the picture stands unlabelled rather than carrying a caption nobody wrote.

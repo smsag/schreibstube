@@ -1,4 +1,5 @@
 import {
+  type Editor,
   MarkdownView,
   Notice,
   Plugin,
@@ -18,6 +19,7 @@ import { RefreshScheduler, type RefreshOptions } from "./services/refresh-schedu
 import { OverlayCoordinator } from "./services/overlay-coordinator";
 import { bootstrapSchreibstubeRuntime } from "./services/plugin-bootstrap";
 import { DEFAULT_SETTINGS, normalizeSettings } from "./services/plugin-settings";
+import { buildTaskSummaryInsertion, hasTaskSummaryBlock } from "./services/task-summary";
 import { createLogger, type Logger } from "./services/logger";
 import {
   commandAvailable,
@@ -626,6 +628,14 @@ export default class SchreibstubePlugin extends Plugin {
       }
     });
 
+    this.addCommand({
+      id: "insert-task-summary",
+      name: t().commands.insertTaskSummary,
+      editorCallback: (editor) => {
+        this.insertTaskSummary(editor);
+      }
+    });
+
     this.addGatedCommand("rename-from-content", t().commands.renameFile, "rename-note", () => {
       void this.llm?.renameFromContent();
     });
@@ -799,6 +809,27 @@ export default class SchreibstubePlugin extends Plugin {
         this.linkMode?.setMode("default");
       }
     });
+  }
+
+  /**
+   * One ribbon per note. A second block would count the same tasks twice on
+   * screen, so the command says so rather than adding it.
+   */
+  private insertTaskSummary(editor: Editor): void {
+    if (hasTaskSummaryBlock(editor.getValue())) {
+      new Notice(t().common.notice(t().tasks.alreadyPresent));
+      return;
+    }
+
+    const cursor = editor.getCursor();
+    const line = editor.getLine(cursor.line);
+    const insertion = buildTaskSummaryInsertion(line.slice(0, cursor.ch), line.slice(cursor.ch));
+    editor.replaceRange(insertion, cursor);
+
+    // Below the block, on the line the writer was heading for anyway; inside
+    // it the cursor would show the raw fence instead of the ribbon.
+    const insertedLines = insertion.split("\n").length - 1;
+    editor.setCursor({ line: cursor.line + insertedLines, ch: 0 });
   }
 
   private async setFocusMode(mode: FocusMode): Promise<void> {

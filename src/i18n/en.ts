@@ -15,6 +15,7 @@ export const en = {
     focusSentence: "Focus: sentence",
     focusParagraph: "Focus: paragraph",
     focusDisable: "Focus: off",
+    insertTaskSummary: "Tasks: insert the summary ribbon",
     renameFile: "AI: rename note from its text",
     renameImage: "AI: rename image from the picture",
     summarize: "AI: summarize the selection",
@@ -50,6 +51,16 @@ export const en = {
      *  gone from the workspace. Saying so beats a command that does nothing. */
     sidebarMissing: (pane: string) =>
       `no sidebar is available for ${pane}. Show the sidebar and run the command again.`
+  },
+
+  tasks: {
+    alreadyPresent: "this note already has a task summary ribbon.",
+    none: "No tasks",
+    /** The ribbon's one line. Digits are emphasised by the renderer, so the
+     *  numbers have to appear as plain digits here. */
+    ribbon: (open: number, total: number) => `${open} open of ${total}`,
+    /** The badge after a heading. */
+    badge: (open: number, total: number) => `${open} of ${total} open`
   },
 
   publish: {
