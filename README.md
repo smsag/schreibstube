@@ -459,7 +459,13 @@ Obsidian cannot talk to Reminders directly, so the work is done by a Shortcut yo
 
 The plugin sends one JSON object: `title`, `notes`, `list`, `link` and `note` (the note's title). `notes` already holds the body, a line `↩ Note title`, and the link, so the simplest Shortcut needs only `title` and `notes`.
 
-The link is `obsidian://schreibstube?task=<id>`, where the id is a block id the command appends to the task line, as Obsidian does for block links. Following the link from the reminder opens the vault, the note and the task, however the note has been renamed or moved since. The task line keeps its `^id` suffix; remove it and the link stops working.
+The link is `obsidian://schreibstube?task=<id>`. The command writes the same link onto the task line, as a Markdown link at its end:
+
+```markdown
+- [ ] Bank anrufen #geld [⏰](obsidian://schreibstube?task=ab12cd)
+```
+
+In Obsidian that link shows as a small Reminders-style mark after the task, in Live Preview and in Reading view; put the cursor on the line and the source is there as usual. Anywhere else the clock stands in. Following the link from the reminder opens the vault, the note and the task's line, however the note has been renamed or moved since, because the plugin looks for the line that carries the same link. Delete the link from the line and the reminder can no longer find its way back.
 
 What does not carry over: Reminders' own tags. There is no way to set one from outside, so `#tag` stays as text in the title, visible and searchable but not coloured. Editing a reminder after it is created, and completing the task from the reminder, are not part of this.
 

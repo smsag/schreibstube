@@ -56,6 +56,7 @@ export const de: Messages = {
     ribbon: (open: number, total: number) => `${open} offen von ${total}`,
     badge: (open: number, total: number) => `${open} von ${total} offen`,
     menuSend: "An Erinnerungen senden",
+    markTooltip: "An Erinnerungen gesendet",
     remindersOff:
       "Senden an Erinnerungen ist aus. Einschalten unter Einstellungen → Schreibstube → Erinnerungen.",
     noShortcut:

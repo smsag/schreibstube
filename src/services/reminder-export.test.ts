@@ -2,46 +2,73 @@ import { describe, expect, it } from "vitest";
 import {
   MAX_REMINDER_NOTES_CHARS,
   MAX_REMINDER_TITLE_CHARS,
-  blockIdOf,
   buildReminder,
-  generateBlockId,
+  findTaskLine,
+  generateTaskId,
   isTaskLine,
+  reminderIdOf,
+  reminderLinkSpan,
   shortcutUrl,
   taskBody,
   taskIdFromParams,
+  taskIdInUse,
   taskLink,
   taskTitle,
-  withBlockId
+  withReminderLink
 } from "./reminder-export";
 
-describe("block ids", () => {
-  it("reads an id off the end of a line and nothing else", () => {
-    expect(blockIdOf("- [ ] task ^ab12cd")).toBe("ab12cd");
-    expect(blockIdOf("- [ ] task ^ab12cd  ")).toBe("ab12cd");
-    expect(blockIdOf("- [ ] task")).toBeNull();
-    expect(blockIdOf("- [ ] a^b")).toBeNull();
+const LINK = "[⏰](obsidian://schreibstube?task=ab12cd)";
+
+describe("the reminder link on a task line", () => {
+  it("reads the id off a link at the end of the line and nowhere else", () => {
+    expect(reminderIdOf(`- [ ] task ${LINK}`)).toBe("ab12cd");
+    expect(reminderIdOf(`- [ ] task ${LINK}  `)).toBe("ab12cd");
+    expect(reminderIdOf(`- [ ] ${LINK} task`)).toBeNull();
+    expect(reminderIdOf("- [ ] task [x](https://example.com)")).toBeNull();
+    expect(reminderIdOf("- [ ] task")).toBeNull();
   });
 
-  it("appends an id, or replaces the one already there", () => {
-    expect(withBlockId("- [ ] task", "ab12cd")).toBe("- [ ] task ^ab12cd");
-    expect(withBlockId("- [ ] task   ", "ab12cd")).toBe("- [ ] task ^ab12cd");
-    expect(withBlockId("- [ ] task ^old", "new")).toBe("- [ ] task ^new");
+  it("appends the link, or replaces the one already there", () => {
+    expect(withReminderLink("- [ ] task", "ab12cd")).toBe(`- [ ] task ${LINK}`);
+    expect(withReminderLink("- [ ] task   ", "ab12cd")).toBe(`- [ ] task ${LINK}`);
+    expect(withReminderLink(`- [ ] task ${LINK}`, "zz99zz")).toBe(
+      "- [ ] task [⏰](obsidian://schreibstube?task=zz99zz)"
+    );
+  });
+
+  it("locates the link for a renderer, without the space before it", () => {
+    const line = `- [ ] task ${LINK}`;
+    const span = reminderLinkSpan(line);
+    expect(span).toEqual({ from: 11, to: line.length, id: "ab12cd" });
+    expect(line.slice(span!.from, span!.to)).toBe(LINK);
+    expect(reminderLinkSpan("- [ ] task")).toBeNull();
+  });
+
+  it("finds the line that carries an id, in the whole note", () => {
+    const content = ["# H", "- [ ] one", `- [ ] two ${LINK}`, "- [x] three"].join("\n");
+    expect(findTaskLine(content, "ab12cd")).toBe(2);
+    expect(findTaskLine(content, "nope00")).toBeNull();
+    expect(taskIdInUse(content, "ab12cd")).toBe(true);
+    expect(taskIdInUse(content, "ab12c")).toBe(false);
   });
 
   it("generates six lowercase alphanumerics from the random source it is given", () => {
-    expect(generateBlockId(() => 0)).toBe("aaaaaa");
-    expect(generateBlockId(() => 0.999999)).toBe("999999");
-    expect(generateBlockId()).toMatch(/^[a-z0-9]{6}$/);
+    expect(generateTaskId(() => 0)).toBe("aaaaaa");
+    expect(generateTaskId(() => 0.999999)).toBe("999999");
+    expect(generateTaskId()).toMatch(/^[a-z0-9]{6}$/);
   });
 });
 
 describe("taskTitle", () => {
-  it("strips the marker, the checkbox and the block id, and keeps tags", () => {
-    expect(taskTitle("- [ ] Dies ist die Beschreibung #arbeit ^ab12cd")).toBe(
+  it("strips the marker, the checkbox and the reminder link, and keeps tags", () => {
+    expect(taskTitle(`- [ ] Dies ist die Beschreibung #arbeit ${LINK}`)).toBe(
       "Dies ist die Beschreibung #arbeit"
     );
     expect(taskTitle("  * [x] done")).toBe("done");
     expect(taskTitle("3. [ ] numbered")).toBe("numbered");
+    expect(taskTitle("- [ ] see [[Konto]] and [docs](https://x.y)")).toBe(
+      "see [[Konto]] and [docs](https://x.y)"
+    );
   });
 
   it("caps a very long title", () => {
@@ -75,7 +102,12 @@ describe("taskBody", () => {
 });
 
 describe("buildReminder", () => {
-  const lines = ["# Backlog", "- [ ] Call the bank #money", "    Ask about the fee", "- [ ] other"];
+  const lines = [
+    "# Backlog",
+    `- [ ] Call the bank #money ${LINK}`,
+    "    Ask about the fee",
+    "- [ ] other"
+  ];
 
   it("composes title, notes with cue and link, list and note title", () => {
     const payload = buildReminder({
@@ -136,7 +168,7 @@ describe("the way back", () => {
     expect(taskLink("ab12cd")).toBe("obsidian://schreibstube?task=ab12cd");
   });
 
-  it("accepts a block id and refuses anything else", () => {
+  it("accepts a task id and refuses anything else", () => {
     expect(taskIdFromParams({ task: "ab12cd" })).toBe("ab12cd");
     expect(taskIdFromParams({ task: "with-dash" })).toBe("with-dash");
     expect(taskIdFromParams({ task: "" })).toBeNull();

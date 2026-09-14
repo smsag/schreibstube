@@ -23,17 +23,26 @@ function fakeEditor(lines: string[], cursorLine = 0): Editor {
   } as unknown as Editor;
 }
 
-function fakeApp(blocksByPath: Record<string, string[]> = {}): App {
-  const files = Object.keys(blocksByPath).map((path) => new TFile(path));
+interface FakeWorkspace {
+  openFile: ReturnType<typeof vi.fn>;
+  reads: string[];
+}
+
+function fakeApp(notes: Record<string, string> = {}): App & { fake: FakeWorkspace } {
+  const files = new Map(Object.keys(notes).map((path) => [path, new TFile(path)]));
+  const fake: FakeWorkspace = { openFile: vi.fn(async () => undefined), reads: [] };
   return {
-    vault: { getMarkdownFiles: () => files },
-    metadataCache: {
-      getFileCache: (file: TFile) => ({
-        blocks: Object.fromEntries((blocksByPath[file.path] ?? []).map((id) => [id, {}]))
-      })
+    fake,
+    vault: {
+      getMarkdownFiles: () => [...files.values()],
+      getAbstractFileByPath: (path: string) => files.get(path) ?? null,
+      cachedRead: async (file: TFile) => {
+        fake.reads.push(file.path);
+        return notes[file.path] ?? "";
+      }
     },
-    workspace: { openLinkText: vi.fn(async () => undefined) }
-  } as unknown as App;
+    workspace: { getLeaf: () => ({ openFile: fake.openFile }) }
+  } as unknown as App & { fake: FakeWorkspace };
 }
 
 function settings(overrides: Partial<SchreibstubeSettings> = {}): SchreibstubeSettings {
@@ -53,15 +62,17 @@ function payloadOf(url: string): Record<string, string> {
   >;
 }
 
+const LINK = "[⏰](obsidian://schreibstube?task=ab12cd)";
+const logger = createLogger(() => false);
+
 describe("sending a task", () => {
   let opened: string[];
-  const logger = createLogger(() => false);
 
   beforeEach(() => {
     opened = [];
   });
 
-  it("puts a block id on the task and opens the Shortcut with the task as JSON", () => {
+  it("puts the link on the task and opens the Shortcut with the task as JSON", () => {
     const lines = [
       "# Backlog",
       "- [ ] Call the bank #money",
@@ -73,8 +84,10 @@ describe("sending a task", () => {
 
     commands.sendTask(editor, 1, note("Notes/Klartext Backlog.md"));
 
-    expect(lines[1]).toMatch(/^- \[ \] Call the bank #money \^[a-z0-9]{6}$/);
-    const id = lines[1]!.slice(-6);
+    expect(lines[1]).toMatch(
+      /^- \[ \] Call the bank #money \[⏰\]\(obsidian:\/\/schreibstube\?task=[a-z0-9]{6}\)$/
+    );
+    const id = /task=([a-z0-9]{6})/.exec(lines[1]!)![1];
     expect(opened).toHaveLength(1);
     expect(opened[0]!.startsWith("shortcuts://run-shortcut?name=Schreibstube%20Reminder&")).toBe(
       true
@@ -88,26 +101,25 @@ describe("sending a task", () => {
     });
   });
 
-  it("keeps a block id the task already has", () => {
-    const lines = ["- [ ] task ^ab12cd"];
+  it("keeps the link a task already has", () => {
+    const lines = [`- [ ] task ${LINK}`];
     const commands = new ReminderCommands(fakeApp(), settings, logger, (url) => opened.push(url));
 
     commands.sendTask(fakeEditor(lines), 0, note("n.md"));
 
-    expect(lines[0]).toBe("- [ ] task ^ab12cd");
+    expect(lines[0]).toBe(`- [ ] task ${LINK}`);
     expect(payloadOf(opened[0]!).link).toBe("obsidian://schreibstube?task=ab12cd");
   });
 
   it("does not draw an id the note already uses", () => {
-    const lines = ["- [ ] task"];
+    const lines = ["- [ ] task", "- [x] other [⏰](obsidian://schreibstube?task=aaaaaa)"];
     const random = vi.spyOn(Math, "random").mockReturnValueOnce(0).mockReturnValue(0.5);
-    const app = fakeApp({ "n.md": ["aaaaaa"] });
-    const commands = new ReminderCommands(app, settings, logger, (url) => opened.push(url));
+    const commands = new ReminderCommands(fakeApp(), settings, logger, (url) => opened.push(url));
 
     commands.sendTask(fakeEditor(lines), 0, note("n.md"));
 
-    expect(lines[0]).not.toContain("^aaaaaa");
-    expect(lines[0]).toMatch(/\^[a-z0-9]{6}$/);
+    expect(lines[0]).not.toContain("task=aaaaaa");
+    expect(lines[0]).toMatch(/task=[a-z0-9]{6}\)$/);
     random.mockRestore();
   });
 
@@ -138,25 +150,40 @@ describe("sending a task", () => {
 });
 
 describe("coming back from a reminder", () => {
-  const logger = createLogger(() => false);
-
-  it("opens the note that holds the block, at the block", async () => {
-    const app = fakeApp({ "a.md": ["one"], "b/c.md": ["ab12cd"] });
+  it("opens the note that carries the link, on the task's line", async () => {
+    const app = fakeApp({
+      "a.md": "- [ ] one",
+      "b/c.md": `# H\n\n- [ ] two ${LINK}\n    body`
+    });
     const commands = new ReminderCommands(app, settings, logger, () => undefined);
 
     await commands.openTask({ task: "ab12cd" });
 
-    expect(app.workspace.openLinkText).toHaveBeenCalledWith("b/c.md#^ab12cd", "", false);
+    expect(app.fake.openFile).toHaveBeenCalledTimes(1);
+    const [file, state] = app.fake.openFile.mock.calls[0] as [TFile, { eState: { line: number } }];
+    expect(file.path).toBe("b/c.md");
+    expect(state).toEqual({ eState: { line: 2 } });
+  });
+
+  it("remembers where an id was and reads that note first next time", async () => {
+    const app = fakeApp({ "a.md": "- [ ] one", "b.md": `- [ ] two ${LINK}` });
+    const commands = new ReminderCommands(app, settings, logger, () => undefined);
+
+    await commands.openTask({ task: "ab12cd" });
+    app.fake.reads.length = 0;
+    await commands.openTask({ task: "ab12cd" });
+
+    expect(app.fake.reads).toEqual(["b.md"]);
   });
 
   it("opens nothing for an unknown or malformed id", async () => {
-    const app = fakeApp({ "a.md": ["one"] });
+    const app = fakeApp({ "a.md": "- [ ] one" });
     const commands = new ReminderCommands(app, settings, logger, () => undefined);
 
     await commands.openTask({ task: "zzzzzz" });
     await commands.openTask({ task: "../etc" });
     await commands.openTask({});
 
-    expect(app.workspace.openLinkText).not.toHaveBeenCalled();
+    expect(app.fake.openFile).not.toHaveBeenCalled();
   });
 });

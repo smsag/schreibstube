@@ -2,30 +2,40 @@ import { type App, type Editor, MarkdownView, type Menu, Notice, type TFile } fr
 import { t } from "../i18n";
 import type { Logger } from "../services/logger";
 import {
-  blockIdOf,
   buildReminder,
-  generateBlockId,
+  findTaskLine,
+  generateTaskId,
   isTaskLine,
+  reminderIdOf,
   shortcutUrl,
   taskIdFromParams,
-  withBlockId
+  taskIdInUse,
+  withReminderLink
 } from "../services/reminder-export";
 import type { SchreibstubeSettings } from "../types";
 
-/** How many times to draw a block id before settling for a collision, which
- *  at 36^6 possibilities is a formality. */
-const BLOCK_ID_ATTEMPTS = 20;
+/** How many times to draw an id before settling for a collision, which at
+ *  36^6 possibilities is a formality. */
+const ID_ATTEMPTS = 20;
+
+interface TaskLocation {
+  file: TFile;
+  line: number;
+}
 
 /**
  * Sending a task to Apple's Reminders, and coming back from one.
  *
  * The decisions — what the title is, what the note is, what the link looks
  * like — are in services/reminder-export. This is the wiring: read the task
- * under the cursor, put a block id on it, open the Shortcut, and when a
- * reminder's link is followed, find the note the block id lives in and open
- * it there.
+ * under the cursor, put the link on it, open the Shortcut, and when a
+ * reminder's link is followed, find the note that carries the same link and
+ * open it on that line.
  */
 export class ReminderCommands {
+  /** Where an id was last found, so the second visit reads one note, not all. */
+  private readonly located = new Map<string, string>();
+
   constructor(
     private readonly app: App,
     private readonly getSettings: () => SchreibstubeSettings,
@@ -59,13 +69,14 @@ export class ReminderCommands {
       return;
     }
 
-    // The id goes into the note before the reminder exists, so the link the
+    // The link goes into the note before the reminder exists, so the link the
     // reminder carries points at something from the first moment.
-    let id = blockIdOf(text);
+    let id = reminderIdOf(text);
     if (!id) {
-      id = this.freshBlockId(file);
-      editor.setLine(line, withBlockId(text, id));
+      id = this.freshId(editor.getValue());
+      editor.setLine(line, withReminderLink(text, id));
     }
+    this.located.set(id, file.path);
 
     const payload = buildReminder({
       lines: editor.getValue().split(/\r?\n/),
@@ -92,34 +103,58 @@ export class ReminderCommands {
     });
   }
 
-  /** `obsidian://schreibstube?task=<id>`: open the note that holds the block. */
+  /** `obsidian://schreibstube?task=<id>`: open the note on the task's line. */
   async openTask(params: Record<string, string>): Promise<void> {
     const id = taskIdFromParams(params);
     if (!id) return;
 
-    const file = this.fileWithBlock(id);
-    if (!file) {
+    const found = await this.locate(id);
+    if (!found) {
       new Notice(t().common.notice(t().tasks.taskNotFound));
       return;
     }
 
-    await this.app.workspace.openLinkText(`${file.path}#^${id}`, "", false);
+    await this.app.workspace.getLeaf(false).openFile(found.file, {
+      eState: { line: found.line }
+    });
   }
 
-  /** The note whose block index has `id`, wherever it is in the vault. */
-  private fileWithBlock(id: string): TFile | null {
+  /**
+   * The note that carries the link for `id`, and the line. The last known
+   * note is tried first; failing that, every note, since the link does not
+   * say where it lives and a note can have moved since it was sent.
+   */
+  private async locate(id: string): Promise<TaskLocation | null> {
+    const remembered = this.located.get(id);
+    if (remembered) {
+      const file = this.app.vault.getAbstractFileByPath(remembered);
+      if (file && "extension" in file) {
+        const hit = await this.lineIn(file as TFile, id);
+        if (hit) return hit;
+      }
+      this.located.delete(id);
+    }
+
     for (const file of this.app.vault.getMarkdownFiles()) {
-      if (this.app.metadataCache.getFileCache(file)?.blocks?.[id]) return file;
+      const hit = await this.lineIn(file, id);
+      if (hit) {
+        this.located.set(id, file.path);
+        return hit;
+      }
     }
     return null;
   }
 
-  private freshBlockId(file: TFile): string {
-    const taken = new Set(Object.keys(this.app.metadataCache.getFileCache(file)?.blocks ?? {}));
-    for (let attempt = 0; attempt < BLOCK_ID_ATTEMPTS; attempt += 1) {
-      const id = generateBlockId();
-      if (!taken.has(id)) return id;
+  private async lineIn(file: TFile, id: string): Promise<TaskLocation | null> {
+    const line = findTaskLine(await this.app.vault.cachedRead(file), id);
+    return line === null ? null : { file, line };
+  }
+
+  private freshId(content: string): string {
+    for (let attempt = 0; attempt < ID_ATTEMPTS; attempt += 1) {
+      const id = generateTaskId();
+      if (!taskIdInUse(content, id)) return id;
     }
-    return generateBlockId();
+    return generateTaskId();
   }
 }

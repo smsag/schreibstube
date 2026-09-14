@@ -63,6 +63,7 @@ export const en = {
     /** The badge after a heading. */
     badge: (open: number, total: number) => `${open} of ${total} open`,
     menuSend: "Send to Erinnerungen",
+    markTooltip: "Sent to Erinnerungen",
     remindersOff:
       "sending to Erinnerungen is off. Turn it on in Settings → Schreibstube → Erinnerungen.",
     noShortcut: "no Shortcut name is set. Enter it in Settings → Schreibstube → Erinnerungen.",

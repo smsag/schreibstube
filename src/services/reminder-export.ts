@@ -4,9 +4,13 @@
  * Obsidian cannot reach Reminders itself. What it can do is open a Shortcut by
  * URL and hand it text, and a Shortcut can create a reminder. So a task is
  * reduced to a small JSON document — title, notes, list, and a link back —
- * and the Shortcut does the rest. The link back is an Obsidian URL carrying a
- * block id, which the plugin resolves to the note and the line whatever the
- * note is called by then.
+ * and the Shortcut does the rest.
+ *
+ * The link back is an Obsidian URL carrying an id. The same link is written
+ * into the task line itself, as a Markdown link at its end, so the note shows
+ * that the task was sent and the id has a home the plugin can find again
+ * whatever the note is called by then. Obsidian renders that link as a small
+ * Reminders-style mark; anywhere else it is the clock the link text carries.
  *
  * Everything here is text in, text out, so it can be tested without either
  * application present.
@@ -23,39 +27,79 @@ export const MAX_REMINDER_NOTES_CHARS = 2000;
 /** The `obsidian://schreibstube` action the plugin answers to. */
 export const TASK_PROTOCOL_ACTION = "schreibstube";
 
-const BLOCK_ID_PATTERN = /\s\^([A-Za-z0-9-]+)\s*$/;
-const TASK_PREFIX_PATTERN = /^\s*(?:[-*+]|\d+[.)])\s+\[.\]\s?/;
-const BLOCK_ID_ALPHABET = "abcdefghijklmnopqrstuvwxyz0123456789";
-const BLOCK_ID_LENGTH = 6;
-const TASK_ID_PATTERN = /^[A-Za-z0-9-]{1,64}$/;
+/** What the link says where the plugin is not there to draw the mark. */
+export const REMINDER_LINK_TEXT = "⏰";
 
-/** The block id already on a line, if someone or something put one there. */
-export function blockIdOf(line: string): string | null {
-  return BLOCK_ID_PATTERN.exec(line)?.[1] ?? null;
+const TASK_ID_PATTERN = /^[A-Za-z0-9-]{1,64}$/;
+const REMINDER_LINK_PATTERN =
+  /\s*\[([^\]]*)\]\(obsidian:\/\/schreibstube\?task=([A-Za-z0-9-]{1,64})\)\s*$/;
+const TASK_PREFIX_PATTERN = /^\s*(?:[-*+]|\d+[.)])\s+\[.\]\s?/;
+const ID_ALPHABET = "abcdefghijklmnopqrstuvwxyz0123456789";
+const ID_LENGTH = 6;
+
+/** The URL that brings a person from the reminder back to the task. */
+export function taskLink(id: string): string {
+  return `obsidian://${TASK_PROTOCOL_ACTION}?task=${encodeURIComponent(id)}`;
 }
 
-/** The line with `id` as its block id, replacing one it already had. */
-export function withBlockId(line: string, id: string): string {
-  const bare = line.replace(BLOCK_ID_PATTERN, "").replace(/\s+$/, "");
-  return `${bare} ^${id}`;
+/** The id of the reminder a task line was sent as, if it was. */
+export function reminderIdOf(line: string): string | null {
+  return REMINDER_LINK_PATTERN.exec(line)?.[2] ?? null;
+}
+
+export interface LinkSpan {
+  /** Offsets of the link within the line: `[` inclusive, `)` exclusive. */
+  from: number;
+  to: number;
+  id: string;
+}
+
+/** Where the reminder link sits in a line, for a renderer that replaces it. */
+export function reminderLinkSpan(line: string): LinkSpan | null {
+  const match = REMINDER_LINK_PATTERN.exec(line);
+  if (!match) return null;
+  const whole = match[0];
+  const from = match.index + (whole.length - whole.trimStart().length);
+  const to = match.index + whole.trimEnd().length;
+  return { from, to, id: match[2] ?? "" };
+}
+
+/** The line with the reminder link at its end, replacing one already there. */
+export function withReminderLink(line: string, id: string): string {
+  const bare = line.replace(REMINDER_LINK_PATTERN, "").replace(/\s+$/, "");
+  return `${bare} [${REMINDER_LINK_TEXT}](${taskLink(id)})`;
 }
 
 /** Six lowercase characters, the shape Obsidian gives its own block ids. */
-export function generateBlockId(random: () => number = Math.random): string {
+export function generateTaskId(random: () => number = Math.random): string {
   let id = "";
-  for (let index = 0; index < BLOCK_ID_LENGTH; index += 1) {
-    const at = Math.min(
-      BLOCK_ID_ALPHABET.length - 1,
-      Math.floor(random() * BLOCK_ID_ALPHABET.length)
-    );
-    id += BLOCK_ID_ALPHABET[at];
+  for (let index = 0; index < ID_LENGTH; index += 1) {
+    const at = Math.min(ID_ALPHABET.length - 1, Math.floor(random() * ID_ALPHABET.length));
+    id += ID_ALPHABET[at];
   }
   return id;
 }
 
-/** The task's text without its list marker, checkbox and block id. Tags stay. */
+/** Whether the note already uses `id`, in a link or anywhere else. */
+export function taskIdInUse(content: string, id: string): boolean {
+  return content.includes(`task=${id})`);
+}
+
+/**
+ * The line that carries the reminder link for `id`, or null. Every note is a
+ * candidate, since the link does not say which note it is in.
+ */
+export function findTaskLine(content: string, id: string): number | null {
+  const lines = content.split(/\r?\n/);
+  for (const [index, line] of lines.entries()) {
+    if (reminderIdOf(line) === id) return index;
+  }
+  return null;
+}
+
+/** The task's text without its list marker, checkbox and reminder link. Tags stay. */
 export function taskTitle(line: string): string {
-  const text = line.replace(TASK_PREFIX_PATTERN, "").replace(BLOCK_ID_PATTERN, "").trim();
+  const text = line.replace(TASK_PREFIX_PATTERN, "").replace(REMINDER_LINK_PATTERN, "").trim();
   return text.length > MAX_REMINDER_TITLE_CHARS
     ? `${text.slice(0, MAX_REMINDER_TITLE_CHARS - 1)}…`
     : text;
@@ -87,11 +131,6 @@ function commonPrefix(a: string, b: string): string {
   let length = 0;
   while (length < a.length && length < b.length && a[length] === b[length]) length += 1;
   return a.slice(0, length);
-}
-
-/** The URL that brings a person from the reminder back to the task. */
-export function taskLink(id: string): string {
-  return `obsidian://${TASK_PROTOCOL_ACTION}?task=${encodeURIComponent(id)}`;
 }
 
 export interface ReminderPayload {
