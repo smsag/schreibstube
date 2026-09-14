@@ -144,6 +144,10 @@ Dims everything except the passage you are working on. Available as three comman
 
 The dim strength is configurable.
 
+- **Focus: new note, sidebars away** — a blank note, and nothing else on screen
+
+That last command makes a new empty note where Obsidian's _Default location for new notes_ says, named the way Obsidian names one (**Untitled**, then **Untitled 1**, and so on; **Unbenannt** in German), opens it in a new tab of the main window, collapses both sidebars, and puts the cursor in the editor. It is one move where there were three, and nothing about the vault differs from a note made the usual way.
+
 ### Rename file from content
 
 Assigns a filename to the active note or image based on its content:

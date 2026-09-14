@@ -32,6 +32,7 @@ import { hasSourceBinding } from "./services/sync-source";
 import { isTaskLine, TASK_PROTOCOL_ACTION } from "./services/reminder-export";
 import { sentTaskIds } from "./services/reminder-status";
 import { ReminderCommands } from "./controllers/reminder-commands";
+import { NoteCommands } from "./controllers/note-commands";
 import { LinkModeController } from "./controllers/link-mode-controller";
 import { LlmCommands } from "./controllers/llm-commands";
 import { ProofreadController } from "./controllers/proofread-controller";
@@ -86,6 +87,7 @@ export default class SchreibstubePlugin extends Plugin {
   private publish: PublishCommands | null = null;
   private print: PrintCommands | null = null;
   private reminders: ReminderCommands | null = null;
+  private notes: NoteCommands | null = null;
 
   override async onload(): Promise<void> {
     await this.loadSettings();
@@ -124,6 +126,7 @@ export default class SchreibstubePlugin extends Plugin {
       }
     );
     this.reminders = new ReminderCommands(this.app, () => this.settings, this.logger);
+    this.notes = new NoteCommands(this.app, this.logger);
     this.proofread = new ProofreadController(this.app, () => this.settings, this.logger, {
       get: (path) => this.settings.syncState[path],
       set: async (path, record) => {
@@ -634,6 +637,14 @@ export default class SchreibstubePlugin extends Plugin {
   }
 
   private registerCommands(): void {
+    this.addCommand({
+      id: "create-untitled-note",
+      name: t().commands.newNote,
+      callback: () => {
+        void this.notes?.createUntitled();
+      }
+    });
+
     this.addCommand({
       id: "set-focus-sentence-mode",
       name: t().commands.focusSentence,
