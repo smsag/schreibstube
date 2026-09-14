@@ -30,6 +30,7 @@ import {
 import { getImageMimeType } from "./services/image-resize";
 import { hasSourceBinding } from "./services/sync-source";
 import { isTaskLine, TASK_PROTOCOL_ACTION } from "./services/reminder-export";
+import { sentTaskIds } from "./services/reminder-status";
 import { ReminderCommands } from "./controllers/reminder-commands";
 import { LinkModeController } from "./controllers/link-mode-controller";
 import { LlmCommands } from "./controllers/llm-commands";
@@ -215,9 +216,10 @@ export default class SchreibstubePlugin extends Plugin {
         this.reminders?.addMenuItem(menu, editor, view.file);
       })
     );
-    // The link a reminder carries: obsidian://schreibstube?task=<block id>.
+    // The link a reminder carries, obsidian://schreibstube?task=<id>, and the
+    // callback the status Shortcut answers through, obsidian://schreibstube?done=1.
     this.registerObsidianProtocolHandler(TASK_PROTOCOL_ACTION, (params) => {
-      void this.reminders?.openTask(params);
+      void this.reminders?.handleProtocol(params);
     });
 
     // The file pane is the plugin's main surface and everything else it offers
@@ -463,6 +465,10 @@ export default class SchreibstubePlugin extends Plugin {
   }
 
   private handlePollTick(now: Date): void {
+    // The report file an automation writes for Reminders rides on the same
+    // tick: one stat of one file, and a read only when it has changed.
+    void this.reminders?.pollReportFile();
+
     const schedule = this.activePollSchedule();
     if (!schedule) return;
     if (!shouldFire(schedule, now, this.lastPollMinute)) return;
@@ -603,7 +609,8 @@ export default class SchreibstubePlugin extends Plugin {
         file !== null && hasSourceBinding(this.app.metadataCache.getFileCache(file)?.frontmatter),
       explorerOpen: this.app.workspace.getLeavesOfType(EXPLORER_VIEW_TYPE).length > 0,
       task: view !== null && isTaskLine(view.editor.getLine(view.editor.getCursor().line)),
-      apple: Platform.isMacOS || Platform.isIosApp
+      apple: Platform.isMacOS || Platform.isIosApp,
+      sentTask: view !== null && sentTaskIds(view.editor.getValue()).length > 0
     };
   }
 
@@ -682,6 +689,24 @@ export default class SchreibstubePlugin extends Plugin {
       "send-reminder",
       () => {
         this.reminders?.sendTaskAtCursor();
+      }
+    );
+
+    this.addGatedCommand(
+      "check-note-against-reminders",
+      t().commands.checkNoteReminders,
+      "check-note-reminders",
+      () => {
+        this.reminders?.checkActiveNote();
+      }
+    );
+
+    this.addGatedCommand(
+      "fetch-done-from-reminders",
+      t().commands.fetchReminders,
+      "fetch-reminders",
+      () => {
+        this.reminders?.checkEverything();
       }
     );
 

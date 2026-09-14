@@ -467,7 +467,21 @@ The link is `obsidian://schreibstube?task=<id>`. The command writes the same lin
 
 In Obsidian that link shows as a small Reminders-style mark after the task, in Live Preview and in Reading view; put the cursor on the line and the source is there as usual. Anywhere else the clock stands in. Following the link from the reminder opens the vault, the note and the task's line, however the note has been renamed or moved since, because the plugin looks for the line that carries the same link. Delete the link from the line and the reminder can no longer find its way back.
 
-What does not carry over: Reminders' own tags. There is no way to set one from outside, so `#tag` stays as text in the title, visible and searchable but not coloured. Editing a reminder after it is created, and completing the task from the reminder, are not part of this.
+What does not carry over: Reminders' own tags. There is no way to set one from outside, so `#tag` stays as text in the title, visible and searchable but not coloured. Editing a reminder after it is created is not part of this.
+
+#### Done in Erinnerungen, ticked in the note
+
+A reminder completed on the phone can tick its task in the note. The plugin cannot ask Reminders, so a second Shortcut does, named as in the settings (**Schreibstube Reminder Status** by default):
+
+1. Create a shortcut that accepts **Text** as input.
+2. Add **Find Reminders** with _Is Completed_ true, the list you use, and _Notes contains_ `schreibstube?task=`.
+3. Add **Get Details of Reminders** for the **Notes**, then **Combine Text** with new lines, and end with that text as the output.
+
+Two commands run it. **Tasks: check this note against Erinnerungen** asks about the sent tasks of the open note and is offered only when the note has one. **Tasks: fetch done tasks from Erinnerungen** asks about every completed reminder in the list. Both open the Shortcut through `x-callback-url`; Shortcuts hands its output back to the plugin, which ticks every open task the output names, in whichever note it lives. A task already done, whatever its marker, is left alone.
+
+Without running anything: add **Save File** to the same shortcut, overwriting the **Report file** from the settings (`schreibstube-reminders.txt` in the vault root by default), and run the shortcut from an automation, on iOS for example every hour. The plugin looks at the file every twenty seconds, reads it when it has changed, and ticks the tasks it names. macOS Shortcuts has no time-based automations, but a file written by the phone reaches the Mac through the vault's own sync, and the two commands work everywhere.
+
+The Shortcut's output can be any text that contains the reminders' links; the plugin picks the ids out of it and ignores the rest.
 
 ### Commands
 

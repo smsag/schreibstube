@@ -12,6 +12,14 @@ import {
   taskIdInUse,
   withReminderLink
 } from "../services/reminder-export";
+import {
+  applyDone,
+  idsInReport,
+  isStatusCallback,
+  reportFromParams,
+  sentTaskIds,
+  statusShortcutUrl
+} from "../services/reminder-status";
 import type { SchreibstubeSettings } from "../types";
 
 /** How many times to draw an id before settling for a collision, which at
@@ -24,17 +32,21 @@ interface TaskLocation {
 }
 
 /**
- * Sending a task to Apple's Reminders, and coming back from one.
+ * Sending a task to Apple's Reminders, and what comes back.
  *
  * The decisions — what the title is, what the note is, what the link looks
- * like — are in services/reminder-export. This is the wiring: read the task
- * under the cursor, put the link on it, open the Shortcut, and when a
- * reminder's link is followed, find the note that carries the same link and
- * open it on that line.
+ * like, which tasks a report ticks — are in services/reminder-export and
+ * services/reminder-status. This is the wiring: read the task under the
+ * cursor, put the link on it, open a Shortcut; answer a reminder's link by
+ * opening the note on the right line; and take a report of done reminders,
+ * from a callback or from a file an automation wrote, and tick the tasks.
  */
 export class ReminderCommands {
   /** Where an id was last found, so the second visit reads one note, not all. */
   private readonly located = new Map<string, string>();
+  /** The report file's modification time as last applied. */
+  private reportSeenAt = 0;
+  private reportBusy = false;
 
   constructor(
     private readonly app: App,
@@ -54,10 +66,7 @@ export class ReminderCommands {
 
   sendTask(editor: Editor, line: number, file: TFile): void {
     const settings = this.getSettings();
-    if (!settings.remindersEnabled) {
-      new Notice(t().common.notice(t().tasks.remindersOff));
-      return;
-    }
+    if (!this.featureOn(settings)) return;
     if (settings.remindersShortcut.trim() === "") {
       new Notice(t().common.notice(t().tasks.noShortcut));
       return;
@@ -103,6 +112,52 @@ export class ReminderCommands {
     });
   }
 
+  /** Ask Reminders about every sent task in the active note. */
+  checkActiveNote(): void {
+    const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+    if (!view?.file) return;
+    this.checkNote(view.editor.getValue());
+  }
+
+  checkNote(content: string): void {
+    const ids = sentTaskIds(content);
+    if (ids.length === 0) {
+      new Notice(t().common.notice(t().tasks.noneSent));
+      return;
+    }
+    this.requestStatus(ids);
+  }
+
+  /** Ask Reminders about every completed reminder in the list, note by note. */
+  checkEverything(): void {
+    this.requestStatus([]);
+  }
+
+  private requestStatus(ids: string[]): void {
+    const settings = this.getSettings();
+    if (!this.featureOn(settings)) return;
+    if (settings.remindersStatusShortcut.trim() === "") {
+      new Notice(t().common.notice(t().tasks.noStatusShortcut));
+      return;
+    }
+
+    this.logger.debug(`Asking Reminders about ${ids.length || "all"} task(s).`);
+    this.openUrl(
+      statusShortcutUrl(settings.remindersStatusShortcut, { ids, list: settings.remindersList })
+    );
+    new Notice(t().common.notice(t().tasks.checking));
+  }
+
+  /** Every `obsidian://schreibstube` call: a report of done reminders, or a link to a task. */
+  async handleProtocol(params: Record<string, string>): Promise<void> {
+    if (isStatusCallback(params)) {
+      const ticked = await this.applyReport(reportFromParams(params));
+      new Notice(t().common.notice(ticked > 0 ? t().tasks.ticked(ticked) : t().tasks.nothingDone));
+      return;
+    }
+    await this.openTask(params);
+  }
+
   /** `obsidian://schreibstube?task=<id>`: open the note on the task's line. */
   async openTask(params: Record<string, string>): Promise<void> {
     const id = taskIdFromParams(params);
@@ -117,6 +172,67 @@ export class ReminderCommands {
     await this.app.workspace.getLeaf(false).openFile(found.file, {
       eState: { line: found.line }
     });
+  }
+
+  /**
+   * Ticks every open task a report names, in whichever note it lives.
+   * Returns how many tasks changed. Every note is read once; a note is
+   * written only when something in it changes, through the vault's own
+   * read-modify-write so an editor with the note open sees the tick.
+   */
+  async applyReport(text: string): Promise<number> {
+    const ids = idsInReport(text);
+    if (ids.length === 0) return 0;
+
+    let ticked = 0;
+    for (const file of this.app.vault.getMarkdownFiles()) {
+      const before = await this.app.vault.cachedRead(file);
+      if (applyDone(before, ids).ticked.length === 0) continue;
+
+      await this.app.vault.process(file, (current) => {
+        const result = applyDone(current, ids);
+        ticked += result.ticked.length;
+        for (const id of result.ticked) this.located.set(id, file.path);
+        return result.content;
+      });
+    }
+
+    this.logger.debug(`Reminders report named ${ids.length} task(s); ${ticked} ticked.`);
+    return ticked;
+  }
+
+  /**
+   * The report file an automation writes into the vault. Read when it has
+   * changed since the last look, and applied like a callback. Called on the
+   * plugin's poll tick, so the cost of a quiet file is one stat.
+   */
+  async pollReportFile(): Promise<void> {
+    const settings = this.getSettings();
+    if (!settings.remindersEnabled || this.reportBusy) return;
+    const path = settings.remindersReportFile.trim();
+    if (path === "") return;
+
+    const adapter = this.app.vault.adapter;
+    this.reportBusy = true;
+    try {
+      if (!(await adapter.exists(path))) return;
+      const mtime = (await adapter.stat(path))?.mtime ?? 0;
+      if (mtime <= this.reportSeenAt) return;
+      this.reportSeenAt = mtime;
+
+      const ticked = await this.applyReport(await adapter.read(path));
+      if (ticked > 0) new Notice(t().common.notice(t().tasks.ticked(ticked)));
+    } catch (error) {
+      this.logger.warn(`Could not read the Reminders report at ${path}:`, error);
+    } finally {
+      this.reportBusy = false;
+    }
+  }
+
+  private featureOn(settings: SchreibstubeSettings): boolean {
+    if (settings.remindersEnabled) return true;
+    new Notice(t().common.notice(t().tasks.remindersOff));
+    return false;
   }
 
   /**

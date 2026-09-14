@@ -23,26 +23,41 @@ function fakeEditor(lines: string[], cursorLine = 0): Editor {
   } as unknown as Editor;
 }
 
-interface FakeWorkspace {
+interface Fake {
   openFile: ReturnType<typeof vi.fn>;
   reads: string[];
+  notes: Record<string, string>;
+  files: Record<string, { text: string; mtime: number }>;
 }
 
-function fakeApp(notes: Record<string, string> = {}): App & { fake: FakeWorkspace } {
-  const files = new Map(Object.keys(notes).map((path) => [path, new TFile(path)]));
-  const fake: FakeWorkspace = { openFile: vi.fn(async () => undefined), reads: [] };
+/** A vault of notes, plus loose files the adapter serves, for the report. */
+function fakeApp(
+  notes: Record<string, string> = {},
+  files: Record<string, { text: string; mtime: number }> = {}
+): App & { fake: Fake } {
+  const tfiles = new Map(Object.keys(notes).map((path) => [path, new TFile(path)]));
+  const fake: Fake = { openFile: vi.fn(async () => undefined), reads: [], notes, files };
   return {
     fake,
     vault: {
-      getMarkdownFiles: () => [...files.values()],
-      getAbstractFileByPath: (path: string) => files.get(path) ?? null,
+      getMarkdownFiles: () => [...tfiles.values()],
+      getAbstractFileByPath: (path: string) => tfiles.get(path) ?? null,
       cachedRead: async (file: TFile) => {
         fake.reads.push(file.path);
         return notes[file.path] ?? "";
+      },
+      process: async (file: TFile, fn: (data: string) => string) => {
+        notes[file.path] = fn(notes[file.path] ?? "");
+        return notes[file.path];
+      },
+      adapter: {
+        exists: async (path: string) => path in files,
+        stat: async (path: string) => (path in files ? { mtime: files[path]!.mtime } : null),
+        read: async (path: string) => files[path]?.text ?? ""
       }
     },
     workspace: { getLeaf: () => ({ openFile: fake.openFile }) }
-  } as unknown as App & { fake: FakeWorkspace };
+  } as unknown as App & { fake: Fake };
 }
 
 function settings(overrides: Partial<SchreibstubeSettings> = {}): SchreibstubeSettings {
@@ -50,19 +65,19 @@ function settings(overrides: Partial<SchreibstubeSettings> = {}): SchreibstubeSe
     ...DEFAULT_SETTINGS,
     remindersEnabled: true,
     remindersShortcut: "Schreibstube Reminder",
+    remindersStatusShortcut: "Schreibstube Reminder Status",
     remindersList: "Arbeit",
     ...overrides
   };
 }
 
-function payloadOf(url: string): Record<string, string> {
-  return JSON.parse(decodeURIComponent(url.slice(url.indexOf("&text=") + 6))) as Record<
-    string,
-    string
-  >;
+function payloadOf(url: string): Record<string, unknown> {
+  const params = new URL(url.replace(/^shortcuts:\/\//, "https://x/")).searchParams;
+  return JSON.parse(params.get("text") ?? "{}") as Record<string, unknown>;
 }
 
-const LINK = "[⏰](obsidian://schreibstube?task=ab12cd)";
+const link = (id: string) => `[⏰](obsidian://schreibstube?task=${id})`;
+const LINK = link("ab12cd");
 const logger = createLogger(() => false);
 
 describe("sending a task", () => {
@@ -112,7 +127,7 @@ describe("sending a task", () => {
   });
 
   it("does not draw an id the note already uses", () => {
-    const lines = ["- [ ] task", "- [x] other [⏰](obsidian://schreibstube?task=aaaaaa)"];
+    const lines = ["- [ ] task", `- [x] other ${link("aaaaaa")}`];
     const random = vi.spyOn(Math, "random").mockReturnValueOnce(0).mockReturnValue(0.5);
     const commands = new ReminderCommands(fakeApp(), settings, logger, (url) => opened.push(url));
 
@@ -157,7 +172,7 @@ describe("coming back from a reminder", () => {
     });
     const commands = new ReminderCommands(app, settings, logger, () => undefined);
 
-    await commands.openTask({ task: "ab12cd" });
+    await commands.handleProtocol({ task: "ab12cd" });
 
     expect(app.fake.openFile).toHaveBeenCalledTimes(1);
     const [file, state] = app.fake.openFile.mock.calls[0] as [TFile, { eState: { line: number } }];
@@ -185,5 +200,128 @@ describe("coming back from a reminder", () => {
     await commands.openTask({});
 
     expect(app.fake.openFile).not.toHaveBeenCalled();
+  });
+});
+
+describe("asking Reminders what is done", () => {
+  let opened: string[];
+
+  beforeEach(() => {
+    opened = [];
+  });
+
+  it("asks about the sent tasks of a note, with a callback into the plugin", () => {
+    const commands = new ReminderCommands(fakeApp(), settings, logger, (url) => opened.push(url));
+
+    commands.checkNote(
+      [`- [ ] a ${link("aaaaaa")}`, "- [ ] b", `- [x] c ${link("cccccc")}`].join("\n")
+    );
+
+    expect(opened).toHaveLength(1);
+    const params = new URL(opened[0]!.replace(/^shortcuts:\/\//, "https://x/")).searchParams;
+    expect(
+      opened[0]!.startsWith(
+        "shortcuts://x-callback-url/run-shortcut?name=Schreibstube%20Reminder%20Status&"
+      )
+    ).toBe(true);
+    expect(payloadOf(opened[0]!)).toEqual({
+      ids: ["aaaaaa", "cccccc"],
+      links: ["obsidian://schreibstube?task=aaaaaa", "obsidian://schreibstube?task=cccccc"],
+      list: "Arbeit"
+    });
+    expect(params.get("x-success")).toBe("obsidian://schreibstube?done=1");
+  });
+
+  it("asks nothing for a note with no sent task, and nothing without a status Shortcut", () => {
+    const commands = new ReminderCommands(fakeApp(), settings, logger, (url) => opened.push(url));
+    commands.checkNote("- [ ] a\n- [ ] b");
+
+    const unnamed = new ReminderCommands(
+      fakeApp(),
+      () => settings({ remindersStatusShortcut: "" }),
+      logger,
+      (url) => opened.push(url)
+    );
+    unnamed.checkNote(`- [ ] a ${link("aaaaaa")}`);
+
+    expect(opened).toEqual([]);
+  });
+
+  it("asks about everything when no ids are given", () => {
+    const commands = new ReminderCommands(fakeApp(), settings, logger, (url) => opened.push(url));
+    commands.checkEverything();
+    expect(payloadOf(opened[0]!)).toEqual({ ids: [], links: [], list: "Arbeit" });
+  });
+});
+
+describe("a report of done reminders", () => {
+  const report = [
+    "Ask about the fee",
+    "↩ Backlog",
+    "obsidian://schreibstube?task=aaaaaa",
+    "↩ Other",
+    "obsidian://schreibstube?task=cccccc"
+  ].join("\n");
+
+  it("ticks the named tasks wherever they are, and only the open ones", async () => {
+    const app = fakeApp({
+      "a.md": `- [ ] one ${link("aaaaaa")}\n- [ ] two ${link("bbbbbb")}`,
+      "b.md": `- [x] three ${link("cccccc")}\n- [ ] plain`
+    });
+    const commands = new ReminderCommands(app, settings, logger, () => undefined);
+
+    await commands.handleProtocol({ done: "1", result: report });
+
+    expect(app.fake.notes["a.md"]).toBe(`- [x] one ${link("aaaaaa")}\n- [ ] two ${link("bbbbbb")}`);
+    expect(app.fake.notes["b.md"]).toBe(`- [x] three ${link("cccccc")}\n- [ ] plain`);
+  });
+
+  it("reads the report file an automation wrote, once per change", async () => {
+    const app = fakeApp(
+      { "a.md": `- [ ] one ${link("aaaaaa")}\n- [ ] three ${link("cccccc")}` },
+      { "schreibstube-reminders.txt": { text: "obsidian://schreibstube?task=aaaaaa", mtime: 10 } }
+    );
+    const commands = new ReminderCommands(app, settings, logger, () => undefined);
+
+    await commands.pollReportFile();
+    expect(app.fake.notes["a.md"]).toBe(
+      `- [x] one ${link("aaaaaa")}\n- [ ] three ${link("cccccc")}`
+    );
+
+    // Same file, same time: not read again. Newer file: applied.
+    app.fake.reads.length = 0;
+    await commands.pollReportFile();
+    expect(app.fake.reads).toEqual([]);
+
+    app.fake.files["schreibstube-reminders.txt"] = { text: report, mtime: 20 };
+    await commands.pollReportFile();
+    expect(app.fake.notes["a.md"]).toBe(
+      `- [x] one ${link("aaaaaa")}\n- [x] three ${link("cccccc")}`
+    );
+  });
+
+  it("leaves the vault alone when the file is missing, the feature is off, or the path is empty", async () => {
+    const notes = { "a.md": `- [ ] one ${link("aaaaaa")}` };
+    const missing = new ReminderCommands(fakeApp(notes), settings, logger, () => undefined);
+    await missing.pollReportFile();
+
+    const files = { "schreibstube-reminders.txt": { text: report, mtime: 10 } };
+    const off = new ReminderCommands(
+      fakeApp(notes, files),
+      () => settings({ remindersEnabled: false }),
+      logger,
+      () => undefined
+    );
+    await off.pollReportFile();
+
+    const unset = new ReminderCommands(
+      fakeApp(notes, files),
+      () => settings({ remindersReportFile: "" }),
+      logger,
+      () => undefined
+    );
+    await unset.pollReportFile();
+
+    expect(notes["a.md"]).toBe(`- [ ] one ${link("aaaaaa")}`);
   });
 });

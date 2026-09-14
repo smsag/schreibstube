@@ -37,6 +37,22 @@ export const enExtra = {
       'Dictionary from Input", then "Add New Reminder" with Title from the dictionary\'s title, ' +
       "Notes from notes and the list from list. Tags written as #tag stay text: Reminders offers " +
       "no way to set a real tag from outside.",
+    remindersStatusShortcut: "Status Shortcut name",
+    remindersStatusShortcutDesc:
+      "The Shortcut that reports which reminders are done. It receives JSON with ids, links and " +
+      "list, and its output is handed back to the plugin: any text that contains the reminders' " +
+      "links, such as their notes.",
+    remindersStatusSetup: "Building the status Shortcut",
+    remindersStatusSetupDesc:
+      'Create a shortcut with that name that accepts text. Add "Find Reminders" with Is Completed ' +
+      'true, List from the list you use, and Notes contains "schreibstube?task=". Add "Get Details ' +
+      'of Reminders" for the Notes, then "Combine Text" with new lines, and end with that text as ' +
+      'the output. To keep notes current without running anything, add "Save File" to the same ' +
+      "shortcut, overwriting the report file in the vault, and run it from an automation.",
+    remindersReportFile: "Report file",
+    remindersReportFileDesc:
+      "Vault path of the file an automation writes the status Shortcut's output to. The plugin " +
+      "reads it whenever it changes and ticks the tasks it names. Leave empty to turn this off.",
 
     explorerHeading: "Schreibstube Explorer",
     explorerIntro:

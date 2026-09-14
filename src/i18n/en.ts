@@ -17,6 +17,8 @@ export const en = {
     focusDisable: "Focus: off",
     insertTaskSummary: "Tasks: insert the summary ribbon",
     sendToReminders: "Tasks: send to Erinnerungen",
+    checkNoteReminders: "Tasks: check this note against Erinnerungen",
+    fetchReminders: "Tasks: fetch done tasks from Erinnerungen",
     renameFile: "AI: rename note from its text",
     renameImage: "AI: rename image from the picture",
     summarize: "AI: summarize the selection",
@@ -69,7 +71,13 @@ export const en = {
     noShortcut: "no Shortcut name is set. Enter it in Settings → Schreibstube → Erinnerungen.",
     notATask: "the cursor is not on a task.",
     sent: (title: string) => `sent to Erinnerungen: ${title}`,
-    taskNotFound: "no note in this vault holds that task."
+    taskNotFound: "no note in this vault holds that task.",
+    noStatusShortcut:
+      "no status Shortcut name is set. Enter it in Settings → Schreibstube → Erinnerungen.",
+    noneSent: "no task in this note has been sent to Erinnerungen.",
+    checking: "asking Erinnerungen…",
+    nothingDone: "Erinnerungen reports nothing new as done.",
+    ticked: (count: number) => `${count} task(s) ticked as done in Erinnerungen.`
   },
 
   publish: {

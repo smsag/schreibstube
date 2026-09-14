@@ -44,6 +44,15 @@ describe("normalizeSettings", () => {
     );
   });
 
+  it("names the status Shortcut and the report file, and keeps the path inside the vault", () => {
+    expect(normalizeSettings({}).remindersStatusShortcut).toBe("Schreibstube Reminder Status");
+    expect(normalizeSettings({}).remindersReportFile).toBe("schreibstube-reminders.txt");
+    expect(normalizeSettings({ remindersReportFile: "/notes/done.txt " }).remindersReportFile).toBe(
+      "notes/done.txt"
+    );
+    expect(normalizeSettings({ remindersReportFile: "" }).remindersReportFile).toBe("");
+  });
+
   it("defaults llmModelCustom to an empty string", () => {
     expect(normalizeSettings({}).llmModelCustom).toBe("");
   });
