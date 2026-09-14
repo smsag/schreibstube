@@ -41,6 +41,7 @@ import {
   type BookmarkFolder
 } from "../services/bookmark-file";
 import { fileGlyph } from "../services/file-glyph";
+import { groundColour } from "../services/ground-colour";
 import type { LatestCandidate } from "../services/latest-files";
 import {
   ancestorsOf,
@@ -174,6 +175,8 @@ export class ExplorerPaneView extends ItemView {
   private folderCounts = new Map<string, number>();
   /** A path to scroll to once the next draw has put it on screen. */
   private revealing: string | null = null;
+  /** A pending ground measurement, so several signals in one frame cost one read. */
+  private groundFrame: number | null = null;
 
   constructor(leaf: WorkspaceLeaf) {
     super(leaf);
@@ -264,9 +267,25 @@ export class ExplorerPaneView extends ItemView {
     this.registerEvent(this.app.vault.on("rename", () => this.requestRender()));
     this.registerEvent(this.app.metadataCache.on("changed", () => this.requestRender()));
     this.registerEvent(this.app.workspace.on("file-open", () => this.requestRender()));
-    this.registerEvent(this.app.workspace.on("layout-change", () => this.requestRender()));
-    // A theme swap repaints everything the ground was measured from.
-    this.registerEvent(this.app.workspace.on("css-change", () => this.measureGround()));
+    // A pane dragged to the other sidebar sits on a different ground.
+    this.registerEvent(
+      this.app.workspace.on("layout-change", () => {
+        this.requestRender();
+        this.scheduleGround();
+      })
+    );
+    // A theme swap repaints everything the ground was measured from. A frame
+    // later, so the new stylesheet has been applied by the time it is read.
+    this.registerEvent(this.app.workspace.on("css-change", () => this.scheduleGround()));
+    // Light and dark are a class on the body, and switching between them does
+    // not always announce itself as a CSS change: a header measured in the
+    // light stayed light after the switch, a pale band on a dark pane. The
+    // class is watched directly, which catches the toggle whoever made it —
+    // a command, the settings, or the system at dusk.
+    const body = this.containerEl.ownerDocument.body;
+    const themeWatch = new MutationObserver(() => this.scheduleGround());
+    themeWatch.observe(body, { attributes: true, attributeFilter: ["class"] });
+    this.register(() => themeWatch.disconnect());
     // How many pinned rows the strip may hold is a share of the pane, so a
     // phone turning on its side or a sidebar dragged wider changes the answer.
     this.registerEvent(this.app.workspace.on("resize", () => this.requestRender()));
@@ -291,6 +310,8 @@ export class ExplorerPaneView extends ItemView {
 
   protected override async onClose(): Promise<void> {
     this.cancelFilter();
+    if (this.groundFrame !== null) this.containerEl.win.cancelAnimationFrame(this.groundFrame);
+    this.groundFrame = null;
     this.contentEl.empty();
   }
 
@@ -351,18 +372,28 @@ export class ExplorerPaneView extends ItemView {
    * so it is read off the first ancestor that paints at all.
    */
   private measureGround(): void {
+    const layers: string[] = [];
     let element: HTMLElement | null = this.containerEl;
-
     while (element) {
-      const colour = getComputedStyle(element).backgroundColor;
-      if (colour && colour !== "transparent" && !colour.startsWith("rgba(0, 0, 0, 0")) {
-        this.contentEl.style.setProperty("--schreibstube-ground", colour);
-        return;
-      }
+      layers.push(getComputedStyle(element).backgroundColor);
       element = element.parentElement;
     }
 
-    this.contentEl.style.removeProperty("--schreibstube-ground");
+    // Not the first ancestor that paints, but all of them laid over each
+    // other: with window translucency the sidebar is a tint, and a tint
+    // painted solid on the header is the wrong colour. See ground-colour.
+    const colour = groundColour(layers);
+    if (colour) this.contentEl.style.setProperty("--schreibstube-ground", colour);
+    else this.contentEl.style.removeProperty("--schreibstube-ground");
+  }
+
+  /** One measurement per frame, however many signals asked for it. */
+  private scheduleGround(): void {
+    if (this.groundFrame !== null) return;
+    this.groundFrame = this.containerEl.win.requestAnimationFrame(() => {
+      this.groundFrame = null;
+      this.measureGround();
+    });
   }
 
   /**
