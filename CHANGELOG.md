@@ -2,7 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## 1.31.0 - 2026-09-16
+
+Mobile checklist: not run for this release. Everything in it was checked by the
+test suite and the build's own guards, not on a device. A pinned tag is new
+on the file pane and adds a sidebar of note cards; step 7 of the checklist is
+where a phone would show it, and a long press on a pinned tag should open its
+menu the way it does on a pinned file.
+
+Bridge 2.4.0 is unchanged and still pairs with this release.
 
 ### Added
 
