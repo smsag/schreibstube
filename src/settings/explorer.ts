@@ -104,6 +104,7 @@ export function renderExplorer(ctx: SettingsContext): void {
   renderCommands(ctx, [
     t().commands.openExplorer,
     t().commands.collapseExplorer,
-    t().commands.openBookmark
+    t().commands.openBookmark,
+    t().commands.pinTag
   ]);
 }

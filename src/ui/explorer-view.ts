@@ -42,7 +42,7 @@ import {
 } from "../services/bookmark-file";
 import { fileGlyph } from "../services/file-glyph";
 import { groundColour } from "../services/ground-colour";
-import { tallyTasks, taskCountLabel } from "../services/task-count";
+import { tallyTasks, taskCountLabel, type TaskTally } from "../services/task-count";
 import type { LatestCandidate } from "../services/latest-files";
 import {
   ancestorsOf,
@@ -556,12 +556,20 @@ export class ExplorerPaneView extends ItemView {
     // called, or typing the name on screen would hide the row showing it.
     const items = controller
       .pinnedItems()
-      .filter(
-        (file) => this.matchesQuery(file.name) || this.matchesQuery(controller.titleFor(file) ?? "")
+      .filter((item) =>
+        item.kind === "tag"
+          ? this.matchesQuery(`#${item.tag}`)
+          : this.matchesQuery(item.file.name) ||
+            this.matchesQuery(controller.titleFor(item.file) ?? "")
       );
     if (items.length === 0) return;
 
-    const order = items.map((file) => file.path);
+    const order = items.map((item) => item.key);
+    // Every pinned tag is counted in the same walk over the vault, so a block
+    // of tags costs what one does.
+    const tallies = controller.tagTallies(
+      items.flatMap((item) => (item.kind === "tag" ? [item.tag] : []))
+    );
     // Closing the block keeps the rows that were always on screen anyway — the
     // strip is sticky, so those three cost nothing to leave — and takes away
     // the ones that continue into the scrolling list below.
@@ -607,9 +615,13 @@ export class ExplorerPaneView extends ItemView {
     // continue in the scrolling list, as they always have.
     const sticky = closed ? FIXED_PINNED_ROWS : this.shelfCapacity();
 
-    for (const [index, file] of drawn.entries()) {
+    for (const [index, item] of drawn.entries()) {
       const host = index < sticky ? body : scroller;
-      this.renderPinnedRow(host, file, order);
+      if (item.kind === "tag") {
+        this.renderPinnedTagRow(host, item, tallies.get(item.tag), order);
+      } else {
+        this.renderPinnedRow(host, item.file, order);
+      }
     }
   }
 
@@ -682,6 +694,46 @@ export class ExplorerPaneView extends ItemView {
         else void controller.open(file, false);
       },
       showMenu: (at) => controller.showMenu(file, at)
+    });
+  }
+
+  /**
+   * A pinned tag: its name, and the open tasks of every note carrying it.
+   *
+   * The count is drawn whether or not rows count their own tasks. A tag is
+   * pinned for this figure, and a tag row without it would only be a link to
+   * the list the press opens.
+   */
+  private renderPinnedTagRow(
+    host: HTMLElement,
+    item: { key: string; tag: string },
+    tally: TaskTally | undefined,
+    order: string[]
+  ): void {
+    const controller = this.host?.explorer;
+    if (!controller) return;
+
+    const row = host.createDiv({ cls: "schreibstube-explorer-row is-pinned-entry is-tag" });
+    indent(row, 0);
+    row.setAttribute("title", t().explorer.tags.rowLabel(item.tag));
+    row.setAttribute("data-path", item.key);
+
+    row.createSpan({ cls: "schreibstube-explorer-twisty" });
+    applyIcon(row.createSpan({ cls: "schreibstube-explorer-glyph" }), "tag");
+    row.createSpan({ cls: "schreibstube-explorer-name", text: `#${item.tag}` });
+
+    const label = tally ? taskCountLabel(tally) : null;
+    if (tally && label !== null) {
+      const el = row.createSpan({ cls: "schreibstube-explorer-tasks", text: label });
+      el.setAttribute("aria-label", t().explorer.taskCount(tally.open, tally.total));
+    }
+
+    this.wirePinnedDrag(row, item.key, order);
+
+    wirePress(row, {
+      isDragging: () => this.drag.active !== null,
+      activate: () => void controller.openTag(item.tag),
+      showMenu: (at) => controller.showTagMenu(item, at)
     });
   }
 

@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Added
+
+- **A tag can be pinned, and its row counts the tasks of every note carrying it.** Pinned files are places to go; a pinned tag is a question kept on screen: how much is still open across everything tagged `#projekt`. The row shows open over total, added up across every note that carries the tag in its frontmatter or its text, nested tags included and case ignored, the way Obsidian's own tag search finds them. Each note counts once per row, and a note with two pinned tags counts in both, because it belongs to both. Pin a tag with **Explorer: pin a tag**, or from a note's menu with **Pin a tag of this note…** — Obsidian's tag list has no menu a plugin can add to, and a note's long press is the one gesture a phone has. Pressing the row lists the tagged notes as cards in the right sidebar, open work first, and a press on a card opens the note. The pin lives in `explorer.json` with the others, so it reaches every device and can be dragged into order among them.
+
 ### Fixed
 
 - **A note unbound on one device is unbound on the others, record and all.** The binding already travelled with the note, but the sync record beside it stayed on every device that had checked it, and binding the note again later compared the new source against the old baseline — a note nobody had touched came back as edited locally. A record whose note no longer names its source, or names a different one, is now dropped the moment the note's frontmatter says so, and before every poll. Changing a note's source in the bind dialogue is covered by the same rule; it used to keep the old baseline too.

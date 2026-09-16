@@ -43,6 +43,7 @@ import { compileGlossaries } from "./services/glossary-matcher";
 import { minuteOf, parseCron, previousRun, shouldFire } from "./services/cron";
 import { REVIEW_VIEW_TYPE, ReviewPanelView } from "./ui/review-panel";
 import { EXPLORER_RIBBON_ICON, EXPLORER_VIEW_TYPE, ExplorerPaneView } from "./ui/explorer-view";
+import { TAG_NOTES_VIEW_TYPE, TagNotesView } from "./ui/tag-notes-view";
 import { registerSchreibstubeIcon } from "./ui/schreibstube-icon";
 import {
   EXPLORER_STATE_FILE,
@@ -174,6 +175,7 @@ export default class SchreibstubePlugin extends Plugin {
     // The pane's menu names a file from what is inside it; the AI commands are
     // what can do that, and they were built a moment ago.
     this.explorer.useNamer((file) => this.requireLlm().proposeName(file));
+    this.explorer.useTagOpener((tag) => this.activateTagNotes(tag));
     await this.explorer.start();
 
     this.sections = new PaneSectionsController(
@@ -186,6 +188,7 @@ export default class SchreibstubePlugin extends Plugin {
 
     this.registerView(REVIEW_VIEW_TYPE, (leaf) => this.createReviewView(leaf));
     this.registerView(EXPLORER_VIEW_TYPE, (leaf) => this.createExplorerView(leaf));
+    this.registerView(TAG_NOTES_VIEW_TYPE, (leaf) => this.createTagNotesView(leaf));
     this.registerExplorerEvents();
     this.registerEditorExtension(
       createGlossaryUnderlineExtension({
@@ -294,6 +297,40 @@ export default class SchreibstubePlugin extends Plugin {
     }
     await leaf.setViewState({ type: EXPLORER_VIEW_TYPE, active: true });
     await this.app.workspace.revealLeaf(leaf);
+  }
+
+  /**
+   * List a tag's notes in the right sidebar.
+   *
+   * One leaf for every tag: pressing a second pinned tag changes what the
+   * sidebar lists rather than opening another, which is what a person pressing
+   * down a column of tags is doing.
+   */
+  async activateTagNotes(tag: string): Promise<void> {
+    const [existing] = this.app.workspace.getLeavesOfType(TAG_NOTES_VIEW_TYPE);
+    const leaf = existing ?? this.app.workspace.getRightLeaf(false);
+    if (!leaf) {
+      new Notice(t().common.notice(t().common.sidebarMissing(t().explorer.tags.viewTitle)));
+      return;
+    }
+    await leaf.setViewState({ type: TAG_NOTES_VIEW_TYPE, state: { tag }, active: true });
+    await this.app.workspace.revealLeaf(leaf);
+  }
+
+  private createTagNotesView(leaf: WorkspaceLeaf): TagNotesView {
+    const view = new TagNotesView(leaf);
+    const explorer = this.explorer;
+    if (explorer) {
+      view.connect({
+        cards: (tag) => explorer.tagCards(tag),
+        open: async (path, newTab) => {
+          const file = this.app.vault.getAbstractFileByPath(path);
+          if (file) await explorer.open(file, newTab);
+        },
+        showMenu: (path, event) => explorer.showMenuForPath(path, event)
+      });
+    }
+    return view;
   }
 
   private createExplorerView(leaf: WorkspaceLeaf): ExplorerPaneView {
@@ -784,6 +821,14 @@ export default class SchreibstubePlugin extends Plugin {
         }
       }
     );
+
+    this.addCommand({
+      id: "pin-tag",
+      name: t().commands.pinTag,
+      callback: () => {
+        this.explorer?.chooseTag();
+      }
+    });
 
     this.addCommand({
       id: "open-bookmark",

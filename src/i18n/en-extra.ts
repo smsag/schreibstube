@@ -417,6 +417,22 @@ export const enExtra = {
     pinnedFewer: "Show three again",
     folderCount: (count: string) => `${count} files`,
 
+    tags: {
+      pick: "Pick a tag to pin…",
+      none: "No note in this vault carries a tag yet.",
+      notes: (count: number) => (count === 1 ? "1 note" : `${count} notes`),
+      pinned: (tag: string) => `#${tag} pinned.`,
+      alreadyPinned: (tag: string) => `#${tag} is already pinned.`,
+      rowLabel: (tag: string) => `Notes tagged #${tag}`,
+      viewTitle: "Tagged notes",
+      viewTitleFor: (tag: string) => `#${tag}`,
+      viewNoTag: "Press a pinned tag in the Explorer to list its notes here.",
+      viewEmpty: "No note carries this tag any more.",
+      summary: (notes: string, open: number, total: number) =>
+        total === 0 ? `${notes}, no tasks` : `${notes} · ${open} of ${total} tasks open`,
+      root: "Vault root"
+    },
+
     move: {
       intoItself: (name: string) => `${name} cannot be moved inside itself.`,
       nameTaken: (name: string) => `A file called ${name} is already there.`,
@@ -468,6 +484,8 @@ export const enExtra = {
       releaseTop: "Stop keeping at top",
       pin: "Add to Pinned",
       unpin: "Remove from Pinned",
+      pinTag: "Pin a tag of this note…",
+      showTag: "Show tagged notes",
       bindSource: "Bind to a source…",
       checkSource: "Check source now",
       openSource: "Open source",
