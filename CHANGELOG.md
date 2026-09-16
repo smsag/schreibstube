@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Changed
+
+- **The plugin has a new icon.** A speech bubble holding a small branch graph, drawn to the same rules as Obsidian's own icons, so it reads as one of them in the ribbon, the tab and the command palette. It replaces the house with a quill on the ribbon button, on the file pane's tab and, new, on the "Open file pane" command. Registered under a new name, so a workspace restored from before this release draws the new icon on the pane's tab as soon as the plugin loads. The same mark ships as `assets/logo.svg`.
+
 ## 1.29.0 - 2026-09-14
 
 Mobile checklist: not run for this release. Everything in it was checked by the

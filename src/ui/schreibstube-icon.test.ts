@@ -14,11 +14,29 @@ describe("the Schreibstube icon", () => {
     expect(registeredIcons.get(SCHREIBSTUBE_ICON)).toBe(SCHREIBSTUBE_ICON_SVG);
   });
 
-  it("carries Lucide's house outline and the quill in its doorway", () => {
+  it("is registered under its own id, the one the ribbon, command and pane share", () => {
+    expect(SCHREIBSTUBE_ICON).toBe("schreibstube-logo");
+  });
+
+  it("carries the designed geometry unchanged: the bubble and the branch graph", () => {
     expect(SCHREIBSTUBE_ICON_SVG).toContain(
-      'd="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"'
+      'd="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"'
     );
-    expect(SCHREIBSTUBE_ICON_SVG).toContain('d="M9.5 17.5 13 14l1.5 1.5-3.5 3.5-2 .5z"');
+    expect(SCHREIBSTUBE_ICON_SVG).toContain('<circle cx="9" cy="7.5" r="1.5"/>');
+    expect(SCHREIBSTUBE_ICON_SVG).toContain('<circle cx="9" cy="12.5" r="1.5"/>');
+    expect(SCHREIBSTUBE_ICON_SVG).toContain('<circle cx="15.5" cy="7.5" r="1.5"/>');
+    expect(SCHREIBSTUBE_ICON_SVG).toContain('<path d="M9 9v2"/>');
+    expect(SCHREIBSTUBE_ICON_SVG).toContain('<path d="M15.5 9a5 5 0 0 1-5 3.5"/>');
+  });
+
+  it("is stroke only: no shape carries a fill or a colour of its own", () => {
+    const shapes = SCHREIBSTUBE_ICON_SVG.match(/<(path|circle)\b[^>]*>/g) ?? [];
+    expect(shapes).toHaveLength(6);
+    for (const shape of shapes) {
+      expect(shape).not.toContain("fill=");
+      expect(shape).not.toContain("stroke=");
+    }
+    expect(SCHREIBSTUBE_ICON_SVG).not.toMatch(/#[0-9a-f]{3,8}\b/i);
   });
 
   it("keeps Lucide's rules: a 2-unit stroke, round ends, 18 of 24 units, centred", () => {
@@ -26,7 +44,7 @@ describe("the Schreibstube icon", () => {
     expect(SCHREIBSTUBE_ICON_SVG).toContain('stroke-linecap="round"');
     expect(SCHREIBSTUBE_ICON_SVG).toContain('stroke-linejoin="round"');
 
-    // Lucide's own house spans 3 to 21 of its 24-unit grid: 75% of the box,
+    // The bubble spans 3 to 21 of the 24-unit grid, as Lucide's own does: 75% of the box,
     // with the same margin on every side. Anything wider stands out of the row.
     const { min, max } = mappedExtent();
     expect(max - min).toBeCloseTo(75, 1);
