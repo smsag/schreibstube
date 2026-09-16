@@ -2,7 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## 1.30.0 - 2026-09-16
+
+Mobile checklist: not run for this release. The one change is the plugin's
+icon, which the ribbon, the pane's tab and the command draw from the same
+registered SVG on every platform; the test suite pins its geometry and its
+rules. Step 7 of the checklist, the file pane's icons drawing, is the one a
+phone would show.
+
+Bridge 2.4.0 is unchanged and still pairs with this release.
 
 ### Changed
 
