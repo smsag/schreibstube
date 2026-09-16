@@ -9,8 +9,9 @@
  * registered icon cannot be missing.
  *
  * It sits in a row of Lucide icons, and a row reads as one thing only when
- * every glyph in it keeps the same rules: the 24-unit grid, the 2-unit stroke,
- * round caps and joins, 18 of 24 units wide, stroke only, and `currentColor`
+ * every glyph in it keeps the same rules: the 24-unit grid, Obsidian's own
+ * stroke width (inherited, see below), round caps and joins, 18 of 24 units
+ * wide, stroke only, and `currentColor`
  * so the icon follows the theme and the accent rather than carrying a colour
  * of its own. The geometry is the designed one and is not edited here.
  *
@@ -49,8 +50,19 @@ const ARTWORK = [
   '<path d="M15.5 9a5 5 0 0 1-5 3.5"/>'
 ].join("");
 
+/**
+ * No `stroke-width` here, deliberately. Obsidian's `.svg-icon` sets
+ * `stroke-width: var(--icon-stroke)` — 1.75px in a sidebar tab, other values in
+ * the ribbon and menus — and a Lucide icon has no attribute of its own, so it
+ * inherits that. An attribute on this group would block it, and the group's
+ * `scale()` multiplies the stroke along with the geometry: a hardcoded 2 drew
+ * at 8.33% of the icon's width where every neighbour sat at 7.29%, and that
+ * extra weight reads in the row as a darker glyph rather than a bolder one.
+ * `assets/logo.svg` keeps its own `stroke-width`: a standalone file has no
+ * stylesheet to inherit from, and 2 on the 24-unit grid is Lucide's own value.
+ */
 export const SCHREIBSTUBE_ICON_SVG =
-  `<g fill="none" stroke="currentColor" stroke-width="2" ` +
+  `<g fill="none" stroke="currentColor" ` +
   `stroke-linecap="round" stroke-linejoin="round" ` +
   `transform="translate(${OFFSET} ${OFFSET}) scale(${SCALE})">${ARTWORK}</g>`;
 

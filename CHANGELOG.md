@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Fixed
+
+- **The plugin's icon no longer reads darker than the icons beside it.** In a sidebar tab row it carried a heavier stroke than Obsidian's own: the registered icon pinned its stroke width, where a Lucide icon has none and inherits the one Obsidian sets for the context — thinner in a tab, thicker in the ribbon. The pin also sat in the wrong units, since the icon's group scales its stroke along with its geometry, so it drew at 8.33% of the icon's width against every neighbour's 7.29%. The attribute is gone and the icon now follows Obsidian at every size. The colour was never different. `assets/logo.svg` is unchanged: a standalone file has no stylesheet to inherit from.
 ## 1.31.0 - 2026-09-16
 
 Mobile checklist: not run for this release. Everything in it was checked by the
