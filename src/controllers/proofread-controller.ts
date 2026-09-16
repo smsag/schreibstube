@@ -42,6 +42,7 @@ import {
   type SyncRecord
 } from "../services/sync-document";
 import { resolveSourceUrl, sourceUrlFromNote, SYNC_FRONTMATTER_KEY } from "../services/sync-source";
+import { recordForSource } from "../services/sync-reconcile";
 import { SyncPoller, githubToken } from "./sync-poller";
 import { planSourceCheck } from "../services/sync-interval";
 import type { PollSummary } from "../services/sync-summary";
@@ -78,6 +79,14 @@ export interface SyncStore {
    *  saving once per note would rewrite the whole data file N times. */
   setMany(records: Record<string, SyncRecord>): Promise<void>;
   forget(path: string): Promise<void>;
+  /** Every record, as it stands. */
+  all(): Record<string, SyncRecord>;
+  /** Replace the records with what `transform` makes of them, in one save.
+   *  The transform runs synchronously against the current records, so no
+   *  other write can land in between; null means nothing changed. */
+  update(
+    transform: (state: Record<string, SyncRecord>) => Record<string, SyncRecord> | null
+  ): Promise<void>;
 }
 
 export class ProofreadController {
@@ -206,10 +215,29 @@ export class ProofreadController {
     }
   }
 
+  /**
+   * A note went away. Its record stays if it names a source, because a sync
+   * client may be delivering a move as a delete and a create, and the note that
+   * turns up elsewhere takes the record over on its first check. A record no
+   * note claims is dropped once it is old enough.
+   */
   async handleNoteDeleted(path: string): Promise<void> {
+    const record = this.syncStore.get(path);
+    if (record && record.source === undefined) {
+      await this.syncStore.forget(path);
+    }
+  }
+
+  /** The note no longer names a source, so its record describes nothing. */
+  async forgetSyncRecord(path: string): Promise<void> {
     if (this.syncStore.get(path)) {
       await this.syncStore.forget(path);
     }
+  }
+
+  /** Notes whose frontmatter changed: drop what their bindings no longer back. */
+  async reconcileSyncRecords(paths?: readonly string[]): Promise<void> {
+    await this.poller.reconcile(paths);
   }
 
   /** Check every bound note, not just the open one. */
@@ -522,7 +550,9 @@ export class ProofreadController {
         return;
       }
 
-      const record = this.syncStore.get(file.path);
+      const record =
+        recordForSource(this.syncStore.get(file.path), resolved.url) ??
+        (await this.poller.adoptMovedRecord(file, resolved.url));
       const plan = planSourceCheck({
         record,
         schedule: this.readInterval(file).schedule,
@@ -574,6 +604,7 @@ export class ProofreadController {
             etag: record?.etag ?? "",
             checkedAt,
             pendingChanges: record?.pendingChanges ?? 0,
+            source: resolved.url,
             settled: false
           })
         );
@@ -599,6 +630,7 @@ export class ProofreadController {
             etag: outcome.etag,
             checkedAt,
             pendingChanges: 0,
+            source: resolved.url,
             settled: false
           })
         );
@@ -630,6 +662,7 @@ export class ProofreadController {
           checkedAt,
           // The changes are on screen now, so nothing is owed to a later visit.
           pendingChanges: 0,
+          source: resolved.url,
           // The baseline only advances once the note actually matches the
           // source, so an unaccepted update is still pending on the next check.
           settled: suggestions.length === 0

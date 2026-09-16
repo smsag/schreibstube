@@ -406,7 +406,7 @@ function syncStateOrDefault(value: unknown): Record<string, SyncRecord> {
   const result: Record<string, SyncRecord> = {};
   for (const [path, record] of Object.entries(value as Record<string, unknown>)) {
     if (!record || typeof record !== "object") continue;
-    const { hash, etag, checkedAt, pendingChanges, remoteHash, changedAt } =
+    const { hash, etag, checkedAt, pendingChanges, remoteHash, changedAt, source } =
       record as Partial<SyncRecord>;
     if (typeof hash !== "string" || hash.length === 0) continue;
     result[path] = {
@@ -415,7 +415,8 @@ function syncStateOrDefault(value: unknown): Record<string, SyncRecord> {
       checkedAt: Number.isFinite(checkedAt) ? Number(checkedAt) : 0,
       pendingChanges: Number.isFinite(pendingChanges) ? Number(pendingChanges) : 0,
       ...(typeof remoteHash === "string" && remoteHash.length > 0 ? { remoteHash } : {}),
-      ...(Number.isFinite(changedAt) ? { changedAt: Number(changedAt) } : {})
+      ...(Number.isFinite(changedAt) ? { changedAt: Number(changedAt) } : {}),
+      ...(typeof source === "string" && source.length > 0 ? { source } : {})
     };
   }
   return result;

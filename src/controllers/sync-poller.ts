@@ -33,6 +33,12 @@ import {
   stripRemoteFrontmatter,
   type SyncRecord
 } from "../services/sync-document";
+import {
+  findMovedRecord,
+  reconcileSyncState,
+  recordForSource,
+  type NoteBinding
+} from "../services/sync-reconcile";
 import type { SyncStore } from "./proofread-controller";
 import type { PollSummary } from "../services/sync-summary";
 
@@ -68,7 +74,79 @@ export class SyncPoller {
    * full of bound notes does not turn one tick into a burst of traffic.
    */
   async pollAllSources(trigger: "schedule" | "manual"): Promise<PollSummary> {
+    await this.reconcile();
     return this.check(this.boundNotes(), trigger, false);
+  }
+
+  /**
+   * Drop the records the notes no longer vouch for.
+   *
+   * A note unbound, or bound elsewhere, on another device arrives here as a
+   * note whose frontmatter says so, and nothing else: no unbind ran on this
+   * device to clear the record. `paths` narrows it to the notes that just
+   * changed; without it every record is judged, which is what a poll does
+   * before it starts.
+   */
+  async reconcile(paths?: readonly string[]): Promise<void> {
+    await this.syncStore.update((state) =>
+      reconcileSyncState({
+        state,
+        bindingOf: (path) => this.bindingOf(path),
+        ...(paths === undefined ? {} : { paths }),
+        now: Date.now()
+      })
+    );
+  }
+
+  /**
+   * The record this note left at the path it was moved from, taken over.
+   *
+   * Public because the review panel checks the open note by itself, and a note
+   * that moved is the same note whichever of the two checks it first.
+   */
+  async adoptMovedRecord(file: TFile, source: string): Promise<SyncRecord | undefined> {
+    let body: string;
+    try {
+      body = splitNote(normalizeNewlines(await this.app.vault.cachedRead(file))).body;
+    } catch {
+      return undefined;
+    }
+
+    const oldPath = findMovedRecord({
+      state: this.syncStore.all(),
+      source,
+      body,
+      exists: (path) => this.app.vault.getAbstractFileByPath(path) !== null
+    });
+    if (oldPath === null) return undefined;
+
+    let adopted: SyncRecord | undefined;
+    await this.syncStore.update((state) => {
+      const { [oldPath]: record, ...rest } = state;
+      if (record === undefined || state[file.path] !== undefined) return null;
+      adopted = record;
+      return { ...rest, [file.path]: record };
+    });
+
+    if (adopted !== undefined) {
+      this.logger.debug(`${file.path}: took over the sync record left at ${oldPath}.`);
+    }
+    return adopted;
+  }
+
+  /** What the note at a path says about its source, from the metadata cache. */
+  private bindingOf(path: string): NoteBinding {
+    const file = this.app.vault.getAbstractFileByPath(path);
+    if (!(file instanceof TFile)) return { kind: "missing" };
+
+    const cache = this.app.metadataCache.getFileCache(file);
+    if (!cache) return { kind: "unknown" };
+
+    const raw: unknown = cache.frontmatter?.[SYNC_FRONTMATTER_KEY];
+    if (typeof raw !== "string" || raw.trim().length === 0) return { kind: "unbound" };
+
+    const resolved = resolveSourceUrl(raw);
+    return { kind: "bound", source: resolved.ok ? resolved.url : raw.trim() };
   }
 
   /**
@@ -174,7 +252,9 @@ export class SyncPoller {
       return;
     }
 
-    const record = this.syncStore.get(file.path);
+    const record =
+      recordForSource(this.syncStore.get(file.path), resolved.url) ??
+      (await this.adoptMovedRecord(file, resolved.url));
     // What the note itself asks for comes first: a poll across the vault is one
     // schedule for every source, and only the note knows how often its own is
     // worth asking about.
@@ -228,6 +308,7 @@ export class SyncPoller {
         etag: record?.etag ?? "",
         checkedAt,
         pendingChanges: record?.pendingChanges ?? 0,
+        source: resolved.url,
         settled: false
       });
       return;
@@ -241,6 +322,7 @@ export class SyncPoller {
         etag: outcome.etag,
         checkedAt,
         pendingChanges: record?.pendingChanges ?? 0,
+        source: resolved.url,
         settled: false
       });
       // Nothing came back to read a title out of, but the note's own body may
@@ -260,6 +342,7 @@ export class SyncPoller {
       etag: outcome.etag,
       checkedAt,
       pendingChanges: changes,
+      source: resolved.url,
       settled: changes === 0
     });
 

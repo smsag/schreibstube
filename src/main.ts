@@ -149,6 +149,14 @@ export default class SchreibstubePlugin extends Plugin {
         const { [path]: _removed, ...rest } = this.settings.syncState;
         this.settings.syncState = rest;
         await this.saveSettings();
+      },
+      all: () => this.settings.syncState,
+      update: async (transform) => {
+        const next = transform(this.settings.syncState);
+        if (next === null) return;
+        this.settings.syncState = next;
+        await this.saveSettings();
+        this.sections?.invalidateLatest();
       }
     });
 
@@ -158,7 +166,7 @@ export default class SchreibstubePlugin extends Plugin {
       {
         checkFile: async (file) => this.requireProofread().checkFile(file),
         checkFolder: async (path) => this.requireProofread().checkFolder(path),
-        forget: async (path) => this.requireProofread().handleNoteDeleted(path)
+        forget: async (path) => this.requireProofread().forgetSyncRecord(path)
       },
       this.logger,
       this.explorerStateFile()
@@ -558,6 +566,17 @@ export default class SchreibstubePlugin extends Plugin {
       this.app.vault.on("delete", (file) => {
         if (file instanceof TFile) {
           void this.proofread?.handleNoteDeleted(file.path);
+        }
+      })
+    );
+
+    // A binding removed or changed on another device reaches this one only as
+    // a note whose frontmatter now says so. Asked only of notes that have a
+    // record, so an ordinary save costs a lookup and nothing more.
+    this.registerEvent(
+      this.app.metadataCache.on("changed", (file) => {
+        if (this.settings.syncState[file.path] !== undefined) {
+          void this.proofread?.reconcileSyncRecords([file.path]);
         }
       })
     );
