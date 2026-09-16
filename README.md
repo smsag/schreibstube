@@ -173,6 +173,35 @@ Select several lines and turn them into a Markdown table, from the editor's cont
 
 The selection is widened to whole lines, blank lines are added around the table where it needs them to render, hex values are set as code so they are not read as tags, and one undo restores the original text. If the text changes while the AI request runs, nothing is replaced.
 
+### Slideshow
+
+Two or more images in one block, shown the way the passage needs them:
+
+````markdown
+```schreibstube-slideshow
+layout: feature
+title: One scene, several details
+caption: Jetty, grass, horizon
+![Jetty](jetty.png)
+![Grass](grass.png)
+![Horizon](horizon.png)
+```
+````
+
+One Markdown image per line, at least two, at most a hundred. Blank lines and `//` comments are ignored, so a block can be annotated. Any other line is reported with its number rather than dropped. **Slideshow: insert an image slideshow** drops an empty block at the cursor.
+
+| Line                                    | Meaning                                                                                                                                        |
+| --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `layout: slideshow \| feature \| strip` | How the images are arranged. Without the line, `slideshow`.                                                                                    |
+| `title:`                                | The header's text for `feature` and `strip`. The `slideshow` layout keeps the active image's caption there and leaves the title unused.        |
+| `caption:`                              | One caption for the block: under a `strip`, and in the footer of a `feature` in place of the featured image's alt text. Unused by `slideshow`. |
+
+- **`slideshow`** — one stage, one image on it, with the image's alt text as the caption in the header row. Previous and next, the arrow keys, a swipe on a phone; a double-click or the expand control opens the fullscreen view. Good for a walk through a place in six pictures, where the reader sets the pace.
+- **`feature`** — one image large, the next two beside it as tiles. Press a tile and it comes forward; the footer under the grid names what is shown and counts `1 / 3`. The images are cropped to fill their tiles. Good for a picture essay, a room, a plate, an outfit.
+- **`strip`** — every image at once in a row of equal tiles, cropped alike, with the block's caption under the row. Nothing rotates; a tile opens the fullscreen view at its place. A strip longer than four wraps to rows of three. Good for morning, noon and evening — a series that makes one statement together, rather than three pictures that happen to be adjacent.
+
+The controls are icons standing on the page, drawn from the plugin's own icon font, with no fill behind them in any state. On a phone the scene stacks, its details side by side under it, and the strip settles on two columns.
+
 ### Email (IMAP/SMTP)
 
 Send notes as email and pull messages back into your vault — on desktop **and** mobile.

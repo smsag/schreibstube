@@ -83,8 +83,13 @@ export const en = {
     notImage: (line: number, text: string) =>
       `line ${line}: expected an image "![alt](path)" — got "${text}"`,
     emptyPath: (line: number) => `line ${line}: the image path is empty.`,
-    /** The region's accessible name and the control labels. */
+    unknownLayout: (line: number, value: string, allowed: string) =>
+      `line ${line}: unknown layout "${value}" — expected ${allowed}.`,
+    /** The region's accessible name, per layout, and the control labels. */
     region: (n: number) => `Slideshow, ${n} images`,
+    regionFeature: (n: number) => `Scene with details, ${n} images`,
+    regionStrip: (n: number) => `Image strip, ${n} images`,
+    showImage: (n: number) => `Show image ${n}`,
     previous: "Previous image",
     next: "Next image",
     fullscreen: "Present fullscreen",

@@ -1251,8 +1251,9 @@ a.external-link.schreibstube-reminder-mark {
 }
 
 /* ══ Image slideshow (```schreibstube-slideshow```) ══════════════════════════
-   Two or more images shown one at a time, with a caption row, prev/next
-   controls and a fullscreen overlay. */
+   Two or more images: one at a time on a stage, one large with its details
+   beside it, or all at once in a strip. A header row with the controls, and a
+   fullscreen overlay shared by all three. */
 .schreibstube-slideshow {
   margin: 1rem 0;
   outline: none;
@@ -1280,27 +1281,60 @@ a.external-link.schreibstube-reminder-mark {
   white-space: nowrap;
 }
 
+.schreibstube-slideshow-title {
+  color: var(--text-normal);
+  font-weight: var(--font-semibold);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .schreibstube-slideshow-actions {
   display: flex;
   gap: 0.25rem;
   flex-shrink: 0;
 }
 
-.schreibstube-slideshow-btn {
-  display: inline-flex;
+/* A control is an icon standing on the page, built as the file pane builds
+   its own: a span, not a button, so it never wears Obsidian's button fill. */
+.schreibstube-slideshow-control {
+  display: flex;
   align-items: center;
   justify-content: center;
-  background: none;
-  border: none;
-  padding: 0.25rem;
-  cursor: pointer;
+  width: 24px;
+  height: 24px;
   color: var(--text-muted);
-  border-radius: var(--radius-s);
+  font-size: 16px;
+  cursor: pointer;
+  user-select: none;
 }
 
-.schreibstube-slideshow-btn:hover {
-  color: var(--text-normal);
-  background: var(--background-modifier-hover);
+.schreibstube-slideshow-control svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* Never a fill, in any state. A chip of grey behind it reads as a button that
+   is somehow pressed, and on a phone it is one that cannot be un-pressed. The
+   icon darkens instead, and only where hovering is a thing that happens. */
+.schreibstube-slideshow-control:hover,
+.schreibstube-slideshow-control:focus,
+.schreibstube-slideshow-control:focus-visible,
+.schreibstube-slideshow-control:active {
+  background: none;
+  box-shadow: none;
+}
+
+@media (hover: hover) {
+  .schreibstube-slideshow-control:hover {
+    color: var(--text-normal);
+  }
+}
+
+.schreibstube-slideshow-control:focus-visible {
+  outline: 2px solid var(--interactive-accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-s);
 }
 
 .schreibstube-slideshow-track {
@@ -1346,6 +1380,140 @@ a.external-link.schreibstube-reminder-mark {
   color: var(--text-error);
   font-size: var(--font-ui-small);
   padding: 0.5rem 0;
+}
+
+/* ── Tiles: pictures that can be pressed ──
+   No frame and no fill in any state; the picture is the control. It answers
+   a hover by dimming a little, and focus with the outline the block uses. */
+.schreibstube-slideshow-tile {
+  display: block;
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius-s);
+  background: none;
+  cursor: pointer;
+  user-select: none;
+}
+
+.schreibstube-slideshow-tile:hover,
+.schreibstube-slideshow-tile:focus,
+.schreibstube-slideshow-tile:focus-visible,
+.schreibstube-slideshow-tile:active {
+  background: none;
+  box-shadow: none;
+}
+
+.schreibstube-slideshow-tile img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: opacity 0.1s ease;
+}
+
+@media (hover: hover) {
+  .schreibstube-slideshow-tile:hover img {
+    opacity: 0.85;
+  }
+}
+
+.schreibstube-slideshow-tile:focus-visible {
+  outline: 2px solid var(--interactive-accent);
+  outline-offset: 2px;
+}
+
+/* An image the vault does not have: its alt text on a plain ground, so the
+   grid keeps its shape around the gap. */
+.schreibstube-slideshow-tile-missing {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--background-secondary);
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  padding: 0.5rem;
+  text-align: center;
+}
+
+/* ── Feature: one scene, its details beside it ── */
+.schreibstube-slideshow-feature {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 0.5rem;
+}
+
+.schreibstube-slideshow-feature-main {
+  aspect-ratio: 3 / 2;
+}
+
+.schreibstube-slideshow-feature-details {
+  display: grid;
+  grid-auto-rows: 1fr;
+  gap: 0.5rem;
+  min-height: 0;
+}
+
+.schreibstube-slideshow-feature-detail {
+  min-height: 0;
+}
+
+.schreibstube-slideshow-footer {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+}
+
+.schreibstube-slideshow-footer-caption {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.schreibstube-slideshow-footer-counter {
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Strip: every image at once, in a row of equal tiles ── */
+.schreibstube-slideshow-strip {
+  display: grid;
+  grid-template-columns: repeat(var(--schreibstube-strip-columns, 3), 1fr);
+  gap: 0.5rem;
+}
+
+.schreibstube-slideshow-strip-tile {
+  aspect-ratio: 4 / 3;
+}
+
+.schreibstube-slideshow-strip-caption {
+  margin-top: 0.5rem;
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+}
+
+/* Narrow: the scene stacks, its details side by side under it; the strip
+   settles on two columns. */
+@media (max-width: 600px) {
+  .schreibstube-slideshow-feature {
+    grid-template-columns: 1fr;
+  }
+
+  .schreibstube-slideshow-feature-details {
+    grid-auto-rows: auto;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .schreibstube-slideshow-feature-detail {
+    aspect-ratio: 4 / 3;
+  }
+
+  .schreibstube-slideshow-strip {
+    grid-template-columns: 1fr 1fr;
+  }
 }
 
 /* ── Fullscreen overlay ── */
@@ -1396,17 +1564,44 @@ a.external-link.schreibstube-reminder-mark {
   pointer-events: none;
 }
 
+/* The overlay's controls: the same glyphs as the header, white on the dark
+   ground, and no fill behind them there either. */
+.schreibstube-slideshow-fs-control {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.6);
+  line-height: 1;
+  cursor: pointer;
+  user-select: none;
+  transition: color 0.1s ease;
+}
+
+.schreibstube-slideshow-fs-control svg {
+  width: 1em;
+  height: 1em;
+}
+
+.schreibstube-slideshow-fs-control:hover,
+.schreibstube-slideshow-fs-control:focus,
+.schreibstube-slideshow-fs-control:focus-visible,
+.schreibstube-slideshow-fs-control:active {
+  background: none;
+  box-shadow: none;
+}
+
+.schreibstube-slideshow-fs-control:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.6);
+  outline-offset: 2px;
+  border-radius: var(--radius-s);
+}
+
 .schreibstube-slideshow-fs-nav {
   position: absolute;
   top: 50%;
   transform: translateY(-50%);
-  color: rgba(255, 255, 255, 0.6);
   font-size: 2.5rem;
-  line-height: 1;
-  cursor: pointer;
   padding: 1rem;
-  user-select: none;
-  transition: color 0.1s ease;
 }
 
 .schreibstube-slideshow-fs-nav:hover {
@@ -1425,12 +1620,7 @@ a.external-link.schreibstube-reminder-mark {
   position: absolute;
   top: 1rem;
   right: 1.25rem;
-  color: rgba(255, 255, 255, 0.6);
   font-size: 1.75rem;
-  line-height: 1;
-  cursor: pointer;
-  user-select: none;
-  transition: color 0.1s ease;
 }
 
 .schreibstube-slideshow-fs-close:hover {
