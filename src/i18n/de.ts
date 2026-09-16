@@ -25,6 +25,7 @@ export const de: Messages = {
     openExplorer: "Explorer: Bereich öffnen",
     collapseExplorer: "Explorer: alle Ordner zuklappen",
     openBookmark: "Explorer: Lesezeichen öffnen",
+    pinTag: "Explorer: Tag anheften",
     openReview: "Korrektur: Seitenleiste öffnen",
     proofread: "Korrektur: diese Notiz korrigieren",
     checkGlossary: "Korrektur: diese Notiz gegen das Glossar prüfen",
@@ -654,6 +655,22 @@ export const de: Messages = {
     pinnedFewer: "Wieder drei zeigen",
     folderCount: (count: string) => `${count} Dateien`,
 
+    tags: {
+      pick: "Tag zum Anheften wählen …",
+      none: "Noch trägt keine Notiz in diesem Vault ein Tag.",
+      notes: (count: number) => (count === 1 ? "1 Notiz" : `${count} Notizen`),
+      pinned: (tag: string) => `#${tag} angeheftet.`,
+      alreadyPinned: (tag: string) => `#${tag} ist bereits angeheftet.`,
+      rowLabel: (tag: string) => `Notizen mit #${tag}`,
+      viewTitle: "Notizen mit Tag",
+      viewTitleFor: (tag: string) => `#${tag}`,
+      viewNoTag: "Ein angeheftetes Tag im Explorer antippen, um seine Notizen hier aufzulisten.",
+      viewEmpty: "Keine Notiz trägt dieses Tag mehr.",
+      summary: (notes: string, open: number, total: number) =>
+        total === 0 ? `${notes}, keine Aufgaben` : `${notes} · ${open} von ${total} Aufgaben offen`,
+      root: "Vault-Wurzel"
+    },
+
     move: {
       intoItself: (name: string) => `${name} lässt sich nicht in sich selbst verschieben.`,
       nameTaken: (name: string) => `Dort liegt bereits ${name}.`,
@@ -705,6 +722,8 @@ export const de: Messages = {
       releaseTop: "Nicht mehr oben halten",
       pin: "Zu „Angeheftet“ hinzufügen",
       unpin: "Aus „Angeheftet“ entfernen",
+      pinTag: "Tag dieser Notiz anheften …",
+      showTag: "Notizen mit diesem Tag zeigen",
       bindSource: "Mit Quelle verbinden …",
       checkSource: "Quelle jetzt prüfen",
       openSource: "Quelle öffnen",

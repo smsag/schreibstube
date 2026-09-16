@@ -27,6 +27,7 @@ export const en = {
     openExplorer: "Explorer: open the pane",
     collapseExplorer: "Explorer: collapse all folders",
     openBookmark: "Explorer: open a bookmark",
+    pinTag: "Explorer: pin a tag",
     openReview: "Review: open the sidebar",
     proofread: "Review: proof-read this note",
     checkGlossary: "Review: check this note against the glossary",

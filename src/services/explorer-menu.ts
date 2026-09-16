@@ -22,6 +22,7 @@ export type ExplorerAction =
   | "release-top"
   | "pin"
   | "unpin"
+  | "pin-tag"
   | "bind-source"
   | "check-source"
   | "open-source"
@@ -55,6 +56,8 @@ export interface ExplorerTarget {
   kept: boolean;
   /** Drawn in the pinned block above the tree. */
   pinned: boolean;
+  /** A note that carries at least one tag, which can be pinned from it. */
+  tagged?: boolean;
   /** For a folder: whether anything under it is bound to a source. */
   hasBoundNotes?: boolean;
 }
@@ -133,6 +136,12 @@ export function buildExplorerMenu(
       ? { id: "unpin", label: menu.unpin, icon: "pin-off" }
       : { id: "pin", label: menu.pin, icon: "pin" }
   );
+  // The tag is reached through a note that carries it: Obsidian's own tag list
+  // offers a plugin no menu to add to, and on a phone the note's long press is
+  // the one gesture there is.
+  if (target.kind === "file" && target.markdown && target.tagged) {
+    appearance.push({ id: "pin-tag", label: menu.pinTag, icon: "tag" });
+  }
   sections.push({ id: "appearance", items: appearance });
 
   const sync = syncItems(target);
@@ -230,5 +239,29 @@ function syncItems(target: ExplorerTarget): ExplorerMenuItem[] {
     { id: "check-source", label: menu.checkSource, icon: "refresh-cw" },
     { id: "open-source", label: menu.openSource, icon: "globe" },
     { id: "unbind-source", label: menu.unbindSource, icon: "unlink" }
+  ];
+}
+
+/** What a pinned tag's row offers. */
+export type TagPinAction = "show-tag" | "unpin-tag";
+
+export interface TagPinMenuItem {
+  id: TagPinAction;
+  label: string;
+  icon: string;
+}
+
+/**
+ * The menu on a pinned tag.
+ *
+ * Short, because a tag is not a file: there is nothing to rename, move or bind.
+ * Listing its notes is what a press already does and is here for the long press
+ * that asked for the menu instead.
+ */
+export function buildTagPinMenu(): TagPinMenuItem[] {
+  const menu = t().explorer.menu;
+  return [
+    { id: "show-tag", label: menu.showTag, icon: "list-checks" },
+    { id: "unpin-tag", label: menu.unpin, icon: "pin-off" }
   ];
 }
