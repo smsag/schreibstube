@@ -1045,6 +1045,110 @@ a.external-link.schreibstube-reminder-mark {
   gap: var(--schreibstube-row-gap);
 }
 
+/* How many notes carry a tag, at the far end of its line in the tag picker. */
+.schreibstube-tag-suggestion-count {
+  margin-left: auto;
+  color: var(--text-faint);
+  font-size: var(--font-ui-smaller);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The notes under a pinned tag, as cards in the right sidebar. */
+.schreibstube-tag-notes {
+  --schreibstube-row-gap: 7px;
+}
+
+.schreibstube-tag-notes-header {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px 2px 10px;
+}
+
+.schreibstube-tag-notes-title {
+  display: flex;
+  align-items: center;
+  gap: var(--schreibstube-row-gap);
+  font-weight: var(--font-semibold);
+  overflow-wrap: anywhere;
+}
+
+.schreibstube-tag-notes-summary,
+.schreibstube-tag-notes-empty {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+}
+
+.schreibstube-tag-notes-empty {
+  padding: 4px 2px;
+}
+
+.schreibstube-tag-notes-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.schreibstube-tag-card {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  border: 1px solid var(--background-modifier-border);
+  border-left-width: 3px;
+  border-radius: var(--schreibstube-border-radius);
+  background: var(--background-primary);
+  cursor: pointer;
+}
+
+.schreibstube-tag-card.is-active {
+  border-left-color: var(--interactive-accent);
+}
+
+.schreibstube-tag-card:focus-visible {
+  outline: 2px solid var(--background-modifier-border-focus);
+  outline-offset: 1px;
+}
+
+.schreibstube-tag-card-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--schreibstube-row-gap);
+}
+
+.schreibstube-tag-card-title {
+  min-width: 0;
+  color: var(--text-normal);
+  overflow-wrap: anywhere;
+}
+
+.schreibstube-tag-card-tasks {
+  flex: 0 0 auto;
+  margin-left: auto;
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Nothing left to do here: the note still carries the tag, so it is listed,
+   but its figure steps back behind the ones that still have work in them. */
+.schreibstube-tag-card.is-settled .schreibstube-tag-card-tasks {
+  color: var(--text-faint);
+}
+
+.schreibstube-tag-card-folder {
+  color: var(--text-faint);
+  font-size: var(--font-ui-smaller);
+  overflow-wrap: anywhere;
+}
+
+@media (hover: hover) {
+  .schreibstube-tag-card:hover {
+    border-color: var(--background-modifier-border-hover);
+  }
+}
+
 .schreibstube-icon-picker .schreibstube-icon-search,
 .schreibstube-prompt-input {
   width: 100%;

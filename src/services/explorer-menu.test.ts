@@ -5,6 +5,7 @@ import {
   LONG_PRESS_ECHO_MS,
   isLongPressEcho,
   buildExplorerMenu,
+  buildTagPinMenu,
   type ExplorerTarget
 } from "./explorer-menu";
 
@@ -230,5 +231,28 @@ describe("naming a file from what is inside it", () => {
 
   it("offers nothing on a folder, which has no contents of that kind", () => {
     expect(fileItems({ kind: "folder", markdown: false, image: true })).toEqual([]);
+  });
+});
+
+describe("pinning a tag", () => {
+  it("is offered on a note that carries a tag, after the note's own pin", () => {
+    const appearance = buildExplorerMenu(target({ tagged: true }), "off").find(
+      (section) => section.id === "appearance"
+    );
+    expect(appearance?.items.map((item) => item.id).slice(-2)).toEqual(["pin", "pin-tag"]);
+  });
+
+  it("is not offered on a note without tags, an attachment or a folder", () => {
+    expect(ids(buildExplorerMenu(target(), "off"))).not.toContain("pin-tag");
+    expect(ids(buildExplorerMenu(target({ markdown: false, tagged: true }), "off"))).not.toContain(
+      "pin-tag"
+    );
+    expect(ids(buildExplorerMenu(target({ kind: "folder", tagged: true }), "off"))).not.toContain(
+      "pin-tag"
+    );
+  });
+
+  it("gives a pinned tag its list and a way out", () => {
+    expect(buildTagPinMenu().map((item) => item.id)).toEqual(["show-tag", "unpin-tag"]);
   });
 });

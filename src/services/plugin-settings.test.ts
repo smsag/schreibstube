@@ -271,6 +271,17 @@ describe("normalizeSettings", () => {
     expect(normalizeSettings({ syncState: { "a.md": record } }).syncState["a.md"]).toEqual(record);
   });
 
+  it("keeps the source a sync record was made against", () => {
+    const record = {
+      hash: "abcd1234",
+      etag: "",
+      checkedAt: 1,
+      pendingChanges: 0,
+      source: "https://example.com/a.md"
+    };
+    expect(normalizeSettings({ syncState: { "a.md": record } }).syncState["a.md"]).toEqual(record);
+  });
+
   it("fills missing fields on a partial sync record", () => {
     expect(
       normalizeSettings({ syncState: { "a.md": { hash: "abcd1234" } as never } }).syncState["a.md"]

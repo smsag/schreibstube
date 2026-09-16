@@ -7,13 +7,23 @@
  * source and refreshing it belong next to the note, not only in the command
  * palette, and a folder can refresh everything under it in one go.
  */
-import { Menu, Notice, TAbstractFile, TFile, TFolder, type App, type MenuItem } from "obsidian";
+import {
+  getAllTags,
+  Menu,
+  Notice,
+  TAbstractFile,
+  TFile,
+  TFolder,
+  type App,
+  type MenuItem
+} from "obsidian";
 import { t } from "../i18n";
 import type { Logger } from "../services/logger";
 import type { SchreibstubeSettings } from "../types";
 import { syncBadgeFor, type SyncBadge } from "../services/explorer-badge";
 import {
   buildExplorerMenu,
+  buildTagPinMenu,
   type ExplorerAction,
   type ExplorerMenuItem,
   type ExplorerTarget,
@@ -47,7 +57,23 @@ import { hasSourceBinding, resolveSourceUrl, SYNC_FRONTMATTER_KEY } from "../ser
 import { someFileUnder } from "../services/vault-tree";
 import { openSubmenu } from "../services/workspace-internals";
 import { describePollSummary, type PollSummary } from "../services/sync-summary";
-import { ConfirmModal, FolderPickerModal, PromptModal } from "../ui/explorer-modals";
+import {
+  sortTagCards,
+  tagFromPinKey,
+  tagPinKey,
+  tallyTags,
+  noteHasTag,
+  vaultTags,
+  type TagCard,
+  type TaggedNote
+} from "../services/tag-pins";
+import { tallyTasks, type TaskTally } from "../services/task-count";
+import {
+  ConfirmModal,
+  FolderPickerModal,
+  PromptModal,
+  TagPickerModal
+} from "../ui/explorer-modals";
 import { IconPickerModal } from "../ui/icon-picker";
 
 /** The file the pane's state lives in, inside the plugin's own folder. */
@@ -86,6 +112,13 @@ export const FOREIGN_MENU_SOURCE = "file-explorer";
  */
 export type FileNamer = (file: TFile) => Promise<string | null>;
 
+/** Where a pinned tag's notes are listed. The plugin owns the sidebar leaf. */
+export type TagOpener = (tag: string) => Promise<void>;
+
+/** A row in the pinned block: a file or a folder, or a tag. */
+export type PinnedItem =
+  { kind: "file"; key: string; file: TAbstractFile } | { kind: "tag"; key: string; tag: string };
+
 /** What the explorer needs from the sync machinery, and nothing more. */
 export interface ExplorerSyncBridge {
   checkFile(file: TFile): Promise<PollSummary>;
@@ -104,6 +137,7 @@ export class ExplorerController {
   private submenusSupported: boolean | null = null;
   /** Set once the AI commands exist, which is after this controller is built. */
   private namer: FileNamer | null = null;
+  private tagOpener: TagOpener | null = null;
 
   constructor(
     private readonly app: App,
@@ -119,6 +153,11 @@ export class ExplorerController {
   /** Hand over the thing that can name a file from its contents. */
   useNamer(namer: FileNamer): void {
     this.namer = namer;
+  }
+
+  /** Hand over the thing that lists a tag's notes in the sidebar. */
+  useTagOpener(opener: TagOpener): void {
+    this.tagOpener = opener;
   }
 
   async start(): Promise<void> {
@@ -220,26 +259,154 @@ export class ExplorerController {
     return entryFor(this.store.data(), path)?.keptAt !== undefined;
   }
 
-  /**
-   * What the pinned section draws: every pinned item that still exists, in the
-   * order it was pinned. A path whose file is gone is skipped rather than
-   * dropped from the state, because it may be a move sync has not delivered yet.
-   */
   /** Put the pinned block in a new order, as a drag has just arranged it. */
   reorderPinned(orderedPaths: readonly string[]): void {
     this.store.mutate((data, now) => reorderPinned(data, orderedPaths, now));
   }
 
-  pinnedItems(): TAbstractFile[] {
-    const items: TAbstractFile[] = [];
+  /**
+   * What the pinned section draws: every pinned item that still exists, in the
+   * order it was pinned. A path whose file is gone is skipped rather than
+   * dropped from the state, because it may be a move sync has not delivered yet.
+   * A tag always exists: a tag no note carries any more is still the question
+   * somebody pinned, and its row answers it with nothing open.
+   */
+  pinnedItems(): PinnedItem[] {
+    const items: PinnedItem[] = [];
 
-    for (const path of pinnedPaths(this.store.data())) {
-      if (this.isTrashed(path)) continue;
-      const file = this.app.vault.getAbstractFileByPath(path);
-      if (file) items.push(file);
+    for (const key of pinnedPaths(this.store.data())) {
+      const tag = tagFromPinKey(key);
+      if (tag !== null) {
+        items.push({ kind: "tag", key, tag });
+        continue;
+      }
+      if (this.isTrashed(key)) continue;
+      const file = this.app.vault.getAbstractFileByPath(key);
+      if (file) items.push({ kind: "file", key, file });
     }
 
     return items;
+  }
+
+  // --- tags ---------------------------------------------------------------
+
+  /** The tasks under each tag, from the metadata cache, in one pass. */
+  tagTallies(tags: readonly string[]): Map<string, TaskTally> {
+    return tallyTags(this.taggedNotes(), tags);
+  }
+
+  /** Every note carrying a tag, as the sidebar lists them. */
+  tagCards(tag: string): TagCard[] {
+    const cards: TagCard[] = [];
+
+    for (const note of this.taggedNotes()) {
+      if (!noteHasTag(note, tag)) continue;
+      const file = this.app.vault.getAbstractFileByPath(note.path);
+      if (!(file instanceof TFile)) continue;
+
+      cards.push({
+        path: file.path,
+        title: this.titleFor(file) ?? file.basename,
+        folder: file.parent && !file.parent.isRoot() ? file.parent.path : "",
+        tally: tallyTasks(note.items),
+        modifiedAt: file.stat.mtime
+      });
+    }
+
+    return sortTagCards(cards);
+  }
+
+  /** The pane's own menu for a note a card stands for. */
+  showMenuForPath(path: string, event: MouseEvent): void {
+    const file = this.app.vault.getAbstractFileByPath(path);
+    if (file) this.showMenu(file, event);
+  }
+
+  /** List a tag's notes in the sidebar. */
+  async openTag(tag: string): Promise<void> {
+    await this.tagOpener?.(tag);
+  }
+
+  /**
+   * Pin a tag, unless it is pinned already under any spelling.
+   *
+   * Obsidian treats `#Projekt` and `#projekt` as one tag, so two rows for them
+   * would be one question asked twice.
+   */
+  pinTag(raw: string): void {
+    const key = tagPinKey(raw);
+    const tag = key === null ? null : tagFromPinKey(key);
+    if (key === null || tag === null) return;
+
+    const already = pinnedPaths(this.store.data()).some(
+      (pinned) => tagFromPinKey(pinned)?.toLowerCase() === tag.toLowerCase()
+    );
+    if (already) {
+      new Notice(t().common.notice(t().explorer.tags.alreadyPinned(tag)));
+      return;
+    }
+
+    this.store.mutate((data, now) => setPinned(data, key, true, now));
+    new Notice(t().common.notice(t().explorer.tags.pinned(tag)));
+  }
+
+  /**
+   * Offer the tags to pin: the vault's, or one note's.
+   *
+   * A note's own tags are what its menu offers, because the person pressing it
+   * has already said which note they mean.
+   */
+  chooseTag(file?: TFile): void {
+    const cache = file ? this.app.metadataCache.getFileCache(file) : null;
+    const notes = file ? [{ tags: (cache && getAllTags(cache)) ?? [] }] : this.taggedNotes();
+    const tags = vaultTags(notes);
+
+    if (tags.length === 0) {
+      new Notice(t().common.notice(t().explorer.tags.none));
+      return;
+    }
+
+    new TagPickerModal(this.app, tags, (tag) => this.pinTag(tag)).open();
+  }
+
+  showTagMenu(
+    item: { key: string; tag: string },
+    event: MouseEvent | { x: number; y: number }
+  ): void {
+    const menu = new Menu();
+
+    for (const entry of buildTagPinMenu()) {
+      menu.addItem((menuItem) =>
+        menuItem
+          .setTitle(entry.label)
+          .setIcon(entry.icon)
+          .onClick(() => {
+            if (entry.id === "show-tag") {
+              void this.openTag(item.tag);
+              return;
+            }
+            this.store.mutate((data, now) => setPinned(data, item.key, false, now));
+          })
+      );
+    }
+
+    this.openMenu = menu;
+    menu.onHide(() => {
+      if (this.openMenu === menu) this.openMenu = null;
+    });
+
+    if (event instanceof MouseEvent) menu.showAtMouseEvent(event);
+    else menu.showAtPosition(event);
+  }
+
+  /** Every Markdown note with the tags and list items the cache holds for it. */
+  private *taggedNotes(): Generator<TaggedNote> {
+    for (const file of this.app.vault.getMarkdownFiles()) {
+      if (this.isTrashed(file.path)) continue;
+      const cache = this.app.metadataCache.getFileCache(file);
+      if (!cache) continue;
+      yield { path: file.path, tags: getAllTags(cache) ?? [], items: cache.listItems };
+    }
   }
 
   /**
@@ -406,8 +573,14 @@ export class ExplorerController {
       hasIcon: this.iconFor(file.path) !== undefined,
       kept: this.isKept(file.path),
       pinned: this.isPinned(file.path),
+      tagged: isFile && file.extension === "md" && this.hasTags(file),
       hasBoundNotes: file instanceof TFolder && this.hasBoundNotes(file)
     };
+  }
+
+  private hasTags(file: TFile): boolean {
+    const cache = this.app.metadataCache.getFileCache(file);
+    return cache !== null && (getAllTags(cache)?.length ?? 0) > 0;
   }
 
   /**
@@ -441,6 +614,9 @@ export class ExplorerController {
       case "pin":
       case "unpin":
         this.store.mutate((data, now) => setPinned(data, file.path, action === "pin", now));
+        return;
+      case "pin-tag":
+        if (file instanceof TFile) this.chooseTag(file);
         return;
       case "bind-source":
         return this.bindSource(file);
