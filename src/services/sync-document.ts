@@ -49,6 +49,15 @@ export interface SyncRecord {
    * and so it survives a note whose properties could not be written.
    */
   changedAt?: number;
+  /**
+   * The source this record was made against, as the note named it.
+   *
+   * What lets a record be recognised when the note is not where it was: a
+   * note moved on another device arrives at a new path, and a record naming
+   * the same source is the only thing that says the two belong together. It
+   * also marks a record left over from a binding the note no longer has.
+   */
+  source?: string;
 }
 
 export interface SyncOutcomeInput {
@@ -66,6 +75,8 @@ export interface SyncOutcomeInput {
   /** Whether the note now matches the source, which is what advances the
    *  baseline the divergence check is made against. */
   settled: boolean;
+  /** The source the check was made against. Absent keeps what the record had. */
+  source?: string;
 }
 
 /**
@@ -78,6 +89,7 @@ export interface SyncOutcomeInput {
  */
 export function nextSyncRecord(input: SyncOutcomeInput): SyncRecord {
   const { record, body, remoteBody, etag, checkedAt, pendingChanges, settled } = input;
+  const source = input.source ?? record?.source;
   const remoteHash = remoteBody === null ? record?.remoteHash : hashText(remoteBody);
   // One rule, asked once. Two spellings of it drifted apart the moment one of
   // them learned something the other did not.
@@ -93,7 +105,8 @@ export function nextSyncRecord(input: SyncOutcomeInput): SyncRecord {
       ? { changedAt: checkedAt }
       : record?.changedAt !== undefined
         ? { changedAt: record.changedAt }
-        : {})
+        : {}),
+    ...(source === undefined ? {} : { source })
   };
 }
 

@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Fixed
+
+- **A note unbound on one device is unbound on the others, record and all.** The binding already travelled with the note, but the sync record beside it stayed on every device that had checked it, and binding the note again later compared the new source against the old baseline — a note nobody had touched came back as edited locally. A record whose note no longer names its source, or names a different one, is now dropped the moment the note's frontmatter says so, and before every poll. Changing a note's source in the bind dialogue is covered by the same rule; it used to keep the old baseline too.
+- **A note moved on another device keeps its sync record.** A sync client may deliver a rename as a delete and a create, and a device that was closed sees only a note at a new path, so the next check there was a first sync, with an `updatedAt` the document had not earned. A record now names the source it was made against and is kept for thirty days after its note disappears; a bound note with no record takes it over when it names the same source and still holds exactly the text the record was made against. A note written afresh is never handed someone else's baseline.
+
 ## 1.30.0 - 2026-09-16
 
 Mobile checklist: not run for this release. The one change is the plugin's
