@@ -747,6 +747,7 @@ export default class SchreibstubePlugin extends Plugin {
     this.addCommand({
       id: "open-explorer-pane",
       name: t().commands.openExplorer,
+      icon: EXPLORER_RIBBON_ICON,
       callback: () => {
         void this.activateExplorerPane();
       }

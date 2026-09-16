@@ -1,4 +1,4 @@
-# Schreibstube
+# <img src="assets/logo.svg" alt="" width="28"> Schreibstube
 
 A writing-focused Obsidian plugin: a proof-read review sidebar with glossary support, document sync from remote Markdown sources, email send/query/merge over IMAP and SMTP, a sticky heading-stack overlay, a distraction-reducing focus mode, a task summary ribbon with per-heading counts, LLM-powered file renaming, and side-pane link opening.
 
