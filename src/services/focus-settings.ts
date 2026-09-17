@@ -33,3 +33,13 @@ export function normalizeFocusSettings(
     focusDimOpacity: Math.max(MIN_DIM_OPACITY, Math.min(MAX_DIM_OPACITY, safeOpacity))
   };
 }
+
+/**
+ * The mode a focus command leaves behind.
+ *
+ * Running the mode that is already on turns focus off, so two commands cover
+ * what took three, and the hotkey that started a mode is the one that ends it.
+ */
+export function toggledFocusMode(current: FocusMode, requested: FocusMode): FocusMode {
+  return current === requested ? "off" : requested;
+}

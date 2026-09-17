@@ -377,11 +377,11 @@ request without writing anything.
 
 ### Commands
 
-| Command                     | Behaviour                                                          |
-| --------------------------- | ------------------------------------------------------------------ |
-| **Veröffentlichen**         | Collects, plans, shows the plan for confirmation, uploads, commits |
-| **Veröffentlichung prüfen** | The same up to the plan, then stops and shows it                   |
-| **Website öffnen**          | Opens the account base URL                                         |
+| Command                    | Behaviour                                                          |
+| -------------------------- | ------------------------------------------------------------------ |
+| **Ordner veröffentlichen** | Collects, plans, shows the plan for confirmation, uploads, commits |
+
+**Website öffnen** in the publishing settings opens the account base URL.
 
 Publishing is explicit. No save hook and no schedule, at least until the plan
 preview has proven itself in practice.

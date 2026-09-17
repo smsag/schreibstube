@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  toggledFocusMode,
   DEFAULT_SETTINGS,
   MAX_DIM_OPACITY,
   MIN_DIM_OPACITY,
@@ -51,5 +52,18 @@ describe("normalizeFocusSettings", () => {
       focusMode: "paragraph",
       focusDimOpacity: 0.55
     });
+  });
+});
+
+describe("a focus command", () => {
+  it("turns its mode on from off or from the other mode", () => {
+    expect(toggledFocusMode("off", "sentence")).toBe("sentence");
+    expect(toggledFocusMode("paragraph", "sentence")).toBe("sentence");
+  });
+
+  it("turns focus off when its mode is already on", () => {
+    // With no command of its own for "off", the one that started a mode ends it.
+    expect(toggledFocusMode("sentence", "sentence")).toBe("off");
+    expect(toggledFocusMode("paragraph", "paragraph")).toBe("off");
   });
 });

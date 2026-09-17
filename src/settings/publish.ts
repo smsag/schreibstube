@@ -79,9 +79,18 @@ export function renderPublish(ctx: SettingsContext): void {
     })
   );
 
+  new Setting(containerEl)
+    .setName(t().publish.openSite)
+    .setDesc(t().publish.openSiteDesc)
+    .addButton((button) =>
+      button.setButtonText(t().publish.openSiteButton).onClick(() => {
+        void ctx.plugin.openPublishedSite();
+      })
+    );
+
   renderKeys(ctx);
 
-  renderCommands(ctx, [t().commands.publish, t().commands.publishPreview, t().commands.openSite]);
+  renderCommands(ctx, [t().commands.publish]);
 }
 
 function renderAccount(ctx: SettingsContext, position: number, account: PublishAccount): void {

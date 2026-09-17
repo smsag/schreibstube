@@ -73,9 +73,16 @@ export function renderPrint(ctx: SettingsContext): void {
         });
     });
 
-  new Setting(ctx.containerEl).setDesc(strings.printAddTemplateDesc);
+  new Setting(ctx.containerEl)
+    .setName(strings.printAddTemplate)
+    .setDesc(strings.printAddTemplateDesc)
+    .addButton((button) =>
+      button.setButtonText(strings.printAddTemplateButton).onClick(() => {
+        void ctx.plugin.addPrintTemplate();
+      })
+    );
 
-  renderCommands(ctx, [t().commands.print, t().commands.addPrintTemplate]);
+  renderCommands(ctx, [t().commands.print]);
 }
 
 /**

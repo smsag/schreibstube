@@ -14,8 +14,7 @@
 
 /** The commands whose usefulness depends on what is open. */
 export type GatedCommand =
-  | "rename-note"
-  | "rename-image"
+  | "rename"
   | "summarize"
   | "check-source"
   | "send-mail"
@@ -23,8 +22,7 @@ export type GatedCommand =
   | "print"
   | "collapse-explorer"
   | "send-reminder"
-  | "check-note-reminders"
-  | "fetch-reminders";
+  | "reminders";
 
 /** What the screen says, reduced to what the answers depend on. */
 export interface CommandContext {
@@ -48,11 +46,9 @@ export interface CommandContext {
 
 export function commandAvailable(command: GatedCommand, context: CommandContext): boolean {
   switch (command) {
-    // Both renames read the file that is open, and only one kind of file each.
-    case "rename-note":
-      return context.markdown;
-    case "rename-image":
-      return context.image;
+    // The rename reads the file that is open, a note or a picture.
+    case "rename":
+      return context.markdown || context.image;
     // There is nothing to summarize without a selection, and the command's own
     // refusal for that was a notice telling people to do what they had come to
     // the palette to do.
@@ -79,13 +75,28 @@ export function commandAvailable(command: GatedCommand, context: CommandContext)
     // command.
     case "send-reminder":
       return context.markdown && context.task && context.apple;
-    // Checking a note against Reminders is about the marks on its tasks, which
-    // are on screen; a note without one has nothing to ask about.
-    case "check-note-reminders":
-      return context.markdown && context.sentTask && context.apple;
-    // Fetching for every note asks about the list, not the note in front of
-    // you, so the only visible condition is the platform.
-    case "fetch-reminders":
+    // The one comparison with Reminders narrows itself to the open note when
+    // that note has sent tasks, and otherwise asks about the whole list, so the
+    // only visible condition is the platform.
+    case "reminders":
       return context.apple;
   }
+}
+
+/** What the rename reads: the picture that is open, or the note. */
+export function renameTarget(context: CommandContext): "image" | "note" | null {
+  if (context.image) return "image";
+  return context.markdown ? "note" : null;
+}
+
+/**
+ * How far a comparison with Reminders reaches.
+ *
+ * Two commands used to ask this of the person: one for the open note, one for
+ * every note. The note on screen already answers it — a note with sent tasks
+ * is what somebody running the comparison from it means, and anything else
+ * means the list.
+ */
+export function remindersScope(context: CommandContext): "note" | "all" {
+  return context.markdown && context.sentTask ? "note" : "all";
 }

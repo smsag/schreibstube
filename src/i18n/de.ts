@@ -8,38 +8,29 @@ import type { Messages } from "./en";
 
 export const de: Messages = {
   commands: {
-    print: "Drucken: diese Notiz als PDF",
-    addPrintTemplate: "Drucken: Vorlage anlegen",
+    print: "Doc drucken",
     focusSentence: "Fokus: Satz",
     focusParagraph: "Fokus: Absatz",
-    focusDisable: "Fokus: aus",
-    newNote: "Fokus: neue Notiz im eigenen Fenster",
-    insertTaskSummary: "Aufgaben: Zusammenfassung einfügen",
-    insertSlideshow: "Diaschau: Bild-Diaschau einfügen",
-    sendToReminders: "Aufgaben: an Erinnerungen senden",
-    checkNoteReminders: "Aufgaben: diese Notiz mit Erinnerungen abgleichen",
-    fetchReminders: "Aufgaben: Erledigtes aus Erinnerungen holen",
-    renameFile: "KI: Notiz aus ihrem Text benennen",
-    renameImage: "KI: Bild aus dem Bild benennen",
-    summarize: "KI: Auswahl zusammenfassen",
-    openExplorer: "Explorer: Bereich öffnen",
-    collapseExplorer: "Explorer: alle Ordner zuklappen",
-    openBookmark: "Explorer: Lesezeichen öffnen",
-    pinTag: "Explorer: Tag anheften",
-    openReview: "Korrektur: Seitenleiste öffnen",
-    proofread: "Korrektur: diese Notiz korrigieren",
-    checkGlossary: "Korrektur: diese Notiz gegen das Glossar prüfen",
-    syncAll: "Sync: alle gebundenen Notizen prüfen",
-    syncNote: "Sync: Quelle dieser Notiz prüfen",
-    sendMail: "Mail: diese Notiz senden",
-    queryMailbox: "Mail: Postfach durchsuchen",
-    fetchReplies: "Mail: Antworten in diese Notiz holen",
-    publish: "Veröffentlichen: Ordner veröffentlichen",
-    publishPreview: "Veröffentlichen: Veröffentlichung prüfen",
-    openSite: "Veröffentlichen: Website öffnen",
-    linksLeft: "Links: nach links öffnen",
-    linksRight: "Links: nach rechts öffnen",
-    linksNormal: "Links: normal öffnen"
+    newNote: "Neues Doc",
+    insertTaskSummary: "Einfügen: Aufgaben-Zusammenfassung",
+    insertSlideshow: "Einfügen: Diaschau",
+    sendToReminders: "Aufgabe an Erinnerungen senden",
+    reminders: "Erinnerungen abgleichen",
+    rename: "Doc mit KI umbenennen",
+    summarize: "Einfügen: KI-Zusammenfassung der Auswahl",
+    openExplorer: "Explorer öffnen",
+    collapseExplorer: "Explorer: Ordner zuklappen",
+    openBookmark: "Lesezeichen öffnen",
+    pinTag: "Tag anheften",
+    openReview: "Korrektur-Seitenleiste öffnen",
+    proofread: "Doc korrigieren",
+    syncAll: "Alle Docs aktualisieren",
+    syncNote: "Doc aktualisieren",
+    sendMail: "Doc als Mail senden",
+    queryMailbox: "Postfach durchsuchen",
+    fetchReplies: "Antworten ins Doc holen",
+    publish: "Ordner veröffentlichen",
+    linksSwitch: "Links: Seite wechseln"
   },
 
   common: {
@@ -103,6 +94,9 @@ export const de: Messages = {
   publish: {
     heading: "Veröffentlichen",
     newAccountName: "Website",
+    openSite: "Website öffnen",
+    openSiteDesc: "Öffnet die veröffentlichte Website im Browser.",
+    openSiteButton: "Öffnen",
     intro:
       "Veröffentlicht einen Ordner des Vaults als Website. Übertragen werden nur Notizen, deren " +
       "Frontmatter das sagt. Die Bridge rendert das Markdown und schreibt es per SFTP — die " +
@@ -293,7 +287,7 @@ export const de: Messages = {
     explorerIntro:
       "Die eigene Dateiliste der Schreibstube: ein Symbol je Datei und Ordner, eine " +
       "Sync-Markierung an Notizen mit Quelle und ein angehefteter Block oben in jedem Ordner. " +
-      "Öffnen über den Befehl „Schreibstube Explorer öffnen“.",
+      "Öffnen über den Befehl „Explorer öffnen“.",
     explorerForeign: "Einträge anderer Plugins",
     explorerForeignDesc:
       "Der Bereich löst Obsidians file-menu-Event aus, andere Plugins können also beitragen. " +
@@ -354,7 +348,7 @@ export const de: Messages = {
 
     summarizeHeading: "Auswahl zusammenfassen",
     summarizeIntro:
-      "„Auswahl zusammenfassen“ schickt den markierten Text an das LLM und ersetzt ihn durch das " +
+      "„Einfügen: KI-Zusammenfassung der Auswahl“ schickt den markierten Text an das LLM und ersetzt ihn durch das " +
       "Ergebnis. Es nutzt das oben konfigurierte Modell.",
     summarizePrompt: "Prompt für die Zusammenfassung",
     summarizePromptDesc:
@@ -411,6 +405,8 @@ export const de: Messages = {
     printRuntimeHeading: "Der Satzteil",
     printDownloadNow: "Jetzt laden",
     printRemoveRuntime: "Satzteil entfernen",
+    printAddTemplate: "Vorlage anlegen",
+    printAddTemplateButton: "Anlegen",
     printAddTemplateDesc:
       "Legt eine der beiden Beispielvorlagen in einem Ordner deiner Wahl an. Keine bringt eine " +
       "Schrift mit, denn Schriften sind lizenziert; eine Vorlage ohne wird in Typsts eigener gesetzt.",
@@ -803,7 +799,7 @@ export const de: Messages = {
     noNote: "zuerst eine Notiz öffnen — gedruckt wird die Notiz, die vor dir liegt.",
     noTemplates:
       "keine Druckvorlage in diesem Vault. Eine Vorlage ist ein Ordner mit template.md und " +
-      "template.typ; „Drucken: Vorlage anlegen“ legt eine an.",
+      "template.typ; „Vorlage anlegen“ in den Druck-Einstellungen legt eine an.",
     unknownTemplate: (name: string) =>
       `diese Notiz verlangt die Vorlage „${name}“, und kein Ordner in diesem Vault ist eine.`,
     noLayout: (name: string) => `${name} hat keine template.typ — damit lässt sich nichts drucken.`,
