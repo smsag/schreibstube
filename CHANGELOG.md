@@ -2,7 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## 1.32.0 - 2026-09-17
+
+Mobile checklist: not run for this release. Everything in it was checked by the
+test suite and the build's own guards, not on a device. Nothing here changes the
+file pane, the overlay or printing; the sync fix writes a note's properties
+through its editor, which a phone does the same way a laptop does.
+
+Bridge 2.4.0 is unchanged and still pairs with this release.
 
 ### Fixed
 
@@ -10,6 +17,7 @@ All notable changes to this project will be documented in this file.
 - **Accepting a first sync no longer leaves the note empty.** A check wrote the note's `title` and `updatedAt` to the file on disk and then offered the document as cards; accepting them filled the editor, and Obsidian, merging the file it had just been told about into the editor, could not place a whole document against frontmatter that had changed underneath it and kept the file's version without a word. The note ended up with its properties and nothing else, while the plugin recorded it as matching its source. A note that is open now gets its properties through its editor, before the cards are measured, so there is one copy of it and the editor saves it.
 - **A manual check gives a note back the document it lost.** A note recorded as matching its source answered "unchanged" to every check while the source stood still, so the text that went missing above could not be fetched again. Checking by hand now fetches the whole document whenever the note no longer holds what the source last sent.
 - **A README's logo is no longer part of its title.** The title is taken from the first heading, and a GitHub README often puts an `<img>` there; the tag was written into `title` as it stood. HTML is left out now, and a heading that is only a picture gives no title.
+
 ## 1.31.0 - 2026-09-16
 
 Mobile checklist: not run for this release. Everything in it was checked by the
