@@ -553,11 +553,13 @@ export class ProofreadController {
       const record =
         recordForSource(this.syncStore.get(file.path), resolved.url) ??
         (await this.poller.adoptMovedRecord(file, resolved.url));
+      const current = manual ? this.resolveTargetView()?.editor.getValue() : undefined;
       const plan = planSourceCheck({
         record,
         schedule: this.readInterval(file).schedule,
         minIntervalMinutes: settings.syncMinIntervalMinutes,
-        now: new Date()
+        now: new Date(),
+        noteBodyHash: current === undefined ? undefined : hashText(splitNote(current).body)
       });
       if (!manual && !plan.due) {
         return;
@@ -583,8 +585,7 @@ export class ProofreadController {
       // The user may have moved on while the request was in flight.
       if (!view || view.file?.path !== file.path) return;
 
-      const noteText = view.editor.getValue();
-      const body = splitNote(noteText).body;
+      const body = splitNote(view.editor.getValue()).body;
       const state = localState(body, record);
       const checkedAt = Date.now();
 
@@ -650,6 +651,24 @@ export class ProofreadController {
       }
 
       const remoteBody = stripRemoteFrontmatter(outcome.body);
+
+      // The same properties a poll would have written. A note's title and the
+      // date its source last moved must not depend on which of the two ways it
+      // happened to be checked — this path wrote neither, so a note checked
+      // from the panel got no properties and never reached the pane's list of
+      // what a source has changed.
+      //
+      // Written before the cards are placed, not after: they go into the
+      // editor, and a card measured against the frontmatter as it was would
+      // land inside the frontmatter as it is now.
+      await this.poller.writeNoteProperties(
+        file,
+        remoteBody,
+        body,
+        isRemoteChange(record, remoteBody)
+      );
+
+      const noteText = view.editor.getValue();
       const suggestions = buildSyncSuggestions({ noteText, remoteBody, state });
 
       await this.syncStore.set(
@@ -667,18 +686,6 @@ export class ProofreadController {
           // source, so an unaccepted update is still pending on the next check.
           settled: suggestions.length === 0
         })
-      );
-
-      // The same properties a poll would have written. A note's title and the
-      // date its source last moved must not depend on which of the two ways it
-      // happened to be checked — this path wrote neither, so a note checked
-      // from the panel got no properties and never reached the pane's list of
-      // what a source has changed.
-      await this.poller.writeNoteProperties(
-        file,
-        remoteBody,
-        body,
-        isRemoteChange(record, remoteBody)
       );
 
       this.suggestions = mergeSuggestions(this.suggestions, suggestions, "remote");

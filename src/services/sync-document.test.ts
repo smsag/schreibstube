@@ -43,6 +43,12 @@ describe("splitNote", () => {
     expect(parts.frontmatter + parts.body).toBe(NOTE);
   });
 
+  it("does not count a newline after a block that ends the note", () => {
+    // Counted, every card's offset sat one past the end of the note.
+    const text = "---\nschreibstubeSyncedFrom: https://example.com/a.md\n---";
+    expect(splitNote(text)).toEqual({ frontmatter: text, body: "" });
+  });
+
   it("handles a note with no frontmatter", () => {
     expect(splitNote("# Titel\n")).toEqual({ frontmatter: "", body: "# Titel\n" });
   });

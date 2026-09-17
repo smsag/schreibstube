@@ -166,7 +166,9 @@ export function splitNote(text: string): NoteParts {
 
   for (let i = 1; i < lines.length; i += 1) {
     if (lines[i]?.trim() !== "---") continue;
-    const frontmatter = `${lines.slice(0, i + 1).join("\n")}\n`;
+    // A block that ends the note has no newline after it, and counting one
+    // put every offset past the end of the text.
+    const frontmatter = `${lines.slice(0, i + 1).join("\n")}${i + 1 < lines.length ? "\n" : ""}`;
     return { frontmatter, body: text.slice(frontmatter.length) };
   }
 
