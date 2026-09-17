@@ -79,8 +79,8 @@ half is worth ten minutes on a phone, once per release:
 1. Open a vault on iOS or Android and confirm the plugin loads with no error.
 2. Scroll a long note: the heading stack appears and follows.
 3. Turn on focus mode, type a paragraph, turn it off.
-4. Run **Proof-read note** on a short note and accept one suggestion.
-5. Run **Publish** on a small folder against a throwaway target, and open the
+4. Run **Proof-read doc** on a short note and accept one suggestion.
+5. Run **Publish folder** on a small folder against a throwaway target, and open the
    site in the phone's browser.
 6. Send one note as an email and confirm it arrives.
 7. Open the file pane: the icons draw (an empty square means the font did not

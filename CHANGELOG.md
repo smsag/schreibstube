@@ -2,7 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## 1.33.0 - 2026-09-17
+
+Mobile checklist: not run for this release. Everything in it was checked by the
+test suite and the build's own guards, not on a device. The checklist now uses
+the new command names. A click on the link-mode indicator in the status bar and
+the two new buttons under Drucken and Veröffentlichen are new and have not been
+tried on a phone.
+
+Bridge 2.4.0 is unchanged and still pairs with this release.
 
 ### Changed
 
