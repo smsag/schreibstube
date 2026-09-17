@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Changed
+
+- **The command palette is shorter and sorts by what a command acts on.** Commands are named after their object, so related ones sit together: `Doc …` for the note in front of you (Neues Doc, Doc aktualisieren, Doc korrigieren, Doc drucken, Doc als Mail senden, Doc mit KI umbenennen, Antworten ins Doc holen), `Einfügen: …` for what goes into it (Aufgaben-Zusammenfassung, Diaschau, KI-Zusammenfassung der Auswahl), and `Fokus: …`, `Explorer: …` and `Links: …` for the view. The English names follow the same pattern ("Proof-read doc", "Insert: slideshow"). Thirty-two commands are twenty-three.
+- **Commands that were one choice asked three ways are one command.** The two AI renames are **Doc mit KI umbenennen**, which renames a picture when a picture is open and a note otherwise. The three link modes are **Links: Seite wechseln**, which moves from normal to left to right and back, as a click on the status bar indicator now does too. The two comparisons with Reminders are **Erinnerungen abgleichen**, which asks about the open note when it has sent tasks and about the whole list otherwise. **Fokus: Satz** and **Fokus: Absatz** turn focus mode off when their mode is already on, which replaces "Fokus: aus".
+- **What is done once is a button, not a command.** Adding a print template is **Vorlage anlegen** in the print settings, and opening the published site is **Website öffnen** in the publishing settings.
+
+### Removed
+
+- **"Check this note against the glossary"** as a command. The review sidebar's button does the same, and proof-reading a doc checks the glossary first anyway.
+- **"Preview the publication"**. Publishing a folder already shows the plan and waits for confirmation before anything is uploaded.
+
+Hotkeys follow a command's id. The merged rename and Reminders commands keep an old id (`rename-from-content`, `fetch-done-from-reminders`), and every renamed command keeps its own, so those hotkeys still work. A hotkey bound to the image rename, the note-only Reminders check, "Focus: off", any of the three link modes, the glossary check, the print template, the preview or the website has to be bound again; the link modes are now `switch-link-side`.
+
 ## 1.32.0 - 2026-09-17
 
 Mobile checklist: not run for this release. Everything in it was checked by the

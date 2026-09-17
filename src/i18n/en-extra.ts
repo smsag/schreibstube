@@ -58,7 +58,7 @@ export const enExtra = {
     explorerIntro:
       "Schreibstube's own file list: an icon per file and folder, a sync mark on notes bound " +
       "to a source, and a pinned block at the top of each folder. Open it with the " +
-      '"Open Schreibstube Explorer" command.',
+      '"Open explorer" command.',
     explorerForeign: "Items from other plugins",
     explorerForeignDesc:
       "The pane fires Obsidian's file-menu event, so other plugins can contribute. Keeping " +
@@ -119,7 +119,7 @@ export const enExtra = {
 
     summarizeHeading: "Summarize selection",
     summarizeIntro:
-      "The Summarize selection command sends the selected text to the LLM and replaces it with " +
+      'The "Insert: AI summary of the selection" command sends the selected text to the LLM and replaces it with ' +
       "the result. It uses the shared AI model configured above.",
     summarizePrompt: "Summarize prompt",
     summarizePromptDesc:
@@ -176,6 +176,8 @@ export const enExtra = {
     printRuntimeHeading: "The typesetter",
     printDownloadNow: "Download now",
     printRemoveRuntime: "Remove the typesetter",
+    printAddTemplate: "Add a template",
+    printAddTemplateButton: "Add",
     printAddTemplateDesc:
       "Writes one of the two example templates into a folder you choose. Neither carries a " +
       "typeface, since fonts are licensed; a template with none is set in Typst's own.",
@@ -564,7 +566,7 @@ export const enExtra = {
     noNote: "open a note first — printing sets the note you are looking at.",
     noTemplates:
       "no print template in this vault. A template is a folder holding a template.md and a " +
-      'template.typ; run "Print: add a template" to put one in.',
+      'template.typ; "Add a template" in the print settings puts one in.',
     unknownTemplate: (name: string) =>
       `this note asks for the template "${name}", and no folder in this vault is one.`,
     noLayout: (name: string) => `${name} has no template.typ, so there is nothing to print with.`,

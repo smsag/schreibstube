@@ -165,5 +165,5 @@ export function renderAi(ctx: SettingsContext): void {
       });
     });
 
-  renderCommands(ctx, [t().commands.renameFile, t().commands.renameImage, t().commands.summarize]);
+  renderCommands(ctx, [t().commands.rename, t().commands.summarize]);
 }

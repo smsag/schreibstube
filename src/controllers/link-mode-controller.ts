@@ -1,13 +1,14 @@
 import { MarkdownView, type App, type WorkspaceLeaf } from "obsidian";
 import { t } from "../i18n";
 import type { Logger } from "../services/logger";
+import { nextLinkMode, type LinkOpenMode } from "../services/link-mode";
 import {
   createLeafBySplit,
   installOpenLinkTextPatch,
   leafContainerContains
 } from "../services/workspace-internals";
 
-export type LinkOpenMode = "default" | "left" | "right";
+export type { LinkOpenMode } from "../services/link-mode";
 
 /**
  * Owns the "open links in a side pane" feature: the current mode, its status
@@ -29,6 +30,10 @@ export class LinkModeController {
   /** Install the status bar indicator and patch `openLinkText`. */
   start(statusEl: HTMLElement): void {
     this.statusEl = statusEl;
+    // The indicator is shown only while links open to a side, so a click on it
+    // moves on from there: left to right, right back to normal.
+    statusEl.addClass("mod-clickable");
+    statusEl.addEventListener("click", () => this.cycleMode());
     this.updateStatus();
     this.unpatch = installOpenLinkTextPatch(
       this.app.workspace,
@@ -55,6 +60,11 @@ export class LinkModeController {
     this.targetLeaf = null;
     this.updateStatus();
     this.logger.debug("Link-open mode set to", mode);
+  }
+
+  /** Move to the next mode, as the command and the indicator both do. */
+  cycleMode(): void {
+    this.setMode(nextLinkMode(this.mode));
   }
 
   /** Handle a document-level click; intercepts internal links when a side-pane

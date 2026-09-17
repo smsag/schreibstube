@@ -64,9 +64,5 @@ export function renderReminders(ctx: SettingsContext): void {
       });
     });
 
-  renderCommands(ctx, [
-    t().commands.sendToReminders,
-    t().commands.checkNoteReminders,
-    t().commands.fetchReminders
-  ]);
+  renderCommands(ctx, [t().commands.sendToReminders, t().commands.reminders]);
 }

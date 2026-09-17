@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { commandAvailable, type CommandContext, type GatedCommand } from "./command-availability";
+import {
+  commandAvailable,
+  remindersScope,
+  renameTarget,
+  type CommandContext,
+  type GatedCommand
+} from "./command-availability";
 
 function screen(overrides: Partial<CommandContext> = {}): CommandContext {
   return {
@@ -17,16 +23,14 @@ function screen(overrides: Partial<CommandContext> = {}): CommandContext {
 
 function offered(context: CommandContext): GatedCommand[] {
   const all: GatedCommand[] = [
-    "rename-note",
-    "rename-image",
+    "rename",
     "summarize",
     "check-source",
     "send-mail",
     "fetch-replies",
     "collapse-explorer",
     "send-reminder",
-    "check-note-reminders",
-    "fetch-reminders"
+    "reminders"
   ];
 
   return all.filter((command) => commandAvailable(command, context));
@@ -34,7 +38,7 @@ function offered(context: CommandContext): GatedCommand[] {
 
 describe("what the palette offers", () => {
   it("offers a plain note what can be done to a plain note", () => {
-    expect(offered(screen())).toEqual(["rename-note", "send-mail", "fetch-replies"]);
+    expect(offered(screen())).toEqual(["rename", "send-mail", "fetch-replies"]);
   });
 
   it("offers a note bound to a source the check for it", () => {
@@ -52,10 +56,15 @@ describe("what the palette offers", () => {
     expect(offered(screen({ selection: false }))).not.toContain("summarize");
   });
 
-  it("offers each rename to the kind of file it can read, and no other", () => {
-    expect(offered(screen({ markdown: true }))).toContain("rename-note");
-    expect(offered(screen({ markdown: true }))).not.toContain("rename-image");
-    expect(offered(screen({ markdown: false, image: true }))).toEqual(["rename-image"]);
+  it("offers the rename to a note and to a picture, and nothing else to a picture", () => {
+    expect(offered(screen({ markdown: true }))).toContain("rename");
+    expect(offered(screen({ markdown: false, image: true }))).toEqual(["rename"]);
+  });
+
+  it("renames what is open: the picture, the note, or nothing", () => {
+    expect(renameTarget(screen({ markdown: false, image: true }))).toBe("image");
+    expect(renameTarget(screen({ markdown: true }))).toBe("note");
+    expect(renameTarget(screen({ markdown: false, image: false }))).toBeNull();
   });
 
   it("offers nothing at all with a PDF open, rather than four refusals", () => {
@@ -71,15 +80,15 @@ describe("what the palette offers", () => {
     );
   });
 
-  it("offers to check a note against Reminders only when one of its tasks was sent", () => {
-    expect(offered(screen({ apple: true, sentTask: true }))).toContain("check-note-reminders");
-    expect(offered(screen({ apple: true, sentTask: false }))).not.toContain("check-note-reminders");
-    expect(offered(screen({ apple: false, sentTask: true }))).not.toContain("check-note-reminders");
+  it("offers the comparison with Reminders wherever Reminders exists, whatever is open", () => {
+    expect(offered(screen({ apple: true, markdown: false }))).toContain("reminders");
+    expect(offered(screen({ apple: false, sentTask: true }))).not.toContain("reminders");
   });
 
-  it("offers to fetch from Reminders wherever Reminders exists, whatever is open", () => {
-    expect(offered(screen({ apple: true, markdown: false }))).toContain("fetch-reminders");
-    expect(offered(screen({ apple: false }))).not.toContain("fetch-reminders");
+  it("compares the open note when it has sent tasks, and the whole list otherwise", () => {
+    expect(remindersScope(screen({ sentTask: true }))).toBe("note");
+    expect(remindersScope(screen({ sentTask: false }))).toBe("all");
+    expect(remindersScope(screen({ markdown: false, sentTask: false }))).toBe("all");
   });
 
   it("offers to close the folders only where there are folders to close", () => {

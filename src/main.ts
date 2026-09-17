@@ -25,9 +25,12 @@ import { buildSlideshowInsertion } from "./services/slideshow";
 import { createLogger, type Logger } from "./services/logger";
 import {
   commandAvailable,
+  remindersScope,
+  renameTarget,
   type CommandContext,
   type GatedCommand
 } from "./services/command-availability";
+import { toggledFocusMode } from "./services/focus-settings";
 import { getImageMimeType } from "./services/image-resize";
 import { hasSourceBinding } from "./services/sync-source";
 import { describePollSummary } from "./services/sync-summary";
@@ -664,6 +667,16 @@ export default class SchreibstubePlugin extends Plugin {
     await this.print?.removeRuntime();
   }
 
+  /** Adding a template is set up once, so it is a button on the print tab. */
+  async addPrintTemplate(): Promise<void> {
+    await this.print?.addTemplate();
+  }
+
+  /** Opening the published site is occasional, so it is a button on the tab. */
+  async openPublishedSite(): Promise<void> {
+    await this.publish?.openSite();
+  }
+
   /**
    * What is on screen, as the availability rules ask about it.
    *
@@ -720,7 +733,7 @@ export default class SchreibstubePlugin extends Plugin {
       id: "set-focus-sentence-mode",
       name: t().commands.focusSentence,
       callback: () => {
-        void this.setFocusMode("sentence");
+        void this.setFocusMode(toggledFocusMode(this.settings.focusMode, "sentence"));
       }
     });
 
@@ -728,15 +741,7 @@ export default class SchreibstubePlugin extends Plugin {
       id: "set-focus-paragraph-mode",
       name: t().commands.focusParagraph,
       callback: () => {
-        void this.setFocusMode("paragraph");
-      }
-    });
-
-    this.addCommand({
-      id: "disable-focus-mode",
-      name: t().commands.focusDisable,
-      callback: () => {
-        void this.setFocusMode("off");
+        void this.setFocusMode(toggledFocusMode(this.settings.focusMode, "paragraph"));
       }
     });
 
@@ -756,18 +761,15 @@ export default class SchreibstubePlugin extends Plugin {
       }
     });
 
-    this.addGatedCommand("rename-from-content", t().commands.renameFile, "rename-note", () => {
-      void this.llm?.renameFromContent();
-    });
-
-    this.addGatedCommand(
-      "rename-image-from-content",
-      t().commands.renameImage,
-      "rename-image",
-      () => {
+    // One rename for whatever is open. The id is the note rename's, so a hotkey
+    // bound to it keeps working and now renames a picture too.
+    this.addGatedCommand("rename-from-content", t().commands.rename, "rename", () => {
+      if (renameTarget(this.commandContext()) === "image") {
         void this.llm?.renameImageFromContent();
+      } else {
+        void this.llm?.renameFromContent();
       }
-    );
+    });
 
     this.addGatedCommand("summarize-selection", t().commands.summarize, "summarize", () => {
       void this.llm?.summarizeSelection();
@@ -782,23 +784,15 @@ export default class SchreibstubePlugin extends Plugin {
       }
     );
 
-    this.addGatedCommand(
-      "check-note-against-reminders",
-      t().commands.checkNoteReminders,
-      "check-note-reminders",
-      () => {
+    // The id is the one that asked about every note, which is still what it
+    // does wherever the open note has no sent task.
+    this.addGatedCommand("fetch-done-from-reminders", t().commands.reminders, "reminders", () => {
+      if (remindersScope(this.commandContext()) === "note") {
         this.reminders?.checkActiveNote();
-      }
-    );
-
-    this.addGatedCommand(
-      "fetch-done-from-reminders",
-      t().commands.fetchReminders,
-      "fetch-reminders",
-      () => {
+      } else {
         this.reminders?.checkEverything();
       }
-    );
+    });
 
     this.addCommand({
       id: "open-explorer-pane",
@@ -855,14 +849,6 @@ export default class SchreibstubePlugin extends Plugin {
     });
 
     this.addCommand({
-      id: "glossary-check-note",
-      name: t().commands.checkGlossary,
-      editorCallback: () => {
-        void this.activateReviewPanel().then(() => this.proofread?.handlers().onGlossaryCheck());
-      }
-    });
-
-    this.addCommand({
       id: "poll-all-sources",
       name: t().commands.syncAll,
       callback: () => {
@@ -900,16 +886,6 @@ export default class SchreibstubePlugin extends Plugin {
       void this.print?.printActiveNote();
     });
 
-    // Not gated: adding a template is what somebody does before they have
-    // anything to print with, and often before a note is even open.
-    this.addCommand({
-      id: "add-print-template",
-      name: t().commands.addPrintTemplate,
-      callback: () => {
-        void this.print?.addTemplate();
-      }
-    });
-
     this.addCommand({
       id: "publish-folder",
       name: t().commands.publish,
@@ -919,42 +895,10 @@ export default class SchreibstubePlugin extends Plugin {
     });
 
     this.addCommand({
-      id: "publish-preview",
-      name: t().commands.publishPreview,
+      id: "switch-link-side",
+      name: t().commands.linksSwitch,
       callback: () => {
-        void this.publish?.preview();
-      }
-    });
-
-    this.addCommand({
-      id: "publish-open-site",
-      name: t().commands.openSite,
-      callback: () => {
-        void this.publish?.openSite();
-      }
-    });
-
-    this.addCommand({
-      id: "open-links-left",
-      name: t().commands.linksLeft,
-      callback: () => {
-        this.linkMode?.setMode("left");
-      }
-    });
-
-    this.addCommand({
-      id: "open-links-right",
-      name: t().commands.linksRight,
-      callback: () => {
-        this.linkMode?.setMode("right");
-      }
-    });
-
-    this.addCommand({
-      id: "open-links-default",
-      name: t().commands.linksNormal,
-      callback: () => {
-        this.linkMode?.setMode("default");
+        this.linkMode?.cycleMode();
       }
     });
   }

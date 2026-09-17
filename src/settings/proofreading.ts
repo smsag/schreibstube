@@ -117,9 +117,5 @@ export function renderProofreading(ctx: SettingsContext): void {
       });
     });
 
-  renderCommands(ctx, [
-    t().commands.openReview,
-    t().commands.proofread,
-    t().commands.checkGlossary
-  ]);
+  renderCommands(ctx, [t().commands.openReview, t().commands.proofread]);
 }

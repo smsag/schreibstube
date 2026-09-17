@@ -8,9 +8,10 @@ A writing-focused Obsidian plugin: a proof-read review sidebar with glossary sup
 
 Opens a side pane that reviews the active note and proposes changes one at a time. Nothing is written to the note until you accept a change.
 
-- **Open proof-read sidebar** — show the panel
-- **Proof-read note** — send the note for correction and fill the queue
-- **Check note against glossary** — local glossary check, no API call
+- **Open review sidebar** — show the panel
+- **Proof-read doc** — send the note for correction and fill the queue; the glossary is checked first, locally
+
+The panel's **Check glossary** button runs the local glossary check on its own, without an API call.
 
 Each card shows the change as a word-level diff, with **Übernehmen**, **Verwerfen**, and **Anzeigen** to jump to the place in the note. **Alle übernehmen** applies the whole queue as a single undo step.
 
@@ -101,7 +102,7 @@ schreibstubeSyncEvery: 0 9 * * 1-5
 
 Such a note is due once a minute the expression named has gone by unchecked. A value that cannot be read is reported rather than guessed at, and the note keeps the vault-wide interval until it is fixed.
 
-- **Check note source for updates** — fetch now and queue any differences
+- **Update doc** — fetch now and queue any differences
 
 With **Check when a bound note opens** on, a bound note is also checked as you open it, no more often than the configured interval. Checks use a conditional request, so an unchanged source costs one small round trip and no download.
 
@@ -122,7 +123,7 @@ Lists, ranges and steps work (`0,30`, `9-17`, `*/15`), as do month and weekday n
 
 Obsidian has no scheduler of its own, so a poll only runs while the app is open. A schedule that came due while it was closed is caught up once shortly after the next start, so a daily poll still works on a machine that is not always on.
 
-- **Check all bound notes for updates** — run the poll now, regardless of schedule
+- **Update all docs** — run the poll now, regardless of schedule
 
 Two things are deliberately protected. The note's own frontmatter is never part of the diff, so accepting a card cannot touch the binding. The remote file's own frontmatter is stripped before comparison, which is what stops the first sync from overwriting the binding and orphaning the note.
 
@@ -136,24 +137,22 @@ Keeps a sticky, context-aware heading breadcrumb at the top of the active note a
 
 ### Focus mode
 
-Dims everything except the passage you are working on. Available as three commands:
+Dims everything except the passage you are working on. Available as two commands, each of which turns focus mode off again when its mode is already on:
 
-- **Focus Mode: Sentence** — highlight only the current sentence
-- **Focus Mode: Paragraph** — highlight only the current paragraph
-- **Focus Mode: Disable** — turn focus mode off
+- **Focus: sentence** — highlight only the current sentence
+- **Focus: paragraph** — highlight only the current paragraph
 
 The dim strength is configurable.
 
-- **Focus: new note in its own window** — a blank note in a new window, in front of everything
+- **New doc** — a blank note in a new window, in front of everything
 
 That last command makes a new empty note where Obsidian's _Default location for new notes_ says, named the way Obsidian names one (**Untitled**, then **Untitled 1**, and so on; **Unbenannt** in German), opens it in a new window, brings that window to the front whatever windows and tabs are already open, and puts the cursor in the editor. A pop-out window has no sidebars, so the screen holds the note and nothing else. On a phone, which has no windows, the note opens in a new tab and both drawers close instead. Nothing about the vault differs from a note made the usual way.
 
 ### Rename file from content
 
-Assigns a filename to the active note or image based on its content:
+Assigns a filename to the active note or image based on its content, with one command that follows the file that is open:
 
-- **Rename file from content** — the note's text is sent to an LLM and the file is renamed with the result.
-- **Rename image from content** — the image (jpg, png, gif, webp; up to 10 MB) is resized and sent to a vision model, and the file is renamed.
+- **Rename doc with AI** — on a note, its text is sent to an LLM and the file is renamed with the result; on an image (jpg, png, gif, webp; up to 10 MB), the picture is resized and sent to a vision model, and the file is renamed.
 
 The rename does nothing if the note is shorter than the configured minimum length, or if no API key has been set.
 
@@ -161,7 +160,7 @@ The same thing is on the explorer's context menu, as one entry that follows the 
 
 ### Summarize selection
 
-Select any text and run **Summarize selection** to send it to an LLM and replace the selection with the result. Built for turning raw text pasted from analytics and reporting tools into a running insight log: copy the numbers into a note, select them, summarize, and keep the distilled takeaway in place of the raw dump.
+Select any text and run **Insert: AI summary of the selection** to send it to an LLM and replace the selection with the result. Built for turning raw text pasted from analytics and reporting tools into a running insight log: copy the numbers into a note, select them, summarize, and keep the distilled takeaway in place of the raw dump.
 
 The summarize prompt is fully configurable in settings — a default tuned for the insight-log workflow is provided. The command uses the shared **AI models** configuration (provider, model, and API key).
 
@@ -169,9 +168,9 @@ The summarize prompt is fully configurable in settings — a default tuned for t
 
 Send notes as email and pull messages back into your vault — on desktop **and** mobile.
 
-- **Send note as email** — recipients and subject come from the note's frontmatter; the body is the note with its frontmatter stripped. A confirmation dialog shows what is about to be sent.
-- **Query mailbox** — search by sender, subject, full text or date, then insert the chosen message into the active note.
-- **Fetch replies into note** — find replies to a note you sent and append the new ones. Re-running the command only ever adds what is new.
+- **Send doc as mail** — recipients and subject come from the note's frontmatter; the body is the note with its frontmatter stripped. A confirmation dialog shows what is about to be sent.
+- **Search mailbox** — search by sender, subject, full text or date, then insert the chosen message into the active note.
+- **Fetch replies into doc** — find replies to a note you sent and append the new ones. Re-running the command only ever adds what is new.
 
 The note's frontmatter is the contract:
 
@@ -201,9 +200,9 @@ Two consequences worth knowing:
 
 Publishes a vault folder as a static website over SFTP, from desktop and from mobile.
 
-- **Veröffentlichen** — collect the folder, show what will change, upload and publish
-- **Veröffentlichung prüfen** — the same, stopping at the plan
-- **Website öffnen** — open the published site
+- **Ordner veröffentlichen** — collect the folder, show what will change and ask before uploading and publishing
+
+**Website öffnen** in the publishing settings opens the published site.
 
 Publishing is opt-in per note. A note is published when its frontmatter says so, and taking the flag away removes the page on the next publish:
 
@@ -237,8 +236,9 @@ What the bridge does and the plugin does not: rendering the Markdown, holding th
 
 Turns the note you are looking at into a PDF, through a template you keep in the vault. It works on every platform Obsidian runs on — Windows, macOS, Linux, iOS, Android — offline, with no bridge and no account: Typst is compiled to WebAssembly and typesets on the device. A letter written on a train becomes a PDF on that train.
 
-- **Drucken: diese Notiz als PDF** — print the active note
-- **Drucken: Vorlage anlegen** — write an example template into a folder you choose
+- **Doc drucken** — print the active note
+
+**Vorlage anlegen** in the print settings writes an example template into a folder you choose.
 
 #### Switching it on
 
@@ -248,7 +248,7 @@ Once on, the settings show whether the typesetter is on this device, with a butt
 
 #### Getting a template
 
-Run **Drucken: Vorlage anlegen**. It asks which of the two examples you want and which folder to put it in — any folder in the vault, not only the templates folder — then writes it and opens its `template.md`. You do not need to leave the app, which on a phone you could not do anyway.
+Press **Vorlage anlegen** under **Einstellungen → Drucken**. It asks which of the two examples you want and which folder to put it in — any folder in the vault, not only the templates folder — then writes it and opens its `template.md`. You do not need to leave the app, which on a phone you could not do anyway.
 
 The same two templates are in [`examples/print/`](examples/print/) if you would rather copy them by hand.
 
@@ -368,7 +368,7 @@ The pane has four sections, each one collapsible, each remembering whether it wa
 - **Keeping a file at the top of its folder.** Some files in a folder matter more than the rest, and **Keep at top of folder** holds them above their siblings, in the order they were marked, folders included. Everything below keeps Obsidian's own arrangement: folders first, then files, numeric-aware so `Objekt 2` precedes `Objekt 10`. The row carries a pin glyph, which is what explains why it is where it is.
 - **Pinning.** Everything pinned appears in a **Pinned** section at the top of the pane, in the order it was pinned, wherever in the vault it lives, and the block can be dragged into any order. A pinned note is drawn by the `title` in its own frontmatter when it has one, because a pinned row is a shortlist entry to be recognised rather than a path to be read — the file itself is untouched, and its path is still on the row's tooltip. The tree below keeps filenames, which is where a file is looked for by name. Pinning is a separate mark from the one above: "wherever I am, I want this row" is a different wish from "inside this folder, this one first", and answering one no longer answers the other. A file can carry both, either, or neither.
 
-- **Pinning a tag.** A tag can sit in the Pinned block beside the files, and its row adds up the tasks of every note carrying it: `3 / 12` is three open out of twelve across all of them. Pin one with **Explorer: pin a tag**, or from a note's menu with **Pin a tag of this note…**, which offers only that note's tags — Obsidian's own tag list gives a plugin no menu to add to. A note counts as tagged the way Obsidian's tag search sees it: the tag written in its frontmatter or anywhere in its text, every task in the note counting, tags nested underneath included (`#projekt` counts `#projekt/alpha`), and case ignored. A note is counted once per row however often it writes the tag, and a note carrying two pinned tags counts in both rows — each row answers its own question, and nothing adds the rows together. The figure is drawn whether or not **Task counts** is on, because it is what a tag is pinned for. Press the row and the right sidebar lists the tagged notes as cards, the most open tasks first and then the most recently changed; a card shows the note's title, its folder and its own count, a press opens the note, and a press with Cmd or Ctrl opens it in a new tab. The sidebar keeps one list at a time, so pressing the next tag replaces it, and it follows the vault as you tick tasks off. Right-click a pinned tag, or long-press it, to list its notes or remove the pin; it can be dragged into place like any pinned row.
+- **Pinning a tag.** A tag can sit in the Pinned block beside the files, and its row adds up the tasks of every note carrying it: `3 / 12` is three open out of twelve across all of them. Pin one with **Pin tag**, or from a note's menu with **Pin a tag of this note…**, which offers only that note's tags — Obsidian's own tag list gives a plugin no menu to add to. A note counts as tagged the way Obsidian's tag search sees it: the tag written in its frontmatter or anywhere in its text, every task in the note counting, tags nested underneath included (`#projekt` counts `#projekt/alpha`), and case ignored. A note is counted once per row however often it writes the tag, and a note carrying two pinned tags counts in both rows — each row answers its own question, and nothing adds the rows together. The figure is drawn whether or not **Task counts** is on, because it is what a tag is pinned for. Press the row and the right sidebar lists the tagged notes as cards, the most open tasks first and then the most recently changed; a card shows the note's title, its folder and its own count, a press opens the note, and a press with Cmd or Ctrl opens it in a new tab. The sidebar keeps one list at a time, so pressing the next tag replaces it, and it follows the vault as you tick tasks off. Right-click a pinned tag, or long-press it, to list its notes or remove the pin; it can be dragged into place like any pinned row.
 - **How much a closed folder holds.** A small figure on the folder's icon, counting every file underneath it and its subfolders, drawn only while the folder is shut — open, the answer is on screen. Empty folders carry nothing, and past ninety-nine it says `99+`.
 - **Moving.** A row is dragged onto a folder to move into it — onto the folder itself or onto any row inside it, since the whole block a folder occupies is its target — and onto the "Files and folders" header to move out to the vault root. A finger drags as a mouse does: the press that opens the context menu at half a second also arms the drag, so holding still and letting go gives the menu, while holding and then moving gives the drag, and the menu steps aside as soon as the row starts moving. The list scrolls while a drag rests near its top or bottom edge, so a folder off screen can still be reached. **Move to…** on the menu does the same thing from a list of folders, for when the target is nowhere near. Whether a move is allowed is decided away from the pointer: a folder cannot go into itself or its own subtree, a name already taken is refused rather than overwritten, and a refusal says which it was. The move goes through Obsidian's own rename, so links follow.
 - **The menu.** A row carries no buttons. Right-click it, or long-press on a phone, and the menu opens with everything a row can be told to do. Deleting is on that menu and never happens on the spot: it opens a confirmation, and what it confirms is a move to the vault's trash.
@@ -437,14 +437,15 @@ Icons and the two marks live in `explorer.json` inside the plugin folder, delibe
 
 Control where internal links open, indicated in the status bar:
 
-- **Open links to the left** / **Open links to the right** — open links in a reused side split pane
-- **Open links normally** — restore default link behaviour
+- **Links: switch side** — moves from normal to left to right and back to normal; left and right open links in a reused side split pane
+
+Clicking the indicator in the status bar moves on the same way.
 
 ### Task summary
 
 Turns a long note with checkboxes into a progress view without any extra state in the tasks themselves.
 
-- **Tasks: insert the summary ribbon** — inserts a ` ```schreibstube-tasks ` block at the cursor. The block renders as a one-line ribbon, e.g. **20** open of **21**, counting every task in the note.
+- **Insert: task summary** — inserts a ` ```schreibstube-tasks ` block at the cursor. The block renders as a one-line ribbon, e.g. **20** open of **21**, counting every task in the note.
 - While the note contains the ribbon block, every heading that owns tasks shows a muted badge such as `3 of 3 open`. A heading counts only the tasks directly beneath it, up to the next heading of any level; tasks under a sub-heading belong to that sub-heading.
 - Ribbon and badges update as soon as a checkbox is toggled. Badges stay visible when a heading is folded.
 - `[ ]` is open; any other marker (`[x]`, `[-]`, `[~]`, …) counts as done. Tasks inside fenced code blocks are ignored.
@@ -455,7 +456,7 @@ A task can carry more than its first line: a paragraph typed with Shift+Enter, a
 
 #### Sending a task to Erinnerungen
 
-On macOS and iOS a task can be handed to Apple's Reminders. Put the cursor on the task and run **Tasks: send to Erinnerungen**, or right-click the line (long-press on a phone) and choose **Send to Erinnerungen**. The task's line becomes the reminder's title, tags included, and the text indented under it becomes the note. The command is offered only when the cursor is on a task; switch the feature on under **Settings → Schreibstube → Erinnerungen** first.
+On macOS and iOS a task can be handed to Apple's Reminders. Put the cursor on the task and run **Send task to Erinnerungen**, or right-click the line (long-press on a phone) and choose **Send to Erinnerungen**. The task's line becomes the reminder's title, tags included, and the text indented under it becomes the note. The command is offered only when the cursor is on a task; switch the feature on under **Settings → Schreibstube → Erinnerungen** first.
 
 Obsidian cannot talk to Reminders directly, so the work is done by a Shortcut you build once in the Shortcuts app, named as in the settings (**Schreibstube Reminder** by default):
 
@@ -483,17 +484,17 @@ A reminder completed on the phone can tick its task in the note. The plugin cann
 2. Add **Find Reminders** with _Is Completed_ true, the list you use, and _Notes contains_ `schreibstube?task=`.
 3. Add **Get Details of Reminders** for the **Notes**, then **Combine Text** with new lines, and end with that text as the output.
 
-Two commands run it. **Tasks: check this note against Erinnerungen** asks about the sent tasks of the open note and is offered only when the note has one. **Tasks: fetch done tasks from Erinnerungen** asks about every completed reminder in the list. Both open the Shortcut through `x-callback-url`; Shortcuts hands its output back to the plugin, which ticks every open task the output names, in whichever note it lives. A task already done, whatever its marker, is left alone.
+**Compare with Erinnerungen** runs it. With a note open that has sent tasks, it asks about those; anywhere else it asks about every completed reminder in the list. Either way it opens the Shortcut through `x-callback-url`; Shortcuts hands its output back to the plugin, which ticks every open task the output names, in whichever note it lives. A task already done, whatever its marker, is left alone.
 
-Without running anything: add **Save File** to the same shortcut, overwriting the **Report file** from the settings (`schreibstube-reminders.txt` in the vault root by default), and run the shortcut from an automation, on iOS for example every hour. The plugin looks at the file every twenty seconds, reads it when it has changed, and ticks the tasks it names. macOS Shortcuts has no time-based automations, but a file written by the phone reaches the Mac through the vault's own sync, and the two commands work everywhere.
+Without running anything: add **Save File** to the same shortcut, overwriting the **Report file** from the settings (`schreibstube-reminders.txt` in the vault root by default), and run the shortcut from an automation, on iOS for example every hour. The plugin looks at the file every twenty seconds, reads it when it has changed, and ticks the tasks it names. macOS Shortcuts has no time-based automations, but a file written by the phone reaches the Mac through the vault's own sync, and the command works everywhere.
 
 The Shortcut's output can be any text that contains the reminders' links; the plugin picks the ids out of it and ignores the rest.
 
 ### Commands
 
-Every command is prefixed with the part of the plugin it belongs to — `Fokus:`, `KI:`, `Explorer:`, `Korrektur:`, `Sync:`, `Mail:`, `Veröffentlichen:`, `Links:` — so typing the area into the palette narrows two dozen entries to three. Each settings section also lists the commands its feature brings, so switching something on and learning what to type is one page rather than two.
+Commands are named after what they act on, so related ones sort together in the palette: `Doc …` for the note in front of you (`Doc korrigieren`, `Doc drucken`, `Doc aktualisieren`), `Einfügen: …` for what goes into it, `Fokus: …`, `Explorer: …` and `Links: …` for the view. Things done once or rarely — adding a print template, opening the published site — are buttons in their settings section rather than commands. Each settings section also lists the commands its feature brings, so switching something on and learning what to type is one page rather than two.
 
-A command that cannot do anything where you are is not offered at all: the image rename without a picture open, `Sync: Quelle dieser Notiz prüfen` on a note bound to nothing, `KI: Auswahl zusammenfassen` with nothing selected, `Explorer: alle Ordner zuklappen` with the pane closed. Only conditions visible on screen hide anything — a command that needs a setting filled in stays listed and says so when it is run, because a command missing for a reason three tabs away reads as a plugin that broke.
+A command that cannot do anything where you are is not offered at all: the image rename without a picture open, `Doc aktualisieren` on a note bound to nothing, `Einfügen: KI-Zusammenfassung der Auswahl` with nothing selected, `Explorer: Ordner zuklappen` with the pane closed. Only conditions visible on screen hide anything — a command that needs a setting filled in stays listed and says so when it is run, because a command missing for a reason three tabs away reads as a plugin that broke.
 
 ## Settings
 
