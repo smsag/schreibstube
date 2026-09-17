@@ -6,7 +6,7 @@
  * instead is record how many changes are waiting, so opening that note later
  * surfaces them at once.
  */
-import { TFile, type App } from "obsidian";
+import { MarkdownView, TFile, type App } from "obsidian";
 import type { SchreibstubeSettings } from "../types";
 import type { Logger } from "../services/logger";
 import { resolveApiKey } from "../services/secret";
@@ -21,6 +21,7 @@ import {
 import { parseSyncEvery, planSourceCheck, SYNC_EVERY_KEY } from "../services/sync-interval";
 import { diffHunks } from "../services/line-diff";
 import {
+  planFrontmatterEdit,
   planSyncFrontmatter,
   SYNC_TITLE_KEY,
   SYNC_UPDATED_KEY
@@ -440,6 +441,29 @@ export class SyncPoller {
     });
 
     if (plan.title === undefined && plan.updatedAt === undefined) return;
+
+    // An open note is written through its editor. Written to disk instead, the
+    // editor is merged with the file afterwards, and Obsidian's merge silently
+    // drops an edit it cannot place — a document just accepted from the source
+    // among them.
+    for (const leaf of this.app.workspace.getLeavesOfType("markdown")) {
+      const view = leaf.view;
+      if (!(view instanceof MarkdownView) || view.file?.path !== file.path) continue;
+
+      const edit = planFrontmatterEdit(view.editor.getValue(), plan);
+      if (edit === null) break;
+
+      view.editor.transaction({
+        changes: [
+          {
+            from: view.editor.offsetToPos(edit.from),
+            to: view.editor.offsetToPos(edit.to),
+            text: edit.text
+          }
+        ]
+      });
+      return;
+    }
 
     try {
       await this.app.fileManager.processFrontMatter(file, (frontmatter) => {

@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { setLanguage } from "../i18n";
-import { isNoteDue, parseSyncEvery } from "./sync-interval";
+import { isNoteDue, parseSyncEvery, planSourceCheck } from "./sync-interval";
 
 beforeAll(() => setLanguage("en"));
 
@@ -103,5 +103,30 @@ describe("when a note is due", () => {
     expect(isNoteDue(nine, new Date(2026, 8, 13, 8, 0, 0).getTime(), now)).toBe(true);
     // Checked at ten, after that moment: nothing named has passed since.
     expect(isNoteDue(nine, new Date(2026, 8, 13, 10, 0, 0).getTime(), now)).toBe(false);
+  });
+});
+
+describe("a check asked for by hand", () => {
+  const record = {
+    hash: "aaaaaaaa",
+    etag: '"v1"',
+    checkedAt: 0,
+    pendingChanges: 0,
+    remoteHash: "bbbbbbbb"
+  };
+  const base = { record, schedule: null, minIntervalMinutes: 10, now: new Date(2026, 8, 17) };
+
+  it("fetches the whole document when the note no longer holds it", () => {
+    // An accepted update that never reached the file left the record settled
+    // on a text the note does not have; "unchanged" would keep it that way.
+    expect(planSourceCheck({ ...base, noteBodyHash: "00000000" }).etag).toBeUndefined();
+  });
+
+  it("stays conditional when the note matches what the source last sent", () => {
+    expect(planSourceCheck({ ...base, noteBodyHash: "bbbbbbbb" }).etag).toBe('"v1"');
+  });
+
+  it("stays conditional when no note body is given, as for a poll", () => {
+    expect(planSourceCheck(base).etag).toBe('"v1"');
   });
 });

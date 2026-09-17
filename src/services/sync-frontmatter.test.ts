@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
+import { applyPlan, planApply } from "./suggestion";
+import { buildSyncSuggestions, splitNote } from "./sync-document";
 import {
   firstHeading,
   formatUpdatedAt,
+  planFrontmatterEdit,
   planSyncFrontmatter,
   SYNC_TITLE_KEY,
   SYNC_UPDATED_KEY
@@ -61,6 +64,15 @@ describe("the title a check writes", () => {
     expect(firstHeading("# Ein **fetter** [Link](https://x.test)\n")).toBe("Ein fetter Link");
   });
 
+  it("leaves out the HTML a README puts in its heading", () => {
+    // GitHub READMEs put their logo inline, and the tag became the title.
+    expect(firstHeading('# <img src="assets/logo.svg" alt="" width="28"> Pythia\n')).toBe("Pythia");
+  });
+
+  it("is no title when the heading is nothing but HTML", () => {
+    expect(firstHeading('# <img src="logo.svg">\n')).toBeNull();
+  });
+
   it("takes the first level-one heading, not a deeper one above it", () => {
     expect(firstHeading("## Unterpunkt\n\n# Der Titel\n")).toBe("Der Titel");
   });
@@ -101,5 +113,65 @@ describe("the date on a source seen for the first time", () => {
     // Read literally, "after the first change" would leave a note with no date
     // at all until its source happened to move, which may be never.
     expect(plan({ remoteChanged: true })[SYNC_UPDATED_KEY]).toBe("2026-09-13T07:05:09");
+  });
+});
+
+const BOUND =
+  "---\nschreibstubeSyncedFrom: https://raw.githubusercontent.com/o/r/main/README.md\n---\n";
+
+function edit(noteText: string, plan: Parameters<typeof planFrontmatterEdit>[1]): string | null {
+  const change = planFrontmatterEdit(noteText, plan);
+  return change === null
+    ? null
+    : noteText.slice(0, change.from) + change.text + noteText.slice(change.to);
+}
+
+describe("properties written into an open note", () => {
+  it("are added at the end of the block, the rest left as it was spelled", () => {
+    expect(edit(BOUND, { title: "Pythia", updatedAt: "2026-09-17T09:55:06" })).toBe(
+      "---\nschreibstubeSyncedFrom: https://raw.githubusercontent.com/o/r/main/README.md\n" +
+        "title: Pythia\nupdatedAt: 2026-09-17T09:55:06\n---\n"
+    );
+  });
+
+  it("replace the date that is there", () => {
+    const note = "---\nupdatedAt: 2001-01-01T00:00:00\ntags: [a]\n---\nText\n";
+
+    expect(edit(note, { updatedAt: "2026-09-17T09:55:06" })).toBe(
+      "---\nupdatedAt: 2026-09-17T09:55:06\ntags: [a]\n---\nText\n"
+    );
+  });
+
+  it("never replace a title the editor already holds", () => {
+    // The metadata cache can lag behind the editor; the text is the truth.
+    expect(planFrontmatterEdit("---\ntitle: Meiner\n---\n", { title: "Pythia" })).toBeNull();
+    expect(edit("---\ntitle:\n---\n", { title: "Pythia" })).toBe("---\ntitle: Pythia\n---\n");
+  });
+
+  it("quote a title YAML would read as something else", () => {
+    expect(edit(BOUND, { title: "Pythia: KI im Vault" })).toContain(
+      'title: "Pythia: KI im Vault"\n'
+    );
+    expect(edit(BOUND, { title: "2026" })).toContain('title: "2026"\n');
+    expect(edit(BOUND, { title: "Exposé Musterstraße 4" })).toContain(
+      "title: Exposé Musterstraße 4\n"
+    );
+  });
+
+  it("are left to Obsidian when the note has no block or the key spans lines", () => {
+    expect(planFrontmatterEdit("# Nur Text\n", { title: "X" })).toBeNull();
+    expect(planFrontmatterEdit("---\nupdatedAt:\n  - a\n---\n", { updatedAt: "x" })).toBeNull();
+  });
+
+  it("leave a whole accepted document in the note on a first sync", () => {
+    // The note this was found on: bound, empty, and the source a README. The
+    // properties go in first, the cards are measured after, and accepting
+    // every card leaves the note holding the document below its properties.
+    const readme = '# <img src="logo.svg"> Pythia\n\nAn Obsidian plugin.\n\n---\n\nMore.\n';
+    const noted = edit(BOUND, { title: "Pythia", updatedAt: "2026-09-17T09:55:06" }) ?? "";
+    const cards = buildSyncSuggestions({ noteText: noted, remoteBody: readme, state: "unsynced" });
+    const accepted = applyPlan(noted, planApply(noted, cards));
+
+    expect(splitNote(accepted)).toEqual({ frontmatter: noted, body: readme });
   });
 });

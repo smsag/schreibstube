@@ -162,6 +162,12 @@ export interface SourceCheckInput {
   /** The setting that applies when the note says nothing. */
   minIntervalMinutes: number;
   now: Date;
+  /**
+   * The hash of the note's body, given when a person asked for this check.
+   * A note that no longer holds what the source last sent is then fetched
+   * whole, because an "unchanged" answer has nothing to offer it back.
+   */
+  noteBodyHash?: string | undefined;
 }
 
 export interface SourceCheckPlan {
@@ -187,7 +193,14 @@ export function planSourceCheck(input: SourceCheckInput): SourceCheckPlan {
     schedule === null
       ? isCheckDue(record, minIntervalMinutes, now.getTime())
       : isNoteDue(schedule, record?.checkedAt, now);
-  const etag = (record?.pendingChanges ?? 0) > 0 ? undefined : record?.etag;
+  // A note that lost the text it was settled on — an accepted update that
+  // never reached the file — answers "unchanged" on every conditional check
+  // until the source itself moves. Asked by hand, it gets the document again.
+  const lostTheSource =
+    input.noteBodyHash !== undefined &&
+    record?.remoteHash !== undefined &&
+    input.noteBodyHash !== record.remoteHash;
+  const etag = (record?.pendingChanges ?? 0) > 0 || lostTheSource ? undefined : record?.etag;
   return { due, etag };
 }
 
