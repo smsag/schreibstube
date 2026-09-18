@@ -24,6 +24,7 @@ import {
   FileView,
   getAllTags,
   ItemView,
+  Keymap,
   Notice,
   TFile,
   TFolder,
@@ -1055,13 +1056,24 @@ export class ExplorerPaneView extends ItemView {
       // stays put after a confirmed delete reads as the delete having failed.
       if (!(file instanceof TFile) || controller?.isTrashed(file.path) === true) continue;
 
-      const row = this.renderRow(results, file, 0);
-      if (!row) continue;
-      row.addClass("is-result");
+      // The row and its folder are siblings inside one wrapper rather than the
+      // folder being another item in the row: a row is one line by construction,
+      // and a second line put inside it lands on the row below.
+      const result = results.createDiv({ cls: "schreibstube-explorer-result" });
+      const row = this.renderRow(result, file, 0);
+      if (!row) {
+        result.remove();
+        continue;
+      }
       const folder = file.parent && !file.parent.isRoot() ? file.parent.path : "";
-      row.createSpan({
+      const label = result.createDiv({
         cls: "schreibstube-explorer-result-folder",
         text: folder.length > 0 ? folder : t().explorer.related.root
+      });
+      // The folder is part of the result, so pressing it opens what the row
+      // above it names rather than doing nothing.
+      label.addEventListener("click", (event) => {
+        void controller?.open(file, Keymap.isModEvent(event) !== false);
       });
       drawn += 1;
     }

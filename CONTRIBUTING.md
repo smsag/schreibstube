@@ -70,6 +70,19 @@ npm run trace -- ./main.js.map < report.txt  # against a local build
 Every position the map knows becomes `src/…​.ts:line:column`; the rest of the
 trace passes through untouched.
 
+## Checking a layout without a vault
+
+`scripts/preview-explorer-results.html` draws the pane's result list against the
+real `styles.css`. Open it in any browser — no build, no dependency, no vault —
+and drag the window narrow.
+
+It exists because the result list shipped broken twice, and neither break was
+something the suite could catch: both were layout. A row in the pane is one line
+by construction, so a second line put inside one lands on the row below; and a
+row made to wrap instead breaks at the first item that will not fit, which for a
+file name longer than a sidebar strands the icon on the line above. Both are
+invisible from a unit test and obvious here in a second.
+
 ## Before a release: the mobile checklist
 
 The plugin's mobile support is architectural — no Node built-ins in the bundle,

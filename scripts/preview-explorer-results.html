@@ -1,0 +1,163 @@
+<!doctype html>
+<!--
+  The pane's result list, drawn against the real stylesheet.
+
+  Open this file in any browser; it loads `../styles.css` directly, so what it
+  shows is what the pane shows. No build, no dependency, no vault.
+
+  It exists because the result list shipped broken twice in a row and the test
+  suite could not have caught either: both were layout. Every row in the pane is
+  one line and says so with a fixed `height`, so a second line put inside a row
+  lands on the row below; and a row made to wrap instead breaks at the first item
+  that does not fit, which for a file name longer than a sidebar strands the icon
+  on the line above. Neither is visible from a unit test, and both are obvious
+  here in a second.
+
+  Drag the window narrow. A sidebar is 240 to 320 pixels wide, the names in a
+  real vault are longer than that, and the folder paths are longer still — which
+  is the case worth looking at, not the short ones.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Schreibstube — explorer results</title>
+    <link rel="stylesheet" href="../styles.css" />
+    <style>
+      /* The Obsidian variables the pane leans on. The plugin never defines
+         these: it borrows whatever the app's theme has set, so a preview has to
+         stand in for them. Light values; flip `color-scheme` to check dark. */
+      :root {
+        --background-primary: #fff;
+        --background-secondary: #f6f6f6;
+        --background-modifier-border: #ddd;
+        --background-modifier-hover: #ececec;
+        --text-normal: #222;
+        --text-muted: #666;
+        --text-faint: #999;
+        --interactive-accent: #5b6bd6;
+        --font-ui-smaller: 12px;
+        --font-ui-small: 13px;
+        --font-semibold: 600;
+        --nav-item-color: #222;
+      }
+
+      body {
+        margin: 0;
+        display: flex;
+        gap: 1px;
+        background: #ccc;
+        font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+      }
+
+      /* Three widths at once: the narrowest sidebar anybody uses, a usual one,
+         and a wide one. A layout that holds at all three holds. */
+      .pane {
+        background: var(--background-primary);
+        height: 100vh;
+        overflow: auto;
+      }
+      .pane[data-width="narrow"] {
+        width: 240px;
+      }
+      .pane[data-width="usual"] {
+        width: 320px;
+      }
+      .pane[data-width="wide"] {
+        width: 420px;
+      }
+    </style>
+  </head>
+  <body>
+    <script>
+      // Names and folders as a vault actually has them: long, German, and with
+      // an extension that matters. A preview full of "Note 1.md" proves nothing.
+      const RESULTS = [
+        [
+          "job-application-head-of-product-verwaltungssprung-2026.md",
+          "Berufliches/Karriere/Bewerbungen"
+        ],
+        ["softwareentwicklung-kompakt-und-verständlich-booklet.md", "Lesestapel"],
+        ["softwareentwicklung-kompakt-und-verständlich.pdf", "Lesestapel"],
+        ["experimentation-versus-daily-use-ai-chatbots-usa.png", "Visualisierungen"],
+        ["Objekt 12.md", "Vault root"]
+      ];
+
+      /** One result, in the shape `renderResults` builds. */
+      function result(name, folder) {
+        const wrapper = document.createElement("div");
+        wrapper.className = "schreibstube-explorer-result";
+
+        const row = document.createElement("div");
+        row.className = "schreibstube-explorer-row";
+        row.style.setProperty("--schreibstube-depth", "0");
+
+        row.appendChild(
+          Object.assign(document.createElement("span"), {
+            className: "schreibstube-explorer-twisty"
+          })
+        );
+
+        const box = document.createElement("span");
+        box.className = "schreibstube-explorer-glyph-box";
+        // The real glyph is a webfont in the bundle; a box stands in for it at
+        // the same size, which is all the layout depends on.
+        box.appendChild(
+          Object.assign(document.createElement("span"), {
+            className: "schreibstube-explorer-glyph",
+            textContent: "▢"
+          })
+        );
+        row.appendChild(box);
+
+        row.appendChild(
+          Object.assign(document.createElement("span"), {
+            className: "schreibstube-explorer-name",
+            textContent: name
+          })
+        );
+        wrapper.appendChild(row);
+
+        wrapper.appendChild(
+          Object.assign(document.createElement("div"), {
+            className: "schreibstube-explorer-result-folder",
+            textContent: folder
+          })
+        );
+        return wrapper;
+      }
+
+      for (const width of ["narrow", "usual", "wide"]) {
+        const pane = document.createElement("div");
+        pane.className = "pane schreibstube-explorer";
+        pane.dataset.width = width;
+
+        const body = document.createElement("div");
+        body.className = "schreibstube-explorer-body";
+
+        const header = document.createElement("div");
+        header.className = "schreibstube-explorer-section-header";
+        header.appendChild(
+          Object.assign(document.createElement("span"), {
+            className: "schreibstube-explorer-section-title",
+            textContent: "Files and folders"
+          })
+        );
+        body.appendChild(header);
+
+        const list = document.createElement("div");
+        list.className = "schreibstube-explorer-results";
+        for (const [name, folder] of RESULTS) list.appendChild(result(name, folder));
+        list.appendChild(
+          Object.assign(document.createElement("p"), {
+            className: "schreibstube-explorer-empty",
+            textContent: "12 more match. Narrow the filter to see them."
+          })
+        );
+        body.appendChild(list);
+
+        pane.appendChild(body);
+        document.body.appendChild(pane);
+      }
+    </script>
+  </body>
+</html>

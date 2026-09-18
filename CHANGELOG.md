@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## 1.35.2 - 2026-09-18
+
+Mobile checklist: not run. The result list was checked in a browser at 240, 320
+and 420 pixels wide against the real stylesheet, which is the width a sidebar
+actually gets, but not on a device.
+
+Bridge 2.4.0 is unchanged and still pairs with this release.
+
+### Fixed
+
+- **The filter's results no longer overlap each other.** 1.35.1 drew the folder as a second line inside the result's row, and every row in the pane is one line by construction — so the folder did not make the row taller, it spilled onto the row below, and the list came out as overlapping text. The row and its folder are now two elements rather than one, so the row stays the row the tree draws and the folder sits beneath it.
+- **A long file name keeps its icon.** With the row made to wrap, a name longer than the sidebar took a line of its own and left the icon stranded above it — which is every file name in a real vault. The name now stays beside its icon and is cut with an ellipsis, and the folder under it is cut the same way rather than wrapping into a paragraph.
+- **Pressing the folder line opens the file** its row names, instead of doing nothing.
+
 ## 1.35.1 - 2026-09-18
 
 What 1.35.0 was supposed to deliver. The ranking it added was real and the pane
