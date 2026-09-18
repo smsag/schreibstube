@@ -2,7 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## 1.35.0 - 2026-09-18
+
+Mobile checklist: not run for this release. Everything in it was checked by the
+test suite and the build's own guards, not on a device. New and not yet tried on
+a phone: the Explorer's filter, which now ranks rather than matches and so does
+more work between keystrokes, and the related-notes sidebar.
+
+Bridge 2.4.0 is unchanged and still pairs with this release.
 
 ### Added
 
