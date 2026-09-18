@@ -19,8 +19,12 @@ import { fileURLToPath } from "node:url";
  * property icons and dates (+8 KB): each fitted under 400 alone, together
  * they come to about 404. The headroom left is for the next feature, not a
  * new normal — a change that needs more says why, as this one does.
+ *
+ * Raised to 430 KB at 418 KB, for the Reminders sync (+4 KB): a reconciler and
+ * its validated file formats replace the two Shortcut calls, and the setup it
+ * explains in two languages is longer than the names it used to ask for.
  */
-const MAX_BUNDLE_KB = 420;
+const MAX_BUNDLE_KB = 430;
 
 const bundle = fileURLToPath(new URL("../main.js", import.meta.url));
 const source = readFileSync(bundle, "utf8");

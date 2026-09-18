@@ -18,41 +18,37 @@ export const enExtra = {
 
     remindersHeading: "Erinnerungen",
     remindersIntro:
-      "Sends a task to Apple's Reminders through a Shortcut you install once. The task's line " +
-      "becomes the title, the text indented under it the note, and a link back to the task is " +
-      "added so the reminder can reopen the note at the right place. macOS and iOS only.",
-    remindersEnabled: "Send tasks to Erinnerungen",
-    remindersEnabledDesc: "Offer the command and the entry in the editor's context menu.",
+      "Keeps tasks in step with a list in Apple's Reminders. A task with a due date (📅 " +
+      "2026-09-20) or #remind becomes a reminder; editing, ticking or deleting the task follows it " +
+      "there, and a reminder ticked on the phone ticks the task. The work on Apple's side is done " +
+      "by one Shortcut, run by two automations. macOS and iOS only.",
+    remindersEnabled: "Sync with Erinnerungen",
+    remindersEnabledDesc:
+      "Gives every reminder task a block id (^r-…) at the end of its line and keeps the list in " +
+      "step. Also offers the command and the entry in the editor's context menu.",
+    remindersTrigger: "What becomes a reminder",
+    remindersTriggerDesc:
+      "A task tagged #remind always does. Choose whether a due date alone is enough.",
+    remindersTriggerDate: "Tasks with a due date or #remind",
+    remindersTriggerTag: "Only tasks tagged #remind",
     remindersList: "Reminders list",
     remindersListDesc:
-      "Name of the list the reminder is created in, handed to the Shortcut. Leave empty to let " +
-      "the Shortcut choose.",
-    remindersShortcut: "Shortcut name",
+      "The list the sync keeps. Use a list of its own: reminders in it that came from a task " +
+      "are updated and deleted as their tasks change. Reminders added by hand are left alone.",
+    remindersFolder: "Sync folder",
+    remindersFolderDesc:
+      "Vault folder where the plugin and the Shortcut exchange outbox.json, inbox.json and " +
+      "state.json. The Shortcut has to be pointed at the same folder.",
+    remindersShortcut: "Shortcut",
     remindersShortcutDesc:
-      "The Shortcut that creates the reminder. It receives one text input: JSON with title, " +
-      "notes, list, link and note.",
-    remindersSetup: "Building the Shortcut",
-    remindersSetupDesc:
-      'In the Shortcuts app, create a shortcut with that name that accepts text. Add "Get ' +
-      'Dictionary from Input", then "Add New Reminder" with Title from the dictionary\'s title, ' +
-      "Notes from notes and the list from list. Tags written as #tag stay text: Reminders offers " +
-      "no way to set a real tag from outside.",
-    remindersStatusShortcut: "Status Shortcut name",
-    remindersStatusShortcutDesc:
-      "The Shortcut that reports which reminders are done. It receives JSON with ids, links and " +
-      "list, and its output is handed back to the plugin: any text that contains the reminders' " +
-      "links, such as their notes.",
-    remindersStatusSetup: "Building the status Shortcut",
-    remindersStatusSetupDesc:
-      'Create a shortcut with that name that accepts text. Add "Find Reminders" with Is Completed ' +
-      'true, List from the list you use, and Notes contains "schreibstube?task=". Add "Get Details ' +
-      'of Reminders" for the Notes, then "Combine Text" with new lines, and end with that text as ' +
-      'the output. To keep notes current without running anything, add "Save File" to the same ' +
-      "shortcut, overwriting the report file in the vault, and run it from an automation.",
-    remindersReportFile: "Report file",
-    remindersReportFileDesc:
-      "Vault path of the file an automation writes the status Shortcut's output to. The plugin " +
-      "reads it whenever it changes and ticks the tasks it names. Leave empty to turn this off.",
+      'Install "Schreibstube Sync" once on every device that should sync. When you add it, it ' +
+      "asks for the vault folder. It applies the outbox to Reminders and writes the inbox back.",
+    remindersShortcutButton: "Get the Shortcut",
+    remindersAutomations: "Automations",
+    remindersAutomationsDesc:
+      'In Shortcuts → Automation, add two App automations for Obsidian that run "Schreibstube ' +
+      'Sync": one for "Is Closed", which sends what changed, and one for "Is Opened", which ' +
+      'brings back what was ticked. Set both to "Run Immediately" and turn "Notify When Run" off.',
 
     explorerHeading: "Schreibstube Explorer",
     explorerIntro:

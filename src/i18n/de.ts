@@ -14,8 +14,8 @@ export const de: Messages = {
     newNote: "Neues Doc",
     insertTaskSummary: "Einfügen: Aufgaben-Zusammenfassung",
     insertSlideshow: "Einfügen: Diaschau",
-    sendToReminders: "Aufgabe an Erinnerungen senden",
-    reminders: "Erinnerungen abgleichen",
+    sendToReminders: "Aufgabe zur Erinnerung machen",
+    reminders: "Jetzt mit Erinnerungen abgleichen",
     rename: "Doc mit KI umbenennen",
     summarize: "Einfügen: KI-Zusammenfassung der Auswahl",
     table: "Einfügen: Tabelle aus der Auswahl",
@@ -55,21 +55,20 @@ export const de: Messages = {
     none: "Keine Aufgaben",
     ribbon: (open: number, total: number) => `${open} offen von ${total}`,
     badge: (open: number, total: number) => `${open} von ${total} offen`,
-    menuSend: "An Erinnerungen senden",
-    markTooltip: "An Erinnerungen gesendet",
+    menuSend: "Zur Erinnerung machen",
+    markTooltip: "Mit Erinnerungen abgeglichen",
     remindersOff:
-      "Senden an Erinnerungen ist aus. Einschalten unter Einstellungen → Schreibstube → Erinnerungen.",
-    noShortcut:
-      "kein Kurzbefehl eingetragen. Namen eintragen unter Einstellungen → Schreibstube → Erinnerungen.",
+      "Abgleich mit Erinnerungen ist aus. Einschalten unter Einstellungen → Schreibstube → Erinnerungen.",
     notATask: "der Cursor steht auf keiner Aufgabe.",
-    sent: (title: string) => `an Erinnerungen gesendet: ${title}`,
+    queued: (title: string) => `kommt mit dem nächsten Abgleich zu Erinnerungen: ${title}`,
     taskNotFound: "keine Notiz in diesem Vault enthält diese Aufgabe.",
-    noStatusShortcut:
-      "kein Status-Kurzbefehl eingetragen. Namen eintragen unter Einstellungen → Schreibstube → Erinnerungen.",
-    noneSent: "keine Aufgabe dieser Notiz wurde an Erinnerungen gesendet.",
-    checking: "Erinnerungen wird gefragt…",
-    nothingDone: "Erinnerungen meldet nichts Neues als erledigt.",
-    ticked: (count: number) => `${count} Aufgabe(n) als in Erinnerungen erledigt abgehakt.`
+    synced: (count: number) =>
+      count > 0
+        ? `abgeglichen; ${count} Aufgabe(n) aus Erinnerungen aktualisiert.`
+        : "mit Erinnerungen abgeglichen.",
+    syncFailed:
+      "der Abgleich mit Erinnerungen ist fehlgeschlagen. Die Entwicklerkonsole nennt den Grund.",
+    fromReminders: (count: number) => `${count} Aufgabe(n) aus Erinnerungen aktualisiert.`
   },
 
   slideshow: {
@@ -255,44 +254,41 @@ export const de: Messages = {
 
     remindersHeading: "Erinnerungen",
     remindersIntro:
-      "Sendet eine Aufgabe über einen einmal eingerichteten Kurzbefehl an Apples Erinnerungen. " +
-      "Die Zeile der Aufgabe wird zum Titel, der darunter eingerückte Text zur Notiz, und ein " +
-      "Link zurück zur Aufgabe kommt dazu, damit die Erinnerung die Notiz an der richtigen " +
-      "Stelle wieder öffnet. Nur macOS und iOS.",
-    remindersEnabled: "Aufgaben an Erinnerungen senden",
-    remindersEnabledDesc: "Bietet den Befehl und den Eintrag im Kontextmenü des Editors an.",
+      "Hält Aufgaben mit einer Liste in Apples Erinnerungen im Gleichschritt. Eine Aufgabe mit " +
+      "Fälligkeitsdatum (📅 2026-09-20) oder #remind wird zur Erinnerung; Bearbeiten, Abhaken " +
+      "oder Löschen der Aufgabe folgt ihr dorthin, und eine auf dem Telefon abgehakte Erinnerung " +
+      "hakt die Aufgabe ab. Auf Apples Seite erledigt das ein Kurzbefehl, den zwei Automationen " +
+      "ausführen. Nur macOS und iOS.",
+    remindersEnabled: "Mit Erinnerungen abgleichen",
+    remindersEnabledDesc:
+      "Gibt jeder Erinnerungs-Aufgabe eine Block-ID (^r-…) am Zeilenende und hält die Liste " +
+      "aktuell. Bietet außerdem den Befehl und den Eintrag im Kontextmenü des Editors an.",
+    remindersTrigger: "Was zur Erinnerung wird",
+    remindersTriggerDesc:
+      "Eine Aufgabe mit #remind immer. Hier wählen, ob ein Fälligkeitsdatum allein genügt.",
+    remindersTriggerDate: "Aufgaben mit Fälligkeitsdatum oder #remind",
+    remindersTriggerTag: "Nur Aufgaben mit #remind",
     remindersList: "Erinnerungen-Liste",
     remindersListDesc:
-      "Name der Liste, in der die Erinnerung angelegt wird; wird dem Kurzbefehl übergeben. Leer " +
-      "lassen, damit der Kurzbefehl wählt.",
-    remindersShortcut: "Name des Kurzbefehls",
+      "Die Liste, die der Abgleich pflegt. Am besten eine eigene: Erinnerungen darin, die aus " +
+      "einer Aufgabe stammen, werden mit ihr geändert und gelöscht. Von Hand angelegte bleiben, " +
+      "wie sie sind.",
+    remindersFolder: "Abgleich-Ordner",
+    remindersFolderDesc:
+      "Ordner im Vault, in dem Plugin und Kurzbefehl outbox.json, inbox.json und state.json " +
+      "austauschen. Der Kurzbefehl muss auf denselben Ordner zeigen.",
+    remindersShortcut: "Kurzbefehl",
     remindersShortcutDesc:
-      "Der Kurzbefehl, der die Erinnerung anlegt. Er erhält eine Texteingabe: JSON mit title, " +
-      "notes, list, link und note.",
-    remindersSetup: "Den Kurzbefehl anlegen",
-    remindersSetupDesc:
-      'In der App Kurzbefehle einen Kurzbefehl mit diesem Namen anlegen, der Text annimmt. "Wörterbuch ' +
-      'aus Eingabe abrufen" hinzufügen, dann "Neue Erinnerung hinzufügen" mit Titel aus title, ' +
-      "Notizen aus notes und der Liste aus list. Als #tag geschriebene Tags bleiben Text: " +
-      "Erinnerungen bietet keinen Weg, von außen ein echtes Tag zu setzen.",
-    remindersStatusShortcut: "Name des Status-Kurzbefehls",
-    remindersStatusShortcutDesc:
-      "Der Kurzbefehl, der meldet, welche Erinnerungen erledigt sind. Er erhält JSON mit ids, " +
-      "links und list; seine Ausgabe geht zurück ans Plugin: beliebiger Text, der die Links der " +
-      "Erinnerungen enthält, etwa ihre Notizen.",
-    remindersStatusSetup: "Den Status-Kurzbefehl anlegen",
-    remindersStatusSetupDesc:
-      'Einen Kurzbefehl mit diesem Namen anlegen, der Text annimmt. "Erinnerungen suchen" ' +
-      'hinzufügen mit „Ist erledigt“, der verwendeten Liste und Notizen enthält "schreibstube?task=". ' +
-      'Dann "Details von Erinnerungen abrufen" für die Notizen, "Text kombinieren" mit Zeilenumbrüchen, ' +
-      "und diesen Text als Ausgabe. Damit Notizen ohne Zutun aktuell bleiben, im selben Kurzbefehl " +
-      '"Datei sichern" hinzufügen, das die Berichtsdatei im Vault überschreibt, und ihn per ' +
-      "Automation ausführen.",
-    remindersReportFile: "Berichtsdatei",
-    remindersReportFileDesc:
-      "Pfad im Vault, in den eine Automation die Ausgabe des Status-Kurzbefehls schreibt. Das " +
-      "Plugin liest die Datei bei jeder Änderung und hakt die genannten Aufgaben ab. Leer lassen, " +
-      "um das abzuschalten.",
+      "„Schreibstube Sync“ einmal auf jedem Gerät installieren, das abgleichen soll. Beim " +
+      "Hinzufügen fragt er nach dem Vault-Ordner. Er überträgt die Outbox nach Erinnerungen und " +
+      "schreibt die Inbox zurück.",
+    remindersShortcutButton: "Kurzbefehl holen",
+    remindersAutomations: "Automationen",
+    remindersAutomationsDesc:
+      "In Kurzbefehle → Automation zwei App-Automationen für Obsidian anlegen, die „Schreibstube " +
+      "Sync“ ausführen: eine für „Wird geschlossen“, die Änderungen sendet, und eine für „Wird " +
+      "geöffnet“, die Abgehaktes zurückholt. Beide auf „Sofort ausführen“ stellen und „Bei " +
+      "Ausführung mitteilen“ ausschalten.",
 
     explorerHeading: "Schreibstube Explorer",
     explorerIntro:

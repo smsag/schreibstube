@@ -1,6 +1,7 @@
 import type { SyncRecord } from "./services/sync-document";
 import type { PublishKeyMap } from "./services/publish-index";
 import type { LanguagePreference } from "./i18n";
+import type { ReminderTrigger } from "./services/reminder-tasks";
 
 export type HeadingLevel = 1 | 2 | 3 | 4 | 5 | 6;
 
@@ -129,19 +130,17 @@ export interface SchreibstubeSettings {
   /** Where a printed PDF is written; empty means beside the note. */
   printOutputFolder: string;
   /**
-   * Sending a task to Apple's Reminders through a Shortcut. Off until a
-   * person says otherwise: the command opens another application, which is
-   * not something a plugin should start doing on its own.
+   * Keeping tasks in sync with Apple's Reminders through a Shortcut. Off until
+   * a person says otherwise: the sync writes ids into notes, which is not
+   * something a plugin should start doing on its own.
    */
   remindersEnabled: boolean;
-  /** Reminders list the Shortcut is asked to create in; empty leaves it to the Shortcut. */
+  /** The Reminders list the sync keeps; its reminders are the sync's to change. */
   remindersList: string;
-  /** Name of the Shortcut that creates the reminder. */
-  remindersShortcut: string;
-  /** Name of the Shortcut that reports which reminders are done. */
-  remindersStatusShortcut: string;
-  /** Vault path of the file an automation writes that report to; empty turns the poll off. */
-  remindersReportFile: string;
+  /** What makes a task a reminder: a due date or `#remind`, or `#remind` alone. */
+  remindersTrigger: ReminderTrigger;
+  /** Vault folder for the outbox, inbox and state the Shortcut shares. */
+  remindersFolder: string;
   /** Icon name per frontmatter key, lower-cased; drawn in place of the type icon. */
   propertyIcons: Record<string, string>;
   /** Moment format for today's date entered into text. Date properties always get ISO. */

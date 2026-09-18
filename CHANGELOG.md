@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Changed
+
+- **Tasks and Erinnerungen are kept in sync, instead of a task being sent once.** A task with a due date (`📅 2026-09-20`) or `#remind` is a reminder; editing its text, date or body updates the reminder, ticking either side ticks the other, and deleting the task deletes the reminder. One Shortcut, **Schreibstube Sync**, replaces the two that had to be built by hand, and two automations — Obsidian opens, Obsidian closes — run it in the background, so nothing jumps to the Shortcuts app any more. The plugin and the Shortcut talk through three files in `.schreibstube/reminders`: an outbox of operations, an inbox snapshot of the list, and the state both last agreed on. Every decision stays in the plugin, where it is tested; the Shortcut only carries operations out, and carrying one out twice does no harm. A failed or skipped run no longer leaves a task that looks sent. The notes are no longer cut to fit a URL. See [REMINDERS.md](REMINDERS.md).
+- **A synced task carries a block id, `^r-k3x9a2`, instead of a link.** Obsidian hides it in Reading view; Live Preview draws it as the Reminders mark. A task sent by an earlier version is migrated on the first sync to `#remind ^<its id>`, so the reminder made back then still opens it; the sync creates that reminder again in the synced list.
+- **Send task to Erinnerungen** is now **Make task a reminder** and adds `#remind`; **Compare with Erinnerungen** is now **Sync with Erinnerungen now**. Both keep their ids, so hotkeys still work.
+
+### Removed
+
+- The Shortcut name, status Shortcut name and report file settings, and the `obsidian://schreibstube?done=1` callback. The Reminders list now defaults to **Schreibstube**; a list you had named is kept.
+
 ## 1.35.1 - 2026-09-18
 
 What 1.35.0 was supposed to deliver. The ranking it added was real and the pane

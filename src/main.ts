@@ -25,7 +25,6 @@ import { buildSlideshowInsertion } from "./services/slideshow";
 import { createLogger, type Logger } from "./services/logger";
 import {
   commandAvailable,
-  remindersScope,
   renameTarget,
   type CommandContext,
   type GatedCommand
@@ -34,9 +33,8 @@ import { toggledFocusMode } from "./services/focus-settings";
 import { getImageMimeType } from "./services/image-resize";
 import { hasSourceBinding } from "./services/sync-source";
 import { describePollSummary } from "./services/sync-summary";
-import { isTaskLine, TASK_PROTOCOL_ACTION } from "./services/reminder-export";
-import { sentTaskIds } from "./services/reminder-status";
-import { ReminderCommands } from "./controllers/reminder-commands";
+import { isTaskLine, TASK_PROTOCOL_ACTION } from "./services/reminder-tasks";
+import { ReminderSync } from "./controllers/reminder-sync";
 import { NoteCommands } from "./controllers/note-commands";
 import { LinkModeController } from "./controllers/link-mode-controller";
 import { LlmCommands } from "./controllers/llm-commands";
@@ -104,7 +102,7 @@ export default class SchreibstubePlugin extends Plugin {
   private mail: MailCommands | null = null;
   private publish: PublishCommands | null = null;
   private print: PrintCommands | null = null;
-  private reminders: ReminderCommands | null = null;
+  private reminders: ReminderSync | null = null;
   private notes: NoteCommands | null = null;
 
   override async onload(): Promise<void> {
@@ -153,7 +151,8 @@ export default class SchreibstubePlugin extends Plugin {
         await this.saveSettings();
       }
     );
-    this.reminders = new ReminderCommands(this.app, () => this.settings, this.logger);
+    this.reminders = new ReminderSync(this.app, () => this.settings, this.logger);
+    this.registerReminderEvents();
     this.notes = new NoteCommands(this.app, this.logger);
     this.proofread = new ProofreadController(this.app, () => this.settings, this.logger, {
       get: (path) => this.settings.syncState[path],
@@ -256,7 +255,7 @@ export default class SchreibstubePlugin extends Plugin {
       this.app.workspace.on("editor-menu", (menu, editor, view) => {
         if (!(view instanceof MarkdownView) || !view.file) return;
         if (!commandAvailable("send-reminder", this.commandContext())) return;
-        this.reminders?.addMenuItem(menu, editor, view.file);
+        this.reminders?.addMenuItem(menu, editor);
       })
     );
     // Selected lines into a table. The plain conversion is offered only when
@@ -289,8 +288,7 @@ export default class SchreibstubePlugin extends Plugin {
         );
       })
     );
-    // The link a reminder carries, obsidian://schreibstube?task=<id>, and the
-    // callback the status Shortcut answers through, obsidian://schreibstube?done=1.
+    // The link a reminder carries back to its task, obsidian://schreibstube?task=<id>.
     this.registerObsidianProtocolHandler(TASK_PROTOCOL_ACTION, (params) => {
       void this.reminders?.handleProtocol(params);
     });
@@ -335,6 +333,7 @@ export default class SchreibstubePlugin extends Plugin {
     this.proofread?.stop();
     void this.explorer?.stop();
     this.sections?.stop();
+    this.reminders?.cancel();
     this.clearOverlay();
   }
 
@@ -641,9 +640,9 @@ export default class SchreibstubePlugin extends Plugin {
   }
 
   private handlePollTick(now: Date): void {
-    // The report file an automation writes for Reminders rides on the same
-    // tick: one stat of one file, and a read only when it has changed.
-    void this.reminders?.pollReportFile();
+    // The inbox the Reminders Shortcut writes rides on the same tick: one
+    // stat of one file, and a sync only when it has changed.
+    void this.reminders?.pollInbox();
 
     const schedule = this.activePollSchedule();
     if (!schedule) return;
@@ -686,6 +685,31 @@ export default class SchreibstubePlugin extends Plugin {
     if (summary.withChanges > 0) {
       new Notice(t().common.notice(t().sync.withUpdates(summary.withChanges)));
     }
+  }
+
+  /**
+   * A sync a little after a note changes, and one right away when the app
+   * goes to the background: on iOS that is the moment the Shortcut's
+   * automation reads the outbox, and a change typed seconds ago should be in it.
+   */
+  private registerReminderEvents(): void {
+    this.registerEvent(
+      this.app.vault.on("modify", (file) => {
+        if (file instanceof TFile && file.extension === "md") this.reminders?.scheduleSync();
+      })
+    );
+    this.registerDomEvent(document, "visibilitychange", () => {
+      if (!this.settings.remindersEnabled) return;
+      if (document.visibilityState === "hidden") {
+        this.reminders?.cancel();
+        void this.reminders?.sync();
+      } else {
+        void this.reminders?.pollInbox();
+      }
+    });
+    this.app.workspace.onLayoutReady(() => {
+      void this.reminders?.sync();
+    });
   }
 
   private registerProofreadEvents(): void {
@@ -811,8 +835,7 @@ export default class SchreibstubePlugin extends Plugin {
         file !== null && hasSourceBinding(this.app.metadataCache.getFileCache(file)?.frontmatter),
       explorerOpen: this.app.workspace.getLeavesOfType(EXPLORER_VIEW_TYPE).length > 0,
       task: view !== null && isTaskLine(view.editor.getLine(view.editor.getCursor().line)),
-      apple: Platform.isMacOS || Platform.isIosApp,
-      sentTask: view !== null && sentTaskIds(view.editor.getValue()).length > 0
+      apple: Platform.isMacOS || Platform.isIosApp
     };
   }
 
@@ -916,14 +939,10 @@ export default class SchreibstubePlugin extends Plugin {
       }
     );
 
-    // The id is the one that asked about every note, which is still what it
-    // does wherever the open note has no sent task.
+    // The id is the one the comparison had, so a hotkey bound to it still
+    // does the nearest thing.
     this.addGatedCommand("fetch-done-from-reminders", t().commands.reminders, "reminders", () => {
-      if (remindersScope(this.commandContext()) === "note") {
-        this.reminders?.checkActiveNote();
-      } else {
-        this.reminders?.checkEverything();
-      }
+      void this.reminders?.syncNow();
     });
 
     this.addCommand({
