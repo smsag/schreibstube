@@ -2,7 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## 1.34.1 - 2026-09-18
+
+Mobile checklist: not run for this release. The feature layout was measured in
+a browser at desktop and phone width with the plugin's own stylesheet; the
+slideshow fixes have not been tried on a device.
+
+Bridge 2.4.0 is unchanged and still pairs with this release.
 
 ### Fixed
 
