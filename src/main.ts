@@ -54,6 +54,7 @@ import { minuteOf, parseCron, previousRun, shouldFire } from "./services/cron";
 import { REVIEW_VIEW_TYPE, ReviewPanelView } from "./ui/review-panel";
 import { EXPLORER_RIBBON_ICON, EXPLORER_VIEW_TYPE, ExplorerPaneView } from "./ui/explorer-view";
 import { TAG_NOTES_VIEW_TYPE, TagNotesView } from "./ui/tag-notes-view";
+import { RELATED_NOTES_VIEW_TYPE, RelatedNotesView } from "./ui/related-notes-view";
 import { registerSchreibstubeIcon } from "./ui/schreibstube-icon";
 import {
   EXPLORER_STATE_FILE,
@@ -197,6 +198,7 @@ export default class SchreibstubePlugin extends Plugin {
     // what can do that, and they were built a moment ago.
     this.explorer.useNamer((file) => this.requireLlm().proposeName(file));
     this.explorer.useTagOpener((tag) => this.activateTagNotes(tag));
+    this.explorer.useRelatedOpener((path) => this.activateRelatedNotes(path));
     await this.explorer.start();
 
     this.sections = new PaneSectionsController(
@@ -210,6 +212,7 @@ export default class SchreibstubePlugin extends Plugin {
     this.registerView(REVIEW_VIEW_TYPE, (leaf) => this.createReviewView(leaf));
     this.registerView(EXPLORER_VIEW_TYPE, (leaf) => this.createExplorerView(leaf));
     this.registerView(TAG_NOTES_VIEW_TYPE, (leaf) => this.createTagNotesView(leaf));
+    this.registerView(RELATED_NOTES_VIEW_TYPE, (leaf) => this.createRelatedNotesView(leaf));
     this.registerExplorerEvents();
     this.registerEditorExtension(
       createGlossaryUnderlineExtension({
@@ -388,6 +391,48 @@ export default class SchreibstubePlugin extends Plugin {
     }
     await leaf.setViewState({ type: TAG_NOTES_VIEW_TYPE, state: { tag }, active: true });
     await this.app.workspace.revealLeaf(leaf);
+  }
+
+  /**
+   * List a note's related notes in the right sidebar.
+   *
+   * One leaf, like the tag list: the panel follows whatever note is open, so a
+   * second one would only ever say the same thing twice. Asking for a
+   * particular note from its menu pins the panel to that note instead.
+   */
+  async activateRelatedNotes(path: string): Promise<void> {
+    const [existing] = this.app.workspace.getLeavesOfType(RELATED_NOTES_VIEW_TYPE);
+    const leaf = existing ?? this.app.workspace.getRightLeaf(false);
+    if (!leaf) {
+      new Notice(t().common.notice(t().common.sidebarMissing(t().explorer.related.viewTitle)));
+      return;
+    }
+    await leaf.setViewState({
+      type: RELATED_NOTES_VIEW_TYPE,
+      state: { path, following: false },
+      active: true
+    });
+    await this.app.workspace.revealLeaf(leaf);
+  }
+
+  private createRelatedNotesView(leaf: WorkspaceLeaf): RelatedNotesView {
+    const view = new RelatedNotesView(leaf);
+    const explorer = this.explorer;
+    if (explorer) {
+      view.connect({
+        cards: (path) => explorer.relatedCards(path),
+        titleOf: (path) => {
+          const file = this.app.vault.getAbstractFileByPath(path);
+          return file instanceof TFile ? (explorer.titleFor(file) ?? file.basename) : null;
+        },
+        open: async (path, newTab) => {
+          const file = this.app.vault.getAbstractFileByPath(path);
+          if (file) await explorer.open(file, newTab);
+        },
+        showMenu: (path, event) => explorer.showMenuForPath(path, event)
+      });
+    }
+    return view;
   }
 
   private createTagNotesView(leaf: WorkspaceLeaf): TagNotesView {
@@ -909,6 +954,11 @@ export default class SchreibstubePlugin extends Plugin {
       callback: () => {
         this.explorer?.chooseTag();
       }
+    });
+
+    this.addGatedCommand("related-notes", t().commands.related, "related", () => {
+      const file = this.app.workspace.getActiveFile();
+      if (file) void this.activateRelatedNotes(file.path);
     });
 
     this.addCommand({

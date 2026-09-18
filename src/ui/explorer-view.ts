@@ -22,6 +22,7 @@
  */
 import {
   FileView,
+  getAllTags,
   ItemView,
   Notice,
   TFile,
@@ -33,6 +34,14 @@ import { t } from "../i18n";
 import type { ExplorerController } from "../controllers/explorer-controller";
 import type { PaneSectionsController } from "../controllers/pane-sections";
 import { syncBadgeIcon, type SyncBadge } from "../services/explorer-badge";
+import { frontmatterTitle } from "../services/note-title";
+import {
+  matchesText,
+  rankFiles,
+  searchFields,
+  type SearchCandidate,
+  type SearchFields
+} from "../services/file-search";
 import { sortSiblings, type ExplorerNode } from "../services/explorer-state";
 import {
   bookmarkIcon,
@@ -165,9 +174,27 @@ export class ExplorerPaneView extends ItemView {
   private pending = false;
   /** Waiting for the typing to stop before the filter redraws. */
   private filterTimer: number | null = null;
-  /** Paths the filter keeps, with every folder on the way to one. Null when no
-   *  filter is set, which is the difference between "everything" and "nothing". */
+  /** Every file the filter kept, however many that is. Null when no filter is
+   *  set, which is the difference between "everything" and "nothing". */
   private matches: Set<string> | null = null;
+  /**
+   * The best of those, with every folder on the way to one, which is what the
+   * tree draws.
+   *
+   * Two sets and not one because the cap belongs to the tree alone: a pinned
+   * row or a note in Latest that matched must stay on screen whether or not it
+   * was among the two hundred the tree had room for.
+   */
+  private treeMatches: Set<string> | null = null;
+  /**
+   * Each file's tokenized fields, kept between keystrokes.
+   *
+   * Tokenizing is the expensive half of a filter and a file's name, title and
+   * tags do not change while somebody is typing; the entry is dropped when the
+   * vault says that file changed. Keyed by path, so a vault of ten thousand
+   * files costs one pass on the first keystroke and none on the rest.
+   */
+  private fields = new Map<string, SearchFields>();
   /** How many files the filter matched, and how many rows have been drawn for
    *  them, so a capped list can say what it is holding back. */
   private matchCount = 0;
@@ -267,9 +294,30 @@ export class ExplorerPaneView extends ItemView {
     // deleted on another device and delivered by sync, frontmatter that binds a
     // note to a source. Each of those changes what a row should say.
     this.registerEvent(this.app.vault.on("create", () => this.requestRender()));
-    this.registerEvent(this.app.vault.on("delete", () => this.requestRender()));
-    this.registerEvent(this.app.vault.on("rename", () => this.requestRender()));
-    this.registerEvent(this.app.metadataCache.on("changed", () => this.requestRender()));
+    this.registerEvent(
+      this.app.vault.on("delete", (file) => {
+        this.fields.delete(file.path);
+        this.requestRender();
+      })
+    );
+    this.registerEvent(
+      this.app.vault.on("rename", (file, oldPath) => {
+        // Both ends: the path it had is gone, and the path it has now holds a
+        // different name and different folders above it.
+        this.fields.delete(oldPath);
+        this.fields.delete(file.path);
+        this.requestRender();
+      })
+    );
+    // A title, an alias or a tag is frontmatter, and frontmatter changing is
+    // exactly what this event says. The filter reads all three, so the file's
+    // tokens are thrown away rather than left to answer for an older version.
+    this.registerEvent(
+      this.app.metadataCache.on("changed", (file) => {
+        this.fields.delete(file.path);
+        this.requestRender();
+      })
+    );
     // Every note opened, by whatever route, is found in the tree: the folders
     // above it open and its row comes into view. Nothing else is collapsed.
     this.registerEvent(this.app.workspace.on("file-open", () => this.revealActiveFile(true, true)));
@@ -455,7 +503,9 @@ export class ExplorerPaneView extends ItemView {
 
     host.empty();
     this.shelf?.empty();
-    this.matches = this.collectMatches();
+    const filtered = this.collectMatches();
+    this.matches = filtered?.all ?? null;
+    this.treeMatches = filtered?.tree ?? null;
     this.drawnMatches = 0;
     this.folderCounts.clear();
     // The rows a drag was holding are about to be thrown away.
@@ -562,15 +612,18 @@ export class ExplorerPaneView extends ItemView {
     const controller = this.host?.explorer;
     if (!controller) return;
 
-    // A filter has to match what the row shows as well as what the file is
-    // called, or typing the name on screen would hide the row showing it.
+    // A file answers through the filter's own ranking, which already reads the
+    // title a pinned row is drawn by — so typing the name on screen can no
+    // longer hide the row showing it. A folder has no fields to be ranked on,
+    // and a tag is not a file at all: both are matched as the text they are.
     const items = controller
       .pinnedItems()
       .filter((item) =>
         item.kind === "tag"
-          ? this.matchesQuery(`#${item.tag}`)
-          : this.matchesQuery(item.file.name) ||
-            this.matchesQuery(controller.titleFor(item.file) ?? "")
+          ? this.matchesQuery(`#${item.tag}`, ["all", "name", "tags"])
+          : item.file instanceof TFolder
+            ? this.matchesQuery(item.file.name)
+            : this.matchesFile(item.file.path)
       );
     if (items.length === 0) return;
 
@@ -883,7 +936,7 @@ export class ExplorerPaneView extends ItemView {
     // A file deleted a moment ago is gone from the tree at once; it would be
     // odd for it to sit on in a list two sections above.
     const matching = files.filter(
-      (file) => this.matchesQuery(file.name) && controller?.isTrashed(file.path) !== true
+      (file) => this.matchesFile(file.path) && controller?.isTrashed(file.path) !== true
     );
     if (matching.length === 0) return 0;
 
@@ -969,7 +1022,7 @@ export class ExplorerPaneView extends ItemView {
     // A list that stopped has to say so, or the file you are looking for is
     // simply missing and nothing explains why.
     const held = this.matchCount - this.drawnMatches;
-    if (this.matches && held > 0) {
+    if (this.treeMatches && held > 0) {
       tree.createEl("p", {
         cls: "schreibstube-explorer-empty",
         text: t().explorer.filterMore(held)
@@ -1003,8 +1056,8 @@ export class ExplorerPaneView extends ItemView {
       // While filtering, a row is drawn only if it matched or holds something
       // that did; the alternative is a tree of empty branches. The set was
       // built once for this draw and answers for folders and files alike.
-      if (this.matches && !this.matches.has(child.path)) continue;
-      if (this.matches && this.drawnMatches >= FILTER_ROW_CAP) break;
+      if (this.treeMatches && !this.treeMatches.has(child.path)) continue;
+      if (this.treeMatches && this.drawnMatches >= FILTER_ROW_CAP) break;
 
       if (child instanceof TFolder) {
         this.renderRow(host, child, depth);
@@ -1021,32 +1074,86 @@ export class ExplorerPaneView extends ItemView {
     return drawn;
   }
 
-  private matchesQuery(name: string): boolean {
-    return this.query.length === 0 || name.toLowerCase().includes(this.query);
+  /**
+   * Whether a row that is not a vault file answers what was typed.
+   *
+   * A bookmark and a pinned tag are text on a row rather than a file with
+   * fields, so they are matched as text. A folder falls here too: folders carry
+   * no title, no tags and no path of their own to be found by.
+   */
+  private matchesQuery(name: string, allowed?: readonly ("all" | "name" | "tags")[]): boolean {
+    if (this.query.length === 0) return true;
+    return matchesText(this.query, name, allowed);
+  }
+
+  /** Whether a vault file is among what the filter kept. */
+  private matchesFile(path: string): boolean {
+    return this.matches === null || this.matches.has(path);
   }
 
   /**
-   * Every path the filter keeps, with every folder on the way to one.
+   * One file's fields, tokenized once and kept until the vault says it changed.
+   */
+  private fieldsFor(file: TFile): SearchFields {
+    const cached = this.fields.get(file.path);
+    if (cached) return cached;
+
+    const cache = this.app.metadataCache.getFileCache(file);
+    const frontmatter = cache?.frontmatter;
+    const aliases = frontmatter?.aliases;
+    const fields = searchFields({
+      path: file.path,
+      name: file.name,
+      title: frontmatterTitle(frontmatter?.title),
+      // Obsidian accepts an alias list or a single string, and a person editing
+      // frontmatter by hand writes either.
+      aliases: Array.isArray(aliases)
+        ? aliases.filter((alias): alias is string => typeof alias === "string")
+        : typeof aliases === "string"
+          ? [aliases]
+          : [],
+      // `getAllTags` reads the frontmatter and the body alike, the way
+      // Obsidian's own tag search sees a note, and writes each with its `#`.
+      tags: (getAllTags(cache ?? {}) ?? []).map((tag) => tag.replace(/^#/, ""))
+    });
+    this.fields.set(file.path, fields);
+    return fields;
+  }
+
+  /**
+   * Every file the filter keeps, and the best of them with their folders.
    *
    * One pass over the vault, once per draw. The tree used to ask each folder
    * whether anything under it matched, and that question walked the folder's
    * whole subtree — so a subtree was walked again for every folder above it,
    * and a deep vault paid for its own depth on every keystroke.
+   *
+   * The cap is applied to the ranking rather than to the walk. Taking the first
+   * two hundred rows in tree order means the answer depends on where in the
+   * alphabet a folder sits, and the file somebody was looking for is held back
+   * because a folder called `Archiv` came first.
    */
-  private collectMatches(): Set<string> | null {
+  private collectMatches(): { all: Set<string>; tree: Set<string> } | null {
     this.matchCount = 0;
     if (this.query.length === 0) return null;
 
-    const matches = new Set<string>();
+    const candidates: SearchCandidate[] = [];
     for (const entry of this.app.vault.getAllLoadedFiles()) {
-      if (entry instanceof TFolder || !this.matchesQuery(entry.name)) continue;
-
-      this.matchCount += 1;
-      matches.add(entry.path);
-      for (const ancestor of ancestorsOf(entry.path)) matches.add(ancestor);
+      if (!(entry instanceof TFile)) continue;
+      candidates.push({ path: entry.path, fields: this.fieldsFor(entry) });
     }
 
-    return matches;
+    const hits = rankFiles(this.query, candidates);
+    this.matchCount = hits.length;
+
+    const all = new Set(hits.map((hit) => hit.path));
+    const tree = new Set<string>();
+    for (const hit of hits.slice(0, FILTER_ROW_CAP)) {
+      tree.add(hit.path);
+      for (const ancestor of ancestorsOf(hit.path)) tree.add(ancestor);
+    }
+
+    return { all, tree };
   }
 
   /** A filter expands the tree for as long as it is set, without disturbing

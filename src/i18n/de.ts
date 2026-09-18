@@ -23,6 +23,7 @@ export const de: Messages = {
     insertToday: "Einfügen: heutiges Datum",
     openExplorer: "Explorer öffnen",
     collapseExplorer: "Explorer: Ordner zuklappen",
+    related: "Verwandte Notizen",
     openBookmark: "Lesezeichen öffnen",
     pinTag: "Tag anheften",
     openReview: "Korrektur-Seitenleiste öffnen",
@@ -684,6 +685,23 @@ export const de: Messages = {
     pinnedFewer: "Wieder drei zeigen",
     folderCount: (count: string) => `${count} Dateien`,
 
+    related: {
+      viewTitle: "Verwandte Notizen",
+      viewNoNote: "Eine Notiz öffnen, um zu sehen, wobei sie steht.",
+      viewEmpty: "Nichts verlinkt, verschlagwortet oder legt diese Notiz neben eine andere.",
+      summary: (count: number) =>
+        count === 1 ? "1 verwandte Notiz" : `${count} verwandte Notizen`,
+      root: "Vault-Wurzel",
+      reasons: {
+        link: "verlinkt",
+        sharedLink: (count: number) =>
+          count === 1 ? "1 gemeinsamer Link" : `${count} gemeinsame Links`,
+        coCitation: (count: number) =>
+          count === 1 ? "zusammen genannt" : `${count}× zusammen genannt`,
+        tag: (count: number) => (count === 1 ? "1 gemeinsames Tag" : `${count} gemeinsame Tags`),
+        folder: "gleicher Ordner"
+      }
+    },
     tags: {
       pick: "Tag zum Anheften wählen …",
       none: "Noch trägt keine Notiz in diesem Vault ein Tag.",
@@ -751,6 +769,7 @@ export const de: Messages = {
       releaseTop: "Nicht mehr oben halten",
       pin: "Zu „Angeheftet“ hinzufügen",
       unpin: "Aus „Angeheftet“ entfernen",
+      related: "Verwandte Notizen",
       pinTag: "Tag dieser Notiz anheften …",
       showTag: "Notizen mit diesem Tag zeigen",
       bindSource: "Mit Quelle verbinden …",

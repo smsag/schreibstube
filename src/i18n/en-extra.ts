@@ -442,6 +442,21 @@ export const enExtra = {
     pinnedFewer: "Show three again",
     folderCount: (count: string) => `${count} files`,
 
+    related: {
+      viewTitle: "Related notes",
+      viewNoNote: "Open a note to see what it sits among.",
+      viewEmpty: "Nothing links, tags or files this note beside anything else.",
+      summary: (count: number) => (count === 1 ? "1 related note" : `${count} related notes`),
+      root: "Vault root",
+      reasons: {
+        link: "linked",
+        sharedLink: (count: number) => (count === 1 ? "1 shared link" : `${count} shared links`),
+        coCitation: (count: number) =>
+          count === 1 ? "listed together" : `listed together ${count}×`,
+        tag: (count: number) => (count === 1 ? "1 shared tag" : `${count} shared tags`),
+        folder: "same folder"
+      }
+    },
     tags: {
       pick: "Pick a tag to pin…",
       none: "No note in this vault carries a tag yet.",
@@ -509,6 +524,7 @@ export const enExtra = {
       releaseTop: "Stop keeping at top",
       pin: "Add to Pinned",
       unpin: "Remove from Pinned",
+      related: "Related notes",
       pinTag: "Pin a tag of this note…",
       showTag: "Show tagged notes",
       bindSource: "Bind to a source…",

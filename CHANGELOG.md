@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## 1.35.0 - 2026-09-18
+
+Mobile checklist: not run for this release. Everything in it was checked by the
+test suite and the build's own guards, not on a device. New and not yet tried on
+a phone: the Explorer's filter, which now ranks rather than matches and so does
+more work between keystrokes, and the related-notes sidebar.
+
+Bridge 2.4.0 is unchanged and still pairs with this release.
+
+### Added
+
+- **The Explorer's filter searches what a file is called, in every sense.** It matched the file name as a piece of text and nothing else, so a note called `Objekt 12.md` whose `title` reads *Villa Seeblick* could not be found by its title, and *Vertrag* never offered *Mietvertrag* — a German compound is searched for by the word at its end. The filter now reads a file's name, its `title`, its aliases, its tags and the folders above it, each weighted by how much of a claim a hit there is, and weighs every word typed by how rare it is in the vault: a word every file shares barely moves a result, a word one file holds decides it. Typing `tag:`, `pfad:` or `name:` (and their English spellings) narrows to that one dimension. It is still not a content search — Obsidian's own search reads note bodies and has the operators for it.
+- **A capped result list keeps the best matches rather than the first two hundred.** The list stopped at two hundred rows in tree order, so what survived depended on where in the alphabet a folder sat. It now ranks first and cuts second, and a pinned row or a note in Latest that matched is shown whether or not the tree had room for it.
+- **Related notes.** A sidebar listing the notes that belong with the one that is open: those it links or is linked by, those pointing at the same third note, those the same note lists, those sharing its tags, and — only as a tiebreak — those in its folder. Every shared thing is weighted by how rare it is, so an index note linking to four hundred others does not make all four hundred related to each other. Each card says why it is there. Open it with **Related notes** in the palette or from a note's menu in the Explorer; from the palette it follows whatever note is open, from the menu it stays on the note it was asked about. Nothing is downloaded, nothing is sent anywhere, and it works the same on a phone: the link graph is the one Obsidian has already resolved, so asking costs no file reads.
+
 ## 1.34.1 - 2026-09-18
 
 Mobile checklist: not run for this release. The feature layout was measured in

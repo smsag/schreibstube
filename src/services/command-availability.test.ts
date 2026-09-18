@@ -31,6 +31,7 @@ function offered(context: CommandContext): GatedCommand[] {
     "send-mail",
     "fetch-replies",
     "collapse-explorer",
+    "related",
     "send-reminder",
     "reminders"
   ];
@@ -40,7 +41,13 @@ function offered(context: CommandContext): GatedCommand[] {
 
 describe("what the palette offers", () => {
   it("offers a plain note what can be done to a plain note", () => {
-    expect(offered(screen())).toEqual(["rename", "insert-today", "send-mail", "fetch-replies"]);
+    expect(offered(screen())).toEqual([
+      "rename",
+      "insert-today",
+      "send-mail",
+      "fetch-replies",
+      "related"
+    ]);
   });
 
   it("offers a note bound to a source the check for it", () => {
@@ -101,5 +108,10 @@ describe("what the palette offers", () => {
   it("offers to close the folders only where there are folders to close", () => {
     expect(offered(screen({ explorerOpen: true }))).toContain("collapse-explorer");
     expect(offered(screen({ explorerOpen: false }))).not.toContain("collapse-explorer");
+  });
+
+  it("offers related notes on a note and not on a picture", () => {
+    expect(offered(screen({ markdown: true }))).toContain("related");
+    expect(offered(screen({ markdown: false, image: true }))).not.toContain("related");
   });
 });
