@@ -37,6 +37,7 @@ controllers/         one per feature; they own flow and talk to Obsidian
   sync-poller        checks bound notes against their sources
   explorer-controller  the file pane: icons, pins, its menu, its sync actions
   pane-sections        the two read-only lists above the tree: bookmarks, latest
+  property-controller  property icons and today's date in the Properties view
 services/            pure decisions, no Obsidian imports, heavily tested
 processors/          editor extensions and reading-view post-processors
 print/               the Typst compiler and the worker it runs in

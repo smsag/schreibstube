@@ -148,6 +148,17 @@ The dim strength is configurable.
 
 That last command makes a new empty note where Obsidian's _Default location for new notes_ says, named the way Obsidian names one (**Untitled**, then **Untitled 1**, and so on; **Unbenannt** in German), opens it in a new window, brings that window to the front whatever windows and tabs are already open, and puts the cursor in the editor. A pop-out window has no sidebars, so the screen holds the note and nothing else. On a phone, which has no windows, the note opens in a new tab and both drawers close instead. Nothing about the vault differs from a note made the usual way.
 
+### Properties
+
+Two additions to Obsidian's Properties view in live preview. Both live in a property's own menu — click its icon, or tap it on a phone:
+
+- **Choose icon…** — pick an icon from the same set the explorer uses. It replaces the type icon for that key in every note, in live preview, the reading view and the properties sidebar alike. The type can still be changed from the same menu, and **Remove icon** in the picker brings the type icon back.
+- **Enter today** — sets the property to today's date. A date property gets `YYYY-MM-DD`, a date-and-time property today at the current time, a list property gains the date as one more entry, and a text property gets the format from the settings. Not offered for numbers, checkboxes and tags.
+
+**Insert: today's date** puts the date at the cursor instead: in the property field being typed in, or in the note's text otherwise. Give it a hotkey to have the date one keystroke away.
+
+These entries hook into a menu Obsidian builds for itself, since there is no API for it. If an Obsidian update changes that menu, the entries disappear and a warning goes to the console; the command and the icons are not affected.
+
 ### Rename file from content
 
 Assigns a filename to the active note or image based on its content, with one command that follows the file that is open:
@@ -518,6 +529,12 @@ A command that cannot do anything where you are is not offered at all: the image
 | Setting     | Description                                                 | Default |
 | ----------- | ----------------------------------------------------------- | ------- |
 | Dim opacity | Opacity of out-of-focus lines (0.2 faint – 0.8 nearly full) | 0.4     |
+
+### Properties
+
+| Setting     | Description                                                                                           | Default      |
+| ----------- | ----------------------------------------------------------------------------------------------------- | ------------ |
+| Date format | How today's date is written into text: `YYYY`, `MM`, `DD`, `MMMM` (month), `dddd` (weekday), `[text]` | `YYYY-MM-DD` |
 
 ### Schreibstube Explorer
 

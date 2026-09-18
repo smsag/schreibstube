@@ -1,4 +1,4 @@
-import type { App, Editor, Menu, MenuItem, Workspace, WorkspaceLeaf } from "obsidian";
+import type { App, Editor, Menu, MenuItem, TFile, Workspace, WorkspaceLeaf } from "obsidian";
 import type { Logger } from "./logger";
 
 /**
@@ -316,4 +316,133 @@ function positive(value: unknown): number | null {
 
 interface PluginsInternals {
   plugins?: { plugins?: Record<string, { api?: unknown } | undefined> };
+}
+
+/**
+ * The Properties widget.
+ *
+ * Obsidian draws a note's frontmatter as rows of `.metadata-property`, each
+ * carrying its key in `data-property-key`, and gives a row a menu (type, cut,
+ * remove) from its icon and its name. None of that is API: the class names,
+ * the attribute and the menu are read here and nowhere else, and a build that
+ * renames them makes these return nothing rather than throw.
+ */
+const PROPERTY_ROW = ".metadata-property";
+const PROPERTY_NAME_AREA = ".metadata-property-key";
+const PROPERTY_VALUE_AREA = ".metadata-property-value";
+
+/** The row whose name or icon was pressed, which is where its menu opens from. */
+export function propertyRowAt(target: EventTarget | null): HTMLElement | null {
+  if (!isElementLike(target)) return null;
+  if (!target.closest(PROPERTY_NAME_AREA)) return null;
+  const row = target.closest(PROPERTY_ROW);
+  return isElementLike(row) ? row : null;
+}
+
+/** The key a row stands for, from its attribute or, failing that, its name field. */
+export function propertyKeyOf(row: HTMLElement): string | null {
+  const attribute = row.getAttribute("data-property-key");
+  if (attribute) return attribute;
+  const input = row.querySelector(`${PROPERTY_NAME_AREA} input`);
+  const value = (input as { value?: unknown } | null)?.value;
+  return typeof value === "string" && value !== "" ? value : null;
+}
+
+interface MetadataTypeManagerInternals {
+  metadataTypeManager?: { getAssignedType?: (key: string) => unknown };
+}
+
+/**
+ * The type Obsidian has assigned a key, as its own name for it.
+ *
+ * The row may say it; the vault-wide type registry always knows. Unknown
+ * answers are left to `propertyKindOf`, which treats them as untyped.
+ */
+export function propertyTypeOf(app: App, row: HTMLElement, key: string): unknown {
+  const fromRow = row.getAttribute("data-property-type");
+  if (fromRow) return fromRow;
+  const manager = (app as unknown as MetadataTypeManagerInternals).metadataTypeManager;
+  return typeof manager?.getAssignedType === "function"
+    ? manager.getAssignedType.call(manager, key)
+    : undefined;
+}
+
+/** The editable part of a property value the element belongs to, if any. */
+export function propertyFieldOf(target: EventTarget | null): HTMLElement | null {
+  if (!isElementLike(target) || !target.closest(PROPERTY_VALUE_AREA)) return null;
+  const editable = target.tagName === "INPUT" || target.isContentEditable;
+  return editable ? target : null;
+}
+
+interface FileViewLike {
+  file?: { path?: unknown } | null;
+}
+
+/**
+ * The note a Properties widget belongs to.
+ *
+ * The widget sits in a Markdown view or in the properties sidebar, and both
+ * hang the note they show off their view as `file`; for a Markdown view that
+ * is API, for the sidebar it is not, so the lookup accepts either shape.
+ */
+export function fileShownAround(app: App, node: Node): TFile | null {
+  let found: TFile | null = null;
+  app.workspace.iterateAllLeaves((leaf) => {
+    if (found || !leafContainerContains(leaf, node)) return;
+    const file = (leaf.view as unknown as FileViewLike).file;
+    if (file && typeof file.path === "string") found = file as TFile;
+  });
+  return found;
+}
+
+type MenuShow = (this: Menu, ...args: unknown[]) => unknown;
+
+/**
+ * Let the plugin add to a menu just before Obsidian shows it.
+ *
+ * The only way into a menu Obsidian builds for itself, such as the one on a
+ * property. Both ways of showing one are wrapped, and a menu is offered to
+ * `beforeShow` once even when one calls the other. What `beforeShow` decides
+ * is its own business; the wrapper only guarantees that a mistake in it never
+ * stops the menu from opening.
+ */
+export function installMenuShowHook(
+  menuPrototype: object,
+  beforeShow: (menu: Menu) => void,
+  logger: Logger
+): () => void {
+  const target = menuPrototype as Record<string, unknown>;
+  const names = ["showAtMouseEvent", "showAtPosition"].filter(
+    (name) => typeof target[name] === "function"
+  );
+  if (names.length === 0) {
+    logger.warn("Menu.showAtMouseEvent is unavailable; property menu entries are disabled.");
+    return () => {};
+  }
+
+  const offered = new WeakSet<Menu>();
+  const installed = names.map((name) => {
+    const original = target[name] as MenuShow;
+    const wrapped: MenuShow = function (this: Menu, ...args: unknown[]) {
+      if (!offered.has(this)) {
+        offered.add(this);
+        try {
+          beforeShow(this);
+        } catch (err) {
+          logger.warn("Adding to a menu failed:", err);
+        }
+      }
+      return original.apply(this, args);
+    };
+    target[name] = wrapped;
+    return { name, original, wrapped };
+  });
+
+  return () => {
+    for (const { name, original, wrapped } of installed) {
+      // Another plugin may have wrapped it again since; taking the method back
+      // from under it would silently undo that plugin's change as well.
+      if (target[name] === wrapped) target[name] = original;
+    }
+  };
 }

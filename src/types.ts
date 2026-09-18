@@ -142,6 +142,10 @@ export interface SchreibstubeSettings {
   remindersStatusShortcut: string;
   /** Vault path of the file an automation writes that report to; empty turns the poll off. */
   remindersReportFile: string;
+  /** Icon name per frontmatter key, lower-cased; drawn in place of the type icon. */
+  propertyIcons: Record<string, string>;
+  /** Moment format for today's date entered into text. Date properties always get ISO. */
+  dateFormat: string;
   // Diagnostics.
   debugLogging: boolean;
 }

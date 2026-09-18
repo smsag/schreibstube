@@ -18,6 +18,14 @@ export { ICON_FONT_VERSION } from "./icon-font.generated";
 
 const STYLE_ID = "schreibstube-icon-font";
 
+/** The family the font is registered under, for stylesheets that draw from it. */
+export const ICON_FONT_FAMILY = "schreibstube-icons";
+
+/** The character `name` is drawn as, or undefined for a name the font does not have. */
+export function iconGlyph(name: string): string | undefined {
+  return ICON_CODEPOINTS[name];
+}
+
 export interface IconGroup {
   id: string;
   icons: string[];
@@ -42,7 +50,7 @@ export function installIconFont(doc: Document = document): void {
   const style = doc.createElement("style");
   style.id = STYLE_ID;
   style.textContent = `@font-face {
-  font-family: "schreibstube-icons";
+  font-family: "${ICON_FONT_FAMILY}";
   font-style: normal;
   font-weight: 400;
   font-display: block;

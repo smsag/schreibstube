@@ -256,6 +256,17 @@ export const enExtra = {
     failTable: "Schreibstube: table conversion failed"
   },
 
+  properties: {
+    chooseIcon: "Choose icon…",
+    enterToday: "Enter today",
+    noNote: "could not tell which note this property belongs to.",
+    heading: "Properties",
+    dateFormat: "Date format",
+    dateFormatDesc: (example: string) =>
+      `For text, e.g. DD.MM.YYYY or dddd, D. MMMM. Date properties always get YYYY-MM-DD. ` +
+      `Today: ${example}`
+  },
+
   cron: {
     empty: "No expression given.",
     fieldCount: (found: number) =>

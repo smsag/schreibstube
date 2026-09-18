@@ -7,6 +7,8 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - **Table from the selection.** Selected lines become a Markdown table, from the editor's context menu (**In Tabelle umwandeln**) or the palette (**Einfügen: Tabelle aus der Auswahl**). Tab-, semicolon- and comma-separated lines and `Schlüssel: Wert` lists are converted locally; colour lists get separate RGB and Hex columns.
+- **An icon per property.** A property's menu in live preview (click its icon) has **Icon wählen …**, which replaces the type icon for that key in every note — in live preview, the reading view and the properties sidebar.
+- **Today's date in properties.** **Heute eintragen** in the same menu sets the property to today: ISO for date properties, one more entry for lists, the configured **Datumsformat** for text. **Einfügen: heutiges Datum** puts the date at the cursor, in a property field or in the note, and can be given a hotkey.
 - **AI table from the selection.** For text without clear separators, **Mit KI in Tabelle umwandeln** / **Einfügen: KI-Tabelle aus der Auswahl** sends the selection to the shared AI model, validates the reply before anything in the note changes, and replaces nothing if the text was edited while the request ran.
 
 ## 1.33.0 - 2026-09-17
