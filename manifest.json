@@ -1,7 +1,7 @@
 {
   "id": "schreibstube",
   "name": "Schreibstube",
-  "version": "1.35.0",
+  "version": "1.35.1",
   "minAppVersion": "1.11.4",
   "description": "Writing tools for long notes: proof-read sidebar with glossary, document sync, email over a bridge, static publishing, heading stack, focus mode, and a file pane.",
   "author": "Schreibstube",
