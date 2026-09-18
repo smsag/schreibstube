@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Fixed
+
+- **The feature slideshow keeps its details beside the scene.** The two pictures beside the large one were sized by their own proportions, so a tall one stretched the row far below the main picture and pushed the second detail out of the scene. The column is now exactly as tall as the main picture, and the details share it. A feature now uses the block's first three images and leaves any further ones out, rather than rotating a fourth into the scene.
+- **Images whose path is written with `%20` are shown.** A Markdown link spells a space as `%20` (`![](my%20photo.png)`), and the slideshow looked the path up as written, so the file was not found. It now also tries the decoded path, and a path in angle brackets (`![](<my photo.png>)`).
+- **The slideshow's controls no longer sit under Obsidian's "edit this block" button.** In live preview Obsidian shows its own `</>` in the top-right corner of a rendered block when the pointer is over it, which covered the "next" arrow. The header now leaves that corner free in live preview; the reading view is unchanged.
+
 ## 1.34.0 - 2026-09-18
 
 Mobile checklist: not run for this release. Everything in it was checked by the

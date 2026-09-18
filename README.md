@@ -197,13 +197,13 @@ layout: feature
 ```
 ````
 
-One Markdown image per line, at least two, at most a hundred. The path may be a file name, which is found wherever it sits in the vault; only images in the vault are shown. Blank lines and `//` comments are ignored, so a block can be annotated. Any other line — a wikilink such as `![[photo.png]]`, a stray word, a misspelt layout — is reported with its number rather than dropped. **Insert: slideshow** drops an empty block at the cursor.
+One Markdown image per line, at least two, at most a hundred. The path may be a file name, which is found wherever it sits in the vault, and may spell spaces as `%20` or sit in angle brackets, as Markdown links do; only images in the vault are shown. Blank lines and `//` comments are ignored, so a block can be annotated. Any other line — a wikilink such as `![[photo.png]]`, a stray word, a misspelt layout — is reported with its number rather than dropped. **Insert: slideshow** drops an empty block at the cursor.
 
 The only text a block shows is an image's alt text, in the header row. `layout:` picks the arrangement; without the line it is `slideshow`.
 
 - **`slideshow`** — one stage, one image on it, with its alt text in the header. Previous and next, the arrow keys, a swipe on a phone; a double-click or the expand control opens the fullscreen view. Good for a walk through a place in six pictures, where the reader sets the pace.
 - **`filmstrip`** — the same stage with every image as a thumbnail underneath. Press a thumbnail to put it on the stage; the strip scrolls to keep the current one in view. Good for a longer series the reader wants to jump around in.
-- **`feature`** — one image large, the next two beside it as tiles. Press a tile and it comes forward, its alt text in the header. The images are cropped to fill their tiles. Good for a picture essay, a room, a plate, an outfit.
+- **`feature`** — one image large, the next two beside it as tiles. It uses the block's first three images; any further lines are left out. Press a tile and it comes forward, its alt text in the header. The images are cropped to fill their tiles. Good for a picture essay, a room, a plate, an outfit.
 - **`strip`** — every image at once in a row of equal tiles, cropped alike. A strip longer than four wraps to rows of three. Good for morning, noon and evening — a series that makes one statement together.
 - **`masonry`** — every image at once at its own proportions, packed into columns like a mood board. Good for pictures that lose too much when cropped.
 

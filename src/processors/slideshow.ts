@@ -2,6 +2,8 @@ import { type App, MarkdownRenderChild, type Plugin, setIcon, TFile } from "obsi
 import { t } from "../i18n";
 import {
   featureDetails,
+  imagesForLayout,
+  linkpathCandidates,
   parseSlideshow,
   SLIDESHOW_LANGUAGE,
   slideshowCounter,
@@ -75,15 +77,17 @@ class Slideshow extends MarkdownRenderChild {
   /** A vault-relative resource URL for an image path, or "" when it is not in
    *  the vault — the tile then shows its alt text with no picture. */
   private resolvePath(src: string): string {
-    const file =
-      this.app.metadataCache.getFirstLinkpathDest(src, this.sourcePath) ??
-      this.app.vault.getAbstractFileByPath(src);
-    if (!(file instanceof TFile)) return "";
-    return this.app.vault.getResourcePath(file);
+    for (const path of linkpathCandidates(src)) {
+      const file =
+        this.app.metadataCache.getFirstLinkpathDest(path, this.sourcePath) ??
+        this.app.vault.getAbstractFileByPath(path);
+      if (file instanceof TFile) return this.app.vault.getResourcePath(file);
+    }
+    return "";
   }
 
   private render(block: SlideshowBlock): void {
-    const images: ResolvedImage[] = block.images.map((img) => ({
+    const images: ResolvedImage[] = imagesForLayout(block.layout, block.images).map((img) => ({
       ...img,
       url: this.resolvePath(img.src)
     }));
