@@ -2,7 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## 1.34.0 - 2026-09-18
+
+Mobile checklist: not run for this release. Everything in it was checked by the
+test suite and the build's own guards, not on a device. New and not yet tried on
+a phone: the file pane following the open note and its new icons and short
+names, the five slideshow layouts, the property menu's two entries, and both
+ways of turning a selection into a table.
+
+Bridge 2.4.0 is unchanged and still pairs with this release.
 
 ### Added
 
