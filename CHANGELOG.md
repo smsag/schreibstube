@@ -7,7 +7,12 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - **Table from the selection.** Selected lines become a Markdown table, from the editor's context menu (**In Tabelle umwandeln**) or the palette (**Einfügen: Tabelle aus der Auswahl**). Tab-, semicolon- and comma-separated lines and `Schlüssel: Wert` lists are converted locally; colour lists get separate RGB and Hex columns.
+- **Slideshow layouts.** A ```` ```schreibstube-slideshow``` ```` block takes a `layout:` line. `filmstrip` puts every image as a thumbnail under the stage, to jump straight to one. `feature` sets one image large with the next two beside it as tiles that come forward when pressed. `strip` sets every image at once in a row of equal tiles, wrapping to rows of three past four. `masonry` shows every image at once at its own proportions, packed into columns. Without the line the block is the stage it has always been. In every layout the only text is an image's alt text in the header; in `strip` and `masonry` it names the image under the pointer or focus.
 - **AI table from the selection.** For text without clear separators, **Mit KI in Tabelle umwandeln** / **Einfügen: KI-Tabelle aus der Auswahl** sends the selection to the shared AI model, validates the reply before anything in the note changes, and replaces nothing if the text was edited while the request ran.
+
+### Changed
+
+- **The slideshow's controls stand on the page without a chip behind them.** They were buttons, and in the reading view a button wears the theme's fill and shadow, so three grey boxes sat over every picture. They are now drawn the way the file pane draws its own: the plugin's icon font, no fill in any state, the icon darkening on hover and only where hovering is a thing that happens. The fullscreen view's arrows and its ✕ use the same glyphs, where they were typed characters.
 
 ## 1.33.0 - 2026-09-17
 

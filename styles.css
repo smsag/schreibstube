@@ -1281,14 +1281,6 @@ a.external-link.schreibstube-reminder-mark {
   white-space: nowrap;
 }
 
-.schreibstube-slideshow-title {
-  color: var(--text-normal);
-  font-weight: var(--font-semibold);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .schreibstube-slideshow-actions {
   display: flex;
   gap: 0.25rem;
@@ -1457,27 +1449,6 @@ a.external-link.schreibstube-reminder-mark {
   min-height: 0;
 }
 
-.schreibstube-slideshow-footer {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 0.5rem;
-  margin-top: 0.5rem;
-  color: var(--text-muted);
-  font-size: var(--font-ui-small);
-}
-
-.schreibstube-slideshow-footer-caption {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.schreibstube-slideshow-footer-counter {
-  flex-shrink: 0;
-  font-variant-numeric: tabular-nums;
-}
-
 /* ── Strip: every image at once, in a row of equal tiles ── */
 .schreibstube-slideshow-strip {
   display: grid;
@@ -1489,10 +1460,51 @@ a.external-link.schreibstube-reminder-mark {
   aspect-ratio: 4 / 3;
 }
 
-.schreibstube-slideshow-strip-caption {
+/* ── Filmstrip: the stage, with every image as a thumbnail under it ──
+   The one on stage is marked by full strength and an accent line under it,
+   not by a frame; the others wait a little faded. */
+.schreibstube-slideshow-thumbs {
+  display: flex;
+  gap: 0.375rem;
   margin-top: 0.5rem;
-  color: var(--text-muted);
-  font-size: var(--font-ui-small);
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.schreibstube-slideshow-thumb {
+  flex: 0 0 auto;
+  width: 72px;
+  aspect-ratio: 4 / 3;
+  border-bottom: 2px solid transparent;
+  opacity: 0.55;
+  transition: opacity 0.15s ease;
+}
+
+.schreibstube-slideshow-thumb.is-active {
+  opacity: 1;
+  border-bottom-color: var(--interactive-accent);
+}
+
+@media (hover: hover) {
+  .schreibstube-slideshow-thumb:hover {
+    opacity: 0.85;
+  }
+}
+
+/* ── Masonry: every image at once, uncropped, packed into columns ──
+   Read down each column, then across. */
+.schreibstube-slideshow-masonry {
+  columns: 180px;
+  column-gap: 0.5rem;
+}
+
+.schreibstube-slideshow-masonry-tile {
+  margin-bottom: 0.5rem;
+  break-inside: avoid;
+}
+
+.schreibstube-slideshow-masonry-tile img {
+  height: auto;
 }
 
 /* Narrow: the scene stacks, its details side by side under it; the strip

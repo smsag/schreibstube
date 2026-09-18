@@ -2,7 +2,6 @@ import { type App, MarkdownRenderChild, type Plugin, setIcon, TFile } from "obsi
 import { t } from "../i18n";
 import {
   featureDetails,
-  footerCaption,
   parseSlideshow,
   SLIDESHOW_LANGUAGE,
   slideshowCounter,
@@ -18,8 +17,9 @@ const SWIPE_THRESHOLD_PX = 40;
 
 /**
  * The ```schreibstube-slideshow``` block: two or more images, as one stage
- * with prev/next controls, as one large scene with its details beside it, or
- * as a strip of equal tiles — each with a fullscreen view.
+ * with prev/next controls (with or without a filmstrip of thumbnails), as one
+ * large scene with its details beside it, or all at once as a strip of equal
+ * tiles or a masonry of uncropped ones — each with a fullscreen view.
  *
  * This file is the wiring half: it resolves image paths against the vault and
  * builds the DOM. Every decision — what counts as an image, which layout was
@@ -100,21 +100,26 @@ class Slideshow extends MarkdownRenderChild {
 
     switch (block.layout) {
       case "feature":
-        this.renderFeature(wrapper, block, images);
+        this.renderFeature(wrapper, images);
         break;
       case "strip":
-        this.renderStrip(wrapper, block, images);
+      case "masonry":
+        this.renderGallery(wrapper, images, block.layout);
+        break;
+      case "filmstrip":
+        this.renderStage(wrapper, images, true);
         break;
       default:
-        this.renderStage(wrapper, images);
+        this.renderStage(wrapper, images, false);
     }
   }
 
   /**
    * One stage, one image on it. The header carries the active image's alt text
-   * as its caption, where it has always been.
+   * as its caption, where it has always been. With `thumbnails`, every image
+   * also sits in a strip under the stage, and pressing one puts it there.
    */
-  private renderStage(wrapper: HTMLElement, images: ResolvedImage[]): void {
+  private renderStage(wrapper: HTMLElement, images: ResolvedImage[], thumbnails: boolean): void {
     const header = wrapper.createEl("div", { cls: "schreibstube-slideshow-header" });
     const caption = header.createEl("span", {
       cls: "schreibstube-slideshow-caption",
@@ -142,6 +147,18 @@ class Slideshow extends MarkdownRenderChild {
       image.draggable = false;
       return image;
     });
+
+    const thumbStrip = thumbnails
+      ? wrapper.createEl("div", { cls: "schreibstube-slideshow-thumbs" })
+      : null;
+    const thumbEls = thumbStrip
+      ? images.map((img, index) => {
+          const thumb = this.tile(thumbStrip, "schreibstube-slideshow-thumb", () => goTo(index));
+          fillTile(thumb, img, t().slideshow.showImage(index + 1));
+          thumb.toggleClass("is-active", index === 0);
+          return thumb;
+        })
+      : [];
 
     // Probe every image off-DOM before assigning any src, then lock the track's
     // aspect-ratio to the tallest one. Without this, text below the block jumps
@@ -175,28 +192,37 @@ class Slideshow extends MarkdownRenderChild {
 
     const goTo = (next: number): void => {
       slideEls[current]?.parentElement?.removeClass("schreibstube-slideshow-slide-active");
+      thumbEls[current]?.removeClass("is-active");
       current = stepIndex(current, next - current, images.length);
       slideEls[current]?.parentElement?.addClass("schreibstube-slideshow-slide-active");
       caption.textContent = images[current]?.alt ?? "";
+
+      const thumb = thumbEls[current];
+      if (thumbStrip && thumb) {
+        thumb.addClass("is-active");
+        // Scrolled by hand: scrollIntoView would scroll the note as well, to
+        // bring the strip into view, every time the picture changes.
+        thumbStrip.scrollTo({
+          left: thumb.offsetLeft - (thumbStrip.clientWidth - thumb.offsetWidth) / 2,
+          behavior: "smooth"
+        });
+      }
     };
 
     track.addEventListener("dblclick", () => this.openFullscreen(images, current));
     wireArrowKeys(wrapper, (direction) => goTo(current + direction));
-    wireSwipe(wrapper, (direction) => goTo(current + direction));
+    // On the stage only: a sideways swipe along the thumbnails scrolls them.
+    wireSwipe(track, (direction) => goTo(current + direction));
   }
 
   /**
    * One scene, several details: the featured image large, the next two beside
-   * it as tiles that bring themselves forward when pressed. The footer under
-   * the grid says what is shown and where in the series it stands.
+   * it as tiles that bring themselves forward when pressed. The header carries
+   * the featured image's alt text, as the stage's does.
    */
-  private renderFeature(
-    wrapper: HTMLElement,
-    block: SlideshowBlock,
-    images: ResolvedImage[]
-  ): void {
+  private renderFeature(wrapper: HTMLElement, images: ResolvedImage[]): void {
     const header = wrapper.createEl("div", { cls: "schreibstube-slideshow-header" });
-    header.createEl("span", { cls: "schreibstube-slideshow-title", text: block.title });
+    const caption = header.createEl("span", { cls: "schreibstube-slideshow-caption" });
 
     let current = 0;
     const actions = header.createEl("div", { cls: "schreibstube-slideshow-actions" });
@@ -222,10 +248,6 @@ class Slideshow extends MarkdownRenderChild {
       return { tile, setTarget: (index: number) => (target = index) };
     });
 
-    const footer = wrapper.createEl("div", { cls: "schreibstube-slideshow-footer" });
-    const footerText = footer.createEl("span", { cls: "schreibstube-slideshow-footer-caption" });
-    const counter = footer.createEl("span", { cls: "schreibstube-slideshow-footer-counter" });
-
     const goTo = (next: number): void => {
       current = stepIndex(current, next - current, images.length);
       fillTile(main, images[current], t().slideshow.fullscreen);
@@ -235,8 +257,7 @@ class Slideshow extends MarkdownRenderChild {
         detail.setTarget(index);
         fillTile(detail.tile, images[index], t().slideshow.showImage(index + 1));
       });
-      footerText.textContent = footerCaption(images, current, block.caption);
-      counter.textContent = slideshowCounter(current, images.length);
+      caption.textContent = images[current]?.alt ?? "";
     };
     goTo(0);
 
@@ -245,30 +266,47 @@ class Slideshow extends MarkdownRenderChild {
   }
 
   /**
-   * A strip: every image at once, in a row of equal tiles, with one caption for
-   * the series. Nothing rotates; a tile opens the fullscreen view at its place.
+   * Every image at once: a strip of equal tiles, or a masonry that keeps each
+   * picture's proportions. Nothing rotates; a tile opens the fullscreen view at
+   * its place. With no image on stage, the header names the one under the
+   * pointer or the keyboard focus, so the alt text still has its one place.
    */
-  private renderStrip(wrapper: HTMLElement, block: SlideshowBlock, images: ResolvedImage[]): void {
+  private renderGallery(
+    wrapper: HTMLElement,
+    images: ResolvedImage[],
+    layout: "strip" | "masonry"
+  ): void {
     const header = wrapper.createEl("div", { cls: "schreibstube-slideshow-header" });
-    header.createEl("span", { cls: "schreibstube-slideshow-title", text: block.title });
+    const caption = header.createEl("span", { cls: "schreibstube-slideshow-caption" });
 
     const actions = header.createEl("div", { cls: "schreibstube-slideshow-actions" });
     this.control(actions, "arrows-maximize", "expand", t().slideshow.fullscreen, () =>
       this.openFullscreen(images, 0)
     );
 
-    const row = wrapper.createEl("div", { cls: "schreibstube-slideshow-strip" });
-    row.style.setProperty("--schreibstube-strip-columns", String(stripColumns(images.length)));
+    const gallery = wrapper.createEl("div", { cls: `schreibstube-slideshow-${layout}` });
+    if (layout === "strip") {
+      gallery.style.setProperty(
+        "--schreibstube-strip-columns",
+        String(stripColumns(images.length))
+      );
+    }
     images.forEach((img, index) => {
-      const tile = this.tile(row, "schreibstube-slideshow-strip-tile", () =>
+      const tile = this.tile(gallery, `schreibstube-slideshow-${layout}-tile`, () =>
         this.openFullscreen(images, index)
       );
       fillTile(tile, img, t().slideshow.showImage(index + 1));
+      const name = (): void => {
+        caption.textContent = img.alt;
+      };
+      tile.addEventListener("pointerenter", name);
+      tile.addEventListener("focus", name);
     });
-
-    if (block.caption !== "") {
-      wrapper.createEl("div", { cls: "schreibstube-slideshow-strip-caption", text: block.caption });
-    }
+    const clear = (): void => {
+      caption.textContent = "";
+    };
+    gallery.addEventListener("pointerleave", clear);
+    gallery.addEventListener("focusout", clear);
   }
 
   /**
@@ -379,6 +417,10 @@ function regionLabel(layout: SlideshowBlock["layout"], count: number): string {
       return t().slideshow.regionFeature(count);
     case "strip":
       return t().slideshow.regionStrip(count);
+    case "filmstrip":
+      return t().slideshow.regionFilmstrip(count);
+    case "masonry":
+      return t().slideshow.regionMasonry(count);
     default:
       return t().slideshow.region(count);
   }

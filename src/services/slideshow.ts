@@ -1,6 +1,6 @@
 /**
  * The ```schreibstube-slideshow``` block: two or more images, shown one at a
- * time, as one scene with its details, or as a strip.
+ * time, as one scene with its details, or all at once.
  *
  * This module is the decision half — it turns the block's text into a list of
  * images and a layout, or an error, and knows nothing about Obsidian or the
@@ -8,8 +8,8 @@
  * untrusted: every line is validated, and the image count is bounded so a
  * pathological block cannot ask the renderer to build ten thousand slides.
  *
- * Which images a layout shows where, and what its footer says, are decided
- * here as well, so the renderer only has to draw what it is handed.
+ * Which images a layout shows where is decided here as well, so the renderer
+ * only has to draw what it is handed.
  */
 import { t } from "../i18n";
 
@@ -26,13 +26,25 @@ export const MAX_SLIDESHOW_IMAGES = 100;
  * How the images are arranged.
  *
  * `slideshow` is one stage with one image on it, the way the block has always
- * rendered. `feature` puts one image large with two details beside it, for a
+ * rendered, and `filmstrip` is that stage with every image as a thumbnail
+ * beneath it, for a series long enough that stepping through it blind is a
+ * chore. `feature` puts one image large with two details beside it, for a
  * scene the reader should take in at once. `strip` sets every image in a row
- * of equal tiles, for a series that makes one statement together.
+ * of equal tiles, for a series that makes one statement together; `masonry`
+ * shows them all at their own proportions, packed into columns, for pictures
+ * that lose too much when cropped to a square.
+ *
+ * Whatever the layout, the only text is an image's alt text in the header.
  */
-export type SlideshowLayout = "slideshow" | "feature" | "strip";
+export type SlideshowLayout = "slideshow" | "filmstrip" | "feature" | "strip" | "masonry";
 
-export const SLIDESHOW_LAYOUTS: readonly SlideshowLayout[] = ["slideshow", "feature", "strip"];
+export const SLIDESHOW_LAYOUTS: readonly SlideshowLayout[] = [
+  "slideshow",
+  "filmstrip",
+  "feature",
+  "strip",
+  "masonry"
+];
 
 export const DEFAULT_SLIDESHOW_LAYOUT: SlideshowLayout = "slideshow";
 
@@ -61,11 +73,6 @@ export interface SlideshowImage {
 export interface SlideshowBlock {
   images: SlideshowImage[];
   layout: SlideshowLayout;
-  /** The header's text for `feature` and `strip`; the `slideshow` layout keeps
-   *  the active image's alt text there and leaves this unused. */
-  title: string;
-  /** One caption for the whole block, where a layout has room for one. */
-  caption: string;
 }
 
 export type SlideshowResult = ({ ok: true } & SlideshowBlock) | { ok: false; message: string };
@@ -73,16 +80,15 @@ export type SlideshowResult = ({ ok: true } & SlideshowBlock) | { ok: false; mes
 // A whole-line Markdown image: ![alt](path). Alt may be empty; the path may not.
 const IMAGE_PATTERN = /^!\[([^\]]*)\]\(([^)]+)\)$/;
 
-// An option line: a known key, a colon, the value. Keys are matched without
-// regard to case, so `Layout:` is not a mistyped image.
-const OPTION_PATTERN = /^(layout|title|caption)\s*:\s*(.*)$/i;
+// The layout line: the key, a colon, the value. Matched without regard to
+// case, so `Layout:` is not a mistyped image.
+const LAYOUT_PATTERN = /^layout\s*:\s*(.*)$/i;
 
 /**
  * Reads the block into images and a layout.
  *
  * One Markdown image per line. Blank lines and `//` comments are ignored so a
- * block can be annotated, and `layout:`, `title:` and `caption:` lines may sit
- * anywhere at the top level. Any other line is an error naming its number,
+ * block can be annotated, and a `layout:` line may sit anywhere among them. Any other line is an error naming its number,
  * rather than being dropped silently, because a mistyped image is a mistake
  * the writer wants pointed out.
  */
@@ -90,31 +96,22 @@ export function parseSlideshow(source: string): SlideshowResult {
   const lines = source.split(/\r?\n/);
   const images: SlideshowImage[] = [];
   let layout: SlideshowLayout = DEFAULT_SLIDESHOW_LAYOUT;
-  let title = "";
-  let caption = "";
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i]?.trim() ?? "";
     if (line === "" || line.startsWith("//")) continue;
 
-    const option = OPTION_PATTERN.exec(line);
+    const option = LAYOUT_PATTERN.exec(line);
     if (option) {
-      const key = (option[1] ?? "").toLowerCase();
-      const value = (option[2] ?? "").trim();
-      if (key === "title") {
-        title = value;
-      } else if (key === "caption") {
-        caption = value;
-      } else {
-        const chosen = parseLayout(value);
-        if (chosen === null) {
-          return {
-            ok: false,
-            message: t().slideshow.unknownLayout(i + 1, value, SLIDESHOW_LAYOUTS.join(", "))
-          };
-        }
-        layout = chosen;
+      const value = (option[1] ?? "").trim();
+      const chosen = parseLayout(value);
+      if (chosen === null) {
+        return {
+          ok: false,
+          message: t().slideshow.unknownLayout(i + 1, value, SLIDESHOW_LAYOUTS.join(", "))
+        };
       }
+      layout = chosen;
       continue;
     }
 
@@ -139,7 +136,7 @@ export function parseSlideshow(source: string): SlideshowResult {
     return { ok: false, message: t().slideshow.tooFew(MIN_SLIDESHOW_IMAGES) };
   }
 
-  return { ok: true, images, layout, title, caption };
+  return { ok: true, images, layout };
 }
 
 /** The layout a `layout:` value names, or null when it names none. */
@@ -184,17 +181,6 @@ export function stepIndex(active: number, step: number, count: number): number {
 /** The `2 / 6` a viewer reads to know where in the series they are. */
 export function slideshowCounter(active: number, count: number): string {
   return `${active + 1} / ${count}`;
-}
-
-/**
- * What the footer says under a feature layout: the block's own caption when
- * it has one, else the featured image's alt text — a shared caption is what
- * the writer meant the whole block to say, and it should not change as the
- * reader clicks through.
- */
-export function footerCaption(images: SlideshowImage[], active: number, caption: string): string {
-  if (caption !== "") return caption;
-  return images[active]?.alt ?? "";
 }
 
 /**

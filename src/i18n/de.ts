@@ -81,6 +81,8 @@ export const de: Messages = {
     region: (n: number) => `Diaschau, ${n} Bilder`,
     regionFeature: (n: number) => `Szene mit Details, ${n} Bilder`,
     regionStrip: (n: number) => `Bildreihe, ${n} Bilder`,
+    regionFilmstrip: (n: number) => `Diaschau mit Vorschaubildern, ${n} Bilder`,
+    regionMasonry: (n: number) => `Bilderwand, ${n} Bilder`,
     showImage: (n: number) => `Bild ${n} anzeigen`,
     previous: "Voriges Bild",
     next: "Nächstes Bild",

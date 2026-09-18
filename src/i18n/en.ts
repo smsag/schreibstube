@@ -89,6 +89,8 @@ export const en = {
     region: (n: number) => `Slideshow, ${n} images`,
     regionFeature: (n: number) => `Scene with details, ${n} images`,
     regionStrip: (n: number) => `Image strip, ${n} images`,
+    regionFilmstrip: (n: number) => `Slideshow with thumbnails, ${n} images`,
+    regionMasonry: (n: number) => `Image wall, ${n} images`,
     showImage: (n: number) => `Show image ${n}`,
     previous: "Previous image",
     next: "Next image",

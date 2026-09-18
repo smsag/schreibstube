@@ -4,7 +4,6 @@ import {
   DEFAULT_SLIDESHOW_LAYOUT,
   FEATURE_DETAIL_COUNT,
   featureDetails,
-  footerCaption,
   MAX_SLIDESHOW_IMAGES,
   MAX_STRIP_COLUMNS,
   parseLayout,
@@ -117,14 +116,9 @@ describe("parseSlideshow", () => {
 });
 
 describe("parseSlideshow layout options", () => {
-  it("defaults to the slideshow layout with no title or caption", () => {
+  it("defaults to the slideshow layout", () => {
     const result = parseSlideshow("![](a.png)\n![](b.png)");
-    expect(result).toMatchObject({
-      ok: true,
-      layout: DEFAULT_SLIDESHOW_LAYOUT,
-      title: "",
-      caption: ""
-    });
+    expect(result).toMatchObject({ ok: true, layout: DEFAULT_SLIDESHOW_LAYOUT });
     expect(DEFAULT_SLIDESHOW_LAYOUT).toBe("slideshow");
   });
 
@@ -140,30 +134,22 @@ describe("parseSlideshow layout options", () => {
     });
   });
 
-  it("reads title and caption", () => {
-    const result = parseSlideshow(
-      "title: Morgen, Mittag, Abend\ncaption: Eine Reihe mit gemeinsamer Aussage\n![](a.png)\n![](b.png)"
-    );
-    expect(result).toMatchObject({
-      ok: true,
-      title: "Morgen, Mittag, Abend",
-      caption: "Eine Reihe mit gemeinsamer Aussage"
-    });
-  });
-
-  it("takes option lines anywhere among the images", () => {
-    const result = parseSlideshow(
-      "![](a.png)\nlayout: strip\n![](b.png)\ntitle: Drei\n![](c.png)\ncaption: Unter der Reihe"
-    );
-    expect(result).toMatchObject({ ok: true, layout: "strip", title: "Drei" });
+  it("takes the layout line anywhere among the images", () => {
+    const result = parseSlideshow("![](a.png)\nlayout: masonry\n![](b.png)\n![](c.png)");
+    expect(result).toMatchObject({ ok: true, layout: "masonry" });
     if (!result.ok) return;
     expect(result.images).toHaveLength(3);
   });
 
-  it("does not count option lines as images", () => {
-    expect(parseSlideshow("layout: strip\ntitle: T\ncaption: C\n![](a.png)")).toMatchObject({
-      ok: false
-    });
+  it("does not count the layout line as an image", () => {
+    expect(parseSlideshow("layout: strip\n![](a.png)")).toMatchObject({ ok: false });
+  });
+
+  it("reports title and caption lines, which a block no longer takes", () => {
+    const result = parseSlideshow("title: Drei\n![](a.png)\n![](b.png)");
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.message).toContain("title: Drei");
   });
 
   it("rejects an unknown layout, naming the line and the choices", () => {
@@ -283,25 +269,6 @@ describe("slideshowCounter", () => {
   it("counts from one", () => {
     expect(slideshowCounter(0, 3)).toBe("1 / 3");
     expect(slideshowCounter(2, 3)).toBe("3 / 3");
-  });
-});
-
-describe("footerCaption", () => {
-  const images = [
-    { src: "a.png", alt: "Steg" },
-    { src: "b.png", alt: "Gras" }
-  ];
-
-  it("prefers the block's caption", () => {
-    expect(footerCaption(images, 1, "Steg, Gras, Horizont")).toBe("Steg, Gras, Horizont");
-  });
-
-  it("falls back to the featured image's alt text", () => {
-    expect(footerCaption(images, 1, "")).toBe("Gras");
-  });
-
-  it("is empty for an index outside the series", () => {
-    expect(footerCaption(images, 5, "")).toBe("");
   });
 });
 
