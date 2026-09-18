@@ -1,0 +1,26 @@
+{
+  "comment": "One table of slug cases, read by both implementations. The plugin derives a slug and the bridge validates it; if the two ever disagree, a published page stops being reachable and nothing else would notice.",
+  "cases": [
+    { "input": "Hallo Welt", "slug": "hallo-welt" },
+    { "input": "hallo welt", "slug": "hallo-welt" },
+    { "input": "HALLO WELT", "slug": "hallo-welt" },
+    { "input": "Grundstück", "slug": "grundstueck" },
+    { "input": "Größe", "slug": "groesse" },
+    { "input": "Übersicht", "slug": "uebersicht" },
+    { "input": "Straße", "slug": "strasse" },
+    { "input": "Angebot: Objekt 4711!", "slug": "angebot-objekt-4711" },
+    { "input": "  --Hallo--  ", "slug": "hallo" },
+    { "input": "a---b", "slug": "a-b" },
+    { "input": "2026-09-12 Notiz", "slug": "2026-09-12-notiz" },
+    { "input": "../etc/passwd", "slug": "etc-passwd" },
+    { "input": "Ein/Zwei\\Drei", "slug": "ein-zwei-drei" },
+    { "input": "Café Crème", "slug": "cafe-creme" },
+    { "input": "!!!", "slug": "datei" },
+    { "input": "", "slug": "datei" },
+    { "input": "   ", "slug": "datei" },
+    {
+      "input": "Ein sehr langer Titel der weit über achtzig Zeichen hinausgeht und deshalb gekürzt werden muss",
+      "slug": "ein-sehr-langer-titel-der-weit-ueber-achtzig-zeichen-hinausgeht-und-deshalb-geku"
+    }
+  ]
+}

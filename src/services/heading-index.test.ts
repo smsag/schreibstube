@@ -49,16 +49,48 @@ describe("buildHeadingIndex", () => {
   });
 
   it("ignores empty headings and non-heading lines", () => {
-    const content = [
-      "# ",
-      "##",
-      "###  ",
-      "text",
-      "## Valid"
+    const content = ["# ", "##", "###  ", "text", "## Valid"].join("\n");
+
+    expect(buildHeadingIndex(content)).toEqual([{ level: 2, text: "Valid", lineNumber: 4 }]);
+  });
+});
+
+describe("headings and code fences", () => {
+  it("ignores a comment inside a fenced block", () => {
+    // The stack above the note showed "Abhängigkeiten installieren" as the
+    // section being read, for the rest of the note.
+    const note = [
+      "# Einrichtung",
+      "",
+      "```bash",
+      "# Abhängigkeiten installieren",
+      "npm install",
+      "## nur beim ersten Mal",
+      "```",
+      "",
+      "## Danach"
     ].join("\n");
 
-    expect(buildHeadingIndex(content)).toEqual([
-      { level: 2, text: "Valid", lineNumber: 4 }
-    ]);
+    expect(buildHeadingIndex(note).map((entry) => entry.text)).toEqual(["Einrichtung", "Danach"]);
+  });
+
+  it("closes only on a fence of the same character and at least as long", () => {
+    const note = ["````markdown", "```", "# nicht überschrieben", "```", "````", "# Danach"].join(
+      "\n"
+    );
+
+    expect(buildHeadingIndex(note).map((entry) => entry.text)).toEqual(["Danach"]);
+  });
+
+  it("takes a tilde fence as a fence too", () => {
+    const note = ["~~~", "# im Block", "~~~", "# draußen"].join("\n");
+
+    expect(buildHeadingIndex(note).map((entry) => entry.text)).toEqual(["draußen"]);
+  });
+
+  it("leaves an unclosed fence closed to the end, rather than guessing", () => {
+    const note = ["# Anfang", "```", "# im Block", "immer noch im Block"].join("\n");
+
+    expect(buildHeadingIndex(note).map((entry) => entry.text)).toEqual(["Anfang"]);
   });
 });

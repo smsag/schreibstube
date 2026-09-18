@@ -1,0 +1,27 @@
+/*
+ * Eine theme.css im Veröffentlichungsordner ersetzt das eingebaute Stylesheet
+ * vollständig. Diese hier ändert nur die Farben, damit sichtbar wird, dass sie
+ * greift.
+ */
+:root {
+  color-scheme: light dark;
+  --ink: #1b1b1b;
+  --ground: #fbfaf7;
+  --accent: #4a6b8a;
+}
+
+body {
+  margin: 0 auto;
+  max-width: 42rem;
+  padding: 2rem 1.25rem 4rem;
+  background: var(--ground);
+  color: var(--ink);
+  font:
+    1rem/1.65 Georgia,
+    "Times New Roman",
+    serif;
+}
+
+a {
+  color: var(--accent);
+}

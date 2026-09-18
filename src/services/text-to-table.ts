@@ -11,15 +11,6 @@ export interface TableLabels {
 
 export const DEFAULT_TABLE_LABELS: TableLabels = { name: "Name", value: "Value" };
 
-const TABLE_LABELS: Record<string, TableLabels> = {
-  de: { name: "Name", value: "Wert" }
-};
-
-/** Labels in Obsidian's interface language (e.g. "de", "en-GB"), English otherwise. */
-export function tableLabelsFor(language: string): TableLabels {
-  return TABLE_LABELS[language.split("-")[0].toLowerCase()] ?? DEFAULT_TABLE_LABELS;
-}
-
 /** Placeholder for a cell the source text left empty. */
 export const EMPTY_CELL = "–";
 
@@ -60,12 +51,11 @@ export function textToTable(
 
 /** Every line splits into the same number (>1) of cells; the first line is the header. */
 function parseDelimited(lines: string[], delimiter: string): MarkdownTable | null {
-  const cells = lines.map((line) => splitCells(line, delimiter));
-  const width = cells[0].length;
-  if (width < 2 || !cells.every((row) => row.length === width)) {
+  const [header, ...rows] = lines.map((line) => splitCells(line, delimiter));
+  if (!header || header.length < 2 || !rows.every((row) => row.length === header.length)) {
     return null;
   }
-  return { header: cells[0], rows: cells.slice(1) };
+  return { header, rows };
 }
 
 /** Split on the delimiter, but not inside double quotes or parentheses. */
@@ -91,18 +81,23 @@ function splitCells(line: string, delimiter: string): string[] {
   }
   cells.push(current);
 
-  return cells.map((cell) => cell.trim().replace(/^"(.*)"$/, "$1").trim());
+  return cells.map((cell) =>
+    cell
+      .trim()
+      .replace(/^"(.*)"$/, "$1")
+      .trim()
+  );
 }
 
 function parseKeyValue(lines: string[], labels: TableLabels): MarkdownTable | null {
   const pairs: [string, string][] = [];
   for (const line of lines) {
-    const match = line.match(KEY_VALUE);
-    const key = match?.[1].trim();
-    if (!match || !key) {
+    const [, rawKey, rawValue] = line.match(KEY_VALUE) ?? [];
+    const key = rawKey?.trim();
+    if (!key) {
       return null;
     }
-    pairs.push([key, match[2].trim()]);
+    pairs.push([key, (rawValue ?? "").trim()]);
   }
 
   const colors = pairs.map(([, value]) => parseColors(value));

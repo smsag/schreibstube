@@ -1,22 +1,23 @@
 import type { Plugin } from "obsidian";
 import { createEditorExtension } from "../processors/editor-extension";
 import { createReadingPostProcessor } from "../processors/markdown-processor";
+import { createTaskBadgeExtension } from "../processors/task-badges";
+import { createTaskFoldExtension } from "../processors/task-fold";
+import { createTaskFoldPostProcessor } from "../processors/task-fold-reading";
+import { createReminderMarkExtension } from "../processors/reminder-mark";
+import { createReminderMarkPostProcessor } from "../processors/reminder-mark-reading";
+import { registerTaskRibbon } from "../processors/task-ribbon";
+import { registerSlideshow } from "../processors/slideshow";
 import type { SchreibstubeSettings } from "../types";
 
 export interface BootstrapHandlers {
   onViewportFromEditor: (viewportTopLine: number) => void;
-  onViewportFromReading: (payload: {
-    viewportTopLine: number;
-    scrollTop: number;
-  }) => void;
+  onViewportFromReading: (payload: { viewportTopLine: number; scrollTop: number }) => void;
   getSettings: () => SchreibstubeSettings;
   onActiveLeafChange: () => void;
 }
 
-export function bootstrapSchreibstubeRuntime(
-  plugin: Plugin,
-  handlers: BootstrapHandlers
-): void {
+export function bootstrapSchreibstubeRuntime(plugin: Plugin, handlers: BootstrapHandlers): void {
   plugin.registerEditorExtension(
     createEditorExtension({
       onViewportUpdate: ({ viewportTopLine }) => {
@@ -26,11 +27,19 @@ export function bootstrapSchreibstubeRuntime(
     })
   );
 
-  plugin.registerMarkdownPostProcessor(
-    createReadingPostProcessor(({ viewportTopLine, scrollTop }) => {
-      handlers.onViewportFromReading({ viewportTopLine, scrollTop });
-    })
-  );
+  plugin.registerEditorExtension(createTaskBadgeExtension());
+  plugin.registerEditorExtension(createTaskFoldExtension());
+  plugin.registerMarkdownPostProcessor(createTaskFoldPostProcessor());
+  plugin.registerEditorExtension(createReminderMarkExtension());
+  plugin.registerMarkdownPostProcessor(createReminderMarkPostProcessor());
+  registerTaskRibbon(plugin);
+  registerSlideshow(plugin);
+
+  const reading = createReadingPostProcessor(({ viewportTopLine, scrollTop }) => {
+    handlers.onViewportFromReading({ viewportTopLine, scrollTop });
+  });
+  plugin.registerMarkdownPostProcessor(reading.processor);
+  plugin.register(reading.dispose);
 
   plugin.registerEvent(
     plugin.app.workspace.on("active-leaf-change", () => {

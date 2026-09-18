@@ -79,6 +79,6 @@ describe("scrollReadingHeadingIntoView", () => {
     const ok = scrollReadingHeadingIntoView(view, headingIndex, 10);
 
     expect(ok).toBe(true);
-    expect(headings[1].scrollIntoView).toHaveBeenCalledTimes(1);
+    expect(headings[1]?.scrollIntoView).toHaveBeenCalledTimes(1);
   });
 });

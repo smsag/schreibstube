@@ -2,7 +2,7 @@ import type { LlmProvider, SchreibstubeSettings } from "../types";
 
 /** Max tokens requested for a filename completion. Filenames are short, but
  *  leave headroom so a descriptive name is never cut mid-word. */
-export const FILENAME_MAX_TOKENS = 64;
+export const MAX_TOKENS = 64;
 
 /** How long to wait for a provider response before giving up. */
 export const REQUEST_TIMEOUT_MS = 30_000;
@@ -35,17 +35,12 @@ export interface ProviderModel {
 
 interface ProviderAdapter {
   label: string;
-  models: ProviderModel[];
+  /** Never empty: the first entry is the default for a fresh install. */
+  models: [ProviderModel, ...ProviderModel[]];
   url: string;
   headers(apiKey: string): Record<string, string>;
   textBody(model: string, systemPrompt: string, userMessage: string, maxTokens: number): unknown;
-  imageBody(
-    model: string,
-    systemPrompt: string,
-    base64Image: string,
-    mimeType: string,
-    maxTokens: number
-  ): unknown;
+  imageBody(model: string, systemPrompt: string, base64Image: string, mimeType: string): unknown;
   parse(json: unknown): string;
 }
 
@@ -67,9 +62,9 @@ const ANTHROPIC: ProviderAdapter = {
     system: systemPrompt,
     messages: [{ role: "user", content: userMessage }]
   }),
-  imageBody: (model, systemPrompt, base64Image, mimeType, maxTokens) => ({
+  imageBody: (model, systemPrompt, base64Image, mimeType) => ({
     model,
-    max_tokens: maxTokens,
+    max_tokens: MAX_TOKENS,
     system: systemPrompt,
     messages: [
       {
@@ -81,8 +76,7 @@ const ANTHROPIC: ProviderAdapter = {
       }
     ]
   }),
-  parse: (json) =>
-    (json as { content?: { text?: string }[] })?.content?.[0]?.text ?? ""
+  parse: (json) => (json as { content?: { text?: string }[] })?.content?.[0]?.text ?? ""
 };
 
 const OPENAI: ProviderAdapter = {
@@ -93,7 +87,7 @@ const OPENAI: ProviderAdapter = {
   ],
   url: "https://api.openai.com/v1/chat/completions",
   headers: (apiKey) => ({
-    "Authorization": `Bearer ${apiKey}`,
+    Authorization: `Bearer ${apiKey}`,
     "content-type": "application/json"
   }),
   textBody: (model, systemPrompt, userMessage, maxTokens) => ({
@@ -104,22 +98,26 @@ const OPENAI: ProviderAdapter = {
       { role: "user", content: userMessage }
     ]
   }),
-  imageBody: (model, systemPrompt, base64Image, mimeType, maxTokens) => ({
+  imageBody: (model, systemPrompt, base64Image, mimeType) => ({
     model,
-    max_tokens: maxTokens,
+    max_tokens: MAX_TOKENS,
     messages: [
       { role: "system", content: systemPrompt },
       {
         role: "user",
         content: [
-          { type: "image_url", image_url: { url: `data:${mimeType};base64,${base64Image}`, detail: "low" } },
+          {
+            type: "image_url",
+            image_url: { url: `data:${mimeType};base64,${base64Image}`, detail: "low" }
+          },
           { type: "text", text: IMAGE_USER_PROMPT }
         ]
       }
     ]
   }),
   parse: (json) =>
-    (json as { choices?: { message?: { content?: string } }[] })?.choices?.[0]?.message?.content ?? ""
+    (json as { choices?: { message?: { content?: string } }[] })?.choices?.[0]?.message?.content ??
+    ""
 };
 
 /** The single source of truth for provider integration. Add or remove a
@@ -131,9 +129,9 @@ export const LLM_PROVIDERS: Record<LlmProvider, ProviderAdapter> = {
 
 export const LLM_PROVIDER_IDS = Object.keys(LLM_PROVIDERS) as LlmProvider[];
 
-export const PROVIDER_MODELS: Record<LlmProvider, ProviderModel[]> = Object.fromEntries(
+export const PROVIDER_MODELS: Record<LlmProvider, ProviderAdapter["models"]> = Object.fromEntries(
   LLM_PROVIDER_IDS.map((id) => [id, LLM_PROVIDERS[id].models])
-) as Record<LlmProvider, ProviderModel[]>;
+) as Record<LlmProvider, ProviderAdapter["models"]>;
 
 export function providerLabel(provider: LlmProvider): string {
   return LLM_PROVIDERS[provider].label;
@@ -149,24 +147,6 @@ function withMaxLength(template: string, maxFilenameLength: number): string {
   return template.replace("{maxLength}", String(maxFilenameLength));
 }
 
-/** A plain text completion with a caller-supplied prompt. Each LLM feature
- *  builds its prompts on top of this. */
-export function buildPromptRequest(
-  provider: LlmProvider,
-  model: string,
-  apiKey: string,
-  systemPrompt: string,
-  userMessage: string,
-  maxTokens: number
-): BuiltRequest {
-  const adapter = LLM_PROVIDERS[provider];
-  return {
-    url: adapter.url,
-    headers: adapter.headers(apiKey),
-    body: JSON.stringify(adapter.textBody(model, systemPrompt, userMessage, maxTokens))
-  };
-}
-
 export function buildTextRequest(
   provider: LlmProvider,
   model: string,
@@ -174,14 +154,35 @@ export function buildTextRequest(
   content: string,
   maxFilenameLength: number
 ): BuiltRequest {
-  return buildPromptRequest(
-    provider,
-    model,
-    apiKey,
-    withMaxLength(TEXT_SYSTEM_PROMPT, maxFilenameLength),
-    USER_PROMPT_PREFIX + content,
-    FILENAME_MAX_TOKENS
-  );
+  const adapter = LLM_PROVIDERS[provider];
+  const systemPrompt = withMaxLength(TEXT_SYSTEM_PROMPT, maxFilenameLength);
+  return {
+    url: adapter.url,
+    headers: adapter.headers(apiKey),
+    body: JSON.stringify(
+      adapter.textBody(model, systemPrompt, USER_PROMPT_PREFIX + content, MAX_TOKENS)
+    )
+  };
+}
+
+/** Build a request that sends the given text under a caller-supplied system
+ *  prompt. Unlike {@link buildTextRequest}, the prompt is used verbatim (no
+ *  filename templating) and the token cap is caller-controlled, so longer
+ *  free-form completions such as summaries are possible. */
+export function buildSummaryRequest(
+  provider: LlmProvider,
+  model: string,
+  apiKey: string,
+  systemPrompt: string,
+  content: string,
+  maxTokens: number
+): BuiltRequest {
+  const adapter = LLM_PROVIDERS[provider];
+  return {
+    url: adapter.url,
+    headers: adapter.headers(apiKey),
+    body: JSON.stringify(adapter.textBody(model, systemPrompt, content, maxTokens))
+  };
 }
 
 export function buildImageRequest(
@@ -197,9 +198,7 @@ export function buildImageRequest(
   return {
     url: adapter.url,
     headers: adapter.headers(apiKey),
-    body: JSON.stringify(
-      adapter.imageBody(model, systemPrompt, base64Image, mimeType, FILENAME_MAX_TOKENS)
-    )
+    body: JSON.stringify(adapter.imageBody(model, systemPrompt, base64Image, mimeType))
   };
 }
 
@@ -219,18 +218,47 @@ export function effectiveModel(
 const ILLEGAL_CHARS = /[/\\:*?"<>|#^[\]]/g;
 const MULTIPLE_HYPHENS = /-{2,}/g;
 const WHITESPACE = /\s+/g;
-const EDGE_DOTS_HYPHENS = /^[.\-]+|[.\-]+$/g;
+const EDGE_DOTS_HYPHENS = /^[.-]+|[.-]+$/g;
 
 export function sanitizeFilename(raw: string, maxLength: number): string {
-  return raw
+  const cleaned = raw
     .trim()
     .replace(ILLEGAL_CHARS, "")
     .replace(WHITESPACE, "-")
     .replace(MULTIPLE_HYPHENS, "-")
-    .replace(EDGE_DOTS_HYPHENS, "")
-    .slice(0, maxLength)
     .replace(EDGE_DOTS_HYPHENS, "");
+
+  // Cut by characters, not by the units a string is stored in: slicing in the
+  // middle of a pair leaves half an emoji, which is not a character at all and
+  // which a filesystem may refuse for reasons it does not explain.
+  return [...cleaned].slice(0, maxLength).join("").replace(EDGE_DOTS_HYPHENS, "");
 }
+
+/**
+ * Drop an extension the model volunteered.
+ *
+ * "Filename only" is in the prompt and models answer "Quartalsbericht.md"
+ * anyway, which the caller then gave its own extension: `Quartalsbericht.md.md`,
+ * and `foto.jpg.png` for an image whose extension the model also guessed wrong.
+ * The file's real extension is the caller's to decide, so a matching one here
+ * is noise and any other one is a guess about a file the model never saw.
+ */
+export function stripFilenameExtension(name: string, extension: string): string {
+  const match = /\.([A-Za-z0-9]+)$/.exec(name);
+  if (!match) return name;
+
+  const found = (match[1] ?? "").toLowerCase();
+  const target = extension.toLowerCase();
+  const sameKind =
+    found === target ||
+    (MARKDOWN_EXTENSIONS.has(found) && MARKDOWN_EXTENSIONS.has(target)) ||
+    (IMAGE_EXTENSIONS.has(found) && IMAGE_EXTENSIONS.has(target));
+
+  return sameKind ? name.slice(0, -match[0].length) : name;
+}
+
+const MARKDOWN_EXTENSIONS = new Set(["md", "markdown", "mdown", "mkd"]);
+const IMAGE_EXTENSIONS = new Set(["jpg", "jpeg", "png", "gif", "webp", "avif"]);
 
 /** Models don't always obey "filename only" — they may wrap the answer in a
  *  code fence, quotes, or a "Filename:" label. Recover the bare candidate
@@ -239,10 +267,17 @@ export function extractModelFilename(raw: string): string {
   let text = (raw ?? "").trim();
 
   if (text.startsWith("```")) {
-    text = text.replace(/^```[^\n]*\n?/, "").replace(/\n?```\s*$/, "").trim();
+    text = text
+      .replace(/^```[^\n]*\n?/, "")
+      .replace(/\n?```\s*$/, "")
+      .trim();
   }
 
-  const firstLine = text.split(/\r?\n/).map((line) => line.trim()).find((line) => line.length > 0) ?? "";
+  const firstLine =
+    text
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .find((line) => line.length > 0) ?? "";
 
   return firstLine
     .replace(/^(?:file\s*name|filename|name)\s*[:=]\s*/i, "")

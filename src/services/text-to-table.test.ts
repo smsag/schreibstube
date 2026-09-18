@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { padForInsertion, renderMarkdownTable, tableLabelsFor, textToTable } from "./text-to-table";
+import { padForInsertion, renderMarkdownTable, textToTable } from "./text-to-table";
 
 const COLOR_LIST = [
   "Privates: RGB(84,190,247) #54BEF7",
@@ -24,7 +24,10 @@ describe("textToTable", () => {
   it("keeps a plain key/value list in two columns with the given labels", () => {
     expect(textToTable("Autor: Kafka\nJahr: 1925", { name: "Name", value: "Wert" })).toEqual({
       header: ["Name", "Wert"],
-      rows: [["Autor", "Kafka"], ["Jahr", "1925"]]
+      rows: [
+        ["Autor", "Kafka"],
+        ["Jahr", "1925"]
+      ]
     });
   });
 
@@ -35,13 +38,19 @@ describe("textToTable", () => {
   });
 
   it("strips list markers", () => {
-    expect(textToTable("- a: 1\n- b: 2")?.rows).toEqual([["a", "1"], ["b", "2"]]);
+    expect(textToTable("- a: 1\n- b: 2")?.rows).toEqual([
+      ["a", "1"],
+      ["b", "2"]
+    ]);
   });
 
   it("uses the first line of tab-separated text as header", () => {
     expect(textToTable("Name\tAlter\nAnna\t31\nBen\t27")).toEqual({
       header: ["Name", "Alter"],
-      rows: [["Anna", "31"], ["Ben", "27"]]
+      rows: [
+        ["Anna", "31"],
+        ["Ben", "27"]
+      ]
     });
   });
 
@@ -98,16 +107,5 @@ describe("padForInsertion", () => {
   it("adds nothing next to blank lines or document edges", () => {
     expect(padForInsertion("T", "", null)).toBe("T");
     expect(padForInsertion("T", null, "  ")).toBe("T");
-  });
-});
-
-describe("tableLabelsFor", () => {
-  it("uses German labels for a German interface", () => {
-    expect(tableLabelsFor("de").value).toBe("Wert");
-  });
-
-  it("falls back to English for other languages", () => {
-    expect(tableLabelsFor("en-GB").value).toBe("Value");
-    expect(tableLabelsFor("fr").value).toBe("Value");
   });
 });

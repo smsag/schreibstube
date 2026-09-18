@@ -4,36 +4,87 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version to release (must match manifest.json)'
+        description: "Version to release (must match manifest.json)"
         required: true
         type: string
 
+# contents to create the release; id-token and attestations to sign a
+# provenance statement for its assets, which is how a vault owner can check
+# that the main.js they installed was built by this workflow from this commit.
 permissions:
   contents: write
+  id-token: write
+  attestations: write
 
 jobs:
   release:
     runs-on: ubuntu-latest
+    # Read into the environment once, and used as "$VERSION" from there.
+    # Expanded into a shell line, the input is the workflow's own text before
+    # any of the checks below run, and a dispatch is a person's typing.
+    env:
+      VERSION: ${{ github.event.inputs.version }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: '22'
+          node-version-file: .nvmrc
+
+      # The input has to agree with what `npm run release` wrote, or the tag
+      # says one version and the manifest inside it says another. Obsidian
+      # reads the manifest, so that release would install as the wrong thing.
+      - name: Check the version matches the manifest
+        run: |
+          case "$VERSION" in
+            [0-9]*.[0-9]*.[0-9]*) ;;
+            *) echo "Version \"$VERSION\" is not a release number."; exit 1 ;;
+          esac
+          manifest=$(node -p "require('./manifest.json').version")
+          package=$(node -p "require('./package.json').version")
+          if [ "$VERSION" != "$manifest" ] || [ "$manifest" != "$package" ]; then
+            echo "Input $VERSION, manifest.json $manifest, package.json $package: these must agree. Run: npm run release -- <version>"
+            exit 1
+          fi
 
       - run: npm ci
 
       - run: npm run build
 
+      # The typesetter the plugin fetches on a device's first print. Downloaded
+      # from npm here and checked against the hashes committed in
+      # src/services/typst-runtime.ts, so a release can only carry the bytes
+      # this version of the plugin will agree to load.
+      - name: Build and verify the Typst runtime
+        run: node scripts/fetch-typst-runtime.mjs
+
       - name: Extract release notes
         run: |
-          awk "/^## ${{ github.event.inputs.version }} /{found=1; next} found && /^## /{exit} found{print}" CHANGELOG.md > release_notes.md
+          awk -v version="$VERSION" \
+            'index($0, "## " version " ") == 1 {found=1; next} found && /^## /{exit} found{print}' \
+            CHANGELOG.md > release_notes.md
+          if [ ! -s release_notes.md ]; then
+            echo "CHANGELOG.md has no section for $VERSION."
+            exit 1
+          fi
 
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: |
+            main.js
+            main.js.map
+            manifest.json
+            styles.css
+            dist/typst-runtime-*
+
+      # main.js.map is attached for symbolicating a reported stack trace. It is
+      # not one of the three files Obsidian installs, so no vault ever loads it.
       - name: Create release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create "${{ github.event.inputs.version }}" \
-            --title "${{ github.event.inputs.version }}" \
+          gh release create "$VERSION" \
+            --title "$VERSION" \
             --notes-file release_notes.md \
-            main.js manifest.json styles.css
+            main.js manifest.json styles.css main.js.map dist/typst-runtime-*

@@ -1,36 +1,16 @@
 import { requestUrl } from "obsidian";
-import type { LlmProvider, SchreibstubeSettings } from "../types";
+import { withTimeout } from "../utils/with-timeout";
+import type { LlmProvider } from "../types";
 import {
   REQUEST_TIMEOUT_MS,
-  buildPromptRequest,
   describeApiError,
-  effectiveModel,
   parseResponse,
   providerLabel,
   type BuiltRequest
 } from "./llm-providers";
 
-export type LlmSettings = Pick<SchreibstubeSettings, "llmProvider" | "llmModel" | "llmModelCustom">;
-
-/** Send a system + user prompt to the configured provider and return the raw reply text. */
-export function requestCompletion(
-  settings: LlmSettings,
-  apiKey: string,
-  systemPrompt: string,
-  userMessage: string,
-  maxTokens: number
-): Promise<string> {
-  const request = buildPromptRequest(
-    settings.llmProvider,
-    effectiveModel(settings),
-    apiKey,
-    systemPrompt,
-    userMessage,
-    maxTokens
-  );
-  return sendRequest(settings.llmProvider, request);
-}
-
+/** Send a prepared provider request and return the parsed text completion.
+ *  Shared by every LLM-backed command (rename, summarize). */
 export async function sendRequest(provider: LlmProvider, request: BuiltRequest): Promise<string> {
   // Obsidian's requestUrl runs in the main process, so it bypasses the
   // renderer CORS restrictions that block direct fetch() to these APIs.
@@ -43,7 +23,7 @@ export async function sendRequest(provider: LlmProvider, request: BuiltRequest):
       throw: false
     }),
     REQUEST_TIMEOUT_MS,
-    providerLabel(provider)
+    (seconds) => `${providerLabel(provider)}: request timed out after ${seconds}s.`
   );
 
   if (response.status < 200 || response.status >= 300) {
@@ -51,18 +31,4 @@ export async function sendRequest(provider: LlmProvider, request: BuiltRequest):
   }
 
   return parseResponse(provider, response.json);
-}
-
-function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
-  let timer = 0;
-  const timeout = new Promise<never>((_, reject) => {
-    timer = window.setTimeout(
-      () => reject(new Error(`${label}: request timed out after ${Math.round(ms / 1000)}s.`)),
-      ms
-    );
-  });
-  return Promise.race([
-    promise.finally(() => window.clearTimeout(timer)),
-    timeout
-  ]);
 }

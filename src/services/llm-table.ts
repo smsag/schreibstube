@@ -58,5 +58,7 @@ function toCell(value: unknown): string {
     return "";
   }
   // A line break would end the table row.
-  return String(value).replace(/\s*\r?\n\s*/g, " ").trim();
+  return String(value)
+    .replace(/\s*\r?\n\s*/g, " ")
+    .trim();
 }

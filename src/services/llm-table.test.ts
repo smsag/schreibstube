@@ -16,7 +16,10 @@ describe("parseTableResponse", () => {
 
   it("pads short rows and trims long ones to the header width", () => {
     const raw = '{"header":["a","b"],"rows":[["1"],["1","2","3"]]}';
-    expect(parseTableResponse(raw)?.rows).toEqual([["1", "–"], ["1", "2"]]);
+    expect(parseTableResponse(raw)?.rows).toEqual([
+      ["1", "–"],
+      ["1", "2"]
+    ]);
   });
 
   it("turns empty and null cells into a placeholder", () => {
