@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Changed
+
+- **A filter draws its matches as a list, best first, instead of filtering the tree.** The ranking added in 1.35.0 was thrown away by the pane that drew it: results came back in folder order, so the best match sat wherever the alphabet had put its folder and a search that worked looked exactly like one that did not. While the box has text the tree steps aside for a flat list in rank order, each row carrying the folder it came from — a tree is the right shape for browsing and the wrong one for searching. The rows are the same rows: the same icons, marks, menu and open state. Clearing the box brings the tree back as it was.
+- **A filter that matches nothing now says so** rather than leaving an empty section with no explanation.
+
+### Fixed
+
+- **Frontmatter a person wrote by hand can no longer quietly empty a note's search fields.** `aliases` written as a bare string was ignored, where Obsidian accepts it; a list holding a number or a null threw its usable entries away with the rubbish; and a `title` that was neither text nor a number reached the tokenizer as `[object Object]`, putting the word *object* into the index of every note whose frontmatter was shaped wrongly. Each shape is now read for what it holds and has a test.
+
 ## 1.35.0 - 2026-09-18
 
 Mobile checklist: not run for this release. Everything in it was checked by the

@@ -34,14 +34,8 @@ import { t } from "../i18n";
 import type { ExplorerController } from "../controllers/explorer-controller";
 import type { PaneSectionsController } from "../controllers/pane-sections";
 import { syncBadgeIcon, type SyncBadge } from "../services/explorer-badge";
-import { frontmatterTitle } from "../services/note-title";
-import {
-  matchesText,
-  rankFiles,
-  searchFields,
-  type SearchCandidate,
-  type SearchFields
-} from "../services/file-search";
+import { matchesText, type SearchHit } from "../services/file-search";
+import { FileSearchIndex } from "../services/search-index";
 import { sortSiblings, type ExplorerNode } from "../services/explorer-state";
 import {
   bookmarkIcon,
@@ -178,27 +172,40 @@ export class ExplorerPaneView extends ItemView {
    *  set, which is the difference between "everything" and "nothing". */
   private matches: Set<string> | null = null;
   /**
-   * The best of those, with every folder on the way to one, which is what the
-   * tree draws.
+   * The best of those, in the order they were ranked, which is what the pane
+   * draws in place of the tree while a filter is set.
    *
-   * Two sets and not one because the cap belongs to the tree alone: a pinned
-   * row or a note in Latest that matched must stay on screen whether or not it
-   * was among the two hundred the tree had room for.
+   * Kept apart from `matches` because the cap belongs to this list alone: a
+   * pinned row or a note in Latest that matched must stay on screen whether or
+   * not it was among the two hundred there was room to draw.
    */
-  private treeMatches: Set<string> | null = null;
+  private ranked: SearchHit[] | null = null;
   /**
-   * Each file's tokenized fields, kept between keystrokes.
-   *
-   * Tokenizing is the expensive half of a filter and a file's name, title and
-   * tags do not change while somebody is typing; the entry is dropped when the
-   * vault says that file changed. Keyed by path, so a vault of ten thousand
-   * files costs one pass on the first keystroke and none on the rest.
+   * The vault as the filter reads it: names, titles, aliases and tags, read
+   * once per file and kept until the vault says that file changed.
    */
-  private fields = new Map<string, SearchFields>();
-  /** How many files the filter matched, and how many rows have been drawn for
-   *  them, so a capped list can say what it is holding back. */
+  private readonly index = new FileSearchIndex({
+    files: () =>
+      this.app.vault
+        .getAllLoadedFiles()
+        .filter((entry): entry is TFile => entry instanceof TFile)
+        .map((file) => ({ path: file.path, name: file.name })),
+    metadata: (file) => {
+      const target = this.app.vault.getAbstractFileByPath(file.path);
+      if (!(target instanceof TFile)) return null;
+      const cache = this.app.metadataCache.getFileCache(target);
+      return {
+        title: cache?.frontmatter?.title,
+        aliases: cache?.frontmatter?.aliases,
+        // `getAllTags` reads the frontmatter and the body alike, the way
+        // Obsidian's own tag search sees a note.
+        tags: getAllTags(cache ?? {})
+      };
+    }
+  });
+  /** How many files the filter matched, so a capped list can say what it is
+   *  holding back. */
   private matchCount = 0;
-  private drawnMatches = 0;
   /** Files under each folder, counted once per draw. */
   private folderCounts = new Map<string, number>();
   /** A path to scroll to once the next draw has put it on screen. */
@@ -296,7 +303,7 @@ export class ExplorerPaneView extends ItemView {
     this.registerEvent(this.app.vault.on("create", () => this.requestRender()));
     this.registerEvent(
       this.app.vault.on("delete", (file) => {
-        this.fields.delete(file.path);
+        this.index.forget(file.path);
         this.requestRender();
       })
     );
@@ -304,8 +311,8 @@ export class ExplorerPaneView extends ItemView {
       this.app.vault.on("rename", (file, oldPath) => {
         // Both ends: the path it had is gone, and the path it has now holds a
         // different name and different folders above it.
-        this.fields.delete(oldPath);
-        this.fields.delete(file.path);
+        this.index.forget(oldPath);
+        this.index.forget(file.path);
         this.requestRender();
       })
     );
@@ -314,7 +321,7 @@ export class ExplorerPaneView extends ItemView {
     // tokens are thrown away rather than left to answer for an older version.
     this.registerEvent(
       this.app.metadataCache.on("changed", (file) => {
-        this.fields.delete(file.path);
+        this.index.forget(file.path);
         this.requestRender();
       })
     );
@@ -505,8 +512,7 @@ export class ExplorerPaneView extends ItemView {
     this.shelf?.empty();
     const filtered = this.collectMatches();
     this.matches = filtered?.all ?? null;
-    this.treeMatches = filtered?.tree ?? null;
-    this.drawnMatches = 0;
+    this.ranked = filtered?.ranked ?? null;
     this.folderCounts.clear();
     // The rows a drag was holding are about to be thrown away.
     this.drag.reset();
@@ -1011,19 +1017,68 @@ export class ExplorerPaneView extends ItemView {
     const body = this.renderSection(host, "files", "folder", action ? { action } : {});
     if (!body) return;
 
+    if (this.ranked) {
+      this.renderResults(body);
+      return;
+    }
+
     const tree = body.createDiv({ cls: "schreibstube-explorer-tree" });
     const drawn = this.renderChildren(tree, this.app.vault.getRoot(), 0);
 
     if (drawn === 0) {
       tree.createEl("p", { cls: "schreibstube-explorer-empty", text: t().explorer.empty });
+    }
+  }
+
+  /**
+   * What a filter draws in place of the tree: the matches, best first.
+   *
+   * The tree is the right shape for browsing and the wrong one for searching.
+   * Drawn as a tree, results come back in folder order, which throws away the
+   * ranking entirely — the best match sits wherever the alphabet put its
+   * folder, and a search that worked looks exactly like the one that did not.
+   * A flat list is the ranking made visible, and it is the whole reason for
+   * having one.
+   *
+   * The cost is the context the tree gave for free, so each row carries the
+   * folder it came from underneath its name. Without that, two notes called
+   * `Exposé.md` are one row twice.
+   */
+  private renderResults(body: HTMLElement): void {
+    const controller = this.host?.explorer;
+    const results = body.createDiv({ cls: "schreibstube-explorer-results" });
+
+    let drawn = 0;
+    for (const hit of this.ranked ?? []) {
+      const file = this.app.vault.getAbstractFileByPath(hit.path);
+      // Deleted a moment ago: the vault has not said so yet, and a row that
+      // stays put after a confirmed delete reads as the delete having failed.
+      if (!(file instanceof TFile) || controller?.isTrashed(file.path) === true) continue;
+
+      const row = this.renderRow(results, file, 0);
+      if (!row) continue;
+      row.addClass("is-result");
+      const folder = file.parent && !file.parent.isRoot() ? file.parent.path : "";
+      row.createSpan({
+        cls: "schreibstube-explorer-result-folder",
+        text: folder.length > 0 ? folder : t().explorer.related.root
+      });
+      drawn += 1;
+    }
+
+    if (drawn === 0) {
+      results.createEl("p", {
+        cls: "schreibstube-explorer-empty",
+        text: t().explorer.filterEmpty
+      });
       return;
     }
 
     // A list that stopped has to say so, or the file you are looking for is
     // simply missing and nothing explains why.
-    const held = this.matchCount - this.drawnMatches;
-    if (this.treeMatches && held > 0) {
-      tree.createEl("p", {
+    const held = this.matchCount - drawn;
+    if (held > 0) {
+      results.createEl("p", {
         cls: "schreibstube-explorer-empty",
         text: t().explorer.filterMore(held)
       });
@@ -1053,12 +1108,6 @@ export class ExplorerPaneView extends ItemView {
       // stays put after a confirmed delete reads as the delete having failed.
       if (controller.isTrashed(child.path)) continue;
 
-      // While filtering, a row is drawn only if it matched or holds something
-      // that did; the alternative is a tree of empty branches. The set was
-      // built once for this draw and answers for folders and files alike.
-      if (this.treeMatches && !this.treeMatches.has(child.path)) continue;
-      if (this.treeMatches && this.drawnMatches >= FILTER_ROW_CAP) break;
-
       if (child instanceof TFolder) {
         this.renderRow(host, child, depth);
         drawn += 1;
@@ -1068,7 +1117,6 @@ export class ExplorerPaneView extends ItemView {
 
       this.renderRow(host, child, depth);
       drawn += 1;
-      this.drawnMatches += 1;
     }
 
     return drawn;
@@ -1092,68 +1140,24 @@ export class ExplorerPaneView extends ItemView {
   }
 
   /**
-   * One file's fields, tokenized once and kept until the vault says it changed.
-   */
-  private fieldsFor(file: TFile): SearchFields {
-    const cached = this.fields.get(file.path);
-    if (cached) return cached;
-
-    const cache = this.app.metadataCache.getFileCache(file);
-    const frontmatter = cache?.frontmatter;
-    const aliases = frontmatter?.aliases;
-    const fields = searchFields({
-      path: file.path,
-      name: file.name,
-      title: frontmatterTitle(frontmatter?.title),
-      // Obsidian accepts an alias list or a single string, and a person editing
-      // frontmatter by hand writes either.
-      aliases: Array.isArray(aliases)
-        ? aliases.filter((alias): alias is string => typeof alias === "string")
-        : typeof aliases === "string"
-          ? [aliases]
-          : [],
-      // `getAllTags` reads the frontmatter and the body alike, the way
-      // Obsidian's own tag search sees a note, and writes each with its `#`.
-      tags: (getAllTags(cache ?? {}) ?? []).map((tag) => tag.replace(/^#/, ""))
-    });
-    this.fields.set(file.path, fields);
-    return fields;
-  }
-
-  /**
-   * Every file the filter keeps, and the best of them with their folders.
+   * Every file the filter keeps, and the best of them in the order they ranked.
    *
-   * One pass over the vault, once per draw. The tree used to ask each folder
-   * whether anything under it matched, and that question walked the folder's
-   * whole subtree — so a subtree was walked again for every folder above it,
-   * and a deep vault paid for its own depth on every keystroke.
+   * One pass over the vault, once per draw, and the reading behind it is cached
+   * per file — so a keystroke costs a ranking rather than a vault.
    *
-   * The cap is applied to the ranking rather than to the walk. Taking the first
-   * two hundred rows in tree order means the answer depends on where in the
-   * alphabet a folder sits, and the file somebody was looking for is held back
+   * The cap is applied to the ranking rather than to a walk. Taking the first
+   * two hundred rows in tree order meant the answer depended on where in the
+   * alphabet a folder sat, and the file somebody was looking for was held back
    * because a folder called `Archiv` came first.
    */
-  private collectMatches(): { all: Set<string>; tree: Set<string> } | null {
+  private collectMatches(): { all: Set<string>; ranked: SearchHit[] } | null {
     this.matchCount = 0;
     if (this.query.length === 0) return null;
 
-    const candidates: SearchCandidate[] = [];
-    for (const entry of this.app.vault.getAllLoadedFiles()) {
-      if (!(entry instanceof TFile)) continue;
-      candidates.push({ path: entry.path, fields: this.fieldsFor(entry) });
-    }
-
-    const hits = rankFiles(this.query, candidates);
+    const { hits, shown } = this.index.search(this.query, FILTER_ROW_CAP);
     this.matchCount = hits.length;
 
-    const all = new Set(hits.map((hit) => hit.path));
-    const tree = new Set<string>();
-    for (const hit of hits.slice(0, FILTER_ROW_CAP)) {
-      tree.add(hit.path);
-      for (const ancestor of ancestorsOf(hit.path)) tree.add(ancestor);
-    }
-
-    return { all, tree };
+    return { all: new Set(hits.map((hit) => hit.path)), ranked: shown };
   }
 
   /** A filter expands the tree for as long as it is set, without disturbing
@@ -1166,9 +1170,9 @@ export class ExplorerPaneView extends ItemView {
     return this.query.length > 0 || this.expanded.has(path) || this.revealedFolders.has(path);
   }
 
-  private renderRow(host: HTMLElement, file: TAbstractFile, depth: number): void {
+  private renderRow(host: HTMLElement, file: TAbstractFile, depth: number): HTMLElement | null {
     const controller = this.host?.explorer;
-    if (!controller) return;
+    if (!controller) return null;
 
     const isFolder = file instanceof TFolder;
     const row = host.createDiv({ cls: "schreibstube-explorer-row" });
@@ -1205,6 +1209,7 @@ export class ExplorerPaneView extends ItemView {
 
     this.wireRow(row, file, isFolder);
     this.wireTreeDrag(row, file.path);
+    return row;
   }
 
   /**

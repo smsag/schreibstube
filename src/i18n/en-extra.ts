@@ -435,6 +435,7 @@ export const enExtra = {
     searchPlaceholder: "Filter all sections…",
     clearFilter: "Clear the filter",
     taskCount: (open: number, total: number) => `${open} of ${total} tasks open`,
+    filterEmpty: "Nothing here answers that.",
     filterMore: (count: number) => `${count} more match. Narrow the filter to see them.`,
     collapseAll: "Collapse all",
     expandAll: "Expand all",

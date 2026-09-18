@@ -678,6 +678,7 @@ export const de: Messages = {
     searchPlaceholder: "Alle Sektionen filtern …",
     clearFilter: "Filter leeren",
     taskCount: (open: number, total: number) => `${open} von ${total} Aufgaben offen`,
+    filterEmpty: "Darauf antwortet hier nichts.",
     filterMore: (count: number) => `${count} weitere Treffer. Filter eingrenzen, um sie zu sehen.`,
     collapseAll: "Alle zuklappen",
     expandAll: "Alle aufklappen",
