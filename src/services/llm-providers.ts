@@ -2,7 +2,7 @@ import type { LlmProvider, SchreibstubeSettings } from "../types";
 
 /** Max tokens requested for a filename completion. Filenames are short, but
  *  leave headroom so a descriptive name is never cut mid-word. */
-export const MAX_TOKENS = 64;
+export const FILENAME_MAX_TOKENS = 64;
 
 /** How long to wait for a provider response before giving up. */
 export const REQUEST_TIMEOUT_MS = 30_000;
@@ -38,8 +38,14 @@ interface ProviderAdapter {
   models: ProviderModel[];
   url: string;
   headers(apiKey: string): Record<string, string>;
-  textBody(model: string, systemPrompt: string, userMessage: string): unknown;
-  imageBody(model: string, systemPrompt: string, base64Image: string, mimeType: string): unknown;
+  textBody(model: string, systemPrompt: string, userMessage: string, maxTokens: number): unknown;
+  imageBody(
+    model: string,
+    systemPrompt: string,
+    base64Image: string,
+    mimeType: string,
+    maxTokens: number
+  ): unknown;
   parse(json: unknown): string;
 }
 
@@ -55,15 +61,15 @@ const ANTHROPIC: ProviderAdapter = {
     "anthropic-version": "2023-06-01",
     "content-type": "application/json"
   }),
-  textBody: (model, systemPrompt, userMessage) => ({
+  textBody: (model, systemPrompt, userMessage, maxTokens) => ({
     model,
-    max_tokens: MAX_TOKENS,
+    max_tokens: maxTokens,
     system: systemPrompt,
     messages: [{ role: "user", content: userMessage }]
   }),
-  imageBody: (model, systemPrompt, base64Image, mimeType) => ({
+  imageBody: (model, systemPrompt, base64Image, mimeType, maxTokens) => ({
     model,
-    max_tokens: MAX_TOKENS,
+    max_tokens: maxTokens,
     system: systemPrompt,
     messages: [
       {
@@ -90,17 +96,17 @@ const OPENAI: ProviderAdapter = {
     "Authorization": `Bearer ${apiKey}`,
     "content-type": "application/json"
   }),
-  textBody: (model, systemPrompt, userMessage) => ({
+  textBody: (model, systemPrompt, userMessage, maxTokens) => ({
     model,
-    max_tokens: MAX_TOKENS,
+    max_tokens: maxTokens,
     messages: [
       { role: "system", content: systemPrompt },
       { role: "user", content: userMessage }
     ]
   }),
-  imageBody: (model, systemPrompt, base64Image, mimeType) => ({
+  imageBody: (model, systemPrompt, base64Image, mimeType, maxTokens) => ({
     model,
-    max_tokens: MAX_TOKENS,
+    max_tokens: maxTokens,
     messages: [
       { role: "system", content: systemPrompt },
       {
@@ -143,6 +149,24 @@ function withMaxLength(template: string, maxFilenameLength: number): string {
   return template.replace("{maxLength}", String(maxFilenameLength));
 }
 
+/** A plain text completion with a caller-supplied prompt. Each LLM feature
+ *  builds its prompts on top of this. */
+export function buildPromptRequest(
+  provider: LlmProvider,
+  model: string,
+  apiKey: string,
+  systemPrompt: string,
+  userMessage: string,
+  maxTokens: number
+): BuiltRequest {
+  const adapter = LLM_PROVIDERS[provider];
+  return {
+    url: adapter.url,
+    headers: adapter.headers(apiKey),
+    body: JSON.stringify(adapter.textBody(model, systemPrompt, userMessage, maxTokens))
+  };
+}
+
 export function buildTextRequest(
   provider: LlmProvider,
   model: string,
@@ -150,13 +174,14 @@ export function buildTextRequest(
   content: string,
   maxFilenameLength: number
 ): BuiltRequest {
-  const adapter = LLM_PROVIDERS[provider];
-  const systemPrompt = withMaxLength(TEXT_SYSTEM_PROMPT, maxFilenameLength);
-  return {
-    url: adapter.url,
-    headers: adapter.headers(apiKey),
-    body: JSON.stringify(adapter.textBody(model, systemPrompt, USER_PROMPT_PREFIX + content))
-  };
+  return buildPromptRequest(
+    provider,
+    model,
+    apiKey,
+    withMaxLength(TEXT_SYSTEM_PROMPT, maxFilenameLength),
+    USER_PROMPT_PREFIX + content,
+    FILENAME_MAX_TOKENS
+  );
 }
 
 export function buildImageRequest(
@@ -172,7 +197,9 @@ export function buildImageRequest(
   return {
     url: adapter.url,
     headers: adapter.headers(apiKey),
-    body: JSON.stringify(adapter.imageBody(model, systemPrompt, base64Image, mimeType))
+    body: JSON.stringify(
+      adapter.imageBody(model, systemPrompt, base64Image, mimeType, FILENAME_MAX_TOKENS)
+    )
   };
 }
 
@@ -183,10 +210,10 @@ export function parseResponse(provider: LlmProvider, json: unknown): string {
 /** Resolve the model to use: a non-empty custom override wins over the
  *  dropdown selection. */
 export function effectiveModel(
-  settings: Pick<SchreibstubeSettings, "renameModel" | "renameModelCustom">
+  settings: Pick<SchreibstubeSettings, "llmModel" | "llmModelCustom">
 ): string {
-  const custom = settings.renameModelCustom?.trim();
-  return custom ? custom : settings.renameModel;
+  const custom = settings.llmModelCustom?.trim();
+  return custom ? custom : settings.llmModel;
 }
 
 const ILLEGAL_CHARS = /[/\\:*?"<>|#^[\]]/g;

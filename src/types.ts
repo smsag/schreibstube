@@ -16,10 +16,10 @@ export interface SchreibstubeSettings {
   overlayEnabled: boolean;
   focusMode: FocusMode;
   focusDimOpacity: number;
-  renameProvider: LlmProvider;
-  renameModel: string;
-  renameModelCustom: string;
-  renameSecretName: string;
+  llmProvider: LlmProvider;
+  llmModel: string;
+  llmModelCustom: string;
+  llmSecretName: string;
   renameMinContentChars: number;
   renameMaxContentChars: number;
   renameMaxFilenameLength: number;

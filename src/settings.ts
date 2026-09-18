@@ -54,6 +54,76 @@ export class SchreibstubeSettingTab extends PluginSettingTab {
           });
       });
 
+    new Setting(containerEl).setName("AI provider").setHeading();
+
+    new Setting(containerEl)
+      .setName("LLM provider")
+      .setDesc("Used by every AI feature: renaming files and converting text to tables.")
+      .addDropdown((dropdown) => {
+        LLM_PROVIDER_IDS.forEach((id) => dropdown.addOption(id, providerLabel(id)));
+        dropdown
+          .setValue(this.plugin.settings.llmProvider)
+          .onChange(async (value) => {
+            const provider = value as LlmProvider;
+            this.plugin.settings = normalizeSettings({
+              ...this.plugin.settings,
+              llmProvider: provider,
+              llmModel: PROVIDER_MODELS[provider][0].value,
+              llmModelCustom: "",
+            });
+            await this.plugin.saveSettings();
+            this.display();
+          });
+      });
+
+    const models = PROVIDER_MODELS[this.plugin.settings.llmProvider];
+    new Setting(containerEl)
+      .setName("Model")
+      .addDropdown((dropdown) => {
+        models.forEach((m) => dropdown.addOption(m.value, m.label));
+        dropdown
+          .setValue(this.plugin.settings.llmModel)
+          .onChange(async (value) => {
+            this.plugin.settings = normalizeSettings({
+              ...this.plugin.settings,
+              llmModel: value,
+              llmModelCustom: "",
+            });
+            await this.plugin.saveSettings();
+            this.display();
+          });
+      });
+
+    new Setting(containerEl)
+      .setName("Custom model ID")
+      .setDesc("Optional. Overrides the model above — use for a newer or unlisted model.")
+      .addText((text) => {
+        text.setPlaceholder("e.g. claude-3-7-sonnet-latest");
+        text.setValue(this.plugin.settings.llmModelCustom);
+        text.onChange(async (value) => {
+          this.plugin.settings = normalizeSettings({
+            ...this.plugin.settings,
+            llmModelCustom: value,
+          });
+          await this.plugin.saveSettings();
+        });
+      });
+
+    new Setting(containerEl)
+      .setName("API key")
+      .setDesc("Select a secret from Obsidian's secret storage, or create a new one.")
+      .addComponent((el) =>
+        new SecretComponent(this.app, el)
+          .setValue(this.plugin.settings.llmSecretName)
+          .onChange(async (value) => {
+            this.plugin.settings = normalizeSettings({
+              ...this.plugin.settings,
+              llmSecretName: value,
+            });
+            await this.plugin.saveSettings();
+          })
+      );
+
     new Setting(containerEl).setName("Rename file from content").setHeading();
 
     new Setting(containerEl)
@@ -72,74 +142,6 @@ export class SchreibstubeSettingTab extends PluginSettingTab {
             await this.plugin.saveSettings();
           });
       });
-
-    new Setting(containerEl)
-      .setName("LLM provider")
-      .setDesc("Provider used to generate the filename.")
-      .addDropdown((dropdown) => {
-        LLM_PROVIDER_IDS.forEach((id) => dropdown.addOption(id, providerLabel(id)));
-        dropdown
-          .setValue(this.plugin.settings.renameProvider)
-          .onChange(async (value) => {
-            const provider = value as LlmProvider;
-            this.plugin.settings = normalizeSettings({
-              ...this.plugin.settings,
-              renameProvider: provider,
-              renameModel: PROVIDER_MODELS[provider][0].value,
-              renameModelCustom: "",
-            });
-            await this.plugin.saveSettings();
-            this.display();
-          });
-      });
-
-    const models = PROVIDER_MODELS[this.plugin.settings.renameProvider];
-    new Setting(containerEl)
-      .setName("Model")
-      .addDropdown((dropdown) => {
-        models.forEach((m) => dropdown.addOption(m.value, m.label));
-        dropdown
-          .setValue(this.plugin.settings.renameModel)
-          .onChange(async (value) => {
-            this.plugin.settings = normalizeSettings({
-              ...this.plugin.settings,
-              renameModel: value,
-              renameModelCustom: "",
-            });
-            await this.plugin.saveSettings();
-            this.display();
-          });
-      });
-
-    new Setting(containerEl)
-      .setName("Custom model ID")
-      .setDesc("Optional. Overrides the model above — use for a newer or unlisted model.")
-      .addText((text) => {
-        text.setPlaceholder("e.g. claude-3-7-sonnet-latest");
-        text.setValue(this.plugin.settings.renameModelCustom);
-        text.onChange(async (value) => {
-          this.plugin.settings = normalizeSettings({
-            ...this.plugin.settings,
-            renameModelCustom: value,
-          });
-          await this.plugin.saveSettings();
-        });
-      });
-
-    new Setting(containerEl)
-      .setName("API key")
-      .setDesc("Select a secret from Obsidian's secret storage, or create a new one.")
-      .addComponent((el) =>
-        new SecretComponent(this.app, el)
-          .setValue(this.plugin.settings.renameSecretName)
-          .onChange(async (value) => {
-            this.plugin.settings = normalizeSettings({
-              ...this.plugin.settings,
-              renameSecretName: value,
-            });
-            await this.plugin.saveSettings();
-          })
-      );
 
     new Setting(containerEl)
       .setName("Minimum content length")

@@ -1,6 +1,6 @@
 # Schreibstube
 
-A writing-focused Obsidian plugin: a sticky heading-stack overlay, a distraction-reducing focus mode, LLM-powered file renaming, and side-pane link opening.
+A writing-focused Obsidian plugin: a sticky heading-stack overlay, a distraction-reducing focus mode, LLM-powered file renaming, text-to-table conversion, and side-pane link opening.
 
 ## Features
 
@@ -27,6 +27,15 @@ Assigns a filename to the active note or image based on its content:
 
 The rename does nothing if the note is shorter than the configured minimum length, or if no API key has been set.
 
+### Convert text to table
+
+Select several lines, right-click, and turn them into a Markdown table:
+
+- **Convert to table** — appears when the selection already has a clear structure: tab-, semicolon- or comma-separated lines (the first line becomes the header), or a `key: value` list. Lists of colours such as `Blue: RGB(84,190,247) #54BEF7` are split into RGB and Hex columns. Runs locally, nothing is sent anywhere.
+- **Convert to table with AI** — for text without clear separators. The selection is sent to the configured LLM, which chooses the columns; it is told to use only information from the text and never to fill in missing values. Available once an API key is set, up to 8 000 characters.
+
+Both are also available as commands (**Convert selection to table**, **Convert selection to table with AI**). The selection is widened to whole lines, blank lines are added around the table where needed so it renders, and a single undo restores the original text.
+
 ### Link open modes
 
 Control where internal links open, indicated in the status bar:
@@ -48,15 +57,22 @@ Control where internal links open, indicated in the status bar:
 |---|---|---|
 | Dim opacity | Opacity of out-of-focus lines (0.2 faint – 0.8 nearly full) | 0.4 |
 
-### Rename file from content
+### AI provider
+
+Shared by every AI feature (rename, convert to table).
 
 | Setting | Description | Default |
 |---|---|---|
 | LLM provider | Anthropic or OpenAI | Anthropic |
 | Model | Model for the selected provider | Claude Haiku 4.5 |
 | Custom model ID | Optional override for a newer or unlisted model | — |
-| Max image size | Maximum image dimension (px) sent to the model | 768 |
 | API key | Stored in Obsidian's native secret storage | — |
+
+### Rename file from content
+
+| Setting | Description | Default |
+|---|---|---|
+| Max image size | Maximum image dimension (px) sent to the model | 768 |
 | Minimum content length | Notes shorter than this are skipped | 50 chars |
 | Maximum content sent to LLM | Characters from the note sent to the API | 4 000 chars |
 | Maximum filename length | Generated name is truncated to this | 60 chars |

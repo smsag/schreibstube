@@ -1,4 +1,13 @@
-import { MarkdownView, Notice, Plugin, WorkspaceLeaf, normalizePath } from "obsidian";
+import {
+  MarkdownView,
+  Notice,
+  Plugin,
+  WorkspaceLeaf,
+  getLanguage,
+  normalizePath,
+  type Editor,
+  type EditorPosition
+} from "obsidian";
 import { resolveAncestorStack } from "./services/ancestor-stack";
 import { buildHeadingIndex } from "./services/heading-index";
 import {
@@ -15,8 +24,27 @@ import { bootstrapSchreibstubeRuntime } from "./services/plugin-bootstrap";
 import { DEFAULT_SETTINGS, normalizeSettings } from "./services/plugin-settings";
 import { generateImageRenameFilename, generateRenameFilename, sanitizeFilename } from "./services/llm-rename";
 import { MAX_IMAGE_BYTES, getImageMimeType, resizeImageToBase64 } from "./services/image-resize";
+import { requestCompletion } from "./services/llm-client";
+import {
+  TABLE_MAX_INPUT_CHARS,
+  TABLE_MAX_TOKENS,
+  TABLE_SYSTEM_PROMPT,
+  parseTableResponse
+} from "./services/llm-table";
+import {
+  padForInsertion,
+  renderMarkdownTable,
+  tableLabelsFor,
+  textToTable,
+  type MarkdownTable
+} from "./services/text-to-table";
 import { SchreibstubeSettingTab } from "./settings";
 import type { FocusMode, HeadingEntry, SchreibstubeSettings } from "./types";
+
+interface LineRange {
+  from: EditorPosition;
+  to: EditorPosition;
+}
 
 export default class SchreibstubePlugin extends Plugin {
   settings: SchreibstubeSettings = DEFAULT_SETTINGS;
@@ -62,6 +90,7 @@ export default class SchreibstubePlugin extends Plugin {
 
     this.patchOpenLinkText();
     this.registerCommands();
+    this.registerTableMenu();
     this.addSettingTab(new SchreibstubeSettingTab(this.app, this));
     this.requestOverlayRefresh();
   }
@@ -122,6 +151,29 @@ export default class SchreibstubePlugin extends Plugin {
       id: "rename-image-from-content",
       name: "Rename image from content",
       callback: () => { void this.executeRenameImageFromContent(); },
+    });
+
+    this.addCommand({
+      id: "convert-selection-to-table",
+      name: "Convert selection to table",
+      editorCheckCallback: (checking, editor) => {
+        const range = selectedLineRange(editor);
+        const table = range && this.parseSelectionTable(editor, range);
+        if (!range || !table) return false;
+        if (!checking) insertTable(editor, range, table);
+        return true;
+      },
+    });
+
+    this.addCommand({
+      id: "convert-selection-to-table-ai",
+      name: "Convert selection to table with AI",
+      editorCheckCallback: (checking, editor) => {
+        const range = selectedLineRange(editor);
+        if (!range || !this.hasLlmApiKey()) return false;
+        if (!checking) void this.convertSelectionWithLlm(editor, range);
+        return true;
+      },
     });
 
     this.addCommand({
@@ -384,16 +436,8 @@ export default class SchreibstubePlugin extends Plugin {
       return;
     }
 
-    const secretName = this.settings.renameSecretName;
-    if (!secretName) {
-      new Notice("Schreibstube: no secret selected — open Settings to choose one.");
-      return;
-    }
-    const apiKey = this.app.secretStorage.getSecret(secretName);
-    if (!apiKey) {
-      new Notice("Schreibstube: secret not found — check Settings.");
-      return;
-    }
+    const apiKey = this.resolveApiKey();
+    if (!apiKey) return;
 
     const buffer = await this.app.vault.readBinary(file);
 
@@ -437,16 +481,8 @@ export default class SchreibstubePlugin extends Plugin {
     const content = view.editor.getValue().trim();
     if (content.length < this.settings.renameMinContentChars) return;
 
-    const secretName = this.settings.renameSecretName;
-    if (!secretName) {
-      new Notice("Schreibstube: no secret selected — open Settings to choose one.");
-      return;
-    }
-    const apiKey = this.app.secretStorage.getSecret(secretName);
-    if (!apiKey) {
-      new Notice("Schreibstube: secret not found — check Settings.");
-      return;
-    }
+    const apiKey = this.resolveApiKey();
+    if (!apiKey) return;
 
     const truncated = content.slice(0, this.settings.renameMaxContentChars);
 
@@ -474,4 +510,124 @@ export default class SchreibstubePlugin extends Plugin {
       return;
     }
   }
+
+  private registerTableMenu(): void {
+    this.registerEvent(
+      this.app.workspace.on("editor-menu", (menu, editor) => {
+        const range = selectedLineRange(editor);
+        if (!range) return;
+
+        const table = this.parseSelectionTable(editor, range);
+        if (table) {
+          menu.addItem((item) =>
+            item
+              .setTitle("Convert to table")
+              .setIcon("table")
+              .setSection("selection")
+              .onClick(() => insertTable(editor, range, table))
+          );
+        }
+
+        // Offered even when the text parses, in case the plain split is not what the user wanted.
+        if (this.hasLlmApiKey()) {
+          menu.addItem((item) =>
+            item
+              .setTitle("Convert to table with AI")
+              .setIcon("sparkles")
+              .setSection("selection")
+              .onClick(() => { void this.convertSelectionWithLlm(editor, range); })
+          );
+        }
+      })
+    );
+  }
+
+  private parseSelectionTable(editor: Editor, range: LineRange): MarkdownTable | null {
+    return textToTable(editor.getRange(range.from, range.to), tableLabelsFor(getLanguage()));
+  }
+
+  private async convertSelectionWithLlm(editor: Editor, range: LineRange): Promise<void> {
+    const original = editor.getRange(range.from, range.to);
+    if (original.length > TABLE_MAX_INPUT_CHARS) {
+      new Notice(`Schreibstube: selection too long for AI conversion (max ${TABLE_MAX_INPUT_CHARS} characters).`);
+      return;
+    }
+
+    const apiKey = this.resolveApiKey();
+    if (!apiKey) return;
+
+    const pending = new Notice("Schreibstube: creating table…", 0);
+    let table: MarkdownTable | null;
+    try {
+      const raw = await requestCompletion(this.settings, apiKey, TABLE_SYSTEM_PROMPT, original, TABLE_MAX_TOKENS);
+      table = parseTableResponse(raw);
+    } catch (err) {
+      new Notice(`Schreibstube: table conversion failed — ${err instanceof Error ? err.message : "unknown error"}`);
+      return;
+    } finally {
+      pending.hide();
+    }
+
+    if (!table) {
+      new Notice("Schreibstube: table conversion failed — the LLM returned no usable table.");
+      return;
+    }
+
+    // The user may have kept typing while the request ran.
+    const unchanged =
+      range.to.line <= editor.lastLine() && editor.getRange(range.from, range.to) === original;
+    if (!unchanged) {
+      new Notice("Schreibstube: the text changed while the table was being created — nothing was replaced.");
+      return;
+    }
+
+    insertTable(editor, range, table);
+  }
+
+  private hasLlmApiKey(): boolean {
+    const secretName = this.settings.llmSecretName;
+    return !!secretName && !!this.app.secretStorage.getSecret(secretName);
+  }
+
+  /** The API key for the configured provider, or null after telling the user what is missing. */
+  private resolveApiKey(): string | null {
+    const secretName = this.settings.llmSecretName;
+    if (!secretName) {
+      new Notice("Schreibstube: no secret selected — open Settings to choose one.");
+      return null;
+    }
+    const apiKey = this.app.secretStorage.getSecret(secretName);
+    if (!apiKey) {
+      new Notice("Schreibstube: secret not found — check Settings.");
+      return null;
+    }
+    return apiKey;
+  }
+}
+
+/**
+ * The selection widened to whole lines, since a table cannot start or end
+ * mid-line. Null unless the selection spans more than one line.
+ */
+function selectedLineRange(editor: Editor): LineRange | null {
+  if (!editor.somethingSelected()) return null;
+  const from = editor.getCursor("from");
+  const to = editor.getCursor("to");
+  // A selection ending at the start of a line does not include that line.
+  const lastLine = to.ch === 0 && to.line > from.line ? to.line - 1 : to.line;
+  if (lastLine <= from.line) return null;
+  return {
+    from: { line: from.line, ch: 0 },
+    to: { line: lastLine, ch: editor.getLine(lastLine).length },
+  };
+}
+
+function insertTable(editor: Editor, range: LineRange, table: MarkdownTable): void {
+  const lineBefore = range.from.line > 0 ? editor.getLine(range.from.line - 1) : null;
+  const lineAfter = range.to.line < editor.lastLine() ? editor.getLine(range.to.line + 1) : null;
+  editor.replaceRange(
+    padForInsertion(renderMarkdownTable(table), lineBefore, lineAfter),
+    range.from,
+    range.to
+  );
 }

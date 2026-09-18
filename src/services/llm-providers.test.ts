@@ -3,6 +3,7 @@ import {
   LLM_PROVIDER_IDS,
   PROVIDER_MODELS,
   buildImageRequest,
+  buildPromptRequest,
   buildTextRequest,
   describeApiError,
   effectiveModel,
@@ -111,15 +112,15 @@ describe("describeApiError", () => {
 
 describe("effectiveModel", () => {
   it("uses the dropdown model when no custom value", () => {
-    expect(effectiveModel({ renameModel: "gpt-4o", renameModelCustom: "" })).toBe("gpt-4o");
+    expect(effectiveModel({ llmModel: "gpt-4o", llmModelCustom: "" })).toBe("gpt-4o");
   });
 
   it("prefers a non-empty custom model", () => {
-    expect(effectiveModel({ renameModel: "gpt-4o", renameModelCustom: "gpt-5-mini" })).toBe("gpt-5-mini");
+    expect(effectiveModel({ llmModel: "gpt-4o", llmModelCustom: "gpt-5-mini" })).toBe("gpt-5-mini");
   });
 
   it("ignores a whitespace-only custom model", () => {
-    expect(effectiveModel({ renameModel: "gpt-4o", renameModelCustom: "   " })).toBe("gpt-4o");
+    expect(effectiveModel({ llmModel: "gpt-4o", llmModelCustom: "   " })).toBe("gpt-4o");
   });
 });
 
@@ -156,6 +157,24 @@ describe("buildTextRequest", () => {
     const body = JSON.parse(req.body);
     expect(body.model).toBe("gpt-x");
     expect(body.messages[0].role).toBe("system");
+  });
+});
+
+describe("buildPromptRequest", () => {
+  it("passes the caller's prompts and token budget to Anthropic", () => {
+    const req = buildPromptRequest("anthropic", "claude-x", "sk", "system rules", "user text", 4096);
+    const body = JSON.parse(req.body);
+    expect(body.system).toBe("system rules");
+    expect(body.messages[0].content).toBe("user text");
+    expect(body.max_tokens).toBe(4096);
+  });
+
+  it("passes the caller's prompts and token budget to OpenAI", () => {
+    const req = buildPromptRequest("openai", "gpt-x", "sk", "system rules", "user text", 4096);
+    const body = JSON.parse(req.body);
+    expect(body.messages[0]).toEqual({ role: "system", content: "system rules" });
+    expect(body.messages[1]).toEqual({ role: "user", content: "user text" });
+    expect(body.max_tokens).toBe(4096);
   });
 });
 

@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Added
+
+- **Convert text to table** from the editor context menu or the command palette. Tab-, semicolon- and comma-separated lines and `key: value` lists are converted locally; colour lists get separate RGB and Hex columns.
+- **Convert to table with AI** — fallback for text without clear separators: the selection is sent to the configured LLM, and the reply is validated before anything in the note is replaced. Nothing is replaced if the text was edited while the request ran.
+
+### Changed
+
+- **LLM provider, model, custom model ID and API key are now shared** by all AI features and live in a new **AI provider** settings section. Existing rename settings are carried over automatically.
+
 ## 1.3.0 - 2026-08-28
 
 ### Changed
