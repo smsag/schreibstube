@@ -1149,6 +1149,42 @@ a.external-link.schreibstube-reminder-mark {
   }
 }
 
+/* What a filter draws in place of the tree: the matches, best first.
+
+   The rows keep every behaviour a tree row has — the icon, the marks, the
+   menu, the open state — and gain the folder they came from, because a flat
+   list has thrown away the one thing the tree was saying for free. */
+.schreibstube-explorer-results {
+  display: flex;
+  flex-direction: column;
+}
+
+/* A result is two lines, so the name and its folder stack rather than
+   competing for one row's width in a sidebar. */
+.schreibstube-explorer-row.is-result {
+  flex-wrap: wrap;
+  align-items: center;
+  padding-top: 3px;
+  padding-bottom: 3px;
+}
+
+/* The twisty is a tree affordance and there is no tree here; the space it
+   holds stays, so the icons of the results line up as the tree's do. */
+.schreibstube-explorer-row.is-result .schreibstube-explorer-twisty {
+  visibility: hidden;
+}
+
+.schreibstube-explorer-result-folder {
+  flex: 0 0 100%;
+  /* Under the name, aligned with it rather than with the icon: the eye
+     follows one left edge down the list. */
+  padding-left: calc(var(--schreibstube-row-gap, 7px) * 2 + var(--icon-s, 16px));
+  color: var(--text-faint);
+  font-size: var(--font-ui-smaller);
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
 /* The notes related to the one that is open, as cards in the right sidebar. */
 .schreibstube-related-notes {
   --schreibstube-row-gap: 7px;
