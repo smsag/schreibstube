@@ -1,4 +1,4 @@
-import { MarkdownView, Notice, normalizePath, type App, type TFile } from "obsidian";
+import { MarkdownView, Notice, normalizePath, type App, type Editor, type TFile } from "obsidian";
 import type { SchreibstubeSettings } from "../types";
 import type { Logger } from "../services/logger";
 import { t } from "../i18n";
@@ -11,10 +11,20 @@ import {
   stripFilenameExtension
 } from "../services/llm-rename";
 import { generateSummary } from "../services/llm-summarize";
+import { buildSummaryRequest, effectiveModel } from "../services/llm-providers";
+import { sendRequest } from "../services/llm-client";
+import {
+  TABLE_MAX_INPUT_CHARS,
+  TABLE_MAX_TOKENS,
+  TABLE_SYSTEM_PROMPT,
+  parseTableResponse
+} from "../services/llm-table";
+import type { MarkdownTable } from "../services/text-to-table";
+import { insertTable, selectedLineRange } from "./table-insert";
 
 /**
- * The three LLM-backed commands (rename note, rename image, summarize
- * selection). A single in-flight guard prevents overlapping API calls, and each
+ * The LLM-backed commands (rename note, rename image, summarize selection,
+ * table from selection). A single in-flight guard prevents overlapping API calls, and each
  * failure logs the underlying error before showing the user a short Notice, so
  * "it didn't work" reports are diagnosable from the console.
  */
@@ -241,6 +251,67 @@ export class LlmCommands {
         return;
       }
       editor.replaceRange(summary, from, to);
+    });
+  }
+
+  /**
+   * Turn the selected lines into a table chosen by the model, for text a
+   * plain split cannot read. Like the summary, the range is captured before
+   * the request and compared again before anything is replaced.
+   */
+  async tableFromSelection(editor: Editor): Promise<void> {
+    const range = selectedLineRange(editor);
+    if (!range) {
+      new Notice(t().common.notice(t().ai.tableSelectLines));
+      return;
+    }
+
+    const original = editor.getRange(range.from, range.to);
+    if (original.length > TABLE_MAX_INPUT_CHARS) {
+      new Notice(t().common.notice(t().ai.tableTooLong(TABLE_MAX_INPUT_CHARS)));
+      return;
+    }
+
+    const apiKey = this.requireApiKey();
+    if (!apiKey) {
+      return;
+    }
+
+    await this.withBusy("table", async () => {
+      const settings = this.getSettings();
+      const progress = new Notice(t().common.notice(t().ai.tableCreating), 0);
+      let table: MarkdownTable | null;
+      try {
+        const request = buildSummaryRequest(
+          settings.llmProvider,
+          effectiveModel(settings),
+          apiKey,
+          TABLE_SYSTEM_PROMPT,
+          original,
+          TABLE_MAX_TOKENS
+        );
+        const raw = await sendRequest(settings.llmProvider, request);
+        table = parseTableResponse(raw);
+        if (!table) this.logger.warn("Table conversion returned no usable table:", raw);
+      } catch (err) {
+        this.fail("table", t().ai.failTable, err);
+        return;
+      } finally {
+        progress.hide();
+      }
+
+      if (!table) {
+        new Notice(t().common.notice(t().ai.tableFailedEmpty));
+        return;
+      }
+
+      const unchanged =
+        range.to.line <= editor.lastLine() && editor.getRange(range.from, range.to) === original;
+      if (!unchanged) {
+        new Notice(t().common.notice(t().ai.tableSelectionMoved));
+        return;
+      }
+      insertTable(editor, range, table);
     });
   }
 

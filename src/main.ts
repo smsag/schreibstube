@@ -40,6 +40,12 @@ import { ReminderCommands } from "./controllers/reminder-commands";
 import { NoteCommands } from "./controllers/note-commands";
 import { LinkModeController } from "./controllers/link-mode-controller";
 import { LlmCommands } from "./controllers/llm-commands";
+import {
+  convertSelectionToTable,
+  insertTable,
+  localTable,
+  selectedLineRange
+} from "./controllers/table-insert";
 import { ProofreadController } from "./controllers/proofread-controller";
 import { createGlossaryUnderlineExtension } from "./processors/glossary-underline";
 import { compileGlossaries } from "./services/glossary-matcher";
@@ -236,6 +242,36 @@ export default class SchreibstubePlugin extends Plugin {
         if (!(view instanceof MarkdownView) || !view.file) return;
         if (!commandAvailable("send-reminder", this.commandContext())) return;
         this.reminders?.addMenuItem(menu, editor, view.file);
+      })
+    );
+    // Selected lines into a table. The plain conversion is offered only when
+    // it would work, since the menu is built for this very selection; the AI
+    // one whenever several lines are selected, and says what it needs if the
+    // key is missing.
+    this.registerEvent(
+      this.app.workspace.on("editor-menu", (menu, editor) => {
+        const range = selectedLineRange(editor);
+        if (!range) return;
+
+        const table = localTable(editor, range);
+        if (table) {
+          menu.addItem((item) =>
+            item
+              .setTitle(t().ai.tableMenu)
+              .setIcon("table")
+              .setSection("selection")
+              .onClick(() => insertTable(editor, range, table))
+          );
+        }
+        menu.addItem((item) =>
+          item
+            .setTitle(t().ai.tableMenuAi)
+            .setIcon("sparkles")
+            .setSection("selection")
+            .onClick(() => {
+              void this.llm?.tableFromSelection(editor);
+            })
+        );
       })
     );
     // The link a reminder carries, obsidian://schreibstube?task=<id>, and the
@@ -773,6 +809,18 @@ export default class SchreibstubePlugin extends Plugin {
 
     this.addGatedCommand("summarize-selection", t().commands.summarize, "summarize", () => {
       void this.llm?.summarizeSelection();
+    });
+
+    // Two commands, not one that falls back on its own: only the second sends
+    // the note's text to the provider, and that should be a choice.
+    this.addGatedCommand("table-from-selection", t().commands.table, "table", () => {
+      const editor = this.app.workspace.getActiveViewOfType(MarkdownView)?.editor;
+      if (editor) convertSelectionToTable(editor);
+    });
+
+    this.addGatedCommand("ai-table-from-selection", t().commands.tableAi, "table", () => {
+      const editor = this.app.workspace.getActiveViewOfType(MarkdownView)?.editor;
+      if (editor) void this.llm?.tableFromSelection(editor);
     });
 
     this.addGatedCommand(

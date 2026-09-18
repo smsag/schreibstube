@@ -1,6 +1,6 @@
 # <img src="assets/logo.svg" alt="" width="28"> Schreibstube
 
-A writing-focused Obsidian plugin: a proof-read review sidebar with glossary support, document sync from remote Markdown sources, email send/query/merge over IMAP and SMTP, a sticky heading-stack overlay, a distraction-reducing focus mode, a task summary ribbon with per-heading counts, LLM-powered file renaming, and side-pane link opening.
+A writing-focused Obsidian plugin: a proof-read review sidebar with glossary support, document sync from remote Markdown sources, email send/query/merge over IMAP and SMTP, a sticky heading-stack overlay, a distraction-reducing focus mode, a task summary ribbon with per-heading counts, LLM-powered file renaming, text-to-table conversion, and side-pane link opening.
 
 ## Features
 
@@ -163,6 +163,15 @@ The same thing is on the explorer's context menu, as one entry that follows the 
 Select any text and run **Insert: AI summary of the selection** to send it to an LLM and replace the selection with the result. Built for turning raw text pasted from analytics and reporting tools into a running insight log: copy the numbers into a note, select them, summarize, and keep the distilled takeaway in place of the raw dump.
 
 The summarize prompt is fully configurable in settings — a default tuned for the insight-log workflow is provided. The command uses the shared **AI models** configuration (provider, model, and API key).
+
+### Table from selection
+
+Select several lines and turn them into a Markdown table, from the editor's context menu or the palette:
+
+- **Insert: table from the selection** (menu: **Convert to table**) — for text that already has columns: tab-, semicolon- or comma-separated lines (the first line becomes the header), or a `key: value` list. Colour lists such as `Blue: RGB(84,190,247) #54BEF7` get separate RGB and Hex columns, but only when no other text would be dropped. Runs locally; nothing is sent anywhere. The menu offers it only when the selection has such columns.
+- **Insert: AI table from the selection** (menu: **Convert to table with AI**) — for text without clear separators. The selection is sent to the shared **AI models** configuration, which chooses the columns and is told to use only information from the text and never to fill in missing values. Up to 8 000 characters.
+
+The selection is widened to whole lines, blank lines are added around the table where it needs them to render, hex values are set as code so they are not read as tags, and one undo restores the original text. If the text changes while the AI request runs, nothing is replaced.
 
 ### Email (IMAP/SMTP)
 
@@ -524,7 +533,7 @@ A command that cannot do anything where you are is not offered at all: the image
 
 ### AI models
 
-Provider, model, and API key are shared by every AI command (rename and summarize).
+Provider, model, and API key are shared by every AI command (rename, summarize, and AI table).
 
 | Setting         | Description                                     | Default          |
 | --------------- | ----------------------------------------------- | ---------------- |

@@ -241,7 +241,19 @@ export const enExtra = {
     unsupportedImage: "unsupported format — supported image types: jpg, png, gif, webp.",
     failRename: "Schreibstube: rename failed",
     failImage: "Schreibstube: could not process image",
-    failSummarize: "Schreibstube: summarize failed"
+    failSummarize: "Schreibstube: summarize failed",
+    tableMenu: "Convert to table",
+    tableMenuAi: "Convert to table with AI",
+    tableSelectLines: "select at least two lines to turn into a table.",
+    tableNoColumns: "the selection has no clear columns — try the AI table instead.",
+    tableTooLong: (max: number) =>
+      `the selection is too long for an AI table (at most ${max} characters).`,
+    tableCreating: "creating table…",
+    tableFailedEmpty: "table conversion failed — the LLM returned no usable table.",
+    tableSelectionMoved: "the text changed while the table was being created; nothing replaced.",
+    tableHeaderName: "Name",
+    tableHeaderValue: "Value",
+    failTable: "Schreibstube: table conversion failed"
   },
 
   cron: {

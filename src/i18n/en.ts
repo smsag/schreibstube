@@ -20,6 +20,8 @@ export const en = {
     reminders: "Compare with Erinnerungen",
     rename: "Rename doc with AI",
     summarize: "Insert: AI summary of the selection",
+    table: "Insert: table from the selection",
+    tableAi: "Insert: AI table from the selection",
     openExplorer: "Open explorer",
     collapseExplorer: "Explorer: collapse folders",
     openBookmark: "Open bookmark",

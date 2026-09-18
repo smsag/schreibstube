@@ -18,6 +18,8 @@ export const de: Messages = {
     reminders: "Erinnerungen abgleichen",
     rename: "Doc mit KI umbenennen",
     summarize: "Einfügen: KI-Zusammenfassung der Auswahl",
+    table: "Einfügen: Tabelle aus der Auswahl",
+    tableAi: "Einfügen: KI-Tabelle aus der Auswahl",
     openExplorer: "Explorer öffnen",
     collapseExplorer: "Explorer: Ordner zuklappen",
     openBookmark: "Lesezeichen öffnen",
@@ -470,7 +472,19 @@ export const de: Messages = {
     unsupportedImage: "nicht unterstütztes Format — möglich sind jpg, png, gif, webp.",
     failRename: "Schreibstube: Umbenennen fehlgeschlagen",
     failImage: "Schreibstube: Bild konnte nicht verarbeitet werden",
-    failSummarize: "Schreibstube: Zusammenfassen fehlgeschlagen"
+    failSummarize: "Schreibstube: Zusammenfassen fehlgeschlagen",
+    tableMenu: "In Tabelle umwandeln",
+    tableMenuAi: "Mit KI in Tabelle umwandeln",
+    tableSelectLines: "mindestens zwei Zeilen markieren, die zur Tabelle werden sollen.",
+    tableNoColumns: "die Auswahl hat keine klaren Spalten — versuch es mit der KI-Tabelle.",
+    tableTooLong: (max: number) =>
+      `die Auswahl ist zu lang für eine KI-Tabelle (höchstens ${max} Zeichen).`,
+    tableCreating: "erstellt Tabelle …",
+    tableFailedEmpty: "Umwandlung fehlgeschlagen — das LLM lieferte keine brauchbare Tabelle.",
+    tableSelectionMoved: "der Text hat sich während der Umwandlung verändert; nichts ersetzt.",
+    tableHeaderName: "Name",
+    tableHeaderValue: "Wert",
+    failTable: "Schreibstube: Umwandlung in Tabelle fehlgeschlagen"
   },
 
   cron: {

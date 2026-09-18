@@ -25,6 +25,7 @@ function offered(context: CommandContext): GatedCommand[] {
   const all: GatedCommand[] = [
     "rename",
     "summarize",
+    "table",
     "check-source",
     "send-mail",
     "fetch-replies",
@@ -54,6 +55,11 @@ describe("what the palette offers", () => {
     // which is what they had opened the palette to act on.
     expect(offered(screen({ selection: true }))).toContain("summarize");
     expect(offered(screen({ selection: false }))).not.toContain("summarize");
+  });
+
+  it("offers a table only when there is something selected", () => {
+    expect(offered(screen({ selection: true }))).toContain("table");
+    expect(offered(screen({ selection: false }))).not.toContain("table");
   });
 
   it("offers the rename to a note and to a picture, and nothing else to a picture", () => {

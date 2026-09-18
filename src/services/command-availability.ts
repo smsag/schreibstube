@@ -16,6 +16,7 @@
 export type GatedCommand =
   | "rename"
   | "summarize"
+  | "table"
   | "check-source"
   | "send-mail"
   | "fetch-replies"
@@ -53,6 +54,11 @@ export function commandAvailable(command: GatedCommand, context: CommandContext)
     // refusal for that was a notice telling people to do what they had come to
     // the palette to do.
     case "summarize":
+      return context.markdown && context.selection;
+    // A table is made from selected lines. Whether they have columns a plain
+    // split can find is for the command to say when run, not a reason to hide
+    // it: the selection looks the same either way.
+    case "table":
       return context.markdown && context.selection;
     // A note that mirrors nothing has no source to check. Which notes are bound
     // is the note's own frontmatter, in front of the person reading it.

@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Added
+
+- **Table from the selection.** Selected lines become a Markdown table, from the editor's context menu (**In Tabelle umwandeln**) or the palette (**Einfügen: Tabelle aus der Auswahl**). Tab-, semicolon- and comma-separated lines and `Schlüssel: Wert` lists are converted locally; colour lists get separate RGB and Hex columns.
+- **AI table from the selection.** For text without clear separators, **Mit KI in Tabelle umwandeln** / **Einfügen: KI-Tabelle aus der Auswahl** sends the selection to the shared AI model, validates the reply before anything in the note changes, and replaces nothing if the text was edited while the request ran.
+
 ## 1.33.0 - 2026-09-17
 
 Mobile checklist: not run for this release. Everything in it was checked by the
