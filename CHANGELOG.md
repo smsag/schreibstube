@@ -2,7 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## 1.35.1 - 2026-09-18
+
+What 1.35.0 was supposed to deliver. The ranking it added was real and the pane
+drawing it threw the order away, so the release was invisible on a first look;
+reading how a file's fields are gathered then found three ways hand-written
+frontmatter emptied them. A patch rather than a feature, because nothing here is
+new — it is the previous release doing what its entry claimed.
+
+Mobile checklist: not run for this release. Not yet tried on a phone: the result
+list, which is new layout, and a narrow sidebar is its hardest case.
+
+Bridge 2.4.0 is unchanged and still pairs with this release.
 
 ### Changed
 
