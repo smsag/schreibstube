@@ -26,6 +26,7 @@ function offered(context: CommandContext): GatedCommand[] {
     "rename",
     "summarize",
     "table",
+    "insert-today",
     "check-source",
     "send-mail",
     "fetch-replies",
@@ -39,7 +40,7 @@ function offered(context: CommandContext): GatedCommand[] {
 
 describe("what the palette offers", () => {
   it("offers a plain note what can be done to a plain note", () => {
-    expect(offered(screen())).toEqual(["rename", "send-mail", "fetch-replies"]);
+    expect(offered(screen())).toEqual(["rename", "insert-today", "send-mail", "fetch-replies"]);
   });
 
   it("offers a note bound to a source the check for it", () => {

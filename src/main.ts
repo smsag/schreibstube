@@ -40,6 +40,7 @@ import { ReminderCommands } from "./controllers/reminder-commands";
 import { NoteCommands } from "./controllers/note-commands";
 import { LinkModeController } from "./controllers/link-mode-controller";
 import { LlmCommands } from "./controllers/llm-commands";
+import { PropertyController } from "./controllers/property-controller";
 import {
   convertSelectionToTable,
   insertTable,
@@ -93,6 +94,7 @@ export default class SchreibstubePlugin extends Plugin {
   private refreshScheduler: RefreshScheduler | null = null;
   private linkMode: LinkModeController | null = null;
   private llm: LlmCommands | null = null;
+  private properties: PropertyController | null = null;
   private proofread: ProofreadController | null = null;
   private explorer: ExplorerController | null = null;
   private sections: PaneSectionsController | null = null;
@@ -119,6 +121,16 @@ export default class SchreibstubePlugin extends Plugin {
 
     this.linkMode = new LinkModeController(this.app, this.logger);
     this.llm = new LlmCommands(this.app, () => this.settings, this.logger);
+    this.properties = new PropertyController(
+      this.app,
+      () => this.settings,
+      async (patch) => {
+        this.settings = normalizeSettings({ ...this.settings, ...patch });
+        await this.saveSettings();
+      },
+      this.logger
+    );
+    this.startProperties(this.properties);
     this.mail = new MailCommands(this.app, () => this.settings, this.logger);
     this.publish = new PublishCommands(
       this.app,
@@ -291,9 +303,31 @@ export default class SchreibstubePlugin extends Plugin {
     this.requestOverlayRefresh();
   }
 
+  /**
+   * Property icons and menu entries, in this window and every one popped out
+   * later. Capture phase: the press has to be seen before Obsidian's own
+   * handler opens the menu, whatever that handler does with the event.
+   */
+  private startProperties(properties: PropertyController): void {
+    const register = (doc: Document, type: string, handler: (event: Event) => void) => {
+      this.registerDomEvent(doc, type as keyof DocumentEventMap, handler, { capture: true });
+    };
+    properties.attach(window, register);
+    this.registerEvent(
+      this.app.workspace.on("window-open", (_workspaceWindow, win) =>
+        properties.attach(win, register)
+      )
+    );
+    this.registerEvent(
+      this.app.workspace.on("window-close", (_workspaceWindow, win) => properties.detach(win))
+    );
+    properties.start();
+  }
+
   override onunload(): void {
     this.unloaded = true;
     this.linkMode?.stop();
+    this.properties?.stop();
     this.print?.stop();
     this.proofread?.stop();
     void this.explorer?.stop();
@@ -821,6 +855,11 @@ export default class SchreibstubePlugin extends Plugin {
     this.addGatedCommand("ai-table-from-selection", t().commands.tableAi, "table", () => {
       const editor = this.app.workspace.getActiveViewOfType(MarkdownView)?.editor;
       if (editor) void this.llm?.tableFromSelection(editor);
+    });
+
+    // Into the property field being typed in, or the note's text otherwise.
+    this.addGatedCommand("insert-today", t().commands.insertToday, "insert-today", () => {
+      this.properties?.insertToday();
     });
 
     this.addGatedCommand(

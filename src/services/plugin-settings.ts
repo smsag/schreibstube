@@ -17,6 +17,8 @@ import { LLM_PROVIDER_IDS, PROVIDER_MODELS } from "./llm-providers";
 import { DEFAULT_PUBLISH_KEYS, normalizePublishKeys } from "./publish-index";
 import { TEMPLATE_ROOT_DEFAULT } from "./print-template";
 import { DEFAULT_REPORT_FILE } from "./reminder-status";
+import { normalizePropertyIcons } from "./property-icons";
+import { DEFAULT_DATE_FORMAT, normalizeDateFormat } from "./today-value";
 
 export { PROVIDER_MODELS } from "./llm-providers";
 
@@ -134,6 +136,8 @@ export const DEFAULT_SETTINGS: SchreibstubeSettings = {
   remindersShortcut: DEFAULT_REMINDERS_SHORTCUT,
   remindersStatusShortcut: DEFAULT_REMINDERS_STATUS_SHORTCUT,
   remindersReportFile: DEFAULT_REPORT_FILE,
+  propertyIcons: {},
+  dateFormat: DEFAULT_DATE_FORMAT,
   debugLogging: false
 };
 
@@ -175,6 +179,8 @@ export function normalizeSettings(loaded: LoadedSettings): SchreibstubeSettings 
     llmModel: model,
     llmModelCustom,
     llmSecretName,
+    propertyIcons: normalizePropertyIcons(loaded?.propertyIcons),
+    dateFormat: normalizeDateFormat(loaded?.dateFormat),
     debugLogging:
       typeof loaded?.debugLogging === "boolean"
         ? loaded.debugLogging

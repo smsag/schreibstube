@@ -20,6 +20,7 @@ export const de: Messages = {
     summarize: "Einfügen: KI-Zusammenfassung der Auswahl",
     table: "Einfügen: Tabelle aus der Auswahl",
     tableAi: "Einfügen: KI-Tabelle aus der Auswahl",
+    insertToday: "Einfügen: heutiges Datum",
     openExplorer: "Explorer öffnen",
     collapseExplorer: "Explorer: Ordner zuklappen",
     openBookmark: "Lesezeichen öffnen",
@@ -492,6 +493,17 @@ export const de: Messages = {
     tableHeaderName: "Name",
     tableHeaderValue: "Wert",
     failTable: "Schreibstube: Umwandlung in Tabelle fehlgeschlagen"
+  },
+
+  properties: {
+    chooseIcon: "Icon wählen …",
+    enterToday: "Heute eintragen",
+    noNote: "es war nicht zu erkennen, zu welcher Notiz diese Eigenschaft gehört.",
+    heading: "Eigenschaften",
+    dateFormat: "Datumsformat",
+    dateFormatDesc: (example: string) =>
+      `Für Text, z. B. DD.MM.YYYY oder dddd, D. MMMM. Datums-Eigenschaften bekommen immer ` +
+      `YYYY-MM-DD. Heute: ${example}`
   },
 
   cron: {

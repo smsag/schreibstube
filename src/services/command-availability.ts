@@ -17,6 +17,7 @@ export type GatedCommand =
   | "rename"
   | "summarize"
   | "table"
+  | "insert-today"
   | "check-source"
   | "send-mail"
   | "fetch-replies"
@@ -60,6 +61,9 @@ export function commandAvailable(command: GatedCommand, context: CommandContext)
     // it: the selection looks the same either way.
     case "table":
       return context.markdown && context.selection;
+    // A date goes into the note or one of its properties.
+    case "insert-today":
+      return context.markdown;
     // A note that mirrors nothing has no source to check. Which notes are bound
     // is the note's own frontmatter, in front of the person reading it.
     case "check-source":

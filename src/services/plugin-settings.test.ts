@@ -452,4 +452,17 @@ describe("printing is off until somebody says otherwise", () => {
       expect(normalizeSettings(loaded).printEnabled).toBe(false);
     }
   });
+
+  it("keeps property icons and a date format, dropping what is invalid", () => {
+    const loaded = normalizeSettings({
+      propertyIcons: { Status: "flag", broken: 7 } as unknown as Record<string, string>,
+      dateFormat: " DD.MM.YYYY "
+    });
+    expect(loaded.propertyIcons).toEqual({ status: "flag" });
+    expect(loaded.dateFormat).toBe("DD.MM.YYYY");
+  });
+
+  it("defaults property icons to none and the date format to ISO", () => {
+    expect(normalizeSettings({})).toMatchObject({ propertyIcons: {}, dateFormat: "YYYY-MM-DD" });
+  });
 });
