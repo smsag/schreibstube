@@ -1273,6 +1273,15 @@ a.external-link.schreibstube-reminder-mark {
   margin-bottom: 0.5rem;
 }
 
+/* In live preview Obsidian lays its own "edit this block" control over the
+   top-right corner of every rendered code block, which is where these
+   controls sit. The header leaves that corner free, by the same amount
+   Obsidian leaves beside its PDF toolbar for the same control. The reading
+   view has no such control and keeps the full width. */
+.markdown-source-view.mod-cm6 .cm-embed-block .schreibstube-slideshow-header {
+  padding-inline-end: var(--size-4-9);
+}
+
 .schreibstube-slideshow-caption {
   color: var(--text-muted);
   font-size: var(--font-ui-small);
@@ -1438,11 +1447,16 @@ a.external-link.schreibstube-reminder-mark {
   aspect-ratio: 3 / 2;
 }
 
+/* The main picture alone sets the row's height. Sized by their pictures, the
+   details grew to the height of both stacked at their own proportions and
+   pushed the row far below the main picture; contained, the column adds
+   nothing to the row and is stretched to it, and its two tiles share that. */
 .schreibstube-slideshow-feature-details {
   display: grid;
   grid-auto-rows: 1fr;
   gap: 0.5rem;
   min-height: 0;
+  contain: size;
 }
 
 .schreibstube-slideshow-feature-detail {
@@ -1514,9 +1528,11 @@ a.external-link.schreibstube-reminder-mark {
     grid-template-columns: 1fr;
   }
 
+  /* Stacked under the scene, the details size themselves again. */
   .schreibstube-slideshow-feature-details {
     grid-auto-rows: auto;
     grid-template-columns: 1fr 1fr;
+    contain: none;
   }
 
   .schreibstube-slideshow-feature-detail {

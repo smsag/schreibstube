@@ -4,6 +4,8 @@ import {
   DEFAULT_SLIDESHOW_LAYOUT,
   FEATURE_DETAIL_COUNT,
   featureDetails,
+  imagesForLayout,
+  linkpathCandidates,
   MAX_SLIDESHOW_IMAGES,
   MAX_STRIP_COLUMNS,
   parseLayout,
@@ -283,5 +285,45 @@ describe("buildSlideshowInsertion", () => {
 
   it("closes with a new line when text follows the cursor", () => {
     expect(buildSlideshowInsertion("", "more")).toBe(`${SLIDESHOW_SNIPPET}\n\n`);
+  });
+});
+
+describe("linkpathCandidates", () => {
+  it("offers a plain path once, as written", () => {
+    expect(linkpathCandidates("Attachments/photo.png")).toEqual(["Attachments/photo.png"]);
+  });
+
+  it("decodes a percent-encoded space after trying the path as written", () => {
+    expect(linkpathCandidates("my%20photo.png")).toEqual(["my%20photo.png", "my photo.png"]);
+  });
+
+  it("decodes umlauts and other encoded characters", () => {
+    expect(linkpathCandidates("Gr%C3%BC%C3%9Fe.jpg")).toContain("Grüße.jpg");
+  });
+
+  it("unwraps a CommonMark angle-bracket path", () => {
+    expect(linkpathCandidates("<my photo.png>")).toEqual(["<my photo.png>", "my photo.png"]);
+  });
+
+  it("keeps a path whose percent sign is not an encoding", () => {
+    expect(linkpathCandidates("100%.png")).toEqual(["100%.png"]);
+  });
+});
+
+describe("imagesForLayout", () => {
+  const five = ["a", "b", "c", "d", "e"];
+
+  it("gives a feature its first three images and leaves the rest out", () => {
+    expect(imagesForLayout("feature", five)).toEqual(["a", "b", "c"]);
+  });
+
+  it("keeps a shorter feature whole", () => {
+    expect(imagesForLayout("feature", ["a", "b"])).toEqual(["a", "b"]);
+  });
+
+  it("gives every other layout all of them", () => {
+    for (const layout of ["slideshow", "filmstrip", "strip", "masonry"] as const) {
+      expect(imagesForLayout(layout, five)).toEqual(five);
+    }
   });
 });

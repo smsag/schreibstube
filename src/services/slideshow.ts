@@ -60,6 +60,18 @@ export const STRIP_WRAP_COLUMNS = 3;
  *  as tall as the large picture; a third would shrink them to stamps. */
 export const FEATURE_DETAIL_COUNT = 2;
 
+/** A feature is one scene and its details, and nothing more. */
+export const FEATURE_IMAGE_COUNT = 1 + FEATURE_DETAIL_COUNT;
+
+/**
+ * The images a layout shows. A feature takes the first three and leaves the
+ * rest out — a fourth would only ever appear by rotating the scene, which is
+ * the stage's job, not this one's. Every other layout shows them all.
+ */
+export function imagesForLayout<T>(layout: SlideshowLayout, images: readonly T[]): T[] {
+  return layout === "feature" ? images.slice(0, FEATURE_IMAGE_COUNT) : [...images];
+}
+
 /** The empty block inserted at the cursor, with two placeholder lines so the
  *  shape is obvious and the block renders instead of erroring on insert. */
 export const SLIDESHOW_SNIPPET =
@@ -181,6 +193,27 @@ export function stepIndex(active: number, step: number, count: number): number {
 /** The `2 / 6` a viewer reads to know where in the series they are. */
 export function slideshowCounter(active: number, count: number): string {
   return `${active + 1} / ${count}`;
+}
+
+/**
+ * The vault paths an image's written path may stand for, most literal first.
+ *
+ * A Markdown link cannot hold a bare space, so Obsidian and every other
+ * editor write `my%20photo.png`, and CommonMark also allows `<my photo.png>`.
+ * Looked up as written, both named no file and the slide stayed empty. The
+ * path as written comes first, so a file whose name really contains `%20` is
+ * still found; a decoding that fails (`100%.png`) is simply not offered.
+ */
+export function linkpathCandidates(src: string): string[] {
+  const candidates = [src];
+  const unwrapped = /^<(.+)>$/.exec(src)?.[1] ?? src;
+  candidates.push(unwrapped);
+  try {
+    candidates.push(decodeURIComponent(unwrapped));
+  } catch {
+    // Not percent-encoding after all; the literal forms above stand.
+  }
+  return [...new Set(candidates.filter((candidate) => candidate !== ""))];
 }
 
 /**
