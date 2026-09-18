@@ -77,7 +77,14 @@ export const de: Messages = {
     notImage: (line: number, text: string) =>
       `Zeile ${line}: ein Bild „![alt](Pfad)“ erwartet — „${text}“ erhalten`,
     emptyPath: (line: number) => `Zeile ${line}: der Bildpfad ist leer.`,
+    unknownLayout: (line: number, value: string, allowed: string) =>
+      `Zeile ${line}: unbekanntes Layout „${value}“ — erwartet ${allowed}.`,
     region: (n: number) => `Diaschau, ${n} Bilder`,
+    regionFeature: (n: number) => `Szene mit Details, ${n} Bilder`,
+    regionStrip: (n: number) => `Bildreihe, ${n} Bilder`,
+    regionFilmstrip: (n: number) => `Diaschau mit Vorschaubildern, ${n} Bilder`,
+    regionMasonry: (n: number) => `Bilderwand, ${n} Bilder`,
+    showImage: (n: number) => `Bild ${n} anzeigen`,
     previous: "Voriges Bild",
     next: "Nächstes Bild",
     fullscreen: "Vollbild",

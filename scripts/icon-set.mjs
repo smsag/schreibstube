@@ -15,6 +15,10 @@
 /** Glyphs the interface itself needs, whether or not a user can pick them. */
 export const UI_ICONS = [
   "chevron-right",
+  // The slideshow's previous-image control, the twin of the row chevron.
+  "chevron-left",
+  // The slideshow's fullscreen control.
+  "arrows-maximize",
   "chevron-down",
   // The pinned block's own control, which points the way it will move the list.
   "chevron-up",
