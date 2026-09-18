@@ -7,8 +7,8 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - **The explorer follows the open note.** Opening a note by any route — a link, the quick switcher, a search — opens the folders above it in Schreibstube Explorer and brings its row into view, scrolling only when it is off screen. A collapsed sidebar stays collapsed and the row is in view the next time it opens.
-- **PDFs and Excalidraw drawings get their own icons** in Schreibstube Explorer, where they were a blank sheet and a text note. An icon chosen for a file still wins.
-- **SVG pictures and Excalidraw drawings are shown without their extension** in Schreibstube Explorer, as notes are: `Plan.excalidraw.md` and `Plan.excalidraw.svg` both read **Plan**, told apart by their icons. Renaming edits the visible name and keeps the suffix.
+- **PDFs, Excalidraw drawings and bases get their own icons** in Schreibstube Explorer, where they were a blank sheet or a text note. An icon chosen for a file still wins.
+- **SVG pictures, Excalidraw drawings and bases are shown without their extension** in Schreibstube Explorer, as notes are: `Plan.excalidraw.md`, `Plan.excalidraw.svg` and `Plan.base` all read **Plan**, told apart by their icons. Renaming edits the visible name and keeps the suffix.
 - **Table from the selection.** Selected lines become a Markdown table, from the editor's context menu (**In Tabelle umwandeln**) or the palette (**Einfügen: Tabelle aus der Auswahl**). Tab-, semicolon- and comma-separated lines and `Schlüssel: Wert` lists are converted locally; colour lists get separate RGB and Hex columns.
 - **An icon per property.** A property's menu in live preview (click its icon) has **Icon wählen …**, which replaces the type icon for that key in every note — in live preview, the reading view and the properties sidebar.
 - **Today's date in properties.** **Heute eintragen** in the same menu sets the property to today: ISO for date properties, one more entry for lists, the configured **Datumsformat** for text. **Einfügen: heutiges Datum** puts the date at the cursor, in a property field or in the note, and can be given a hotkey.

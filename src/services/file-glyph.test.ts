@@ -53,6 +53,12 @@ describe("fileGlyph for PDFs and drawings", () => {
     );
   });
 
+  it("gives a base its own icon", () => {
+    expect(fileGlyph(null, { kind: "file", extension: "base", name: "Projekte.base" })).toBe(
+      "table"
+    );
+  });
+
   it("still prefers a chosen icon", () => {
     expect(fileGlyph("star", { kind: "file", extension: "pdf", name: "a.pdf" })).toBe("star");
   });
@@ -86,6 +92,14 @@ describe("fileNameParts", () => {
     expect(fileNameParts("Plan.excalidraw", "excalidraw")).toEqual({
       stem: "Plan",
       suffix: ".excalidraw",
+      hidden: true
+    });
+  });
+
+  it("shows a base by its stem", () => {
+    expect(fileNameParts("Projekte.base", "base")).toEqual({
+      stem: "Projekte",
+      suffix: ".base",
       hidden: true
     });
   });

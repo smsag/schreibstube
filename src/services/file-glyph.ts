@@ -49,6 +49,7 @@ export function fileGlyph(chosen: string | null | undefined, subject: GlyphSubje
 
   const extension = subject.extension.toLowerCase();
   if (extension === "pdf") return "file-type-pdf";
+  if (extension === "base") return "table";
   if (isDrawing(subject.name ?? "", extension)) return "scribble";
   if (extension === "md") return "file-text";
   if (MEDIA_EXTENSIONS.has(extension)) return "photo";
@@ -70,7 +71,7 @@ export function isDrawing(name: string, extension: string): boolean {
 }
 
 /** The extensions whose rows show only the stem; the icon says what they are. */
-const HIDDEN_EXTENSIONS = new Set(["md", "svg", "excalidraw"]);
+const HIDDEN_EXTENSIONS = new Set(["md", "svg", "excalidraw", "base"]);
 
 export interface FileNameParts {
   /** What the row shows, and what a rename edits. */
@@ -84,9 +85,9 @@ export interface FileNameParts {
 /**
  * A file's name split into what the pane shows and what it keeps back.
  *
- * Notes, SVG pictures and Excalidraw drawings show their stem: `Plan.md`,
- * `Plan.svg`, `Plan.excalidraw.md` and `Plan.excalidraw.svg` all read `Plan`,
- * and the icon tells them apart. Every other attachment keeps its extension
+ * Notes, SVG pictures, Excalidraw drawings and bases show their stem:
+ * `Plan.md`, `Plan.svg`, `Plan.excalidraw.md`, `Plan.excalidraw.svg` and
+ * `Plan.base` all read `Plan`, and the icon tells them apart. Every other attachment keeps its extension
  * on screen, since `photo.png` beside `photo.jpg` needs it. A rename edits the
  * stem and keeps the suffix either way, so a drawing cannot be renamed out of
  * being one by accident.
