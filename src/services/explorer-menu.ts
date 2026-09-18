@@ -23,6 +23,7 @@ export type ExplorerAction =
   | "pin"
   | "unpin"
   | "pin-tag"
+  | "related"
   | "bind-source"
   | "check-source"
   | "open-source"
@@ -108,13 +109,18 @@ export function buildExplorerMenu(
   const sections: ExplorerMenuSection[] = [];
 
   if (target.kind === "file") {
-    sections.push({
-      id: "open",
-      items: [
-        { id: "open", label: menu.open, icon: "file-text" },
-        { id: "open-new-tab", label: menu.openNewTab, icon: "layout-panel-left" }
-      ]
-    });
+    const open: ExplorerMenuItem[] = [
+      { id: "open", label: menu.open, icon: "file-text" },
+      { id: "open-new-tab", label: menu.openNewTab, icon: "layout-panel-left" }
+    ];
+    // Listing what a note sits among is a way of opening it, not a way of
+    // changing it, so it belongs in this block rather than below with the
+    // actions that write. Only a note has it: an attachment carries no links
+    // and no tags, and there is nothing to relate it by.
+    if (target.markdown) {
+      open.push({ id: "related", label: menu.related, icon: "git-fork" });
+    }
+    sections.push({ id: "open", items: open });
   }
 
   const appearance: ExplorerMenuItem[] = [

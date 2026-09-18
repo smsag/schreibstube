@@ -1,6 +1,6 @@
 # <img src="assets/logo.svg" alt="" width="28"> Schreibstube
 
-A writing-focused Obsidian plugin: a proof-read review sidebar with glossary support, document sync from remote Markdown sources, email send/query/merge over IMAP and SMTP, a sticky heading-stack overlay, a distraction-reducing focus mode, property icons and one-click dates in the Properties view, a task summary ribbon with per-heading counts, LLM-powered file renaming, text-to-table conversion, image slideshows in five layouts, and side-pane link opening.
+A writing-focused Obsidian plugin: a proof-read review sidebar with glossary support, document sync from remote Markdown sources, email send/query/merge over IMAP and SMTP, a sticky heading-stack overlay, a distraction-reducing focus mode, property icons and one-click dates in the Properties view, a task summary ribbon with per-heading counts, LLM-powered file renaming, text-to-table conversion, image slideshows in five layouts, a related-notes sidebar, and side-pane link opening.
 
 ## Features
 
@@ -410,6 +410,7 @@ The pane has four sections, each one collapsible, each remembering whether it wa
 
 - **Icons.** Right-click, or long-press on a phone, and pick from a set of icons grouped by what they are for — documents, folders, property, business, status. The set is a subsetted [Tabler](https://tabler.io/icons) webfont carried inside the bundle, so it works offline and on mobile, with no request to a CDN. A row without a chosen icon is drawn by its kind: a note as text, a PDF with its own mark, an Excalidraw drawing as a scribble, a base as a table, pictures and recordings as a picture, anything else as a blank sheet.
 - **Names.** Notes, SVG pictures, Excalidraw drawings and bases are shown without their extension — `Plan.md`, `Plan.svg`, `Plan.excalidraw.md`, `Plan.excalidraw.svg` and `Plan.base` all read **Plan**, and the icon tells them apart. Every other attachment keeps its extension, since `photo.png` beside `photo.jpg` needs it. **Rename** edits the part on screen and keeps the rest, so a drawing stays a drawing.
+- **The filter.** The box above the tree searches what a file is _called_, in every sense a vault gives the word: its name, the `title` in its frontmatter, its aliases, its tags and the folders above it. A hit in the name counts for most and a hit in a folder for least, since every file in a folder shares it; and every word typed is weighed by how rare it is in the vault, so a word most files carry barely moves a result while a word one file holds decides it. German compounds are found by the word at their end — _Vertrag_ offers _Mietvertrag_ — and a longer form finds a shorter one. Typing `tag:`, `pfad:`, `name:` or `alle:` (or `path:`, `file:`, `all:`) narrows to one dimension; any other word before a colon is ordinary text, so a note called `todo: Angebot` is still searched for by typing it. When more match than the list can draw, it keeps the best rather than the first it walked past. What it is not is a content search: Obsidian's own search reads note bodies and has the operators for that.
 - **Following the open note.** Whichever way a note is opened — a link, the quick switcher, a search — the pane opens the folders above it and brings its row into view, scrolling only when the row is off screen. Nothing else is collapsed. A collapsed sidebar stays collapsed; the row is in view when it is next opened.
 - **Latest.** Three lists, each as long as the count in the settings: the notes whose source last changed, then the most recently created, then the most recently changed. Each note appears in only one of them, the first that claims it, so the section never says the same thing three times. The first list carries the sync mark, so it doubles as what is waiting to be looked at.
 - **Properties on a mirrored note.** A check keeps two of the note's own properties: `title`, taken from the document's first heading and written only once — a title already in the file is yours and is never overwritten — and `updatedAt`, stamped whenever the source has actually changed, not merely been checked. Properties only: a check never writes the body, which still waits in the review panel.
@@ -481,6 +482,26 @@ Right-click a folder anywhere in Obsidian and choose **Copy path for Schreibstub
 Three short lists: the notes whose source last changed, those created most recently, and those changed most recently. A note shown as created is not repeated as changed, because in a young vault the two lists are otherwise the same list twice. Only Markdown counts, so an attachment written by a paste never takes the top row. The bookmarks file is always excluded, and further paths can be.
 
 Icons and the two marks live in `explorer.json` inside the plugin folder, deliberately not in `data.json`: that file is rewritten whole on every save, so a second device would clobber it. Each entry carries its own timestamp and every write re-reads and merges per entry, so two devices editing different files both keep their change. The pane also watches the file for writes delivered by iCloud, Obsidian Sync or Git while it is open. A file that moves keeps its icon; one that disappears keeps it for thirty days, in case it turns up somewhere else under the same name.
+
+### Related notes
+
+A sidebar listing the notes that belong with the one in front of you, opened with **Related notes** in the palette or from a note's menu in Schreibstube Explorer. From the palette it follows whatever note is open, so the answer is already on screen by the time the question occurs to you; asked for from a note's menu it stays on that note instead.
+
+Nothing is downloaded and nothing is sent anywhere. A vault is a graph somebody built by hand, and every link, tag and folder is a person having already said that two notes belong together — so the ranking reads the link graph Obsidian has already resolved and costs no file reads at all. It works the same on a phone as on a desktop.
+
+Five signals, in the order they are worth anything:
+
+| Signal            | What it means                                               |
+| ----------------- | ----------------------------------------------------------- |
+| A link either way | Somebody wrote it deliberately, about these two notes       |
+| A shared link     | Both notes point at the same third note                     |
+| Co-citation       | The same third note points at both — how siblings are found |
+| A shared tag      | A deliberate label, but about a group rather than this note |
+| The same folder   | The weakest, and only ever a tiebreak                       |
+
+Every shared thing is weighted by how rare it is, which is the whole difference between this working and not. An index note linking to four hundred notes would otherwise make all four hundred related to each other and answer every question with the same five rows; a note linked by exactly two says a great deal about those two.
+
+Each card says why it is on the list, because a related note nobody can explain is one nobody trusts. A press opens the note, a press with Cmd or Ctrl opens it in a new tab, and a right-click or long press gives the pane's own menu. A note nothing links, tags or files beside anything else gets an empty list saying so, rather than one padded with the rest of its folder.
 
 ### Link open modes
 

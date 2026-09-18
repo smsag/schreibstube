@@ -29,10 +29,17 @@ function ids(sections: ReturnType<typeof buildExplorerMenu>): string[] {
 }
 
 describe("buildExplorerMenu", () => {
+  it("offers related notes on a note and on nothing else", () => {
+    expect(ids(buildExplorerMenu(target(), "off"))).toContain("related");
+    // An attachment carries no links and no tags to be related by.
+    expect(ids(buildExplorerMenu(target({ markdown: false }), "off"))).not.toContain("related");
+    expect(ids(buildExplorerMenu(target({ kind: "folder" }), "off"))).not.toContain("related");
+  });
+
   it("leads with opening the file and ends with the other plugins", () => {
     const sections = buildExplorerMenu(target(), "submenu");
 
-    expect(sections[0]?.items.map((item) => item.id)).toEqual(["open", "open-new-tab"]);
+    expect(sections[0]?.items.map((item) => item.id)).toEqual(["open", "open-new-tab", "related"]);
     expect(sections[sections.length - 1]).toEqual({
       id: "plugins",
       items: [{ id: "more", label: "More actions", icon: "more-horizontal" }]

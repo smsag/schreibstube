@@ -1149,6 +1149,95 @@ a.external-link.schreibstube-reminder-mark {
   }
 }
 
+/* The notes related to the one that is open, as cards in the right sidebar. */
+.schreibstube-related-notes {
+  --schreibstube-row-gap: 7px;
+}
+
+.schreibstube-related-header {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px 2px 10px;
+}
+
+.schreibstube-related-title {
+  display: flex;
+  align-items: center;
+  gap: var(--schreibstube-row-gap);
+  font-weight: var(--font-semibold);
+  overflow-wrap: anywhere;
+}
+
+.schreibstube-related-summary,
+.schreibstube-related-empty {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+}
+
+.schreibstube-related-empty {
+  padding: 4px 2px;
+}
+
+.schreibstube-related-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.schreibstube-related-card {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  border: 1px solid var(--background-modifier-border);
+  border-left-width: 3px;
+  border-radius: var(--schreibstube-border-radius);
+  background: var(--background-primary);
+  cursor: pointer;
+}
+
+.schreibstube-related-card:focus-visible {
+  outline: 2px solid var(--background-modifier-border-focus);
+  outline-offset: 1px;
+}
+
+.schreibstube-related-card-title {
+  min-width: 0;
+  color: var(--text-normal);
+  overflow-wrap: anywhere;
+}
+
+.schreibstube-related-card-folder {
+  color: var(--text-faint);
+  font-size: var(--font-ui-smaller);
+  overflow-wrap: anywhere;
+}
+
+/* Why the card is on the list. It wraps rather than scrolls, because a reason
+   half off the edge of a sidebar is worse than one on a second line. */
+.schreibstube-related-card-why {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.schreibstube-related-chip {
+  padding: 1px 6px;
+  border-radius: var(--schreibstube-border-radius);
+  background: var(--background-modifier-hover);
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  white-space: nowrap;
+}
+
+@media (hover: hover) {
+  .schreibstube-related-card:hover {
+    border-color: var(--background-modifier-border-hover);
+  }
+}
+
 .schreibstube-icon-picker .schreibstube-icon-search,
 .schreibstube-prompt-input {
   width: 100%;

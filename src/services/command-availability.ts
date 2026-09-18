@@ -23,6 +23,7 @@ export type GatedCommand =
   | "fetch-replies"
   | "print"
   | "collapse-explorer"
+  | "related"
   | "send-reminder"
   | "reminders";
 
@@ -63,6 +64,11 @@ export function commandAvailable(command: GatedCommand, context: CommandContext)
       return context.markdown && context.selection;
     // A date goes into the note or one of its properties.
     case "insert-today":
+      return context.markdown;
+    // A picture carries no links and no tags, so there is nothing to relate it
+    // by. Whether the note has any neighbours is the panel's answer to give,
+    // not a reason to hide the way of asking.
+    case "related":
       return context.markdown;
     // A note that mirrors nothing has no source to check. Which notes are bound
     // is the note's own frontmatter, in front of the person reading it.

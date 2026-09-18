@@ -69,6 +69,8 @@ import {
   type TaggedNote
 } from "../services/tag-pins";
 import { tallyTasks, type TaskTally } from "../services/task-count";
+import { backlinkIndex, rankRelated, type RelatedSubject } from "../services/related-notes";
+import type { RelatedCard } from "../ui/related-notes-view";
 import {
   ConfirmModal,
   FolderPickerModal,
@@ -116,6 +118,9 @@ export type FileNamer = (file: TFile) => Promise<string | null>;
 /** Where a pinned tag's notes are listed. The plugin owns the sidebar leaf. */
 export type TagOpener = (tag: string) => Promise<void>;
 
+/** Where a note's related notes are listed, for the same reason. */
+export type RelatedOpener = (path: string) => Promise<void>;
+
 /** A row in the pinned block: a file or a folder, or a tag. */
 export type PinnedItem =
   { kind: "file"; key: string; file: TAbstractFile } | { kind: "tag"; key: string; tag: string };
@@ -139,6 +144,7 @@ export class ExplorerController {
   /** Set once the AI commands exist, which is after this controller is built. */
   private namer: FileNamer | null = null;
   private tagOpener: TagOpener | null = null;
+  private relatedOpener: RelatedOpener | null = null;
 
   constructor(
     private readonly app: App,
@@ -159,6 +165,11 @@ export class ExplorerController {
   /** Hand over the thing that lists a tag's notes in the sidebar. */
   useTagOpener(opener: TagOpener): void {
     this.tagOpener = opener;
+  }
+
+  /** Hand over the thing that lists a note's related notes in the sidebar. */
+  useRelatedOpener(opener: RelatedOpener): void {
+    this.relatedOpener = opener;
   }
 
   async start(): Promise<void> {
@@ -315,6 +326,70 @@ export class ExplorerController {
     }
 
     return sortTagCards(cards);
+  }
+
+  // --- related notes ------------------------------------------------------
+
+  /**
+   * The notes related to one note, as the sidebar lists them.
+   *
+   * The whole graph comes from `metadataCache.resolvedLinks`, which Obsidian
+   * has already built and keeps current: every link in the vault, resolved to
+   * the file it lands on. So this costs no file reads at all — the alternative,
+   * reading every note to find its links, is the reason a feature like this
+   * usually needs an index.
+   *
+   * Backlinks are inverted from the same table rather than asked for per note,
+   * because Obsidian offers no public call for them and the walk is the same
+   * walk either way.
+   */
+  relatedCards(path: string): RelatedCard[] {
+    const notes = this.linkGraph();
+    const related = rankRelated(path, notes);
+
+    const cards: RelatedCard[] = [];
+    for (const entry of related) {
+      const file = this.app.vault.getAbstractFileByPath(entry.path);
+      if (!(file instanceof TFile)) continue;
+
+      cards.push({
+        path: file.path,
+        title: this.titleFor(file) ?? file.basename,
+        folder: file.parent && !file.parent.isRoot() ? file.parent.path : "",
+        reasons: entry.reasons
+      });
+    }
+
+    return cards;
+  }
+
+  /** The vault as the ranking wants it: every note with its links both ways. */
+  private linkGraph(): RelatedSubject[] {
+    const resolved = this.app.metadataCache.resolvedLinks;
+    const backlinks = backlinkIndex(resolved);
+
+    const notes: RelatedSubject[] = [];
+    for (const file of this.app.vault.getMarkdownFiles()) {
+      if (this.isTrashed(file.path)) continue;
+      const cache = this.app.metadataCache.getFileCache(file);
+      notes.push({
+        path: file.path,
+        links: Object.keys(resolved[file.path] ?? {}),
+        backlinks: backlinks.get(file.path) ?? [],
+        tags: ((cache && getAllTags(cache)) ?? []).map((tag) =>
+          tag.replace(/^#/, "").toLowerCase()
+        ),
+        folder: file.parent && !file.parent.isRoot() ? file.parent.path : "",
+        modifiedAt: file.stat.mtime
+      });
+    }
+
+    return notes;
+  }
+
+  /** List the notes related to one note in the sidebar. */
+  async openRelated(path: string): Promise<void> {
+    await this.relatedOpener?.(path);
   }
 
   /** The pane's own menu for a note a card stands for. */
@@ -618,6 +693,9 @@ export class ExplorerController {
         return;
       case "pin-tag":
         if (file instanceof TFile) this.chooseTag(file);
+        return;
+      case "related":
+        if (file instanceof TFile) await this.openRelated(file.path);
         return;
       case "bind-source":
         return this.bindSource(file);
