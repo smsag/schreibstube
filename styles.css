@@ -1159,30 +1159,54 @@ a.external-link.schreibstube-reminder-mark {
   flex-direction: column;
 }
 
-/* A result is two lines, so the name and its folder stack rather than
-   competing for one row's width in a sidebar. */
-.schreibstube-explorer-row.is-result {
-  flex-wrap: wrap;
-  align-items: center;
-  padding-top: 3px;
-  padding-bottom: 3px;
+/* A result is two lines: the row exactly as the tree draws it, and the folder
+   it came from underneath.
+
+   Two elements and not one wrapping row. Every row in the pane is one line and
+   says so with a fixed `height`, so a second line inside it does not make it
+   taller — it spills onto the row below. Making the row wrap instead breaks the
+   line at the first item that does not fit, which for a file name longer than a
+   sidebar means the name takes a line of its own and strands the icon above it;
+   `min-width` cannot help, because a flex line breaks on an item's content size
+   rather than on what it could shrink to. Neither is fixable from inside the
+   row, so the second line sits beside it instead. */
+.schreibstube-explorer-result {
+  display: flex;
+  flex-direction: column;
 }
 
 /* The twisty is a tree affordance and there is no tree here; the space it
    holds stays, so the icons of the results line up as the tree's do. */
-.schreibstube-explorer-row.is-result .schreibstube-explorer-twisty {
+.schreibstube-explorer-result .schreibstube-explorer-twisty {
   visibility: hidden;
 }
 
+/* The folder the result came from. Indented under the glyph by the same
+   arithmetic a section header uses, so it lines up with the pane rather than
+   with a number guessed here. A path is long and a sidebar narrow, so it is
+   clipped to one line rather than wrapped into a paragraph. */
 .schreibstube-explorer-result-folder {
-  flex: 0 0 100%;
-  /* Under the name, aligned with it rather than with the icon: the eye
-     follows one left edge down the list. */
-  padding-left: calc(var(--schreibstube-row-gap, 7px) * 2 + var(--icon-s, 16px));
+  padding-left: calc(
+    var(--schreibstube-row-inset) + var(--schreibstube-twisty-size) + var(--schreibstube-row-gap)
+  );
+  padding-right: 8px;
+  padding-bottom: 3px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   color: var(--text-faint);
   font-size: var(--font-ui-smaller);
-  line-height: 1.2;
-  overflow-wrap: anywhere;
+  line-height: 1.3;
+  cursor: pointer;
+}
+
+/* The folder line belongs to the row above it, so a pointer resting on either
+   lights both: a result is one thing to press, not two. */
+@media (hover: hover) {
+  .schreibstube-explorer-result:hover .schreibstube-explorer-row,
+  .schreibstube-explorer-result:hover .schreibstube-explorer-result-folder {
+    background: var(--nav-item-background-hover, var(--background-modifier-hover));
+  }
 }
 
 /* The notes related to the one that is open, as cards in the right sidebar. */
