@@ -12,8 +12,15 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
-/** The bundle was 277 KB when the budget was set. */
-const MAX_BUNDLE_KB = 400;
+/**
+ * The bundle was 277 KB when the budget was set at 400 KB.
+ *
+ * Raised to 420 KB at 391 KB, ahead of the slideshow layouts (+5 KB) and the
+ * property icons and dates (+8 KB): each fitted under 400 alone, together
+ * they come to about 404. The headroom left is for the next feature, not a
+ * new normal — a change that needs more says why, as this one does.
+ */
+const MAX_BUNDLE_KB = 420;
 
 const bundle = fileURLToPath(new URL("../main.js", import.meta.url));
 const source = readFileSync(bundle, "utf8");
