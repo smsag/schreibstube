@@ -40,7 +40,7 @@ import {
   type Bookmark,
   type BookmarkFolder
 } from "../services/bookmark-file";
-import { fileGlyph } from "../services/file-glyph";
+import { fileGlyph, fileNameParts } from "../services/file-glyph";
 import { groundColour } from "../services/ground-colour";
 import { tallyTasks, taskCountLabel, type TaskTally } from "../services/task-count";
 import type { LatestCandidate } from "../services/latest-files";
@@ -176,6 +176,9 @@ export class ExplorerPaneView extends ItemView {
   private folderCounts = new Map<string, number>();
   /** A path to scroll to once the next draw has put it on screen. */
   private revealing: string | null = null;
+  /** Whether that reveal followed a note being opened rather than a request:
+   *  it then scrolls only if the row is out of view, and does not flash. */
+  private revealingQuietly = false;
   /** A pending ground measurement, so several signals in one frame cost one read. */
   private groundFrame: number | null = null;
 
@@ -267,7 +270,9 @@ export class ExplorerPaneView extends ItemView {
     this.registerEvent(this.app.vault.on("delete", () => this.requestRender()));
     this.registerEvent(this.app.vault.on("rename", () => this.requestRender()));
     this.registerEvent(this.app.metadataCache.on("changed", () => this.requestRender()));
-    this.registerEvent(this.app.workspace.on("file-open", () => this.requestRender()));
+    // Every note opened, by whatever route, is found in the tree: the folders
+    // above it open and its row comes into view. Nothing else is collapsed.
+    this.registerEvent(this.app.workspace.on("file-open", () => this.revealActiveFile(true, true)));
     // A pane dragged to the other sidebar sits on a different ground.
     this.registerEvent(
       this.app.workspace.on("layout-change", () => {
@@ -343,19 +348,24 @@ export class ExplorerPaneView extends ItemView {
    * Opening the pane answers "where am I" as well as "what is there".
    *
    * Only the folders above the file are opened. Nothing is collapsed, so a
-   * person's own arrangement survives.
+   * person's own arrangement survives. `quietly` is for a note that was just
+   * opened: the row is brought into view only if it is out of it.
    */
-  revealActiveFile(redraw = true): void {
+  revealActiveFile(redraw = true, quietly = false): void {
     const path = this.app.workspace.getActiveFile()?.path;
-    if (!path) return;
+    if (!path) {
+      if (redraw) this.requestRender();
+      return;
+    }
 
     for (const ancestor of ancestorsOf(path)) this.revealedFolders.add(ancestor);
-    this.reveal(path, redraw);
+    this.reveal(path, redraw, quietly);
   }
 
-  private reveal(path: string, redraw = true): void {
+  private reveal(path: string, redraw = true, quietly = false): void {
     this.revealedTree = true;
     this.revealing = path;
+    this.revealingQuietly = quietly;
     // The caller sometimes draws immediately afterwards, and queueing a frame
     // as well would rebuild the whole tree a second time for nothing.
     if (redraw) this.requestRender();
@@ -886,8 +896,15 @@ export class ExplorerPaneView extends ItemView {
       this.markOpenState(row, file.path);
 
       row.createSpan({ cls: "schreibstube-explorer-twisty" });
-      applyIcon(row.createSpan({ cls: "schreibstube-explorer-glyph" }), "file-text");
-      row.createSpan({ cls: "schreibstube-explorer-name", text: file.name });
+      // Recent lists hold notes, and a drawing is a note to the vault: it is
+      // drawn and named by the tree's rules, not as a text note.
+      const fileName = basenameOf(file.path);
+      const glyph = fileGlyph(null, { kind: "file", extension: "md", name: fileName });
+      applyIcon(row.createSpan({ cls: "schreibstube-explorer-glyph" }), glyph);
+      row.createSpan({
+        cls: "schreibstube-explorer-name",
+        text: fileNameParts(fileName, "md").stem
+      });
       // The same mark the tree carries, so a row here says whether the change
       // is waiting to be looked at or already in the note.
       const target = this.app.vault.getAbstractFileByPath(file.path);
@@ -1310,7 +1327,7 @@ export class ExplorerPaneView extends ItemView {
       return fileGlyph(chosen, { kind: "folder", open: this.isExpanded(file) });
     }
     if (file instanceof TFile) {
-      return fileGlyph(chosen, { kind: "file", extension: file.extension });
+      return fileGlyph(chosen, { kind: "file", extension: file.extension, name: file.name });
     }
     return fileGlyph(chosen, { kind: "other" });
   }
@@ -1318,10 +1335,18 @@ export class ExplorerPaneView extends ItemView {
   private scrollToRevealed(): void {
     const path = this.revealing;
     if (path === null || !this.body) return;
-    this.revealing = null;
 
     const row = this.body.querySelector(`[data-path="${CSS.escape(path)}"]`);
+    // A pane in a collapsed sidebar has no layout to scroll. The reveal waits
+    // for the draw that follows the sidebar opening, rather than opening it.
+    if (row instanceof HTMLElement && row.getClientRects().length === 0) return;
+    this.revealing = null;
     if (!(row instanceof HTMLElement)) return;
+
+    if (this.revealingQuietly) {
+      if (!isInView(row)) row.scrollIntoView({ block: "center" });
+      return;
+    }
 
     row.scrollIntoView({ block: "center" });
     // A folder that was already on screen would otherwise jump to nowhere
@@ -1363,13 +1388,27 @@ function indent(row: HTMLElement, depth: number): void {
   row.style.setProperty("--schreibstube-depth", String(depth));
 }
 
+/** Whether a row is wholly inside the part of its scrolling list on screen. */
+function isInView(row: HTMLElement): boolean {
+  let scroller = row.parentElement;
+  while (scroller && !/(auto|scroll)/.test(getComputedStyle(scroller).overflowY)) {
+    scroller = scroller.parentElement;
+  }
+  if (!scroller) return true;
+  const box = scroller.getBoundingClientRect();
+  const own = row.getBoundingClientRect();
+  return own.top >= box.top && own.bottom <= box.bottom;
+}
+
 function basenameOf(path: string): string {
   const cut = path.lastIndexOf("/");
   return cut === -1 ? path : path.slice(cut + 1);
 }
 
 function displayName(file: TAbstractFile): string {
-  return file instanceof TFile && file.extension === "md" ? file.basename : file.name;
+  if (!(file instanceof TFile)) return file.name;
+  const parts = fileNameParts(file.name, file.extension);
+  return parts.hidden ? parts.stem : file.name;
 }
 
 function badgeLabel(badge: SyncBadge, pending: number): string {

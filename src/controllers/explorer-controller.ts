@@ -17,6 +17,7 @@ import {
   type App,
   type MenuItem
 } from "obsidian";
+import { fileNameParts } from "../services/file-glyph";
 import { t } from "../i18n";
 import type { Logger } from "../services/logger";
 import type { SchreibstubeSettings } from "../types";
@@ -827,8 +828,11 @@ export class ExplorerController {
 
   private rename(file: TAbstractFile, proposed?: string): void {
     const parent = file.parent?.path ?? "";
-    const extension = file instanceof TFile && file.extension ? `.${file.extension}` : "";
-    const current = file instanceof TFile ? file.basename : file.name;
+    // The part the pane shows is the part a rename edits; the rest — `.md`,
+    // `.excalidraw.md`, `.svg` — is kept, so a drawing stays a drawing.
+    const parts = file instanceof TFile ? fileNameParts(file.name, file.extension) : null;
+    const extension = parts?.suffix ?? "";
+    const current = parts?.stem ?? file.name;
     const initial = proposed ?? current;
 
     new PromptModal(

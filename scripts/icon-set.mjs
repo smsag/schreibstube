@@ -43,6 +43,9 @@ export const UI_ICONS = [
   "dots",
   "photo",
   "photo-off",
+  // The file pane's own marks for a PDF and an Excalidraw drawing.
+  "file-type-pdf",
+  "scribble",
   "link",
   "link-off",
   "pencil",
