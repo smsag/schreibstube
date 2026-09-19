@@ -171,9 +171,34 @@ a.external-link.schreibstube-reminder-mark {
   opacity: var(--schreibstube-focus-dim-opacity);
 }
 
+/* Sentence mode cannot dim with opacity: the focused sentence sits INSIDE the
+   dimmed line, and opacity on an ancestor is a ceiling its children cannot
+   rise above. So it dims by colour — but a fixed --text-muted made the dim
+   strength setting dead here, and read far weaker on a light page than on a
+   dark one.
+
+   Measured in Obsidian, focused against dimmed. The contrast ratios barely
+   differ between the two page modes (Klartext 12.6:1 -> 7.23:1 light,
+   11.7:1 -> 7.11:1 dark), and neither does the CIE lightness step (15.8
+   against 16.8). What differs is the luminance change the eye actually
+   judges, taken against whichever of the text or the page is the brighter
+   reference: 6.2% on white, 42.2% on black — nearly seven times weaker. On a
+   light page the page is the bright reference, so two dark greys on it hardly
+   separate; on a dark page the text is, so the same step is a large change.
+   Obsidian's own light theme is the same shape (9.1% against 35.7%), so this
+   is not one theme's palette.
+
+   Moving the text TOWARD the page fixes both halves. It is exactly the colour
+   paragraph mode's opacity composites to, so one setting now drives both
+   modes instead of being ignored by this one, and it scales with the page
+   rather than against it: 38.5% light, 80.6% dark. */
 .schreibstube-focus-enabled.schreibstube-focus-mode-sentence .cm-line.schreibstube-focus-dimmed {
   opacity: 1;
-  color: var(--text-muted);
+  color: color-mix(
+    in srgb,
+    var(--text-normal) calc(var(--schreibstube-focus-dim-opacity) * 100%),
+    var(--background-primary)
+  );
 }
 
 .schreibstube-focus-enabled.schreibstube-focus-mode-sentence .schreibstube-focus-sentence {
