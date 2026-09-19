@@ -450,9 +450,14 @@ export class SyncPoller {
       const view = leaf.view;
       if (!(view instanceof MarkdownView) || view.file?.path !== file.path) continue;
 
-      const edit = planFrontmatterEdit(view.editor.getValue(), plan);
-      if (edit === null) break;
+      const planned = planFrontmatterEdit(view.editor.getValue(), plan);
+      // Nothing to write is not a reason to write it somewhere else: the
+      // editor holds a title the person typed and the cache has not caught up
+      // with, and the writer below would put the source's title over it.
+      if (planned.kind === "nothing") return;
+      if (planned.kind === "unwritable") break;
 
+      const { edit } = planned;
       view.editor.transaction({
         changes: [
           {

@@ -207,7 +207,13 @@ export function planSourceCheck(input: SourceCheckInput): SourceCheckPlan {
 /** The phrase as cron says it, for showing a person what they asked for. */
 function everySchedule(count: number, unit: Unit, text: string): SyncIntervalResult {
   const whole = Math.floor(count);
-  if (whole < 1) return { ok: false, reason: t().sync.every.tooSmall };
+  // Not `whole < 1`, which lets both Infinity and NaN through: YAML reads
+  // `.inf` and `.nan` as numbers, so a note can hand this either, and an
+  // interval of neither-a-number is one the note is never due again on —
+  // silently, while the panel reports the schedule as understood.
+  if (!Number.isFinite(whole) || whole < 1) {
+    return { ok: false, reason: t().sync.every.tooSmall };
+  }
 
   return {
     ok: true,

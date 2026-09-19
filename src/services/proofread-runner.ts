@@ -222,17 +222,22 @@ function suggestionsForBlock(
   const rewritten = restorePlaceholders(maskedRewrite, placeholders);
 
   return diffToEdits(block.text, rewritten).map((edit) =>
-    createSuggestion({
-      kind: editKind(edit.before, edit.after),
-      source: "llm",
-      category: categorize(edit.before, edit.after),
-      severity: "suggestion",
-      from: block.from + edit.from,
-      to: block.from + edit.to,
-      original: edit.before,
-      replacement: edit.after,
-      note: ""
-    })
+    createSuggestion(
+      {
+        kind: editKind(edit.before, edit.after),
+        source: "llm",
+        category: categorize(edit.before, edit.after),
+        severity: "suggestion",
+        from: block.from + edit.from,
+        to: block.from + edit.to,
+        original: edit.before,
+        replacement: edit.after,
+        note: ""
+      },
+      // In the block's coordinates, which is where the model's edits are: an
+      // insertion is anchored to the prose it was proposed after.
+      block.text.slice(0, edit.from)
+    )
   );
 }
 

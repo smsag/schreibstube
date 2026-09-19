@@ -121,9 +121,9 @@ const BOUND =
 
 function edit(noteText: string, plan: Parameters<typeof planFrontmatterEdit>[1]): string | null {
   const change = planFrontmatterEdit(noteText, plan);
-  return change === null
-    ? null
-    : noteText.slice(0, change.from) + change.text + noteText.slice(change.to);
+  return change.kind === "edit"
+    ? noteText.slice(0, change.edit.from) + change.edit.text + noteText.slice(change.edit.to)
+    : null;
 }
 
 describe("properties written into an open note", () => {
@@ -144,7 +144,12 @@ describe("properties written into an open note", () => {
 
   it("never replace a title the editor already holds", () => {
     // The metadata cache can lag behind the editor; the text is the truth.
-    expect(planFrontmatterEdit("---\ntitle: Meiner\n---\n", { title: "Pythia" })).toBeNull();
+    // "Nothing to write", which is not the same answer as "I cannot write
+    // this": the caller falls back to the disk writer for the second and must
+    // not for the first, or it puts the source's title over the person's.
+    expect(planFrontmatterEdit("---\ntitle: Meiner\n---\n", { title: "Pythia" })).toEqual({
+      kind: "nothing"
+    });
     expect(edit("---\ntitle:\n---\n", { title: "Pythia" })).toBe("---\ntitle: Pythia\n---\n");
   });
 
@@ -159,8 +164,10 @@ describe("properties written into an open note", () => {
   });
 
   it("are left to Obsidian when the note has no block or the key spans lines", () => {
-    expect(planFrontmatterEdit("# Nur Text\n", { title: "X" })).toBeNull();
-    expect(planFrontmatterEdit("---\nupdatedAt:\n  - a\n---\n", { updatedAt: "x" })).toBeNull();
+    expect(planFrontmatterEdit("# Nur Text\n", { title: "X" })).toEqual({ kind: "unwritable" });
+    expect(planFrontmatterEdit("---\nupdatedAt:\n  - a\n---\n", { updatedAt: "x" })).toEqual({
+      kind: "unwritable"
+    });
   });
 
   it("leave a whole accepted document in the note on a first sync", () => {
