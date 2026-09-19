@@ -328,8 +328,8 @@ class Slideshow extends MarkdownRenderChild {
    * The pictures are cropped to the frame rather than shown whole: a wipe only
    * reads as one thing changing while both sides are exactly aligned, and two
    * photographs of the same room are never to the pixel the same shape. The
-   * frame takes its proportions from the first picture, so the crop falls on
-   * whatever the second has spare.
+   * frame takes its proportions from the first picture the vault has, so the
+   * crop falls on whatever the other one has spare.
    */
   private renderCompare(wrapper: HTMLElement, images: ResolvedImage[]): void {
     const header = wrapper.createEl("div", { cls: "schreibstube-slideshow-header" });
@@ -376,18 +376,28 @@ class Slideshow extends MarkdownRenderChild {
       setSplit(compareSplitAt(clientX, box.left, box.width));
     };
 
-    // Dragging starts on the handle alone. Started anywhere on the frame it
-    // would have to swallow the touch that scrolls the note past the picture,
-    // which on a phone is most of what a reader does to it. Pressing the
-    // picture still sends the divider there, which is the same gesture without
-    // the drag.
-    handle.addEventListener("pointerdown", (e) => {
-      e.preventDefault();
-      handle.setPointerCapture(e.pointerId);
+    // A mouse drags from anywhere on the picture, which is what the frame's
+    // cursor promises and what every other before-and-after slider does. A
+    // touch drags from the divider only: started anywhere on the frame it
+    // would have to swallow the swipe that scrolls the note past the picture,
+    // which on a phone is most of what a reader does to it. Either way a
+    // press sends the divider where it landed, which is the same gesture
+    // without the drag.
+    //
+    // The press is not prevented: preventing it on a pointer event costs the
+    // element its focus, and the arrow keys below would then do nothing for
+    // the rest of the reader's visit.
+    frame.addEventListener("pointerdown", (e) => {
+      const onHandle = e.target instanceof Node && handle.contains(e.target);
+      if (e.pointerType === "touch" && !onHandle) return;
+      // The divider is moved before the pointer is captured: capturing one the
+      // browser has already let go of throws, and the press itself should land
+      // whether or not the drag that may follow it can be followed.
       splitAt(e.clientX);
+      frame.setPointerCapture(e.pointerId);
     });
-    handle.addEventListener("pointermove", (e) => {
-      if (handle.hasPointerCapture(e.pointerId)) splitAt(e.clientX);
+    frame.addEventListener("pointermove", (e) => {
+      if (frame.hasPointerCapture(e.pointerId)) splitAt(e.clientX);
     });
     frame.addEventListener("click", (e) => splitAt(e.clientX));
 
@@ -401,7 +411,9 @@ class Slideshow extends MarkdownRenderChild {
     });
 
     // Both pictures fill the frame, so the frame needs a shape of its own or
-    // it has no height at all until the stylesheet's fallback is overridden.
+    // it has no height at all. The first picture the vault actually has sets
+    // it — the before one, unless that is the one that is missing, and the
+    // stylesheet's ratio stands until one of them has loaded.
     const first = images.find((image) => image.url !== "");
     if (first) {
       const probe = new Image();

@@ -1,6 +1,6 @@
 # <img src="assets/logo.svg" alt="" width="28"> Schreibstube
 
-A writing-focused Obsidian plugin: a proof-read review sidebar with glossary support, document sync from remote Markdown sources, email send/query/merge over IMAP and SMTP, a sticky heading-stack overlay, a distraction-reducing focus mode, property icons and one-click dates in the Properties view, a task summary ribbon with per-heading counts, LLM-powered file renaming, text-to-table conversion, image slideshows in five layouts, a related-notes sidebar, and side-pane link opening.
+A writing-focused Obsidian plugin: a proof-read review sidebar with glossary support, document sync from remote Markdown sources, email send/query/merge over IMAP and SMTP, a sticky heading-stack overlay, a distraction-reducing focus mode, property icons and one-click dates in the Properties view, a task summary ribbon with per-heading counts, LLM-powered file renaming, text-to-table conversion, image slideshows in six layouts, a related-notes sidebar, and side-pane link opening.
 
 ## Features
 
@@ -206,7 +206,7 @@ The only text a block shows is an image's alt text, in the header row. `layout:`
 - **`feature`** — one image large, the next two beside it as tiles. It uses the block's first three images; any further lines are left out. Press a tile and it comes forward, its alt text in the header. The images are cropped to fill their tiles. Good for a picture essay, a room, a plate, an outfit.
 - **`strip`** — every image at once in a row of equal tiles, cropped alike. A strip longer than four wraps to rows of three. Good for morning, noon and evening — a series that makes one statement together.
 - **`masonry`** — every image at once at its own proportions, packed into columns like a mood board. Good for pictures that lose too much when cropped.
-- **`compare`** — two pictures of one thing in a single frame, the first laid over the second under a divider. Drag the divider, press anywhere on the picture to send it there, or use the arrow keys; Home and End put it on an edge to see one picture whole. It uses the block's first two images; any further lines are left out. Both sides are cropped to the frame, which takes the first picture's proportions, so the two stay aligned. The alt texts label the sides rather than the header — `![Before](…)` and `![After](…)` name themselves. Good for a renovation, a retouch, a before and an after.
+- **`compare`** — two pictures of one thing in a single frame, the first laid over the second under a divider. Drag the divider, press anywhere on the picture to send it there, or use the arrow keys; Home and End put it on an edge to see one picture whole. It uses the block's first two images; any further lines are left out. Both sides are cropped to the frame, which takes the proportions of the first picture the vault has, so the two stay aligned. The alt texts label the sides rather than the header — `![Before](…)` and `![After](…)` name themselves. Good for a renovation, a retouch, a before and an after.
 
 In `strip` and `masonry` the header names the image under the pointer or the keyboard focus, and a tile opens the fullscreen view at its place. The fullscreen view has a counter, the arrow keys, a swipe, and Esc to leave.
 

@@ -230,7 +230,8 @@ export function clampCompareSplit(percent: number): number {
 /**
  * Where a pointer at `clientX` puts the divider over a frame that starts at
  * `left` and is `width` across. A frame with no width — measured before the
- * picture has laid out — leaves the divider where it stands.
+ * picture has laid out, which is also a frame with no pixel to press — has
+ * no place to read, and answers the middle rather than dividing by zero.
  */
 export function compareSplitAt(clientX: number, left: number, width: number): number {
   if (width <= 0) return DEFAULT_COMPARE_SPLIT;
