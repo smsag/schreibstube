@@ -93,6 +93,9 @@ export const en = {
     regionStrip: (n: number) => `Image strip, ${n} images`,
     regionFilmstrip: (n: number) => `Slideshow with thumbnails, ${n} images`,
     regionMasonry: (n: number) => `Image wall, ${n} images`,
+    /** A comparison is always two images, so its name does not count them. */
+    regionCompare: "Before and after",
+    compareHandle: "Move the divider",
     showImage: (n: number) => `Show image ${n}`,
     previous: "Previous image",
     next: "Next image",

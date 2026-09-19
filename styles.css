@@ -1670,6 +1670,120 @@ a.external-link.schreibstube-reminder-mark {
   height: auto;
 }
 
+/* ── Compare: two pictures in one frame, under a divider ──
+   The frame is given the first picture's proportions from the script; the
+   ratio here is only what it stands at until that picture has loaded. */
+.schreibstube-slideshow-compare {
+  position: relative;
+  aspect-ratio: 3 / 2;
+  overflow: hidden;
+  border-radius: var(--radius-s);
+  user-select: none;
+  cursor: ew-resize;
+}
+
+.schreibstube-slideshow-compare-side {
+  position: absolute;
+  inset: 0;
+}
+
+/* Cropped to the frame, both of them: the wipe reads as one thing changing
+   only while the two sides line up, and two photographs of one room are never
+   to the pixel the same shape. */
+.schreibstube-slideshow-compare-side img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* The before picture, clipped to the divider. Clipped rather than made
+   narrower, which would scale the picture inside and break the alignment. */
+.schreibstube-slideshow-compare-reveal {
+  position: absolute;
+  inset: 0;
+  clip-path: inset(0 calc(100% - var(--schreibstube-compare-split, 50%)) 0 0);
+}
+
+/* An alt text on the picture it names. Dark chip, light text, in both themes:
+   it stands on a photograph, not on the note's ground. */
+.schreibstube-slideshow-compare-label {
+  position: absolute;
+  bottom: 0.5rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: var(--radius-s);
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: var(--font-ui-smaller);
+  pointer-events: none;
+}
+
+.schreibstube-slideshow-compare-label--before {
+  left: 0.5rem;
+}
+
+.schreibstube-slideshow-compare-label--after {
+  right: 0.5rem;
+}
+
+/* The divider: a hairline across the picture with the grip on it. Its own
+   touch-action, so dragging it never turns into scrolling the note — the
+   frame keeps the browser's, so a thumb can still scroll past the picture. */
+.schreibstube-slideshow-compare-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: var(--schreibstube-compare-split, 50%);
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  border: none;
+  background: none;
+  color: #fff;
+  font-size: 16px;
+  cursor: ew-resize;
+  touch-action: none;
+}
+
+/* The line is drawn rather than given to the element, so the grip can sit on
+   it without the line running through the middle of the glyph. White with a
+   dark hairline around it: the divider stands on a photograph, and a plain
+   white line disappears into a bright one exactly as a dark line disappears
+   into a night shot. */
+.schreibstube-slideshow-compare-handle::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35);
+}
+
+.schreibstube-slideshow-compare-handle > span {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.schreibstube-slideshow-compare-handle svg {
+  width: 16px;
+  height: 16px;
+}
+
+.schreibstube-slideshow-compare-handle:focus-visible {
+  outline: 2px solid var(--interactive-accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-s);
+}
+
 /* Narrow: the scene stacks, its details side by side under it; the strip
    settles on two columns. */
 @media (max-width: 600px) {

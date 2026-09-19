@@ -1,6 +1,10 @@
 import { describe, it, expect } from "vitest";
 import {
   buildSlideshowInsertion,
+  clampCompareSplit,
+  COMPARE_SPLIT_STEP,
+  compareSplitAt,
+  DEFAULT_COMPARE_SPLIT,
   DEFAULT_SLIDESHOW_LAYOUT,
   FEATURE_DETAIL_COUNT,
   featureDetails,
@@ -13,6 +17,7 @@ import {
   SLIDESHOW_LAYOUTS,
   SLIDESHOW_SNIPPET,
   slideshowCounter,
+  stepCompareSplit,
   stepIndex,
   STRIP_WRAP_COLUMNS,
   stripColumns
@@ -321,9 +326,71 @@ describe("imagesForLayout", () => {
     expect(imagesForLayout("feature", ["a", "b"])).toEqual(["a", "b"]);
   });
 
+  it("gives a comparison the first two images and leaves the rest out", () => {
+    expect(imagesForLayout("compare", five)).toEqual(["a", "b"]);
+    expect(imagesForLayout("compare", ["a", "b"])).toEqual(["a", "b"]);
+  });
+
   it("gives every other layout all of them", () => {
     for (const layout of ["slideshow", "filmstrip", "strip", "masonry"] as const) {
       expect(imagesForLayout(layout, five)).toEqual(five);
     }
+  });
+
+  it("copies rather than handing back the caller's array", () => {
+    expect(imagesForLayout("slideshow", five)).not.toBe(five);
+  });
+});
+
+describe("clampCompareSplit", () => {
+  it("leaves a place inside the frame alone", () => {
+    expect(clampCompareSplit(0)).toBe(0);
+    expect(clampCompareSplit(37.5)).toBe(37.5);
+    expect(clampCompareSplit(100)).toBe(100);
+  });
+
+  it("holds a place beyond either edge at that edge", () => {
+    expect(clampCompareSplit(-20)).toBe(0);
+    expect(clampCompareSplit(140)).toBe(100);
+  });
+
+  it("falls back to the middle for a place that is not a number", () => {
+    expect(clampCompareSplit(Number.NaN)).toBe(DEFAULT_COMPARE_SPLIT);
+    expect(clampCompareSplit(Number.POSITIVE_INFINITY)).toBe(DEFAULT_COMPARE_SPLIT);
+  });
+});
+
+describe("compareSplitAt", () => {
+  it("reads a pointer as a share of the frame's width", () => {
+    expect(compareSplitAt(100, 100, 400)).toBe(0);
+    expect(compareSplitAt(300, 100, 400)).toBe(50);
+    expect(compareSplitAt(500, 100, 400)).toBe(100);
+  });
+
+  it("holds a pointer dragged past the frame at its edges", () => {
+    expect(compareSplitAt(0, 100, 400)).toBe(0);
+    expect(compareSplitAt(900, 100, 400)).toBe(100);
+  });
+
+  it("leaves the divider in the middle for a frame with no width yet", () => {
+    expect(compareSplitAt(300, 100, 0)).toBe(DEFAULT_COMPARE_SPLIT);
+  });
+});
+
+describe("stepCompareSplit", () => {
+  it("moves one step either way", () => {
+    expect(stepCompareSplit(50, 1)).toBe(50 + COMPARE_SPLIT_STEP);
+    expect(stepCompareSplit(50, -1)).toBe(50 - COMPARE_SPLIT_STEP);
+  });
+
+  it("stops at the edges rather than wrapping round", () => {
+    expect(stepCompareSplit(100, 1)).toBe(100);
+    expect(stepCompareSplit(0, -1)).toBe(0);
+  });
+
+  it("crosses the frame in a bounded number of presses", () => {
+    let split = 0;
+    for (let press = 0; press < 100 && split < 100; press++) split = stepCompareSplit(split, 1);
+    expect(split).toBe(100);
   });
 });
