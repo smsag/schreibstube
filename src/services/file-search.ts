@@ -25,19 +25,6 @@
  */
 
 /**
- * Lowercase word tokens, deduped, Unicode-aware.
- *
- * `\p{L}\p{N}` rather than `[a-z0-9]`: this is a German-first plugin, and the
- * ASCII class fragmented every umlaut word — "Ernährung" became "ern" and
- * "hrung", which then cross-matched unrelated text on the stray pieces — while
- * reducing a non-Latin query to no tokens at all, which the empty-query branch
- * reads as "everything matches".
- *
- * NFC first because macOS stores a file name's umlaut decomposed, as "u" plus a
- * combining diaeresis. Without normalising, a file named on a Mac and a query
- * typed on a phone tokenize differently and never meet.
- */
-/**
  * The most words one query is scored against.
  *
  * A filter is typed, and a typed filter is a word or three; this is the bound
@@ -57,6 +44,19 @@ export function queryTokens(query: string): string[] {
   return tokenize(query).slice(0, MAX_QUERY_TOKENS);
 }
 
+/**
+ * Lowercase word tokens, deduped, Unicode-aware.
+ *
+ * `\p{L}\p{N}` rather than `[a-z0-9]`: this is a German-first plugin, and the
+ * ASCII class fragmented every umlaut word — "Ernährung" became "ern" and
+ * "hrung", which then cross-matched unrelated text on the stray pieces — while
+ * reducing a non-Latin query to no tokens at all, which the empty-query branch
+ * reads as "everything matches".
+ *
+ * NFC first because macOS stores a file name's umlaut decomposed, as "u" plus a
+ * combining diaeresis. Without normalising, a file named on a Mac and a query
+ * typed on a phone tokenize differently and never meet.
+ */
 export function tokenize(text: string): string[] {
   return Array.from(
     new Set(

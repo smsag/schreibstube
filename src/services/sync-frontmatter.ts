@@ -109,6 +109,23 @@ export interface FrontmatterEdit {
 }
 
 /**
+ * What writing the plan into an open editor comes to.
+ *
+ * Three answers, because the caller does three different things with them and
+ * two of them used to arrive as the same `null`.
+ */
+export type FrontmatterEditPlan =
+  /** Replace this range with this text. */
+  | { kind: "edit"; edit: FrontmatterEdit }
+  /** The note already says it; write nothing anywhere. */
+  | { kind: "nothing" }
+  /** One line cannot say it; the caller's own writer has to. */
+  | { kind: "unwritable" };
+
+const NOTHING: FrontmatterEditPlan = { kind: "nothing" };
+const UNWRITABLE: FrontmatterEditPlan = { kind: "unwritable" };
+
+/**
  * The plan written into the note's own text rather than into the file on disk.
  *
  * A note open in an editor has two copies, the editor's and the file's, and
@@ -130,23 +147,6 @@ export interface FrontmatterEdit {
  * says what the plan says, and falling back there would write to disk behind
  * an editor holding a newer version of the same note.
  */
-/**
- * What writing the plan into an open editor comes to.
- *
- * Three answers, because the caller does three different things with them and
- * two of them used to arrive as the same `null`.
- */
-export type FrontmatterEditPlan =
-  /** Replace this range with this text. */
-  | { kind: "edit"; edit: FrontmatterEdit }
-  /** The note already says it; write nothing anywhere. */
-  | { kind: "nothing" }
-  /** One line cannot say it; the caller's own writer has to. */
-  | { kind: "unwritable" };
-
-const NOTHING: FrontmatterEditPlan = { kind: "nothing" };
-const UNWRITABLE: FrontmatterEditPlan = { kind: "unwritable" };
-
 export function planFrontmatterEdit(
   noteText: string,
   plan: SyncFrontmatterPlan

@@ -108,10 +108,11 @@ export class ProofreadController {
   /** The note's own check interval, as a line for the panel. Empty when the
    *  note says nothing about it, which is the ordinary case. */
   private syncInterval = "";
-  /** The note whose source is being checked, or null. Per note rather than a
-   *  flag: one note's twenty-second fetch used to make every other note's
-   *  check-on-open do nothing at all. */
-  private checking: string | null = null;
+  /** The notes whose sources are being checked. A set rather than one slot:
+   *  with one, a second note's check overwrote the first note's mark, so the
+   *  first could be started again while it was still in flight, and whichever
+   *  finished first cleared the mark for both. */
+  private readonly checking = new Set<string>();
 
   constructor(
     private readonly app: App,
@@ -538,18 +539,22 @@ export class ProofreadController {
       return;
     }
 
+    // Only the note under review is ever checked here; the poller is what
+    // checks the others. The guard that matters is after the request, where
+    // the reader may have moved on — comparing the path here would compare
+    // `this.filePath` with itself.
     const file = this.reviewedFile();
-    if (!file || file.path !== this.filePath) return;
+    if (!file) return;
 
     // Against this note, not against any check at all: another note's fetch
     // can be in flight for twenty seconds, and this one's check-on-open used
     // to be dropped for the whole of it.
-    if (this.checking === file.path) return;
+    if (this.checking.has(file.path)) return;
 
-    // Taken before the first await, not after: the guard above and the flag
+    // Taken before the first await, not after: the guard above and the mark
     // used to be separated by a read of the note, and the check on open and a
     // click on the button in the same moment both got through.
-    this.checking = file.path;
+    this.checking.add(file.path);
 
     try {
       // The cache is updated after a write, not during one, so a check made
@@ -737,7 +742,9 @@ export class ProofreadController {
       };
       this.emit();
     } finally {
-      this.checking = null;
+      // This note's mark, not every note's: another note's check may still be
+      // in flight, and clearing its mark here would let it be started twice.
+      this.checking.delete(file.path);
     }
   }
 

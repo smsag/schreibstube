@@ -92,6 +92,25 @@ describe("resolveAnchor", () => {
     expect(resolveAnchor("xxxxxxxxxxxx", suggestion)).toBeNull();
   });
 
+  it("places a pure insertion recorded at the very start of the document", () => {
+    // Offset zero is the one anchor no edit can move out from under, so this
+    // one needs nothing remembered before it.
+    const suggestion = createSuggestion({
+      kind: "insert",
+      source: "llm",
+      category: "punctuation",
+      severity: "suggestion",
+      from: 0,
+      to: 0,
+      original: "",
+      replacement: "Das ",
+      note: ""
+    });
+
+    expect(resolveAnchor("Haus ist schön.", suggestion)).toEqual({ from: 0, to: 0 });
+    expect(resolveAnchor("ganz etwas anderes", suggestion)).toEqual({ from: 0, to: 0 });
+  });
+
   it("refuses a pure insertion recorded with nothing before it", () => {
     const suggestion = createSuggestion({
       kind: "insert",

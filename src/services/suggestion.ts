@@ -156,11 +156,13 @@ export function resolveAnchor(docText: string, suggestion: Suggestion): Resolved
  */
 function resolveInsertion(docText: string, suggestion: Suggestion): ResolvedAnchor | null {
   const { from, context } = suggestion;
-  // Nothing was recorded to find it by — an insertion at the very start of a
-  // document, or a card from a producer that passes no text. It is placeable
-  // only while the document is untouched, and this is not that check, so it is
-  // not placed at all rather than placed on a guess.
-  if (context === undefined || context.length === 0) return null;
+  if (context === undefined || context.length === 0) {
+    // The start of a document is the one offset that cannot move out from
+    // under a card, so an insertion recorded there is still placeable with
+    // nothing remembered before it. Anywhere else, nothing was recorded to
+    // find it by, and it is refused rather than placed on a guess.
+    return from === 0 ? { from: 0, to: 0 } : null;
+  }
 
   if (from >= context.length && docText.slice(from - context.length, from) === context) {
     return { from, to: from };
