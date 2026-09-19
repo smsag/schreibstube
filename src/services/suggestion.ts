@@ -39,6 +39,14 @@ export interface Suggestion {
   original: string;
   /** Text proposed in its place. Empty for a deletion. */
   replacement: string;
+  /**
+   * The text that stood immediately before `from` when the scan ran.
+   *
+   * Only a pure insertion carries one, and only a pure insertion needs one: it
+   * has no `original` of its own, so without this there is nothing to find it
+   * by once the document has moved under it.
+   */
+  context?: string;
   /** One short line explaining the change, shown on the card. */
   note: string;
   status: SuggestionStatus;
@@ -48,6 +56,14 @@ export interface Suggestion {
 
 /** How far from the recorded offset to look before searching the whole note. */
 const NEARBY_WINDOW = 400;
+
+/**
+ * How much of the text before a pure insertion is remembered.
+ *
+ * Long enough to be unique in prose, short enough that an edit inside it does
+ * not throw the card away when the point it names is still perfectly findable.
+ */
+export const INSERT_CONTEXT = 80;
 
 /**
  * A suggestion's identity is its span and what it proposes there.
@@ -62,8 +78,29 @@ export function suggestionId(fields: Pick<Suggestion, "from" | "to" | "replaceme
   return `${fields.from}:${fields.to}:${fields.replacement}`;
 }
 
-export function createSuggestion(fields: Omit<Suggestion, "id" | "status">): Suggestion {
-  return { id: suggestionId(fields), status: "pending", ...fields };
+/**
+ * A card, with the anchor a pure insertion needs.
+ *
+ * `textBefore` is whatever stood before `from` in the text the producer
+ * scanned, in that text's own coordinates; its tail is kept. A producer that
+ * does not pass it makes an insertion that can only ever be placed while the
+ * document has not moved — which is to say, one that goes stale on the first
+ * edit rather than landing somewhere wrong.
+ */
+export function createSuggestion(
+  fields: Omit<Suggestion, "id" | "status" | "context">,
+  textBefore?: string
+): Suggestion {
+  const context =
+    fields.original.length === 0 && textBefore !== undefined
+      ? textBefore.slice(-INSERT_CONTEXT)
+      : "";
+  return {
+    id: suggestionId(fields),
+    status: "pending",
+    ...fields,
+    ...(context.length > 0 ? { context } : {})
+  };
 }
 
 export interface ResolvedAnchor {
@@ -81,14 +118,15 @@ export interface ResolvedAnchor {
 export function resolveAnchor(docText: string, suggestion: Suggestion): ResolvedAnchor | null {
   const { from, to, original } = suggestion;
 
+  // A pure insertion first, because the test below cannot tell it anything:
+  // the empty string is what every offset in every document holds, so an
+  // insertion would answer "still here" from any offset at all — including one
+  // the document has since moved out from under, which is how an accepted card
+  // lands in the middle of a line.
+  if (original.length === 0) return resolveInsertion(docText, suggestion);
+
   if (from >= 0 && to <= docText.length && docText.slice(from, to) === original) {
     return { from, to };
-  }
-
-  // A pure insertion has no text to search for, so it can only be trusted at
-  // the offset it was recorded at.
-  if (original.length === 0) {
-    return null;
   }
 
   const windowStart = Math.max(0, from - NEARBY_WINDOW);
@@ -107,6 +145,44 @@ export function resolveAnchor(docText: string, suggestion: Suggestion): Resolved
     return null;
   }
   return { from: first, to: first + original.length };
+}
+
+/**
+ * Where a pure insertion belongs: after the text it was recorded behind.
+ *
+ * The same three steps as any other card, read against that text instead of
+ * against the words being replaced — unchanged where it was, then the nearest
+ * copy in a window around it, then the whole document if it says so only once.
+ */
+function resolveInsertion(docText: string, suggestion: Suggestion): ResolvedAnchor | null {
+  const { from, context } = suggestion;
+  if (context === undefined || context.length === 0) {
+    // The start of a document is the one offset that cannot move out from
+    // under a card, so an insertion recorded there is still placeable with
+    // nothing remembered before it. Anywhere else, nothing was recorded to
+    // find it by, and it is refused rather than placed on a guess.
+    return from === 0 ? { from: 0, to: 0 } : null;
+  }
+
+  if (from >= context.length && docText.slice(from - context.length, from) === context) {
+    return { from, to: from };
+  }
+
+  const windowStart = Math.max(0, from - context.length - NEARBY_WINDOW);
+  const windowEnd = Math.min(docText.length, from + NEARBY_WINDOW);
+  const nearby = nearestOccurrence(
+    docText.slice(windowStart, windowEnd),
+    context,
+    from - context.length - windowStart
+  );
+  if (nearby !== -1) {
+    const at = windowStart + nearby + context.length;
+    return { from: at, to: at };
+  }
+
+  const first = docText.indexOf(context);
+  if (first === -1 || docText.indexOf(context, first + 1) !== -1) return null;
+  return { from: first + context.length, to: first + context.length };
 }
 
 function nearestOccurrence(haystack: string, needle: string, target: number): number {

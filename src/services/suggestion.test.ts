@@ -67,7 +67,51 @@ describe("resolveAnchor", () => {
     expect(resolveAnchor(edited, suggestion)).toEqual({ from: 17, to: 26 });
   });
 
-  it("refuses to move a pure insertion", () => {
+  it("places a pure insertion by the text recorded before it", () => {
+    const source = "abc def";
+    const suggestion = createSuggestion(
+      {
+        kind: "insert",
+        source: "llm",
+        category: "punctuation",
+        severity: "suggestion",
+        from: 3,
+        to: 3,
+        original: "",
+        replacement: ",",
+        note: ""
+      },
+      source.slice(0, 3)
+    );
+
+    expect(resolveAnchor(source, suggestion)).toEqual({ from: 3, to: 3 });
+    // The words it follows moved along, so the point moves with them rather
+    // than staying at an offset that is now somebody else's line.
+    expect(resolveAnchor(`XX${source}`, suggestion)).toEqual({ from: 5, to: 5 });
+    // A document that no longer holds those words cannot place it at all.
+    expect(resolveAnchor("xxxxxxxxxxxx", suggestion)).toBeNull();
+  });
+
+  it("places a pure insertion recorded at the very start of the document", () => {
+    // Offset zero is the one anchor no edit can move out from under, so this
+    // one needs nothing remembered before it.
+    const suggestion = createSuggestion({
+      kind: "insert",
+      source: "llm",
+      category: "punctuation",
+      severity: "suggestion",
+      from: 0,
+      to: 0,
+      original: "",
+      replacement: "Das ",
+      note: ""
+    });
+
+    expect(resolveAnchor("Haus ist schön.", suggestion)).toEqual({ from: 0, to: 0 });
+    expect(resolveAnchor("ganz etwas anderes", suggestion)).toEqual({ from: 0, to: 0 });
+  });
+
+  it("refuses a pure insertion recorded with nothing before it", () => {
     const suggestion = createSuggestion({
       kind: "insert",
       source: "llm",
@@ -79,8 +123,60 @@ describe("resolveAnchor", () => {
       replacement: ",",
       note: ""
     });
-    expect(resolveAnchor("abc def", suggestion)).toEqual({ from: 3, to: 3 });
-    expect(resolveAnchor("xxxxxxxxxxxx", suggestion)).toEqual({ from: 3, to: 3 });
+
+    expect(resolveAnchor("abc def", suggestion)).toBeNull();
+  });
+
+  it("carries an insertion along when the edit is above what it was recorded behind", () => {
+    const head =
+      "Ein erster Absatz, lang genug, dass eine Änderung an seinem Anfang " +
+      "außerhalb des gemerkten Kontexts liegt.\n\n";
+    const note = `${head}Zweite Zeile\nDritte Zeile\n`;
+    const at = note.indexOf("Dritte");
+    const insertion = createSuggestion(
+      {
+        kind: "insert",
+        source: "remote",
+        category: "update",
+        severity: "suggestion",
+        from: at,
+        to: at,
+        original: "",
+        replacement: "Neue Zeile\n",
+        note: ""
+      },
+      note.slice(0, at)
+    );
+
+    const edited = note.replace("Ein erster", "Ein ganz erheblich veränderter erster");
+    const moved = resolveAnchor(edited, insertion);
+
+    expect(moved?.from).not.toBe(at);
+    expect(edited.slice(moved?.from ?? 0)).toBe("Dritte Zeile\n");
+  });
+
+  it("goes stale rather than landing mid-line when what it followed is gone", () => {
+    // The shape that made this worth fixing: a source gained a block, an
+    // earlier card was accepted, and the offsets moved under the insertion.
+    // Refusing it costs a re-run; placing it on the old offset costs the note.
+    const note = "Erste Zeile\nZweite Zeile\nDritte Zeile\n";
+    const at = note.indexOf("Dritte");
+    const insertion = createSuggestion(
+      {
+        kind: "insert",
+        source: "remote",
+        category: "update",
+        severity: "suggestion",
+        from: at,
+        to: at,
+        original: "",
+        replacement: "Neue Zeile\n",
+        note: ""
+      },
+      note.slice(0, at)
+    );
+
+    expect(resolveAnchor(note.replace("Zweite Zeile\n", ""), insertion)).toBeNull();
   });
 });
 

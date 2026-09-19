@@ -9,7 +9,7 @@ import {
   runProofread,
   scanGlossary
 } from "./proofread-runner";
-import { applyPlan, planApply } from "./suggestion";
+import { applyPlan, planApply, refreshStaleness, resolveAnchor } from "./suggestion";
 
 const GLOSSARY = parseGlossary(
   "G.md",
@@ -114,6 +114,27 @@ describe("runProofread", () => {
     expect(result.suggestions).toHaveLength(1);
     expect(result.suggestions[0]?.original).toBe("Fhler");
     expect(result.suggestions[0]?.replacement).toBe("Fehler");
+  });
+
+  it("leaves an insertion at a block's start placeable in the document it came from", async () => {
+    // The anchor a card keeps is read in the document's coordinates. Taken in
+    // the block's, an edit at offset zero of a block recorded nothing at all,
+    // and the card was unplaceable — stale before anyone saw it — against the
+    // very text it had just been produced from.
+    const text = "# Titel\n\nHaus ist schön.\n";
+    const result = await runProofread(
+      text,
+      echoSender((b) => b.masked.replace(/^Haus/, "Das Haus")),
+      options,
+      createCancelToken()
+    );
+
+    const insertion = result.suggestions.find((entry) => entry.original === "");
+    expect(insertion).toBeDefined();
+    expect(resolveAnchor(text, insertion!)).not.toBeNull();
+    expect(refreshStaleness(text, result.suggestions).every((s) => s.status === "pending")).toBe(
+      true
+    );
   });
 
   it("reports offsets valid against the whole document", async () => {
