@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Changed
+
+- **A marked run of text is drawn with the family's pen.** The diff marks were flat slabs from `--background-modifier-error` and `--background-modifier-success` — tokens a theme picks for a toast or a form field, not for a run of prose. Measured in Obsidian, they painted 312 (insert) and 277 (delete) from the page in Euclidean RGB against the theme's own highlight at 70: the loudest marks in the family by a factor of four, and theme-dependent on top, since a theme sets that token's saturation for a UI affordance. They now carry the stroke Klartext defines in its `kit/highlight.css` — a feathered landing and lift, square ends, no halo, and one stroke per line, which is where a long diff run shows it. Copied at the file level, not shared at runtime: Obsidian loads every plugin's CSS globally, so a shared class name would couple the plugins through whichever loaded last. The ink stays semantic (green for an insertion, red for a deletion and a flag) and the strikethrough stays; only the shape and the strength change, to 79 and 70, inside the family's 60–140 band. The glossary's wavy underline is untouched — it is a different signal, not a highlight.
+
 ## 1.36.0 - 2026-09-19
 
 Mobile checklist: not run. The one thing in this release a phone would have

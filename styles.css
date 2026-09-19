@@ -385,20 +385,73 @@ a.external-link.schreibstube-reminder-mark {
   color: var(--text-muted);
 }
 
-.schreibstube-diff-delete {
-  background: var(--background-modifier-error);
-  color: var(--text-normal);
-  text-decoration: line-through;
-}
-
-.schreibstube-diff-insert {
-  background: var(--background-modifier-success);
-  color: var(--text-normal);
-}
-
+/* A marked run of text is drawn with the family's pen.
+ *
+ * Klartext is the baseline and its `kit/highlight.css` is the canonical text;
+ * this is a copy, because Obsidian loads every plugin's CSS globally and a
+ * shared class name would couple the plugins to each other through whichever
+ * loaded last. Re-copy if the kit changes — there is no runtime dependency, by
+ * design.
+ *
+ * These were flat slabs from `--background-modifier-error` and
+ * `--background-modifier-success`: tokens for a toast or a form field, not for
+ * a run of prose. Measured in Obsidian, the painted fill sat 312 (insert) and
+ * 277 (delete) from the page in Euclidean RGB, against the theme's own
+ * highlight at 70 — the loudest marks in the family by a factor of four, and
+ * theme-dependent on top, since a theme picks that token's saturation for a
+ * UI affordance rather than for text.
+ *
+ * The ink stays semantic — green for an insertion, red for a deletion and for
+ * a flag — and the strikethrough stays. Only the shape is the family's, and
+ * the strength lands in its 60–140 band (79 and 70, measured). */
+.schreibstube-diff-delete,
+.schreibstube-diff-insert,
 .schreibstube-diff-flag {
-  background: var(--background-modifier-error);
+  --hl-angle: 104deg;
+  --hl-land-0: 0.2em; /* transparent until here… */
+  --hl-land-1: 0.7em; /* …ink from here: the pen lands over half a character */
+  --hl-lift-1: 88%; /* full ink until here… */
+  --hl-lift-0: calc(100% - 0.28em); /* …transparent from here: it lifts off in a sixth */
+  --hl-pad-y: 0.14em; /* overshoots the letters as a felt tip does */
+  --hl-pad-x: 0.42em;
+  --hl-ink-strong: var(--hl-ink);
+
+  background-color: transparent;
+  background-image: linear-gradient(
+    var(--hl-angle),
+    transparent var(--hl-land-0),
+    var(--hl-ink-strong) var(--hl-land-1),
+    var(--hl-ink) var(--hl-lift-1),
+    transparent var(--hl-lift-0)
+  );
   color: var(--text-normal);
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  text-shadow: none;
+  /* Inline padding never moves the line, and the side margins hand the
+     overshoot back, so the stroke runs past the text without taking width. */
+  padding: var(--hl-pad-y) var(--hl-pad-x);
+  margin: 0 calc(-1 * var(--hl-pad-x));
+  /* One stroke PER LINE, each with its own landing and lift. A diff run is
+     often long enough to wrap, which is exactly where this shows. */
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+
+/* The ink: a named colour composited onto the page, so it is opaque and lands
+   at the same strength under any theme. */
+.schreibstube-diff-insert {
+  --hl-ink: color-mix(in srgb, var(--color-green) 26%, var(--background-primary));
+}
+
+.schreibstube-diff-delete,
+.schreibstube-diff-flag {
+  --hl-ink: color-mix(in srgb, var(--color-red) 26%, var(--background-primary));
+}
+
+.schreibstube-diff-delete {
+  text-decoration: line-through;
 }
 
 .schreibstube-review-note {
