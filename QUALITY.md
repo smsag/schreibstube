@@ -18,23 +18,23 @@ The codebase was already unusually disciplined: pure decision modules with
 explains why. What it lacked was the guards that keep it that way, and one
 expensive default that nobody had measured.
 
-| Attribute         | Before | After | What changed                                                                                                                                                 |
-| ----------------- | :----: | :---: | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Correctness       |   4    |   4   | `noImplicitOverride` guards every Obsidian lifecycle override; type-aware lint for unhandled promises. Both found nothing today, which is the point.         |
-| Reliability       |   4    |  4.5  | Behind a proxy, one stranger's five bad tokens locked the real user out for a minute. `TRUST_PROXY` keys the throttle on the caller.                         |
-| Robustness        |  4.5   |  4.5  | Unchanged: settings, frontmatter, bodies, hashes and paths were already validated; limits and deadlines everywhere.                                          |
-| Performance       |   2    |   4   | Production bundle 1,595 KB → 277 KB by moving the source map out; a 400 KB budget fails the build. Tests 9.3 s → 7.5 s on Vitest 5.                          |
-| Usability         |  3.5   |   4   | `manifest.json` still described a heading overlay; it now says what the plugin is. Stale `BRIDGE_TOKEN` guidance replaced; secrets to mark are listed.       |
-| Verifiability     |   4    |  4.5  | 66 files, 1,233 tests; the Docker image is built and booted in CI; the release refuses a version that disagrees with the manifest or has no changelog entry. |
-| Reusability       |   4    |   4   | Unchanged: provider adapters, pure protocol modules, one retry and one timeout helper shared by every client.                                                |
-| Portability       |  4.5   |  4.5  | The bundle check still proves no Node built-in; the bridge's engine claim (`>=22.12`) now matches what CI tests and Docker runs.                             |
-| Understandability |  4.5   |  4.5  | Documentation is a model. Two files remain oversized (`explorer-view.ts` 2,091 lines, `main.ts` 876) — see Later.                                            |
-| Interoperability  |   4    |   4   | Unchanged: versioned bridge protocol, documented API, stable error codes with request ids.                                                                   |
-| Productivity      |   4    |  4.5  | Dependabot grouped weekly; PR template; CI runs on supported Node versions only; lint stays under seven seconds with type information.                       |
-| Timeliness        |   4    |   4   | Release script and workflow were sound; the workflow now fails fast on the two mistakes it could not catch.                                                  |
-| Visibility        |   3    |   4   | `SECURITY.md`, this review, `CLAUDE.md`; audit and image build in CI; source map attached to each release for symbolicating reports.                         |
-| Security          |  3.5   |  4.5  | Both audits clean (were 8 root, 1 bridge); workflow token read-only; deterministic image build; proxy-aware throttle.                                        |
-| Cost of ownership |   3    |  4.5  | One CI leg; a bundle a fifth and an image a tenth of the size; no manual dependency chasing; no rebuild-to-discover image failures.                          |
+| Attribute         | Before | After | What changed                                                                                                                                                                                                  |
+| ----------------- | :----: | :---: | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Correctness       |   4    |   4   | `noImplicitOverride` guards every Obsidian lifecycle override; type-aware lint for unhandled promises. Both found nothing today, which is the point.                                                          |
+| Reliability       |   4    |  4.5  | Behind a proxy, one stranger's five bad tokens locked the real user out for a minute. `TRUST_PROXY` keys the throttle on the caller.                                                                          |
+| Robustness        |  4.5   |  4.5  | Unchanged: settings, frontmatter, bodies, hashes and paths were already validated; limits and deadlines everywhere.                                                                                           |
+| Performance       |   2    |   4   | Production bundle 1,595 KB → 277 KB by moving the source map out; a budget fails the build — 400 KB at this review, and `scripts/check-bundle.mjs` carries the figure since. Tests 9.3 s → 7.5 s on Vitest 5. |
+| Usability         |  3.5   |   4   | `manifest.json` still described a heading overlay; it now says what the plugin is. Stale `BRIDGE_TOKEN` guidance replaced; secrets to mark are listed.                                                        |
+| Verifiability     |   4    |  4.5  | 66 files, 1,233 tests; the Docker image is built and booted in CI; the release refuses a version that disagrees with the manifest or has no changelog entry.                                                  |
+| Reusability       |   4    |   4   | Unchanged: provider adapters, pure protocol modules, one retry and one timeout helper shared by every client.                                                                                                 |
+| Portability       |  4.5   |  4.5  | The bundle check still proves no Node built-in; the bridge's engine claim (`>=22.12`) now matches what CI tests and Docker runs.                                                                              |
+| Understandability |  4.5   |  4.5  | Documentation is a model. Two files remain oversized (`explorer-view.ts` 2,091 lines, `main.ts` 876) — see Later.                                                                                             |
+| Interoperability  |   4    |   4   | Unchanged: versioned bridge protocol, documented API, stable error codes with request ids.                                                                                                                    |
+| Productivity      |   4    |  4.5  | Dependabot grouped weekly; PR template; CI runs on supported Node versions only; lint stays under seven seconds with type information.                                                                        |
+| Timeliness        |   4    |   4   | Release script and workflow were sound; the workflow now fails fast on the two mistakes it could not catch.                                                                                                   |
+| Visibility        |   3    |   4   | `SECURITY.md`, this review, `CLAUDE.md`; audit and image build in CI; source map attached to each release for symbolicating reports.                                                                          |
+| Security          |  3.5   |  4.5  | Both audits clean (were 8 root, 1 bridge); workflow token read-only; deterministic image build; proxy-aware throttle.                                                                                         |
+| Cost of ownership |   3    |  4.5  | One CI leg; a bundle a fifth and an image a tenth of the size; no manual dependency chasing; no rebuild-to-discover image failures.                                                                           |
 
 ### Measured
 
