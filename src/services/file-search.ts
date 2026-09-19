@@ -37,6 +37,26 @@
  * combining diaeresis. Without normalising, a file named on a Mac and a query
  * typed on a phone tokenize differently and never meet.
  */
+/**
+ * The most words one query is scored against.
+ *
+ * A filter is typed, and a typed filter is a word or three; this is the bound
+ * on what a paste can ask for. Both the work and the memory are files times
+ * words — the scoring holds one number per file per word — so a pasted
+ * paragraph against a large vault asks for hundreds of megabytes and blocks
+ * the app for seconds before answering, and on a phone it does not answer at
+ * all. The words past this one are dropped rather than the query refused: a
+ * person who pasted by accident wants the filter to keep working, and the
+ * first dozen words already say what they were looking for.
+ */
+export const MAX_QUERY_TOKENS = 12;
+
+/** The words of a query, deduped and bounded. Everything that scores a query
+ *  goes through this, so a long one means the same thing wherever it is read. */
+export function queryTokens(query: string): string[] {
+  return tokenize(query).slice(0, MAX_QUERY_TOKENS);
+}
+
 export function tokenize(text: string): string[] {
   return Array.from(
     new Set(
@@ -254,8 +274,8 @@ export function rankFiles(
   limit?: number
 ): SearchHit[] {
   const { scope, query } = parseSearchScope(raw);
-  const queryTokens = tokenize(query);
-  if (queryTokens.length === 0 || candidates.length === 0) return [];
+  const words = queryTokens(query);
+  if (words.length === 0 || candidates.length === 0) return [];
 
   const fields = fieldsForScope(scope);
   const total = candidates.length;
@@ -271,21 +291,21 @@ export function rankFiles(
   // The best field wins rather than every field adding up: a note whose name,
   // title and path all say "Objekt" has said one thing three times, and letting
   // it sum would rank repetition above relevance.
-  const strengths: number[] = new Array<number>(candidates.length * queryTokens.length).fill(0);
-  const frequencies = new Array<number>(queryTokens.length).fill(0);
+  const strengths: number[] = new Array<number>(candidates.length * words.length).fill(0);
+  const frequencies = new Array<number>(words.length).fill(0);
 
   for (let row = 0; row < candidates.length; row++) {
     const candidateFields = candidates[row]?.fields;
     if (!candidateFields) continue;
-    for (let column = 0; column < queryTokens.length; column++) {
-      const token = queryTokens[column] ?? "";
+    for (let column = 0; column < words.length; column++) {
+      const token = words[column] ?? "";
       let best = 0;
       for (const field of fields) {
         const strength = matchStrength(candidateFields[field], token);
         if (strength > 0) best = Math.max(best, strength * FIELD_WEIGHTS[field]);
       }
       if (best > 0) {
-        strengths[row * queryTokens.length + column] = best;
+        strengths[row * words.length + column] = best;
         frequencies[column] = (frequencies[column] ?? 0) + 1;
       }
     }
@@ -300,8 +320,8 @@ export function rankFiles(
 
     let score = 0;
     let matched = 0;
-    for (let column = 0; column < queryTokens.length; column++) {
-      const best = strengths[row * queryTokens.length + column] ?? 0;
+    for (let column = 0; column < words.length; column++) {
+      const best = strengths[row * words.length + column] ?? 0;
       if (best === 0) continue;
       matched += 1;
       score += best * (weights[column] ?? 1);
@@ -309,7 +329,7 @@ export function rankFiles(
     if (matched === 0) continue;
     // Every word typed is a narrowing, so a file answering all of them beats
     // one answering a single rare word by luck.
-    hits.push({ path, score: score * (matched / queryTokens.length) });
+    hits.push({ path, score: score * (matched / words.length) });
   }
 
   hits.sort((a, b) => b.score - a.score || a.path.localeCompare(b.path));
@@ -342,7 +362,7 @@ export function matchesText(
   if (!allowed.includes(scope)) return false;
 
   const tokens = tokenize(text);
-  return tokenize(query).every((token) => matchStrength(tokens, token) > 0);
+  return queryTokens(query).every((token) => matchStrength(tokens, token) > 0);
 }
 
 /** What a file's fields are built from, in the shape the view can supply

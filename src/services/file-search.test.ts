@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   matchesText,
   matchStrength,
+  MAX_QUERY_TOKENS,
   parseSearchScope,
+  queryTokens,
   rankFiles,
   searchFields,
   tokenize,
@@ -185,6 +187,49 @@ describe("rankFiles", () => {
 
   it("answers an empty vault with nothing", () => {
     expect(rankFiles("objekt", [])).toEqual([]);
+  });
+});
+
+describe("queryTokens", () => {
+  it("reads a typed filter whole", () => {
+    expect(queryTokens("mietvertrag seeblick")).toEqual(["mietvertrag", "seeblick"]);
+  });
+
+  it("keeps the first words of a query longer than the bound", () => {
+    const words = Array.from({ length: MAX_QUERY_TOKENS + 20 }, (_, i) => `wort${i}`);
+    const kept = queryTokens(words.join(" "));
+
+    expect(kept).toHaveLength(MAX_QUERY_TOKENS);
+    expect(kept).toEqual(words.slice(0, MAX_QUERY_TOKENS));
+  });
+
+  it("counts a repeated word once against the bound", () => {
+    expect(queryTokens("objekt ".repeat(MAX_QUERY_TOKENS + 5))).toEqual(["objekt"]);
+  });
+});
+
+describe("rankFiles bounds a pasted query", () => {
+  it("answers a long query as it answers its first words", () => {
+    const head = Array.from({ length: MAX_QUERY_TOKENS }, (_, i) => (i === 0 ? "objekt" : `w${i}`));
+    const pasted = [...head, ...Array.from({ length: 2000 }, (_, i) => `rest${i}`)];
+
+    expect(rankFiles(pasted.join(" "), VAULT)).toEqual(rankFiles(head.join(" "), VAULT));
+  });
+
+  it("scores a pasted paragraph against a vault without walking it once per word", () => {
+    // The scoring holds one number per file per word, so an unbounded query is
+    // both the time and the memory. Ten thousand words over a thousand files
+    // would be ten million of them; the bound makes it twelve thousand.
+    const vault = Array.from({ length: 1000 }, (_, i) =>
+      file(`Objekte/Objekt ${i}.md`, { tags: ["objekt"] })
+    );
+    const pasted = Array.from({ length: 10000 }, (_, i) => `wort${i}`).join(" ");
+
+    const started = Date.now();
+    const hits = rankFiles(`objekt ${pasted}`, vault);
+
+    expect(hits).toHaveLength(1000);
+    expect(Date.now() - started).toBeLessThan(2000);
   });
 });
 

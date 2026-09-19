@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Fixed
+
+- **Related notes follows the note in front of you again.** Opened from the palette the panel was supposed to follow along, and opened from a note's menu to stay on that note — which is what the README has always said. Both openings asked for the same thing, so the panel was pinned however it was opened and never moved again, not even after a restart: the flag that says which was wanted was written as "pinned" in the one place both go through. The palette now says it is starting the reader off, the menu says the reader named the note, and the panel behaves as documented. The view's second way of pinning itself, which nothing had ever called, is gone.
+- **A pasted filter no longer freezes the app.** The Explorer's filter scored every word of a query against every file, holding one number per file per word — fine for the word or three anybody types, and hundreds of megabytes for a paragraph pasted into the box by accident. Against twenty thousand files a two-thousand-word paste took forty-three seconds and the memory it asked for is more than a phone has. A query is now read up to its first dozen words, which no typed filter reaches: the same paste is answered in under a fifth of a second, with the answer the first dozen words would have given.
+
 ## 1.36.0 - 2026-09-19
 
 Mobile checklist: not run. The one thing in this release a phone would have
