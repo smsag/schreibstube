@@ -32,18 +32,24 @@ export const MAX_SLIDESHOW_IMAGES = 100;
  * scene the reader should take in at once. `strip` sets every image in a row
  * of equal tiles, for a series that makes one statement together; `masonry`
  * shows them all at their own proportions, packed into columns, for pictures
- * that lose too much when cropped to a square.
+ * that lose too much when cropped to a square. `compare` lays two pictures of
+ * one thing in the same frame under a divider the reader drags across them,
+ * for a before and an after.
  *
- * Whatever the layout, the only text is an image's alt text in the header.
+ * Whatever the layout, the only text is an image's alt text — in the header,
+ * or, in `compare`, on the side it belongs to: two pictures are on screen at
+ * once there and neither is the one the header would be naming.
  */
-export type SlideshowLayout = "slideshow" | "filmstrip" | "feature" | "strip" | "masonry";
+export type SlideshowLayout =
+  "slideshow" | "filmstrip" | "feature" | "strip" | "masonry" | "compare";
 
 export const SLIDESHOW_LAYOUTS: readonly SlideshowLayout[] = [
   "slideshow",
   "filmstrip",
   "feature",
   "strip",
-  "masonry"
+  "masonry",
+  "compare"
 ];
 
 export const DEFAULT_SLIDESHOW_LAYOUT: SlideshowLayout = "slideshow";
@@ -63,13 +69,32 @@ export const FEATURE_DETAIL_COUNT = 2;
 /** A feature is one scene and its details, and nothing more. */
 export const FEATURE_IMAGE_COUNT = 1 + FEATURE_DETAIL_COUNT;
 
-/**
- * The images a layout shows. A feature takes the first three and leaves the
- * rest out — a fourth would only ever appear by rotating the scene, which is
- * the stage's job, not this one's. Every other layout shows them all.
- */
+/** A comparison is two states of one thing — the before and the after. A third
+ *  picture has no side of the frame to be laid on. */
+export const COMPARE_IMAGE_COUNT = 2;
+
+/** Where the divider stands before anyone moves it, as a percentage of the
+ *  frame's width. Halfway, so neither picture is the one on show. */
+export const DEFAULT_COMPARE_SPLIT = 50;
+
+/** How far one arrow-key press moves the divider, in percent of the frame.
+ *  Fine enough to put it on an edge, coarse enough to cross the picture in
+ *  twenty presses rather than a hundred. */
+export const COMPARE_SPLIT_STEP = 5;
+
+/** How many images a layout has room for. A feature reaches a fourth picture
+ *  only by rotating the scene, which is the stage's job, and a comparison has
+ *  two sides and no third; a layout not named here shows them all. */
+const LAYOUT_IMAGE_LIMIT: Partial<Record<SlideshowLayout, number>> = {
+  feature: FEATURE_IMAGE_COUNT,
+  compare: COMPARE_IMAGE_COUNT
+};
+
+/** The images a layout shows: the first few for the layouts that are bounded
+ *  by their shape, all of them for the rest. */
 export function imagesForLayout<T>(layout: SlideshowLayout, images: readonly T[]): T[] {
-  return layout === "feature" ? images.slice(0, FEATURE_IMAGE_COUNT) : [...images];
+  const limit = LAYOUT_IMAGE_LIMIT[layout];
+  return limit === undefined ? [...images] : images.slice(0, limit);
 }
 
 /** The empty block inserted at the cursor, with two placeholder lines so the
@@ -188,6 +213,33 @@ export function featureDetails(count: number, active: number): number[] {
 export function stepIndex(active: number, step: number, count: number): number {
   if (count <= 0) return 0;
   return (((active + step) % count) + count) % count;
+}
+
+/**
+ * The divider's place, held inside the frame.
+ *
+ * A place that is not a number at all — a pointer read against a frame the
+ * layout has not sized yet — falls back to the middle rather than propagating
+ * a NaN into a CSS length, which would leave the divider nowhere.
+ */
+export function clampCompareSplit(percent: number): number {
+  if (!Number.isFinite(percent)) return DEFAULT_COMPARE_SPLIT;
+  return Math.min(100, Math.max(0, percent));
+}
+
+/**
+ * Where a pointer at `clientX` puts the divider over a frame that starts at
+ * `left` and is `width` across. A frame with no width — measured before the
+ * picture has laid out — leaves the divider where it stands.
+ */
+export function compareSplitAt(clientX: number, left: number, width: number): number {
+  if (width <= 0) return DEFAULT_COMPARE_SPLIT;
+  return clampCompareSplit(((clientX - left) / width) * 100);
+}
+
+/** The divider one arrow-key press away, held inside the frame. */
+export function stepCompareSplit(percent: number, direction: 1 | -1): number {
+  return clampCompareSplit(clampCompareSplit(percent) + direction * COMPARE_SPLIT_STEP);
 }
 
 /** The `2 / 6` a viewer reads to know where in the series they are. */

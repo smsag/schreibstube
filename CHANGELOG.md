@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Added
+
+- **A before/after slider in a slideshow block.** `layout: compare` lays the block's first two images in one frame, the first over the second, under a divider that is dragged across them — a renovation, a retouch, a room before and after the furniture. Press anywhere on the picture to send the divider there, or use the arrow keys, with Home and End for an edge. Both pictures are cropped to the frame, which takes the first one's proportions, because a wipe only reads as one thing changing while the two sides line up exactly. The alt texts label the sides instead of the header, since both pictures are on screen at once and neither is the one a header would be naming. The expand control opens the usual fullscreen view, where the two step back and forth at full size.
+
 ## 1.35.2 - 2026-09-18
 
 Mobile checklist: not run. The result list was checked in a browser at 240, 320
