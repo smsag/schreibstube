@@ -2,7 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## 1.36.1 - 2026-09-19
+
+Nine fixes, six of them for bugs 1.36.0 put in front of people. Two of those
+six were costing someone their words rather than merely annoying them: an
+accepted update from a source could land inside a line, and a title typed
+into the editor could be overwritten by the source's. The others were quiet
+— a note that stopped syncing without saying so, a panel that emptied itself
+when you clicked inside it, a button that did nothing at all.
+
+Mobile checklist: not run. This release touches the review panel, the
+Explorer filter and how a marked run of text is drawn, which is three things
+a phone would have had an opinion about. What was checked instead is what a
+desktop can check: the filter's cost, measured directly — a two-thousand-word
+paste against twenty thousand files went from forty-three seconds and more
+memory than a phone has, to under a fifth of a second — and the panel and
+anchor changes, which are decided in tested modules. None of that is a phone,
+and the release notes should not pretend otherwise.
+
+Bridge 2.4.0 is unchanged and still pairs with this release.
 
 ### Changed
 
