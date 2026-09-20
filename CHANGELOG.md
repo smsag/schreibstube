@@ -2,7 +2,29 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## 1.37.0 - 2026-09-20
+
+The plugin's hand-built buttons stop being shaped by whatever theme is
+installed. The review panel's actions, the file chips, the icon picker's cells
+and the Explorer's clear control each claimed nothing, so Obsidian's ten button
+rules reached them unopposed; they now take one of nine roles that claim every
+property those rules set, and the difference is visible in the review panel,
+where the actions finally read as primary, secondary, quiet and destructive
+rather than all alike. Along with it, the panel's glyphs each mean one thing
+again, and a file row's task tally now leads with what is done instead of
+announcing an untouched note as finished.
+
+Mobile checklist: not run — and this is a release where a phone had something to
+say. Item 7 is that the file pane's icons draw, and one of the fixes here is
+exactly that failing: giving a control a role also gave it the role's font, and
+the Explorer's clear ✕ came out as a blank box until the icon font was claimed
+back. That was found and fixed on a desktop. What is checked instead is what a
+desktop can check, and it is more than usual: `obsidian-cascade.test.ts` reads
+the button rules out of an installed Obsidian and proves each role wins against
+them, and `button-roles.test.ts` holds every hand-built button to a role. Both
+are checks against the host, not against a phone.
+
+Bridge 2.4.0 is unchanged and still pairs with this release.
 
 ### Changed
 
