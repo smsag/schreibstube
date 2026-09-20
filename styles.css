@@ -534,13 +534,13 @@ a.external-link.schreibstube-reminder-mark {
    full width with 10px padding (`.is-phone .modal .setting-item-control
    button…`, up to (0,4,1)). The effort segments live in one; at (0,5,1) this
    out-ranks it without relying on load order (ADR-190). */
-.modal.schreibstube-icon-picker .setting-item-control button.sb.sb {
+.modal .schreibstube-icon-picker .setting-item-control button.sb.sb {
   width: auto;
   margin: 0;
   padding: 3px var(--s2, 8px);
 }
 @media (pointer: coarse) {
-  .modal.schreibstube-icon-picker .setting-item-control button.sb.sb {
+  .modal .schreibstube-icon-picker .setting-item-control button.sb.sb {
     min-height: 32px;
   }
 }
@@ -864,6 +864,17 @@ a.external-link.schreibstube-reminder-mark {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* A glyph of this font is what an inline SVG is to the role set: the picture on
+   the button, not type. Where the button IS the glyph, the role base names the
+   button's font at (0,2,0) and out-ranks the rule above — which drew the
+   explorer's clear ✕ as a blank box in the monospace stack. A glyph in a span
+   inside a button needs nothing: the rule above is still the most specific one
+   reaching it. The size stays with the layout class; it is the glyph's box. */
+:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker) .sb.schreibstube-icon {
+  font-family: "schreibstube-icons";
+  font-weight: normal;
+}
+
 /* Obsidian pads a leaf's content box and lets it scroll: 12px at the sides,
    32px at the foot, `overflow: auto`, and in a side split `height: 100%` too.
    The padding would keep a section's rule from reaching the edges, and the
@@ -949,8 +960,10 @@ a.external-link.schreibstube-reminder-mark {
 
 /* Layout only — `sb sb-icon` carries the 24px box, the glyph and the hover.
    It used to be 22px in --text-faint, which the role set rules out for a
-   control: 2.3:1 on white. */
+   control: 2.3:1 on white. The ✕ is a glyph of the bundled icon font, not an
+   SVG, so its size is type: the role's 11px label size would shrink it. */
 .schreibstube-explorer .schreibstube-explorer-filter-clear {
+  font-size: 14px;
   position: absolute;
   right: 3px;
   top: 50%;

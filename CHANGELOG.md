@@ -8,6 +8,11 @@ All notable changes to this project will be documented in this file.
 
 - **Buttons take one of the family's roles.** The panel's actions, the file chips, the icon picker's cells and the explorer's clear control were four hand-built looks, none of which claimed a background, a border, a radius or a colour — so Obsidian's ten button rules reached them unopposed and each ended up shaped by the host rather than by this plugin. They now carry `sb` plus one role from `kit/button.css`, the family's set, copied from Pythia where it was measured and written. Their own classes keep layout and nothing else. Three things a user will see: the review actions read as primary, secondary, quiet and destructive rather than all alike; the file chips lose their 999px pill for the role set's one segment shape, with an accent tint on the chosen one; and the explorer's clear control moves from 22px in `--text-faint` to the role's 24px in `--text-muted`, because `--text-faint` on a control measures 2.3:1 on white. Obsidian's own dialog buttons — the ones `Setting.addButton` makes — are untouched: those are the host's chrome, not ours.
 
+### Fixed
+
+- **The Explorer's clear ✕ went back to being a picture.** Giving it a role also gave it the role's font, and a role's font out-ranks the bundled icon font's own rule — so the glyph was drawn from a monospace fallback that has nothing at that code point, and the control rendered as a blank box at the wrong size. The icon font and the 14px size are claimed back where the button is itself a glyph.
+- **The icon picker's phone rule pointed at nothing.** The rule that stops Obsidian stretching a button inside a modal's setting row named a class that sits on the dialog's content box, not on the dialog, so it could never match. Found by looking for it in a running Obsidian rather than in the stylesheet.
+
 ## 1.36.1 - 2026-09-19
 
 Nine fixes, six of them for bugs 1.36.0 put in front of people. Two of those

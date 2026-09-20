@@ -16,14 +16,20 @@ a module resolution error.
 
 ## The checks
 
-| Command                 | What it does                                                           |
-| ----------------------- | ---------------------------------------------------------------------- |
-| `npm run lint`          | ESLint over the plugin and the bridge                                  |
-| `npm run format`        | Prettier, in place                                                     |
-| `npm test`              | The whole suite, plugin and bridge                                     |
-| `npm run test:coverage` | The same, against the coverage floor                                   |
-| `npm run build`         | Type check, bundle, prove it has no Node built-ins and fits the budget |
-| `npm run build:icons`   | Regenerate the bundled icon font, only when the set changes            |
+| Command                          | What it does                                                                               |
+| -------------------------------- | ------------------------------------------------------------------------------------------ |
+| `npm run lint`                   | ESLint over the plugin and the bridge                                                      |
+| `npm run format`                 | Prettier, in place                                                                         |
+| `npm test`                       | The whole suite, plugin and bridge                                                         |
+| `npm run test:coverage`          | The same, against the coverage floor                                                       |
+| `npm run build`                  | Type check, bundle, prove it has no Node built-ins and fits the budget                     |
+| `npm run build:icons`            | Regenerate the bundled icon font, only when the set changes                                |
+| `npm run check:obsidian-cascade` | Re-read the button rules out of the installed Obsidian, and fail on drift from the fixture |
+
+`check:obsidian-cascade` needs a local Obsidian and is not part of CI. Run it
+after an Obsidian update: `src/testing/obsidian-button-rules.ts` is what
+`src/services/obsidian-cascade.test.ts` proves our button roles win against, and
+a rule the fixture does not know about is a rule nothing is guarding.
 
 The coverage floor is a floor, not a target. Raise it when the number rises;
 never lower it to make a change pass. The same goes for the bundle budget in

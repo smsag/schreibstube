@@ -17,7 +17,7 @@ const kit = readFileSync(new URL("../../kit/button.css", import.meta.url), "utf8
 const css = readFileSync(new URL("../../styles.css", import.meta.url), "utf8");
 
 const SCOPE = ":is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker)";
-const MODAL = ".modal.schreibstube-icon-picker";
+const MODAL = ".modal .schreibstube-icon-picker";
 
 /** The kit without its header comment: the rules a host instantiates. */
 function kitRules(): string {
