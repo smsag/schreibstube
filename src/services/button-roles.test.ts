@@ -66,7 +66,15 @@ describe("the role set", () => {
     // plugin overrides none — it has no contrast-computed label token of its
     // own, so the Obsidian defaults below are the honest values.
     const from = css.indexOf(`${SCOPE} .sb {`);
-    const block = css.slice(from, css.indexOf("\n.schreibstube-review-actions", from));
+    // The block ends at its last rule, `[hidden]`, which the base needs because
+    // the UA's `[hidden] { display: none }` loses to the base's `display`. An
+    // anchor that goes missing must FAIL, not widen the slice to the whole
+    // stylesheet — `indexOf` returning -1 would make `slice` measure almost
+    // everything and pass regardless of where the tokens actually are.
+    const to = css.indexOf(`${SCOPE} [hidden] {`, from);
+    expect(from, "the role base rule is missing").toBeGreaterThan(-1);
+    expect(to, "the block's closing [hidden] rule is missing").toBeGreaterThan(from);
+    const block = css.slice(from, to);
     for (const [token, fallback] of [
       ["--btn-accent", "--color-accent"],
       ["--btn-on-accent", "--text-on-accent"],

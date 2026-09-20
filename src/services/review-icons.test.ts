@@ -33,18 +33,47 @@ function calls(fn: string): string[] {
 }
 
 /**
- * The icon each `this.button(...)` passes: `null`, or the first string literal
- * in the call. The label ahead of it is always a `t()` expression and the role
- * behind it always follows, so "first literal" is the icon — and if that ever
- * stops being true this reads the wrong thing and fails loudly rather than
- * passing quietly.
+ * Top-level arguments of a call, split on the commas that are not nested.
+ *
+ * Comments come out FIRST: a `//` line explaining a choice is allowed to
+ * contain a comma, and stripping per-argument instead of per-call would let
+ * that comma split the list and shift every argument after it.
+ */
+function args(call: string): string[] {
+  const inner = call
+    .slice(call.indexOf("(") + 1, call.lastIndexOf(")"))
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/\/\/[^\n]*/g, "");
+  const out: string[] = [];
+  let depth = 0;
+  let start = 0;
+  for (let i = 0; i < inner.length; i++) {
+    const c = inner[i];
+    if (c === "(" || c === "[" || c === "{") depth++;
+    else if (c === ")" || c === "]" || c === "}") depth--;
+    else if (c === "," && depth === 0) {
+      out.push(inner.slice(start, i));
+      start = i + 1;
+    }
+  }
+  out.push(inner.slice(start));
+  return out.map((a) => a.trim());
+}
+
+/**
+ * The icon each `this.button(...)` passes: its third argument, read by
+ * position rather than by "the first string literal in the call". The loose
+ * version passed today and would have read a role, or a literal out of an
+ * arrow body, the first time an argument moved — a guard that quietly measures
+ * the wrong thing is worse than none.
  */
 function buttonIcons(): (string | null)[] {
   return calls("this.button(").map((call) => {
-    const args = call.slice(call.indexOf("(") + 1);
-    if (/,\s*null\s*,/.test(args)) return null;
-    const literal = /"([^"]+)"/.exec(args.replace(/\/\/[^\n]*/g, ""))?.[1];
-    expect(literal, `no icon argument found in:\n${call}`).toBeDefined();
+    const icon = args(call)[2];
+    expect(icon, `no third argument in:\n${call}`).toBeDefined();
+    if (icon === "null") return null;
+    const literal = /^"([^"]+)"$/.exec(icon ?? "")?.[1];
+    expect(literal, `the icon argument is not a literal or null:\n${icon}`).toBeDefined();
     return literal ?? null;
   });
 }
