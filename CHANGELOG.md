@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Changed
+
+- **Buttons take one of the family's roles.** The panel's actions, the file chips, the icon picker's cells and the explorer's clear control were four hand-built looks, none of which claimed a background, a border, a radius or a colour — so Obsidian's ten button rules reached them unopposed and each ended up shaped by the host rather than by this plugin. They now carry `sb` plus one role from `kit/button.css`, the family's set, copied from Pythia where it was measured and written. Their own classes keep layout and nothing else. Three things a user will see: the review actions read as primary, secondary, quiet and destructive rather than all alike; the file chips lose their 999px pill for the role set's one segment shape, with an accent tint on the chosen one; and the explorer's clear control moves from 22px in `--text-faint` to the role's 24px in `--text-muted`, because `--text-faint` on a control measures 2.3:1 on white. Obsidian's own dialog buttons — the ones `Setting.addButton` makes — are untouched: those are the host's chrome, not ours.
+
 ## 1.36.1 - 2026-09-19
 
 Nine fixes, six of them for bugs 1.36.0 put in front of people. Two of those

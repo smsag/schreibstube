@@ -78,10 +78,10 @@ export class IconPickerModal extends Modal {
 
       for (const icon of group.icons) {
         const button = row.createEl("button", {
-          cls: "schreibstube-icon-choice",
+          cls: "sb sb-seg schreibstube-icon-choice",
           attr: { type: "button", "aria-label": icon, title: icon }
         });
-        if (icon === this.current) button.addClass("is-current");
+        if (icon === this.current) button.addClass("active");
 
         applyIcon(button.createSpan(), icon);
         button.addEventListener("click", () => {

@@ -153,22 +153,44 @@ export class ReviewPanelView extends ItemView {
     const running = this.state.phase === "running";
     const hasFile = this.state.phase !== "no-file";
 
-    this.button(actions, t().proofread.panelProofread, "wand", !hasFile || running, () =>
-      this.handlers?.onProofread()
+    this.button(
+      actions,
+      t().proofread.panelProofread,
+      "wand",
+      !hasFile || running,
+      () => this.handlers?.onProofread(),
+      "primary"
     );
-    this.button(actions, t().proofread.panelGlossaryCheck, "book-open", !hasFile || running, () =>
-      this.handlers?.onGlossaryCheck()
+    this.button(
+      actions,
+      t().proofread.panelGlossaryCheck,
+      "book-open",
+      !hasFile || running,
+      () => this.handlers?.onGlossaryCheck(),
+      "secondary"
     );
 
     if (running) {
-      this.button(actions, t().proofread.panelStop, "x", false, () => this.handlers?.onStop());
+      this.button(
+        actions,
+        t().proofread.panelStop,
+        "x",
+        false,
+        () => this.handlers?.onStop(),
+        "destructive"
+      );
     }
 
     const pending = this.pendingSuggestions();
     const applicable = pending.filter((suggestion) => !isFlagOnly(suggestion));
     if (applicable.length > 0) {
-      this.button(actions, t().proofread.acceptAll(applicable.length), "check-check", false, () =>
-        this.handlers?.onAcceptAll()
+      this.button(
+        actions,
+        t().proofread.acceptAll(applicable.length),
+        "check-check",
+        false,
+        () => this.handlers?.onAcceptAll(),
+        "primary"
       );
     }
 
@@ -246,7 +268,7 @@ export class ReviewPanelView extends ItemView {
     for (const candidate of available) {
       const active = selected.includes(candidate.path);
       const chip = chips.createEl("button", {
-        cls: `schreibstube-review-chip${active ? " is-active" : ""}`,
+        cls: `sb sb-seg schreibstube-review-chip${active ? " active" : ""}`,
         text: candidate.name
       });
       chip.setAttr("title", candidate.path);
@@ -311,8 +333,13 @@ export class ReviewPanelView extends ItemView {
     const stale = suggestion.status === "stale";
 
     if (!isFlagOnly(suggestion)) {
-      this.button(actions, t().proofread.accept, "check", stale, () =>
-        this.handlers?.onAccept(suggestion.id)
+      this.button(
+        actions,
+        t().proofread.accept,
+        "check",
+        stale,
+        () => this.handlers?.onAccept(suggestion.id),
+        "secondary"
       );
     }
     this.button(actions, t().proofread.reject, "x", false, () =>
@@ -355,9 +382,13 @@ export class ReviewPanelView extends ItemView {
     label: string,
     icon: string,
     disabled: boolean,
-    onClick: () => void
+    onClick: () => void,
+    /** The look: one of the family's button roles (kit/button.css). */
+    role: "primary" | "secondary" | "quiet" | "destructive" = "quiet"
   ): HTMLButtonElement {
-    const button = parent.createEl("button", { cls: "schreibstube-review-button" });
+    const button = parent.createEl("button", {
+      cls: `sb sb-${role} schreibstube-review-button`
+    });
     const iconEl = button.createSpan({ cls: "schreibstube-review-icon" });
     setIcon(iconEl, icon);
     button.createSpan({ text: label });
