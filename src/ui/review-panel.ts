@@ -11,6 +11,7 @@
 import { t } from "../i18n";
 import { ItemView, setIcon, type WorkspaceLeaf } from "obsidian";
 import type { GlossarySelectionSource } from "../services/glossary-resolver";
+import { diffParts } from "../services/diff-marks";
 import { isFlagOnly } from "../services/proofread-runner";
 import type { Suggestion } from "../services/suggestion";
 import { diffWords } from "../services/word-diff";
@@ -366,10 +367,15 @@ export class ReviewPanelView extends ItemView {
     for (const segment of diffWords(suggestion.original, suggestion.replacement)) {
       if (segment.op === "equal") {
         diff.createSpan({ cls: "schreibstube-diff-equal", text: segment.text });
-      } else if (segment.op === "delete") {
-        diff.createSpan({ cls: "schreibstube-diff-delete", text: segment.text });
-      } else {
-        diff.createSpan({ cls: "schreibstube-diff-insert", text: segment.text });
+        continue;
+      }
+      // A changed segment can run over several lines. The mark lands and lifts
+      // on each of them, so a blank line would get a fragment with no text and
+      // two paddings — a stub floating between two paragraphs (diff-marks.ts).
+      const cls = segment.op === "delete" ? "schreibstube-diff-delete" : "schreibstube-diff-insert";
+      for (const part of diffParts(segment.text)) {
+        if (part.marked) diff.createSpan({ cls, text: part.text });
+        else diff.appendText(part.text);
       }
     }
   }
