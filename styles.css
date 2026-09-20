@@ -567,13 +567,12 @@ a.external-link.schreibstube-reminder-mark {
   gap: 4px;
 }
 
+/* The glyph's box. Its SIZE is the role base's 12px: `:is(…) .sb svg` is
+   (0,2,1) and this class reaches (0,1,1), so a size set here never applied —
+   it read 14px and painted 12px for as long as it existed. 12px is also the
+   right pairing with an 11.375px label, so the rule is gone rather than won. */
 .schreibstube-review-icon {
   display: inline-flex;
-}
-
-.schreibstube-review-icon svg {
-  width: 14px;
-  height: 14px;
 }
 
 .schreibstube-review-progress,

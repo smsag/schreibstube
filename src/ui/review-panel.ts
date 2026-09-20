@@ -156,7 +156,10 @@ export class ReviewPanelView extends ItemView {
     this.button(
       actions,
       t().proofread.panelProofread,
-      "wand",
+      // Not the view's own `spell-check`: that glyph is the panel's identity
+      // on its leaf tab, and the same mark on a button inside it would mean two
+      // things at once. `scan-text` is the act, not the place.
+      "scan-text",
       !hasFile || running,
       () => this.handlers?.onProofread(),
       "primary"
@@ -164,7 +167,7 @@ export class ReviewPanelView extends ItemView {
     this.button(
       actions,
       t().proofread.panelGlossaryCheck,
-      "book-open",
+      "book-a",
       !hasFile || running,
       () => this.handlers?.onGlossaryCheck(),
       "secondary"
@@ -174,7 +177,7 @@ export class ReviewPanelView extends ItemView {
       this.button(
         actions,
         t().proofread.panelStop,
-        "x",
+        "circle-stop",
         false,
         () => this.handlers?.onStop(),
         "destructive"
@@ -187,7 +190,7 @@ export class ReviewPanelView extends ItemView {
       this.button(
         actions,
         t().proofread.acceptAll(applicable.length),
-        "check-check",
+        "list-checks",
         false,
         () => this.handlers?.onAcceptAll(),
         "primary"
@@ -345,7 +348,7 @@ export class ReviewPanelView extends ItemView {
     this.button(actions, t().proofread.reject, "x", false, () =>
       this.handlers?.onReject(suggestion.id)
     );
-    this.button(actions, t().proofread.show, "crosshair", false, () =>
+    this.button(actions, t().proofread.show, "locate", false, () =>
       this.handlers?.onReveal(suggestion.id)
     );
   }
@@ -380,7 +383,17 @@ export class ReviewPanelView extends ItemView {
   private button(
     parent: HTMLElement,
     label: string,
-    icon: string,
+    /**
+     * A glyph before the label, or `null` for none.
+     *
+     * This panel is a queue: accept, reject and show repeat once per suggestion
+     * card, so the glyph is what the eye lands on and the word only confirms.
+     * That is why the buttons here carry one and a conversation's do not. An
+     * icon that does no work the word cannot is decoration, and `null` is how
+     * a button says so — every glyph in this panel is also distinct, which
+     * `src/services/review-icons.test.ts` holds.
+     */
+    icon: string | null,
     disabled: boolean,
     onClick: () => void,
     /** The look: one of the nine button roles in `styles.css`. */
@@ -389,8 +402,9 @@ export class ReviewPanelView extends ItemView {
     const button = parent.createEl("button", {
       cls: `sb sb-${role} schreibstube-review-button`
     });
-    const iconEl = button.createSpan({ cls: "schreibstube-review-icon" });
-    setIcon(iconEl, icon);
+    if (icon !== null) {
+      setIcon(button.createSpan({ cls: "schreibstube-review-icon" }), icon);
+    }
     button.createSpan({ text: label });
 
     if (disabled) {
