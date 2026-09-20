@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Added
+
+- **A day planner: tasks into time blocks, without touching your Markdown.** A task carries its project as a tag (`#projects/ea48`) and nothing else — no ids, no due dates, no stamps. **Open day planner** gives a sidebar with the day's calendar, the projects that are running out of time, and blocks to accept: set a deadline on a tag and the planner works out how many mornings the open tasks need, leaves out time that is taken, and offers the rest. Confirming writes the block into your calendar and records which tasks belong to it. A task belongs to a block, not to a clock, so nothing expires at the wrong minute and moving a block leaves its tasks alone. See [PLANNING.md](PLANNING.md).
+- **The plan on your start page.** A ```schreibstube-plan``` block draws the current block with its tasks and the projects with their deadlines, wherever you keep your start page. Options per line: `day`, `tags`, `show`.
+- **Tasks are recognised again without being marked.** The plan keeps an anchor per task — its note, its wording, its place among identical lines — and matches each scan against them: unchanged tasks by hash, edited ones by how alike they read. Where two tasks are too alike to tell apart, the planner says the task was not found instead of binding the wrong one, and nothing is deleted while you put it right.
+- **A few tasks can also become reminders.** Marked while planning, they go into a queue in the plan; a helper, the app or a Shortcut on an Apple device applies it, and iCloud carries the result to every device. The plugin itself never writes to Reminders, and a reminder ticked there ticks its task in the note.
+- **The bridge keeps the plan and writes the blocks.** A new `plan` capability, with its own token and its own CalDAV credential, stores one planning document — latest revision only, no history — and reads and writes your calendar. It is the first thing the bridge has ever stored, and `bridge/README.md` now says so where it used to claim it stored nothing. Bridge 2.5.0, protocol 2; the planner asks `/health` once and says plainly when a deployment is behind. Existing mail and publishing deployments are unaffected and keep working unchanged.
+
 ## 1.35.1 - 2026-09-18
 
 What 1.35.0 was supposed to deliver. The ranking it added was real and the pane

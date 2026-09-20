@@ -524,6 +524,23 @@ The badges appear in Live Preview and Source mode. The ribbon also renders in Re
 
 A task can carry more than its first line: a paragraph typed with Shift+Enter, a note under it, sub-items — anything indented deeper than the task's own marker. While the task is open that text stays in view. Tick the task and it folds away, leaving the first line; untick it and it comes back. In the editor this is an ordinary fold, so the fold indicator opens a done task by hand and it stays open until its state changes again. Tasks that are already done when a note opens are folded from the start. In Reading view there is no folding, so the body is hidden instead. This works in every note, with or without the ribbon.
 
+#### Planning the day
+
+Tasks carry their project as a tag, `#projects/ea48`, and nothing more: the planner writes nothing into a note but a tick. **Open day planner** opens a sidebar with the day's calendar, the projects and what they need. Give a tag a deadline and the planner counts what is open, looks at the time still free, and proposes blocks; take one, tick the tasks for it, and confirm. The block goes into your calendar, so every device shows it, and the plan — which tasks belong to which block — lives on your own bridge.
+
+A task belongs to a block rather than to a time, so a block moved in the calendar leaves its tasks alone, and nothing disappears from view because a minute has passed. A few tasks can also be marked for Erinnerungen; those are applied on an Apple device by a helper, the app or a Shortcut, and a reminder ticked there ticks the task in the note.
+
+On a start page, the same plan draws itself:
+
+````markdown
+```schreibstube-plan
+day: today
+tags: projects/ea48
+```
+````
+
+Switch it on under **Settings → Schreibstube → Tagesplan**, where the bridge URL, its token and the calendars are set. [PLANNING.md](PLANNING.md) has the details, and `bridge/README.md` the capability it needs.
+
 #### Sending a task to Erinnerungen
 
 On macOS and iOS a task can be handed to Apple's Reminders. Put the cursor on the task and run **Send task to Erinnerungen**, or right-click the line (long-press on a phone) and choose **Send to Erinnerungen**. The task's line becomes the reminder's title, tags included, and the text indented under it becomes the note. The command is offered only when the cursor is on a task; switch the feature on under **Settings → Schreibstube → Erinnerungen** first.

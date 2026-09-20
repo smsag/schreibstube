@@ -142,6 +142,30 @@ export interface SchreibstubeSettings {
   remindersStatusShortcut: string;
   /** Vault path of the file an automation writes that report to; empty turns the poll off. */
   remindersReportFile: string;
+  /**
+   * The day planner: tasks into time blocks, kept on a bridge the person runs.
+   * Off until switched on, because it needs an address and a token before it
+   * can do anything at all.
+   */
+  plannerEnabled: boolean;
+  /** Base URL of the bridge offering the plan capability. */
+  plannerBridgeUrl: string;
+  /** Secret-storage name of the plan token. */
+  plannerTokenSecretName: string;
+  /** Calendars to read; blocks are created in the first. */
+  plannerCalendars: string[];
+  /** Tags under this prefix are projects; empty means every tag is one. */
+  plannerTagPrefix: string;
+  /** When a proposed block starts, in minutes from midnight. */
+  plannerStartMinute: number;
+  /** How long a proposed block runs. */
+  plannerBlockMinutes: number;
+  /** How many tasks a block is expected to take. */
+  plannerCapacity: number;
+  /** Put before the project's name in a block's calendar title. */
+  plannerBlockPrefix: string;
+  /** The Reminders list a drain creates the marked tasks in. */
+  plannerRemindersList: string;
   /** Icon name per frontmatter key, lower-cased; drawn in place of the type icon. */
   propertyIcons: Record<string, string>;
   /** Moment format for today's date entered into text. Date properties always get ISO. */

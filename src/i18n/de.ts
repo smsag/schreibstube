@@ -20,6 +20,7 @@ export const de: Messages = {
     summarize: "Einfügen: KI-Zusammenfassung der Auswahl",
     table: "Einfügen: Tabelle aus der Auswahl",
     tableAi: "Einfügen: KI-Tabelle aus der Auswahl",
+    openPlanner: "Tagesplan öffnen",
     insertToday: "Einfügen: heutiges Datum",
     openExplorer: "Explorer öffnen",
     collapseExplorer: "Explorer: Ordner zuklappen",
@@ -243,6 +244,40 @@ export const de: Messages = {
   },
 
   settings: {
+    plannerHeading: "Tagesplan",
+    plannerIntro:
+      "Plant Aufgaben in Zeitblöcke: ein Block ist eine Stunde im Kalender mit einem Projekt-Tag " +
+      "und den Aufgaben, die dazugehören. Aufgaben bleiben schlichtes Markdown — in eine Notiz " +
+      "wird nichts geschrieben außer einem Haken. Der Plan selbst liegt auf der eigenen Bridge, " +
+      "die auch den Block in den Kalender schreibt.",
+    plannerEnabled: "Tagesplan einschalten",
+    plannerEnabledDesc:
+      "Bietet den Tagesplan-Bereich, den Befehl „Tagesplan öffnen“ und den ```schreibstube-plan```-Block.",
+    plannerBridgeUrl: "Bridge-URL",
+    plannerBridgeUrlDesc: "Adresse der eigenen Bridge, die den Plan bereitstellt.",
+    plannerToken: "Bridge-Token",
+    plannerTokenDesc: "Obsidian-Secret mit dem Plan-Token (PLAN_TOKEN auf der Bridge).",
+    plannerCalendars: "Kalender",
+    plannerCalendarsDesc:
+      "Kalendernamen, durch Komma getrennt; im ersten werden neue Blöcke angelegt.",
+    plannerTagPrefix: "Präfix für Projekt-Tags",
+    plannerTagPrefixDesc:
+      "Nur Tags unter diesem Präfix sind Projekte: „projects“ macht #projects/ea48 zu einem. Leer lassen, um jedes Tag als Projekt zu behandeln.",
+    plannerStart: "Blöcke beginnen um",
+    plannerStartDesc: "Uhrzeit, zu der ein vorgeschlagener Block beginnt, als HH:MM.",
+    plannerLength: "Blocklänge",
+    plannerLengthDesc: "Minuten, die ein vorgeschlagener Block dauert.",
+    plannerCapacity: "Aufgaben pro Block",
+    plannerCapacityDesc:
+      "Wie viele Aufgaben ein Block voraussichtlich schafft. Ein Projekt kann das mit seiner Frist überschreiben.",
+    plannerBlockPrefix: "Präfix für Blocktitel",
+    plannerBlockPrefixDesc: "Steht im Kalender vor dem Projektnamen, etwa „Fokus“.",
+    plannerRemindersList: "Erinnerungen-Liste",
+    plannerRemindersListDesc:
+      "Dort werden für Erinnerungen markierte Aufgaben angelegt. Ein Helfer oder die App arbeitet die Warteschlange ab; das Plugin schreibt selbst nie nach Erinnerungen.",
+    plannerBlockHelp: "Auf einer Startseite",
+    plannerBlockHelpDesc:
+      "Ein ```schreibstube-plan```-Block zeigt den Tag. Optionen, je Zeile eine: „day: today“ oder ein Datum, „tags: projects/ea48“, „show: blocks | deadlines | both“.",
     overlayHeading: "Überschriften-Stapel",
     overlayEnabled: "Überschriften-Stapel anzeigen",
     overlayEnabledDesc:
@@ -902,6 +937,51 @@ export const de: Messages = {
     apiKey: "API-Schlüssel",
     mailToken: "Mail-Token",
     publishToken: "Publish-Token",
-    githubToken: "GitHub-Token"
+    githubToken: "GitHub-Token",
+    planToken: "Plan-Token"
+  },
+  planner: {
+    title: "Tagesplan",
+    notConfigured:
+      "Der Tagesplan braucht eine Bridge. Adresse und Token unter Einstellungen → Schreibstube → Tagesplan eintragen.",
+    bridgeOutdated: (bridge: number, plugin: number) =>
+      `die Bridge spricht Protokoll ${bridge}, der Tagesplan braucht ${plugin}. Bridge neu ausrollen.`,
+    bridgeWithoutPlan: "die Bridge bietet keine Planungsfunktion — ihre PLAN_-Variablen setzen.",
+    nothingPlanned: "Für diesen Tag ist nichts geplant.",
+    emptyDay: "Der Kalender ist an diesem Tag leer.",
+    projects: "Projekte",
+    noProjects: (prefix: string) =>
+      prefix === ""
+        ? "Noch trägt keine offene Aufgabe ein Tag."
+        : `Noch trägt keine Aufgabe ein #${prefix}/…-Tag.`,
+    openTasks: (open: number) => `${open} offen`,
+    openOf: (open: number, total: number) => `${open} von ${total} offen`,
+    openPlanned: (open: number, planned: number) => `${open} offen, ${planned} verplant`,
+    daysLeft: (days: number) =>
+      days < 0 ? `${-days} Tag(e) überfällig` : days === 0 ? "heute" : `in ${days} Tag(en)`,
+    pressure: (open: number, days: number, planned: number) =>
+      `${open} offen, ${days} Tag(e) Zeit, Platz für ${planned}`,
+    needsDeadline: "Frist setzen, dann gibt es Vorschläge.",
+    nothingToPropose: "Es ist genug Zeit eingeplant.",
+    lost: "nicht gefunden",
+    remindMark: "Erinnerung",
+    dropBlock: "Diesen Block entfernen",
+    taskNotFound: "keine Notiz in diesem Vault enthält diese Aufgabe.",
+    ticked: (count: number) => `${count} Aufgabe(n) aus Erinnerungen aktualisiert.`,
+    blockPlanned: (title: string) => `geplant: ${title}`,
+    composeTitle: (tag: string) => `Block für ${tag} planen`,
+    composeHint: (capacity: number) =>
+      `Die ersten ${capacity} sind angehakt — ein Block ist für das, was hineinpasst, nicht für alles.`,
+    composeConfirm: "Einplanen",
+    blockTitle: "Titel",
+    blockStart: "Beginnt",
+    blockLength: "Minuten",
+    alsoRemind: "auch in Erinnerungen",
+    noOpenTasks: "Keine offene Aufgabe trägt dieses Tag.",
+    deadlineTitle: (tag: string) => `Frist für ${tag}`,
+    deadlineDate: "Frist",
+    deadlineCapacity: "Aufgaben pro Block",
+    deadlineCapacityDesc: "Wie viele Aufgaben dieses Projekts ein Block voraussichtlich schafft.",
+    deadlineClear: "Keine Frist"
   }
 };

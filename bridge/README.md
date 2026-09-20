@@ -1,8 +1,8 @@
 # Schreibstube bridge
 
-A small, stateless HTTP service that lets the Schreibstube Obsidian plugin reach
-protocols a WebView cannot speak: mail over IMAP and SMTP, and publishing over
-SFTP.
+A small HTTP service that lets the Schreibstube Obsidian plugin reach protocols
+a WebView cannot speak: mail over IMAP and SMTP, publishing over SFTP, and a
+calendar over CalDAV.
 
 ## Why this exists
 
@@ -10,15 +10,33 @@ Obsidian on mobile runs plugins in a WebView: no Node runtime, no raw TCP
 sockets. IMAP, SMTP and SFTP are raw TCP protocols, so the plugin cannot speak
 them directly — on mobile it never will be able to. Putting HTTPS in front of
 them gives the plugin one transport (`requestUrl`) that behaves identically on
-desktop and mobile, and keeps the plugin free of Node-only dependencies.
+desktop and mobile, and keeps the plugin free of Node-only dependencies. CalDAV
+is HTTP already, but it needs a password the vault should not hold and a
+correctness story — escaping, folding, time zones — that belongs in one place
+rather than in two clients.
 
 A useful side effect: the mailbox password lives here, in the bridge's
 environment, not in the vault. The plugin only stores a token, which can be
 rotated without touching the mailbox.
 
-**The bridge stores nothing.** No database, no message cache, no request-body
-logging. Log lines record the Message-ID and result counts, never recipients or
-message content.
+## What the bridge keeps
+
+**One planning document, and nothing else.** Mail and publishing keep nothing
+at all: no database, no message cache, no request-body logging. Log lines record
+the Message-ID and result counts, never recipients or message content, and
+publishing's state lives on the site's own host rather than here.
+
+The plan capability is the exception, and it is a narrow one. It stores exactly
+one JSON document — the day planner's deadlines, time blocks, task anchors and
+its small outbox — at `PLAN_STORE`, at its latest revision only. There is no
+history, no second copy and no per-request record: a write replaces the
+document and increments a revision counter. Nothing about mail, publishing or
+the calendar is written there; calendar events live in the calendar.
+
+Until that document is written for the first time, the file does not exist. It
+is the plugin's to fill, and deleting it resets the planner to empty rather
+than breaking anything. It is written with owner-only permissions, and it is the
+one thing a deployment should put on a volume if it wants a redeploy to keep it.
 
 ## Versions
 
@@ -29,6 +47,7 @@ route that does not exist yet.
 
 | Bridge | Protocol | Plugin          | Notes                                                |
 | ------ | -------- | --------------- | ---------------------------------------------------- |
+| 2.5.x  | 2        | 1.8.0 and later | Planning document and CalDAV calendar                |
 | 2.4.x  | 1        | 1.8.0 and later | Validated search body, fetch and asset byte bounds   |
 | 2.3.x  | 1        | 1.8.0 and later | `TRUST_PROXY`, Node 24, image without Mermaid's tree |
 | 2.2.x  | 1        | 1.8.0 and later | Per-target switches, publish history, JSON logs      |
@@ -44,27 +63,34 @@ that offers nothing refuses to start. One capability's token never opens
 another's routes: it is refused exactly as a wrong token is, and says as little.
 
 Run the bridge as a **single instance**. State that has to be shared between
-requests — the throttle today, the per-target publish lock later — lives in
-memory, and a second instance would not see it.
+requests — the throttle, the per-target publish lock, and the queue that makes
+a plan write atomic — lives in memory, and a second instance would not see it.
+Two instances would also both hold the planning document open, and the revision
+check that protects it only works within one process.
 
 ## API
 
 All endpoints except `/health` require `Authorization: Bearer <token>`, and the
 token must belong to the capability that owns the route.
 
-| Method | Path                   | Capability | Body                                                                         | Returns                                            |
-| ------ | ---------------------- | ---------- | ---------------------------------------------------------------------------- | -------------------------------------------------- |
-| `GET`  | `/health`              | —          | —                                                                            | `{status, version, protocol, capabilities[]}`      |
-| `POST` | `/diagnostics`         | mail       | —                                                                            | per-protocol reachability                          |
-| `POST` | `/send`                | mail       | `{to, cc?, bcc?, subject, text, from?, inReplyTo?, references?}`             | `{messageId, sentAt, filedInSent}`                 |
-| `POST` | `/search`              | mail       | `{criteria:{from?,to?,subject?,text?,since?,references?}, mailbox?, limit?}` | `{messages[], mailbox, truncated}`                 |
-| `GET`  | `/publish/targets`     | publish    | —                                                                            | `{targets:[{name, baseUrl, siteTitle}]}`           |
-| `POST` | `/publish/diagnostics` | publish    | `{target}`                                                                   | `{ok, root, entries}` or `{ok:false, error}`       |
-| `POST` | `/publish/plan`        | publish    | `{target, index}`                                                            | what to upload, and what will be deleted           |
-| `PUT`  | `/publish/source`      | publish    | raw Markdown, `?target=&sha256=`                                             | `{sha256, bytes}`                                  |
-| `PUT`  | `/publish/asset`       | publish    | raw bytes, `?target=&sha256=&name=`                                          | `{sha256, bytes, path}`                            |
-| `POST` | `/publish/commit`      | publish    | `{target, index}`                                                            | `{written, unchanged, deleted, pruned, collected}` |
-| `POST` | `/publish/render`      | publish    | `{target}`                                                                   | the same, rebuilt from stored state                |
+| Method | Path                      | Capability | Body                                                                         | Returns                                            |
+| ------ | ------------------------- | ---------- | ---------------------------------------------------------------------------- | -------------------------------------------------- |
+| `GET`  | `/health`                 | —          | —                                                                            | `{status, version, protocol, capabilities[]}`      |
+| `POST` | `/diagnostics`            | mail       | —                                                                            | per-protocol reachability                          |
+| `POST` | `/send`                   | mail       | `{to, cc?, bcc?, subject, text, from?, inReplyTo?, references?}`             | `{messageId, sentAt, filedInSent}`                 |
+| `POST` | `/search`                 | mail       | `{criteria:{from?,to?,subject?,text?,since?,references?}, mailbox?, limit?}` | `{messages[], mailbox, truncated}`                 |
+| `GET`  | `/publish/targets`        | publish    | —                                                                            | `{targets:[{name, baseUrl, siteTitle}]}`           |
+| `POST` | `/publish/diagnostics`    | publish    | `{target}`                                                                   | `{ok, root, entries}` or `{ok:false, error}`       |
+| `POST` | `/publish/plan`           | publish    | `{target, index}`                                                            | what to upload, and what will be deleted           |
+| `PUT`  | `/publish/source`         | publish    | raw Markdown, `?target=&sha256=`                                             | `{sha256, bytes}`                                  |
+| `PUT`  | `/publish/asset`          | publish    | raw bytes, `?target=&sha256=&name=`                                          | `{sha256, bytes, path}`                            |
+| `POST` | `/publish/commit`         | publish    | `{target, index}`                                                            | `{written, unchanged, deleted, pruned, collected}` |
+| `POST` | `/publish/render`         | publish    | `{target}`                                                                   | the same, rebuilt from stored state                |
+| `GET`  | `/plan`                   | plan       | —                                                                            | `{rev, document}`                                  |
+| `PUT`  | `/plan`                   | plan       | `{rev, document}`                                                            | `{rev}`, or `409` with the winning revision        |
+| `GET`  | `/calendar/events`        | plan       | `?from=&to=&calendars=`                                                      | `{events[], truncated}`                            |
+| `POST` | `/calendar/events`        | plan       | `{uid?, title, start, end, calendar, notes?, allDay?}`                       | `{uid}`                                            |
+| `POST` | `/calendar/events/delete` | plan       | `{uid, calendar}`                                                            | `{deleted}`                                        |
 
 `/health` is the version handshake: plugin and bridge deploy separately, and
 `protocol` is what lets the plugin say "redeploy the bridge" instead of failing
@@ -96,6 +122,76 @@ Two details worth knowing:
   reported in `filedInSent` but is not treated as a failed send — the mail is
   already delivered.
 
+## Planning
+
+The plan capability is the server side of a day planner. The plugin keeps the
+plan — what is due when, which tasks belong to which block, where each task
+lives in the vault — and the bridge keeps that document safe and writes the time
+blocks into a real calendar, so a block shows up on the phone's lock screen
+rather than only inside Obsidian.
+
+**The document is opaque to the bridge and still checked line by line.** It is
+written by the plugin, by a helper on the Mac and by an app on the phone, and it
+is a file a person can open, so every field is validated against a shape and a
+bound before it is stored: tags, task keys, ISO moments, at most 200 deadlines,
+500 blocks, 2000 anchors, 512 KB in all. A wrong field is refused rather than
+coerced, and the error names the field without quoting what was in it.
+
+**Writes are optimistic, never merged.** `GET /plan` answers `{rev, document}`;
+`PUT /plan` takes `{rev, document}` and stores it only if `rev` is still the
+current one. If it is not, the answer is `409` with `code: "conflict"` and the
+revision and document that won, so the late writer re-applies its change without
+a second round trip. Merging two versions of a whole plan behind the user's back
+would lose a day of it silently; refusing loses nothing.
+
+**The calendar is addressed by UID, not by file name.** `POST /calendar/events`
+creates when `uid` is absent and replaces when it is present — and to replace,
+the bridge first asks the calendar where that UID lives. A CalDAV resource's
+name is chosen by whichever client created the event and need not resemble its
+UID; writing to `<uid>.ics` on the strength of the UID alone is how one event
+quietly becomes two.
+
+**Windows are bounded before the calendar is asked anything.** A query covers at
+most 120 days and returns at most 2000 events, and `calendars` is intersected
+with `CALDAV_CALENDARS` — a calendar the operator did not name is not reachable
+from the vault, whatever the request says. `truncated` says whether the limit
+cut the answer short.
+
+All-day events use dates (`2026-09-20`) on both ends and follow the iCalendar
+convention that `DTEND` is exclusive: a single day is `start` today and `end`
+tomorrow. Timed events use ISO moments and are written to the calendar in UTC.
+Events read back carry an instant where the server gave one — a `TZID` is
+resolved through the zone database Node already ships — and a floating time
+(no zone, no `Z`) is handed over as written rather than given an invented
+offset.
+
+The credential goes to exactly one host: the one in `CALDAV_URL`. A redirect is
+followed only within that host, and an href the server hands back is resolved
+and re-checked before anything is sent to it. Responses are read up to
+`PLAN_MAX_RESPONSE_BYTES` and then abandoned.
+
+### iCloud, untested
+
+The CalDAV client is written to the specification and exercised against a fake
+server, not against iCloud. What to expect if you point it there:
+
+- `CALDAV_URL` is not `https://caldav.icloud.com/`. It is the calendar home of
+  your principal, `https://caldav.icloud.com/<numeric id>/calendars/`, which you
+  find with a `PROPFIND` for `current-user-principal` and then
+  `calendar-home-set`. The bridge does not walk that chain; give it the home
+  collection directly.
+- `CALDAV_PASSWORD` must be an app-specific password from your Apple account,
+  not the account password, and the account needs two-factor authentication.
+- Calendar names there are opaque identifiers, not `arbeit` and `privat`. Leave
+  `CALDAV_CALENDARS` unset and read the names back from a discovery run, or set
+  it to those identifiers.
+- Apple's servers are known to be particular about `DTSTAMP`, about a `PRODID`
+  they do not recognise, and about a `PUT` to a resource name they did not
+  choose. The first two are sent as the specification asks; the third is why an
+  update asks where the UID lives instead of guessing.
+
+Treat the first run as a test against a scratch calendar.
+
 ## Tests
 
 The bridge is covered by the repository's Vitest suite, so its tests run with
@@ -112,6 +208,13 @@ IMAP client, so nothing touches the network. `server.test.mjs` starts the bridge
 as a real process and drives it over HTTP, because configuration is read and the
 port bound at import time, and because routing, auth and the body limits are
 properties of the running service.
+
+Publishing and planning each get a server of their own: `publish/sftp-fixture.mjs`
+is a real SFTP server over a temporary directory, and `plan/caldav-fixture.mjs`
+is a real CalDAV server in process. Both exist because the claims worth making
+— that a rename was atomic, that an update landed on the resource the server
+chose — are claims about someone else's protocol and are not provable against a
+mock of our own transport.
 
 ## Publishing
 
@@ -178,6 +281,12 @@ Copy `.env.example` and fill it in. To offer publishing, set `PUBLISH_TOKEN`,
 a password, the host fingerprint, the web root and the site URL. Read the
 fingerprint with `ssh-keyscan -t rsa your-host | ssh-keygen -lf -`.
 
+To offer planning, set `PLAN_TOKEN`, `CALDAV_URL`, `CALDAV_USER` and
+`CALDAV_PASSWORD`; `PLAN_STORE` defaults to `./data/plan.json` and
+`CALDAV_CALENDARS` to every calendar the server offers. `CALDAV_URL` is the
+calendar home collection — the one whose children are the calendars — and must
+be `https://` unless it is loopback.
+
 To offer mail, set `MAIL_TOKEN`,
 `IMAP_HOST`, `SMTP_HOST`, `MAIL_USER`, `MAIL_PASSWORD` and `MAIL_FROM`;
 everything else has a sensible default. Set none of them and the bridge does not
@@ -191,8 +300,9 @@ The size limits are variables too: `MAX_BODY_BYTES` for a request body,
 `MAX_TEXT_CHARS` for the text kept from a message and `MAX_MESSAGE_BYTES` for
 what one message may weigh on the wire; `PUBLISH_MAX_SOURCE_BYTES`,
 `PUBLISH_MAX_IMAGE_BYTES`, `PUBLISH_MAX_VIDEO_BYTES`, `PUBLISH_MAX_INDEX_BYTES`
-and `PUBLISH_MAX_FILES` for a publication. `.env.example` lists them with their
-defaults.
+and `PUBLISH_MAX_FILES` for a publication; `PLAN_MAX_BODY_BYTES` for a plan
+write and `PLAN_MAX_RESPONSE_BYTES` for what a calendar may answer with.
+`.env.example` lists them with their defaults.
 
 Generate the token with:
 
@@ -225,8 +335,10 @@ labels change over time, but the settings you need are:
 3. **Port**: `8080` (or set `PORT` and match it).
 4. **Health check path**: `/health`.
 5. **Environment variables**: everything from `.env.example`. Mark
-   `MAIL_PASSWORD`, `MAIL_TOKEN`, `PUBLISH_TOKEN` and any `PUBLISH_*_KEY` or
-   `PUBLISH_*_PASSWORD` as secrets. Set `TRUST_PROXY=true`: the platform's
+   `MAIL_PASSWORD`, `MAIL_TOKEN`, `PUBLISH_TOKEN`, `PLAN_TOKEN`,
+   `CALDAV_PASSWORD` and any `PUBLISH_*_KEY` or `PUBLISH_*_PASSWORD` as
+   secrets. If planning is configured, mount a volume and point `PLAN_STORE`
+   into it — otherwise the planning document goes with the next redeploy. Set `TRUST_PROXY=true`: the platform's
    proxy terminates TLS, so without it the throttle sees one address for
    everyone.
 6. Deploy, then confirm:
@@ -250,7 +362,7 @@ are the entire perimeter:
 
 - Use a long random token per capability (the service refuses anything under
   24 characters) and rotate it by changing the env var and the plugin setting.
-  A mail token never opens a publish route, or the other way round.
+  A mail token never opens a publish or a plan route, or the other way round.
 - The plugin refuses a plain `http://` bridge URL unless it is loopback, so a
   misconfiguration cannot silently send the token in the clear.
 - Token comparison is constant-time, and a missing token is indistinguishable

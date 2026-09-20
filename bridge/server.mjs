@@ -11,8 +11,9 @@
  * limits. This file is only the plumbing: configuration, the route table, and
  * the order in which a request is checked. The capabilities are elsewhere.
  *
- * Nothing is persisted here: no database, no cache, no request-body logging.
- * The only long-lived state is the credentials held in the environment.
+ * One thing is persisted, and only by the plan capability: a single planning
+ * document, at its latest revision, in one JSON file. There is no database, no
+ * cache and no request-body logging; mail and publishing keep nothing at all.
  */
 import { createServer } from "node:http";
 import { createRequire } from "node:module";
@@ -23,6 +24,7 @@ import { createThrottle } from "./throttle.mjs";
 import { TimeoutError, withDeadline } from "./timeout.mjs";
 import { createMailRoutes } from "./mail-routes.mjs";
 import { createPublishRoutes } from "./publish/routes.mjs";
+import { createPlanRoutes } from "./plan/routes.mjs";
 
 const VERSION = createRequire(import.meta.url)("./package.json").version;
 
@@ -32,7 +34,8 @@ const tokens = Object.fromEntries(capabilities.map((name) => [name, config[name]
 const routes = [
   healthRoute(),
   ...(config.mail ? createMailRoutes(config) : []),
-  ...(config.publish ? createPublishRoutes(config, { version: VERSION }) : [])
+  ...(config.publish ? createPublishRoutes(config, { version: VERSION }) : []),
+  ...(config.plan ? createPlanRoutes(config) : [])
 ];
 const throttle = createThrottle({
   limit: config.authFailureLimit,
@@ -152,6 +155,17 @@ function fail(res, err, requestId) {
   }
   if (err.status) {
     if (err.status >= 500) log("error", err.detail ?? err.message, requestId);
+    // A few refusals are only useful with the state that caused them — a
+    // rejected plan write has to hand back the revision that won, or the
+    // caller cannot re-apply its change without asking again.
+    if (err.payload) {
+      return sendJson(res, err.status, {
+        error: err.message,
+        code: err.code,
+        requestId,
+        ...err.payload
+      });
+    }
     return sendError(res, err.status, err.code, err.message, requestId);
   }
   throw err;

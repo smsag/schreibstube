@@ -6,6 +6,40 @@
  */
 export const enExtra = {
   settings: {
+    plannerHeading: "Tagesplan",
+    plannerIntro:
+      "Plans tasks into time blocks: a block is an hour in your calendar with a project tag and " +
+      "the tasks that belong to it. Tasks stay plain Markdown — nothing is written into a note " +
+      "but a tick. The plan itself lives on your own bridge, which also writes the block into " +
+      "your calendar.",
+    plannerEnabled: "Enable the day planner",
+    plannerEnabledDesc:
+      'Offers the planner leaf, the "Open day planner" command and the ```schreibstube-plan``` block.',
+    plannerBridgeUrl: "Bridge URL",
+    plannerBridgeUrlDesc: "Address of your bridge, the one running the plan capability.",
+    plannerToken: "Bridge token",
+    plannerTokenDesc: "Obsidian secret holding the plan token (PLAN_TOKEN on the bridge).",
+    plannerCalendars: "Calendars",
+    plannerCalendarsDesc:
+      "Comma-separated calendar names to read, the first one being where new blocks are created.",
+    plannerTagPrefix: "Project tag prefix",
+    plannerTagPrefixDesc:
+      'Only tags under this prefix are projects: "projects" makes #projects/ea48 one. Leave empty to treat every tag as a project.',
+    plannerStart: "Blocks start at",
+    plannerStartDesc: "Time of day a proposed block begins, as HH:MM.",
+    plannerLength: "Block length",
+    plannerLengthDesc: "Minutes a proposed block runs.",
+    plannerCapacity: "Tasks per block",
+    plannerCapacityDesc:
+      "How many tasks one block is expected to take. A project can override it with its deadline.",
+    plannerBlockPrefix: "Block title prefix",
+    plannerBlockPrefixDesc: 'Put before the project name in the calendar, for example "Fokus".',
+    plannerRemindersList: "Reminders list",
+    plannerRemindersListDesc:
+      "Where tasks marked for Erinnerungen are created. A helper or the app applies the queue; the plugin never writes to Reminders itself.",
+    plannerBlockHelp: "On a start page",
+    plannerBlockHelpDesc:
+      'A ```schreibstube-plan``` block shows the day. Options, one per line: "day: today" or a date, "tags: projects/ea48", "show: blocks | deadlines | both".',
     overlayHeading: "Heading stack",
     overlayEnabled: "Enable heading stack overlay",
     overlayEnabledDesc:
@@ -655,6 +689,50 @@ export const enExtra = {
     apiKey: "API key",
     mailToken: "mail token",
     publishToken: "publish token",
-    githubToken: "GitHub token"
+    githubToken: "GitHub token",
+    planToken: "plan token"
+  },
+
+  planner: {
+    title: "Tagesplan",
+    notConfigured:
+      "The planner needs a bridge. Enter its address and token under Settings → Schreibstube → Tagesplan.",
+    bridgeOutdated: (bridge: number, plugin: number) =>
+      `the bridge speaks protocol ${bridge}, the planner needs ${plugin}. Redeploy the bridge.`,
+    bridgeWithoutPlan: "the bridge offers no planning capability — set its PLAN_ variables.",
+    nothingPlanned: "Nothing planned for this day.",
+    emptyDay: "The calendar has nothing on this day.",
+    projects: "Projects",
+    noProjects: (prefix: string) =>
+      prefix === "" ? "No tags on open tasks yet." : `No tasks carry a #${prefix}/… tag yet.`,
+    openTasks: (open: number) => `${open} open`,
+    openOf: (open: number, total: number) => `${open} of ${total} open`,
+    openPlanned: (open: number, planned: number) => `${open} open, ${planned} planned`,
+    daysLeft: (days: number) =>
+      days < 0 ? `${-days} day(s) late` : days === 0 ? "today" : `in ${days} day(s)`,
+    pressure: (open: number, days: number, planned: number) =>
+      `${open} open, ${days} day(s) left, room for ${planned}`,
+    needsDeadline: "Set a deadline to get suggestions.",
+    nothingToPropose: "Enough time is planned.",
+    lost: "not found",
+    remindMark: "Erinnerung",
+    dropBlock: "Remove this block",
+    taskNotFound: "no note in this vault holds that task.",
+    ticked: (count: number) => `${count} task(s) updated from Erinnerungen.`,
+    blockPlanned: (title: string) => `planned: ${title}`,
+    composeTitle: (tag: string) => `Plan a block for ${tag}`,
+    composeHint: (capacity: number) =>
+      `The first ${capacity} are ticked — a block is for what fits in it, not for everything.`,
+    composeConfirm: "Plan it",
+    blockTitle: "Title",
+    blockStart: "Starts",
+    blockLength: "Minutes",
+    alsoRemind: "also in Erinnerungen",
+    noOpenTasks: "No open tasks carry this tag.",
+    deadlineTitle: (tag: string) => `Deadline for ${tag}`,
+    deadlineDate: "Deadline",
+    deadlineCapacity: "Tasks per block",
+    deadlineCapacityDesc: "How many of this project's tasks one block is expected to take.",
+    deadlineClear: "No deadline"
   }
 };

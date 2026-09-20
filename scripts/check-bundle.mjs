@@ -19,8 +19,14 @@ import { fileURLToPath } from "node:url";
  * property icons and dates (+8 KB): each fitted under 400 alone, together
  * they come to about 404. The headroom left is for the next feature, not a
  * new normal — a change that needs more says why, as this one does.
+ *
+ * Raised to 470 KB at 417 KB, for the day planner (+42 KB): a leaf with its
+ * modals, the block a start page draws, the plan's own model, matcher and
+ * proposal engine, and every string of it in two languages. It is the largest
+ * single feature the plugin has taken on, and the headroom left is for the
+ * next one, not for this one to grow into.
  */
-const MAX_BUNDLE_KB = 420;
+const MAX_BUNDLE_KB = 470;
 
 const bundle = fileURLToPath(new URL("../main.js", import.meta.url));
 const source = readFileSync(bundle, "utf8");

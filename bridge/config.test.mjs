@@ -195,3 +195,133 @@ describe("loadConfig, parsing", () => {
     expect(mail.imap.auth).toEqual(mail.smtp.auth);
   });
 });
+
+/**
+ * Planning is the third capability, and the first that keeps anything. Its
+ * variables follow the same rule as the other two — present any of them and
+ * the operator meant it — with the store path and the calendar allowlist as
+ * the two that have an answer when they are left out.
+ */
+const PLAN = {
+  PLAN_TOKEN: TOKEN,
+  CALDAV_URL: "https://caldav.icloud.com/1234/calendars",
+  CALDAV_USER: "planer@example.com",
+  CALDAV_PASSWORD: "geheim"
+};
+
+describe("loadConfig, plan", () => {
+  it("offers planning when its variables are present", () => {
+    const config = loadConfig(PLAN);
+    expect(config.plan.token).toBe(TOKEN);
+    expect(capabilityNames(config)).toEqual(["plan"]);
+  });
+
+  it("does not offer planning when none of its variables is set", () => {
+    expect(loadConfig(env()).plan).toBeNull();
+  });
+
+  it("offers all three capabilities side by side", () => {
+    const config = loadConfig({
+      ...env(),
+      ...PLAN,
+      PUBLISH_TOKEN: TOKEN,
+      PUBLISH_TARGETS: "blog",
+      PUBLISH_BLOG_HOST: "sftp.example.com",
+      PUBLISH_BLOG_USER: "web",
+      PUBLISH_BLOG_PASSWORD: "geheim",
+      PUBLISH_BLOG_HOST_FINGERPRINT: "SHA256:abc",
+      PUBLISH_BLOG_ROOT: "/var/www",
+      PUBLISH_BLOG_BASE_URL: "https://blog.example.com"
+    });
+    expect(capabilityNames(config)).toEqual(["mail", "publish", "plan"]);
+  });
+
+  it("names the plan variables when nothing at all is configured", () => {
+    expect(() => loadConfig({})).toThrow(/PLAN_TOKEN/);
+  });
+
+  for (const key of Object.keys(PLAN)) {
+    it(`treats a partial plan configuration as an error, naming ${key}`, () => {
+      const incomplete = { ...PLAN };
+      delete incomplete[key];
+      expect(() => loadConfig(incomplete)).toThrow(key);
+    });
+  }
+
+  it("treats the store path alone as an intention to offer planning", () => {
+    // Otherwise a half-written block would be silently ignored rather than
+    // reported, which is the failure this rule exists to prevent.
+    expect(() => loadConfig({ PLAN_STORE: "./data/plan.json" })).toThrow(/PLAN_TOKEN/);
+  });
+
+  it("holds the token to the same minimum length as the others", () => {
+    expect(() => loadConfig({ ...PLAN, PLAN_TOKEN: "kurz" })).toThrow(/^PLAN_TOKEN/);
+  });
+
+  it("defaults the store path, and takes one when it is given", () => {
+    expect(loadConfig(PLAN).plan.store).toBe("./data/plan.json");
+    expect(loadConfig({ ...PLAN, PLAN_STORE: " /daten/plan.json " }).plan.store).toBe(
+      "/daten/plan.json"
+    );
+  });
+
+  it("defaults the two budgets", () => {
+    const { plan } = loadConfig(PLAN);
+    expect(plan.maxBodyBytes).toBe(600_000);
+    expect(plan.maxResponseBytes).toBe(8_000_000);
+  });
+
+  it("refuses a budget that is set and unreadable", () => {
+    expect(() => loadConfig({ ...PLAN, PLAN_MAX_BODY_BYTES: "viel" })).toThrow(
+      /PLAN_MAX_BODY_BYTES/
+    );
+  });
+
+  it("insists the calendar URL is https, or loopback for a local server", () => {
+    expect(() => loadConfig({ ...PLAN, CALDAV_URL: "http://caldav.example.com/" })).toThrow(
+      /CALDAV_URL must be https/
+    );
+    expect(loadConfig({ ...PLAN, CALDAV_URL: "http://127.0.0.1:8081/dav/" }).plan.caldav.url).toBe(
+      "http://127.0.0.1:8081/dav/"
+    );
+  });
+
+  it("refuses a calendar URL that is not a URL", () => {
+    expect(() => loadConfig({ ...PLAN, CALDAV_URL: "https://" })).toThrow(
+      /CALDAV_URL is not a URL/
+    );
+  });
+
+  it("gives the calendar URL a trailing slash, so a name resolves under it", () => {
+    expect(loadConfig(PLAN).plan.caldav.url).toBe("https://caldav.icloud.com/1234/calendars/");
+  });
+
+  it("reads an empty allowlist as every calendar the server offers", () => {
+    expect(loadConfig(PLAN).plan.caldav.calendars).toEqual([]);
+    expect(loadConfig({ ...PLAN, CALDAV_CALENDARS: " , " }).plan.caldav.calendars).toEqual([]);
+  });
+
+  it("reads the allowlist as a comma-separated list, trimmed", () => {
+    expect(
+      loadConfig({ ...PLAN, CALDAV_CALENDARS: " arbeit , privat " }).plan.caldav.calendars
+    ).toEqual(["arbeit", "privat"]);
+  });
+
+  it("refuses a calendar name it could not address safely", () => {
+    for (const name of ["..", "mit leerzeichen", "/absolut", "-führend"]) {
+      expect(() => loadConfig({ ...PLAN, CALDAV_CALENDARS: name })).toThrow(
+        /Unusable calendar name/
+      );
+    }
+  });
+
+  it("trims the user but never the password", () => {
+    const { plan } = loadConfig({ ...PLAN, CALDAV_USER: " planer ", CALDAV_PASSWORD: " geheim " });
+    expect(plan.caldav.user).toBe("planer");
+    expect(plan.caldav.password).toBe(" geheim ");
+  });
+
+  it("reports a protocol version the plan routes belong to", () => {
+    expect(PROTOCOL_VERSION).toBe(2);
+  });
+});

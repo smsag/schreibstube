@@ -23,6 +23,7 @@ export const en = {
     table: "Insert: table from the selection",
     tableAi: "Insert: AI table from the selection",
     insertToday: "Insert: today's date",
+    openPlanner: "Open day planner",
     openExplorer: "Open explorer",
     collapseExplorer: "Explorer: collapse folders",
     related: "Related notes",

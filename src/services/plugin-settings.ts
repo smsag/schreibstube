@@ -131,6 +131,16 @@ export const DEFAULT_SETTINGS: SchreibstubeSettings = {
   printEnabled: false,
   printTemplateRoot: TEMPLATE_ROOT_DEFAULT,
   printOutputFolder: "",
+  plannerEnabled: false,
+  plannerBridgeUrl: "",
+  plannerTokenSecretName: "",
+  plannerCalendars: [],
+  plannerTagPrefix: "projects",
+  plannerStartMinute: 5 * 60 + 30,
+  plannerBlockMinutes: 60,
+  plannerCapacity: 3,
+  plannerBlockPrefix: "",
+  plannerRemindersList: "Schreibstube",
   remindersEnabled: false,
   remindersList: "",
   remindersShortcut: DEFAULT_REMINDERS_SHORTCUT,
@@ -323,6 +333,32 @@ export function normalizeSettings(loaded: LoadedSettings): SchreibstubeSettings 
       loaded?.printOutputFolder,
       DEFAULT_SETTINGS.printOutputFolder
     ),
+    plannerEnabled: loaded?.plannerEnabled === true,
+    plannerBridgeUrl: trimmedStringOrDefault(loaded?.plannerBridgeUrl, ""),
+    plannerTokenSecretName: trimmedStringOrDefault(loaded?.plannerTokenSecretName, ""),
+    plannerCalendars: normalizeCalendars(loaded?.plannerCalendars),
+    plannerTagPrefix: trimmedStringOrDefault(
+      loaded?.plannerTagPrefix,
+      DEFAULT_SETTINGS.plannerTagPrefix
+    ).replace(/^#/, ""),
+    plannerStartMinute: bounded(
+      loaded?.plannerStartMinute,
+      0,
+      24 * 60 - 1,
+      DEFAULT_SETTINGS.plannerStartMinute
+    ),
+    plannerBlockMinutes: bounded(
+      loaded?.plannerBlockMinutes,
+      5,
+      8 * 60,
+      DEFAULT_SETTINGS.plannerBlockMinutes
+    ),
+    plannerCapacity: bounded(loaded?.plannerCapacity, 1, 50, DEFAULT_SETTINGS.plannerCapacity),
+    plannerBlockPrefix: trimmedStringOrDefault(loaded?.plannerBlockPrefix, ""),
+    plannerRemindersList: nonEmptyStringOrDefault(
+      loaded?.plannerRemindersList,
+      DEFAULT_SETTINGS.plannerRemindersList
+    ).trim(),
     remindersEnabled: loaded?.remindersEnabled === true,
     remindersList: trimmedStringOrDefault(loaded?.remindersList, DEFAULT_SETTINGS.remindersList),
     remindersShortcut: trimmedStringOrDefault(
@@ -433,6 +469,25 @@ function syncStateOrDefault(value: unknown): Record<string, SyncRecord> {
 function stringListOrDefault(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   return value.filter((entry): entry is string => typeof entry === "string" && entry.trim() !== "");
+}
+
+/**
+ * The calendars the planner may read. Names come from a text field, so the
+ * list is trimmed, emptied of blanks and bounded: a person pasting a whole
+ * file in there should cost a setting, not every later request.
+ */
+export function normalizeCalendars(value: unknown): string[] {
+  const names = typeof value === "string" ? value.split(",") : Array.isArray(value) ? value : [];
+  return names
+    .map((name) => (typeof name === "string" ? name.trim() : ""))
+    .filter((name) => name !== "")
+    .slice(0, 20);
+}
+
+/** A number from the settings file, kept inside what the feature can use. */
+function bounded(value: unknown, low: number, high: number, fallback: number): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) return fallback;
+  return Math.min(high, Math.max(low, Math.round(value)));
 }
 
 /** Optional free-text setting: an empty value is meaningful ("not configured"),
