@@ -228,18 +228,23 @@ a.external-link.schreibstube-reminder-mark {
 }
 
 /* ── Buttons: one rule set per role ────────────────────────────────────────
-   The rules below are `kit/button.css` with its placeholders replaced, and
-   nothing else changed — `src/services/button-kit.test.ts` fails if they
-   drift. The kit is Pythia's, the family's baseline for buttons; edit it
-   there, copy it here, re-instantiate. Do not edit this block.
+   Every hand-built button carries `sb` plus ONE role; its own class keeps only
+   layout. Obsidian's own dialog buttons — the ones `Setting.addButton` makes —
+   keep `mod-cta` and its siblings: those are the host's chrome, not ours.
+   `src/services/button-roles.test.ts` fails when a button is created without a
+   role, and `src/services/obsidian-cascade.test.ts` fails if one of Obsidian's
+   own rules reaches one.
 
-   Every hand-built button carries `sb` plus ONE role. Obsidian's own dialog
-   buttons — the ones `Setting.addButton` makes — keep `mod-cta` and its
-   siblings: those are the host's chrome, not ours.
+   THE BASE CLAIMS EVERY PROPERTY OBSIDIAN'S BARE `button` RULE SETS — height,
+   width, padding, radius, corner-shape, shadow, background, font, weight,
+   line-height and colour. A role that forgets one inherits the host's, and
+   that is where every button here started: claiming layout and nothing else,
+   so all ten of Obsidian's rules reached them unopposed.
 
-   The colour contract is left at the kit's defaults. This plugin has no
-   contrast-computed label token of its own, so `--btn-on-accent` stays
-   `--text-on-accent`. */
+   The colour contract is `var(--btn-accent | --btn-on-accent | --btn-error |
+   --btn-warning, <Obsidian token>)`, so a surface overrides one property
+   rather than a rule. This plugin overrides none: it has no contrast-computed
+   label token of its own, and the Obsidian default is the honest value. */
 :is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker) .sb {
   -webkit-appearance: none;
   appearance: none;
@@ -688,25 +693,30 @@ a.external-link.schreibstube-reminder-mark {
   color: var(--text-muted);
 }
 
-/* A marked run of text is drawn with the family's pen.
+/* A marked run of text is drawn like a felt tip laid over the words and lifted
+ * off again: 104deg, ink in over the first half character and out over the last
+ * sixth, square ends, and one stroke per wrapped line.
  *
- * Klartext is the baseline and its `kit/highlight.css` is the canonical text;
- * this is a copy, because Obsidian loads every plugin's CSS globally and a
- * shared class name would couple the plugins to each other through whichever
- * loaded last. Re-copy if the kit changes — there is no runtime dependency, by
- * design.
+ * No border-radius (a rounded end reads as a chip), no text-shadow (a halo is a
+ * second treatment competing with the stroke, and it inverts between light and
+ * dark), no box-shadow. No `mix-blend-mode` either: any ancestor with transform,
+ * filter or opacity creates a stacking context and the blend silently stops
+ * there, and a panel cannot know what it is nested in.
  *
  * These were flat slabs from `--background-modifier-error` and
  * `--background-modifier-success`: tokens for a toast or a form field, not for
  * a run of prose. Measured in Obsidian, the painted fill sat 312 (insert) and
  * 277 (delete) from the page in Euclidean RGB, against the theme's own
- * highlight at 70 — the loudest marks in the family by a factor of four, and
+ * highlight at 70 — four times too loud for a run of prose, and
  * theme-dependent on top, since a theme picks that token's saturation for a
  * UI affordance rather than for text.
  *
  * The ink stays semantic — green for an insertion, red for a deletion and for
- * a flag — and the strikethrough stays. Only the shape is the family's, and
- * the strength lands in its 60–140 band (79 and 70, measured). */
+ * a flag — and the strikethrough stays. INK STRENGTH IS MEASURED, NOT PICKED:
+ * 60–140 Euclidean RGB from `--background-primary`, sampled over the flat
+ * middle of the painted stroke, is the band where a mark on prose reads as a
+ * mark. Below it, a rendering artefact; above it, a UI chip dropped into a
+ * paragraph. These land at 79 and 70. */
 .schreibstube-diff-delete,
 .schreibstube-diff-insert,
 .schreibstube-diff-flag {

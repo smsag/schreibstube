@@ -7,7 +7,7 @@ import { OBSIDIAN_BUTTON_RULES, SENTINEL } from "../testing/obsidian-button-rule
 /**
  * Obsidian's own button rules must not change a Schreibstube button.
  *
- * Every hand-built button wears a role from `kit/button.css`, and Obsidian's
+ * Every hand-built button wears one of the nine roles in `styles.css`, and Obsidian's
  * app.css sets a fill, a label colour, a height, a radius, a shadow and — on a
  * tablet or in a phone modal — a padding and a width on every `button` in the
  * document. The roles claim each of those properties; this proves they win.

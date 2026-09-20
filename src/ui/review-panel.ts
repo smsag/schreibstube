@@ -383,7 +383,7 @@ export class ReviewPanelView extends ItemView {
     icon: string,
     disabled: boolean,
     onClick: () => void,
-    /** The look: one of the family's button roles (kit/button.css). */
+    /** The look: one of the nine button roles in `styles.css`. */
     role: "primary" | "secondary" | "quiet" | "destructive" = "quiet"
   ): HTMLButtonElement {
     const button = parent.createEl("button", {
