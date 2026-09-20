@@ -1419,7 +1419,6 @@ a.external-link.schreibstube-reminder-mark {
 .schreibstube-explorer-tasks {
   flex: 0 0 auto;
   margin-left: auto;
-  padding-left: var(--schreibstube-row-gap);
   /* The row's own size, not a smaller one: the tally is part of that line of
      type, not a footnote under it. Tabular figures so the column lines up
      down the pane whatever the numbers are, and it never shrinks — a note
@@ -1430,6 +1429,25 @@ a.external-link.schreibstube-reminder-mark {
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
   text-align: right;
+
+  /* A tint behind the figures, so the column is findable without reading it.
+     The padding is on the element whether or not the tint is painted, or the
+     finished rows would sit a few pixels off the others.
+
+     ACCENT, never a neutral. The row's own hover and active fills are
+     translucent washes of --background-modifier-hover; a neutral tint here
+     would be the same colour arriving twice and would vanish under the
+     pointer. An accent wash composites ON TOP of those and survives all of
+     them, which is the only reason this can be a fill at all. */
+  padding: 1px 5px;
+  border-radius: var(--schreibstube-border-radius);
+  background: color-mix(in srgb, var(--interactive-accent) 11%, transparent);
+}
+
+/* Nothing open: the fill goes, the padding stays. The tint is what says
+   "there is work here", so a finished note must not carry one. */
+.schreibstube-explorer-tasks[data-state="done"] {
+  background: transparent;
 }
 
 /* The two numbers are not equally useful. Done is what a person scans for. */
@@ -1539,6 +1557,14 @@ a.external-link.schreibstube-reminder-mark {
   font-size: var(--font-ui-smaller);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+  /* The same tint, for the same reason, on the cards' own scale. */
+  padding: 1px 5px;
+  border-radius: var(--schreibstube-border-radius);
+  background: color-mix(in srgb, var(--interactive-accent) 11%, transparent);
+}
+
+.schreibstube-tag-card-tasks[data-state="done"] {
+  background: transparent;
 }
 
 /* Same hierarchy as the pane's rows: done leads, the total is context. */
