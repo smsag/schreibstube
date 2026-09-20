@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Changed
+
+- **Buttons take one of nine roles.** The panel's actions, the file chips, the icon picker's cells and the explorer's clear control were four hand-built looks, none of which claimed a background, a border, a radius or a colour — so Obsidian's ten button rules reached them unopposed and each ended up shaped by the host rather than by this plugin. They now carry `sb` plus one role, and each role claims every property Obsidian's own button rules set — height, padding, radius, shadow, fill, label colour and type. Their own classes keep layout and nothing else. Three things a user will see: the review actions read as primary, secondary, quiet and destructive rather than all alike; the file chips lose their 999px pill for the role set's one segment shape, with an accent tint on the chosen one; and the explorer's clear control moves from 22px in `--text-faint` to the role's 24px in `--text-muted`, because `--text-faint` on a control measures 2.3:1 on white. Obsidian's own dialog buttons — the ones `Setting.addButton` makes — are untouched: those are the host's chrome, not ours.
+
+### Fixed
+
+- **The Explorer's clear ✕ went back to being a picture.** Giving it a role also gave it the role's font, and a role's font out-ranks the bundled icon font's own rule — so the glyph was drawn from a monospace fallback that has nothing at that code point, and the control rendered as a blank box at the wrong size. The icon font and the 14px size are claimed back where the button is itself a glyph.
+- **The icon picker's phone rule pointed at nothing.** The rule that stops Obsidian stretching a button inside a modal's setting row named a class that sits on the dialog's content box, not on the dialog, so it could never match. Found by looking for it in a running Obsidian rather than in the stylesheet.
+
+- **The review panel's glyphs each mean one thing.** Two were doing two jobs: `x` was both *Abbrechen* (stop the whole run) and *Verwerfen* (dismiss one suggestion), and *Alle übernehmen* wore a double tick against the single tick on each card — a three-pixel difference at the size these actually paint. Stop is now a stop sign, *Alle übernehmen* a checklist, *Anzeigen* a locate pin rather than a rifle reticle, *Korrektur lesen* a text scan rather than a magic wand, and *Glossar prüfen* a lettered book. *Korrektur lesen* deliberately does not take the panel's own tab icon: that mark means "the proofreading panel", and the same mark on a button inside it would mean two things at once.
+- The panel's buttons may now be built without a glyph at all. They all have one today, because this panel is a queue — accept, reject and show repeat once per suggestion card, so the eye lands on the glyph and the word only confirms. That is what earns them; a button whose icon does no work the word cannot should be able to say so.
+
+### Removed
+
+- **A dead rule that set the label glyphs to 14px.** `.schreibstube-review-icon svg` is (0,1,1) and the role base's `:is(…) .sb svg` is (0,2,1), so it never applied: the stylesheet read 14px and Obsidian painted 12px for as long as the rule existed. 12px is also the right pairing with an 11.375px label, so it is gone rather than made to win.
+- **`kit/button.css`, and the test that held this stylesheet identical to it.** The role set arrived here as a file copied from another project, with a test that failed when the two drifted. That made this plugin's buttons unchangeable without a red build somewhere else, which is the opposite of what a separate plugin should be. The rules are unchanged and are now this stylesheet's own; the reasoning that was in the copied file is in the comment above them. What remains is `src/services/button-roles.test.ts` (the base claims what Obsidian sets; every hand-built button names a role) and `src/services/obsidian-cascade.test.ts` — both testing this plugin against its host, neither naming another project.
+
 ## 1.36.1 - 2026-09-19
 
 Nine fixes, six of them for bugs 1.36.0 put in front of people. Two of those

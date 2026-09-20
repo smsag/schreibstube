@@ -2,19 +2,19 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 /**
- * A marked run of text is drawn with the family's pen.
+ * The marker-pen stroke keeps its shape.
  *
- * Klartext is the baseline and `kit/highlight.css` in that repository is the
- * canonical text; this stylesheet carries a copy, because Obsidian loads every
- * plugin's CSS globally and a shared class name would couple the plugins to
- * each other. A copy drifts unless something holds it, and the numbers below
- * are that something — they are the kit's, verbatim.
+ * The numbers below ARE the mark: a felt tip laid over the words and lifted off
+ * again, square-ended, one stroke per wrapped line. They are this stylesheet's
+ * own and this test is the only thing holding them — a stroke is the kind of
+ * thing a later change nudges without noticing.
  *
  * What this replaced: flat slabs from `--background-modifier-error` and
  * `--background-modifier-success`, tokens a theme picks for a toast or a form
  * field. Measured in Obsidian, they painted 312 and 277 from the page in
- * Euclidean RGB against the theme's own highlight at 70 — the loudest marks in
- * the family, and theme-dependent on top.
+ * Euclidean RGB, against 60–140 for a mark that reads as a mark — four times
+ * too loud, and theme-dependent on top, since a theme picks those tokens'
+ * saturation for a UI affordance rather than for a run of prose.
  */
 const css = readFileSync(new URL("../../styles.css", import.meta.url), "utf8");
 
@@ -64,7 +64,7 @@ describe("the diff marks' stroke", () => {
     ["border-radius", "0"],
     ["text-shadow", "none"],
     ["box-shadow", "none"]
-  ])("keeps %s at the family's %s", (prop, value) => {
+  ])("keeps %s at %s", (prop, value) => {
     expect(ruleBody(STROKE)).toContain(`${prop}: ${value};`);
   });
 

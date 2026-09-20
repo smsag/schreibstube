@@ -153,22 +153,47 @@ export class ReviewPanelView extends ItemView {
     const running = this.state.phase === "running";
     const hasFile = this.state.phase !== "no-file";
 
-    this.button(actions, t().proofread.panelProofread, "wand", !hasFile || running, () =>
-      this.handlers?.onProofread()
+    this.button(
+      actions,
+      t().proofread.panelProofread,
+      // Not the view's own `spell-check`: that glyph is the panel's identity
+      // on its leaf tab, and the same mark on a button inside it would mean two
+      // things at once. `scan-text` is the act, not the place.
+      "scan-text",
+      !hasFile || running,
+      () => this.handlers?.onProofread(),
+      "primary"
     );
-    this.button(actions, t().proofread.panelGlossaryCheck, "book-open", !hasFile || running, () =>
-      this.handlers?.onGlossaryCheck()
+    this.button(
+      actions,
+      t().proofread.panelGlossaryCheck,
+      "book-a",
+      !hasFile || running,
+      () => this.handlers?.onGlossaryCheck(),
+      "secondary"
     );
 
     if (running) {
-      this.button(actions, t().proofread.panelStop, "x", false, () => this.handlers?.onStop());
+      this.button(
+        actions,
+        t().proofread.panelStop,
+        "circle-stop",
+        false,
+        () => this.handlers?.onStop(),
+        "destructive"
+      );
     }
 
     const pending = this.pendingSuggestions();
     const applicable = pending.filter((suggestion) => !isFlagOnly(suggestion));
     if (applicable.length > 0) {
-      this.button(actions, t().proofread.acceptAll(applicable.length), "check-check", false, () =>
-        this.handlers?.onAcceptAll()
+      this.button(
+        actions,
+        t().proofread.acceptAll(applicable.length),
+        "list-checks",
+        false,
+        () => this.handlers?.onAcceptAll(),
+        "primary"
       );
     }
 
@@ -246,7 +271,7 @@ export class ReviewPanelView extends ItemView {
     for (const candidate of available) {
       const active = selected.includes(candidate.path);
       const chip = chips.createEl("button", {
-        cls: `schreibstube-review-chip${active ? " is-active" : ""}`,
+        cls: `sb sb-seg schreibstube-review-chip${active ? " active" : ""}`,
         text: candidate.name
       });
       chip.setAttr("title", candidate.path);
@@ -311,14 +336,19 @@ export class ReviewPanelView extends ItemView {
     const stale = suggestion.status === "stale";
 
     if (!isFlagOnly(suggestion)) {
-      this.button(actions, t().proofread.accept, "check", stale, () =>
-        this.handlers?.onAccept(suggestion.id)
+      this.button(
+        actions,
+        t().proofread.accept,
+        "check",
+        stale,
+        () => this.handlers?.onAccept(suggestion.id),
+        "secondary"
       );
     }
     this.button(actions, t().proofread.reject, "x", false, () =>
       this.handlers?.onReject(suggestion.id)
     );
-    this.button(actions, t().proofread.show, "crosshair", false, () =>
+    this.button(actions, t().proofread.show, "locate", false, () =>
       this.handlers?.onReveal(suggestion.id)
     );
   }
@@ -353,13 +383,28 @@ export class ReviewPanelView extends ItemView {
   private button(
     parent: HTMLElement,
     label: string,
-    icon: string,
+    /**
+     * A glyph before the label, or `null` for none.
+     *
+     * This panel is a queue: accept, reject and show repeat once per suggestion
+     * card, so the glyph is what the eye lands on and the word only confirms.
+     * That is why the buttons here carry one and a conversation's do not. An
+     * icon that does no work the word cannot is decoration, and `null` is how
+     * a button says so — every glyph in this panel is also distinct, which
+     * `src/services/review-icons.test.ts` holds.
+     */
+    icon: string | null,
     disabled: boolean,
-    onClick: () => void
+    onClick: () => void,
+    /** The look: one of the nine button roles in `styles.css`. */
+    role: "primary" | "secondary" | "quiet" | "destructive" = "quiet"
   ): HTMLButtonElement {
-    const button = parent.createEl("button", { cls: "schreibstube-review-button" });
-    const iconEl = button.createSpan({ cls: "schreibstube-review-icon" });
-    setIcon(iconEl, icon);
+    const button = parent.createEl("button", {
+      cls: `sb sb-${role} schreibstube-review-button`
+    });
+    if (icon !== null) {
+      setIcon(button.createSpan({ cls: "schreibstube-review-icon" }), icon);
+    }
     button.createSpan({ text: label });
 
     if (disabled) {

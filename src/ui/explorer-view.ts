@@ -281,7 +281,7 @@ export class ExplorerPaneView extends ItemView {
     // Drawn after the field so CSS can hide it while the field is empty,
     // without the view having to track that.
     const clear = filter.createEl("button", {
-      cls: "schreibstube-explorer-filter-clear",
+      cls: "sb sb-icon schreibstube-explorer-filter-clear",
       attr: { type: "button", "aria-label": t().explorer.clearFilter }
     });
     applyIcon(clear, "x");
