@@ -1419,11 +1419,52 @@ a.external-link.schreibstube-reminder-mark {
 .schreibstube-explorer-tasks {
   flex: 0 0 auto;
   margin-left: auto;
-  padding-left: var(--schreibstube-row-gap);
-  color: var(--text-faint);
-  font-size: var(--font-ui-smaller);
+  /* The row's own size, not a smaller one: the tally is part of that line of
+     type, not a footnote under it. Tabular figures so the column lines up
+     down the pane whatever the numbers are, and it never shrinks — a note
+     with 128 of 240 done takes the width it needs and the NAME ellipses,
+     because the name can be recognised from its first characters and a
+     half-drawn number cannot be read at all. */
+  font-size: inherit;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+  text-align: right;
+
+  /* A tint behind the figures, so the column is findable without reading it.
+     The padding is on the element whether or not the tint is painted, or the
+     finished rows would sit a few pixels off the others.
+
+     ACCENT, never a neutral. The row's own hover and active fills are
+     translucent washes of --background-modifier-hover; a neutral tint here
+     would be the same colour arriving twice and would vanish under the
+     pointer. An accent wash composites ON TOP of those and survives all of
+     them, which is the only reason this can be a fill at all. */
+  padding: 1px 5px;
+  border-radius: var(--schreibstube-border-radius);
+  background: color-mix(in srgb, var(--interactive-accent) 11%, transparent);
+}
+
+/* Nothing open: the fill goes, the padding stays. The tint is what says
+   "there is work here", so a finished note must not carry one. */
+.schreibstube-explorer-tasks[data-state="done"] {
+  background: transparent;
+}
+
+/* The two numbers are not equally useful. Done is what a person scans for. */
+.schreibstube-explorer-tasks-done {
+  color: var(--text-normal);
+  font-weight: 500;
+}
+
+.schreibstube-explorer-tasks-total {
+  color: var(--text-muted);
+}
+
+/* Nothing open. The tally steps back so the rows that still want work are the
+   only ones carrying weight in the column. */
+.schreibstube-explorer-tasks[data-state="done"] .schreibstube-explorer-tasks-done {
+  color: var(--text-muted);
+  font-weight: 400;
 }
 
 /* The "Move to…" list: a glyph and the folder's path on one line. */
@@ -1513,17 +1554,36 @@ a.external-link.schreibstube-reminder-mark {
 .schreibstube-tag-card-tasks {
   flex: 0 0 auto;
   margin-left: auto;
-  color: var(--text-muted);
   font-size: var(--font-ui-smaller);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+  /* The same tint, for the same reason, on the cards' own scale. */
+  padding: 1px 5px;
+  border-radius: var(--schreibstube-border-radius);
+  background: color-mix(in srgb, var(--interactive-accent) 11%, transparent);
+}
+
+.schreibstube-tag-card-tasks[data-state="done"] {
+  background: transparent;
+}
+
+/* Same hierarchy as the pane's rows: done leads, the total is context. */
+.schreibstube-tag-card-tasks-done {
+  color: var(--text-normal);
+  font-weight: 500;
+}
+
+.schreibstube-tag-card-tasks-total {
+  color: var(--text-muted);
+}
+
+.schreibstube-tag-card-tasks[data-state="done"] .schreibstube-tag-card-tasks-done {
+  color: var(--text-muted);
+  font-weight: 400;
 }
 
 /* Nothing left to do here: the note still carries the tag, so it is listed,
    but its figure steps back behind the ones that still have work in them. */
-.schreibstube-tag-card.is-settled .schreibstube-tag-card-tasks {
-  color: var(--text-faint);
-}
 
 .schreibstube-tag-card-folder {
   color: var(--text-faint);

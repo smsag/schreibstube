@@ -46,7 +46,7 @@ import {
 } from "../services/bookmark-file";
 import { fileGlyph, fileNameParts } from "../services/file-glyph";
 import { groundColour } from "../services/ground-colour";
-import { tallyTasks, taskCountLabel, type TaskTally } from "../services/task-count";
+import { tallyTasks, type TaskTally } from "../services/task-count";
 import type { LatestCandidate } from "../services/latest-files";
 import {
   ancestorsOf,
@@ -77,6 +77,7 @@ import {
   type SectionOptions
 } from "./explorer-section";
 import { applyIcon, installIconFont } from "./icon-font";
+import { drawTaskCount } from "./task-count-label";
 import { SCHREIBSTUBE_ICON } from "./schreibstube-icon";
 
 export const EXPLORER_VIEW_TYPE = "schreibstube-explorer";
@@ -792,11 +793,7 @@ export class ExplorerPaneView extends ItemView {
     applyIcon(row.createSpan({ cls: "schreibstube-explorer-glyph" }), "tag");
     row.createSpan({ cls: "schreibstube-explorer-name", text: `#${item.tag}` });
 
-    const label = tally ? taskCountLabel(tally) : null;
-    if (tally && label !== null) {
-      const el = row.createSpan({ cls: "schreibstube-explorer-tasks", text: label });
-      el.setAttribute("aria-label", t().explorer.taskCount(tally.open, tally.total));
-    }
+    if (tally) drawTaskCount(row, tally, "schreibstube-explorer-tasks");
 
     this.wirePinnedDrag(row, item.key, order);
 
@@ -1237,12 +1234,11 @@ export class ExplorerPaneView extends ItemView {
   private renderTaskCount(row: HTMLElement, file: TFile): void {
     if (!this.host?.settings().explorerTaskCounts || file.extension !== "md") return;
 
-    const tally = tallyTasks(this.app.metadataCache.getFileCache(file)?.listItems);
-    const label = taskCountLabel(tally);
-    if (label === null) return;
-
-    const el = row.createSpan({ cls: "schreibstube-explorer-tasks", text: label });
-    el.setAttribute("aria-label", t().explorer.taskCount(tally.open, tally.total));
+    drawTaskCount(
+      row,
+      tallyTasks(this.app.metadataCache.getFileCache(file)?.listItems),
+      "schreibstube-explorer-tasks"
+    );
   }
 
   /**

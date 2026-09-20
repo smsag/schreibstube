@@ -434,7 +434,7 @@ export const enExtra = {
     empty: "This vault has no files yet.",
     searchPlaceholder: "Filter all sections…",
     clearFilter: "Clear the filter",
-    taskCount: (open: number, total: number) => `${open} of ${total} tasks open`,
+    taskCount: (done: number, total: number) => `${done} of ${total} tasks done`,
     filterEmpty: "Nothing here answers that.",
     filterMore: (count: number) => `${count} more match. Narrow the filter to see them.`,
     collapseAll: "Collapse all",

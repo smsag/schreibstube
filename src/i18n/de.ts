@@ -679,7 +679,7 @@ export const de: Messages = {
     empty: "In diesem Vault liegt noch keine Datei.",
     searchPlaceholder: "Alle Sektionen filtern …",
     clearFilter: "Filter leeren",
-    taskCount: (open: number, total: number) => `${open} von ${total} Aufgaben offen`,
+    taskCount: (done: number, total: number) => `${done} von ${total} Aufgaben erledigt`,
     filterEmpty: "Darauf antwortet hier nichts.",
     filterMore: (count: number) => `${count} weitere Treffer. Filter eingrenzen, um sie zu sehen.`,
     collapseAll: "Alle zuklappen",

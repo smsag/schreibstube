@@ -12,7 +12,7 @@
 import { ItemView, Keymap, type ViewStateResult, type WorkspaceLeaf } from "obsidian";
 import { t } from "../i18n";
 import { normalizeTag, summarizeTagCards, type TagCard } from "../services/tag-pins";
-import { taskCountLabel } from "../services/task-count";
+import { drawTaskCount } from "./task-count-label";
 import { applyIcon, installIconFont } from "./icon-font";
 
 export const TAG_NOTES_VIEW_TYPE = "schreibstube-tag-notes";
@@ -141,16 +141,11 @@ export class TagNotesView extends ItemView {
       attr: { role: "link", tabindex: "0", title: card.path }
     });
     if (active) el.addClass("is-active");
-    if (card.tally.open === 0) el.addClass("is-settled");
 
     const head = el.createDiv({ cls: "schreibstube-tag-card-head" });
     head.createDiv({ cls: "schreibstube-tag-card-title", text: card.title });
 
-    const label = taskCountLabel(card.tally);
-    if (label !== null) {
-      const count = head.createSpan({ cls: "schreibstube-tag-card-tasks", text: label });
-      count.setAttribute("aria-label", t().explorer.taskCount(card.tally.open, card.tally.total));
-    }
+    drawTaskCount(head, card.tally, "schreibstube-tag-card-tasks");
 
     el.createDiv({
       cls: "schreibstube-tag-card-folder",

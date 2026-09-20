@@ -30,10 +30,27 @@ export function tallyTasks(items: readonly TaskItem[] | undefined): TaskTally {
   return { open, total };
 }
 
+/** The two numbers a row shows, and whether there is anything left to do. */
+export interface TaskCount {
+  /** Tasks ticked off — the LEADING number. */
+  done: number;
+  total: number;
+  /** Nothing open. The row draws itself quietly when this is true. */
+  complete: boolean;
+}
+
 /**
- * What the row shows after the name: open over total, or nothing at all for
- * a note with no tasks, since a nought would be noise on most rows.
+ * What the row shows after the name: DONE over total, or nothing at all for a
+ * note with no tasks, since a nought would be noise on most rows.
+ *
+ * Done leads, not open. `x / y` is read as progress by everyone who has ever
+ * seen a progress figure, so a note with seven untouched tasks labelled
+ * `7 / 7` announced itself as finished — the exact opposite of the truth, and
+ * of what the aria-label said. The form stays; the numbers now mean what the
+ * form already implied.
  */
-export function taskCountLabel(tally: TaskTally): string | null {
-  return tally.total > 0 ? `${tally.open} / ${tally.total}` : null;
+export function taskCount(tally: TaskTally): TaskCount | null {
+  if (tally.total <= 0) return null;
+  const done = tally.total - tally.open;
+  return { done, total: tally.total, complete: tally.open === 0 };
 }
