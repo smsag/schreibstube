@@ -26,7 +26,7 @@ import {
   type BookmarkEntry,
   type BookmarkTree
 } from "../services/bookmark-file";
-import type { SyncRecord } from "../services/sync-document";
+import { hasWaitingUpdate, type SyncRecord } from "../services/sync-document";
 import {
   hasUnseenSync,
   newestSync,
@@ -376,7 +376,12 @@ export class PaneSectionsController {
     const syncState = this.getSettings().syncState;
 
     return this.app.vault.getMarkdownFiles().map((file) => {
-      const syncedAt = syncState[file.path]?.changedAt;
+      // Listed under "updated externally" only while the update is still to be
+      // taken: a note already level with its source has nothing for "Quelle
+      // prüfen" to show, and a row and a mark promising otherwise were the
+      // pane saying something the panel then denied.
+      const record = syncState[file.path];
+      const syncedAt = hasWaitingUpdate(record) ? record?.changedAt : undefined;
       return {
         path: file.path,
         name: file.basename,
@@ -417,11 +422,15 @@ export class PaneSectionsController {
 function syncSignature(syncState: Record<string, SyncRecord>): string {
   let newest = 0;
   let counted = 0;
+  // An update accepted moves a record out of the list without changing when
+  // its source last moved, so what is still waiting is counted as well.
+  let waiting = 0;
 
   for (const record of Object.values(syncState)) {
     counted += 1;
+    if (hasWaitingUpdate(record)) waiting += 1;
     if (record.changedAt !== undefined && record.changedAt > newest) newest = record.changedAt;
   }
 
-  return `${counted}:${newest}`;
+  return `${counted}:${waiting}:${newest}`;
 }

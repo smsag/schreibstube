@@ -138,6 +138,28 @@ export function isRemoteChange(record: SyncRecord | undefined, remoteBody: strin
   return record.remoteHash !== hashText(remoteBody);
 }
 
+/**
+ * Whether the source holds text the note has not taken yet.
+ *
+ * The one question the pane's list, its mark, the badge and a poll's notice
+ * all ask, and the one "Quelle prüfen" answers with cards. They used to ask
+ * others. The list asked "did the source ever move", which stays true after
+ * the update is in the note — and a device whose records were behind, because
+ * another device had fetched and accepted the update, stamped a change the
+ * note already held. The notice asked "does the note differ from the source",
+ * which a note with edits of its own does on every poll, whether or not the
+ * source moved.
+ *
+ * `hash` is where the note last stood level with its source, and `remoteHash`
+ * is the source as last seen. When the two differ, the source has moved past
+ * the note. Local edits change neither, so they are not an update waiting. A
+ * record from before the source was hashed has nothing to compare, and claims
+ * nothing.
+ */
+export function hasWaitingUpdate(record: SyncRecord | undefined): boolean {
+  return record?.remoteHash !== undefined && record.hash !== record.remoteHash;
+}
+
 export type LocalState =
   /** Never synced, so there is no baseline to judge divergence against. */
   | "unsynced"

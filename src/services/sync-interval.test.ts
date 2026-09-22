@@ -124,8 +124,9 @@ describe("when a note is due", () => {
 });
 
 describe("a check asked for by hand", () => {
+  // Level with the source: the note last settled on what the source last sent.
   const record = {
-    hash: "aaaaaaaa",
+    hash: "bbbbbbbb",
     etag: '"v1"',
     checkedAt: 0,
     pendingChanges: 0,
@@ -145,5 +146,12 @@ describe("a check asked for by hand", () => {
 
   it("stays conditional when no note body is given, as for a poll", () => {
     expect(planSourceCheck(base).etag).toBe('"v1"');
+  });
+
+  it("fetches the whole document while an update is waiting, even for a poll", () => {
+    // The panel showed the cards and counted nothing as owed; they were never
+    // taken. A conditional check answered "up to date" for a note that is not.
+    const waiting = { ...record, hash: "aaaaaaaa" };
+    expect(planSourceCheck({ ...base, record: waiting }).etag).toBeUndefined();
   });
 });

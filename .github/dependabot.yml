@@ -8,6 +8,12 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    # The type declarations follow the one Node the project runs (.nvmrc, both
+    # engines fields, the bridge image). A major here would describe a runtime
+    # nothing uses; it moves together with the rest, by hand.
+    ignore:
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
     groups:
       plugin-tooling:
         update-types: [minor, patch]

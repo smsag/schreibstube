@@ -17,8 +17,21 @@ function fakeStorage() {
 
 const SILENT = { debug: () => {}, info: () => {}, warn: () => {}, error: () => {} };
 
+/** A source that moved at `changedAt`, with the update not yet in the note. */
 function record(changedAt: number): SyncRecord {
-  return { hash: "h", etag: "", checkedAt: changedAt, pendingChanges: 0, changedAt };
+  return {
+    hash: "note",
+    remoteHash: "source",
+    etag: "",
+    checkedAt: changedAt,
+    pendingChanges: 0,
+    changedAt
+  };
+}
+
+/** A source that moved at `changedAt`, and a note already level with it. */
+function levelRecord(changedAt: number): SyncRecord {
+  return { ...record(changedAt), hash: "source" };
 }
 
 function controllerFor(
@@ -129,5 +142,35 @@ describe("the mark that a source changed", () => {
     await pane.start();
 
     expect(pane.syncAlert()).toBe(false);
+  });
+
+  it("says nothing for a source whose update the note already holds", async () => {
+    // What a device whose records were behind used to report: another device
+    // had fetched and accepted the update, the note arrived by vault sync, and
+    // the check here saw the source move past its stale record. Nothing is
+    // left for "Quelle prüfen" to show, so there is nothing to mark.
+    const state: Record<string, SyncRecord> = { "Quellen/Eins.md": record(now - 1000) };
+    const { pane } = controllerFor(state);
+    await pane.start();
+    pane.syncAlert();
+
+    state["Quellen/Zwei.md"] = levelRecord(now);
+    pane.invalidateLatest();
+
+    expect(pane.syncAlert()).toBe(false);
+    expect(pane.latestFiles().synced.map((file) => file.path)).toEqual(["Quellen/Eins.md"]);
+  });
+
+  it("drops a note from the list once its update is taken", async () => {
+    const state: Record<string, SyncRecord> = { "Quellen/Eins.md": record(now) };
+    const { pane } = controllerFor(state);
+    await pane.start();
+    expect(pane.latestFiles().synced.map((file) => file.path)).toEqual(["Quellen/Eins.md"]);
+
+    // Accepting every card moves the baseline to the source's text and leaves
+    // when the source moved as it was; the list has to notice all the same.
+    state["Quellen/Eins.md"] = levelRecord(now);
+
+    expect(pane.latestFiles().synced).toEqual([]);
   });
 });
