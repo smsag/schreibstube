@@ -10,7 +10,7 @@
  * Shape carries the meaning and colour only reinforces it, so the badge still
  * works for a reader who cannot tell the green from the amber.
  */
-import type { SyncRecord } from "./sync-document";
+import { hasWaitingUpdate, type SyncRecord } from "./sync-document";
 
 export type SyncBadge =
   /** Not bound to a source: no badge at all. */
@@ -36,7 +36,9 @@ export function syncBadgeFor({ bound, sourceValid, record }: SyncBadgeInput): Sy
   if (!bound) return "none";
   if (!sourceValid) return "error";
   if (!record || record.checkedAt === 0) return "unchecked";
-  return (record.pendingChanges ?? 0) > 0 ? "pending" : "synced";
+  // Waiting also after the panel has shown the cards and counted nothing as
+  // owed: until they are taken, the note is not the source's.
+  return (record.pendingChanges ?? 0) > 0 || hasWaitingUpdate(record) ? "pending" : "synced";
 }
 
 /** The glyph for a badge, from the bundled icon set. */

@@ -5,6 +5,7 @@ import { sourceUrlFromNote } from "./sync-source";
 import {
   buildSyncSuggestions,
   hashText,
+  hasWaitingUpdate,
   isRemoteChange,
   localState,
   nextSyncRecord,
@@ -412,5 +413,53 @@ describe("what stamps a note's updatedAt", () => {
 
   it("says no when nothing came back at all", () => {
     expect(isRemoteChange(record({ remoteHash: "abc" }), null)).toBe(false);
+  });
+});
+
+describe("hasWaitingUpdate", () => {
+  const base = { etag: "", checkedAt: 1, pendingChanges: 0 };
+
+  it("is true while the source has moved past the note", () => {
+    expect(hasWaitingUpdate({ ...base, hash: hashText("old"), remoteHash: hashText("new") })).toBe(
+      true
+    );
+  });
+
+  it("is false once the note is level with the source", () => {
+    expect(hasWaitingUpdate({ ...base, hash: hashText("new"), remoteHash: hashText("new") })).toBe(
+      false
+    );
+  });
+
+  it("is false for a note with only edits of its own", () => {
+    // Local edits move the note, not the baseline: nothing came from the source.
+    const record = nextSyncRecord({
+      record: { ...base, hash: hashText("text"), remoteHash: hashText("text") },
+      body: "text, edited here",
+      remoteBody: "text",
+      etag: "e",
+      checkedAt: 2,
+      pendingChanges: 1,
+      settled: false
+    });
+    expect(hasWaitingUpdate(record)).toBe(false);
+  });
+
+  it("is true for a source fetched for the first time into a different note", () => {
+    const record = nextSyncRecord({
+      record: undefined,
+      body: "draft",
+      remoteBody: "published",
+      etag: "e",
+      checkedAt: 2,
+      pendingChanges: 1,
+      settled: false
+    });
+    expect(hasWaitingUpdate(record)).toBe(true);
+  });
+
+  it("claims nothing for a record that never hashed its source", () => {
+    expect(hasWaitingUpdate({ ...base, hash: "h" })).toBe(false);
+    expect(hasWaitingUpdate(undefined)).toBe(false);
   });
 });

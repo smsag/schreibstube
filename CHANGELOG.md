@@ -11,6 +11,19 @@ All notable changes to this project will be documented in this file.
   in the tree below.
 
 ### Fixed
+- **"Updated externally" lists only what "Quelle prüfen" will show.** The
+  Latest section, its mark, the note badge and the poll's notice each asked a
+  different question. The list asked whether a source had ever moved, which
+  stays true after the update is in the note, and a device whose records were
+  behind (another device had fetched and accepted the update, and the note
+  arrived by vault sync) stamped a change the note already held. The notice
+  asked whether the note differs from its source, which a note with edits of
+  its own does on every poll. All of them now ask one thing: does the source
+  hold text the note has not taken. A note drops out of the list once its
+  update is accepted, local edits alone are no longer announced as an update,
+  and a check from the menu no longer answers "up to date" for a note whose
+  update cards were shown and never taken.
+
 - **Browsing folders no longer throws the Explorer back to the open note.**
   Every redraw measured the pinned strip while the list was empty, which reset
   the scroll to the top; the reveal that follows the open note then found it
