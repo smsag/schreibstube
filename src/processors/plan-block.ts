@@ -1,6 +1,6 @@
 import { MarkdownRenderChild, type Plugin } from "obsidian";
 import { activeLocale, t } from "../i18n";
-import type { Planner } from "../controllers/planner";
+import { PLAN_REFRESH_MS, type Planner } from "../controllers/planner";
 import {
   parsePlanOptions,
   PLAN_BLOCK_LANGUAGE,
@@ -41,7 +41,9 @@ class PlanPanel extends MarkdownRenderChild {
   override onload(): void {
     this.unsubscribe = this.planner.subscribe(() => this.draw());
     this.draw();
-    void this.planner.refresh();
+    // A start page is drawn again on every edit to it, and several blocks can
+    // sit on one; the plan is asked for only when what is on screen is old.
+    if (this.planner.isStale(PLAN_REFRESH_MS)) void this.planner.refresh();
   }
 
   override onunload(): void {

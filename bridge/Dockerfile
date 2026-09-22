@@ -28,7 +28,10 @@ COPY . .
 
 # Where the planning document lives when PLAN_STORE is left at its default.
 # Mount a volume here to keep it across a redeploy; without one it is a scratch
-# file, which is still better than a capability that cannot write at all.
+# file, which is still better than a capability that cannot write at all. The
+# bridge runs as `node` (uid 1000): a volume mounted here, or wherever
+# PLAN_STORE points, has to be writable by that uid. A named Docker volume
+# takes this directory's ownership; a bind mount keeps the host's.
 RUN mkdir -p /app/data && chown node:node /app/data
 VOLUME ["/app/data"]
 

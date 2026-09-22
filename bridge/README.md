@@ -337,8 +337,12 @@ labels change over time, but the settings you need are:
 5. **Environment variables**: everything from `.env.example`. Mark
    `MAIL_PASSWORD`, `MAIL_TOKEN`, `PUBLISH_TOKEN`, `PLAN_TOKEN`,
    `CALDAV_PASSWORD` and any `PUBLISH_*_KEY` or `PUBLISH_*_PASSWORD` as
-   secrets. If planning is configured, mount a volume and point `PLAN_STORE`
-   into it — otherwise the planning document goes with the next redeploy. Set `TRUST_PROXY=true`: the platform's
+   secrets. If planning is configured, mount a volume at `/app/data` (or point
+   `PLAN_STORE` into one) — otherwise the planning document goes with the next
+   redeploy. The bridge runs as `node`, uid 1000, and the volume has to be
+   writable by it: a platform volume or bind mount often arrives owned by root,
+   and then the planner reads an empty plan and every save fails with
+   `plan_store_error`. Set `TRUST_PROXY=true`: the platform's
    proxy terminates TLS, so without it the throttle sees one address for
    everyone.
 6. Deploy, then confirm:

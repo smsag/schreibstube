@@ -12,7 +12,7 @@
  * second block for a project on a day that already has one. What is left is
  * offered earliest first, because a deadline rewards starting sooner.
  */
-import { dayKey, shiftDay, type PlanDocument, type PlanBlock } from "./plan-model";
+import { dayKey, daysUntil, shiftDay, type PlanDocument } from "./plan-model";
 import type { Tag } from "./task-inventory";
 
 /** More than this and it is not a plan for the week any more. */
@@ -21,6 +21,8 @@ export const MAX_PROPOSALS = 5;
 export interface Busy {
   start: string;
   end: string;
+  /** An all-day event marks the day, not the hours: a birthday is not a meeting. */
+  allDay?: boolean;
 }
 
 export interface Preferences {
@@ -34,11 +36,14 @@ export interface Preferences {
   days: number[];
 }
 
+export const WEEKDAYS = [1, 2, 3, 4, 5];
+export const EVERY_DAY = [0, 1, 2, 3, 4, 5, 6];
+
 export const DEFAULT_PREFERENCES: Preferences = {
   startMinute: 5 * 60 + 30,
   lengthMinutes: 60,
   capacity: 3,
-  days: [1, 2, 3, 4, 5]
+  days: WEEKDAYS
 };
 
 export interface Proposal {
@@ -82,6 +87,11 @@ export function proposeBlocks({
     plan.blocks.filter((block) => block.tag === tag).map((block) => dayKey(new Date(block.start)))
   );
 
+  // Every span is parsed once for the whole run, not once per day it is
+  // checked against; the plan's own blocks are taken time as much as the
+  // calendar's events are.
+  const taken = spans([...busy, ...plan.blocks]);
+
   const proposals: Proposal[] = [];
   for (let offset = 0; offset < 30 && proposals.length < wanted; offset += 1) {
     const day = shiftDay(now, offset);
@@ -92,7 +102,7 @@ export function proposeBlocks({
     const start = atMinute(day, preferences.startMinute);
     const end = new Date(start.getTime() + preferences.lengthMinutes * 60_000);
     if (start.getTime() <= now.getTime()) continue;
-    if (overlapsAny(start, end, busy) || overlapsAny(start, end, plan.blocks)) continue;
+    if (overlapsAny(start.getTime(), end.getTime(), taken)) continue;
 
     proposals.push({ tag, start, end });
   }
@@ -137,17 +147,11 @@ export function pressure(
   return {
     tag,
     deadline,
-    daysLeft: deadline === null ? null : daysBetween(now, deadline),
+    daysLeft: deadline === null ? null : daysUntil(deadline, now),
     openTasks,
     plannedBlocks: upcoming.length,
     plannedCapacity: upcoming.length * Math.max(1, perBlock)
   };
-}
-
-function daysBetween(now: Date, date: string): number {
-  const target = new Date(`${date}T00:00:00`).getTime();
-  const start = new Date(`${dayKey(now)}T00:00:00`).getTime();
-  return Math.round((target - start) / 86_400_000);
 }
 
 function atMinute(day: Date, minute: number): Date {
@@ -156,17 +160,22 @@ function atMinute(day: Date, minute: number): Date {
   return start;
 }
 
-function overlapsAny(start: Date, end: Date, spans: readonly { start: string; end: string }[]) {
-  return spans.some((span) => {
-    const from = Date.parse(span.start);
-    const to = Date.parse(span.end);
-    return (
-      Number.isFinite(from) && Number.isFinite(to) && from < end.getTime() && to > start.getTime()
-    );
-  });
+interface Span {
+  from: number;
+  to: number;
 }
 
-/** Blocks that are in the way, for a proposal run that should avoid them. */
-export function busyFromBlocks(blocks: readonly PlanBlock[]): Busy[] {
-  return blocks.map((block) => ({ start: block.start, end: block.end }));
+function spans(items: readonly Busy[]): Span[] {
+  const parsed: Span[] = [];
+  for (const item of items) {
+    if (item.allDay) continue;
+    const from = Date.parse(item.start);
+    const to = Date.parse(item.end);
+    if (Number.isFinite(from) && Number.isFinite(to)) parsed.push({ from, to });
+  }
+  return parsed;
+}
+
+function overlapsAny(start: number, end: number, taken: readonly Span[]): boolean {
+  return taken.some((span) => span.from < end && span.to > start);
 }

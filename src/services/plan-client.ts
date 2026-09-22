@@ -1,10 +1,9 @@
 import { requestUrl } from "obsidian";
 import { withTimeout } from "../utils/with-timeout";
-import { authHeaders, buildEndpoint } from "./bridge-protocol";
+import { authHeaders, buildEndpoint, parseHealth, type BridgeHealth } from "./bridge-protocol";
 import type { PlanDocument } from "./plan-model";
 import {
   describePlanError,
-  parseHealth,
   eventsQuery,
   parseEvents,
   parseEventUid,
@@ -13,7 +12,6 @@ import {
   PlanConflict,
   PLAN_REQUEST_TIMEOUT_MS,
   type CalendarEvent,
-  type BridgeHealth,
   type EventDraft,
   type PlanBridgeConfig,
   type StoredPlan
@@ -27,9 +25,16 @@ import {
  * work on both. Every decision about what came back is in plan-protocol.
  */
 
-/** What the deployment is actually running; the one call that needs no token. */
+/**
+ * What the deployment is actually running.
+ *
+ * The one call without the token: `/health` is public, and asking it this
+ * way also works before a token has been chosen in the settings.
+ */
 export async function fetchHealth(config: PlanBridgeConfig): Promise<BridgeHealth> {
-  return parseHealth(await call(config, "GET", "/health"));
+  const response = await request({ ...config, token: "" }, "GET", "/health");
+  refuse(response);
+  return parseHealth(response.json);
 }
 
 export async function fetchPlan(config: PlanBridgeConfig): Promise<StoredPlan> {
@@ -106,7 +111,7 @@ async function request(
     requestUrl({
       url: buildEndpoint(config.baseUrl, path),
       method,
-      headers: authHeaders(config.token),
+      headers: config.token === "" ? {} : authHeaders(config.token),
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       throw: false
     }),

@@ -40,6 +40,13 @@ const SEGMENT = /^[A-Za-z0-9][A-Za-z0-9._-]{0,199}$/;
 /** A redirect chain longer than this is a loop with extra steps. */
 const MAX_REDIRECTS = 3;
 
+/**
+ * How long the server's list of calendars is trusted. It changes when someone
+ * creates a calendar, not between two requests, and asking it again on every
+ * request doubles the round trips of every day the planner shows.
+ */
+const DISCOVERY_TTL_MS = 5 * 60_000;
+
 export function createCalDavClient({
   url,
   user,
@@ -58,19 +65,56 @@ export function createCalDavClient({
     return sameHost(new URL(`${encodeURIComponent(name)}/`, base), base);
   };
 
+  let discovered = null;
+  const discoverCached = async () => {
+    if (discovered && Date.now() - discovered.at < DISCOVERY_TTL_MS) return discovered.found;
+    const found = await discover(client);
+    discovered = { at: Date.now(), found };
+    return found;
+  };
+
+  /** What the server has, narrowed to what the allowlist permits. */
+  const catalogue = async () => {
+    const found = await discoverCached();
+    return calendars.length > 0 ? found.filter((entry) => calendars.includes(entry.name)) : found;
+  };
+
   /**
-   * The calendars this bridge may touch.
+   * The calendars this bridge may touch, as the path segments it addresses.
    *
-   * A configured allowlist is the operator's answer and is taken as given —
-   * discovery would only let a calendar the operator did not name appear.
-   * Without one, the server is asked, and the request's own list narrows
-   * whatever comes back.
+   * A person names a calendar the way their calendar app shows it; the server
+   * addresses it by a segment that on iCloud is an opaque identifier. So a
+   * requested name is taken as a segment when it is one, and otherwise
+   * matched against the names discovery reports, without regard to case. An
+   * allowlist is the operator's answer: a name it lists needs no discovery,
+   * and nothing outside it is ever offered.
    */
   const permitted = async (requested) => {
-    const available =
-      calendars.length > 0 ? calendars : (await discover(client)).map((entry) => entry.name);
-    if (requested.length === 0) return available;
-    return requested.filter((name) => available.includes(name));
+    if (requested.length === 0) {
+      return calendars.length > 0 ? calendars : (await catalogue()).map((entry) => entry.name);
+    }
+    if (requested.every((name) => calendars.includes(name))) return [...requested];
+
+    const known = await catalogue();
+    const names = [];
+    for (const wanted of requested) {
+      const lower = wanted.toLowerCase();
+      const hit =
+        known.find((entry) => entry.name === wanted) ??
+        known.find(
+          (entry) => entry.name.toLowerCase() === lower || entry.displayName.toLowerCase() === lower
+        );
+      if (hit && !names.includes(hit.name)) names.push(hit.name);
+    }
+    return names;
+  };
+
+  const writable = async (calendar) => {
+    const [name] = await permitted([calendar]);
+    if (name === undefined) {
+      throw new CalDavError("That calendar is not one this bridge may write to.");
+    }
+    return name;
   };
 
   return {
@@ -79,21 +123,32 @@ export function createCalDavClient({
       if (calendars.length > 0) {
         return calendars.map((name) => ({ name, displayName: name }));
       }
-      return discover(client);
+      return catalogue();
     },
 
+    /**
+     * Every event in the window, across the permitted calendars.
+     *
+     * The calendars are asked at once rather than one after the other: each
+     * is a round trip to a server that may be a continent away, and a day in
+     * the planner should cost one of them, not one per calendar.
+     */
     async listEvents({ from, to, calendars: requested = [], limit }) {
       const names = await permitted(requested);
-      const events = [];
+      const answers = await Promise.all(
+        names.map((name) =>
+          send(client, {
+            method: "REPORT",
+            url: calendarUrl(name),
+            headers: { depth: "1", "content-type": "application/xml; charset=utf-8" },
+            body: buildCalendarQuery({ from, to }),
+            label: "Calendar query"
+          })
+        )
+      );
 
-      for (const name of names) {
-        const answer = await send(client, {
-          method: "REPORT",
-          url: calendarUrl(name),
-          headers: { depth: "1", "content-type": "application/xml; charset=utf-8" },
-          body: buildCalendarQuery({ from, to }),
-          label: "Calendar query"
-        });
+      const events = [];
+      for (const [index, answer] of answers.entries()) {
         // A calendar that has gone is not a failed request; the others still
         // have a day in them.
         if (answer.status === 404) continue;
@@ -101,7 +156,7 @@ export function createCalDavClient({
 
         for (const entry of parseMultiStatus(answer.text)) {
           if (!entry.ics) continue;
-          const event = parseEvent(entry.ics, { calendar: name });
+          const event = parseEvent(entry.ics, { calendar: names[index] });
           if (!event) continue;
           if (events.length >= limit) return { events, truncated: true };
           events.push(event);
@@ -120,49 +175,56 @@ export function createCalDavClient({
      * how one event becomes two.
      */
     async saveEvent({ uid, title, start, end, calendar, notes, allDay }) {
-      const names = await permitted([calendar]);
-      if (names.length === 0) {
-        throw new CalDavError("That calendar is not one this bridge may write to.");
-      }
+      const name = await writable(calendar);
 
       const identifier = uid ?? randomUUID();
       if (!SEGMENT.test(identifier)) {
         throw new CalDavError("That is not a usable event identifier.");
       }
 
-      const existing = uid ? await locate(client, calendarUrl(calendar), uid) : null;
+      const existing = uid ? await locate(client, calendarUrl(name), uid) : null;
       const target =
-        existing ?? sameHost(new URL(`${identifier}.ics`, calendarUrl(calendar)), base);
+        existing?.url ?? sameHost(new URL(`${identifier}.ics`, calendarUrl(name)), base);
 
       const answer = await send(client, {
         method: "PUT",
         url: target,
         headers: {
           "content-type": "text/calendar; charset=utf-8",
-          // Only on a create: it turns "the name was already taken" into a
-          // refusal rather than into someone else's event being overwritten.
-          ...(uid ? {} : { "if-none-match": "*" })
+          // A write says what it expects to find. Nothing, when the event is
+          // new — so a name already taken is a refusal, not someone else's
+          // event overwritten. The version it read, when it is an update — so
+          // an edit made in between on another device is not silently lost.
+          ...(existing === null
+            ? { "if-none-match": "*" }
+            : existing.etag
+              ? { "if-match": existing.etag }
+              : {})
         },
         body: buildEvent({ uid: identifier, title, start, end, notes, allDay }),
         label: "Calendar write"
       });
+      if (answer.status === 412) {
+        throw new CalDavError(
+          existing === null
+            ? "Another event already has that name on the calendar server."
+            : "The event changed on the calendar server meanwhile. Try again."
+        );
+      }
       expect(answer, [200, 201, 204], "Calendar write");
 
       return { uid: identifier };
     },
 
     async deleteEvent({ uid, calendar }) {
-      const names = await permitted([calendar]);
-      if (names.length === 0) {
-        throw new CalDavError("That calendar is not one this bridge may write to.");
-      }
+      const name = await writable(calendar);
 
-      const target = await locate(client, calendarUrl(calendar), uid);
-      if (!target) return { deleted: false };
+      const existing = await locate(client, calendarUrl(name), uid);
+      if (!existing) return { deleted: false };
 
       const answer = await send(client, {
         method: "DELETE",
-        url: target,
+        url: existing.url,
         label: "Calendar delete"
       });
       // Gone before we got there is the outcome the caller asked for, reported
@@ -197,10 +259,13 @@ async function discover(client) {
 }
 
 /**
- * Where a UID actually lives, or null when the calendar does not have it.
+ * Where a UID actually lives, and the version found there, or null when the
+ * calendar does not have it.
  *
- * The href comes from the server, so it is resolved against the base and
- * checked like any other address before the credential follows it there.
+ * CalDAV's text-match is a substring match, so `abc` also finds `abcd`: the
+ * UID inside each answer is read back and compared whole. The href comes
+ * from the server, so it is resolved against the base and checked like any
+ * other address before the credential follows it there.
  */
 async function locate(client, calendar, uid) {
   const answer = await send(client, {
@@ -215,7 +280,11 @@ async function locate(client, calendar, uid) {
 
   for (const entry of parseMultiStatus(answer.text)) {
     if (!entry.href) continue;
-    return sameHost(new URL(entry.href, client.base), client.base);
+    if (entry.ics && parseEvent(entry.ics, { calendar: "" })?.uid !== uid) continue;
+    return {
+      url: sameHost(new URL(entry.href, client.base), client.base),
+      etag: entry.etag || null
+    };
   }
   return null;
 }
@@ -271,40 +340,52 @@ async function send(client, { method, url, headers = {}, body, label }) {
 async function attempt(client, { method, url, headers, body, label }, hop = 0) {
   const controller = new AbortController();
   // The deadline alone would stop waiting; the abort is what lets go of the
-  // socket rather than leaving it open behind a settled promise.
+  // socket rather than leaving it open behind a settled promise. So it stays
+  // armed until the body has been read, not only until the headers arrived:
+  // a server that answers and then stalls mid-body is the case it is for.
   const timer = setTimeout(() => controller.abort(), client.timeoutMs);
   timer.unref?.();
 
-  let response;
   try {
-    response = await fetch(sameHost(url, client.base), {
-      method,
-      headers: { authorization: client.authorization, ...headers },
-      body,
-      signal: controller.signal,
-      // Followed by hand, so that the host check above sees every hop. Left to
-      // fetch, a redirect decides for itself where the Authorization goes.
-      redirect: "manual"
-    });
-  } catch (err) {
-    if (err instanceof CalDavError) throw err;
-    throw new CalDavError(`${label} could not reach the calendar server.`);
+    let response;
+    try {
+      response = await fetch(sameHost(url, client.base), {
+        method,
+        headers: { authorization: client.authorization, ...headers },
+        body,
+        signal: controller.signal,
+        // Followed by hand, so that the host check above sees every hop. Left
+        // to fetch, a redirect decides for itself where the Authorization goes.
+        redirect: "manual"
+      });
+    } catch (err) {
+      if (err instanceof CalDavError) throw err;
+      throw new CalDavError(`${label} could not reach the calendar server.`);
+    }
+
+    const location = response.headers.get("location");
+    if ([301, 302, 303, 307, 308].includes(response.status) && location) {
+      // A redirect's own body is never read; released now, its connection
+      // goes back to the pool instead of waiting to be collected.
+      await response.body?.cancel().catch(() => {});
+      if (hop >= MAX_REDIRECTS) throw new CalDavError(`${label} was redirected too many times.`);
+      // 303, and 302 in practice, mean "ask again with GET" — which is not a
+      // request this client ever makes, so the chain stops rather than guessing.
+      if (response.status === 303) throw new CalDavError(`${label} was redirected to a GET.`);
+
+      const next = sameHost(new URL(location, url), client.base);
+      return attempt(client, { method, url: next, headers, body, label }, hop + 1);
+    }
+
+    try {
+      return { status: response.status, text: await readBounded(response, client, label) };
+    } catch (err) {
+      if (err instanceof CalDavError) throw err;
+      throw new CalDavError(`${label} stopped before the calendar server finished answering.`);
+    }
   } finally {
     clearTimeout(timer);
   }
-
-  const location = response.headers.get("location");
-  if ([301, 302, 303, 307, 308].includes(response.status) && location) {
-    if (hop >= MAX_REDIRECTS) throw new CalDavError(`${label} was redirected too many times.`);
-    // 303, and 302 in practice, mean "ask again with GET" — which is not a
-    // request this client ever makes, so the chain stops rather than guessing.
-    if (response.status === 303) throw new CalDavError(`${label} was redirected to a GET.`);
-
-    const next = sameHost(new URL(location, url), client.base);
-    return attempt(client, { method, url: next, headers, body, label }, hop + 1);
-  }
-
-  return { status: response.status, text: await readBounded(response, client, label) };
 }
 
 /**

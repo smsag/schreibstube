@@ -105,6 +105,29 @@ export function extractError(body: string): string {
   return body.trim().slice(0, 200);
 }
 
+/** What a deployment says it runs, from its public `/health` route. */
+export interface BridgeHealth {
+  version: string;
+  protocol: number;
+  capabilities: string[];
+}
+
+/**
+ * The health answer, shared by every capability. Plugin and bridge deploy
+ * separately and drift, so each feature asks once what the deployment runs
+ * rather than failing later on a route it does not have.
+ */
+export function parseHealth(json: unknown): BridgeHealth {
+  const record = asRecord(json);
+  return {
+    version: str(record.version),
+    protocol: typeof record.protocol === "number" ? Math.floor(record.protocol) : 0,
+    capabilities: Array.isArray(record.capabilities)
+      ? record.capabilities.map(str).filter((name) => name !== "")
+      : []
+  };
+}
+
 export function asRecord(value: unknown): Record<string, unknown> {
   return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {};
 }

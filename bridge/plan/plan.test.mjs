@@ -294,6 +294,12 @@ describe("GET /calendar/events", () => {
     }
   });
 
+  it("refuses a day that does not exist, rather than reading the one it rolls over to", async () => {
+    const response = await get("/calendar/events?from=2026-02-30&to=2026-02-30");
+    expect(response.status).toBe(400);
+    expect(response.json.error).toMatch(/dates that exist/);
+  });
+
   it("refuses a window that runs backwards", async () => {
     const response = await get("/calendar/events?from=2026-09-30&to=2026-09-01");
     expect(response.status).toBe(400);

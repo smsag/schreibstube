@@ -1,6 +1,7 @@
 import { App, Modal, Setting } from "obsidian";
 import { t } from "../i18n";
-import type { VaultTask } from "../services/task-inventory";
+import { clampCapacity, MAX_CAPACITY } from "../services/plan-model";
+import { noteName, type VaultTask } from "../services/task-inventory";
 
 /**
  * Choosing what goes into a block.
@@ -133,6 +134,7 @@ export class BlockComposer extends Modal {
 export class DeadlineModal extends Modal {
   private date: string;
   private capacity: number;
+  private readonly original: string | null;
 
   constructor(
     app: App,
@@ -142,8 +144,9 @@ export class DeadlineModal extends Modal {
     private readonly onConfirm: (date: string | null, capacity: number) => void
   ) {
     super(app);
+    this.original = date;
     this.date = date ?? "";
-    this.capacity = capacity;
+    this.capacity = clampCapacity(capacity);
   }
 
   override onOpen(): void {
@@ -163,8 +166,12 @@ export class DeadlineModal extends Modal {
       .setDesc(t().planner.deadlineCapacityDesc)
       .addText((text) => {
         text.inputEl.type = "number";
+        text.inputEl.min = "1";
+        text.inputEl.max = String(MAX_CAPACITY);
+        text.inputEl.step = "1";
         text.setValue(String(this.capacity)).onChange((value) => {
-          this.capacity = Number(value) || this.capacity;
+          const typed = Number(value);
+          if (value.trim() !== "" && Number.isFinite(typed)) this.capacity = clampCapacity(typed);
         });
       });
 
@@ -180,7 +187,10 @@ export class DeadlineModal extends Modal {
           .setButtonText(t().common.save)
           .setCta()
           .onClick(() => {
-            this.onConfirm(/^\d{4}-\d{2}-\d{2}$/.test(this.date) ? this.date : null, this.capacity);
+            // Save keeps a deadline; only "No deadline" takes one away. A date
+            // field left empty or half typed is not a request to remove it.
+            const date = /^\d{4}-\d{2}-\d{2}$/.test(this.date) ? this.date : this.original;
+            if (date !== null) this.onConfirm(date, this.capacity);
             this.close();
           })
       );
@@ -193,8 +203,4 @@ function localInput(moment: Date): string {
     `${moment.getFullYear()}-${pad(moment.getMonth() + 1)}-${pad(moment.getDate())}` +
     `T${pad(moment.getHours())}:${pad(moment.getMinutes())}`
   );
-}
-
-function noteName(path: string): string {
-  return (path.split("/").pop() ?? path).replace(/\.md$/, "");
 }

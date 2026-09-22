@@ -32,6 +32,12 @@ export interface VaultTask {
 
 const TASK_PREFIX = /^\s*(?:[-*+]|\d+[.)])\s+\[.\]\s?/;
 const BLOCK_ID = /\s\^[A-Za-z0-9-]{1,64}\s*$/;
+/**
+ * The link "Send task to Erinnerungen" puts at the end of a line. It is that
+ * feature's bookkeeping, not the task's words: left in, it would change the
+ * task's hash whenever it came or went, and travel into the reminder's title.
+ */
+const REMINDER_LINK = /\s*\[[^\]]*\]\(obsidian:\/\/schreibstube\?task=[A-Za-z0-9-]{1,64}\)\s*$/;
 const DUE = /📅\s*(\d{4}-\d{2}-\d{2})/u;
 const DATED_FIELDS = /\s*(?:📅|⏳|🛫|✅|➕|❌)\s*\d{4}-\d{2}-\d{2}/gu;
 const TAG = /(?:^|\s)#([A-Za-z0-9][A-Za-z0-9/_-]*)/g;
@@ -71,6 +77,7 @@ export function tasksInNote(path: string, content: string): VaultTask[] {
 export function taskText(line: string): string {
   const text = line
     .replace(TASK_PREFIX, "")
+    .replace(REMINDER_LINK, "")
     .replace(BLOCK_ID, "")
     .replace(DATED_FIELDS, "")
     .replace(/\s+/g, " ")
@@ -104,9 +111,19 @@ export function taskHash(text: string): string {
   return hash.toString(16).padStart(8, "0");
 }
 
+/** A note's name as a person calls it: the file without its folder or extension. */
+export function noteName(path: string): string {
+  return (path.split("/").pop() ?? path).replace(/\.md$/, "");
+}
+
+/** Whether a tag is `parent` itself or nested under it. */
+export function isTagOrChild(tag: Tag, parent: Tag): boolean {
+  return tag === parent || tag.startsWith(`${parent}/`);
+}
+
 /** Whether a task carries `tag` itself or a tag nested under it. */
 export function hasTag(task: VaultTask, tag: Tag): boolean {
-  return task.tags.some((carried) => carried === tag || carried.startsWith(`${tag}/`));
+  return task.tags.some((carried) => isTagOrChild(carried, tag));
 }
 
 /** The open tasks for a tag: deadline first, then the order they were written. */
@@ -138,7 +155,7 @@ export function projectTags(
 
   for (const task of tasks) {
     for (const tag of task.tags) {
-      if (prefix !== "" && tag !== prefix && !tag.startsWith(`${prefix}/`)) continue;
+      if (prefix !== "" && !isTagOrChild(tag, prefix)) continue;
       if (tag === prefix) continue;
       const count = counts.get(tag) ?? { open: 0, total: 0 };
       count.total += 1;

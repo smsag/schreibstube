@@ -1,7 +1,7 @@
 /**
  * Schreibstube bridge.
  *
- * A stateless HTTP front end for the protocols an Obsidian plugin cannot speak.
+ * An HTTP front end for the protocols an Obsidian plugin cannot speak.
  * Obsidian on mobile runs in a WebView with no Node runtime and no raw sockets,
  * so IMAP, SMTP and SFTP are out of reach; putting HTTPS in front of them gives
  * the plugin one transport (`requestUrl`) that behaves identically on desktop
@@ -158,12 +158,14 @@ function fail(res, err, requestId) {
     // A few refusals are only useful with the state that caused them — a
     // rejected plan write has to hand back the revision that won, or the
     // caller cannot re-apply its change without asking again.
+    // The envelope goes last, so no payload can pass for the error, the code
+    // or the request id every client keys on.
     if (err.payload) {
       return sendJson(res, err.status, {
+        ...err.payload,
         error: err.message,
         code: err.code,
-        requestId,
-        ...err.payload
+        requestId
       });
     }
     return sendError(res, err.status, err.code, err.message, requestId);

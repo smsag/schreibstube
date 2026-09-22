@@ -15,7 +15,7 @@
  */
 import { httpError } from "../http.mjs";
 import { CalDavError, createCalDavClient } from "./caldav.mjs";
-import { checkDocument, DocumentError } from "./document.mjs";
+import { checkDocument, DocumentError, exists } from "./document.mjs";
 import { createPlanStore, PlanStoreError } from "./store.mjs";
 
 /** A window nobody asks for by hand, and an answer that still fits in memory. */
@@ -165,9 +165,11 @@ function checkWindow(from, to) {
     throw httpError(400, "invalid_request", "from and to are required, as YYYY-MM-DD.");
   }
 
+  // Date.parse rolls 2026-02-30 over to March 2 rather than refusing it, so
+  // a date is checked to be one before it becomes a window.
   const start = Date.parse(`${from}T00:00:00Z`);
   const end = Date.parse(`${to}T00:00:00Z`);
-  if (Number.isNaN(start) || Number.isNaN(end)) {
+  if (!exists(from) || !exists(to) || Number.isNaN(start) || Number.isNaN(end)) {
     throw httpError(400, "invalid_request", "from and to must be dates that exist.");
   }
   if (end < start) throw httpError(400, "invalid_request", "to must not precede from.");

@@ -66,10 +66,21 @@ jobs:
             --env IMAP_HOST=127.0.0.1 --env SMTP_HOST=127.0.0.1 \
             --env MAIL_USER=ci@example.com --env MAIL_PASSWORD=ci \
             --env MAIL_FROM=ci@example.com \
+            --env PLAN_TOKEN=ci-only-plan-token-long-enough \
+            --env CALDAV_URL=https://caldav.invalid/calendars/ \
+            --env CALDAV_USER=ci --env CALDAV_PASSWORD=ci \
             schreibstube-bridge:ci
           for attempt in $(seq 1 20); do
-            if curl --fail --silent http://127.0.0.1:8080/health; then exit 0; fi
+            if curl --fail --silent http://127.0.0.1:8080/health; then break; fi
+            if [ "$attempt" = 20 ]; then docker logs bridge; exit 1; fi
             sleep 1
           done
-          docker logs bridge
-          exit 1
+      # The one file the bridge writes has to be writable by the user it runs
+      # as; a read alone would pass on a store it cannot save to.
+      - name: Save a plan inside the image
+        run: |
+          curl --fail --silent --show-error -X PUT http://127.0.0.1:8080/plan \
+            -H 'authorization: Bearer ci-only-plan-token-long-enough' \
+            -H 'content-type: application/json' \
+            --data '{"rev":0,"document":{"v":1,"deadlines":{},"blocks":[],"anchors":{},"queue":[],"acked":0,"completions":[]}}' \
+            || { docker logs bridge; exit 1; }

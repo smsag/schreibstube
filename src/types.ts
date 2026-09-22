@@ -162,6 +162,8 @@ export interface SchreibstubeSettings {
   plannerBlockMinutes: number;
   /** How many tasks a block is expected to take. */
   plannerCapacity: number;
+  /** Whether proposals may land on Saturday and Sunday too. */
+  plannerWeekends: boolean;
   /** Put before the project's name in a block's calendar title. */
   plannerBlockPrefix: string;
   /** The Reminders list a drain creates the marked tasks in. */

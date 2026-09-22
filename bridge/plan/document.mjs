@@ -311,7 +311,7 @@ function date(value, at) {
   if (!exists(value)) fail(`${at} is not a date that exists`);
 }
 
-function exists(text) {
+export function exists(text) {
   const [year, month, day] = text.split("-").map(Number);
   const parsed = new Date(Date.UTC(year, month - 1, day));
   return (

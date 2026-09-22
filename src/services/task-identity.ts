@@ -68,6 +68,21 @@ export function matchAnchors(
   const free = (candidates: readonly VaultTask[]): VaultTask[] =>
     candidates.filter((task) => !taken.has(task));
 
+  // The fuzzy passes compare one anchor against many tasks, and a task can be
+  // a candidate for every anchor still unbound, so each task's trigrams are
+  // taken once for the whole match rather than once per comparison.
+  const grams = new Map<VaultTask, Set<string>>();
+  const gramsOf = (task: VaultTask): Set<string> => {
+    let set = grams.get(task);
+    if (!set) {
+      set = trigrams(task.text);
+      grams.set(task, set);
+    }
+    return set;
+  };
+  const nearest = (anchor: Anchor, candidates: readonly VaultTask[], threshold: number) =>
+    clearlyNearest(anchor, trigrams(anchor.text), candidates, gramsOf, threshold);
+
   const exact = (anchor: Anchor, sameOrdinal: boolean): VaultTask | undefined =>
     free(byPath.get(anchor.path) ?? []).find(
       (task) => task.hash === anchor.hash && (!sameOrdinal || task.ordinal === anchor.ordinal)
@@ -111,25 +126,35 @@ export function matchAnchors(
  * than the next one. Two near-identical tasks reworded in the same pass fail
  * the second, which is the case that would otherwise go silently wrong.
  */
-function nearest(
+function clearlyNearest(
   anchor: Anchor,
+  anchorGrams: Set<string>,
   candidates: readonly VaultTask[],
+  gramsOf: (task: VaultTask) => Set<string>,
   threshold: number
 ): VaultTask | undefined {
-  const scored = candidates
-    .map((task) => ({ task, score: score(anchor, task) }))
-    .sort((left, right) => right.score - left.score);
+  let best: VaultTask | undefined;
+  let bestScore = -1;
+  let nextScore = -1;
 
-  const [best, next] = scored;
-  if (!best || best.score < threshold) return undefined;
-  if (next && best.score - next.score < MARGIN) return undefined;
-  return best.task;
-}
+  for (const task of candidates) {
+    const nearby =
+      anchor.path === task.path && Math.abs(anchor.ordinal - task.ordinal) <= 1
+        ? POSITION_WEIGHT
+        : 0;
+    const value = Math.min(1, dice(anchorGrams, gramsOf(task)) + nearby);
+    if (value > bestScore) {
+      nextScore = bestScore;
+      bestScore = value;
+      best = task;
+    } else if (value > nextScore) {
+      nextScore = value;
+    }
+  }
 
-function score(anchor: Anchor, task: VaultTask): number {
-  const nearby =
-    anchor.path === task.path && Math.abs(anchor.ordinal - task.ordinal) <= 1 ? POSITION_WEIGHT : 0;
-  return Math.min(1, similarity(anchor.text, task.text) + nearby);
+  if (!best || bestScore < threshold) return undefined;
+  if (nextScore >= 0 && bestScore - nextScore < MARGIN) return undefined;
+  return best;
 }
 
 /**
@@ -141,10 +166,11 @@ function score(anchor: Anchor, task: VaultTask): number {
  */
 export function similarity(left: string, right: string): number {
   if (left === right) return 1;
-  const a = trigrams(left);
-  const b = trigrams(right);
-  if (a.size === 0 || b.size === 0) return 0;
+  return dice(trigrams(left), trigrams(right));
+}
 
+function dice(a: Set<string>, b: Set<string>): number {
+  if (a.size === 0 || b.size === 0) return 0;
   let shared = 0;
   for (const gram of a) if (b.has(gram)) shared += 1;
   return (2 * shared) / (a.size + b.size);

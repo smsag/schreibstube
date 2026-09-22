@@ -259,7 +259,9 @@ export const de: Messages = {
     plannerTokenDesc: "Obsidian-Secret mit dem Plan-Token (PLAN_TOKEN auf der Bridge).",
     plannerCalendars: "Kalender",
     plannerCalendarsDesc:
-      "Kalendernamen, durch Komma getrennt; im ersten werden neue Blöcke angelegt.",
+      "Kalender, durch Komma getrennt; im ersten werden neue Blöcke angelegt. Die Namen, " +
+      "die die Kalender-App zeigt; die Bridge findet den Kalender dahinter.",
+    plannerCalendarsPlaceholder: "Arbeit, Privat",
     plannerTagPrefix: "Präfix für Projekt-Tags",
     plannerTagPrefixDesc:
       "Nur Tags unter diesem Präfix sind Projekte: „projects“ macht #projects/ea48 zu einem. Leer lassen, um jedes Tag als Projekt zu behandeln.",
@@ -270,6 +272,8 @@ export const de: Messages = {
     plannerCapacity: "Aufgaben pro Block",
     plannerCapacityDesc:
       "Wie viele Aufgaben ein Block voraussichtlich schafft. Ein Projekt kann das mit seiner Frist überschreiben.",
+    plannerWeekends: "Auch am Wochenende",
+    plannerWeekendsDesc: "Der Tagesplan darf auch Samstag und Sonntag Blöcke vorschlagen.",
     plannerBlockPrefix: "Präfix für Blocktitel",
     plannerBlockPrefixDesc: "Steht im Kalender vor dem Projektnamen, etwa „Fokus“.",
     plannerRemindersList: "Erinnerungen-Liste",
@@ -949,6 +953,7 @@ export const de: Messages = {
     bridgeWithoutPlan: "die Bridge bietet keine Planungsfunktion — ihre PLAN_-Variablen setzen.",
     nothingPlanned: "Für diesen Tag ist nichts geplant.",
     emptyDay: "Der Kalender ist an diesem Tag leer.",
+    allDay: "ganztägig",
     projects: "Projekte",
     noProjects: (prefix: string) =>
       prefix === ""

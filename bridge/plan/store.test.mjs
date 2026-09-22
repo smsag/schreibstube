@@ -76,6 +76,30 @@ describe("reading", () => {
   });
 });
 
+describe("reading what it already knows", () => {
+  it("answers from what it last wrote while the file is unchanged", async () => {
+    await store.write(planWith(3), 0);
+    expect((await store.read()).document.acked).toBe(3);
+  });
+
+  it("still sees the file when someone edits it on disk", async () => {
+    await store.write(planWith(3), 0);
+    await store.read();
+
+    const edited = JSON.stringify({ rev: 7, document: planWith(9) });
+    await new Promise((done) => setTimeout(done, 20));
+    await writeFile(path, edited);
+
+    expect(await store.read()).toEqual({ rev: 7, document: planWith(9) });
+  });
+
+  it("reads a file removed on disk as the empty plan again", async () => {
+    await store.write(planWith(3), 0);
+    await rm(path);
+    expect(await store.read()).toEqual({ rev: 0, document: emptyDocument() });
+  });
+});
+
 describe("writing", () => {
   it("assigns the revision itself, one higher each time", async () => {
     expect(await store.write(planWith(1), 0)).toEqual({ ok: true, rev: 1 });

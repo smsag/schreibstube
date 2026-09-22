@@ -11,7 +11,7 @@
  * validates rather than trusts.
  */
 import { asRecord, describeBridgeError as describeError, str } from "./bridge-protocol";
-import { normalizePlan, type PlanDocument } from "./plan-model";
+import { dayKey, normalizePlan, shiftDay, type PlanDocument } from "./plan-model";
 
 /**
  * The bridge protocol the planner needs.
@@ -22,25 +22,8 @@ import { normalizePlan, type PlanDocument } from "./plan-model";
  */
 export const PLAN_PROTOCOL_VERSION = 2;
 
-export interface BridgeHealth {
-  protocol: number;
-  capabilities: string[];
-}
-
-export function parseHealth(json: unknown): BridgeHealth {
-  const root = asRecord(json);
-  const protocol = typeof root.protocol === "number" ? Math.floor(root.protocol) : 0;
-  const capabilities = Array.isArray(root.capabilities)
-    ? root.capabilities.map((name) => str(name)).filter((name) => name !== "")
-    : [];
-  return { protocol, capabilities };
-}
-
 /** A planning call is one small document; a slow answer means a sick bridge. */
 export const PLAN_REQUEST_TIMEOUT_MS = 20_000;
-
-/** The longest span of days the bridge will read from a calendar. */
-export const MAX_CALENDAR_DAYS = 120;
 
 export interface PlanBridgeConfig {
   baseUrl: string;
@@ -145,4 +128,27 @@ export function describePlanError(status: number, body: string): string {
   if (status === 404) return "bridge has no planning capability — check its configuration.";
   if (status === 413) return "the plan is too large for the bridge to accept.";
   return describeError(status, body, "calendar server");
+}
+
+/**
+ * The calendar's events that fall on one local day, earliest first.
+ *
+ * A timed event counts when any of it overlaps the day. An all-day event
+ * comes as bare dates with an exclusive end, which a clock would read as UTC
+ * midnight and so shift by the reader's offset; it is compared as dates.
+ */
+export function eventsOn(events: readonly CalendarEvent[], day: string): CalendarEvent[] {
+  const from = new Date(`${day}T00:00:00`).getTime();
+  const to = new Date(`${dayKey(shiftDay(new Date(`${day}T00:00:00`), 1))}T00:00:00`).getTime();
+
+  return events
+    .filter((event) => {
+      if (event.allDay) {
+        // Some servers write a one-day event with no end; its start is its day.
+        const first = event.start.slice(0, 10);
+        return first === day || (first < day && event.end.slice(0, 10) > day);
+      }
+      return Date.parse(event.start) < to && Date.parse(event.end) > from;
+    })
+    .sort((left, right) => Date.parse(left.start) - Date.parse(right.start));
 }

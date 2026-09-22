@@ -5,7 +5,9 @@ import {
   MAX_FILENAME_LENGTH,
   MAX_RENAME_CONTENT_CHARS,
   MIN_FILENAME_LENGTH,
+  MAX_PLANNER_CALENDARS,
   MIN_RENAME_CONTENT_CHARS,
+  normalizeCalendars,
   normalizeSettings
 } from "./plugin-settings";
 
@@ -464,5 +466,44 @@ describe("printing is off until somebody says otherwise", () => {
 
   it("defaults property icons to none and the date format to ISO", () => {
     expect(normalizeSettings({})).toMatchObject({ propertyIcons: {}, dateFormat: "YYYY-MM-DD" });
+  });
+});
+
+describe("the day planner's settings", () => {
+  it("is off, and proposes on weekdays, until a person says otherwise", () => {
+    const settings = normalizeSettings({});
+    expect(settings.plannerEnabled).toBe(false);
+    expect(settings.plannerWeekends).toBe(false);
+    expect(settings.plannerCapacity).toBe(3);
+    expect(settings.plannerStartMinute).toBe(5 * 60 + 30);
+  });
+
+  it("keeps its numbers inside what the planner can use, and reads a typed number", () => {
+    expect(normalizeSettings({ plannerCapacity: 500 }).plannerCapacity).toBe(50);
+    expect(normalizeSettings({ plannerCapacity: 0 }).plannerCapacity).toBe(1);
+    expect(normalizeSettings({ plannerCapacity: "4" as never }).plannerCapacity).toBe(4);
+    expect(normalizeSettings({ plannerCapacity: 2.5 }).plannerCapacity).toBe(3);
+    expect(normalizeSettings({ plannerBlockMinutes: 1 }).plannerBlockMinutes).toBe(5);
+    expect(normalizeSettings({ plannerStartMinute: 99_999 }).plannerStartMinute).toBe(24 * 60 - 1);
+  });
+
+  it("drops a tag prefix's hash and a list left empty", () => {
+    expect(normalizeSettings({ plannerTagPrefix: "#projects" }).plannerTagPrefix).toBe("projects");
+    expect(normalizeSettings({ plannerRemindersList: " " }).plannerRemindersList).toBe(
+      "Schreibstube"
+    );
+  });
+});
+
+describe("the calendars the planner reads", () => {
+  it("reads a typed list, trims it and drops blanks", () => {
+    expect(normalizeCalendars(" Arbeit , , Privat ")).toEqual(["Arbeit", "Privat"]);
+    expect(normalizeCalendars(["Arbeit", 3, " "])).toEqual(["Arbeit"]);
+    expect(normalizeCalendars(undefined)).toEqual([]);
+  });
+
+  it("keeps no more than the bound", () => {
+    const many = Array.from({ length: 50 }, (_, index) => `c${index}`).join(",");
+    expect(normalizeCalendars(many)).toHaveLength(MAX_PLANNER_CALENDARS);
   });
 });

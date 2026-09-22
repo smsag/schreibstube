@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { emptyPlan } from "./plan-model";
+import { parseHealth } from "./bridge-protocol";
 import {
   conflictFrom,
-  parseHealth,
+  eventsOn,
   PLAN_PROTOCOL_VERSION,
   describePlanError,
   eventsQuery,
@@ -72,12 +73,11 @@ describe("what the bridge answers with", () => {
 
 describe("the version handshake", () => {
   it("reads what the deployment runs, and nothing from a broken answer", () => {
-    expect(parseHealth({ protocol: 2, capabilities: ["mail", "plan"] })).toEqual({
-      protocol: 2,
-      capabilities: ["mail", "plan"]
-    });
-    expect(parseHealth({})).toEqual({ protocol: 0, capabilities: [] });
-    expect(parseHealth("nonsense")).toEqual({ protocol: 0, capabilities: [] });
+    expect(
+      parseHealth({ version: "2.5.0", protocol: 2, capabilities: ["mail", "", "plan"] })
+    ).toEqual({ version: "2.5.0", protocol: 2, capabilities: ["mail", "plan"] });
+    expect(parseHealth({})).toEqual({ version: "", protocol: 0, capabilities: [] });
+    expect(parseHealth("nonsense")).toEqual({ version: "", protocol: 0, capabilities: [] });
   });
 
   it("needs the protocol the plan capability arrived in", () => {
@@ -102,5 +102,43 @@ describe("saying what went wrong", () => {
     expect(describePlanError(404, "")).toContain("planning capability");
     expect(describePlanError(413, "")).toContain("too large");
     expect(describePlanError(500, "")).toBeTruthy();
+  });
+});
+
+describe("the events of one day", () => {
+  const event = (uid: string, start: string, end: string, allDay = false) => ({
+    uid,
+    title: uid,
+    start,
+    end,
+    allDay,
+    calendar: "Arbeit",
+    notes: ""
+  });
+
+  it("keeps what touches the local day, earliest first, and nothing from the next", () => {
+    const day = eventsOn(
+      [
+        event("tomorrow", "2026-09-21T09:00:00", "2026-09-21T10:00:00"),
+        event("late", "2026-09-20T21:00:00", "2026-09-20T22:00:00"),
+        event("early", "2026-09-20T05:30:00", "2026-09-20T06:00:00"),
+        event("overnight", "2026-09-19T23:00:00", "2026-09-20T01:00:00")
+      ],
+      "2026-09-20"
+    );
+    expect(day.map((one) => one.uid)).toEqual(["overnight", "early", "late"]);
+  });
+
+  it("reads an all-day event by its dates, whatever the reader's offset", () => {
+    const day = eventsOn(
+      [
+        event("birthday", "2026-09-20", "2026-09-21", true),
+        event("yesterday", "2026-09-19", "2026-09-20", true),
+        event("week", "2026-09-18", "2026-09-25", true),
+        event("no end", "2026-09-20", "2026-09-20", true)
+      ],
+      "2026-09-20"
+    );
+    expect(day.map((one) => one.uid).sort()).toEqual(["birthday", "no end", "week"]);
   });
 });

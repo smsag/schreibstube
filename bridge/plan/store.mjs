@@ -21,7 +21,7 @@
  * whole of the concurrency story.
  */
 import { randomBytes } from "node:crypto";
-import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { checkDocument, DocumentError, emptyDocument } from "./document.mjs";
 
@@ -40,11 +40,28 @@ export function createPlanStore(path) {
     return done;
   };
 
+  // What was last read or written, and the file as it stood then. Reading
+  // and validating the whole document on every request is the cost of a
+  // file someone else might edit; a stat that says it has not changed is
+  // enough to skip it, and an edit on disk is still seen on the next read.
+  let known = null;
+  const current = async () => {
+    const stamp = await fileStamp(path);
+    if (stamp === null) {
+      known = null;
+      return { rev: 0, document: emptyDocument() };
+    }
+    if (known && known.stamp === stamp) return known.value;
+    const value = await load(path);
+    known = { stamp, value };
+    return value;
+  };
+
   return {
     path,
 
     /** The stored revision and document, or the empty one. */
-    read: () => serial(() => load(path)),
+    read: () => serial(current),
 
     /**
      * Store a document if `expectedRev` is still the current revision.
@@ -54,14 +71,26 @@ export function createPlanStore(path) {
      */
     write: (document, expectedRev) =>
       serial(async () => {
-        const current = await load(path);
-        if (current.rev !== expectedRev) return { ok: false, ...current };
+        const stored = await current();
+        if (stored.rev !== expectedRev) return { ok: false, ...stored };
 
-        const rev = current.rev + 1;
+        const rev = stored.rev + 1;
         await save(path, { rev, document });
+        known = { stamp: await fileStamp(path), value: { rev, document } };
         return { ok: true, rev };
       })
   };
+}
+
+/** Size and modification time together, or null when there is no file yet. */
+async function fileStamp(path) {
+  try {
+    const info = await stat(path);
+    return `${info.size}:${info.mtimeMs}`;
+  } catch (err) {
+    if (err.code === "ENOENT") return null;
+    throw new PlanStoreError(`The plan store cannot be read (${err.code ?? "unknown error"}).`);
+  }
 }
 
 /**

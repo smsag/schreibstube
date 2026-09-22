@@ -7,18 +7,19 @@
  * something a test can answer.
  */
 import {
+  clampCapacity,
   generateKey,
   MAX_MEMBERS,
   MAX_QUEUE,
   type Completion,
   type PlanBlock,
   type PlanDocument,
-  type PlanMember,
   type QueueOp
 } from "./plan-model";
 import type { Anchor, MatchResult } from "./task-identity";
 import { anchorFor } from "./task-identity";
 import type { Tag, VaultTask } from "./task-inventory";
+import { taskMarker } from "./task-summary";
 
 export function setDeadline(
   plan: PlanDocument,
@@ -28,7 +29,9 @@ export function setDeadline(
 ): PlanDocument {
   const deadlines = { ...plan.deadlines };
   if (date === null) delete deadlines[tag];
-  else deadlines[tag] = capacity === undefined ? { date } : { date, capacity };
+  else
+    deadlines[tag] =
+      capacity === undefined ? { date } : { date, capacity: clampCapacity(capacity) };
   return { ...plan, deadlines };
 }
 
@@ -43,19 +46,6 @@ export function upsertBlock(plan: PlanDocument, block: PlanBlock): PlanDocument 
 
 export function removeBlock(plan: PlanDocument, uid: string): PlanDocument {
   return { ...plan, blocks: plan.blocks.filter((block) => block.uid !== uid) };
-}
-
-export function setMembers(
-  plan: PlanDocument,
-  uid: string,
-  members: readonly PlanMember[]
-): PlanDocument {
-  return {
-    ...plan,
-    blocks: plan.blocks.map((block) =>
-      block.uid === uid ? { ...block, members: members.slice(0, MAX_MEMBERS) } : block
-    )
-  };
 }
 
 /**
@@ -140,6 +130,25 @@ export function pruneAnchors(plan: PlanDocument): PlanDocument {
   return { ...plan, anchors };
 }
 
+/**
+ * The vault tasks already sitting in an open slot of some block.
+ *
+ * Decided by key, the way the plan decides everything else: a task reworded
+ * since it was planned is still the same task, and one of two identically
+ * worded lines is not the other.
+ */
+export function plannedTasks(plan: PlanDocument, bound: Map<string, VaultTask>): Set<VaultTask> {
+  const planned = new Set<VaultTask>();
+  for (const block of plan.blocks) {
+    for (const member of block.members) {
+      if (member.done) continue;
+      const task = bound.get(member.key);
+      if (task) planned.add(task);
+    }
+  }
+  return planned;
+}
+
 export interface ReminderFields {
   title: string;
   notes: string;
@@ -150,16 +159,25 @@ export interface ReminderFields {
 /**
  * The reminder queue after this pass.
  *
- * Only members marked for Reminders are in it, and an operation is added only
- * when what Reminders should hold differs from the last operation for that
- * key — so a queue that has caught up stays empty of new work however often
- * this runs. Applied operations are kept as that record of what was sent,
- * and the oldest are dropped once the queue is full.
+ * The last operation for each key is the record of what Reminders was told,
+ * so an operation is added only when that differs from what it should hold —
+ * a queue that has caught up stays empty of new work however often this runs.
+ *
+ * `unknown` holds the keys whose task could not be found this pass. Their
+ * reminders are left exactly as they are: a note that has not synced to this
+ * device yet is not a task that was deleted, and deleting its reminder would
+ * be the one change a person cannot see coming.
+ *
+ * The queue is bounded, and a record is never evicted while its reminder may
+ * still exist. Only deletes a drain has already applied make room; when there
+ * is still none, a task not yet in Reminders waits rather than pushing out a
+ * reminder the plan would then lose track of.
  */
 export function buildQueue(
   plan: PlanDocument,
   desired: Map<string, ReminderFields>,
-  list: string
+  list: string,
+  unknown: ReadonlySet<string> = new Set()
 ): PlanDocument {
   const last = new Map<string, QueueOp>();
   for (const op of plan.queue) last.set(op.key, op);
@@ -184,15 +202,26 @@ export function buildQueue(
   }
 
   for (const [key, previous] of last) {
-    if (desired.has(key) || previous.op === "delete") continue;
+    if (desired.has(key) || unknown.has(key) || previous.op === "delete") continue;
     seq += 1;
     added.push({ seq, op: "delete", key });
   }
 
   if (added.length === 0) return plan;
 
-  const merged = [...plan.queue.filter((op) => !added.some((one) => one.key === op.key)), ...added];
-  return { ...plan, queue: merged.slice(-MAX_QUEUE) };
+  const replaced = new Set(added.map((op) => op.key));
+  let queue = [...plan.queue.filter((op) => !replaced.has(op.key)), ...added];
+
+  if (queue.length > MAX_QUEUE) {
+    queue = queue.filter((op) => !(op.op === "delete" && op.seq <= plan.acked));
+  }
+  if (queue.length > MAX_QUEUE) {
+    const room = MAX_QUEUE - queue.filter((op) => last.has(op.key)).length;
+    let admitted = 0;
+    queue = queue.filter((op) => last.has(op.key) || (admitted += 1) <= room);
+  }
+
+  return { ...plan, queue };
 }
 
 export interface NoteEdit {
@@ -227,4 +256,35 @@ export function takeCompletions(
   }
 
   return { plan: { ...plan, completions: kept }, edits };
+}
+
+const BOX = /^(\s*(?:[-*+]|\d+[.)])\s+\[).\]/;
+
+/**
+ * A note with the reported completions written into it.
+ *
+ * Only an open box is ticked and only an `x` is reopened. A box someone
+ * marked otherwise — cancelled, deferred, anything Tasks or a theme gives a
+ * meaning — says more than "done" or "not done", and what someone wrote in
+ * the box is theirs. Returns how many lines actually changed.
+ */
+export function setTaskDone(
+  content: string,
+  edits: readonly { line: number; done: boolean }[]
+): { content: string; changed: number } {
+  const newline = content.includes("\r\n") ? "\r\n" : "\n";
+  const lines = content.split(/\r?\n/);
+  let changed = 0;
+
+  for (const edit of edits) {
+    const line = lines[edit.line];
+    if (line === undefined) continue;
+    const marker = taskMarker(line);
+    const flips = edit.done ? marker === " " : marker === "x" || marker === "X";
+    if (!flips) continue;
+    lines[edit.line] = line.replace(BOX, `$1${edit.done ? "x" : " "}]`);
+    changed += 1;
+  }
+
+  return { content: changed > 0 ? lines.join(newline) : content, changed };
 }

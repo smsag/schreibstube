@@ -1,26 +1,29 @@
 import { ItemView, type WorkspaceLeaf } from "obsidian";
 import { activeLocale, t } from "../i18n";
 import type { Planner } from "../controllers/planner";
-import { blockTag } from "../controllers/planner";
-import { dayKey, shiftDay } from "../services/plan-model";
+import { blockTag, dayKey, shiftDay } from "../services/plan-model";
 import { timeRange } from "../services/plan-summary";
 import {
-  busyFromBlocks,
   DEFAULT_PREFERENCES,
+  EVERY_DAY,
   pressure,
   proposalTitle,
   proposeBlocks,
   type Preferences,
-  type Proposal
+  type Proposal,
+  WEEKDAYS
 } from "../services/planner-proposals";
-import { projectTags, tasksForTag, type VaultTask } from "../services/task-inventory";
-import type { CalendarEvent } from "../services/plan-protocol";
+import { projectTags, tasksForTag } from "../services/task-inventory";
+import { eventsOn, type CalendarEvent } from "../services/plan-protocol";
 import type { SchreibstubeSettings } from "../types";
 import { applyIcon, installIconFont } from "./icon-font";
 import { BlockComposer, DeadlineModal } from "./planner-modals";
 
 export const PLANNER_VIEW_TYPE = "schreibstube-planner";
 export const PLANNER_ICON = "calendar-clock";
+
+/** How far ahead the calendar is read for proposals: two working weeks. */
+const PROPOSAL_DAYS = 14;
 
 /**
  * The planner: one day at a time, the projects that are running out of it,
@@ -34,7 +37,10 @@ export const PLANNER_ICON = "calendar-clock";
  */
 export class PlannerView extends ItemView {
   private day = dayKey(new Date());
+  /** The day on screen. */
   private events: CalendarEvent[] = [];
+  /** What is already taken over the days proposals can land on. */
+  private upcoming: CalendarEvent[] = [];
   private unsubscribe: (() => void) | null = null;
 
   constructor(
@@ -60,18 +66,33 @@ export class PlannerView extends ItemView {
   override async onOpen(): Promise<void> {
     installIconFont(this.containerEl.doc);
     this.unsubscribe = this.planner.subscribe(() => this.draw());
-    await this.planner.refresh(true);
-    await this.loadDay();
+    await this.planner.refresh();
+    await Promise.all([this.loadDay(), this.loadUpcoming()]);
   }
 
   override async onClose(): Promise<void> {
     this.unsubscribe?.();
   }
 
-  /** The calendar for the day on screen, and a redraw when it arrives. */
+  /**
+   * The calendar for the day on screen. The bridge answers with every event
+   * touching the window, so only those that fall on this local day are kept.
+   */
   private async loadDay(): Promise<void> {
+    const day = this.day;
+    const events = await this.planner.events(day, day);
+    if (day !== this.day) return;
+    this.events = eventsOn(events, day);
     this.draw();
-    this.events = await this.planner.events(this.day, dayKey(shiftDay(new Date(this.day), 1)));
+  }
+
+  /** The days a proposal could land on, read once rather than per project. */
+  private async loadUpcoming(): Promise<void> {
+    const today = new Date();
+    this.upcoming = await this.planner.events(
+      dayKey(today),
+      dayKey(shiftDay(today, PROPOSAL_DAYS - 1))
+    );
     this.draw();
   }
 
@@ -81,7 +102,8 @@ export class PlannerView extends ItemView {
       ...DEFAULT_PREFERENCES,
       startMinute: settings.plannerStartMinute,
       lengthMinutes: settings.plannerBlockMinutes,
-      capacity: settings.plannerCapacity
+      capacity: settings.plannerCapacity,
+      days: settings.plannerWeekends ? EVERY_DAY : WEEKDAYS
     };
   }
 
@@ -124,7 +146,7 @@ export class PlannerView extends ItemView {
     const refresh = header.createDiv({ cls: "schreibstube-planner-step" });
     applyIcon(refresh, "refresh");
     refresh.addEventListener("click", () => {
-      void this.planner.refresh(true).then(() => this.loadDay());
+      void this.planner.refresh().then(() => Promise.all([this.loadDay(), this.loadUpcoming()]));
     });
   }
 
@@ -150,7 +172,7 @@ export class PlannerView extends ItemView {
       ...this.events
         .filter((event) => !planned.has(event.uid))
         .map((event) => ({ start: event.start, end: event.end, block: null, event }))
-    ].sort((left, right) => Date.parse(left.start) - Date.parse(right.start));
+    ].sort((left, right) => startOf(left) - startOf(right));
 
     if (entries.length === 0) {
       list.createEl("p", { cls: "schreibstube-plan-empty", text: t().planner.emptyDay });
@@ -160,7 +182,7 @@ export class PlannerView extends ItemView {
       const row = list.createDiv({ cls: "schreibstube-planner-entry" });
       row.createSpan({
         cls: "schreibstube-plan-time",
-        text: timeRange(entry.start, entry.end, locale)
+        text: entry.event?.allDay ? t().planner.allDay : timeRange(entry.start, entry.end, locale)
       });
 
       if (!entry.block) {
@@ -260,10 +282,7 @@ export class PlannerView extends ItemView {
       deadline: state.plan.deadlines[tag]?.date ?? null,
       openTasks: open,
       plan: state.plan,
-      busy: [
-        ...busyFromBlocks(state.plan.blocks),
-        ...this.events.map((event) => ({ start: event.start, end: event.end }))
-      ],
+      busy: this.upcoming,
       preferences: { ...preferences, capacity },
       now
     });
@@ -298,9 +317,7 @@ export class PlannerView extends ItemView {
     settings: SchreibstubeSettings
   ): void {
     const state = this.planner.current();
-    const candidates: VaultTask[] = tasksForTag(state.tasks, tag).filter(
-      (task) => !isPlanned(state.plan.blocks, task)
-    );
+    const candidates = tasksForTag(state.tasks, tag).filter((task) => !state.planned.has(task));
 
     new BlockComposer(
       this.app,
@@ -312,7 +329,9 @@ export class PlannerView extends ItemView {
       proposalTitle(tag, settings.plannerBlockPrefix),
       capacity,
       (draft) => {
-        void this.planner.planBlock({ ...draft, tag }).then(() => this.loadDay());
+        void this.planner
+          .planBlock({ ...draft, tag })
+          .then(() => Promise.all([this.loadDay(), this.loadUpcoming()]));
       }
     ).open();
   }
@@ -326,14 +345,7 @@ function proposalLabel(proposal: Proposal): string {
   });
 }
 
-/** A task already in a block is not offered again; one hour is enough for it. */
-function isPlanned(
-  blocks: readonly { members: readonly { path: string; text: string; done?: boolean }[] }[],
-  task: VaultTask
-): boolean {
-  return blocks.some((block) =>
-    block.members.some(
-      (member) => member.path === task.path && member.text === task.text && member.done !== true
-    )
-  );
+/** An all-day entry heads the day; a bare date would otherwise sort by UTC midnight. */
+function startOf(entry: { start: string; event: CalendarEvent | null }): number {
+  return entry.event?.allDay ? Number.NEGATIVE_INFINITY : Date.parse(entry.start);
 }

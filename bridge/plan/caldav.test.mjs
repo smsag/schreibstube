@@ -465,3 +465,95 @@ describe("the fixture itself", () => {
     expect(response.status).toBe(404);
   });
 });
+
+describe("what a write expects to find", () => {
+  it("updates in place, with the version it read as the precondition", async () => {
+    const resource = server.seed("arbeit", ics({ uid: "u-1" }));
+    const calendar = client();
+
+    await calendar.saveEvent({
+      uid: "u-1",
+      title: "Neu",
+      start: "2026-09-20T08:00:00Z",
+      end: "2026-09-20T09:00:00Z",
+      calendar: "arbeit"
+    });
+    const put = server.requests.filter((one) => one.method === "PUT").at(-1);
+    expect(put?.path).toBe(`/dav/arbeit/${resource}`);
+    expect(server.contents("arbeit")[0]).toContain("SUMMARY:Neu");
+  });
+
+  it("does not take a longer UID for the one it was asked about", async () => {
+    server.seed("arbeit", ics({ uid: "u-1-and-more" }), { resource: "u-1.ics" });
+
+    await expect(
+      client().saveEvent({
+        uid: "u-1",
+        title: "Anders",
+        start: "2026-09-20T08:00:00Z",
+        end: "2026-09-20T09:00:00Z",
+        calendar: "arbeit"
+      })
+    ).rejects.toThrow(/already has that name/);
+    expect(server.contents("arbeit")[0]).toContain("UID:u-1-and-more");
+  });
+
+  it("deletes nothing when only a longer UID is there", async () => {
+    server.seed("arbeit", ics({ uid: "u-1-and-more" }));
+    expect(await client().deleteEvent({ uid: "u-1", calendar: "arbeit" })).toEqual({
+      deleted: false
+    });
+    expect(server.contents("arbeit")).toHaveLength(1);
+  });
+});
+
+describe("naming a calendar", () => {
+  it("finds a calendar by the name a person sees, whatever its case", async () => {
+    server.seed("arbeit", ics({ uid: "a" }));
+    const { events } = await client({ calendars: [] }).listEvents({
+      from: "2026-09-01",
+      to: "2026-09-30",
+      calendars: ["die ARBEIT"],
+      limit: 10
+    });
+    expect(events.map((event) => event.uid)).toEqual(["a"]);
+  });
+
+  it("keeps a display name inside the allowlist", async () => {
+    await expect(
+      client({ calendars: ["privat"] }).saveEvent({
+        title: "Block",
+        start: "2026-09-20T08:00:00Z",
+        end: "2026-09-20T09:00:00Z",
+        calendar: "Die arbeit"
+      })
+    ).rejects.toThrow(/not one this bridge may write to/);
+  });
+
+  it("asks the server what calendars it has once, not on every request", async () => {
+    const calendar = client({ calendars: [] });
+    const before = server.requests.filter((one) => one.method === "PROPFIND").length;
+
+    await calendar.listEvents({ from: "2026-09-01", to: "2026-09-02", limit: 10 });
+    await calendar.listEvents({ from: "2026-09-03", to: "2026-09-04", limit: 10 });
+
+    const after = server.requests.filter((one) => one.method === "PROPFIND").length;
+    expect(after - before).toBe(1);
+  });
+});
+
+describe("a server that stops mid-answer", () => {
+  it("gives up on the body and lets go of the connection", async () => {
+    const released = server.stalled.released;
+    await expect(
+      client({ calendars: ["zaeh"], timeoutMs: 150 }).listEvents({
+        from: "2026-09-01",
+        to: "2026-09-02",
+        limit: 10
+      })
+    ).rejects.toThrow();
+
+    await new Promise((done) => setTimeout(done, 100));
+    expect(server.stalled.released).toBeGreaterThan(released);
+  });
+});

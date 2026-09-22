@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   hasTag,
+  noteName,
   projectTags,
   tagsIn,
   taskHash,
@@ -50,6 +51,17 @@ describe("the tasks in a note", () => {
   it("strips the box, dates and a block id, and keeps the tags", () => {
     expect(taskText("- [x] Call #money 📅 2026-09-20 ✅ 2026-09-21 ^r-abc123")).toBe("Call #money");
     expect(taskText(`- [ ] ${"a".repeat(800)}`)).toHaveLength(MAX_TASK_TEXT);
+  });
+
+  it("leaves out the link the older Send to Erinnerungen put on a line", () => {
+    const sent = taskText("- [ ] Call #money [⏰](obsidian://schreibstube?task=ab12cd)");
+    expect(sent).toBe("Call #money");
+    expect(taskHash(sent)).toBe(taskHash(taskText("- [ ] Call #money")));
+  });
+
+  it("names a note the way a person does", () => {
+    expect(noteName("Projekte/EA48/Plan.md")).toBe("Plan");
+    expect(noteName("Plan")).toBe("Plan");
   });
 
   it("reads a tag once, and not one glued to a word", () => {

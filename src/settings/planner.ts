@@ -47,7 +47,7 @@ export function renderPlanner(ctx: SettingsContext): void {
     .setName(t().settings.plannerCalendars)
     .setDesc(t().settings.plannerCalendarsDesc)
     .addText((text) => {
-      text.setPlaceholder("Berufliches, Privat");
+      text.setPlaceholder(t().settings.plannerCalendarsPlaceholder);
       text.setValue(ctx.plugin.settings.plannerCalendars.join(", ")).onChange(async (value) => {
         await ctx.update({ plannerCalendars: normalizeCalendars(value) });
       });
@@ -79,7 +79,7 @@ export function renderPlanner(ctx: SettingsContext): void {
     .addText((text) => {
       text.inputEl.type = "number";
       text.setValue(String(ctx.plugin.settings.plannerBlockMinutes)).onChange(async (value) => {
-        await ctx.update({ plannerBlockMinutes: Number(value) });
+        if (value.trim() !== "") await ctx.update({ plannerBlockMinutes: Number(value) });
       });
     });
 
@@ -89,7 +89,16 @@ export function renderPlanner(ctx: SettingsContext): void {
     .addText((text) => {
       text.inputEl.type = "number";
       text.setValue(String(ctx.plugin.settings.plannerCapacity)).onChange(async (value) => {
-        await ctx.update({ plannerCapacity: Number(value) });
+        if (value.trim() !== "") await ctx.update({ plannerCapacity: Number(value) });
+      });
+    });
+
+  new Setting(ctx.containerEl)
+    .setName(t().settings.plannerWeekends)
+    .setDesc(t().settings.plannerWeekendsDesc)
+    .addToggle((toggle) => {
+      toggle.setValue(ctx.plugin.settings.plannerWeekends).onChange(async (value) => {
+        await ctx.update({ plannerWeekends: value });
       });
     });
 

@@ -19,6 +19,7 @@ import { TEMPLATE_ROOT_DEFAULT } from "./print-template";
 import { DEFAULT_REPORT_FILE } from "./reminder-status";
 import { normalizePropertyIcons } from "./property-icons";
 import { DEFAULT_DATE_FORMAT, normalizeDateFormat } from "./today-value";
+import { MAX_CAPACITY } from "./plan-model";
 
 export { PROVIDER_MODELS } from "./llm-providers";
 
@@ -139,6 +140,7 @@ export const DEFAULT_SETTINGS: SchreibstubeSettings = {
   plannerStartMinute: 5 * 60 + 30,
   plannerBlockMinutes: 60,
   plannerCapacity: 3,
+  plannerWeekends: false,
   plannerBlockPrefix: "",
   plannerRemindersList: "Schreibstube",
   remindersEnabled: false,
@@ -341,19 +343,25 @@ export function normalizeSettings(loaded: LoadedSettings): SchreibstubeSettings 
       loaded?.plannerTagPrefix,
       DEFAULT_SETTINGS.plannerTagPrefix
     ).replace(/^#/, ""),
-    plannerStartMinute: bounded(
+    plannerStartMinute: clampIntOrDefault(
       loaded?.plannerStartMinute,
       0,
       24 * 60 - 1,
       DEFAULT_SETTINGS.plannerStartMinute
     ),
-    plannerBlockMinutes: bounded(
+    plannerBlockMinutes: clampIntOrDefault(
       loaded?.plannerBlockMinutes,
       5,
       8 * 60,
       DEFAULT_SETTINGS.plannerBlockMinutes
     ),
-    plannerCapacity: bounded(loaded?.plannerCapacity, 1, 50, DEFAULT_SETTINGS.plannerCapacity),
+    plannerCapacity: clampIntOrDefault(
+      loaded?.plannerCapacity,
+      1,
+      MAX_CAPACITY,
+      DEFAULT_SETTINGS.plannerCapacity
+    ),
+    plannerWeekends: loaded?.plannerWeekends === true,
     plannerBlockPrefix: trimmedStringOrDefault(loaded?.plannerBlockPrefix, ""),
     plannerRemindersList: nonEmptyStringOrDefault(
       loaded?.plannerRemindersList,
@@ -471,6 +479,9 @@ function stringListOrDefault(value: unknown): string[] {
   return value.filter((entry): entry is string => typeof entry === "string" && entry.trim() !== "");
 }
 
+/** More calendars than this is a paste gone wrong, not a planner setup. */
+export const MAX_PLANNER_CALENDARS = 20;
+
 /**
  * The calendars the planner may read. Names come from a text field, so the
  * list is trimmed, emptied of blanks and bounded: a person pasting a whole
@@ -481,13 +492,7 @@ export function normalizeCalendars(value: unknown): string[] {
   return names
     .map((name) => (typeof name === "string" ? name.trim() : ""))
     .filter((name) => name !== "")
-    .slice(0, 20);
-}
-
-/** A number from the settings file, kept inside what the feature can use. */
-function bounded(value: unknown, low: number, high: number, fallback: number): number {
-  if (typeof value !== "number" || !Number.isFinite(value)) return fallback;
-  return Math.min(high, Math.max(low, Math.round(value)));
+    .slice(0, MAX_PLANNER_CALENDARS);
 }
 
 /** Optional free-text setting: an empty value is meaningful ("not configured"),

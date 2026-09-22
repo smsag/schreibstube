@@ -53,7 +53,7 @@ import { compileGlossaries } from "./services/glossary-matcher";
 import { minuteOf, parseCron, previousRun, shouldFire } from "./services/cron";
 import { REVIEW_VIEW_TYPE, ReviewPanelView } from "./ui/review-panel";
 import { PLANNER_ICON, PLANNER_VIEW_TYPE, PlannerView } from "./ui/planner-view";
-import { Planner } from "./controllers/planner";
+import { PLAN_REFRESH_MS, Planner } from "./controllers/planner";
 import { registerPlanBlock } from "./processors/plan-block";
 import { EXPLORER_RIBBON_ICON, EXPLORER_VIEW_TYPE, ExplorerPaneView } from "./ui/explorer-view";
 import { TAG_NOTES_VIEW_TYPE, TagNotesView } from "./ui/tag-notes-view";
@@ -78,9 +78,6 @@ import type { FocusMode, HeadingEntry, SchreibstubeSettings } from "./types";
 /** How often the poll ticker wakes. Well under a minute so a scheduled minute
  *  is never stepped over by a late tick. */
 const POLL_TICK_MS = 20_000;
-
-/** How often the planner re-reads the plan from the bridge on its own. */
-const PLANNER_REFRESH_MS = 5 * 60_000;
 
 /** Delay before the catch-up poll, so it never competes with opening a vault. */
 const POLL_CATCHUP_DELAY_MS = 8_000;
@@ -163,8 +160,9 @@ export default class SchreibstubePlugin extends Plugin {
       }
     );
     this.reminders = new ReminderCommands(this.app, () => this.settings, this.logger);
-    this.planner = new Planner(this.app, () => this.settings, this.logger);
-    registerPlanBlock(this, this.planner);
+    const planner = new Planner(this.app, () => this.settings, this.logger);
+    this.planner = planner;
+    registerPlanBlock(this, planner);
     this.registerPlannerEvents();
     this.notes = new NoteCommands(this.app, this.logger);
     this.proofread = new ProofreadController(this.app, () => this.settings, this.logger, {
@@ -224,7 +222,7 @@ export default class SchreibstubePlugin extends Plugin {
     this.registerView(REVIEW_VIEW_TYPE, (leaf) => this.createReviewView(leaf));
     this.registerView(
       PLANNER_VIEW_TYPE,
-      (leaf) => new PlannerView(leaf, this.requirePlanner(), () => this.settings)
+      (leaf) => new PlannerView(leaf, planner, () => this.settings)
     );
     this.registerView(EXPLORER_VIEW_TYPE, (leaf) => this.createExplorerView(leaf));
     this.registerView(TAG_NOTES_VIEW_TYPE, (leaf) => this.createTagNotesView(leaf));
@@ -399,7 +397,7 @@ export default class SchreibstubePlugin extends Plugin {
   private registerPlannerEvents(): void {
     this.registerEvent(
       this.app.vault.on("modify", (file) => {
-        if (file instanceof TFile && file.extension === "md") this.planner?.invalidateScan();
+        if (file instanceof TFile && file.extension === "md") this.planner?.noteChanged(file.path);
       })
     );
     this.registerEvent(
@@ -410,13 +408,8 @@ export default class SchreibstubePlugin extends Plugin {
       })
     );
     this.app.workspace.onLayoutReady(() => {
-      void this.planner?.refresh(true);
+      void this.planner?.refresh();
     });
-  }
-
-  private requirePlanner(): Planner {
-    this.planner ??= new Planner(this.app, () => this.settings, this.logger);
-    return this.planner;
   }
 
   /** Open the file pane, reusing the existing leaf if it is already open. */
@@ -708,7 +701,7 @@ export default class SchreibstubePlugin extends Plugin {
     // The plan is small and rarely moves, so it is asked for on a slow beat
     // rather than on every tick; anything the planner itself changes redraws
     // without waiting for one.
-    if (now.getTime() - this.plannerCheckedAt > PLANNER_REFRESH_MS) {
+    if (now.getTime() - this.plannerCheckedAt > PLAN_REFRESH_MS) {
       this.plannerCheckedAt = now.getTime();
       void this.planner?.refresh();
     }

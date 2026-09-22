@@ -1,15 +1,18 @@
 import { describe, expect, it } from "vitest";
 import {
-  blockOfKey,
+  blockNotes,
   blocksOn,
+  blockTag,
+  clampCapacity,
   currentBlock,
   dayKey,
   daysUntil,
   emptyPlan,
   generateKey,
-  keyForAnchor,
+  MAX_CAPACITY,
   normalizePlan,
   shiftDay,
+  taskUrl,
   type PlanDocument
 } from "./plan-model";
 
@@ -21,7 +24,7 @@ function block(uid: string, start: string, end: string, members: string[] = []) 
     start,
     end,
     calendar: "Berufliches",
-    members: members.map((key) => ({ key, text: key, path: "Plan.md", remind: false }))
+    members: members.map((key) => ({ key, text: key, path: "Plan.md", remind: false, done: false }))
   };
 }
 
@@ -100,13 +103,26 @@ describe("keys", () => {
     expect(generateKey()).toMatch(/^k-[a-z0-9]{10}$/);
   });
 
-  it("are found again by what a task looked like", () => {
-    const plan = {
-      ...emptyPlan(),
-      anchors: { "k-a": { path: "Plan.md", hash: "abc", text: "T", ordinal: 0 } }
-    };
-    expect(keyForAnchor(plan, "Plan.md", "abc")).toBe("k-a");
-    expect(keyForAnchor(plan, "Plan.md", "zzz")).toBeNull();
+  it("lead a reminder back to its task", () => {
+    expect(taskUrl("k-abc")).toBe("obsidian://schreibstube?key=k-abc");
+  });
+});
+
+describe("tasks per block", () => {
+  it("is a whole number from one to the bound", () => {
+    expect(clampCapacity(3)).toBe(3);
+    expect(clampCapacity(2.5)).toBe(3);
+    expect(clampCapacity(0)).toBe(1);
+    expect(clampCapacity(100)).toBe(MAX_CAPACITY);
+    expect(clampCapacity(Number.NaN)).toBe(1);
+  });
+});
+
+describe("the marker a block carries in its calendar event", () => {
+  it("is written and read back, and an ordinary meeting has none", () => {
+    expect(blockTag(blockNotes("projects/ea48"))).toBe("projects/ea48");
+    expect(blockTag(`Agenda\n${blockNotes("lex")}`)).toBe("lex");
+    expect(blockTag("an ordinary meeting")).toBeNull();
   });
 });
 
@@ -140,11 +156,5 @@ describe("days and blocks", () => {
     expect(currentBlock(plan, new Date("2026-09-20T05:33:00"))?.uid).toBe("now");
     expect(currentBlock(plan, new Date("2026-09-20T06:05:00"))?.uid).toBe("next");
     expect(currentBlock(plan, new Date("2026-09-20T23:00:00"))).toBeNull();
-  });
-
-  it("says which block a task sits in", () => {
-    const plan = planWith([block("uid-1", "2026-09-20T05:30:00", "2026-09-20T06:00:00", ["k-a"])]);
-    expect(blockOfKey(plan, "k-a")?.uid).toBe("uid-1");
-    expect(blockOfKey(plan, "k-b")).toBeNull();
   });
 });

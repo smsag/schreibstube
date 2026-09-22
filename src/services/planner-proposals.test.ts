@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { emptyPlan, type PlanBlock, type PlanDocument } from "./plan-model";
 import {
-  busyFromBlocks,
   DEFAULT_PREFERENCES,
   MAX_PROPOSALS,
   pressure,
@@ -75,6 +74,12 @@ describe("what the planner offers", () => {
     expect(proposals.map((one) => one.start.getDate())).toEqual([20, 21]);
   });
 
+  it("does not take an all-day event for a busy morning", () => {
+    const busy = [{ start: "2026-09-20", end: "2026-09-21", allDay: true }];
+    const proposals = propose({ busy, openTasks: 3 });
+    expect(proposals[0]?.start.getDate()).toBe(20);
+  });
+
   it("keeps out of time that is already taken", () => {
     const busy = [{ start: "2026-09-20T05:45:00", end: "2026-09-20T06:30:00" }];
     const proposals = propose({ busy, openTasks: 3 });
@@ -91,6 +96,12 @@ describe("what the planner offers", () => {
     const other = plan([block("2026-09-20T09:00:00", "2026-09-20T10:00:00", "projects/lex")]);
     const proposals = propose({ plan: other, openTasks: 3 });
     expect(proposals[0]?.start.getDate()).toBe(20);
+  });
+
+  it("keeps out of another project's block at the same hour", () => {
+    const other = plan([block("2026-09-20T05:00:00", "2026-09-20T06:00:00", "projects/lex")]);
+    const proposals = propose({ plan: other, openTasks: 3 });
+    expect(proposals[0]?.start.getDate()).toBe(21);
   });
 
   it("skips a day of the week that is not for working", () => {
@@ -144,13 +155,5 @@ describe("naming a block", () => {
     expect(proposalTitle("projects/ea48", "")).toBe("EA48");
     expect(proposalTitle("projects/ea48", "Fokus")).toBe("Fokus EA48");
     expect(proposalTitle("lektorat", "")).toBe("LEKTORAT");
-  });
-});
-
-describe("blocks as busy time", () => {
-  it("reduces them to their span", () => {
-    expect(busyFromBlocks([block("2026-09-20T05:30:00", "2026-09-20T06:00:00")])).toEqual([
-      { start: "2026-09-20T05:30:00", end: "2026-09-20T06:00:00" }
-    ]);
   });
 });

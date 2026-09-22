@@ -1,13 +1,20 @@
 import { describe, expect, it } from "vitest";
-import { emptyPlan, type PlanBlock, type PlanDocument } from "./plan-model";
+import {
+  emptyPlan,
+  MAX_QUEUE,
+  type PlanBlock,
+  type PlanDocument,
+  type QueueOp
+} from "./plan-model";
 import {
   applyMatch,
   buildQueue,
   keysForTasks,
+  plannedTasks,
   pruneAnchors,
   removeBlock,
   setDeadline,
-  setMembers,
+  setTaskDone,
   takeCompletions,
   upsertBlock,
   type ReminderFields
@@ -62,10 +69,14 @@ describe("deadlines and blocks", () => {
     expect(next.blocks[0]?.title).toBe("EA48, again");
   });
 
-  it("removes a block and changes its members", () => {
+  it("removes a block", () => {
     const { plan } = planned();
     expect(removeBlock(plan, "uid-1").blocks).toEqual([]);
-    expect(setMembers(plan, "uid-1", []).blocks[0]?.members).toEqual([]);
+  });
+
+  it("keeps a deadline's capacity to what the bridge will store", () => {
+    expect(setDeadline(emptyPlan(), "p", "2026-09-25", 100).deadlines.p?.capacity).toBe(50);
+    expect(setDeadline(emptyPlan(), "p", "2026-09-25", 2.5).deadlines.p?.capacity).toBe(3);
   });
 });
 
@@ -171,6 +182,109 @@ describe("the reminder queue", () => {
 
     expect(dropped.queue.at(-1)).toEqual({ seq: 2, op: "delete", key: "k-1" });
     expect(buildQueue(dropped, new Map(), "Schreibstube")).toBe(dropped);
+  });
+});
+
+describe("the reminder queue, when a task cannot be found", () => {
+  const fields = (): ReminderFields => ({
+    title: "Datenschutz klären",
+    notes: "↩ Plan",
+    due: null,
+    done: false
+  });
+
+  it("leaves the reminder of a task it could not find this pass alone", () => {
+    const { plan } = planned();
+    const once = buildQueue(plan, new Map([["k-1", fields()]]), "Schreibstube");
+
+    const next = buildQueue(once, new Map(), "Schreibstube", new Set(["k-1"]));
+
+    expect(next).toBe(once);
+  });
+
+  it("never pushes out the record of a reminder that may still exist", () => {
+    const queue: QueueOp[] = Array.from({ length: MAX_QUEUE }, (_, index) => ({
+      seq: index + 1,
+      op: "upsert" as const,
+      key: `k-live-${index}`,
+      title: "t",
+      notes: "n",
+      due: null,
+      done: false,
+      list: "L"
+    }));
+    const full = { ...emptyPlan(), queue, acked: MAX_QUEUE };
+    const desired = new Map<string, ReminderFields>(
+      queue.map((op) => [op.key, { title: "t", notes: "n", due: null, done: false }])
+    );
+    desired.set("k-new", fields());
+
+    const next = buildQueue(full, desired, "L");
+
+    expect(next.queue).toHaveLength(MAX_QUEUE);
+    expect(next.queue.some((op) => op.key === "k-new")).toBe(false);
+    expect(next.queue.every((op) => op.key.startsWith("k-live-"))).toBe(true);
+  });
+
+  it("makes room from deletes a drain has already applied", () => {
+    const queue: QueueOp[] = Array.from({ length: MAX_QUEUE }, (_, index) => ({
+      seq: index + 1,
+      op: "delete" as const,
+      key: `k-gone-${index}`
+    }));
+    const full = { ...emptyPlan(), queue, acked: MAX_QUEUE };
+
+    const next = buildQueue(full, new Map([["k-new", fields()]]), "L");
+
+    expect(next.queue.map((op) => op.key)).toEqual(["k-new"]);
+  });
+});
+
+describe("tasks already planned", () => {
+  it("are found by key, not by wording, and a done one is free again", () => {
+    const tasks = scan(
+      "- [ ] ping #projects/ea48\n- [ ] ping #projects/ea48\n- [x] pong #projects/ea48"
+    );
+    const { plan } = planned([tasks[0]!, tasks[2]!]);
+    const match = matchAnchors(plan.anchors, tasks);
+
+    const taken = plannedTasks(plan, match.bound);
+
+    expect(taken.has(tasks[0]!)).toBe(true);
+    expect(taken.has(tasks[1]!)).toBe(false);
+    expect(taken.has(tasks[2]!)).toBe(false);
+  });
+});
+
+describe("ticking a note", () => {
+  it("ticks an open box and reopens an x, keeping the line endings", () => {
+    const note = "- [ ] a\r\n- [x] b\r\n- [ ] c";
+    expect(
+      setTaskDone(note, [
+        { line: 0, done: true },
+        { line: 1, done: false }
+      ])
+    ).toEqual({
+      content: "- [x] a\r\n- [ ] b\r\n- [ ] c",
+      changed: 2
+    });
+  });
+
+  it("leaves a box someone marked otherwise alone", () => {
+    const note = "- [-] cancelled\n- [>] deferred";
+    expect(
+      setTaskDone(note, [
+        { line: 0, done: false },
+        { line: 1, done: true }
+      ])
+    ).toEqual({
+      content: note,
+      changed: 0
+    });
+  });
+
+  it("ignores a line that is not there any more", () => {
+    expect(setTaskDone("- [ ] a", [{ line: 5, done: true }]).changed).toBe(0);
   });
 });
 

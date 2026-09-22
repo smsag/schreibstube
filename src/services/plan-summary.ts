@@ -16,7 +16,7 @@ import {
   type PlanDocument,
   type PlanMember
 } from "./plan-model";
-import { hasTag, type Tag, type VaultTask } from "./task-inventory";
+import { hasTag, isTagOrChild, type Tag, type VaultTask } from "./task-inventory";
 
 export const PLAN_BLOCK_LANGUAGE = "schreibstube-plan";
 
@@ -108,8 +108,7 @@ export interface SummaryInput {
 export function summarize({ plan, tasks, lost, options, now }: SummaryInput): PlanSummary {
   const day = options.day === "today" ? dayKey(now) : options.day;
   const wanted = (tag: Tag) =>
-    options.tags.length === 0 ||
-    options.tags.some((one) => tag === one || tag.startsWith(`${one}/`));
+    options.tags.length === 0 || options.tags.some((one) => isTagOrChild(tag, one));
 
   const blocks = blocksOn(plan, day)
     .filter((block) => wanted(block.tag))

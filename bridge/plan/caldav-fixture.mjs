@@ -23,8 +23,8 @@ const CALDAV = "urn:ietf:params:xml:ns:caldav";
  *
  * `calendars` names the collections it offers. A few addresses are special so
  * that a failure can be reached without a network of its own: the calendar
- * `verboten` answers 403 and `riesig` answers with more bytes than any sane
- * limit, while `/umzug/` redirects to the real collection, `/fremd/` redirects
+ * `verboten` answers 403, `riesig` answers with more bytes than any sane
+ * limit and `zaeh` sends its headers and then stops mid-body, while `/umzug/` redirects to the real collection, `/fremd/` redirects
  * off the host entirely, `/schleife/` redirects to itself and `/anders/`
  * answers a 303.
  */
@@ -36,6 +36,8 @@ export async function startCalDavServer({
   /** calendar name -> (resource file name -> ICS text) */
   const store = new Map(calendars.map((name) => [name, new Map()]));
   const seen = [];
+  /** Whether the client let go of a response that was stalled mid-body. */
+  const stalled = { open: 0, released: 0 };
 
   const server = createServer((req, res) => {
     const url = new URL(req.url ?? "/", "http://caldav.test");
@@ -53,7 +55,7 @@ export async function startCalDavServer({
     req.on("end", () => {
       const body = Buffer.concat(chunks).toString("utf8");
       try {
-        handle({ req, res, url, body, store });
+        handle({ req, res, url, body, store, stalled });
       } catch (err) {
         res.writeHead(500, { "content-type": "text/plain" });
         res.end(String(err.message));
@@ -75,6 +77,7 @@ export async function startCalDavServer({
     loopUrl: `http://127.0.0.1:${port}/schleife/`,
     otherMethodUrl: `http://127.0.0.1:${port}/anders/`,
     requests: seen,
+    stalled,
 
     /** Put an event there the way another client would have: a resource name
      *  that has nothing to do with the UID inside it. */
@@ -97,7 +100,7 @@ export async function startCalDavServer({
   };
 }
 
-function handle({ req, res, url, body, store }) {
+function handle({ req, res, url, body, store, stalled }) {
   const method = req.method ?? "GET";
   const segments = url.pathname.split("/").filter(Boolean);
 
@@ -144,6 +147,17 @@ function handle({ req, res, url, body, store }) {
     res.end();
     return;
   }
+  if (calendar === "zaeh" && method === "REPORT") {
+    // Headers and the start of a body, then nothing: the connection stays
+    // open until the client gives up on it.
+    stalled.open += 1;
+    res.on("close", () => {
+      stalled.released += 1;
+    });
+    res.writeHead(207, { "content-type": "application/xml" });
+    res.write('<?xml version="1.0"?><d:multistatus xmlns:d="DAV:">');
+    return;
+  }
   if (calendar === "riesig" && method === "REPORT") {
     res.writeHead(207, { "content-type": "application/xml" });
     res.end("x".repeat(400_000));
@@ -167,6 +181,14 @@ function handle({ req, res, url, body, store }) {
     }
     const exists = events.has(resource);
     if (exists && req.headers["if-none-match"] === "*") {
+      res.writeHead(412);
+      res.end();
+      return;
+    }
+    // The etag handed out by a REPORT is the resource's name in quotes; an
+    // If-Match naming anything else is a version this server no longer has.
+    const ifMatch = req.headers["if-match"];
+    if (ifMatch !== undefined && (!exists || ifMatch !== `"${resource}"`)) {
       res.writeHead(412);
       res.end();
       return;
@@ -206,7 +228,9 @@ function report(res, calendar, events, body) {
 
   const matched = [];
   for (const [resource, ics] of events) {
-    if (uid !== undefined && uidOf(ics) !== uid) continue;
+    // CalDAV's text-match is a substring match unless told otherwise, and a
+    // real server answers `abc` with `abcd` too; so does this one.
+    if (uid !== undefined && !(uidOf(ics) ?? "").includes(uid)) continue;
     if (range && !within(ics, range[1], range[2])) continue;
     matched.push(response(`/dav/${calendar}/${resource}`, { etag: `"${resource}"`, ics }));
   }

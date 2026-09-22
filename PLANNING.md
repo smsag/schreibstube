@@ -86,14 +86,33 @@ plugin ticks the task in its note.
 
 The queue holds the last operation for each task as the record of what Reminders
 was told, so a queue that has caught up produces no new work however often the
-planner runs.
+planner runs. Two rules keep that record honest:
+
+- a marked task the planner cannot find on a pass — a note not yet synced to
+  this device, a rewording it could not be sure of — keeps its reminder as it
+  is; only a task that is gone, or no longer marked, has its reminder deleted;
+- the record of a reminder that may still exist is never pushed out of the
+  bounded queue. Applied deletes make room first; when there is still none, a
+  newly marked task waits.
+
+Tasks sent with the older **Send task to Erinnerungen** command are a separate
+feature with its own list and its own link. Marking such a task in a block as
+well gives it a second reminder; use one or the other for a task.
 
 ## Settings
 
 **Settings → Schreibstube → Tagesplan.** The bridge URL and a token (an Obsidian
 secret, as with mail), the calendars to read, the tag prefix that makes a tag a
 project, and what the planner assumes about a morning: when a block starts, how
-long it runs, how many tasks fit in one.
+long it runs, how many tasks fit in one, and whether weekends count.
+
+Calendars are named as your calendar app shows them. On iCloud the server
+addresses a calendar by an opaque identifier; the bridge finds the one behind
+each name, without regard to case. The first calendar listed is where new
+blocks are created.
+
+All-day events show at the top of the day and are not treated as busy time: a
+birthday does not take the morning.
 
 ## The bridge
 

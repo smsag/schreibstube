@@ -23,6 +23,8 @@ export const MAX_MEMBERS = 200;
 export const MAX_ANCHORS = 2000;
 export const MAX_QUEUE = 500;
 export const MAX_COMPLETIONS = 500;
+/** How many tasks one block can be expected to take; the bridge refuses more. */
+export const MAX_CAPACITY = 50;
 const MAX_TEXT = 500;
 const MAX_PATH = 400;
 
@@ -34,7 +36,7 @@ export interface PlanMember {
   /** Whether this one also belongs in Reminders. */
   remind: boolean;
   /** Completion as last known; the vault is authoritative while it is open. */
-  done?: boolean;
+  done: boolean;
 }
 
 export interface PlanBlock {
@@ -132,7 +134,7 @@ function normalizeDeadlines(raw: Record<string, unknown> | null): Record<Tag, Pl
     const date = text(entry?.date, 10);
     if (!TAG_PATTERN.test(tag) || !DATE.test(date)) continue;
     const capacity = counter(entry?.capacity);
-    deadlines[tag] = capacity > 0 ? { date, capacity: Math.min(capacity, 50) } : { date };
+    deadlines[tag] = capacity > 0 ? { date, capacity: clampCapacity(capacity) } : { date };
   }
   return deadlines;
 }
@@ -160,14 +162,13 @@ function normalizeMember(value: unknown): PlanMember | null {
   const raw = record(value);
   const key = text(raw?.key, 64);
   if (!KEY.test(key)) return null;
-  const member: PlanMember = {
+  return {
     key,
     text: text(raw?.text, MAX_TEXT),
     path: text(raw?.path, MAX_PATH),
-    remind: raw?.remind === true
+    remind: raw?.remind === true,
+    done: raw?.done === true
   };
-  if (typeof raw?.done === "boolean") member.done = raw.done;
-  return member;
 }
 
 function normalizeAnchors(raw: Record<string, unknown> | null): Record<string, Anchor> {
@@ -243,6 +244,16 @@ function isTime(value: string): boolean {
 // ---------------------------------------------------------------------------
 // Reading the plan.
 
+/**
+ * Tasks per block as the bridge will accept it: a whole number from 1 to the
+ * bound. A capacity typed as 2.5 or 100 would otherwise be refused on the
+ * way out, and every later change to the plan with it.
+ */
+export function clampCapacity(value: number): number {
+  if (!Number.isFinite(value)) return 1;
+  return Math.min(MAX_CAPACITY, Math.max(1, Math.round(value)));
+}
+
 /** The local calendar day of a moment, `YYYY-MM-DD`. */
 export function dayKey(moment: Date): string {
   const year = moment.getFullYear();
@@ -289,19 +300,22 @@ export function currentBlock(plan: PlanDocument, now: Date): PlanBlock | null {
   return running ?? sorted.find((block) => Date.parse(block.start) > moment) ?? null;
 }
 
-export function blockFor(plan: PlanDocument, uid: string): PlanBlock | null {
-  return plan.blocks.find((block) => block.uid === uid) ?? null;
+// ---------------------------------------------------------------------------
+// The block marker. A block is an event in a calendar anyone can open, so
+// the event itself says it is one, and for which project; every client that
+// reads the calendar can then tell a block from a meeting.
+
+const BLOCK_MARKER = /schreibstube:block=([A-Za-z0-9][A-Za-z0-9/_-]*)/;
+
+export function blockNotes(tag: Tag): string {
+  return `schreibstube:block=${tag}`;
 }
 
-/** The block a task belongs to, if any; a task belongs to at most one. */
-export function blockOfKey(plan: PlanDocument, key: string): PlanBlock | null {
-  return plan.blocks.find((block) => block.members.some((member) => member.key === key)) ?? null;
+export function blockTag(notes: string): Tag | null {
+  return BLOCK_MARKER.exec(notes)?.[1] ?? null;
 }
 
-/** The key the plan already uses for a task, by its anchor's note and wording. */
-export function keyForAnchor(plan: PlanDocument, path: string, hash: string): string | null {
-  for (const [key, anchor] of Object.entries(plan.anchors)) {
-    if (anchor.path === path && anchor.hash === hash) return key;
-  }
-  return null;
+/** Where a reminder points back to; the key means nothing outside the plan. */
+export function taskUrl(key: string): string {
+  return `obsidian://schreibstube?key=${encodeURIComponent(key)}`;
 }

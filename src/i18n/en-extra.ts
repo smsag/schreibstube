@@ -21,7 +21,9 @@ export const enExtra = {
     plannerTokenDesc: "Obsidian secret holding the plan token (PLAN_TOKEN on the bridge).",
     plannerCalendars: "Calendars",
     plannerCalendarsDesc:
-      "Comma-separated calendar names to read, the first one being where new blocks are created.",
+      "Comma-separated calendars to read, the first one being where new blocks are created. " +
+      "Use the names your calendar app shows; the bridge finds the calendar behind each.",
+    plannerCalendarsPlaceholder: "Work, Personal",
     plannerTagPrefix: "Project tag prefix",
     plannerTagPrefixDesc:
       'Only tags under this prefix are projects: "projects" makes #projects/ea48 one. Leave empty to treat every tag as a project.',
@@ -32,6 +34,8 @@ export const enExtra = {
     plannerCapacity: "Tasks per block",
     plannerCapacityDesc:
       "How many tasks one block is expected to take. A project can override it with its deadline.",
+    plannerWeekends: "Weekends too",
+    plannerWeekendsDesc: "Let the planner propose blocks on Saturday and Sunday as well.",
     plannerBlockPrefix: "Block title prefix",
     plannerBlockPrefixDesc: 'Put before the project name in the calendar, for example "Fokus".',
     plannerRemindersList: "Reminders list",
@@ -702,6 +706,7 @@ export const enExtra = {
     bridgeWithoutPlan: "the bridge offers no planning capability — set its PLAN_ variables.",
     nothingPlanned: "Nothing planned for this day.",
     emptyDay: "The calendar has nothing on this day.",
+    allDay: "all day",
     projects: "Projects",
     noProjects: (prefix: string) =>
       prefix === "" ? "No tags on open tasks yet." : `No tasks carry a #${prefix}/… tag yet.`,
