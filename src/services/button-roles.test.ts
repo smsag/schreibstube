@@ -55,6 +55,17 @@ describe("the role set", () => {
     }
   });
 
+  it("marks a button as a fast tap target, the way Obsidian marks its own", () => {
+    // Without this, iOS holds the first tap back while it waits for a second
+    // one that would mean zoom. Obsidian's own controls are exempt through
+    // `.is-clickable` / `.clickable-icon`; a button built here is neither.
+    const from = css.indexOf(`${SCOPE} .sb {`);
+    const base = css.slice(from, css.indexOf("}", from));
+    expect(base, "the role base does not declare touch-action").toMatch(
+      /(^|[;{\s])touch-action:\s*manipulation\s*;/
+    );
+  });
+
   it("gives each of the nine roles a rule", () => {
     for (const role of ROLES) {
       expect(css, `no rule for sb-${role}`).toContain(`${SCOPE} .sb.sb-${role}`);

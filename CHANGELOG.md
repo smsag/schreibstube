@@ -2,6 +2,27 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Fixed
+
+- **Buttons needed two taps on an iPhone.** iOS holds the first tap back while
+  it waits to see whether a second one follows, because two taps mean zoom —
+  and during that wait the tap can be lost, most easily when the element
+  changes underneath it, which the review panel does on every state change.
+  Obsidian exempts its own controls by marking them `.is-clickable` or
+  `.clickable-icon`, both of which carry `touch-action: manipulation`; a button
+  this plugin builds is neither, so it now says so itself. That is why the
+  plugin's buttons could feel slower to a thumb than the app's own.
+- The review panel no longer redraws itself while a finger is on it. It rebuilds
+  its whole tree on every state change — a glossary parse finishing, a source
+  check returning, staleness recomputed as you type — and any of those landing
+  mid-tap destroys the button under the finger and puts an identical one in its
+  place. The redraw now waits until the tap has resolved.
+
+### Fixed
+
+
 ## 1.37.0 - 2026-09-20
 
 The plugin's hand-built buttons stop being shaped by whatever theme is
