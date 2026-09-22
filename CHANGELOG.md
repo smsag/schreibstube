@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- **The task tally reads as a tally.** The pill behind the figures beside a
+  note's name was a wash of the accent so faint it looked like a grey box, so
+  the numbers were set in a heavier weight to be findable at all — emphasis
+  arriving twice, inside a pill, on a line of plain names. The wash now carries
+  the accent properly and the figures sit at the row's own weight, with a
+  little more room inside the pill. Nothing about what it says has changed: it
+  is still done over total, and a note with nothing left open still loses its
+  fill entirely.
+- The two places that show a tally — the file pane's rows and the pinned-tag
+  cards — held a copy of the pill's styling each, and had drifted. They now
+  share one, so a change to the pill can no longer reach one surface and miss
+  the other.
+
 ### Fixed
 
 - **Buttons needed two taps on an iPhone.** iOS holds the first tap back while

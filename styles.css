@@ -1425,21 +1425,29 @@ a.external-link.schreibstube-reminder-mark {
 /* How many tasks a note holds and how many are open, at the row's right
    edge. It takes the slack the name gives up, so it sits where a button once
    did, and it is quiet: a figure to be read when wanted, never a control. */
-.schreibstube-explorer-tasks {
+/* The pill itself is ONE rule set, .schreibstube-tasks, worn by every surface
+   that shows a tally; drawTaskCount puts that class on alongside the surface's
+   own. The two surfaces had a copy each and they drifted — a padding changed
+   in one of them is a bug you only see by opening both panes. A surface rule
+   below may set size and alignment; it must not restate the look. */
+.schreibstube-tasks {
   flex: 0 0 auto;
   margin-left: auto;
-  /* The row's own size, not a smaller one: the tally is part of that line of
-     type, not a footnote under it. Tabular figures so the column lines up
-     down the pane whatever the numbers are, and it never shrinks — a note
-     with 128 of 240 done takes the width it needs and the NAME ellipses,
-     because the name can be recognised from its first characters and a
-     half-drawn number cannot be read at all. */
-  font-size: inherit;
+  /* Tabular figures so the column lines up down the pane whatever the numbers
+     are, and it never shrinks — a note with 128 of 240 done takes the width it
+     needs and the NAME ellipses, because a name can be recognised from its
+     first characters and a half-drawn number cannot be read at all. */
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
-  text-align: right;
 
-  /* A tint behind the figures, so the column is findable without reading it.
+  /* An accent wash behind the figures, so the column is findable without
+     reading it. MEASURED at 18%, sampled off the painted pane in Obsidian
+     1.13.7 with the default accent: the fill lands on rgb(236 230 254) over a
+     white page and rgb(46 38 65) over rgb(26 26 26) — a blue-violet that is
+     read as the accent, where 11% left a cast of 8 and 4 points and read as
+     grey. Text on it holds 10.4:1 (light) and 9.6:1 (dark) at --text-normal,
+     6.0:1 and 5.8:1 at --text-muted, which is what lets the figures be set at
+     the body weight instead of leaning on bold to be found.
      The padding is on the element whether or not the tint is painted, or the
      finished rows would sit a few pixels off the others.
 
@@ -1448,32 +1456,41 @@ a.external-link.schreibstube-reminder-mark {
      would be the same colour arriving twice and would vanish under the
      pointer. An accent wash composites ON TOP of those and survives all of
      them, which is the only reason this can be a fill at all. */
-  padding: 1px 5px;
+  padding: 2px 8px;
   border-radius: var(--schreibstube-border-radius);
-  background: color-mix(in srgb, var(--interactive-accent) 11%, transparent);
+  background: color-mix(in srgb, var(--interactive-accent) 18%, transparent);
 }
 
 /* Nothing open: the fill goes, the padding stays. The tint is what says
    "there is work here", so a finished note must not carry one. */
-.schreibstube-explorer-tasks[data-state="done"] {
+.schreibstube-tasks[data-state="done"] {
   background: transparent;
 }
 
-/* The two numbers are not equally useful. Done is what a person scans for. */
-.schreibstube-explorer-tasks-done {
+/* The two numbers are not equally useful: done is what a person scans for,
+   the total is context — and COLOUR alone says so. The weight stays the
+   row's. These figures sit in a tinted pill on a line of plain names, so a
+   heavier number is emphasis arriving twice, and at 18% the tint has already
+   done the finding. */
+.schreibstube-tasks-done {
   color: var(--text-normal);
-  font-weight: 500;
 }
 
-.schreibstube-explorer-tasks-total {
+.schreibstube-tasks-total {
   color: var(--text-muted);
 }
 
-/* Nothing open. The tally steps back so the rows that still want work are the
-   only ones carrying weight in the column. */
-.schreibstube-explorer-tasks[data-state="done"] .schreibstube-explorer-tasks-done {
+/* Nothing open. Both figures go muted, so the rows that still want work are
+   the only ones carrying colour in the column. */
+.schreibstube-tasks[data-state="done"] .schreibstube-tasks-done {
   color: var(--text-muted);
-  font-weight: 400;
+}
+
+/* The row's own size, not a smaller one: in the file pane the tally is part
+   of that line of type, not a footnote under it. */
+.schreibstube-explorer-tasks {
+  font-size: inherit;
+  text-align: right;
 }
 
 /* The "Move to…" list: a glyph and the folder's path on one line. */
@@ -1560,39 +1577,10 @@ a.external-link.schreibstube-reminder-mark {
   overflow-wrap: anywhere;
 }
 
+/* The cards' own scale; the pill's look comes from .schreibstube-tasks. */
 .schreibstube-tag-card-tasks {
-  flex: 0 0 auto;
-  margin-left: auto;
   font-size: var(--font-ui-smaller);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-  /* The same tint, for the same reason, on the cards' own scale. */
-  padding: 1px 5px;
-  border-radius: var(--schreibstube-border-radius);
-  background: color-mix(in srgb, var(--interactive-accent) 11%, transparent);
 }
-
-.schreibstube-tag-card-tasks[data-state="done"] {
-  background: transparent;
-}
-
-/* Same hierarchy as the pane's rows: done leads, the total is context. */
-.schreibstube-tag-card-tasks-done {
-  color: var(--text-normal);
-  font-weight: 500;
-}
-
-.schreibstube-tag-card-tasks-total {
-  color: var(--text-muted);
-}
-
-.schreibstube-tag-card-tasks[data-state="done"] .schreibstube-tag-card-tasks-done {
-  color: var(--text-muted);
-  font-weight: 400;
-}
-
-/* Nothing left to do here: the note still carries the tag, so it is listed,
-   but its figure steps back behind the ones that still have work in them. */
 
 .schreibstube-tag-card-folder {
   color: var(--text-faint);
