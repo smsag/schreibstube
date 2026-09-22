@@ -977,7 +977,16 @@ export class ExplorerPaneView extends ItemView {
         this.renderTaskCount(row, target);
       }
 
-      row.addEventListener("click", () => void this.host?.sections.openLatest(file.path));
+      // The same press the tree answers, so a note met here can be deleted,
+      // renamed or moved without first finding it in the tree below.
+      wirePress(row, {
+        isDragging: () => this.drag.active !== null,
+        activate: () => void this.host?.sections.openLatest(file.path),
+        showMenu: (at) => {
+          const current = this.app.vault.getAbstractFileByPath(file.path);
+          if (current instanceof TFile) controller?.showMenu(current, at);
+        }
+      });
     }
 
     return matching.length;
