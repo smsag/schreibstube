@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- **Latest rows have the file menu.** A right click, or a long press on a
+  phone, on a note under Latest opens the same menu the tree gives it, so a
+  note found there can be deleted, renamed or moved without first finding it
+  in the tree below.
+
 ### Fixed
 - **Browsing folders no longer throws the Explorer back to the open note.**
   Every redraw measured the pinned strip while the list was empty, which reset
