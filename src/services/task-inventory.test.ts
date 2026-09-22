@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   hasTag,
+  legacyReminderLine,
   noteName,
   withBoxDone,
   projectTags,
@@ -66,6 +67,12 @@ describe("the tasks in a note", () => {
     expect(withBoxDone("- [-] cancelled", false)).toBe("- [-] cancelled");
     expect(withBoxDone("- [>] deferred", true)).toBe("- [>] deferred");
     expect(withBoxDone("not a task", true)).toBe("not a task");
+  });
+
+  it("finds the line a reminder made by 1.35 still points at", () => {
+    const note = "intro\n- [ ] a [⏰](obsidian://schreibstube?task=ab12cd)\n- [ ] b";
+    expect(legacyReminderLine(note, "ab12cd")).toBe(1);
+    expect(legacyReminderLine(note, "zz99zz")).toBeNull();
   });
 
   it("names a note the way a person does", () => {

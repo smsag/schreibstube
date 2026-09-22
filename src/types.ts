@@ -1,7 +1,6 @@
 import type { SyncRecord } from "./services/sync-document";
 import type { PublishKeyMap } from "./services/publish-index";
 import type { LanguagePreference } from "./i18n";
-import type { ReminderTrigger } from "./services/reminder-tasks";
 
 export type HeadingLevel = 1 | 2 | 3 | 4 | 5 | 6;
 
@@ -130,17 +129,10 @@ export interface SchreibstubeSettings {
   /** Where a printed PDF is written; empty means beside the note. */
   printOutputFolder: string;
   /**
-   * Keeping tasks in sync with Apple's Reminders through a Shortcut. Off until
-   * a person says otherwise: the sync writes ids into notes, which is not
-   * something a plugin should start doing on its own.
+   * The Reminders list the planner's reminders go to; its reminders that came
+   * from a task are the planner's to change.
    */
-  remindersEnabled: boolean;
-  /** The Reminders list the sync keeps; its reminders are the sync's to change. */
   remindersList: string;
-  /** What makes a task a reminder: a due date or `#remind`, or `#remind` alone. */
-  remindersTrigger: ReminderTrigger;
-  /** Vault folder for the outbox, inbox and state the Shortcut shares. */
-  remindersFolder: string;
   /**
    * The day planner: tasks into time blocks, kept on a bridge the person runs.
    * Off until switched on, because it needs an address and a token before it

@@ -14,8 +14,6 @@ export const de: Messages = {
     newNote: "Neues Doc",
     insertTaskSummary: "Einfügen: Aufgaben-Zusammenfassung",
     insertSlideshow: "Einfügen: Diaschau",
-    sendToReminders: "Aufgabe zur Erinnerung machen",
-    reminders: "Jetzt mit Erinnerungen abgleichen",
     rename: "Doc mit KI umbenennen",
     summarize: "Einfügen: KI-Zusammenfassung der Auswahl",
     table: "Einfügen: Tabelle aus der Auswahl",
@@ -55,21 +53,7 @@ export const de: Messages = {
     alreadyPresent: "diese Notiz hat schon eine Aufgaben-Zusammenfassung.",
     none: "Keine Aufgaben",
     ribbon: (open: number, total: number) => `${open} offen von ${total}`,
-    badge: (open: number, total: number) => `${open} von ${total} offen`,
-    menuSend: "Zur Erinnerung machen",
-    markTooltip: "Mit Erinnerungen abgeglichen",
-    remindersOff:
-      "Abgleich mit Erinnerungen ist aus. Einschalten unter Einstellungen → Schreibstube → Erinnerungen.",
-    notATask: "der Cursor steht auf keiner Aufgabe.",
-    queued: (title: string) => `kommt mit dem nächsten Abgleich zu Erinnerungen: ${title}`,
-    taskNotFound: "keine Notiz in diesem Vault enthält diese Aufgabe.",
-    synced: (count: number) =>
-      count > 0
-        ? `abgeglichen; ${count} Aufgabe(n) aus Erinnerungen aktualisiert.`
-        : "mit Erinnerungen abgeglichen.",
-    syncFailed:
-      "der Abgleich mit Erinnerungen ist fehlgeschlagen. Die Entwicklerkonsole nennt den Grund.",
-    fromReminders: (count: number) => `${count} Aufgabe(n) aus Erinnerungen aktualisiert.`
+    badge: (open: number, total: number) => `${open} von ${total} offen`
   },
 
   slideshow: {
@@ -290,43 +274,11 @@ export const de: Messages = {
     focusOpacityDesc:
       "Deckkraft der Zeilen außerhalb des Fokus (0,2 = sehr blass, 0,8 = fast voll).",
 
-    remindersHeading: "Erinnerungen",
-    remindersIntro:
-      "Hält Aufgaben mit einer Liste in Apples Erinnerungen im Gleichschritt. Eine Aufgabe mit " +
-      "Fälligkeitsdatum (📅 2026-09-20) oder #remind wird zur Erinnerung; Bearbeiten, Abhaken " +
-      "oder Löschen der Aufgabe folgt ihr dorthin, und eine auf dem Telefon abgehakte Erinnerung " +
-      "hakt die Aufgabe ab. Auf Apples Seite erledigt das ein Kurzbefehl, den zwei Automationen " +
-      "ausführen. Nur macOS und iOS.",
-    remindersEnabled: "Mit Erinnerungen abgleichen",
-    remindersEnabledDesc:
-      "Gibt jeder Erinnerungs-Aufgabe eine Block-ID (^r-…) am Zeilenende und hält die Liste " +
-      "aktuell. Bietet außerdem den Befehl und den Eintrag im Kontextmenü des Editors an.",
-    remindersTrigger: "Was zur Erinnerung wird",
-    remindersTriggerDesc:
-      "Eine Aufgabe mit #remind immer. Hier wählen, ob ein Fälligkeitsdatum allein genügt.",
-    remindersTriggerDate: "Aufgaben mit Fälligkeitsdatum oder #remind",
-    remindersTriggerTag: "Nur Aufgaben mit #remind",
     remindersList: "Erinnerungen-Liste",
     remindersListDesc:
-      "Die Liste, die der Abgleich pflegt, und auch der Tagesplan. Am besten eine eigene: " +
-      "Erinnerungen darin, die aus einer Aufgabe stammen, werden mit ihr geändert und gelöscht. " +
-      "Von Hand angelegte bleiben, wie sie sind.",
-    remindersFolder: "Abgleich-Ordner",
-    remindersFolderDesc:
-      "Ordner im Vault, in dem Plugin und Kurzbefehl outbox.json, inbox.json und state.json " +
-      "austauschen. Der Kurzbefehl muss auf denselben Ordner zeigen.",
-    remindersShortcut: "Kurzbefehl",
-    remindersShortcutDesc:
-      "„Schreibstube Sync“ einmal auf jedem Gerät installieren, das abgleichen soll. Beim " +
-      "Hinzufügen fragt er nach dem Vault-Ordner. Er überträgt die Outbox nach Erinnerungen und " +
-      "schreibt die Inbox zurück.",
-    remindersShortcutButton: "Kurzbefehl holen",
-    remindersAutomations: "Automationen",
-    remindersAutomationsDesc:
-      "In Kurzbefehle → Automation zwei App-Automationen für Obsidian anlegen, die „Schreibstube " +
-      "Sync“ ausführen: eine für „Wird geschlossen“, die Änderungen sendet, und eine für „Wird " +
-      "geöffnet“, die Abgehaktes zurückholt. Beide auf „Sofort ausführen“ stellen und „Bei " +
-      "Ausführung mitteilen“ ausschalten.",
+      "Dort werden Aufgaben, die „auch in Erinnerungen“ markiert sind, zu Erinnerungen. Am " +
+      "besten eine eigene Liste: Erinnerungen darin, die aus einer Aufgabe stammen, werden mit " +
+      "ihr geändert und gelöscht. Von Hand angelegte bleiben, wie sie sind.",
 
     explorerHeading: "Schreibstube Explorer",
     explorerIntro:

@@ -1,221 +1,128 @@
-# Syncing tasks with Erinnerungen
+# Tasks in Erinnerungen
 
-Schreibstube keeps one list in Apple's Reminders in step with the tasks in your
-vault. You don't send tasks one at a time. Tasks say whether they should be
-reminders, and the sync keeps Reminders matching.
+A few tasks are worth carrying out of the vault: onto the Watch, into Siri, into
+the list you check away from your desk. The day planner decides which ones. When
+it puts a task into a block you can mark it **also in Erinnerungen**, and it
+becomes a reminder in one list, **Schreibstube** unless you name another
+(**Settings → Schreibstube → Tagesplan → Reminders list**).
 
-## What becomes a reminder
+Nothing is written into the note for it. The planner keeps its reminders in the
+plan on your bridge, the same place it keeps the blocks.
 
-A task with a due date in the Tasks plugin's form, or with the tag `#remind`:
+## What a reminder says
 
-```markdown
-- [ ] Call the editor 📅 2026-09-20
-- [ ] Order more paper #remind
-```
+| Reminder field | From                                                                      |
+| -------------- | ------------------------------------------------------------------------- |
+| Title          | The task's words, tags included.                                          |
+| Notes          | `↩ Note name`, then a link back: `obsidian://schreibstube?key=k-…`.       |
+| Due date       | The task's own `📅` date if it has one, otherwise its project's deadline. |
+| Completed      | The task's box.                                                           |
 
-Under **Settings → Schreibstube → Erinnerungen → What becomes a reminder** you
-can limit this to `#remind`, so a due date alone is not enough.
-**Make task a reminder** (also in the editor's context menu) adds the tag to the
-task under the cursor.
-
-The first sync gives every such task a block id at the end of its line:
-
-```markdown
-- [ ] Call the editor 📅 2026-09-20 ^r-k3x9a2
-```
-
-The id ties the task to its reminder. Obsidian hides it in Reading view. With the
-sync on, Live Preview shows it as a small Reminders mark. If you delete the id,
-the next sync treats the task as new.
-
-The reminder gets:
-
-| Reminder field | From the task                                                                 |
-| -------------- | ----------------------------------------------------------------------------- |
-| Title          | The task line, without the box, dates, `#remind` and the id. Other tags stay. |
-| Notes          | The text indented under the task, then `↩ Note title` and a link back.        |
-| Due date       | `📅 YYYY-MM-DD`, as an all-day date.                                          |
-| Completed      | The box.                                                                      |
-
-The link back, `obsidian://schreibstube?task=r-k3x9a2&from=reminders`, opens the
-note on the task's line, even after the note has been renamed or moved.
+Following the link opens the note on the task's line, even after the note was
+renamed, moved or the task reworded.
 
 ## Who wins
 
-| Change                                | Result                                                                  |
-| ------------------------------------- | ----------------------------------------------------------------------- |
-| Task text, date or body edited        | The reminder is updated. The note owns these fields.                    |
-| Reminder completed or reopened        | The task is ticked or reopened.                                         |
-| Task ticked or unticked in the note   | The reminder follows.                                                   |
-| Task deleted, or no longer a reminder | The reminder is deleted.                                                |
-| Reminder deleted in Reminders         | The task keeps its date and id. It is not sent again until you edit it. |
-| Title edited in Reminders             | Overwritten the next time the task changes in the note.                 |
+| Change                                     | Result                                                  |
+| ------------------------------------------ | ------------------------------------------------------- |
+| Task edited, ticked or dated in the note   | The reminder follows.                                   |
+| Reminder ticked or reopened in Reminders   | The task's box follows, the next time the planner runs. |
+| Task no longer marked, or its block gone   | The reminder is deleted.                                |
+| Task not found on a pass (note not synced) | The reminder is left as it is.                          |
+| A box marked otherwise (`[-]`, `[>]`)      | Left alone; only `[ ]` and `[x]` are changed.           |
 
-Reminders added to the list by hand are never touched. The sync only handles
-reminders whose notes contain its link.
+Reminders added to the list by hand are never touched.
 
-## How it works
+## How it reaches Reminders
 
-Obsidian cannot reach Reminders, but a Shortcut can. The plugin and the Shortcut
-exchange three files in the sync folder (`.schreibstube/reminders` by default):
+Nothing on a server can write to iCloud's reminders; something on an Apple device
+has to. The planner never does it itself. It puts operations in a queue inside the
+plan, and a **drain** on a Mac, iPhone or iPad applies them. iCloud then carries
+the result to every other device, so one drain covers all of them, and the drain
+does not need Obsidian to be open.
 
-- **`outbox.json`**, written by the plugin: every operation Reminders has not
-  confirmed yet.
-- **`inbox.json`**, written by the Shortcut: a snapshot of the list after it has
-  applied the outbox.
-- **`state.json`**, the plugin's own record of what both sides last agreed on.
-  Don't edit it. If you delete it, the next sync rebuilds it, but it can't tell
-  a reminder deleted in Reminders apart until the Shortcut has run once.
+A drain asks the bridge two things, with the plan token:
 
-The plugin makes every decision. The Shortcut only carries out what the outbox
-says and reports what the list holds. Operations can be replayed safely, so an
-outbox applied twice, or by two devices, does no harm.
-
-### `outbox.json`
+**`GET /plan/queue`** — what is still to do:
 
 ```json
 {
-  "v": 1,
+  "acked": 6,
   "seq": 7,
-  "list": "Schreibstube",
   "ops": [
     {
+      "seq": 7,
       "op": "upsert",
-      "id": "r-k3x9a2",
-      "match": "task=r-k3x9a2&",
-      "title": "Call the editor",
-      "notes": "↩ Plan\nobsidian://schreibstube?task=r-k3x9a2&from=reminders",
-      "due": "2026-09-20",
-      "done": true
-    },
-    { "op": "delete", "id": "r-p0q1w2", "match": "task=r-p0q1w2&" }
-  ]
-}
-```
-
-- `upsert`: find the reminder in `list` whose notes contain `match`. If there is
-  none, create it. Then set title, notes and due date (`null` means no due date).
-  Set completion only when `done` is present.
-- `delete`: remove the reminder whose notes contain `match`, if there is one.
-
-### `inbox.json`
-
-```json
-{
-  "appliedSeq": 7,
-  "at": "2026-09-18T10:00:00+02:00",
-  "reminders": [
-    {
-      "notes": "…obsidian://schreibstube?task=r-k3x9a2&from=reminders",
-      "done": true,
-      "title": "Call the editor"
+      "key": "k-3x9a2mq7tv",
+      "match": "schreibstube?key=k-3x9a2mq7tv",
+      "title": "Datenschutz für #projects/ea48 klären",
+      "notes": "↩ Konzept\nobsidian://schreibstube?key=k-3x9a2mq7tv",
+      "due": "2026-09-25",
+      "done": false,
+      "list": "Schreibstube"
     }
   ]
 }
 ```
 
-- `appliedSeq` is the `seq` of the outbox the Shortcut just applied (0 if there
-  was none).
-- `at` is when the snapshot was taken, in ISO 8601. The plugin reads each
-  snapshot once and ignores one no newer than the last.
-- `reminders` lists every reminder in the list, done or not. The plugin
-  recognises its own by the link in `notes` and ignores the rest. `done` may be
-  a Boolean, `1`, or "Yes".
+- `upsert`: find the reminder in `list` whose notes contain `match`. If there is
+  none, create it. Set title, notes, due date (`null` for none) and completion.
+- `delete`: remove the reminder whose notes contain `match`, if there is one.
 
-## Setting it up
+**`POST /plan/queue/ack`** — what was done, and what the list now says:
 
-Do this on every device that should sync. The plugin side is one switch.
+```json
+{
+  "seq": 7,
+  "reminders": [{ "notes": "↩ Konzept\nobsidian://schreibstube?key=k-3x9a2mq7tv", "done": true }]
+}
+```
 
-### 1. Turn it on
+`seq` is the `seq` from the queue you just applied. `reminders` is every reminder
+in the list, with its notes and whether it is completed; the bridge picks out the
+planner's own by the link and works out which ones someone ticked or reopened. It
+answers `{"acked": 7, "completions": 1}`.
 
-**Settings → Schreibstube → Erinnerungen → Sync with Erinnerungen.** Choose the
-list; a list of its own is best. If the list doesn't exist yet, create it in
-Reminders.
+Both calls carry `Authorization: Bearer <PLAN_TOKEN>`.
 
-### 2. The Shortcut "Schreibstube Sync"
+## The drains
 
-**Get the Shortcut** in the settings opens the install link once it is
-published. Until then, build it once in the Shortcuts app as follows. The
-Shortcut takes no input.
+### A Shortcut, "Schreibstube Erinnerungen"
 
-1. **Get File** from the vault folder, path `.schreibstube/reminders/outbox.json`,
-   with _Error If Not Found_ off. (On iOS, pick the vault folder once. The
-   Shortcut keeps access to it.)
-2. **If** _File_ has any value:
-   1. **Get Dictionary from** the file. **Get Dictionary Value** `ops` into a
-      variable _Ops_, and `seq` into _Seq_.
-   2. **Repeat with Each** item in _Ops_:
-      1. **Get Dictionary Value** `match`, `op`, `title`, `notes`, `due` and
-         `done` from _Repeat Item_.
-      2. **Find Reminders** where _List_ is your list and _Notes_ contains
-         _match_, limit 1.
-      3. If _op_ is `delete`: **Remove Reminders** (the found one), when one
-         was found.
-      4. Otherwise, if none was found: **Add New Reminder** with _title_,
-         _notes_ and your list, with the due date from _due_ when it has a value.
-         Then **Find Reminders** again for the new reminder.
-      5. **Edit Reminder**: set title, notes and due date. If _done_ has a
-         value, set _Is Completed_ to it.
-3. Otherwise, set _Seq_ to `0`.
-4. **Find Reminders** where _List_ is your list and _Notes_ contains
-   `schreibstube?task=`, completed or not.
-5. **Repeat with Each** found reminder: a **Dictionary** with `notes` (Notes),
-   `done` (Is Completed) and `title` (Title).
-6. A **Dictionary** with `appliedSeq` (_Seq_), `at` (**Current Date**,
-   formatted ISO 8601) and `reminders` (_Repeat Results_).
-7. **Save File** to `.schreibstube/reminders/inbox.json` in the vault folder,
-   with _Overwrite If File Exists_ on.
+Works on iPhone, iPad and Mac, with nothing else installed. When you add it, it
+asks for the bridge's address and the plan token.
 
-If the _List_ filter won't accept a variable, pick the list directly in the
-Shortcut, and keep the setting pointing to the same list.
+1. **Get Contents of URL**: `GET <bridge>/plan/queue`, header
+   `Authorization: Bearer <token>`.
+2. **Get Dictionary Value** `ops` and `seq`.
+3. **Repeat with Each** operation:
+   1. **Find Reminders** where _List_ is the list and _Notes_ contains the
+      operation's `match`.
+   2. For `delete`: **Remove Reminders** for what was found.
+   3. For `upsert`: if nothing was found, **Add New Reminder** with `title`,
+      `notes`, the list and `due`; then set _Is Completed_ from `done`.
+      Otherwise **Edit Reminder** with the same fields.
+4. **Find Reminders** where _List_ is the list and _Notes_ contains
+   `schreibstube?key=`, completed or not.
+5. **Repeat with Each**: a **Dictionary** with `notes` (Notes) and `done`
+   (Is Completed).
+6. **Get Contents of URL**: `POST <bridge>/plan/queue/ack`, same header, JSON
+   body `seq` and `reminders` (the repeat's results).
 
-### 3. Two automations
+Run it from a personal automation — a time of day, a few times a day, is plenty:
+the plan is not a stopwatch. Set it to **Run Immediately** with **Notify When
+Run** off.
 
-In **Shortcuts → Automation**, add two **App** automations for Obsidian, both
-running **Schreibstube Sync**:
+### The Mac helper and the app
 
-- **Is Closed** sends what changed in the notes.
-- **Is Opened** brings back what was ticked in Reminders.
-
-Set both to **Run Immediately** and turn **Notify When Run** off, so they run
-in the background.
-
-## When it syncs
-
-- **In Obsidian:** a few seconds after a note changes, and immediately when
-  Obsidian goes to the background. The outbox is then current when the
-  "Is Closed" automation reads it. The inbox is checked every twenty seconds and
-  when Obsidian comes back to the foreground.
-- **In Reminders:** whenever Obsidian comes to the front or leaves it. This fits
-  the usual way of working: to tick a reminder you switch to Reminders, and when
-  you come back the tick is pulled in.
-- **Now:** the command **Sync with Erinnerungen now**.
-
-One gap: if you tick a reminder from a notification banner while Obsidian stays
-in front, the tick arrives only the next time you switch apps.
-
-## Limits
-
-- Reminders' own tags can't be set from outside. `#tag` stays as text in the
-  title.
-- Only the due date syncs, not a time, alerts, priority or recurrence.
-- If the same block id is used in two notes, only the first task is synced. The
-  developer console names the second.
-- The vault has to be reachable from Shortcuts. That works for vaults in iCloud
-  Drive and in "On My iPhone", including Obsidian Sync vaults.
-
-## With the day planner
-
-The day planner ([PLANNING.md](PLANNING.md)) can mark a task "also in
-Erinnerungen" when it puts it in a block. Both use the list set here. A task
-this sync already keeps is left to it, so marking it in a block as well does
-not make a second reminder.
+A small helper on a Mac that is on, and the Schreibstube app when it exists, use
+the same two calls. They live in their own repositories.
 
 ## Coming from 1.35 or earlier
 
-Tasks sent with **Send task to Erinnerungen** had a link at the end of the line,
-`[⏰](obsidian://schreibstube?task=ab12cd)`. The first sync turns it into
-`#remind ^ab12cd`. The old reminder's link still opens the task. The sync creates
-the reminder anew in the synced list, so delete the old one from wherever the
-previous Shortcut put it. The two old Shortcuts, the report file and its
-automation are no longer used.
+**Send task to Erinnerungen**, its two Shortcuts and the report file are gone;
+the planner's "also in Erinnerungen" replaces them. Tasks sent back then still
+end in a link like `[⏰](obsidian://schreibstube?task=ab12cd)`, and the reminders
+they made still carry it: following such a reminder still opens its task. Those
+old reminders are no longer kept in step. Delete them from their list when you
+plan the task anew, or leave them; nothing reads them.

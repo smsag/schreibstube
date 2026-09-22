@@ -16,6 +16,7 @@
 import { httpError } from "../http.mjs";
 import { CalDavError, createCalDavClient } from "./caldav.mjs";
 import { checkDocument, DocumentError, exists } from "./document.mjs";
+import { acknowledge, checkReport, pendingOps } from "./drain.mjs";
 import { createPlanStore, PlanStoreError } from "./store.mjs";
 
 /** A window nobody asks for by hand, and an answer that still fits in memory. */
@@ -80,6 +81,29 @@ export function createPlanRoutes(config) {
       return { rev: result.rev };
     }),
 
+    // The reminder queue, for whatever carries it into Reminders on an Apple
+    // device. Two questions, no revisions to juggle: a Shortcut can ask them.
+    route("GET", "/plan/queue", 0, async () => pendingOps((await stored(store)).document)),
+
+    route("POST", "/plan/queue/ack", plan.maxBodyBytes, async ({ body, log }) => {
+      let report;
+      try {
+        report = checkReport(body);
+      } catch (err) {
+        if (!(err instanceof DocumentError)) throw err;
+        throw httpError(400, "invalid_request", err.message);
+      }
+
+      const at = new Date().toISOString();
+      const result = await update(store, (document) => acknowledge(document, report, at));
+      log(
+        "info",
+        `queue acknowledged to ${result.document.acked}, ` +
+          `${result.document.completions.length} completion(s) waiting`
+      );
+      return { acked: result.document.acked, completions: result.document.completions.length };
+    }),
+
     route("GET", "/calendar/events", 0, async ({ query, log }) => {
       const window = checkWindow(query.get("from"), query.get("to"));
       const names = checkCalendarList(query.get("calendars"));
@@ -121,6 +145,14 @@ async function stored(store) {
 async function write(store, document, expected) {
   try {
     return await store.write(document, expected);
+  } catch (err) {
+    throw asHttp(err);
+  }
+}
+
+async function update(store, change) {
+  try {
+    return await store.update(change);
   } catch (err) {
     throw asHttp(err);
   }

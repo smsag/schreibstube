@@ -16,7 +16,6 @@ import { LATEST_COUNT_DEFAULT, LATEST_COUNT_MAX } from "./latest-files";
 import { LLM_PROVIDER_IDS, PROVIDER_MODELS } from "./llm-providers";
 import { DEFAULT_PUBLISH_KEYS, normalizePublishKeys } from "./publish-index";
 import { TEMPLATE_ROOT_DEFAULT } from "./print-template";
-import type { ReminderTrigger } from "./reminder-tasks";
 import { normalizePropertyIcons } from "./property-icons";
 import { DEFAULT_DATE_FORMAT, normalizeDateFormat } from "./today-value";
 import { MAX_CAPACITY } from "./plan-model";
@@ -76,11 +75,8 @@ export const DEFAULT_PROOFREAD_PROMPT =
   "Grammatik, Zeichensetzung und offensichtliche Stilfehler. Ändere niemals die " +
   "Aussage, den Ton oder die Fachbegriffe des Textes. Kürze nicht und ergänze nichts.";
 
-/** The list the sync owns unless a person names another. */
+/** The list the planner's reminders go to unless a person names another. */
 export const DEFAULT_REMINDERS_LIST = "Schreibstube";
-/** Where the outbox, inbox and state live. Hidden, so the files stay out of the file list. */
-export const DEFAULT_REMINDERS_FOLDER = ".schreibstube/reminders";
-const REMINDER_TRIGGERS: readonly ReminderTrigger[] = ["date", "tag"];
 
 const ALLOWED_PROVIDERS = new Set<LlmProvider>(LLM_PROVIDER_IDS);
 
@@ -144,10 +140,7 @@ export const DEFAULT_SETTINGS: SchreibstubeSettings = {
   plannerCapacity: 3,
   plannerWeekends: false,
   plannerBlockPrefix: "",
-  remindersEnabled: false,
   remindersList: DEFAULT_REMINDERS_LIST,
-  remindersTrigger: "date",
-  remindersFolder: DEFAULT_REMINDERS_FOLDER,
   propertyIcons: {},
   dateFormat: DEFAULT_DATE_FORMAT,
   debugLogging: false
@@ -363,37 +356,11 @@ export function normalizeSettings(loaded: LoadedSettings): SchreibstubeSettings 
     ),
     plannerWeekends: loaded?.plannerWeekends === true,
     plannerBlockPrefix: trimmedStringOrDefault(loaded?.plannerBlockPrefix, ""),
-    remindersEnabled: loaded?.remindersEnabled === true,
     remindersList: nonEmptyStringOrDefault(
       loaded?.remindersList,
       DEFAULT_SETTINGS.remindersList
-    ).trim(),
-    remindersTrigger: REMINDER_TRIGGERS.includes(loaded?.remindersTrigger as ReminderTrigger)
-      ? (loaded?.remindersTrigger as ReminderTrigger)
-      : DEFAULT_SETTINGS.remindersTrigger,
-    remindersFolder: normalizeRemindersFolder(loaded?.remindersFolder)
+    ).trim()
   };
-}
-
-/**
- * A vault-relative folder for the sync's files. The Shortcut writes into it
- * too, so a path that climbs out of the vault or names its root falls back to
- * the default rather than being trusted.
- */
-export function normalizeRemindersFolder(value: unknown): string {
-  if (typeof value !== "string") return DEFAULT_REMINDERS_FOLDER;
-  const folder = value
-    .trim()
-    .replace(/\\/g, "/")
-    .replace(/^\/+|\/+$/g, "");
-  const segments = folder.split("/");
-  if (
-    folder === "" ||
-    segments.some((segment) => segment === "" || segment === "." || segment === "..")
-  ) {
-    return DEFAULT_REMINDERS_FOLDER;
-  }
-  return folder;
 }
 
 /**

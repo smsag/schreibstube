@@ -112,6 +112,15 @@ export function renderPlanner(ctx: SettingsContext): void {
     });
 
   new Setting(ctx.containerEl)
+    .setName(t().settings.remindersList)
+    .setDesc(t().settings.remindersListDesc)
+    .addText((text) => {
+      text.setValue(ctx.plugin.settings.remindersList).onChange(async (value) => {
+        await ctx.update({ remindersList: value });
+      });
+    });
+
+  new Setting(ctx.containerEl)
     .setName(t().settings.plannerBlockHelp)
     .setDesc(t().settings.plannerBlockHelpDesc);
 

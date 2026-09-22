@@ -76,13 +76,17 @@ A task can be marked **also in Erinnerungen** when it goes into a block. The
 plugin never writes to Reminders itself: it puts operations in a queue inside
 the plan, and a drain applies them on an Apple device —
 
+- a **Shortcut**, run a few times a day by an automation, on iPhone, iPad or Mac;
 - a small **Mac helper** using EventKit, run by a launch agent (separate repo);
-- the **iOS/macOS app**, when it exists;
-- or a **Shortcut** run by hand.
+- the **iOS/macOS app**, when it exists.
 
+All of them ask the bridge the same two things — `GET /plan/queue` and
+`POST /plan/queue/ack` — so none has to understand the plan's revisions.
 iCloud fans out whatever any one device writes, so one drain covers every
-device. Completions come back the same way: a drain puts them in the plan, the
-plugin ticks the task in its note.
+device. Completions come back the same way: the bridge compares what the list
+says with what the planner last sent, records what someone changed in
+Reminders, and the plugin ticks the task in its note. [REMINDERS.md](REMINDERS.md)
+has the calls and the Shortcut.
 
 The queue holds the last operation for each task as the record of what Reminders
 was told, so a queue that has caught up produces no new work however often the
@@ -95,20 +99,13 @@ planner runs. Two rules keep that record honest:
   bounded queue. Applied deletes make room first; when there is still none, a
   newly marked task waits.
 
-The planner and the **Erinnerungen sync** ([REMINDERS.md](REMINDERS.md)) share
-one Reminders list. A task the sync already carries — it has `#remind`, or a
-due date while dates count — is left to the sync even when it is marked in a
-block, so a task is never reminded twice. The difference between the two is
-where the decision lives: the sync keeps an id on the task's line and needs no
-bridge; the planner keeps its reminders in the plan and writes nothing into
-the note.
-
 ## Settings
 
 **Settings → Schreibstube → Tagesplan.** The bridge URL and a token (an Obsidian
 secret, as with mail), the calendars to read, the tag prefix that makes a tag a
 project, and what the planner assumes about a morning: when a block starts, how
-long it runs, how many tasks fit in one, and whether weekends count.
+long it runs, how many tasks fit in one, and whether weekends count, and the
+Reminders list the marked tasks go to.
 
 Calendars are named as your calendar app shows them. On iCloud the server
 addresses a calendar by an opaque identifier; the bridge finds the one behind

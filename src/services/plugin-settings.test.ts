@@ -37,40 +37,10 @@ describe("normalizeSettings", () => {
     expect(normalizeSettings({ overlayEnabled: false }).overlayEnabled).toBe(false);
   });
 
-  it("keeps sending to Reminders off unless a person switched it on", () => {
-    expect(normalizeSettings({}).remindersEnabled).toBe(false);
-    expect(normalizeSettings({ remindersEnabled: "yes" as never }).remindersEnabled).toBe(false);
-    expect(normalizeSettings({ remindersEnabled: true }).remindersEnabled).toBe(true);
-  });
-
-  it("keeps a named Reminders list and falls back to the sync's own for an empty one", () => {
+  it("keeps a named Reminders list and falls back to the planner's own for an empty one", () => {
     expect(normalizeSettings({ remindersList: "  Arbeit " }).remindersList).toBe("Arbeit");
     expect(normalizeSettings({ remindersList: "" }).remindersList).toBe("Schreibstube");
     expect(normalizeSettings({ remindersList: 3 as never }).remindersList).toBe("Schreibstube");
-  });
-
-  it("makes a dated task a reminder unless a person chose the tag alone", () => {
-    expect(normalizeSettings({}).remindersTrigger).toBe("date");
-    expect(normalizeSettings({ remindersTrigger: "tag" }).remindersTrigger).toBe("tag");
-    expect(normalizeSettings({ remindersTrigger: "always" as never }).remindersTrigger).toBe(
-      "date"
-    );
-  });
-
-  it("keeps the sync folder inside the vault", () => {
-    expect(normalizeSettings({}).remindersFolder).toBe(".schreibstube/reminders");
-    expect(normalizeSettings({ remindersFolder: " /Sync/Reminders/ " }).remindersFolder).toBe(
-      "Sync/Reminders"
-    );
-    expect(normalizeSettings({ remindersFolder: "../outside" }).remindersFolder).toBe(
-      ".schreibstube/reminders"
-    );
-    expect(normalizeSettings({ remindersFolder: "a//b" }).remindersFolder).toBe(
-      ".schreibstube/reminders"
-    );
-    expect(normalizeSettings({ remindersFolder: "/" }).remindersFolder).toBe(
-      ".schreibstube/reminders"
-    );
   });
 
   it("keeps the task counts in the file pane off unless switched on", () => {

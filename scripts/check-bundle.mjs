@@ -26,12 +26,12 @@ import { fileURLToPath } from "node:url";
  * The headroom left is for the next feature, not a new normal — a change
  * that needs more says why, as this one does.
  *
- * Raised to 480 KB at 421 KB, for the day planner and the Reminders sync
- * beside it (+48 KB): a leaf with its modals, the block a start page draws,
- * the plan's model, matcher and proposal engine, the sync's reconciler and
- * file formats, and every string of both in two languages.
+ * Raised to 460 KB at 421 KB, for the day planner (+27 KB net): a leaf with
+ * its modals, the block a start page draws, the plan's model, matcher and
+ * proposal engine, and every string of it in two languages — less the older
+ * Reminders commands it replaces. The headroom left is for the next feature.
  */
-const MAX_BUNDLE_KB = 480;
+const MAX_BUNDLE_KB = 460;
 
 const bundle = fileURLToPath(new URL("../main.js", import.meta.url));
 const source = readFileSync(bundle, "utf8");

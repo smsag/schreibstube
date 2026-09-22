@@ -136,6 +136,15 @@ export function withBoxDone(line: string, done: boolean): string {
   return flips ? line.replace(BOX, `$1${done ? "x" : " "}]`) : line;
 }
 
+/** The line that still carries the link 1.35 or earlier left for `id`, or null. */
+export function legacyReminderLine(content: string, id: string): number | null {
+  const lines = content.split(/\r?\n/);
+  for (const [index, line] of lines.entries()) {
+    if (LEGACY_REMINDER_LINK.exec(line)?.[1] === id) return index;
+  }
+  return null;
+}
+
 /** A note's name as a person calls it: the file without its folder or extension. */
 export function noteName(path: string): string {
   return (path.split("/").pop() ?? path).replace(/\.md$/, "");

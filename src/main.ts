@@ -2,7 +2,6 @@ import {
   type Editor,
   MarkdownView,
   Notice,
-  Platform,
   Plugin,
   TFile,
   TFolder,
@@ -33,8 +32,7 @@ import { toggledFocusMode } from "./services/focus-settings";
 import { getImageMimeType } from "./services/image-resize";
 import { hasSourceBinding } from "./services/sync-source";
 import { describePollSummary } from "./services/sync-summary";
-import { isTaskLine, TASK_PROTOCOL_ACTION } from "./services/reminder-tasks";
-import { ReminderSync } from "./controllers/reminder-sync";
+import { TASK_PROTOCOL_ACTION } from "./services/plan-model";
 import { NoteCommands } from "./controllers/note-commands";
 import { LinkModeController } from "./controllers/link-mode-controller";
 import { LlmCommands } from "./controllers/llm-commands";
@@ -105,7 +103,6 @@ export default class SchreibstubePlugin extends Plugin {
   private mail: MailCommands | null = null;
   private publish: PublishCommands | null = null;
   private print: PrintCommands | null = null;
-  private reminders: ReminderSync | null = null;
   private planner: Planner | null = null;
   /** When the planner last asked the bridge, so a tick does not ask every time. */
   private plannerCheckedAt = 0;
@@ -157,8 +154,6 @@ export default class SchreibstubePlugin extends Plugin {
         await this.saveSettings();
       }
     );
-    this.reminders = new ReminderSync(this.app, () => this.settings, this.logger);
-    this.registerReminderEvents();
     const planner = new Planner(this.app, () => this.settings, this.logger);
     this.planner = planner;
     registerPlanBlock(this, planner);
@@ -263,16 +258,6 @@ export default class SchreibstubePlugin extends Plugin {
 
     this.registerCommands();
 
-    // The same action as the command, where a right-click or a long press
-    // lands. Obsidian puts the cursor on the clicked line before it asks for
-    // the menu, so the task under the cursor is the task under the pointer.
-    this.registerEvent(
-      this.app.workspace.on("editor-menu", (menu, editor, view) => {
-        if (!(view instanceof MarkdownView) || !view.file) return;
-        if (!commandAvailable("send-reminder", this.commandContext())) return;
-        this.reminders?.addMenuItem(menu, editor);
-      })
-    );
     // Selected lines into a table. The plain conversion is offered only when
     // it would work, since the menu is built for this very selection; the AI
     // one whenever several lines are selected, and says what it needs if the
@@ -303,12 +288,10 @@ export default class SchreibstubePlugin extends Plugin {
         );
       })
     );
-    // The link a reminder carries back to its task. The planner's reminders
-    // carry a key, the Erinnerungen sync's a task id; both arrive on the same
-    // action, so the parameter says which is which.
+    // The link a reminder carries back to its task, from the planner or from
+    // a reminder 1.35 made; the planner reads which one it is.
     this.registerObsidianProtocolHandler(TASK_PROTOCOL_ACTION, (params) => {
-      if (params.key) void this.planner?.openKey(params.key);
-      else void this.reminders?.handleProtocol(params);
+      void this.planner?.openLink(params);
     });
 
     // The file pane is the plugin's main surface and everything else it offers
@@ -351,7 +334,6 @@ export default class SchreibstubePlugin extends Plugin {
     this.proofread?.stop();
     void this.explorer?.stop();
     this.sections?.stop();
-    this.reminders?.cancel();
     this.clearOverlay();
   }
 
@@ -709,10 +691,6 @@ export default class SchreibstubePlugin extends Plugin {
       void this.planner?.refresh();
     }
 
-    // The inbox the Reminders Shortcut writes rides on the same tick: one
-    // stat of one file, and a sync only when it has changed.
-    void this.reminders?.pollInbox();
-
     const schedule = this.activePollSchedule();
     if (!schedule) return;
     if (!shouldFire(schedule, now, this.lastPollMinute)) return;
@@ -754,31 +732,6 @@ export default class SchreibstubePlugin extends Plugin {
     if (summary.withChanges > 0) {
       new Notice(t().common.notice(t().sync.withUpdates(summary.withChanges)));
     }
-  }
-
-  /**
-   * A sync a little after a note changes, and one right away when the app
-   * goes to the background: on iOS that is the moment the Shortcut's
-   * automation reads the outbox, and a change typed seconds ago should be in it.
-   */
-  private registerReminderEvents(): void {
-    this.registerEvent(
-      this.app.vault.on("modify", (file) => {
-        if (file instanceof TFile && file.extension === "md") this.reminders?.scheduleSync();
-      })
-    );
-    this.registerDomEvent(document, "visibilitychange", () => {
-      if (!this.settings.remindersEnabled) return;
-      if (document.visibilityState === "hidden") {
-        this.reminders?.cancel();
-        void this.reminders?.sync();
-      } else {
-        void this.reminders?.pollInbox();
-      }
-    });
-    this.app.workspace.onLayoutReady(() => {
-      void this.reminders?.sync();
-    });
   }
 
   private registerProofreadEvents(): void {
@@ -902,9 +855,7 @@ export default class SchreibstubePlugin extends Plugin {
       selection: (view?.editor.getSelection().trim().length ?? 0) > 0,
       bound:
         file !== null && hasSourceBinding(this.app.metadataCache.getFileCache(file)?.frontmatter),
-      explorerOpen: this.app.workspace.getLeavesOfType(EXPLORER_VIEW_TYPE).length > 0,
-      task: view !== null && isTaskLine(view.editor.getLine(view.editor.getCursor().line)),
-      apple: Platform.isMacOS || Platform.isIosApp
+      explorerOpen: this.app.workspace.getLeavesOfType(EXPLORER_VIEW_TYPE).length > 0
     };
   }
 
@@ -1006,21 +957,6 @@ export default class SchreibstubePlugin extends Plugin {
 
     this.addGatedCommand("insert-today", t().commands.insertToday, "insert-today", () => {
       this.properties?.insertToday();
-    });
-
-    this.addGatedCommand(
-      "send-task-to-reminders",
-      t().commands.sendToReminders,
-      "send-reminder",
-      () => {
-        this.reminders?.sendTaskAtCursor();
-      }
-    );
-
-    // The id is the one the comparison had, so a hotkey bound to it still
-    // does the nearest thing.
-    this.addGatedCommand("fetch-done-from-reminders", t().commands.reminders, "reminders", () => {
-      void this.reminders?.syncNow();
     });
 
     this.addCommand({

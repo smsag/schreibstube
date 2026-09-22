@@ -106,32 +106,6 @@
   display: none;
 }
 
-/* The mark a task wears once it has been sent to Reminders: the link at the
-   end of its line, drawn as a small Reminders-style icon. */
-.schreibstube-reminder-mark {
-  display: inline-flex;
-  align-items: center;
-  width: 1em;
-  height: 1em;
-  margin-left: 0.35em;
-  vertical-align: -0.15em;
-  color: var(--text-muted);
-  text-decoration: none;
-  cursor: default;
-}
-
-.schreibstube-reminder-mark svg {
-  width: 1em;
-  height: 1em;
-}
-
-/* Reading view renders the link as an external link, with a theme's arrow
-   glyph and padding after it; the mark is the whole of what should show. */
-a.external-link.schreibstube-reminder-mark {
-  background-image: none;
-  padding-right: 0;
-}
-
 /* Task summary: the ribbon rendered by the ```schreibstube-tasks``` block. */
 .schreibstube-task-ribbon {
   font-family: var(--font-text);

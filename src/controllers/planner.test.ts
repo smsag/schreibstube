@@ -354,33 +354,6 @@ describe("reminders", () => {
   });
 });
 
-describe("reminders the Erinnerungen sync already keeps", () => {
-  it("are left to it, so a task is not reminded twice", async () => {
-    const held = bridge();
-    const note = "- [ ] Call #remind #projects/ea48\n- [ ] Write #projects/ea48";
-    const subject = planner(fakeApp({ "Plan.md": note }), { remindersEnabled: true });
-    await subject.refresh();
-    const [synced, plain] = subject.current().tasks;
-
-    await subject.planBlock(draft([synced!, plain!], [synced!, plain!]));
-    await subject.refresh();
-
-    expect(held.plan.queue.map((op) => op.title)).toEqual(["Write #projects/ea48"]);
-  });
-
-  it("are the planner's to send while the sync is off", async () => {
-    const held = bridge();
-    const subject = planner(fakeApp({ "Plan.md": "- [ ] Call #remind #projects/ea48" }));
-    await subject.refresh();
-    const [task] = subject.current().tasks;
-
-    await subject.planBlock(draft([task!], [task!]));
-    await subject.refresh();
-
-    expect(held.plan.queue).toHaveLength(1);
-  });
-});
-
 describe("the way back from a reminder", () => {
   it("opens the note on the task's line", async () => {
     bridge();
@@ -420,6 +393,34 @@ describe("the way back from a reminder", () => {
     await subject.openKey("k-unknown");
 
     expect(Notice.shown.at(-1)).toContain("no note");
+  });
+
+  it("still opens the task of a reminder 1.35 made, from the link on its line", async () => {
+    const app = fakeApp({
+      "A.md": "nothing",
+      "B.md": "intro\n- [ ] Call [⏰](obsidian://schreibstube?task=ab12cd)"
+    });
+
+    await planner(app).openLink({ task: "ab12cd" });
+
+    expect(app.fake.openFile).toHaveBeenCalledWith(expect.objectContaining({ path: "B.md" }), {
+      eState: { line: 1 }
+    });
+    expect(client.fetchPlan).not.toHaveBeenCalled();
+  });
+
+  it("reads a planner link as a key, and ignores a link that asks for nothing", async () => {
+    bridge();
+    const app = fakeApp();
+    const subject = planner(app);
+    await subject.refresh();
+    await subject.planBlock(draft([subject.current().tasks[0]!]));
+    const key = subject.current().plan.blocks[0]!.members[0]!.key;
+
+    await subject.openLink({ key });
+    await subject.openLink({ done: "1" });
+
+    expect(app.fake.openFile).toHaveBeenCalledTimes(1);
   });
 
   it("does nothing while the planner is off", async () => {

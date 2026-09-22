@@ -51,40 +51,11 @@ export const enExtra = {
     focusOpacityDesc:
       "Opacity of out-of-focus lines in focus mode (0.2 = very faint, 0.8 = nearly full).",
 
-    remindersHeading: "Erinnerungen",
-    remindersIntro:
-      "Keeps tasks in step with a list in Apple's Reminders. A task with a due date (📅 " +
-      "2026-09-20) or #remind becomes a reminder; editing, ticking or deleting the task follows it " +
-      "there, and a reminder ticked on the phone ticks the task. The work on Apple's side is done " +
-      "by one Shortcut, run by two automations. macOS and iOS only.",
-    remindersEnabled: "Sync with Erinnerungen",
-    remindersEnabledDesc:
-      "Gives every reminder task a block id (^r-…) at the end of its line and keeps the list in " +
-      "step. Also offers the command and the entry in the editor's context menu.",
-    remindersTrigger: "What becomes a reminder",
-    remindersTriggerDesc:
-      "A task tagged #remind always does. Choose whether a due date alone is enough.",
-    remindersTriggerDate: "Tasks with a due date or #remind",
-    remindersTriggerTag: "Only tasks tagged #remind",
     remindersList: "Reminders list",
     remindersListDesc:
-      "The list the sync keeps, and the day planner too. Use a list of its own: reminders in " +
-      "it that came from a task are updated and deleted as their tasks change. Reminders " +
-      "added by hand are left alone.",
-    remindersFolder: "Sync folder",
-    remindersFolderDesc:
-      "Vault folder where the plugin and the Shortcut exchange outbox.json, inbox.json and " +
-      "state.json. The Shortcut has to be pointed at the same folder.",
-    remindersShortcut: "Shortcut",
-    remindersShortcutDesc:
-      'Install "Schreibstube Sync" once on every device that should sync. When you add it, it ' +
-      "asks for the vault folder. It applies the outbox to Reminders and writes the inbox back.",
-    remindersShortcutButton: "Get the Shortcut",
-    remindersAutomations: "Automations",
-    remindersAutomationsDesc:
-      'In Shortcuts → Automation, add two App automations for Obsidian that run "Schreibstube ' +
-      'Sync": one for "Is Closed", which sends what changed, and one for "Is Opened", which ' +
-      'brings back what was ticked. Set both to "Run Immediately" and turn "Notify When Run" off.',
+      'Where tasks marked "also in Erinnerungen" become reminders. Use a list of its own: ' +
+      "reminders in it that came from a task are updated and deleted as their tasks change. " +
+      "Reminders added by hand are left alone.",
 
     explorerHeading: "Schreibstube Explorer",
     explorerIntro:

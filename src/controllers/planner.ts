@@ -21,6 +21,7 @@ import {
   blockNotes,
   emptyPlan,
   generateKey,
+  linkTarget,
   taskUrl,
   type PlanBlock,
   type PlanDocument,
@@ -41,8 +42,12 @@ import {
   type ReminderFields
 } from "../services/plan-edit";
 import { matchAnchors, renamedAnchors } from "../services/task-identity";
-import { noteName, tasksInNote, type VaultTask } from "../services/task-inventory";
-import { syncedAsReminder } from "../services/reminder-tasks";
+import {
+  legacyReminderLine,
+  noteName,
+  tasksInNote,
+  type VaultTask
+} from "../services/task-inventory";
 import type { SchreibstubeSettings } from "../types";
 
 /** How long a plan on screen is trusted before it is asked for again. */
@@ -235,9 +240,7 @@ export class Planner {
    * The reminder queue for every member marked for it, with its deadline.
    *
    * A marked member whose task was not found this pass is passed on as
-   * unknown, so its reminder is left alone rather than deleted. One the
-   * Erinnerungen sync already carries is left to it, so it is not reminded
-   * twice.
+   * unknown, so its reminder is left alone rather than deleted.
    */
   private withQueue(plan: PlanDocument, bound: Map<string, VaultTask>): PlanDocument {
     const settings = this.getSettings();
@@ -252,9 +255,7 @@ export class Planner {
           unknown.add(member.key);
           continue;
         }
-        if (settings.remindersEnabled && syncedAsReminder(task, settings.remindersTrigger)) {
-          continue;
-        }
+
         desired.set(member.key, {
           title: task.text,
           notes: `↩ ${noteName(task.path)}\n${taskUrl(member.key)}`,
@@ -377,6 +378,29 @@ export class Planner {
       this.report(error);
       return [];
     }
+  }
+
+  /** A link back into the vault, from a reminder the planner made or one 1.35 made. */
+  async openLink(params: Record<string, string>): Promise<void> {
+    const target = linkTarget(params);
+    if (!target) return;
+    if ("key" in target) await this.openKey(target.key);
+    else await this.openLegacy(target.legacy);
+  }
+
+  /**
+   * A reminder made by 1.35 or earlier: its task still ends in the link it
+   * left, so the line is found by that, in whichever note it is now. No
+   * bridge is involved; these links worked without one and still do.
+   */
+  private async openLegacy(id: string): Promise<void> {
+    for (const file of this.app.vault.getMarkdownFiles()) {
+      const line = legacyReminderLine(await this.app.vault.cachedRead(file), id);
+      if (line === null) continue;
+      await this.app.workspace.getLeaf(false).openFile(file, { eState: { line } });
+      return;
+    }
+    new Notice(t().common.notice(t().planner.taskNotFound));
   }
 
   /**

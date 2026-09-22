@@ -544,13 +544,9 @@ Switch it on under **Settings → Schreibstube → Tagesplan**, where the bridge
 
 #### Tasks in Erinnerungen
 
-On macOS and iOS, tasks stay in step with a list in Apple's Reminders. A task with a due date (`📅 2026-09-20`) or the tag `#remind` becomes a reminder: the task line is the title, the text indented under it the notes, and a link in the notes opens the note on the task again. Edit, tick or delete the task and the reminder follows; tick the reminder on the phone and the task is ticked. **Make task a reminder**, also in the editor's context menu, adds the tag to the task under the cursor.
+A few tasks are worth carrying out of the vault. When the planner puts a task into a block, mark it **also in Erinnerungen** and it becomes a reminder in one list, **Schreibstube** unless you name another. Nothing is written into the note: the planner keeps its reminders in the plan on your bridge. Edit, tick or date the task and the reminder follows; tick the reminder on your phone and the task is ticked.
 
-```markdown
-- [ ] Call the editor 📅 2026-09-20 ^r-k3x9a2
-```
-
-The sync gives each such task a block id, which Live Preview draws as a small Reminders mark. The work on Apple's side is done by one Shortcut, **Schreibstube Sync**, run by two automations: one when Obsidian closes, which sends what changed, and one when it opens, which brings back what was ticked. Switch the feature on under **Settings → Schreibstube → Erinnerungen**. [REMINDERS.md](REMINDERS.md) has the Shortcut, the file formats and what wins when both sides changed.
+Something on an Apple device carries the reminders into Reminders — a Shortcut, run a few times a day by an automation, or a small helper on a Mac — and iCloud takes them to every other device. Reminders made by **Send task to Erinnerungen** in 1.35 and earlier still open their task. [REMINDERS.md](REMINDERS.md) has the Shortcut and the two bridge calls it makes.
 
 ### Commands
 

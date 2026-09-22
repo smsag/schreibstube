@@ -9,6 +9,7 @@ import {
   daysUntil,
   emptyPlan,
   generateKey,
+  linkTarget,
   MAX_CAPACITY,
   normalizePlan,
   shiftDay,
@@ -105,6 +106,13 @@ describe("keys", () => {
 
   it("lead a reminder back to its task", () => {
     expect(taskUrl("k-abc")).toBe("obsidian://schreibstube?key=k-abc");
+  });
+
+  it("tell a planner link from one 1.35 made, and from one that asks for nothing", () => {
+    expect(linkTarget({ key: "k-abc" })).toEqual({ key: "k-abc" });
+    expect(linkTarget({ task: "ab12cd" })).toEqual({ legacy: "ab12cd" });
+    expect(linkTarget({ done: "1" })).toBeNull();
+    expect(linkTarget({ key: "../etc" })).toBeNull();
   });
 });
 

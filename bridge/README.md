@@ -88,6 +88,8 @@ token must belong to the capability that owns the route.
 | `POST` | `/publish/render`         | publish    | `{target}`                                                                   | the same, rebuilt from stored state                |
 | `GET`  | `/plan`                   | plan       | —                                                                            | `{rev, document}`                                  |
 | `PUT`  | `/plan`                   | plan       | `{rev, document}`                                                            | `{rev}`, or `409` with the winning revision        |
+| `GET`  | `/plan/queue`             | plan       | —                                                                            | `{acked, seq, ops[]}`, each op with its `match`    |
+| `POST` | `/plan/queue/ack`         | plan       | `{seq, reminders:[{notes, done}]}`                                           | `{acked, completions}`                             |
 | `GET`  | `/calendar/events`        | plan       | `?from=&to=&calendars=`                                                      | `{events[], truncated}`                            |
 | `POST` | `/calendar/events`        | plan       | `{uid?, title, start, end, calendar, notes?, allDay?}`                       | `{uid}`                                            |
 | `POST` | `/calendar/events/delete` | plan       | `{uid, calendar}`                                                            | `{deleted}`                                        |
@@ -143,6 +145,14 @@ current one. If it is not, the answer is `409` with `code: "conflict"` and the
 revision and document that won, so the late writer re-applies its change without
 a second round trip. Merging two versions of a whole plan behind the user's back
 would lose a day of it silently; refusing loses nothing.
+
+**A drain acknowledges without a revision.** Whatever carries the reminder queue
+into Reminders — a Shortcut, a Mac helper, an app — asks `GET /plan/queue` for
+what is left to do and reports back with `POST /plan/queue/ack`: the sequence it
+applied and what the list now says. The bridge applies that to the stored plan in
+the same queue as every write, so a drain never meets a `409`. It moves `acked`
+forward and records a completion for each reminder whose state differs from what
+the planner last sent — someone ticked or reopened it in Reminders.
 
 **The calendar is addressed by UID, not by file name.** `POST /calendar/events`
 creates when `uid` is absent and replaces when it is present — and to replace,

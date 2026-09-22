@@ -465,3 +465,51 @@ describe("POST /calendar/events/delete", () => {
     );
   });
 });
+
+describe("the reminder queue, for a drain", () => {
+  beforeEach(reset);
+
+  it("hands out what is pending and takes back what was applied and ticked", async () => {
+    const key = "k-aaaaaaaaaa";
+    const op = {
+      seq: 1,
+      op: "upsert",
+      key,
+      title: "Datenschutz klären",
+      notes: `↩ Plan\nobsidian://schreibstube?key=${key}`,
+      due: null,
+      done: false,
+      list: "Schreibstube"
+    };
+    const current = await get("/plan");
+    await put("/plan", { rev: current.json.rev, document: planWith({ queue: [op] }) });
+
+    const pending = await get("/plan/queue");
+    expect(pending.status).toBe(200);
+    expect(pending.json.seq).toBe(1);
+    expect(pending.json.ops[0]).toMatchObject({ key, match: `schreibstube?key=${key}` });
+
+    const ack = await post("/plan/queue/ack", {
+      seq: 1,
+      reminders: [{ notes: op.notes, done: true }]
+    });
+    expect(ack.status).toBe(200);
+    expect(ack.json).toEqual({ acked: 1, completions: 1 });
+
+    const after = await get("/plan");
+    expect(after.json.document.acked).toBe(1);
+    expect(after.json.document.completions[0]).toMatchObject({ key, done: true });
+    expect((await get("/plan/queue")).json.ops).toEqual([]);
+  });
+
+  it("refuses a report it cannot read", async () => {
+    const response = await post("/plan/queue/ack", { seq: "all" });
+    expect(response.status).toBe(400);
+    expect(response.json.code).toBe("invalid_request");
+  });
+
+  it("is closed to any token but the plan's", async () => {
+    expect((await get("/plan/queue", { token: MAIL_TOKEN })).status).toBe(401);
+    expect((await post("/plan/queue/ack", { seq: 0 }, { token: MAIL_TOKEN })).status).toBe(401);
+  });
+});

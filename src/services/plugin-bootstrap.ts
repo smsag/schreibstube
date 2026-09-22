@@ -4,8 +4,6 @@ import { createReadingPostProcessor } from "../processors/markdown-processor";
 import { createTaskBadgeExtension } from "../processors/task-badges";
 import { createTaskFoldExtension } from "../processors/task-fold";
 import { createTaskFoldPostProcessor } from "../processors/task-fold-reading";
-import { createReminderMarkExtension } from "../processors/reminder-mark";
-import { createReminderMarkPostProcessor } from "../processors/reminder-mark-reading";
 import { registerTaskRibbon } from "../processors/task-ribbon";
 import { registerSlideshow } from "../processors/slideshow";
 import type { SchreibstubeSettings } from "../types";
@@ -30,8 +28,6 @@ export function bootstrapSchreibstubeRuntime(plugin: Plugin, handlers: Bootstrap
   plugin.registerEditorExtension(createTaskBadgeExtension());
   plugin.registerEditorExtension(createTaskFoldExtension());
   plugin.registerMarkdownPostProcessor(createTaskFoldPostProcessor());
-  plugin.registerEditorExtension(createReminderMarkExtension(handlers.getSettings));
-  plugin.registerMarkdownPostProcessor(createReminderMarkPostProcessor(handlers.getSettings));
   registerTaskRibbon(plugin);
   registerSlideshow(plugin);
 

@@ -315,7 +315,26 @@ export function blockTag(notes: string): Tag | null {
   return BLOCK_MARKER.exec(notes)?.[1] ?? null;
 }
 
+/** The `obsidian://schreibstube` action every link back into the vault arrives on. */
+export const TASK_PROTOCOL_ACTION = "schreibstube";
+
 /** Where a reminder points back to; the key means nothing outside the plan. */
 export function taskUrl(key: string): string {
-  return `obsidian://schreibstube?key=${encodeURIComponent(key)}`;
+  return `obsidian://${TASK_PROTOCOL_ACTION}?key=${encodeURIComponent(key)}`;
+}
+
+/**
+ * What a link back into the vault asks for.
+ *
+ * A planner reminder carries a key. A reminder made by 1.35 or earlier carries
+ * the id of the link it left at the end of its task's line; those reminders
+ * still sit in people's lists, so their links keep working. Anything else,
+ * including the old status callback, asks for nothing.
+ */
+export function linkTarget(
+  params: Record<string, string>
+): { key: string } | { legacy: string } | null {
+  if (params.key !== undefined && KEY.test(params.key)) return { key: params.key };
+  if (params.task !== undefined && KEY.test(params.task)) return { legacy: params.task };
+  return null;
 }

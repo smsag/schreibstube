@@ -23,9 +23,7 @@ export type GatedCommand =
   | "fetch-replies"
   | "print"
   | "collapse-explorer"
-  | "related"
-  | "send-reminder"
-  | "reminders";
+  | "related";
 
 /** What the screen says, reduced to what the answers depend on. */
 export interface CommandContext {
@@ -39,10 +37,6 @@ export interface CommandContext {
   bound: boolean;
   /** The pane is open somewhere in the workspace. */
   explorerOpen: boolean;
-  /** The cursor is on a task line. */
-  task: boolean;
-  /** Running where Apple's Reminders exists: macOS or iOS. */
-  apple: boolean;
 }
 
 export function commandAvailable(command: GatedCommand, context: CommandContext): boolean {
@@ -83,16 +77,6 @@ export function commandAvailable(command: GatedCommand, context: CommandContext)
       return context.markdown;
     case "collapse-explorer":
       return context.explorerOpen;
-    // The task under the cursor is tagged as a reminder, and only where there
-    // is a Reminders app to receive it. Whether the feature is switched on is
-    // a setting, which is not visible here, so that refusal belongs to the
-    // command.
-    case "send-reminder":
-      return context.markdown && context.task && context.apple;
-    // A sync reaches the whole vault, whatever is open, so the only visible
-    // condition is the platform.
-    case "reminders":
-      return context.apple;
   }
 }
 

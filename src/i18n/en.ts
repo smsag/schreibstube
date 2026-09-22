@@ -16,8 +16,6 @@ export const en = {
     newNote: "New doc",
     insertTaskSummary: "Insert: task summary",
     insertSlideshow: "Insert: slideshow",
-    sendToReminders: "Make task a reminder",
-    reminders: "Sync with Erinnerungen now",
     rename: "Rename doc with AI",
     summarize: "Insert: AI summary of the selection",
     table: "Insert: table from the selection",
@@ -62,20 +60,7 @@ export const en = {
      *  numbers have to appear as plain digits here. */
     ribbon: (open: number, total: number) => `${open} open of ${total}`,
     /** The badge after a heading. */
-    badge: (open: number, total: number) => `${open} of ${total} open`,
-    menuSend: "Make a reminder",
-    markTooltip: "Synced with Erinnerungen",
-    remindersOff:
-      "syncing with Erinnerungen is off. Turn it on in Settings → Schreibstube → Erinnerungen.",
-    notATask: "the cursor is not on a task.",
-    queued: (title: string) => `goes to Erinnerungen with the next sync: ${title}`,
-    taskNotFound: "no note in this vault holds that task.",
-    synced: (count: number) =>
-      count > 0
-        ? `synced; ${count} task(s) updated from Erinnerungen.`
-        : "synced with Erinnerungen.",
-    syncFailed: "the sync with Erinnerungen failed. The developer console says why.",
-    fromReminders: (count: number) => `${count} task(s) updated from Erinnerungen.`
+    badge: (open: number, total: number) => `${open} of ${total} open`
   },
 
   slideshow: {

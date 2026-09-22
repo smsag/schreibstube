@@ -78,6 +78,25 @@ export function createPlanStore(path) {
         await save(path, { rev, document });
         known = { stamp: await fileStamp(path), value: { rev, document } };
         return { ok: true, rev };
+      }),
+
+    /**
+     * Change the document in place, whatever its revision.
+     *
+     * For a writer that holds no revision of its own — a drain reporting
+     * what it applied — and whose change is a function of what is stored
+     * rather than a replacement for it. The change runs on the stored
+     * document inside the same queue as every write, so nothing lands
+     * between the read and the save.
+     */
+    update: (change) =>
+      serial(async () => {
+        const stored = await current();
+        const document = checkDocument(change(stored.document));
+        const rev = stored.rev + 1;
+        await save(path, { rev, document });
+        known = { stamp: await fileStamp(path), value: { rev, document } };
+        return { rev, document };
       })
   };
 }
