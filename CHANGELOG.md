@@ -11,6 +11,16 @@ All notable changes to this project will be documented in this file.
   in the tree below.
 
 ### Fixed
+- **Devices no longer overwrite each other's sync records.** Each device kept
+  its own copy of the records in memory and wrote all of it back on every
+  save, so whichever device saved last decided what every device knew: an
+  update fetched and accepted on one was forgotten when the other saved, and
+  checked again there as news. A save now reads the data file first and merges
+  the records note by note, the later check winning; a record dropped on this
+  device stays dropped unless another device checked it since. When another
+  device's save arrives, its records are merged in the same way at once.
+  Other settings keep the rule they had: the last save wins.
+
 - **"Updated externally" lists only what "Quelle prüfen" will show.** The
   Latest section, its mark, the note badge and the poll's notice each asked a
   different question. The list asked whether a source had ever moved, which

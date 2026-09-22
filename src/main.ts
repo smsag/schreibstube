@@ -34,6 +34,8 @@ import { toggledFocusMode } from "./services/focus-settings";
 import { getImageMimeType } from "./services/image-resize";
 import { hasSourceBinding } from "./services/sync-source";
 import { describePollSummary } from "./services/sync-summary";
+import { mergeSyncState, sameSyncState } from "./services/sync-merge";
+import type { SyncRecord } from "./services/sync-document";
 import { isTaskLine, TASK_PROTOCOL_ACTION } from "./services/reminder-export";
 import { sentTaskIds } from "./services/reminder-status";
 import { ReminderCommands } from "./controllers/reminder-commands";
@@ -101,6 +103,12 @@ export default class SchreibstubePlugin extends Plugin {
   private sections: PaneSectionsController | null = null;
   /** Guards against firing twice inside one scheduled minute. */
   private lastPollMinute = -1;
+  /** Sync records dropped here since the data file was last written, so the
+   *  copy still in the file does not bring them back. */
+  private droppedSyncRecords = new Map<string, number>();
+  /** One save at a time: each reads the file before writing it, and two
+   *  interleaved would each merge against what the other is about to replace. */
+  private saveChain: Promise<void> = Promise.resolve();
   private mail: MailCommands | null = null;
   private publish: PublishCommands | null = null;
   private print: PrintCommands | null = null;
@@ -171,12 +179,17 @@ export default class SchreibstubePlugin extends Plugin {
       forget: async (path) => {
         const { [path]: _removed, ...rest } = this.settings.syncState;
         this.settings.syncState = rest;
+        this.droppedSyncRecords.set(path, Date.now());
         await this.saveSettings();
       },
       all: () => this.settings.syncState,
       update: async (transform) => {
         const next = transform(this.settings.syncState);
         if (next === null) return;
+        const now = Date.now();
+        for (const path of Object.keys(this.settings.syncState)) {
+          if (next[path] === undefined) this.droppedSyncRecords.set(path, now);
+        }
         this.settings.syncState = next;
         await this.saveSettings();
         this.sections?.invalidateLatest();
@@ -747,10 +760,66 @@ export default class SchreibstubePlugin extends Plugin {
   }
 
   async saveSettings(): Promise<void> {
-    await this.saveData(this.settings);
+    const run = this.saveChain.then(() => this.writeSettings());
+    this.saveChain = run.catch(() => undefined);
+    await run;
     // A changed bookmarks path, count or exclusion list only matters once the
     // pane has been told; nothing else watches the settings object.
     void this.sections?.reloadIfPathChanged();
+    this.sections?.invalidateLatest();
+  }
+
+  /**
+   * Write the settings, with the sync records merged into what the file holds.
+   *
+   * Everything else is this device's to say, and is written as it stands. The
+   * sync records are not: another device may have checked a note since this
+   * one last read the file, and writing this device's copy over it made every
+   * device forget what the others had fetched and accepted.
+   */
+  private async writeSettings(): Promise<void> {
+    const disk = await this.readDiskSyncState();
+    if (disk !== null) {
+      this.settings.syncState = mergeSyncState({
+        local: this.settings.syncState,
+        disk,
+        dropped: this.droppedSyncRecords
+      });
+    }
+    await this.saveData(this.settings);
+    this.droppedSyncRecords.clear();
+  }
+
+  /** The sync records as the data file holds them, or null when it cannot be
+   *  read — in which case this device's copy is written as before. */
+  private async readDiskSyncState(): Promise<Record<string, SyncRecord> | null> {
+    try {
+      return normalizeSettings(await this.loadData()).syncState;
+    } catch (error) {
+      this.logger.debug("Could not read the data file to merge sync records:", error);
+      return null;
+    }
+  }
+
+  /**
+   * Another device's save has arrived.
+   *
+   * Only the sync records are taken from it, merged note by note: they are what
+   * a device acts on without being asked, and a stale copy reported updates the
+   * note already held. Settings a person changed keep the rule they always had.
+   */
+  override async onExternalSettingsChange(): Promise<void> {
+    const disk = await this.readDiskSyncState();
+    if (disk === null) return;
+
+    const merged = mergeSyncState({
+      local: this.settings.syncState,
+      disk,
+      dropped: this.droppedSyncRecords
+    });
+    if (sameSyncState(merged, this.settings.syncState)) return;
+
+    this.settings.syncState = merged;
     this.sections?.invalidateLatest();
   }
 
