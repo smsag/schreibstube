@@ -222,24 +222,30 @@ export interface SyncSuggestionOptions {
  * the body and leaves the binding untouched.
  */
 export function buildSyncSuggestions(options: SyncSuggestionOptions): Suggestion[] {
-  const { frontmatter, body } = splitNote(normalizeNewlines(options.noteText));
+  const noteText = normalizeNewlines(options.noteText);
+  const { frontmatter, body } = splitNote(noteText);
   const offset = frontmatter.length;
 
   return diffHunks(body, options.remoteBody).map((hunk) =>
-    createSuggestion({
-      kind: hunk.before.length === 0 ? "insert" : hunk.after.length === 0 ? "delete" : "replace",
-      source: "remote",
-      category: "update",
-      severity: "suggestion",
-      from: offset + hunk.from,
-      to: offset + hunk.to,
-      original: hunk.before,
-      replacement: hunk.after,
-      note: noteFor(options.state),
-      // A mirror with local edits presents them back as changes to undo, which
-      // the user has to see coming rather than discover after accepting.
-      needsReview: options.state === "diverged"
-    })
+    createSuggestion(
+      {
+        kind: hunk.before.length === 0 ? "insert" : hunk.after.length === 0 ? "delete" : "replace",
+        source: "remote",
+        category: "update",
+        severity: "suggestion",
+        from: offset + hunk.from,
+        to: offset + hunk.to,
+        original: hunk.before,
+        replacement: hunk.after,
+        note: noteFor(options.state),
+        // A mirror with local edits presents them back as changes to undo, which
+        // the user has to see coming rather than discover after accepting.
+        needsReview: options.state === "diverged"
+      },
+      // A source that gained a block makes a card with nothing of its own to be
+      // found by; this is what it is found by instead.
+      noteText.slice(0, offset + hunk.from)
+    )
   );
 }
 

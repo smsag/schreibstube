@@ -15,9 +15,10 @@
  * called, and a check that overwrote that would be undoing their work on a
  * timer.
  *
- * **A date follows the source, not the checking.** `updatedAt` moves only when
- * the document at the other end actually changed, never on a check that found
- * it unchanged, and never on the first fetch — arriving is not changing.
+ * **A date follows the source, not the checking.** `updatedAt` moves when the
+ * document at the other end changed, and never on a check that found it
+ * unchanged. A first fetch counts as a change: the note had nothing and now
+ * has the document, which is the one moment a mirror most obviously moved.
  */
 import { buildHeadingIndex } from "./heading-index";
 import { frontmatterTitle } from "./note-title";
@@ -108,6 +109,23 @@ export interface FrontmatterEdit {
 }
 
 /**
+ * What writing the plan into an open editor comes to.
+ *
+ * Three answers, because the caller does three different things with them and
+ * two of them used to arrive as the same `null`.
+ */
+export type FrontmatterEditPlan =
+  /** Replace this range with this text. */
+  | { kind: "edit"; edit: FrontmatterEdit }
+  /** The note already says it; write nothing anywhere. */
+  | { kind: "nothing" }
+  /** One line cannot say it; the caller's own writer has to. */
+  | { kind: "unwritable" };
+
+const NOTHING: FrontmatterEditPlan = { kind: "nothing" };
+const UNWRITABLE: FrontmatterEditPlan = { kind: "unwritable" };
+
+/**
  * The plan written into the note's own text rather than into the file on disk.
  *
  * A note open in an editor has two copies, the editor's and the file's, and
@@ -120,19 +138,24 @@ export interface FrontmatterEdit {
  * the editor there is only one copy, and the editor saves it.
  *
  * Only the two keys a check maintains are touched, one line each, so the rest
- * of the block keeps its spelling. Null when the note has no frontmatter block
- * to write into, or a key holds a value spread over several lines; the caller
- * then falls back to Obsidian's own writer.
+ * of the block keeps its spelling.
+ *
+ * The two ways there is no edit to make are different answers and are said
+ * differently. `unwritable` — no frontmatter block, or a key spread over
+ * several lines — means one line cannot stand in for what is there, and the
+ * caller falls back to Obsidian's own writer. `nothing` means the note already
+ * says what the plan says, and falling back there would write to disk behind
+ * an editor holding a newer version of the same note.
  */
 export function planFrontmatterEdit(
   noteText: string,
   plan: SyncFrontmatterPlan
-): FrontmatterEdit | null {
+): FrontmatterEditPlan {
   const lines = noteText.split("\n");
-  if (lines[0]?.trim() !== "---") return null;
+  if (lines[0]?.trim() !== "---") return UNWRITABLE;
 
   const close = lines.findIndex((line, index) => index > 0 && line.trim() === "---");
-  if (close === -1) return null;
+  if (close === -1) return UNWRITABLE;
 
   const block = lines.slice(1, close);
   const entries: [string, string | undefined][] = [
@@ -153,7 +176,7 @@ export function planFrontmatterEdit(
     // A value continued on the lines below is a list or a folded block, and
     // one line cannot stand in for it without losing what it says.
     const next = block[at + 1];
-    if (next !== undefined && /^\s/.test(next)) return null;
+    if (next !== undefined && /^\s/.test(next)) return UNWRITABLE;
 
     // The title is written once. A line the metadata cache has not caught up
     // with yet is still the person's title if it says anything.
@@ -165,7 +188,7 @@ export function planFrontmatterEdit(
 
   const head = lines.slice(0, close + 1).join("\n");
   const text = ["---", ...block, "---"].join("\n");
-  return text === head ? null : { from: 0, to: head.length, text };
+  return text === head ? NOTHING : { kind: "edit", edit: { from: 0, to: head.length, text } };
 }
 
 /**

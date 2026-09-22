@@ -72,6 +72,23 @@ describe("what a note may say about how often it is checked", () => {
   });
 });
 
+describe("a number that is not one", () => {
+  // YAML reads `.inf` and `.nan` as numbers, so a note's frontmatter can hand
+  // either to this. Both used to pass the "at least one minute" guard and
+  // become an interval the note is never due on again — silently, while the
+  // panel reported the schedule as understood.
+  it.each([Number.POSITIVE_INFINITY, Number.NaN])("is refused: %p", (value) => {
+    expect(parseSyncEvery(value)).toMatchObject({ ok: false });
+  });
+
+  it("does not take a plain number of minutes with it", () => {
+    expect(parseSyncEvery(30)).toMatchObject({
+      ok: true,
+      schedule: { kind: "every", minutes: 30 }
+    });
+  });
+});
+
 describe("when a note is due", () => {
   const now = new Date(2026, 8, 13, 12, 0, 0);
 

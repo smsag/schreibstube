@@ -189,7 +189,7 @@ export async function runProofread(
           continue;
         }
 
-        produced.push(...suggestionsForBlock(block, rewritten, placeholders));
+        produced.push(...suggestionsForBlock(text, block, rewritten, placeholders));
       }
 
       suggestions.push(...produced);
@@ -213,6 +213,7 @@ export async function runProofread(
 }
 
 function suggestionsForBlock(
+  docText: string,
   block: ProseBlock,
   maskedRewrite: string,
   placeholders: Map<string, string>
@@ -222,17 +223,24 @@ function suggestionsForBlock(
   const rewritten = restorePlaceholders(maskedRewrite, placeholders);
 
   return diffToEdits(block.text, rewritten).map((edit) =>
-    createSuggestion({
-      kind: editKind(edit.before, edit.after),
-      source: "llm",
-      category: categorize(edit.before, edit.after),
-      severity: "suggestion",
-      from: block.from + edit.from,
-      to: block.from + edit.to,
-      original: edit.before,
-      replacement: edit.after,
-      note: ""
-    })
+    createSuggestion(
+      {
+        kind: editKind(edit.before, edit.after),
+        source: "llm",
+        category: categorize(edit.before, edit.after),
+        severity: "suggestion",
+        from: block.from + edit.from,
+        to: block.from + edit.to,
+        original: edit.before,
+        replacement: edit.after,
+        note: ""
+      },
+      // The document's coordinates, not the block's: an edit at the very start
+      // of a block has nothing before it inside that block, and taking the
+      // slice there recorded no anchor at all — which left the card unplaceable
+      // against the very text it had just been read from.
+      docText.slice(0, block.from + edit.from)
+    )
   );
 }
 

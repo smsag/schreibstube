@@ -207,7 +207,8 @@ export default class SchreibstubePlugin extends Plugin {
     // what can do that, and they were built a moment ago.
     this.explorer.useNamer((file) => this.requireLlm().proposeName(file));
     this.explorer.useTagOpener((tag) => this.activateTagNotes(tag));
-    this.explorer.useRelatedOpener((path) => this.activateRelatedNotes(path));
+    // From a note's menu: the reader named the note, so the panel stays on it.
+    this.explorer.useRelatedOpener((path) => this.activateRelatedNotes(path, false));
     await this.explorer.start();
 
     this.sections = new PaneSectionsController(
@@ -454,9 +455,12 @@ export default class SchreibstubePlugin extends Plugin {
    *
    * One leaf, like the tag list: the panel follows whatever note is open, so a
    * second one would only ever say the same thing twice. Asking for a
-   * particular note from its menu pins the panel to that note instead.
+   * particular note from its menu pins the panel to that note instead, which
+   * is what `following` carries — the panel cannot tell from the path alone
+   * whether it was handed the note in front of the reader or the one they
+   * pointed at.
    */
-  async activateRelatedNotes(path: string): Promise<void> {
+  async activateRelatedNotes(path: string, following: boolean): Promise<void> {
     const [existing] = this.app.workspace.getLeavesOfType(RELATED_NOTES_VIEW_TYPE);
     const leaf = existing ?? this.app.workspace.getRightLeaf(false);
     if (!leaf) {
@@ -465,7 +469,7 @@ export default class SchreibstubePlugin extends Plugin {
     }
     await leaf.setViewState({
       type: RELATED_NOTES_VIEW_TYPE,
-      state: { path, following: false },
+      state: { path, following },
       active: true
     });
     await this.app.workspace.revealLeaf(leaf);
@@ -1051,7 +1055,9 @@ export default class SchreibstubePlugin extends Plugin {
 
     this.addGatedCommand("related-notes", t().commands.related, "related", () => {
       const file = this.app.workspace.getActiveFile();
-      if (file) void this.activateRelatedNotes(file.path);
+      // From the palette: the note in front of the reader is only where the
+      // panel starts, and it follows them from there.
+      if (file) void this.activateRelatedNotes(file.path, true);
     });
 
     this.addCommand({

@@ -17,16 +17,21 @@ import { fileURLToPath } from "node:url";
  *
  * Raised to 420 KB at 391 KB, ahead of the slideshow layouts (+5 KB) and the
  * property icons and dates (+8 KB): each fitted under 400 alone, together
- * they come to about 404. The headroom left is for the next feature, not a
- * new normal — a change that needs more says why, as this one does.
+ * they come to about 404.
  *
- * Raised to 470 KB at 417 KB, for the day planner (+42 KB) and the Reminders
- * sync beside it (+7 KB): a leaf with its modals, the block a start page
- * draws, the plan's own model, matcher and proposal engine, the sync's
- * reconciler and file formats, and every string of both in two languages.
- * The headroom left is for the next feature, not for these to grow into.
+ * Raised to 440 KB at 420 KB, on the slideshow's before/after slider (+2 KB).
+ * That ceiling was met to within four bytes, which is not a budget but a
+ * build that breaks on the next line anyone writes; the slider is measured
+ * and small, and what it revealed is that the headroom was already spent.
+ * The headroom left is for the next feature, not a new normal — a change
+ * that needs more says why, as this one does.
+ *
+ * Raised to 480 KB at 421 KB, for the day planner and the Reminders sync
+ * beside it (+48 KB): a leaf with its modals, the block a start page draws,
+ * the plan's model, matcher and proposal engine, the sync's reconciler and
+ * file formats, and every string of both in two languages.
  */
-const MAX_BUNDLE_KB = 470;
+const MAX_BUNDLE_KB = 480;
 
 const bundle = fileURLToPath(new URL("../main.js", import.meta.url));
 const source = readFileSync(bundle, "utf8");

@@ -24,6 +24,7 @@ import {
   FileView,
   getAllTags,
   ItemView,
+  Keymap,
   Notice,
   TFile,
   TFolder,
@@ -45,7 +46,7 @@ import {
 } from "../services/bookmark-file";
 import { fileGlyph, fileNameParts } from "../services/file-glyph";
 import { groundColour } from "../services/ground-colour";
-import { tallyTasks, taskCountLabel, type TaskTally } from "../services/task-count";
+import { tallyTasks, type TaskTally } from "../services/task-count";
 import type { LatestCandidate } from "../services/latest-files";
 import {
   ancestorsOf,
@@ -76,6 +77,7 @@ import {
   type SectionOptions
 } from "./explorer-section";
 import { applyIcon, installIconFont } from "./icon-font";
+import { drawTaskCount } from "./task-count-label";
 import { SCHREIBSTUBE_ICON } from "./schreibstube-icon";
 
 export const EXPLORER_VIEW_TYPE = "schreibstube-explorer";
@@ -280,7 +282,7 @@ export class ExplorerPaneView extends ItemView {
     // Drawn after the field so CSS can hide it while the field is empty,
     // without the view having to track that.
     const clear = filter.createEl("button", {
-      cls: "schreibstube-explorer-filter-clear",
+      cls: "sb sb-icon schreibstube-explorer-filter-clear",
       attr: { type: "button", "aria-label": t().explorer.clearFilter }
     });
     applyIcon(clear, "x");
@@ -791,11 +793,7 @@ export class ExplorerPaneView extends ItemView {
     applyIcon(row.createSpan({ cls: "schreibstube-explorer-glyph" }), "tag");
     row.createSpan({ cls: "schreibstube-explorer-name", text: `#${item.tag}` });
 
-    const label = tally ? taskCountLabel(tally) : null;
-    if (tally && label !== null) {
-      const el = row.createSpan({ cls: "schreibstube-explorer-tasks", text: label });
-      el.setAttribute("aria-label", t().explorer.taskCount(tally.open, tally.total));
-    }
+    if (tally) drawTaskCount(row, tally, "schreibstube-explorer-tasks");
 
     this.wirePinnedDrag(row, item.key, order);
 
@@ -1055,13 +1053,24 @@ export class ExplorerPaneView extends ItemView {
       // stays put after a confirmed delete reads as the delete having failed.
       if (!(file instanceof TFile) || controller?.isTrashed(file.path) === true) continue;
 
-      const row = this.renderRow(results, file, 0);
-      if (!row) continue;
-      row.addClass("is-result");
+      // The row and its folder are siblings inside one wrapper rather than the
+      // folder being another item in the row: a row is one line by construction,
+      // and a second line put inside it lands on the row below.
+      const result = results.createDiv({ cls: "schreibstube-explorer-result" });
+      const row = this.renderRow(result, file, 0);
+      if (!row) {
+        result.remove();
+        continue;
+      }
       const folder = file.parent && !file.parent.isRoot() ? file.parent.path : "";
-      row.createSpan({
+      const label = result.createDiv({
         cls: "schreibstube-explorer-result-folder",
         text: folder.length > 0 ? folder : t().explorer.related.root
+      });
+      // The folder is part of the result, so pressing it opens what the row
+      // above it names rather than doing nothing.
+      label.addEventListener("click", (event) => {
+        void controller?.open(file, Keymap.isModEvent(event) !== false);
       });
       drawn += 1;
     }
@@ -1225,12 +1234,11 @@ export class ExplorerPaneView extends ItemView {
   private renderTaskCount(row: HTMLElement, file: TFile): void {
     if (!this.host?.settings().explorerTaskCounts || file.extension !== "md") return;
 
-    const tally = tallyTasks(this.app.metadataCache.getFileCache(file)?.listItems);
-    const label = taskCountLabel(tally);
-    if (label === null) return;
-
-    const el = row.createSpan({ cls: "schreibstube-explorer-tasks", text: label });
-    el.setAttribute("aria-label", t().explorer.taskCount(tally.open, tally.total));
+    drawTaskCount(
+      row,
+      tallyTasks(this.app.metadataCache.getFileCache(file)?.listItems),
+      "schreibstube-explorer-tasks"
+    );
   }
 
   /**

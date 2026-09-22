@@ -23,6 +23,114 @@ All notable changes to this project will be documented in this file.
 
 - The Shortcut name, status Shortcut name and report file settings, and the `obsidian://schreibstube?done=1` callback. The Reminders list now defaults to **Schreibstube**; a list you had named is kept.
 
+## 1.37.0 - 2026-09-20
+
+The plugin's hand-built buttons stop being shaped by whatever theme is
+installed. The review panel's actions, the file chips, the icon picker's cells
+and the Explorer's clear control each claimed nothing, so Obsidian's ten button
+rules reached them unopposed; they now take one of nine roles that claim every
+property those rules set, and the difference is visible in the review panel,
+where the actions finally read as primary, secondary, quiet and destructive
+rather than all alike. Along with it, the panel's glyphs each mean one thing
+again, and a file row's task tally now leads with what is done instead of
+announcing an untouched note as finished.
+
+Mobile checklist: not run — and this is a release where a phone had something to
+say. Item 7 is that the file pane's icons draw, and one of the fixes here is
+exactly that failing: giving a control a role also gave it the role's font, and
+the Explorer's clear ✕ came out as a blank box until the icon font was claimed
+back. That was found and fixed on a desktop. What is checked instead is what a
+desktop can check, and it is more than usual: `obsidian-cascade.test.ts` reads
+the button rules out of an installed Obsidian and proves each role wins against
+them, and `button-roles.test.ts` holds every hand-built button to a role. Both
+are checks against the host, not against a phone.
+
+Bridge 2.4.0 is unchanged and still pairs with this release.
+
+### Changed
+
+- **Buttons take one of nine roles.** The panel's actions, the file chips, the icon picker's cells and the explorer's clear control were four hand-built looks, none of which claimed a background, a border, a radius or a colour — so Obsidian's ten button rules reached them unopposed and each ended up shaped by the host rather than by this plugin. They now carry `sb` plus one role, and each role claims every property Obsidian's own button rules set — height, padding, radius, shadow, fill, label colour and type. Their own classes keep layout and nothing else. Three things a user will see: the review actions read as primary, secondary, quiet and destructive rather than all alike; the file chips lose their 999px pill for the role set's one segment shape, with an accent tint on the chosen one; and the explorer's clear control moves from 22px in `--text-faint` to the role's 24px in `--text-muted`, because `--text-faint` on a control measures 2.3:1 on white. Obsidian's own dialog buttons — the ones `Setting.addButton` makes — are untouched: those are the host's chrome, not ours.
+
+### Fixed
+- **The task tally on a file row said the opposite of what it meant, and was too faint to read.** `7 / 7` was *seven still open*, but `x / y` is read as progress by anyone who has seen a progress figure, so a note with seven untouched tasks announced itself as finished. The numbers now lead with done — `0/7` for that same note, `9/9` only when a note really is finished — which is what the form already implied. It is drawn at the row's own size and family instead of a smaller one, so the tally is part of that line of type rather than a footnote under it, and it has moved off `--text-faint`, which measures 2.3:1 on white. Done leads in `--text-normal` at weight 500 and the total stays muted behind it; a note with nothing left open goes quiet altogether, so the rows that still want work are the only ones carrying weight in the column. Large tallies keep their full width and the name ellipses instead — a name is recognisable from its first characters and a half-drawn number is not. Behind the figures sits a soft accent tint, so the column can be found without being read; a note with nothing open has no tint, which is what makes the tint mean “there is work here”. The tint is accent rather than a neutral on purpose: a row's own hover and active fills are translucent neutral washes, and a neutral tint would be the same colour arriving twice and would vanish under the pointer. Measured in Obsidian, the tint stands 22 out of 255 clear of the row on a hovered row and on the active one alike.
+
+- **A blank line inside a suggestion no longer gets a stub of highlight.** The diff marks are drawn with `box-decoration-break: clone` so the stroke lands and lifts on every line of a multi-line change. A blank line got a fragment of its own too — no text, but the mark's side padding on each end, painted as a small green tab floating between two paragraphs. A line with nothing on it has nothing to mark, so it is no longer marked. Measured in Obsidian: 81 painted pixels on the blank line before, 0 after, with both text lines unchanged. A lone space between two changed words keeps its mark — that one really is part of the change, and dropping it would break the stroke between them.
+- **The Explorer's clear ✕ went back to being a picture.** Giving it a role also gave it the role's font, and a role's font out-ranks the bundled icon font's own rule — so the glyph was drawn from a monospace fallback that has nothing at that code point, and the control rendered as a blank box at the wrong size. The icon font and the 14px size are claimed back where the button is itself a glyph.
+- **The icon picker's phone rule pointed at nothing.** The rule that stops Obsidian stretching a button inside a modal's setting row named a class that sits on the dialog's content box, not on the dialog, so it could never match. Found by looking for it in a running Obsidian rather than in the stylesheet.
+
+- **The review panel's glyphs each mean one thing.** Two were doing two jobs: `x` was both *Abbrechen* (stop the whole run) and *Verwerfen* (dismiss one suggestion), and *Alle übernehmen* wore a double tick against the single tick on each card — a three-pixel difference at the size these actually paint. Stop is now a stop sign, *Alle übernehmen* a checklist, *Anzeigen* a locate pin rather than a rifle reticle, *Korrektur lesen* a text scan rather than a magic wand, and *Glossar prüfen* a lettered book. *Korrektur lesen* deliberately does not take the panel's own tab icon: that mark means "the proofreading panel", and the same mark on a button inside it would mean two things at once.
+- The panel's buttons may now be built without a glyph at all. They all have one today, because this panel is a queue — accept, reject and show repeat once per suggestion card, so the eye lands on the glyph and the word only confirms. That is what earns them; a button whose icon does no work the word cannot should be able to say so.
+
+### Removed
+
+- **A dead rule that set the label glyphs to 14px.** `.schreibstube-review-icon svg` is (0,1,1) and the role base's `:is(…) .sb svg` is (0,2,1), so it never applied: the stylesheet read 14px and Obsidian painted 12px for as long as the rule existed. 12px is also the right pairing with an 11.375px label, so it is gone rather than made to win.
+- **`kit/button.css`, and the test that held this stylesheet identical to it.** The role set arrived here as a file copied from another project, with a test that failed when the two drifted. That made this plugin's buttons unchangeable without a red build somewhere else, which is the opposite of what a separate plugin should be. The rules are unchanged and are now this stylesheet's own; the reasoning that was in the copied file is in the comment above them. What remains is `src/services/button-roles.test.ts` (the base claims what Obsidian sets; every hand-built button names a role) and `src/services/obsidian-cascade.test.ts` — both testing this plugin against its host, neither naming another project.
+
+## 1.36.1 - 2026-09-19
+
+Nine fixes, six of them for bugs 1.36.0 put in front of people. Two of those
+six were costing someone their words rather than merely annoying them: an
+accepted update from a source could land inside a line, and a title typed
+into the editor could be overwritten by the source's. The others were quiet
+— a note that stopped syncing without saying so, a panel that emptied itself
+when you clicked inside it, a button that did nothing at all.
+
+Mobile checklist: not run. This release touches the review panel, the
+Explorer filter and how a marked run of text is drawn, which is three things
+a phone would have had an opinion about. What was checked instead is what a
+desktop can check: the filter's cost, measured directly — a two-thousand-word
+paste against twenty thousand files went from forty-three seconds and more
+memory than a phone has, to under a fifth of a second — and the panel and
+anchor changes, which are decided in tested modules. None of that is a phone,
+and the release notes should not pretend otherwise.
+
+Bridge 2.4.0 is unchanged and still pairs with this release.
+
+### Changed
+
+- **A marked run of text is drawn with the family's pen.** The diff marks were flat slabs from `--background-modifier-error` and `--background-modifier-success` — tokens a theme picks for a toast or a form field, not for a run of prose. Measured in Obsidian, they painted 312 (insert) and 277 (delete) from the page in Euclidean RGB against the theme's own highlight at 70: the loudest marks in the family by a factor of four, and theme-dependent on top, since a theme sets that token's saturation for a UI affordance. They now carry the stroke Klartext defines in its `kit/highlight.css` — a feathered landing and lift, square ends, no halo, and one stroke per line, which is where a long diff run shows it. Copied at the file level, not shared at runtime: Obsidian loads every plugin's CSS globally, so a shared class name would couple the plugins through whichever loaded last. The ink stays semantic (green for an insertion, red for a deletion and a flag) and the strikethrough stays; only the shape and the strength change, to 79 and 70, inside the family's 60–140 band. The glossary's wavy underline is untouched — it is a different signal, not a highlight.
+
+### Fixed
+
+- **Related notes follows the note in front of you again.** Opened from the palette the panel was supposed to follow along, and opened from a note's menu to stay on that note — which is what the README has always said. Both openings asked for the same thing, so the panel was pinned however it was opened and never moved again, not even after a restart: the flag that says which was wanted was written as "pinned" in the one place both go through. The palette now says it is starting the reader off, the menu says the reader named the note, and the panel behaves as documented. The view's second way of pinning itself, which nothing had ever called, is gone.
+- **A correction offered at the start of a paragraph can be accepted.** Found reviewing the fix below: a card is anchored to the text recorded before it, and for an insertion at the very start of a paragraph that text was looked for inside the paragraph, where there is none. Such a card was unplaceable against the very note it had just been read from — it looked ordinary and Accept did nothing. The text before it is now read from the note rather than from the paragraph, and an insertion at the very start of a note, where there is genuinely nothing before it, is placed at the start, which is the one offset no edit can move.
+- **An accepted update lands where it belongs.** A source that gained a block made a card with no text of its own, and the check for "is this still where I left it" reads the text at the recorded offsets — which for such a card is the empty string, and every offset in every document holds that. So the card never went stale, however far the note had moved under it: accept another card above it first and the new block landed inside a line. A card like this now remembers the text it was recorded behind, travels with it when the note moves, and goes stale when that text is gone — which costs a re-run of the check, where the old behaviour cost the note.
+- **A title you just typed is no longer overwritten by the source's.** Properties are written into the open editor rather than to disk, precisely so a check on a timer cannot land behind what you are typing. The writer had two ways of saying it had made no edit — "the note already says this" and "one line cannot express this" — and said both the same way, so the first fell through to the disk writer, which puts the source's title over yours without asking. The two are now different answers.
+- **A note whose check interval is not a number is now refused.** YAML reads `.inf` and `.nan` as numbers, and both slipped past the "at least one minute" check to become an interval no note is ever due on again — silently, while the panel reported the schedule as understood.
+- **Switching a glossary on or off no longer empties the panel.** The panel asked Obsidian which note was open in order to redraw itself, and clicking something in the panel can leave Obsidian with no open note at all. Asked that way it answered by clearing the glossary, the matcher and the source row for the note it was still holding a queue for. It now redraws for the note it is speaking for.
+- **One note's check no longer blocks every other note's.** A source can take twenty seconds to answer, and for the whole of it any note opened meanwhile had its check-on-open dropped. A check in flight is now held against the note it belongs to.
+- **Check source says something when sync is off.** The button and the command returned in silence, which reads as a broken control; they now say what is switched off and where to switch it on, as the vault-wide check already did.
+- **A pasted filter no longer freezes the app.** The Explorer's filter scored every word of a query against every file, holding one number per file per word — fine for the word or three anybody types, and hundreds of megabytes for a paragraph pasted into the box by accident. Against twenty thousand files a two-thousand-word paste took forty-three seconds and the memory it asked for is more than a phone has. A query is now read up to its first dozen words, which no typed filter reaches: the same paste is answered in under a fifth of a second, with the answer the first dozen words would have given.
+
+## 1.36.0 - 2026-09-19
+
+Mobile checklist: not run. The one thing in this release a phone would have
+told us is how the divider behaves under a thumb, and that was checked in a
+browser instead — against the real stylesheet, driven by the browser's own
+touch input rather than by synthetic events: a touch on the divider drags it,
+and a touch anywhere else on the picture leaves it alone, so the note still
+scrolls past. That is a good check and it is not a phone.
+
+Bridge 2.4.0 is unchanged and still pairs with this release.
+
+### Added
+
+- **A before/after slider in a slideshow block.** `layout: compare` lays the block's first two images in one frame, the first over the second, under a divider that is dragged across them — a renovation, a retouch, a room before and after the furniture. Press anywhere on the picture to send the divider there, or use the arrow keys, with Home and End for an edge. Both pictures are cropped to the frame, which takes the proportions of the first picture the vault has, because a wipe only reads as one thing changing while the two sides line up exactly. The alt texts label the sides instead of the header, since both pictures are on screen at once and neither is the one a header would be naming. The expand control opens the usual fullscreen view, where the two step back and forth at full size.
+
+## 1.35.2 - 2026-09-18
+
+Mobile checklist: not run. The result list was checked in a browser at 240, 320
+and 420 pixels wide against the real stylesheet, which is the width a sidebar
+actually gets, but not on a device.
+
+Bridge 2.4.0 is unchanged and still pairs with this release.
+
+### Fixed
+
+- **The filter's results no longer overlap each other.** 1.35.1 drew the folder as a second line inside the result's row, and every row in the pane is one line by construction — so the folder did not make the row taller, it spilled onto the row below, and the list came out as overlapping text. The row and its folder are now two elements rather than one, so the row stays the row the tree draws and the folder sits beneath it.
+- **A long file name keeps its icon.** With the row made to wrap, a name longer than the sidebar took a line of its own and left the icon stranded above it — which is every file name in a real vault. The name now stays beside its icon and is cut with an ellipsis, and the folder under it is cut the same way rather than wrapping into a paragraph.
+- **Pressing the folder line opens the file** its row names, instead of doing nothing.
+
 ## 1.35.1 - 2026-09-18
 
 What 1.35.0 was supposed to deliver. The ranking it added was real and the pane
@@ -132,6 +240,8 @@ through its editor, which a phone does the same way a laptop does.
 Bridge 2.4.0 is unchanged and still pairs with this release.
 
 ### Fixed
+
+- **Focus mode's sentence dimming is now visible on a light page, and follows the dim strength setting.** Sentence mode cannot dim with opacity — the focused sentence sits inside the dimmed line, and opacity on an ancestor is a ceiling its children cannot rise above — so it dimmed by colour, to a fixed `--text-muted`. That ignored the dim strength setting entirely, which only ever reached paragraph mode. It also read very differently by page mode: measured in Obsidian, the contrast ratios barely differ (12.6:1 to 7.23:1 on a light page, 11.7:1 to 7.11:1 on a dark one) and neither does the lightness step, but the luminance change the eye judges — taken against whichever of the text or the page is brighter — was 6.2% on white against 42.2% on black. On a light page the page is the bright reference, so two dark greys on it hardly separate. The dimmed text now mixes toward the page by the setting's own fraction, which is exactly the colour paragraph mode composites to: one setting drives both modes, and the change becomes 38.5% on light and 80.6% on dark. Obsidian's own light theme showed the same shape, so this was never one theme's palette.
 
 - **The plugin's icon no longer reads darker than the icons beside it.** In a sidebar tab row it carried a heavier stroke than Obsidian's own: the registered icon pinned its stroke width, where a Lucide icon has none and inherits the one Obsidian sets for the context — thinner in a tab, thicker in the ribbon. The pin also sat in the wrong units, since the icon's group scales its stroke along with its geometry, so it drew at 8.33% of the icon's width against every neighbour's 7.29%. The attribute is gone and the icon now follows Obsidian at every size. The colour was never different. `assets/logo.svg` is unchanged: a standalone file has no stylesheet to inherit from.
 - **Accepting a first sync no longer leaves the note empty.** A check wrote the note's `title` and `updatedAt` to the file on disk and then offered the document as cards; accepting them filled the editor, and Obsidian, merging the file it had just been told about into the editor, could not place a whole document against frontmatter that had changed underneath it and kept the file's version without a word. The note ended up with its properties and nothing else, while the plugin recorded it as matching its source. A note that is open now gets its properties through its editor, before the cards are measured, so there is one copy of it and the editor saves it.

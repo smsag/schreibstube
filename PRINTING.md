@@ -72,8 +72,9 @@ note + frontmatter
 
 ### The compiler runtime
 
-The wasm is 28 MB and cannot live in `main.js`, whose budget is 400 KB and
-whose every byte is parsed on every start. It is fetched once per device:
+The wasm is 28 MB and cannot live in `main.js`, whose budget is a few hundred
+kilobytes — `scripts/check-bundle.mjs` holds the figure and the reason it last
+moved — and whose every byte is parsed on every start. It is fetched once per device:
 
 - The release workflow runs `scripts/fetch-typst-runtime.mjs`, which downloads
   `@myriaddreamin/typst-ts-web-compiler` at the pinned version, checks both
@@ -100,8 +101,8 @@ written against Typst 0.14 keeps compiling until the pin moves.
 
 `markdown-typst.ts` walks the same Markdown the vault shows and emits Typst. It
 is hand-written: the bridge's site renderer uses markdown-it, but the bridge is
-a server with room for a dependency tree, and this runs inside a bundle with a
-400 KB budget that is parsed on every start.
+a server with room for a dependency tree, and this runs inside a bundle whose
+budget is a few hundred kilobytes, parsed on every start.
 
 Carried over: headings, paragraphs, emphasis, strong, strikethrough, highlight,
 ordered and unordered lists with nesting, links, wikilinks as their text,

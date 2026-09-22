@@ -1,12 +1,16 @@
 import { type App, MarkdownRenderChild, type Plugin, setIcon, TFile } from "obsidian";
 import { t } from "../i18n";
 import {
+  clampCompareSplit,
+  compareSplitAt,
+  DEFAULT_COMPARE_SPLIT,
   featureDetails,
   imagesForLayout,
   linkpathCandidates,
   parseSlideshow,
   SLIDESHOW_LANGUAGE,
   slideshowCounter,
+  stepCompareSplit,
   stepIndex,
   stripColumns,
   type SlideshowBlock,
@@ -20,13 +24,14 @@ const SWIPE_THRESHOLD_PX = 40;
 /**
  * The ```schreibstube-slideshow``` block: two or more images, as one stage
  * with prev/next controls (with or without a filmstrip of thumbnails), as one
- * large scene with its details beside it, or all at once as a strip of equal
- * tiles or a masonry of uncropped ones — each with a fullscreen view.
+ * large scene with its details beside it, all at once as a strip of equal
+ * tiles or a masonry of uncropped ones, or as two pictures under a divider
+ * the reader drags — each with a fullscreen view.
  *
  * This file is the wiring half: it resolves image paths against the vault and
  * builds the DOM. Every decision — what counts as an image, which layout was
- * asked for, which details stand beside the featured picture — lives in the
- * tested `services/slideshow` module.
+ * asked for, which details stand beside the featured picture, where the
+ * divider lands — lives in the tested `services/slideshow` module.
  */
 export function registerSlideshow(plugin: Plugin): void {
   plugin.registerMarkdownCodeBlockProcessor(SLIDESHOW_LANGUAGE, (source, el, ctx) => {
@@ -112,6 +117,9 @@ class Slideshow extends MarkdownRenderChild {
         break;
       case "filmstrip":
         this.renderStage(wrapper, images, true);
+        break;
+      case "compare":
+        this.renderCompare(wrapper, images);
         break;
       default:
         this.renderStage(wrapper, images, false);
@@ -314,6 +322,111 @@ class Slideshow extends MarkdownRenderChild {
   }
 
   /**
+   * Two pictures of one thing in a single frame, the first laid over the
+   * second and clipped to a divider the reader drags across it.
+   *
+   * The pictures are cropped to the frame rather than shown whole: a wipe only
+   * reads as one thing changing while both sides are exactly aligned, and two
+   * photographs of the same room are never to the pixel the same shape. The
+   * frame takes its proportions from the first picture the vault has, so the
+   * crop falls on whatever the other one has spare.
+   */
+  private renderCompare(wrapper: HTMLElement, images: ResolvedImage[]): void {
+    const header = wrapper.createEl("div", { cls: "schreibstube-slideshow-header" });
+    // The alt texts label the sides, so the caption stays empty; the header is
+    // still built, to keep the fullscreen control where every layout has it.
+    header.createEl("span", { cls: "schreibstube-slideshow-caption" });
+    const actions = header.createEl("div", { cls: "schreibstube-slideshow-actions" });
+    this.control(actions, "arrows-maximize", "expand", t().slideshow.fullscreen, () =>
+      this.openFullscreen(images, 0)
+    );
+
+    const frame = wrapper.createEl("div", { cls: "schreibstube-slideshow-compare" });
+    paintImage(frame.createEl("div", { cls: "schreibstube-slideshow-compare-side" }), images[1]);
+    sideLabel(frame, "after", images[1]);
+
+    // Clipped rather than made narrower: a narrower element would scale the
+    // picture inside it, and the two sides would no longer line up.
+    const reveal = frame.createEl("div", { cls: "schreibstube-slideshow-compare-reveal" });
+    paintImage(reveal.createEl("div", { cls: "schreibstube-slideshow-compare-side" }), images[0]);
+    sideLabel(reveal, "before", images[0]);
+
+    const handle = frame.createSpan({
+      cls: "schreibstube-slideshow-compare-handle",
+      attr: {
+        role: "slider",
+        tabindex: "0",
+        "aria-label": t().slideshow.compareHandle,
+        "aria-valuemin": "0",
+        "aria-valuemax": "100"
+      }
+    });
+    drawGlyph(handle.createSpan(), "arrows-horizontal", "move-horizontal");
+
+    let split = DEFAULT_COMPARE_SPLIT;
+    const setSplit = (next: number): void => {
+      split = clampCompareSplit(next);
+      frame.style.setProperty("--schreibstube-compare-split", `${split}%`);
+      handle.setAttribute("aria-valuenow", String(Math.round(split)));
+    };
+    setSplit(split);
+
+    const splitAt = (clientX: number): void => {
+      const box = frame.getBoundingClientRect();
+      setSplit(compareSplitAt(clientX, box.left, box.width));
+    };
+
+    // A mouse drags from anywhere on the picture, which is what the frame's
+    // cursor promises and what every other before-and-after slider does. A
+    // touch drags from the divider only: started anywhere on the frame it
+    // would have to swallow the swipe that scrolls the note past the picture,
+    // which on a phone is most of what a reader does to it. Either way a
+    // press sends the divider where it landed, which is the same gesture
+    // without the drag.
+    //
+    // The press is not prevented: preventing it on a pointer event costs the
+    // element its focus, and the arrow keys below would then do nothing for
+    // the rest of the reader's visit.
+    frame.addEventListener("pointerdown", (e) => {
+      const onHandle = e.target instanceof Node && handle.contains(e.target);
+      if (e.pointerType === "touch" && !onHandle) return;
+      // The divider is moved before the pointer is captured: capturing one the
+      // browser has already let go of throws, and the press itself should land
+      // whether or not the drag that may follow it can be followed.
+      splitAt(e.clientX);
+      frame.setPointerCapture(e.pointerId);
+    });
+    frame.addEventListener("pointermove", (e) => {
+      if (frame.hasPointerCapture(e.pointerId)) splitAt(e.clientX);
+    });
+    frame.addEventListener("click", (e) => splitAt(e.clientX));
+
+    // Focus sits on the handle, whose keys bubble to the block; Home and End
+    // put the divider on an edge, to see one picture whole.
+    wireArrowKeys(wrapper, (direction) => setSplit(stepCompareSplit(split, direction)));
+    wrapper.addEventListener("keydown", (e) => {
+      if (e.key !== "Home" && e.key !== "End") return;
+      e.preventDefault();
+      setSplit(e.key === "Home" ? 0 : 100);
+    });
+
+    // Both pictures fill the frame, so the frame needs a shape of its own or
+    // it has no height at all. The first picture the vault actually has sets
+    // it — the before one, unless that is the one that is missing, and the
+    // stylesheet's ratio stands until one of them has loaded.
+    const first = images.find((image) => image.url !== "");
+    if (first) {
+      const probe = new Image();
+      probe.addEventListener("load", () => {
+        if (probe.naturalWidth > 0) {
+          frame.style.aspectRatio = `${probe.naturalWidth} / ${probe.naturalHeight}`;
+        }
+      });
+      probe.src = first.url;
+    }
+  }
+
+  /**
    * A control in the header: a labelled, focusable span with the glyph in a
    * child, the way the file pane builds its own. A span rather than a button
    * because a button in the reading view wears Obsidian's fill and shadow,
@@ -425,6 +538,8 @@ function regionLabel(layout: SlideshowBlock["layout"], count: number): string {
       return t().slideshow.regionFilmstrip(count);
     case "masonry":
       return t().slideshow.regionMasonry(count);
+    case "compare":
+      return t().slideshow.regionCompare;
     default:
       return t().slideshow.region(count);
   }
@@ -447,22 +562,47 @@ function drawGlyph(glyph: HTMLElement, icon: string, fallbackIcon: string): void
 }
 
 /**
- * Puts an image into a tile. One the vault does not have shows its alt text
- * on a plain ground instead, so the grid keeps its shape around the gap.
+ * Puts an image into a tile, under the label the tile answers to as a control.
  */
 function fillTile(tile: HTMLElement, image: ResolvedImage | undefined, label: string): void {
   tile.empty();
   tile.setAttribute("aria-label", image?.alt ? `${label}: ${image.alt}` : label);
-  tile.toggleClass("schreibstube-slideshow-tile-missing", !image || image.url === "");
+  paintImage(tile, image);
+}
+
+/**
+ * Draws an image into an element. One the vault does not have shows its alt
+ * text on a plain ground instead, so the grid keeps its shape around the gap.
+ */
+function paintImage(el: HTMLElement, image: ResolvedImage | undefined): void {
+  el.toggleClass("schreibstube-slideshow-tile-missing", !image || image.url === "");
   if (!image) return;
   if (image.url === "") {
-    tile.createSpan({ cls: "schreibstube-slideshow-tile-alt", text: image.alt });
+    el.createSpan({ cls: "schreibstube-slideshow-tile-alt", text: image.alt });
     return;
   }
-  const img = tile.createEl("img");
+  const img = el.createEl("img");
   img.src = image.url;
   img.alt = image.alt;
   img.draggable = false;
+}
+
+/**
+ * An alt text in the corner of its side of a comparison, hidden from screen
+ * readers because the picture it names already carries it as its alt text. An
+ * image with none is left unlabelled rather than given an empty chip.
+ */
+function sideLabel(
+  parent: HTMLElement,
+  side: "before" | "after",
+  image: ResolvedImage | undefined
+): void {
+  if (!image?.alt) return;
+  parent.createSpan({
+    cls: `schreibstube-slideshow-compare-label schreibstube-slideshow-compare-label--${side}`,
+    text: image.alt,
+    attr: { "aria-hidden": "true" }
+  });
 }
 
 /** Click, Enter and Space all press the control. */

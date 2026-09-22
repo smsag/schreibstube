@@ -171,9 +171,34 @@ a.external-link.schreibstube-reminder-mark {
   opacity: var(--schreibstube-focus-dim-opacity);
 }
 
+/* Sentence mode cannot dim with opacity: the focused sentence sits INSIDE the
+   dimmed line, and opacity on an ancestor is a ceiling its children cannot
+   rise above. So it dims by colour — but a fixed --text-muted made the dim
+   strength setting dead here, and read far weaker on a light page than on a
+   dark one.
+
+   Measured in Obsidian, focused against dimmed. The contrast ratios barely
+   differ between the two page modes (Klartext 12.6:1 -> 7.23:1 light,
+   11.7:1 -> 7.11:1 dark), and neither does the CIE lightness step (15.8
+   against 16.8). What differs is the luminance change the eye actually
+   judges, taken against whichever of the text or the page is the brighter
+   reference: 6.2% on white, 42.2% on black — nearly seven times weaker. On a
+   light page the page is the bright reference, so two dark greys on it hardly
+   separate; on a dark page the text is, so the same step is a large change.
+   Obsidian's own light theme is the same shape (9.1% against 35.7%), so this
+   is not one theme's palette.
+
+   Moving the text TOWARD the page fixes both halves. It is exactly the colour
+   paragraph mode's opacity composites to, so one setting now drives both
+   modes instead of being ignored by this one, and it scales with the page
+   rather than against it: 38.5% light, 80.6% dark. */
 .schreibstube-focus-enabled.schreibstube-focus-mode-sentence .cm-line.schreibstube-focus-dimmed {
   opacity: 1;
-  color: var(--text-muted);
+  color: color-mix(
+    in srgb,
+    var(--text-normal) calc(var(--schreibstube-focus-dim-opacity) * 100%),
+    var(--background-primary)
+  );
 }
 
 .schreibstube-focus-enabled.schreibstube-focus-mode-sentence .schreibstube-focus-sentence {
@@ -202,33 +227,352 @@ a.external-link.schreibstube-reminder-mark {
   overflow-wrap: anywhere;
 }
 
+/* ── Buttons: one rule set per role ────────────────────────────────────────
+   Every hand-built button carries `sb` plus ONE role; its own class keeps only
+   layout. Obsidian's own dialog buttons — the ones `Setting.addButton` makes —
+   keep `mod-cta` and its siblings: those are the host's chrome, not ours.
+   `src/services/button-roles.test.ts` fails when a button is created without a
+   role, and `src/services/obsidian-cascade.test.ts` fails if one of Obsidian's
+   own rules reaches one.
+
+   THE BASE CLAIMS EVERY PROPERTY OBSIDIAN'S BARE `button` RULE SETS — height,
+   width, padding, radius, corner-shape, shadow, background, font, weight,
+   line-height and colour. A role that forgets one inherits the host's, and
+   that is where every button here started: claiming layout and nothing else,
+   so all ten of Obsidian's rules reached them unopposed.
+
+   The colour contract is `var(--btn-accent | --btn-on-accent | --btn-error |
+   --btn-warning, <Obsidian token>)`, so a surface overrides one property
+   rather than a rule. This plugin overrides none: it has no contrast-computed
+   label token of its own, and the Obsidian default is the honest value. */
+:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker) .sb {
+  -webkit-appearance: none;
+  appearance: none;
+  box-sizing: border-box;
+  /* Obsidian's `button` rule sets height (--input-height), corner-shape and
+     padding that no role would otherwise name — claim each one (ADR-190). */
+  height: auto;
+  width: auto;
+  corner-shape: round;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s1, 4px);
+  min-height: 24px;
+  padding: 3px var(--s2, 8px);
+  border: 1px solid transparent;
+  border-radius: 3px;
+  box-shadow: none;
+  background: transparent;
+  font-family: var(--font-monospace);
+  font-size: var(--font-smaller, 11px);
+  font-weight: 500;
+  line-height: 16px;
+  white-space: nowrap;
+  text-decoration: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  -webkit-text-fill-color: var(--text-muted);
+}
+:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker) .sb svg {
+  width: 12px;
+  height: 12px;
+  stroke-width: 1.6;
+  flex-shrink: 0;
+  pointer-events: none;
+}
+:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker) .sb:focus-visible {
+  outline: 2px solid var(--btn-accent, var(--color-accent));
+  outline-offset: 1px;
+}
+:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker) .sb:disabled {
+  cursor: default;
+  opacity: 1;
+} /* core: button[disabled] { opacity: 0.7 } */
+/* A disabled Send is the "Optimizing…" label (ADR-187): readable, so never dimmed. */
+:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker)
+  .sb:disabled:not(.sb-primary) {
+  opacity: 0.5;
+}
+
+/* Primary — the one action its surface exists for. Send's `.stop` is destructive. */
+:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker) .sb.sb-primary,
+:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker) .sb.sb-primary:hover {
+  padding: 3px var(--s2, 8px);
+  background: var(--btn-accent, var(--color-accent));
+  border-color: var(--btn-accent, var(--color-accent));
+  color: var(--btn-on-accent, var(--text-on-accent));
+  -webkit-text-fill-color: var(--btn-on-accent, var(--text-on-accent));
+}
+/* Secondary — offered next to it. A toggle (model hint) fills while on. */
+:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker) .sb.sb-secondary,
+:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker)
+  .sb.sb-secondary:hover {
+  padding: 3px var(--s2, 8px);
+  background: transparent;
+  border-color: var(--btn-accent, var(--color-accent));
+  color: var(--btn-accent, var(--color-accent));
+  -webkit-text-fill-color: var(--btn-accent, var(--color-accent));
+}
+/* Quiet — cancel, discard, copy. */
+:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker) .sb.sb-quiet,
+:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker) .sb.sb-quiet:hover {
+  background: transparent;
+  padding: 3px var(--s2, 8px);
+}
+/* Destructive — removes something: Delete, and Send while it reads Stop. */
+:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker) .sb.sb-destructive,
+:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker)
+  .sb.sb-destructive:hover,
+:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker) .sb.sb-primary.stop,
+:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker)
+  .sb.sb-primary.stop:hover {
+  padding: 3px var(--s2, 8px);
+  background: transparent;
+  border-color: var(--btn-error, var(--text-error));
+  color: var(--btn-error, var(--text-error));
+  -webkit-text-fill-color: var(--btn-error, var(--text-error));
+}
+/* Link — inline text action. The negative margin gives a 24px target without
+   growing the line it sits in. */
+:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker) .sb.sb-link,
+:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker) .sb.sb-link:hover {
+  font-family: var(--font-interface);
+  font-weight: 400;
+  padding: 4px 2px;
+  margin-block: -4px;
+  border: 0;
+  background: transparent;
+  color: var(--btn-accent, var(--color-accent));
+  -webkit-text-fill-color: var(--btn-accent, var(--color-accent));
+}
+/* Icon — one 24px box, one 12px glyph. */
+:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker) .sb.sb-icon,
+:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker) .sb.sb-icon:hover {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  background: transparent;
+}
+:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker) .sb.sb-icon.is-inline {
+  margin-block: -4px;
+  vertical-align: middle;
+}
+:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker) .sb.sb-icon.is-warning,
+:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker)
+  .sb.sb-icon.is-warning:hover {
+  color: var(--btn-warning, var(--color-orange));
+  -webkit-text-fill-color: var(--btn-warning, var(--color-orange));
+}
+:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker) .sb.sb-icon.is-stale {
+  color: var(--btn-accent, var(--color-accent));
+  -webkit-text-fill-color: var(--btn-accent, var(--color-accent));
+}
+/* The floating # trigger: the one deliberate exception to the 24px box. */
+:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker) .sb.sb-icon.is-float,
+:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker)
+  .sb.sb-icon.is-float:hover {
+  width: 36px;
+  height: 36px;
+  font-size: 16px;
+  font-weight: 600;
+  background: var(--background-secondary);
+  border-color: var(--background-modifier-border);
+  color: var(--btn-accent, var(--color-accent));
+  -webkit-text-fill-color: var(--btn-accent, var(--color-accent));
+}
+/* On: a toggle that is set (toolbar web/vault/template, accepted model hint). */
+:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker) .sb.sb-icon.is-active,
+:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker)
+  .sb.sb-icon.is-active:hover,
+:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker)
+  .sb.sb-secondary.is-accepted,
+:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker)
+  .sb.sb-secondary.is-accepted:hover {
+  background: var(--btn-accent, var(--color-accent));
+  border-color: var(--btn-accent, var(--color-accent));
+  color: var(--btn-on-accent, var(--text-on-accent));
+  -webkit-text-fill-color: var(--btn-on-accent, var(--text-on-accent));
+}
+/* Segment — one choice from a group (header instructions, effort). The group's
+   container draws the frame; chosen = accent tint, in both places. */
+:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker) .sb.sb-seg,
+:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker) .sb.sb-seg:hover {
+  padding: 3px var(--s2, 8px);
+  border: 0;
+  border-radius: 0;
+  font-weight: 400;
+  background: transparent;
+}
+:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker)
+  .sb.sb-seg
+  + .sb.sb-seg {
+  border-left: 1px solid var(--background-modifier-border);
+}
+:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker) .sb.sb-seg.is-pinned,
+:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker)
+  .sb.sb-seg.is-pinned:hover,
+:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker) .sb.sb-seg.active,
+:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker)
+  .sb.sb-seg.active:hover {
+  background: color-mix(in srgb, var(--btn-accent, var(--color-accent)) 14%, transparent);
+  color: var(--btn-accent, var(--color-accent));
+  -webkit-text-fill-color: var(--btn-accent, var(--color-accent));
+  font-weight: 500;
+}
+/* A model without effort: the dimmed dash is a statement, not a control state. */
+:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker) .sb.sb-seg.is-off {
+  color: var(--text-faint);
+  -webkit-text-fill-color: var(--text-faint);
+}
+/* Tab — the comparison card keeps its underline; accessibility only (ADR-188). */
+:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker) .sb.sb-tab,
+:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker) .sb.sb-tab:hover {
+  min-height: 28px;
+  padding: var(--s1, 4px) var(--s2, 8px);
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  margin-bottom: -1px;
+  font-weight: 400;
+  background: transparent;
+}
+:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker) .sb.sb-tab.is-active,
+:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker)
+  .sb.sb-tab.is-active:hover {
+  font-weight: 600;
+  border-bottom-color: var(--btn-accent, var(--color-accent));
+  color: var(--text-normal);
+  -webkit-text-fill-color: var(--text-normal);
+}
+/* Chip — a status you can tap. The warning is the tint; the label stays normal
+   (orange text measures under 3:1 on white). */
+:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker) .sb.sb-chip-warn,
+:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker)
+  .sb.sb-chip-warn:hover {
+  padding: 3px var(--s2, 8px);
+  border-color: var(--color-orange); /* no color-mix: plain */
+  border-color: color-mix(in srgb, var(--color-orange) 50%, transparent);
+  background: transparent;
+  background: color-mix(in srgb, var(--color-orange) 14%, transparent);
+  color: var(--text-normal);
+  -webkit-text-fill-color: var(--text-normal);
+}
+
+/* Hover — soft neutral. Only where a pointer can hover, so nothing sticks on
+   touch; the transition runs only here, so a state fill is never animated on
+   the tap that set it (ADR-155). */
+@media (hover: hover) {
+  :is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker)
+    .sb.sb-primary:hover:not(:disabled):not(.stop),
+  :is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker)
+    .sb.sb-icon.is-active:hover:not(:disabled),
+  :is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker)
+    .sb.sb-secondary.is-accepted:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--btn-accent, var(--color-accent)) 88%, white);
+  }
+  :is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker)
+    .sb.sb-secondary:hover:not(:disabled):not(.is-accepted),
+  :is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker)
+    .sb.sb-destructive:hover:not(:disabled),
+  :is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker)
+    .sb.sb-primary.stop:hover:not(:disabled),
+  :is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker)
+    .sb.sb-icon.is-float:hover:not(:disabled),
+  :is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker)
+    .sb.sb-icon.is-warning:hover:not(:disabled) {
+    background: var(--background-modifier-hover);
+  }
+  :is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker)
+    .sb.sb-quiet:hover:not(:disabled),
+  :is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker)
+    .sb.sb-icon:hover:not(:disabled):not(.is-active):not(.is-float):not(.is-warning),
+  :is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker)
+    .sb.sb-seg:hover:not(:disabled):not(.is-pinned):not(.active) {
+    background: var(--background-modifier-hover);
+    color: var(--text-normal);
+    -webkit-text-fill-color: var(--text-normal);
+  }
+  :is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker)
+    .sb.sb-link:hover:not(:disabled) {
+    background: var(--background-modifier-hover);
+    padding-inline: 6px;
+    margin-inline: -4px;
+  }
+  :is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker)
+    .sb.sb-tab:hover:not(:disabled):not(.is-active) {
+    color: var(--text-normal);
+    -webkit-text-fill-color: var(--text-normal);
+    border-bottom-color: var(--background-modifier-border);
+  }
+  :is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker)
+    .sb.sb-chip-warn:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--color-orange) 22%, transparent);
+  }
+}
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  :is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker) .sb {
+    transition:
+      background-color 120ms ease,
+      color 120ms ease,
+      border-color 120ms ease;
+  }
+}
+/* Touch: every target at least 32px. Inline links and icons grow into their
+   negative margin rather than pushing the line apart. */
+@media (pointer: coarse) {
+  :is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker) .sb {
+    min-height: 32px;
+  }
+  :is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker)
+    .sb.sb-icon:not(.is-float) {
+    width: 32px;
+    height: 32px;
+  }
+  :is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker) .sb.sb-link,
+  :is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker)
+    .sb.sb-icon.is-inline {
+    margin-block: -8px;
+  }
+}
+/* On a phone, Obsidian stretches every button in a modal's Setting control to
+   full width with 10px padding (`.is-phone .modal .setting-item-control
+   button…`, up to (0,4,1)). The effort segments live in one; at (0,5,1) this
+   out-ranks it without relying on load order (ADR-190). */
+.modal .schreibstube-icon-picker .setting-item-control button.sb.sb {
+  width: auto;
+  margin: 0;
+  padding: 3px var(--s2, 8px);
+}
+@media (pointer: coarse) {
+  .modal .schreibstube-icon-picker .setting-item-control button.sb.sb {
+    min-height: 32px;
+  }
+}
+/* `hidden` must hide. The UA's `[hidden] { display: none }` loses to ANY
+   author `display`, so the base rule's inline-flex (and any layout rule) would show
+   an element the code hid — the search panel's clear ✕ was always visible. */
+:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker) [hidden] {
+  display: none !important;
+}
+
 .schreibstube-review-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
 }
 
+/* Layout only — the look is the role (`sb sb-primary`, `sb sb-quiet`, …). */
 .schreibstube-review-button {
-  display: inline-flex;
-  align-items: center;
   gap: 4px;
-  padding: 3px 8px;
-  font-size: var(--font-ui-smaller);
-  cursor: pointer;
 }
 
-.schreibstube-review-button[disabled] {
-  opacity: 0.5;
-  cursor: default;
-}
-
+/* The glyph's box. Its SIZE is the role base's 12px: `:is(…) .sb svg` is
+   (0,2,1) and this class reaches (0,1,1), so a size set here never applied —
+   it read 14px and painted 12px for as long as it existed. 12px is also the
+   right pairing with an 11.375px label, so the rule is gone rather than won. */
 .schreibstube-review-icon {
   display: inline-flex;
-}
-
-.schreibstube-review-icon svg {
-  width: 14px;
-  height: 14px;
 }
 
 .schreibstube-review-progress,
@@ -273,22 +617,10 @@ a.external-link.schreibstube-reminder-mark {
   gap: 4px;
 }
 
-.schreibstube-review-chip {
-  padding: 2px 8px;
-  border: 1px solid var(--background-modifier-border);
-  border-radius: 999px;
-  background: var(--background-primary);
-  color: var(--text-muted);
-  font-size: var(--font-ui-smaller);
-  cursor: pointer;
-}
-
-.schreibstube-review-chip.is-active {
-  border-color: var(--interactive-accent);
-  background: var(--background-modifier-hover);
-  color: var(--text-normal);
-}
-
+/* A file candidate is one choice from a group, so it is `sb sb-seg` and the
+   role carries everything — including the square corner. It used to be a
+   999px pill; the role set has one segment shape and a per-button radius is
+   exactly the drift it removed. */
 .schreibstube-review-chip.is-locked {
   cursor: default;
   opacity: 0.7;
@@ -360,20 +692,78 @@ a.external-link.schreibstube-reminder-mark {
   color: var(--text-muted);
 }
 
-.schreibstube-diff-delete {
-  background: var(--background-modifier-error);
-  color: var(--text-normal);
-  text-decoration: line-through;
-}
-
-.schreibstube-diff-insert {
-  background: var(--background-modifier-success);
-  color: var(--text-normal);
-}
-
+/* A marked run of text is drawn like a felt tip laid over the words and lifted
+ * off again: 104deg, ink in over the first half character and out over the last
+ * sixth, square ends, and one stroke per wrapped line.
+ *
+ * No border-radius (a rounded end reads as a chip), no text-shadow (a halo is a
+ * second treatment competing with the stroke, and it inverts between light and
+ * dark), no box-shadow. No `mix-blend-mode` either: any ancestor with transform,
+ * filter or opacity creates a stacking context and the blend silently stops
+ * there, and a panel cannot know what it is nested in.
+ *
+ * These were flat slabs from `--background-modifier-error` and
+ * `--background-modifier-success`: tokens for a toast or a form field, not for
+ * a run of prose. Measured in Obsidian, the painted fill sat 312 (insert) and
+ * 277 (delete) from the page in Euclidean RGB, against the theme's own
+ * highlight at 70 — four times too loud for a run of prose, and
+ * theme-dependent on top, since a theme picks that token's saturation for a
+ * UI affordance rather than for text.
+ *
+ * The ink stays semantic — green for an insertion, red for a deletion and for
+ * a flag — and the strikethrough stays. INK STRENGTH IS MEASURED, NOT PICKED:
+ * 60–140 Euclidean RGB from `--background-primary`, sampled over the flat
+ * middle of the painted stroke, is the band where a mark on prose reads as a
+ * mark. Below it, a rendering artefact; above it, a UI chip dropped into a
+ * paragraph. These land at 79 and 70. */
+.schreibstube-diff-delete,
+.schreibstube-diff-insert,
 .schreibstube-diff-flag {
-  background: var(--background-modifier-error);
+  --hl-angle: 104deg;
+  --hl-land-0: 0.2em; /* transparent until here… */
+  --hl-land-1: 0.7em; /* …ink from here: the pen lands over half a character */
+  --hl-lift-1: 88%; /* full ink until here… */
+  --hl-lift-0: calc(100% - 0.28em); /* …transparent from here: it lifts off in a sixth */
+  --hl-pad-y: 0.14em; /* overshoots the letters as a felt tip does */
+  --hl-pad-x: 0.42em;
+  --hl-ink-strong: var(--hl-ink);
+
+  background-color: transparent;
+  background-image: linear-gradient(
+    var(--hl-angle),
+    transparent var(--hl-land-0),
+    var(--hl-ink-strong) var(--hl-land-1),
+    var(--hl-ink) var(--hl-lift-1),
+    transparent var(--hl-lift-0)
+  );
   color: var(--text-normal);
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  text-shadow: none;
+  /* Inline padding never moves the line, and the side margins hand the
+     overshoot back, so the stroke runs past the text without taking width. */
+  padding: var(--hl-pad-y) var(--hl-pad-x);
+  margin: 0 calc(-1 * var(--hl-pad-x));
+  /* One stroke PER LINE, each with its own landing and lift. A diff run is
+     often long enough to wrap, which is exactly where this shows. */
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+
+/* The ink: a named colour composited onto the page, so it is opaque and lands
+   at the same strength under any theme. */
+.schreibstube-diff-insert {
+  --hl-ink: color-mix(in srgb, var(--color-green) 26%, var(--background-primary));
+}
+
+.schreibstube-diff-delete,
+.schreibstube-diff-flag {
+  --hl-ink: color-mix(in srgb, var(--color-red) 26%, var(--background-primary));
+}
+
+.schreibstube-diff-delete {
+  text-decoration: line-through;
 }
 
 .schreibstube-review-note {
@@ -483,6 +873,17 @@ a.external-link.schreibstube-reminder-mark {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* A glyph of this font is what an inline SVG is to the role set: the picture on
+   the button, not type. Where the button IS the glyph, the role base names the
+   button's font at (0,2,0) and out-ranks the rule above — which drew the
+   explorer's clear ✕ as a blank box in the monospace stack. A glyph in a span
+   inside a button needs nothing: the rule above is still the most specific one
+   reaching it. The size stays with the layout class; it is the glyph's box. */
+:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker) .sb.schreibstube-icon {
+  font-family: "schreibstube-icons";
+  font-weight: normal;
+}
+
 /* Obsidian pads a leaf's content box and lets it scroll: 12px at the sides,
    32px at the foot, `overflow: auto`, and in a side split `height: 100%` too.
    The padding would keep a section's rule from reaching the edges, and the
@@ -566,29 +967,16 @@ a.external-link.schreibstube-reminder-mark {
   box-shadow: inset 0 0 0 1px var(--background-modifier-border-focus, var(--text-faint));
 }
 
+/* Layout only — `sb sb-icon` carries the 24px box, the glyph and the hover.
+   It used to be 22px in --text-faint, which the role set rules out for a
+   control: 2.3:1 on white. The ✕ is a glyph of the bundled icon font, not an
+   SVG, so its size is type: the role's 11px label size would shrink it. */
 .schreibstube-explorer .schreibstube-explorer-filter-clear {
+  font-size: 14px;
   position: absolute;
   right: 3px;
   top: 50%;
   transform: translateY(-50%);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  padding: 0;
-  background-color: transparent;
-  border: none;
-  border-radius: var(--radius-s);
-  box-shadow: none;
-  cursor: pointer;
-  color: var(--text-faint);
-  font-size: 14px;
-}
-
-.schreibstube-explorer .schreibstube-explorer-filter-clear:hover {
-  background-color: var(--background-modifier-hover);
-  color: var(--text-normal);
 }
 
 /* Nothing to clear while the field still shows its placeholder, so the button
@@ -1031,11 +1419,52 @@ a.external-link.schreibstube-reminder-mark {
 .schreibstube-explorer-tasks {
   flex: 0 0 auto;
   margin-left: auto;
-  padding-left: var(--schreibstube-row-gap);
-  color: var(--text-faint);
-  font-size: var(--font-ui-smaller);
+  /* The row's own size, not a smaller one: the tally is part of that line of
+     type, not a footnote under it. Tabular figures so the column lines up
+     down the pane whatever the numbers are, and it never shrinks — a note
+     with 128 of 240 done takes the width it needs and the NAME ellipses,
+     because the name can be recognised from its first characters and a
+     half-drawn number cannot be read at all. */
+  font-size: inherit;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+  text-align: right;
+
+  /* A tint behind the figures, so the column is findable without reading it.
+     The padding is on the element whether or not the tint is painted, or the
+     finished rows would sit a few pixels off the others.
+
+     ACCENT, never a neutral. The row's own hover and active fills are
+     translucent washes of --background-modifier-hover; a neutral tint here
+     would be the same colour arriving twice and would vanish under the
+     pointer. An accent wash composites ON TOP of those and survives all of
+     them, which is the only reason this can be a fill at all. */
+  padding: 1px 5px;
+  border-radius: var(--schreibstube-border-radius);
+  background: color-mix(in srgb, var(--interactive-accent) 11%, transparent);
+}
+
+/* Nothing open: the fill goes, the padding stays. The tint is what says
+   "there is work here", so a finished note must not carry one. */
+.schreibstube-explorer-tasks[data-state="done"] {
+  background: transparent;
+}
+
+/* The two numbers are not equally useful. Done is what a person scans for. */
+.schreibstube-explorer-tasks-done {
+  color: var(--text-normal);
+  font-weight: 500;
+}
+
+.schreibstube-explorer-tasks-total {
+  color: var(--text-muted);
+}
+
+/* Nothing open. The tally steps back so the rows that still want work are the
+   only ones carrying weight in the column. */
+.schreibstube-explorer-tasks[data-state="done"] .schreibstube-explorer-tasks-done {
+  color: var(--text-muted);
+  font-weight: 400;
 }
 
 /* The "Move to…" list: a glyph and the folder's path on one line. */
@@ -1125,17 +1554,36 @@ a.external-link.schreibstube-reminder-mark {
 .schreibstube-tag-card-tasks {
   flex: 0 0 auto;
   margin-left: auto;
-  color: var(--text-muted);
   font-size: var(--font-ui-smaller);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+  /* The same tint, for the same reason, on the cards' own scale. */
+  padding: 1px 5px;
+  border-radius: var(--schreibstube-border-radius);
+  background: color-mix(in srgb, var(--interactive-accent) 11%, transparent);
+}
+
+.schreibstube-tag-card-tasks[data-state="done"] {
+  background: transparent;
+}
+
+/* Same hierarchy as the pane's rows: done leads, the total is context. */
+.schreibstube-tag-card-tasks-done {
+  color: var(--text-normal);
+  font-weight: 500;
+}
+
+.schreibstube-tag-card-tasks-total {
+  color: var(--text-muted);
+}
+
+.schreibstube-tag-card-tasks[data-state="done"] .schreibstube-tag-card-tasks-done {
+  color: var(--text-muted);
+  font-weight: 400;
 }
 
 /* Nothing left to do here: the note still carries the tag, so it is listed,
    but its figure steps back behind the ones that still have work in them. */
-.schreibstube-tag-card.is-settled .schreibstube-tag-card-tasks {
-  color: var(--text-faint);
-}
 
 .schreibstube-tag-card-folder {
   color: var(--text-faint);
@@ -1159,30 +1607,54 @@ a.external-link.schreibstube-reminder-mark {
   flex-direction: column;
 }
 
-/* A result is two lines, so the name and its folder stack rather than
-   competing for one row's width in a sidebar. */
-.schreibstube-explorer-row.is-result {
-  flex-wrap: wrap;
-  align-items: center;
-  padding-top: 3px;
-  padding-bottom: 3px;
+/* A result is two lines: the row exactly as the tree draws it, and the folder
+   it came from underneath.
+
+   Two elements and not one wrapping row. Every row in the pane is one line and
+   says so with a fixed `height`, so a second line inside it does not make it
+   taller — it spills onto the row below. Making the row wrap instead breaks the
+   line at the first item that does not fit, which for a file name longer than a
+   sidebar means the name takes a line of its own and strands the icon above it;
+   `min-width` cannot help, because a flex line breaks on an item's content size
+   rather than on what it could shrink to. Neither is fixable from inside the
+   row, so the second line sits beside it instead. */
+.schreibstube-explorer-result {
+  display: flex;
+  flex-direction: column;
 }
 
 /* The twisty is a tree affordance and there is no tree here; the space it
    holds stays, so the icons of the results line up as the tree's do. */
-.schreibstube-explorer-row.is-result .schreibstube-explorer-twisty {
+.schreibstube-explorer-result .schreibstube-explorer-twisty {
   visibility: hidden;
 }
 
+/* The folder the result came from. Indented under the glyph by the same
+   arithmetic a section header uses, so it lines up with the pane rather than
+   with a number guessed here. A path is long and a sidebar narrow, so it is
+   clipped to one line rather than wrapped into a paragraph. */
 .schreibstube-explorer-result-folder {
-  flex: 0 0 100%;
-  /* Under the name, aligned with it rather than with the icon: the eye
-     follows one left edge down the list. */
-  padding-left: calc(var(--schreibstube-row-gap, 7px) * 2 + var(--icon-s, 16px));
+  padding-left: calc(
+    var(--schreibstube-row-inset) + var(--schreibstube-twisty-size) + var(--schreibstube-row-gap)
+  );
+  padding-right: 8px;
+  padding-bottom: 3px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   color: var(--text-faint);
   font-size: var(--font-ui-smaller);
-  line-height: 1.2;
-  overflow-wrap: anywhere;
+  line-height: 1.3;
+  cursor: pointer;
+}
+
+/* The folder line belongs to the row above it, so a pointer resting on either
+   lights both: a result is one thing to press, not two. */
+@media (hover: hover) {
+  .schreibstube-explorer-result:hover .schreibstube-explorer-row,
+  .schreibstube-explorer-result:hover .schreibstube-explorer-result-folder {
+    background: var(--nav-item-background-hover, var(--background-modifier-hover));
+  }
 }
 
 /* The notes related to the one that is open, as cards in the right sidebar. */
@@ -1291,22 +1763,10 @@ a.external-link.schreibstube-reminder-mark {
   gap: 4px;
 }
 
+/* The icon grid's cells are segments too; only the size is theirs. */
 .schreibstube-icon-choice {
-  display: flex;
-  align-items: center;
-  justify-content: center;
   height: 38px;
-  padding: 0;
   font-size: 20px;
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: var(--schreibstube-border-radius);
-  cursor: var(--cursor);
-}
-
-.schreibstube-icon-choice.is-current {
-  border-color: var(--interactive-accent);
-  color: var(--text-accent);
 }
 
 .schreibstube-prompt-desc {
@@ -1644,6 +2104,120 @@ a.external-link.schreibstube-reminder-mark {
 
 .schreibstube-slideshow-masonry-tile img {
   height: auto;
+}
+
+/* ── Compare: two pictures in one frame, under a divider ──
+   The frame is given the first picture's proportions from the script; the
+   ratio here is only what it stands at until that picture has loaded. */
+.schreibstube-slideshow-compare {
+  position: relative;
+  aspect-ratio: 3 / 2;
+  overflow: hidden;
+  border-radius: var(--radius-s);
+  user-select: none;
+  cursor: ew-resize;
+}
+
+.schreibstube-slideshow-compare-side {
+  position: absolute;
+  inset: 0;
+}
+
+/* Cropped to the frame, both of them: the wipe reads as one thing changing
+   only while the two sides line up, and two photographs of one room are never
+   to the pixel the same shape. */
+.schreibstube-slideshow-compare-side img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* The before picture, clipped to the divider. Clipped rather than made
+   narrower, which would scale the picture inside and break the alignment. */
+.schreibstube-slideshow-compare-reveal {
+  position: absolute;
+  inset: 0;
+  clip-path: inset(0 calc(100% - var(--schreibstube-compare-split, 50%)) 0 0);
+}
+
+/* An alt text on the picture it names. Dark chip, light text, in both themes:
+   it stands on a photograph, not on the note's ground. */
+.schreibstube-slideshow-compare-label {
+  position: absolute;
+  bottom: 0.5rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: var(--radius-s);
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: var(--font-ui-smaller);
+  pointer-events: none;
+}
+
+.schreibstube-slideshow-compare-label--before {
+  left: 0.5rem;
+}
+
+.schreibstube-slideshow-compare-label--after {
+  right: 0.5rem;
+}
+
+/* The divider: a hairline across the picture with the grip on it. Its own
+   touch-action, so dragging it never turns into scrolling the note — the
+   frame keeps the browser's, so a thumb can still scroll past the picture. */
+.schreibstube-slideshow-compare-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: var(--schreibstube-compare-split, 50%);
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  border: none;
+  background: none;
+  color: #fff;
+  font-size: 16px;
+  cursor: ew-resize;
+  touch-action: none;
+}
+
+/* The line is drawn rather than given to the element, so the grip can sit on
+   it without the line running through the middle of the glyph. White with a
+   dark hairline around it: the divider stands on a photograph, and a plain
+   white line disappears into a bright one exactly as a dark line disappears
+   into a night shot. */
+.schreibstube-slideshow-compare-handle::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35);
+}
+
+.schreibstube-slideshow-compare-handle > span {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.schreibstube-slideshow-compare-handle svg {
+  width: 16px;
+  height: 16px;
+}
+
+.schreibstube-slideshow-compare-handle:focus-visible {
+  outline: 2px solid var(--interactive-accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-s);
 }
 
 /* Narrow: the scene stacks, its details side by side under it; the strip

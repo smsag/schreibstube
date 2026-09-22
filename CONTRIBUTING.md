@@ -16,14 +16,20 @@ a module resolution error.
 
 ## The checks
 
-| Command                 | What it does                                                           |
-| ----------------------- | ---------------------------------------------------------------------- |
-| `npm run lint`          | ESLint over the plugin and the bridge                                  |
-| `npm run format`        | Prettier, in place                                                     |
-| `npm test`              | The whole suite, plugin and bridge                                     |
-| `npm run test:coverage` | The same, against the coverage floor                                   |
-| `npm run build`         | Type check, bundle, prove it has no Node built-ins and fits the budget |
-| `npm run build:icons`   | Regenerate the bundled icon font, only when the set changes            |
+| Command                          | What it does                                                                               |
+| -------------------------------- | ------------------------------------------------------------------------------------------ |
+| `npm run lint`                   | ESLint over the plugin and the bridge                                                      |
+| `npm run format`                 | Prettier, in place                                                                         |
+| `npm test`                       | The whole suite, plugin and bridge                                                         |
+| `npm run test:coverage`          | The same, against the coverage floor                                                       |
+| `npm run build`                  | Type check, bundle, prove it has no Node built-ins and fits the budget                     |
+| `npm run build:icons`            | Regenerate the bundled icon font, only when the set changes                                |
+| `npm run check:obsidian-cascade` | Re-read the button rules out of the installed Obsidian, and fail on drift from the fixture |
+
+`check:obsidian-cascade` needs a local Obsidian and is not part of CI. Run it
+after an Obsidian update: `src/testing/obsidian-button-rules.ts` is what
+`src/services/obsidian-cascade.test.ts` proves our button roles win against, and
+a rule the fixture does not know about is a rule nothing is guarding.
 
 The coverage floor is a floor, not a target. Raise it when the number rises;
 never lower it to make a change pass. The same goes for the bundle budget in
@@ -69,6 +75,19 @@ npm run trace -- ./main.js.map < report.txt  # against a local build
 
 Every position the map knows becomes `src/…​.ts:line:column`; the rest of the
 trace passes through untouched.
+
+## Checking a layout without a vault
+
+`scripts/preview-explorer-results.html` draws the pane's result list against the
+real `styles.css`. Open it in any browser — no build, no dependency, no vault —
+and drag the window narrow.
+
+It exists because the result list shipped broken twice, and neither break was
+something the suite could catch: both were layout. A row in the pane is one line
+by construction, so a second line put inside one lands on the row below; and a
+row made to wrap instead breaks at the first item that will not fit, which for a
+file name longer than a sidebar strands the icon on the line above. Both are
+invisible from a unit test and obvious here in a second.
 
 ## Before a release: the mobile checklist
 

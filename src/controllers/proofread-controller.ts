@@ -8,7 +8,7 @@
  * while the queue sat open.
  */
 
-import { MarkdownView, Notice, type App, type TFile } from "obsidian";
+import { MarkdownView, Notice, TFile, type App } from "obsidian";
 import type { SchreibstubeSettings } from "../types";
 import type { Logger } from "../services/logger";
 import { t } from "../i18n";
@@ -108,7 +108,11 @@ export class ProofreadController {
   /** The note's own check interval, as a line for the panel. Empty when the
    *  note says nothing about it, which is the ordinary case. */
   private syncInterval = "";
-  private checking = false;
+  /** The notes whose sources are being checked. A set rather than one slot:
+   *  with one, a second note's check overwrote the first note's mark, so the
+   *  first could be started again while it was still in flight, and whichever
+   *  finished first cleared the mark for both. */
+  private readonly checking = new Set<string>();
 
   constructor(
     private readonly app: App,
@@ -200,7 +204,7 @@ export class ProofreadController {
   async invalidateGlossary(path: string): Promise<void> {
     this.registry.invalidate(path);
     if (this.selection.paths.some((selected) => path.endsWith(selected) || selected === path)) {
-      await this.refreshGlossary(this.app.workspace.getActiveFile());
+      await this.refreshGlossary(this.reviewedFile());
     }
   }
 
@@ -452,6 +456,20 @@ export class ProofreadController {
     view.editor.scrollIntoView({ from, to }, true);
   }
 
+  /**
+   * The note the panel is speaking for.
+   *
+   * Not `getActiveFile()`: every one of these is reached from the panel, and
+   * focusing the panel can leave Obsidian with no active file at all. Asked
+   * that way, the panel used to answer by emptying itself — glossary, matcher
+   * and the source row — for a note it was still holding a queue for.
+   */
+  private reviewedFile(): TFile | null {
+    if (this.filePath === null) return null;
+    const file = this.app.vault.getAbstractFileByPath(this.filePath);
+    return file instanceof TFile ? file : null;
+  }
+
   private async toggleGlossary(path: string): Promise<void> {
     if (!this.filePath) return;
 
@@ -463,7 +481,7 @@ export class ProofreadController {
       : [...current, path];
 
     this.sessionPicks.set(this.filePath, next);
-    await this.refreshGlossary(this.app.workspace.getActiveFile());
+    await this.refreshGlossary(this.reviewedFile());
   }
 
   private async refreshGlossary(file: TFile | null): Promise<void> {
@@ -512,15 +530,31 @@ export class ProofreadController {
 
   private async checkSource(manual: boolean): Promise<void> {
     const settings = this.getSettings();
-    if (!settings.syncEnabled || this.checking) return;
+    // Said out loud when a person asked for it. The button and the command do
+    // nothing when sync is switched off, and a control that does nothing and
+    // says nothing reads as a broken one — which is how the poll across the
+    // vault already reports this same case.
+    if (!settings.syncEnabled) {
+      if (manual) new Notice(t().common.notice(t().sync.disabled));
+      return;
+    }
 
-    const file = this.app.workspace.getActiveFile();
-    if (!file || file.path !== this.filePath) return;
+    // Only the note under review is ever checked here; the poller is what
+    // checks the others. The guard that matters is after the request, where
+    // the reader may have moved on — comparing the path here would compare
+    // `this.filePath` with itself.
+    const file = this.reviewedFile();
+    if (!file) return;
 
-    // Taken before the first await, not after: the guard above and the flag
+    // Against this note, not against any check at all: another note's fetch
+    // can be in flight for twenty seconds, and this one's check-on-open used
+    // to be dropped for the whole of it.
+    if (this.checking.has(file.path)) return;
+
+    // Taken before the first await, not after: the guard above and the mark
     // used to be separated by a read of the note, and the check on open and a
     // click on the button in the same moment both got through.
-    this.checking = true;
+    this.checking.add(file.path);
 
     try {
       // The cache is updated after a write, not during one, so a check made
@@ -708,7 +742,9 @@ export class ProofreadController {
       };
       this.emit();
     } finally {
-      this.checking = false;
+      // This note's mark, not every note's: another note's check may still be
+      // in flight, and clearing its mark here would let it be started twice.
+      this.checking.delete(file.path);
     }
   }
 

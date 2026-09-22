@@ -50,7 +50,8 @@ export class RelatedNotesView extends ItemView {
    * On by default, because a panel that has to be re-asked for every note is a
    * panel that gets asked once. It is switched off by opening the panel on a
    * particular note from that note's menu, which is a person saying which note
-   * they mean.
+   * they mean; whoever opens the panel says which of the two it is, through
+   * the state below.
    */
   private following = true;
 
@@ -121,13 +122,6 @@ export class RelatedNotesView extends ItemView {
 
   protected override async onClose(): Promise<void> {
     this.contentEl.empty();
-  }
-
-  /** List the notes related to one particular note, and stop following. */
-  show(path: string): void {
-    this.source = path;
-    this.following = false;
-    this.requestRender();
   }
 
   /** One redraw per frame, however many vault events arrived in it. */
