@@ -12,6 +12,10 @@ All notable changes to this project will be documented in this file.
 - **Tasks are recognised again without being marked.** The plan keeps an anchor per task — its note, its wording, its place among identical lines — and matches each scan against them: unchanged tasks by hash, edited ones by how alike they read. Where two tasks are too alike to tell apart, the planner says the task was not found instead of binding the wrong one, and nothing is deleted while you put it right.
 - **A few tasks can also become reminders.** Marked while planning, they go into a queue in the plan; a helper, the app or a Shortcut on an Apple device applies it, and iCloud carries the result to every device. The plugin itself never writes to Reminders, and a reminder ticked there ticks its task in the note.
 - **The bridge keeps the plan and writes the blocks.** A new `plan` capability, with its own token and its own CalDAV credential, stores one planning document — latest revision only, no history — and reads and writes your calendar. It is the first thing the bridge has ever stored, and `bridge/README.md` now says so where it used to claim it stored nothing. Bridge 2.5.0, protocol 2; the planner asks `/health` once and says plainly when a deployment is behind. Existing mail and publishing deployments are unaffected and keep working unchanged.
+- **Latest rows have the file menu.** A right click, or a long press on a
+  phone, on a note under Latest opens the same menu the tree gives it, so a
+  note found there can be deleted, renamed or moved without first finding it
+  in the tree below.
 
 ### Changed
 
@@ -29,6 +33,24 @@ All notable changes to this project will be documented in this file.
   cards — held a copy of the pill's styling each, and had drifted. They now
   share one, so a change to the pill can no longer reach one surface and miss
   the other.
+- **The filter field has an edge you can see, and a loupe.** It was a filled box
+  with a hairline of `--background-modifier-border` — a token meant for the seam
+  between two surfaces. Measured, that edge came out at 1.23:1 in light, and in
+  dark at exactly 1.00:1: Obsidian sets the form-field fill to the same colour
+  that token resolves to, so fill and edge were one colour and there was no edge
+  at all. WCAG asks 3:1 for the boundary of a control.
+
+  The box is gone rather than tinted harder. The pane is already a box, and a
+  second one at the top of it was the heaviest thing above a tree of
+  thirteen-pixel rows. What is left is the field on the pane's own ground with
+  one rule under it, mixed from `--text-normal` so it follows any theme — 54% in
+  light, 44% in dark, which clears 3:1 against every background a pane can sit
+  on, under Obsidian's own themes and under Klartext. It also gains the loupe it
+  never had: the field said "filter" only in its placeholder, which is gone the
+  moment anything is typed.
+- **Focus says something.** The rule thickens to 2px in the accent, and nothing
+  else moves — no ring, which this pane clips along its upper edge into
+  something that reads as a rendering fault rather than as focus.
 
 ### Removed
 
@@ -49,6 +71,11 @@ All notable changes to this project will be documented in this file.
   check returning, staleness recomputed as you type — and any of those landing
   mid-tap destroys the button under the finger and puts an identical one in its
   place. The redraw now waits until the tap has resolved.
+- **The filter field was 30px tall, not the 32px it asked for.** Obsidian sets
+  the height of a search input at a specificity a class rule loses to, so that
+  line had never taken effect. The same rule repainted the field's fill and
+  border on hover, which is what would have quietly undone the change above.
+  Every selector for this field now names the element and out-ranks it.
 
 ## 1.37.0 - 2026-09-20
 

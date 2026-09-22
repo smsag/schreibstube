@@ -262,6 +262,13 @@ export class ExplorerPaneView extends ItemView {
         "aria-label": t().explorer.searchPlaceholder
       }
     });
+    // The loupe, before the listeners so nothing depends on draw order. The
+    // field used to say "filter" only through its placeholder, which is gone
+    // the moment anything is typed; the glyph stays. Decorative — the field's
+    // own aria-label already names what it does — so `applyIcon` hides it.
+    const loupe = filter.createSpan({ cls: "schreibstube-explorer-filter-loupe" });
+    applyIcon(loupe, "search");
+
     search.addEventListener("input", () => {
       const value = search.value.trim().toLowerCase();
       this.cancelFilter();
@@ -970,7 +977,16 @@ export class ExplorerPaneView extends ItemView {
         this.renderTaskCount(row, target);
       }
 
-      row.addEventListener("click", () => void this.host?.sections.openLatest(file.path));
+      // The same press the tree answers, so a note met here can be deleted,
+      // renamed or moved without first finding it in the tree below.
+      wirePress(row, {
+        isDragging: () => this.drag.active !== null,
+        activate: () => void this.host?.sections.openLatest(file.path),
+        showMenu: (at) => {
+          const current = this.app.vault.getAbstractFileByPath(file.path);
+          if (current instanceof TFile) controller?.showMenu(current, at);
+        }
+      });
     }
 
     return matching.length;
