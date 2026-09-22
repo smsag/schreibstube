@@ -938,42 +938,92 @@ a.external-link.schreibstube-reminder-mark {
   margin: 0 var(--schreibstube-padding);
 }
 
-.schreibstube-explorer-filter {
+/* The boundary of the filter field, and why it is not a border token.
+   --background-modifier-border is a hairline BETWEEN SURFACES and is meant to
+   be quiet; measured in Obsidian it drew this field's edge at 1.23:1 under
+   Klartext, and in dark at exactly 1.00:1 — Obsidian sets the form-field fill
+   to the same #2e2e2e that token resolves to, so fill and edge were one
+   colour and there was no edge at all. WCAG 1.4.11 asks 3:1 for the boundary
+   of a control.
+   Mixed from --text-normal so it follows any theme rather than naming a
+   colour. The two percentages are MEASURED and are not one value used twice:
+   white sits at the end of the luminance scale and a dark ground does not, so
+   a single mix clears 3:1 on one and not the other. 54 / 44 clears it against
+   every ground this pane can sit on — primary, secondary and secondary-alt —
+   under Obsidian's own themes and under Klartext, the worst case being 3.03:1.
+   .theme-light and .theme-dark are Obsidian's own body classes, so this asks
+   nothing of any particular theme. */
+.theme-light .schreibstube-explorer {
+  --schreibstube-field-rule: color-mix(in srgb, var(--text-normal) 54%, transparent);
+}
+
+.theme-dark .schreibstube-explorer {
+  --schreibstube-field-rule: color-mix(in srgb, var(--text-normal) 44%, transparent);
+}
+
+/* No box. The pane is already one, and a second at the top of it competed
+   with the tree it filters — a grey slab above thirteen-pixel rows, the
+   heaviest thing in the pane. What is left is the field on the pane's own
+   ground with one rule under it, which is also the shape Obsidian gives this
+   field on a phone and the shape it gives the command palette everywhere.
+
+   EVERY SELECTOR HERE NAMES `input`, and the state ones add `:not(:disabled)`.
+   Measured in Obsidian: `input[type='search']` sets height at (0,1,1), which
+   beats a class rule at (0,1,0) — the field asked for 32px and got 30 for as
+   long as that rule has existed. Worse, `input[type='search']:not(:disabled):hover`
+   sets BOTH `background-color` and `border-color` at (0,3,1), so a hover rule
+   at (0,3,0) loses the fill and the edge the moment a pointer crosses the
+   field. `input.schreibstube-explorer-filter` is (0,2,1) and `:not(:disabled)`
+   carries a fourth class-level component, which is what wins. */
+.schreibstube-explorer input.schreibstube-explorer-filter {
   width: 100%;
   height: 32px;
-  /* Room for the clear button, so a long filter does not run under it. */
-  padding-right: 26px;
-}
-
-/* The field sits at the very top of a pane that clips what leaves it, and a
-   focus ring drawn outside the box loses its upper edge to that clip — half a
-   rectangle, which reads as a rendering fault rather than as focus. So focus is
-   said on the inside: the same box, a line drawn within it, nothing to crop.
-   Stated for both, because the ring comes from a border and a shadow at once
-   and taking away one leaves the other. */
-.schreibstube-explorer .schreibstube-explorer-filter,
-.schreibstube-explorer .schreibstube-explorer-filter:hover {
+  /* Room for the loupe on the left and the clear button on the right, so
+     neither runs under what is typed. */
+  padding: 0 26px 0 22px;
   border: none;
-  /* A hairline, drawn inside for the same reason the focus ring is: it says
-     "a field, type here" where a bare tint on a tinted pane said nothing. */
-  box-shadow: inset 0 0 0 1px var(--background-modifier-border);
-  background-color: var(--background-modifier-form-field);
+  border-bottom: 1px solid var(--schreibstube-field-rule);
+  border-radius: 0;
+  box-shadow: none;
+  background-color: transparent;
 }
 
-/* On a phone the tint is Obsidian's form-field colour at half strength. At
-   full strength it was a grey block on a pane that is itself grey; the
-   hairline now carries the affordance, so the fill can step back. */
-.is-mobile .schreibstube-explorer .schreibstube-explorer-filter,
-.is-mobile .schreibstube-explorer .schreibstube-explorer-filter:hover {
-  background-color: color-mix(in srgb, var(--background-modifier-form-field) 45%, transparent);
+/* Hover holds the rest state: hovering a field is not worth saying anything
+   about when focus is about to say it. This rule exists only to beat
+   Obsidian's, which would otherwise repaint both the fill and the edge. */
+.schreibstube-explorer input.schreibstube-explorer-filter:not(:disabled):hover {
+  background-color: transparent;
+  border-bottom-color: var(--schreibstube-field-rule);
 }
 
-.schreibstube-explorer .schreibstube-explorer-filter:focus,
-.schreibstube-explorer .schreibstube-explorer-filter:focus-visible,
-.schreibstube-explorer .schreibstube-explorer-filter:active {
+/* Focus is that rule thickening and taking the accent, and nothing else. The
+   pane clips what leaves it, so a ring drawn outside the field loses its upper
+   edge — half a rectangle, which reads as a rendering fault rather than as
+   focus. The height is fixed and the box border-box, so the second pixel costs
+   no layout. */
+.schreibstube-explorer input.schreibstube-explorer-filter:not(:disabled):focus,
+.schreibstube-explorer input.schreibstube-explorer-filter:not(:disabled):focus-visible,
+.schreibstube-explorer input.schreibstube-explorer-filter:not(:disabled):active {
   border: none;
   outline: none;
-  box-shadow: inset 0 0 0 1px var(--background-modifier-border-focus, var(--text-faint));
+  box-shadow: none;
+  background-color: transparent;
+  border-bottom: 2px solid var(--interactive-accent);
+}
+
+/* The loupe the field never had: it said "filter" only in its placeholder, and
+   a placeholder is gone the moment anything is typed. --text-muted, never
+   --text-faint, which the role set rules out for a control at 2.3:1 on white.
+   A glyph of the bundled icon font, so its size is type. */
+.schreibstube-explorer .schreibstube-explorer-filter-loupe {
+  position: absolute;
+  left: 2px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 13px;
+  line-height: 1;
+  color: var(--text-muted);
+  pointer-events: none;
 }
 
 /* Layout only — `sb sb-icon` carries the 24px box, the glyph and the hover.

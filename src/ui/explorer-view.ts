@@ -262,6 +262,13 @@ export class ExplorerPaneView extends ItemView {
         "aria-label": t().explorer.searchPlaceholder
       }
     });
+    // The loupe, before the listeners so nothing depends on draw order. The
+    // field used to say "filter" only through its placeholder, which is gone
+    // the moment anything is typed; the glyph stays. Decorative — the field's
+    // own aria-label already names what it does — so `applyIcon` hides it.
+    const loupe = filter.createSpan({ cls: "schreibstube-explorer-filter-loupe" });
+    applyIcon(loupe, "search");
+
     search.addEventListener("input", () => {
       const value = search.value.trim().toLowerCase();
       this.cancelFilter();
