@@ -19,7 +19,7 @@
  */
 import { parseCron, previousRun, type CronSchedule } from "./cron";
 import { t } from "../i18n";
-import type { SyncRecord } from "./sync-document";
+import { hasWaitingUpdate, type SyncRecord } from "./sync-document";
 
 /** Where a note says how often it should be checked. */
 export const SYNC_EVERY_KEY = "schreibstubeSyncEvery";
@@ -200,7 +200,13 @@ export function planSourceCheck(input: SourceCheckInput): SourceCheckPlan {
     input.noteBodyHash !== undefined &&
     record?.remoteHash !== undefined &&
     input.noteBodyHash !== record.remoteHash;
-  const etag = (record?.pendingChanges ?? 0) > 0 || lostTheSource ? undefined : record?.etag;
+  // An update the note has not taken is asked for in full as well: the panel
+  // counts nothing as owed once it has shown the cards, and a conditional
+  // check of a note left with them unaccepted answered "up to date".
+  const etag =
+    (record?.pendingChanges ?? 0) > 0 || lostTheSource || hasWaitingUpdate(record)
+      ? undefined
+      : record?.etag;
   return { due, etag };
 }
 

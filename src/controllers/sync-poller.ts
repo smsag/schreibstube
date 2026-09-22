@@ -27,6 +27,7 @@ import {
   SYNC_UPDATED_KEY
 } from "../services/sync-frontmatter";
 import {
+  hasWaitingUpdate,
   isRemoteChange,
   nextSyncRecord,
   normalizeNewlines,
@@ -333,19 +334,24 @@ export class SyncPoller {
     }
 
     const remoteBody = stripRemoteFrontmatter(outcome.body);
-    const changes = diffHunks(body, remoteBody).length;
+    const differences = diffHunks(body, remoteBody).length;
     const remoteChanged = isRemoteChange(record, remoteBody);
 
-    updates[file.path] = nextSyncRecord({
+    const next = nextSyncRecord({
       record,
       body,
       remoteBody,
       etag: outcome.etag,
       checkedAt,
-      pendingChanges: changes,
+      pendingChanges: differences,
       source: resolved.url,
-      settled: changes === 0
+      settled: differences === 0
     });
+    // Differences that are only the note's own edits are not news from the
+    // source. Counted as waiting, they announced an update on every poll, and
+    // the next poll fetched the whole document again to find the same edits.
+    const changes = hasWaitingUpdate(next) ? differences : 0;
+    updates[file.path] = { ...next, pendingChanges: changes };
 
     await this.writeFrontmatter(file, remoteBody, body, remoteChanged);
 
