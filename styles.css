@@ -223,6 +223,15 @@
   -webkit-appearance: none;
   appearance: none;
   box-sizing: border-box;
+  /* iOS waits after a tap to see whether a second one follows, because two
+     taps mean zoom. During that wait the first tap can be lost — most easily
+     when the element changes underneath it, which this panel does on every
+     state change. Obsidian exempts its OWN controls by marking them
+     `.is-clickable` or `.clickable-icon`, both of which carry
+     `touch-action: manipulation`; a button built here is neither, so it has
+     to say so itself. This is the whole reason a plugin's buttons can feel
+     slower to a thumb than the app's do. */
+  touch-action: manipulation;
   /* Obsidian's `button` rule sets height (--input-height), corner-shape and
      padding that no role would otherwise name — claim each one (ADR-190). */
   height: auto;

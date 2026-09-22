@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## [Unreleased]
 
 ### Added
 
@@ -21,6 +21,22 @@ All notable changes to this project will be documented in this file.
 ### Removed
 
 - **Send task to Erinnerungen** and **Compare with Erinnerungen**, with their two Shortcuts, the report file and the `obsidian://schreibstube?done=1` callback. Hotkeys bound to `send-task-to-reminders` or `fetch-done-from-reminders` do nothing now. The Reminders list setting stays and moves to **Tagesplan**; a list you had named is kept, and an empty one becomes **Schreibstube**.
+
+### Fixed
+
+- **Buttons needed two taps on an iPhone.** iOS holds the first tap back while
+  it waits to see whether a second one follows, because two taps mean zoom —
+  and during that wait the tap can be lost, most easily when the element
+  changes underneath it, which the review panel does on every state change.
+  Obsidian exempts its own controls by marking them `.is-clickable` or
+  `.clickable-icon`, both of which carry `touch-action: manipulation`; a button
+  this plugin builds is neither, so it now says so itself. That is why the
+  plugin's buttons could feel slower to a thumb than the app's own.
+- The review panel no longer redraws itself while a finger is on it. It rebuilds
+  its whole tree on every state change — a glossary parse finishing, a source
+  check returning, staleness recomputed as you type — and any of those landing
+  mid-tap destroys the button under the finger and puts an identical one in its
+  place. The redraw now waits until the tap has resolved.
 
 ## 1.37.0 - 2026-09-20
 
