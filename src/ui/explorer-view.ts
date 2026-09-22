@@ -517,6 +517,11 @@ export class ExplorerPaneView extends ItemView {
     const host = this.body;
     if (!host || !this.host) return;
 
+    // Taken before the rows go. The strip measures the pane while the list is
+    // empty, and that layout clamps the scroll to the top: every redraw threw
+    // the place away, and a reveal then found the open note off screen and
+    // centred it — after every folder opened or closed.
+    const scrollTop = host.scrollTop;
     host.empty();
     this.shelf?.empty();
     const filtered = this.collectMatches();
@@ -533,6 +538,7 @@ export class ExplorerPaneView extends ItemView {
     if (settings.explorerLatestEnabled) this.renderLatest(host);
     this.renderFiles(host);
 
+    host.scrollTop = scrollTop;
     this.scrollToRevealed();
     this.syncShelfRule();
   }
@@ -1444,6 +1450,11 @@ export class ExplorerPaneView extends ItemView {
     } else {
       this.expanded.add(path);
     }
+    // A reveal still waiting for the pane to have a layout — a note opened
+    // while the sidebar was shut — would land on this draw, pulling the
+    // person away from the folder they are opening. Browsing is the answer
+    // to "where am I" they chose instead.
+    this.revealing = null;
     this.writeMemory();
     this.requestRender();
   }

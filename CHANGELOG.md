@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+- **Browsing folders no longer throws the Explorer back to the open note.**
+  Every redraw measured the pinned strip while the list was empty, which reset
+  the scroll to the top; the reveal that follows the open note then found it
+  off screen and centred it. The pane now keeps its place across a redraw, and
+  opening or closing a folder drops a reveal still waiting from a note opened
+  while the sidebar was shut.
+
 ### Changed
 - **The filter field has an edge you can see, and a loupe.** It was a filled box
   with a hairline of `--background-modifier-border` — a token meant for the seam
