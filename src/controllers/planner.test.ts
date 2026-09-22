@@ -354,6 +354,33 @@ describe("reminders", () => {
   });
 });
 
+describe("reminders the Erinnerungen sync already keeps", () => {
+  it("are left to it, so a task is not reminded twice", async () => {
+    const held = bridge();
+    const note = "- [ ] Call #remind #projects/ea48\n- [ ] Write #projects/ea48";
+    const subject = planner(fakeApp({ "Plan.md": note }), { remindersEnabled: true });
+    await subject.refresh();
+    const [synced, plain] = subject.current().tasks;
+
+    await subject.planBlock(draft([synced!, plain!], [synced!, plain!]));
+    await subject.refresh();
+
+    expect(held.plan.queue.map((op) => op.title)).toEqual(["Write #projects/ea48"]);
+  });
+
+  it("are the planner's to send while the sync is off", async () => {
+    const held = bridge();
+    const subject = planner(fakeApp({ "Plan.md": "- [ ] Call #remind #projects/ea48" }));
+    await subject.refresh();
+    const [task] = subject.current().tasks;
+
+    await subject.planBlock(draft([task!], [task!]));
+    await subject.refresh();
+
+    expect(held.plan.queue).toHaveLength(1);
+  });
+});
+
 describe("the way back from a reminder", () => {
   it("opens the note on the task's line", async () => {
     bridge();

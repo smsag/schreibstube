@@ -30,15 +30,26 @@ export interface VaultTask {
   done: boolean;
 }
 
-const TASK_PREFIX = /^\s*(?:[-*+]|\d+[.)])\s+\[.\]\s?/;
-const BLOCK_ID = /\s\^[A-Za-z0-9-]{1,64}\s*$/;
+// The shapes of a task line, kept in one place: the planner and the
+// Erinnerungen sync read the same lines, and two copies of a pattern are two
+// answers to what a task says.
+
+/** The list marker and the box, `- [ ] `. */
+export const TASK_PREFIX = /^\s*(?:[-*+]|\d+[.)])\s+\[.\]\s?/;
+/** The box alone, with what comes before it captured, for writing a marker. */
+const BOX = /^(\s*(?:[-*+]|\d+[.)])\s+\[).\]/;
+/** An Obsidian block id at the end of the line; the id is captured. */
+export const BLOCK_ID = /\s\^([A-Za-z0-9-]{1,64})\s*$/;
 /**
- * The link "Send task to Erinnerungen" puts at the end of a line. It is that
- * feature's bookkeeping, not the task's words: left in, it would change the
- * task's hash whenever it came or went, and travel into the reminder's title.
+ * The link versions up to 1.35 put at the end of a task sent to Erinnerungen,
+ * with its id captured. It is bookkeeping, not the task's words: left in, it
+ * would change the task's hash when it came or went, and travel into a title.
  */
-const REMINDER_LINK = /\s*\[[^\]]*\]\(obsidian:\/\/schreibstube\?task=[A-Za-z0-9-]{1,64}\)\s*$/;
-const DUE = /📅\s*(\d{4}-\d{2}-\d{2})/u;
+export const LEGACY_REMINDER_LINK =
+  /\s*\[[^\]]*\]\(obsidian:\/\/schreibstube\?task=([A-Za-z0-9-]{1,64})\)\s*$/;
+/** The Tasks plugin's due date, captured. */
+export const DUE = /📅\s*(\d{4}-\d{2}-\d{2})/u;
+/** The Tasks plugin's dated fields; all of them are metadata, not the task's words. */
 const DATED_FIELDS = /\s*(?:📅|⏳|🛫|✅|➕|❌)\s*\d{4}-\d{2}-\d{2}/gu;
 const TAG = /(?:^|\s)#([A-Za-z0-9][A-Za-z0-9/_-]*)/g;
 
@@ -77,7 +88,7 @@ export function tasksInNote(path: string, content: string): VaultTask[] {
 export function taskText(line: string): string {
   const text = line
     .replace(TASK_PREFIX, "")
-    .replace(REMINDER_LINK, "")
+    .replace(LEGACY_REMINDER_LINK, "")
     .replace(BLOCK_ID, "")
     .replace(DATED_FIELDS, "")
     .replace(/\s+/g, " ")
@@ -109,6 +120,20 @@ export function taskHash(text: string): string {
     hash = Math.imul(hash, 0x01000193) >>> 0;
   }
   return hash.toString(16).padStart(8, "0");
+}
+
+/**
+ * The line with its box ticked or reopened.
+ *
+ * Only an open box is ticked and only an `x` is reopened. A box someone
+ * marked otherwise — cancelled, deferred, anything Tasks or a theme gives a
+ * meaning — says more than "done" or "not done", and what someone wrote in
+ * the box is theirs.
+ */
+export function withBoxDone(line: string, done: boolean): string {
+  const marker = taskMarker(line);
+  const flips = done ? marker === " " : marker === "x" || marker === "X";
+  return flips ? line.replace(BOX, `$1${done ? "x" : " "}]`) : line;
 }
 
 /** A note's name as a person calls it: the file without its folder or extension. */

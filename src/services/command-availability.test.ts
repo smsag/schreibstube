@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   commandAvailable,
-  remindersScope,
   renameTarget,
   type CommandContext,
   type GatedCommand
@@ -16,7 +15,6 @@ function screen(overrides: Partial<CommandContext> = {}): CommandContext {
     explorerOpen: false,
     task: false,
     apple: false,
-    sentTask: false,
     ...overrides
   };
 }
@@ -94,15 +92,9 @@ describe("what the palette offers", () => {
     );
   });
 
-  it("offers the comparison with Reminders wherever Reminders exists, whatever is open", () => {
+  it("offers the sync with Reminders wherever Reminders exists, whatever is open", () => {
     expect(offered(screen({ apple: true, markdown: false }))).toContain("reminders");
-    expect(offered(screen({ apple: false, sentTask: true }))).not.toContain("reminders");
-  });
-
-  it("compares the open note when it has sent tasks, and the whole list otherwise", () => {
-    expect(remindersScope(screen({ sentTask: true }))).toBe("note");
-    expect(remindersScope(screen({ sentTask: false }))).toBe("all");
-    expect(remindersScope(screen({ markdown: false, sentTask: false }))).toBe("all");
+    expect(offered(screen({ apple: false }))).not.toContain("reminders");
   });
 
   it("offers to close the folders only where there are folders to close", () => {

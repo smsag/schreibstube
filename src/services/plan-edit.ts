@@ -18,8 +18,7 @@ import {
 } from "./plan-model";
 import type { Anchor, MatchResult } from "./task-identity";
 import { anchorFor } from "./task-identity";
-import type { Tag, VaultTask } from "./task-inventory";
-import { taskMarker } from "./task-summary";
+import { withBoxDone, type Tag, type VaultTask } from "./task-inventory";
 
 export function setDeadline(
   plan: PlanDocument,
@@ -258,15 +257,9 @@ export function takeCompletions(
   return { plan: { ...plan, completions: kept }, edits };
 }
 
-const BOX = /^(\s*(?:[-*+]|\d+[.)])\s+\[).\]/;
-
 /**
- * A note with the reported completions written into it.
- *
- * Only an open box is ticked and only an `x` is reopened. A box someone
- * marked otherwise — cancelled, deferred, anything Tasks or a theme gives a
- * meaning — says more than "done" or "not done", and what someone wrote in
- * the box is theirs. Returns how many lines actually changed.
+ * A note with the reported completions written into it, by the one rule for
+ * a box (`withBoxDone`). Returns how many lines actually changed.
  */
 export function setTaskDone(
   content: string,
@@ -279,10 +272,9 @@ export function setTaskDone(
   for (const edit of edits) {
     const line = lines[edit.line];
     if (line === undefined) continue;
-    const marker = taskMarker(line);
-    const flips = edit.done ? marker === " " : marker === "x" || marker === "X";
-    if (!flips) continue;
-    lines[edit.line] = line.replace(BOX, `$1${edit.done ? "x" : " "}]`);
+    const updated = withBoxDone(line, edit.done);
+    if (updated === line) continue;
+    lines[edit.line] = updated;
     changed += 1;
   }
 

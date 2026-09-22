@@ -8,31 +8,33 @@ import {
   WidgetType
 } from "@codemirror/view";
 import { t } from "../i18n";
-import { isTaskLine, reminderLinkSpan } from "../services/reminder-export";
+import { reminderIdSpan } from "../services/reminder-tasks";
+import type { SchreibstubeSettings } from "../types";
 import { renderReminderIcon } from "../ui/reminder-icon";
 
 export const REMINDER_MARK_CLASS = "schreibstube-reminder-mark";
 
 /**
- * Draws the reminder link at the end of a sent task as a small Reminders mark
+ * Draws the block id at the end of a synced task as a small Reminders mark
  * in Live Preview.
  *
- * The link stays in the text; only its rendering changes, and only while the
+ * The id stays in the text; only its rendering changes, and only while the
  * cursor is elsewhere, the way Obsidian itself shows a link's source when it
  * is being edited. Source mode is left alone: there the text is the point.
+ * With the sync off, an id is just an id and is drawn as one.
  */
-export function createReminderMarkExtension(): Extension {
+export function createReminderMarkExtension(getSettings: () => SchreibstubeSettings): Extension {
   return ViewPlugin.fromClass(
     class {
       decorations: DecorationSet;
 
       constructor(view: EditorView) {
-        this.decorations = buildMarks(view);
+        this.decorations = buildMarks(view, getSettings());
       }
 
       update(update: ViewUpdate): void {
         if (update.docChanged || update.viewportChanged || update.selectionSet) {
-          this.decorations = buildMarks(update.view);
+          this.decorations = buildMarks(update.view, getSettings());
         }
       }
     },
@@ -41,12 +43,8 @@ export function createReminderMarkExtension(): Extension {
 }
 
 class ReminderMarkWidget extends WidgetType {
-  constructor(private readonly id: string) {
-    super();
-  }
-
-  override eq(other: ReminderMarkWidget): boolean {
-    return other.id === this.id;
+  override eq(): boolean {
+    return true;
   }
 
   override toDOM(view: EditorView): HTMLElement {
@@ -58,8 +56,8 @@ class ReminderMarkWidget extends WidgetType {
   }
 }
 
-function buildMarks(view: EditorView): DecorationSet {
-  if (!view.dom.closest(".is-live-preview")) return Decoration.none;
+function buildMarks(view: EditorView, settings: SchreibstubeSettings): DecorationSet {
+  if (!settings.remindersEnabled || !view.dom.closest(".is-live-preview")) return Decoration.none;
 
   const { doc, selection } = view.state;
   const builder = new RangeSetBuilder<Decoration>();
@@ -70,8 +68,8 @@ function buildMarks(view: EditorView): DecorationSet {
       const line = doc.lineAt(pos);
       pos = line.to + 1;
 
-      const span = reminderLinkSpan(line.text);
-      if (!span || !isTaskLine(line.text)) continue;
+      const span = reminderIdSpan(line.text, settings.remindersTrigger);
+      if (!span) continue;
       const edited = selection.ranges.some(
         (range) => range.from <= line.to && range.to >= line.from
       );
@@ -80,7 +78,7 @@ function buildMarks(view: EditorView): DecorationSet {
       builder.add(
         line.from + span.from,
         line.from + span.to,
-        Decoration.replace({ widget: new ReminderMarkWidget(span.id) })
+        Decoration.replace({ widget: new ReminderMarkWidget() })
       );
     }
   }

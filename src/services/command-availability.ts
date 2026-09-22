@@ -43,8 +43,6 @@ export interface CommandContext {
   task: boolean;
   /** Running where Apple's Reminders exists: macOS or iOS. */
   apple: boolean;
-  /** The open note has at least one task that was sent to Reminders. */
-  sentTask: boolean;
 }
 
 export function commandAvailable(command: GatedCommand, context: CommandContext): boolean {
@@ -85,15 +83,14 @@ export function commandAvailable(command: GatedCommand, context: CommandContext)
       return context.markdown;
     case "collapse-explorer":
       return context.explorerOpen;
-    // A reminder is made from the task under the cursor, and only where there
+    // The task under the cursor is tagged as a reminder, and only where there
     // is a Reminders app to receive it. Whether the feature is switched on is
     // a setting, which is not visible here, so that refusal belongs to the
     // command.
     case "send-reminder":
       return context.markdown && context.task && context.apple;
-    // The one comparison with Reminders narrows itself to the open note when
-    // that note has sent tasks, and otherwise asks about the whole list, so the
-    // only visible condition is the platform.
+    // A sync reaches the whole vault, whatever is open, so the only visible
+    // condition is the platform.
     case "reminders":
       return context.apple;
   }
@@ -103,16 +100,4 @@ export function commandAvailable(command: GatedCommand, context: CommandContext)
 export function renameTarget(context: CommandContext): "image" | "note" | null {
   if (context.image) return "image";
   return context.markdown ? "note" : null;
-}
-
-/**
- * How far a comparison with Reminders reaches.
- *
- * Two commands used to ask this of the person: one for the open note, one for
- * every note. The note on screen already answers it — a note with sent tasks
- * is what somebody running the comparison from it means, and anything else
- * means the list.
- */
-export function remindersScope(context: CommandContext): "note" | "all" {
-  return context.markdown && context.sentTask ? "note" : "all";
 }

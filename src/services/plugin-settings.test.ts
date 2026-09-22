@@ -43,23 +43,34 @@ describe("normalizeSettings", () => {
     expect(normalizeSettings({ remindersEnabled: true }).remindersEnabled).toBe(true);
   });
 
-  it("trims the Reminders list and Shortcut names, and keeps an emptied one empty", () => {
+  it("keeps a named Reminders list and falls back to the sync's own for an empty one", () => {
     expect(normalizeSettings({ remindersList: "  Arbeit " }).remindersList).toBe("Arbeit");
-    expect(normalizeSettings({ remindersShortcut: " Mine " }).remindersShortcut).toBe("Mine");
-    expect(normalizeSettings({ remindersShortcut: "" }).remindersShortcut).toBe("");
-    expect(normalizeSettings({}).remindersShortcut).toBe("Schreibstube Reminder");
-    expect(normalizeSettings({ remindersShortcut: 3 as never }).remindersShortcut).toBe(
-      "Schreibstube Reminder"
+    expect(normalizeSettings({ remindersList: "" }).remindersList).toBe("Schreibstube");
+    expect(normalizeSettings({ remindersList: 3 as never }).remindersList).toBe("Schreibstube");
+  });
+
+  it("makes a dated task a reminder unless a person chose the tag alone", () => {
+    expect(normalizeSettings({}).remindersTrigger).toBe("date");
+    expect(normalizeSettings({ remindersTrigger: "tag" }).remindersTrigger).toBe("tag");
+    expect(normalizeSettings({ remindersTrigger: "always" as never }).remindersTrigger).toBe(
+      "date"
     );
   });
 
-  it("names the status Shortcut and the report file, and keeps the path inside the vault", () => {
-    expect(normalizeSettings({}).remindersStatusShortcut).toBe("Schreibstube Reminder Status");
-    expect(normalizeSettings({}).remindersReportFile).toBe("schreibstube-reminders.txt");
-    expect(normalizeSettings({ remindersReportFile: "/notes/done.txt " }).remindersReportFile).toBe(
-      "notes/done.txt"
+  it("keeps the sync folder inside the vault", () => {
+    expect(normalizeSettings({}).remindersFolder).toBe(".schreibstube/reminders");
+    expect(normalizeSettings({ remindersFolder: " /Sync/Reminders/ " }).remindersFolder).toBe(
+      "Sync/Reminders"
     );
-    expect(normalizeSettings({ remindersReportFile: "" }).remindersReportFile).toBe("");
+    expect(normalizeSettings({ remindersFolder: "../outside" }).remindersFolder).toBe(
+      ".schreibstube/reminders"
+    );
+    expect(normalizeSettings({ remindersFolder: "a//b" }).remindersFolder).toBe(
+      ".schreibstube/reminders"
+    );
+    expect(normalizeSettings({ remindersFolder: "/" }).remindersFolder).toBe(
+      ".schreibstube/reminders"
+    );
   });
 
   it("keeps the task counts in the file pane off unless switched on", () => {
@@ -487,11 +498,8 @@ describe("the day planner's settings", () => {
     expect(normalizeSettings({ plannerStartMinute: 99_999 }).plannerStartMinute).toBe(24 * 60 - 1);
   });
 
-  it("drops a tag prefix's hash and a list left empty", () => {
+  it("drops a tag prefix's hash", () => {
     expect(normalizeSettings({ plannerTagPrefix: "#projects" }).plannerTagPrefix).toBe("projects");
-    expect(normalizeSettings({ plannerRemindersList: " " }).plannerRemindersList).toBe(
-      "Schreibstube"
-    );
   });
 });
 

@@ -30,8 +30,8 @@ export function bootstrapSchreibstubeRuntime(plugin: Plugin, handlers: Bootstrap
   plugin.registerEditorExtension(createTaskBadgeExtension());
   plugin.registerEditorExtension(createTaskFoldExtension());
   plugin.registerMarkdownPostProcessor(createTaskFoldPostProcessor());
-  plugin.registerEditorExtension(createReminderMarkExtension());
-  plugin.registerMarkdownPostProcessor(createReminderMarkPostProcessor());
+  plugin.registerEditorExtension(createReminderMarkExtension(handlers.getSettings));
+  plugin.registerMarkdownPostProcessor(createReminderMarkPostProcessor(handlers.getSettings));
   registerTaskRibbon(plugin);
   registerSlideshow(plugin);
 

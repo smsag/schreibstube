@@ -1,25 +1,38 @@
 import type { MarkdownPostProcessor } from "obsidian";
 import { t } from "../i18n";
 import { REMINDER_MARK_CLASS } from "./reminder-mark";
+import { reminderIdSpan } from "../services/reminder-tasks";
+import type { SchreibstubeSettings } from "../types";
 import { renderReminderIcon } from "../ui/reminder-icon";
 
-const REMINDER_LINK_SELECTOR = 'a[href^="obsidian://schreibstube?task="]';
-
 /**
- * Draws the reminder link of a sent task as the Reminders mark in Reading
- * view. The anchor keeps its href, so following it still works; only what
- * it shows changes.
+ * Puts the Reminders mark after a synced task in Reading view.
+ *
+ * Obsidian hides a block id there, so the rendered item cannot say whether it
+ * has one. The section's source can: each list item carries its line within
+ * the section, and that line is read as the editor reads it.
  */
-export function createReminderMarkPostProcessor(): MarkdownPostProcessor {
-  return (el) => {
-    for (const anchor of Array.from(
-      el.querySelectorAll<HTMLAnchorElement>(REMINDER_LINK_SELECTOR)
-    )) {
-      if (anchor.classList.contains(REMINDER_MARK_CLASS)) continue;
-      anchor.classList.add(REMINDER_MARK_CLASS);
-      anchor.setAttribute("aria-label", t().tasks.markTooltip);
-      anchor.empty();
-      renderReminderIcon(anchor);
+export function createReminderMarkPostProcessor(
+  getSettings: () => SchreibstubeSettings
+): MarkdownPostProcessor {
+  return (el, ctx) => {
+    const settings = getSettings();
+    if (!settings.remindersEnabled) return;
+    const section = ctx.getSectionInfo(el);
+    if (!section) return;
+    const lines = section.text.split(/\r?\n/);
+
+    for (const item of Array.from(el.querySelectorAll<HTMLElement>("li[data-line]"))) {
+      if (item.querySelector(`:scope > .${REMINDER_MARK_CLASS}`)) continue;
+      const line = lines[section.lineStart + Number(item.dataset.line)];
+      if (line === undefined || !reminderIdSpan(line, settings.remindersTrigger)) continue;
+
+      const mark = item.ownerDocument.createElement("span");
+      mark.className = REMINDER_MARK_CLASS;
+      mark.setAttribute("aria-label", t().tasks.markTooltip);
+      renderReminderIcon(mark);
+      const nested = item.querySelector(":scope > ul, :scope > ol");
+      item.insertBefore(mark, nested);
     }
   };
 }

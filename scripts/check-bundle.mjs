@@ -20,11 +20,11 @@ import { fileURLToPath } from "node:url";
  * they come to about 404. The headroom left is for the next feature, not a
  * new normal — a change that needs more says why, as this one does.
  *
- * Raised to 470 KB at 417 KB, for the day planner (+42 KB): a leaf with its
- * modals, the block a start page draws, the plan's own model, matcher and
- * proposal engine, and every string of it in two languages. It is the largest
- * single feature the plugin has taken on, and the headroom left is for the
- * next one, not for this one to grow into.
+ * Raised to 470 KB at 417 KB, for the day planner (+42 KB) and the Reminders
+ * sync beside it (+7 KB): a leaf with its modals, the block a start page
+ * draws, the plan's own model, matcher and proposal engine, the sync's
+ * reconciler and file formats, and every string of both in two languages.
+ * The headroom left is for the next feature, not for these to grow into.
  */
 const MAX_BUNDLE_KB = 470;
 

@@ -95,9 +95,13 @@ planner runs. Two rules keep that record honest:
   bounded queue. Applied deletes make room first; when there is still none, a
   newly marked task waits.
 
-Tasks sent with the older **Send task to Erinnerungen** command are a separate
-feature with its own list and its own link. Marking such a task in a block as
-well gives it a second reminder; use one or the other for a task.
+The planner and the **Erinnerungen sync** ([REMINDERS.md](REMINDERS.md)) share
+one Reminders list. A task the sync already carries — it has `#remind`, or a
+due date while dates count — is left to the sync even when it is marked in a
+block, so a task is never reminded twice. The difference between the two is
+where the decision lives: the sync keeps an id on the task's line and needs no
+bridge; the planner keeps its reminders in the plan and writes nothing into
+the note.
 
 ## Settings
 

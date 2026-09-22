@@ -42,6 +42,7 @@ import {
 } from "../services/plan-edit";
 import { matchAnchors, renamedAnchors } from "../services/task-identity";
 import { noteName, tasksInNote, type VaultTask } from "../services/task-inventory";
+import { syncedAsReminder } from "../services/reminder-tasks";
 import type { SchreibstubeSettings } from "../types";
 
 /** How long a plan on screen is trusted before it is asked for again. */
@@ -234,7 +235,9 @@ export class Planner {
    * The reminder queue for every member marked for it, with its deadline.
    *
    * A marked member whose task was not found this pass is passed on as
-   * unknown, so its reminder is left alone rather than deleted.
+   * unknown, so its reminder is left alone rather than deleted. One the
+   * Erinnerungen sync already carries is left to it, so it is not reminded
+   * twice.
    */
   private withQueue(plan: PlanDocument, bound: Map<string, VaultTask>): PlanDocument {
     const settings = this.getSettings();
@@ -249,6 +252,9 @@ export class Planner {
           unknown.add(member.key);
           continue;
         }
+        if (settings.remindersEnabled && syncedAsReminder(task, settings.remindersTrigger)) {
+          continue;
+        }
         desired.set(member.key, {
           title: task.text,
           notes: `↩ ${noteName(task.path)}\n${taskUrl(member.key)}`,
@@ -258,7 +264,7 @@ export class Planner {
       }
     }
 
-    return buildQueue(plan, desired, settings.plannerRemindersList, unknown);
+    return buildQueue(plan, desired, settings.remindersList, unknown);
   }
 
   // -------------------------------------------------------------------------
