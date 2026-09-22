@@ -17,6 +17,18 @@ All notable changes to this project will be documented in this file.
 
 - **Reminders come from the planner, and nothing is written into a note for them.** Mark a task **also in Erinnerungen** when you put it in a block, and it becomes a reminder in one list, **Schreibstube** unless you name another. Editing, ticking or dating the task follows it there; a reminder ticked on the phone ticks the task. Something on an Apple device carries the reminders across — a Shortcut run by an automation, or a helper on a Mac — by asking the bridge two things: `GET /plan/queue` for what is left to do, and `POST /plan/queue/ack` with what it did and what the list now says. It does not need Obsidian open, and one device is enough; iCloud does the rest. See [REMINDERS.md](REMINDERS.md).
 - **Reminders made by 1.35 and earlier still open their task.** Their tasks still end in the link that command left, and following it still finds the line, wherever the note is now. Those old reminders are no longer kept in step.
+- **The task tally reads as a tally.** The pill behind the figures beside a
+  note's name was a wash of the accent so faint it looked like a grey box, so
+  the numbers were set in a heavier weight to be findable at all — emphasis
+  arriving twice, inside a pill, on a line of plain names. The wash now carries
+  the accent properly and the figures sit at the row's own weight, with a
+  little more room inside the pill. Nothing about what it says has changed: it
+  is still done over total, and a note with nothing left open still loses its
+  fill entirely.
+- The two places that show a tally — the file pane's rows and the pinned-tag
+  cards — held a copy of the pill's styling each, and had drifted. They now
+  share one, so a change to the pill can no longer reach one surface and miss
+  the other.
 
 ### Removed
 
