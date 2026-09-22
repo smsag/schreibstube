@@ -5,6 +5,34 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Changed
+- **The filter field has an edge you can see, and a loupe.** It was a filled box
+  with a hairline of `--background-modifier-border` — a token meant for the seam
+  between two surfaces. Measured, that edge came out at 1.23:1 in light, and in
+  dark at exactly 1.00:1: Obsidian sets the form-field fill to the same colour
+  that token resolves to, so fill and edge were one colour and there was no edge
+  at all. WCAG asks 3:1 for the boundary of a control.
+
+  The box is gone rather than tinted harder. The pane is already a box, and a
+  second one at the top of it was the heaviest thing above a tree of
+  thirteen-pixel rows. What is left is the field on the pane's own ground with
+  one rule under it, mixed from `--text-normal` so it follows any theme — 54% in
+  light, 44% in dark, which clears 3:1 against every background a pane can sit
+  on, under Obsidian's own themes and under Klartext. It also gains the loupe it
+  never had: the field said "filter" only in its placeholder, which is gone the
+  moment anything is typed.
+
+- **Focus says something.** The rule thickens to 2px in the accent, and nothing
+  else moves — no ring, which this pane clips along its upper edge into
+  something that reads as a rendering fault rather than as focus.
+
+### Fixed
+- **The filter field was 30px tall, not the 32px it asked for.** Obsidian sets
+  the height of a search input at a specificity a class rule loses to, so that
+  line had never taken effect. The same rule repainted the field's fill and
+  border on hover, which is what would have quietly undone the change above.
+  Every selector for this field now names the element and out-ranks it.
+
+### Changed
 
 - **The task tally reads as a tally.** The pill behind the figures beside a
   note's name was a wash of the accent so faint it looked like a grey box, so
