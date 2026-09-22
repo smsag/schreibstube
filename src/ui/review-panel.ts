@@ -12,6 +12,7 @@ import { t } from "../i18n";
 import { ItemView, setIcon, type WorkspaceLeaf } from "obsidian";
 import type { GlossarySelectionSource } from "../services/glossary-resolver";
 import { diffParts } from "../services/diff-marks";
+import { RenderGate } from "../services/render-gate";
 import { isFlagOnly } from "../services/proofread-runner";
 import type { Suggestion } from "../services/suggestion";
 import { diffWords } from "../services/word-diff";
@@ -80,6 +81,8 @@ export const EMPTY_REVIEW_STATE: ReviewState = {
 export class ReviewPanelView extends ItemView {
   private state: ReviewState = EMPTY_REVIEW_STATE;
   private handlers: ReviewHandlers | null = null;
+  private readonly gate = new RenderGate<ReviewState>();
+  private heldRedraw = 0;
 
   constructor(leaf: WorkspaceLeaf) {
     super(leaf);
@@ -105,15 +108,48 @@ export class ReviewPanelView extends ItemView {
    *  takes a different shape. */
   updateReviewState(state: ReviewState): void {
     this.state = state;
-    this.render();
+    // Not while a finger is down on this panel: a redraw would destroy the
+    // button under it and put an identical one in its place, and the press
+    // and the release would land on two different elements (render-gate.ts).
+    const draw = this.gate.request(state);
+    if (draw !== null) this.render();
   }
 
   override async onOpen(): Promise<void> {
+    // The listeners go on contentEl, which render() empties but never
+    // replaces, so they outlive every redraw. The release is watched on the
+    // document: a finger that leaves the panel before lifting must still open
+    // the gate, or the panel would stop redrawing altogether.
+    // A tap starts here and is not over until the browser has delivered its
+    // click. Measured in Obsidian: a redraw scheduled from `pointerup` runs
+    // BEFORE that click and loses it — the same bug, three milliseconds wide.
+    this.registerDomEvent(this.contentEl, "pointerdown", () => {
+      this.gate.hold();
+      window.clearTimeout(this.heldRedraw);
+      // A gesture that never becomes a click — a scroll, a finger that slid
+      // off the button — still has to open the gate, or the panel would stop
+      // redrawing until the next tap.
+      this.heldRedraw = window.setTimeout(() => this.drawHeld(), 400);
+    });
+    // Zero, not immediately: this runs in the click's own task, so the
+    // button's handler has already had the event and the element it is
+    // standing on survives until then.
+    this.registerDomEvent(this.contentEl, "click", () => {
+      window.clearTimeout(this.heldRedraw);
+      this.heldRedraw = window.setTimeout(() => this.drawHeld(), 0);
+    });
     this.render();
   }
 
   override async onClose(): Promise<void> {
+    window.clearTimeout(this.heldRedraw);
     this.contentEl.empty();
+  }
+
+  /** Draw whatever the gate held back while a tap was in progress. */
+  private drawHeld(): void {
+    window.clearTimeout(this.heldRedraw);
+    if (this.gate.release() !== null) this.render();
   }
 
   private render(): void {
