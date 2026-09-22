@@ -13,9 +13,9 @@
   },
   "dependencies": {
     "@vscode/markdown-it-katex": "^1.1.2",
-    "imapflow": "^2.0.2",
+    "imapflow": "^2.0.5",
     "katex": "^0.18.7",
-    "mailparser": "^3.9.24",
+    "mailparser": "^3.9.28",
     "markdown-it": "^15.0.2",
     "markdown-it-anchor": "^10.0.0",
     "markdown-it-deflist": "^4.0.0",
