@@ -1513,6 +1513,10 @@ export class ExplorerPaneView extends ItemView {
       this.paintSelection();
       if (isFolder) {
         this.toggle(file.path);
+        // Whoever is following the pane — a tile grid, today — hears which
+        // folder it was. A modifier click returned above: gathering rows for
+        // an action is not choosing a folder to look at.
+        controller.noteFolderChosen(file.path);
         return;
       }
       void controller.open(file, false);

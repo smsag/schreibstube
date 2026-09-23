@@ -56,12 +56,6 @@ function folder(path: string, children: (TFile | TFolder)[] = []): TFolder {
   return Object.assign(new TFolder(path), { children, name: path.split("/").pop() ?? path });
 }
 
-/** A path with an extension is a file; without one, a folder — as far as
- *  these tests need the vault to tell them apart. */
-function entry(path: string): TFile | TFolder {
-  return /\.[^/]+$/.test(path) ? new TFile(path) : folder(path);
-}
-
 interface Fixture {
   controller: ExplorerController;
   timers: ReturnType<typeof fakeTimers>;
@@ -108,6 +102,16 @@ function fixture(options: FixtureOptions = {}): Fixture {
   const createBinary = vi.fn(async (path: string) => {
     present.add(path);
   });
+  // A folder answers with its children, as the vault's does: the tile grid
+  // and the folder count read them, and a folder without them is a file.
+  const node = (path: string): TFile | TFolder => {
+    if (/\.[^/]+$/.test(path)) return new TFile(path);
+    const prefix = path.length > 0 ? `${path}/` : "";
+    const children = [...present]
+      .filter((p) => p.startsWith(prefix) && p !== path && !p.slice(prefix.length).includes("/"))
+      .map(node);
+    return folder(path, children);
+  };
   const asked: string[] = [];
   const toasts: { message: string; undo: () => void }[] = [];
   const clock = { now: 1_000_000 };
@@ -116,8 +120,8 @@ function fixture(options: FixtureOptions = {}): Fixture {
   const app = {
     vault: {
       getRoot: () => folder(""),
-      getAbstractFileByPath: (path: string) => (present.has(path) ? entry(path) : null),
-      getAllLoadedFiles: () => [...present].map(entry),
+      getAbstractFileByPath: (path: string) => (present.has(path) ? node(path) : null),
+      getAllLoadedFiles: () => [...present].map(node),
       createBinary,
       adapter: {
         exists: async (path: string) => (path === ".trash" ? trash.length > 0 : present.has(path)),
@@ -552,5 +556,51 @@ describe("the review's findings", () => {
 
     expect(f.trash).toEqual([".trash/Fremd.md"]);
     expect(f.present.has("a.md")).toBe(true);
+  });
+});
+
+describe("a folder's pictures as tiles", () => {
+  it("sends the folder to whoever lays out tiles, and follows from then on", async () => {
+    const f = fixture({ present: ["Fotos", "Fotos/a.jpg"] });
+    const opened: [string, boolean][] = [];
+    f.controller.useFolderTilesOpener(async (folder, following) => {
+      opened.push([folder, following]);
+    });
+
+    await f.controller.run("show-images", folder("Fotos") as never);
+    await f.controller.run("show-images", new TFile("Fotos/a.jpg") as never);
+
+    expect(opened).toEqual([["Fotos", true]]);
+  });
+
+  it("tells a listener which folder was pressed, until it stops listening", () => {
+    const f = fixture();
+    const heard: string[] = [];
+    const stop = f.controller.onFolderChosen((path) => heard.push(path));
+
+    f.controller.noteFolderChosen("Fotos");
+    stop();
+    f.controller.noteFolderChosen("Texte");
+
+    expect(heard).toEqual(["Fotos"]);
+  });
+
+  it("answers null for a path that is not a folder, and leaves out a picture just deleted", async () => {
+    const f = fixture({ present: ["Fotos", "Fotos/a.jpg", "Fotos/b.jpg", "Fotos/Notiz.md"] });
+    expect(f.controller.folderTiles("Fotos/a.jpg")).toBeNull();
+    expect(f.controller.folderTiles("Fehlt")).toBeNull();
+    expect(f.controller.folderTiles("Fotos")?.images.map((image) => image.name)).toEqual([
+      "a.jpg",
+      "b.jpg"
+    ]);
+
+    // Trashed and not yet confirmed by the vault: gone from the grid at once,
+    // as it is gone from the tree.
+    f.present.add("Fotos/a.jpg");
+    await deleteViaMenu(f.controller, new TFile("Fotos/a.jpg"));
+
+    expect(f.controller.folderTiles("Fotos")?.images.map((image) => image.name)).toEqual(["b.jpg"]);
+    expect(f.controller.folderHasImages("Fotos")).toBe(true);
+    expect(f.controller.folderHasImages("Fotos/Notiz.md")).toBe(false);
   });
 });

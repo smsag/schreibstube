@@ -63,6 +63,7 @@ import { REVIEW_VIEW_TYPE, ReviewPanelView } from "./ui/review-panel";
 import { EXPLORER_RIBBON_ICON, EXPLORER_VIEW_TYPE, ExplorerPaneView } from "./ui/explorer-view";
 import { TAG_NOTES_VIEW_TYPE, TagNotesView } from "./ui/tag-notes-view";
 import { RELATED_NOTES_VIEW_TYPE, RelatedNotesView } from "./ui/related-notes-view";
+import { FOLDER_TILES_VIEW_TYPE, FolderTilesView } from "./ui/folder-tiles-view";
 import { registerSchreibstubeIcon } from "./ui/schreibstube-icon";
 import {
   EXPLORER_STATE_FILE,
@@ -226,6 +227,10 @@ export default class SchreibstubePlugin extends Plugin {
     this.explorer.useTagOpener((tag) => this.activateTagNotes(tag));
     // From a note's menu: the reader named the note, so the panel stays on it.
     this.explorer.useRelatedOpener((path) => this.activateRelatedNotes(path, false));
+    // From a folder's menu: the grid then keeps up with the folder pressed in the pane.
+    this.explorer.useFolderTilesOpener((folder, following) =>
+      this.activateFolderTiles(folder, following)
+    );
     await this.explorer.start();
 
     this.sections = new PaneSectionsController(
@@ -240,6 +245,7 @@ export default class SchreibstubePlugin extends Plugin {
     this.registerView(EXPLORER_VIEW_TYPE, (leaf) => this.createExplorerView(leaf));
     this.registerView(TAG_NOTES_VIEW_TYPE, (leaf) => this.createTagNotesView(leaf));
     this.registerView(RELATED_NOTES_VIEW_TYPE, (leaf) => this.createRelatedNotesView(leaf));
+    this.registerView(FOLDER_TILES_VIEW_TYPE, (leaf) => this.createFolderTilesView(leaf));
     this.registerExplorerEvents();
     this.registerEditorExtension(
       createGlossaryUnderlineExtension({
@@ -466,6 +472,44 @@ export default class SchreibstubePlugin extends Plugin {
           if (file) await explorer.open(file, newTab);
         },
         showMenu: (path, event) => explorer.showMenuForPath(path, event)
+      });
+    }
+    return view;
+  }
+
+  /**
+   * A folder's pictures as tiles, in a tab of the main area.
+   *
+   * One tab of the kind, like the sidebar panels: a following grid is one
+   * answer, and two of them would say it twice. `getLeaf("tab")` always has
+   * a leaf to give, so there is no sidebar to be missing here. Made active
+   * because a person chose the menu entry; a later folder press updates the
+   * tab through the view's own listener and never comes back through here.
+   */
+  async activateFolderTiles(folder: string, following: boolean): Promise<void> {
+    const [existing] = this.app.workspace.getLeavesOfType(FOLDER_TILES_VIEW_TYPE);
+    const leaf = existing ?? this.app.workspace.getLeaf("tab");
+    await leaf.setViewState({
+      type: FOLDER_TILES_VIEW_TYPE,
+      state: { folder, following },
+      active: true
+    });
+    await this.app.workspace.revealLeaf(leaf);
+  }
+
+  private createFolderTilesView(leaf: WorkspaceLeaf): FolderTilesView {
+    const view = new FolderTilesView(leaf);
+    const explorer = this.explorer;
+    if (explorer) {
+      view.connect({
+        tiles: (folder) => explorer.folderTiles(folder),
+        resourceUrl: (path) => explorer.resourceUrl(path),
+        open: async (path) => {
+          const file = this.app.vault.getAbstractFileByPath(path);
+          if (file) await explorer.open(file, true);
+        },
+        showMenu: (path, at) => explorer.showMenuForPath(path, at),
+        onFolderChosen: (listener) => explorer.onFolderChosen(listener)
       });
     }
     return view;
@@ -1056,6 +1100,20 @@ export default class SchreibstubePlugin extends Plugin {
       "collapse-explorer",
       () => void this.explorer?.undoLast()
     );
+
+    // The folder of the note in front of you, as tiles — a route for the
+    // palette and a hotkey, and for a phone where the pane may be shut.
+    // Offered only when that folder has a picture of its own to show.
+    this.addCommand({
+      id: "folder-tiles",
+      name: t().commands.folderTiles,
+      checkCallback: (checking) => {
+        const parent = this.app.workspace.getActiveFile()?.parent;
+        if (!parent || !this.explorer?.folderHasImages(parent.path)) return false;
+        if (!checking) void this.activateFolderTiles(parent.path, true);
+        return true;
+      }
+    });
 
     this.addCommand({
       id: "pin-tag",

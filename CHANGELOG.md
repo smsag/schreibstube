@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Added
+
+- **A folder's pictures as tiles.** **Images as tiles** on a folder's menu opens a tab in the main area with the folder's own pictures as a grid — its own, not its subfolders'. While the tab is open it follows the pane: press another folder in the tree and the grid shows that one, without taking the focus from the tree; close the tab and it stops. A tile opens its picture in a new tab, never in the grid's own; a right-click or long press gives the file's menu. Up to 400 tiles, with a line saying how many more; pictures load as they scroll into view. Which files are pictures and in what order is one pure module with tests; the view only draws. A command, **Explorer: this note's folder as tiles**, offers the same for the folder of the open note.
+
 ## 1.40.0 - 2026-09-23
 
 An icon can sit in a sentence. Type a colon and two letters of an icon's
