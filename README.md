@@ -525,6 +525,20 @@ The badges appear in Live Preview and Source mode. The ribbon also renders in Re
 
 A task can carry more than its first line: a paragraph typed with Shift+Enter, a note under it, sub-items — anything indented deeper than the task's own marker. While the task is open that text stays in view. Tick the task and it folds away, leaving the first line; untick it and it comes back. In the editor this is an ordinary fold, so the fold indicator opens a done task by hand and it stays open until its state changes again. Tasks that are already done when a note opens are folded from the start. In Reading view there is no folding, so the body is hidden instead. This works in every note, with or without the ribbon.
 
+#### Summarising an attached PDF
+
+A doc that embeds or links a PDF can be summarised from it. Run **Insert: summary from the attached PDF**: the PDF's text is read, its passages are offered in document order, and the ones you tick are written at the cursor. Each one ends with a small mark — `↗` — which opens the PDF at the page that passage came from, the way a footnote leads to its source.
+
+```markdown
+Die Auswertung zeigt einen Rückgang von 12 % [[Bericht.pdf#page=12&selection=4,0,6,31|↗]]
+```
+
+The mark is an ordinary Obsidian link, written in whatever form the vault is set to use. Nothing renders it and nothing has to be installed for it to work: it survives sync, works in Reading view, and still opens the right page in a vault where this plugin is switched off.
+
+Two things are worth knowing. The page is the physical page, counted from the front, which a document with roman-numbered front matter will not agree with what is printed on the paper. And the precise part of the mark — the `selection` — belongs to the file as it was read; replace the PDF with a fresh export and the mark still opens the right page, but the sentence it highlights may have moved.
+
+A scanned PDF has no text layer, so there is nothing to read and the command says so rather than opening an empty list. Documents longer than 200 pages are read up to that point, and the notice says how much was covered.
+
 #### Sending a task to Erinnerungen
 
 On macOS and iOS a task can be handed to Apple's Reminders. Put the cursor on the task and run **Send task to Erinnerungen**, or right-click the line (long-press on a phone) and choose **Send to Erinnerungen**. The task's line becomes the reminder's title, tags included, and the text indented under it becomes the note. The command is offered only when the cursor is on a task; switch the feature on under **Settings → Schreibstube → Erinnerungen** first.

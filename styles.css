@@ -2416,3 +2416,74 @@ a.external-link.schreibstube-reminder-mark {
 .schreibstube-slideshow-fs-close:hover {
   color: #fff;
 }
+
+/* ── Choosing passages out of a PDF ──
+   The list is the whole point of the modal, so it takes the height and the
+   rest of the dialog keeps its own. A passage is shown entire rather than
+   truncated: deciding whether a paragraph belongs in a summary means reading
+   the paragraph, and an ellipsis would hide the sentence that decides it. */
+.schreibstube-pdf-list {
+  max-height: 50vh;
+  overflow-y: auto;
+  margin: var(--size-4-2) 0;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+}
+
+.schreibstube-pdf-row {
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.schreibstube-pdf-row:last-child {
+  border-bottom: none;
+}
+
+/* Filtered out, not forgotten: a passage ticked before the filter was typed
+   is still ticked and still inserted. */
+.schreibstube-pdf-hidden {
+  display: none;
+}
+
+/* The whole row is the label, so the text is as clickable as the box. */
+.schreibstube-pdf-label {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--size-4-2);
+  padding: var(--size-4-2);
+  cursor: pointer;
+}
+
+.schreibstube-pdf-label:hover {
+  background-color: var(--background-modifier-hover);
+}
+
+.schreibstube-pdf-check {
+  margin-top: 0.25em;
+  flex: 0 0 auto;
+}
+
+.schreibstube-pdf-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-2-1);
+  min-width: 0;
+}
+
+/* The page number reads as an address rather than as part of the sentence. */
+.schreibstube-pdf-page {
+  font-size: var(--font-smallest);
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.schreibstube-pdf-text {
+  font-size: var(--font-ui-small);
+  line-height: var(--line-height-tight);
+  overflow-wrap: anywhere;
+}
+
+.schreibstube-pdf-count {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  text-align: right;
+}

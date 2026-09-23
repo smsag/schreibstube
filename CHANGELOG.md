@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Added
+
+- **A summary out of an attached PDF, with the way back into it.** **Insert: summary from the attached PDF** reads the PDF a doc embeds or links, offers its passages, and writes the ones you choose at the cursor — each followed by a mark that opens the PDF at the page the passage came from. The mark is an ordinary Obsidian link (`Bericht.pdf#page=12&selection=…`), so it needs nothing to render, survives sync, and works in Reading view. The text is read with the pdf.js Obsidian already ships, which is why the feature costs 7 KB rather than a megabyte. A scan says so instead of offering an empty list, and a document past 200 pages says how much of it was read.
+
 ### Fixed
 
 - **A folder deleted and refilled within ten seconds no longer stays hidden.** The pane takes a trashed row away at once and believes the vault again after a grace, but a file a sync client wrote back under that folder within the grace cleared only its own path from what was held back — the folder above it stayed trashed, and so did everything in it, until the timer gave up. A path that exists now clears every folder above it too, on a create and on a rename alike; the rename case had no handling at all.
