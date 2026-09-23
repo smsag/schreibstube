@@ -2,7 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## 1.40.0 - 2026-09-23
+
+An icon can sit in a sentence. Type a colon and two letters of an icon's
+name and a picker offers the matches; what goes into the note is `:folder:`,
+which this plugin draws as the glyph in Live Preview and Reading view and
+every other reader sees as a word that says what was meant. A colon after a
+word never opens the picker, so prose keeps its colons, and a shortcode in
+code, a link or a URL stays text. One setting switches it off for a vault
+where another plugin already claims the colon.
+
+Mobile checklist: not run. The picker is Obsidian's own suggest and the glyph
+is a font the plugin already installs, so both should behave on a phone; the
+cursor-adjacency rule, which turns a glyph back into its colons when the
+cursor touches it, is the one thing a touch screen might answer differently.
+
+The bridge's protocol is unchanged; bridge 2.4.0 still pairs with this release.
 
 ### Added
 
