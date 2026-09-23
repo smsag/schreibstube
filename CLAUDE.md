@@ -22,7 +22,7 @@ are tested against the stub in `src/testing/`. The rule is what keeps the suite
 at ten seconds and a phone bug reproducible on a laptop.
 
 _Enforced by:_ `src/services/` has no `obsidian` import (the tests alias it and
-would fail to load one); `vitest.config.ts` measures coverage over the decision
+would fail to load one); `vitest.config.mts` measures coverage over the decision
 modules only.
 
 ### 2. Every boundary is validated and budgeted
@@ -48,7 +48,7 @@ engine counts differently — the re-base is its own change, says what was
 measured, and lands alone. A number that moved without a sentence explaining
 why is a regression.
 
-_Enforced by:_ `vitest.config.ts` thresholds, `scripts/check-bundle.mjs`,
+_Enforced by:_ `vitest.config.mts` thresholds, `scripts/check-bundle.mjs`,
 `eslint.config.mjs`, `tsconfig.json`, and the CI audit step. The PR template
 asks for the sentence.
 
