@@ -29,6 +29,7 @@ interface WorkspaceInternals {
 
 interface LeafInternals {
   containerEl?: HTMLElement;
+  updateHeader?: () => void;
 }
 
 function internals(workspace: Workspace): WorkspaceInternals {
@@ -445,4 +446,19 @@ export function installMenuShowHook(
       if (target[name] === wrapped) target[name] = original;
     }
   };
+}
+
+/**
+ * Redraw a leaf's tab header, so a view whose title changed shows it.
+ *
+ * Obsidian reads `getDisplayText()` when it sets a view's state and not
+ * again; a view that moves to another subject on its own keeps the old name
+ * on its tab. The redraw is a method the API has never declared, so it is
+ * feature-detected like every other internal here — but not reported when
+ * missing: it runs on every folder press, and a tab with last folder's name
+ * is a blemish, not a failure worth a warning per press.
+ */
+export function refreshLeafHeader(leaf: WorkspaceLeaf): void {
+  const update = (leaf as unknown as LeafInternals).updateHeader;
+  if (typeof update === "function") update.call(leaf);
 }

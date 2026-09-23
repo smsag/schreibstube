@@ -18,6 +18,7 @@
 import { ItemView, type ViewStateResult, type WorkspaceLeaf } from "obsidian";
 import { t } from "../i18n";
 import type { FolderImages } from "../services/folder-images";
+import { refreshLeafHeader } from "../services/workspace-internals";
 import { wirePress } from "./explorer-gestures";
 import { applyIcon, installIconFont } from "./icon-font";
 
@@ -62,11 +63,11 @@ export class FolderTilesView extends ItemView {
   getDisplayText(): string {
     const labels = t().explorer.tiles;
     if (this.folder === null) return labels.viewTitle;
-    return labels.viewTitleFor(this.folder.length > 0 ? basenameOf(this.folder) : labels.root);
+    return labels.viewTitleFor(isRoot(this.folder) ? labels.root : basenameOf(this.folder));
   }
 
   override getIcon(): string {
-    return "images";
+    return "image";
   }
 
   connect(host: FolderTilesHost): void {
@@ -77,7 +78,7 @@ export class FolderTilesView extends ItemView {
       host.onFolderChosen((folder) => {
         if (!this.following) return;
         this.folder = folder;
-        this.requestRender();
+        this.folderChanged();
       })
     );
     this.requestRender();
@@ -128,6 +129,20 @@ export class FolderTilesView extends ItemView {
     this.contentEl.empty();
   }
 
+  /**
+   * The grid moved to another folder on its own, without a `setViewState`.
+   *
+   * Obsidian learns about state it set; state the view changed itself has
+   * to be announced, or a restart brings back the folder the tab was opened
+   * on rather than the one it was last showing, and the tab keeps its old
+   * name until something else redraws the header.
+   */
+  private folderChanged(): void {
+    this.app.workspace.requestSaveLayout();
+    refreshLeafHeader(this.leaf);
+    this.requestRender();
+  }
+
   /** One redraw per frame, however many vault events arrived in it. */
   private requestRender(): void {
     if (this.pending) return;
@@ -152,7 +167,7 @@ export class FolderTilesView extends ItemView {
     const header = root.createDiv({ cls: "schreibstube-tiles-header" });
     const title = header.createDiv({ cls: "schreibstube-tiles-title" });
     applyIcon(title.createSpan({ cls: "schreibstube-explorer-glyph" }), "folder");
-    title.createSpan({ text: this.folder.length > 0 ? this.folder : labels.root });
+    title.createSpan({ text: isRoot(this.folder) ? labels.root : this.folder });
 
     if (tiles === null) {
       root.createDiv({ cls: "schreibstube-tiles-empty", text: labels.gone });
@@ -216,6 +231,11 @@ export class FolderTilesView extends ItemView {
       void host.open(path);
     });
   }
+}
+
+/** The vault calls its root "/", and an empty path is the same place. */
+function isRoot(path: string): boolean {
+  return path === "/" || path.length === 0;
 }
 
 function basenameOf(path: string): string {
