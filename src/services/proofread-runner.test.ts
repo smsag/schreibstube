@@ -3,13 +3,21 @@ import { compileGlossaries } from "./glossary-matcher";
 import { parseGlossary } from "./glossary-parser";
 import { segmentMarkdown, type ProseBlock } from "./markdown-segments";
 import {
+  cardActions,
   chunkBlocks,
   createCancelToken,
   isFlagOnly,
   runProofread,
   scanGlossary
 } from "./proofread-runner";
-import { applyPlan, planApply, refreshStaleness, resolveAnchor } from "./suggestion";
+import {
+  applyPlan,
+  createSuggestion,
+  planApply,
+  refreshStaleness,
+  resolveAnchor,
+  type Suggestion
+} from "./suggestion";
 
 const GLOSSARY = parseGlossary(
   "G.md",
@@ -268,5 +276,35 @@ describe("runProofread", () => {
       createCancelToken()
     );
     expect(result.suggestions[0]?.category).toBe("spelling");
+  });
+});
+
+describe("cardActions", () => {
+  const card = (fields: Partial<Suggestion>): Suggestion =>
+    createSuggestion({
+      kind: "replace",
+      source: "glossary",
+      category: "terminology",
+      severity: "warning",
+      from: 0,
+      to: 4,
+      original: "Haus",
+      replacement: "Gebäude",
+      note: "",
+      ...fields
+    });
+
+  it("offers a proofreading card all three", () => {
+    expect(cardActions(card({}))).toEqual({ accept: true, reject: true, locate: true });
+  });
+
+  it("offers a flag-only card no Accept, since it has nothing to apply", () => {
+    expect(cardActions(card({ replacement: "Haus" })).accept).toBe(false);
+  });
+
+  it("offers an update from a source no Reject, since rejecting changed nothing durable", () => {
+    const update = cardActions(card({ source: "remote", category: "update" }));
+
+    expect(update).toEqual({ accept: true, reject: false, locate: true });
   });
 });

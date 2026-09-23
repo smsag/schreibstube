@@ -13,7 +13,7 @@ import { ItemView, setIcon, type WorkspaceLeaf } from "obsidian";
 import type { GlossarySelectionSource } from "../services/glossary-resolver";
 import { diffParts } from "../services/diff-marks";
 import { RenderGate } from "../services/render-gate";
-import { isFlagOnly } from "../services/proofread-runner";
+import { cardActions, isFlagOnly } from "../services/proofread-runner";
 import type { Suggestion } from "../services/suggestion";
 import { diffWords } from "../services/word-diff";
 
@@ -372,7 +372,8 @@ export class ReviewPanelView extends ItemView {
     const actions = card.createDiv({ cls: "schreibstube-review-card-actions" });
     const stale = suggestion.status === "stale";
 
-    if (!isFlagOnly(suggestion)) {
+    const offered = cardActions(suggestion);
+    if (offered.accept) {
       this.button(
         actions,
         t().proofread.accept,
@@ -382,9 +383,11 @@ export class ReviewPanelView extends ItemView {
         "secondary"
       );
     }
-    this.button(actions, t().proofread.reject, "x", false, () =>
-      this.handlers?.onReject(suggestion.id)
-    );
+    if (offered.reject) {
+      this.button(actions, t().proofread.reject, "x", false, () =>
+        this.handlers?.onReject(suggestion.id)
+      );
+    }
     // The button locates the card in the note; it does not show the change,
     // which the card itself already does. An insertion has no text in the
     // note yet, so its label says what will be shown: the point it goes in.
