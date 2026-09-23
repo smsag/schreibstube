@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Fixed
+
+- **A folder deleted and refilled within ten seconds no longer stays hidden.** The pane takes a trashed row away at once and believes the vault again after a grace, but a file a sync client wrote back under that folder within the grace cleared only its own path from what was held back — the folder above it stayed trashed, and so did everything in it, until the timer gave up. A path that exists now clears every folder above it too, on a create and on a rename alike; the rename case had no handling at all.
+- **The delete grace timer is owned.** It was a bare `setTimeout` nobody could cancel, so unloading the plugin within ten seconds of a delete left it to fire into a controller that was already gone. Each timer is kept by path and cleared on stop, and cleared early the moment the vault confirms the delete.
+- **The name dialog refuses what the vault refuses.** Rename and create checked for `\`, `/` and `:` and approved everything else; the vault then refused `?`, `*`, a leading dot and half a dozen more, every one with the same notice. The rules are one function now, `checkFileName`, with a line under the field for each — and the same characters `sanitizeFilename` strips from a proposed name, so what one removes the other refuses. Surrounding spaces are trimmed rather than kept.
+- **The tree can be walked by keyboard.** Every row said `role="treeitem"` and none could take focus. Tab reaches the tree, arrows move and fold, Enter opens, Delete and ⌘⌫ delete, F2 renames, and the menu key opens the menu a right click would. The bindings are a pure map with a test, `rowKeyAction`, so the contract is not something to verify by tabbing through a vault.
+- **The delete confirmation opens on Cancel.** Enter from the keyboard that opened it now declines; confirming is one Tab away.
+- **A bookmarked note deleted a moment ago leaves the Bookmarks list at once**, as it already left the tree, Latest and the pinned block. It was the one list still waiting for the vault's own event.
+- **Deleting or moving a folder forgets its files from the filter's cache.** The vault reports a folder as one event, and the cache was keyed by file, so the files under it were remembered under paths that no longer existed. Forgotten by prefix now.
+- **Dragging a row no longer walks the vault on every pointer move.** The paths are read once when the drag begins; the drop still checks against the vault as it is then.
+- The confirmation said "the vault's trash"; which trash is the person's own setting, and it may be the system's.
+
 ## 1.38.0 - 2026-09-22
 
 Synced notes tell the truth about what is waiting. The Explorer's "Updated

@@ -191,3 +191,30 @@ describe("FileSearchIndex against frontmatter a person wrote", () => {
     expect(index.search("object", 50).shown).toEqual([]);
   });
 });
+
+describe("forgetUnder", () => {
+  it("drops every file under the folder and nothing beside it", () => {
+    const source = fakeSource([
+      { path: "Projekte/Alpha/Plan.md" },
+      { path: "Projekte/Alpha/Notizen.md" },
+      { path: "Projekte/Beta/Plan.md" }
+    ]);
+    const index = new FileSearchIndex(source);
+    for (const file of source.files()) index.fieldsFor(file);
+    expect(index.size).toBe(3);
+
+    index.forgetUnder("Projekte/Alpha");
+
+    expect(index.size).toBe(1);
+  });
+
+  it("does not mistake a folder for one whose name it starts with", () => {
+    const source = fakeSource([{ path: "Alpha/Plan.md" }, { path: "Alphabet/Plan.md" }]);
+    const index = new FileSearchIndex(source);
+    for (const file of source.files()) index.fieldsFor(file);
+
+    index.forgetUnder("Alpha");
+
+    expect(index.size).toBe(1);
+  });
+});

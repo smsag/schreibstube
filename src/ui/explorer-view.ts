@@ -40,10 +40,12 @@ import { FileSearchIndex } from "../services/search-index";
 import { sortSiblings, type ExplorerNode } from "../services/explorer-state";
 import {
   bookmarkIcon,
+  bookmarkLinkPath,
   isBookmarkTreeEmpty,
   type Bookmark,
   type BookmarkFolder
 } from "../services/bookmark-file";
+import { rowKeyAction } from "../services/explorer-keys";
 import { fileGlyph, fileNameParts } from "../services/file-glyph";
 import { groundColour } from "../services/ground-colour";
 import { tallyTasks, type TaskTally } from "../services/task-count";
@@ -52,6 +54,7 @@ import {
   ancestorsOf,
   isMovePlan,
   moveRefusalMessage,
+  parentOf,
   planMove,
   type MoveContext
 } from "../services/tree-move";
@@ -303,8 +306,16 @@ export class ExplorerPaneView extends ItemView {
     });
 
     this.shelf = root.createDiv({ cls: "schreibstube-explorer-shelf" });
-    this.body = root.createDiv({ cls: "schreibstube-explorer-body" });
+    this.body = root.createDiv({ cls: "schreibstube-explorer-body", attr: { tabindex: "0" } });
     this.body.addEventListener("scroll", () => this.syncShelfRule(), { passive: true });
+    // Tab reaches the list here and is handed straight to a row: the open
+    // note's, since that is where a person is, or the first. The box itself
+    // is never the thing to be on.
+    this.body.addEventListener("focus", (event) => {
+      if (event.target !== this.body) return;
+      const rows = this.treeRows();
+      (rows.find((row) => row.hasClass("is-active")) ?? rows[0])?.focus();
+    });
 
     // The vault changes under the pane: a note created by a template, a file
     // deleted on another device and delivered by sync, frontmatter that binds a
@@ -312,15 +323,20 @@ export class ExplorerPaneView extends ItemView {
     this.registerEvent(this.app.vault.on("create", () => this.requestRender()));
     this.registerEvent(
       this.app.vault.on("delete", (file) => {
+        // A folder arrives as one event, for the folder; the files inside it
+        // get none, so they are forgotten by prefix.
         this.index.forget(file.path);
+        this.index.forgetUnder(file.path);
         this.requestRender();
       })
     );
     this.registerEvent(
       this.app.vault.on("rename", (file, oldPath) => {
         // Both ends: the path it had is gone, and the path it has now holds a
-        // different name and different folders above it.
+        // different name and different folders above it. A folder moved takes
+        // everything under it along, under paths the cache has not seen.
         this.index.forget(oldPath);
+        this.index.forgetUnder(oldPath);
         this.index.forget(file.path);
         this.requestRender();
       })
@@ -522,6 +538,9 @@ export class ExplorerPaneView extends ItemView {
     // the place away, and a reveal then found the open note off screen and
     // centred it — after every folder opened or closed.
     const scrollTop = host.scrollTop;
+    // Likewise the focus: folding a folder from the keyboard redraws the
+    // tree, and the row under the focus is thrown away with the rest.
+    const focused = this.focusedPath();
     host.empty();
     this.shelf?.empty();
     const filtered = this.collectMatches();
@@ -539,6 +558,9 @@ export class ExplorerPaneView extends ItemView {
     this.renderFiles(host);
 
     host.scrollTop = scrollTop;
+    // A row deleted from the keyboard has no row to give the focus back to;
+    // the tree keeps it, so the next arrow still lands somewhere.
+    if (focused !== null && !this.focusRow(focused)) host.focus();
     this.scrollToRevealed();
     this.syncShelfRule();
   }
@@ -892,6 +914,15 @@ export class ExplorerPaneView extends ItemView {
 
   private renderBookmarkRow(host: HTMLElement, bookmark: Bookmark, depth: number): number {
     if (!this.matchesQuery(bookmark.name)) return 0;
+    // A note deleted a moment ago has left the tree, Latest and the pinned
+    // block; this was the one list still waiting for the vault's own event.
+    if (bookmark.kind === "note") {
+      const target = this.app.metadataCache.getFirstLinkpathDest(
+        bookmarkLinkPath(bookmark.url),
+        ""
+      );
+      if (target && this.host?.explorer.isTrashed(target.path)) return 0;
+    }
 
     const row = host.createDiv({ cls: "schreibstube-explorer-row is-bookmark" });
     indent(row, depth);
@@ -1042,7 +1073,7 @@ export class ExplorerPaneView extends ItemView {
       return;
     }
 
-    const tree = body.createDiv({ cls: "schreibstube-explorer-tree" });
+    const tree = body.createDiv({ cls: "schreibstube-explorer-tree", attr: { role: "tree" } });
     const drawn = this.renderChildren(tree, this.app.vault.getRoot(), 0);
 
     if (drawn === 0) {
@@ -1210,7 +1241,14 @@ export class ExplorerPaneView extends ItemView {
     indent(row, depth);
     row.setAttribute("data-path", file.path);
     row.setAttribute("role", "treeitem");
-    if (isFolder) row.addClass("is-folder");
+    // Reachable by keyboard, but not a Tab stop of its own: Tab lands on the
+    // tree once and the arrows walk it, as every tree control does. A
+    // thousand Tab stops would be a thousand presses to leave the pane.
+    row.setAttribute("tabindex", "-1");
+    if (isFolder) {
+      row.addClass("is-folder");
+      row.setAttribute("aria-expanded", String(this.isExpanded(file)));
+    }
     // The mark in the tree is the one that explains the row's place, which is
     // being held at the top of the folder rather than being pinned above it.
     if (controller.isKept(file.path)) row.addClass("is-pinned");
@@ -1280,18 +1318,28 @@ export class ExplorerPaneView extends ItemView {
    */
   private wireTreeDrag(row: HTMLElement, path: string): void {
     const list = (): HTMLElement | null => this.body;
+    // The vault's paths, read once when the drag begins. Every pointer move
+    // asks whether the folder under it would take the row, and walking the
+    // whole vault to answer each one was the one cost in the pane that grew
+    // with the vault and with how fast the hand moved.
+    let context: MoveContext | null = null;
     this.drag.wire(row, {
       path,
-      onStart: () => this.host?.explorer.closeMenu(),
+      onStart: () => {
+        this.host?.explorer.closeMenu();
+        context = this.moveContext();
+      },
       onMove: (x, y) => {
         const root = list();
+        const known = context ?? this.moveContext();
         if (root) {
           markMoveTarget(root, x, y, (target) =>
-            isMovePlan(this.planFor(this.drag.active ?? "", target))
+            isMovePlan(planMove(this.drag.active ?? "", target, known))
           );
         }
       },
       onEnd: () => {
+        context = null;
         const root = list();
         if (root) clearMoveMarks(root);
       },
@@ -1331,7 +1379,8 @@ export class ExplorerPaneView extends ItemView {
     return count;
   }
 
-  private planFor(source: string, targetFolder: string): ReturnType<typeof planMove> {
+  /** Every path in the vault, and which are folders — the one walk a move needs. */
+  private moveContext(): MoveContext {
     const taken = new Set<string>();
     const folders = new Set<string>();
 
@@ -1340,8 +1389,13 @@ export class ExplorerPaneView extends ItemView {
       if (entry instanceof TFolder) folders.add(entry.path);
     }
 
-    const context: MoveContext = { taken, folders };
-    return planMove(source, targetFolder, context);
+    return { taken, folders };
+  }
+
+  /** Planned against the vault as it is now — at the drop, never from a cache,
+   *  because a sync may have delivered something since the drag began. */
+  private planFor(source: string, targetFolder: string): ReturnType<typeof planMove> {
+    return planMove(source, targetFolder, this.moveContext());
   }
 
   private async dropInto(source: string, targetFolder: string | null): Promise<void> {
@@ -1437,17 +1491,93 @@ export class ExplorerPaneView extends ItemView {
     const controller = this.host?.explorer;
     if (!controller) return;
 
+    const activate = (): void => {
+      if (isFolder) {
+        this.toggle(file.path);
+        return;
+      }
+      void controller.open(file, false);
+    };
+
     wirePress(row, {
       isDragging: () => this.drag.active !== null,
-      activate: () => {
-        if (isFolder) {
-          this.toggle(file.path);
-          return;
-        }
-        void controller.open(file, false);
-      },
+      activate,
       showMenu: (at) => controller.showMenu(file, at)
     });
+
+    // The keyboard reaches everything the pointer does. Which key means what
+    // is decided in `rowKeyAction`, so this is only the doing; a key the map
+    // does not claim is left to the sidebar, which is what keeps Tab working.
+    row.addEventListener("keydown", (event) => {
+      const isOpen = isFolder && this.isFolderOpen(file.path);
+      const action = rowKeyAction(event, { isFolder, isOpen });
+      if (action === null) return;
+      event.preventDefault();
+      event.stopPropagation();
+
+      switch (action) {
+        case "activate":
+          return activate();
+        case "expand":
+          if (!isOpen) this.toggle(file.path);
+          return;
+        case "collapse":
+          if (isOpen) this.toggle(file.path);
+          return;
+        case "next":
+          return this.focusNeighbour(row, 1);
+        case "previous":
+          return this.focusNeighbour(row, -1);
+        case "first":
+          return this.treeRows()[0]?.focus();
+        case "last":
+          return this.treeRows().at(-1)?.focus();
+        case "parent":
+          this.focusRow(parentOf(file.path));
+          return;
+        case "delete":
+          return void controller.run("delete", file);
+        case "rename":
+          return void controller.run("rename", file);
+        case "menu": {
+          // Under the row's name, where a pointer would have been.
+          const box = row.getBoundingClientRect();
+          return controller.showMenu(file, { x: box.left + 24, y: box.bottom });
+        }
+      }
+    });
+  }
+
+  /** The tree's rows on screen, in reading order. Only the tree: the lists
+   *  above it are reached by their own controls. */
+  private treeRows(): HTMLElement[] {
+    const host = this.body;
+    if (!host) return [];
+    return Array.from(
+      host.querySelectorAll<HTMLElement>('.schreibstube-explorer-row[role="treeitem"]')
+    );
+  }
+
+  private focusNeighbour(row: HTMLElement, step: 1 | -1): void {
+    const rows = this.treeRows();
+    const at = rows.indexOf(row);
+    if (at === -1) return;
+    rows[at + step]?.focus();
+  }
+
+  /** Put the focus on the row for `path`, if one is on screen. */
+  private focusRow(path: string): boolean {
+    const row = this.treeRows().find((candidate) => candidate.getAttribute("data-path") === path);
+    if (!row) return false;
+    row.focus();
+    return true;
+  }
+
+  /** The path of the row holding the focus, if the focus is in the tree. */
+  private focusedPath(): string | null {
+    const active = this.containerEl.doc.activeElement;
+    if (!(active instanceof HTMLElement) || !this.body?.contains(active)) return null;
+    return active.closest<HTMLElement>("[data-path]")?.getAttribute("data-path") ?? null;
   }
 
   private toggle(path: string): void {

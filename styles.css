@@ -1325,6 +1325,22 @@ a.external-link.schreibstube-reminder-mark {
   background: var(--nav-item-background-hover, var(--background-modifier-hover));
 }
 
+/* A row reached by keyboard. The same tint as hover, plus a ring inside the
+   row, because hover alone is what a pointer sees and a keyboard user has no
+   pointer to see it with. `:focus-visible` rather than `:focus`, so a click
+   does not leave a ring behind on the row it landed on. */
+.schreibstube-explorer-row:focus-visible {
+  outline: none;
+  background: var(--nav-item-background-hover, var(--background-modifier-hover));
+  box-shadow: inset 0 0 0 2px var(--background-modifier-border-focus);
+}
+
+/* The tree takes focus so Tab has somewhere to land, and hands it straight to
+   a row; the box itself never wants a ring. */
+.schreibstube-explorer-body:focus {
+  outline: none;
+}
+
 /* A file waiting in another tab. The same bar as the active row, faded, so the
    two read as one scale rather than two signals: this is open, that is the one
    you are looking at. The plain colour comes first for a renderer without
