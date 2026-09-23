@@ -2515,3 +2515,29 @@ a.external-link.schreibstube-reminder-mark {
   color: var(--text-muted);
   text-align: right;
 }
+
+/* ── An icon in the text: `:folder:` drawn as the glyph ──
+   Sized to the text around it and sat on the baseline the way a letter is,
+   so a glyph inside a sentence neither floats nor drops. The source form
+   is the tooltip, for whoever wonders what to type to get another. */
+.schreibstube-icon-shortcode {
+  display: inline-block;
+  font-size: 1.05em;
+  line-height: 1;
+  vertical-align: -0.15em;
+  color: currentColor;
+}
+
+/* In the picker's rows the glyph leads and the name follows. */
+.schreibstube-icon-suggestion {
+  display: flex;
+  align-items: center;
+  gap: var(--size-4-2);
+}
+
+.schreibstube-icon-suggestion .schreibstube-icon {
+  font-size: 1.2em;
+  width: 1.4em;
+  text-align: center;
+  color: var(--text-muted);
+}

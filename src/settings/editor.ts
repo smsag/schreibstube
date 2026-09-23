@@ -21,6 +21,17 @@ export function renderEditor(ctx: SettingsContext): void {
       });
     });
 
+  new Setting(ctx.containerEl).setName(t().settings.iconShortcodesHeading).setHeading();
+
+  new Setting(ctx.containerEl)
+    .setName(t().settings.iconShortcodesEnabled)
+    .setDesc(t().settings.iconShortcodesEnabledDesc)
+    .addToggle((toggle) => {
+      toggle.setValue(ctx.plugin.settings.iconShortcodes).onChange(async (value) => {
+        await ctx.update({ iconShortcodes: value });
+      });
+    });
+
   new Setting(ctx.containerEl).setName(t().settings.focusHeading).setHeading();
 
   new Setting(ctx.containerEl)

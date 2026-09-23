@@ -95,6 +95,8 @@ export interface SchreibstubeSettings {
   explorerLatestExcluded: string;
   /** Show "open / total" tasks after a note's name in the file pane. */
   explorerTaskCounts: boolean;
+  /** Draw `:folder:` in a note as the icon, and offer the icons while one is typed. */
+  iconShortcodes: boolean;
   /** Secret-storage name of a GitHub token, for private repositories. */
   githubSecretName: string;
   /** Per-note sync state, keyed by vault path. Persisted, not user-editable. */

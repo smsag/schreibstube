@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Added
+
+- **Icons in the text.** Type a colon and two letters of an icon's name — `:fo` — and a picker lists the icons that match; Enter writes `:folder: `. In Live Preview and Reading view the shortcode is drawn as the glyph, sized to the text and on its baseline, and shows its colons again under the cursor. The note holds the name, never the glyph: the icons are a font only this plugin installs, so `:folder:` reads as a word wherever the plugin is not. A colon after a word — the kind prose is full of — never opens the picker, and a shortcode inside code, a link or a URL stays text; both rules are one pure module with tests. A setting under **Icons in the text** switches all of it off, for a vault where another plugin already uses the colon.
+
 ## 1.39.0 - 2026-09-23
 
 The file pane learns the three things a file manager is expected to know and

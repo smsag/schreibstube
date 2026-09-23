@@ -212,6 +212,14 @@ In `strip` and `masonry` the header names the image under the pointer or the key
 
 The controls are icons standing on the page, drawn from the plugin's own icon font, with no fill behind them in any state. On a phone the scene stacks, its details side by side under it, and the strip settles on two columns.
 
+### Icons in the text
+
+Type a colon and the first two letters of an icon's name — `:fo` — and a picker lists the icons that match, glyph beside name; Enter writes `:folder: ` and you keep typing. In Live Preview and Reading view the shortcode is drawn as the glyph, sized to the text and sitting on its baseline; put the cursor on it and it shows its colons again for editing. Any of the plugin's icons can be written this way, the same set the Explorer's icon picker offers.
+
+What goes into the note is the name between colons, never the glyph itself. The icons are a font that only this plugin installs, so a glyph pasted into a mail or read on a device without the plugin would be an empty box; `:folder:` reads as a word that says what was meant, and the bridge can draw it when publishing. A colon after a word — "Beispiel: der Fall" — never opens the picker, and a shortcode inside code, a link or a URL stays text.
+
+If another plugin already uses the colon for emoji, switch this off under **Settings → Schreibstube → Icons in the text**; the shortcodes already in your notes then read as text.
+
 ### Email (IMAP/SMTP)
 
 Send notes as email and pull messages back into your vault — on desktop **and** mobile.
@@ -597,6 +605,10 @@ A command that cannot do anything where you are is not offered at all: the image
 | Setting     | Description                                                 | Default |
 | ----------- | ----------------------------------------------------------- | ------- |
 | Dim opacity | Opacity of out-of-focus lines (0.2 faint – 0.8 nearly full) | 0.4     |
+
+### Icons in the text
+
+- **Draw :folder: as the icon** — on by default. Off, the picker stays closed and shortcodes read as text.
 
 ### Properties
 

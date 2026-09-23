@@ -11,6 +11,13 @@ export const enExtra = {
     overlayEnabledDesc:
       "Show the sticky ancestor-heading breadcrumb at the top of the active note.",
 
+    iconShortcodesHeading: "Icons in the text",
+    iconShortcodesEnabled: "Draw :folder: as the icon",
+    iconShortcodesEnabledDesc:
+      "Type a colon and two letters of an icon's name to choose one; it is written as `:name:` and " +
+      "drawn as the glyph here, and reads as the name anywhere else. Switch off if another plugin " +
+      "already uses the colon for emoji.",
+
     focusHeading: "Focus mode",
     focusOpacity: "Dim opacity",
     focusOpacityDesc:
