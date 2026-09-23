@@ -16,6 +16,7 @@ export const en = {
     newNote: "New doc",
     insertTaskSummary: "Insert: task summary",
     insertSlideshow: "Insert: slideshow",
+    insertPdfSummary: "Insert: summary from the attached PDF",
     sendToReminders: "Send task to Erinnerungen",
     reminders: "Compare with Erinnerungen",
     rename: "Rename doc with AI",

@@ -14,6 +14,7 @@ export const de: Messages = {
     newNote: "Neues Doc",
     insertTaskSummary: "Einfügen: Aufgaben-Zusammenfassung",
     insertSlideshow: "Einfügen: Diaschau",
+    insertPdfSummary: "Einfügen: Zusammenfassung aus dem angehängten PDF",
     sendToReminders: "Aufgabe an Erinnerungen senden",
     reminders: "Erinnerungen abgleichen",
     rename: "Doc mit KI umbenennen",
@@ -952,5 +953,25 @@ export const de: Messages = {
     mailToken: "Mail-Token",
     publishToken: "Publish-Token",
     githubToken: "GitHub-Token"
+  },
+  pdf: {
+    pickTitle: (name: string) => `Textstellen aus ${name}`,
+    filter: "Filter",
+    filterPlaceholder: "Wörter aus der Textstelle",
+    pageLabel: (page: number) => `S. ${page}`,
+    chosenCount: (count: number) =>
+      count === 1 ? "1 Textstelle gewählt" : `${count} Textstellen gewählt`,
+    insert: "Einfügen",
+    markLabel: "↗",
+    choosePdf: "Welches PDF?",
+    noneAttached:
+      "dieses Dokument verweist auf kein PDF. Eines einbetten oder verlinken und den Befehl erneut ausführen.",
+    noTextLayer: (name: string) =>
+      `${name} hat keine Textebene — ein Scan ist für alles, was Text liest, ein Bild.`,
+    unreadable: (name: string) => `${name} konnte nicht gelesen werden.`,
+    truncated: (read: number, total: number) =>
+      `die ersten ${read} von ${total} Seiten gelesen; spätere Seiten wurden nicht angeboten.`,
+    inserted: (count: number) =>
+      count === 1 ? "1 Textstelle eingefügt." : `${count} Textstellen eingefügt.`
   }
 };

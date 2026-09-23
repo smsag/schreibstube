@@ -40,6 +40,7 @@ import { isTaskLine, TASK_PROTOCOL_ACTION } from "./services/reminder-export";
 import { sentTaskIds } from "./services/reminder-status";
 import { ReminderCommands } from "./controllers/reminder-commands";
 import { NoteCommands } from "./controllers/note-commands";
+import { PdfCommands } from "./controllers/pdf-commands";
 import { LinkModeController } from "./controllers/link-mode-controller";
 import { LlmCommands } from "./controllers/llm-commands";
 import { PropertyController } from "./controllers/property-controller";
@@ -114,6 +115,7 @@ export default class SchreibstubePlugin extends Plugin {
   private print: PrintCommands | null = null;
   private reminders: ReminderCommands | null = null;
   private notes: NoteCommands | null = null;
+  private pdf: PdfCommands | null = null;
 
   override async onload(): Promise<void> {
     await this.loadSettings();
@@ -163,6 +165,12 @@ export default class SchreibstubePlugin extends Plugin {
     );
     this.reminders = new ReminderCommands(this.app, () => this.settings, this.logger);
     this.notes = new NoteCommands(this.app, this.logger);
+    // The reader is reached for only when the command runs. Obsidian's pdf.js
+    // is fetched on that first call, and every vault that never summarises a
+    // PDF pays nothing for the feature but the bytes of this line.
+    this.pdf = new PdfCommands(this.app, this.logger, (data) =>
+      import("./pdf/pdf-reader").then((module) => module.readPdfText(data))
+    );
     this.proofread = new ProofreadController(this.app, () => this.settings, this.logger, {
       get: (path) => this.settings.syncState[path],
       set: async (path, record) => {
@@ -946,6 +954,14 @@ export default class SchreibstubePlugin extends Plugin {
       name: t().commands.insertSlideshow,
       editorCallback: (editor) => {
         this.insertSlideshow(editor);
+      }
+    });
+
+    this.addCommand({
+      id: "insert-pdf-summary",
+      name: t().commands.insertPdfSummary,
+      editorCallback: (editor) => {
+        void this.pdf?.insertSummary(editor);
       }
     });
 

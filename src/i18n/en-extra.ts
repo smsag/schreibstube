@@ -693,5 +693,23 @@ export const enExtra = {
     mailToken: "mail token",
     publishToken: "publish token",
     githubToken: "GitHub token"
+  },
+  pdf: {
+    pickTitle: (name: string) => `Passages from ${name}`,
+    filter: "Filter",
+    filterPlaceholder: "Words from the passage",
+    pageLabel: (page: number) => `p. ${page}`,
+    chosenCount: (count: number) => (count === 1 ? "1 passage chosen" : `${count} passages chosen`),
+    insert: "Insert",
+    markLabel: "↗",
+    choosePdf: "Which PDF?",
+    noneAttached: "this doc points at no PDF. Embed or link one and run the command again.",
+    noTextLayer: (name: string) =>
+      `${name} has no text layer — a scan is a picture to anything that reads text.`,
+    unreadable: (name: string) => `${name} could not be read.`,
+    truncated: (read: number, total: number) =>
+      `read the first ${read} of ${total} pages; later pages were not offered.`,
+    inserted: (count: number) =>
+      count === 1 ? "1 passage inserted." : `${count} passages inserted.`
   }
 };

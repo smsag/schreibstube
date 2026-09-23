@@ -26,13 +26,16 @@ import { fileURLToPath } from "node:url";
  * The headroom left is for the next feature, not a new normal — a change
  * that needs more says why, as this one does.
  *
- * Raised to 460 KB at 446 KB, for the file pane's selection, undo and
- * import (+11 KB over the 435 the deletion fixes left it at): a selection
- * reducer, an undo stack, an import plan, the batch move and delete they
- * drive, and every string of it in two languages. Three operations a file
- * manager is expected to have, none of them borrowed. The headroom left is
- * for the next feature, not a new normal — a change that needs more says
- * why, as this one does.
+ * Raised to 460 KB at 438 KB, for the PDF summary (+7 KB): the reader that
+ * borrows Obsidian's pdf.js, the rules that cut a text layer into passages,
+ * the modal that offers them, and every string of it in two languages. It is
+ * a small feature because the expensive part is not ours — pdf.js is larger
+ * than this whole plugin, and is borrowed rather than shipped. The headroom
+ * left is for the next feature, not a new normal.
+ *
+ * The file pane's selection, undo and import (+11 KB) fit under that
+ * ceiling, at 454 KB: three operations a file manager is expected to have,
+ * none of them borrowed. What is left is for the next feature.
  */
 const MAX_BUNDLE_KB = 460;
 
