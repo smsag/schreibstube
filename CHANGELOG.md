@@ -7,6 +7,7 @@ All notable changes to this project will be documented in this file.
 ### Changed
 
 - **The review card's "Show" is now "Locate".** It never showed the change — the card does that — it selected the card's text in the note and scrolled there, which is the look-before-you-accept step; the old word promised something else. For an update that inserts text the note does not have yet, the button reads **Locate insertion point** and selects the last words before the point, so the landing is visible rather than a bare cursor that looks as if nothing happened.
+- **An update from a source no longer offers "Reject".** Rejecting only hid the card until the next check, which found the source still differing and offered the same card again, while the note stayed marked as having updates it had not taken. The choice on such a card is to accept the update or to leave the note as it is; leaving it needs no button. Proofreading cards keep theirs.
 
 ### Added
 

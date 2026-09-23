@@ -13,7 +13,7 @@ Opens a side pane that reviews the active note and proposes changes one at a tim
 
 The panel's **Check glossary** button runs the local glossary check on its own, without an API call.
 
-Each card shows the change as a word-level diff, with **Übernehmen**, **Verwerfen**, and **Anzeigen** to jump to the place in the note. **Alle übernehmen** applies the whole queue as a single undo step.
+Each card shows the change as a word-level diff, with **Übernehmen** and **Stelle zeigen**, which selects the place in the note the card is about; a proofreading card also has **Verwerfen**. A card that brings an update from a source has no Verwerfen: the choice there is to take the update or to leave the note as it is, and leaving it needs no button. **Alle übernehmen** applies the whole queue as a single undo step.
 
 What the correction pass will not touch: frontmatter, fenced code blocks, tables, and math blocks are excluded entirely. Inline code, wikilinks, link targets, tags, and bare URLs are masked before the text is sent and restored afterwards; if a response comes back having lost one of them, that section is discarded rather than applied.
 

@@ -111,6 +111,31 @@ export function isFlagOnly(suggestion: Suggestion): boolean {
   return suggestion.replacement === suggestion.original;
 }
 
+/** Which of the three buttons a card carries. */
+export interface CardActions {
+  accept: boolean;
+  reject: boolean;
+  locate: boolean;
+}
+
+/**
+ * What a card offers, decided once rather than button by button in the view.
+ *
+ * A flag-only card has nothing to apply, so no Accept. An update from a
+ * source has no Reject: rejecting only hid the card until the next check,
+ * which found the source still differing and offered the same card again,
+ * while the note stayed marked as having updates it had not taken. A button
+ * that changes nothing durable is not a choice; the choice is to accept the
+ * update or to leave the note as it is, and leaving it needs no button.
+ */
+export function cardActions(suggestion: Suggestion): CardActions {
+  return {
+    accept: !isFlagOnly(suggestion),
+    reject: suggestion.source !== "remote",
+    locate: true
+  };
+}
+
 /** Group blocks into requests under a character budget. A block larger than the
  *  budget still gets its own chunk rather than being split mid-sentence. */
 export function chunkBlocks(blocks: ProseBlock[], chunkChars: number): ProseBlock[][] {
