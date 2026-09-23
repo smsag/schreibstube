@@ -24,6 +24,7 @@ export type ExplorerAction =
   | "unpin"
   | "pin-tag"
   | "related"
+  | "show-images"
   | "bind-source"
   | "check-source"
   | "open-source"
@@ -61,6 +62,8 @@ export interface ExplorerTarget {
   tagged?: boolean;
   /** For a folder: whether anything under it is bound to a source. */
   hasBoundNotes?: boolean;
+  /** For a folder: whether it holds a picture of its own, subfolders aside. */
+  hasImages?: boolean;
 }
 
 /** Where the items other plugins contribute end up. */
@@ -121,6 +124,16 @@ export function buildExplorerMenu(
       open.push({ id: "related", label: menu.related, icon: "git-fork" });
     }
     sections.push({ id: "open", items: open });
+  }
+
+  // A folder had no open block, because nothing opened a folder. Its
+  // pictures do: laying them out is a way of looking at the folder, not of
+  // changing it, so it leads — and only where there is a picture to lay out.
+  if (target.kind === "folder" && target.hasImages) {
+    sections.push({
+      id: "open",
+      items: [{ id: "show-images", label: menu.showImages, icon: "images" }]
+    });
   }
 
   const appearance: ExplorerMenuItem[] = [

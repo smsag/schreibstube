@@ -25,6 +25,7 @@ export const de: Messages = {
     openExplorer: "Explorer öffnen",
     collapseExplorer: "Explorer: Ordner zuklappen",
     explorerUndo: "Explorer: letztes Verschieben oder Löschen rückgängig machen",
+    folderTiles: "Explorer: Ordner dieser Notiz als Kacheln",
     related: "Verwandte Notizen",
     openBookmark: "Lesezeichen öffnen",
     pinTag: "Tag anheften",
@@ -715,6 +716,19 @@ export const de: Messages = {
         folder: "gleicher Ordner"
       }
     },
+    tiles: {
+      viewTitle: "Bildkacheln",
+      viewTitleFor: (folder: string) => `${folder} · Kacheln`,
+      root: "Vault-Wurzel",
+      noFolder: "Einen Ordner im Explorer wählen, um seine Bilder hier zu sehen.",
+      gone: "Dieser Ordner ist nicht mehr im Vault.",
+      empty: "Direkt in diesem Ordner liegen keine Bilder.",
+      summary: (count: number) => (count === 1 ? "1 Bild" : `${count} Bilder`),
+      following: "Folgt dem im Explorer gewählten Ordner; Tab schließen, um das zu beenden.",
+      more: (count: number) =>
+        `${count} weitere werden nicht gezeichnet. In einen eigenen Ordner verschieben, um sie zu sehen.`
+    },
+
     tags: {
       pick: "Tag zum Anheften wählen …",
       none: "Noch trägt keine Notiz in diesem Vault ein Tag.",
@@ -789,6 +803,7 @@ export const de: Messages = {
       pin: "Zu „Angeheftet“ hinzufügen",
       unpin: "Aus „Angeheftet“ entfernen",
       related: "Verwandte Notizen",
+      showImages: "Bilder als Kacheln",
       pinTag: "Tag dieser Notiz anheften …",
       showTag: "Notizen mit diesem Tag zeigen",
       bindSource: "Mit Quelle verbinden …",

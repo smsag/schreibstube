@@ -107,7 +107,26 @@ describe("buildExplorerMenu", () => {
     expect(sections.map((section) => section.id)).not.toContain("sync");
   });
 
-  it("gives a folder its own actions and no open entry", () => {
+  it("leads a folder with pictures of its own with the tiles, and only such a folder", () => {
+    const withPictures = buildExplorerMenu(
+      target({ kind: "folder", path: "Fotos", markdown: false, hasImages: true }),
+      "off"
+    );
+    const without = buildExplorerMenu(
+      target({ kind: "folder", path: "Texte", markdown: false }),
+      "off"
+    );
+    const file = buildExplorerMenu(
+      target({ path: "Fotos/a.jpg", markdown: false, image: true }),
+      "off"
+    );
+
+    expect(withPictures[0]?.items.map((item) => item.id)).toEqual(["show-images"]);
+    expect(ids(without)).not.toContain("show-images");
+    expect(ids(file)).not.toContain("show-images");
+  });
+
+  it("gives a folder its own actions and no open entry unless it holds pictures", () => {
     const sections = buildExplorerMenu(
       target({ kind: "folder", path: "Objekte", markdown: false, hasBoundNotes: true }),
       "off"

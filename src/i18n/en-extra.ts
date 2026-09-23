@@ -466,6 +466,19 @@ export const enExtra = {
         folder: "same folder"
       }
     },
+    tiles: {
+      viewTitle: "Image tiles",
+      viewTitleFor: (folder: string) => `${folder} · tiles`,
+      root: "Vault root",
+      noFolder: "Choose a folder in the Explorer to see its pictures here.",
+      gone: "This folder is no longer in the vault.",
+      empty: "No pictures lie directly in this folder.",
+      summary: (count: number) => (count === 1 ? "1 picture" : `${count} pictures`),
+      following: "Follows the folder chosen in the Explorer; close this tab to stop.",
+      more: (count: number) =>
+        `${count} more are not drawn. Move them into a folder of their own to see them.`
+    },
+
     tags: {
       pick: "Pick a tag to pin…",
       none: "No note in this vault carries a tag yet.",
@@ -540,6 +553,7 @@ export const enExtra = {
       pin: "Add to Pinned",
       unpin: "Remove from Pinned",
       related: "Related notes",
+      showImages: "Images as tiles",
       pinTag: "Pin a tag of this note…",
       showTag: "Show tagged notes",
       bindSource: "Bind to a source…",

@@ -453,6 +453,12 @@ On a folder, **Copy path for Schreibstube** puts its `vault://` URL on the clipb
 
 On a folder, **Check every bound note here** refreshes the mirrors under it, which is the difference between refreshing one project and polling a vault of a thousand notes.
 
+#### Image tiles
+
+A folder of pictures is a list of names in the tree, and the name of a picture says almost nothing. Right-click a folder that holds pictures (long-press on a phone) and choose **Images as tiles**: a tab opens in the main area with the folder's own pictures as a grid — its own, not its subfolders', so a photo archive with a folder per year shows one year at a time. While the tab is open it follows the pane: press another folder in the tree and the grid shows that one, without taking the focus from the tree. Close the tab and the following stops. **Explorer: this note's folder as tiles** does the same for the folder of the note in front of you.
+
+A tile opens its picture in a new tab — never in the tiles tab itself. A right-click or long press on a tile gives the file's own menu, so a picture can be renamed from what it shows, moved or deleted without first finding it in the tree. The grid draws up to 400 pictures and says how many more there are; pictures are loaded as they scroll into view, so a large folder opens at once.
+
 #### Bookmarks
 
 A list of links the tree cannot hold: a web page, an Obsidian URI, a vault folder, a note. Obsidian's own bookmarks cover the last two and have no room for the first two, which is the reason this section exists.

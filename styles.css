@@ -2541,3 +2541,88 @@ a.external-link.schreibstube-reminder-mark {
   text-align: center;
   color: var(--text-muted);
 }
+
+/* ── A folder's pictures as tiles, in a tab ──
+   The tile's own box has its size from here, before a single byte of the
+   picture has arrived: that fixed aspect is what lets the <img> load lazily,
+   since the browser can tell which tiles are in view without measuring
+   them. The idiom is the slideshow tile's; the classes are its own, so the
+   two can be styled apart. */
+.schreibstube-folder-tiles {
+  padding: 8px 12px;
+}
+
+.schreibstube-tiles-header {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px 2px 10px;
+}
+
+.schreibstube-tiles-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-weight: var(--font-semibold);
+  overflow-wrap: anywhere;
+}
+
+.schreibstube-tiles-summary,
+.schreibstube-tiles-following,
+.schreibstube-tiles-empty,
+.schreibstube-tiles-more {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+}
+
+.schreibstube-tiles-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 0.5rem;
+}
+
+.schreibstube-tiles-tile {
+  position: relative;
+  display: block;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  border-radius: var(--radius-s);
+  background: var(--background-secondary);
+  cursor: pointer;
+  user-select: none;
+}
+
+.schreibstube-tiles-tile img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: opacity 0.1s ease;
+}
+
+@media (hover: hover) {
+  .schreibstube-tiles-tile:hover img {
+    opacity: 0.85;
+  }
+}
+
+.schreibstube-tiles-tile:focus-visible {
+  outline: 2px solid var(--interactive-accent);
+  outline-offset: 2px;
+}
+
+/* A picture the vault cannot serve shows its name on the plain ground. */
+.schreibstube-tiles-tile-missing {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.schreibstube-tiles-more {
+  padding-top: 0.75rem;
+}

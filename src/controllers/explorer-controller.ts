@@ -70,6 +70,7 @@ import {
 } from "../services/tree-move";
 import { hasSourceBinding, resolveSourceUrl, SYNC_FRONTMATTER_KEY } from "../services/sync-source";
 import { someFileUnder } from "../services/vault-tree";
+import { folderImages, hasFolderImages, type FolderImages } from "../services/folder-images";
 import { openSubmenu } from "../services/workspace-internals";
 import { describePollSummary, type PollSummary } from "../services/sync-summary";
 import {
@@ -180,6 +181,10 @@ const UNDO_NOTICE_MS = UNDO_WINDOW_MS;
 /** Where a note's related notes are listed, for the same reason. */
 export type RelatedOpener = (path: string) => Promise<void>;
 
+/** Where a folder's pictures are laid out as tiles; `following` says whether
+ *  the view then keeps up with the folder chosen in the pane. */
+export type FolderTilesOpener = (folder: string, following: boolean) => Promise<void>;
+
 /** A row in the pinned block: a file or a folder, or a tag. */
 export type PinnedItem =
   { kind: "file"; key: string; file: TAbstractFile } | { kind: "tag"; key: string; tag: string };
@@ -204,6 +209,10 @@ export class ExplorerController {
   private namer: FileNamer | null = null;
   private tagOpener: TagOpener | null = null;
   private relatedOpener: RelatedOpener | null = null;
+  private tilesOpener: FolderTilesOpener | null = null;
+  /** Who wants to know which folder was pressed in the pane. The pane does
+   *  not: it says so, and whoever is listening decides what that means. */
+  private readonly folderListeners = new Set<(folder: string) => void>();
 
   private readonly confirm: Confirmer;
   private readonly toast: Toaster;
@@ -259,6 +268,11 @@ export class ExplorerController {
     this.relatedOpener = opener;
   }
 
+  /** Hand over the thing that lays a folder's pictures out as tiles. */
+  useFolderTilesOpener(opener: FolderTilesOpener): void {
+    this.tilesOpener = opener;
+  }
+
   async start(): Promise<void> {
     await this.store.load();
     // A vault that was edited elsewhere while this one was closed: hand back
@@ -275,12 +289,25 @@ export class ExplorerController {
     this.trashTimers.clear();
     this.trashed.clear();
     this.listeners.clear();
+    this.folderListeners.clear();
   }
 
   /** Called whenever icons or pins changed, from any device. */
   onChange(listener: () => void): () => void {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
+  }
+
+  /** Called with the folder a person pressed in the pane, for as long as the
+   *  unsubscribe returned here has not been called. */
+  onFolderChosen(listener: (folder: string) => void): () => void {
+    this.folderListeners.add(listener);
+    return () => this.folderListeners.delete(listener);
+  }
+
+  /** The pane says a folder was pressed. What follows from that is not its business. */
+  noteFolderChosen(path: string): void {
+    for (const listener of this.folderListeners) listener(path);
   }
 
   data(): ExplorerData {
@@ -522,8 +549,39 @@ export class ExplorerController {
     await this.relatedOpener?.(path);
   }
 
+  /** Lay a folder's pictures out as tiles, following the pane from then on. */
+  async openFolderTiles(path: string): Promise<void> {
+    await this.tilesOpener?.(path, true);
+  }
+
+  /**
+   * The folder's pictures for the tile grid, or null when it is not a folder
+   * any more.
+   *
+   * Asked here rather than in the view for one reason: a picture deleted a
+   * moment ago is held back until the vault confirms it, and the grid must
+   * not draw a tile for it in the meantime, any more than the tree draws a row.
+   */
+  folderTiles(path: string): FolderImages | null {
+    const folder = this.app.vault.getAbstractFileByPath(path);
+    if (!(folder instanceof TFolder)) return null;
+    return folderImages(folder, { gone: (child) => this.isTrashed(child) });
+  }
+
+  /** Whether the folder at `path` has a picture of its own to show. */
+  folderHasImages(path: string): boolean {
+    const folder = this.app.vault.getAbstractFileByPath(path);
+    return folder instanceof TFolder && hasFolderImages(folder, (child) => this.isTrashed(child));
+  }
+
+  /** The URL an <img> can load a vault file from, or null when it is not there. */
+  resourceUrl(path: string): string | null {
+    const file = this.app.vault.getAbstractFileByPath(path);
+    return file instanceof TFile ? this.app.vault.getResourcePath(file) : null;
+  }
+
   /** The pane's own menu for a note a card stands for. */
-  showMenuForPath(path: string, event: MouseEvent): void {
+  showMenuForPath(path: string, event: MouseEvent | { x: number; y: number }): void {
     const file = this.app.vault.getAbstractFileByPath(path);
     if (file) this.showMenu(file, event);
   }
@@ -780,7 +838,10 @@ export class ExplorerController {
       kept: this.isKept(file.path),
       pinned: this.isPinned(file.path),
       tagged: isFile && file.extension === "md" && this.hasTags(file),
-      hasBoundNotes: file instanceof TFolder && this.hasBoundNotes(file)
+      hasBoundNotes: file instanceof TFolder && this.hasBoundNotes(file),
+      // Its own pictures, not its subfolders': the entry opens a grid of this
+      // folder, and a grid of nothing is worse than no entry.
+      hasImages: file instanceof TFolder && hasFolderImages(file, (path) => this.isTrashed(path))
     };
   }
 
@@ -826,6 +887,9 @@ export class ExplorerController {
         return;
       case "related":
         if (file instanceof TFile) await this.openRelated(file.path);
+        return;
+      case "show-images":
+        if (file instanceof TFolder) await this.openFolderTiles(file.path);
         return;
       case "bind-source":
         return this.bindSource(file);
