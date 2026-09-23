@@ -45,7 +45,12 @@ export interface DroppedFile {
 export type ImportRefusal = "folder" | "too-large" | "bad-name" | "too-many";
 
 export interface ImportPlan {
-  imports: { name: string; path: string }[];
+  /**
+   * `index` is the file's place in what was dropped. Two files of one name
+   * are told apart by it and by nothing else: a lookup by name would hand
+   * both paths the same bytes.
+   */
+  imports: { index: number; name: string; path: string }[];
   refused: { name: string; reason: ImportRefusal }[];
 }
 
@@ -85,20 +90,22 @@ export function planImport(
       continue;
     }
 
-    const { stem, extension } = splitName(file.name.trim());
-    const checked = checkFileName(stem);
+    // The whole name is checked, extension included. A name is what the drop
+    // says it is, and `a.b/../../x` has a clean stem and a path in its tail.
+    const checked = checkFileName(file.name);
     if (!checked.ok) {
       plan.refused.push({ name: file.name, reason: "bad-name" });
       continue;
     }
+    const { stem, extension } = splitName(checked.name);
 
-    const free = nextFreeName(checked.name, (candidate) => {
+    const free = nextFreeName(stem, (candidate) => {
       const path = joinVaultPath(folder, `${candidate}${extension}`);
       return taken.has(path) || claimed.has(path);
     });
     const path = joinVaultPath(folder, `${free}${extension}`);
     claimed.add(path);
-    plan.imports.push({ name: file.name, path });
+    plan.imports.push({ index, name: file.name, path });
   }
 
   return plan;

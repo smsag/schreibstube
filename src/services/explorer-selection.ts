@@ -80,8 +80,11 @@ export function selectionExtended(
   order: readonly string[]
 ): SelectionState {
   const anchor = state.anchor ?? from;
+  // A cursor inside a folder that has since been folded is not on screen;
+  // the range then continues from the focused row rather than from the top.
   const cursorAt = order.indexOf(state.cursor ?? from);
-  const nextAt = Math.min(order.length - 1, Math.max(0, cursorAt + step));
+  const startAt = cursorAt === -1 ? order.indexOf(from) : cursorAt;
+  const nextAt = Math.min(order.length - 1, Math.max(0, startAt + step));
   const cursor = order[nextAt] ?? from;
   return { selected: new Set(rangeBetween(order, anchor, cursor)), anchor, cursor };
 }
@@ -104,6 +107,26 @@ export function selectionPruned(
     anchor: state.anchor !== null && exists(state.anchor) ? state.anchor : null,
     cursor: state.cursor !== null && exists(state.cursor) ? state.cursor : null
   };
+}
+
+/**
+ * The selection with everything inside a selected folder dropped.
+ *
+ * Deleting or moving a folder takes its contents with it. A file selected
+ * alongside its own folder would then be deleted a second time — an error
+ * for a file that is, in fact, gone — or moved from a path it no longer has,
+ * with an undo that remembers the wrong one. The folder is the action; the
+ * rows under it are already part of it.
+ */
+export function topLevelOnly(paths: readonly string[]): string[] {
+  const chosen = new Set(paths);
+  return paths.filter((path) => {
+    const parts = path.split("/");
+    for (let depth = 1; depth < parts.length; depth += 1) {
+      if (chosen.has(parts.slice(0, depth).join("/"))) return false;
+    }
+    return true;
+  });
 }
 
 /** Whether a menu on `path` should act on the selection rather than the row. */

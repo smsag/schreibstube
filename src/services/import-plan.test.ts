@@ -9,7 +9,7 @@ describe("planImport", () => {
   it("puts a file in the folder it was dropped on", () => {
     const plan = planImport([file("Scan.pdf")], "Anhänge", taken());
 
-    expect(plan.imports).toEqual([{ name: "Scan.pdf", path: "Anhänge/Scan.pdf" }]);
+    expect(plan.imports).toEqual([{ index: 0, name: "Scan.pdf", path: "Anhänge/Scan.pdf" }]);
     expect(plan.refused).toEqual([]);
   });
 
@@ -27,6 +27,16 @@ describe("planImport", () => {
     const plan = planImport([file("Foto.jpg"), file("Foto.jpg")], "", taken());
 
     expect(plan.imports.map((entry) => entry.path)).toEqual(["Foto.jpg", "Foto 1.jpg"]);
+    // Each keeps its place in the drop, which is the only thing that tells
+    // their bytes apart.
+    expect(plan.imports.map((entry) => entry.index)).toEqual([0, 1]);
+  });
+
+  it("refuses a path hidden in the extension", () => {
+    const plan = planImport([file("a.b/../../x"), file("a.b\\c")], "Anhänge", taken());
+
+    expect(plan.imports).toEqual([]);
+    expect(plan.refused.map((entry) => entry.reason)).toEqual(["bad-name", "bad-name"]);
   });
 
   it("splits the extension where the vault does, so archive.tar.gz keeps its .gz", () => {

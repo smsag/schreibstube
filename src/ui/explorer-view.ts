@@ -1538,6 +1538,8 @@ export class ExplorerPaneView extends ItemView {
       const isOpen = isFolder && this.isFolderOpen(file.path);
       const action = rowKeyAction(event, { isFolder, isOpen });
       if (action === null) return;
+      // Escape with nothing selected is not the pane's to swallow.
+      if (action === "clear" && this.selection.selected.size === 0) return;
       event.preventDefault();
       event.stopPropagation();
 
@@ -1603,9 +1605,11 @@ export class ExplorerPaneView extends ItemView {
 
   /** The selected rows as the vault knows them, in drawn order. */
   private selectedFiles(): TAbstractFile[] {
+    // From the selection, not from the rows on screen: a selected file
+    // inside a folder folded since is still selected, and a menu that says
+    // "3 items" must act on three.
     const files: TAbstractFile[] = [];
-    for (const path of this.rowOrder()) {
-      if (!this.selection.selected.has(path)) continue;
+    for (const path of [...this.selection.selected].sort((a, b) => a.localeCompare(b))) {
       const file = this.app.vault.getAbstractFileByPath(path);
       if (file) files.push(file);
     }
@@ -1658,18 +1662,29 @@ export class ExplorerPaneView extends ItemView {
     body.addEventListener("drop", (event) => {
       if (!carriesFiles(event)) return;
       event.preventDefault();
+      // Ours alone: a drop that also reached the window would be imported
+      // twice, once by this pane and once by whatever the app does with it.
+      event.stopPropagation();
       body.removeClass("is-import-target");
       clearMoveMarks(body);
 
       const folder = moveTargetAt(body, event.clientX, event.clientY) ?? "";
-      const sources: ImportSource[] = Array.from(event.dataTransfer?.files ?? []).map((file) => ({
-        name: file.name,
-        size: file.size,
-        // A folder from the desktop arrives with no type and no size; the
-        // plan refuses it by name rather than writing an empty file.
-        isFolder: file.type === "" && file.size === 0,
-        bytes: () => file.arrayBuffer()
-      }));
+      // Whether an item is a folder is asked of the entry, which knows, and
+      // read during the event — the entries are gone once it has passed.
+      // A browser without entries falls back to the one sign a folder gives:
+      // no type and no size, which an empty file without an extension shares.
+      const items = Array.from(event.dataTransfer?.items ?? []);
+      const sources: ImportSource[] = Array.from(event.dataTransfer?.files ?? []).map(
+        (file, index) => {
+          const entry = items[index]?.webkitGetAsEntry?.() ?? null;
+          return {
+            name: file.name,
+            size: file.size,
+            isFolder: entry ? entry.isDirectory : file.type === "" && file.size === 0,
+            bytes: () => file.arrayBuffer()
+          };
+        }
+      );
       void this.host?.explorer.importFiles(sources, folder);
     });
   }

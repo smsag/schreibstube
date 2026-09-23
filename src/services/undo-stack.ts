@@ -67,6 +67,20 @@ export class UndoStack {
     return action;
   }
 
+  /**
+   * Take `action`, but only while it is still the one on offer.
+   *
+   * A notice offers to undo the action it announced. If another action has
+   * happened since, that notice's Undo must not undo the newer one — a
+   * "put back the file I deleted" that instead reverses a move nobody asked
+   * about is worse than doing nothing. Null then, and the caller says so.
+   */
+  takeIf(action: UndoableAction, now: number): UndoableAction | null {
+    if (this.peek(now) !== action) return null;
+    this.last = null;
+    return action;
+  }
+
   clear(): void {
     this.last = null;
   }

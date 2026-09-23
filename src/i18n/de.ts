@@ -852,7 +852,8 @@ export const de: Messages = {
       linkCharacters:
         "ein Name darf # ^ [ oder ] nicht enthalten: Links auf die Datei würden brechen.",
       hidden: "ein Name, der mit einem Punkt beginnt, wird vom Vault versteckt.",
-      trailingDot: "ein Name darf nicht mit einem Punkt enden."
+      trailingDot: "ein Name darf nicht mit einem Punkt enden.",
+      tooLong: "ein Name darf höchstens 255 Zeichen lang sein."
     },
 
     delete: {
