@@ -252,6 +252,13 @@ export const de: Messages = {
     overlayEnabledDesc:
       "Zeigt den mitlaufenden Pfad der übergeordneten Überschriften am oberen Rand der Notiz.",
 
+    iconShortcodesHeading: "Icons im Text",
+    iconShortcodesEnabled: ":folder: als Icon zeichnen",
+    iconShortcodesEnabledDesc:
+      "Doppelpunkt und zwei Buchstaben eines Icon-Namens tippen, um eines zu wählen; es wird als " +
+      "`:name:` geschrieben, hier als Glyphe gezeichnet und überall sonst als Name gelesen. " +
+      "Ausschalten, wenn ein anderes Plugin den Doppelpunkt schon für Emoji nutzt.",
+
     focusHeading: "Fokus-Modus",
     focusOpacity: "Abdunklung",
     focusOpacityDesc:

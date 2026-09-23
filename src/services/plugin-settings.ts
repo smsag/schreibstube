@@ -117,6 +117,7 @@ export const DEFAULT_SETTINGS: SchreibstubeSettings = {
   explorerLatestCount: LATEST_COUNT_DEFAULT,
   explorerLatestExcluded: "",
   explorerTaskCounts: false,
+  iconShortcodes: true,
   mailBridgeUrl: "",
   mailTokenSecretName: "",
   mailFrom: "",
@@ -286,6 +287,9 @@ export function normalizeSettings(loaded: LoadedSettings): SchreibstubeSettings 
         ? loaded.explorerLatestExcluded
         : DEFAULT_SETTINGS.explorerLatestExcluded,
     explorerTaskCounts: loaded?.explorerTaskCounts === true,
+    // On unless switched off: the shortcode is the whole point of the icons
+    // being in a note at all, and a setting nobody finds is a feature nobody has.
+    iconShortcodes: loaded?.iconShortcodes !== false,
     mailBridgeUrl: trimmedStringOrDefault(loaded?.mailBridgeUrl, DEFAULT_SETTINGS.mailBridgeUrl),
     mailTokenSecretName:
       typeof loaded?.mailTokenSecretName === "string"

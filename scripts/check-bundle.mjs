@@ -36,8 +36,16 @@ import { fileURLToPath } from "node:url";
  * The file pane's selection, undo and import (+11 KB) fit under that
  * ceiling, at 454 KB: three operations a file manager is expected to have,
  * none of them borrowed. What is left is for the next feature.
+ *
+ * Raised to 480 KB at 459 KB, for icons in the text (+4 KB): the scanner
+ * that finds `:folder:` outside code and links, the picker that opens on a
+ * colon, the widget and the post-processor that draw the glyph, and the
+ * setting in two languages. Small, because the icons and their names were
+ * in the bundle already; what it spent was the last kilobyte of headroom,
+ * and one kilobyte is a build that breaks on the next line anyone writes.
+ * The headroom left is for the next feature, not a new normal.
  */
-const MAX_BUNDLE_KB = 460;
+const MAX_BUNDLE_KB = 480;
 
 const bundle = fileURLToPath(new URL("../main.js", import.meta.url));
 const source = readFileSync(bundle, "utf8");

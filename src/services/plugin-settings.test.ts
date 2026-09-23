@@ -466,3 +466,11 @@ describe("printing is off until somebody says otherwise", () => {
     expect(normalizeSettings({})).toMatchObject({ propertyIcons: {}, dateFormat: "YYYY-MM-DD" });
   });
 });
+
+describe("icon shortcodes", () => {
+  it("are on unless switched off, and a stray value does not switch them off", () => {
+    expect(normalizeSettings({}).iconShortcodes).toBe(true);
+    expect(normalizeSettings({ iconShortcodes: "off" as never }).iconShortcodes).toBe(true);
+    expect(normalizeSettings({ iconShortcodes: false }).iconShortcodes).toBe(false);
+  });
+});

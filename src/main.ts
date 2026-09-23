@@ -52,6 +52,11 @@ import {
 } from "./controllers/table-insert";
 import { ProofreadController } from "./controllers/proofread-controller";
 import { createGlossaryUnderlineExtension } from "./processors/glossary-underline";
+import {
+  createIconShortcodeExtension,
+  registerIconShortcodePostProcessor
+} from "./processors/icon-shortcode";
+import { IconShortcodeSuggest } from "./ui/icon-suggest";
 import { compileGlossaries } from "./services/glossary-matcher";
 import { minuteOf, parseCron, previousRun, shouldFire } from "./services/cron";
 import { REVIEW_VIEW_TYPE, ReviewPanelView } from "./ui/review-panel";
@@ -242,6 +247,12 @@ export default class SchreibstubePlugin extends Plugin {
         getMatcher: () => this.proofread?.activeMatcher() ?? compileGlossaries([])
       })
     );
+    // `:folder:` in a note: the picker while one is typed, the glyph in Live
+    // Preview, and the glyph in Reading view. One setting switches all three.
+    const iconShortcodes = (): boolean => this.settings.iconShortcodes;
+    this.registerEditorSuggest(new IconShortcodeSuggest(this.app, iconShortcodes));
+    this.registerEditorExtension(createIconShortcodeExtension(iconShortcodes));
+    registerIconShortcodePostProcessor(this, iconShortcodes);
     this.registerProofreadEvents();
     this.startPollTicker();
 

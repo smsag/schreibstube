@@ -188,3 +188,16 @@ export const requestUrl = async (): Promise<never> => {
 export const loadPdfJs = async (): Promise<never> => {
   throw new Error("loadPdfJs is not available in tests; inject a reader instead.");
 };
+
+/** The base of an editor popup. A test never opens one; the class only has
+ *  to exist so a suggest that extends it can be imported. */
+export class EditorSuggest<T> {
+  context: unknown = null;
+  limit = 0;
+  constructor(public app: unknown) {}
+  setInstructions(): void {}
+  close(): void {}
+  getSuggestions(_context: unknown): T[] {
+    return [];
+  }
+}
