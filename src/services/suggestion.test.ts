@@ -6,7 +6,9 @@ import {
   planApply,
   refreshStaleness,
   resolveAnchor,
+  revealRange,
   settleStatuses,
+  INSERT_REVEAL_CHARS,
   type Suggestion
 } from "./suggestion";
 
@@ -344,5 +346,66 @@ describe("mergeSuggestions with a replaced source", () => {
     const first = mergeSuggestions([], [llm("Broker", "Makler")], "llm");
     const second = mergeSuggestions(first, [llm("Broker", "Makler")], "llm");
     expect(second).toHaveLength(1);
+  });
+});
+
+describe("revealRange", () => {
+  // The context an insertion anchors by comes from the text before it, as the
+  // factory reads it; the test hands over the same text a scan would have.
+  const insertion = (text: string, at: number): Suggestion =>
+    createSuggestion(
+      {
+        kind: "insert",
+        source: "remote",
+        category: "update",
+        severity: "suggestion",
+        from: at,
+        to: at,
+        original: "",
+        replacement: "neuer Satz",
+        note: ""
+      },
+      text.slice(0, at)
+    );
+
+  it("selects a card's own text when it has some", () => {
+    const text = "Der Bericht ist fertig.";
+    const card = at(text, "fertig", "abgeschlossen");
+
+    expect(revealRange(text, { from: 16, to: 22 }, card)).toEqual({ from: 16, to: 22 });
+  });
+
+  it("selects the last words before an insertion point, so the landing is visible", () => {
+    const text = "Die Auswertung zeigt einen Rückgang. Weiter geht es unten.";
+    const point = text.indexOf(" Weiter");
+
+    const range = revealRange(text, { from: point, to: point }, insertion(text, point));
+
+    expect(text.slice(range.from, range.to)).toBe("zeigt einen Rückgang.");
+    expect(range.to).toBe(point);
+  });
+
+  it("never starts a selection mid-word", () => {
+    const text = "abcdefghijklmnopqrstuvwxyz Ende";
+    const point = text.length;
+
+    const range = revealRange(text, { from: point, to: point }, insertion(text, point));
+
+    expect(text.slice(range.from)).toBe("Ende");
+  });
+
+  it("takes a word longer than the window as it is, rather than nothing", () => {
+    const word = "Donaudampfschifffahrtsgesellschaftskapitän";
+    const point = word.length;
+
+    const range = revealRange(word, { from: point, to: point }, insertion(word, point));
+
+    expect(range.from).toBe(word.length - INSERT_REVEAL_CHARS);
+  });
+
+  it("starts at the beginning of a document that has nothing before the point", () => {
+    const text = "Kurz.";
+
+    expect(revealRange(text, { from: 0, to: 0 }, insertion(text, 0))).toEqual({ from: 0, to: 0 });
   });
 });

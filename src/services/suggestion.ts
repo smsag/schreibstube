@@ -66,6 +66,44 @@ const NEARBY_WINDOW = 400;
 export const INSERT_CONTEXT = 80;
 
 /**
+ * How much of the text before an insertion point "Locate" selects.
+ *
+ * A pure insertion has no text of its own in the note, so revealing it put
+ * the cursor at a point and selected nothing — which on screen looks like
+ * the button did nothing. Selecting the last few words before the point
+ * makes the landing visible, and says "right after this" in the bargain.
+ * Short, because a selection is also what typing replaces.
+ */
+export const INSERT_REVEAL_CHARS = 24;
+
+/**
+ * The span to select so a person can see where a card applies.
+ *
+ * For a card with text in the note, the text. For an insertion, the tail of
+ * what stands before the point, cut back to a word boundary so a selection
+ * never starts mid-word. Taken from the document rather than from the card's
+ * remembered context, because the document is what is on screen.
+ */
+export function revealRange(
+  docText: string,
+  anchor: { from: number; to: number },
+  suggestion: Suggestion
+): { from: number; to: number } {
+  if (suggestion.kind !== "insert" || anchor.to > anchor.from) return anchor;
+
+  const start = Math.max(0, anchor.from - INSERT_REVEAL_CHARS);
+  let tail = docText.slice(start, anchor.from);
+  if (start > 0) {
+    // Cut at the first word boundary so the selection begins on a word; a
+    // single word longer than the window is taken as it is.
+    const boundary = tail.search(/\s\S/);
+    if (boundary !== -1) tail = tail.slice(boundary + 1);
+  }
+  tail = tail.replace(/^\s+/, "");
+  return { from: anchor.from - tail.length, to: anchor.to };
+}
+
+/**
  * A suggestion's identity is its span and what it proposes there.
  *
  * The panel dispatches Accept, Reject and Reveal by id, and `mergeSuggestions`
