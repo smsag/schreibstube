@@ -132,7 +132,7 @@ export function buildExplorerMenu(
   if (target.kind === "folder" && target.hasImages) {
     sections.push({
       id: "open",
-      items: [{ id: "show-images", label: menu.showImages, icon: "images" }]
+      items: [{ id: "show-images", label: menu.showImages, icon: "image" }]
     });
   }
 
