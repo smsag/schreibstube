@@ -2,7 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## 1.41.0 - 2026-09-23
+
+A folder's pictures, as tiles. Right-click a folder in the Explorer and
+choose "Images as tiles": a tab in the main area shows the folder's own
+pictures as a grid — its own, not its subfolders', so an archive with a
+folder per year shows one year at a time. While the tab is open it follows
+the pane; press another folder and the grid shows that one, without taking
+the focus from the tree, and its tab is named for the folder it is showing.
+A tile opens its picture in a new tab, a right-click or long press gives the
+file's menu, and pictures load as they scroll into view.
+
+Mobile checklist: not run. What a phone would answer differently: a long
+press on a tile opening the menu without also opening the picture, two
+columns at phone width, and lazy loading inside the tab's own scrolling.
+
+The bridge's protocol is unchanged; bridge 2.4.0 still pairs with this release.
 
 ### Added
 
