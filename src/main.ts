@@ -504,9 +504,11 @@ export default class SchreibstubePlugin extends Plugin {
       view.connect({
         tiles: (folder) => explorer.folderTiles(folder),
         resourceUrl: (path) => explorer.resourceUrl(path),
-        open: async (path) => {
+        open: async (path, into) => {
           const file = this.app.vault.getAbstractFileByPath(path);
-          if (file) await explorer.open(file, true);
+          if (!(file instanceof TFile)) return;
+          if (into === "tab") await explorer.open(file, true);
+          else await into.openFile(file);
         },
         showMenu: (path, at) => explorer.showMenuForPath(path, at),
         onFolderChosen: (listener) => explorer.onFolderChosen(listener)
