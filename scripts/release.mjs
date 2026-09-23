@@ -3,15 +3,15 @@
  *
  * `manifest.json` is what Obsidian reads, `package.json` is what the build
  * reads, and `versions.json` is what the installer reads to decide which
- * release an older app may have. `package-lock.json` keeps its own copy of
- * `package.json`'s version — twice, once at the top level and once under
- * `packages[""]` — and npm rewrites both the next time anyone installs. Left
- * behind, it turns every later `npm install` into a one-hunk lockfile diff
- * that belongs to a release nobody is working on, which is noise on every
- * branch and easy to commit by accident; so it moves with the rest rather
- * than trailing a release behind. Doing all four by hand is four edits and
- * one chance to get one of them wrong, which the release workflow then
- * discovers after it has already started.
+ * release an older app may have. Doing that by hand is three edits and one
+ * chance to get one of them wrong, which the release workflow then discovers
+ * after it has already started.
+ *
+ * A fourth file carries the number and nothing reads it for the release, which
+ * is how it came to be left behind: npm keeps `package-lock.json` equal to
+ * `package.json`, so a stale one says nothing until the next `npm install`
+ * rewrites it and hands whoever ran it a hunk they did not write. It holds the
+ * version twice, and both are set here, so that no branch starts dirty.
  */
 import { execSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
@@ -36,6 +36,14 @@ if (!isNewer(version, manifest.version)) {
   process.exit(1);
 }
 
+if (typeof lock.packages?.[""]?.version !== "string") {
+  console.error(
+    'package-lock.json has no packages[""].version — its format changed.\n' +
+      "Bump it by hand, or with `npm install --package-lock-only`, and check this script."
+  );
+  process.exit(1);
+}
+
 const dirty = execSync("git status --porcelain", { encoding: "utf8" }).trim();
 if (dirty) {
   console.error("The working tree has changes. Commit them before releasing.");
@@ -47,8 +55,9 @@ pkg.version = version;
 // The installer maps a plugin version to the oldest Obsidian that can run it,
 // which is whatever the manifest currently requires.
 versions[version] = manifest.minAppVersion;
-// Both places npm keeps the root package's version, so the next install has
-// nothing left to correct.
+
+// Both, because npm writes the version in each and reconciles them on the
+// next install whether or not anyone asked it to.
 lock.version = version;
 lock.packages[""].version = version;
 
