@@ -27,6 +27,7 @@ import {
   Keymap,
   TFile,
   TFolder,
+  View,
   type TAbstractFile,
   type WorkspaceLeaf
 } from "obsidian";
@@ -67,6 +68,7 @@ import {
 } from "../services/tree-move";
 import type { SchreibstubeSettings } from "../types";
 import { countFilesUnder, folderCountLabel } from "../services/folder-count";
+import { followsNoteInWindow } from "../services/follow-window";
 import { folderPathsUnder, treeAction } from "../services/vault-tree";
 import {
   clearDropMarks,
@@ -441,6 +443,10 @@ export class ExplorerPaneView extends ItemView {
    * Only the folders above the file are opened. Nothing is collapsed, so a
    * person's own arrangement survives. `quietly` is for a note that was just
    * opened: the row is brought into view only if it is out of it.
+   *
+   * A note in another window is left alone entirely: the pane is not where
+   * the person is looking, and focusing that window would otherwise scroll
+   * the pane again each time. The tree stays exactly as it was.
    */
   revealActiveFile(redraw = true, quietly = false): void {
     const path = this.app.workspace.getActiveFile()?.path;
@@ -448,9 +454,17 @@ export class ExplorerPaneView extends ItemView {
       if (redraw) this.requestRender();
       return;
     }
+    if (!followsNoteInWindow(this.activeNoteWindow(), this.containerEl.win)) return;
 
     for (const ancestor of ancestorsOf(path)) this.revealedFolders.add(ancestor);
     this.reveal(path, redraw, quietly);
+  }
+
+  /** The window holding the view the active file is open in, or null when
+   *  there is no telling — a view of any kind, since a PDF or a picture can be
+   *  popped out as well as a note. */
+  private activeNoteWindow(): Window | null {
+    return this.app.workspace.getActiveViewOfType(View)?.containerEl.win ?? null;
   }
 
   private reveal(path: string, redraw = true, quietly = false): void {

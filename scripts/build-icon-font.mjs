@@ -94,7 +94,11 @@ const base64 = subset.toString("base64");
 const full = readFileSync(join(packageDir, "dist/fonts/tabler-icons.woff2")).length;
 
 const codepoints = wanted
-  .map((name) => `  "${name}": "\\u${available.get(name).toString(16).padStart(4, "0")}"`)
+  // The braced form: Tabler has outgrown the Basic Multilingual Plane, and a
+  // codepoint above U+FFFF written as four digits and a leftover is a wrong
+  // glyph followed by a stray character — "tag" was U+10096, and drew as
+  // U+1009 and a 6.
+  .map((name) => `  "${name}": "\\u{${available.get(name).toString(16)}}"`)
   .join(",\n");
 
 const groups = ICON_GROUPS.map(

@@ -8,7 +8,14 @@ All notable changes to this project will be documented in this file.
 
 - **A slideshow's header stays out of the way.** The alt text and the controls in the row above a slideshow now appear only while the pointer is over the block or a control has the keyboard focus. On a phone, which has no pointer, a tap on a picture or on the row shows them and the next tap, or a swipe, hides them again. The row keeps its height, so nothing below the block moves when they come and go. This is the same in every layout, from the stage to the before-and-after.
 - **Back returns from a picture to its tiles.** A tile opened its picture in a new tab, so the tab's Back arrow had nowhere to go and the grid was reached again only through the folder's menu. A tile now opens its picture in the tiles tab itself, and Back brings the grid back as it was, on the folder it was showing. A modifier click, Cmd or Ctrl, opens a new tab instead, for the grid and the picture side by side.
+- **The explorer no longer follows a note into another window.** The pane opens the folders above the open note and scrolls its row into view, whichever way the note was opened. It did that for a note in a popped-out window too, and again every time that window was focused, so the tree in the main window kept scrolling to a note nobody was looking at there. A note in another window is now left alone entirely: the tree stays as it was arranged. A note in the pane's own window is followed as before.
 - **A swipe on a slideshow is the slideshow's alone.** A sideways swipe across the stage or the scene in the note has turned the page since the block existed, but the note could scroll with it and, on a phone, Obsidian could answer the same swipe by sliding a sidebar in over the note. Once a finger is clearly moving sideways the block now claims the gesture: the note stays put and nothing above the block sees it. Which travel is a tap, a swipe or a scroll is one small decision module with tests.
+
+### Fixed
+
+- **The icon picker no longer shows blank squares after an update.** The plugin's icon font is put into the window once and was never taken out again, and Obsidian updates a plugin in place, in the same window. After an update the window kept the previous version's font, the picker listed every icon the new version knew, and each icon the old font lacked was a blank square until Obsidian was restarted. The font now leaves with the plugin on unload, and a font from another build is replaced rather than kept.
+- **The tag icon draws as a tag.** Its codepoint lies above the Basic Multilingual Plane, and the generated map wrote it as four digits and a leftover, which drew as a foreign letter followed by a 6. The map now writes every codepoint in the braced form.
+
 
 ## 1.41.0 - 2026-09-23
 
