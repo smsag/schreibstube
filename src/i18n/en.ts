@@ -16,13 +16,12 @@ export const en = {
     newNote: "New doc",
     insertTaskSummary: "Insert: task summary",
     insertSlideshow: "Insert: slideshow",
-    sendToReminders: "Send task to Erinnerungen",
-    reminders: "Compare with Erinnerungen",
     rename: "Rename doc with AI",
     summarize: "Insert: AI summary of the selection",
     table: "Insert: table from the selection",
     tableAi: "Insert: AI table from the selection",
     insertToday: "Insert: today's date",
+    openPlanner: "Open day planner",
     openExplorer: "Open explorer",
     collapseExplorer: "Explorer: collapse folders",
     related: "Related notes",
@@ -61,21 +60,7 @@ export const en = {
      *  numbers have to appear as plain digits here. */
     ribbon: (open: number, total: number) => `${open} open of ${total}`,
     /** The badge after a heading. */
-    badge: (open: number, total: number) => `${open} of ${total} open`,
-    menuSend: "Send to Erinnerungen",
-    markTooltip: "Sent to Erinnerungen",
-    remindersOff:
-      "sending to Erinnerungen is off. Turn it on in Settings → Schreibstube → Erinnerungen.",
-    noShortcut: "no Shortcut name is set. Enter it in Settings → Schreibstube → Erinnerungen.",
-    notATask: "the cursor is not on a task.",
-    sent: (title: string) => `sent to Erinnerungen: ${title}`,
-    taskNotFound: "no note in this vault holds that task.",
-    noStatusShortcut:
-      "no status Shortcut name is set. Enter it in Settings → Schreibstube → Erinnerungen.",
-    noneSent: "no task in this note has been sent to Erinnerungen.",
-    checking: "asking Erinnerungen…",
-    nothingDone: "Erinnerungen reports nothing new as done.",
-    ticked: (count: number) => `${count} task(s) ticked as done in Erinnerungen.`
+    badge: (open: number, total: number) => `${open} of ${total} open`
   },
 
   slideshow: {

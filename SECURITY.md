@@ -28,7 +28,11 @@ are throttled; behind a hosting platform's proxy set `TRUST_PROXY=true` so the
 address is the caller's rather than the proxy's. Request bodies are capped per
 route, every outbound operation has a deadline, uploads must hash to what they
 claim, the SFTP host key is pinned, and a remote write refuses to follow a
-symlink. Nothing is persisted on the bridge.
+symlink. The bridge persists one thing: the planning document of the `plan`
+capability, when it is configured — deadlines, time blocks, the wording and
+note paths of the tasks planned into them, and a small reminder outbox. It is
+written with owner-only permissions at `PLAN_STORE`, at its latest revision
+only, with no history. Mail and publishing persist nothing.
 
 On the published site, raw HTML from a note is passed through only when the
 target allows it (`PUBLISH_<TARGET>_ALLOW_HTML`, on by default for a personal

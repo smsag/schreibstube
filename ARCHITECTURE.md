@@ -38,6 +38,7 @@ controllers/         one per feature; they own flow and talk to Obsidian
   explorer-controller  the file pane: icons, pins, its menu, its sync actions
   pane-sections        the two read-only lists above the tree: bookmarks, latest
   property-controller  property icons and today's date in the Properties view
+  planner              the day planner: the vault's tasks, the plan, the calendar
 services/            pure decisions, no Obsidian imports, heavily tested
 processors/          editor extensions and reading-view post-processors
 print/               the Typst compiler and the worker it runs in
@@ -58,10 +59,14 @@ config.mjs           one block per capability; absent means not offered
 router.mjs           which token opens which route
 mail-routes.mjs      send, search, diagnostics
 publish/             plan, upload, commit, render, SFTP
+plan/                the planning document and the calendar it writes over CalDAV
 ```
 
-Capabilities are independent. A deployment can offer mail, publishing, or both,
-and one capability's token never opens another's routes.
+Capabilities are independent. A deployment can offer mail, publishing, planning
+or any combination, and one capability's token never opens another's routes.
+
+The bridge stores one thing: the planning document, latest revision only. Mail
+and publishing pass through it and leave nothing behind.
 
 ## Publishing, end to end
 

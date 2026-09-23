@@ -90,20 +90,7 @@ export interface PublishSummary {
   durationMs: number;
 }
 
-export interface BridgeHealth {
-  version: string;
-  protocol: number;
-  capabilities: string[];
-}
-
-export function parseHealth(json: unknown): BridgeHealth {
-  const record = asRecord(json);
-  return {
-    version: str(record.version),
-    protocol: typeof record.protocol === "number" ? record.protocol : 0,
-    capabilities: Array.isArray(record.capabilities) ? record.capabilities.map(str) : []
-  };
-}
+export { parseHealth, type BridgeHealth } from "./bridge-protocol";
 
 export function parseTargets(json: unknown): PublishTarget[] {
   const raw = asRecord(json).targets;

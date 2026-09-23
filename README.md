@@ -525,41 +525,28 @@ The badges appear in Live Preview and Source mode. The ribbon also renders in Re
 
 A task can carry more than its first line: a paragraph typed with Shift+Enter, a note under it, sub-items — anything indented deeper than the task's own marker. While the task is open that text stays in view. Tick the task and it folds away, leaving the first line; untick it and it comes back. In the editor this is an ordinary fold, so the fold indicator opens a done task by hand and it stays open until its state changes again. Tasks that are already done when a note opens are folded from the start. In Reading view there is no folding, so the body is hidden instead. This works in every note, with or without the ribbon.
 
-#### Sending a task to Erinnerungen
+#### Planning the day
 
-On macOS and iOS a task can be handed to Apple's Reminders. Put the cursor on the task and run **Send task to Erinnerungen**, or right-click the line (long-press on a phone) and choose **Send to Erinnerungen**. The task's line becomes the reminder's title, tags included, and the text indented under it becomes the note. The command is offered only when the cursor is on a task; switch the feature on under **Settings → Schreibstube → Erinnerungen** first.
+Tasks carry their project as a tag, `#projects/ea48`, and nothing more: the planner writes nothing into a note but a tick. **Open day planner** opens a sidebar with the day's calendar, the projects and what they need. Give a tag a deadline and the planner counts what is open, looks at the time still free, and proposes blocks; take one, tick the tasks for it, and confirm. The block goes into your calendar, so every device shows it, and the plan — which tasks belong to which block — lives on your own bridge.
 
-Obsidian cannot talk to Reminders directly, so the work is done by a Shortcut you build once in the Shortcuts app, named as in the settings (**Schreibstube Reminder** by default):
+A task belongs to a block rather than to a time, so a block moved in the calendar leaves its tasks alone, and nothing disappears from view because a minute has passed. A few tasks can also be marked for Erinnerungen; those are applied on an Apple device by a helper, the app or a Shortcut, and a reminder ticked there ticks the task in the note.
 
-1. Create a shortcut that accepts **Text** as input.
-2. Add **Get Dictionary from Input**.
-3. Add **Add New Reminder** with Title from the dictionary's `title`, Notes from `notes`, and the list from `list`. If the list field will not take a variable, choose the list inside the Shortcut instead.
+On a start page, the same plan draws itself:
 
-The plugin sends one JSON object: `title`, `notes`, `list`, `link` and `note` (the note's title). `notes` already holds the body, a line `↩ Note title`, and the link, so the simplest Shortcut needs only `title` and `notes`.
-
-The link is `obsidian://schreibstube?task=<id>`. The command writes the same link onto the task line, as a Markdown link at its end:
-
-```markdown
-- [ ] Bank anrufen #geld [⏰](obsidian://schreibstube?task=ab12cd)
+````markdown
+```schreibstube-plan
+day: today
+tags: projects/ea48
 ```
+````
 
-In Obsidian that link shows as a small Reminders-style mark after the task, in Live Preview and in Reading view; put the cursor on the line and the source is there as usual. Anywhere else the clock stands in. Following the link from the reminder opens the vault, the note and the task's line, however the note has been renamed or moved since, because the plugin looks for the line that carries the same link. Delete the link from the line and the reminder can no longer find its way back.
+Switch it on under **Settings → Schreibstube → Tagesplan**, where the bridge URL, its token and the calendars are set. [PLANNING.md](PLANNING.md) has the details, and `bridge/README.md` the capability it needs.
 
-What does not carry over: Reminders' own tags. There is no way to set one from outside, so `#tag` stays as text in the title, visible and searchable but not coloured. Editing a reminder after it is created is not part of this.
+#### Tasks in Erinnerungen
 
-#### Done in Erinnerungen, ticked in the note
+A few tasks are worth carrying out of the vault. When the planner puts a task into a block, mark it **also in Erinnerungen** and it becomes a reminder in one list, **Schreibstube** unless you name another. Nothing is written into the note: the planner keeps its reminders in the plan on your bridge. Edit, tick or date the task and the reminder follows; tick the reminder on your phone and the task is ticked.
 
-A reminder completed on the phone can tick its task in the note. The plugin cannot ask Reminders, so a second Shortcut does, named as in the settings (**Schreibstube Reminder Status** by default):
-
-1. Create a shortcut that accepts **Text** as input.
-2. Add **Find Reminders** with _Is Completed_ true, the list you use, and _Notes contains_ `schreibstube?task=`.
-3. Add **Get Details of Reminders** for the **Notes**, then **Combine Text** with new lines, and end with that text as the output.
-
-**Compare with Erinnerungen** runs it. With a note open that has sent tasks, it asks about those; anywhere else it asks about every completed reminder in the list. Either way it opens the Shortcut through `x-callback-url`; Shortcuts hands its output back to the plugin, which ticks every open task the output names, in whichever note it lives. A task already done, whatever its marker, is left alone.
-
-Without running anything: add **Save File** to the same shortcut, overwriting the **Report file** from the settings (`schreibstube-reminders.txt` in the vault root by default), and run the shortcut from an automation, on iOS for example every hour. The plugin looks at the file every twenty seconds, reads it when it has changed, and ticks the tasks it names. macOS Shortcuts has no time-based automations, but a file written by the phone reaches the Mac through the vault's own sync, and the command works everywhere.
-
-The Shortcut's output can be any text that contains the reminders' links; the plugin picks the ids out of it and ignores the rest.
+Something on an Apple device carries the reminders into Reminders — a Shortcut, run a few times a day by an automation, or a small helper on a Mac — and iCloud takes them to every other device. Reminders made by **Send task to Erinnerungen** in 1.35 and earlier still open their task. [REMINDERS.md](REMINDERS.md) has the Shortcut and the two bridge calls it makes.
 
 ### Commands
 

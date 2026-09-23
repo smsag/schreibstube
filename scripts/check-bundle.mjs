@@ -25,8 +25,20 @@ import { fileURLToPath } from "node:url";
  * and small, and what it revealed is that the headroom was already spent.
  * The headroom left is for the next feature, not a new normal — a change
  * that needs more says why, as this one does.
+ *
+ * Raised to 480 KB at 458 KB, for the day planner (+27 KB net): a leaf with
+ * its modals, the block a start page draws, the plan's model, matcher and
+ * proposal engine, and every string of it in two languages — less the older
+ * Reminders commands it replaces.
+ *
+ * The 460 first written here was measured at 421 KB, against a main that has
+ * since grown to 431 KB on its own. Merged, the planner lands at 458 — two
+ * kilobytes under that ceiling, which is the state this file already says is
+ * not a budget but a build that breaks on the next line anyone writes. The
+ * feature has not grown; the floor under it has. The headroom left is for the
+ * next feature.
  */
-const MAX_BUNDLE_KB = 440;
+const MAX_BUNDLE_KB = 480;
 
 const bundle = fileURLToPath(new URL("../main.js", import.meta.url));
 const source = readFileSync(bundle, "utf8");

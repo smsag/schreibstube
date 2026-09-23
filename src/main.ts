@@ -2,7 +2,6 @@ import {
   type Editor,
   MarkdownView,
   Notice,
-  Platform,
   Plugin,
   TFile,
   TFolder,
@@ -25,7 +24,6 @@ import { buildSlideshowInsertion } from "./services/slideshow";
 import { createLogger, type Logger } from "./services/logger";
 import {
   commandAvailable,
-  remindersScope,
   renameTarget,
   type CommandContext,
   type GatedCommand
@@ -36,9 +34,7 @@ import { hasSourceBinding } from "./services/sync-source";
 import { describePollSummary } from "./services/sync-summary";
 import { mergeSyncState, sameSyncState } from "./services/sync-merge";
 import type { SyncRecord } from "./services/sync-document";
-import { isTaskLine, TASK_PROTOCOL_ACTION } from "./services/reminder-export";
-import { sentTaskIds } from "./services/reminder-status";
-import { ReminderCommands } from "./controllers/reminder-commands";
+import { TASK_PROTOCOL_ACTION } from "./services/plan-model";
 import { NoteCommands } from "./controllers/note-commands";
 import { LinkModeController } from "./controllers/link-mode-controller";
 import { LlmCommands } from "./controllers/llm-commands";
@@ -54,6 +50,9 @@ import { createGlossaryUnderlineExtension } from "./processors/glossary-underlin
 import { compileGlossaries } from "./services/glossary-matcher";
 import { minuteOf, parseCron, previousRun, shouldFire } from "./services/cron";
 import { REVIEW_VIEW_TYPE, ReviewPanelView } from "./ui/review-panel";
+import { PLANNER_ICON, PLANNER_VIEW_TYPE, PlannerView } from "./ui/planner-view";
+import { PLAN_REFRESH_MS, Planner } from "./controllers/planner";
+import { registerPlanBlock } from "./processors/plan-block";
 import { EXPLORER_RIBBON_ICON, EXPLORER_VIEW_TYPE, ExplorerPaneView } from "./ui/explorer-view";
 import { TAG_NOTES_VIEW_TYPE, TagNotesView } from "./ui/tag-notes-view";
 import { RELATED_NOTES_VIEW_TYPE, RelatedNotesView } from "./ui/related-notes-view";
@@ -112,7 +111,9 @@ export default class SchreibstubePlugin extends Plugin {
   private mail: MailCommands | null = null;
   private publish: PublishCommands | null = null;
   private print: PrintCommands | null = null;
-  private reminders: ReminderCommands | null = null;
+  private planner: Planner | null = null;
+  /** When the planner last asked the bridge, so a tick does not ask every time. */
+  private plannerCheckedAt = 0;
   private notes: NoteCommands | null = null;
 
   override async onload(): Promise<void> {
@@ -161,7 +162,10 @@ export default class SchreibstubePlugin extends Plugin {
         await this.saveSettings();
       }
     );
-    this.reminders = new ReminderCommands(this.app, () => this.settings, this.logger);
+    const planner = new Planner(this.app, () => this.settings, this.logger);
+    this.planner = planner;
+    registerPlanBlock(this, planner);
+    this.registerPlannerEvents();
     this.notes = new NoteCommands(this.app, this.logger);
     this.proofread = new ProofreadController(this.app, () => this.settings, this.logger, {
       get: (path) => this.settings.syncState[path],
@@ -224,6 +228,10 @@ export default class SchreibstubePlugin extends Plugin {
     await this.sections.start();
 
     this.registerView(REVIEW_VIEW_TYPE, (leaf) => this.createReviewView(leaf));
+    this.registerView(
+      PLANNER_VIEW_TYPE,
+      (leaf) => new PlannerView(leaf, planner, () => this.settings)
+    );
     this.registerView(EXPLORER_VIEW_TYPE, (leaf) => this.createExplorerView(leaf));
     this.registerView(TAG_NOTES_VIEW_TYPE, (leaf) => this.createTagNotesView(leaf));
     this.registerView(RELATED_NOTES_VIEW_TYPE, (leaf) => this.createRelatedNotesView(leaf));
@@ -263,16 +271,6 @@ export default class SchreibstubePlugin extends Plugin {
 
     this.registerCommands();
 
-    // The same action as the command, where a right-click or a long press
-    // lands. Obsidian puts the cursor on the clicked line before it asks for
-    // the menu, so the task under the cursor is the task under the pointer.
-    this.registerEvent(
-      this.app.workspace.on("editor-menu", (menu, editor, view) => {
-        if (!(view instanceof MarkdownView) || !view.file) return;
-        if (!commandAvailable("send-reminder", this.commandContext())) return;
-        this.reminders?.addMenuItem(menu, editor, view.file);
-      })
-    );
     // Selected lines into a table. The plain conversion is offered only when
     // it would work, since the menu is built for this very selection; the AI
     // one whenever several lines are selected, and says what it needs if the
@@ -303,10 +301,10 @@ export default class SchreibstubePlugin extends Plugin {
         );
       })
     );
-    // The link a reminder carries, obsidian://schreibstube?task=<id>, and the
-    // callback the status Shortcut answers through, obsidian://schreibstube?done=1.
+    // The link a reminder carries back to its task, from the planner or from
+    // a reminder 1.35 made; the planner reads which one it is.
     this.registerObsidianProtocolHandler(TASK_PROTOCOL_ACTION, (params) => {
-      void this.reminders?.handleProtocol(params);
+      void this.planner?.openLink(params);
     });
 
     // The file pane is the plugin's main surface and everything else it offers
@@ -367,6 +365,46 @@ export default class SchreibstubePlugin extends Plugin {
     }
     await leaf.setViewState({ type: REVIEW_VIEW_TYPE, active: true });
     await this.app.workspace.revealLeaf(leaf);
+  }
+
+  /** Open the day planner, reusing the leaf if it is already open. */
+  async activatePlannerPane(): Promise<void> {
+    const [existing] = this.app.workspace.getLeavesOfType(PLANNER_VIEW_TYPE);
+    if (existing) {
+      await this.app.workspace.revealLeaf(existing);
+      return;
+    }
+
+    const leaf = this.app.workspace.getRightLeaf(false);
+    if (!leaf) {
+      new Notice(t().common.notice(t().common.sidebarMissing(t().planner.title)));
+      return;
+    }
+    await leaf.setViewState({ type: PLANNER_VIEW_TYPE, active: true });
+    await this.app.workspace.revealLeaf(leaf);
+  }
+
+  /**
+   * The planner follows the vault: a note that changed makes its scan stale,
+   * and a note that was renamed moves the plan's anchors with it rather than
+   * leaving them to be guessed at later.
+   */
+  private registerPlannerEvents(): void {
+    this.registerEvent(
+      this.app.vault.on("modify", (file) => {
+        if (file instanceof TFile && file.extension === "md") this.planner?.noteChanged(file.path);
+      })
+    );
+    this.registerEvent(
+      this.app.vault.on("rename", (file, oldPath) => {
+        if (file instanceof TFile && file.extension === "md") {
+          void this.planner?.noteRenamed(oldPath, file.path);
+        }
+      })
+    );
+    this.app.workspace.onLayoutReady(() => {
+      void this.planner?.refresh();
+    });
   }
 
   /** Open the file pane, reusing the existing leaf if it is already open. */
@@ -658,9 +696,13 @@ export default class SchreibstubePlugin extends Plugin {
   }
 
   private handlePollTick(now: Date): void {
-    // The report file an automation writes for Reminders rides on the same
-    // tick: one stat of one file, and a read only when it has changed.
-    void this.reminders?.pollReportFile();
+    // The plan is small and rarely moves, so it is asked for on a slow beat
+    // rather than on every tick; anything the planner itself changes redraws
+    // without waiting for one.
+    if (now.getTime() - this.plannerCheckedAt > PLAN_REFRESH_MS) {
+      this.plannerCheckedAt = now.getTime();
+      void this.planner?.refresh();
+    }
 
     const schedule = this.activePollSchedule();
     if (!schedule) return;
@@ -882,10 +924,7 @@ export default class SchreibstubePlugin extends Plugin {
       selection: (view?.editor.getSelection().trim().length ?? 0) > 0,
       bound:
         file !== null && hasSourceBinding(this.app.metadataCache.getFileCache(file)?.frontmatter),
-      explorerOpen: this.app.workspace.getLeavesOfType(EXPLORER_VIEW_TYPE).length > 0,
-      task: view !== null && isTaskLine(view.editor.getLine(view.editor.getCursor().line)),
-      apple: Platform.isMacOS || Platform.isIosApp,
-      sentTask: view !== null && sentTaskIds(view.editor.getValue()).length > 0
+      explorerOpen: this.app.workspace.getLeavesOfType(EXPLORER_VIEW_TYPE).length > 0
     };
   }
 
@@ -976,27 +1015,17 @@ export default class SchreibstubePlugin extends Plugin {
     });
 
     // Into the property field being typed in, or the note's text otherwise.
-    this.addGatedCommand("insert-today", t().commands.insertToday, "insert-today", () => {
-      this.properties?.insertToday();
+    this.addCommand({
+      id: "open-day-planner",
+      name: t().commands.openPlanner,
+      icon: PLANNER_ICON,
+      callback: () => {
+        void this.activatePlannerPane();
+      }
     });
 
-    this.addGatedCommand(
-      "send-task-to-reminders",
-      t().commands.sendToReminders,
-      "send-reminder",
-      () => {
-        this.reminders?.sendTaskAtCursor();
-      }
-    );
-
-    // The id is the one that asked about every note, which is still what it
-    // does wherever the open note has no sent task.
-    this.addGatedCommand("fetch-done-from-reminders", t().commands.reminders, "reminders", () => {
-      if (remindersScope(this.commandContext()) === "note") {
-        this.reminders?.checkActiveNote();
-      } else {
-        this.reminders?.checkEverything();
-      }
+    this.addGatedCommand("insert-today", t().commands.insertToday, "insert-today", () => {
+      this.properties?.insertToday();
     });
 
     this.addCommand({

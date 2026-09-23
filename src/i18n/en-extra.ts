@@ -6,6 +6,41 @@
  */
 export const enExtra = {
   settings: {
+    plannerHeading: "Tagesplan",
+    plannerIntro:
+      "Plans tasks into time blocks: a block is an hour in your calendar with a project tag and " +
+      "the tasks that belong to it. Tasks stay plain Markdown — nothing is written into a note " +
+      "but a tick. The plan itself lives on your own bridge, which also writes the block into " +
+      "your calendar.",
+    plannerEnabled: "Enable the day planner",
+    plannerEnabledDesc:
+      'Offers the planner leaf, the "Open day planner" command and the ```schreibstube-plan``` block.',
+    plannerBridgeUrl: "Bridge URL",
+    plannerBridgeUrlDesc: "Address of your bridge, the one running the plan capability.",
+    plannerToken: "Bridge token",
+    plannerTokenDesc: "Obsidian secret holding the plan token (PLAN_TOKEN on the bridge).",
+    plannerCalendars: "Calendars",
+    plannerCalendarsDesc:
+      "Comma-separated calendars to read, the first one being where new blocks are created. " +
+      "Use the names your calendar app shows; the bridge finds the calendar behind each.",
+    plannerCalendarsPlaceholder: "Work, Personal",
+    plannerTagPrefix: "Project tag prefix",
+    plannerTagPrefixDesc:
+      'Only tags under this prefix are projects: "projects" makes #projects/ea48 one. Leave empty to treat every tag as a project.',
+    plannerStart: "Blocks start at",
+    plannerStartDesc: "Time of day a proposed block begins, as HH:MM.",
+    plannerLength: "Block length",
+    plannerLengthDesc: "Minutes a proposed block runs.",
+    plannerCapacity: "Tasks per block",
+    plannerCapacityDesc:
+      "How many tasks one block is expected to take. A project can override it with its deadline.",
+    plannerWeekends: "Weekends too",
+    plannerWeekendsDesc: "Let the planner propose blocks on Saturday and Sunday as well.",
+    plannerBlockPrefix: "Block title prefix",
+    plannerBlockPrefixDesc: 'Put before the project name in the calendar, for example "Fokus".',
+    plannerBlockHelp: "On a start page",
+    plannerBlockHelpDesc:
+      'A ```schreibstube-plan``` block shows the day. Options, one per line: "day: today" or a date, "tags: projects/ea48", "show: blocks | deadlines | both".',
     overlayHeading: "Heading stack",
     overlayEnabled: "Enable heading stack overlay",
     overlayEnabledDesc:
@@ -16,43 +51,11 @@ export const enExtra = {
     focusOpacityDesc:
       "Opacity of out-of-focus lines in focus mode (0.2 = very faint, 0.8 = nearly full).",
 
-    remindersHeading: "Erinnerungen",
-    remindersIntro:
-      "Sends a task to Apple's Reminders through a Shortcut you install once. The task's line " +
-      "becomes the title, the text indented under it the note, and a link back to the task is " +
-      "added so the reminder can reopen the note at the right place. macOS and iOS only.",
-    remindersEnabled: "Send tasks to Erinnerungen",
-    remindersEnabledDesc: "Offer the command and the entry in the editor's context menu.",
     remindersList: "Reminders list",
     remindersListDesc:
-      "Name of the list the reminder is created in, handed to the Shortcut. Leave empty to let " +
-      "the Shortcut choose.",
-    remindersShortcut: "Shortcut name",
-    remindersShortcutDesc:
-      "The Shortcut that creates the reminder. It receives one text input: JSON with title, " +
-      "notes, list, link and note.",
-    remindersSetup: "Building the Shortcut",
-    remindersSetupDesc:
-      'In the Shortcuts app, create a shortcut with that name that accepts text. Add "Get ' +
-      'Dictionary from Input", then "Add New Reminder" with Title from the dictionary\'s title, ' +
-      "Notes from notes and the list from list. Tags written as #tag stay text: Reminders offers " +
-      "no way to set a real tag from outside.",
-    remindersStatusShortcut: "Status Shortcut name",
-    remindersStatusShortcutDesc:
-      "The Shortcut that reports which reminders are done. It receives JSON with ids, links and " +
-      "list, and its output is handed back to the plugin: any text that contains the reminders' " +
-      "links, such as their notes.",
-    remindersStatusSetup: "Building the status Shortcut",
-    remindersStatusSetupDesc:
-      'Create a shortcut with that name that accepts text. Add "Find Reminders" with Is Completed ' +
-      'true, List from the list you use, and Notes contains "schreibstube?task=". Add "Get Details ' +
-      'of Reminders" for the Notes, then "Combine Text" with new lines, and end with that text as ' +
-      'the output. To keep notes current without running anything, add "Save File" to the same ' +
-      "shortcut, overwriting the report file in the vault, and run it from an automation.",
-    remindersReportFile: "Report file",
-    remindersReportFileDesc:
-      "Vault path of the file an automation writes the status Shortcut's output to. The plugin " +
-      "reads it whenever it changes and ticks the tasks it names. Leave empty to turn this off.",
+      'Where tasks marked "also in Erinnerungen" become reminders. Use a list of its own: ' +
+      "reminders in it that came from a task are updated and deleted as their tasks change. " +
+      "Reminders added by hand are left alone.",
 
     explorerHeading: "Schreibstube Explorer",
     explorerIntro:
@@ -655,6 +658,51 @@ export const enExtra = {
     apiKey: "API key",
     mailToken: "mail token",
     publishToken: "publish token",
-    githubToken: "GitHub token"
+    githubToken: "GitHub token",
+    planToken: "plan token"
+  },
+
+  planner: {
+    title: "Tagesplan",
+    notConfigured:
+      "The planner needs a bridge. Enter its address and token under Settings → Schreibstube → Tagesplan.",
+    bridgeOutdated: (bridge: number, plugin: number) =>
+      `the bridge speaks protocol ${bridge}, the planner needs ${plugin}. Redeploy the bridge.`,
+    bridgeWithoutPlan: "the bridge offers no planning capability — set its PLAN_ variables.",
+    nothingPlanned: "Nothing planned for this day.",
+    emptyDay: "The calendar has nothing on this day.",
+    allDay: "all day",
+    projects: "Projects",
+    noProjects: (prefix: string) =>
+      prefix === "" ? "No tags on open tasks yet." : `No tasks carry a #${prefix}/… tag yet.`,
+    openTasks: (open: number) => `${open} open`,
+    openOf: (open: number, total: number) => `${open} of ${total} open`,
+    openPlanned: (open: number, planned: number) => `${open} open, ${planned} planned`,
+    daysLeft: (days: number) =>
+      days < 0 ? `${-days} day(s) late` : days === 0 ? "today" : `in ${days} day(s)`,
+    pressure: (open: number, days: number, planned: number) =>
+      `${open} open, ${days} day(s) left, room for ${planned}`,
+    needsDeadline: "Set a deadline to get suggestions.",
+    nothingToPropose: "Enough time is planned.",
+    lost: "not found",
+    remindMark: "Erinnerung",
+    dropBlock: "Remove this block",
+    taskNotFound: "no note in this vault holds that task.",
+    ticked: (count: number) => `${count} task(s) updated from Erinnerungen.`,
+    blockPlanned: (title: string) => `planned: ${title}`,
+    composeTitle: (tag: string) => `Plan a block for ${tag}`,
+    composeHint: (capacity: number) =>
+      `The first ${capacity} are ticked — a block is for what fits in it, not for everything.`,
+    composeConfirm: "Plan it",
+    blockTitle: "Title",
+    blockStart: "Starts",
+    blockLength: "Minutes",
+    alsoRemind: "also in Erinnerungen",
+    noOpenTasks: "No open tasks carry this tag.",
+    deadlineTitle: (tag: string) => `Deadline for ${tag}`,
+    deadlineDate: "Deadline",
+    deadlineCapacity: "Tasks per block",
+    deadlineCapacityDesc: "How many of this project's tasks one block is expected to take.",
+    deadlineClear: "No deadline"
   }
 };

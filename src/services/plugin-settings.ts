@@ -16,9 +16,9 @@ import { LATEST_COUNT_DEFAULT, LATEST_COUNT_MAX } from "./latest-files";
 import { LLM_PROVIDER_IDS, PROVIDER_MODELS } from "./llm-providers";
 import { DEFAULT_PUBLISH_KEYS, normalizePublishKeys } from "./publish-index";
 import { TEMPLATE_ROOT_DEFAULT } from "./print-template";
-import { DEFAULT_REPORT_FILE } from "./reminder-status";
 import { normalizePropertyIcons } from "./property-icons";
 import { DEFAULT_DATE_FORMAT, normalizeDateFormat } from "./today-value";
+import { MAX_CAPACITY } from "./plan-model";
 
 export { PROVIDER_MODELS } from "./llm-providers";
 
@@ -75,9 +75,8 @@ export const DEFAULT_PROOFREAD_PROMPT =
   "Grammatik, Zeichensetzung und offensichtliche Stilfehler. Ändere niemals die " +
   "Aussage, den Ton oder die Fachbegriffe des Textes. Kürze nicht und ergänze nichts.";
 
-/** The name the README tells a person to give the Shortcut, so the default works as is. */
-export const DEFAULT_REMINDERS_SHORTCUT = "Schreibstube Reminder";
-export const DEFAULT_REMINDERS_STATUS_SHORTCUT = "Schreibstube Reminder Status";
+/** The list the planner's reminders go to unless a person names another. */
+export const DEFAULT_REMINDERS_LIST = "Schreibstube";
 
 const ALLOWED_PROVIDERS = new Set<LlmProvider>(LLM_PROVIDER_IDS);
 
@@ -131,11 +130,17 @@ export const DEFAULT_SETTINGS: SchreibstubeSettings = {
   printEnabled: false,
   printTemplateRoot: TEMPLATE_ROOT_DEFAULT,
   printOutputFolder: "",
-  remindersEnabled: false,
-  remindersList: "",
-  remindersShortcut: DEFAULT_REMINDERS_SHORTCUT,
-  remindersStatusShortcut: DEFAULT_REMINDERS_STATUS_SHORTCUT,
-  remindersReportFile: DEFAULT_REPORT_FILE,
+  plannerEnabled: false,
+  plannerBridgeUrl: "",
+  plannerTokenSecretName: "",
+  plannerCalendars: [],
+  plannerTagPrefix: "projects",
+  plannerStartMinute: 5 * 60 + 30,
+  plannerBlockMinutes: 60,
+  plannerCapacity: 3,
+  plannerWeekends: false,
+  plannerBlockPrefix: "",
+  remindersList: DEFAULT_REMINDERS_LIST,
   propertyIcons: {},
   dateFormat: DEFAULT_DATE_FORMAT,
   debugLogging: false
@@ -323,20 +328,38 @@ export function normalizeSettings(loaded: LoadedSettings): SchreibstubeSettings 
       loaded?.printOutputFolder,
       DEFAULT_SETTINGS.printOutputFolder
     ),
-    remindersEnabled: loaded?.remindersEnabled === true,
-    remindersList: trimmedStringOrDefault(loaded?.remindersList, DEFAULT_SETTINGS.remindersList),
-    remindersShortcut: trimmedStringOrDefault(
-      loaded?.remindersShortcut,
-      DEFAULT_SETTINGS.remindersShortcut
+    plannerEnabled: loaded?.plannerEnabled === true,
+    plannerBridgeUrl: trimmedStringOrDefault(loaded?.plannerBridgeUrl, ""),
+    plannerTokenSecretName: trimmedStringOrDefault(loaded?.plannerTokenSecretName, ""),
+    plannerCalendars: normalizeCalendars(loaded?.plannerCalendars),
+    plannerTagPrefix: trimmedStringOrDefault(
+      loaded?.plannerTagPrefix,
+      DEFAULT_SETTINGS.plannerTagPrefix
+    ).replace(/^#/, ""),
+    plannerStartMinute: clampIntOrDefault(
+      loaded?.plannerStartMinute,
+      0,
+      24 * 60 - 1,
+      DEFAULT_SETTINGS.plannerStartMinute
     ),
-    remindersStatusShortcut: trimmedStringOrDefault(
-      loaded?.remindersStatusShortcut,
-      DEFAULT_SETTINGS.remindersStatusShortcut
+    plannerBlockMinutes: clampIntOrDefault(
+      loaded?.plannerBlockMinutes,
+      5,
+      8 * 60,
+      DEFAULT_SETTINGS.plannerBlockMinutes
     ),
-    remindersReportFile: trimmedStringOrDefault(
-      loaded?.remindersReportFile,
-      DEFAULT_SETTINGS.remindersReportFile
-    ).replace(/^\/+/, "")
+    plannerCapacity: clampIntOrDefault(
+      loaded?.plannerCapacity,
+      1,
+      MAX_CAPACITY,
+      DEFAULT_SETTINGS.plannerCapacity
+    ),
+    plannerWeekends: loaded?.plannerWeekends === true,
+    plannerBlockPrefix: trimmedStringOrDefault(loaded?.plannerBlockPrefix, ""),
+    remindersList: nonEmptyStringOrDefault(
+      loaded?.remindersList,
+      DEFAULT_SETTINGS.remindersList
+    ).trim()
   };
 }
 
@@ -433,6 +456,22 @@ function syncStateOrDefault(value: unknown): Record<string, SyncRecord> {
 function stringListOrDefault(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   return value.filter((entry): entry is string => typeof entry === "string" && entry.trim() !== "");
+}
+
+/** More calendars than this is a paste gone wrong, not a planner setup. */
+export const MAX_PLANNER_CALENDARS = 20;
+
+/**
+ * The calendars the planner may read. Names come from a text field, so the
+ * list is trimmed, emptied of blanks and bounded: a person pasting a whole
+ * file in there should cost a setting, not every later request.
+ */
+export function normalizeCalendars(value: unknown): string[] {
+  const names = typeof value === "string" ? value.split(",") : Array.isArray(value) ? value : [];
+  return names
+    .map((name) => (typeof name === "string" ? name.trim() : ""))
+    .filter((name) => name !== "")
+    .slice(0, MAX_PLANNER_CALENDARS);
 }
 
 /** Optional free-text setting: an empty value is meaningful ("not configured"),

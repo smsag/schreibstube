@@ -4,7 +4,14 @@ vendor
 npm-debug.log
 .env
 
+# A planning document left by a local run is someone's plan, and baked into
+# the image it would also be a root-owned file the bridge cannot read.
+data
+
 # Tests and their fixtures are run from the repository, never from the image.
+# `*` does not cross a directory here, so each folder is named.
 *.test.mjs
 publish/**/*.test.mjs
 publish/sftp-fixture.mjs
+plan/**/*.test.mjs
+plan/caldav-fixture.mjs

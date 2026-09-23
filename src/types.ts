@@ -129,19 +129,34 @@ export interface SchreibstubeSettings {
   /** Where a printed PDF is written; empty means beside the note. */
   printOutputFolder: string;
   /**
-   * Sending a task to Apple's Reminders through a Shortcut. Off until a
-   * person says otherwise: the command opens another application, which is
-   * not something a plugin should start doing on its own.
+   * The Reminders list the planner's reminders go to; its reminders that came
+   * from a task are the planner's to change.
    */
-  remindersEnabled: boolean;
-  /** Reminders list the Shortcut is asked to create in; empty leaves it to the Shortcut. */
   remindersList: string;
-  /** Name of the Shortcut that creates the reminder. */
-  remindersShortcut: string;
-  /** Name of the Shortcut that reports which reminders are done. */
-  remindersStatusShortcut: string;
-  /** Vault path of the file an automation writes that report to; empty turns the poll off. */
-  remindersReportFile: string;
+  /**
+   * The day planner: tasks into time blocks, kept on a bridge the person runs.
+   * Off until switched on, because it needs an address and a token before it
+   * can do anything at all.
+   */
+  plannerEnabled: boolean;
+  /** Base URL of the bridge offering the plan capability. */
+  plannerBridgeUrl: string;
+  /** Secret-storage name of the plan token. */
+  plannerTokenSecretName: string;
+  /** Calendars to read; blocks are created in the first. */
+  plannerCalendars: string[];
+  /** Tags under this prefix are projects; empty means every tag is one. */
+  plannerTagPrefix: string;
+  /** When a proposed block starts, in minutes from midnight. */
+  plannerStartMinute: number;
+  /** How long a proposed block runs. */
+  plannerBlockMinutes: number;
+  /** How many tasks a block is expected to take. */
+  plannerCapacity: number;
+  /** Whether proposals may land on Saturday and Sunday too. */
+  plannerWeekends: boolean;
+  /** Put before the project's name in a block's calendar title. */
+  plannerBlockPrefix: string;
   /** Icon name per frontmatter key, lower-cased; drawn in place of the type icon. */
   propertyIcons: Record<string, string>;
   /** Moment format for today's date entered into text. Date properties always get ISO. */

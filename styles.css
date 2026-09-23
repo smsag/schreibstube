@@ -106,32 +106,6 @@
   display: none;
 }
 
-/* The mark a task wears once it has been sent to Reminders: the link at the
-   end of its line, drawn as a small Reminders-style icon. */
-.schreibstube-reminder-mark {
-  display: inline-flex;
-  align-items: center;
-  width: 1em;
-  height: 1em;
-  margin-left: 0.35em;
-  vertical-align: -0.15em;
-  color: var(--text-muted);
-  text-decoration: none;
-  cursor: default;
-}
-
-.schreibstube-reminder-mark svg {
-  width: 1em;
-  height: 1em;
-}
-
-/* Reading view renders the link as an external link, with a theme's arrow
-   glyph and padding after it; the mark is the whole of what should show. */
-a.external-link.schreibstube-reminder-mark {
-  background-image: none;
-  padding-right: 0;
-}
-
 /* Task summary: the ribbon rendered by the ```schreibstube-tasks``` block. */
 .schreibstube-task-ribbon {
   font-family: var(--font-text);
@@ -2399,4 +2373,200 @@ a.external-link.schreibstube-reminder-mark {
 
 .schreibstube-slideshow-fs-close:hover {
   color: #fff;
+}
+
+/* The day planner: the leaf, and the plan on a start page.
+   Icon controls are glyphs from the bundled font, never buttons with a fill. */
+.schreibstube-plan-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-4-2);
+}
+
+.schreibstube-plan-empty,
+.schreibstube-planner-hint {
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  margin: 0;
+}
+
+.schreibstube-plan-error {
+  color: var(--text-error);
+  font-size: var(--font-ui-small);
+  margin: 0;
+}
+
+.schreibstube-plan-block {
+  border-left: 2px solid var(--background-modifier-border);
+  padding-left: var(--size-4-2);
+}
+
+.schreibstube-plan-block.is-live {
+  border-left-color: var(--interactive-accent);
+}
+
+.schreibstube-plan-block-head,
+.schreibstube-planner-entry {
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--size-4-2);
+}
+
+.schreibstube-plan-time {
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.schreibstube-plan-title {
+  font-weight: var(--font-medium);
+}
+
+.schreibstube-plan-tag,
+.schreibstube-plan-count,
+.schreibstube-plan-days,
+.schreibstube-plan-remind,
+.schreibstube-plan-lost {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+}
+
+.schreibstube-plan-lost {
+  color: var(--text-error);
+}
+
+.schreibstube-plan-tasks {
+  list-style: none;
+  margin: var(--size-4-1) 0 var(--size-4-2);
+  padding: 0;
+}
+
+.schreibstube-plan-tasks li {
+  align-items: baseline;
+  display: flex;
+  gap: var(--size-4-2);
+}
+
+.schreibstube-plan-tasks li.is-done .schreibstube-plan-task {
+  color: var(--text-muted);
+  text-decoration: line-through;
+}
+
+.schreibstube-plan-task {
+  cursor: pointer;
+}
+
+.schreibstube-plan-task:hover {
+  color: var(--text-accent);
+}
+
+.schreibstube-plan-mark {
+  color: var(--text-muted);
+}
+
+.schreibstube-plan-deadlines {
+  list-style: none;
+  margin: var(--size-4-2) 0 0;
+  padding: 0;
+}
+
+.schreibstube-plan-deadlines li {
+  display: flex;
+  gap: var(--size-4-2);
+}
+
+.schreibstube-plan-deadlines li.is-late .schreibstube-plan-days {
+  color: var(--text-error);
+}
+
+.schreibstube-planner {
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-4-3);
+  padding: var(--size-4-2);
+}
+
+.schreibstube-planner-header {
+  align-items: center;
+  display: flex;
+  gap: var(--size-4-2);
+}
+
+.schreibstube-planner-date {
+  cursor: pointer;
+  flex: 1;
+  font-weight: var(--font-medium);
+}
+
+.schreibstube-planner-step {
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.schreibstube-planner-step:hover {
+  color: var(--text-normal);
+}
+
+.schreibstube-planner-entry.is-foreign .schreibstube-plan-title {
+  color: var(--text-muted);
+  font-weight: var(--font-normal);
+}
+
+.schreibstube-planner-heading {
+  margin: 0;
+}
+
+.schreibstube-planner-project {
+  border-top: 1px solid var(--background-modifier-border);
+  padding-top: var(--size-4-2);
+}
+
+.schreibstube-planner-project-head {
+  align-items: baseline;
+  display: flex;
+  gap: var(--size-4-2);
+}
+
+.schreibstube-planner-proposals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--size-4-1);
+  margin-top: var(--size-4-1);
+}
+
+.schreibstube-planner-proposal {
+  font-size: var(--font-ui-smaller);
+}
+
+.schreibstube-planner-picks {
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-4-1);
+  max-height: 50vh;
+  overflow-y: auto;
+}
+
+.schreibstube-planner-pick {
+  align-items: baseline;
+  display: flex;
+  gap: var(--size-4-2);
+}
+
+.schreibstube-planner-pick-text {
+  flex: 1;
+}
+
+.schreibstube-planner-pick-meta {
+  color: var(--text-muted);
+  display: flex;
+  font-size: var(--font-ui-smaller);
+  gap: var(--size-4-2);
+}
+
+.schreibstube-planner-remind {
+  align-items: center;
+  color: var(--text-muted);
+  display: flex;
+  font-size: var(--font-ui-smaller);
+  gap: var(--size-4-1);
 }

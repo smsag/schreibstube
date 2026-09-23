@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   commandAvailable,
-  remindersScope,
   renameTarget,
   type CommandContext,
   type GatedCommand
@@ -14,9 +13,6 @@ function screen(overrides: Partial<CommandContext> = {}): CommandContext {
     selection: false,
     bound: false,
     explorerOpen: false,
-    task: false,
-    apple: false,
-    sentTask: false,
     ...overrides
   };
 }
@@ -31,9 +27,7 @@ function offered(context: CommandContext): GatedCommand[] {
     "send-mail",
     "fetch-replies",
     "collapse-explorer",
-    "related",
-    "send-reminder",
-    "reminders"
+    "related"
   ];
 
   return all.filter((command) => commandAvailable(command, context));
@@ -83,26 +77,6 @@ describe("what the palette offers", () => {
 
   it("offers nothing at all with a PDF open, rather than four refusals", () => {
     expect(offered(screen({ markdown: false, image: false }))).toEqual([]);
-  });
-
-  it("offers a reminder for the task under the cursor, on Apple's platforms only", () => {
-    expect(offered(screen({ task: true, apple: true }))).toContain("send-reminder");
-    expect(offered(screen({ task: false, apple: true }))).not.toContain("send-reminder");
-    expect(offered(screen({ task: true, apple: false }))).not.toContain("send-reminder");
-    expect(offered(screen({ task: true, apple: true, markdown: false }))).not.toContain(
-      "send-reminder"
-    );
-  });
-
-  it("offers the comparison with Reminders wherever Reminders exists, whatever is open", () => {
-    expect(offered(screen({ apple: true, markdown: false }))).toContain("reminders");
-    expect(offered(screen({ apple: false, sentTask: true }))).not.toContain("reminders");
-  });
-
-  it("compares the open note when it has sent tasks, and the whole list otherwise", () => {
-    expect(remindersScope(screen({ sentTask: true }))).toBe("note");
-    expect(remindersScope(screen({ sentTask: false }))).toBe("all");
-    expect(remindersScope(screen({ markdown: false, sentTask: false }))).toBe("all");
   });
 
   it("offers to close the folders only where there are folders to close", () => {

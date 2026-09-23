@@ -14,12 +14,11 @@ export const de: Messages = {
     newNote: "Neues Doc",
     insertTaskSummary: "Einfügen: Aufgaben-Zusammenfassung",
     insertSlideshow: "Einfügen: Diaschau",
-    sendToReminders: "Aufgabe an Erinnerungen senden",
-    reminders: "Erinnerungen abgleichen",
     rename: "Doc mit KI umbenennen",
     summarize: "Einfügen: KI-Zusammenfassung der Auswahl",
     table: "Einfügen: Tabelle aus der Auswahl",
     tableAi: "Einfügen: KI-Tabelle aus der Auswahl",
+    openPlanner: "Tagesplan öffnen",
     insertToday: "Einfügen: heutiges Datum",
     openExplorer: "Explorer öffnen",
     collapseExplorer: "Explorer: Ordner zuklappen",
@@ -54,22 +53,7 @@ export const de: Messages = {
     alreadyPresent: "diese Notiz hat schon eine Aufgaben-Zusammenfassung.",
     none: "Keine Aufgaben",
     ribbon: (open: number, total: number) => `${open} offen von ${total}`,
-    badge: (open: number, total: number) => `${open} von ${total} offen`,
-    menuSend: "An Erinnerungen senden",
-    markTooltip: "An Erinnerungen gesendet",
-    remindersOff:
-      "Senden an Erinnerungen ist aus. Einschalten unter Einstellungen → Schreibstube → Erinnerungen.",
-    noShortcut:
-      "kein Kurzbefehl eingetragen. Namen eintragen unter Einstellungen → Schreibstube → Erinnerungen.",
-    notATask: "der Cursor steht auf keiner Aufgabe.",
-    sent: (title: string) => `an Erinnerungen gesendet: ${title}`,
-    taskNotFound: "keine Notiz in diesem Vault enthält diese Aufgabe.",
-    noStatusShortcut:
-      "kein Status-Kurzbefehl eingetragen. Namen eintragen unter Einstellungen → Schreibstube → Erinnerungen.",
-    noneSent: "keine Aufgabe dieser Notiz wurde an Erinnerungen gesendet.",
-    checking: "Erinnerungen wird gefragt…",
-    nothingDone: "Erinnerungen meldet nichts Neues als erledigt.",
-    ticked: (count: number) => `${count} Aufgabe(n) als in Erinnerungen erledigt abgehakt.`
+    badge: (open: number, total: number) => `${open} von ${total} offen`
   },
 
   slideshow: {
@@ -245,6 +229,41 @@ export const de: Messages = {
   },
 
   settings: {
+    plannerHeading: "Tagesplan",
+    plannerIntro:
+      "Plant Aufgaben in Zeitblöcke: ein Block ist eine Stunde im Kalender mit einem Projekt-Tag " +
+      "und den Aufgaben, die dazugehören. Aufgaben bleiben schlichtes Markdown — in eine Notiz " +
+      "wird nichts geschrieben außer einem Haken. Der Plan selbst liegt auf der eigenen Bridge, " +
+      "die auch den Block in den Kalender schreibt.",
+    plannerEnabled: "Tagesplan einschalten",
+    plannerEnabledDesc:
+      "Bietet den Tagesplan-Bereich, den Befehl „Tagesplan öffnen“ und den ```schreibstube-plan```-Block.",
+    plannerBridgeUrl: "Bridge-URL",
+    plannerBridgeUrlDesc: "Adresse der eigenen Bridge, die den Plan bereitstellt.",
+    plannerToken: "Bridge-Token",
+    plannerTokenDesc: "Obsidian-Secret mit dem Plan-Token (PLAN_TOKEN auf der Bridge).",
+    plannerCalendars: "Kalender",
+    plannerCalendarsDesc:
+      "Kalender, durch Komma getrennt; im ersten werden neue Blöcke angelegt. Die Namen, " +
+      "die die Kalender-App zeigt; die Bridge findet den Kalender dahinter.",
+    plannerCalendarsPlaceholder: "Arbeit, Privat",
+    plannerTagPrefix: "Präfix für Projekt-Tags",
+    plannerTagPrefixDesc:
+      "Nur Tags unter diesem Präfix sind Projekte: „projects“ macht #projects/ea48 zu einem. Leer lassen, um jedes Tag als Projekt zu behandeln.",
+    plannerStart: "Blöcke beginnen um",
+    plannerStartDesc: "Uhrzeit, zu der ein vorgeschlagener Block beginnt, als HH:MM.",
+    plannerLength: "Blocklänge",
+    plannerLengthDesc: "Minuten, die ein vorgeschlagener Block dauert.",
+    plannerCapacity: "Aufgaben pro Block",
+    plannerCapacityDesc:
+      "Wie viele Aufgaben ein Block voraussichtlich schafft. Ein Projekt kann das mit seiner Frist überschreiben.",
+    plannerWeekends: "Auch am Wochenende",
+    plannerWeekendsDesc: "Der Tagesplan darf auch Samstag und Sonntag Blöcke vorschlagen.",
+    plannerBlockPrefix: "Präfix für Blocktitel",
+    plannerBlockPrefixDesc: "Steht im Kalender vor dem Projektnamen, etwa „Fokus“.",
+    plannerBlockHelp: "Auf einer Startseite",
+    plannerBlockHelpDesc:
+      "Ein ```schreibstube-plan```-Block zeigt den Tag. Optionen, je Zeile eine: „day: today“ oder ein Datum, „tags: projects/ea48“, „show: blocks | deadlines | both“.",
     overlayHeading: "Überschriften-Stapel",
     overlayEnabled: "Überschriften-Stapel anzeigen",
     overlayEnabledDesc:
@@ -255,46 +274,11 @@ export const de: Messages = {
     focusOpacityDesc:
       "Deckkraft der Zeilen außerhalb des Fokus (0,2 = sehr blass, 0,8 = fast voll).",
 
-    remindersHeading: "Erinnerungen",
-    remindersIntro:
-      "Sendet eine Aufgabe über einen einmal eingerichteten Kurzbefehl an Apples Erinnerungen. " +
-      "Die Zeile der Aufgabe wird zum Titel, der darunter eingerückte Text zur Notiz, und ein " +
-      "Link zurück zur Aufgabe kommt dazu, damit die Erinnerung die Notiz an der richtigen " +
-      "Stelle wieder öffnet. Nur macOS und iOS.",
-    remindersEnabled: "Aufgaben an Erinnerungen senden",
-    remindersEnabledDesc: "Bietet den Befehl und den Eintrag im Kontextmenü des Editors an.",
     remindersList: "Erinnerungen-Liste",
     remindersListDesc:
-      "Name der Liste, in der die Erinnerung angelegt wird; wird dem Kurzbefehl übergeben. Leer " +
-      "lassen, damit der Kurzbefehl wählt.",
-    remindersShortcut: "Name des Kurzbefehls",
-    remindersShortcutDesc:
-      "Der Kurzbefehl, der die Erinnerung anlegt. Er erhält eine Texteingabe: JSON mit title, " +
-      "notes, list, link und note.",
-    remindersSetup: "Den Kurzbefehl anlegen",
-    remindersSetupDesc:
-      'In der App Kurzbefehle einen Kurzbefehl mit diesem Namen anlegen, der Text annimmt. "Wörterbuch ' +
-      'aus Eingabe abrufen" hinzufügen, dann "Neue Erinnerung hinzufügen" mit Titel aus title, ' +
-      "Notizen aus notes und der Liste aus list. Als #tag geschriebene Tags bleiben Text: " +
-      "Erinnerungen bietet keinen Weg, von außen ein echtes Tag zu setzen.",
-    remindersStatusShortcut: "Name des Status-Kurzbefehls",
-    remindersStatusShortcutDesc:
-      "Der Kurzbefehl, der meldet, welche Erinnerungen erledigt sind. Er erhält JSON mit ids, " +
-      "links und list; seine Ausgabe geht zurück ans Plugin: beliebiger Text, der die Links der " +
-      "Erinnerungen enthält, etwa ihre Notizen.",
-    remindersStatusSetup: "Den Status-Kurzbefehl anlegen",
-    remindersStatusSetupDesc:
-      'Einen Kurzbefehl mit diesem Namen anlegen, der Text annimmt. "Erinnerungen suchen" ' +
-      'hinzufügen mit „Ist erledigt“, der verwendeten Liste und Notizen enthält "schreibstube?task=". ' +
-      'Dann "Details von Erinnerungen abrufen" für die Notizen, "Text kombinieren" mit Zeilenumbrüchen, ' +
-      "und diesen Text als Ausgabe. Damit Notizen ohne Zutun aktuell bleiben, im selben Kurzbefehl " +
-      '"Datei sichern" hinzufügen, das die Berichtsdatei im Vault überschreibt, und ihn per ' +
-      "Automation ausführen.",
-    remindersReportFile: "Berichtsdatei",
-    remindersReportFileDesc:
-      "Pfad im Vault, in den eine Automation die Ausgabe des Status-Kurzbefehls schreibt. Das " +
-      "Plugin liest die Datei bei jeder Änderung und hakt die genannten Aufgaben ab. Leer lassen, " +
-      "um das abzuschalten.",
+      "Dort werden Aufgaben, die „auch in Erinnerungen“ markiert sind, zu Erinnerungen. Am " +
+      "besten eine eigene Liste: Erinnerungen darin, die aus einer Aufgabe stammen, werden mit " +
+      "ihr geändert und gelöscht. Von Hand angelegte bleiben, wie sie sind.",
 
     explorerHeading: "Schreibstube Explorer",
     explorerIntro:
@@ -904,6 +888,52 @@ export const de: Messages = {
     apiKey: "API-Schlüssel",
     mailToken: "Mail-Token",
     publishToken: "Publish-Token",
-    githubToken: "GitHub-Token"
+    githubToken: "GitHub-Token",
+    planToken: "Plan-Token"
+  },
+  planner: {
+    title: "Tagesplan",
+    notConfigured:
+      "Der Tagesplan braucht eine Bridge. Adresse und Token unter Einstellungen → Schreibstube → Tagesplan eintragen.",
+    bridgeOutdated: (bridge: number, plugin: number) =>
+      `die Bridge spricht Protokoll ${bridge}, der Tagesplan braucht ${plugin}. Bridge neu ausrollen.`,
+    bridgeWithoutPlan: "die Bridge bietet keine Planungsfunktion — ihre PLAN_-Variablen setzen.",
+    nothingPlanned: "Für diesen Tag ist nichts geplant.",
+    emptyDay: "Der Kalender ist an diesem Tag leer.",
+    allDay: "ganztägig",
+    projects: "Projekte",
+    noProjects: (prefix: string) =>
+      prefix === ""
+        ? "Noch trägt keine offene Aufgabe ein Tag."
+        : `Noch trägt keine Aufgabe ein #${prefix}/…-Tag.`,
+    openTasks: (open: number) => `${open} offen`,
+    openOf: (open: number, total: number) => `${open} von ${total} offen`,
+    openPlanned: (open: number, planned: number) => `${open} offen, ${planned} verplant`,
+    daysLeft: (days: number) =>
+      days < 0 ? `${-days} Tag(e) überfällig` : days === 0 ? "heute" : `in ${days} Tag(en)`,
+    pressure: (open: number, days: number, planned: number) =>
+      `${open} offen, ${days} Tag(e) Zeit, Platz für ${planned}`,
+    needsDeadline: "Frist setzen, dann gibt es Vorschläge.",
+    nothingToPropose: "Es ist genug Zeit eingeplant.",
+    lost: "nicht gefunden",
+    remindMark: "Erinnerung",
+    dropBlock: "Diesen Block entfernen",
+    taskNotFound: "keine Notiz in diesem Vault enthält diese Aufgabe.",
+    ticked: (count: number) => `${count} Aufgabe(n) aus Erinnerungen aktualisiert.`,
+    blockPlanned: (title: string) => `geplant: ${title}`,
+    composeTitle: (tag: string) => `Block für ${tag} planen`,
+    composeHint: (capacity: number) =>
+      `Die ersten ${capacity} sind angehakt — ein Block ist für das, was hineinpasst, nicht für alles.`,
+    composeConfirm: "Einplanen",
+    blockTitle: "Titel",
+    blockStart: "Beginnt",
+    blockLength: "Minuten",
+    alsoRemind: "auch in Erinnerungen",
+    noOpenTasks: "Keine offene Aufgabe trägt dieses Tag.",
+    deadlineTitle: (tag: string) => `Frist für ${tag}`,
+    deadlineDate: "Frist",
+    deadlineCapacity: "Aufgaben pro Block",
+    deadlineCapacityDesc: "Wie viele Aufgaben dieses Projekts ein Block voraussichtlich schafft.",
+    deadlineClear: "Keine Frist"
   }
 };

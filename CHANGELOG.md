@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Added
+
+- **A day planner: tasks into time blocks, without touching your Markdown.** A task carries its project as a tag (`#projects/ea48`) and nothing else — no ids, no due dates, no stamps. **Open day planner** gives a sidebar with the day's calendar, the projects that are running out of time, and blocks to accept: set a deadline on a tag and the planner works out how many mornings the open tasks need, leaves out time that is taken, and offers the rest. Confirming writes the block into your calendar and records which tasks belong to it. A task belongs to a block, not to a clock, so nothing expires at the wrong minute and moving a block leaves its tasks alone. See [PLANNING.md](PLANNING.md).
+- **Calendars by the names you see, and weekends if you work them.** The planner's calendars are named as the calendar app shows them — on iCloud the bridge finds the opaque identifier behind each, ignoring case — and **Weekends too** lets proposals land on Saturday and Sunday. All-day events head the day and are not taken for busy time, so a birthday does not cost the morning.
+- **The plan on your start page.** A ```schreibstube-plan``` block draws the current block with its tasks and the projects with their deadlines, wherever you keep your start page. Options per line: `day`, `tags`, `show`.
+- **Tasks are recognised again without being marked.** The plan keeps an anchor per task — its note, its wording, its place among identical lines — and matches each scan against them: unchanged tasks by hash, edited ones by how alike they read. Where two tasks are too alike to tell apart, the planner says the task was not found instead of binding the wrong one, and nothing is deleted while you put it right.
+- **A few tasks can also become reminders.** Marked while planning, they go into a queue in the plan; a helper, the app or a Shortcut on an Apple device applies it, and iCloud carries the result to every device. The plugin itself never writes to Reminders, and a reminder ticked there ticks its task in the note.
+- **The bridge keeps the plan and writes the blocks.** A new `plan` capability, with its own token and its own CalDAV credential, stores one planning document — latest revision only, no history — and reads and writes your calendar. It is the first thing the bridge has ever stored, and `bridge/README.md` now says so where it used to claim it stored nothing. Bridge 2.5.0, protocol 2; the planner asks `/health` once and says plainly when a deployment is behind. Existing mail and publishing deployments are unaffected and keep working unchanged.
+
+### Changed
+
+- **Reminders come from the planner, and nothing is written into a note for them.** Mark a task **also in Erinnerungen** when you put it in a block, and it becomes a reminder in one list, **Schreibstube** unless you name another. Editing, ticking or dating the task follows it there; a reminder ticked on the phone ticks the task. Something on an Apple device carries the reminders across — a Shortcut run by an automation, or a helper on a Mac — by asking the bridge two things: `GET /plan/queue` for what is left to do, and `POST /plan/queue/ack` with what it did and what the list now says. It does not need Obsidian open, and one device is enough; iCloud does the rest. See [REMINDERS.md](REMINDERS.md).
+- **Reminders made by 1.35 and earlier still open their task.** Their tasks still end in the link that command left, and following it still finds the line, wherever the note is now. Those old reminders are no longer kept in step.
+
+### Removed
+
+- **Send task to Erinnerungen** and **Compare with Erinnerungen**, with their two Shortcuts, the report file and the `obsidian://schreibstube?done=1` callback. Hotkeys bound to `send-task-to-reminders` or `fetch-done-from-reminders` do nothing now. The Reminders list setting stays and moves to **Tagesplan**; a list you had named is kept, and an empty one becomes **Schreibstube**.
+
 ## 1.38.0 - 2026-09-22
 
 Synced notes tell the truth about what is waiting. The Explorer's "Updated

@@ -1,7 +1,7 @@
 /**
  * Environment-driven configuration for the bridge.
  *
- * The bridge hosts capabilities — mail and publishing — and each one
+ * The bridge hosts capabilities — mail, publishing and planning — and each one
  * brings its own credentials, its own token and its own limits. Configuration
  * is therefore read per capability: a capability whose variables are absent is
  * simply not offered, and a deployment that offers nothing fails at startup.
@@ -13,7 +13,7 @@
 
 /** Bumped when the request or response shape changes in a way the plugin can
  *  see. Reported by /health so plugin and bridge can detect drift. */
-export const PROTOCOL_VERSION = 1;
+export const PROTOCOL_VERSION = 2;
 
 /** Minimum token length. Short tokens are brute-forceable over a public URL. */
 export const MIN_TOKEN_LENGTH = 24;
@@ -31,6 +31,24 @@ const MAIL_KEYS = [
 /** The same, for publishing. */
 const PUBLISH_KEYS = ["PUBLISH_TOKEN", "PUBLISH_TARGETS"];
 
+/** The same, for planning. `PLAN_STORE` and `CALDAV_CALENDARS` say the
+ *  operator meant it, but both have an answer when they are left out. */
+const PLAN_KEYS = [
+  "PLAN_TOKEN",
+  "PLAN_STORE",
+  "CALDAV_URL",
+  "CALDAV_USER",
+  "CALDAV_PASSWORD",
+  "CALDAV_CALENDARS"
+];
+const PLAN_REQUIRED = ["PLAN_TOKEN", "CALDAV_URL", "CALDAV_USER", "CALDAV_PASSWORD"];
+
+/** Where the planning document lives when nobody says otherwise. Relative to
+ *  the working directory, which in the image is where the code is; a
+ *  deployment that wants it to survive a redeploy mounts a volume and points
+ *  this at it. */
+const DEFAULT_PLAN_STORE = "./data/plan.json";
+
 /** What a target is allowed to serve from an upload. Images and video only:
  *  anything else on a published site is written by the bridge itself. */
 const DEFAULT_ASSET_EXTENSIONS = "png,jpg,jpeg,gif,webp,avif,svg,mp4,webm,ogv,mov,m4v";
@@ -38,12 +56,14 @@ const DEFAULT_ASSET_EXTENSIONS = "png,jpg,jpeg,gif,webp,avif,svg,mp4,webm,ogv,mo
 export function loadConfig(env = process.env) {
   const mail = MAIL_KEYS.some((key) => present(env[key])) ? loadMail(env) : null;
   const publish = PUBLISH_KEYS.some((key) => present(env[key])) ? loadPublish(env) : null;
+  const plan = PLAN_KEYS.some((key) => present(env[key])) ? loadPlan(env) : null;
 
-  if (!mail && !publish) {
+  if (!mail && !publish && !plan) {
     throw new Error(
       "No capability is configured. Set the mail variables " +
         `(${MAIL_KEYS.join(", ")}), the publish variables ` +
-        `(${PUBLISH_KEYS.join(", ")}), or see bridge/README.md.`
+        `(${PUBLISH_KEYS.join(", ")}), the plan variables ` +
+        `(${PLAN_REQUIRED.join(", ")}), or see bridge/README.md.`
     );
   }
 
@@ -70,7 +90,69 @@ export function loadConfig(env = process.env) {
     // can reach the bridge directly, because then the header is the client's.
     trustProxy: boolean(env.TRUST_PROXY, false, "TRUST_PROXY"),
     mail,
-    publish
+    publish,
+    plan
+  };
+}
+
+/**
+ * Planning: one stored document and one calendar account.
+ *
+ * This is the only capability that keeps anything between requests, which is
+ * why the path is configuration rather than a constant: where the document
+ * lives decides whether it survives a redeploy, and only the deployment knows.
+ *
+ * The calendar credential is bound to one host here, so `caldav.mjs` has a
+ * single origin to check every URL against — its own, a redirect's, or one out
+ * of a response the server wrote.
+ */
+function loadPlan(env) {
+  const missing = PLAN_REQUIRED.filter((key) => !present(env[key]));
+  if (missing.length > 0) {
+    throw new Error(`Missing required environment variables: ${missing.join(", ")}`);
+  }
+
+  const url = env.CALDAV_URL.trim();
+  if (!/^https:\/\//.test(url) && !/^http:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/.test(url)) {
+    throw new Error("CALDAV_URL must be https:// (or localhost).");
+  }
+  try {
+    new URL(url);
+  } catch {
+    throw new Error("CALDAV_URL is not a URL.");
+  }
+
+  // Empty means every calendar the server offers. Naming them is the stricter
+  // setting and the one an operator reaches for when the account also holds a
+  // calendar the vault has no business writing to.
+  const calendars = (env.CALDAV_CALENDARS ?? "")
+    .split(",")
+    .map((name) => name.trim())
+    .filter(Boolean);
+  for (const name of calendars) {
+    if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(name)) {
+      throw new Error(
+        `Unusable calendar name ${JSON.stringify(name)}: letters, digits, dot, dash, underscore.`
+      );
+    }
+  }
+
+  return {
+    token: token(env.PLAN_TOKEN, "PLAN_TOKEN"),
+    store: env.PLAN_STORE?.trim() || DEFAULT_PLAN_STORE,
+    // The document is capped at 512 KB; the body carries it plus a revision,
+    // and a little room means an oversized document is refused by the check
+    // that can name the field rather than by the byte counter that cannot.
+    maxBodyBytes: integer(env.PLAN_MAX_BODY_BYTES, 600_000, "PLAN_MAX_BODY_BYTES"),
+    // A year of a busy calendar, and the point past which a REPORT answer is
+    // abandoned rather than buffered.
+    maxResponseBytes: integer(env.PLAN_MAX_RESPONSE_BYTES, 8_000_000, "PLAN_MAX_RESPONSE_BYTES"),
+    caldav: {
+      url: url.endsWith("/") ? url : `${url}/`,
+      user: env.CALDAV_USER.trim(),
+      password: env.CALDAV_PASSWORD,
+      calendars
+    }
   };
 }
 
@@ -222,7 +304,7 @@ function loadMail(env) {
 
 /** The names of the capabilities this configuration actually offers. */
 export function capabilityNames(config) {
-  return ["mail", "publish"].filter((name) => config[name]);
+  return ["mail", "publish", "plan"].filter((name) => config[name]);
 }
 
 function token(value, name) {
