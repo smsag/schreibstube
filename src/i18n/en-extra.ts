@@ -481,7 +481,13 @@ export const enExtra = {
       title: (name: string) => `Move "${name}" to…`,
       root: "Vault root",
       nowhere: (name: string) => `There is nowhere ${name} can be moved to.`,
-      done: (name: string, folder: string) => `${name} moved to ${folder}.`
+      done: (name: string, folder: string) => `${name} moved to ${folder}.`,
+      manyTitle: (count: number) => `Move ${count} items to…`,
+      nowhereMany: "There is no folder all of them can be moved to.",
+      manyDone: (moved: number, folder: string, refused: number) =>
+        refused === 0
+          ? `${moved} items moved to ${folder}.`
+          : `${moved} items moved to ${folder}; ${refused} could not be.`
     },
 
     sections: {
@@ -541,7 +547,9 @@ export const enExtra = {
       renaming: "Reading it…",
       move: "Move to…",
       delete: "Delete",
-      more: "More actions"
+      more: "More actions",
+      moveSelected: (count: number) => `Move ${count} items to…`,
+      deleteSelected: (count: number) => `Delete ${count} items`
     },
 
     icons: {
@@ -602,7 +610,32 @@ export const enExtra = {
       folderConfirm: (name: string, count: number) =>
         `Move "${name}" and the ${count} item(s) inside it to the trash?`,
       submit: "Delete",
-      failed: (name: string) => `"${name}" could not be deleted.`
+      failed: (name: string) => `"${name}" could not be deleted.`,
+      done: (name: string) => `"${name}" moved to the trash.`,
+      manyConfirm: (count: number) => `Move ${count} items to the trash?`,
+      manyDone: (count: number) => `${count} items moved to the trash.`
+    },
+
+    undo: {
+      action: "Undo",
+      nothing: "there is nothing to undo.",
+      moveUndone: (count: number) =>
+        count === 1 ? "the move was undone." : `${count} moves were undone.`,
+      deleteUndone: (count: number) =>
+        count === 1 ? "the delete was undone." : `${count} deletes were undone.`,
+      blocked: (name: string) => `${name} could not be put back: something is there now.`,
+      systemTrash: "it went to the system trash, which this pane cannot reach into."
+    },
+
+    import: {
+      done: (count: number, folder: string) =>
+        count === 1 ? `1 file imported into ${folder}.` : `${count} files imported into ${folder}.`,
+      refused: (count: number) => `${count} left out:`,
+      reasonFolder: "a folder — drop its files instead",
+      reasonTooLarge: "too large",
+      reasonBadName: "a name the vault refuses",
+      reasonTooMany: "past the limit for one drop",
+      failed: (name: string) => `${name} could not be written.`
     }
   },
 

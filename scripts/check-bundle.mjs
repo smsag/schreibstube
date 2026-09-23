@@ -25,8 +25,16 @@ import { fileURLToPath } from "node:url";
  * and small, and what it revealed is that the headroom was already spent.
  * The headroom left is for the next feature, not a new normal — a change
  * that needs more says why, as this one does.
+ *
+ * Raised to 460 KB at 446 KB, for the file pane's selection, undo and
+ * import (+11 KB over the 435 the deletion fixes left it at): a selection
+ * reducer, an undo stack, an import plan, the batch move and delete they
+ * drive, and every string of it in two languages. Three operations a file
+ * manager is expected to have, none of them borrowed. The headroom left is
+ * for the next feature, not a new normal — a change that needs more says
+ * why, as this one does.
  */
-const MAX_BUNDLE_KB = 440;
+const MAX_BUNDLE_KB = 460;
 
 const bundle = fileURLToPath(new URL("../main.js", import.meta.url));
 const source = readFileSync(bundle, "utf8");

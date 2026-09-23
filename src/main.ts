@@ -1021,6 +1021,15 @@ export default class SchreibstubePlugin extends Plugin {
       }
     );
 
+    // ⌘Z inside the pane does the same; this is for a hotkey of one's own,
+    // and for the palette after the notice offering it has gone.
+    this.addGatedCommand(
+      "explorer-undo",
+      t().commands.explorerUndo,
+      "collapse-explorer",
+      () => void this.explorer?.undoLast()
+    );
+
     this.addCommand({
       id: "pin-tag",
       name: t().commands.pinTag,

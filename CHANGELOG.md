@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Added
+
+- **Several rows at once.** ⌘-click adds a row to the selection, ⇧-click takes every row between the anchor and here, ⇧-arrow grows the range one row at a time, and Escape lets it go. A right click or the menu key on a selected row opens a menu for all of them: **Move … to…** offers only the folders every one of them could go to, and **Delete …** asks once. The rules — what a click does to a selection, when a menu acts on it — are one pure function, `explorer-selection`, with a test for each.
+- **Undo, after a move or a delete.** The notice that says what happened now carries **Undo**, for thirty seconds; ⌘Z in the pane and **Explorer: undo the last move or delete** do the same. A move is undone by moving back, and refused with a word when something is at the old path now. A delete is undone by lifting the file out of the vault's own `.trash` — found by listing that folder before and after the trash call, since Obsidian does not say where a file went — and a vault set to use the system trash is told plainly that the pane cannot reach into it.
+- **Files dragged in from the desktop.** Drop them on a folder, on any row inside it, or on the header for the root. Each file's path, or the reason it is left out, is decided by `planImport` before a byte is read: a name already taken gets the next free one, the way a new note is named; a folder dropped from the desktop is refused rather than written as an empty file; a file over 200 MB, or the fifty-first in one drop, is left out and named in the notice.
+
 ### Fixed
 
 - **A folder deleted and refilled within ten seconds no longer stays hidden.** The pane takes a trashed row away at once and believes the vault again after a grace, but a file a sync client wrote back under that folder within the grace cleared only its own path from what was held back — the folder above it stayed trashed, and so did everything in it, until the timer gave up. A path that exists now clears every folder above it too, on a create and on a rename alike; the rename case had no handling at all.
