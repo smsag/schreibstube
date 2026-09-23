@@ -124,6 +124,21 @@ export class FileSearchIndex {
     this.cache.delete(path);
   }
 
+  /**
+   * Throw away what was read about everything under a folder.
+   *
+   * A folder deleted or renamed arrives as one event, for the folder; the
+   * files inside it get none of their own. Forgetting only the folder's path
+   * — which was never in the cache, folders are not searched — left every
+   * file under it remembered under a path that no longer exists.
+   */
+  forgetUnder(folderPath: string): void {
+    const prefix = `${folderPath}/`;
+    for (const path of [...this.cache.keys()]) {
+      if (path.startsWith(prefix)) this.cache.delete(path);
+    }
+  }
+
   /** Throw away everything, for a change too broad to name a file. */
   forgetAll(): void {
     this.cache.clear();

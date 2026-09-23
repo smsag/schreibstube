@@ -589,14 +589,18 @@ export const enExtra = {
       namePlaceholder: "Name",
       renameTitle: "Rename",
       exists: "something with that name is already there.",
-      invalid: "that name cannot be used."
+      invalid: "that name cannot be used.",
+      badCharacters: 'a name cannot contain / \\ : * ? " < > or |.',
+      linkCharacters: "a name cannot contain # ^ [ or ]: links to the file would break.",
+      hidden: "a name starting with a dot is hidden by the vault.",
+      trailingDot: "a name cannot end with a dot."
     },
 
     delete: {
       title: "Delete",
-      confirm: (name: string) => `Move "${name}" to the vault's trash?`,
+      confirm: (name: string) => `Move "${name}" to the trash?`,
       folderConfirm: (name: string, count: number) =>
-        `Move "${name}" and the ${count} item(s) inside it to the vault's trash?`,
+        `Move "${name}" and the ${count} item(s) inside it to the trash?`,
       submit: "Delete",
       failed: (name: string) => `"${name}" could not be deleted.`
     }

@@ -111,7 +111,14 @@ export class ConfirmModal extends Modal {
     contentEl.createEl("p", { text: this.options.message });
 
     new Setting(contentEl)
-      .addButton((button) => button.setButtonText(t().common.cancel).onClick(() => this.close()))
+      .addButton((button) => {
+        button.setButtonText(t().common.cancel).onClick(() => this.close());
+        // Focus lands on the safe answer, so Enter from the keyboard that
+        // opened the dialog declines rather than destroys. A keyboard user
+        // who wants to confirm presses Tab once, which is one deliberate
+        // step more than a mouse user's click — and the right amount.
+        window.setTimeout(() => button.buttonEl.focus(), 0);
+      })
       .addButton((button) =>
         button
           .setButtonText(this.options.submitLabel)

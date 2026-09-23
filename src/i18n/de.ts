@@ -838,14 +838,19 @@ export const de: Messages = {
       namePlaceholder: "Name",
       renameTitle: "Umbenennen",
       exists: "unter dem Namen liegt dort schon etwas.",
-      invalid: "dieser Name ist nicht verwendbar."
+      invalid: "dieser Name ist nicht verwendbar.",
+      badCharacters: 'ein Name darf / \\ : * ? " < > oder | nicht enthalten.',
+      linkCharacters:
+        "ein Name darf # ^ [ oder ] nicht enthalten: Links auf die Datei würden brechen.",
+      hidden: "ein Name, der mit einem Punkt beginnt, wird vom Vault versteckt.",
+      trailingDot: "ein Name darf nicht mit einem Punkt enden."
     },
 
     delete: {
       title: "Löschen",
-      confirm: (name: string) => `„${name}“ in den Papierkorb des Vaults verschieben?`,
+      confirm: (name: string) => `„${name}“ in den Papierkorb verschieben?`,
       folderConfirm: (name: string, count: number) =>
-        `„${name}“ mit ${count} enthaltenen Objekt(en) in den Papierkorb des Vaults verschieben?`,
+        `„${name}“ mit ${count} enthaltenen Objekt(en) in den Papierkorb verschieben?`,
       submit: "Löschen",
       failed: (name: string) => `„${name}“ konnte nicht gelöscht werden.`
     }

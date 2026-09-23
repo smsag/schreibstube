@@ -18,6 +18,7 @@ import {
   type MenuItem
 } from "obsidian";
 import { fileNameParts } from "../services/file-glyph";
+import { checkFileName, type FileNameProblem } from "../services/file-name";
 import { t } from "../i18n";
 import type { Logger } from "../services/logger";
 import type { SchreibstubeSettings } from "../types";
@@ -118,6 +119,25 @@ export type FileNamer = (file: TFile) => Promise<string | null>;
 /** Where a pinned tag's notes are listed. The plugin owns the sidebar leaf. */
 export type TagOpener = (tag: string) => Promise<void>;
 
+/** Asks before something is destroyed. The default is the confirm dialog. */
+export type Confirmer = (
+  options: { title: string; message: string; submitLabel: string },
+  onConfirm: () => void
+) => void;
+
+/**
+ * What a test hands in so the controller runs without a window or a dialog.
+ *
+ * The same shape the store takes for the same reason: a timer that fires on
+ * its own schedule and a dialog that waits for a click are the two things a
+ * test cannot wait for, and both are decisions this controller makes.
+ */
+export interface ExplorerHooks {
+  confirm?: Confirmer;
+  setTimer?: (callback: () => void, ms: number) => unknown;
+  clearTimer?: (handle: unknown) => void;
+}
+
 /** Where a note's related notes are listed, for the same reason. */
 export type RelatedOpener = (path: string) => Promise<void>;
 
@@ -146,14 +166,31 @@ export class ExplorerController {
   private tagOpener: TagOpener | null = null;
   private relatedOpener: RelatedOpener | null = null;
 
+  private readonly confirm: Confirmer;
+  private readonly setTimer: (callback: () => void, ms: number) => unknown;
+  private readonly clearTimer: (handle: unknown) => void;
+  /** The grace timer of each trashed path, so unloading can take them back. */
+  private readonly trashTimers = new Map<string, unknown>();
+
   constructor(
     private readonly app: App,
     private readonly getSettings: () => SchreibstubeSettings,
     private readonly sync: ExplorerSyncBridge,
     private readonly logger: Logger,
-    stateFile: ExplorerFileStore
+    stateFile: ExplorerFileStore,
+    hooks: ExplorerHooks = {}
   ) {
-    this.store = new ExplorerStore({ file: stateFile, logger });
+    this.setTimer = hooks.setTimer ?? ((callback, ms) => window.setTimeout(callback, ms));
+    this.clearTimer = hooks.clearTimer ?? ((handle) => window.clearTimeout(handle as number));
+    this.confirm =
+      hooks.confirm ??
+      ((options, onConfirm) => new ConfirmModal(this.app, options, onConfirm).open());
+    this.store = new ExplorerStore({
+      file: stateFile,
+      logger,
+      setTimer: this.setTimer,
+      clearTimer: this.clearTimer
+    });
     this.store.onChange(() => this.emit());
   }
 
@@ -182,6 +219,11 @@ export class ExplorerController {
   async stop(): Promise<void> {
     await this.store.flush();
     this.store.dispose();
+    // A delete confirmed seconds before unloading has a timer still to fire,
+    // and it would fire into a controller nobody listens to.
+    for (const handle of this.trashTimers.values()) this.clearTimer(handle);
+    this.trashTimers.clear();
+    this.trashed.clear();
     this.listeners.clear();
   }
 
@@ -203,6 +245,10 @@ export class ExplorerController {
   // --- vault events -------------------------------------------------------
 
   handleRename(file: TAbstractFile, oldPath: string): void {
+    // Something renamed onto a path that was trashed a moment ago is there
+    // now, whatever was trashed: the same rule as a create, which this is
+    // from the pane's point of view.
+    this.forgetTrashedAround(file.path);
     this.store.mutate((data, now) => renamePath(data, oldPath, file.path, now));
   }
 
@@ -218,8 +264,9 @@ export class ExplorerController {
   /** A file appearing may be one that moved outside Obsidian, so it can claim
    *  the icon of a tombstone with the same name. */
   handleCreate(file: TAbstractFile): void {
-    // A path written again is a path that exists, whatever was trashed there.
-    this.forgetTrashed(file.path);
+    // A path written again is a path that exists, whatever was trashed there
+    // — and so does every folder above it.
+    this.forgetTrashedAround(file.path);
     this.store.mutate((data, now) => reattachOrphans(data, [file.path], now));
   }
 
@@ -241,13 +288,46 @@ export class ExplorerController {
     return false;
   }
 
-  /** Drop a path and everything under it from what is being held back. */
+  /**
+   * Drop a path and everything under it from what is being held back.
+   *
+   * For a delete event: the vault has confirmed this much is gone. Nothing
+   * above it is touched, because a folder trashed as a whole may see its
+   * children reported gone one by one, and clearing the folder on the first
+   * would draw it again, half-emptied, until the rest arrive.
+   */
   private forgetTrashed(path: string): void {
     if (this.trashed.size === 0) return;
 
     const prefix = `${path}/`;
     for (const gone of [...this.trashed]) {
-      if (gone === path || gone.startsWith(prefix)) this.trashed.delete(gone);
+      if (gone === path || gone.startsWith(prefix)) this.dropTrashed(gone);
+    }
+  }
+
+  /**
+   * Drop a path, everything under it, and everything above it.
+   *
+   * For a create or a rename: a path that exists means every folder holding
+   * it exists too. Without the upward walk, a folder trashed and refilled by
+   * a sync client within the grace stayed hidden, children and all, until the
+   * timer gave up — the one outcome the grace was built to rule out.
+   */
+  private forgetTrashedAround(path: string): void {
+    if (this.trashed.size === 0) return;
+
+    this.forgetTrashed(path);
+    for (const gone of [...this.trashed]) {
+      if (isUnder(path, gone)) this.dropTrashed(gone);
+    }
+  }
+
+  private dropTrashed(path: string): void {
+    this.trashed.delete(path);
+    const handle = this.trashTimers.get(path);
+    if (handle !== undefined) {
+      this.clearTimer(handle);
+      this.trashTimers.delete(path);
     }
   }
 
@@ -855,7 +935,7 @@ export class ExplorerController {
           kind === "note" ? t().explorer.create.noteTitle : t().explorer.create.folderTitle,
         validate: (value) => this.validateName(value, parent, kind === "note" ? ".md" : "")
       },
-      (value) => void this.createIn(parent, value, kind)
+      (value) => void this.createIn(parent, value.trim(), kind)
     ).open();
   }
 
@@ -922,7 +1002,8 @@ export class ExplorerController {
         validate: (value) =>
           value === current ? null : this.validateName(value, parent, extension)
       },
-      (value) => {
+      (raw) => {
+        const value = raw.trim();
         if (value === current) return;
         void this.app.fileManager
           .renameFile(file, joinPath(parent, `${value}${extension}`))
@@ -998,8 +1079,7 @@ export class ExplorerController {
   private remove(file: TAbstractFile): void {
     const inside = file instanceof TFolder ? countChildren(file) : 0;
 
-    new ConfirmModal(
-      this.app,
+    this.confirm(
       {
         title: t().explorer.delete.title,
         message:
@@ -1019,14 +1099,17 @@ export class ExplorerController {
             // notices rather than when the file went — seconds later on a
             // phone, which is a row sitting there after you deleted it. So the
             // row goes now, and the event, when it comes, only confirms it.
-            this.trashed.add(file.path);
+            const path = file.path;
+            this.trashed.add(path);
             this.emit();
 
-            window.setTimeout(() => {
-              if (!this.trashed.has(file.path)) return;
-              this.forgetTrashed(file.path);
+            const handle = this.setTimer(() => {
+              this.trashTimers.delete(path);
+              if (!this.trashed.has(path)) return;
+              this.forgetTrashed(path);
               this.emit();
             }, TRASH_GRACE_MS);
+            this.trashTimers.set(path, handle);
           })
           .catch((error: unknown) => {
             this.logger.warn(`Could not delete ${file.path}:`, error);
@@ -1035,14 +1118,37 @@ export class ExplorerController {
             new Notice(t().common.notice(t().explorer.delete.failed(file.name)));
           });
       }
-    ).open();
+    );
   }
 
+  /**
+   * Why a name cannot be used, as a line under the field, or null.
+   *
+   * Every rule the vault will apply is applied here first, so the dialog
+   * never approves a name the create then refuses with a shrug.
+   */
   private validateName(value: string, parent: string, extension: string): string | null {
-    if (value.length === 0 || /[\\/:]/.test(value)) return t().explorer.create.invalid;
+    const checked = checkFileName(value);
+    if (!checked.ok) return this.nameProblem(checked.problem);
 
-    const path = joinPath(parent, `${value}${extension}`);
+    const path = joinPath(parent, `${checked.name}${extension}`);
     return this.app.vault.getAbstractFileByPath(path) ? t().explorer.create.exists : null;
+  }
+
+  private nameProblem(problem: FileNameProblem): string {
+    const create = t().explorer.create;
+    switch (problem) {
+      case "characters":
+        return create.badCharacters;
+      case "link-characters":
+        return create.linkCharacters;
+      case "hidden":
+        return create.hidden;
+      case "trailing-dot":
+        return create.trailingDot;
+      default:
+        return create.invalid;
+    }
   }
 
   private allPaths(): string[] {
