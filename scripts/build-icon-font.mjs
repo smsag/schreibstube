@@ -19,7 +19,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "no
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { ICON_GROUPS, RETIRED_ICONS, UI_ICONS } from "./icon-set.mjs";
+import { ICON_GROUPS, UI_ICONS } from "./icon-set.mjs";
 
 const packageDir = fileURLToPath(new URL("../node_modules/@tabler/icons-webfont", import.meta.url));
 const output = fileURLToPath(new URL("../src/ui/icon-font.generated.ts", import.meta.url));
@@ -47,11 +47,7 @@ if (available.size === 0) {
   fail("Could not read any codepoints from the Tabler stylesheet. Did its format change?");
 }
 
-// Retired names are carried but never shown: a vault that still points at one
-// must keep drawing it. See RETIRED_ICONS in icon-set.mjs.
-const wanted = [
-  ...new Set([...UI_ICONS, ...ICON_GROUPS.flatMap((group) => group.icons), ...RETIRED_ICONS])
-].sort();
+const wanted = [...new Set([...UI_ICONS, ...ICON_GROUPS.flatMap((group) => group.icons)])].sort();
 const unknown = wanted.filter((name) => !available.has(name));
 if (unknown.length > 0) {
   fail(

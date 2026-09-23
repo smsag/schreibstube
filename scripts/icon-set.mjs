@@ -10,6 +10,15 @@
  *
  * Adding a name here and running `npm run build:icons` is the whole process.
  * An unknown name fails the build rather than shipping an empty square.
+ *
+ * Removing one is not symmetrical, and is a decision rather than an edit. What
+ * a vault stores is the name, so a folder already marked with a name that
+ * leaves this list loses its mark: `applyIcon` draws nothing for a glyph the
+ * font does not have, and only the interface's own actions pass a
+ * `fallbackIcon`. Property keys fare better — `propertyIconCss` writes no rule
+ * for an unknown name, so the key keeps Obsidian's type icon. The blank is
+ * accepted: it is visible, it points at the one folder it affects, and picking
+ * again is the whole repair.
  */
 
 /** Glyphs the interface itself needs, whether or not a user can pick them. */
@@ -55,49 +64,6 @@ export const UI_ICONS = [
 ];
 
 /**
- * Names the picker no longer offers, which the font still carries.
- *
- * The stored value is a name, so dropping one from a group would blank the
- * folder of everyone who had already chosen it — `applyIcon` draws nothing for
- * a name it does not know, and only the interface's own actions pass a
- * `fallbackIcon`. Retiring is therefore about what the picker shows, not about
- * what the bundle holds: these cost their bytes so that no vault loses a mark
- * it was given. A name may leave this list once it is safe to assume nobody
- * still points at it.
- */
-export const RETIRED_ICONS = [
-  "note",
-  "book-2",
-  "abc",
-  "luggage",
-  "currency-euro",
-  "phone-call",
-  "user-circle",
-  "shopping-cart",
-  "stars",
-  "flag-2",
-  "clock-hour-4",
-  "terminal",
-  "tool",
-  "message-circle",
-  "brush",
-  "wand",
-  "ship",
-  "train",
-  "trophy",
-  "gift",
-  "school",
-  "brain",
-  "coffee",
-  "sun",
-  "moon",
-  "leaf",
-  "atom",
-  "microscope",
-  "robot"
-];
-
-/**
  * The picker, in the order it is shown. Group ids are translated in `i18n`; a
  * new group needs an entry in both catalogues or the build fails on the type.
  */
@@ -113,6 +79,7 @@ export const ICON_GROUPS = [
       "file-check",
       "file-search",
       "file-pencil",
+      "file-star",
       "notes",
       "notebook",
       "book",
@@ -126,6 +93,8 @@ export const ICON_GROUPS = [
       "writing",
       "ballpen",
       "pencil",
+      "eraser",
+      "highlight",
       // What a manuscript is made of, as against what it is about.
       "typography",
       "quote",
@@ -173,6 +142,7 @@ export const ICON_GROUPS = [
       "home-check",
       "home-search",
       "home-edit",
+      "home-eco",
       "building",
       "building-community",
       "building-estate",
@@ -182,6 +152,9 @@ export const ICON_GROUPS = [
       "building-factory",
       "building-bank",
       "building-cottage",
+      "building-castle",
+      "building-church",
+      "building-hospital",
       // The parts of a building a listing actually names.
       "door",
       "window",
@@ -198,6 +171,7 @@ export const ICON_GROUPS = [
       "ruler",
       "ruler-measure",
       "dimensions",
+      "compass",
       "map",
       "map-2",
       "map-pin",
@@ -206,8 +180,11 @@ export const ICON_GROUPS = [
       // Services, and the works that put them there.
       "droplet",
       "plug",
+      "air-conditioning",
+      "solar-panel",
       "crane",
       "hammer",
+      "bulldozer",
       "paint",
       "tree",
       "trees",
@@ -223,23 +200,29 @@ export const ICON_GROUPS = [
       "users-group",
       "user-plus",
       "user-check",
+      "user-search",
       "address-book",
       "id",
       "phone",
       "device-mobile",
       "calendar",
       "calendar-event",
+      "calendar-week",
+      "calendar-due",
       "calendar-month",
       "calendar-check",
       "calendar-time",
       "clock",
       "alarm",
+      "timeline",
       "businessplan",
       "heart-handshake",
       "contract",
       "license",
       "coin-euro",
       "cash",
+      "pig-money",
+      "percentage",
       "calculator",
       "receipt",
       "receipt-euro",
@@ -256,6 +239,7 @@ export const ICON_GROUPS = [
       "chart-bar",
       "chart-line",
       "chart-pie",
+      "chart-histogram",
       "presentation",
       "trending-up",
       "ticket",
@@ -279,8 +263,10 @@ export const ICON_GROUPS = [
       // part-way, resting.
       "circle-dot",
       "circle-half",
+      "circle-dashed",
       "progress",
       "player-pause",
+      "zzz",
       "hourglass",
       "exclamation-mark",
       "question-mark",
@@ -301,7 +287,9 @@ export const ICON_GROUPS = [
       "mood-happy",
       "mood-neutral",
       "mood-sad",
-      "thumb-up"
+      "thumb-up",
+      "thumb-down",
+      "trending-down"
     ]
   },
   {
