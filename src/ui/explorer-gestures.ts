@@ -291,8 +291,9 @@ export class DragGesture {
 export interface PressHandlers {
   /** Whether a drag is in progress, in which case a click is not a click. */
   isDragging: () => boolean;
-  /** A plain click: open the file, or toggle the folder. */
-  activate: () => void;
+  /** A click: open the file, or toggle the folder. The event is passed on
+   *  for its modifier keys, which turn a click into a selection instead. */
+  activate: (event?: MouseEvent) => void;
   /** Open the row's menu, at the pointer or at a finger. */
   showMenu: (at: MouseEvent | { x: number; y: number }) => void;
 }
@@ -342,7 +343,7 @@ export function wirePress(row: HTMLElement, handlers: PressHandlers): void {
     // as well, and a folder dropped somewhere closes itself on arrival.
     if (handlers.isDragging()) return;
 
-    handlers.activate();
+    handlers.activate(event);
   });
 
   row.addEventListener("contextmenu", (event) => {

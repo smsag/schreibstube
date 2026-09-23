@@ -26,6 +26,7 @@ export const en = {
     insertToday: "Insert: today's date",
     openExplorer: "Open explorer",
     collapseExplorer: "Explorer: collapse folders",
+    explorerUndo: "Explorer: undo the last move or delete",
     related: "Related notes",
     openBookmark: "Open bookmark",
     pinTag: "Pin tag",
