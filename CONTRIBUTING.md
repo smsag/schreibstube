@@ -128,7 +128,8 @@ The script bumps `manifest.json`, `package.json`, `versions.json` and
 chance to get one wrong. The lockfile is in there because npm keeps its own copy
 of the package version and rewrites it at the next install; a release that skips
 it leaves that diff lying in wait for whoever installs next. It refuses a version
-that is not newer than the current one, and refuses a dirty working tree.
+that is not newer than the current one, refuses a dirty working tree, and stops
+rather than half-bump a lockfile whose shape it no longer recognises.
 
 Then commit, tag, and run the Release workflow with the same version.
 
