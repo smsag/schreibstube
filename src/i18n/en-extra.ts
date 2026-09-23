@@ -384,7 +384,8 @@ export const enExtra = {
     } as Record<string, string>,
     accept: "Accept",
     reject: "Discard",
-    show: "Show",
+    show: "Locate",
+    showInsert: "Locate insertion point",
     acceptAll: (count: number) => `Accept all (${count})`
   },
 

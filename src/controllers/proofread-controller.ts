@@ -54,6 +54,7 @@ import {
   planApply,
   refreshStaleness,
   resolveAnchor,
+  revealRange,
   settleStatuses,
   type Suggestion
 } from "../services/suggestion";
@@ -444,14 +445,18 @@ export class ProofreadController {
     const suggestion = this.suggestions.find((entry) => entry.id === id);
     if (!view || !suggestion) return;
 
-    const anchor = resolveAnchor(view.editor.getValue(), suggestion);
+    const text = view.editor.getValue();
+    const anchor = resolveAnchor(text, suggestion);
     if (!anchor) {
       new Notice(t().common.notice(t().proofread.spotGone));
       return;
     }
 
-    const from = view.editor.offsetToPos(anchor.from);
-    const to = view.editor.offsetToPos(anchor.to);
+    // An insertion has no text of its own to select; the words before its
+    // point are selected instead, so the landing can be seen.
+    const range = revealRange(text, anchor, suggestion);
+    const from = view.editor.offsetToPos(range.from);
+    const to = view.editor.offsetToPos(range.to);
     view.editor.setSelection(from, to);
     view.editor.scrollIntoView({ from, to }, true);
   }

@@ -628,7 +628,8 @@ export const de: Messages = {
     },
     accept: "Übernehmen",
     reject: "Verwerfen",
-    show: "Anzeigen",
+    show: "Stelle zeigen",
+    showInsert: "Einfügestelle zeigen",
     acceptAll: (count: number) => `Alle übernehmen (${count})`
   },
 

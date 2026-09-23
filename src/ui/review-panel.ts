@@ -385,9 +385,11 @@ export class ReviewPanelView extends ItemView {
     this.button(actions, t().proofread.reject, "x", false, () =>
       this.handlers?.onReject(suggestion.id)
     );
-    this.button(actions, t().proofread.show, "locate", false, () =>
-      this.handlers?.onReveal(suggestion.id)
-    );
+    // The button locates the card in the note; it does not show the change,
+    // which the card itself already does. An insertion has no text in the
+    // note yet, so its label says what will be shown: the point it goes in.
+    const locate = suggestion.kind === "insert" ? t().proofread.showInsert : t().proofread.show;
+    this.button(actions, locate, "locate", false, () => this.handlers?.onReveal(suggestion.id));
   }
 
   /** Word-level before and after. A flag-only card has nothing to show on the

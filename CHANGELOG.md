@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Changed
+
+- **The review card's "Show" is now "Locate".** It never showed the change — the card does that — it selected the card's text in the note and scrolled there, which is the look-before-you-accept step; the old word promised something else. For an update that inserts text the note does not have yet, the button reads **Locate insertion point** and selects the last words before the point, so the landing is visible rather than a bare cursor that looks as if nothing happened.
+
 ### Added
 
 - **A summary out of an attached PDF, with the way back into it.** **Insert: summary from the attached PDF** reads the PDF a doc embeds or links, offers its passages, and writes the ones you choose at the cursor — each followed by a mark that opens the PDF at the page the passage came from. The mark is an ordinary Obsidian link (`Bericht.pdf#page=12&selection=…`), so it needs nothing to render, survives sync, and works in Reading view. The text is read with the pdf.js Obsidian already ships, which is why the feature costs 7 KB rather than a megabyte. A scan says so instead of offering an empty list, and a document past 200 pages says how much of it was read.
