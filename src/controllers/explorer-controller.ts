@@ -35,7 +35,14 @@ import {
   type SelectionAction,
   type SelectionMenuItem
 } from "../services/explorer-menu";
-import { UNDO_WINDOW_MS, UndoStack, type DeleteStep, type MoveStep } from "../services/undo-stack";
+import {
+  UNDO_WINDOW_MS,
+  UndoStack,
+  type DeleteStep,
+  type MoveStep,
+  type UndoableAction
+} from "../services/undo-stack";
+import { topLevelOnly } from "../services/explorer-selection";
 import { planImport, type DroppedFile, type ImportRefusal } from "../services/import-plan";
 import {
   entryFor,
@@ -1118,7 +1125,8 @@ export class ExplorerController {
   }
 
   /** Delete several rows at once: one question, one trash call each. */
-  removeMany(files: TAbstractFile[]): void {
+  removeMany(selected: TAbstractFile[]): void {
+    const files = topLevel(selected);
     if (files.length === 0) return;
     if (files.length === 1 && files[0]) return this.remove(files[0]);
 
@@ -1183,12 +1191,17 @@ export class ExplorerController {
     }
     if (steps.length === 0) return;
 
-    this.undo.push({ kind: "delete", steps }, this.now());
+    const action: UndoableAction = { kind: "delete", steps };
+    this.undo.push(action, this.now());
     const message =
       steps.length === 1 && steps[0]
         ? t().explorer.delete.done(basename(steps[0].from))
         : t().explorer.delete.manyDone(steps.length);
-    this.toast(t().common.notice(message), t().explorer.undo.action, () => void this.undoLast());
+    this.toast(
+      t().common.notice(message),
+      t().explorer.undo.action,
+      () => void this.undoAction(action)
+    );
   }
 
   /**
@@ -1206,8 +1219,11 @@ export class ExplorerController {
     await this.app.fileManager.trashFile(file);
     const after = await this.listTrash(adapter);
 
+    // Something else may land in the trash between the two listings — a sync
+    // client, another device — so an arrival carrying this file's own name
+    // is believed before any other.
     const arrived = after.filter((entry) => !before.includes(entry));
-    return arrived[0] ?? null;
+    return arrived.find((entry) => basename(entry) === file.name) ?? arrived[0] ?? null;
   }
 
   private async listTrash(adapter: DataAdapter): Promise<string[]> {
@@ -1220,7 +1236,20 @@ export class ExplorerController {
 
   /** Take back the last move or delete, if there still is one to take. */
   async undoLast(): Promise<void> {
-    const action = this.undo.take(this.now());
+    await this.perform(this.undo.take(this.now()));
+  }
+
+  /**
+   * Take back one particular action — the one a notice offered.
+   *
+   * Only while it is still the one on offer: a notice about a delete, still
+   * on screen after a move, must not undo the move.
+   */
+  async undoAction(action: UndoableAction): Promise<void> {
+    await this.perform(this.undo.takeIf(action, this.now()));
+  }
+
+  private async perform(action: UndoableAction | null): Promise<void> {
     if (action === null) {
       new Notice(t().common.notice(t().explorer.undo.nothing));
       return;
@@ -1312,7 +1341,9 @@ export class ExplorerController {
    * that is fine for four of five and refused for the fifth would be a list
    * that answers a choice with a partial failure.
    */
-  private moveManyTo(files: TAbstractFile[]): void {
+  private moveManyTo(selected: TAbstractFile[]): void {
+    const files = topLevel(selected);
+    if (files.length === 0) return;
     const context = this.moveContext();
     const shared = files
       .map((file) => new Set(moveDestinations(file.path, context)))
@@ -1382,7 +1413,8 @@ export class ExplorerController {
     }
 
     if (steps.length === 0) return;
-    this.undo.push({ kind: "move", steps }, this.now());
+    const action: UndoableAction = { kind: "move", steps };
+    this.undo.push(action, this.now());
 
     // The pane may be behind the note the move was started from, so the only
     // sign it happened would otherwise be a row that is no longer where it was.
@@ -1390,7 +1422,11 @@ export class ExplorerController {
       files.length === 1 && steps[0]
         ? t().explorer.move.done(basename(steps[0].from), where)
         : t().explorer.move.manyDone(steps.length, where, refused);
-    this.toast(t().common.notice(message), t().explorer.undo.action, () => void this.undoLast());
+    this.toast(
+      t().common.notice(message),
+      t().explorer.undo.action,
+      () => void this.undoAction(action)
+    );
   }
 
   // --- files from outside the vault ---------------------------------------
@@ -1405,11 +1441,12 @@ export class ExplorerController {
   async importFiles(sources: ImportSource[], folder: string): Promise<void> {
     const taken = new Set(this.app.vault.getAllLoadedFiles().map((entry) => entry.path));
     const plan = planImport(sources, folder, taken);
-    const bySource = new Map(sources.map((source) => [source.name, source]));
 
     let written = 0;
     for (const entry of plan.imports) {
-      const source = bySource.get(entry.name);
+      // By place in the drop, never by name: two files called Foto.jpg are
+      // two files, and a lookup by name would write one of them twice.
+      const source = sources[entry.index];
       if (!source) continue;
       try {
         await this.app.vault.createBinary(entry.path, await source.bytes());
@@ -1457,6 +1494,8 @@ export class ExplorerController {
         return create.hidden;
       case "trailing-dot":
         return create.trailingDot;
+      case "too-long":
+        return create.tooLong;
       default:
         return create.invalid;
     }
@@ -1481,6 +1520,12 @@ export class ExplorerController {
 
 function joinPath(parent: string, name: string): string {
   return parent.length > 0 ? `${parent}/${name}` : name;
+}
+
+/** The selection without anything inside a selected folder; see `topLevelOnly`. */
+function topLevel(files: TAbstractFile[]): TAbstractFile[] {
+  const keep = new Set(topLevelOnly(files.map((file) => file.path)));
+  return files.filter((file) => keep.has(file.path));
 }
 
 function basename(path: string): string {

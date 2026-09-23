@@ -602,7 +602,8 @@ export const enExtra = {
       badCharacters: 'a name cannot contain / \\ : * ? " < > or |.',
       linkCharacters: "a name cannot contain # ^ [ or ]: links to the file would break.",
       hidden: "a name starting with a dot is hidden by the vault.",
-      trailingDot: "a name cannot end with a dot."
+      trailingDot: "a name cannot end with a dot.",
+      tooLong: "a name can be at most 255 characters."
     },
 
     delete: {

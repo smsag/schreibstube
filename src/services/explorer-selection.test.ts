@@ -4,7 +4,8 @@ import {
   menuActsOnSelection,
   selectionAfterClick,
   selectionExtended,
-  selectionPruned
+  selectionPruned,
+  topLevelOnly
 } from "./explorer-selection";
 import type { SelectionState } from "./explorer-selection";
 
@@ -86,6 +87,16 @@ describe("selectionExtended", () => {
     expect(paths(selectionExtended(EMPTY_SELECTION, "D.md", -1, order))).toEqual(["C.md", "D.md"]);
   });
 
+  it("continues from the focused row when the cursor has been folded away", () => {
+    const state: SelectionState = {
+      selected: new Set(["B.md", "C.md"]),
+      anchor: "B.md",
+      cursor: "Ordner/versteckt.md"
+    };
+
+    expect(paths(selectionExtended(state, "C.md", 1, order))).toEqual(["B.md", "C.md", "D.md"]);
+  });
+
   it("stops at the ends of the list", () => {
     const atTop = selectionAfterClick(EMPTY_SELECTION, "A.md", plain, order);
     expect(paths(selectionExtended(atTop, "A.md", -1, order))).toEqual(["A.md"]);
@@ -121,5 +132,18 @@ describe("menuActsOnSelection", () => {
     expect(menuActsOnSelection(one, "A.md")).toBe(false);
     expect(menuActsOnSelection(two, "A.md")).toBe(true);
     expect(menuActsOnSelection(two, "E.md")).toBe(false);
+  });
+});
+
+describe("topLevelOnly", () => {
+  it("drops everything inside a selected folder, which the folder already takes", () => {
+    expect(topLevelOnly(["Projekt", "Projekt/a.md", "Projekt/Unter/b.md", "Anderes.md"])).toEqual([
+      "Projekt",
+      "Anderes.md"
+    ]);
+  });
+
+  it("keeps a file whose folder only shares a prefix", () => {
+    expect(topLevelOnly(["Projekt", "Projektplan.md"])).toEqual(["Projekt", "Projektplan.md"]);
   });
 });

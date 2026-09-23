@@ -55,4 +55,14 @@ describe("UndoStack", () => {
     expect(stack.peek(10)).toBe(move);
     expect(stack.peek(11)).toBeNull();
   });
+
+  it("hands an action over by identity, and only while it is the one on offer", () => {
+    const stack = new UndoStack();
+    stack.push(remove, 1000);
+    stack.push(move, 2000);
+
+    expect(stack.takeIf(remove, 2500)).toBeNull();
+    expect(stack.takeIf(move, 2500)).toBe(move);
+    expect(stack.takeIf(move, 2600)).toBeNull();
+  });
 });
