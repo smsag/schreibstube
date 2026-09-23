@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased]
+## Unreleased
 
 ### Added
 
@@ -12,27 +12,43 @@ All notable changes to this project will be documented in this file.
 - **Tasks are recognised again without being marked.** The plan keeps an anchor per task — its note, its wording, its place among identical lines — and matches each scan against them: unchanged tasks by hash, edited ones by how alike they read. Where two tasks are too alike to tell apart, the planner says the task was not found instead of binding the wrong one, and nothing is deleted while you put it right.
 - **A few tasks can also become reminders.** Marked while planning, they go into a queue in the plan; a helper, the app or a Shortcut on an Apple device applies it, and iCloud carries the result to every device. The plugin itself never writes to Reminders, and a reminder ticked there ticks its task in the note.
 - **The bridge keeps the plan and writes the blocks.** A new `plan` capability, with its own token and its own CalDAV credential, stores one planning document — latest revision only, no history — and reads and writes your calendar. It is the first thing the bridge has ever stored, and `bridge/README.md` now says so where it used to claim it stored nothing. Bridge 2.5.0, protocol 2; the planner asks `/health` once and says plainly when a deployment is behind. Existing mail and publishing deployments are unaffected and keep working unchanged.
+
+### Changed
+
+- **Reminders come from the planner, and nothing is written into a note for them.** Mark a task **also in Erinnerungen** when you put it in a block, and it becomes a reminder in one list, **Schreibstube** unless you name another. Editing, ticking or dating the task follows it there; a reminder ticked on the phone ticks the task. Something on an Apple device carries the reminders across — a Shortcut run by an automation, or a helper on a Mac — by asking the bridge two things: `GET /plan/queue` for what is left to do, and `POST /plan/queue/ack` with what it did and what the list now says. It does not need Obsidian open, and one device is enough; iCloud does the rest. See [REMINDERS.md](REMINDERS.md).
+- **Reminders made by 1.35 and earlier still open their task.** Their tasks still end in the link that command left, and following it still finds the line, wherever the note is now. Those old reminders are no longer kept in step.
+
+### Removed
+
+- **Send task to Erinnerungen** and **Compare with Erinnerungen**, with their two Shortcuts, the report file and the `obsidian://schreibstube?done=1` callback. Hotkeys bound to `send-task-to-reminders` or `fetch-done-from-reminders` do nothing now. The Reminders list setting stays and moves to **Tagesplan**; a list you had named is kept, and an empty one becomes **Schreibstube**.
+
+## 1.38.0 - 2026-09-22
+
+Synced notes tell the truth about what is waiting. The Explorer's "Updated
+externally" list, its mark, the note badge and the background notice now all
+ask one question — does the source hold text the note has not taken — so a
+note listed there shows its update cards on "Quelle prüfen", and drops out once
+they are accepted. Behind that, devices sharing a vault stop overwriting each
+other's sync records: each save merges them note by note, so an update accepted
+on one device is not reported again on the next. The Explorer also keeps its
+place while you open and close folders, notes under Latest get the same menu as
+the tree, and the filter field gains a visible edge and a loupe.
+
+Mobile checklist: not run — and a phone has things to say about this one: a
+long press on a Latest row opening the menu (item 7), buttons answering the
+first tap on an iPhone, and the pane no longer jumping to the open note on the
+first folder tapped after the drawer reopens. All of it is covered by the suite
+and was built on a desktop; none of it has been tried on a phone.
+
+The bridge's protocol is unchanged; bridge 2.4.0 still pairs with this release.
+
+### Added
 - **Latest rows have the file menu.** A right click, or a long press on a
   phone, on a note under Latest opens the same menu the tree gives it, so a
   note found there can be deleted, renamed or moved without first finding it
   in the tree below.
 
 ### Changed
-
-- **Reminders come from the planner, and nothing is written into a note for them.** Mark a task **also in Erinnerungen** when you put it in a block, and it becomes a reminder in one list, **Schreibstube** unless you name another. Editing, ticking or dating the task follows it there; a reminder ticked on the phone ticks the task. Something on an Apple device carries the reminders across — a Shortcut run by an automation, or a helper on a Mac — by asking the bridge two things: `GET /plan/queue` for what is left to do, and `POST /plan/queue/ack` with what it did and what the list now says. It does not need Obsidian open, and one device is enough; iCloud does the rest. See [REMINDERS.md](REMINDERS.md).
-- **Reminders made by 1.35 and earlier still open their task.** Their tasks still end in the link that command left, and following it still finds the line, wherever the note is now. Those old reminders are no longer kept in step.
-- **The task tally reads as a tally.** The pill behind the figures beside a
-  note's name was a wash of the accent so faint it looked like a grey box, so
-  the numbers were set in a heavier weight to be findable at all — emphasis
-  arriving twice, inside a pill, on a line of plain names. The wash now carries
-  the accent properly and the figures sit at the row's own weight, with a
-  little more room inside the pill. Nothing about what it says has changed: it
-  is still done over total, and a note with nothing left open still loses its
-  fill entirely.
-- The two places that show a tally — the file pane's rows and the pinned-tag
-  cards — held a copy of the pill's styling each, and had drifted. They now
-  share one, so a change to the pill can no longer reach one surface and miss
-  the other.
 - **The filter field has an edge you can see, and a loupe.** It was a filled box
   with a hairline of `--background-modifier-border` — a token meant for the seam
   between two surfaces. Measured, that edge came out at 1.23:1 in light, and in
@@ -48,16 +64,25 @@ All notable changes to this project will be documented in this file.
   on, under Obsidian's own themes and under Klartext. It also gains the loupe it
   never had: the field said "filter" only in its placeholder, which is gone the
   moment anything is typed.
+
 - **Focus says something.** The rule thickens to 2px in the accent, and nothing
   else moves — no ring, which this pane clips along its upper edge into
   something that reads as a rendering fault rather than as focus.
 
-### Removed
-
-- **Send task to Erinnerungen** and **Compare with Erinnerungen**, with their two Shortcuts, the report file and the `obsidian://schreibstube?done=1` callback. Hotkeys bound to `send-task-to-reminders` or `fetch-done-from-reminders` do nothing now. The Reminders list setting stays and moves to **Tagesplan**; a list you had named is kept, and an empty one becomes **Schreibstube**.
+- **The task tally reads as a tally.** The pill behind the figures beside a
+  note's name was a wash of the accent so faint it looked like a grey box, so
+  the numbers were set in a heavier weight to be findable at all — emphasis
+  arriving twice, inside a pill, on a line of plain names. The wash now carries
+  the accent properly and the figures sit at the row's own weight, with a
+  little more room inside the pill. Nothing about what it says has changed: it
+  is still done over total, and a note with nothing left open still loses its
+  fill entirely.
+- The two places that show a tally — the file pane's rows and the pinned-tag
+  cards — held a copy of the pill's styling each, and had drifted. They now
+  share one, so a change to the pill can no longer reach one surface and miss
+  the other.
 
 ### Fixed
-
 - **Devices no longer overwrite each other's sync records.** Each device kept
   its own copy of the records in memory and wrote all of it back on every
   save, so whichever device saved last decided what every device knew: an
@@ -67,6 +92,7 @@ All notable changes to this project will be documented in this file.
   device stays dropped unless another device checked it since. When another
   device's save arrives, its records are merged in the same way at once.
   Other settings keep the rule they had: the last save wins.
+
 - **"Updated externally" lists only what "Quelle prüfen" will show.** The
   Latest section, its mark, the note badge and the poll's notice each asked a
   different question. The list asked whether a source had ever moved, which
@@ -79,12 +105,20 @@ All notable changes to this project will be documented in this file.
   update is accepted, local edits alone are no longer announced as an update,
   and a check from the menu no longer answers "up to date" for a note whose
   update cards were shown and never taken.
+
 - **Browsing folders no longer throws the Explorer back to the open note.**
   Every redraw measured the pinned strip while the list was empty, which reset
   the scroll to the top; the reveal that follows the open note then found it
   off screen and centred it. The pane now keeps its place across a redraw, and
   opening or closing a folder drops a reveal still waiting from a note opened
   while the sidebar was shut.
+
+- **The filter field was 30px tall, not the 32px it asked for.** Obsidian sets
+  the height of a search input at a specificity a class rule loses to, so that
+  line had never taken effect. The same rule repainted the field's fill and
+  border on hover, which is what would have quietly undone the change above.
+  Every selector for this field now names the element and out-ranks it.
+
 - **Buttons needed two taps on an iPhone.** iOS holds the first tap back while
   it waits to see whether a second one follows, because two taps mean zoom —
   and during that wait the tap can be lost, most easily when the element
@@ -98,11 +132,6 @@ All notable changes to this project will be documented in this file.
   check returning, staleness recomputed as you type — and any of those landing
   mid-tap destroys the button under the finger and puts an identical one in its
   place. The redraw now waits until the tap has resolved.
-- **The filter field was 30px tall, not the 32px it asked for.** Obsidian sets
-  the height of a search input at a specificity a class rule loses to, so that
-  line had never taken effect. The same rule repainted the field's fill and
-  border on hover, which is what would have quietly undone the change above.
-  Every selector for this field now names the element and out-ranks it.
 
 ## 1.37.0 - 2026-09-20
 

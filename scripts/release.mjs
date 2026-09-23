@@ -1,11 +1,17 @@
 /**
- * Bump the three files that carry a version, together.
+ * Bump the four files that carry a version, together.
  *
  * `manifest.json` is what Obsidian reads, `package.json` is what the build
  * reads, and `versions.json` is what the installer reads to decide which
  * release an older app may have. Doing that by hand is three edits and one
  * chance to get one of them wrong, which the release workflow then discovers
  * after it has already started.
+ *
+ * A fourth file carries the number and nothing reads it for the release, which
+ * is how it came to be left behind: npm keeps `package-lock.json` equal to
+ * `package.json`, so a stale one says nothing until the next `npm install`
+ * rewrites it and hands whoever ran it a hunk they did not write. It holds the
+ * version twice, and both are set here, so that no branch starts dirty.
  */
 import { execSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
@@ -23,9 +29,18 @@ const write = (path, value) => writeFileSync(path, `${JSON.stringify(value, null
 const manifest = read("manifest.json");
 const pkg = read("package.json");
 const versions = read("versions.json");
+const lock = read("package-lock.json");
 
 if (!isNewer(version, manifest.version)) {
   console.error(`${version} is not newer than the current ${manifest.version}.`);
+  process.exit(1);
+}
+
+if (typeof lock.packages?.[""]?.version !== "string") {
+  console.error(
+    'package-lock.json has no packages[""].version — its format changed.\n' +
+      "Bump it by hand, or with `npm install --package-lock-only`, and check this script."
+  );
   process.exit(1);
 }
 
@@ -41,12 +56,18 @@ pkg.version = version;
 // which is whatever the manifest currently requires.
 versions[version] = manifest.minAppVersion;
 
+// Both, because npm writes the version in each and reconciles them on the
+// next install whether or not anyone asked it to.
+lock.version = version;
+lock.packages[""].version = version;
+
 write("manifest.json", manifest);
 write("package.json", pkg);
 write("versions.json", versions);
+write("package-lock.json", lock);
 
 console.log(
-  `${version} set in manifest.json, package.json and versions.json ` +
+  `${version} set in manifest.json, package.json, versions.json and package-lock.json ` +
     `(minimum Obsidian ${manifest.minAppVersion}).\n` +
     "Next: update the changelog, commit, and run the Release workflow with the same version."
 );
