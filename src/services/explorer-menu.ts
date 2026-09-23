@@ -248,6 +248,33 @@ function syncItems(target: ExplorerTarget): ExplorerMenuItem[] {
   ];
 }
 
+/** What a menu on several selected rows offers. */
+export type SelectionAction = "move-selected" | "delete-selected";
+
+export interface SelectionMenuItem {
+  id: SelectionAction;
+  label: string;
+  icon: string;
+  warning?: boolean;
+}
+
+/**
+ * The menu on a selection of more than one row.
+ *
+ * Short on purpose. Of everything a single row offers, only two things make
+ * sense for several at once: putting them somewhere else, and getting rid of
+ * them. An icon or a pin is a decision about one file; a source binding is a
+ * URL typed for one note. Offering those for a selection would be offering
+ * to apply one answer to questions that were never the same question.
+ */
+export function buildSelectionMenu(count: number): SelectionMenuItem[] {
+  const menu = t().explorer.menu;
+  return [
+    { id: "move-selected", label: menu.moveSelected(count), icon: "folder-input" },
+    { id: "delete-selected", label: menu.deleteSelected(count), icon: "trash-2", warning: true }
+  ];
+}
+
 /** What a pinned tag's row offers. */
 export type TagPinAction = "show-tag" | "unpin-tag";
 

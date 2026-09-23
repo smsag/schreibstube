@@ -15,6 +15,7 @@ import {
   TFile,
   TFolder,
   type App,
+  type DataAdapter,
   type MenuItem
 } from "obsidian";
 import { fileNameParts } from "../services/file-glyph";
@@ -25,12 +26,24 @@ import type { SchreibstubeSettings } from "../types";
 import { syncBadgeFor, type SyncBadge } from "../services/explorer-badge";
 import {
   buildExplorerMenu,
+  buildSelectionMenu,
   buildTagPinMenu,
   type ExplorerAction,
   type ExplorerMenuItem,
   type ExplorerTarget,
-  type ForeignItemMode
+  type ForeignItemMode,
+  type SelectionAction,
+  type SelectionMenuItem
 } from "../services/explorer-menu";
+import {
+  UNDO_WINDOW_MS,
+  UndoStack,
+  type DeleteStep,
+  type MoveStep,
+  type UndoableAction
+} from "../services/undo-stack";
+import { topLevelOnly } from "../services/explorer-selection";
+import { planImport, type DroppedFile, type ImportRefusal } from "../services/import-plan";
 import {
   entryFor,
   markMissing,
@@ -136,7 +149,33 @@ export interface ExplorerHooks {
   confirm?: Confirmer;
   setTimer?: (callback: () => void, ms: number) => unknown;
   clearTimer?: (handle: unknown) => void;
+  /** A notice with a way to take the action back. */
+  toast?: Toaster;
+  /** Offers folders and reports the one chosen. The default is the picker. */
+  pickFolder?: FolderPicker;
+  now?: () => number;
 }
+
+export type FolderPicker = (
+  folders: string[],
+  title: string,
+  onPick: (folder: string) => void
+) => void;
+
+/** Shows `message`, and `undoLabel` beside it; pressing that runs `onUndo`. */
+export type Toaster = (message: string, undoLabel: string, onUndo: () => void) => void;
+
+/** A file dropped from the desktop, with its bytes still to be read. */
+export interface ImportSource extends DroppedFile {
+  bytes: () => Promise<ArrayBuffer>;
+}
+
+/** The folder the vault's own trash lives in. Hidden from the vault API,
+ *  reachable through the adapter, which is how a deleted file comes back. */
+const LOCAL_TRASH = ".trash";
+
+/** How long the notice offering an undo stays. As long as the undo itself. */
+const UNDO_NOTICE_MS = UNDO_WINDOW_MS;
 
 /** Where a note's related notes are listed, for the same reason. */
 export type RelatedOpener = (path: string) => Promise<void>;
@@ -167,10 +206,15 @@ export class ExplorerController {
   private relatedOpener: RelatedOpener | null = null;
 
   private readonly confirm: Confirmer;
+  private readonly toast: Toaster;
+  private readonly pickFolder: FolderPicker;
+  private readonly now: () => number;
   private readonly setTimer: (callback: () => void, ms: number) => unknown;
   private readonly clearTimer: (handle: unknown) => void;
   /** The grace timer of each trashed path, so unloading can take them back. */
   private readonly trashTimers = new Map<string, unknown>();
+  /** The last move or delete, for as long as it can be taken back. */
+  private readonly undo = new UndoStack();
 
   constructor(
     private readonly app: App,
@@ -185,6 +229,12 @@ export class ExplorerController {
     this.confirm =
       hooks.confirm ??
       ((options, onConfirm) => new ConfirmModal(this.app, options, onConfirm).open());
+    this.toast =
+      hooks.toast ?? ((message, label, onUndo) => showUndoNotice(message, label, onUndo));
+    this.pickFolder =
+      hooks.pickFolder ??
+      ((folders, title, onPick) => new FolderPickerModal(this.app, folders, title, onPick).open());
+    this.now = hooks.now ?? (() => Date.now());
     this.store = new ExplorerStore({
       file: stateFile,
       logger,
@@ -1031,29 +1081,11 @@ export class ExplorerController {
       return;
     }
 
-    new FolderPickerModal(this.app, destinations, t().explorer.move.title(file.name), (folder) => {
-      // Checked again rather than trusted: the list was built when the menu
-      // opened, and a sync may have delivered something since.
-      const plan = planMove(file.path, folder, this.moveContext());
-      if (!isMovePlan(plan)) {
-        new Notice(t().common.notice(moveRefusalMessage(plan, file.name)));
-        return;
-      }
-
-      const where = folder.length > 0 ? folder : t().explorer.move.root;
-      void this.app.fileManager
-        .renameFile(file, plan.destination)
-        .then(() => {
-          // The pane may be behind the note the move was started from, so the
-          // only sign it happened would otherwise be a row that is no longer
-          // where it was.
-          new Notice(t().common.notice(t().explorer.move.done(file.name, where)));
-        })
-        .catch((error: unknown) => {
-          this.logger.warn(`Could not move ${file.path}:`, error);
-          new Notice(t().common.notice(t().explorer.move.failed(file.name)));
-        });
-    }).open();
+    this.pickFolder(
+      destinations,
+      t().explorer.move.title(file.name),
+      (folder) => void this.moveAll([file], folder)
+    );
   }
 
   /**
@@ -1088,37 +1120,353 @@ export class ExplorerController {
             : t().explorer.delete.confirm(file.name),
         submitLabel: t().explorer.delete.submit
       },
-      () => {
-        // Trashed, never erased: which trash is the user's own setting, and a
-        // wrong tap in a file list must be undoable.
-        void this.app.fileManager
-          .trashFile(file)
-          .then(() => {
-            // The file is gone the moment this returns. The vault's own delete
-            // event is what the pane listens to, and it arrives when a watcher
-            // notices rather than when the file went — seconds later on a
-            // phone, which is a row sitting there after you deleted it. So the
-            // row goes now, and the event, when it comes, only confirms it.
-            const path = file.path;
-            this.trashed.add(path);
-            this.emit();
-
-            const handle = this.setTimer(() => {
-              this.trashTimers.delete(path);
-              if (!this.trashed.has(path)) return;
-              this.forgetTrashed(path);
-              this.emit();
-            }, TRASH_GRACE_MS);
-            this.trashTimers.set(path, handle);
-          })
-          .catch((error: unknown) => {
-            this.logger.warn(`Could not delete ${file.path}:`, error);
-            // A row that stays put after a confirmed delete otherwise reads as
-            // the pane having missed the change rather than the delete failing.
-            new Notice(t().common.notice(t().explorer.delete.failed(file.name)));
-          });
-      }
+      () => void this.trashAll([file])
     );
+  }
+
+  /** Delete several rows at once: one question, one trash call each. */
+  removeMany(selected: TAbstractFile[]): void {
+    const files = topLevel(selected);
+    if (files.length === 0) return;
+    if (files.length === 1 && files[0]) return this.remove(files[0]);
+
+    this.confirm(
+      {
+        title: t().explorer.delete.title,
+        message: t().explorer.delete.manyConfirm(files.length),
+        submitLabel: t().explorer.delete.submit
+      },
+      () => void this.trashAll(files)
+    );
+  }
+
+  /**
+   * Trash each file, take its row away, and offer to put them all back.
+   *
+   * Trashed, never erased: which trash is the user's own setting, and a
+   * wrong tap in a file list must be undoable. Undoable by this pane too,
+   * when the trash is the vault's own: the adapter can see into `.trash`
+   * and move a file out again. The system trash it cannot see into, and
+   * the notice says so rather than offering an undo that would do nothing.
+   */
+  private async trashAll(files: TAbstractFile[]): Promise<void> {
+    const steps: DeleteStep[] = [];
+    let localTrash = true;
+
+    for (const file of files) {
+      const path = file.path;
+      let receipt: string | null;
+      try {
+        receipt = await this.trashWithReceipt(file);
+      } catch (error) {
+        this.logger.warn(`Could not delete ${path}:`, error);
+        // A row that stays put after a confirmed delete otherwise reads as
+        // the pane having missed the change rather than the delete failing.
+        new Notice(t().common.notice(t().explorer.delete.failed(file.name)));
+        continue;
+      }
+
+      // The file is gone the moment this returns. The vault's own delete
+      // event is what the pane listens to, and it arrives when a watcher
+      // notices rather than when the file went — seconds later on a phone,
+      // which is a row sitting there after you deleted it. So the row goes
+      // now, and the event, when it comes, only confirms it.
+      this.trashed.add(path);
+      const handle = this.setTimer(() => {
+        this.trashTimers.delete(path);
+        if (!this.trashed.has(path)) return;
+        this.forgetTrashed(path);
+        this.emit();
+      }, TRASH_GRACE_MS);
+      this.trashTimers.set(path, handle);
+
+      if (receipt === null) localTrash = false;
+      else steps.push({ from: path, trashedTo: receipt });
+    }
+    this.emit();
+
+    if (steps.length === 0 && !localTrash && files.length > 0) {
+      new Notice(t().common.notice(t().explorer.undo.systemTrash));
+      return;
+    }
+    if (steps.length === 0) return;
+
+    const action: UndoableAction = { kind: "delete", steps };
+    this.undo.push(action, this.now());
+    const message =
+      steps.length === 1 && steps[0]
+        ? t().explorer.delete.done(basename(steps[0].from))
+        : t().explorer.delete.manyDone(steps.length);
+    this.toast(
+      t().common.notice(message),
+      t().explorer.undo.action,
+      () => void this.undoAction(action)
+    );
+  }
+
+  /**
+   * Trash a file and find out where it went.
+   *
+   * Obsidian does not say. So the vault's trash folder is listed before and
+   * after: whatever is there afterwards and was not before is where the file
+   * landed, under whatever name the trash gave it. Nothing new there means
+   * the trash is the system's, which is answered with null — a delete that
+   * worked and cannot be undone from here.
+   */
+  private async trashWithReceipt(file: TAbstractFile): Promise<string | null> {
+    const adapter = this.app.vault.adapter;
+    const before = await this.listTrash(adapter);
+    await this.app.fileManager.trashFile(file);
+    const after = await this.listTrash(adapter);
+
+    // Something else may land in the trash between the two listings — a sync
+    // client, another device — so an arrival carrying this file's own name
+    // is believed before any other.
+    const arrived = after.filter((entry) => !before.includes(entry));
+    return arrived.find((entry) => basename(entry) === file.name) ?? arrived[0] ?? null;
+  }
+
+  private async listTrash(adapter: DataAdapter): Promise<string[]> {
+    if (!(await adapter.exists(LOCAL_TRASH))) return [];
+    const listed = await adapter.list(LOCAL_TRASH);
+    return [...listed.files, ...listed.folders];
+  }
+
+  // --- undo ---------------------------------------------------------------
+
+  /** Take back the last move or delete, if there still is one to take. */
+  async undoLast(): Promise<void> {
+    await this.perform(this.undo.take(this.now()));
+  }
+
+  /**
+   * Take back one particular action — the one a notice offered.
+   *
+   * Only while it is still the one on offer: a notice about a delete, still
+   * on screen after a move, must not undo the move.
+   */
+  async undoAction(action: UndoableAction): Promise<void> {
+    await this.perform(this.undo.takeIf(action, this.now()));
+  }
+
+  private async perform(action: UndoableAction | null): Promise<void> {
+    if (action === null) {
+      new Notice(t().common.notice(t().explorer.undo.nothing));
+      return;
+    }
+
+    if (action.kind === "move") {
+      let undone = 0;
+      // Last moved, first moved back: a folder moved after a file inside it
+      // has to return before the file's old path exists again.
+      for (const step of [...action.steps].reverse()) {
+        const file = this.app.vault.getAbstractFileByPath(step.to);
+        if (!file || this.app.vault.getAbstractFileByPath(step.from)) {
+          new Notice(t().common.notice(t().explorer.undo.blocked(basename(step.from))));
+          continue;
+        }
+        try {
+          await this.app.fileManager.renameFile(file, step.from);
+          undone += 1;
+        } catch (error) {
+          this.logger.warn(`Could not move ${step.to} back to ${step.from}:`, error);
+          new Notice(t().common.notice(t().explorer.move.failed(basename(step.from))));
+        }
+      }
+      if (undone > 0) new Notice(t().common.notice(t().explorer.undo.moveUndone(undone)));
+      return;
+    }
+
+    const adapter = this.app.vault.adapter;
+    let undone = 0;
+    for (const step of [...action.steps].reverse()) {
+      if (await adapter.exists(step.from)) {
+        new Notice(t().common.notice(t().explorer.undo.blocked(basename(step.from))));
+        continue;
+      }
+      try {
+        await adapter.rename(step.trashedTo, step.from);
+        // The vault will report the file's return; the pane need not wait.
+        this.forgetTrashedAround(step.from);
+        undone += 1;
+      } catch (error) {
+        this.logger.warn(`Could not restore ${step.trashedTo} to ${step.from}:`, error);
+        new Notice(t().common.notice(t().explorer.undo.blocked(basename(step.from))));
+      }
+    }
+    this.emit();
+    if (undone > 0) new Notice(t().common.notice(t().explorer.undo.deleteUndone(undone)));
+  }
+
+  // --- the selection ------------------------------------------------------
+
+  /** The menu on several rows at once. */
+  showSelectionMenu(files: TAbstractFile[], event: MouseEvent | { x: number; y: number }): void {
+    const menu = new Menu();
+    for (const item of buildSelectionMenu(files.length)) {
+      menu.addItem((entry) => this.fillSelection(entry, item, files));
+    }
+
+    this.openMenu = menu;
+    menu.onHide(() => {
+      if (this.openMenu === menu) this.openMenu = null;
+    });
+    if (event instanceof MouseEvent) menu.showAtMouseEvent(event);
+    else menu.showAtPosition(event);
+  }
+
+  private fillSelection(entry: MenuItem, item: SelectionMenuItem, files: TAbstractFile[]): void {
+    entry
+      .setTitle(item.label)
+      .setIcon(item.icon)
+      .onClick(() => this.runSelection(item.id, files));
+    if (item.warning) entry.setWarning(true);
+  }
+
+  runSelection(action: SelectionAction, files: TAbstractFile[]): void {
+    switch (action) {
+      case "delete-selected":
+        return this.removeMany(files);
+      case "move-selected":
+        return this.moveManyTo(files);
+      default:
+        return;
+    }
+  }
+
+  /**
+   * Move several rows into one folder.
+   *
+   * Only folders every one of them could go to are offered: a destination
+   * that is fine for four of five and refused for the fifth would be a list
+   * that answers a choice with a partial failure.
+   */
+  private moveManyTo(selected: TAbstractFile[]): void {
+    const files = topLevel(selected);
+    if (files.length === 0) return;
+    const context = this.moveContext();
+    const shared = files
+      .map((file) => new Set(moveDestinations(file.path, context)))
+      .reduce<Set<string> | null>(
+        (common, mine) =>
+          common === null ? mine : new Set([...common].filter((f) => mine.has(f))),
+        null
+      );
+    const destinations = shared ? [...shared] : [];
+
+    if (destinations.length === 0) {
+      new Notice(t().common.notice(t().explorer.move.nowhereMany));
+      return;
+    }
+
+    this.pickFolder(
+      destinations,
+      t().explorer.move.manyTitle(files.length),
+      (folder) => void this.moveAll(files, folder)
+    );
+  }
+
+  /**
+   * Move one file or folder into `folder`, as a drop or a menu does.
+   *
+   * Planned against the vault as it is now rather than when the drag began,
+   * because a sync may have delivered something since. Landing where it
+   * already was is the commonest refusal and is not worth a word; the rest
+   * are said out loud.
+   */
+  async move(file: TAbstractFile, folder: string): Promise<void> {
+    const plan = planMove(file.path, folder, this.moveContext());
+    if (!isMovePlan(plan)) {
+      if (plan !== "same-folder") {
+        new Notice(t().common.notice(moveRefusalMessage(plan, file.name)));
+      }
+      return;
+    }
+    await this.moveAll([file], folder);
+  }
+
+  private async moveAll(files: TAbstractFile[], folder: string): Promise<void> {
+    const steps: MoveStep[] = [];
+    let refused = 0;
+    const where = folder.length > 0 ? folder : t().explorer.move.root;
+
+    for (const file of files) {
+      // Checked again rather than trusted: the list was built when the menu
+      // opened, and a sync may have delivered something since.
+      const plan = planMove(file.path, folder, this.moveContext());
+      if (!isMovePlan(plan)) {
+        refused += 1;
+        if (files.length === 1) {
+          new Notice(t().common.notice(moveRefusalMessage(plan, file.name)));
+        }
+        continue;
+      }
+      const from = file.path;
+      try {
+        await this.app.fileManager.renameFile(file, plan.destination);
+        steps.push({ from, to: plan.destination });
+      } catch (error) {
+        this.logger.warn(`Could not move ${from}:`, error);
+        refused += 1;
+        new Notice(t().common.notice(t().explorer.move.failed(file.name)));
+      }
+    }
+
+    if (steps.length === 0) return;
+    const action: UndoableAction = { kind: "move", steps };
+    this.undo.push(action, this.now());
+
+    // The pane may be behind the note the move was started from, so the only
+    // sign it happened would otherwise be a row that is no longer where it was.
+    const message =
+      files.length === 1 && steps[0]
+        ? t().explorer.move.done(basename(steps[0].from), where)
+        : t().explorer.move.manyDone(steps.length, where, refused);
+    this.toast(
+      t().common.notice(message),
+      t().explorer.undo.action,
+      () => void this.undoAction(action)
+    );
+  }
+
+  // --- files from outside the vault ---------------------------------------
+
+  /**
+   * Write files dropped from the desktop into `folder`.
+   *
+   * Decided first, written second: `planImport` names every file's path or
+   * its refusal before a byte is read, so a drop that is half folders and
+   * half photos writes the photos and says what became of the folders.
+   */
+  async importFiles(sources: ImportSource[], folder: string): Promise<void> {
+    const taken = new Set(this.app.vault.getAllLoadedFiles().map((entry) => entry.path));
+    const plan = planImport(sources, folder, taken);
+
+    let written = 0;
+    for (const entry of plan.imports) {
+      // By place in the drop, never by name: two files called Foto.jpg are
+      // two files, and a lookup by name would write one of them twice.
+      const source = sources[entry.index];
+      if (!source) continue;
+      try {
+        await this.app.vault.createBinary(entry.path, await source.bytes());
+        written += 1;
+      } catch (error) {
+        this.logger.warn(`Could not import ${entry.name} as ${entry.path}:`, error);
+        new Notice(t().common.notice(t().explorer.import.failed(entry.name)));
+      }
+    }
+
+    const where = folder.length > 0 ? folder : t().explorer.move.root;
+    if (written > 0) new Notice(t().common.notice(t().explorer.import.done(written, where)));
+    if (plan.refused.length > 0) {
+      const lines = plan.refused.map((entry) => `${entry.name} — ${importReason(entry.reason)}`);
+      new Notice(
+        t().common.notice(
+          `${t().explorer.import.refused(plan.refused.length)}\n${lines.join("\n")}`
+        )
+      );
+    }
   }
 
   /**
@@ -1146,6 +1494,8 @@ export class ExplorerController {
         return create.hidden;
       case "trailing-dot":
         return create.trailingDot;
+      case "too-long":
+        return create.tooLong;
       default:
         return create.invalid;
     }
@@ -1170,6 +1520,61 @@ export class ExplorerController {
 
 function joinPath(parent: string, name: string): string {
   return parent.length > 0 ? `${parent}/${name}` : name;
+}
+
+/** The selection without anything inside a selected folder; see `topLevelOnly`. */
+function topLevel(files: TAbstractFile[]): TAbstractFile[] {
+  const keep = new Set(topLevelOnly(files.map((file) => file.path)));
+  return files.filter((file) => keep.has(file.path));
+}
+
+function basename(path: string): string {
+  const cut = path.lastIndexOf("/");
+  return cut === -1 ? path : path.slice(cut + 1);
+}
+
+function importReason(reason: ImportRefusal): string {
+  const messages = t().explorer.import;
+  switch (reason) {
+    case "folder":
+      return messages.reasonFolder;
+    case "too-large":
+      return messages.reasonTooLarge;
+    case "bad-name":
+      return messages.reasonBadName;
+    default:
+      return messages.reasonTooMany;
+  }
+}
+
+/**
+ * A notice with the undo in it.
+ *
+ * A word at the end of the line rather than a button: the notice is already
+ * a box, and Obsidian's own notices put their actions the same way. It stays
+ * as long as the undo is offered, and goes the moment it is taken.
+ */
+function showUndoNotice(message: string, label: string, onUndo: () => void): void {
+  const fragment = document.createDocumentFragment();
+  fragment.appendChild(document.createTextNode(message));
+  const action = fragment.appendChild(document.createElement("span"));
+  action.className = "schreibstube-undo-action";
+  action.setAttribute("role", "button");
+  action.setAttribute("tabindex", "0");
+  action.textContent = label;
+
+  const notice = new Notice(fragment, UNDO_NOTICE_MS);
+  const take = (): void => {
+    notice.hide();
+    onUndo();
+  };
+  action.addEventListener("click", take);
+  action.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      take();
+    }
+  });
 }
 
 function countChildren(folder: TFolder): number {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { checkFileName } from "./file-name";
+import { MAX_FILE_NAME_CHARS, checkFileName } from "./file-name";
 
 describe("checkFileName", () => {
   it("accepts an ordinary name, and hands it back", () => {
@@ -50,5 +50,16 @@ describe("checkFileName", () => {
 
   it("keeps a hyphen or an umlaut, which are names not problems", () => {
     expect(checkFileName("Straßen-Übersicht")).toEqual({ ok: true, name: "Straßen-Übersicht" });
+  });
+
+  it("refuses a name longer than any filesystem takes", () => {
+    expect(checkFileName("a".repeat(MAX_FILE_NAME_CHARS))).toEqual({
+      ok: true,
+      name: "a".repeat(MAX_FILE_NAME_CHARS)
+    });
+    expect(checkFileName("a".repeat(MAX_FILE_NAME_CHARS + 1))).toEqual({
+      ok: false,
+      problem: "too-long"
+    });
   });
 });

@@ -25,7 +25,6 @@ import {
   getAllTags,
   ItemView,
   Keymap,
-  Notice,
   TFile,
   TFolder,
   type TAbstractFile,
@@ -46,6 +45,15 @@ import {
   type BookmarkFolder
 } from "../services/bookmark-file";
 import { rowKeyAction } from "../services/explorer-keys";
+import {
+  EMPTY_SELECTION,
+  menuActsOnSelection,
+  selectionAfterClick,
+  selectionExtended,
+  selectionPruned,
+  type SelectionState
+} from "../services/explorer-selection";
+import type { ImportSource } from "../controllers/explorer-controller";
 import { fileGlyph, fileNameParts } from "../services/file-glyph";
 import { groundColour } from "../services/ground-colour";
 import { tallyTasks, type TaskTally } from "../services/task-count";
@@ -53,7 +61,6 @@ import type { LatestCandidate } from "../services/latest-files";
 import {
   ancestorsOf,
   isMovePlan,
-  moveRefusalMessage,
   parentOf,
   planMove,
   type MoveContext
@@ -170,6 +177,9 @@ export class ExplorerPaneView extends ItemView {
    */
   private revealedFolders = new Set<string>();
   private revealedTree = false;
+  /** The rows a menu or a key acts on together. Not remembered across
+   *  sessions: a selection is a moment's intent, not a setting. */
+  private selection: SelectionState = EMPTY_SELECTION;
   private pending = false;
   /** Waiting for the typing to stop before the filter redraws. */
   private filterTimer: number | null = null;
@@ -316,6 +326,7 @@ export class ExplorerPaneView extends ItemView {
       const rows = this.treeRows();
       (rows.find((row) => row.hasClass("is-active")) ?? rows[0])?.focus();
     });
+    this.wireImportDrop(this.body);
 
     // The vault changes under the pane: a note created by a template, a file
     // deleted on another device and delivered by sync, frontmatter that binds a
@@ -541,6 +552,12 @@ export class ExplorerPaneView extends ItemView {
     // Likewise the focus: folding a folder from the keyboard redraws the
     // tree, and the row under the focus is thrown away with the rest.
     const focused = this.focusedPath();
+    // A selected row that is gone — deleted, moved, filtered out — is not
+    // selected any more; the next "delete the selection" must not reach for it.
+    this.selection = selectionPruned(
+      this.selection,
+      (path) => this.app.vault.getAbstractFileByPath(path) !== null
+    );
     host.empty();
     this.shelf?.empty();
     const filtered = this.collectMatches();
@@ -1249,6 +1266,10 @@ export class ExplorerPaneView extends ItemView {
       row.addClass("is-folder");
       row.setAttribute("aria-expanded", String(this.isExpanded(file)));
     }
+    if (this.selection.selected.has(file.path)) {
+      row.addClass("is-selected");
+      row.setAttribute("aria-selected", "true");
+    }
     // The mark in the tree is the one that explains the row's place, which is
     // being held at the top of the folder rather than being pinned above it.
     if (controller.isKept(file.path)) row.addClass("is-pinned");
@@ -1400,25 +1421,11 @@ export class ExplorerPaneView extends ItemView {
 
   private async dropInto(source: string, targetFolder: string | null): Promise<void> {
     if (targetFolder === null) return;
-
-    const plan = this.planFor(source, targetFolder);
-    if (!isMovePlan(plan)) {
-      // Landing back where it started is the commonest "refusal" and is not
-      // worth a message; the rest are worth saying out loud.
-      if (plan !== "same-folder") {
-        new Notice(t().common.notice(moveRefusalMessage(plan, basenameOf(source))));
-      }
-      return;
-    }
-
     const file = this.app.vault.getAbstractFileByPath(source);
     if (!file) return;
-
-    try {
-      await this.app.fileManager.renameFile(file, plan.destination);
-    } catch {
-      new Notice(t().common.notice(t().explorer.move.failed(basenameOf(source))));
-    }
+    // The controller plans the move, says why if it refuses, and remembers
+    // it so the notice can offer to take it back.
+    await this.host?.explorer.move(file, targetFolder);
   }
 
   /** Reordering the pinned block by dragging one of its rows. Its rows sit on
@@ -1491,7 +1498,19 @@ export class ExplorerPaneView extends ItemView {
     const controller = this.host?.explorer;
     if (!controller) return;
 
-    const activate = (): void => {
+    const activate = (event?: MouseEvent): void => {
+      const modifiers = {
+        shift: event?.shiftKey === true,
+        toggle: event ? Keymap.isModEvent(event) !== false : false
+      };
+      // A click with a modifier builds a selection and opens nothing: the
+      // rows are being gathered for an action, not visited one by one.
+      this.selection = selectionAfterClick(this.selection, file.path, modifiers, this.rowOrder());
+      if (modifiers.shift || modifiers.toggle) {
+        this.paintSelection();
+        return;
+      }
+      this.paintSelection();
       if (isFolder) {
         this.toggle(file.path);
         return;
@@ -1502,7 +1521,14 @@ export class ExplorerPaneView extends ItemView {
     wirePress(row, {
       isDragging: () => this.drag.active !== null,
       activate,
-      showMenu: (at) => controller.showMenu(file, at)
+      showMenu: (at) => {
+        // A menu on one of several selected rows is a menu on all of them.
+        if (menuActsOnSelection(this.selection, file.path)) {
+          controller.showSelectionMenu(this.selectedFiles(), at);
+          return;
+        }
+        controller.showMenu(file, at);
+      }
     });
 
     // The keyboard reaches everything the pointer does. Which key means what
@@ -1512,12 +1538,27 @@ export class ExplorerPaneView extends ItemView {
       const isOpen = isFolder && this.isFolderOpen(file.path);
       const action = rowKeyAction(event, { isFolder, isOpen });
       if (action === null) return;
+      // Escape with nothing selected is not the pane's to swallow.
+      if (action === "clear" && this.selection.selected.size === 0) return;
       event.preventDefault();
       event.stopPropagation();
 
       switch (action) {
         case "activate":
           return activate();
+        case "extend-next":
+        case "extend-previous": {
+          const step = action === "extend-next" ? 1 : -1;
+          this.selection = selectionExtended(this.selection, file.path, step, this.rowOrder());
+          this.paintSelection();
+          if (this.selection.cursor !== null) this.focusRow(this.selection.cursor);
+          return;
+        }
+        case "clear":
+          this.selection = EMPTY_SELECTION;
+          return this.paintSelection();
+        case "undo":
+          return void controller.undoLast();
         case "expand":
           if (!isOpen) this.toggle(file.path);
           return;
@@ -1536,15 +1577,115 @@ export class ExplorerPaneView extends ItemView {
           this.focusRow(parentOf(file.path));
           return;
         case "delete":
+          if (menuActsOnSelection(this.selection, file.path)) {
+            return controller.removeMany(this.selectedFiles());
+          }
           return void controller.run("delete", file);
         case "rename":
           return void controller.run("rename", file);
         case "menu": {
           // Under the row's name, where a pointer would have been.
           const box = row.getBoundingClientRect();
-          return controller.showMenu(file, { x: box.left + 24, y: box.bottom });
+          const at = { x: box.left + 24, y: box.bottom };
+          if (menuActsOnSelection(this.selection, file.path)) {
+            return controller.showSelectionMenu(this.selectedFiles(), at);
+          }
+          return controller.showMenu(file, at);
         }
       }
+    });
+  }
+
+  /** The tree's paths in the order they are drawn, for a range. */
+  private rowOrder(): string[] {
+    return this.treeRows()
+      .map((row) => row.getAttribute("data-path"))
+      .filter((path): path is string => path !== null);
+  }
+
+  /** The selected rows as the vault knows them, in drawn order. */
+  private selectedFiles(): TAbstractFile[] {
+    // From the selection, not from the rows on screen: a selected file
+    // inside a folder folded since is still selected, and a menu that says
+    // "3 items" must act on three.
+    const files: TAbstractFile[] = [];
+    for (const path of [...this.selection.selected].sort((a, b) => a.localeCompare(b))) {
+      const file = this.app.vault.getAbstractFileByPath(path);
+      if (file) files.push(file);
+    }
+    return files;
+  }
+
+  /**
+   * Mark the selected rows, without redrawing the tree.
+   *
+   * A click that selects must not rebuild every row: a redraw throws away
+   * the focus and the scroll, and a selection is built by several clicks in
+   * a row. The classes are set on the rows that are there.
+   */
+  private paintSelection(): void {
+    for (const row of this.treeRows()) {
+      const path = row.getAttribute("data-path");
+      const on = path !== null && this.selection.selected.has(path);
+      row.toggleClass("is-selected", on);
+      if (on) row.setAttribute("aria-selected", "true");
+      else row.removeAttribute("aria-selected");
+    }
+  }
+
+  /**
+   * Files dragged in from the desktop.
+   *
+   * The pane's own drag is a pointer gesture and never raises these events;
+   * anything that does is coming from outside. The folder under the pointer
+   * takes the files, the section header stands for the root, and the tree
+   * itself lights up to say it will take them at all.
+   */
+  private wireImportDrop(body: HTMLElement): void {
+    const carriesFiles = (event: DragEvent): boolean =>
+      event.dataTransfer?.types.includes("Files") === true;
+
+    body.addEventListener("dragover", (event) => {
+      if (!carriesFiles(event)) return;
+      event.preventDefault();
+      if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
+      body.addClass("is-import-target");
+      // Only folders take a drop; a file row stands for the folder around it,
+      // which `moveTargetAt` already knows.
+      markMoveTarget(body, event.clientX, event.clientY, () => true);
+    });
+    body.addEventListener("dragleave", (event) => {
+      if (event.relatedTarget instanceof Node && body.contains(event.relatedTarget)) return;
+      body.removeClass("is-import-target");
+      clearMoveMarks(body);
+    });
+    body.addEventListener("drop", (event) => {
+      if (!carriesFiles(event)) return;
+      event.preventDefault();
+      // Ours alone: a drop that also reached the window would be imported
+      // twice, once by this pane and once by whatever the app does with it.
+      event.stopPropagation();
+      body.removeClass("is-import-target");
+      clearMoveMarks(body);
+
+      const folder = moveTargetAt(body, event.clientX, event.clientY) ?? "";
+      // Whether an item is a folder is asked of the entry, which knows, and
+      // read during the event — the entries are gone once it has passed.
+      // A browser without entries falls back to the one sign a folder gives:
+      // no type and no size, which an empty file without an extension shares.
+      const items = Array.from(event.dataTransfer?.items ?? []);
+      const sources: ImportSource[] = Array.from(event.dataTransfer?.files ?? []).map(
+        (file, index) => {
+          const entry = items[index]?.webkitGetAsEntry?.() ?? null;
+          return {
+            name: file.name,
+            size: file.size,
+            isFolder: entry ? entry.isDirectory : file.type === "" && file.size === 0,
+            bytes: () => file.arrayBuffer()
+          };
+        }
+      );
+      void this.host?.explorer.importFiles(sources, folder);
     });
   }
 

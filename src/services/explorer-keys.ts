@@ -27,6 +27,13 @@ export type RowKeyAction =
   | "last"
   /** Move to the folder holding this row. */
   | "parent"
+  /** Grow or shrink the selection by one row. ⇧-arrow. */
+  | "extend-next"
+  | "extend-previous"
+  /** Let the selection go. Escape. */
+  | "clear"
+  /** Take back the last move or delete. ⌘Z, or Ctrl+Z. */
+  | "undo"
   | "delete"
   | "rename"
   | "menu";
@@ -42,6 +49,7 @@ export interface RowKey {
   key: string;
   shiftKey: boolean;
   metaKey: boolean;
+  ctrlKey: boolean;
 }
 
 /**
@@ -56,14 +64,23 @@ export interface RowKey {
  * tree pattern lets arrows alone walk the whole structure.
  */
 export function rowKeyAction(key: RowKey, context: RowKeyContext): RowKeyAction | null {
+  // ⌘ on a Mac, Ctrl elsewhere: the same chord, whichever key the platform
+  // puts it on.
+  const chord = key.metaKey || key.ctrlKey;
+
   switch (key.key) {
     case "Enter":
     case " ":
       return "activate";
     case "ArrowDown":
-      return "next";
+      return key.shiftKey ? "extend-next" : "next";
     case "ArrowUp":
-      return "previous";
+      return key.shiftKey ? "extend-previous" : "previous";
+    case "Escape":
+      return "clear";
+    case "z":
+    case "Z":
+      return chord && !key.shiftKey ? "undo" : null;
     case "Home":
       return "first";
     case "End":

@@ -32,6 +32,10 @@ import { fileURLToPath } from "node:url";
  * a small feature because the expensive part is not ours — pdf.js is larger
  * than this whole plugin, and is borrowed rather than shipped. The headroom
  * left is for the next feature, not a new normal.
+ *
+ * The file pane's selection, undo and import (+11 KB) fit under that
+ * ceiling, at 454 KB: three operations a file manager is expected to have,
+ * none of them borrowed. What is left is for the next feature.
  */
 const MAX_BUNDLE_KB = 460;
 

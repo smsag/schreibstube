@@ -2,16 +2,43 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## 1.39.0 - 2026-09-23
+
+The file pane learns the three things a file manager is expected to know and
+did not: several rows at once, an undo, and a way in from the desktop. ⌘-click
+and ⇧-click gather rows, and a menu on any of them moves or deletes them all;
+the notice after a move or a delete carries Undo for thirty seconds, and a
+delete is undone by lifting the file out of the vault's own trash; files
+dropped from Finder land in the folder under the pointer, named the way a new
+note is named. Underneath, the deletion path that was reviewed for this
+release gets its edges fixed — a folder refilled by a sync client within the
+grace no longer stays hidden, the grace timer is owned, the name dialog refuses
+what the vault refuses — and the tree can be walked by keyboard for the first
+time. A note can also be summarised from a PDF it embeds, each passage followed
+by a mark that opens the PDF at the page it came from. And the review card
+says what its buttons do: "Show" is "Locate", and an update from a source no
+longer offers a "Reject" that changed nothing.
+
+Mobile checklist: not run — and this release has more for a phone to say than
+most. The keyboard layer and the desktop drop degrade to nothing there by
+nature; the undo notice's tappable word, the selection's `aria-selected` on
+every row, the PDF passage picker and the review card with one button fewer
+all render on a phone and none has been tried on one. All of it is covered by
+the suite and was built on a desktop.
+
+The bridge's protocol is unchanged; bridge 2.4.0 still pairs with this release.
+
+### Added
+
+- **A summary out of an attached PDF, with the way back into it.** **Insert: summary from the attached PDF** reads the PDF a doc embeds or links, offers its passages, and writes the ones you choose at the cursor — each followed by a mark that opens the PDF at the page the passage came from. The mark is an ordinary Obsidian link (`Bericht.pdf#page=12&selection=…`), so it needs nothing to render, survives sync, and works in Reading view. The text is read with the pdf.js Obsidian already ships, which is why the feature costs 7 KB rather than a megabyte. A scan says so instead of offering an empty list, and a document past 200 pages says how much of it was read.
+- **Several rows at once.** ⌘-click adds a row to the selection, ⇧-click takes every row between the anchor and here, ⇧-arrow grows the range one row at a time, and Escape lets it go. A right click or the menu key on a selected row opens a menu for all of them: **Move … to…** offers only the folders every one of them could go to, and **Delete …** asks once. The rules — what a click does to a selection, when a menu acts on it — are one pure function, `explorer-selection`, with a test for each.
+- **Undo, after a move or a delete.** The notice that says what happened now carries **Undo**, for thirty seconds; ⌘Z in the pane and **Explorer: undo the last move or delete** do the same. A move is undone by moving back, and refused with a word when something is at the old path now. A delete is undone by lifting the file out of the vault's own `.trash` — found by listing that folder before and after the trash call, since Obsidian does not say where a file went — and a vault set to use the system trash is told plainly that the pane cannot reach into it.
+- **Files dragged in from the desktop.** Drop them on a folder, on any row inside it, or on the header for the root. Each file's path, or the reason it is left out, is decided by `planImport` before a byte is read: a name already taken gets the next free one, the way a new note is named; a folder dropped from the desktop is refused rather than written as an empty file; a file over 200 MB, or the fifty-first in one drop, is left out and named in the notice.
 
 ### Changed
 
 - **The review card's "Show" is now "Locate".** It never showed the change — the card does that — it selected the card's text in the note and scrolled there, which is the look-before-you-accept step; the old word promised something else. For an update that inserts text the note does not have yet, the button reads **Locate insertion point** and selects the last words before the point, so the landing is visible rather than a bare cursor that looks as if nothing happened.
 - **An update from a source no longer offers "Reject".** Rejecting only hid the card until the next check, which found the source still differing and offered the same card again, while the note stayed marked as having updates it had not taken. The choice on such a card is to accept the update or to leave the note as it is; leaving it needs no button. Proofreading cards keep theirs.
-
-### Added
-
-- **A summary out of an attached PDF, with the way back into it.** **Insert: summary from the attached PDF** reads the PDF a doc embeds or links, offers its passages, and writes the ones you choose at the cursor — each followed by a mark that opens the PDF at the page the passage came from. The mark is an ordinary Obsidian link (`Bericht.pdf#page=12&selection=…`), so it needs nothing to render, survives sync, and works in Reading view. The text is read with the pdf.js Obsidian already ships, which is why the feature costs 7 KB rather than a megabyte. A scan says so instead of offering an empty list, and a document past 200 pages says how much of it was read.
 
 ### Fixed
 

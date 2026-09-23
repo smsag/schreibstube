@@ -56,29 +56,81 @@ function folder(path: string, children: (TFile | TFolder)[] = []): TFolder {
   return Object.assign(new TFolder(path), { children, name: path.split("/").pop() ?? path });
 }
 
+/** A path with an extension is a file; without one, a folder — as far as
+ *  these tests need the vault to tell them apart. */
+function entry(path: string): TFile | TFolder {
+  return /\.[^/]+$/.test(path) ? new TFile(path) : folder(path);
+}
+
 interface Fixture {
   controller: ExplorerController;
   timers: ReturnType<typeof fakeTimers>;
   trashFile: ReturnType<typeof vi.fn>;
+  renameFile: ReturnType<typeof vi.fn>;
+  createBinary: ReturnType<typeof vi.fn>;
   /** What the confirm dialog was asked, in order. */
   asked: string[];
+  /** Every notice that carried an undo, and the undo itself. */
+  toasts: { message: string; undo: () => void }[];
+  /** The vault's own trash, as the adapter sees it. */
+  trash: string[];
+  /** Paths the vault holds, as far as the fake knows. */
+  present: Set<string>;
+  clock: { now: number };
   redraws: number;
 }
 
-function fixture(options: { trashFails?: boolean; decline?: boolean } = {}): Fixture {
+interface FixtureOptions {
+  trashFails?: boolean;
+  decline?: boolean;
+  /** The trash is the system's: nothing ever appears in `.trash`. */
+  systemTrash?: boolean;
+  /** Something another device drops into the trash during every delete. */
+  strayTrash?: string;
+  present?: string[];
+}
+
+function fixture(options: FixtureOptions = {}): Fixture {
   const timers = fakeTimers();
-  const trashFile = vi.fn(async () => {
+  const trash: string[] = [];
+  const present = new Set(options.present ?? []);
+  const trashFile = vi.fn(async (file: TFile | TFolder) => {
     if (options.trashFails) throw new Error("no trash on this volume");
+    present.delete(file.path);
+    if (options.strayTrash) trash.push(options.strayTrash);
+    if (!options.systemTrash) trash.push(`.trash/${file.path.split("/").pop() ?? file.path}`);
+  });
+  const renameFile = vi.fn(async (file: TFile | TFolder, to: string) => {
+    present.delete(file.path);
+    present.add(to);
+    file.path = to;
+  });
+  const createBinary = vi.fn(async (path: string) => {
+    present.add(path);
   });
   const asked: string[] = [];
+  const toasts: { message: string; undo: () => void }[] = [];
+  const clock = { now: 1_000_000 };
   const state = { redraws: 0 };
 
   const app = {
     vault: {
       getRoot: () => folder(""),
-      getAbstractFileByPath: () => null
+      getAbstractFileByPath: (path: string) => (present.has(path) ? entry(path) : null),
+      getAllLoadedFiles: () => [...present].map(entry),
+      createBinary,
+      adapter: {
+        exists: async (path: string) => (path === ".trash" ? trash.length > 0 : present.has(path)),
+        list: async () => ({ files: [...trash], folders: [] }),
+        rename: async (from: string, to: string) => {
+          const at = trash.indexOf(from);
+          if (at === -1) throw new Error(`nothing at ${from}`);
+          trash.splice(at, 1);
+          present.add(to);
+        }
+      }
     },
-    fileManager: { trashFile },
+    fileManager: { trashFile, renameFile },
     metadataCache: { getFileCache: () => null }
   } as unknown as App;
 
@@ -99,7 +151,13 @@ function fixture(options: { trashFails?: boolean; decline?: boolean } = {}): Fix
       confirm: (dialog, onConfirm) => {
         asked.push(dialog.message);
         if (!options.decline) onConfirm();
-      }
+      },
+      toast: (message, _label, undo) => {
+        toasts.push({ message, undo });
+      },
+      // The picker is a modal; here it takes the first real folder offered.
+      pickFolder: (folders, _title, onPick) => onPick(folders.find((f) => f !== "") ?? ""),
+      now: () => clock.now
     }
   );
   controller.onChange(() => {
@@ -110,7 +168,13 @@ function fixture(options: { trashFails?: boolean; decline?: boolean } = {}): Fix
     controller,
     timers,
     trashFile,
+    renameFile,
+    createBinary,
     asked,
+    toasts,
+    trash,
+    present,
+    clock,
     get redraws() {
       return state.redraws;
     }
@@ -120,9 +184,14 @@ function fixture(options: { trashFails?: boolean; decline?: boolean } = {}): Fix
 /** Confirm a delete and let the trash call settle. */
 async function deleteViaMenu(controller: ExplorerController, file: TFile | TFolder): Promise<void> {
   await controller.run("delete", file as never);
-  // `trashFile` resolves on a later tick; the row is hidden in its `.then`.
-  await Promise.resolve();
-  await Promise.resolve();
+  // The trash runs after the confirm returns, over a few awaits of its own.
+  await settle();
+}
+
+/** Let every pending promise in the flow run to its end. A macrotask drains
+ *  the whole microtask queue, however many awaits a batch of three has. */
+async function settle(): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, 0));
 }
 
 beforeEach(() => {
@@ -264,5 +333,224 @@ describe("the grace between the trash call and the vault's own event", () => {
 
     expect(f.timers.pending.size).toBe(0);
     expect(f.controller.isTrashed("Eins.md")).toBe(false);
+  });
+});
+
+describe("deleting several rows at once", () => {
+  it("asks once, with the count, and trashes each", async () => {
+    const f = fixture({ present: ["a.md", "b.md", "c.md"] });
+
+    f.controller.removeMany([new TFile("a.md"), new TFile("b.md"), new TFile("c.md")] as never);
+    await settle();
+
+    expect(f.asked).toEqual(["Move 3 items to the trash?"]);
+    expect(f.trashFile).toHaveBeenCalledTimes(3);
+    expect(f.controller.isTrashed("b.md")).toBe(true);
+  });
+
+  it("falls back to the single-row question for one row", async () => {
+    const f = fixture({ present: ["a.md"] });
+
+    f.controller.removeMany([new TFile("a.md")] as never);
+    await settle();
+
+    expect(f.asked).toEqual(['Move "a.md" to the trash?']);
+  });
+});
+
+describe("undoing a delete", () => {
+  it("offers an undo that lifts the file out of the vault's trash", async () => {
+    const f = fixture({ present: ["Notizen/Entwurf.md"] });
+    await deleteViaMenu(f.controller, new TFile("Notizen/Entwurf.md"));
+    expect(f.trash).toEqual([".trash/Entwurf.md"]);
+    expect(f.toasts).toHaveLength(1);
+
+    f.toasts[0]?.undo();
+    await settle();
+
+    expect(f.trash).toEqual([]);
+    expect(f.present.has("Notizen/Entwurf.md")).toBe(true);
+    expect(f.controller.isTrashed("Notizen/Entwurf.md")).toBe(false);
+  });
+
+  it("offers no undo when the trash is the system's, and says why", async () => {
+    const f = fixture({ present: ["a.md"], systemTrash: true });
+
+    await deleteViaMenu(f.controller, new TFile("a.md"));
+
+    expect(f.toasts).toEqual([]);
+    expect(Notice.shown.join(" ")).toContain("system trash");
+    expect(f.controller.isTrashed("a.md")).toBe(true);
+  });
+
+  it("refuses to put a file back over something that is there now", async () => {
+    const f = fixture({ present: ["a.md"] });
+    await deleteViaMenu(f.controller, new TFile("a.md"));
+    f.present.add("a.md");
+
+    f.toasts[0]?.undo();
+    await settle();
+
+    expect(f.trash).toEqual([".trash/a.md"]);
+    expect(Notice.shown.join(" ")).toContain("could not be put back");
+  });
+
+  it("is gone after its window", async () => {
+    const f = fixture({ present: ["a.md"] });
+    await deleteViaMenu(f.controller, new TFile("a.md"));
+    f.clock.now += 31_000;
+
+    await f.controller.undoLast();
+
+    expect(f.trash).toEqual([".trash/a.md"]);
+    expect(Notice.shown.join(" ")).toContain("nothing to undo");
+  });
+});
+
+describe("moving, and undoing a move", () => {
+  it("moves a dropped row and offers to move it back", async () => {
+    const f = fixture({ present: ["a.md", "Ziel"] });
+    const file = new TFile("a.md");
+
+    await f.controller.move(file as never, "Ziel");
+
+    expect(f.renameFile).toHaveBeenCalledWith(expect.anything(), "Ziel/a.md");
+    expect(f.toasts[0]?.message).toContain("moved to Ziel");
+
+    f.toasts[0]?.undo();
+    await settle();
+
+    expect(f.renameFile).toHaveBeenLastCalledWith(expect.anything(), "a.md");
+    expect(Notice.shown.join(" ")).toContain("move was undone");
+  });
+
+  it("says nothing for a drop back where the row already was", async () => {
+    const f = fixture({ present: ["Ziel/a.md", "Ziel"] });
+
+    await f.controller.move(new TFile("Ziel/a.md") as never, "Ziel");
+
+    expect(f.renameFile).not.toHaveBeenCalled();
+    expect(Notice.shown).toEqual([]);
+  });
+
+  it("moves several rows and counts them in the notice", async () => {
+    const f = fixture({ present: ["a.md", "b.md", "Ziel"] });
+
+    f.controller.runSelection("move-selected", [new TFile("a.md"), new TFile("b.md")] as never);
+    await settle();
+
+    expect(f.renameFile).toHaveBeenCalledTimes(2);
+    expect(f.toasts.at(-1)?.message).toContain("2 items moved to Ziel");
+  });
+});
+
+describe("importing files from the desktop", () => {
+  const source = (name: string, size = 10, isFolder = false) => ({
+    name,
+    size,
+    isFolder,
+    bytes: async () => new ArrayBuffer(size)
+  });
+
+  it("writes each file into the folder it was dropped on", async () => {
+    const f = fixture({ present: ["Anhänge"] });
+
+    await f.controller.importFiles([source("Scan.pdf"), source("Foto.jpg")], "Anhänge");
+
+    expect(f.createBinary.mock.calls.map((call) => call[0])).toEqual([
+      "Anhänge/Scan.pdf",
+      "Anhänge/Foto.jpg"
+    ]);
+    expect(Notice.shown.join(" ")).toContain("2 files imported into Anhänge");
+  });
+
+  it("gives a taken name the next free one rather than overwriting", async () => {
+    const f = fixture({ present: ["Scan.pdf"] });
+
+    await f.controller.importFiles([source("Scan.pdf")], "");
+
+    expect(f.createBinary).toHaveBeenCalledWith("Scan 1.pdf", expect.anything());
+  });
+
+  it("leaves a folder out and says so, while writing the rest", async () => {
+    const f = fixture();
+
+    await f.controller.importFiles([source("Photos", 0, true), source("Gut.pdf")], "");
+
+    expect(f.createBinary).toHaveBeenCalledTimes(1);
+    expect(Notice.shown.join(" ")).toContain("Photos — a folder");
+  });
+
+  it("says which file could not be written, and keeps going", async () => {
+    const f = fixture();
+    f.createBinary.mockImplementationOnce(async () => {
+      throw new Error("disk full");
+    });
+
+    await f.controller.importFiles([source("Eins.pdf"), source("Zwei.pdf")], "");
+
+    expect(Notice.shown.join(" ")).toContain("Eins.pdf could not be written");
+    expect(Notice.shown.join(" ")).toContain("1 file imported");
+  });
+});
+
+describe("the review's findings", () => {
+  it("keeps two dropped files of one name apart, bytes included", async () => {
+    const f = fixture();
+    const source = (size: number) => ({
+      name: "Foto.jpg",
+      size,
+      bytes: async () => new ArrayBuffer(size)
+    });
+
+    await f.controller.importFiles([source(3), source(7)], "");
+
+    const written = f.createBinary.mock.calls.map(([path, bytes]) => [
+      path,
+      (bytes as ArrayBuffer).byteLength
+    ]);
+    expect(written).toEqual([
+      ["Foto.jpg", 3],
+      ["Foto 1.jpg", 7]
+    ]);
+  });
+
+  it("lets a notice undo only the action it announced", async () => {
+    const f = fixture({ present: ["a.md", "b.md", "Ziel"] });
+    await deleteViaMenu(f.controller, new TFile("a.md"));
+    await f.controller.move(new TFile("b.md") as never, "Ziel");
+    expect(f.toasts).toHaveLength(2);
+
+    // The delete's notice, pressed after the move: it must not undo the move.
+    f.toasts[0]?.undo();
+    await settle();
+
+    expect(f.trash).toEqual([".trash/a.md"]);
+    expect(f.renameFile).toHaveBeenCalledTimes(1);
+    expect(Notice.shown.join(" ")).toContain("nothing to undo");
+  });
+
+  it("deletes a folder once when a file inside it is selected too", async () => {
+    const f = fixture({ present: ["Projekt", "Projekt/a.md"] });
+
+    f.controller.removeMany([folder("Projekt"), new TFile("Projekt/a.md")] as never);
+    await settle();
+
+    // One question, about the folder — the file inside it is part of that.
+    expect(f.asked).toHaveLength(1);
+    expect(f.asked[0]).toContain('"Projekt"');
+    expect(f.trashFile).toHaveBeenCalledTimes(1);
+    expect(Notice.shown.join(" ")).not.toContain("could not be deleted");
+  });
+
+  it("takes as its receipt the arrival with the file's own name, not the first", async () => {
+    const f = fixture({ present: ["a.md"], strayTrash: ".trash/Fremd.md" });
+    await deleteViaMenu(f.controller, new TFile("a.md"));
+
+    f.toasts[0]?.undo();
+    await settle();
+
+    expect(f.trash).toEqual([".trash/Fremd.md"]);
+    expect(f.present.has("a.md")).toBe(true);
   });
 });
