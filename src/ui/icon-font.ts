@@ -18,6 +18,24 @@ export { ICON_FONT_VERSION } from "./icon-font.generated";
 
 const STYLE_ID = "schreibstube-icon-font";
 
+/**
+ * Which build of the font a style element carries.
+ *
+ * A fingerprint of the bytes rather than the Tabler version: two builds from
+ * the same Tabler release can differ in which glyphs they carry, and that is
+ * exactly the difference that matters below.
+ */
+const FONT_FINGERPRINT = fingerprint(ICON_FONT_WOFF2);
+
+function fingerprint(text: string): string {
+  let hash = 5381;
+  for (let i = 0; i < text.length; i++) hash = ((hash * 33) ^ text.charCodeAt(i)) >>> 0;
+  return `${hash.toString(16)}-${text.length}`;
+}
+
+/** The documents this build put the font into, so unload can take it out again. */
+const installed = new Set<Document>();
+
 /** The family the font is registered under, for stylesheets that draw from it. */
 export const ICON_FONT_FAMILY = "schreibstube-icons";
 
@@ -43,12 +61,25 @@ export function allIconNames(): string[] {
  *
  * Obsidian can put a leaf in a popped-out window with its own document, so this
  * takes the document rather than assuming the main one.
+ *
+ * A style element that is already there is kept only when it carries this
+ * build's font. Obsidian updates a plugin in place, in the same window, and
+ * an earlier build left its element behind on unload; this function then
+ * found it and returned, the picker listed every icon the new build knew,
+ * and the window drew each one the old font lacked as a blank square. An
+ * element from another build is replaced.
  */
 export function installIconFont(doc: Document = document): void {
-  if (doc.getElementById(STYLE_ID)) return;
+  const existing = doc.getElementById(STYLE_ID);
+  if (existing?.getAttribute("data-font") === FONT_FINGERPRINT) {
+    installed.add(doc);
+    return;
+  }
+  existing?.remove();
 
   const style = doc.createElement("style");
   style.id = STYLE_ID;
+  style.setAttribute("data-font", FONT_FINGERPRINT);
   style.textContent = `@font-face {
   font-family: "${ICON_FONT_FAMILY}";
   font-style: normal;
@@ -57,6 +88,20 @@ export function installIconFont(doc: Document = document): void {
   src: url("data:font/woff2;base64,${ICON_FONT_WOFF2}") format("woff2");
 }`;
   doc.head.appendChild(style);
+  installed.add(doc);
+}
+
+/**
+ * Take the font out of every window it was put into.
+ *
+ * Called on unload: what this build put up, this build takes down, so the
+ * next build starts from a clean window whether or not it can tell the two
+ * apart. A window closed in the meantime has a detached document, and
+ * removing from that is harmless.
+ */
+export function uninstallIconFont(): void {
+  for (const doc of installed) doc.getElementById(STYLE_ID)?.remove();
+  installed.clear();
 }
 
 /**

@@ -65,6 +65,7 @@ import { TAG_NOTES_VIEW_TYPE, TagNotesView } from "./ui/tag-notes-view";
 import { RELATED_NOTES_VIEW_TYPE, RelatedNotesView } from "./ui/related-notes-view";
 import { FOLDER_TILES_VIEW_TYPE, FolderTilesView } from "./ui/folder-tiles-view";
 import { registerSchreibstubeIcon } from "./ui/schreibstube-icon";
+import { uninstallIconFont } from "./ui/icon-font";
 import {
   EXPLORER_STATE_FILE,
   EXTERNAL_CHECK_MS,
@@ -368,6 +369,7 @@ export default class SchreibstubePlugin extends Plugin {
 
   override onunload(): void {
     this.unloaded = true;
+    uninstallIconFont();
     this.linkMode?.stop();
     this.properties?.stop();
     this.print?.stop();
