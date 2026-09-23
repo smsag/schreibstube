@@ -12,12 +12,14 @@
  * decided in `folder-images`, handed over by the explorer controller, which
  * also knows which pictures the pane has already taken away.
  *
- * A tile opens its picture in a new tab, never in this one: a plain open
- * into the active leaf would replace the grid the person is looking at.
+ * A tile opens its picture in this tab, so that Back returns to the grid;
+ * a modifier press opens a new tab, for the two side by side. The grid is
+ * a navigation view, and Obsidian keeps its state in the tab's history.
  */
 import { ItemView, type ViewStateResult, type WorkspaceLeaf } from "obsidian";
 import { t } from "../i18n";
 import type { FolderImages } from "../services/folder-images";
+import { pressTarget } from "../services/open-target";
 import { refreshLeafHeader } from "../services/workspace-internals";
 import { wirePress } from "./explorer-gestures";
 import { applyIcon, installIconFont } from "./icon-font";
@@ -29,8 +31,8 @@ export interface FolderTilesHost {
   tiles(folder: string): FolderImages | null;
   /** The URL an <img> can load the picture from, or null when the vault cannot serve it. */
   resourceUrl(path: string): string | null;
-  /** Always into a new tab. */
-  open(path: string): Promise<void>;
+  /** Into the leaf given, or into a new tab. */
+  open(path: string, into: WorkspaceLeaf | "tab"): Promise<void>;
   showMenu(path: string, at: MouseEvent | { x: number; y: number }): void;
   /** The folder a person pressed in the pane; returns the unsubscribe. */
   onFolderChosen(listener: (folder: string) => void): () => void;
@@ -222,14 +224,19 @@ export class FolderTilesView extends ItemView {
     // does not also open the picture.
     wirePress(tile, {
       isDragging: () => false,
-      activate: () => void host.open(path),
+      activate: (event) => void host.open(path, this.openInto(event)),
       showMenu: (at) => host.showMenu(path, at)
     });
     tile.addEventListener("keydown", (event) => {
       if (event.key !== "Enter" && event.key !== " ") return;
       event.preventDefault();
-      void host.open(path);
+      void host.open(path, this.leaf);
     });
+  }
+
+  /** This leaf for a plain press, a new tab for a modifier press. */
+  private openInto(event?: MouseEvent): WorkspaceLeaf | "tab" {
+    return pressTarget(event) === "tab" ? "tab" : this.leaf;
   }
 }
 
