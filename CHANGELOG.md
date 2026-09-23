@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Added
+
+- **A summary out of an attached PDF, with the way back into it.** **Insert: summary from the attached PDF** reads the PDF a doc embeds or links, offers its passages, and writes the ones you choose at the cursor — each followed by a mark that opens the PDF at the page the passage came from. The mark is an ordinary Obsidian link (`Bericht.pdf#page=12&selection=…`), so it needs nothing to render, survives sync, and works in Reading view. The text is read with the pdf.js Obsidian already ships, which is why the feature costs 7 KB rather than a megabyte. A scan says so instead of offering an empty list, and a document past 200 pages says how much of it was read.
+
 ## 1.38.0 - 2026-09-22
 
 Synced notes tell the truth about what is waiting. The Explorer's "Updated

@@ -25,8 +25,15 @@ import { fileURLToPath } from "node:url";
  * and small, and what it revealed is that the headroom was already spent.
  * The headroom left is for the next feature, not a new normal — a change
  * that needs more says why, as this one does.
+ *
+ * Raised to 460 KB at 438 KB, for the PDF summary (+7 KB): the reader that
+ * borrows Obsidian's pdf.js, the rules that cut a text layer into passages,
+ * the modal that offers them, and every string of it in two languages. It is
+ * a small feature because the expensive part is not ours — pdf.js is larger
+ * than this whole plugin, and is borrowed rather than shipped. The headroom
+ * left is for the next feature, not a new normal.
  */
-const MAX_BUNDLE_KB = 440;
+const MAX_BUNDLE_KB = 460;
 
 const bundle = fileURLToPath(new URL("../main.js", import.meta.url));
 const source = readFileSync(bundle, "utf8");
