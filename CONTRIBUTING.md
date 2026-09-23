@@ -123,10 +123,12 @@ phone since the last release is a claim about the code, not about the app.
 npm run release -- 1.8.0
 ```
 
-The script bumps `manifest.json`, `package.json` and `versions.json` together,
-which is the part that used to be three edits and a chance to get one wrong. It
-refuses a version that is not newer than the current one, and refuses a dirty
-working tree.
+The script bumps `manifest.json`, `package.json`, `versions.json` and
+`package-lock.json` together, which is the part that used to be four edits and a
+chance to get one wrong. The lockfile is in there because npm keeps its own copy
+of the package version and rewrites it at the next install; a release that skips
+it leaves that diff lying in wait for whoever installs next. It refuses a version
+that is not newer than the current one, and refuses a dirty working tree.
 
 Then commit, tag, and run the Release workflow with the same version.
 
