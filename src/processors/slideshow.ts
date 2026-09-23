@@ -16,10 +16,16 @@ import {
   type SlideshowBlock,
   type SlideshowImage
 } from "../services/slideshow";
+import { claimsHorizontal, classifyTouch } from "../services/slideshow-gesture";
 import { applyIcon, installIconFont } from "../ui/icon-font";
 
-/** Minimum horizontal swipe distance (px) to move between slides. */
-const SWIPE_THRESHOLD_PX = 40;
+/**
+ * Things in a block that answer a press of their own: a control, a tile, the
+ * comparison's frame. A tap on one of these is that press, not a request for
+ * the header's contents.
+ */
+const OWN_PRESS_SELECTOR =
+  ".schreibstube-slideshow-control, .schreibstube-slideshow-tile, .schreibstube-slideshow-compare";
 
 /**
  * The ```schreibstube-slideshow``` block: two or more images, as one stage
@@ -124,6 +130,8 @@ class Slideshow extends MarkdownRenderChild {
       default:
         this.renderStage(wrapper, images, false);
     }
+
+    wireReveal(wrapper);
   }
 
   /**
@@ -635,32 +643,95 @@ function wireArrowKeys(el: HTMLElement, onStep: (direction: 1 | -1) => void): vo
 }
 
 /**
- * A horizontal swipe, and only a horizontal one.
+ * A horizontal swipe, and only a horizontal one, kept from everyone else.
  *
- * Measured on the width alone, a thumb scrolling the note down with a little
- * drift to the side turned the page. A swipe now has to travel further
- * sideways than up or down, which is what makes it a swipe and not a scroll.
+ * Which travel is a swipe is decided in `slideshow-gesture`. What is wired
+ * here is the claim: once a finger is clearly moving sideways, its moves are
+ * prevented and stopped, and so is the lift that ends them. Prevented, so
+ * the browser does not scroll the note with them; stopped, so nothing above
+ * the block sees a sideways gesture — on a phone Obsidian answers one of
+ * those by sliding a sidebar in over the note, which is the last thing a
+ * reader turning a page wants. A drag that started sideways stays claimed
+ * however it curves afterwards, or the note would jerk mid-swipe. The
+ * listener that prevents cannot be passive, and is the only one here that
+ * is not.
  */
 function wireSwipe(el: HTMLElement, onSwipe: (direction: 1 | -1) => void): void {
   let startX = 0;
   let startY = 0;
+  let claimed = false;
   el.addEventListener(
     "touchstart",
     (e) => {
       startX = e.touches[0]?.clientX ?? 0;
       startY = e.touches[0]?.clientY ?? 0;
+      claimed = false;
     },
     { passive: true }
   );
   el.addEventListener(
+    "touchmove",
+    (e) => {
+      const touch = e.touches[0];
+      if (!touch) return;
+      if (!claimed && !claimsHorizontal(touch.clientX - startX, touch.clientY - startY)) return;
+      claimed = true;
+      e.preventDefault();
+      e.stopPropagation();
+    },
+    { passive: false }
+  );
+  el.addEventListener(
     "touchend",
     (e) => {
+      if (claimed) e.stopPropagation();
       const dx = (e.changedTouches[0]?.clientX ?? 0) - startX;
       const dy = (e.changedTouches[0]?.clientY ?? 0) - startY;
-      if (Math.abs(dx) > SWIPE_THRESHOLD_PX && Math.abs(dx) > Math.abs(dy)) {
-        onSwipe(dx < 0 ? 1 : -1);
-      }
+      const gesture = classifyTouch(dx, dy);
+      if (gesture === "next") onSwipe(1);
+      else if (gesture === "previous") onSwipe(-1);
     },
     { passive: true }
+  );
+}
+
+/**
+ * On a touch screen, a tap shows the header's contents and the next one, or
+ * a swipe, hides them again.
+ *
+ * The stylesheet shows them under the pointer, which a phone does not have,
+ * and the class this toggles is the phone's way in. Only a tap on something
+ * without a press of its own counts: a control, a tile and the comparison's
+ * frame answer their tap themselves, and answering it twice would open a
+ * picture and change the header in one touch. Listened to in the capture
+ * phase, because a swipe on the stage stops its own events from bubbling
+ * and this has to hear it anyway.
+ */
+function wireReveal(wrapper: HTMLElement): void {
+  let startX = 0;
+  let startY = 0;
+  wrapper.addEventListener(
+    "touchstart",
+    (e) => {
+      startX = e.touches[0]?.clientX ?? 0;
+      startY = e.touches[0]?.clientY ?? 0;
+    },
+    { passive: true, capture: true }
+  );
+  wrapper.addEventListener(
+    "touchend",
+    (e) => {
+      const touch = e.changedTouches[0];
+      if (!touch) return;
+      const gesture = classifyTouch(touch.clientX - startX, touch.clientY - startY);
+      if (gesture === "next" || gesture === "previous") {
+        wrapper.removeClass("is-revealed");
+        return;
+      }
+      if (gesture !== "tap") return;
+      if (e.target instanceof Element && e.target.closest(OWN_PRESS_SELECTOR)) return;
+      wrapper.toggleClass("is-revealed", !wrapper.hasClass("is-revealed"));
+    },
+    { passive: true, capture: true }
   );
 }

@@ -1972,6 +1972,53 @@ a.external-link.schreibstube-reminder-mark {
   flex-shrink: 0;
 }
 
+/* The header's contents — the alt text and the controls — are there while
+   they are wanted: under the pointer, on the keyboard's way through, or
+   after a tap on a phone, which has no pointer and sets the class instead.
+   Faded rather than removed: the row keeps its height, so the note does not
+   shift when they come and go. The hidden controls keep their place and
+   their focusability, so the Tab key finds them and, finding them, shows
+   them; only :focus-visible counts, because a tap on the stage gives the
+   block plain focus, and that must not pin the header on. */
+.schreibstube-slideshow-caption,
+.schreibstube-slideshow-actions {
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.schreibstube-slideshow.is-revealed .schreibstube-slideshow-caption,
+.schreibstube-slideshow.is-revealed .schreibstube-slideshow-actions,
+.schreibstube-slideshow:focus-visible .schreibstube-slideshow-caption,
+.schreibstube-slideshow:focus-visible .schreibstube-slideshow-actions,
+.schreibstube-slideshow:has(:focus-visible) .schreibstube-slideshow-caption,
+.schreibstube-slideshow:has(:focus-visible) .schreibstube-slideshow-actions {
+  opacity: 1;
+}
+
+@media (hover: hover) {
+  .schreibstube-slideshow:hover .schreibstube-slideshow-caption,
+  .schreibstube-slideshow:hover .schreibstube-slideshow-actions {
+    opacity: 1;
+  }
+}
+
+/* Where there is no pointer, a control that cannot be seen must not answer
+   the tap that is meant to show it; the tap falls through to the block. */
+@media (hover: none) {
+  .schreibstube-slideshow:not(.is-revealed):not(:focus-visible):not(:has(:focus-visible))
+    .schreibstube-slideshow-actions {
+    pointer-events: none;
+  }
+}
+
+/* The block answers a sideways swipe itself, so the browser is told to keep
+   only the up-and-down one for scrolling the note. */
+.schreibstube-slideshow-track,
+.schreibstube-slideshow-feature,
+.schreibstube-slideshow-fs {
+  touch-action: pan-y;
+}
+
 /* A control is an icon standing on the page, built as the file pane builds
    its own: a span, not a button, so it never wears Obsidian's button fill. */
 .schreibstube-slideshow-control {

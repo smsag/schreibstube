@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Changed
+
+- **A slideshow's header stays out of the way.** The alt text and the controls in the row above a slideshow now appear only while the pointer is over the block or a control has the keyboard focus. On a phone, which has no pointer, a tap on a picture or on the row shows them and the next tap, or a swipe, hides them again. The row keeps its height, so nothing below the block moves when they come and go. This is the same in every layout, from the stage to the before-and-after.
+- **A swipe on a slideshow is the slideshow's alone.** A sideways swipe across the stage or the scene in the note has turned the page since the block existed, but the note could scroll with it and, on a phone, Obsidian could answer the same swipe by sliding a sidebar in over the note. Once a finger is clearly moving sideways the block now claims the gesture: the note stays put and nothing above the block sees it. Which travel is a tap, a swipe or a scroll is one small decision module with tests.
+
 ## 1.41.0 - 2026-09-23
 
 A folder's pictures, as tiles. Right-click a folder in the Explorer and
