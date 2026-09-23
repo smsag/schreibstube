@@ -6,6 +6,7 @@ const press = (key: string, extra: Partial<RowKey> = {}): RowKey => ({
   key,
   shiftKey: false,
   metaKey: false,
+  ctrlKey: false,
   ...extra
 });
 
@@ -57,9 +58,24 @@ describe("rowKeyAction", () => {
     expect(rowKeyAction(press("F10"), file)).toBeNull();
   });
 
+  it("grows the selection with ⇧-arrow instead of moving", () => {
+    expect(rowKeyAction(press("ArrowDown", { shiftKey: true }), file)).toBe("extend-next");
+    expect(rowKeyAction(press("ArrowUp", { shiftKey: true }), file)).toBe("extend-previous");
+  });
+
+  it("lets the selection go on Escape", () => {
+    expect(rowKeyAction(press("Escape"), openFolder)).toBe("clear");
+  });
+
+  it("undoes on ⌘Z and on Ctrl+Z, but not on a plain z or on ⇧⌘Z", () => {
+    expect(rowKeyAction(press("z", { metaKey: true }), file)).toBe("undo");
+    expect(rowKeyAction(press("z", { ctrlKey: true }), file)).toBe("undo");
+    expect(rowKeyAction(press("z"), file)).toBeNull();
+    expect(rowKeyAction(press("z", { metaKey: true, shiftKey: true }), file)).toBeNull();
+  });
+
   it("claims nothing else, so the sidebar keeps its own keys", () => {
     expect(rowKeyAction(press("Tab"), file)).toBeNull();
     expect(rowKeyAction(press("a"), file)).toBeNull();
-    expect(rowKeyAction(press("Escape"), openFolder)).toBeNull();
   });
 });

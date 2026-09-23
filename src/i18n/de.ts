@@ -24,6 +24,7 @@ export const de: Messages = {
     insertToday: "Einfügen: heutiges Datum",
     openExplorer: "Explorer öffnen",
     collapseExplorer: "Explorer: Ordner zuklappen",
+    explorerUndo: "Explorer: letztes Verschieben oder Löschen rückgängig machen",
     related: "Verwandte Notizen",
     openBookmark: "Lesezeichen öffnen",
     pinTag: "Tag anheften",
@@ -730,7 +731,13 @@ export const de: Messages = {
       title: (name: string) => `„${name}“ verschieben nach …`,
       root: "Vault-Wurzel",
       nowhere: (name: string) => `Es gibt keinen Ort, an den ${name} verschoben werden kann.`,
-      done: (name: string, folder: string) => `${name} nach ${folder} verschoben.`
+      done: (name: string, folder: string) => `${name} nach ${folder} verschoben.`,
+      manyTitle: (count: number) => `${count} Objekte verschieben nach …`,
+      nowhereMany: "Es gibt keinen Ordner, in den alle verschoben werden können.",
+      manyDone: (moved: number, folder: string, refused: number) =>
+        refused === 0
+          ? `${moved} Objekte nach ${folder} verschoben.`
+          : `${moved} Objekte nach ${folder} verschoben; ${refused} nicht.`
     },
 
     sections: {
@@ -790,7 +797,9 @@ export const de: Messages = {
       renaming: "Liest …",
       move: "Verschieben nach …",
       delete: "Löschen",
-      more: "Weitere Aktionen"
+      more: "Weitere Aktionen",
+      moveSelected: (count: number) => `${count} Objekte verschieben nach …`,
+      deleteSelected: (count: number) => `${count} Objekte löschen`
     },
 
     icons: {
@@ -853,7 +862,40 @@ export const de: Messages = {
       folderConfirm: (name: string, count: number) =>
         `„${name}“ mit ${count} enthaltenen Objekt(en) in den Papierkorb verschieben?`,
       submit: "Löschen",
-      failed: (name: string) => `„${name}“ konnte nicht gelöscht werden.`
+      failed: (name: string) => `„${name}“ konnte nicht gelöscht werden.`,
+      done: (name: string) => `„${name}“ in den Papierkorb verschoben.`,
+      manyConfirm: (count: number) => `${count} Objekte in den Papierkorb verschieben?`,
+      manyDone: (count: number) => `${count} Objekte in den Papierkorb verschoben.`
+    },
+
+    undo: {
+      action: "Rückgängig",
+      nothing: "es gibt nichts rückgängig zu machen.",
+      moveUndone: (count: number) =>
+        count === 1
+          ? "das Verschieben wurde rückgängig gemacht."
+          : `${count} Verschiebungen wurden rückgängig gemacht.`,
+      deleteUndone: (count: number) =>
+        count === 1
+          ? "das Löschen wurde rückgängig gemacht."
+          : `${count} Löschungen wurden rückgängig gemacht.`,
+      blocked: (name: string) =>
+        `${name} konnte nicht zurückgelegt werden: dort liegt jetzt etwas.`,
+      systemTrash:
+        "es ging in den Papierkorb des Systems, in den dieses Fenster nicht hineingreifen kann."
+    },
+
+    import: {
+      done: (count: number, folder: string) =>
+        count === 1
+          ? `1 Datei nach ${folder} importiert.`
+          : `${count} Dateien nach ${folder} importiert.`,
+      refused: (count: number) => `${count} ausgelassen:`,
+      reasonFolder: "ein Ordner — stattdessen seine Dateien ablegen",
+      reasonTooLarge: "zu groß",
+      reasonBadName: "ein Name, den der Vault ablehnt",
+      reasonTooMany: "über der Grenze für eine Ablage",
+      failed: (name: string) => `${name} konnte nicht geschrieben werden.`
     }
   },
 

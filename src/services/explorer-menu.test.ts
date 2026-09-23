@@ -5,6 +5,7 @@ import {
   LONG_PRESS_ECHO_MS,
   isLongPressEcho,
   buildExplorerMenu,
+  buildSelectionMenu,
   buildTagPinMenu,
   type ExplorerTarget
 } from "./explorer-menu";
@@ -261,5 +262,21 @@ describe("pinning a tag", () => {
 
   it("gives a pinned tag its list and a way out", () => {
     expect(buildTagPinMenu().map((item) => item.id)).toEqual(["show-tag", "unpin-tag"]);
+  });
+});
+
+describe("buildSelectionMenu", () => {
+  it("offers only what makes sense for several rows at once: move and delete", () => {
+    const items = buildSelectionMenu(3);
+
+    expect(items.map((item) => item.id)).toEqual(["move-selected", "delete-selected"]);
+  });
+
+  it("says how many rows the action will touch", () => {
+    for (const item of buildSelectionMenu(3)) expect(item.label).toContain("3");
+  });
+
+  it("marks the delete as destructive, so the view colours it", () => {
+    expect(buildSelectionMenu(2).find((item) => item.id === "delete-selected")?.warning).toBe(true);
   });
 });

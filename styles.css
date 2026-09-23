@@ -1341,6 +1341,34 @@ a.external-link.schreibstube-reminder-mark {
   outline: none;
 }
 
+/* A selected row: one of several the next action will touch. The active
+   row's bar stays the active row's; selection is a fill, so the two read as
+   different facts about a row that may be both. */
+.schreibstube-explorer-row.is-selected {
+  background: var(--nav-item-background-selected, var(--background-modifier-hover));
+  color: var(--nav-item-color-selected, var(--text-normal));
+}
+
+/* Files carried in from the desktop, held over the tree. The tree says it
+   will take them; the folder under the pointer says where, with the same
+   mark a row carried inside the pane gets. */
+.schreibstube-explorer-body.is-import-target {
+  box-shadow: inset 0 0 0 2px var(--interactive-accent);
+}
+
+/* The undo in a notice: a word, not a button. The notice is already a box,
+   and a filled control inside it would be a box in a box. */
+.schreibstube-undo-action {
+  margin-left: var(--size-4-3);
+  color: var(--interactive-accent);
+  cursor: pointer;
+  font-weight: var(--font-medium);
+}
+
+.schreibstube-undo-action:hover {
+  text-decoration: underline;
+}
+
 /* A file waiting in another tab. The same bar as the active row, faded, so the
    two read as one scale rather than two signals: this is open, that is the one
    you are looking at. The plain colour comes first for a renderer without
