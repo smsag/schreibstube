@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   checkLayout,
+  chooseTemplate,
   DEFAULT_ENTRY,
   IMAGE_MAX_PX_DEFAULT,
   IMAGE_MAX_PX_LIMIT,
@@ -129,11 +130,57 @@ describe("checkLayout", () => {
   it("names the line, because that is what a template author has to find", () => {
     expect(checkLayout('#let a = 1\n\n#image("../out.png")')[0]).toContain("line 3");
   });
+
+  it("reads only a string that names a file as a path", () => {
+    // Text that happens to hold "../" or starts with "/" is text.
+    expect(checkLayout('#text("siehe ../Anhang")\n#let sep = "/"')).toEqual([]);
+    expect(checkLayout('#let url = "/impressum"')).toEqual([]);
+    expect(checkLayout('#include "../teil.typ"')).toHaveLength(1);
+    expect(checkLayout('#let d = json("/daten.json")')).toHaveLength(1);
+    expect(checkLayout('#let d = image( "../x.png", width: 1cm)')).toHaveLength(1);
+  });
 });
 
 describe("isFontFile", () => {
   it("knows the four extensions Typst reads", () => {
     for (const name of ["a.ttf", "b.OTF", "c.ttc", "d.otc"]) expect(isFontFile(name)).toBe(true);
     for (const name of ["a.woff2", "b.png", "fonts"]) expect(isFontFile(name)).toBe(false);
+  });
+});
+
+describe("chooseTemplate", () => {
+  const at = (folder: string) => parseTemplate(folder, {}).template;
+  const brief = at("Vorlagen/Druck/Brief");
+  const privat = at("Privat/Brief");
+  const cv = at("Vorlagen/Druck/Lebenslauf");
+
+  it("asks among all of them when the note names none", () => {
+    expect(chooseTemplate([brief, cv], null)).toEqual({ kind: "ask", among: [brief, cv] });
+  });
+
+  it("uses the one template a name fits", () => {
+    expect(chooseTemplate([brief, cv], "Lebenslauf")).toEqual({ kind: "use", template: cv });
+  });
+
+  it("asks among those a name fits when it fits more than one", () => {
+    expect(chooseTemplate([brief, privat, cv], "Brief")).toEqual({
+      kind: "ask",
+      among: [brief, privat]
+    });
+  });
+
+  it("settles the ambiguity when the note names the folder's path", () => {
+    expect(chooseTemplate([brief, privat], "Privat/Brief")).toEqual({
+      kind: "use",
+      template: privat
+    });
+    expect(chooseTemplate([brief, privat], "/Privat/Brief/")).toEqual({
+      kind: "use",
+      template: privat
+    });
+  });
+
+  it("says which name it could not find", () => {
+    expect(chooseTemplate([brief], "Rechnung")).toEqual({ kind: "unknown", name: "Rechnung" });
   });
 });

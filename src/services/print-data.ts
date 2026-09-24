@@ -12,6 +12,7 @@
 import type { Locale } from "../i18n";
 import { fencedLines } from "./markdown-fence";
 import type { PrintTemplate } from "./print-template";
+import { printableText } from "./typst-value";
 
 /** The frontmatter key a note puts its print data under. */
 export const NOTE_DATA_KEY = "schreibstubePrint";
@@ -68,7 +69,7 @@ function noteData(
 
   const data: Record<string, string> = {};
   for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
-    const text = scalar(entry);
+    const text = printableText(entry);
     if (text !== null) data[key] = text;
   }
   return data;
@@ -142,16 +143,4 @@ export function noteTitle(source: string, fallback: string): string {
 
 function pad(value: number): string {
   return String(value).padStart(2, "0");
-}
-
-function scalar(value: unknown): string | null {
-  if (typeof value === "string") return value;
-  if (typeof value === "number" && Number.isFinite(value)) return String(value);
-  if (typeof value === "boolean") return value ? "true" : "false";
-  if (value instanceof Date) return isoDate(value);
-  if (Array.isArray(value)) {
-    const parts = value.map(scalar);
-    return parts.every((part): part is string => part !== null) ? parts.join("\n") : null;
-  }
-  return null;
 }

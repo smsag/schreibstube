@@ -105,7 +105,8 @@ a server with room for a dependency tree, and this runs inside a bundle whose
 budget is a few hundred kilobytes, parsed on every start.
 
 Carried over: headings, paragraphs, emphasis, strong, strikethrough, highlight,
-ordered and unordered lists with nesting, links, wikilinks as their text,
+ordered and unordered lists with nesting and their start number, task lists,
+links, wikilinks as their text,
 images and embeds, tables with the alignment the delimiter row states, inline
 and fenced code, blockquotes, callouts, footnotes placed where they are
 referenced, `<br>` as a line break, and horizontal rules as an optional page
@@ -169,24 +170,35 @@ How to use this template, in prose, for whoever opens the folder.
 The plugin generates `main.typ`:
 
 ```typst
-#import "template.typ": letter
-#show: letter.with(data: (senderName: "…", recipient: "…", date: "13.09.2026", …))
+#import "schreibstube.typ": *
+#import "template.typ": *
+#let data = (senderName: "…", recipient: "…", date: "13.09.2026", …)
+#set page(paper: "a4", margin: 25mm)
+#show: body => letter(body, data)
 // the converted body follows
 ```
 
 ### The helpers a note calls
 
-The converter never emits Typst's own primitives for the four things a template
+The converter never emits Typst's own primitives for the things a template
 should own. It calls these instead, defined in `services/print-prelude.ts` and
 placed in the job as `schreibstube.typ`. A template that wants a different look
-defines any of them itself before the body is placed, and its definition wins.
+defines any of them at the top level of `template.typ`, and its definition
+wins: `main.typ` imports the prelude first and everything the layout defines
+after it.
 
-| Helper                 | Signature                             | Given                                                                       |
-| ---------------------- | ------------------------------------- | --------------------------------------------------------------------------- |
-| `schreibstube-image`   | `(path, alt)`                         | one embedded picture                                                        |
-| `schreibstube-diagram` | `(paths, caption)`                    | **an array** of pictures, all from one fence, and one caption for the group |
-| `schreibstube-code`    | `(source, language)`                  | a fence that is not a diagram, or one that could not be drawn               |
-| `schreibstube-callout` | `(kind, title)` returning `body => …` | an Obsidian callout, `kind` one of `note`, `tip`, `warning`, `danger`       |
+| Helper                 | Signature                     | Given                                                                       |
+| ---------------------- | ----------------------------- | --------------------------------------------------------------------------- |
+| `schreibstube-image`   | `(path, alt)`                 | one embedded picture                                                        |
+| `schreibstube-diagram` | `(paths, caption)`            | **an array** of pictures, all from one fence, and one caption for the group |
+| `schreibstube-code`    | `(source, language)`          | a fence that is not a diagram, or one that could not be drawn               |
+| `schreibstube-table`   | `(columns:, align:, ..cells)` | a pipe table; the first argument among `cells` may be a `table.header`      |
+| `schreibstube-callout` | `(kind, title, body)`         | an Obsidian callout, `kind` one of `note`, `tip`, `warning`, `danger`       |
+| `schreibstube-task`    | `(done)`                      | the box in front of a task-list item                                        |
+
+Because the layout is imported whole, a top-level name in it may shadow one the
+prelude defines. That is the mechanism, so name private helpers of your own
+without the `schreibstube-` prefix.
 
 `schreibstube-diagram` takes an array rather than a single path because a fence
 may draw more than one picture — a carousel's panels are one fence and several
@@ -278,9 +290,15 @@ separate them.
 
 ## Output
 
-The PDF is written beside the note with the note's name, overwritten on
-reprint, then revealed in the file pane. A settings option redirects output to
-a fixed folder for vaults that keep exports apart.
+The PDF is written beside the note with the note's name, through the vault so
+it is in the file pane at once. A settings option redirects output to a fixed
+folder for vaults that keep exports apart; the folder is made if it is missing.
+
+A reprint replaces the previous print without asking. Any other PDF of that
+name — a scan, a download, a signed copy — is asked about first, and kept on a
+no. What counts as a previous print is a PDF whose creator is Typst
+(`isTypesetPdf` in `services/print-job.ts`). A document over 30 MB is refused
+rather than written.
 
 ## The plan
 

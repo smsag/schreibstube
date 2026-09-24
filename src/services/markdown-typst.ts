@@ -13,6 +13,7 @@
  * by callbacks the caller supplies, which is what keeps the whole conversion
  * testable in a few milliseconds.
  */
+import { t } from "../i18n";
 import { fencedLines, fenceMarker } from "./markdown-fence";
 import { typstArray, typstString } from "./typst-value";
 
@@ -104,22 +105,45 @@ const BULLET = /^(\s*)([-*+])\s+(.*)$/;
 const ORDERED = /^(\s*)(\d{1,9})[.)]\s+(.*)$/;
 const TABLE_DELIMITER = /^ {0,3}\|?\s*:?-{1,}:?\s*(\|\s*:?-{1,}:?\s*)*\|?\s*$/;
 const FOOTNOTE_DEFINITION = /^ {0,3}\[\^([^\]\s]+)\]:\s*(.*)$/;
+const TASK = /^\[([ xX])\]\s+/;
+
+/**
+ * What a callout or a quote shares with the note around it.
+ *
+ * A quote is converted as a document of its own, but it is not one: its
+ * diagrams are numbered in the note's order — the capture was keyed that way,
+ * and a diagram numbered from zero again inside a callout was handed the
+ * note's first picture — and its footnote references reach definitions that
+ * stand outside it.
+ */
+interface Shared {
+  footnotes: Map<string, string>;
+  diagrams: DiagramBlock[];
+  warnings: string[];
+  /** Footnotes being expanded right now, so one that cites itself ends. */
+  expanding: Set<string>;
+}
 
 export function markdownToTypst(source: string, options: ConvertOptions = {}): Conversion {
-  return new Converter(source, options).run();
+  return new Converter(source, options, {
+    footnotes: new Map(),
+    diagrams: [],
+    warnings: [],
+    expanding: new Set()
+  }).run();
 }
 
 class Converter {
   private readonly lines: string[];
-  private readonly footnotes = new Map<string, string>();
-  private readonly diagrams: DiagramBlock[] = [];
-  private readonly warnings: string[] = [];
   private at = 0;
-  private heading = "";
+  /** Whether the last `inline` ended in an expression, for a caller that splices it in. */
+  private endsOpen = false;
 
   constructor(
     source: string,
-    private readonly options: ConvertOptions
+    private readonly options: ConvertOptions,
+    private readonly shared: Shared,
+    private heading = ""
   ) {
     this.lines = stripFrontmatter(stripComments(source)).split(/\r?\n/);
     this.collectFootnotes();
@@ -129,21 +153,32 @@ class Converter {
     const body = this.blocks(0).join("\n");
     return {
       body: `${body.replace(/\n{3,}/g, "\n\n").trim()}\n`,
-      diagrams: this.diagrams,
-      warnings: this.warnings
+      diagrams: this.shared.diagrams,
+      warnings: this.shared.warnings
     };
   }
 
   /**
    * A footnote is defined anywhere and referenced anywhere, so the definitions
    * are read first and the reference sites carry the text. Typst places a
-   * footnote where it is used, which is the same reading order.
+   * footnote where it is used, which is the same reading order. A line inside
+   * a fence that happens to look like a definition is code, not a footnote,
+   * and the first definition of a name wins, as it does in the editor.
    */
   private collectFootnotes(): void {
-    for (const line of this.lines) {
+    const fenced = fencedLines(this.lines);
+    for (const [index, line] of this.lines.entries()) {
+      if (fenced[index]) continue;
       const match = FOOTNOTE_DEFINITION.exec(line);
-      if (match?.[1] !== undefined) this.footnotes.set(match[1], match[2] ?? "");
+      if (match?.[1] !== undefined && !this.shared.footnotes.has(match[1])) {
+        this.shared.footnotes.set(match[1], match[2] ?? "");
+      }
     }
+  }
+
+  /** A quote's inside, converted as part of this note rather than beside it. */
+  private nested(source: string): string {
+    return new Converter(source, this.options, this.shared, this.heading).run().body;
   }
 
   /** Every block at this indent, until the indent drops or the source ends. */
@@ -221,12 +256,12 @@ class Converter {
 
     if (DIAGRAM_LANGUAGES.has(language.toLowerCase())) {
       const block: DiagramBlock = {
-        index: this.diagrams.length,
+        index: this.shared.diagrams.length,
         language: language.toLowerCase(),
         source,
         caption: this.heading
       };
-      this.diagrams.push(block);
+      this.shared.diagrams.push(block);
 
       // A fence may hold several drawings — a carousel shows one panel and
       // hides the rest, and a page has no carousel — so the helper is given
@@ -236,7 +271,7 @@ class Converter {
         const caption = diagramCaption(block.caption, this.options.diagramTitle?.(block) ?? "");
         return `#schreibstube-diagram(${typstArray(paths)}, ${quote(caption)})\n`;
       }
-      this.warnings.push(`${language}: could not be drawn, printed as source`);
+      this.shared.warnings.push(t().print.diagramAsSource(language));
     }
 
     return `#schreibstube-code(${quote(source)}, ${quote(language)})\n`;
@@ -257,23 +292,11 @@ class Converter {
     if (callout?.[1] !== undefined) {
       const kind = CALLOUT_KINDS[callout[1].toLowerCase()] ?? "note";
       const title = (callout[3] ?? "").trim() || titleCase(callout[1]);
-      const body = markdownToTypst(inner.slice(1).join("\n"), this.options);
-      this.adopt(body);
-      return `#schreibstube-callout(${quote(kind)}, [${this.inline(title)}])[\n${body.body}]\n`;
+      const body = this.nested(inner.slice(1).join("\n"));
+      return `#schreibstube-callout(${quote(kind)}, [${this.inline(title)}])[\n${body}]\n`;
     }
 
-    const body = markdownToTypst(inner.join("\n"), this.options);
-    this.adopt(body);
-    return `#quote(block: true)[\n${body.body}]\n`;
-  }
-
-  /** Diagrams and warnings found inside a nested conversion belong to this one. */
-  private adopt(conversion: Conversion): void {
-    for (const diagram of conversion.diagrams) {
-      diagram.index = this.diagrams.length;
-      this.diagrams.push(diagram);
-    }
-    this.warnings.push(...conversion.warnings);
+    return `#quote(block: true)[\n${this.nested(inner.join("\n"))}]\n`;
   }
 
   /**
@@ -286,6 +309,7 @@ class Converter {
    */
   private list(indent: number): string {
     const out: string[] = [];
+    let first = true;
 
     while (this.at < this.lines.length) {
       const line = this.lines[this.at];
@@ -306,8 +330,12 @@ class Converter {
       if (!match || indentOf(line) > indent + 3) break;
 
       this.at += 1;
-      const marker = bullet ? "-" : "+";
-      const parts = [this.inline(match[3] ?? "")];
+      // A numbered list that starts somewhere other than one says so on its
+      // first item, which Typst continues from; the rest number themselves.
+      const start = ordered ? Number(ordered[2]) : 1;
+      const marker = bullet ? "-" : first && start !== 1 ? `${start}.` : "+";
+      first = false;
+      const parts = [this.item(match[3] ?? "")];
 
       // Everything indented past the marker belongs to this item: a nested
       // list, a second paragraph, a fenced block.
@@ -318,6 +346,14 @@ class Converter {
     }
 
     return `${out.join("\n")}\n`;
+  }
+
+  /** An item's first line, with a task's box drawn rather than typed. */
+  private item(text: string): string {
+    const task = TASK.exec(text);
+    if (!task) return this.inline(text);
+    const done = task[1] !== " ";
+    return `#schreibstube-task(${done ? "true" : "false"}) ${this.inline(text.slice(task[0].length))}`;
   }
 
   private isTableStart(): boolean {
@@ -414,9 +450,20 @@ class Converter {
     let out = "";
     let plain = "";
     let i = 0;
+    // Whether `out` ends in an embedded expression. Typst carries one on into
+    // whatever touches it — `#raw("f")(x)` is a call, `#strong[A].b` a field —
+    // so text that begins with one of those is kept apart by a `;`, which
+    // Typst reads as the end of the expression and does not print.
+    let open = false;
 
+    const append = (markup: string, expression: boolean): void => {
+      if (markup === "") return;
+      if (open && /^[([.]/.test(markup)) out += ";";
+      out += markup;
+      open = expression;
+    };
     const flush = (): void => {
-      out += escapeText(plain);
+      append(escapeText(plain), false);
       plain = "";
     };
 
@@ -435,7 +482,7 @@ class Converter {
         const code = /^(`+)([\s\S]*?)\1(?!`)/.exec(rest);
         if (code?.[2] !== undefined) {
           flush();
-          out += `#raw(${quote(code[2].trim())})`;
+          append(`#raw(${quote(code[2].trim())})`, true);
           i += code[0].length;
           continue;
         }
@@ -449,7 +496,7 @@ class Converter {
           // the tag is eaten with it: leaving it would end the paragraph, and
           // a person who wrote `<br>` asked for the next line, not the next
           // block — which is how a sender's address is written in one breath.
-          out += " \\\n";
+          append(" \\\n", false);
           i += br[0].length;
           continue;
         }
@@ -459,7 +506,7 @@ class Converter {
         const autolink = /^<(https?:\/\/[^>\s]+|mailto:[^>\s]+)>/.exec(rest);
         if (autolink?.[1] !== undefined) {
           flush();
-          out += `#link(${quote(autolink[1])})`;
+          append(`#link(${quote(autolink[1])})`, true);
           i += autolink[0].length;
           continue;
         }
@@ -468,7 +515,7 @@ class Converter {
         if (tag) {
           // Raw HTML has no meaning on paper and no safe rendering; dropping
           // the tag keeps the words it wrapped.
-          this.warn("HTML is dropped when printing");
+          this.warn(t().print.htmlDropped);
           i += tag[0].length;
           continue;
         }
@@ -478,7 +525,7 @@ class Converter {
         const embed = /^!\[\[([^\]|]+)(?:\|([^\]]*))?\]\]/.exec(rest);
         if (embed?.[1] !== undefined) {
           flush();
-          out += this.embed(embed[1].trim(), (embed[2] ?? "").trim());
+          append(...this.embed(embed[1].trim(), (embed[2] ?? "").trim()));
           i += embed[0].length;
           continue;
         }
@@ -491,7 +538,7 @@ class Converter {
           // A wikilink points inside the vault, where paper cannot follow; the
           // words stay, the link does not.
           const label = (link[2] ?? "").trim() || (link[1].split("#").pop() ?? link[1]).trim();
-          out += escapeText(label);
+          append(escapeText(label), false);
           i += link[0].length;
           continue;
         }
@@ -501,7 +548,7 @@ class Converter {
         const image = /^!\[([^\]]*)\]\(([^)\s]+)(?:\s+"[^"]*")?\)/.exec(rest);
         if (image?.[2] !== undefined) {
           flush();
-          out += this.image(image[2], image[1] ?? "");
+          append(...this.image(image[2], image[1] ?? ""));
           i += image[0].length;
           continue;
         }
@@ -511,8 +558,7 @@ class Converter {
         const footnote = /^\[\^([^\]\s]+)\]/.exec(rest);
         if (footnote?.[1] !== undefined) {
           flush();
-          const note = this.footnotes.get(footnote[1]);
-          out += note === undefined ? "" : `#footnote[${this.inline(note)}]`;
+          append(this.footnote(footnote[1]), true);
           i += footnote[0].length;
           continue;
         }
@@ -521,8 +567,11 @@ class Converter {
         if (link?.[2] !== undefined) {
           flush();
           const label = this.inline(link[1] ?? "");
+          const labelOpen = this.endsOpen;
           const target = link[2];
-          out += /^[a-z][a-z0-9+.-]*:/i.test(target) ? `#link(${quote(target)})[${label}]` : label;
+          if (/^[a-z][a-z0-9+.-]*:/i.test(target))
+            append(`#link(${quote(target)})[${label}]`, true);
+          else append(label, labelOpen);
           i += link[0].length;
           continue;
         }
@@ -531,7 +580,7 @@ class Converter {
       const emphasis = matchEmphasis(rest, plain.slice(-1) || text[i - 1] || "");
       if (emphasis) {
         flush();
-        out += `${emphasis.open}[${this.inline(emphasis.content)}${emphasis.close}`;
+        append(`${emphasis.open}[${this.inline(emphasis.content)}${emphasis.close}`, true);
         i += emphasis.length;
         continue;
       }
@@ -541,28 +590,52 @@ class Converter {
     }
 
     flush();
+    this.endsOpen = open;
     return out;
   }
 
-  private embed(target: string, alias: string): string {
+  /** Markup, and whether it ends in an expression — see `inline`. */
+  private embed(target: string, alias: string): [string, boolean] {
     if (/\.(png|jpe?g|gif|webp|avif|svg|bmp)$/i.test(target)) return this.image(target, alias);
     // An embedded note would have to be read and converted, which is a second
     // document inside this one; saying so beats printing a stray file name.
-    this.warn(`embedded note is not printed: ${target}`);
-    return escapeText(alias || target);
+    this.warn(t().print.embedNotPrinted(target));
+    return [escapeText(alias || target), false];
   }
 
-  private image(source: string, alt: string): string {
+  private image(source: string, alt: string): [string, boolean] {
     const path = this.options.image?.({ source, alt }) ?? null;
     if (path === null) {
-      this.warn(`image not found: ${source}`);
-      return escapeText(alt);
+      this.warn(t().print.imageNotFound(source));
+      return [escapeText(alt), false];
     }
-    return `#schreibstube-image(${quote(path)}, ${quote(alt)})`;
+    return [`#schreibstube-image(${quote(path)}, ${quote(alt)})`, true];
+  }
+
+  /**
+   * A footnote's text at the place it is cited.
+   *
+   * A definition that cites itself, directly or through another, would expand
+   * for ever; the inner citation is dropped instead, which is all a page could
+   * show of it anyway.
+   */
+  private footnote(name: string): string {
+    const note = this.shared.footnotes.get(name);
+    if (note === undefined) {
+      this.warn(t().print.footnoteMissing(name));
+      return "";
+    }
+    if (this.shared.expanding.has(name)) return "";
+    this.shared.expanding.add(name);
+    try {
+      return `#footnote[${this.inline(note)}]`;
+    } finally {
+      this.shared.expanding.delete(name);
+    }
   }
 
   private warn(message: string): void {
-    if (!this.warnings.includes(message)) this.warnings.push(message);
+    if (!this.shared.warnings.includes(message)) this.shared.warnings.push(message);
   }
 }
 

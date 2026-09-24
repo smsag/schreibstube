@@ -13,6 +13,7 @@ export class TFile {
   basename: string;
   extension: string;
   stat: { ctime: number; mtime: number; size: number };
+  parent: TFolder | null = null;
 
   constructor(path: string, ctime = Date.UTC(2026, 8, 12)) {
     this.path = path;
@@ -24,8 +25,23 @@ export class TFile {
 }
 
 export class TFolder {
-  constructor(public path: string) {}
+  name: string;
+  children: (TFile | TFolder)[] = [];
+
+  constructor(public path: string) {
+    this.name = path.split("/").pop() ?? path;
+  }
 }
+
+/** A lifetime to hang rendered children on; a test has nothing to release. */
+export class Component {
+  unload(): void {}
+}
+
+/** Nothing renders in a test; a controller that draws is tested without drawing. */
+export const MarkdownRenderer = {
+  render: async (): Promise<void> => {}
+};
 
 /** Notices are recorded rather than shown, so a test can assert what was said. */
 export class Notice {

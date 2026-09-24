@@ -49,6 +49,6 @@ its own folder or use a package, because printing happens on the device with no
 network.
 
 The helpers a converted note calls — `schreibstube-image`, `-diagram`,
-`-table`, `-callout` — have defaults, and a template that wants a different
-look defines its own before the body is placed. See `PRINTING.md` in the
+`-code`, `-table`, `-callout`, `-task` — have defaults, and a template that
+wants a different look defines its own at the top level of `template.typ`. See `PRINTING.md` in the
 repository for the whole contract.

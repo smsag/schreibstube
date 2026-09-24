@@ -11,6 +11,7 @@
  * compiler's answer means — is decided in `services/typst-runtime.ts` and
  * tested there.
  */
+import { toArrayBuffer } from "../utils/array-buffer";
 import { withTimeout } from "../utils/with-timeout";
 import { requestUrl, type App } from "obsidian";
 import { WORKER_SOURCE } from "./typst-worker";
@@ -25,6 +26,8 @@ import {
   RUNTIME_ASSETS,
   runtimeAssetUrl,
   runtimeCachePath,
+  RUNTIME_MEGABYTES,
+  staleRuntimeFiles,
   toHex,
   WASM_ASSET,
   type CompileOutcome,
@@ -147,6 +150,21 @@ export class TypstCompiler {
         this.logger.warn(`print: ${asset.name} could not be removed`, error);
       }
     }
+    await this.removeStale();
+  }
+
+  /** Runtimes of earlier pinned versions, which nothing will load again. */
+  private async removeStale(): Promise<void> {
+    const adapter = this.app.vault.adapter;
+    try {
+      const listed = await adapter.list(this.pluginDir);
+      const names = listed.files.map((path) => path.split("/").pop() ?? "");
+      for (const name of staleRuntimeFiles(names)) {
+        await adapter.remove(`${this.pluginDir.replace(/\/+$/, "")}/${name}`);
+      }
+    } catch (error) {
+      this.logger.warn("print: an earlier runtime could not be removed", error);
+    }
   }
 
   /** Let go of the worker and the module; the next print starts them again. */
@@ -191,6 +209,7 @@ export class TypstCompiler {
     this.stopWorker();
     this.worker = this.startWorker();
     await this.request("init", { module: this.module, loader: this.loader }, DOWNLOAD_TIMEOUT_MS);
+    await this.removeStale();
   }
 
   /**
@@ -265,16 +284,25 @@ export class TypstCompiler {
     };
 
     worker.onerror = (event: ErrorEvent) => {
-      const error = new Error(event.message || "the compiler thread stopped");
-      for (const pending of this.pending.values()) {
-        window.clearTimeout(pending.timer);
-        pending.reject(error);
-      }
-      this.pending.clear();
-      this.dispose();
+      this.fail(new Error(event.message || "the compiler thread stopped"));
+    };
+    // A reply that cannot be read carries no id to answer, so whatever was
+    // waiting would otherwise wait out its whole deadline for nothing.
+    worker.onmessageerror = () => {
+      this.fail(new Error("the compiler answered in a form that could not be read"));
     };
 
     return worker;
+  }
+
+  /** Everything waiting is told why, and the thread is let go. */
+  private fail(error: Error): void {
+    for (const pending of this.pending.values()) {
+      window.clearTimeout(pending.timer);
+      pending.reject(error);
+    }
+    this.pending.clear();
+    this.dispose();
   }
 
   private request(kind: string, payload: unknown, timeoutMs: number): Promise<WorkerReply> {
@@ -301,11 +329,6 @@ async function sha256(bytes: Uint8Array): Promise<string> {
   return toHex(await crypto.subtle.digest("SHA-256", toArrayBuffer(bytes)));
 }
 
-/** A view's own bytes, which is what both `subtle` and the adapter want. */
-function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
-  return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
-}
-
 function megabytesOf(asset: RuntimeAsset): number {
-  return asset.label === "compiler" ? 28 : 1;
+  return asset.label === "compiler" ? RUNTIME_MEGABYTES : 1;
 }

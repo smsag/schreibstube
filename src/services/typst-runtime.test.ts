@@ -9,6 +9,7 @@ import {
   RUNTIME_VERSION,
   runtimeAssetUrl,
   runtimeCachePath,
+  staleRuntimeFiles,
   toHex,
   WASM_ASSET
 } from "./typst-runtime";
@@ -103,5 +104,23 @@ describe("describeDiagnostics", () => {
 
   it("says nothing for nothing", () => {
     expect(describeDiagnostics([])).toBe("");
+  });
+});
+
+describe("staleRuntimeFiles", () => {
+  it("offers the runtimes of earlier versions and keeps the current one", () => {
+    const current = RUNTIME_ASSETS.map((asset) => asset.name);
+    const names = [
+      ...current,
+      "typst-runtime-0.6.0.wasm",
+      "typst-runtime-0.6.0.mjs",
+      "main.js",
+      "data.json",
+      "typst-runtime-notes.md"
+    ];
+    expect(staleRuntimeFiles(names)).toEqual([
+      "typst-runtime-0.6.0.wasm",
+      "typst-runtime-0.6.0.mjs"
+    ]);
   });
 });

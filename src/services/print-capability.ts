@@ -4,10 +4,10 @@
  * Printing needs three things the platform either has or does not: a
  * WebAssembly engine to run the typesetter, a worker to run it away from the
  * interface, and a digest to check the bytes with. Every platform Obsidian
- * supports has all three — desktop and mobile are the same Chromium — so this
- * is not a platform test and must never become one. It is the question asked
- * instead of a platform test, because a browser engine is a moving target and
- * "which phone is this" is the wrong thing to know.
+ * supports has all three — Chromium on the desktop and on Android, WebKit on
+ * iOS — so this is not a platform test and must never become one. It is the
+ * question asked instead of a platform test, because a browser engine is a
+ * moving target and "which phone is this" is the wrong thing to know.
  *
  * A missing one is said plainly and printing stops. There is no second path:
  * the typesetter runs on the device or the document is not made, and pretending

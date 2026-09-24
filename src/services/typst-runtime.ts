@@ -86,6 +86,21 @@ export function runtimeCachePath(pluginDir: string, asset: RuntimeAsset): string
   return `${pluginDir.replace(/\/+$/, "")}/${asset.name}`;
 }
 
+/**
+ * Runtime files beside the plugin that no longer belong to it.
+ *
+ * Bumping the pinned version leaves the previous 28 MB where it was: nothing
+ * reads it again, and nobody can see it from inside the app. Only files named
+ * the way this module names them are ever offered, so a person's own file in
+ * the plugin folder is never at risk.
+ */
+export function staleRuntimeFiles(names: readonly string[]): string[] {
+  const current = new Set(RUNTIME_ASSETS.map((asset) => asset.name));
+  return names.filter(
+    (name) => /^typst-runtime-[\w.-]+\.(wasm|mjs)$/.test(name) && !current.has(name)
+  );
+}
+
 /** A digest as the hashes above are written. */
 export function toHex(digest: ArrayBuffer): string {
   return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
