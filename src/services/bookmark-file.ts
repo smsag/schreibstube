@@ -222,6 +222,69 @@ export function classifyBookmarkUrl(url: string): BookmarkKind | null {
   return match?.kind ?? null;
 }
 
+/**
+ * The actions Obsidian answers itself. Any other `obsidian://` action was
+ * registered by a plugin, which is what lets its row wear that plugin's icon.
+ */
+const BUILT_IN_ACTIONS: ReadonlySet<string> = new Set([
+  "open",
+  "new",
+  "search",
+  "daily",
+  "unique",
+  "choose-vault",
+  "hook-get-address",
+  "vault"
+]);
+
+/** A command as the icon lookup needs it: its id, and whatever it named as icon. */
+export interface CommandIcon {
+  id: string;
+  icon?: unknown;
+}
+
+/**
+ * The plugin action an `obsidian://` bookmark calls: `pythia` for
+ * `obsidian://pythia?vault=…`. Null for anything else, and for an action
+ * Obsidian answers itself.
+ */
+export function obsidianUriAction(url: string): string | null {
+  if (classifyBookmarkUrl(url) !== "obsidian") return null;
+
+  const action = (url.slice("obsidian://".length).split(/[?#/]/)[0] ?? "").toLowerCase();
+  return action.length > 0 && !BUILT_IN_ACTIONS.has(action) ? action : null;
+}
+
+/**
+ * The icon a plugin draws itself with, read off its commands.
+ *
+ * Obsidian keeps no icon per plugin, but a plugin that has one puts it on its
+ * commands, and most often on most of them: the icon named most is the one
+ * that stands for the plugin, and a command's own "star" or "refresh" loses to
+ * it. A tie goes to the command registered first. Null when the plugin has no
+ * command with an icon — or is not there — and the row keeps the generic one.
+ */
+export function pluginIcon(commands: readonly CommandIcon[], pluginId: string): string | null {
+  const prefix = `${pluginId}:`;
+  const counts = new Map<string, number>();
+
+  for (const command of commands) {
+    if (!command.id.startsWith(prefix)) continue;
+    if (typeof command.icon !== "string" || command.icon.trim().length === 0) continue;
+    counts.set(command.icon, (counts.get(command.icon) ?? 0) + 1);
+  }
+
+  let best: string | null = null;
+  let bestCount = 0;
+  for (const [icon, count] of counts) {
+    if (count > bestCount) {
+      best = icon;
+      bestCount = count;
+    }
+  }
+  return best;
+}
+
 /** Whether the tree holds anything at all, which decides the empty state. */
 export function isBookmarkTreeEmpty(tree: BookmarkTree): boolean {
   return tree.loose.length === 0 && tree.folders.length === 0;

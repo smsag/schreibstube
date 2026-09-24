@@ -486,15 +486,15 @@ They are read from a Markdown file in the vault, `bookmarks.md` unless a setting
 | `- [[Note]]`    | A bookmark to a note, with an optional `\|label` |
 | Anything else   | Ignored                                          |
 
-| Scheme                | Opens                                              |
-| --------------------- | -------------------------------------------------- |
-| `https://`, `http://` | The page in the default browser                    |
-| `obsidian://`         | The Obsidian URI                                   |
-| `vault://path`        | Reveals that folder in this pane, ancestors opened |
-| `note://linkpath`     | The note                                           |
-| No scheme             | The note, as in `[Name](Folder/My%20Note.md)`      |
+| Scheme                | Opens                                                  |
+| --------------------- | ------------------------------------------------------ |
+| `https://`, `http://` | The page in the default browser                        |
+| `obsidian://`         | The Obsidian URI, with the icon of the plugin it calls |
+| `vault://path`        | Reveals that folder in this pane, ancestors opened     |
+| `note://linkpath`     | The note                                               |
+| No scheme             | The note, as in `[Name](Folder/My%20Note.md)`          |
 
-A link without a scheme is what Obsidian writes for a note when wikilinks are turned off, and it is read relative to the bookmarks file, as Obsidian reads it. Any other scheme is dropped while the file is read, so a `javascript:` line pasted into a synced file never becomes a row that can be tapped.
+An `obsidian://` link that calls a plugin, such as `obsidian://pythia?…`, wears that plugin's icon, the one its commands carry; a link Obsidian answers itself, like `obsidian://open`, keeps the generic one. A link without a scheme is what Obsidian writes for a note when wikilinks are turned off, and it is read relative to the bookmarks file, as Obsidian reads it. Any other scheme is dropped while the file is read, so a `javascript:` line pasted into a synced file never becomes a row that can be tapped.
 
 Right-click a folder anywhere in Obsidian and choose **Copy path for Schreibstube** to get its `vault://` URL, ready to paste into the file. **Open bookmark** searches the list by name, folder or URL from the command palette, in the order the file has them.
 

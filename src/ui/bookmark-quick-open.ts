@@ -8,8 +8,8 @@
 import { SuggestModal, type App } from "obsidian";
 import { t } from "../i18n";
 import type { PaneSectionsController } from "../controllers/pane-sections";
-import { bookmarkIcon, type BookmarkEntry } from "../services/bookmark-file";
-import { applyIcon, installIconFont } from "./icon-font";
+import { bookmarkIcon, type Bookmark, type BookmarkEntry } from "../services/bookmark-file";
+import { applyIcon, applyPluginIcon, installIconFont } from "./icon-font";
 
 export class BookmarkQuickOpenModal extends SuggestModal<BookmarkEntry> {
   constructor(
@@ -29,9 +29,10 @@ export class BookmarkQuickOpenModal extends SuggestModal<BookmarkEntry> {
   renderSuggestion(entry: BookmarkEntry, el: HTMLElement): void {
     el.addClass("schreibstube-bookmark-suggestion");
 
-    applyIcon(
+    drawBookmarkIcon(
       el.createSpan({ cls: "schreibstube-explorer-glyph" }),
-      bookmarkIcon(entry.bookmark.kind)
+      entry.bookmark,
+      this.sections.pluginIconFor(entry.bookmark)
     );
 
     const text = el.createDiv({ cls: "schreibstube-bookmark-suggestion-text" });
@@ -57,4 +58,15 @@ function matches(entry: BookmarkEntry, needle: string): boolean {
     entry.folderPath.toLowerCase().includes(needle) ||
     entry.bookmark.url.toLowerCase().includes(needle)
   );
+}
+
+/**
+ * A bookmark's icon: the plugin's own for an `obsidian://` link that calls
+ * one, the icon of its kind otherwise. Shared with the pane, so a bookmark
+ * looks the same in both places.
+ */
+export function drawBookmarkIcon(el: HTMLElement, bookmark: Bookmark, plugin: string | null): void {
+  const fallback = bookmarkIcon(bookmark.kind);
+  if (plugin === null) applyIcon(el, fallback);
+  else applyPluginIcon(el, plugin, fallback);
 }

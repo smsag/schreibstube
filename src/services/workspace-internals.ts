@@ -315,6 +315,34 @@ function positive(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : null;
 }
 
+interface CommandsInternals {
+  commands?: { commands?: Record<string, unknown> };
+}
+
+/**
+ * Every command registered right now, with the icon it named.
+ *
+ * `app.commands` is undocumented. What comes back is only an id and an icon
+ * name, each checked here, and an empty list whenever the shape is not the
+ * one expected.
+ */
+export function registeredCommands(app: App): { id: string; icon?: unknown }[] {
+  try {
+    const registry = (app as unknown as CommandsInternals).commands?.commands;
+    if (!registry || typeof registry !== "object") return [];
+
+    const commands: { id: string; icon?: unknown }[] = [];
+    for (const command of Object.values(registry)) {
+      if (!command || typeof command !== "object") continue;
+      const { id, icon } = command as { id?: unknown; icon?: unknown };
+      if (typeof id === "string") commands.push({ id, icon });
+    }
+    return commands;
+  } catch {
+    return [];
+  }
+}
+
 interface PluginsInternals {
   plugins?: { plugins?: Record<string, { api?: unknown } | undefined> };
 }

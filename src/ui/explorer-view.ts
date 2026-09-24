@@ -41,7 +41,6 @@ import { matchesText, type SearchHit } from "../services/file-search";
 import { FileSearchIndex } from "../services/search-index";
 import { sortSiblings, type ExplorerNode } from "../services/explorer-state";
 import {
-  bookmarkIcon,
   bookmarkLinkPath,
   isBookmarkTreeEmpty,
   type Bookmark,
@@ -91,6 +90,7 @@ import {
   type SectionId,
   type SectionOptions
 } from "./explorer-section";
+import { drawBookmarkIcon } from "./bookmark-quick-open";
 import { applyIcon, installIconFont } from "./icon-font";
 import { drawTaskCount } from "./task-count-label";
 import { SCHREIBSTUBE_ICON } from "./schreibstube-icon";
@@ -994,7 +994,11 @@ export class ExplorerPaneView extends ItemView {
     row.setAttribute("title", bookmark.url);
 
     row.createSpan({ cls: "schreibstube-explorer-twisty" });
-    applyIcon(row.createSpan({ cls: "schreibstube-explorer-glyph" }), bookmarkIcon(bookmark.kind));
+    drawBookmarkIcon(
+      row.createSpan({ cls: "schreibstube-explorer-glyph" }),
+      bookmark,
+      this.host?.sections.pluginIconFor(bookmark) ?? null
+    );
     row.createSpan({ cls: "schreibstube-explorer-name", text: bookmark.name });
 
     row.addEventListener("click", () => {

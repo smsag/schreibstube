@@ -7,7 +7,9 @@ import {
   emptyBookmarkTree,
   flattenBookmarks,
   isBookmarkTreeEmpty,
+  obsidianUriAction,
   parseBookmarkFile,
+  pluginIcon,
   vaultUrlFor
 } from "./bookmark-file";
 
@@ -222,5 +224,67 @@ describe("urls", () => {
     expect(bookmarkIcon("folder")).toBe("folder");
     expect(bookmarkIcon("note")).toBe("file-text");
     expect(bookmarkIcon("obsidian")).toBe("external-link");
+  });
+});
+
+describe("obsidianUriAction", () => {
+  it("names the plugin action a URI calls", () => {
+    expect(obsidianUriAction("obsidian://pythia?vault=Vault%202.0&cmd=resume&id=71b21d6b")).toBe(
+      "pythia"
+    );
+    expect(obsidianUriAction("obsidian://Advanced-URI/?vault=x")).toBe("advanced-uri");
+  });
+
+  it("leaves the actions Obsidian answers itself alone", () => {
+    expect(obsidianUriAction("obsidian://open?vault=Vault&file=Note")).toBeNull();
+    expect(obsidianUriAction("obsidian://search?vault=Vault&query=x")).toBeNull();
+    expect(obsidianUriAction("obsidian://vault/Vault/Note")).toBeNull();
+  });
+
+  it("says nothing about a URI without an action, or a link of another kind", () => {
+    expect(obsidianUriAction("obsidian://?vault=x")).toBeNull();
+    expect(obsidianUriAction("https://pythia.example")).toBeNull();
+    expect(obsidianUriAction("note://pythia")).toBeNull();
+  });
+});
+
+describe("pluginIcon", () => {
+  const COMMANDS = [
+    { id: "pythia:open", icon: "pythia-logo" },
+    { id: "pythia:favorite", icon: "star" },
+    { id: "pythia:new", icon: "pythia-logo" },
+    { id: "pythia:regenerate", icon: "refresh-cw" },
+    { id: "other:open", icon: "star" },
+    { id: "other:new", icon: "star" }
+  ];
+
+  it("takes the icon the plugin's commands name most", () => {
+    expect(pluginIcon(COMMANDS, "pythia")).toBe("pythia-logo");
+  });
+
+  it("gives a tie to the command registered first", () => {
+    expect(
+      pluginIcon(
+        [
+          { id: "p:a", icon: "first" },
+          { id: "p:b", icon: "second" }
+        ],
+        "p"
+      )
+    ).toBe("first");
+  });
+
+  it("does not take another plugin's commands, even with a shared prefix", () => {
+    expect(pluginIcon([{ id: "pythia-extra:open", icon: "star" }], "pythia")).toBeNull();
+  });
+
+  it("ignores a missing, empty or malformed icon", () => {
+    expect(
+      pluginIcon([{ id: "p:a" }, { id: "p:b", icon: "  " }, { id: "p:c", icon: 42 }], "p")
+    ).toBeNull();
+  });
+
+  it("is null for a plugin that is not there", () => {
+    expect(pluginIcon(COMMANDS, "absent")).toBeNull();
   });
 });

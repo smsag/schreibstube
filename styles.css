@@ -1438,6 +1438,22 @@ a.external-link.schreibstube-reminder-mark {
   color: var(--icon-color, var(--text-muted));
 }
 
+/* A plugin's own icon, drawn by Obsidian as an SVG: sized to the glyph box and
+   coloured like the glyphs beside it, so a bookmark calling Pythia wears
+   Pythia's logo without standing out of the row. */
+.schreibstube-explorer-glyph.is-plugin-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--schreibstube-glyph-size);
+  height: var(--schreibstube-glyph-size);
+}
+
+.schreibstube-explorer-glyph.is-plugin-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
 .schreibstube-explorer-row.is-folder .schreibstube-explorer-glyph {
   color: var(--text-accent);
 }

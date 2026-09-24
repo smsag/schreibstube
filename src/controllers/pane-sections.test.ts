@@ -237,3 +237,47 @@ describe("what earlier versions left on a device", () => {
     }
   });
 });
+
+describe("the icon of a plugin a bookmark calls", () => {
+  const PYTHIA = {
+    id: "p",
+    name: "Resume",
+    url: "obsidian://pythia?vault=Vault%202.0&cmd=resume&id=71b2",
+    kind: "obsidian" as const
+  };
+
+  function withCommands(commands: Record<string, unknown>) {
+    const { pane } = controllerFor({});
+    (pane as unknown as { app: { commands: unknown } }).app.commands = { commands };
+    return pane;
+  }
+
+  it("reads the icon off the plugin's commands", () => {
+    const pane = withCommands({
+      "pythia:open": { id: "pythia:open", icon: "pythia-logo" },
+      "pythia:star": { id: "pythia:star", icon: "star" },
+      "pythia:new": { id: "pythia:new", icon: "pythia-logo" }
+    });
+
+    expect(pane.pluginIconFor(PYTHIA)).toBe("pythia-logo");
+  });
+
+  it("has none for a link Obsidian answers itself, or one of another kind", () => {
+    const pane = withCommands({ "open:x": { id: "open:x", icon: "star" } });
+
+    expect(
+      pane.pluginIconFor({ ...PYTHIA, url: "obsidian://open?vault=Vault&file=Note" })
+    ).toBeNull();
+    expect(pane.pluginIconFor({ ...PYTHIA, url: "https://example.com", kind: "web" })).toBeNull();
+  });
+
+  it("finds the icon of a plugin that loaded after the first look", () => {
+    const pane = withCommands({});
+    expect(pane.pluginIconFor(PYTHIA)).toBeNull();
+
+    (pane as unknown as { app: { commands: unknown } }).app.commands = {
+      commands: { "pythia:open": { id: "pythia:open", icon: "pythia-logo" } }
+    };
+    expect(pane.pluginIconFor(PYTHIA)).toBe("pythia-logo");
+  });
+});

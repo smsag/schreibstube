@@ -22,12 +22,15 @@ import {
   bookmarkLinkPath,
   emptyBookmarkTree,
   flattenBookmarks,
+  obsidianUriAction,
   parseBookmarkFile,
+  pluginIcon,
   type Bookmark,
   type BookmarkEntry,
   type BookmarkTree
 } from "../services/bookmark-file";
 import { hasWaitingUpdate, type SyncRecord } from "../services/sync-document";
+import { registeredCommands } from "../services/workspace-internals";
 import {
   hasUnseenSync,
   newestSync,
@@ -71,6 +74,9 @@ export class PaneSectionsController {
   private latestKey = "";
   /** Null until this device has said what it has seen, which is not zero. */
   private seenAt: number | null = null;
+  /** Found icons only: a plugin loading after this one has none yet, and a
+   *  miss remembered would keep its row generic for the whole session. */
+  private readonly pluginIcons = new Map<string, string>();
 
   private readonly listeners = new Set<() => void>();
 
@@ -193,6 +199,23 @@ export class PaneSectionsController {
         void this.openNote(bookmark);
         return;
     }
+  }
+
+  /**
+   * The icon of the plugin an `obsidian://` bookmark calls, when it has one:
+   * `obsidian://pythia?…` wears Pythia's own logo rather than a generic arrow.
+   * Null for every other bookmark, and the row keeps the icon of its kind.
+   */
+  pluginIconFor(bookmark: Bookmark): string | null {
+    const action = obsidianUriAction(bookmark.url);
+    if (action === null) return null;
+
+    const known = this.pluginIcons.get(action);
+    if (known !== undefined) return known;
+
+    const icon = pluginIcon(registeredCommands(this.app), action);
+    if (icon !== null) this.pluginIcons.set(action, icon);
+    return icon;
   }
 
   private revealFolder(bookmark: Bookmark): void {
