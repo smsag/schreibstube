@@ -378,6 +378,24 @@ describe("a renamed and an unpublished note", () => {
     await publish(bothNotes(), sources());
     expect(await readFile(stranger, "utf8")).toBe("nicht von uns");
   });
+
+  it("takes the last pages down when no note is published any more", async () => {
+    const empty = index({ notes: [] });
+    const plan = await post("/publish/plan", { target: "blog", index: empty });
+    expect(plan.json.willDelete).toEqual(
+      expect.arrayContaining(["erste/index.html", "zweite/index.html"])
+    );
+
+    const result = await publish(empty, sources());
+    expect(result.status).toBe(200);
+    await expect(readFile(siteFile("zweite", "index.html"))).rejects.toThrow();
+    // The site itself stays: an empty index page, and nobody else's files.
+    expect(await readFile(siteFile("index.html"), "utf8")).not.toContain("Zweite");
+    expect(await readFile(siteFile("fremd.html"), "utf8")).toBe("nicht von uns");
+
+    // Put the site back for what follows.
+    expect((await publish(bothNotes(), sources())).status).toBe(200);
+  });
 });
 
 describe("re-rendering from stored state", () => {

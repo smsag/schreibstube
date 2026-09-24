@@ -183,6 +183,23 @@ export function describePublishError(status: number, body: string): string {
   return describeError(status, body, "the web host");
 }
 
+/**
+ * Whether a plan asks for nothing at all.
+ *
+ * A folder with no marked note still goes to the bridge, because the notes it
+ * published before have to come down: stopping at "nothing is marked" left the
+ * last unpublished page online for good. Only when there is also nothing to
+ * delete is there nothing to confirm.
+ */
+export function isEmptyPlan(plan: PublishPlan): boolean {
+  return (
+    plan.notes === 0 &&
+    plan.willDelete.length === 0 &&
+    plan.uploadSources.length === 0 &&
+    plan.uploadAssets.length === 0
+  );
+}
+
 /** What the plan means, in one line, for the confirmation dialog. */
 export function summarisePlan(plan: PublishPlan): string {
   const parts = [`${plan.notes} Notiz(en)`];

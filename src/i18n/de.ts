@@ -176,7 +176,10 @@ export const de: Messages = {
     failed: (reason: string) => `Veröffentlichung fehlgeschlagen — ${reason}`,
     busy: "eine Veröffentlichung läuft bereits.",
     noAccount: "kein Veröffentlichungs-Konto eingerichtet — siehe Einstellungen.",
-    noNotes: (folder: string) => `keine Notiz in ${folder} ist zur Veröffentlichung markiert.`,
+    noNotes: (folder: string) =>
+      `keine Notiz in ${folder} ist zur Veröffentlichung markiert, und nichts Veröffentlichtes ist mehr zu entfernen.`,
+    emptyFolder: (folder: string) =>
+      `${folder} enthält keine Notizen — bitte den Ordner des Kontos prüfen. Nichts wurde veröffentlicht oder entfernt.`,
     missingSource: (path: string) => `die Quelle zu ${path} fehlt — bitte erneut versuchen.`,
     writeBackFailed: (path: string) =>
       `veröffentlicht, aber ${path} konnte nicht aktualisiert werden.`,

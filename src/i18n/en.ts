@@ -187,7 +187,10 @@ export const en = {
     failed: (reason: string) => `publication failed — ${reason}`,
     busy: "a publication is already running.",
     noAccount: "no publishing account configured — see Settings.",
-    noNotes: (folder: string) => `no note in ${folder} is marked for publication.`,
+    noNotes: (folder: string) =>
+      `no note in ${folder} is marked for publication, and nothing published is left to take down.`,
+    emptyFolder: (folder: string) =>
+      `${folder} holds no notes — check the account's folder. Nothing was published or taken down.`,
     missingSource: (path: string) => `the source for ${path} is missing — please try again.`,
     writeBackFailed: (path: string) => `published, but ${path} could not be updated.`,
     unknownTarget: (target: string) => `the bridge has no target named ${target}.`,

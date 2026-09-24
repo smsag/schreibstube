@@ -105,15 +105,19 @@ function plannedIndex() {
 beforeEach(() => {
   Notice.shown = [];
   client.plan.mockReset();
-  client.plan.mockResolvedValue({
-    target: "blog",
-    baseUrl: "https://blog.example.com",
-    uploadSources: [],
-    uploadAssets: [],
-    willDelete: [],
-    unchangedSources: 0,
-    notes: 0
-  });
+  // A bridge that has everything already: the plan counts the notes it was
+  // given, as the real one does, and asks for no upload.
+  client.plan.mockImplementation(
+    async (_bridge: unknown, _target: unknown, index: { notes: unknown[] }) => ({
+      target: "blog",
+      baseUrl: "https://blog.example.com",
+      uploadSources: [],
+      uploadAssets: [],
+      willDelete: [],
+      unchangedSources: index.notes.length,
+      notes: index.notes.length
+    })
+  );
   client.commit.mockReset();
   client.commit.mockResolvedValue({
     target: "blog",
@@ -159,14 +163,49 @@ describe("which notes are published", () => {
     expect(plannedIndex().notes).toHaveLength(1);
   });
 
-  it("takes a note down when its flag is set to false", async () => {
+  it("takes the last page down when its flag is set to false", async () => {
     const vault = fakeVault({
       notes: [{ path: "Blog/Erste.md", content: "# Erste", frontmatter: { published: false } }]
     });
+    client.plan.mockImplementationOnce(async () => ({
+      target: "blog",
+      baseUrl: "https://blog.example.com",
+      uploadSources: [],
+      uploadAssets: [],
+      willDelete: ["erste/index.html"],
+      unchangedSources: 0,
+      notes: 0
+    }));
 
-    await controller(vault).commands.preview();
+    await controller(vault).commands.publish();
+    // Stopping at "nothing is marked" used to leave this page online for good.
+    expect(plannedIndex().notes).toEqual([]);
+    expect(client.commit).toHaveBeenCalled();
+    expect(client.commit.mock.calls.at(-1)?.[2].notes).toEqual([]);
+  });
+
+  it("stops without a commit when nothing is marked and nothing is left online", async () => {
+    const vault = fakeVault({
+      notes: [{ path: "Blog/Entwurf.md", content: "# Entwurf" }]
+    });
+
+    await controller(vault).commands.publish();
+    expect(client.plan).toHaveBeenCalled();
+    expect(client.commit).not.toHaveBeenCalled();
+    expect(Notice.shown.join(" ")).toMatch(/no note in Blog is marked/);
+  });
+
+  it("never asks the bridge when the folder holds no notes at all", async () => {
+    // A mistyped folder, or a phone that has not synced yet, would otherwise
+    // send an empty index and take the whole site down.
+    const vault = fakeVault({
+      notes: [{ path: "Anderswo/Erste.md", content: "# Erste", frontmatter: published }]
+    });
+
+    await controller(vault).commands.publish();
     expect(client.plan).not.toHaveBeenCalled();
-    expect(Notice.shown.join(" ")).toMatch(/no note in Blog/);
+    expect(client.commit).not.toHaveBeenCalled();
+    expect(Notice.shown.join(" ")).toMatch(/Blog holds no notes/);
   });
 
   it("ignores a marked note outside the folder", async () => {

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   COMMIT_REQUEST_TIMEOUT_MS,
   describePublishError,
+  isEmptyPlan,
   parsePlan,
   parseSummary,
   parseTargets,
@@ -130,5 +131,22 @@ describe("describePublishError", () => {
 describe("COMMIT_REQUEST_TIMEOUT_MS", () => {
   it("outlasts the 300 s the bridge allows a commit, so success is never reported as failure", () => {
     expect(COMMIT_REQUEST_TIMEOUT_MS).toBeGreaterThan(300_000);
+  });
+});
+
+describe("isEmptyPlan", () => {
+  const plan = (overrides = {}) =>
+    parsePlan({ notes: 0, willDelete: [], uploadSources: [], uploadAssets: [], ...overrides });
+
+  it("is empty when nothing is published, uploaded or deleted", () => {
+    expect(isEmptyPlan(plan())).toBe(true);
+  });
+
+  it("is not empty while a page is left to take down", () => {
+    expect(isEmptyPlan(plan({ willDelete: ["erste/index.html"] }))).toBe(false);
+  });
+
+  it("is not empty with a note to publish, even an unchanged one", () => {
+    expect(isEmptyPlan(plan({ notes: 1 }))).toBe(false);
   });
 });
