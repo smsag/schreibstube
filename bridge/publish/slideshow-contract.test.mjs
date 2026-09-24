@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { assetCandidates, key } from "./render/obsidian.mjs";
 import { imagesForLayout, parseSlideshow, stripColumns } from "./render/slideshow.mjs";
 
 /**
@@ -23,6 +24,13 @@ describe("the shared slideshow contract, on the bridge", () => {
       expect(result.layout).toBe(wanted.layout);
       expect(result.images).toEqual(wanted.images);
       expect(imagesForLayout(result.layout, result.images)).toHaveLength(wanted.shown);
+      // Each path finds the file the plugin uploaded for it, the way the
+      // renderer looks it up: angle brackets off, then the usual candidates.
+      result.images.forEach((image, index) => {
+        const src = /^<(.+)>$/.exec(image.src)?.[1] ?? image.src;
+        const keys = assetCandidates(src).map(key);
+        expect(keys).toContain(key(wanted.files[index]));
+      });
     });
   }
 

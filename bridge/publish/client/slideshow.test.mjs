@@ -2,12 +2,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderSlideshow } from "../render/slideshow.mjs";
 import {
+  arrowStep,
   clampCompareSplit,
   compareSplitAt,
   compareSplitForKey,
   enhance,
   enhanceAll,
   featureDetails,
+  hasArrived,
+  SETTLE_MS,
   slideAt,
   slideshowCounter,
   stepIndex,
@@ -49,6 +52,20 @@ describe("the decisions", () => {
     expect(compareSplitForKey(40, "Home")).toBe(0);
     expect(compareSplitForKey(40, "End")).toBe(100);
     expect(compareSplitForKey(40, "a")).toBeNull();
+  });
+
+  it("knows when a stage has arrived", () => {
+    expect(hasArrived(1800, 600, 3)).toBe(true);
+    expect(hasArrived(1799.6, 600, 3)).toBe(true);
+    expect(hasArrived(1500, 600, 3)).toBe(false);
+  });
+
+  it("reads the arrows, and leaves an arrow with a modifier to the browser", () => {
+    expect(arrowStep({ key: "ArrowLeft" })).toBe(-1);
+    expect(arrowStep({ key: "ArrowRight" })).toBe(1);
+    expect(arrowStep({ key: "ArrowLeft", altKey: true })).toBe(0);
+    expect(arrowStep({ key: "ArrowRight", metaKey: true })).toBe(0);
+    expect(arrowStep({ key: "Enter" })).toBe(0);
   });
 
   it("counts from one", () => {
@@ -119,6 +136,19 @@ describe("the stage", () => {
     expect(figure.querySelector(".slideshow-caption").textContent).toBe("Eins");
   });
 
+  it("keeps the arrows working after a control has been pressed", () => {
+    const figure = mount(four);
+    const next = controls(figure)[2];
+    next.focus();
+    next.click();
+    next.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));
+    expect(figure.querySelector(".slideshow-caption").textContent).toBe("Drei");
+    next.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "ArrowLeft", altKey: true, bubbles: true })
+    );
+    expect(figure.querySelector(".slideshow-caption").textContent).toBe("Drei");
+  });
+
   it("gives a filmstrip a thumbnail per picture, marking the one on stage", () => {
     const figure = mount(`layout: filmstrip\n${four}`);
     const thumbs = [...figure.querySelectorAll(".slideshow-thumb")];
@@ -139,6 +169,87 @@ describe("the stage", () => {
     enhance(figure);
     enhanceAll(document);
     expect(figure.querySelectorAll(".slideshow-header")).toHaveLength(1);
+  });
+});
+
+describe("a stage in motion", () => {
+  /** A track 600 pixels wide whose scroll position the test moves by hand. */
+  function measured(figure) {
+    const track = figure.querySelector(".slideshow-items");
+    let left = 0;
+    Object.defineProperty(track, "clientWidth", { value: 600, configurable: true });
+    Object.defineProperty(track, "scrollLeft", {
+      get: () => left,
+      set: (value) => {
+        left = value;
+      },
+      configurable: true
+    });
+    return {
+      scrollTo(x) {
+        left = x;
+        track.dispatchEvent(new Event("scroll"));
+      },
+      end() {
+        track.dispatchEvent(new Event("scrollend"));
+      }
+    };
+  }
+  const frame = () => new Promise((resolve) => requestAnimationFrame(() => resolve()));
+  const caption = (figure) => figure.querySelector(".slideshow-caption").textContent;
+
+  it("does not show the pictures a control scrolls past, and counts from where it is going", async () => {
+    const figure = mount(four);
+    const stage = measured(figure);
+    const [, prev, next] = controls(figure);
+
+    prev.click();
+    stage.scrollTo(300);
+    await frame();
+    expect(caption(figure)).toBe("Vier");
+
+    // Still on its way to the last picture: the next one is the first.
+    next.click();
+    expect(caption(figure)).toBe("Eins");
+    stage.scrollTo(0);
+    await frame();
+    expect(caption(figure)).toBe("Eins");
+  });
+
+  it("follows a finger again once it has arrived", async () => {
+    const figure = mount(four);
+    const stage = measured(figure);
+    controls(figure)[2].click();
+    stage.scrollTo(600);
+    await frame();
+    stage.scrollTo(1200);
+    await frame();
+    expect(caption(figure)).toBe("Drei");
+  });
+
+  it("settles where a finger took it when the scroll ends elsewhere", async () => {
+    const figure = mount(four);
+    const stage = measured(figure);
+    controls(figure)[1].click();
+    stage.scrollTo(1200);
+    await frame();
+    expect(caption(figure)).toBe("Vier");
+    stage.end();
+    expect(caption(figure)).toBe("Drei");
+  });
+
+  it("stops waiting after a while in a browser that never says the scroll ended", () => {
+    vi.useFakeTimers();
+    try {
+      const figure = mount(four);
+      measured(figure);
+      controls(figure)[1].click();
+      figure.querySelector(".slideshow-items").scrollLeft = 600;
+      vi.advanceTimersByTime(SETTLE_MS);
+      expect(caption(figure)).toBe("Zwei");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 
@@ -209,6 +320,13 @@ describe("tiles", () => {
 
     figure.querySelectorAll(".slideshow-tile")[0].click();
     expect(dialog().querySelector(".slideshow-fs-img").getAttribute("src")).toBe("c.png");
+  });
+
+  it("steps a feature with the arrows from one of its tiles", () => {
+    const figure = mount(`layout: feature\n${four}`);
+    const tile = figure.querySelectorAll(".slideshow-tile")[1];
+    tile.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));
+    expect(figure.querySelector(".slideshow-caption").textContent).toBe("Zwei");
   });
 });
 

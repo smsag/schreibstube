@@ -104,9 +104,12 @@
   contain: size;
 }
 
-/* With one detail, it takes the whole column. */
-.slideshow-feature .slideshow-item:nth-child(2):last-child {
-  grid-row: 1 / span 2;
+/* With one detail, it takes the whole column. Wide screens only: this rule
+   out-ranks the phone's, and there it put the detail above the scene. */
+@media (min-width: 601px) {
+  .slideshow-feature .slideshow-item:nth-child(2):last-child {
+    grid-row: 1 / span 2;
+  }
 }
 
 .slideshow-feature .slideshow-item,
@@ -514,6 +517,12 @@
     grid-row: auto;
     aspect-ratio: 4 / 3;
     contain: none;
+  }
+
+  /* A lone detail takes the row rather than half of it. */
+  .slideshow-feature .slideshow-item:nth-child(2):last-child {
+    grid-column: 1 / -1;
+    aspect-ratio: 3 / 2;
   }
 
   .slideshow-strip .slideshow-items {

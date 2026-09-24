@@ -1,5 +1,5 @@
 {
-  "comment": "The slideshow block is read by the plugin in the vault and again by the bridge for the site. Both suites run these cases, so the two readings cannot drift apart. 'images' is what the block names; 'shown' is how many of them its layout shows.",
+  "comment": "The slideshow block is read by the plugin in the vault and again by the bridge for the site, and the plugin also collects the files it uploads from it. Both suites run these cases, so the readings cannot drift apart. 'images' is what the block names; 'shown' is how many of them its layout shows; 'files' is the vault file each image must be found as, both when the plugin uploads it and when the bridge looks it up.",
   "cases": [
     {
       "name": "two images, the default layout",
@@ -17,7 +17,8 @@
             "alt": "Zwei"
           }
         ],
-        "shown": 2
+        "shown": 2,
+        "files": ["a.png", "b.png"]
       }
     },
     {
@@ -36,7 +37,8 @@
             "alt": ""
           }
         ],
-        "shown": 2
+        "shown": 2,
+        "files": ["a.png", "b.png"]
       }
     },
     {
@@ -55,7 +57,8 @@
             "alt": "b"
           }
         ],
-        "shown": 2
+        "shown": 2,
+        "files": ["a.png", "b.png"]
       }
     },
     {
@@ -74,7 +77,8 @@
             "alt": "b"
           }
         ],
-        "shown": 2
+        "shown": 2,
+        "files": ["a.png", "b.png"]
       }
     },
     {
@@ -93,7 +97,28 @@
             "alt": "b"
           }
         ],
-        "shown": 2
+        "shown": 2,
+        "files": ["my photo.png", "my photo.png"]
+      }
+    },
+    {
+      "name": "a bare space in a path is allowed, as in the vault",
+      "source": "![a](my photo.png)\n![b](Grundriss EG.png)",
+      "expect": {
+        "ok": true,
+        "layout": "slideshow",
+        "images": [
+          {
+            "src": "my photo.png",
+            "alt": "a"
+          },
+          {
+            "src": "Grundriss EG.png",
+            "alt": "b"
+          }
+        ],
+        "shown": 2,
+        "files": ["my photo.png", "Grundriss EG.png"]
       }
     },
     {
@@ -112,7 +137,8 @@
             "alt": "b"
           }
         ],
-        "shown": 2
+        "shown": 2,
+        "files": ["a.png", "b.png"]
       }
     },
     {
@@ -139,7 +165,8 @@
             "alt": ""
           }
         ],
-        "shown": 3
+        "shown": 3,
+        "files": ["1.png", "2.png", "3.png", "4.png"]
       }
     },
     {
@@ -162,7 +189,8 @@
             "alt": ""
           }
         ],
-        "shown": 2
+        "shown": 2,
+        "files": ["1.png", "2.png", "3.png"]
       }
     },
     {
@@ -193,7 +221,8 @@
             "alt": ""
           }
         ],
-        "shown": 5
+        "shown": 5,
+        "files": ["1.png", "2.png", "3.png", "4.png", "5.png"]
       }
     },
     {
@@ -646,7 +675,109 @@
             "alt": ""
           }
         ],
-        "shown": 100
+        "shown": 100,
+        "files": [
+          "b0.png",
+          "b1.png",
+          "b2.png",
+          "b3.png",
+          "b4.png",
+          "b5.png",
+          "b6.png",
+          "b7.png",
+          "b8.png",
+          "b9.png",
+          "b10.png",
+          "b11.png",
+          "b12.png",
+          "b13.png",
+          "b14.png",
+          "b15.png",
+          "b16.png",
+          "b17.png",
+          "b18.png",
+          "b19.png",
+          "b20.png",
+          "b21.png",
+          "b22.png",
+          "b23.png",
+          "b24.png",
+          "b25.png",
+          "b26.png",
+          "b27.png",
+          "b28.png",
+          "b29.png",
+          "b30.png",
+          "b31.png",
+          "b32.png",
+          "b33.png",
+          "b34.png",
+          "b35.png",
+          "b36.png",
+          "b37.png",
+          "b38.png",
+          "b39.png",
+          "b40.png",
+          "b41.png",
+          "b42.png",
+          "b43.png",
+          "b44.png",
+          "b45.png",
+          "b46.png",
+          "b47.png",
+          "b48.png",
+          "b49.png",
+          "b50.png",
+          "b51.png",
+          "b52.png",
+          "b53.png",
+          "b54.png",
+          "b55.png",
+          "b56.png",
+          "b57.png",
+          "b58.png",
+          "b59.png",
+          "b60.png",
+          "b61.png",
+          "b62.png",
+          "b63.png",
+          "b64.png",
+          "b65.png",
+          "b66.png",
+          "b67.png",
+          "b68.png",
+          "b69.png",
+          "b70.png",
+          "b71.png",
+          "b72.png",
+          "b73.png",
+          "b74.png",
+          "b75.png",
+          "b76.png",
+          "b77.png",
+          "b78.png",
+          "b79.png",
+          "b80.png",
+          "b81.png",
+          "b82.png",
+          "b83.png",
+          "b84.png",
+          "b85.png",
+          "b86.png",
+          "b87.png",
+          "b88.png",
+          "b89.png",
+          "b90.png",
+          "b91.png",
+          "b92.png",
+          "b93.png",
+          "b94.png",
+          "b95.png",
+          "b96.png",
+          "b97.png",
+          "b98.png",
+          "b99.png"
+        ]
       }
     },
     {

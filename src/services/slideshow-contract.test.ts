@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
+import { referencedAttachments } from "./publish-index";
 import { imagesForLayout, parseSlideshow, stripColumns } from "./slideshow";
 
 /**
@@ -11,7 +12,13 @@ interface Case {
   name: string;
   source: string;
   expect:
-    | { ok: true; layout: string; images: { src: string; alt: string }[]; shown: number }
+    | {
+        ok: true;
+        layout: string;
+        images: { src: string; alt: string }[];
+        shown: number;
+        files: string[];
+      }
     | { ok: false };
 }
 
@@ -29,6 +36,17 @@ describe("the shared slideshow contract, in the plugin", () => {
       expect(result.layout).toBe(wanted.layout);
       expect(result.images).toEqual(wanted.images);
       expect(imagesForLayout(result.layout, result.images)).toHaveLength(wanted.shown);
+    });
+  }
+
+  // The block is read a third time, to collect what the publish uploads. A
+  // picture the vault shows and the upload misses is missing on the site.
+  for (const { name, source, expect: wanted } of table.cases) {
+    if (!wanted.ok) continue;
+    it(`uploads what it shows: ${name}`, () => {
+      const note = "Text\n\n```schreibstube-slideshow\n" + source + "\n```\n";
+      const uploads = referencedAttachments(note);
+      for (const file of wanted.files) expect(uploads).toContain(file);
     });
   }
 

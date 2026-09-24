@@ -30,6 +30,10 @@ export const COMPARE_SPLIT_STEP = 5;
 /** How far a finger has to travel sideways in fullscreen to turn the page. */
 export const SWIPE_DISTANCE = 50;
 
+/** How long a stage sent to a picture waits to arrive before it stops
+ *  waiting, for a browser that does not say when a scroll has ended. */
+export const SETTLE_MS = 1000;
+
 /** The index reached from `active` by `step`, wrapping in either direction. */
 export function stepIndex(active, step, count) {
   if (count <= 0) return 0;
@@ -50,6 +54,23 @@ export function featureDetails(count, active) {
 export function slideAt(scrollLeft, width, count) {
   if (width <= 0 || count <= 0) return 0;
   return Math.min(count - 1, Math.max(0, Math.round(scrollLeft / width)));
+}
+
+/** Whether a stage sent to `target` has got there. */
+export function hasArrived(scrollLeft, width, target) {
+  return Math.abs(scrollLeft - target * width) < 1;
+}
+
+/**
+ * The step an arrow key asks for, or 0. A key held with a modifier is the
+ * browser's or the system's — Alt with an arrow goes back a page — and is
+ * left to them.
+ */
+export function arrowStep(event) {
+  if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return 0;
+  if (event.key === "ArrowLeft") return -1;
+  if (event.key === "ArrowRight") return 1;
+  return 0;
 }
 
 /** The divider's place, held inside the frame; not a number is the middle. */
@@ -135,6 +156,19 @@ function makeTile(item, label, onPress) {
   });
 }
 
+/**
+ * The arrow keys, anywhere in the block: on the block itself, and on a
+ * control inside it, so they keep working after a button has been pressed.
+ */
+function arrowKeys(figure, onStep) {
+  figure.addEventListener("keydown", (event) => {
+    const step = arrowStep(event);
+    if (step === 0 || event.defaultPrevented) return;
+    event.preventDefault();
+    onStep(step);
+  });
+}
+
 function prefersReducedMotion(win) {
   return Boolean(win.matchMedia?.("(prefers-reduced-motion: reduce)").matches);
 }
@@ -176,8 +210,8 @@ function fullscreen(doc, images) {
 
     dialog.append(counter, img, prev, next, close);
     dialog.addEventListener("keydown", (event) => {
-      if (event.key === "ArrowLeft") show(current - 1);
-      else if (event.key === "ArrowRight") show(current + 1);
+      const step = arrowStep(event);
+      if (step !== 0) show(current + step);
     });
     // A press on the dark ground around the picture closes; a press on the
     // picture or a control does not.
@@ -259,8 +293,26 @@ function stage(doc, win, figure, items, images, view) {
     }
   };
 
+  // While a control is scrolling the stage to a picture, the pictures it
+  // passes are not the one on stage: followed, they flickered through the
+  // caption, and a second press counted from whichever was passing. The
+  // stage follows its scroll again once it arrives, once the browser says the
+  // scroll has ended — a finger may have taken it elsewhere — or, failing
+  // both, after a second.
+  let heading = null;
+  let release = 0;
+  const settle = () => {
+    heading = null;
+    win.clearTimeout(release);
+    const index = slideAt(track.scrollLeft, track.clientWidth, items.length);
+    if (index !== current) mark(index);
+  };
+
   const goTo = (index) => {
     const target = stepIndex(index, 0, items.length);
+    heading = target;
+    win.clearTimeout(release);
+    release = win.setTimeout(settle, SETTLE_MS);
     track.scrollTo({
       left: target * track.clientWidth,
       behavior: prefersReducedMotion(win) ? "auto" : "smooth"
@@ -298,20 +350,23 @@ function stage(doc, win, figure, items, images, view) {
     pending = true;
     win.requestAnimationFrame(() => {
       pending = false;
+      if (heading !== null) {
+        if (hasArrived(track.scrollLeft, track.clientWidth, heading)) settle();
+        return;
+      }
       const index = slideAt(track.scrollLeft, track.clientWidth, items.length);
       if (index !== current) mark(index);
     });
+  });
+  track.addEventListener("scrollend", () => {
+    if (heading !== null) settle();
   });
 
   expand.addEventListener("click", () => view.open(current));
   prev.addEventListener("click", () => goTo(current - 1));
   next.addEventListener("click", () => goTo(current + 1));
   items.forEach((item) => item.addEventListener("dblclick", () => view.open(current)));
-  figure.addEventListener("keydown", (event) => {
-    if (event.target !== figure) return;
-    if (event.key === "ArrowLeft") goTo(current - 1);
-    else if (event.key === "ArrowRight") goTo(current + 1);
-  });
+  arrowKeys(figure, (step) => goTo(current + step));
 
   mark(0);
 }
@@ -356,11 +411,7 @@ function feature(doc, figure, items, images, view) {
   expand.addEventListener("click", () => view.open(active));
   prev.addEventListener("click", () => goTo(active - 1));
   next.addEventListener("click", () => goTo(active + 1));
-  figure.addEventListener("keydown", (event) => {
-    if (event.target !== figure) return;
-    if (event.key === "ArrowLeft") goTo(active - 1);
-    else if (event.key === "ArrowRight") goTo(active + 1);
-  });
+  arrowKeys(figure, (step) => goTo(active + step));
 
   draw();
 }
