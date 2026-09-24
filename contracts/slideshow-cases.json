@@ -1,0 +1,668 @@
+{
+  "comment": "The slideshow block is read by the plugin in the vault and again by the bridge for the site. Both suites run these cases, so the two readings cannot drift apart. 'images' is what the block names; 'shown' is how many of them its layout shows.",
+  "cases": [
+    {
+      "name": "two images, the default layout",
+      "source": "![Eins](a.png)\n![Zwei](b.png)",
+      "expect": {
+        "ok": true,
+        "layout": "slideshow",
+        "images": [
+          {
+            "src": "a.png",
+            "alt": "Eins"
+          },
+          {
+            "src": "b.png",
+            "alt": "Zwei"
+          }
+        ],
+        "shown": 2
+      }
+    },
+    {
+      "name": "blank lines and comments are ignored",
+      "source": "// Urlaub\n\n![](a.png)\n\n// zweites\n![](b.png)\n",
+      "expect": {
+        "ok": true,
+        "layout": "slideshow",
+        "images": [
+          {
+            "src": "a.png",
+            "alt": ""
+          },
+          {
+            "src": "b.png",
+            "alt": ""
+          }
+        ],
+        "shown": 2
+      }
+    },
+    {
+      "name": "a layout line anywhere, in any case",
+      "source": "![a](a.png)\nLayout:  Filmstrip\n![b](b.png)",
+      "expect": {
+        "ok": true,
+        "layout": "filmstrip",
+        "images": [
+          {
+            "src": "a.png",
+            "alt": "a"
+          },
+          {
+            "src": "b.png",
+            "alt": "b"
+          }
+        ],
+        "shown": 2
+      }
+    },
+    {
+      "name": "indented lines and CRLF",
+      "source": "  ![a](a.png)  \r\n\t![b](b.png)\r\n",
+      "expect": {
+        "ok": true,
+        "layout": "slideshow",
+        "images": [
+          {
+            "src": "a.png",
+            "alt": "a"
+          },
+          {
+            "src": "b.png",
+            "alt": "b"
+          }
+        ],
+        "shown": 2
+      }
+    },
+    {
+      "name": "a path in angle brackets or with %20 is kept as written",
+      "source": "![a](<my photo.png>)\n![b](my%20photo.png)",
+      "expect": {
+        "ok": true,
+        "layout": "slideshow",
+        "images": [
+          {
+            "src": "<my photo.png>",
+            "alt": "a"
+          },
+          {
+            "src": "my%20photo.png",
+            "alt": "b"
+          }
+        ],
+        "shown": 2
+      }
+    },
+    {
+      "name": "alt text is trimmed",
+      "source": "![  Das Haus  ](a.png)\n![b](b.png)",
+      "expect": {
+        "ok": true,
+        "layout": "slideshow",
+        "images": [
+          {
+            "src": "a.png",
+            "alt": "Das Haus"
+          },
+          {
+            "src": "b.png",
+            "alt": "b"
+          }
+        ],
+        "shown": 2
+      }
+    },
+    {
+      "name": "a feature shows its first three",
+      "source": "layout: feature\n![](1.png)\n![](2.png)\n![](3.png)\n![](4.png)",
+      "expect": {
+        "ok": true,
+        "layout": "feature",
+        "images": [
+          {
+            "src": "1.png",
+            "alt": ""
+          },
+          {
+            "src": "2.png",
+            "alt": ""
+          },
+          {
+            "src": "3.png",
+            "alt": ""
+          },
+          {
+            "src": "4.png",
+            "alt": ""
+          }
+        ],
+        "shown": 3
+      }
+    },
+    {
+      "name": "a comparison shows its first two",
+      "source": "layout: compare\n![Vorher](1.png)\n![Nachher](2.png)\n![](3.png)",
+      "expect": {
+        "ok": true,
+        "layout": "compare",
+        "images": [
+          {
+            "src": "1.png",
+            "alt": "Vorher"
+          },
+          {
+            "src": "2.png",
+            "alt": "Nachher"
+          },
+          {
+            "src": "3.png",
+            "alt": ""
+          }
+        ],
+        "shown": 2
+      }
+    },
+    {
+      "name": "strip and masonry show every image",
+      "source": "layout: masonry\n![](1.png)\n![](2.png)\n![](3.png)\n![](4.png)\n![](5.png)",
+      "expect": {
+        "ok": true,
+        "layout": "masonry",
+        "images": [
+          {
+            "src": "1.png",
+            "alt": ""
+          },
+          {
+            "src": "2.png",
+            "alt": ""
+          },
+          {
+            "src": "3.png",
+            "alt": ""
+          },
+          {
+            "src": "4.png",
+            "alt": ""
+          },
+          {
+            "src": "5.png",
+            "alt": ""
+          }
+        ],
+        "shown": 5
+      }
+    },
+    {
+      "name": "one image is not a slideshow",
+      "source": "![a](a.png)",
+      "expect": {
+        "ok": false
+      }
+    },
+    {
+      "name": "an empty block is not a slideshow",
+      "source": "\n// nur ein Kommentar\n",
+      "expect": {
+        "ok": false
+      }
+    },
+    {
+      "name": "a wikilink embed is refused, not dropped",
+      "source": "![a](a.png)\n![[b.png]]",
+      "expect": {
+        "ok": false
+      }
+    },
+    {
+      "name": "a stray word is refused",
+      "source": "![a](a.png)\nFoto\n![b](b.png)",
+      "expect": {
+        "ok": false
+      }
+    },
+    {
+      "name": "an unknown layout is refused",
+      "source": "layout: carousel\n![a](a.png)\n![b](b.png)",
+      "expect": {
+        "ok": false
+      }
+    },
+    {
+      "name": "an empty path is refused",
+      "source": "![a]( )\n![b](b.png)",
+      "expect": {
+        "ok": false
+      }
+    },
+    {
+      "name": "a hundred images are the most",
+      "source": "![](b0.png)\n![](b1.png)\n![](b2.png)\n![](b3.png)\n![](b4.png)\n![](b5.png)\n![](b6.png)\n![](b7.png)\n![](b8.png)\n![](b9.png)\n![](b10.png)\n![](b11.png)\n![](b12.png)\n![](b13.png)\n![](b14.png)\n![](b15.png)\n![](b16.png)\n![](b17.png)\n![](b18.png)\n![](b19.png)\n![](b20.png)\n![](b21.png)\n![](b22.png)\n![](b23.png)\n![](b24.png)\n![](b25.png)\n![](b26.png)\n![](b27.png)\n![](b28.png)\n![](b29.png)\n![](b30.png)\n![](b31.png)\n![](b32.png)\n![](b33.png)\n![](b34.png)\n![](b35.png)\n![](b36.png)\n![](b37.png)\n![](b38.png)\n![](b39.png)\n![](b40.png)\n![](b41.png)\n![](b42.png)\n![](b43.png)\n![](b44.png)\n![](b45.png)\n![](b46.png)\n![](b47.png)\n![](b48.png)\n![](b49.png)\n![](b50.png)\n![](b51.png)\n![](b52.png)\n![](b53.png)\n![](b54.png)\n![](b55.png)\n![](b56.png)\n![](b57.png)\n![](b58.png)\n![](b59.png)\n![](b60.png)\n![](b61.png)\n![](b62.png)\n![](b63.png)\n![](b64.png)\n![](b65.png)\n![](b66.png)\n![](b67.png)\n![](b68.png)\n![](b69.png)\n![](b70.png)\n![](b71.png)\n![](b72.png)\n![](b73.png)\n![](b74.png)\n![](b75.png)\n![](b76.png)\n![](b77.png)\n![](b78.png)\n![](b79.png)\n![](b80.png)\n![](b81.png)\n![](b82.png)\n![](b83.png)\n![](b84.png)\n![](b85.png)\n![](b86.png)\n![](b87.png)\n![](b88.png)\n![](b89.png)\n![](b90.png)\n![](b91.png)\n![](b92.png)\n![](b93.png)\n![](b94.png)\n![](b95.png)\n![](b96.png)\n![](b97.png)\n![](b98.png)\n![](b99.png)",
+      "expect": {
+        "ok": true,
+        "layout": "slideshow",
+        "images": [
+          {
+            "src": "b0.png",
+            "alt": ""
+          },
+          {
+            "src": "b1.png",
+            "alt": ""
+          },
+          {
+            "src": "b2.png",
+            "alt": ""
+          },
+          {
+            "src": "b3.png",
+            "alt": ""
+          },
+          {
+            "src": "b4.png",
+            "alt": ""
+          },
+          {
+            "src": "b5.png",
+            "alt": ""
+          },
+          {
+            "src": "b6.png",
+            "alt": ""
+          },
+          {
+            "src": "b7.png",
+            "alt": ""
+          },
+          {
+            "src": "b8.png",
+            "alt": ""
+          },
+          {
+            "src": "b9.png",
+            "alt": ""
+          },
+          {
+            "src": "b10.png",
+            "alt": ""
+          },
+          {
+            "src": "b11.png",
+            "alt": ""
+          },
+          {
+            "src": "b12.png",
+            "alt": ""
+          },
+          {
+            "src": "b13.png",
+            "alt": ""
+          },
+          {
+            "src": "b14.png",
+            "alt": ""
+          },
+          {
+            "src": "b15.png",
+            "alt": ""
+          },
+          {
+            "src": "b16.png",
+            "alt": ""
+          },
+          {
+            "src": "b17.png",
+            "alt": ""
+          },
+          {
+            "src": "b18.png",
+            "alt": ""
+          },
+          {
+            "src": "b19.png",
+            "alt": ""
+          },
+          {
+            "src": "b20.png",
+            "alt": ""
+          },
+          {
+            "src": "b21.png",
+            "alt": ""
+          },
+          {
+            "src": "b22.png",
+            "alt": ""
+          },
+          {
+            "src": "b23.png",
+            "alt": ""
+          },
+          {
+            "src": "b24.png",
+            "alt": ""
+          },
+          {
+            "src": "b25.png",
+            "alt": ""
+          },
+          {
+            "src": "b26.png",
+            "alt": ""
+          },
+          {
+            "src": "b27.png",
+            "alt": ""
+          },
+          {
+            "src": "b28.png",
+            "alt": ""
+          },
+          {
+            "src": "b29.png",
+            "alt": ""
+          },
+          {
+            "src": "b30.png",
+            "alt": ""
+          },
+          {
+            "src": "b31.png",
+            "alt": ""
+          },
+          {
+            "src": "b32.png",
+            "alt": ""
+          },
+          {
+            "src": "b33.png",
+            "alt": ""
+          },
+          {
+            "src": "b34.png",
+            "alt": ""
+          },
+          {
+            "src": "b35.png",
+            "alt": ""
+          },
+          {
+            "src": "b36.png",
+            "alt": ""
+          },
+          {
+            "src": "b37.png",
+            "alt": ""
+          },
+          {
+            "src": "b38.png",
+            "alt": ""
+          },
+          {
+            "src": "b39.png",
+            "alt": ""
+          },
+          {
+            "src": "b40.png",
+            "alt": ""
+          },
+          {
+            "src": "b41.png",
+            "alt": ""
+          },
+          {
+            "src": "b42.png",
+            "alt": ""
+          },
+          {
+            "src": "b43.png",
+            "alt": ""
+          },
+          {
+            "src": "b44.png",
+            "alt": ""
+          },
+          {
+            "src": "b45.png",
+            "alt": ""
+          },
+          {
+            "src": "b46.png",
+            "alt": ""
+          },
+          {
+            "src": "b47.png",
+            "alt": ""
+          },
+          {
+            "src": "b48.png",
+            "alt": ""
+          },
+          {
+            "src": "b49.png",
+            "alt": ""
+          },
+          {
+            "src": "b50.png",
+            "alt": ""
+          },
+          {
+            "src": "b51.png",
+            "alt": ""
+          },
+          {
+            "src": "b52.png",
+            "alt": ""
+          },
+          {
+            "src": "b53.png",
+            "alt": ""
+          },
+          {
+            "src": "b54.png",
+            "alt": ""
+          },
+          {
+            "src": "b55.png",
+            "alt": ""
+          },
+          {
+            "src": "b56.png",
+            "alt": ""
+          },
+          {
+            "src": "b57.png",
+            "alt": ""
+          },
+          {
+            "src": "b58.png",
+            "alt": ""
+          },
+          {
+            "src": "b59.png",
+            "alt": ""
+          },
+          {
+            "src": "b60.png",
+            "alt": ""
+          },
+          {
+            "src": "b61.png",
+            "alt": ""
+          },
+          {
+            "src": "b62.png",
+            "alt": ""
+          },
+          {
+            "src": "b63.png",
+            "alt": ""
+          },
+          {
+            "src": "b64.png",
+            "alt": ""
+          },
+          {
+            "src": "b65.png",
+            "alt": ""
+          },
+          {
+            "src": "b66.png",
+            "alt": ""
+          },
+          {
+            "src": "b67.png",
+            "alt": ""
+          },
+          {
+            "src": "b68.png",
+            "alt": ""
+          },
+          {
+            "src": "b69.png",
+            "alt": ""
+          },
+          {
+            "src": "b70.png",
+            "alt": ""
+          },
+          {
+            "src": "b71.png",
+            "alt": ""
+          },
+          {
+            "src": "b72.png",
+            "alt": ""
+          },
+          {
+            "src": "b73.png",
+            "alt": ""
+          },
+          {
+            "src": "b74.png",
+            "alt": ""
+          },
+          {
+            "src": "b75.png",
+            "alt": ""
+          },
+          {
+            "src": "b76.png",
+            "alt": ""
+          },
+          {
+            "src": "b77.png",
+            "alt": ""
+          },
+          {
+            "src": "b78.png",
+            "alt": ""
+          },
+          {
+            "src": "b79.png",
+            "alt": ""
+          },
+          {
+            "src": "b80.png",
+            "alt": ""
+          },
+          {
+            "src": "b81.png",
+            "alt": ""
+          },
+          {
+            "src": "b82.png",
+            "alt": ""
+          },
+          {
+            "src": "b83.png",
+            "alt": ""
+          },
+          {
+            "src": "b84.png",
+            "alt": ""
+          },
+          {
+            "src": "b85.png",
+            "alt": ""
+          },
+          {
+            "src": "b86.png",
+            "alt": ""
+          },
+          {
+            "src": "b87.png",
+            "alt": ""
+          },
+          {
+            "src": "b88.png",
+            "alt": ""
+          },
+          {
+            "src": "b89.png",
+            "alt": ""
+          },
+          {
+            "src": "b90.png",
+            "alt": ""
+          },
+          {
+            "src": "b91.png",
+            "alt": ""
+          },
+          {
+            "src": "b92.png",
+            "alt": ""
+          },
+          {
+            "src": "b93.png",
+            "alt": ""
+          },
+          {
+            "src": "b94.png",
+            "alt": ""
+          },
+          {
+            "src": "b95.png",
+            "alt": ""
+          },
+          {
+            "src": "b96.png",
+            "alt": ""
+          },
+          {
+            "src": "b97.png",
+            "alt": ""
+          },
+          {
+            "src": "b98.png",
+            "alt": ""
+          },
+          {
+            "src": "b99.png",
+            "alt": ""
+          }
+        ],
+        "shown": 100
+      }
+    },
+    {
+      "name": "a hundred and one are refused",
+      "source": "![](b0.png)\n![](b1.png)\n![](b2.png)\n![](b3.png)\n![](b4.png)\n![](b5.png)\n![](b6.png)\n![](b7.png)\n![](b8.png)\n![](b9.png)\n![](b10.png)\n![](b11.png)\n![](b12.png)\n![](b13.png)\n![](b14.png)\n![](b15.png)\n![](b16.png)\n![](b17.png)\n![](b18.png)\n![](b19.png)\n![](b20.png)\n![](b21.png)\n![](b22.png)\n![](b23.png)\n![](b24.png)\n![](b25.png)\n![](b26.png)\n![](b27.png)\n![](b28.png)\n![](b29.png)\n![](b30.png)\n![](b31.png)\n![](b32.png)\n![](b33.png)\n![](b34.png)\n![](b35.png)\n![](b36.png)\n![](b37.png)\n![](b38.png)\n![](b39.png)\n![](b40.png)\n![](b41.png)\n![](b42.png)\n![](b43.png)\n![](b44.png)\n![](b45.png)\n![](b46.png)\n![](b47.png)\n![](b48.png)\n![](b49.png)\n![](b50.png)\n![](b51.png)\n![](b52.png)\n![](b53.png)\n![](b54.png)\n![](b55.png)\n![](b56.png)\n![](b57.png)\n![](b58.png)\n![](b59.png)\n![](b60.png)\n![](b61.png)\n![](b62.png)\n![](b63.png)\n![](b64.png)\n![](b65.png)\n![](b66.png)\n![](b67.png)\n![](b68.png)\n![](b69.png)\n![](b70.png)\n![](b71.png)\n![](b72.png)\n![](b73.png)\n![](b74.png)\n![](b75.png)\n![](b76.png)\n![](b77.png)\n![](b78.png)\n![](b79.png)\n![](b80.png)\n![](b81.png)\n![](b82.png)\n![](b83.png)\n![](b84.png)\n![](b85.png)\n![](b86.png)\n![](b87.png)\n![](b88.png)\n![](b89.png)\n![](b90.png)\n![](b91.png)\n![](b92.png)\n![](b93.png)\n![](b94.png)\n![](b95.png)\n![](b96.png)\n![](b97.png)\n![](b98.png)\n![](b99.png)\n![](b100.png)",
+      "expect": {
+        "ok": false
+      }
+    }
+  ],
+  "stripColumns": [
+    [0, 1],
+    [1, 1],
+    [2, 2],
+    [4, 4],
+    [5, 3],
+    [9, 3]
+  ]
+}

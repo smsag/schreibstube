@@ -20,7 +20,7 @@ import { slugify } from "../path.mjs";
 
 /** Bumped when the output of a given source would change. A changed version
  *  re-renders every page on the next commit, without re-uploading anything. */
-export const RENDER_VERSION = 3;
+export const RENDER_VERSION = 4;
 
 const katex = katexModule.default ?? katexModule;
 
@@ -54,11 +54,12 @@ export function createRenderer({ allowHtml = true, allowDiagrams = true } = {}) 
  * which a relative image path is read against.
  */
 export function renderMarkdown(md, source, site, { sourcePath = "" } = {}) {
-  const env = { site, sourcePath, usedMermaid: false };
+  const env = { site, sourcePath, usedMermaid: false, usedSlideshow: false };
   const html = md.render(prepare(source), env);
   return {
     html,
     usedMermaid: env.usedMermaid === true,
+    usedSlideshow: env.usedSlideshow === true,
     usedMath: html.includes('class="katex')
   };
 }

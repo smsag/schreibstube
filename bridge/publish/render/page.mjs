@@ -8,7 +8,15 @@
  */
 import { escapeHtml } from "./obsidian.mjs";
 
-export function notePage({ note, body, siteTitle, usedMath, usedMermaid, hasIndex = true }) {
+export function notePage({
+  note,
+  body,
+  siteTitle,
+  usedMath,
+  usedMermaid,
+  usedSlideshow = false,
+  hasIndex = true
+}) {
   // A note is served from <slug>/index.html, so everything shared is one level up.
   const up = "../";
   return page({
@@ -18,6 +26,7 @@ export function notePage({ note, body, siteTitle, usedMath, usedMermaid, hasInde
     siteTitle,
     usedMath,
     usedMermaid,
+    usedSlideshow,
     hasIndex,
     main:
       `<article>\n` +
@@ -57,14 +66,25 @@ export function indexPage({ notes, siteTitle }) {
   });
 }
 
-function page({ up, title, description, siteTitle, usedMath, usedMermaid, hasIndex, main }) {
+function page({
+  up,
+  title,
+  description,
+  siteTitle,
+  usedMath,
+  usedMermaid,
+  usedSlideshow = false,
+  hasIndex,
+  main
+}) {
   const head = [
     `<meta charset="utf-8">`,
     `<meta name="viewport" content="width=device-width, initial-scale=1">`,
     `<title>${escapeHtml(title)}</title>`,
     description ? `<meta name="description" content="${escapeHtml(description)}">` : null,
     `<link rel="stylesheet" href="${up}assets/theme.css">`,
-    usedMath ? `<link rel="stylesheet" href="${up}assets/katex/katex.css">` : null
+    usedMath ? `<link rel="stylesheet" href="${up}assets/katex/katex.css">` : null,
+    usedSlideshow ? `<link rel="stylesheet" href="${up}assets/slideshow.css">` : null
   ].filter(Boolean);
 
   // Five megabytes, fetched when a diagram is actually about to be read rather
@@ -98,6 +118,12 @@ function page({ up, title, description, siteTitle, usedMath, usedMermaid, hasInd
       `</script>\n`
     : "";
 
+  // A module runs after the page has been parsed, so it finds every block,
+  // and a browser that runs no scripts keeps the plain layouts.
+  const slideshowScript = usedSlideshow
+    ? `<script type="module" src="${up}assets/slideshow.js"></script>\n`
+    : "";
+
   return (
     `<!doctype html>\n` +
     `<html lang="de">\n` +
@@ -106,6 +132,7 @@ function page({ up, title, description, siteTitle, usedMath, usedMermaid, hasInd
     `<header class="site">${hasIndex ? `<a href="${up}">${escapeHtml(siteTitle)}</a>` : escapeHtml(siteTitle)}</header>\n` +
     `<main>\n${main}</main>\n` +
     scripts +
+    slideshowScript +
     `</body>\n` +
     `</html>\n`
   );

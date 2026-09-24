@@ -10,6 +10,12 @@
  * which notes exist, what they are called and where they will be served.
  */
 
+import { escapeAttribute, escapeHtml } from "./html.mjs";
+import { renderSlideshow, SLIDESHOW_LANGUAGE } from "./slideshow.mjs";
+
+// Kept importable from here, where the page template has always found it.
+export { escapeHtml };
+
 const CALLOUT = /^\[!([A-Za-z]+)\]([+-]?)[ \t]*(.*)$/;
 
 export function obsidian(md, { allowDiagrams = true } = {}) {
@@ -121,9 +127,7 @@ function vaultImages(state) {
       const src = token.attrGet("src") ?? "";
       if (isRemote(src)) return token;
 
-      const asset = assetCandidates(src, notePath)
-        .map((candidate) => site.assets?.get(key(candidate)))
-        .find(Boolean);
+      const asset = findAsset(site, src, notePath);
       const alt = token.content;
 
       if (!asset) {
@@ -151,6 +155,13 @@ function vaultImages(state) {
       return token;
     });
   }
+}
+
+/** The published file a vault image path stands for, or undefined. */
+function findAsset(site, src, notePath) {
+  return assetCandidates(src, notePath)
+    .map((candidate) => site.assets?.get(key(candidate)))
+    .find(Boolean);
 }
 
 /**
@@ -296,6 +307,9 @@ function findClose(tokens, openIndex) {
 }
 
 /**
+ * A `schreibstube-slideshow` fence becomes the plugin's slideshow, drawn by
+ * the site's own script; see `slideshow.mjs`.
+ *
  * A `mermaid` fence becomes a block the client-side bundle picks up.
  *
  * Mermaid is the one thing the bridge cannot render, because it needs a browser
@@ -306,6 +320,16 @@ function overrideFence(md, allowDiagrams) {
   const fallback = md.renderer.rules.fence;
   md.renderer.rules.fence = (tokens, index, options, env, self) => {
     const info = tokens[index].info.trim().split(/\s+/)[0]?.toLowerCase();
+    if (info === SLIDESHOW_LANGUAGE) {
+      const site = env?.site ?? emptySite();
+      const notePath = env?.sourcePath ?? "";
+      // A slideshow line may wrap its path in angle brackets, which the
+      // Markdown parser would have taken off an ordinary image.
+      const resolve = (src) => findAsset(site, /^<(.+)>$/.exec(src)?.[1] ?? src, notePath);
+      const rendered = renderSlideshow(tokens[index].content, resolve);
+      if (rendered.slideshow) env.usedSlideshow = true;
+      return rendered.html;
+    }
     if (info === "mermaid" && allowDiagrams) {
       env.usedMermaid = true;
       return `<pre class="mermaid">${escapeHtml(tokens[index].content)}</pre>\n`;
@@ -345,16 +369,4 @@ function emptySite() {
 
 function capitalise(value) {
   return value.charAt(0).toUpperCase() + value.slice(1);
-}
-
-export function escapeHtml(value) {
-  return String(value)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
-
-function escapeAttribute(value) {
-  return escapeHtml(value).replace(/'/g, "&#39;");
 }

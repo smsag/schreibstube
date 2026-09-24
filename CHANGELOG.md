@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Added
+
+- **Slideshows on the published site.** A note with a slideshow block used to publish the block's text as a code sample. The page now shows the slideshow in the layout the note chose — stage, filmstrip, feature, strip, masonry or before-and-after — with the alt text and controls in the header, the arrow keys, thumbnails, the divider and the fullscreen view, from a small script the site carries itself. Without scripts the pictures still read: the stage swipes, the tiles stand in a grid, and a comparison sets its two pictures side by side. Pictures that were not published are left out, and a block with a mistake in it stays off the page instead of appearing as code. The block is read on the site by the same rules as in the vault, and one table of examples keeps the two readings the same.
+
 ### Fixed
 
 - **A published image written as `![alt](bild.png)` shows on the site.** Only the `![[bild.png]]` form was pointed at the uploaded file; the Markdown form kept the path as written, which names nothing on the server, so the picture was uploaded and then shown as a broken image. It is now found the way Obsidian finds it — from the vault root, then from the note's own folder, then by its name — including a name spelt with `%20`, in angle brackets, or with umlauts, and a video written this way plays. A path in angle brackets with spaces in it, such as `![](<Grundriss EG.png>)`, was not uploaded at all and now is. An image that was not published shows its alt text rather than a broken picture. Pages already on the site are rendered again on the next publish.

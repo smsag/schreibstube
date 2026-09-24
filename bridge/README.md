@@ -171,8 +171,18 @@ fingerprint: a stateless container cannot trust on first use, because it would
 re-trust a new key after every restart.
 
 The rendered site is static. Maths is rendered to HTML by KaTeX at publish time;
-only Mermaid needs JavaScript, and only on pages that contain a diagram, from a
+Mermaid needs JavaScript, and only on pages that contain a diagram, from a
 bundle the bridge writes itself rather than from a content delivery network.
+
+A ` ```schreibstube-slideshow``` ` block becomes the plugin's slideshow.
+The bridge reads the block by the plugin's rules — `contracts/slideshow-cases.json`
+holds the examples both sides are tested against — and writes plain HTML that
+already reads without a script: the stage swipes, tiles are a grid, a
+comparison is two pictures side by side. On pages that have one, it adds
+`assets/slideshow.css` and `assets/slideshow.js`, a small module from
+`publish/client/` that brings the header, the controls, the thumbnails, the
+divider and the fullscreen view. Only images the site has are shown; a block
+the plugin would refuse is left off the page.
 
 ## Dependencies and advisories
 

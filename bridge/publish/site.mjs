@@ -85,6 +85,7 @@ export async function buildSite(index, sources, options = {}) {
   const files = new Map();
   let usedMath = false;
   let usedMermaid = false;
+  let usedSlideshow = false;
 
   for (const note of ordered) {
     const source = sources.get(note.sha256);
@@ -95,6 +96,7 @@ export async function buildSite(index, sources, options = {}) {
     const rendered = renderMarkdown(md, source, site, { sourcePath: note.sourcePath });
     usedMath = usedMath || rendered.usedMath;
     usedMermaid = usedMermaid || rendered.usedMermaid;
+    usedSlideshow = usedSlideshow || rendered.usedSlideshow;
 
     files.set(
       pagePath(note.slug),
@@ -104,7 +106,8 @@ export async function buildSite(index, sources, options = {}) {
           body: rendered.html,
           siteTitle: index.siteTitle,
           usedMath: rendered.usedMath,
-          usedMermaid: rendered.usedMermaid
+          usedMermaid: rendered.usedMermaid,
+          usedSlideshow: rendered.usedSlideshow
         }),
         "utf8"
       )
@@ -119,6 +122,7 @@ export async function buildSite(index, sources, options = {}) {
   for (const [path, content] of await generatorAssets({
     math: usedMath,
     mermaid: usedMermaid,
+    slideshow: usedSlideshow,
     theme: index.themeCss
   })) {
     files.set(path, content);
