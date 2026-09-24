@@ -29,8 +29,7 @@ route that does not exist yet.
 
 | Bridge | Protocol | Plugin          | Notes                                                        |
 | ------ | -------- | --------------- | ------------------------------------------------------------ |
-| 2.8.x  | 3        | 1.8.0 and later | Header tags and a page per tag                               |
-| 2.7.x  | 2        | 1.8.0 and later | Slideshows on the site, filmstrip thumbnails                 |
+| 2.7.x  | 3        | 1.8.0 and later | Slideshows, filmstrip thumbnails, header tags and tag pages  |
 | 2.6.x  | 1        | 1.8.0 and later | Notes cached in memory, parallel SFTP, one login per publish |
 | 2.5.x  | 1        | 1.8.0 and later | Sent folder by tag, state guard, absolute `STATE_ROOT`       |
 | 2.4.x  | 1        | 1.8.0 and later | Validated search body, fetch and asset byte bounds           |
