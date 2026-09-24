@@ -25,6 +25,7 @@ import { assetPath, checkRelativePath, extensionOf, PathError, VIDEO_EXTENSIONS 
 import { RENDER_VERSION } from "./render/markdown.mjs";
 import { buildSite, checkIndex, IndexError, sha256 } from "./site.mjs";
 import { connect, SftpError } from "./sftp.mjs";
+import { createConnectionPool } from "./connection-pool.mjs";
 import { mapLimit, SFTP_CONCURRENCY } from "./pool.mjs";
 import { SourceCache } from "./source-cache.mjs";
 
@@ -65,6 +66,10 @@ export function createPublishRoutes(config, { version }) {
   // One publish at a time per target. The bridge runs as a single instance, so
   // an in-memory lock is the whole story.
   const busy = new Set();
+  // Requests in quick succession share one login per target; see the pool.
+  const pool = createConnectionPool({
+    connect: (name) => open(publish.targets[name], config)
+  });
   // Stored notes by content hash, shared by every target: the same text is
   // the same note wherever it is published.
   const cache = new SourceCache();
@@ -120,7 +125,7 @@ export function createPublishRoutes(config, { version }) {
       const target = targetOf(publish, body?.target);
       const index = validateIndex(body?.index, publish);
 
-      return withRemote(target, config, async (remote) => {
+      return withRemote(pool, target, async (remote) => {
         const manifest = normalizeManifest(
           await remote.readJson(remote.stateAbsolute(MANIFEST_FILE)),
           target.name
@@ -146,7 +151,7 @@ export function createPublishRoutes(config, { version }) {
         const target = targetOf(publish, query.get("target"));
         const hash = verifyHash(body, query.get("sha256"));
 
-        return withRemote(target, config, async (remote) => {
+        return withRemote(pool, target, async (remote) => {
           await guard(remote, target);
           await remote.writeAbsolute(remote.stateAbsolute(`${SOURCE_DIRECTORY}/${hash}.md`), body);
           // The commit that follows renders this note; it need not read it back.
@@ -188,7 +193,7 @@ export function createPublishRoutes(config, { version }) {
         // prefixed with the content hash, then checked like any other path.
         const path = safePath(assetPath(hash, name), target);
 
-        return withRemote(target, config, async (remote) => {
+        return withRemote(pool, target, async (remote) => {
           await remote.writeFile(path, body);
           log("info", `asset ${path} stored for ${target.name} (${body.length} bytes)`);
           return { sha256: hash, bytes: body.length, path };
@@ -207,7 +212,7 @@ export function createPublishRoutes(config, { version }) {
         const index = validateIndex(body?.index, publish);
 
         return exclusive(busy, target.name, () =>
-          withRemote(target, config, async (remote) => {
+          withRemote(pool, target, async (remote) => {
             await guard(remote, target);
             const stored = await storedSourceHashes(remote);
             const missing = index.notes.filter((note) => !stored.includes(note.sha256));
@@ -240,7 +245,7 @@ export function createPublishRoutes(config, { version }) {
         const target = targetOf(publish, body?.target);
 
         return exclusive(busy, target.name, () =>
-          withRemote(target, config, async (remote) => {
+          withRemote(pool, target, async (remote) => {
             const stored = await remote.readJson(remote.stateAbsolute(INDEX_FILE));
             if (!stored) {
               throw httpError(409, "nothing_published", "This target has never been published.");
@@ -461,21 +466,18 @@ async function open(target, config) {
   );
 }
 
-async function withRemote(target, config, work) {
-  let remote;
+async function withRemote(pool, target, work) {
+  let started = false;
   try {
-    remote = await open(target, config);
-  } catch (err) {
-    throw httpError(502, "sftp_unreachable", message(err), detailOf(err));
-  }
-
-  try {
-    return await work(remote);
+    return await pool.use(target.name, (remote) => {
+      started = true;
+      return work(remote);
+    });
   } catch (err) {
     if (err.status) throw err;
+    // Before the work began, the login itself failed.
+    if (!started) throw httpError(502, "sftp_unreachable", message(err), detailOf(err));
     throw httpError(502, "sftp_error", message(err), detailOf(err));
-  } finally {
-    await remote.end();
   }
 }
 

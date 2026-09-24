@@ -7,9 +7,9 @@
  * write goes to a temporary name and is renamed over its target, so a reader
  * never sees a half-written page.
  *
- * Connections are opened per publish and closed again. The bridge serves one
- * user at a low request rate, so a pool would add reconnect handling for no
- * measurable win.
+ * A connection is shared by the requests of one publish and closed once it
+ * has been idle for a moment; `connection-pool.mjs` decides that. Opening one
+ * per request was simpler, and cost a login per uploaded file.
  */
 import { createHash, randomBytes } from "node:crypto";
 import Client from "ssh2-sftp-client";
@@ -96,6 +96,21 @@ class Remote {
     // before every file was a round trip per file for nothing. Parallel writes
     // into one new directory wait for the same request instead of racing.
     this.directories = new Map();
+  }
+
+  /**
+   * Call `callback` once when the connection closes, from either end, so a
+   * shared connection the server hung up on is not handed out again.
+   */
+  onClose(callback) {
+    let called = false;
+    const once = () => {
+      if (called) return;
+      called = true;
+      callback();
+    };
+    this.client.on("close", once);
+    this.client.on("end", once);
   }
 
   async end() {

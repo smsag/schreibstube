@@ -159,6 +159,11 @@ note of three hundred reads one note, not three hundred. What is not in memory
 writes and deletions. Up to 32 MB of notes are kept, least recently used first
 out.
 
+The requests of one publish share one SFTP connection per target, closed after
+fifteen seconds without use, so a first publish of many files logs in once
+rather than once per file; a connection that failed in a way that may have
+broken it is never reused.
+
 Every write goes to a temporary name and is renamed over its target, so a reader
 never sees a half-written page. The host key is checked against a configured
 fingerprint: a stateless container cannot trust on first use, because it would

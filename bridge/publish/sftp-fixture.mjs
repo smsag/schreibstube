@@ -41,7 +41,12 @@ export async function startSftpServer({ user = "web", password = "geheim", laten
     .digest("base64")
     .replace(/=+$/, "")}`;
 
+  let connections = 0;
+  const clients = new Set();
   const server = new Server({ hostKeys: [privateKey] }, (client) => {
+    connections += 1;
+    clients.add(client);
+    client.on("close", () => clients.delete(client));
     client
       .on("authentication", (context) => {
         const ok =
@@ -77,7 +82,14 @@ export async function startSftpServer({ user = "web", password = "geheim", laten
     get requestCount() {
       return Object.values(stats.requests).reduce((sum, n) => sum + n, 0);
     },
+    /** SSH connections opened so far, each one a login. */
+    get connections() {
+      return connections;
+    },
     async stop() {
+      // The bridge keeps an idle connection open for a while, and close()
+      // waits for every connection to go; the fixture hangs up itself.
+      for (const client of clients) client.end();
       await new Promise((done) => server.close(done));
       await rm(root, { recursive: true, force: true });
     }

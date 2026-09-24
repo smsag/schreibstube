@@ -96,6 +96,18 @@ function controller(vault: ReturnType<typeof fakeVault>, overrides = {}) {
   return { commands, saved, state };
 }
 
+/**
+ * Wait for a confirmed publish to end. The dialog starts the run without
+ * waiting for it, and every run ends in a notice that says how it went.
+ */
+async function runEnded(): Promise<void> {
+  await vi.waitFor(() => {
+    if (!Notice.shown.some((message) => /published —|publication failed/.test(message))) {
+      throw new Error("the run has not ended yet");
+    }
+  });
+}
+
 /** The index the controller handed to the plan call. */
 function plannedIndex() {
   expect(client.plan).toHaveBeenCalled();
@@ -178,6 +190,7 @@ describe("which notes are published", () => {
     }));
 
     await controller(vault).commands.publish();
+    await runEnded();
     // Stopping at "nothing is marked" used to leave this page online for good.
     expect(plannedIndex().notes).toEqual([]);
     expect(client.commit).toHaveBeenCalled();
@@ -430,6 +443,7 @@ describe("publishing", () => {
 
     const { commands } = controller(vault());
     await commands.publish();
+    await runEnded();
 
     expect(client.uploadSource).toHaveBeenCalledTimes(1);
     expect(client.commit).toHaveBeenCalled();
@@ -439,7 +453,10 @@ describe("publishing", () => {
     const { commands, state } = controller(vault());
     await commands.publish();
 
-    expect(state.settings.publishLastRun.blog).toMatchObject({ written: 2, deleted: 3 });
+    // Recorded after the notice, so the record itself is what is waited for.
+    await vi.waitFor(() =>
+      expect(state.settings.publishLastRun.blog).toMatchObject({ written: 2, deleted: 3 })
+    );
   });
 
   it("writes the publication back into the note", async () => {
@@ -447,9 +464,11 @@ describe("publishing", () => {
     const { commands } = controller(target);
     await commands.publish();
 
-    expect(target.frontmatterOf("Blog/Erste.md")).toMatchObject({
-      publishedUrl: "https://blog.example.com/erste/"
-    });
+    await vi.waitFor(() =>
+      expect(target.frontmatterOf("Blog/Erste.md")).toMatchObject({
+        publishedUrl: "https://blog.example.com/erste/"
+      })
+    );
   });
 
   it("leaves the note alone when write-back is off", async () => {
@@ -459,6 +478,7 @@ describe("publishing", () => {
     });
     expect(state.settings.publishAccounts[0]?.writeBack).toBe(false);
     await commands.publish();
+    await vi.waitFor(() => expect(state.settings.publishLastRun.blog).toBeDefined());
 
     expect(target.frontmatterOf("Blog/Erste.md").publishedUrl).toBeUndefined();
   });
@@ -478,5 +498,116 @@ describe("publishing", () => {
     await commands.preview();
 
     expect(client.health).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("uploading from a phone's point of view", () => {
+  const pictures = (count: number) =>
+    Array.from({ length: count }, (_, i) => ({
+      path: `Blog/bild-${i}.png`,
+      bytes: new Uint8Array([137, 80, 78, 71, i])
+    }));
+
+  /** A plan that asks for exactly the assets named, and no source. */
+  function planAsking(assetPaths: string[]) {
+    client.plan.mockImplementation(
+      async (
+        _bridge: unknown,
+        _target: unknown,
+        index: { notes: unknown[]; assets: { sourcePath: string; sha256: string; name: string }[] }
+      ) => ({
+        target: "blog",
+        baseUrl: "https://blog.example.com",
+        uploadSources: [],
+        uploadAssets: index.assets
+          .filter((asset) => assetPaths.includes(asset.sourcePath))
+          .map((asset) => ({
+            sourcePath: asset.sourcePath,
+            sha256: asset.sha256,
+            name: asset.name
+          })),
+        willDelete: [],
+        unchangedSources: index.notes.length,
+        notes: index.notes.length
+      })
+    );
+  }
+
+  it("reads an attachment the bridge already has once, to hash it, and never again", async () => {
+    const [kept, wanted] = pictures(2);
+    const vault = fakeVault({
+      notes: [
+        {
+          path: "Blog/Erste.md",
+          content: "![[bild-0.png]] ![[bild-1.png]]",
+          frontmatter: published
+        }
+      ],
+      binaries: [kept!, wanted!]
+    });
+    const reads = vi.spyOn(vault.app.vault, "readBinary");
+    planAsking([wanted!.path]);
+
+    await controller(vault).commands.publish();
+    await runEnded();
+
+    const readPaths = reads.mock.calls.map(([file]) => file.path);
+    expect(readPaths.filter((path) => path === kept!.path)).toHaveLength(1);
+    expect(readPaths.filter((path) => path === wanted!.path)).toHaveLength(2);
+    expect(client.uploadAsset).toHaveBeenCalledTimes(1);
+    expect(new Uint8Array(client.uploadAsset.mock.calls[0]?.[4])).toEqual(wanted!.bytes);
+    expect(client.commit).toHaveBeenCalled();
+  });
+
+  it("stops, and says which file, when an attachment changed after it was hashed", async () => {
+    const [picture] = pictures(1);
+    const vault = fakeVault({
+      notes: [{ path: "Blog/Erste.md", content: "![[bild-0.png]]", frontmatter: published }],
+      binaries: [picture!]
+    });
+    planAsking([picture!.path]);
+    const planned = client.plan.getMockImplementation()!;
+    client.plan.mockImplementation(async (...args: unknown[]) => {
+      const plan = await planned(...(args as Parameters<typeof planned>));
+      picture!.bytes[4] = 99; // edited between the plan and the upload
+      return plan;
+    });
+
+    await controller(vault).commands.publish();
+    await runEnded();
+
+    expect(client.uploadAsset).not.toHaveBeenCalled();
+    expect(client.commit).not.toHaveBeenCalled();
+    expect(Notice.shown.join(" ")).toMatch(/Blog\/bild-0\.png changed while publishing/);
+  });
+
+  it("uploads a few at a time, never more than three", async () => {
+    const all = pictures(8);
+    const vault = fakeVault({
+      notes: [
+        {
+          path: "Blog/Erste.md",
+          content: all.map((picture) => `![[${picture.path.split("/").pop()}]]`).join(" "),
+          frontmatter: published
+        }
+      ],
+      binaries: all
+    });
+    planAsking(all.map((picture) => picture.path));
+    let running = 0;
+    let most = 0;
+    client.uploadAsset.mockImplementation(async () => {
+      running += 1;
+      most = Math.max(most, running);
+      await new Promise((resolve) => setTimeout(resolve, 2));
+      running -= 1;
+    });
+
+    await controller(vault).commands.publish();
+    await runEnded();
+
+    expect(client.uploadAsset).toHaveBeenCalledTimes(8);
+    expect(most).toBe(3);
+    expect(client.commit).toHaveBeenCalled();
   });
 });
