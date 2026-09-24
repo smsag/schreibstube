@@ -31,9 +31,24 @@ const fontSource = read(/FONT_SOURCE = `([^`]+)`/, "FONT_SOURCE").replace(
   "${FONTS_VERSION}",
   fontsVersion
 );
-const fonts = [...manifest.matchAll(/\["([\w.-]+\.(?:otf|ttf))", "([0-9a-f]{64})"\]/g)].map(
-  ([, file, sha256]) => ({ file, sha256, name: `typst-runtime-fonts-${fontsVersion}-${file}` })
-);
+// Whitespace-tolerant, because Prettier wraps a long entry over three lines —
+// which this once did not allow for, and it found three fonts of eight.
+const fonts = [
+  ...manifest.matchAll(/\[\s*"([\w.-]+\.(?:otf|ttf))",\s*"([0-9a-f]{64})"\s*,?\s*\]/g)
+].map(([, file, sha256]) => ({
+  file,
+  sha256,
+  name: `typst-runtime-fonts-${fontsVersion}-${file}`
+}));
+// Every font file the manifest names must have been read with its hash; one
+// the pattern missed would be left out of the release, and a device would
+// then fail to fetch it on its first print.
+const named = manifest.match(/"[\w.-]+\.(?:otf|ttf)"/g) ?? [];
+if (named.length !== fonts.length) {
+  fail(
+    `typst-runtime.ts names ${named.length} font files, but ${fonts.length} were read with a hash`
+  );
+}
 const packageName = read(/RUNTIME_PACKAGE = "([^"]+)"/, "RUNTIME_PACKAGE");
 const assets = [...manifest.matchAll(/name: `([^`]+)`,\s*\n\s*sha256: "([0-9a-f]{64})"/g)].map(
   ([, name, sha256]) => ({ name: name.replace("${RUNTIME_VERSION}", version), sha256 })
