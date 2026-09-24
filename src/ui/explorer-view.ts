@@ -312,7 +312,10 @@ export class ExplorerPaneView extends ItemView {
       cls: "sb sb-icon schreibstube-explorer-filter-clear",
       attr: { type: "button", "aria-label": t().explorer.clearFilter }
     });
-    applyIcon(clear, "x");
+    // On a child, not on the button: `applyIcon` hides what it draws into
+    // from assistive technology, and hidden the button was a focused control
+    // a screen reader could not see — which the browser reports as an error.
+    applyIcon(clear.createSpan(), "x");
     clear.addEventListener("click", () => {
       search.value = "";
       this.cancelFilter();

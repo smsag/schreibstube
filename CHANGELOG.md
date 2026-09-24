@@ -10,6 +10,11 @@ All notable changes to this project will be documented in this file.
 - **Publishing from a phone no longer holds every picture in memory.** Before asking the bridge anything, publishing read every image and video the published notes show and kept all of them until the run was over, including the ones the site already had. On a phone, whose Obsidian runs with far less memory than a desktop, a site with a few hundred photos or a handful of videos could get the app closed in the middle of a publish. Attachments are now read to be hashed and let go, and read again only if the bridge asks for them. A file edited between the two readings stops the run with its name instead of being sent as something it no longer is.
 - **A first publish takes a fraction of the time.** Files were uploaded one after another, and the bridge logged in to the web host afresh for each of them: with three hundred notes, a first publish from a phone took minutes, long enough for the phone to pause the app halfway. The plugin now uploads three files at a time, and the bridge keeps its connection to the web host open while a publish is running, so it logs in once instead of once per file.
 
+### Fixed
+
+- **A note pressed in the explorer opens, every time.** Now and then a press on a note, most often one in the recent lists, opened nothing and moved nothing, and the developer console showed an error about `isText`. The heading stack asks the editor, on every scroll, which line sits under the overlay; asked in the moment the editor was swapping one note for another, the editor failed inside its own lookup, and a failure there stopped it drawing the new note at all. The question is now asked only of an editor that is on screen, and a failed answer falls back to the first line the editor has laid out, which the stack already did when no line was found.
+- **The filter's clear button is visible to screen readers.** The button hid itself from assistive technology while it could hold the focus, which the browser reports as an error every time the filter is cleared. The mark is now hidden, and the button is not.
+
 ## 1.43.0 - 2026-09-24
 
 Publishing you can see, and a bridge that tells the truth. The explorer
