@@ -9,13 +9,17 @@
  */
 import { createHash } from "node:crypto";
 import { createRenderer, renderMarkdown } from "./render/markdown.mjs";
-import { indexPage, notePage } from "./render/page.mjs";
+import { indexPage, notePage, tagPage } from "./render/page.mjs";
 import {
   assetPath,
   extensionOf,
   isValidSlug,
   pagePath,
+  isHeaderTag,
+  MAX_HEADER_TAGS,
   slugify,
+  tagLabel,
+  tagPagePath,
   thumbnailPath,
   VIDEO_EXTENSIONS
 } from "./path.mjs";
@@ -39,6 +43,8 @@ export function checkIndex(index) {
   if (!Array.isArray(index.notes)) throw new IndexError("The index needs a notes array.");
   if (!Array.isArray(index.assets)) throw new IndexError("The index needs an assets array.");
 
+  const headerTags = checkHeaderTags(index.headerTags);
+
   const seen = new Map();
   for (const note of index.notes) {
     if (!note?.sourcePath) throw new IndexError("A note is missing its sourcePath.");
@@ -53,6 +59,11 @@ export function checkIndex(index) {
       );
     }
     seen.set(note.slug, note.sourcePath);
+    if (note.tags !== undefined) {
+      if (!Array.isArray(note.tags) || note.tags.some((tag) => !headerTags.includes(tag))) {
+        throw new IndexError(`${note.sourcePath}: tags must be among the header tags.`);
+      }
+    }
   }
 
   for (const asset of index.assets) {
@@ -64,6 +75,46 @@ export function checkIndex(index) {
   }
 
   return index;
+}
+
+/**
+ * The header tags, checked: at most three, each one the bridge can name a
+ * page after, and no two that would share one — `a-b` and `a/b` are both
+ * `tag/a-b/`, and the second would overwrite the first.
+ */
+function checkHeaderTags(value) {
+  if (value === undefined) return [];
+  if (!Array.isArray(value) || value.length > MAX_HEADER_TAGS) {
+    throw new IndexError(`The header takes at most ${MAX_HEADER_TAGS} tags.`);
+  }
+  const pages = new Map();
+  for (const tag of value) {
+    if (!isHeaderTag(tag)) throw new IndexError(`Unusable header tag: ${JSON.stringify(tag)}.`);
+    const page = tagPagePath(tag);
+    if (pages.has(page)) {
+      throw new IndexError(`The header tags ${pages.get(page)} and ${tag} would share one page.`);
+    }
+    pages.set(page, tag);
+  }
+  return value;
+}
+
+/**
+ * The header's links: each header tag some published note carries, in the
+ * order the connection lists them, with its notes newest first. A tag no
+ * note carries is left out rather than linking to an empty page.
+ */
+export function headerNav(index) {
+  const ordered = orderNotes(index.notes);
+  return (index.headerTags ?? [])
+    .map((tag) => ({
+      tag,
+      label: tagLabel(tag),
+      slug: slugify(tag),
+      path: tagPagePath(tag),
+      notes: ordered.filter((note) => note.tags?.includes(tag))
+    }))
+    .filter((entry) => entry.notes.length > 0);
 }
 
 /** Newest first, and stable for two notes sharing a date. */
@@ -86,6 +137,7 @@ export async function buildSite(index, sources, options = {}) {
   const site = lookups(index, options.thumbnails);
   const md = createRenderer(options);
 
+  const nav = headerNav(index);
   const files = new Map();
   let usedMath = false;
   let usedMermaid = false;
@@ -109,6 +161,7 @@ export async function buildSite(index, sources, options = {}) {
           note,
           body: rendered.html,
           siteTitle: index.siteTitle,
+          nav,
           usedMath: rendered.usedMath,
           usedMermaid: rendered.usedMermaid,
           usedSlideshow: rendered.usedSlideshow
@@ -120,8 +173,11 @@ export async function buildSite(index, sources, options = {}) {
 
   files.set(
     "index.html",
-    Buffer.from(indexPage({ notes: ordered, siteTitle: index.siteTitle }), "utf8")
+    Buffer.from(indexPage({ notes: ordered, siteTitle: index.siteTitle, nav }), "utf8")
   );
+  for (const entry of nav) {
+    files.set(entry.path, Buffer.from(tagPage({ entry, siteTitle: index.siteTitle, nav }), "utf8"));
+  }
 
   for (const [path, content] of await generatorAssets({
     math: usedMath,

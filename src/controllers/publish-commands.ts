@@ -36,6 +36,8 @@ import {
   isInsideFolder,
   isPublishableAttachment,
   readPublishFields,
+  headerTagsOf,
+  noteTags,
   referencedAttachments,
   resolveNote,
   slideshowReferences
@@ -306,7 +308,9 @@ export class PublishCommands {
       const bytes = new TextEncoder().encode(content);
       const sha256 = await hash(bytes);
       sources.set(sha256, bytes.buffer as ArrayBuffer);
-      notes.push({ ...note, sha256 });
+      const carried =
+        account.headerTags.length > 0 ? headerTagsOf(noteTags(cache), account.headerTags) : [];
+      notes.push({ ...note, sha256, ...(carried.length > 0 ? { tags: carried } : {}) });
 
       // A filmstrip shows its pictures small as well, and asks for thumbnails.
       const filmstrip = new Set(
@@ -356,7 +360,8 @@ export class PublishCommands {
       siteTitle: account.name,
       notes,
       assets: assetEntries,
-      ...(themeCss !== undefined ? { themeCss } : {})
+      ...(themeCss !== undefined ? { themeCss } : {}),
+      ...(account.headerTags.length > 0 ? { headerTags: account.headerTags } : {})
     };
 
     return { index, sources, assets };

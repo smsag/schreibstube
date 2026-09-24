@@ -13,6 +13,7 @@ import {
   SLIDESHOW_LANGUAGE,
   type SlideshowLayout
 } from "./slideshow";
+import { normalizeTag, tagIncludes } from "./tag-pins";
 
 /**
  * Which frontmatter key carries which meaning.
@@ -312,4 +313,74 @@ export function isInsideFolder(path: string, folder: string): boolean {
   const normalized = folder.replace(/^\/+|\/+$/g, "");
   if (!normalized) return true;
   return path === normalized || path.startsWith(`${normalized}/`);
+}
+
+/** How many tags the site's header links to. More would crowd out the title. */
+export const MAX_HEADER_TAGS = 3;
+
+/**
+ * The header tags a connection asks for, from its settings.
+ *
+ * The settings share a file a person can edit, so each entry is read as a tag
+ * the way Obsidian reads one, without its `#`; anything that is not one, and a
+ * second spelling of one already listed, is dropped, and at most three stay.
+ */
+export function normalizeHeaderTags(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const tags: string[] = [];
+  const seen = new Set<string>();
+  for (const entry of value) {
+    if (typeof entry !== "string") continue;
+    const tag = normalizeTag(entry);
+    if (tag === null || seen.has(tag.toLowerCase())) continue;
+    seen.add(tag.toLowerCase());
+    tags.push(tag);
+    if (tags.length === MAX_HEADER_TAGS) break;
+  }
+  return tags;
+}
+
+/**
+ * The header tags a note falls under, as Obsidian counts tags: case aside, and
+ * a note tagged `#projekt/alpha` under a header tag `projekt`.
+ *
+ * Only these travel to the bridge. A note's other tags are the vault's
+ * business, and a published site has no use for them.
+ */
+export function headerTagsOf(carried: readonly string[], headerTags: readonly string[]): string[] {
+  return headerTags.filter((tag) => carried.some((note) => tagIncludes(tag, note)));
+}
+
+/**
+ * Every tag a note carries, as Obsidian's metadata has it: the `tags`
+ * property — a list, or one string of tags separated by commas or spaces —
+ * and the `#tags` written in the text. What Obsidian's own `getAllTags`
+ * reads, taken from the same cache so the publish needs nothing more.
+ */
+export function noteTags(
+  cache:
+    | {
+        frontmatter?: Record<string, unknown> | undefined;
+        tags?: readonly { tag: string }[] | undefined;
+      }
+    | null
+    | undefined
+): string[] {
+  const found: string[] = [];
+  const property = cache?.frontmatter?.tags ?? cache?.frontmatter?.tag;
+  const written = Array.isArray(property)
+    ? property
+    : typeof property === "string"
+      ? property.split(/[,\s]+/)
+      : [];
+  for (const entry of written) {
+    if (typeof entry !== "string") continue;
+    const tag = normalizeTag(entry);
+    if (tag !== null) found.push(tag);
+  }
+  for (const entry of cache?.tags ?? []) {
+    const tag = normalizeTag(entry.tag);
+    if (tag !== null) found.push(tag);
+  }
+  return found;
 }

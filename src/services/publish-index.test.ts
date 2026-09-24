@@ -9,6 +9,10 @@ import {
   isoDate,
   normalizePublishKeys,
   readPublishFields,
+  headerTagsOf,
+  MAX_HEADER_TAGS,
+  normalizeHeaderTags,
+  noteTags,
   referencedAttachments,
   slideshowReferences,
   resolveNote,
@@ -368,5 +372,46 @@ describe("slideshowReferences", () => {
   it("leaves out a remote picture and anything in frontmatter", () => {
     const note = "---\ncover: x\n---\n" + block("slideshow", "![](https://x/y.png)", "![](a.png)");
     expect(slideshowReferences(note)).toEqual(["a.png"]);
+  });
+});
+
+describe("header tags", () => {
+  it("reads the setting as tags: no #, no duplicates, nothing that is not one, three at most", () => {
+    expect(
+      normalizeHeaderTags([
+        "#essay",
+        "Essay",
+        "zwei wörter",
+        "",
+        "projekt/alpha",
+        7,
+        "reise",
+        "mehr"
+      ])
+    ).toEqual(["essay", "projekt/alpha", "reise"]);
+    expect(MAX_HEADER_TAGS).toBe(3);
+    expect(normalizeHeaderTags("essay")).toEqual([]);
+    expect(normalizeHeaderTags(undefined)).toEqual([]);
+  });
+
+  it("finds the header tags a note falls under, nested and case aside, in the header's order", () => {
+    expect(headerTagsOf(["Projekt/Alpha", "privat"], ["essay", "projekt"])).toEqual(["projekt"]);
+    expect(headerTagsOf(["essay", "projekt"], ["projekt", "essay"])).toEqual(["projekt", "essay"]);
+    expect(headerTagsOf(["projektion"], ["projekt"])).toEqual([]);
+    expect(headerTagsOf([], ["essay"])).toEqual([]);
+  });
+
+  it("reads a note's tags from its property and its text, as Obsidian does", () => {
+    expect(
+      noteTags({ frontmatter: { tags: ["essay", "#reise"] }, tags: [{ tag: "#projekt/alpha" }] })
+    ).toEqual(["essay", "reise", "projekt/alpha"]);
+    expect(noteTags({ frontmatter: { tags: "essay, reise notizen" } })).toEqual([
+      "essay",
+      "reise",
+      "notizen"
+    ]);
+    expect(noteTags({ frontmatter: { tag: "essay" } })).toEqual(["essay"]);
+    expect(noteTags({ frontmatter: { tags: [7, "", "2026"] } })).toEqual([]);
+    expect(noteTags(null)).toEqual([]);
   });
 });

@@ -25,6 +25,8 @@ export interface PublishAccount {
   target: string;
   /** Write the published time and URL back into each note's frontmatter. */
   writeBack: boolean;
+  /** Up to three tags linked from the site's header, each to a page of its notes. */
+  headerTags: string[];
 }
 
 /** The summary of one publish, kept so the settings can show it afterwards. */

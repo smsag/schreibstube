@@ -9,7 +9,7 @@
  * state, so the next publish re-uploads and re-renders; the cost is wasted work
  * rather than a lost file.
  */
-import { assetPath, pagePath, thumbnailPath } from "./path.mjs";
+import { assetPath, pagePath, tagPagePath, thumbnailPath } from "./path.mjs";
 
 export const MANIFEST_VERSION = 1;
 
@@ -90,6 +90,11 @@ export function planUploads({ index, manifest, storedSourceHashes }) {
   // assets — the stylesheet, the fonts, the diagram bundle — depend on what the
   // pages turn out to use, so they are settled at commit.
   const expectedPages = new Set(index.notes.map((note) => pagePath(note.slug)));
+  // A header tag's page is the site's own, like a note's, as long as a note
+  // carries the tag.
+  for (const tag of index.headerTags ?? []) {
+    if (index.notes.some((note) => note.tags?.includes(tag))) expectedPages.add(tagPagePath(tag));
+  }
   const willDelete = [...published].filter((path) => {
     if (path === "index.html") return false;
     if (path.endsWith("/index.html")) return !expectedPages.has(path);

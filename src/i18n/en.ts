@@ -144,6 +144,10 @@ export const en = {
     addAccount: "Add account",
     writeBack: "Record the publication in the note",
     writeBackDesc: "Writes the time and the address into the frontmatter after publishing.",
+    headerTags: "Tags in the header",
+    headerTagsDesc:
+      "Up to three tags linked at the top of every page, each to a page listing the notes that carry it. Nested tags count: projekt also lists notes tagged projekt/alpha. A tag no published note carries is left out.",
+    headerTagPlaceholder: "#tag",
     targetPlaceholder: "Target on the bridge",
     targetsUnavailable: "Targets could not be loaded — type the name.",
     keysHeading: "Frontmatter fields",

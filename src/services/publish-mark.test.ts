@@ -12,7 +12,8 @@ const grembl = {
   name: "Grembl",
   folder: "Writings/Grembl",
   target: "writings",
-  writeBack: true
+  writeBack: true,
+  headerTags: []
 };
 
 const run = "2026-09-24T08:22:10.000Z";
@@ -101,7 +102,7 @@ describe("publishMarkFor, what its title says", () => {
   });
 
   it("says only what it knows when the account records nothing in notes", () => {
-    const quiet = { ...grembl, writeBack: false };
+    const quiet = { ...grembl, writeBack: false, headerTags: [] };
     expect(
       mark({
         accounts: [quiet],
