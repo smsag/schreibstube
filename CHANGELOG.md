@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Added
+
+- **The explorer marks what you publish.** A note marked for publication in a publishing account's folder carries a small globe after its name, in the tree, the pinned rows and the lists above it; every other note carries nothing. The globe's title says what the mark means now: "Published on writings.grembl.de" with the time, when the site's latest run put the note online, or "Marked for publication … not published yet" while it is waiting for the next run. The mark follows the flag the moment it is set, and it sits after the sync cloud where a note has both, so the one that can ask for something comes first.
+
 ### Changed
 
 - **The bridge finds your Sent folder by itself.** A sent message's copy went to a folder called `Sent`, and a mailbox that names it otherwise — Strato's is `Sent Items`, shown as "Gesendete Objekte" — got no copy until `SENT_MAILBOX` was set by hand. Left unset, the bridge now asks the mail server which folder it marks as Sent and files there. Only the server's own marker counts, never a guess from a name; a server that marks nothing gets `Sent` as before, and a name set in `SENT_MAILBOX` still wins over the marker. On Gmail, which keeps its own copy of what it sends, the bridge files none, where filing one now would put every message in the thread twice.

@@ -848,7 +848,12 @@ export const de: Messages = {
       unchecked: "An eine Quelle gebunden, noch nie geprüft",
       error: "Die Quelle lässt sich nicht laden",
       checkedAt: (when: string) => `zuletzt geprüft ${when}`,
-      never: "noch nie geprüft"
+      never: "noch nie geprüft",
+      published: (site: string, when: string) => `Veröffentlicht auf ${site} · ${when}`,
+      marked: (site: string) => `Zur Veröffentlichung auf ${site} markiert`,
+      notYetPublished: "noch nicht veröffentlicht",
+      siteLastPublished: (when: string) => `die Website wurde zuletzt ${when} veröffentlicht`,
+      siteNeverPublished: "die Website wurde aus diesem Vault noch nie veröffentlicht"
     },
 
     bind: {
