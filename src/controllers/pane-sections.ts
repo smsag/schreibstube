@@ -30,7 +30,7 @@ import {
   type BookmarkTree
 } from "../services/bookmark-file";
 import { hasWaitingUpdate, type SyncRecord } from "../services/sync-document";
-import { registeredCommands } from "../services/workspace-internals";
+import { registeredCommands, registeredRibbonItems } from "../services/workspace-internals";
 import {
   hasUnseenSync,
   newestSync,
@@ -213,7 +213,10 @@ export class PaneSectionsController {
     const known = this.pluginIcons.get(action);
     if (known !== undefined) return known;
 
-    const icon = pluginIcon(registeredCommands(this.app), action);
+    const icon = pluginIcon(
+      { ribbon: registeredRibbonItems(this.app), commands: registeredCommands(this.app) },
+      action
+    );
     if (icon !== null) this.pluginIcons.set(action, icon);
     return icon;
   }

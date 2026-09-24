@@ -258,33 +258,77 @@ describe("pluginIcon", () => {
     { id: "other:new", icon: "star" }
   ];
 
-  it("takes the icon the plugin's commands name most", () => {
-    expect(pluginIcon(COMMANDS, "pythia")).toBe("pythia-logo");
+  it("takes the plugin's ribbon button first", () => {
+    const ribbon = [
+      { id: "switcher:Open quick switcher", icon: "lucide-navigation" },
+      { id: "pythia:Pythia", icon: "pythia-ribbon" }
+    ];
+
+    expect(pluginIcon({ ribbon, commands: COMMANDS }, "pythia")).toBe("pythia-ribbon");
   });
 
-  it("gives a tie to the command registered first", () => {
+  it("falls back to its commands when it has no ribbon button", () => {
+    const ribbon = [{ id: "other:Other", icon: "star" }];
+
+    expect(pluginIcon({ ribbon, commands: COMMANDS }, "pythia")).toBe("pythia-logo");
+    expect(pluginIcon({ commands: COMMANDS }, "pythia")).toBe("pythia-logo");
+  });
+
+  it("falls back to its commands when its ribbon button names no icon", () => {
+    expect(
+      pluginIcon({ ribbon: [{ id: "pythia:Pythia", icon: "" }], commands: COMMANDS }, "pythia")
+    ).toBe("pythia-logo");
+  });
+
+  it("takes the icon named most, among several ribbon buttons as among commands", () => {
+    const ribbon = [
+      { id: "p:Settings", icon: "gear" },
+      { id: "p:Open", icon: "logo" },
+      { id: "p:New", icon: "logo" }
+    ];
+
+    expect(pluginIcon({ ribbon }, "p")).toBe("logo");
+  });
+
+  it("gives a tie to the one registered first", () => {
     expect(
       pluginIcon(
-        [
-          { id: "p:a", icon: "first" },
-          { id: "p:b", icon: "second" }
-        ],
+        {
+          commands: [
+            { id: "p:a", icon: "first" },
+            { id: "p:b", icon: "second" }
+          ]
+        },
         "p"
       )
     ).toBe("first");
   });
 
-  it("does not take another plugin's commands, even with a shared prefix", () => {
-    expect(pluginIcon([{ id: "pythia-extra:open", icon: "star" }], "pythia")).toBeNull();
+  it("does not take another plugin's, even with a shared prefix", () => {
+    expect(
+      pluginIcon(
+        {
+          ribbon: [{ id: "pythia-extra:Open", icon: "star" }],
+          commands: [{ id: "pythia-extra:open", icon: "star" }]
+        },
+        "pythia"
+      )
+    ).toBeNull();
   });
 
   it("ignores a missing, empty or malformed icon", () => {
     expect(
-      pluginIcon([{ id: "p:a" }, { id: "p:b", icon: "  " }, { id: "p:c", icon: 42 }], "p")
+      pluginIcon(
+        {
+          commands: [{ id: "p:a" }, { id: "p:b", icon: "  " }, { id: "p:c", icon: 42 }]
+        },
+        "p"
+      )
     ).toBeNull();
   });
 
-  it("is null for a plugin that is not there", () => {
-    expect(pluginIcon(COMMANDS, "absent")).toBeNull();
+  it("is null for a plugin that is not there, or with nothing to read", () => {
+    expect(pluginIcon({ commands: COMMANDS }, "absent")).toBeNull();
+    expect(pluginIcon({}, "pythia")).toBeNull();
   });
 });

@@ -237,10 +237,20 @@ const BUILT_IN_ACTIONS: ReadonlySet<string> = new Set([
   "vault"
 ]);
 
-/** A command as the icon lookup needs it: its id, and whatever it named as icon. */
-export interface CommandIcon {
+/**
+ * A ribbon button or a command, as the icon lookup needs it: its id, which
+ * Obsidian prefixes with the plugin's own (`pythia:…`), and whatever it named
+ * as icon.
+ */
+export interface RegisteredIcon {
   id: string;
   icon?: unknown;
+}
+
+/** Where a plugin's icon can be read off, best first. */
+export interface PluginIconSources {
+  ribbon?: readonly RegisteredIcon[];
+  commands?: readonly RegisteredIcon[];
 }
 
 /**
@@ -256,22 +266,30 @@ export function obsidianUriAction(url: string): string | null {
 }
 
 /**
- * The icon a plugin draws itself with, read off its commands.
+ * The icon a plugin draws itself with.
  *
- * Obsidian keeps no icon per plugin, but a plugin that has one puts it on its
- * commands, and most often on most of them: the icon named most is the one
- * that stands for the plugin, and a command's own "star" or "refresh" loses to
- * it. A tie goes to the command registered first. Null when the plugin has no
- * command with an icon — or is not there — and the row keeps the generic one.
+ * Obsidian keeps no icon per plugin, so it is read off what the plugin put on
+ * screen. Its ribbon button first: that is where a plugin shows itself, and a
+ * plugin that puts no icon on its commands usually still has one. Its commands
+ * after that. Within either, the icon named most stands for the plugin — a
+ * command's own "star" or "refresh" loses to the logo on the others — and a
+ * tie goes to the one registered first. Null when the plugin shows no icon,
+ * or is not there, and the row keeps the generic one.
  */
-export function pluginIcon(commands: readonly CommandIcon[], pluginId: string): string | null {
+export function pluginIcon(sources: PluginIconSources, pluginId: string): string | null {
   const prefix = `${pluginId}:`;
+  return (
+    mostNamedIcon(sources.ribbon ?? [], prefix) ?? mostNamedIcon(sources.commands ?? [], prefix)
+  );
+}
+
+function mostNamedIcon(items: readonly RegisteredIcon[], prefix: string): string | null {
   const counts = new Map<string, number>();
 
-  for (const command of commands) {
-    if (!command.id.startsWith(prefix)) continue;
-    if (typeof command.icon !== "string" || command.icon.trim().length === 0) continue;
-    counts.set(command.icon, (counts.get(command.icon) ?? 0) + 1);
+  for (const item of items) {
+    if (!item.id.startsWith(prefix)) continue;
+    if (typeof item.icon !== "string" || item.icon.trim().length === 0) continue;
+    counts.set(item.icon, (counts.get(item.icon) ?? 0) + 1);
   }
 
   let best: string | null = null;

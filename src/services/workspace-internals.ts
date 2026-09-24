@@ -319,6 +319,17 @@ interface CommandsInternals {
   commands?: { commands?: Record<string, unknown> };
 }
 
+interface RibbonInternals {
+  leftRibbon?: { items?: unknown };
+}
+
+/** An id and an icon off whatever the registry holds, or nothing. */
+function registeredIcon(value: unknown): { id: string; icon?: unknown } | null {
+  if (!value || typeof value !== "object") return null;
+  const { id, icon } = value as { id?: unknown; icon?: unknown };
+  return typeof id === "string" ? { id, icon } : null;
+}
+
 /**
  * Every command registered right now, with the icon it named.
  *
@@ -330,14 +341,29 @@ export function registeredCommands(app: App): { id: string; icon?: unknown }[] {
   try {
     const registry = (app as unknown as CommandsInternals).commands?.commands;
     if (!registry || typeof registry !== "object") return [];
+    return Object.values(registry)
+      .map(registeredIcon)
+      .filter((item): item is { id: string; icon?: unknown } => item !== null);
+  } catch {
+    return [];
+  }
+}
 
-    const commands: { id: string; icon?: unknown }[] = [];
-    for (const command of Object.values(registry)) {
-      if (!command || typeof command !== "object") continue;
-      const { id, icon } = command as { id?: unknown; icon?: unknown };
-      if (typeof id === "string") commands.push({ id, icon });
-    }
-    return commands;
+/**
+ * Every ribbon button, hidden ones included, with its icon.
+ *
+ * `workspace.leftRibbon.items` is undocumented. A plugin's button is filed
+ * under `<plugin id>:<title>`, the key Obsidian also writes into
+ * `workspace.json` to remember which buttons are hidden. Checked the same way
+ * as the commands: an empty list whenever the shape is not the one expected.
+ */
+export function registeredRibbonItems(app: App): { id: string; icon?: unknown }[] {
+  try {
+    const items = (app.workspace as unknown as RibbonInternals | undefined)?.leftRibbon?.items;
+    if (!Array.isArray(items)) return [];
+    return items
+      .map(registeredIcon)
+      .filter((item): item is { id: string; icon?: unknown } => item !== null);
   } catch {
     return [];
   }

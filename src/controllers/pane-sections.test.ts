@@ -262,6 +262,14 @@ describe("the icon of a plugin a bookmark calls", () => {
     expect(pane.pluginIconFor(PYTHIA)).toBe("pythia-logo");
   });
 
+  it("prefers the plugin's ribbon button to its commands", () => {
+    const pane = withCommands({ "pythia:open": { id: "pythia:open", icon: "pythia-logo" } });
+    const app = (pane as unknown as { app: { workspace?: unknown } }).app;
+    app.workspace = { leftRibbon: { items: [{ id: "pythia:Pythia", icon: "pythia-ribbon" }] } };
+
+    expect(pane.pluginIconFor(PYTHIA)).toBe("pythia-ribbon");
+  });
+
   it("has none for a link Obsidian answers itself, or one of another kind", () => {
     const pane = withCommands({ "open:x": { id: "open:x", icon: "star" } });
 
