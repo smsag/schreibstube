@@ -132,6 +132,10 @@ export const de: Messages = {
     addAccount: "Konto hinzufügen",
     writeBack: "Veröffentlichung in die Notiz schreiben",
     writeBackDesc: "Trägt Zeitpunkt und Adresse nach dem Veröffentlichen ins Frontmatter ein.",
+    headerTags: "Schlagwörter im Kopf",
+    headerTagsDesc:
+      "Bis zu drei Schlagwörter, oben auf jeder Seite verlinkt, jedes mit einer Seite der Notizen, die es tragen. Verschachtelte zählen mit: projekt listet auch Notizen mit projekt/alpha. Ein Schlagwort, das keine veröffentlichte Notiz trägt, bleibt weg.",
+    headerTagPlaceholder: "#schlagwort",
     targetPlaceholder: "Ziel auf der Bridge",
     targetsUnavailable: "Ziele nicht abrufbar — Namen eintragen.",
     keysHeading: "Frontmatter-Felder",

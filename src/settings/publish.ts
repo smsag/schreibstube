@@ -13,6 +13,8 @@ import { t } from "../i18n";
 import type { PublishAccount } from "../types";
 import {
   DEFAULT_PUBLISH_KEYS,
+  MAX_HEADER_TAGS,
+  normalizeHeaderTags,
   PUBLISH_KEY_ROLES,
   type PublishKeyMap
 } from "../services/publish-index";
@@ -73,7 +75,8 @@ export function renderPublish(ctx: SettingsContext): void {
           name: t().publish.newAccountName,
           folder: "",
           target: "",
-          writeBack: true
+          writeBack: true,
+          headerTags: []
         }
       ]);
     })
@@ -137,6 +140,24 @@ function renderAccount(ctx: SettingsContext, position: number, account: PublishA
         .setPlaceholder(t().publish.accountTarget)
         .setValue(account.target)
         .onChange((value) => void update({ target: value }))
+    );
+  }
+
+  // Three fields rather than one list to type into: the header holds three,
+  // and a field per tag says so without a word of explanation.
+  const headerTags = [...account.headerTags];
+  const tagSetting = new Setting(containerEl)
+    .setName(t().publish.headerTags)
+    .setDesc(t().publish.headerTagsDesc);
+  for (let slot = 0; slot < MAX_HEADER_TAGS; slot++) {
+    tagSetting.addText((text) =>
+      text
+        .setPlaceholder(t().publish.headerTagPlaceholder)
+        .setValue(headerTags[slot] ? `#${headerTags[slot]}` : "")
+        .onChange((value) => {
+          headerTags[slot] = value;
+          void update({ headerTags: normalizeHeaderTags(headerTags) });
+        })
     );
   }
 

@@ -381,7 +381,9 @@ describe("normalizeSettings — publishing", () => {
 
   it("keeps a complete account", () => {
     const accounts = normalizeSettings({
-      publishAccounts: [{ id: "a", name: "Blog", folder: "Blog", target: "blog", writeBack: true }]
+      publishAccounts: [
+        { id: "a", name: "Blog", folder: "Blog", target: "blog", writeBack: true, headerTags: [] }
+      ]
     }).publishAccounts;
     expect(accounts).toHaveLength(1);
     expect(accounts[0]).toMatchObject({ name: "Blog", folder: "Blog", target: "blog" });
@@ -390,8 +392,15 @@ describe("normalizeSettings — publishing", () => {
   it("drops an account that cannot publish anything", () => {
     const accounts = normalizeSettings({
       publishAccounts: [
-        { id: "a", name: "Ohne Ordner", folder: "", target: "blog", writeBack: true },
-        { id: "b", name: "Ohne Ziel", folder: "Blog", target: "", writeBack: true }
+        {
+          id: "a",
+          name: "Ohne Ordner",
+          folder: "",
+          target: "blog",
+          writeBack: true,
+          headerTags: []
+        },
+        { id: "b", name: "Ohne Ziel", folder: "Blog", target: "", writeBack: true, headerTags: [] }
       ]
     }).publishAccounts;
     expect(accounts).toEqual([]);
@@ -400,7 +409,7 @@ describe("normalizeSettings — publishing", () => {
   it("trims the slashes a folder is often typed with", () => {
     const accounts = normalizeSettings({
       publishAccounts: [
-        { id: "a", name: "Blog", folder: "/Blog/", target: "blog", writeBack: true }
+        { id: "a", name: "Blog", folder: "/Blog/", target: "blog", writeBack: true, headerTags: [] }
       ]
     }).publishAccounts;
     expect(accounts[0]?.folder).toBe("Blog");
@@ -408,7 +417,9 @@ describe("normalizeSettings — publishing", () => {
 
   it("names an account after its folder when no name was given", () => {
     const accounts = normalizeSettings({
-      publishAccounts: [{ id: "a", name: "", folder: "Blog", target: "blog", writeBack: true }]
+      publishAccounts: [
+        { id: "a", name: "", folder: "Blog", target: "blog", writeBack: true, headerTags: [] }
+      ]
     }).publishAccounts;
     expect(accounts[0]?.name).toBe("Blog");
   });
@@ -472,5 +483,26 @@ describe("icon shortcodes", () => {
     expect(normalizeSettings({}).iconShortcodes).toBe(true);
     expect(normalizeSettings({ iconShortcodes: "off" as never }).iconShortcodes).toBe(true);
     expect(normalizeSettings({ iconShortcodes: false }).iconShortcodes).toBe(false);
+  });
+});
+
+describe("a connection's header tags", () => {
+  it("keeps up to three tags, read as tags, and gives an older connection none", () => {
+    const [withTags, older] = normalizeSettings({
+      publishAccounts: [
+        {
+          id: "a",
+          name: "Blog",
+          folder: "Blog",
+          target: "blog",
+          writeBack: true,
+          headerTags: ["#essay", "essay", "reise", "projekt", "mehr"]
+        },
+        // Saved before connections had header tags.
+        { id: "b", name: "Alt", folder: "Alt", target: "alt", writeBack: true } as never
+      ]
+    }).publishAccounts;
+    expect(withTags?.headerTags).toEqual(["essay", "reise", "projekt"]);
+    expect(older?.headerTags).toEqual([]);
   });
 });

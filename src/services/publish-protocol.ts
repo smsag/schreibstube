@@ -19,7 +19,7 @@ import {
  * its own number on /health, so a mismatch can be named — "redeploy the bridge"
  * — instead of surfacing later as a 404 on a route that does not exist yet.
  */
-export const PROTOCOL_VERSION = 2;
+export const PROTOCOL_VERSION = 3;
 
 /** Plan, targets, diagnostics: a manifest read and a listing. */
 export const PUBLISH_REQUEST_TIMEOUT_MS = 120_000;
@@ -47,6 +47,8 @@ export interface PublishNote {
   title: string;
   date: string;
   description?: string;
+  /** Which of the index's header tags the note carries. Protocol 3. */
+  tags?: string[];
 }
 
 export interface PublishAsset {
@@ -64,6 +66,8 @@ export interface PublishIndex {
   assets: PublishAsset[];
   /** A `theme.css` from the publish folder, replacing the built-in stylesheet. */
   themeCss?: string;
+  /** Up to three tags linked from the site's header. Protocol 3. */
+  headerTags?: string[];
 }
 
 export interface PublishTarget {

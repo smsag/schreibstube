@@ -29,6 +29,7 @@ route that does not exist yet.
 
 | Bridge | Protocol | Plugin          | Notes                                                        |
 | ------ | -------- | --------------- | ------------------------------------------------------------ |
+| 2.8.x  | 3        | 1.8.0 and later | Header tags and a page per tag                               |
 | 2.7.x  | 2        | 1.8.0 and later | Slideshows on the site, filmstrip thumbnails                 |
 | 2.6.x  | 1        | 1.8.0 and later | Notes cached in memory, parallel SFTP, one login per publish |
 | 2.5.x  | 1        | 1.8.0 and later | Sent folder by tag, state guard, absolute `STATE_ROOT`       |
@@ -198,6 +199,15 @@ decoding anything, and they go when no filmstrip shows the picture any more.
 A page points at a thumbnail only once it is on the host; until then the
 filmstrip shows the picture itself. A protocol-1 plugin sends no marks and a
 protocol-1 bridge asks for no thumbnails, and either way the filmstrip works.
+
+Up to three **header tags** per connection are linked on the right of every
+page's header, each to `tag/<slug>/`, a page listing the published notes that
+carry it, newest first. Protocol 3 carries them: the index may name
+`headerTags` (at most three, no two sharing a page), and a note may name
+`tags` — only which of those header tags it carries, which the plugin works out
+the way Obsidian counts tags, so a note's other tags never leave the vault. A
+header tag no published note carries gets no link and no page. A protocol-2
+plugin sends none, and the header is as it was.
 
 ## Dependencies and advisories
 

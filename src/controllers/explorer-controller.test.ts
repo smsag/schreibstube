@@ -655,7 +655,8 @@ describe("the publication mark", () => {
     name: "Grembl",
     folder: "Writings/Grembl",
     target: "writings",
-    writeBack: true
+    writeBack: true,
+    headerTags: []
   };
   const note = new TFile("Writings/Grembl/Test.md");
 

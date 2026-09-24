@@ -78,7 +78,8 @@ const account = {
   name: "Schreibstube",
   folder: "Blog",
   target: "blog",
-  writeBack: true
+  writeBack: true,
+  headerTags: []
 };
 
 function settings(overrides = {}) {
@@ -494,7 +495,7 @@ describe("publishing", () => {
   it("leaves the note alone when write-back is off", async () => {
     const target = vault();
     const { commands, state } = controller(target, {
-      publishAccounts: [{ ...account, writeBack: false }]
+      publishAccounts: [{ ...account, writeBack: false, headerTags: [] }]
     });
     expect(state.settings.publishAccounts[0]?.writeBack).toBe(false);
     await commands.publish();
@@ -794,5 +795,50 @@ describe("filmstrip thumbnails", () => {
     await controller(vault).commands.publish();
     await runEnded();
     expect(most).toBe(1);
+  });
+});
+
+describe("header tags", () => {
+  it("sends the header tags, and for each note only the ones it carries", async () => {
+    const vault = fakeVault({
+      notes: [
+        {
+          path: "Blog/Erste.md",
+          content: "# Erste",
+          frontmatter: { ...published, tags: ["Projekt/Alpha", "privat"] }
+        },
+        { path: "Blog/Zweite.md", content: "# Zweite", frontmatter: published }
+      ]
+    });
+
+    await controller(vault, {
+      publishAccounts: [{ ...account, headerTags: ["essay", "projekt"] }]
+    }).commands.preview();
+
+    const index = plannedIndex();
+    expect(index.headerTags).toEqual(["essay", "projekt"]);
+    const byPath = Object.fromEntries(
+      index.notes.map((note: { sourcePath: string; tags?: string[] }) => [
+        note.sourcePath,
+        note.tags
+      ])
+    );
+    // A note's own tags stay in the vault: "privat" never travels.
+    expect(byPath).toEqual({ "Blog/Erste.md": ["projekt"], "Blog/Zweite.md": undefined });
+  });
+
+  it("sends no header tags when the connection sets none", async () => {
+    const vault = fakeVault({
+      notes: [
+        {
+          path: "Blog/Erste.md",
+          content: "# Erste",
+          frontmatter: { ...published, tags: ["essay"] }
+        }
+      ]
+    });
+    await controller(vault).commands.preview();
+    expect(plannedIndex().headerTags).toBeUndefined();
+    expect(plannedIndex().notes[0].tags).toBeUndefined();
   });
 });
