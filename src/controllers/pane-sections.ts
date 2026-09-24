@@ -220,7 +220,9 @@ export class PaneSectionsController {
 
   private async openNote(bookmark: Bookmark): Promise<void> {
     const linkpath = bookmarkLinkPath(bookmark.url);
-    const file = this.app.metadataCache.getFirstLinkpathDest(linkpath, "");
+    // Resolved from the file the link is written in, as Obsidian resolves it,
+    // so a relative link beside a bookmarks file in a subfolder still finds it.
+    const file = this.app.metadataCache.getFirstLinkpathDest(linkpath, this.bookmarksPath());
 
     if (!file) {
       new Notice(t().common.notice(t().explorer.bookmarks.missingNote(linkpath)));

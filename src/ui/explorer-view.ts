@@ -983,7 +983,7 @@ export class ExplorerPaneView extends ItemView {
     if (bookmark.kind === "note") {
       const target = this.app.metadataCache.getFirstLinkpathDest(
         bookmarkLinkPath(bookmark.url),
-        ""
+        this.host?.sections.bookmarksPath() ?? ""
       );
       if (target && this.host?.explorer.isTrashed(target.path)) return 0;
     }

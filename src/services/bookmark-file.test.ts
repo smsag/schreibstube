@@ -65,6 +65,49 @@ describe("parseBookmarkFile", () => {
     expect(tree.loose[0]).toEqual({ name: "Brief", url: "note://Work/Brief", kind: "note" });
   });
 
+  it("reads a Markdown link without a scheme as a note, as Obsidian writes one", () => {
+    const tree = parseBookmarkFile(
+      [
+        "- [Today I learned](Today%20I%20learned.md)",
+        "- [Brief](<Work/The Brief.md>)",
+        "- [Section](./Work/Plan.md#Goals)",
+        "# Work",
+        "- [Rooted](/Work/Plan.md)"
+      ].join("\n")
+    );
+
+    expect(tree.loose).toEqual([
+      { name: "Today I learned", url: "note://Today I learned", kind: "note" },
+      { name: "Brief", url: "note://Work/The Brief", kind: "note" },
+      { name: "Section", url: "note://Work/Plan", kind: "note" }
+    ]);
+    expect(tree.folders[0]?.bookmarks[0]?.url).toBe("note://Work/Plan");
+  });
+
+  it("keeps a stray percent sign in a note link as written", () => {
+    const tree = parseBookmarkFile("- [Rent](100%25 and 5%.md)");
+
+    expect(tree.loose[0]?.url).toBe("note://100%25 and 5%");
+  });
+
+  it("does not take a link to a host or a bare heading for a note", () => {
+    const tree = parseBookmarkFile(
+      ["- [Host](//example.com/x)", "- [Heading](#Goals)", "- [Mail](mailto:a@b.de)"].join("\n")
+    );
+
+    expect(isBookmarkTreeEmpty(tree)).toBe(true);
+  });
+
+  it("opens an allowed link Obsidian wrapped in angle brackets", () => {
+    const tree = parseBookmarkFile("- [Vault](<obsidian://open?vault=My Vault>)");
+
+    expect(tree.loose[0]).toEqual({
+      name: "Vault",
+      url: "obsidian://open?vault=My Vault",
+      kind: "obsidian"
+    });
+  });
+
   it("drops schemes that must never be opened", () => {
     const tree = parseBookmarkFile(
       [

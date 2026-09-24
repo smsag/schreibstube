@@ -19,10 +19,13 @@
  *
  * ## Design
  * - [[Design Brief]]
+ * - [Weekly review](Reviews/Weekly%20review.md)
  * ```
  *
  * A heading opens a folder, a second-level heading opens a subfolder, a list
- * item is a bookmark, and anything else is ignored rather than reported. A file
+ * item is a bookmark, and anything else is ignored rather than reported. A
+ * Markdown link without a scheme is a note, because that is what Obsidian
+ * writes for one when wikilinks are turned off. A file
  * a person types into by hand has to tolerate the lines they did not mean as
  * bookmarks.
  */
@@ -103,6 +106,9 @@ const ITEM = /^\s*[-*]\s+\[(.+?)\]\((.+)\)\s*$/;
 /** `- [[Note]]` and `- [[Note|Label]]`, which is what a person types by hand. */
 const WIKILINK = /^\s*[-*]\s+\[\[([^\]|]+)(?:\|([^\]]+))?\]\]\s*$/;
 
+/** Any scheme at all, allowed or not: `mailto:` and `javascript:` included. */
+const ANY_SCHEME = /^[a-z][a-z0-9+.-]*:/i;
+
 export function bookmarkIcon(kind: BookmarkKind): string {
   return KIND_ICONS[kind];
 }
@@ -174,7 +180,8 @@ function parseItem(line: string): Bookmark | null {
   if (!item) return null;
 
   const name = clean(item[1] ?? "");
-  const url = clean(item[2] ?? "");
+  // Obsidian wraps a link target holding a space in angle brackets.
+  const url = clean(item[2] ?? "").replace(/^<(.*)>$/, "$1");
   if (name.length === 0 || url.length === 0) return null;
 
   const inner = url.match(/^\[\[([^\]|]+)(?:\|[^\]]+)?\]\]$/);
@@ -184,7 +191,31 @@ function parseItem(line: string): Bookmark | null {
   }
 
   const kind = classifyBookmarkUrl(url);
-  return kind ? { name, url, kind } : null;
+  if (kind) return { name, url, kind };
+
+  const linkpath = markdownLinkPath(url);
+  return linkpath ? { name, url: `note://${linkpath}`, kind: "note" } : null;
+}
+
+/**
+ * The note a scheme-less link target names, as a link path: `Today%20I%20learned.md`
+ * is `Today I learned`. Null for anything that has a scheme, which the allow-list
+ * has already refused, and for `//host` and a bare `#heading`, which name no note.
+ */
+function markdownLinkPath(target: string): string | null {
+  if (ANY_SCHEME.test(target) || target.startsWith("//")) return null;
+
+  let path = target.split("#")[0] ?? "";
+  try {
+    path = decodeURIComponent(path);
+  } catch {
+    // A hand-typed percent sign is not an escape; the path is read as written.
+  }
+
+  path = clean(path)
+    .replace(/^\.?\//, "")
+    .replace(/\.md$/i, "");
+  return path.length > 0 ? path : null;
 }
 
 /** The kind of a URL, or null when the scheme is not one that may be opened. */
