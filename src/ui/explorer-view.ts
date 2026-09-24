@@ -69,6 +69,7 @@ import {
 import type { SchreibstubeSettings } from "../types";
 import { countFilesUnder, folderCountLabel } from "../services/folder-count";
 import { followsNoteInWindow } from "../services/follow-window";
+import { scrollsToOpenedNote, type PanePress } from "../services/pane-press";
 import { folderPathsUnder, treeAction } from "../services/vault-tree";
 import {
   clearDropMarks,
@@ -230,6 +231,9 @@ export class ExplorerPaneView extends ItemView {
   /** Whether that reveal followed a note being opened rather than a request:
    *  it then scrolls only if the row is out of view, and does not flash. */
   private revealingQuietly = false;
+  /** A note just pressed in one of the pane's own lists, waiting for the
+   *  file-open it causes; that one opens folders but does not scroll. */
+  private panePress: PanePress | null = null;
   /** A pending ground measurement, so several signals in one frame cost one read. */
   private groundFrame: number | null = null;
 
@@ -457,7 +461,24 @@ export class ExplorerPaneView extends ItemView {
     if (!followsNoteInWindow(this.activeNoteWindow(), this.containerEl.win)) return;
 
     for (const ancestor of ancestorsOf(path)) this.revealedFolders.add(ancestor);
+
+    // Pressed in the pane's own lists a moment ago: the person is looking at
+    // that row already, and scrolling the tree to the same note would carry
+    // the pane away from it. The folders open; the scroll stays.
+    const press = this.panePress;
+    this.panePress = null;
+    if (!scrollsToOpenedNote(path, press, Date.now())) {
+      this.revealedTree = true;
+      if (redraw) this.requestRender();
+      return;
+    }
+
     this.reveal(path, redraw, quietly);
+  }
+
+  /** A press on one of the pane's own rows for a note, about to open it. */
+  private notePanePress(path: string | null): void {
+    this.panePress = { path, at: Date.now() };
   }
 
   /** The window holding the view the active file is open in, or null when
@@ -827,8 +848,12 @@ export class ExplorerPaneView extends ItemView {
     wirePress(row, {
       isDragging: () => this.drag.active !== null,
       activate: () => {
-        if (isFolder) this.revealFolder(file.path);
-        else void controller.open(file, false);
+        if (isFolder) {
+          this.revealFolder(file.path);
+          return;
+        }
+        this.notePanePress(file.path);
+        void controller.open(file, false);
       },
       showMenu: (at) => controller.showMenu(file, at)
     });
@@ -964,7 +989,12 @@ export class ExplorerPaneView extends ItemView {
     applyIcon(row.createSpan({ cls: "schreibstube-explorer-glyph" }), bookmarkIcon(bookmark.kind));
     row.createSpan({ cls: "schreibstube-explorer-name", text: bookmark.name });
 
-    row.addEventListener("click", () => this.host?.sections.openBookmark(bookmark));
+    row.addEventListener("click", () => {
+      // Which note a bookmark names is resolved when it opens, so the press
+      // is noted without a path.
+      if (bookmark.kind === "note") this.notePanePress(null);
+      void this.host?.sections.openBookmark(bookmark);
+    });
     return 1;
   }
 
@@ -1049,7 +1079,10 @@ export class ExplorerPaneView extends ItemView {
       // renamed or moved without first finding it in the tree below.
       wirePress(row, {
         isDragging: () => this.drag.active !== null,
-        activate: () => void this.host?.sections.openLatest(file.path),
+        activate: () => {
+          this.notePanePress(file.path);
+          void this.host?.sections.openLatest(file.path);
+        },
         showMenu: (at) => {
           const current = this.app.vault.getAbstractFileByPath(file.path);
           if (current instanceof TFile) controller?.showMenu(current, at);
