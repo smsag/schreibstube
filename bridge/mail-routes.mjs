@@ -13,36 +13,43 @@ export function createMailRoutes(config) {
   const mail = { ...config.mail, upstreamTimeoutMs: config.upstreamTimeoutMs };
   const transport = createSmtpTransport(mail, config.upstreamTimeoutMs);
 
-  const route = (path, handler) => ({
+  const route = (path, handler, timeoutMs) => ({
     method: "POST",
     path,
     capability: "mail",
     maxBytes: mail.maxBodyBytes,
-    handler
+    handler,
+    timeoutMs
   });
 
-  return [
-    route("/send", async ({ body, log }) => {
-      const problem = validateSend(body, mail.maxTextChars);
-      if (problem) throw httpError(400, "invalid_request", problem);
+  // A send is two upstream legs with a deadline each, delivery and filing in
+  // Sent. The request has to outlast both, or the server's own deadline would
+  // report a delivered message as a failure all the same.
+  const sendTimeoutMs = Math.max(config.requestTimeoutMs, 2 * config.upstreamTimeoutMs + 5_000);
 
-      const result = await upstream(
-        () => sendMessage(mail, transport, body),
-        config.upstreamTimeoutMs,
-        "Send"
-      );
-      // Recipients are intentionally absent from the log line.
-      log("info", `sent ${result.messageId} (filed in sent: ${result.filedInSent})`);
-      return result;
-    }),
+  return [
+    route(
+      "/send",
+      async ({ body, log }) => {
+        const problem = validateSend(body, mail.maxTextChars);
+        if (problem) throw httpError(400, "invalid_request", problem);
+
+        // sendMessage keeps a deadline per leg itself; one around the whole of
+        // it would cut the filing short and fail a send that was delivered.
+        const result = await upstream(() => sendMessage(mail, transport, body), "Send");
+        // Recipients are intentionally absent from the log line.
+        log("info", `sent ${result.messageId} (filed in sent: ${result.filedInSent})`);
+        return result;
+      },
+      sendTimeoutMs
+    ),
 
     route("/search", async ({ body, log }) => {
       const problem = validateSearch(body ?? {});
       if (problem) throw httpError(400, "invalid_request", problem);
 
       const result = await upstream(
-        () => searchMessages(mail, body ?? {}),
-        config.upstreamTimeoutMs,
+        () => withDeadline(searchMessages(mail, body ?? {}), config.upstreamTimeoutMs, "Search"),
         "Search"
       );
       log("info", `search returned ${result.messages.length} message(s) from ${result.mailbox}`);
@@ -61,13 +68,13 @@ export function createMailRoutes(config) {
 }
 
 /**
- * Everything that leaves the process gets a deadline, and every failure out
- * there is a bad gateway rather than an internal error: the bridge is working,
- * the thing it called is not.
+ * Every failure out there is a bad gateway rather than an internal error: the
+ * bridge is working, the thing it called is not. The deadline is the caller's,
+ * because a send needs one per leg rather than one over both.
  */
-async function upstream(work, timeoutMs, label) {
+async function upstream(work, label) {
   try {
-    return await withDeadline(work(), timeoutMs, label);
+    return await work();
   } catch (err) {
     throw httpError(502, "upstream_error", `${label} failed: ${err.message}`);
   }

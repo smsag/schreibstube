@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  MAIL_REQUEST_TIMEOUT_MS,
   describeBridgeError,
   hasCriteria,
   parseSearchResult,
@@ -106,5 +107,11 @@ describe("describeBridgeError", () => {
 
   it("falls back to the raw body when the response is not JSON", () => {
     expect(describeBridgeError(500, "<html>gateway</html>")).toMatch(/gateway/);
+  });
+});
+
+describe("MAIL_REQUEST_TIMEOUT_MS", () => {
+  it("outlasts the 45 s a default bridge allows a send and its filing", () => {
+    expect(MAIL_REQUEST_TIMEOUT_MS).toBeGreaterThan(45_000);
   });
 });

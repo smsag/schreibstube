@@ -16,6 +16,7 @@ function config(overrides = {}) {
     from: "Schreibstube <post@example.com>",
     sentMailbox: "",
     maxTextChars: 40_000,
+    upstreamTimeoutMs: 1000,
     ...overrides
   };
 }
@@ -169,5 +170,62 @@ describe("sendMessage, the rest of the message", () => {
   it("reports no Sent copy when filing is switched off", async () => {
     const { result } = await send(minimal);
     expect(result.filedInSent).toBe(false);
+  });
+});
+
+describe("sendMessage, deadlines", () => {
+  const never = () => new Promise(() => {});
+
+  it("reports a delivered message as sent when filing in Sent hangs", async () => {
+    const transport = recorder();
+    const result = await sendMessage(
+      config({ sentMailbox: "Sent", upstreamTimeoutMs: 20 }),
+      transport,
+      minimal,
+      { fileInSent: never }
+    );
+    expect(transport.calls).toHaveLength(1);
+    expect(result.filedInSent).toBe(false);
+    expect(result.messageId).toMatch(/^<.+>$/);
+  });
+
+  it("reports a delivered message as sent when filing in Sent fails", async () => {
+    const result = await sendMessage(config({ sentMailbox: "Sent" }), recorder(), minimal, {
+      fileInSent: async () => {
+        throw new Error("APPEND refused");
+      }
+    });
+    expect(result.filedInSent).toBe(false);
+  });
+
+  it("gives the filing leg a deadline of its own, after delivery", async () => {
+    let filedAfterSend = false;
+    const transport = recorder();
+    const result = await sendMessage(
+      config({ sentMailbox: "Sent", upstreamTimeoutMs: 30 }),
+      {
+        async sendMail(payload) {
+          await new Promise((resolve) => setTimeout(resolve, 20));
+          return transport.sendMail(payload);
+        }
+      },
+      minimal,
+      {
+        fileInSent: async () => {
+          filedAfterSend = transport.calls.length === 1;
+          await new Promise((resolve) => setTimeout(resolve, 20));
+          return true;
+        }
+      }
+    );
+    // 20 ms and 20 ms: each leg fits its own 30 ms, together they would not.
+    expect(filedAfterSend).toBe(true);
+    expect(result.filedInSent).toBe(true);
+  });
+
+  it("fails when delivery itself does not answer", async () => {
+    await expect(
+      sendMessage(config({ upstreamTimeoutMs: 20 }), { sendMail: never }, minimal)
+    ).rejects.toThrow(/Send timed out/);
   });
 });

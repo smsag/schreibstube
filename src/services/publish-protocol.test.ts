@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  COMMIT_REQUEST_TIMEOUT_MS,
   describePublishError,
   parsePlan,
   parseSummary,
@@ -123,5 +124,11 @@ describe("describePublishError", () => {
 
   it("falls back to the raw body when the response is not JSON", () => {
     expect(describePublishError(500, "<html>gateway</html>")).toContain("gateway");
+  });
+});
+
+describe("COMMIT_REQUEST_TIMEOUT_MS", () => {
+  it("outlasts the 300 s the bridge allows a commit, so success is never reported as failure", () => {
+    expect(COMMIT_REQUEST_TIMEOUT_MS).toBeGreaterThan(300_000);
   });
 });

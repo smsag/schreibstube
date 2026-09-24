@@ -21,8 +21,16 @@ import {
  */
 export const PROTOCOL_VERSION = 1;
 
-/** Generous: a commit renders the whole site and writes what changed. */
+/** Plan, targets, diagnostics: a manifest read and a listing. */
 export const PUBLISH_REQUEST_TIMEOUT_MS = 120_000;
+
+/**
+ * A commit renders the whole site and writes what changed, and the bridge
+ * allows it 300 s. The plugin has to wait longer than that: giving up first
+ * reported a publish as failed while it went on to succeed, and the retry
+ * that followed met "already running".
+ */
+export const COMMIT_REQUEST_TIMEOUT_MS = 330_000;
 
 /** An upload is one file, but a video is a large one over a slow line. */
 export const UPLOAD_REQUEST_TIMEOUT_MS = 180_000;

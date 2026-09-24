@@ -1,8 +1,9 @@
 import { requestUrl } from "obsidian";
 import { withTimeout } from "../utils/with-timeout";
 import { withRetry } from "../utils/retry";
-import { buildEndpoint, authHeaders } from "./bridge-protocol";
+import { BridgeError, buildEndpoint, authHeaders, extractCode } from "./bridge-protocol";
 import {
+  COMMIT_REQUEST_TIMEOUT_MS,
   PUBLISH_REQUEST_TIMEOUT_MS,
   UPLOAD_REQUEST_TIMEOUT_MS,
   describePublishError,
@@ -48,7 +49,7 @@ export async function bridgeHealth(config: PublishBridgeConfig): Promise<BridgeH
   );
 
   if (response.status < 200 || response.status >= 300) {
-    throw new Error(describePublishError(response.status, response.text));
+    throw failure(response.status, response.text);
   }
   return parseHealth(response.json);
 }
@@ -70,7 +71,9 @@ export async function commitPublish(
   target: string,
   index: PublishIndex
 ): Promise<PublishSummary> {
-  return parseSummary(await send(config, "POST", "/publish/commit", { target, index }));
+  return parseSummary(
+    await send(config, "POST", "/publish/commit", { target, index }, COMMIT_REQUEST_TIMEOUT_MS)
+  );
 }
 
 export async function checkTarget(
@@ -118,7 +121,8 @@ async function send(
   config: PublishBridgeConfig,
   method: "GET" | "POST",
   path: string,
-  body?: unknown
+  body?: unknown,
+  timeoutMs = PUBLISH_REQUEST_TIMEOUT_MS
 ): Promise<unknown> {
   const response = await withTimeout(
     requestUrl({
@@ -128,12 +132,12 @@ async function send(
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       throw: false
     }),
-    PUBLISH_REQUEST_TIMEOUT_MS,
+    timeoutMs,
     (seconds) => `bridge did not respond within ${seconds}s.`
   );
 
   if (response.status < 200 || response.status >= 300) {
-    throw new Error(describePublishError(response.status, response.text));
+    throw failure(response.status, response.text);
   }
   return response.json;
 }
@@ -175,6 +179,10 @@ async function sendUpload(
   );
 
   if (response.status < 200 || response.status >= 300) {
-    throw new Error(describePublishError(response.status, response.text));
+    throw failure(response.status, response.text);
   }
+}
+
+function failure(status: number, body: string): BridgeError {
+  return new BridgeError(describePublishError(status, body), status, extractCode(body));
 }

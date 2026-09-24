@@ -92,6 +92,33 @@ export function describeBridgeError(status: number, body: string, upstream: stri
   }
 }
 
+/**
+ * A failure the bridge answered, carrying the answer and not only its wording.
+ *
+ * Whether to try again used to be read out of the message, which names no
+ * status for most answers: a dropped SFTP connection came back as "the web
+ * host error — SFTP failed." and was given up on at once.
+ */
+export class BridgeError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+    readonly code: string
+  ) {
+    super(message);
+    this.name = "BridgeError";
+  }
+}
+
+/** The bridge's stable error code, or "" when the body is not the bridge's. */
+export function extractCode(body: string): string {
+  try {
+    return str(asRecord(JSON.parse(body) as unknown).code);
+  } catch {
+    return "";
+  }
+}
+
 export function extractError(body: string): string {
   try {
     const parsed: unknown = JSON.parse(body);
