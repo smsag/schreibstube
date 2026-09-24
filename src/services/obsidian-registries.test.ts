@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { registeredCommands, registeredRibbonItems } from "./workspace-internals";
+import {
+  registeredCommands,
+  registeredRibbonItems,
+  registrySignature
+} from "./workspace-internals";
 
 function appWith(commands: unknown): never {
   return { commands: { commands } } as never;
@@ -77,5 +81,38 @@ describe("registeredRibbonItems", () => {
     } as never;
 
     expect(registeredRibbonItems(app)).toEqual([]);
+  });
+});
+
+describe("registrySignature", () => {
+  it("counts the commands and the ribbon buttons", () => {
+    const app = {
+      commands: { commands: { a: { id: "a" }, b: { id: "b" } } },
+      workspace: { leftRibbon: { items: [{ id: "p:P" }] } }
+    } as never;
+
+    expect(registrySignature(app)).toBe("2|1");
+  });
+
+  it("changes when a plugin's commands and button go", () => {
+    const commands: Record<string, unknown> = { "p:open": { id: "p:open" } };
+    const items: unknown[] = [{ id: "p:P" }];
+    const app = { commands: { commands }, workspace: { leftRibbon: { items } } } as never;
+    const before = registrySignature(app);
+
+    delete commands["p:open"];
+    items.pop();
+
+    expect(registrySignature(app)).not.toBe(before);
+  });
+
+  it("reads missing registries as empty rather than throwing", () => {
+    expect(registrySignature({} as never)).toBe("0|0");
+    const broken = {
+      get commands(): never {
+        throw new Error("moved");
+      }
+    } as never;
+    expect(registrySignature(broken)).toBe("");
   });
 });

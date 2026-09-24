@@ -81,15 +81,6 @@ export const enExtra = {
     explorerBookmarksFileDesc:
       "Vault path of the Markdown file the bookmarks are read from. A heading is a folder, a " +
       "list item is a link.",
-    explorerLatest: "Latest section",
-    explorerLatestDesc:
-      "A short list between the bookmarks and the tree: the notes whose Document sync source " +
-      "changed and that still wait to be looked at.",
-    explorerLatestCount: "Notes shown",
-    explorerLatestCountDesc: (max: number) => `How many notes the list shows (1 to ${max}).`,
-    explorerLatestExclude: "Never show these",
-    explorerLatestExcludeDesc:
-      "Vault paths, separated by commas or line breaks. A folder excludes everything inside it.",
     explorerTaskCounts: "Task counts",
     explorerTaskCountsDesc:
       'Show how many tasks a note holds and how many are still open, as "1 / 7" after its ' +
@@ -512,7 +503,7 @@ export const enExtra = {
     sections: {
       pinned: "Pinned",
       bookmarks: "Bookmarks",
-      latest: "Latest",
+      latest: "Updated externally",
       files: "Files and folders"
     },
 
@@ -524,6 +515,7 @@ export const enExtra = {
       badTarget: (name: string) => `${name} does not point anywhere that can be opened.`,
       missingFolder: (path: string) => `there is no folder at ${path}.`,
       missingNote: (path: string) => `there is no note called ${path}.`,
+      openFailed: (name: string) => `${name} could not be opened.`,
       copyPath: "Copy path for Schreibstube",
       copied: (path: string) => `${path} copied as a bookmark link.`,
       copyFailed: "the clipboard is not available here.",
@@ -532,7 +524,6 @@ export const enExtra = {
     },
 
     latest: {
-      synced: "Updated externally",
       alert: "A source was updated in the background",
       empty: "No source has changed."
     },

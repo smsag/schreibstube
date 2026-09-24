@@ -8,8 +8,9 @@
 import { SuggestModal, type App } from "obsidian";
 import { t } from "../i18n";
 import type { PaneSectionsController } from "../controllers/pane-sections";
-import { bookmarkGlyph, type Bookmark, type BookmarkEntry } from "../services/bookmark-file";
-import { applyIcon, applyObsidianIcon, installIconFont } from "./icon-font";
+import type { BookmarkEntry } from "../services/bookmark-file";
+import { drawBookmarkIcon } from "./bookmark-icon";
+import { installIconFont } from "./icon-font";
 
 export class BookmarkQuickOpenModal extends SuggestModal<BookmarkEntry> {
   constructor(
@@ -58,15 +59,4 @@ function matches(entry: BookmarkEntry, needle: string): boolean {
     entry.folderPath.toLowerCase().includes(needle) ||
     entry.bookmark.url.toLowerCase().includes(needle)
   );
-}
-
-/**
- * A bookmark's icon: the globe for the web, the plugin's own for a link that
- * calls one, the vault's for everything else. Shared with the pane, so a
- * bookmark looks the same in both places.
- */
-export function drawBookmarkIcon(el: HTMLElement, bookmark: Bookmark, plugin: string | null): void {
-  const glyph = bookmarkGlyph(bookmark, plugin);
-  if (glyph.from === "bundled") applyIcon(el, glyph.name);
-  else applyObsidianIcon(el, glyph.names, glyph.fallback);
 }

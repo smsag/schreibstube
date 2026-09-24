@@ -12,7 +12,6 @@ import {
   normalizeFocusSettings
 } from "./focus-settings";
 import { BOOKMARK_FILE_DEFAULT } from "./bookmark-file";
-import { LATEST_COUNT_DEFAULT, LATEST_COUNT_MAX } from "./latest-files";
 import { LLM_PROVIDER_IDS, PROVIDER_MODELS } from "./llm-providers";
 import { DEFAULT_PUBLISH_KEYS, normalizeHeaderTags, normalizePublishKeys } from "./publish-index";
 import { TEMPLATE_ROOT_DEFAULT } from "./print-template";
@@ -113,9 +112,6 @@ export const DEFAULT_SETTINGS: SchreibstubeSettings = {
   explorerForeignMenu: "submenu",
   explorerBookmarksEnabled: true,
   explorerBookmarksFile: BOOKMARK_FILE_DEFAULT,
-  explorerLatestEnabled: true,
-  explorerLatestCount: LATEST_COUNT_DEFAULT,
-  explorerLatestExcluded: "",
   explorerTaskCounts: false,
   iconShortcodes: true,
   mailBridgeUrl: "",
@@ -141,6 +137,28 @@ export const DEFAULT_SETTINGS: SchreibstubeSettings = {
   dateFormat: DEFAULT_DATE_FORMAT,
   debugLogging: false
 };
+
+/**
+ * Keys an earlier version wrote into `data.json` and nothing reads any more:
+ * the settings of the pane's former "Latest" section, whose count and
+ * exclusions went with the lists they shaped.
+ */
+export const RETIRED_SETTING_KEYS: readonly string[] = [
+  "explorerLatestEnabled",
+  "explorerLatestCount",
+  "explorerLatestExcluded"
+];
+
+/**
+ * Whether the data file still holds a retired key, so the plugin writes it
+ * once on load. `normalizeSettings` leaves such keys out, but only a save
+ * takes them off the disk, and a person who never changes a setting might
+ * never cause one.
+ */
+export function holdsRetiredSettings(loaded: unknown): boolean {
+  if (!loaded || typeof loaded !== "object") return false;
+  return RETIRED_SETTING_KEYS.some((key) => Object.prototype.hasOwnProperty.call(loaded, key));
+}
 
 /** Settings as persisted: a data file a user can also edit by hand, so every
  *  field is validated rather than trusted. */
@@ -272,20 +290,6 @@ export function normalizeSettings(loaded: LoadedSettings): SchreibstubeSettings 
       loaded?.explorerBookmarksFile,
       DEFAULT_SETTINGS.explorerBookmarksFile
     ),
-    explorerLatestEnabled:
-      typeof loaded?.explorerLatestEnabled === "boolean"
-        ? loaded.explorerLatestEnabled
-        : DEFAULT_SETTINGS.explorerLatestEnabled,
-    explorerLatestCount: clampIntOrDefault(
-      loaded?.explorerLatestCount,
-      1,
-      LATEST_COUNT_MAX,
-      DEFAULT_SETTINGS.explorerLatestCount
-    ),
-    explorerLatestExcluded:
-      typeof loaded?.explorerLatestExcluded === "string"
-        ? loaded.explorerLatestExcluded
-        : DEFAULT_SETTINGS.explorerLatestExcluded,
     explorerTaskCounts: loaded?.explorerTaskCounts === true,
     // On unless switched off: the shortcode is the whole point of the icons
     // being in a note at all, and a setting nobody finds is a feature nobody has.

@@ -19,22 +19,26 @@ import type { Logger } from "../services/logger";
 import type { SchreibstubeSettings } from "../types";
 import {
   bookmarkFolderPath,
-  bookmarkLinkPath,
+  bookmarkNoteTarget,
   emptyBookmarkTree,
   flattenBookmarks,
-  obsidianUriAction,
+  MAX_BOOKMARK_FILE_CHARS,
+  MAX_BOOKMARKS,
   parseBookmarkFile,
-  pluginIcon,
   type Bookmark,
   type BookmarkEntry,
   type BookmarkTree
 } from "../services/bookmark-file";
 import { hasWaitingUpdate, type SyncRecord } from "../services/sync-document";
-import { registeredCommands, registeredRibbonItems } from "../services/workspace-internals";
+import { obsidianUriAction, pluginIcon } from "../services/bookmark-icon";
+import {
+  registeredCommands,
+  registeredRibbonItems,
+  registrySignature
+} from "../services/workspace-internals";
 import {
   hasUnseenSync,
   newestSync,
-  parseExcludedPaths,
   selectLatest,
   type LatestCandidate,
   type LatestSelection
@@ -74,9 +78,16 @@ export class PaneSectionsController {
   private latestKey = "";
   /** Null until this device has said what it has seen, which is not zero. */
   private seenAt: number | null = null;
-  /** Found icons only: a plugin loading after this one has none yet, and a
-   *  miss remembered would keep its row generic for the whole session. */
-  private readonly pluginIcons = new Map<string, string>();
+  /**
+   * Plugin icons as last read, found or not, and what the registries looked
+   * like then. A plugin loading or unloading changes the registries, and the
+   * next lookup reads them again: a plugin loading late gets its icon, and one
+   * turned off gives it back.
+   */
+  private pluginIcons: { signature: string; icons: Map<string, string | null> } = {
+    signature: "",
+    icons: new Map()
+  };
 
   private readonly listeners = new Set<() => void>();
 
@@ -151,7 +162,14 @@ export class PaneSectionsController {
     this.loading = true;
 
     try {
-      this.replaceTree(parseBookmarkFile(await this.app.vault.cachedRead(file)));
+      const tree = parseBookmarkFile(await this.app.vault.cachedRead(file));
+      if (tree.truncated) {
+        this.logger.warn(
+          `The bookmarks file at ${path} goes past what is read — the first ` +
+            `${MAX_BOOKMARK_FILE_CHARS} characters and ${MAX_BOOKMARKS} bookmarks — and was read in part.`
+        );
+      }
+      this.replaceTree(tree);
     } catch (error) {
       this.logger.warn(`Could not read the bookmarks file at ${path}:`, error);
       this.replaceTree(emptyBookmarkTree());
@@ -210,14 +228,19 @@ export class PaneSectionsController {
     const action = obsidianUriAction(bookmark.url);
     if (action === null) return null;
 
-    const known = this.pluginIcons.get(action);
+    const signature = registrySignature(this.app);
+    if (signature !== this.pluginIcons.signature) {
+      this.pluginIcons = { signature, icons: new Map() };
+    }
+
+    const known = this.pluginIcons.icons.get(action);
     if (known !== undefined) return known;
 
     const icon = pluginIcon(
       { ribbon: registeredRibbonItems(this.app), commands: registeredCommands(this.app) },
       action
     );
-    if (icon !== null) this.pluginIcons.set(action, icon);
+    this.pluginIcons.icons.set(action, icon);
     return icon;
   }
 
@@ -237,7 +260,7 @@ export class PaneSectionsController {
   }
 
   private async openNote(bookmark: Bookmark): Promise<void> {
-    const linkpath = bookmarkLinkPath(bookmark.url);
+    const { linkpath, subpath } = bookmarkNoteTarget(bookmark.url);
     // Resolved from the file the link is written in, as Obsidian resolves it,
     // so a relative link beside a bookmarks file in a subfolder still finds it.
     const file = this.app.metadataCache.getFirstLinkpathDest(linkpath, this.bookmarksPath());
@@ -247,7 +270,16 @@ export class PaneSectionsController {
       return;
     }
 
-    await this.app.workspace.getLeaf(false).openFile(file);
+    try {
+      // The heading or block goes to the view as Obsidian's own links send it,
+      // so the note opens scrolled to it.
+      await this.app.workspace
+        .getLeaf(false)
+        .openFile(file, subpath.length > 0 ? { eState: { subpath } } : undefined);
+    } catch (error) {
+      this.logger.warn(`Could not open the bookmark ${bookmark.url}:`, error);
+      new Notice(t().common.notice(t().explorer.bookmarks.openFailed(bookmark.name)));
+    }
   }
 
   // --- latest -------------------------------------------------------------
@@ -260,21 +292,13 @@ export class PaneSectionsController {
    * sorted twice per keystroke.
    */
   latestFiles(): LatestSelection {
-    const settings = this.getSettings();
-    // The sync records are part of the answer now, so a poll that found a
-    // source changed reaches the next draw rather than the cached answer.
-    const key = [
-      settings.explorerLatestCount,
-      settings.explorerLatestExcluded,
-      syncSignature(settings.syncState)
-    ].join("|");
+    // The sync records are the answer, so a poll that found a source changed
+    // reaches the next draw rather than the cached answer.
+    const key = syncSignature(this.getSettings().syncState);
 
     if (this.latest && key === this.latestKey) return this.latest;
 
-    this.latest = selectLatest(this.candidates(), {
-      count: settings.explorerLatestCount,
-      excluded: parseExcludedPaths(settings.explorerLatestExcluded)
-    });
+    this.latest = selectLatest(this.candidates());
     this.latestKey = key;
     return this.latest;
   }

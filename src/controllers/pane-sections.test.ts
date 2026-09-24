@@ -279,6 +279,40 @@ describe("the icon of a plugin a bookmark calls", () => {
     expect(pane.pluginIconFor({ ...PYTHIA, url: "https://example.com", kind: "web" })).toBeNull();
   });
 
+  it("gives the icon back when the plugin is turned off", () => {
+    const commands: Record<string, unknown> = {
+      "pythia:open": { id: "pythia:open", icon: "pythia-logo" }
+    };
+    const pane = withCommands(commands);
+    expect(pane.pluginIconFor(PYTHIA)).toBe("pythia-logo");
+
+    // Obsidian takes a plugin's commands away when it is turned off.
+    delete commands["pythia:open"];
+
+    expect(pane.pluginIconFor(PYTHIA)).toBeNull();
+  });
+
+  it("does not read the registries again while nothing was registered or removed", () => {
+    const pane = withCommands({ "other:open": { id: "other:open", icon: "star" } });
+    const registry = (pane as unknown as { app: { commands: { commands: object } } }).app.commands;
+    let reads = 0;
+    const commands = registry.commands;
+    Object.defineProperty(registry, "commands", {
+      get: () => {
+        reads += 1;
+        return commands;
+      }
+    });
+
+    pane.pluginIconFor(PYTHIA);
+    const afterFirst = reads;
+    pane.pluginIconFor(PYTHIA);
+
+    // The second look only counts; it does not scan for the icon again.
+    expect(reads - afterFirst).toBeLessThan(afterFirst);
+    expect(pane.pluginIconFor(PYTHIA)).toBeNull();
+  });
+
   it("finds the icon of a plugin that loaded after the first look", () => {
     const pane = withCommands({});
     expect(pane.pluginIconFor(PYTHIA)).toBeNull();
@@ -287,5 +321,57 @@ describe("the icon of a plugin a bookmark calls", () => {
       commands: { "pythia:open": { id: "pythia:open", icon: "pythia-logo" } }
     };
     expect(pane.pluginIconFor(PYTHIA)).toBe("pythia-logo");
+  });
+});
+
+describe("opening a note bookmark", () => {
+  function paneWithWorkspace(openFile: (file: unknown, state?: unknown) => Promise<void>) {
+    const { pane } = controllerFor({});
+    const app = (pane as unknown as { app: Record<string, unknown> }).app;
+    app.workspace = { getLeaf: () => ({ openFile }) };
+    return pane;
+  }
+
+  it("opens the note at the heading the bookmark names", async () => {
+    const openFile = vi.fn(async () => {});
+    const pane = paneWithWorkspace(openFile);
+
+    pane.openBookmark({ name: "Eins", url: "note://Quellen/Eins#Ziele", kind: "note" });
+    await vi.waitFor(() => expect(openFile).toHaveBeenCalled());
+
+    expect(openFile).toHaveBeenCalledWith(expect.objectContaining({ path: "Quellen/Eins.md" }), {
+      eState: { subpath: "#Ziele" }
+    });
+  });
+
+  it("opens a note without a heading at its top", async () => {
+    const openFile = vi.fn(async () => {});
+    const pane = paneWithWorkspace(openFile);
+
+    pane.openBookmark({ name: "Eins", url: "note://Quellen/Eins", kind: "note" });
+    await vi.waitFor(() => expect(openFile).toHaveBeenCalled());
+
+    expect(openFile).toHaveBeenCalledWith(
+      expect.objectContaining({ path: "Quellen/Eins.md" }),
+      undefined
+    );
+  });
+
+  it("says so when the note cannot be opened, rather than failing unseen", async () => {
+    const warn = vi.fn();
+    const { pane } = controllerFor({});
+    const internals = pane as unknown as { app: Record<string, unknown>; logger: unknown };
+    internals.logger = { ...SILENT, warn };
+    internals.app.workspace = {
+      getLeaf: () => ({
+        openFile: async () => {
+          throw new Error("view failed");
+        }
+      })
+    };
+
+    pane.openBookmark({ name: "Eins", url: "note://Quellen/Eins", kind: "note" });
+
+    await vi.waitFor(() => expect(warn).toHaveBeenCalled());
   });
 });

@@ -19,7 +19,11 @@ import {
 import { RefreshScheduler, type RefreshOptions } from "./services/refresh-scheduler";
 import { OverlayCoordinator } from "./services/overlay-coordinator";
 import { bootstrapSchreibstubeRuntime } from "./services/plugin-bootstrap";
-import { DEFAULT_SETTINGS, normalizeSettings } from "./services/plugin-settings";
+import {
+  DEFAULT_SETTINGS,
+  holdsRetiredSettings,
+  normalizeSettings
+} from "./services/plugin-settings";
 import { buildTaskSummaryInsertion, hasTaskSummaryBlock } from "./services/task-summary";
 import { buildSlideshowInsertion } from "./services/slideshow";
 import { createLogger, type Logger } from "./services/logger";
@@ -824,14 +828,15 @@ export default class SchreibstubePlugin extends Plugin {
   async loadSettings(): Promise<void> {
     const loaded = await this.loadData();
     this.settings = normalizeSettings(loaded);
+    if (holdsRetiredSettings(loaded)) await this.saveSettings();
   }
 
   async saveSettings(): Promise<void> {
     const run = this.saveChain.then(() => this.writeSettings());
     this.saveChain = run.catch(() => undefined);
     await run;
-    // A changed bookmarks path, count or exclusion list only matters once the
-    // pane has been told; nothing else watches the settings object.
+    // A changed bookmarks path, or Document sync turned on or off, only matters
+    // once the pane has been told; nothing else watches the settings object.
     void this.sections?.reloadIfPathChanged();
     this.sections?.invalidateLatest();
   }

@@ -1249,20 +1249,6 @@ a.external-link.schreibstube-reminder-mark {
   }
 }
 
-/* Created / Modified inside Latest: a label, not a row, so it carries no
-   chevron slot and no icon. It starts where the icons under it start, rather
-   than at the row inset, so each label sits over the list it names. */
-.schreibstube-explorer-subheading {
-  padding: 9px var(--schreibstube-row-inset) 3px
-    calc(
-      var(--schreibstube-row-inset) + var(--schreibstube-twisty-size) + var(--schreibstube-row-gap)
-    );
-  color: var(--text-faint);
-  font-size: 10px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
 .schreibstube-explorer-row.is-revealed {
   background: var(--text-selection);
 }

@@ -369,6 +369,24 @@ export function registeredRibbonItems(app: App): { id: string; icon?: unknown }[
   }
 }
 
+/**
+ * A cheap stand-in for everything registered: how many commands and ribbon
+ * buttons there are. A plugin loading or unloading changes it, which is when
+ * an icon read off the two registries has to be read again.
+ */
+export function registrySignature(app: App): string {
+  try {
+    const commands = (app as unknown as CommandsInternals).commands?.commands;
+    const ribbon = (app.workspace as unknown as RibbonInternals | undefined)?.leftRibbon?.items;
+    const commandCount =
+      commands && typeof commands === "object" ? Object.keys(commands).length : 0;
+    const ribbonCount = Array.isArray(ribbon) ? ribbon.length : 0;
+    return `${commandCount}|${ribbonCount}`;
+  } catch {
+    return "";
+  }
+}
+
 interface PluginsInternals {
   plugins?: { plugins?: Record<string, { api?: unknown } | undefined> };
 }

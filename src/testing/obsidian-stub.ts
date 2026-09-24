@@ -196,6 +196,19 @@ export function getIconIds(): string[] {
   return iconIds;
 }
 
+/**
+ * Draws an icon Obsidian knows — one it ships (`iconIds`) or one a plugin
+ * registered (`registeredIcons`) — as an `<svg data-icon>`, and leaves the
+ * element empty for any other name, which is what Obsidian does.
+ */
+export function setIcon(el: HTMLElement, name: string): void {
+  el.textContent = "";
+  if (!iconIds.includes(name) && !registeredIcons.has(name)) return;
+  const svg = el.ownerDocument.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("data-icon", name);
+  el.appendChild(svg);
+}
+
 export const requestUrl = async (): Promise<never> => {
   throw new Error("requestUrl is not available in tests; mock the client module instead.");
 };

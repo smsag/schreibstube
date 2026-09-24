@@ -417,13 +417,13 @@ Beside the note, with the note's name, overwritten on reprint, then revealed in 
 
 A file list of Schreibstube's own, opened from the ribbon icon in the left margin or with **Open Schreibstube Explorer**. It exists because three things cannot be done to Obsidian's explorer from a plugin without fighting it: an icon per item, a mark for sync state, and an order you can lift a file to the top of.
 
-The pane has four sections, each one collapsible, each remembering whether it was open on that device: **Pinned**, **Bookmarks**, **Latest**, and **Files and folders**. Pinned is drawn only when something is pinned and opens closed. Closed, it keeps three rows on the sticky strip and its icon carries the number of pins there are, the badge a closed folder carries; open, the strip holds as many as fit in half the pane and the rest continue in the scrolling list. A filter opens it for as long as it is set.
+The pane has four sections, each one collapsible, each remembering whether it was open on that device: **Pinned**, **Bookmarks**, **Updated externally**, and **Files and folders**. Updated externally is drawn only while Document sync is turned on. Pinned is drawn only when something is pinned and opens closed. Closed, it keeps three rows on the sticky strip and its icon carries the number of pins there are, the badge a closed folder carries; open, the strip holds as many as fit in half the pane and the rest continue in the scrolling list. A filter opens it for as long as it is set.
 
 - **Icons.** Right-click, or long-press on a phone, and pick from a set of icons grouped by what they are for — documents, folders, property, business, status. The set is a subsetted [Tabler](https://tabler.io/icons) webfont carried inside the bundle, so it works offline and on mobile, with no request to a CDN. A row without a chosen icon is drawn by its kind: a note as text, a PDF with its own mark, an Excalidraw drawing as a scribble, a base as a table, pictures and recordings as a picture, anything else as a blank sheet.
 - **Names.** Notes, SVG pictures, Excalidraw drawings and bases are shown without their extension — `Plan.md`, `Plan.svg`, `Plan.excalidraw.md`, `Plan.excalidraw.svg` and `Plan.base` all read **Plan**, and the icon tells them apart. Every other attachment keeps its extension, since `photo.png` beside `photo.jpg` needs it. **Rename** edits the part on screen and keeps the rest, so a drawing stays a drawing.
 - **The filter.** The box above the tree searches what a file is _called_, in every sense a vault gives the word: its name, the `title` in its frontmatter, its aliases, its tags and the folders above it. A hit in the name counts for most and a hit in a folder for least, since every file in a folder shares it; and every word typed is weighed by how rare it is in the vault, so a word most files carry barely moves a result while a word one file holds decides it. German compounds are found by the word at their end — _Vertrag_ offers _Mietvertrag_ — and a longer form finds a shorter one. Typing `tag:`, `pfad:`, `name:` or `alle:` (or `path:`, `file:`, `all:`) narrows to one dimension; any other word before a colon is ordinary text, so a note called `todo: Angebot` is still searched for by typing it. While the box has text the tree steps aside for a flat list of the matches, best first, each row carrying the folder it came from; a tree is the right shape for browsing and the wrong one for searching, and drawn as one the ranking is invisible. Clearing the box brings the tree back as it was. When more match than the list can draw, it keeps the best and says how many it is holding. A filter is read up to its first dozen words, which is well past anything anyone types and is what keeps a pasted paragraph from being scored against every file in the vault. What it is not is a content search: Obsidian's own search reads note bodies and has the operators for that.
 - **Following the open note.** Whichever way a note is opened — a link, the quick switcher, a search — the pane opens the folders above it and brings its row into view, scrolling only when the row is off screen. Nothing else is collapsed. A collapsed sidebar stays collapsed; the row is in view when it is next opened. A note in a popped-out window is not followed: the pane is not where you are looking, and focusing that window leaves the tree exactly as you left it. A note pressed in one of the pane's own lists — pinned, recent or bookmarked — opens its folders but does not scroll the tree, because you are already looking at its row.
-- **Latest.** The notes whose Document sync source changed and that still wait to be looked at, newest first, as many as the count in the settings. The section's icon carries the sync mark while one of them is new to this device.
+- **Updated externally.** The notes whose Document sync source changed and that still wait to be looked at, newest first, up to fifty, with no heading of their own inside the section. The section's icon carries the sync mark while one of them is new to this device. It is there only while Document sync is turned on.
 - **Properties on a mirrored note.** A check keeps two of the note's own properties: `title`, taken from the document's first heading and written only once — a title already in the file is yours and is never overwritten — and `updatedAt`, stamped whenever the source has actually changed, not merely been checked. Properties only: a check never writes the body, which still waits in the review panel.
 - **Sync marks.** A note bound to a source shows what its mirror is doing: in sync, changes waiting from the poll, never checked, or a source that cannot be fetched. Shape carries the state and colour only reinforces it. Nothing is shown while document sync is off.
 - **Keeping a file at the top of its folder.** Some files in a folder matter more than the rest, and **Keep at top of folder** holds them above their siblings, in the order they were marked, folders included. Everything below keeps Obsidian's own arrangement: folders first, then files, numeric-aware so `Objekt 2` precedes `Objekt 10`. The row carries a pin glyph, which is what explains why it is where it is.
@@ -478,13 +478,14 @@ They are read from a Markdown file in the vault, `bookmarks.md` unless a setting
 - [[Design Brief]]
 ```
 
-| Line            | Meaning                                          |
-| --------------- | ------------------------------------------------ |
-| `# Heading`     | A folder                                         |
-| `## Heading`    | A subfolder, one level only                      |
-| `- [Name](url)` | A bookmark                                       |
-| `- [[Note]]`    | A bookmark to a note, with an optional `\|label` |
-| Anything else   | Ignored                                          |
+| Line                   | Meaning                                                         |
+| ---------------------- | --------------------------------------------------------------- |
+| `# Heading`            | A folder                                                        |
+| `## Heading` and below | A folder inside the one above it, at any depth                  |
+| `- [Name](url)`        | A bookmark                                                      |
+| `- [[Note]]`           | A bookmark to a note, with an optional `#Heading` and `\|label` |
+| `- [ ] [Name](url)`    | A bookmark too: the task box is left out                        |
+| Anything else          | Ignored                                                         |
 
 | Scheme                | Opens                                              |
 | --------------------- | -------------------------------------------------- |
@@ -493,14 +494,15 @@ They are read from a Markdown file in the vault, `bookmarks.md` unless a setting
 | `vault://path`        | Reveals that folder in this pane, ancestors opened |
 | `note://linkpath`     | The note                                           |
 | No scheme             | The note, as in `[Name](Folder/My%20Note.md)`      |
+| `www.`                | The page, as if it began with `https://`           |
 
-A bookmark wears one of three icons, all in grey: the globe for a web link; for an `obsidian://` link that calls a plugin, such as `obsidian://pythia?…`, that plugin's icon, the one on its ribbon button or else the one its commands carry; and for everything else — a note, a folder, a link Obsidian answers itself such as `obsidian://open`, a plugin without an icon — Obsidian's library icon. A link without a scheme is what Obsidian writes for a note when wikilinks are turned off, and it is read relative to the bookmarks file, as Obsidian reads it. Any other scheme is dropped while the file is read, so a `javascript:` line pasted into a synced file never becomes a row that can be tapped.
+A bookmark wears one of three icons, all in grey: the globe for a web link; for an `obsidian://` link that calls a plugin, such as `obsidian://pythia?…`, that plugin's icon, the one on its ribbon button or else the one its commands carry; and for everything else — a note, a folder, a link Obsidian answers itself such as `obsidian://open`, a plugin without an icon — Obsidian's library icon. A link without a scheme is what Obsidian writes for a note when wikilinks are turned off, and it is read relative to the bookmarks file, as Obsidian reads it. Any other scheme is dropped while the file is read, so a `javascript:` line pasted into a synced file never becomes a row that can be tapped. A link to a heading or a block — `[[Note#Goals]]`, `[Goals](Note.md#Goals)` — opens the note there. The file is read within a budget: the first 256 KB, lines of up to 4,096 characters and 2,000 bookmarks; past that the pane shows what it read and leaves a warning in the developer console.
 
 Right-click a folder anywhere in Obsidian and choose **Copy path for Schreibstube** to get its `vault://` URL, ready to paste into the file. **Open bookmark** searches the list by name, folder or URL from the command palette, in the order the file has them.
 
-#### Latest
+#### Updated externally
 
-The notes whose Document sync source changed and whose update is still to be taken, newest first. A note created or edited in the vault is not listed: Obsidian's own recent files already show that, and what the pane can say that nothing else does is that something outside the vault moved a note. Paths can be kept out of the list in the settings.
+The notes whose Document sync source changed and whose update is still to be taken, newest first, up to fifty. A note created or edited in the vault is not listed: Obsidian's own recent files already show that, and what the pane can say that nothing else does is that something outside the vault moved a note. The section has no settings of its own; it appears when **Document sync** is turned on in the settings and is gone when it is off.
 
 Icons and the two marks live in `explorer.json` inside the plugin folder, deliberately not in `data.json`: that file is rewritten whole on every save, so a second device would clobber it. Each entry carries its own timestamp and every write re-reads and merges per entry, so two devices editing different files both keep their change. The pane also watches the file for writes delivered by iCloud, Obsidian Sync or Git while it is open. A file that moves keeps its icon; one that disappears keeps it for thirty days, in case it turns up somewhere else under the same name.
 
@@ -632,9 +634,6 @@ A command that cannot do anything where you are is not offered at all: the image
 | Items from other plugins | Where contributed menu items go: behind "More actions", inline, or not at all | Behind More actions |
 | Bookmarks section        | Show the bookmarks list above the file tree                                   | On                  |
 | Bookmarks file           | Vault path of the Markdown file the bookmarks are read from                   | `bookmarks.md`      |
-| Latest section           | Show the notes whose Document sync source changed                             | On                  |
-| Notes shown              | How many notes the list shows                                                 | 5                   |
-| Never show these         | Vault paths kept out of the list, by comma or line break                      | empty               |
 | Icon set                 | Which icon set is bundled, and how many icons it holds                        | Tabler Icons (MIT)  |
 
 ### AI models
