@@ -13,7 +13,7 @@
 
 /** Bumped when the request or response shape changes in a way the plugin can
  *  see. Reported by /health so plugin and bridge can detect drift. */
-export const PROTOCOL_VERSION = 1;
+export const PROTOCOL_VERSION = 2;
 
 /** Minimum token length. Short tokens are brute-forceable over a public URL. */
 export const MIN_TOKEN_LENGTH = 24;

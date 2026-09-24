@@ -29,6 +29,7 @@ route that does not exist yet.
 
 | Bridge | Protocol | Plugin          | Notes                                                        |
 | ------ | -------- | --------------- | ------------------------------------------------------------ |
+| 2.7.x  | 2        | 1.8.0 and later | Slideshows on the site, filmstrip thumbnails                 |
 | 2.6.x  | 1        | 1.8.0 and later | Notes cached in memory, parallel SFTP, one login per publish |
 | 2.5.x  | 1        | 1.8.0 and later | Sent folder by tag, state guard, absolute `STATE_ROOT`       |
 | 2.4.x  | 1        | 1.8.0 and later | Validated search body, fetch and asset byte bounds           |
@@ -65,6 +66,7 @@ token must belong to the capability that owns the route.
 | `POST` | `/publish/plan`        | publish    | `{target, index}`                                                            | what to upload, and what will be deleted           |
 | `PUT`  | `/publish/source`      | publish    | raw Markdown, `?target=&sha256=`                                             | `{sha256, bytes}`                                  |
 | `PUT`  | `/publish/asset`       | publish    | raw bytes, `?target=&sha256=&name=`                                          | `{sha256, bytes, path}`                            |
+| `PUT`  | `/publish/thumbnail`   | publish    | raw JPEG or PNG, `?target=&source=&sha256=&name=`                            | `{sha256, bytes, path}`                            |
 | `POST` | `/publish/commit`      | publish    | `{target, index}`                                                            | `{written, unchanged, deleted, pruned, collected}` |
 | `POST` | `/publish/render`      | publish    | `{target}`                                                                   | the same, rebuilt from stored state                |
 
@@ -171,8 +173,31 @@ fingerprint: a stateless container cannot trust on first use, because it would
 re-trust a new key after every restart.
 
 The rendered site is static. Maths is rendered to HTML by KaTeX at publish time;
-only Mermaid needs JavaScript, and only on pages that contain a diagram, from a
+Mermaid needs JavaScript, and only on pages that contain a diagram, from a
 bundle the bridge writes itself rather than from a content delivery network.
+
+A ` ```schreibstube-slideshow``` ` block becomes the plugin's slideshow.
+The bridge reads the block by the plugin's rules — `contracts/slideshow-cases.json`
+holds the examples both sides are tested against — and writes plain HTML that
+already reads without a script: the stage swipes, tiles are a grid, a
+comparison is two pictures side by side. On pages that have one, it adds
+`assets/slideshow.css` and `assets/slideshow.js`, a small module from
+`publish/client/` that brings the header, the controls, the thumbnails, the
+divider and the fullscreen view. Only images the site has are shown; a block
+the plugin would refuse is left off the page.
+
+A filmstrip's thumbnails are small copies the plugin makes, since it can
+decode a picture where the picture is and the bridge would otherwise need an
+image library to decode files from the network. Protocol 2 carries them: an
+index asset may say `thumbnail: true`, the plan answers with the
+`uploadThumbnails` the site lacks, and `PUT /publish/thumbnail` takes each one,
+addressed by the picture it shows (`source`) and checked by its own bytes
+(`sha256`) and its format, at most 200 kB. They live under `assets/thumbs/`,
+named after their picture, so one the site has is known to be current without
+decoding anything, and they go when no filmstrip shows the picture any more.
+A page points at a thumbnail only once it is on the host; until then the
+filmstrip shows the picture itself. A protocol-1 plugin sends no marks and a
+protocol-1 bridge asks for no thumbnails, and either way the filmstrip works.
 
 ## Dependencies and advisories
 

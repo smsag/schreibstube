@@ -21,7 +21,17 @@ import {
   orphanSources,
   planUploads
 } from "./manifest.mjs";
-import { assetPath, checkRelativePath, extensionOf, PathError, VIDEO_EXTENSIONS } from "./path.mjs";
+import {
+  assetPath,
+  checkRelativePath,
+  extensionOf,
+  isThumbnailFormat,
+  MAX_THUMBNAIL_BYTES,
+  PathError,
+  thumbnailExtension,
+  thumbnailPath,
+  VIDEO_EXTENSIONS
+} from "./path.mjs";
 import { RENDER_VERSION } from "./render/markdown.mjs";
 import { buildSite, checkIndex, IndexError, sha256 } from "./site.mjs";
 import { connect, SftpError } from "./sftp.mjs";
@@ -73,6 +83,11 @@ export function createPublishRoutes(config, { version }) {
   // Stored notes by content hash, shared by every target: the same text is
   // the same note wherever it is published.
   const cache = new SourceCache();
+  // Thumbnails written since the last commit, per target: the commit has to
+  // know a thumbnail is on the host before a page may point at it, and one it
+  // does not know of — the bridge restarted in between — is asked for again
+  // by the next plan, while the page shows the picture itself meanwhile.
+  const thumbnails = new ThumbnailLedger();
   // Targets whose state directory is known to carry its deny file, so the
   // check costs one round trip per target and process rather than per upload.
   const guarded = new Set();
@@ -203,6 +218,39 @@ export function createPublishRoutes(config, { version }) {
     ),
 
     route(
+      "PUT",
+      "/publish/thumbnail",
+      MAX_THUMBNAIL_BYTES,
+      "raw",
+      async ({ body, query, log }) => {
+        const target = targetOf(publish, query.get("target"));
+        const hash = verifyHash(body, query.get("sha256"));
+        const source = String(query.get("source") ?? "");
+        const name = query.get("name") ?? "";
+        if (!/^[0-9a-f]{64}$/.test(source)) {
+          throw httpError(400, "invalid_request", "A source query parameter is required.");
+        }
+
+        // Named after the picture it shows, so its own bytes are checked for
+        // what they claim to be: a thumbnail, of the format the name implies.
+        const extension = thumbnailExtension(name);
+        if (!extension || !isThumbnailFormat(body, extension)) {
+          throw httpError(400, "thumbnail_rejected", "Not a thumbnail the site can serve.");
+        }
+        const path = safePath(thumbnailPath(source, name), target);
+
+        return withRemote(pool, target, async (remote) => {
+          await guard(remote, target);
+          await remote.writeFile(path, body);
+          thumbnails.record(target.name, path, { sha256: hash, bytes: body.length });
+          log("info", `thumbnail ${path} stored for ${target.name} (${body.length} bytes)`);
+          return { sha256: hash, bytes: body.length, path };
+        });
+      },
+      uploadTimeoutMs
+    ),
+
+    route(
       "POST",
       "/publish/commit",
       publish.maxIndexBytes,
@@ -229,7 +277,16 @@ export function createPublishRoutes(config, { version }) {
               Buffer.from(JSON.stringify(index, null, 2), "utf8")
             );
 
-            return publishSite({ remote, target, index, generator, log, cache, stored });
+            return publishSite({
+              remote,
+              target,
+              index,
+              generator,
+              log,
+              cache,
+              stored,
+              thumbnails
+            });
           })
         );
       },
@@ -256,7 +313,8 @@ export function createPublishRoutes(config, { version }) {
               index: validateIndex(stored, publish),
               generator,
               log,
-              cache
+              cache,
+              thumbnails
             });
           })
         );
@@ -273,7 +331,7 @@ export function createPublishRoutes(config, { version }) {
  * the next run recognises as already correct; the manifest last, so a crash
  * before it means the next run re-does work rather than losing a file.
  */
-async function publishSite({ remote, target, index, generator, log, cache, stored }) {
+async function publishSite({ remote, target, index, generator, log, cache, stored, thumbnails }) {
   const started = Date.now();
 
   // Only the notes the cache does not hold are read, and those several at a
@@ -292,10 +350,23 @@ async function publishSite({ remote, target, index, generator, log, cache, store
     sources.set(hash, content.toString("utf8"));
   });
 
+  const manifest = normalizeManifest(
+    await remote.readJson(remote.stateAbsolute(MANIFEST_FILE)),
+    target.name
+  );
+
+  // A page points at a thumbnail only once it is on the host: already in the
+  // manifest, or written by an upload since.
+  const onHost = availableThumbnails(index, manifest, thumbnails?.written(target.name));
+
   const files = await buildSite(
     { ...index, siteTitle: index.siteTitle || target.siteTitle },
     sources,
-    { allowHtml: target.allowHtml, allowDiagrams: target.allowDiagrams }
+    {
+      allowHtml: target.allowHtml,
+      allowDiagrams: target.allowDiagrams,
+      thumbnails: new Set(onHost.keys())
+    }
   );
   for (const path of files.keys()) safePath(path, target, { output: true });
 
@@ -308,11 +379,8 @@ async function publishSite({ remote, target, index, generator, log, cache, store
       { sha256: asset.sha256, bytes: asset.bytes ?? 0 }
     ])
   );
+  for (const [path, entry] of onHost) uploaded.set(safePath(path, target), entry);
 
-  const manifest = normalizeManifest(
-    await remote.readJson(remote.stateAbsolute(MANIFEST_FILE)),
-    target.name
-  );
   const difference = diffOutputs(files, manifest, sha256, uploaded);
 
   // Each phase finishes before the next starts, which is the recovery story
@@ -351,6 +419,8 @@ async function publishSite({ remote, target, index, generator, log, cache, store
     )
   );
 
+  thumbnails?.forget(target.name, onHost.keys());
+
   const summary = {
     at: new Date().toISOString(),
     target: target.name,
@@ -370,6 +440,45 @@ async function publishSite({ remote, target, index, generator, log, cache, store
       `${summary.deleted} deleted, ${summary.pruned} pruned in ${summary.durationMs}ms`
   );
   return summary;
+}
+
+/**
+ * The thumbnails a build may point at, with what the manifest records for
+ * each: those the index asks for that the host already has, or that an
+ * upload wrote since the last commit.
+ */
+export function availableThumbnails(index, manifest, written = new Map()) {
+  const available = new Map();
+  for (const asset of index.assets) {
+    if (asset.thumbnail !== true) continue;
+    const path = thumbnailPath(asset.sha256, asset.name ?? asset.sourcePath);
+    if (!path) continue;
+    const entry = written.get(path) ?? manifest.files?.[path];
+    if (entry) available.set(path, entry);
+  }
+  return available;
+}
+
+/** Thumbnails written since the last commit, per target. */
+export class ThumbnailLedger {
+  #targets = new Map();
+
+  record(target, path, entry) {
+    if (!this.#targets.has(target)) this.#targets.set(target, new Map());
+    this.#targets.get(target).set(path, entry);
+  }
+
+  written(target) {
+    return this.#targets.get(target) ?? new Map();
+  }
+
+  /** Once the manifest records them, the ledger need not. */
+  forget(target, paths) {
+    const written = this.#targets.get(target);
+    if (!written) return;
+    for (const path of paths) written.delete(path);
+    if (written.size === 0) this.#targets.delete(target);
+  }
 }
 
 /**

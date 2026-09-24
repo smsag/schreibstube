@@ -429,6 +429,148 @@ describe("re-rendering from stored state", () => {
   });
 });
 
+describe("filmstrip thumbnails", () => {
+  // A target of its own, so these publishes leave the others' sites alone.
+  const target = "archiv";
+  const jpeg = (n) => Buffer.from([0xff, 0xd8, 0xff, 0xe0, n, n, n]);
+  const haus = jpeg(1);
+  const garten = jpeg(2);
+  const thumb = jpeg(9);
+  const strip =
+    "# Garten\n\n```schreibstube-slideshow\nlayout: filmstrip\n" +
+    "![Haus](Blog/haus.jpg)\n![Garten](Blog/garten.jpg)\n```\n";
+  const siteOf = (...parts) => join(sftp.root, "archiv", ...parts);
+
+  const thumbIndex = (thumbnail = true) =>
+    index({
+      notes: [
+        note({
+          sourcePath: "Blog/Garten.md",
+          sha256: sha256(strip),
+          slug: "garten",
+          title: "Garten"
+        })
+      ],
+      assets: [
+        {
+          sourcePath: "Blog/haus.jpg",
+          sha256: sha256(haus),
+          name: "haus.jpg",
+          bytes: haus.length,
+          thumbnail
+        },
+        {
+          sourcePath: "Blog/garten.jpg",
+          sha256: sha256(garten),
+          name: "garten.jpg",
+          bytes: garten.length,
+          thumbnail
+        }
+      ]
+    });
+
+  const thumbPath = (bytes, stem) => `assets/thumbs/${sha256(bytes).slice(0, 12)}-${stem}.jpg`;
+
+  async function uploadAll(plan) {
+    await put(
+      `/publish/source?target=${target}&sha256=${sha256(strip)}`,
+      Buffer.from(strip, "utf8")
+    );
+    for (const entry of plan.uploadAssets) {
+      const body = entry.name === "haus.jpg" ? haus : garten;
+      await put(
+        `/publish/asset?target=${target}&sha256=${entry.sha256}&name=${encodeURIComponent(entry.name)}`,
+        body
+      );
+    }
+  }
+
+  const sendThumbnail = (entry, body = thumb, extra = "") =>
+    put(
+      `/publish/thumbnail?target=${target}&source=${entry.sha256}&sha256=${sha256(body)}` +
+        `&name=${encodeURIComponent(entry.name)}${extra}`,
+      body
+    );
+
+  it("asks for a thumbnail of each marked picture, under thumbs/", async () => {
+    const plan = await post("/publish/plan", { target, index: thumbIndex() });
+    expect(plan.status).toBe(200);
+    expect(plan.json.uploadThumbnails.map((entry) => entry.path).sort()).toEqual(
+      [thumbPath(garten, "garten"), thumbPath(haus, "haus")].sort()
+    );
+  });
+
+  it("points the filmstrip at the pictures themselves while it has no thumbnails", async () => {
+    const plan = await post("/publish/plan", { target, index: thumbIndex() });
+    await uploadAll(plan.json);
+    const commit = await post("/publish/commit", { target, index: thumbIndex() });
+    expect(commit.status).toBe(200);
+    const page = await readFile(siteOf("garten", "index.html"), "utf8");
+    expect(page).toContain('class="slideshow slideshow-filmstrip"');
+    expect(page).not.toContain("data-thumbnail");
+    expect(await readFile(siteOf("assets", "slideshow.js"), "utf8")).toContain("thumbnail");
+  });
+
+  it("asks again next time, and points at a thumbnail once it is there", async () => {
+    const plan = await post("/publish/plan", { target, index: thumbIndex() });
+    expect(plan.json.uploadThumbnails).toHaveLength(2);
+    for (const entry of plan.json.uploadThumbnails) {
+      const sent = await sendThumbnail(entry);
+      expect(sent.status).toBe(200);
+      expect(sent.json.path).toBe(entry.path);
+    }
+    const commit = await post("/publish/commit", { target, index: thumbIndex() });
+    expect(commit.status).toBe(200);
+
+    const page = await readFile(siteOf("garten", "index.html"), "utf8");
+    expect(page).toContain(`data-thumbnail="../${thumbPath(haus, "haus")}"`);
+    expect(await readFile(siteOf(...thumbPath(haus, "haus").split("/")))).toEqual(thumb);
+    const recorded = JSON.parse(
+      await readFile(join(sftp.root, "archiv", ".schreibstube", "manifest.json"), "utf8")
+    ).files;
+    expect(recorded[thumbPath(haus, "haus")]).toEqual({
+      sha256: sha256(thumb),
+      bytes: thumb.length
+    });
+  });
+
+  it("asks for nothing once the site has them", async () => {
+    const plan = await post("/publish/plan", { target, index: thumbIndex() });
+    expect(plan.json.uploadThumbnails).toEqual([]);
+    expect(plan.json.willDelete).toEqual([]);
+  });
+
+  it("refuses a thumbnail that is not what its name says, too large, or of no picture", async () => {
+    const entry = { sha256: sha256(haus), name: "haus.jpg" };
+    const png = Buffer.from("89504e470d0a1a0a00", "hex");
+    const notImage = await sendThumbnail(entry, png);
+    expect(notImage.status).toBe(400);
+    expect(notImage.json.code).toBe("thumbnail_rejected");
+
+    const drawing = await sendThumbnail({ sha256: sha256(haus), name: "plan.svg" }, thumb);
+    expect(drawing.status).toBe(400);
+
+    const heavy = Buffer.concat([thumb, Buffer.alloc(200_001)]);
+    expect((await sendThumbnail(entry, heavy)).status).toBe(413);
+
+    const noSource = await put(
+      `/publish/thumbnail?target=${target}&sha256=${sha256(thumb)}&name=haus.jpg`,
+      thumb
+    );
+    expect(noSource.status).toBe(400);
+  });
+
+  it("takes the thumbnails down with the filmstrip", async () => {
+    const plan = await post("/publish/plan", { target, index: thumbIndex(false) });
+    expect(plan.json.willDelete).toEqual(
+      [thumbPath(garten, "garten"), thumbPath(haus, "haus")].sort()
+    );
+    const commit = await post("/publish/commit", { target, index: thumbIndex(false) });
+    expect(commit.status).toBe(200);
+    await expect(readFile(siteOf(...thumbPath(haus, "haus").split("/")))).rejects.toThrow();
+  });
+});
+
 describe("refusals", () => {
   it("rejects an upload whose bytes do not match the declared hash", async () => {
     const response = await put(

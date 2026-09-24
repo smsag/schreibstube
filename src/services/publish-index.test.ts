@@ -10,6 +10,7 @@ import {
   normalizePublishKeys,
   readPublishFields,
   referencedAttachments,
+  slideshowReferences,
   resolveNote,
   slugify,
   stripFrontmatter
@@ -342,5 +343,30 @@ describe("referencedAttachments and a name that is not a URI", () => {
 
   it("still decodes an escape that is valid", () => {
     expect(referencedAttachments("![f](Grundriss%20EG.png)")).toEqual(["Grundriss EG.png"]);
+  });
+});
+
+describe("slideshowReferences", () => {
+  const block = (layout: string, ...lines: string[]) =>
+    "```schreibstube-slideshow\nlayout: " + layout + "\n" + lines.join("\n") + "\n```";
+
+  it("names only the pictures of blocks with the layout asked for", () => {
+    const note =
+      block("filmstrip", "![](a.png)", "![](<b c.png>)") +
+      "\n\n" +
+      block("strip", "![](d.png)", "![](e.png)");
+    expect(slideshowReferences(note, "filmstrip")).toEqual(["a.png", "b c.png"]);
+    expect(slideshowReferences(note)).toEqual(["a.png", "b c.png", "d.png", "e.png"]);
+  });
+
+  it("reads a block that tildes fence, and ignores one that does not parse", () => {
+    const tildes = "~~~schreibstube-slideshow\n![](a.png)\n![](b.png)\n~~~";
+    expect(slideshowReferences(tildes)).toEqual(["a.png", "b.png"]);
+    expect(slideshowReferences(block("filmstrip", "![](a.png)", "Foto"))).toEqual([]);
+  });
+
+  it("leaves out a remote picture and anything in frontmatter", () => {
+    const note = "---\ncover: x\n---\n" + block("slideshow", "![](https://x/y.png)", "![](a.png)");
+    expect(slideshowReferences(note)).toEqual(["a.png"]);
   });
 });

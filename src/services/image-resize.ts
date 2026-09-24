@@ -68,9 +68,16 @@ export async function resizeImageToBytes(
   buffer: ArrayBuffer,
   mimeType: string,
   maxPx: number,
-  quality = DEFAULT_QUALITY
+  quality = DEFAULT_QUALITY,
+  outputType = mimeType
 ): Promise<{ bytes: Uint8Array; mimeType: string }> {
-  const { blob, mimeType: encoded } = await resizeImage(buffer, mimeType, maxPx, quality);
+  const { blob, mimeType: encoded } = await resizeImage(
+    buffer,
+    mimeType,
+    maxPx,
+    quality,
+    outputType
+  );
   return { bytes: new Uint8Array(await blob.arrayBuffer()), mimeType: encoded };
 }
 
@@ -78,7 +85,8 @@ async function resizeImage(
   buffer: ArrayBuffer,
   mimeType: string,
   maxPx: number,
-  quality: number
+  quality: number,
+  outputType = mimeType
 ): Promise<{ blob: Blob; mimeType: string }> {
   const source = new Blob([buffer], { type: mimeType });
   const url = URL.createObjectURL(source);
@@ -95,7 +103,7 @@ async function resizeImage(
     if (!ctx) throw new Error("canvas 2d context unavailable");
     ctx.drawImage(img, 0, 0, dims.width, dims.height);
 
-    const encoded = encodedMimeType(mimeType);
+    const encoded = encodedMimeType(outputType);
     return { blob: await canvasToBlob(canvas, encoded, quality), mimeType: encoded };
   } finally {
     URL.revokeObjectURL(url);

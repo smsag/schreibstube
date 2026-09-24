@@ -212,6 +212,8 @@ In `strip` and `masonry` the header names the image under the pointer or the key
 
 The controls are icons standing on the page, drawn from the plugin's own icon font, with no fill behind them in any state. On a phone the scene stacks, its details side by side under it, and the strip settles on two columns. A swipe across the stage or the scene turns the page in the note itself, not only in the fullscreen view, and the block keeps that swipe to itself: it does not scroll the note and it does not slide a sidebar in.
 
+A published note keeps its slideshows: the site shows the same layout, with the alt text, the controls, the arrow keys and the fullscreen view, from a small script of its own. Where scripts do not run the pictures still read — the stage swipes, the tiles stand in a grid, a comparison sets its two pictures side by side. Only pictures that were published are shown, and a block with a mistake in it is left off the page rather than printed as code.
+
 ### Icons in the text
 
 Type a colon and the first two letters of an icon's name — `:fo` — and a picker lists the icons that match, glyph beside name; Enter writes `:folder: ` and you keep typing. In Live Preview and Reading view the shortcode is drawn as the glyph, sized to the text and sitting on its baseline; put the cursor on it and it shows its colons again for editing. Any of the plugin's icons can be written this way, the same set the Explorer's icon picker offers.

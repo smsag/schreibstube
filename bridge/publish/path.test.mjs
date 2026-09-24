@@ -5,10 +5,12 @@ import {
   assetPath,
   checkRelativePath,
   extensionOf,
+  isThumbnailFormat,
   isValidSlug,
   joinRemote,
   pagePath,
-  slugify
+  slugify,
+  thumbnailPath
 } from "./path.mjs";
 
 /**
@@ -172,5 +174,43 @@ describe("extensionOf", () => {
 
   it("returns nothing for a name without one", () => {
     expect(extensionOf("README")).toBe("");
+  });
+});
+
+describe("thumbnailPath", () => {
+  const sha = "abcdef012345".padEnd(64, "0");
+
+  it("names a thumbnail after its picture, in a directory of its own", () => {
+    expect(thumbnailPath(sha, "Mein Haus.JPG")).toBe("assets/thumbs/abcdef012345-mein-haus.jpg");
+    expect(thumbnailPath(sha, "plan.png")).toBe("assets/thumbs/abcdef012345-plan.png");
+    expect(thumbnailPath(sha, "haus.webp")).toBe("assets/thumbs/abcdef012345-haus.jpg");
+  });
+
+  it("gives none to a picture that gets no thumbnail", () => {
+    expect(thumbnailPath(sha, "plan.svg")).toBeNull();
+    expect(thumbnailPath(sha, "clip.mp4")).toBeNull();
+  });
+
+  it("is a path the bridge will write", () => {
+    expect(checkRelativePath(thumbnailPath(sha, "../../x.jpg"))).toBe(
+      "assets/thumbs/abcdef012345-x.jpg"
+    );
+  });
+});
+
+describe("isThumbnailFormat", () => {
+  const jpeg = Uint8Array.from([0xff, 0xd8, 0xff, 0xe0, 0]);
+  const png = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0]);
+
+  it("knows a JPEG and a PNG by how they begin", () => {
+    expect(isThumbnailFormat(jpeg, "jpg")).toBe(true);
+    expect(isThumbnailFormat(png, "png")).toBe(true);
+  });
+
+  it("refuses bytes that are not what the name says", () => {
+    expect(isThumbnailFormat(png, "jpg")).toBe(false);
+    expect(isThumbnailFormat(jpeg, "png")).toBe(false);
+    expect(isThumbnailFormat(Uint8Array.from([0xff, 0xd8]), "jpg")).toBe(false);
+    expect(isThumbnailFormat(jpeg, "gif")).toBe(false);
   });
 });

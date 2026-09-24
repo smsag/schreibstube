@@ -9,12 +9,12 @@
  * state, so the next publish re-uploads and re-renders; the cost is wasted work
  * rather than a lost file.
  */
-import { assetPath, pagePath } from "./path.mjs";
+import { assetPath, pagePath, thumbnailPath } from "./path.mjs";
 
 export const MANIFEST_VERSION = 1;
 
-/** Uploaded assets are recognisable by their content-addressed name. */
-const UPLOADED_ASSET = /^assets\/[0-9a-f]{12}-/;
+/** Uploaded assets and their thumbnails are recognisable by their names. */
+const UPLOADED_ASSET = /^assets\/(thumbs\/)?[0-9a-f]{12}-/;
 
 export function emptyManifest(target) {
   return {
@@ -69,6 +69,23 @@ export function planUploads({ index, manifest, storedSourceHashes }) {
     });
   }
 
+  // A thumbnail is named after its picture, so one the site already has is
+  // current, and only the missing ones are asked for.
+  const uploadThumbnails = [];
+  for (const asset of index.assets) {
+    if (asset.thumbnail !== true) continue;
+    const path = thumbnailPath(asset.sha256, asset.name ?? asset.sourcePath);
+    if (!path || expectedAssets.has(path)) continue;
+    expectedAssets.add(path);
+    if (published.has(path)) continue;
+    uploadThumbnails.push({
+      sourcePath: asset.sourcePath,
+      sha256: asset.sha256,
+      name: asset.name ?? asset.sourcePath,
+      path
+    });
+  }
+
   // Only pages and uploaded assets can be judged before rendering. Generator
   // assets — the stylesheet, the fonts, the diagram bundle — depend on what the
   // pages turn out to use, so they are settled at commit.
@@ -83,6 +100,7 @@ export function planUploads({ index, manifest, storedSourceHashes }) {
   return {
     uploadSources,
     uploadAssets,
+    uploadThumbnails,
     willDelete: willDelete.sort(),
     unchangedSources: index.notes.length - uploadSources.length,
     notes: index.notes.length

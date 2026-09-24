@@ -7,6 +7,13 @@
  * on a public site, and a wrong publish flag is a note that should not be one.
  */
 
+import {
+  linkpathCandidates,
+  parseSlideshow,
+  SLIDESHOW_LANGUAGE,
+  type SlideshowLayout
+} from "./slideshow";
+
 /**
  * Which frontmatter key carries which meaning.
  *
@@ -223,7 +230,44 @@ export function referencedAttachments(content: string): string[] {
     if (target && !/^[a-z][a-z0-9+.-]*:/i.test(target)) found.add(target);
   }
 
+  for (const reference of slideshowReferences(content)) found.add(reference);
+
   return [...found];
+}
+
+/**
+ * The pictures a slideshow block shows, read by the block's own rules.
+ *
+ * A slideshow line is not quite a Markdown image: the block accepts a bare
+ * space in a path (`![](my photo.png)`), which the pattern above cannot, so a
+ * picture the note showed in the vault was never uploaded and went missing on
+ * the site without a word. Every path the block would try is offered; the
+ * caller keeps only those that name a file. With a `layout`, only the blocks
+ * of that layout count: a filmstrip's pictures are the ones with thumbnails.
+ */
+export function slideshowReferences(content: string, layout?: SlideshowLayout): string[] {
+  const body = stripFrontmatter(content);
+  const found: string[] = [];
+  const fence = new RegExp("^ {0,3}(`{3,}|~{3,})[ \\t]*" + SLIDESHOW_LANGUAGE + "[ \\t]*$", "gm");
+
+  for (const open of body.matchAll(fence)) {
+    const marker = open[1] ?? "```";
+    const start = (open.index ?? 0) + open[0].length + 1;
+    const close = new RegExp("^ {0,3}" + marker[0] + "{" + marker.length + ",}[ \\t]*$", "m");
+    const rest = body.slice(start);
+    const end = close.exec(rest);
+    const block = parseSlideshow(end ? rest.slice(0, end.index) : rest);
+    if (!block.ok || (layout !== undefined && block.layout !== layout)) continue;
+    for (const image of block.images) {
+      for (const candidate of linkpathCandidates(image.src)) {
+        // The path with its angle brackets still on names nothing anyone wrote.
+        if (/^<.*>$/.test(candidate) || /^[a-z][a-z0-9+.-]*:/i.test(candidate)) continue;
+        found.push(candidate);
+      }
+    }
+  }
+
+  return found;
 }
 
 /**
