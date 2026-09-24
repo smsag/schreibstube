@@ -91,6 +91,25 @@ moved — and whose every byte is parsed on every start. It is fetched once per 
   being copied. The worker gets the fonts and the job's files, and answers with
   PDF bytes.
 
+### The standard fonts
+
+The typesetter has no typeface of its own. In a browser there are no system
+fonts for it to find, and a page set without a face is a blank page — which is
+what every template without a `fonts/` folder printed, both examples included,
+until these were added. So the faces Typst itself defaults to travel with the
+compiler: Libertinus Serif for text and DejaVu Sans Mono for code, regular,
+italic, bold and bold italic, about 2 MB in all.
+
+They are pinned exactly like the compiler: taken from `typst/typst-assets` at
+`FONTS_VERSION`, checked against the hashes in `FONT_FILES`, attached to the
+release as `typst-runtime-fonts-…`, fetched once per device and hashed again
+from the cache. The worker receives them once, at start, and adds them to every
+job beside the template's own. Typst picks by family, so a template that names
+its font gets it; one that names none, or names one it did not bring, is set in
+the standard face. Both licences (OFL, and the Bitstream Vera licence for
+DejaVu) allow redistribution with the notice each font carries in its own
+metadata.
+
 Measured on this hardware: 226 ms to instantiate, 171 ms to set the letter,
 433 ms to set the four-page CV with its photo and four font faces.
 
@@ -120,6 +139,19 @@ the note says.
 Not yet: LaTeX math. It is reported like the rest.
 
 Every construct has a test, and both sample documents are fixtures.
+
+A string test cannot say whether a string is Typst: every callout once failed
+to print while its test passed. So CI also compiles. `scripts/check-print-compile.mjs`
+builds a job for every case in `src/testing/print-fixtures.ts`, for both
+example templates and two made in the script — one with no opinions, one that
+replaces every helper — and runs it through the worker's own source on the
+pinned runtime and fonts. A job fails when Typst refuses it, or when the note
+has text and the PDF carries no font. Add a case with every converter fix.
+
+```bash
+node scripts/fetch-typst-runtime.mjs   # once: the pinned runtime and fonts, into dist/
+npm run check:print
+```
 
 ## The template contract
 
@@ -230,7 +262,7 @@ fails validation is reported by name and reason:
 - No path outside the template folder. Every `image()` and `read()` resolves
   inside the job's shadow file system, which holds only the template's files
   and the note's captured assets.
-- Limits: at most 12 font files and 8 MB of fonts, 40 images and 24 MB of
+- Limits: at most 12 font files and 8 MB of fonts, 120 images and 24 MB of
   images per job, 20 s of compile time, 30 MB of PDF. Each is a named
   `MAX_…` constant with a test.
 
@@ -347,8 +379,9 @@ proven anywhere else:
 
 `examples/print/brief/` and `examples/print/lebenslauf/`, each documented in
 its own `template.md`, with `examples/print/README.md` on installing one and
-on fonts. Neither ships a typeface: fonts are licensed, and a repository is not
-a place to redistribute them.
+on fonts. Neither ships a typeface of its own choosing: they ask for Fira Sans
+by name, and without it they are set in the standard fonts the plugin fetches
+with the compiler.
 
 ### Epic 5: documentation and release — done
 
