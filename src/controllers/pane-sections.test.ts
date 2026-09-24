@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Platform } from "obsidian";
-import { PaneSectionsController } from "./pane-sections";
+import { PaneSectionsController, RETIRED_STORAGE_KEYS } from "./pane-sections";
 import { fakeVault } from "../testing/fake-app";
 import { DEFAULT_SETTINGS } from "../services/plugin-settings";
 import type { SchreibstubeSettings } from "../types";
@@ -12,7 +12,9 @@ function fakeStorage() {
   return {
     store,
     loadLocalStorage: (key: string) => store.get(key) ?? null,
-    saveLocalStorage: (key: string, value: unknown) => void store.set(key, value)
+    // Obsidian clears an entry saved as null, so the fake does too.
+    saveLocalStorage: (key: string, value: unknown) =>
+      void (value === null ? store.delete(key) : store.set(key, value))
   };
 }
 
@@ -209,5 +211,29 @@ describe("opening a note from the recent lists", () => {
     const { pane, getLeaf } = opener();
     await pane.openLatest("Quellen/Eins.md", "window");
     expect(getLeaf).toHaveBeenCalledWith("tab");
+  });
+});
+
+describe("what earlier versions left on a device", () => {
+  it("clears the recently opened bookmarks on start", async () => {
+    const storage = fakeStorage();
+    storage.store.set("schreibstube:bookmarks:recent", ["https://example.com"]);
+    const { pane } = controllerFor({}, storage);
+
+    await pane.start();
+
+    expect(storage.store.has("schreibstube:bookmarks:recent")).toBe(false);
+  });
+
+  it("writes nothing on a device that holds none of it", async () => {
+    const storage = fakeStorage();
+    const save = vi.spyOn(storage, "saveLocalStorage");
+    const { pane } = controllerFor({}, storage);
+
+    await pane.start();
+
+    for (const key of RETIRED_STORAGE_KEYS) {
+      expect(save).not.toHaveBeenCalledWith(key, null);
+    }
   });
 });

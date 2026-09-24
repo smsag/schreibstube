@@ -47,6 +47,13 @@ import {
  */
 const LATEST_SEEN_KEY = "schreibstube:latest:seen";
 
+/**
+ * What earlier versions kept on a device and nothing reads any more: the
+ * bookmarks opened last, which "Open bookmark" once offered first. Cleared on
+ * start so an update leaves nothing of it behind.
+ */
+export const RETIRED_STORAGE_KEYS: readonly string[] = ["schreibstube:bookmarks:recent"];
+
 /** The subset of Obsidian's App that keeps device-local state. Older builds
  *  may not have it, so every use is feature-detected. */
 interface LocalStorageApi {
@@ -77,6 +84,7 @@ export class PaneSectionsController {
   ) {}
 
   async start(): Promise<void> {
+    this.clearRetiredStorage();
     this.seenAt = this.readSeenAt();
     await this.reload();
   }
@@ -287,6 +295,25 @@ export class PaneSectionsController {
     this.seenAt = newest;
     this.writeSeenAt();
     this.emit();
+  }
+
+  private clearRetiredStorage(): void {
+    const storage = this.app as unknown as LocalStorageApi;
+    if (
+      typeof storage.loadLocalStorage !== "function" ||
+      typeof storage.saveLocalStorage !== "function"
+    ) {
+      return;
+    }
+
+    for (const key of RETIRED_STORAGE_KEYS) {
+      try {
+        // Read first, so a device already clean is not written to on every start.
+        if (storage.loadLocalStorage(key) !== null) storage.saveLocalStorage(key, null);
+      } catch (error) {
+        this.logger.debug(`Could not clear ${key}:`, error);
+      }
+    }
   }
 
   private readSeenAt(): number | null {
