@@ -2,7 +2,28 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## 1.44.0 - 2026-09-24
+
+Faster publishing, safer on a phone, and a note that always opens. A
+publish of a large site no longer reads every note back from the web host:
+the bridge keeps what it has seen in memory and talks to the host several
+requests at a time, so one edited note of three hundred takes under a
+second instead of twelve. A first publish uploads three files at a time
+over one login rather than one login per file, and publishing from a phone
+no longer holds every picture of the site in memory at once. A press on a
+note in the explorer that sometimes opened nothing — the heading stack
+failing inside the editor while it swapped notes — now opens it every
+time, and the filter's clear button is no longer hidden from screen
+readers.
+
+Mobile checklist: not run. What a phone would answer differently: a publish
+of a folder with many large pictures completing without the app being
+closed, and a first publish over mobile data finishing before the phone
+suspends the app.
+
+The bridge moves to 2.6.0 and its protocol is unchanged, so bridge 2.5.0
+still serves this release, without the speed-ups above that live in the
+bridge. Redeploy it to have them.
 
 ### Changed
 
