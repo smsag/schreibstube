@@ -83,16 +83,13 @@ export const enExtra = {
       "list item is a link.",
     explorerLatest: "Latest section",
     explorerLatestDesc:
-      "Three short lists between the bookmarks and the tree: the notes whose source last " +
-      "changed, the notes most recently created, and " +
-      "those most recently changed. A note shown as created is not repeated as changed.",
-    explorerLatestCount: "Notes per list",
-    explorerLatestCountDesc: (max: number) =>
-      `How many notes each of the two lists shows (1 to ${max}).`,
+      "A short list between the bookmarks and the tree: the notes whose Document sync source " +
+      "changed and that still wait to be looked at.",
+    explorerLatestCount: "Notes shown",
+    explorerLatestCountDesc: (max: number) => `How many notes the list shows (1 to ${max}).`,
     explorerLatestExclude: "Never show these",
     explorerLatestExcludeDesc:
-      "Vault paths, separated by commas or line breaks. A folder excludes everything inside it. " +
-      "The bookmarks file is always excluded.",
+      "Vault paths, separated by commas or line breaks. A folder excludes everything inside it.",
     explorerTaskCounts: "Task counts",
     explorerTaskCountsDesc:
       'Show how many tasks a note holds and how many are still open, as "1 / 7" after its ' +
@@ -537,9 +534,7 @@ export const enExtra = {
     latest: {
       synced: "Updated externally",
       alert: "A source was updated in the background",
-      created: "Created",
-      modified: "Modified",
-      empty: "No notes yet."
+      empty: "No source has changed."
     },
 
     menu: {

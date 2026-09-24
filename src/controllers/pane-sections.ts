@@ -1,5 +1,5 @@
 /**
- * The two lists above the file tree: bookmarks, and what was written lately.
+ * The two lists above the file tree: bookmarks, and the notes a source changed.
  *
  * They sit in one controller because they are the same kind of thing. Neither
  * writes anything, both are a snapshot of the vault re-derived when the vault
@@ -219,7 +219,7 @@ export class PaneSectionsController {
   // --- latest -------------------------------------------------------------
 
   /**
-   * The three recent-note lists.
+   * The notes whose source changed.
    *
    * Computed on demand and kept until something changes it, because the pane
    * redraws on every vault event and a vault of a few thousand notes cannot be
@@ -237,12 +237,9 @@ export class PaneSectionsController {
 
     if (this.latest && key === this.latestKey) return this.latest;
 
-    const excluded = parseExcludedPaths(settings.explorerLatestExcluded);
-    excluded.add(this.bookmarksPath());
-
     this.latest = selectLatest(this.candidates(), {
       count: settings.explorerLatestCount,
-      excluded
+      excluded: parseExcludedPaths(settings.explorerLatestExcluded)
     });
     this.latestKey = key;
     return this.latest;
@@ -319,21 +316,20 @@ export class PaneSectionsController {
   private candidates(): LatestCandidate[] {
     const syncState = this.getSettings().syncState;
 
-    return this.app.vault.getMarkdownFiles().map((file) => {
+    const candidates: LatestCandidate[] = [];
+
+    for (const file of this.app.vault.getMarkdownFiles()) {
       // Listed under "updated externally" only while the update is still to be
       // taken: a note already level with its source has nothing for "Quelle
       // prüfen" to show, and a row and a mark promising otherwise were the
       // pane saying something the panel then denied.
       const record = syncState[file.path];
       const syncedAt = hasWaitingUpdate(record) ? record?.changedAt : undefined;
-      return {
-        path: file.path,
-        name: file.basename,
-        createdAt: file.stat.ctime,
-        modifiedAt: file.stat.mtime,
-        ...(syncedAt !== undefined ? { syncedAt } : {})
-      };
-    });
+      if (syncedAt !== undefined)
+        candidates.push({ path: file.path, name: file.basename, syncedAt });
+    }
+
+    return candidates;
   }
 
   async openLatest(path: string, where: PaneTarget = false): Promise<void> {
@@ -355,7 +351,7 @@ export class PaneSectionsController {
 }
 
 /**
- * A short stand-in for the sync records, so the recent lists notice a poll.
+ * A short stand-in for the sync records, so the Latest list notices a poll.
  *
  * The lists are cached until something changes them, and a source changing is
  * now one of those things — but it happens in the plugin's data file rather

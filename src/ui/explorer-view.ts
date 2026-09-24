@@ -1028,15 +1028,8 @@ export class ExplorerPaneView extends ItemView {
     });
     if (!body) return;
 
-    const { synced, created, modified } = sections.latestFiles();
     const labels = t().explorer.latest;
-
-    // The source having changed is the most specific thing that can be said
-    // about why a note moved, so it is said first.
-    const drawn =
-      this.renderLatestGroup(body, labels.synced, synced, true) +
-      this.renderLatestGroup(body, labels.created, created) +
-      this.renderLatestGroup(body, labels.modified, modified);
+    const drawn = this.renderLatestGroup(body, labels.synced, sections.latestFiles().synced);
 
     if (drawn === 0) {
       body.createEl("p", { cls: "schreibstube-explorer-empty", text: labels.empty });
@@ -1046,8 +1039,7 @@ export class ExplorerPaneView extends ItemView {
   private renderLatestGroup(
     host: HTMLElement,
     label: string,
-    files: readonly LatestCandidate[],
-    withBadge = false
+    files: readonly LatestCandidate[]
   ): number {
     const controller = this.host?.explorer;
     // A file deleted a moment ago is gone from the tree at once; it would be
@@ -1079,7 +1071,7 @@ export class ExplorerPaneView extends ItemView {
       // is waiting to be looked at or already in the note.
       const target = this.app.vault.getAbstractFileByPath(file.path);
       if (target instanceof TFile) {
-        if (withBadge) this.renderBadge(row, target);
+        this.renderBadge(row, target);
         this.renderTaskCount(row, target);
       }
 
