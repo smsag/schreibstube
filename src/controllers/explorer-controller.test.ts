@@ -79,6 +79,8 @@ interface FixtureOptions {
   decline?: boolean;
   /** The trash is the system's: nothing ever appears in `.trash`. */
   systemTrash?: boolean;
+  /** Entries already in the trash before the delete, as the adapter lists them. */
+  trashHolds?: string[];
   /** Something another device drops into the trash during every delete. */
   strayTrash?: string;
   present?: string[];
@@ -86,13 +88,18 @@ interface FixtureOptions {
 
 function fixture(options: FixtureOptions = {}): Fixture {
   const timers = fakeTimers();
-  const trash: string[] = [];
+  const trash: string[] = [...(options.trashHolds ?? [])];
   const present = new Set(options.present ?? []);
   const trashFile = vi.fn(async (file: TFile | TFolder) => {
     if (options.trashFails) throw new Error("no trash on this volume");
     present.delete(file.path);
     if (options.strayTrash) trash.push(options.strayTrash);
-    if (!options.systemTrash) trash.push(`.trash/${file.path.split("/").pop() ?? file.path}`);
+    if (options.systemTrash) return;
+    // As the vault's trash does: the name is kept, and a namesake already
+    // there makes the arrival take a numbered one.
+    const name = file.path.split("/").pop() ?? file.path;
+    const wanted = `.trash/${name}`;
+    trash.push(trash.includes(wanted) ? wanted.replace(/(\.[^.]+)$/, " 1$1") : wanted);
   });
   const renameFile = vi.fn(async (file: TFile | TFolder, to: string) => {
     present.delete(file.path);
@@ -124,7 +131,8 @@ function fixture(options: FixtureOptions = {}): Fixture {
       getAllLoadedFiles: () => [...present].map(node),
       createBinary,
       adapter: {
-        exists: async (path: string) => (path === ".trash" ? trash.length > 0 : present.has(path)),
+        exists: async (path: string) =>
+          path === ".trash" ? trash.length > 0 : trash.includes(path) || present.has(path),
         list: async () => ({ files: [...trash], folders: [] }),
         rename: async (from: string, to: string) => {
           const at = trash.indexOf(from);
@@ -251,6 +259,32 @@ describe("deleting from the pane", () => {
     expect(f.controller.isTrashed("Projekt")).toBe(true);
     expect(f.controller.isTrashed("Projekt/Unter/b.md")).toBe(true);
     expect(f.controller.isTrashed("Projektplan.md")).toBe(false);
+  });
+
+  it("takes the row away before the trash call has returned", async () => {
+    const f = fixture();
+    let released: () => void = () => undefined;
+    f.trashFile.mockImplementationOnce(() => new Promise<void>((resolve) => (released = resolve)));
+
+    await f.controller.run("delete", new TFile("Entwurf.md") as never);
+    await settle();
+
+    expect(f.controller.isTrashed("Entwurf.md")).toBe(true);
+    released();
+    await settle();
+    expect(f.controller.isTrashed("Entwurf.md")).toBe(true);
+  });
+
+  it("finds the entry when a namesake already sits in the trash", async () => {
+    const f = fixture({ present: ["a.md"], trashHolds: [".trash/a.md"] });
+
+    await deleteViaMenu(f.controller, new TFile("a.md"));
+
+    expect(f.trash).toEqual([".trash/a.md", ".trash/a 1.md"]);
+    f.toasts[0]?.undo();
+    await settle();
+    expect(f.trash).toEqual([".trash/a.md"]);
+    expect(f.present.has("a.md")).toBe(true);
   });
 
   it("says so when the trash refuses, and hides nothing", async () => {
