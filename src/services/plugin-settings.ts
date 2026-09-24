@@ -14,7 +14,7 @@ import {
 import { BOOKMARK_FILE_DEFAULT } from "./bookmark-file";
 import { LATEST_COUNT_DEFAULT, LATEST_COUNT_MAX } from "./latest-files";
 import { LLM_PROVIDER_IDS, PROVIDER_MODELS } from "./llm-providers";
-import { DEFAULT_PUBLISH_KEYS, normalizePublishKeys } from "./publish-index";
+import { DEFAULT_PUBLISH_KEYS, normalizeHeaderTags, normalizePublishKeys } from "./publish-index";
 import { TEMPLATE_ROOT_DEFAULT } from "./print-template";
 import { DEFAULT_REPORT_FILE } from "./reminder-status";
 import { normalizePropertyIcons } from "./property-icons";
@@ -372,7 +372,8 @@ function publishAccountsOrDefault(value: unknown): PublishAccount[] {
       name: typeof record.name === "string" && record.name.trim() ? record.name.trim() : folder,
       folder,
       target,
-      writeBack: record.writeBack !== false
+      writeBack: record.writeBack !== false,
+      headerTags: normalizeHeaderTags(record.headerTags)
     });
   }
 

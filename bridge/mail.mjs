@@ -9,6 +9,8 @@ import { ImapFlow } from "imapflow";
 import { simpleParser } from "mailparser";
 import nodemailer from "nodemailer";
 import { randomUUID } from "node:crypto";
+import { withDeadline } from "./timeout.mjs";
+import { chooseSentMailbox, FALLBACK_SENT_MAILBOX } from "./sent-mailbox.mjs";
 
 /**
  * Compile a message to RFC 5322 bytes without sending it. Using a stream
@@ -80,8 +82,12 @@ async function attempt(work) {
  * is known before the send and can be returned to the plugin, which stores it
  * in the note's frontmatter. That stored ID is the only thing tying later
  * replies back to the note, so it must survive the round trip intact.
+ *
+ * The two legs carry a deadline each. One deadline over both turned a slow
+ * APPEND after a delivered message into a failed send, and a person told the
+ * send failed sends again: the duplicate lands with the recipient.
  */
-export async function sendMessage(config, transport, request) {
+export async function sendMessage(config, transport, request, { fileInSent = appendToSent } = {}) {
   const from = request.from?.trim() || config.from;
   const messageId = request.messageId?.trim() || generateMessageId(from);
 
@@ -102,16 +108,24 @@ export async function sendMessage(config, transport, request) {
   const compiled = await compiler.sendMail(mail);
   const raw = compiled.message;
 
-  await transport.sendMail({
-    envelope: {
-      from: extractAddress(from),
-      to: [...toList(request.to), ...toList(request.cc), ...toList(request.bcc)]
-    },
-    raw
-  });
+  await withDeadline(
+    transport.sendMail({
+      envelope: {
+        from: extractAddress(from),
+        to: [...toList(request.to), ...toList(request.cc), ...toList(request.bcc)]
+      },
+      raw
+    }),
+    config.upstreamTimeoutMs,
+    "Send"
+  );
 
   const sentAt = new Date().toISOString();
-  const filed = await appendToSent(config, raw);
+  const filed = await withDeadline(
+    fileInSent(config, raw),
+    config.upstreamTimeoutMs,
+    "Filing in Sent"
+  ).catch(() => false);
 
   return { messageId, sentAt, filedInSent: filed };
 }
@@ -120,19 +134,55 @@ export async function sendMessage(config, transport, request) {
  *  fatal: the mail is already delivered, and losing the local copy must not
  *  look like a failed send. */
 async function appendToSent(config, raw) {
-  if (!config.sentMailbox) {
+  if (config.sentMailbox === "") {
     return false;
   }
   const client = newClient(config);
   try {
     await client.connect();
-    await client.append(config.sentMailbox, raw, ["\\Seen"]);
+    const { mailbox, filedByServer } = await sentMailboxFor(config, client);
+    if (!mailbox) return filedByServer;
+    await client.append(mailbox, raw, ["\\Seen"]);
     return true;
   } catch {
     return false;
   } finally {
     await safeLogout(client);
   }
+}
+
+/**
+ * The server's answer, per mailbox account, for the life of the process.
+ *
+ * Folders are renamed about never, and a LIST before every send would be one
+ * more round trip inside the filing deadline for the same answer each time. A
+ * redeploy asks again.
+ */
+const detectedSent = new Map();
+
+/**
+ * Where this account's sent copies go: `SENT_MAILBOX` when set, otherwise what
+ * the server tags, asked once. A LIST that fails is not remembered — the next
+ * send asks again — and falls back to the old default for this one.
+ */
+export async function sentMailboxFor(config, client, cache = detectedSent) {
+  const configured = config.sentMailbox ?? null;
+  if (configured !== null) return chooseSentMailbox({ configured });
+
+  const key = `${config.imap.host}:${config.imap.port}|${config.imap.auth.user}`;
+  if (cache.has(key)) return cache.get(key);
+
+  let choice;
+  try {
+    choice = chooseSentMailbox({
+      mailboxes: await client.list(),
+      capabilities: [...(client.capabilities?.keys?.() ?? [])]
+    });
+  } catch {
+    return { mailbox: FALLBACK_SENT_MAILBOX, filedByServer: false };
+  }
+  cache.set(key, choice);
+  return choice;
 }
 
 /** Search a mailbox and return the matching messages, newest last. */

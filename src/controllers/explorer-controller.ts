@@ -11,6 +11,7 @@ import {
   getAllTags,
   Menu,
   Notice,
+  Platform,
   TAbstractFile,
   TFile,
   TFolder,
@@ -24,6 +25,7 @@ import { t } from "../i18n";
 import type { Logger } from "../services/logger";
 import type { SchreibstubeSettings } from "../types";
 import { syncBadgeFor, type SyncBadge } from "../services/explorer-badge";
+import { publishMarkFor, type PublishMark } from "../services/publish-mark";
 import {
   buildExplorerMenu,
   buildSelectionMenu,
@@ -43,6 +45,7 @@ import {
   type UndoableAction
 } from "../services/undo-stack";
 import { topLevelOnly } from "../services/explorer-selection";
+import { availableTarget, type PaneTarget } from "../services/pane-target";
 import { planImport, type DroppedFile, type ImportRefusal } from "../services/import-plan";
 import {
   entryFor,
@@ -690,6 +693,21 @@ export class ExplorerController {
     });
   }
 
+  /** Whether a note is marked for publication, and whether that has happened. */
+  publishMarkOf(file: TFile): PublishMark {
+    if (file.extension !== "md") return { state: "none" };
+    const settings = this.getSettings();
+    if (settings.publishAccounts.length === 0) return { state: "none" };
+
+    return publishMarkFor({
+      path: file.path,
+      frontmatter: this.app.metadataCache.getFileCache(file)?.frontmatter,
+      accounts: settings.publishAccounts,
+      keys: settings.publishFrontmatterKeys,
+      lastRuns: settings.publishLastRun
+    });
+  }
+
   /**
    * What a note calls itself, or null when it says nothing.
    *
@@ -838,7 +856,8 @@ export class ExplorerController {
       hasBoundNotes: file instanceof TFolder && this.hasBoundNotes(file),
       // Its own pictures, not its subfolders': the entry opens a grid of this
       // folder, and a grid of nothing is worse than no entry.
-      hasImages: file instanceof TFolder && hasFolderImages(file, (path) => this.isTrashed(path))
+      hasImages: file instanceof TFolder && hasFolderImages(file, (path) => this.isTrashed(path)),
+      windows: Platform.isDesktopApp
     };
   }
 
@@ -865,7 +884,9 @@ export class ExplorerController {
       case "open":
         return this.open(file, false);
       case "open-new-tab":
-        return this.open(file, true);
+        return this.open(file, "tab");
+      case "open-new-window":
+        return this.open(file, "window");
       case "set-icon":
         return this.chooseIcon(file);
       case "clear-icon":
@@ -917,9 +938,10 @@ export class ExplorerController {
     }
   }
 
-  async open(file: TAbstractFile, newTab: boolean): Promise<void> {
+  /** Open a file where a press or a menu asked: in place, a tab, a split or a window. */
+  async open(file: TAbstractFile, where: PaneTarget): Promise<void> {
     if (!(file instanceof TFile)) return;
-    const leaf = this.app.workspace.getLeaf(newTab ? "tab" : false);
+    const leaf = this.app.workspace.getLeaf(availableTarget(where, Platform.isDesktopApp));
     await leaf.openFile(file);
   }
 

@@ -10,26 +10,40 @@ import {
   listTargets,
   planPublish,
   uploadAsset,
-  uploadSource
+  uploadSource,
+  uploadThumbnail
 } from "../services/publish-client";
 import {
   PROTOCOL_VERSION,
+  isEmptyPlan,
   summarisePlan,
   type PublishAsset,
   type PublishBridgeConfig,
   type PublishIndex,
-  type PublishNote
+  type PublishNote,
+  type UploadRequest
 } from "../services/publish-protocol";
+import {
+  isSendableThumbnail,
+  THUMBNAIL_MAX_PX,
+  THUMBNAIL_QUALITY,
+  thumbnailType
+} from "../services/publish-thumbnail";
+import { getImageMimeType, resizeImageToBytes } from "../services/image-resize";
 import {
   ATTACHMENT_EXTENSIONS,
   findSlugCollision,
   isInsideFolder,
   isPublishableAttachment,
   readPublishFields,
+  headerTagsOf,
+  noteTags,
   referencedAttachments,
-  resolveNote
+  resolveNote,
+  slideshowReferences
 } from "../services/publish-index";
 import { PublishAccountModal, PublishPlanModal } from "../ui/publish-modals";
+import { mapLimit } from "../utils/map-limit";
 
 /**
  * The publish commands: preview a publish, run one, open the site.
@@ -110,27 +124,50 @@ export class PublishCommands {
       const { bridge, index, plan, sources, assets } = prepared;
 
       let done = 0;
-      const total = plan.uploadSources.length + plan.uploadAssets.length;
+      const total =
+        plan.uploadSources.length + plan.uploadAssets.length + plan.uploadThumbnails.length;
+      const uploaded = (): void => {
+        done += 1;
+        notice.setMessage(t().common.notice(t().publish.uploading(done, total)));
+      };
 
-      for (const entry of plan.uploadSources) {
+      // A few at a time: over a phone's connection each upload is mostly
+      // waiting, and one after another a first publish took minutes — long
+      // enough for the phone to suspend the app in the middle of it.
+      await mapLimit(plan.uploadSources, UPLOAD_CONCURRENCY, async (entry) => {
         const content = sources.get(entry.sha256);
         if (!content) {
           throw new Error(t().publish.missingSource(entry.sourcePath));
         }
         await uploadSource(bridge, account.target, entry.sha256, content);
-        done += 1;
-        notice.setMessage(t().common.notice(t().publish.uploading(done, total)));
-      }
+        uploaded();
+      });
 
-      for (const entry of plan.uploadAssets) {
+      await mapLimit(plan.uploadAssets, UPLOAD_CONCURRENCY, async (entry) => {
         const asset = assets.get(entry.sha256);
         if (!asset) {
           throw new Error(t().publish.missingSource(entry.sourcePath));
         }
-        await uploadAsset(bridge, account.target, entry.sha256, asset.name, asset.content);
-        done += 1;
-        notice.setMessage(t().common.notice(t().publish.uploading(done, total)));
-      }
+        const content = await this.readAttachment(asset.path, entry.sha256);
+        await uploadAsset(bridge, account.target, entry.sha256, asset.name, content);
+        uploaded();
+      });
+
+      // One at a time: each is a photograph decoded in full, and two at once
+      // is twice the memory a phone may not have. A thumbnail that cannot be
+      // made or sent is left out — the filmstrip shows the picture itself,
+      // and the next publish asks again — rather than failing the publish.
+      await mapLimit(plan.uploadThumbnails, 1, async (entry) => {
+        const asset = assets.get(entry.sha256);
+        if (asset) {
+          try {
+            await this.sendThumbnail(bridge, account.target, entry, asset);
+          } catch (error) {
+            this.logger.debug(`Thumbnail skipped for ${entry.sourcePath}.`, error);
+          }
+        }
+        uploaded();
+      });
 
       notice.setMessage(t().common.notice(t().publish.building));
       const summary = await commitPublish(bridge, account.target, index);
@@ -170,12 +207,57 @@ export class PublishCommands {
 
       const plan = await planPublish(bridge, account.target, collected.index);
       this.logger.debug("Publish plan.", summarisePlan(plan));
+      if (isEmptyPlan(plan)) {
+        new Notice(t().common.notice(t().publish.noNotes(account.folder)));
+        return null;
+      }
       return { bridge, ...collected, plan };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       new Notice(`Schreibstube: ${message}`);
       return null;
     }
+  }
+
+  /** Make the filmstrip thumbnail of one picture, and send it if it is small enough. */
+  private async sendThumbnail(
+    bridge: PublishBridgeConfig,
+    target: string,
+    entry: UploadRequest,
+    asset: { name: string; path: string }
+  ): Promise<void> {
+    const type = thumbnailType(asset.name);
+    if (!type) return;
+    const content = await this.readAttachment(asset.path, entry.sha256);
+    const extension = asset.name.split(".").pop() ?? "";
+    const { bytes } = await resizeImageToBytes(
+      content,
+      getImageMimeType(extension) ?? type,
+      THUMBNAIL_MAX_PX,
+      THUMBNAIL_QUALITY,
+      type
+    );
+    if (!isSendableThumbnail(bytes.byteLength)) return;
+    const body = bytes.slice().buffer as ArrayBuffer;
+    await uploadThumbnail(bridge, target, entry.sha256, asset.name, await hash(bytes), body);
+  }
+
+  /**
+   * An attachment's bytes, read again for its upload.
+   *
+   * The file may have changed since the plan hashed it. Sent as it is now, it
+   * would be refused for not matching the hash the bridge was promised, and
+   * the site would be built on a picture that is no longer the vault's; so the
+   * run stops and says which file moved under it.
+   */
+  private async readAttachment(path: string, sha256: string): Promise<ArrayBuffer> {
+    const file = this.app.vault.getAbstractFileByPath(path);
+    if (!(file instanceof TFile)) throw new Error(t().publish.missingSource(path));
+    const content = await this.app.vault.readBinary(file);
+    if ((await hash(new Uint8Array(content))) !== sha256) {
+      throw new Error(t().publish.changedDuringPublish(path));
+    }
+    return content;
   }
 
   /**
@@ -192,9 +274,17 @@ export class PublishCommands {
       .filter((file) => isInsideFolder(file.path, account.folder))
       .sort((a, b) => a.path.localeCompare(b.path));
 
+    // An index with no notes takes every page down. A folder with no notes at
+    // all is far more often a mistyped setting, or a phone whose vault has not
+    // synced yet, than a site meant to be emptied, so it never gets that far.
+    if (files.length === 0) {
+      new Notice(t().common.notice(t().publish.emptyFolder(account.folder)));
+      return null;
+    }
+
     const notes: PublishNote[] = [];
     const sources = new Map<string, ArrayBuffer>();
-    const assets = new Map<string, { name: string; content: ArrayBuffer }>();
+    const assets = new Map<string, { name: string; path: string }>();
     const assetEntries: PublishAsset[] = [];
     const resolved = [];
 
@@ -218,29 +308,45 @@ export class PublishCommands {
       const bytes = new TextEncoder().encode(content);
       const sha256 = await hash(bytes);
       sources.set(sha256, bytes.buffer as ArrayBuffer);
-      notes.push({ ...note, sha256 });
+      const carried =
+        account.headerTags.length > 0 ? headerTagsOf(noteTags(cache), account.headerTags) : [];
+      notes.push({ ...note, sha256, ...(carried.length > 0 ? { tags: carried } : {}) });
+
+      // A filmstrip shows its pictures small as well, and asks for thumbnails.
+      const filmstrip = new Set(
+        slideshowReferences(content, "filmstrip")
+          .map((reference) => this.app.metadataCache.getFirstLinkpathDest(reference, file.path))
+          .filter((target): target is TFile => target instanceof TFile)
+          .map((target) => target.path)
+      );
 
       for (const reference of referencedAttachments(content)) {
         const target = this.app.metadataCache.getFirstLinkpathDest(reference, file.path);
         if (!(target instanceof TFile)) continue;
         if (!isPublishableAttachment(target.name, ATTACHMENT_EXTENSIONS)) continue;
-        if (assetEntries.some((entry) => entry.sourcePath === target.path)) continue;
+        const wantsThumbnail = filmstrip.has(target.path) && thumbnailType(target.name) !== null;
+        const known = assetEntries.find((entry) => entry.sourcePath === target.path);
+        if (known) {
+          // Shown plainly in one note and in a filmstrip in another.
+          if (wantsThumbnail) known.thumbnail = true;
+          continue;
+        }
 
+        // Read to be hashed, then let go: the bytes are read again only if
+        // the bridge asks for them. Kept for the whole run, every picture a
+        // site shows sat in memory at once, which a phone's WebView does not
+        // survive for long.
         const data = await this.app.vault.readBinary(target);
         const assetHash = await hash(new Uint8Array(data));
-        assets.set(assetHash, { name: target.name, content: data });
+        assets.set(assetHash, { name: target.name, path: target.path });
         assetEntries.push({
           sourcePath: target.path,
           sha256: assetHash,
           name: target.name,
-          bytes: data.byteLength
+          bytes: data.byteLength,
+          ...(wantsThumbnail ? { thumbnail: true } : {})
         });
       }
-    }
-
-    if (notes.length === 0) {
-      new Notice(t().common.notice(t().publish.noNotes(account.folder)));
-      return null;
     }
 
     const collision = findSlugCollision(resolved);
@@ -254,7 +360,8 @@ export class PublishCommands {
       siteTitle: account.name,
       notes,
       assets: assetEntries,
-      ...(themeCss !== undefined ? { themeCss } : {})
+      ...(themeCss !== undefined ? { themeCss } : {}),
+      ...(account.headerTags.length > 0 ? { headerTags: account.headerTags } : {})
     };
 
     return { index, sources, assets };
@@ -387,8 +494,15 @@ export class PublishCommands {
 interface Collected {
   index: PublishIndex;
   sources: Map<string, ArrayBuffer>;
-  assets: Map<string, { name: string; content: ArrayBuffer }>;
+  /** Where each attachment is, by hash — never its bytes, which can be large. */
+  assets: Map<string, { name: string; path: string }>;
 }
+
+/**
+ * Uploads in flight at once. Few, because the bytes of each are in memory
+ * until it is sent, and a video may weigh 25 MB on a phone.
+ */
+const UPLOAD_CONCURRENCY = 3;
 
 interface Prepared extends Collected {
   bridge: PublishBridgeConfig;

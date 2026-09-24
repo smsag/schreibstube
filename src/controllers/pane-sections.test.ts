@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { Platform } from "obsidian";
 import { PaneSectionsController } from "./pane-sections";
 import { fakeVault } from "../testing/fake-app";
 import { DEFAULT_SETTINGS } from "../services/plugin-settings";
@@ -172,5 +173,41 @@ describe("the mark that a source changed", () => {
     state["Quellen/Eins.md"] = levelRecord(now);
 
     expect(pane.latestFiles().synced).toEqual([]);
+  });
+});
+
+describe("opening a note from the recent lists", () => {
+  /** The pane with a workspace that says which leaf it was asked for. */
+  function opener() {
+    const { pane, storage } = controllerFor({});
+    const opened: string[] = [];
+    const getLeaf = vi.fn((_kind: unknown) => ({
+      openFile: async (file: { path: string }) => opened.push(file.path)
+    }));
+    Object.assign(pane as unknown as { app: object }, {
+      app: Object.assign((pane as unknown as { app: object }).app, { workspace: { getLeaf } })
+    });
+    return { pane, storage, getLeaf, opened };
+  }
+
+  afterEach(() => {
+    Platform.isDesktopApp = false;
+  });
+
+  it("opens in place, or where the press asked", async () => {
+    Platform.isDesktopApp = true;
+    const { pane, getLeaf, opened } = opener();
+    await pane.openLatest("Quellen/Eins.md");
+    await pane.openLatest("Quellen/Eins.md", "split");
+    await pane.openLatest("Quellen/Zwei.md", "window");
+    expect(getLeaf.mock.calls.map(([kind]) => kind)).toEqual([false, "split", "window"]);
+    expect(opened).toEqual(["Quellen/Eins.md", "Quellen/Eins.md", "Quellen/Zwei.md"]);
+  });
+
+  it("opens a tab where a phone or a tablet has no second window to give", async () => {
+    Platform.isDesktopApp = false;
+    const { pane, getLeaf } = opener();
+    await pane.openLatest("Quellen/Eins.md", "window");
+    expect(getLeaf).toHaveBeenCalledWith("tab");
   });
 });

@@ -132,6 +132,10 @@ export const de: Messages = {
     addAccount: "Konto hinzufügen",
     writeBack: "Veröffentlichung in die Notiz schreiben",
     writeBackDesc: "Trägt Zeitpunkt und Adresse nach dem Veröffentlichen ins Frontmatter ein.",
+    headerTags: "Schlagwörter im Kopf",
+    headerTagsDesc:
+      "Bis zu drei Schlagwörter, oben auf jeder Seite verlinkt, jedes mit einer Seite der Notizen, die es tragen. Verschachtelte zählen mit: projekt listet auch Notizen mit projekt/alpha. Ein Schlagwort, das keine veröffentlichte Notiz trägt, bleibt weg.",
+    headerTagPlaceholder: "#schlagwort",
     targetPlaceholder: "Ziel auf der Bridge",
     targetsUnavailable: "Ziele nicht abrufbar — Namen eintragen.",
     keysHeading: "Frontmatter-Felder",
@@ -176,8 +180,13 @@ export const de: Messages = {
     failed: (reason: string) => `Veröffentlichung fehlgeschlagen — ${reason}`,
     busy: "eine Veröffentlichung läuft bereits.",
     noAccount: "kein Veröffentlichungs-Konto eingerichtet — siehe Einstellungen.",
-    noNotes: (folder: string) => `keine Notiz in ${folder} ist zur Veröffentlichung markiert.`,
+    noNotes: (folder: string) =>
+      `keine Notiz in ${folder} ist zur Veröffentlichung markiert, und nichts Veröffentlichtes ist mehr zu entfernen.`,
+    emptyFolder: (folder: string) =>
+      `${folder} enthält keine Notizen — bitte den Ordner des Kontos prüfen. Nichts wurde veröffentlicht oder entfernt.`,
     missingSource: (path: string) => `die Quelle zu ${path} fehlt — bitte erneut versuchen.`,
+    changedDuringPublish: (path: string) =>
+      `${path} wurde während der Veröffentlichung geändert — erneut veröffentlichen, um die neue Fassung zu senden.`,
     writeBackFailed: (path: string) =>
       `veröffentlicht, aber ${path} konnte nicht aktualisiert werden.`,
     unknownTarget: (target: string) => `die Bridge kennt kein Ziel namens ${target}.`,
@@ -795,6 +804,7 @@ export const de: Messages = {
     menu: {
       open: "Öffnen",
       openNewTab: "In neuem Tab öffnen",
+      openNewWindow: "In neuem Fenster öffnen",
       setIcon: "Symbol wählen …",
       changeIcon: "Symbol ändern …",
       clearIcon: "Symbol entfernen",
@@ -845,7 +855,12 @@ export const de: Messages = {
       unchecked: "An eine Quelle gebunden, noch nie geprüft",
       error: "Die Quelle lässt sich nicht laden",
       checkedAt: (when: string) => `zuletzt geprüft ${when}`,
-      never: "noch nie geprüft"
+      never: "noch nie geprüft",
+      published: (site: string, when: string) => `Veröffentlicht auf ${site} · ${when}`,
+      marked: (site: string) => `Zur Veröffentlichung auf ${site} markiert`,
+      notYetPublished: "noch nicht veröffentlicht",
+      siteLastPublished: (when: string) => `die Website wurde zuletzt ${when} veröffentlicht`,
+      siteNeverPublished: "die Website wurde aus diesem Vault noch nie veröffentlicht"
     },
 
     bind: {

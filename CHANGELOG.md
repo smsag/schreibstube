@@ -4,12 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
-### Changed
+### Added
 
-- **A slideshow's header stays out of the way.** The alt text and the controls in the row above a slideshow now appear only while the pointer is over the block or a control has the keyboard focus. On a phone, which has no pointer, a tap on a picture or on the row shows them and the next tap, or a swipe, hides them again. The row keeps its height, so nothing below the block moves when they come and go. This is the same in every layout, from the stage to the before-and-after.
-- **Back returns from a picture to its tiles.** A tile opened its picture in a new tab, so the tab's Back arrow had nowhere to go and the grid was reached again only through the folder's menu. A tile now opens its picture in the tiles tab itself, and Back brings the grid back as it was, on the folder it was showing. A modifier click, Cmd or Ctrl, opens a new tab instead, for the grid and the picture side by side.
-- **The explorer no longer follows a note into another window.** The pane opens the folders above the open note and scrolls its row into view, whichever way the note was opened. It did that for a note in a popped-out window too, and again every time that window was focused, so the tree in the main window kept scrolling to a note nobody was looking at there. A note in another window is now left alone entirely: the tree stays as it was arranged. A note in the pane's own window is followed as before.
-- **A swipe on a slideshow is the slideshow's alone.** A sideways swipe across the stage or the scene in the note has turned the page since the block existed, but the note could scroll with it and, on a phone, Obsidian could answer the same swipe by sliding a sidebar in over the note. Once a finger is clearly moving sideways the block now claims the gesture: the note stays put and nothing above the block sees it. Which travel is a tap, a swipe or a scroll is one small decision module with tests.
+- **A tab icon for the published site, named by its theme.** A `theme.css` may name the site's icon as `--site-icon: url("data:image/svg+xml,…")`, beside its other colours and pictures; the bridge writes it as a file and links it from every page, so the browser tab shows it. An SVG or a PNG of at most 32 kB; an SVG holding a script, an event handler or anything it would load from elsewhere is left out, and the site publishes without an icon. Only the bridge changes: the protocol stays at 3, and no plugin release is needed.
 
 ### Fixed
 
@@ -25,11 +22,156 @@ All notable changes to this project will be documented in this file.
 - **Printing speaks German.** The notes about what was left out, and the reasons a template was refused, were always in English.
 - **Switching printing off removes old typesetter versions too.** After an update, the previous 28 MB version stayed in the plugin folder for good. It is now removed as soon as the new one is ready.
 - **A date in a note's print data is the day it says** in every time zone. West of Greenwich it printed as the day before.
-- **A delete no longer leaves the explorer standing still for seconds.** The row of a deleted file went away only after the trash call had returned, and that call was wrapped in two listings of the vault's trash folder, taken before and after, to learn the name the file landed under for undo. On a trash that is never emptied, a vault on a synced drive, or a system trash on a slow volume, that took seconds, and for those seconds the pane showed a row for a file that was just deleted, as if it had frozen. The row now goes the moment the delete is confirmed, and comes back only if the trash refuses. The landing name is found with one look at the path the trash keeps for it; the listings are taken only when a namesake was already there, which the trash renames around.
-- **The explorer no longer jumps when a note is opened from its own lists.** Pressing a note in the pinned rows, the recent lists or the bookmarks opened it, and the pane then followed the open note by scrolling the tree far below to the same note's row, carrying the pane away from the row that was just pressed. A note opened from the pane's own lists now has its folders opened as before, but the scroll stays where it is. A note opened by any other route is still brought into view.
+
+## 1.45.0 - 2026-09-24
+
+A published site that looks like the notes it came from. Slideshows publish
+in the layout the note chose — stage, filmstrip, feature, strip, masonry or
+before-and-after — with their controls and a fullscreen view, and a
+filmstrip loads small thumbnails the plugin makes instead of whole
+photographs. Pictures written as `![alt](bild.png)` now show, a size given
+after the bar is kept, and each connection can link up to three tags from
+the site's header, each to a page of its notes. In the explorer, a note
+pressed in the recent lists opens again instead of the tree jumping away,
+and every file menu offers **In neuem Fenster öffnen**, with Obsidian's
+modifier clicks for a tab, a split or a window.
+
+Mobile checklist: not run. What a phone would answer differently: a
+publish making filmstrip thumbnails without the app being closed, a
+slideshow on the published site swiping and its divider dragging under a
+finger, and a tap on a recent-list entry opening its note.
+
+The bridge moves to 2.7.0 and its protocol to 3: thumbnails, header tags and
+the tag pages travel in it. Deploy the bridge first. Bridge 2.6.0, at
+protocol 1, still publishes for this release, without thumbnails and without
+header tags, and the plugin says the bridge is behind; bridge 2.7.0 serves
+every plugin since 1.8.0.
+
+### Added
+
+- **Tags in the header of a published site.** Each connection can name up to three tags in its settings; every page of the site then links them on the right of the header, each to a page listing the published notes that carry it, newest first. Tags count as Obsidian counts them — in the note's properties or its text, case aside, nested ones included — and a tag no published note carries is left out. Only which of the three tags a note carries is sent to the bridge; a note's other tags stay in the vault. This needs the bridge's protocol 3; an older bridge publishes the site without them.
+- **Open in a new window, from the explorer.** Every file menu of the pane — the tree, the recent lists, the pinned rows, the picture tiles and the related-notes and tag cards — now offers **In neuem Fenster öffnen** beside **In neuem Tab öffnen**, on the desktop; a phone or a tablet has no second window and does not show it. A press follows Obsidian's modifiers as well: ⌘ opens a new tab, ⌘⌥ a split, ⌘⌥⇧ a new window, in the recent lists, the pinned rows and the cards. In the tree, where ⌘ and ⇧ already build a selection, they still do, and only the split and window chords open.
+- **Slideshows on the published site.** A note with a slideshow block used to publish the block's text as a code sample. The page now shows the slideshow in the layout the note chose — stage, filmstrip, feature, strip, masonry or before-and-after — with the alt text and controls in the header, the arrow keys, thumbnails, the divider and the fullscreen view, from a small script the site carries itself. Without scripts the pictures still read: the stage swipes, the tiles stand in a grid, and a comparison sets its two pictures side by side. Pictures that were not published are left out, and a block with a mistake in it stays off the page instead of appearing as code. The block is read on the site by the same rules as in the vault, and one table of examples keeps the two readings the same.
+- **A published filmstrip loads small thumbnails.** The row under the stage showed each photograph at full size, shrunk to a stamp, so a phone downloaded several whole photographs just to draw the row. The plugin now makes a small copy of each filmstrip picture when it publishes, and only of those the site does not have yet, so an unchanged photograph is shrunk once, on its first publish. A picture whose copy could not be made is shown as before. This needs the bridge's protocol 2; an older bridge publishes the filmstrip without thumbnails.
+
+### Fixed
+
+- **A note pressed in the explorer's recent lists opens again.** Since the tree became reachable by keyboard, the list around it handed any focus it received to the open note's row. A row in the recent lists or the bookmarks cannot hold the focus itself, so pressing one focused the list, and handing that on scrolled the tree to the open note while the button was still down. The button then came up over another row, the click reached neither, and nothing opened; what showed was the tree jumping to the note already open. The list now hands on only the focus that Tab brings, and a press keeps its own.
+- **A published picture keeps the size the note gives it.** Obsidian reads a number after the last `|` of an embedded picture as its width, and `300x200` as width and height — `![[bild.png|300]]`, `![Haus|300](bild.png)`. The site read the same number as the picture's alt text and showed it at full width. It now sets the size as Obsidian does, for pictures from the vault and from the web and for videos, and keeps what comes before the bar as the alt text. A picture is still never wider than the text column. Pages already on the site are rendered again on the next publish.
+- **A published image written as `![alt](bild.png)` shows on the site.** Only the `![[bild.png]]` form was pointed at the uploaded file; the Markdown form kept the path as written, which names nothing on the server, so the picture was uploaded and then shown as a broken image. It is now found the way Obsidian finds it — from the vault root, then from the note's own folder, then by its name — including a name spelt with `%20`, in angle brackets, or with umlauts, and a video written this way plays. A path in angle brackets with spaces in it, such as `![](<Grundriss EG.png>)`, was not uploaded at all and now is. An image that was not published shows its alt text rather than a broken picture. Pages already on the site are rendered again on the next publish.
+
+## 1.44.0 - 2026-09-24
+
+Faster publishing, safer on a phone, and a note that always opens. A
+publish of a large site no longer reads every note back from the web host:
+the bridge keeps what it has seen in memory and talks to the host several
+requests at a time, so one edited note of three hundred takes under a
+second instead of twelve. A first publish uploads three files at a time
+over one login rather than one login per file, and publishing from a phone
+no longer holds every picture of the site in memory at once. A press on a
+note in the explorer that sometimes opened nothing — the heading stack
+failing inside the editor while it swapped notes — now opens it every
+time, and the filter's clear button is no longer hidden from screen
+readers.
+
+Mobile checklist: not run. What a phone would answer differently: a publish
+of a folder with many large pictures completing without the app being
+closed, and a first publish over mobile data finishing before the phone
+suspends the app.
+
+The bridge moves to 2.6.0 and its protocol is unchanged, so bridge 2.5.0
+still serves this release, without the speed-ups above that live in the
+bridge. Redeploy it to have them.
+
+### Changed
+
+- **Publishing a large site is quick again after the first time.** Every publish rendered the whole site, and read every stored note back from the web host to do it, one request after another: with three hundred notes, one edited sentence cost about twelve seconds of waiting. The bridge now keeps the notes it has uploaded or read in memory — a note is stored under the hash of its content, so a kept copy can never be out of date — and reads, writes and deletes several files at a time instead of one by one. Measured against a test server that answers every request ten milliseconds late, one edited note of three hundred went from 12.1 to 0.8 seconds, and the build step of a first publish from 45 to 7 seconds. The first publish after a redeploy reads the notes once, several at a time.
+- **Publishing from a phone no longer holds every picture in memory.** Before asking the bridge anything, publishing read every image and video the published notes show and kept all of them until the run was over, including the ones the site already had. On a phone, whose Obsidian runs with far less memory than a desktop, a site with a few hundred photos or a handful of videos could get the app closed in the middle of a publish. Attachments are now read to be hashed and let go, and read again only if the bridge asks for them. A file edited between the two readings stops the run with its name instead of being sent as something it no longer is.
+- **A first publish takes a fraction of the time.** Files were uploaded one after another, and the bridge logged in to the web host afresh for each of them: with three hundred notes, a first publish from a phone took minutes, long enough for the phone to pause the app halfway. The plugin now uploads three files at a time, and the bridge keeps its connection to the web host open while a publish is running, so it logs in once instead of once per file.
+
+### Fixed
+
+- **A note pressed in the explorer opens, every time.** Now and then a press on a note, most often one in the recent lists, opened nothing and moved nothing, and the developer console showed an error about `isText`. The heading stack asks the editor, on every scroll, which line sits under the overlay; asked in the moment the editor was swapping one note for another, the editor failed inside its own lookup, and a failure there stopped it drawing the new note at all. The question is now asked only of an editor that is on screen, and a failed answer falls back to the first line the editor has laid out, which the stack already did when no line was found.
+- **The filter's clear button is visible to screen readers.** The button hid itself from assistive technology while it could hold the focus, which the browser reports as an error every time the filter is cleared. The mark is now hidden, and the button is not.
+
+## 1.43.0 - 2026-09-24
+
+Publishing you can see, and a bridge that tells the truth. The explorer
+marks every note that is marked for publication with a small globe, and its
+title says whether the site's latest run put the note online or whether it
+is still waiting. Unpublishing the last page of a site now takes it down;
+before, the command stopped at "nothing is marked" and the page stayed
+online. On the bridge, a delivered email is no longer reported as failed
+when filing the copy in Sent is slow, the copy goes to the folder the mail
+server marks as Sent without being named, and code on a published page
+keeps its `%%` instead of losing the prose between two code blocks. A long
+publish is no longer reported as failed while it succeeds, an upload is
+retried after a dropped connection to the web host, and the bridge's own
+files inside a web root are shut off from visitors.
+
+Mobile checklist: not run. What a phone would answer differently: the globe
+drawing beside a name, and next to a sync cloud, at the phone's row size;
+and a publish from a phone whose vault has not finished syncing being
+refused as an empty folder rather than taking the site down.
+
+The bridge moves to 2.5.0 and its protocol is unchanged, so bridge 2.4.0
+still serves this release, without the fixes above that live in the
+bridge. A publish target whose `STATE_ROOT` is relative no longer boots on
+2.5.0: it must be an absolute path on the SFTP host, as `ROOT` already had
+to be.
+
+### Added
+
+- **The explorer marks what you publish.** A note marked for publication in a publishing account's folder carries a small globe after its name, in the tree, the pinned rows and the lists above it; every other note carries nothing. The globe's title says what the mark means now: "Published on writings.grembl.de" with the time, when the site's latest run put the note online, or "Marked for publication … not published yet" while it is waiting for the next run. The mark follows the flag the moment it is set, and it sits after the sync cloud where a note has both, so the one that can ask for something comes first.
+
+### Changed
+
+- **The bridge finds your Sent folder by itself.** A sent message's copy went to a folder called `Sent`, and a mailbox that names it otherwise — Strato's is `Sent Items`, shown as "Gesendete Objekte" — got no copy until `SENT_MAILBOX` was set by hand. Left unset, the bridge now asks the mail server which folder it marks as Sent and files there. Only the server's own marker counts, never a guess from a name; a server that marks nothing gets `Sent` as before, and a name set in `SENT_MAILBOX` still wins over the marker. On Gmail, which keeps its own copy of what it sends, the bridge files none, where filing one now would put every message in the thread twice.
+
+### Fixed
+
+- **Unpublishing the last page takes it down.** Setting `published: false` on the only published note of a site, and publishing, stopped at "no note is marked for publication" without asking the bridge, so the page stayed online however often it was run. A folder with no marked note now goes to the bridge like any other: the confirmation lists the pages that will be deleted, and confirming takes them down. A folder that holds no notes at all is still refused, because that is far more often a mistyped folder, or a phone whose vault has not synced yet, than a site meant to be emptied.
+- **The bridge's docs name the host key it actually checks.** The README and the example configuration read the web host's fingerprint with `ssh-keyscan -t rsa`, which prints only the RSA key, while the bridge is shown the server's ED25519 key wherever there is one. Following the docs to the letter produced a fingerprint that could never match, and a refusal that did not say why. The docs now list every key and say which one to take, and a mismatch names the key type the server presented.
+- **A delivered email is no longer reported as failed.** The bridge gave sending and filing the copy in Sent one deadline together, so a Sent folder that was slow to answer turned a message already with its recipient into "send failed", and sending again delivered it twice. Each step now has its own deadline: once the message is out, a slow or failing Sent folder only means the copy was not filed, which the notice says. The plugin also waits longer than the bridge does, so it no longer gives up on a send the bridge is still finishing.
+- **Code on a published page keeps its `%%`.** The bridge removes `%%…%%` comments before rendering, and it did so inside code too: a format string in one code block and a SQL pattern in another were read as one comment, and everything between them, prose included, vanished from the page without a word. Comments are now recognised only outside code blocks and inline code, as in Obsidian.
+- **A long publish is no longer reported as failed while it succeeds.** The plugin waited two minutes for the site to be built, the bridge allows five; a large site went live after the plugin had already said it failed, and publishing again met "already running". The plugin now waits longer than the bridge.
+- **A dropped connection to the web host no longer fails an upload at once.** Whether to try an upload again was read from the wording of the error, and the wording for a failed SFTP step names no status, so it was given up on at the first try. The decision now rests on the status the bridge answered with, and an upload that arrived truncated is sent again too.
+- **The bridge's own files on the web host are shut off from visitors.** A publish target without its own state directory keeps its sources, index and manifest in `.schreibstube` inside the web root, where the Markdown of every published note, frontmatter and `%%` comments included, could be read by anyone who guessed the address. The bridge now puts a `.htaccess` denying access into that directory before the first file lands there, leaves one it finds alone, and warns at every start, because a server other than Apache needs a rule of its own. A state directory must now be an absolute path.
+
+## 1.42.0 - 2026-09-24
+
+A quieter slideshow and a steadier explorer. The alt text and the controls
+above a slideshow now appear only while the pointer is over the block, or
+after a tap on a phone, and a swipe across the pictures stays with the
+block instead of scrolling the note or pulling a sidebar in. A picture
+opened from the tile grid opens in the grid's own tab, so Back returns to
+the grid. The explorer no longer follows a note into a popped-out window,
+no longer scrolls away from a note you just pressed in its own lists, and
+takes a deleted row away the moment the delete is confirmed rather than
+seconds later. The icon picker no longer shows blank squares after a plugin
+update, and the tag icon draws as a tag.
+
+Mobile checklist: not run. What a phone would answer differently: a tap on
+a slideshow showing its header and a second tap hiding it, a swipe across
+the stage turning the page without Obsidian's sidebar sliding in, a
+deleted row going before the vault's own event arrives, and a tap in the
+recent lists leaving the tree where it is.
+
+The bridge's protocol is unchanged; bridge 2.4.0 still pairs with this release.
+
+### Changed
+
+- **A slideshow's header stays out of the way.** The alt text and the controls in the row above a slideshow now appear only while the pointer is over the block or a control has the keyboard focus. On a phone, which has no pointer, a tap on a picture or on the row shows them and the next tap, or a swipe, hides them again. The row keeps its height, so nothing below the block moves when they come and go. This is the same in every layout, from the stage to the before-and-after.
+- **A swipe on a slideshow is the slideshow's alone.** A sideways swipe across the stage or the scene in the note has turned the page since the block existed, but the note could scroll with it and, on a phone, Obsidian could answer the same swipe by sliding a sidebar in over the note. Once a finger is clearly moving sideways the block now claims the gesture: the note stays put and nothing above the block sees it. Which travel is a tap, a swipe or a scroll is one small decision module with tests.
+- **Back returns from a picture to its tiles.** A tile opened its picture in a new tab, so the tab's Back arrow had nowhere to go and the grid was reached again only through the folder's menu. A tile now opens its picture in the tiles tab itself, and Back brings the grid back as it was, on the folder it was showing. A modifier click, Cmd or Ctrl, opens a new tab instead, for the grid and the picture side by side.
+- **The explorer no longer follows a note into another window.** The pane opens the folders above the open note and scrolls its row into view, whichever way the note was opened. It did that for a note in a popped-out window too, and again every time that window was focused, so the tree in the main window kept scrolling to a note nobody was looking at there. A note in another window is now left alone entirely: the tree stays as it was arranged. A note in the pane's own window is followed as before.
+
+### Fixed
+
 - **The icon picker no longer shows blank squares after an update.** The plugin's icon font is put into the window once and was never taken out again, and Obsidian updates a plugin in place, in the same window. After an update the window kept the previous version's font, the picker listed every icon the new version knew, and each icon the old font lacked was a blank square until Obsidian was restarted. The font now leaves with the plugin on unload, and a font from another build is replaced rather than kept.
 - **The tag icon draws as a tag.** Its codepoint lies above the Basic Multilingual Plane, and the generated map wrote it as four digits and a leftover, which drew as a foreign letter followed by a 6. The map now writes every codepoint in the braced form.
-
+- **The explorer no longer jumps when a note is opened from its own lists.** Pressing a note in the pinned rows, the recent lists or the bookmarks opened it, and the pane then followed the open note by scrolling the tree far below to the same note's row, carrying the pane away from the row that was just pressed. A note opened from the pane's own lists now has its folders opened as before, but the scroll stays where it is. A note opened by any other route is still brought into view.
+- **A delete no longer leaves the explorer standing still for seconds.** The row of a deleted file went away only after the trash call had returned, and that call was wrapped in two listings of the vault's trash folder, taken before and after, to learn the name the file landed under for undo. On a trash that is never emptied, a vault on a synced drive, or a system trash on a slow volume, that took seconds, and for those seconds the pane showed a row for a file that was just deleted, as if it had frozen. The row now goes the moment the delete is confirmed, and comes back only if the trash refuses. The landing name is found with one look at the path the trash keeps for it; the listings are taken only when a namesake was already there, which the trash renames around.
 
 ## 1.41.0 - 2026-09-23
 

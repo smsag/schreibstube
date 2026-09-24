@@ -27,14 +27,17 @@ compatible. `/health` reports what a deployment is actually running, and the
 plugin says plainly when the bridge is behind rather than failing later on a
 route that does not exist yet.
 
-| Bridge | Protocol | Plugin          | Notes                                                |
-| ------ | -------- | --------------- | ---------------------------------------------------- |
-| 2.4.x  | 1        | 1.8.0 and later | Validated search body, fetch and asset byte bounds   |
-| 2.3.x  | 1        | 1.8.0 and later | `TRUST_PROXY`, Node 24, image without Mermaid's tree |
-| 2.2.x  | 1        | 1.8.0 and later | Per-target switches, publish history, JSON logs      |
-| 2.1.x  | 1        | 1.8.0 and later | Mail and publishing                                  |
-| 2.0.x  | 1        | 1.8.0 and later | Mail only; `BRIDGE_TOKEN` renamed to `MAIL_TOKEN`    |
-| 1.0.x  | —        | 1.7.0           | Mail only, single token, no version handshake        |
+| Bridge | Protocol | Plugin          | Notes                                                        |
+| ------ | -------- | --------------- | ------------------------------------------------------------ |
+| 2.7.x  | 3        | 1.8.0 and later | Slideshows, filmstrip thumbnails, header tags and tag pages  |
+| 2.6.x  | 1        | 1.8.0 and later | Notes cached in memory, parallel SFTP, one login per publish |
+| 2.5.x  | 1        | 1.8.0 and later | Sent folder by tag, state guard, absolute `STATE_ROOT`       |
+| 2.4.x  | 1        | 1.8.0 and later | Validated search body, fetch and asset byte bounds           |
+| 2.3.x  | 1        | 1.8.0 and later | `TRUST_PROXY`, Node 24, image without Mermaid's tree         |
+| 2.2.x  | 1        | 1.8.0 and later | Per-target switches, publish history, JSON logs              |
+| 2.1.x  | 1        | 1.8.0 and later | Mail and publishing                                          |
+| 2.0.x  | 1        | 1.8.0 and later | Mail only; `BRIDGE_TOKEN` renamed to `MAIL_TOKEN`            |
+| 1.0.x  | —        | 1.7.0           | Mail only, single token, no version handshake                |
 
 ## Capabilities
 
@@ -63,6 +66,7 @@ token must belong to the capability that owns the route.
 | `POST` | `/publish/plan`        | publish    | `{target, index}`                                                            | what to upload, and what will be deleted           |
 | `PUT`  | `/publish/source`      | publish    | raw Markdown, `?target=&sha256=`                                             | `{sha256, bytes}`                                  |
 | `PUT`  | `/publish/asset`       | publish    | raw bytes, `?target=&sha256=&name=`                                          | `{sha256, bytes, path}`                            |
+| `PUT`  | `/publish/thumbnail`   | publish    | raw JPEG or PNG, `?target=&source=&sha256=&name=`                            | `{sha256, bytes, path}`                            |
 | `POST` | `/publish/commit`      | publish    | `{target, index}`                                                            | `{written, unchanged, deleted, pruned, collected}` |
 | `POST` | `/publish/render`      | publish    | `{target}`                                                                   | the same, rebuilt from stored state                |
 
@@ -113,6 +117,18 @@ as a real process and drives it over HTTP, because configuration is read and the
 port bound at import time, and because routing, auth and the body limits are
 properties of the running service.
 
+How long a publish takes is measured rather than guessed:
+
+```bash
+npm run bench --prefix bridge -- 300 10   # notes, milliseconds per SFTP request
+```
+
+It publishes a generated site against the test SFTP server, which answers
+every request that many milliseconds late, and prints the time and the number
+of SFTP requests for a first publish, one edited note, no change, and a commit
+right after a restart. The request count does not depend on the machine and is
+the number to compare between versions.
+
 ## Publishing
 
 A publish folder becomes a static site: the plugin uploads Markdown and
@@ -138,14 +154,72 @@ publish that already succeeded.
 `/publish/render` can rebuild the whole site after a template change with
 nothing uploaded and no vault in reach.
 
+**Sources are also kept in memory.** A note is addressed by the hash of its
+content, so a copy the bridge holds can never be stale, and a commit renders
+from memory whatever this process has uploaded or read before: editing one
+note of three hundred reads one note, not three hundred. What is not in memory
+— after a redeploy — is read several requests at a time, and so are the
+writes and deletions. Up to 32 MB of notes are kept, least recently used first
+out.
+
+The requests of one publish share one SFTP connection per target, closed after
+fifteen seconds without use, so a first publish of many files logs in once
+rather than once per file; a connection that failed in a way that may have
+broken it is never reused.
+
 Every write goes to a temporary name and is renamed over its target, so a reader
 never sees a half-written page. The host key is checked against a configured
 fingerprint: a stateless container cannot trust on first use, because it would
 re-trust a new key after every restart.
 
 The rendered site is static. Maths is rendered to HTML by KaTeX at publish time;
-only Mermaid needs JavaScript, and only on pages that contain a diagram, from a
+Mermaid needs JavaScript, and only on pages that contain a diagram, from a
 bundle the bridge writes itself rather than from a content delivery network.
+
+A ` ```schreibstube-slideshow``` ` block becomes the plugin's slideshow.
+The bridge reads the block by the plugin's rules — `contracts/slideshow-cases.json`
+holds the examples both sides are tested against — and writes plain HTML that
+already reads without a script: the stage swipes, tiles are a grid, a
+comparison is two pictures side by side. On pages that have one, it adds
+`assets/slideshow.css` and `assets/slideshow.js`, a small module from
+`publish/client/` that brings the header, the controls, the thumbnails, the
+divider and the fullscreen view. Only images the site has are shown; a block
+the plugin would refuse is left off the page.
+
+A filmstrip's thumbnails are small copies the plugin makes, since it can
+decode a picture where the picture is and the bridge would otherwise need an
+image library to decode files from the network. Protocol 2 carries them: an
+index asset may say `thumbnail: true`, the plan answers with the
+`uploadThumbnails` the site lacks, and `PUT /publish/thumbnail` takes each one,
+addressed by the picture it shows (`source`) and checked by its own bytes
+(`sha256`) and its format, at most 200 kB. They live under `assets/thumbs/`,
+named after their picture, so one the site has is known to be current without
+decoding anything, and they go when no filmstrip shows the picture any more.
+A page points at a thumbnail only once it is on the host; until then the
+filmstrip shows the picture itself. A protocol-1 plugin sends no marks and a
+protocol-1 bridge asks for no thumbnails, and either way the filmstrip works.
+
+Up to three **header tags** per connection are linked on the right of every
+page's header, each to `tag/<slug>/`, a page listing the published notes that
+carry it, newest first. Protocol 3 carries them: the index may name
+`headerTags` (at most three, no two sharing a page), and a note may name
+`tags` — only which of those header tags it carries, which the plugin works out
+the way Obsidian counts tags, so a note's other tags never leave the vault. A
+header tag no published note carries gets no link and no page. A protocol-2
+plugin sends none, and the header is as it was.
+
+A theme may name the site's **tab icon**:
+`--site-icon: url("data:image/svg+xml,…")` anywhere in `theme.css` (a PNG as
+`data:image/png;base64,…` works too). The bridge reads it out of the theme it
+was sent, writes it as `assets/site-icon.svg` (or `.png`) and links it from
+every page's head, because a browser asks for an icon by address and never
+looks inside a stylesheet. The icon is served from the site's own domain, so it
+is checked: at most 32 kB, an SVG whose root is `<svg>` with no script, no
+event handler, no `foreignObject`, no `javascript:` and nothing loaded from
+elsewhere, or a PNG that begins like one. An icon that fails is left out — the
+site loses its tab icon, not its publish. An SVG icon may carry its own
+`prefers-color-scheme` rule to switch for a dark tab bar. No field of the index
+changed: the theme was always sent, so the protocol stays at 3.
 
 ## Dependencies and advisories
 
@@ -175,8 +249,19 @@ image and checks that both halves of that happened.
 
 Copy `.env.example` and fill it in. To offer publishing, set `PUBLISH_TOKEN`,
 `PUBLISH_TARGETS`, and one block of variables per target — host, user, a key or
-a password, the host fingerprint, the web root and the site URL. Read the
-fingerprint with `ssh-keyscan -t rsa your-host | ssh-keygen -lf -`.
+a password, the host fingerprint, the web root and the site URL.
+
+**The fingerprint is the ED25519 key's.** A server holds several host keys, and
+the bridge is shown the ED25519 one where the server has it, else ECDSA, else
+RSA. List them all:
+
+```bash
+ssh-keyscan your-host | ssh-keygen -lf -
+```
+
+and take the line ending in `(ED25519)`; if there is none, `(ECDSA)`; `(RSA)`
+only when it is the only one. A fingerprint of another type never matches, and
+the bridge refuses with a message naming the type it was shown.
 
 To offer mail, set `MAIL_TOKEN`,
 `IMAP_HOST`, `SMTP_HOST`, `MAIL_USER`, `MAIL_PASSWORD` and `MAIL_FROM`;
@@ -186,6 +271,33 @@ values fail at startup with a precise message rather than on the first
 request. So does a variable that is set and unreadable: a numeric one that is
 not a positive integer, or a flag spelled as neither true nor false. Leave a
 variable out to take its default; do not leave it half-written.
+
+**Where a target keeps its state.** `PUBLISH_<TARGET>_STATE_ROOT` is an
+absolute path on the SFTP host, and it holds every published note's Markdown as
+written — frontmatter and `%%` comments included — beside an index naming each
+note's place in the vault. Put it outside the web root wherever the host allows
+that. Left out, it defaults to `<ROOT>/.schreibstube`, inside the served tree,
+and then:
+
+- the bridge writes a `.htaccess` that denies everything into that directory
+  before the first file lands there. Apache honours it, which covers most
+  shared hosting. A `.htaccess` that is already there is left alone.
+- every start logs a warning naming the target, because a server that ignores
+  `.htaccess` serves the directory. nginx needs a rule of its own:
+
+  ```nginx
+  location ^~ /.schreibstube/ { deny all; }
+  ```
+
+**Budgets.** `REQUEST_TIMEOUT_MS` (30 s) bounds a request and
+`UPSTREAM_TIMEOUT_MS` (20 s) each operation against a mail or SFTP server. A
+send is two such operations, delivery and then filing the copy in Sent, each
+with its own deadline, and the request is allowed both plus five seconds. A
+Sent folder that does not answer in time is reported as `filedInSent: false`,
+never as a failed send, because a person told a delivered message failed sends
+it again. Publishing allows 180 s for an upload and 300 s for a commit. The
+plugin waits 60 s for mail and 330 s for a commit; raise the budgets only so far
+that the bridge still answers first.
 
 The size limits are variables too: `MAX_BODY_BYTES` for a request body,
 `MAX_TEXT_CHARS` for the text kept from a message and `MAX_MESSAGE_BYTES` for
@@ -211,8 +323,32 @@ SMTP_HOST=smtp.strato.de     SMTP_PORT=465   SMTP_SECURE=true
 MAIL_USER=you@your-domain.de                 # the full address, not a short name
 ```
 
-If your Sent folder is named differently (some setups use `INBOX.Sent` or
-`Gesendet`), set `SENT_MAILBOX` to match, or to an empty value to skip filing.
+Strato's Sent folder is `Sent Items` on the server, whatever your mail app
+calls it ("Gesendete Objekte" in Strato's webmail). You should not need to set
+it: see below.
+
+### Where the sent copy goes
+
+SMTP delivers a message and keeps nothing, so the bridge files the copy in your
+Sent folder over IMAP itself. For that it needs the folder's name on the server,
+which is often not the name a mail app shows. `SENT_MAILBOX` decides:
+
+- **Unset** (the default): the bridge asks the server which folder it tags as
+  Sent (IMAP's `\Sent` marker, the one mail apps go by) and files there. Only
+  the server's own tag counts, never a guess from a folder's name. A server that
+  tags nothing gets `Sent`. The answer is asked once and kept until the next
+  deploy.
+- **A name**, such as `Sent Items` or `INBOX.Sent`: always that folder, even
+  when the server tags another one.
+- **Empty** (`SENT_MAILBOX=`): no copy is filed, for a server that files what
+  its SMTP sends by itself.
+
+Gmail files its own copy, so on Gmail the bridge files nothing unless
+`SENT_MAILBOX` names a folder, and reports the copy as filed.
+
+If the plugin says a mail was sent but no copy was filed, the folder was not
+found. Set `SENT_MAILBOX` to its name on the server: in Apple Mail, Settings →
+Accounts → Mailbox Behaviors shows it; in Thunderbird, the folder's Properties.
 
 ## Deploying on Sliplane
 
@@ -259,6 +395,9 @@ are the entire perimeter:
   operation has a deadline, and repeated token failures from one address are
   throttled. Behind a proxy that throttle needs `TRUST_PROXY=true`, or the
   address it sees is the proxy's and one stranger's failures lock everyone out.
+- A publish target's state directory is kept out of the web root, or, at its
+  default inside it, guarded by a deny `.htaccess` and a warning at every start
+  (see Configuration).
 - Add an IP allowlist or rate limit at the platform level if your provider
   offers one.
 

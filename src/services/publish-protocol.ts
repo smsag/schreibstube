@@ -19,10 +19,18 @@ import {
  * its own number on /health, so a mismatch can be named — "redeploy the bridge"
  * — instead of surfacing later as a 404 on a route that does not exist yet.
  */
-export const PROTOCOL_VERSION = 1;
+export const PROTOCOL_VERSION = 3;
 
-/** Generous: a commit renders the whole site and writes what changed. */
+/** Plan, targets, diagnostics: a manifest read and a listing. */
 export const PUBLISH_REQUEST_TIMEOUT_MS = 120_000;
+
+/**
+ * A commit renders the whole site and writes what changed, and the bridge
+ * allows it 300 s. The plugin has to wait longer than that: giving up first
+ * reported a publish as failed while it went on to succeed, and the retry
+ * that followed met "already running".
+ */
+export const COMMIT_REQUEST_TIMEOUT_MS = 330_000;
 
 /** An upload is one file, but a video is a large one over a slow line. */
 export const UPLOAD_REQUEST_TIMEOUT_MS = 180_000;
@@ -39,6 +47,8 @@ export interface PublishNote {
   title: string;
   date: string;
   description?: string;
+  /** Which of the index's header tags the note carries. Protocol 3. */
+  tags?: string[];
 }
 
 export interface PublishAsset {
@@ -46,6 +56,8 @@ export interface PublishAsset {
   sha256: string;
   name: string;
   bytes: number;
+  /** Shown small in a filmstrip, so the site wants a thumbnail of it. Protocol 2. */
+  thumbnail?: boolean;
 }
 
 export interface PublishIndex {
@@ -54,6 +66,8 @@ export interface PublishIndex {
   assets: PublishAsset[];
   /** A `theme.css` from the publish folder, replacing the built-in stylesheet. */
   themeCss?: string;
+  /** Up to three tags linked from the site's header. Protocol 3. */
+  headerTags?: string[];
 }
 
 export interface PublishTarget {
@@ -74,6 +88,8 @@ export interface PublishPlan {
   baseUrl: string;
   uploadSources: UploadRequest[];
   uploadAssets: UploadRequest[];
+  /** The thumbnails the site does not have yet. A protocol-1 bridge sends none. */
+  uploadThumbnails: UploadRequest[];
   willDelete: string[];
   unchangedSources: number;
   notes: number;
@@ -125,6 +141,7 @@ export function parsePlan(json: unknown): PublishPlan {
     baseUrl: str(record.baseUrl),
     uploadSources: parseUploads(record.uploadSources),
     uploadAssets: parseUploads(record.uploadAssets),
+    uploadThumbnails: parseUploads(record.uploadThumbnails),
     willDelete: Array.isArray(record.willDelete) ? record.willDelete.map(str).filter(Boolean) : [],
     unchangedSources: number(record.unchangedSources),
     notes: number(record.notes)
@@ -175,13 +192,38 @@ export function describePublishError(status: number, body: string): string {
   return describeError(status, body, "the web host");
 }
 
+/**
+ * Whether a plan asks for nothing at all.
+ *
+ * A folder with no marked note still goes to the bridge, because the notes it
+ * published before have to come down: stopping at "nothing is marked" left the
+ * last unpublished page online for good. Only when there is also nothing to
+ * delete is there nothing to confirm.
+ */
+export function isEmptyPlan(plan: PublishPlan): boolean {
+  return (
+    plan.notes === 0 &&
+    plan.willDelete.length === 0 &&
+    plan.uploadSources.length === 0 &&
+    plan.uploadAssets.length === 0 &&
+    plan.uploadThumbnails.length === 0
+  );
+}
+
 /** What the plan means, in one line, for the confirmation dialog. */
 export function summarisePlan(plan: PublishPlan): string {
   const parts = [`${plan.notes} Notiz(en)`];
   if (plan.uploadSources.length > 0) parts.push(`${plan.uploadSources.length} zu übertragen`);
   if (plan.uploadAssets.length > 0) parts.push(`${plan.uploadAssets.length} Medien`);
+  if (plan.uploadThumbnails.length > 0) {
+    parts.push(`${plan.uploadThumbnails.length} Vorschaubild(er)`);
+  }
   if (plan.willDelete.length > 0) parts.push(`${plan.willDelete.length} zu löschen`);
-  if (plan.uploadSources.length === 0 && plan.uploadAssets.length === 0) {
+  if (
+    plan.uploadSources.length === 0 &&
+    plan.uploadAssets.length === 0 &&
+    plan.uploadThumbnails.length === 0
+  ) {
     parts.push("nichts zu übertragen");
   }
   return parts.join(", ");

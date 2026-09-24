@@ -32,9 +32,11 @@ import {
   type WorkspaceLeaf
 } from "obsidian";
 import { t } from "../i18n";
+import { openTargetOf, treeRowTarget } from "../services/pane-target";
 import type { ExplorerController } from "../controllers/explorer-controller";
 import type { PaneSectionsController } from "../controllers/pane-sections";
 import { syncBadgeIcon, type SyncBadge } from "../services/explorer-badge";
+import type { PublishMark } from "../services/publish-mark";
 import { matchesText, type SearchHit } from "../services/file-search";
 import { FileSearchIndex } from "../services/search-index";
 import { sortSiblings, type ExplorerNode } from "../services/explorer-state";
@@ -80,7 +82,7 @@ import {
   moveTargetAt,
   orderAfterDrop
 } from "./explorer-drop";
-import { DragGesture, wirePress } from "./explorer-gestures";
+import { DragGesture, wireListFocus, wirePress } from "./explorer-gestures";
 import { readPaneMemory, stateFromMemory, writePaneMemory } from "./explorer-memory";
 import {
   renderSection as renderSectionHeader,
@@ -311,7 +313,10 @@ export class ExplorerPaneView extends ItemView {
       cls: "sb sb-icon schreibstube-explorer-filter-clear",
       attr: { type: "button", "aria-label": t().explorer.clearFilter }
     });
-    applyIcon(clear, "x");
+    // On a child, not on the button: `applyIcon` hides what it draws into
+    // from assistive technology, and hidden the button was a focused control
+    // a screen reader could not see — which the browser reports as an error.
+    applyIcon(clear.createSpan(), "x");
     clear.addEventListener("click", () => {
       search.value = "";
       this.cancelFilter();
@@ -324,14 +329,14 @@ export class ExplorerPaneView extends ItemView {
     this.shelf = root.createDiv({ cls: "schreibstube-explorer-shelf" });
     this.body = root.createDiv({ cls: "schreibstube-explorer-body", attr: { tabindex: "0" } });
     this.body.addEventListener("scroll", () => this.syncShelfRule(), { passive: true });
-    // Tab reaches the list here and is handed straight to a row: the open
-    // note's, since that is where a person is, or the first. The box itself
-    // is never the thing to be on.
-    this.body.addEventListener("focus", (event) => {
-      if (event.target !== this.body) return;
-      const rows = this.treeRows();
-      (rows.find((row) => row.hasClass("is-active")) ?? rows[0])?.focus();
-    });
+    // Tab reaches the list here and is handed to the open note's row, where a
+    // person is, or the first; a press keeps the focus it brought.
+    this.register(
+      wireListFocus(this.body, () => {
+        const rows = this.treeRows();
+        return rows.find((row) => row.hasClass("is-active")) ?? rows[0];
+      })
+    );
     this.wireImportDrop(this.body);
 
     // The vault changes under the pane: a note created by a template, a file
@@ -847,13 +852,16 @@ export class ExplorerPaneView extends ItemView {
     // than opening a second copy of the tree inside the section.
     wirePress(row, {
       isDragging: () => this.drag.active !== null,
-      activate: () => {
+      activate: (event) => {
         if (isFolder) {
           this.revealFolder(file.path);
           return;
         }
-        this.notePanePress(file.path);
-        void controller.open(file, false);
+        const where = event ? openTargetOf(Keymap.isModEvent(event)) : false;
+        // Only a note opened in place is in front of the person; one opened
+        // beside it or in another window leaves the tree free to follow.
+        if (where === false) this.notePanePress(file.path);
+        void controller.open(file, where);
       },
       showMenu: (at) => controller.showMenu(file, at)
     });
@@ -1079,9 +1087,10 @@ export class ExplorerPaneView extends ItemView {
       // renamed or moved without first finding it in the tree below.
       wirePress(row, {
         isDragging: () => this.drag.active !== null,
-        activate: () => {
-          this.notePanePress(file.path);
-          void this.host?.sections.openLatest(file.path);
+        activate: (event) => {
+          const where = event ? openTargetOf(Keymap.isModEvent(event)) : false;
+          if (where === false) this.notePanePress(file.path);
+          void this.host?.sections.openLatest(file.path, where);
         },
         showMenu: (at) => {
           const current = this.app.vault.getAbstractFileByPath(file.path);
@@ -1187,7 +1196,7 @@ export class ExplorerPaneView extends ItemView {
       // The folder is part of the result, so pressing it opens what the row
       // above it names rather than doing nothing.
       label.addEventListener("click", (event) => {
-        void controller?.open(file, Keymap.isModEvent(event) !== false);
+        void controller?.open(file, openTargetOf(Keymap.isModEvent(event)));
       });
       drawn += 1;
     }
@@ -1531,14 +1540,25 @@ export class ExplorerPaneView extends ItemView {
     if (!controller) return;
 
     const badge = controller.badgeFor(file);
-    if (badge === "none") return;
+    if (badge !== "none") {
+      const label = badgeLabel(badge, controller.pendingChangesFor(file));
+      const el = row.createSpan({ cls: "schreibstube-explorer-badge" });
+      el.setAttribute("data-sync", badge);
+      el.setAttribute("aria-label", label);
+      el.setAttribute("title", `${label}\n${controller.lastCheckedFor(file)}`);
+      applyIcon(el, syncBadgeIcon(badge));
+    }
 
-    const label = badgeLabel(badge, controller.pendingChangesFor(file));
-    const el = row.createSpan({ cls: "schreibstube-explorer-badge" });
-    el.setAttribute("data-sync", badge);
-    el.setAttribute("aria-label", label);
-    el.setAttribute("title", `${label}\n${controller.lastCheckedFor(file)}`);
-    applyIcon(el, syncBadgeIcon(badge));
+    // After the sync mark, which can ask for something; this one only reports.
+    const mark = controller.publishMarkOf(file);
+    if (mark.state !== "none") {
+      const [label, detail] = publishMarkLines(mark);
+      const el = row.createSpan({ cls: "schreibstube-explorer-badge" });
+      el.setAttribute("data-publish", mark.state);
+      el.setAttribute("aria-label", detail ? `${label}, ${detail}` : label);
+      el.setAttribute("title", detail ? `${label}\n${detail}` : label);
+      applyIcon(el, "world-upload");
+    }
   }
 
   private wireRow(row: HTMLElement, file: TAbstractFile, isFolder: boolean): void {
@@ -1546,9 +1566,17 @@ export class ExplorerPaneView extends ItemView {
     if (!controller) return;
 
     const activate = (event?: MouseEvent): void => {
+      const mod = event ? openTargetOf(Keymap.isModEvent(event)) : false;
+      // The split and window chords open, as they do everywhere else; plain
+      // Cmd and Shift stay with the selection, which they already mean here.
+      const target = treeRowTarget(mod, event?.shiftKey === true);
+      if (!isFolder && (target === "split" || target === "window")) {
+        void controller.open(file, target);
+        return;
+      }
       const modifiers = {
         shift: event?.shiftKey === true,
-        toggle: event ? Keymap.isModEvent(event) !== false : false
+        toggle: mod !== false
       };
       // A click with a modifier builds a selection and opens nothing: the
       // rows are being gathered for an action, not visited one by one.
@@ -1878,6 +1906,34 @@ function displayName(file: TAbstractFile): string {
   if (!(file instanceof TFile)) return file.name;
   const parts = fileNameParts(file.name, file.extension);
   return parts.hidden ? parts.stem : file.name;
+}
+
+/**
+ * The publication mark's title: what the note is, then what that means now.
+ *
+ * Times are the reader's own, as the sync mark's are.
+ */
+function publishMarkLines(mark: Exclude<PublishMark, { state: "none" }>): [string, string] {
+  const labels = t().explorer.badge;
+  const when = (iso: string): string => new Date(iso).toLocaleString();
+  if (mark.state === "published") {
+    return [labels.published(siteOf(mark.url) || mark.account, when(mark.at)), mark.url];
+  }
+  const detail = mark.recorded
+    ? labels.notYetPublished
+    : mark.lastRun
+      ? labels.siteLastPublished(when(mark.lastRun))
+      : labels.siteNeverPublished;
+  return [labels.marked(mark.account), detail];
+}
+
+/** The host of a published page's address, which names the site best. */
+function siteOf(url: string): string {
+  try {
+    return new URL(url).host;
+  } catch {
+    return "";
+  }
 }
 
 function badgeLabel(badge: SyncBadge, pending: number): string {
