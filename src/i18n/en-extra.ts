@@ -524,6 +524,7 @@ export const enExtra = {
       badTarget: (name: string) => `${name} does not point anywhere that can be opened.`,
       missingFolder: (path: string) => `there is no folder at ${path}.`,
       missingNote: (path: string) => `there is no note called ${path}.`,
+      openFailed: (name: string) => `${name} could not be opened.`,
       copyPath: "Copy path for Schreibstube",
       copied: (path: string) => `${path} copied as a bookmark link.`,
       copyFailed: "the clipboard is not available here.",

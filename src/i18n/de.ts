@@ -783,6 +783,7 @@ export const de: Messages = {
       badTarget: (name: string) => `${name} zeigt auf nichts, was sich öffnen lässt.`,
       missingFolder: (path: string) => `unter ${path} liegt kein Ordner.`,
       missingNote: (path: string) => `es gibt keine Notiz namens ${path}.`,
+      openFailed: (name: string) => `${name} ließ sich nicht öffnen.`,
       copyPath: "Pfad für Schreibstube kopieren",
       copied: (path: string) => `${path} als Lesezeichen-Link kopiert.`,
       copyFailed: "die Zwischenablage steht hier nicht zur Verfügung.",

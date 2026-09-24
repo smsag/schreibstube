@@ -1,15 +1,15 @@
 import { describe, expect, it } from "vitest";
 import {
   bookmarkFolderPath,
-  bookmarkGlyph,
-  bookmarkLinkPath,
+  bookmarkNoteTarget,
   classifyBookmarkUrl,
   emptyBookmarkTree,
   flattenBookmarks,
   isBookmarkTreeEmpty,
-  obsidianUriAction,
+  MAX_BOOKMARK_FILE_CHARS,
+  MAX_BOOKMARK_LINE,
+  MAX_BOOKMARKS,
   parseBookmarkFile,
-  pluginIcon,
   vaultUrlFor
 } from "./bookmark-file";
 
@@ -81,7 +81,7 @@ describe("parseBookmarkFile", () => {
     expect(tree.loose).toEqual([
       { name: "Today I learned", url: "note://Today I learned", kind: "note" },
       { name: "Brief", url: "note://Work/The Brief", kind: "note" },
-      { name: "Section", url: "note://Work/Plan", kind: "note" }
+      { name: "Section", url: "note://Work/Plan#Goals", kind: "note" }
     ]);
     expect(tree.folders[0]?.bookmarks[0]?.url).toBe("note://Work/Plan");
   });
@@ -175,6 +175,153 @@ describe("parseBookmarkFile", () => {
   });
 });
 
+describe("headings and blocks", () => {
+  it("keeps the heading a wikilink points at, and names it as Obsidian does", () => {
+    const tree = parseBookmarkFile(
+      ["- [[Note#Goals]]", "- [[Note#^block-1|Block]]", "- [Plan]([[Work/Plan#Now]])"].join("\n")
+    );
+
+    expect(tree.loose).toEqual([
+      { name: "Note > Goals", url: "note://Note#Goals", kind: "note" },
+      { name: "Block", url: "note://Note#^block-1", kind: "note" },
+      { name: "Plan", url: "note://Work/Plan#Now", kind: "note" }
+    ]);
+  });
+
+  it("keeps the heading a Markdown link points at, decoded", () => {
+    const tree = parseBookmarkFile("- [Goals](Work/Plan.md#N%C3%A4chste%20Schritte)");
+
+    expect(tree.loose[0]?.url).toBe("note://Work/Plan#Nächste Schritte");
+  });
+
+  it("takes no heading-only wikilink for a note", () => {
+    expect(isBookmarkTreeEmpty(parseBookmarkFile("- [[#Goals]]"))).toBe(true);
+  });
+});
+
+describe("what a person types by hand", () => {
+  it("reads a task line as the link it holds", () => {
+    const tree = parseBookmarkFile(
+      ["- [ ] [Open](https://a.example)", "- [x] [Done](https://b.example)", "- [ ] [[Note]]"].join(
+        "\n"
+      )
+    );
+
+    expect(tree.loose.map((b) => [b.name, b.url])).toEqual([
+      ["Open", "https://a.example"],
+      ["Done", "https://b.example"],
+      ["Note", "note://Note"]
+    ]);
+  });
+
+  it("reads a web address without its scheme as a web link", () => {
+    const tree = parseBookmarkFile("- [Example](www.example.com/a)");
+
+    expect(tree.loose[0]).toEqual({
+      name: "Example",
+      url: "https://www.example.com/a",
+      kind: "web"
+    });
+  });
+
+  it("nests a third-level heading under the second", () => {
+    const tree = parseBookmarkFile(
+      ["# A", "## B", "### C", "- [x](https://x.example)", "## D", "- [y](https://y.example)"].join(
+        "\n"
+      )
+    );
+
+    const a = tree.folders[0];
+    expect(a?.subfolders.map((f) => f.name)).toEqual(["B", "D"]);
+    expect(a?.subfolders[0]?.subfolders[0]?.name).toBe("C");
+    expect(a?.subfolders[0]?.subfolders[0]?.bookmarks.map((b) => b.name)).toEqual(["x"]);
+    expect(a?.subfolders[1]?.bookmarks.map((b) => b.name)).toEqual(["y"]);
+  });
+
+  it("puts a heading that skips a level one level down, not two", () => {
+    const tree = parseBookmarkFile("# A\n### C\n- [x](https://x.example)");
+
+    expect(tree.folders[0]?.subfolders.map((f) => f.name)).toEqual(["C"]);
+  });
+
+  it("gives two folders of the same name keys of their own", () => {
+    const tree = parseBookmarkFile("# A\n## S\n# A\n## S\n## S");
+
+    expect(tree.folders.map((f) => f.key)).toEqual(["A", "A\u001e2"]);
+    expect(tree.folders[1]?.subfolders.map((f) => f.key)).toEqual([
+      "A\u001e2\u001fS",
+      "A\u001e2\u001fS\u001e2"
+    ]);
+  });
+
+  it("keys a folder as the pane always stored it, so a fold survives the update", () => {
+    const tree = parseBookmarkFile("# Work\n## Design");
+
+    expect(tree.folders[0]?.key).toBe("Work");
+    expect(tree.folders[0]?.subfolders[0]?.key).toBe("Work\u001fDesign");
+  });
+});
+
+describe("the budget", () => {
+  const item = (i: number): string => `- [B${i}](https://example.com/${i})`;
+
+  it("reads a long line of brackets in linear time", () => {
+    // Fifty lines just under the ceiling on a line, each the worst case for a
+    // pattern that backtracks: a second or more with the old one.
+    const hostile = Array.from({ length: 25 }, () => [
+      `- [${"](".repeat(2000)}x`,
+      `- [a](${" ".repeat(4000)}x`
+    ])
+      .flat()
+      .join("\n");
+    const started = performance.now();
+    parseBookmarkFile(hostile);
+
+    expect(performance.now() - started).toBeLessThan(150);
+  });
+
+  it("skips a line longer than a bookmark anybody typed", () => {
+    const long = `- [Long](https://example.com/${"a".repeat(MAX_BOOKMARK_LINE)})`;
+    const tree = parseBookmarkFile(`${long}\n${item(1)}`);
+
+    expect(tree.loose.map((b) => b.name)).toEqual(["B1"]);
+    expect(tree.truncated).toBe(false);
+  });
+
+  it("stops at the ceiling on bookmarks and says so", () => {
+    const lines = Array.from({ length: MAX_BOOKMARKS + 5 }, (_, i) => item(i));
+    const tree = parseBookmarkFile(lines.join("\n"));
+
+    expect(tree.loose).toHaveLength(MAX_BOOKMARKS);
+    expect(tree.truncated).toBe(true);
+  });
+
+  it("reads no further than the ceiling on the file, and not half a line", () => {
+    const line = item(0);
+    const lines = Math.ceil(MAX_BOOKMARK_FILE_CHARS / (line.length + 1)) + 10;
+    const text = Array.from({ length: lines }, () => line).join("\n");
+    const tree = parseBookmarkFile(text);
+
+    expect(tree.truncated).toBe(true);
+    expect(tree.loose.length).toBeLessThan(lines);
+    expect(tree.loose.every((b) => b.url === "https://example.com/0")).toBe(true);
+  });
+
+  it("reads a file within every ceiling whole", () => {
+    expect(parseBookmarkFile(item(1)).truncated).toBe(false);
+  });
+});
+
+describe("flattenBookmarks at any depth", () => {
+  it("names the whole path of a nested folder", () => {
+    const tree = parseBookmarkFile("# A\n## B\n### C\n- [x](https://x.example)");
+
+    expect(flattenBookmarks(tree)).toEqual([
+      { bookmark: { name: "x", url: "https://x.example", kind: "web" }, folderPath: "A / B / C" }
+    ]);
+  });
+});
+
 describe("flattenBookmarks", () => {
   it("lists every bookmark with the folder it came from", () => {
     expect(
@@ -215,154 +362,18 @@ describe("urls", () => {
     expect(bookmarkFolderPath("https://example.com")).toBeNull();
   });
 
-  it("reads the link path out of a note URL", () => {
-    expect(bookmarkLinkPath("note://Work/Brief")).toBe("Work/Brief");
-  });
-});
-
-describe("bookmarkGlyph", () => {
-  const bookmark = (kind: "web" | "obsidian" | "folder" | "note", url: string) => ({
-    name: "B",
-    url,
-    kind
-  });
-
-  it("draws a web link with the bundled globe, whatever else is known", () => {
-    expect(bookmarkGlyph(bookmark("web", "https://example.com"), "ignored")).toEqual({
-      from: "bundled",
-      name: "world"
+  it("reads the note and the heading out of a note URL", () => {
+    expect(bookmarkNoteTarget("note://Work/Brief")).toEqual({
+      linkpath: "Work/Brief",
+      subpath: ""
     });
-  });
-
-  it("draws a plugin link with the plugin's icon, the vault's behind it", () => {
-    expect(bookmarkGlyph(bookmark("obsidian", "obsidian://pythia?x=1"), "pythia-logo")).toEqual({
-      from: "obsidian",
-      names: ["pythia-logo", "library"],
-      fallback: "external-link"
+    expect(bookmarkNoteTarget("note://Work/Brief#Goals")).toEqual({
+      linkpath: "Work/Brief",
+      subpath: "#Goals"
     });
-  });
-
-  it("draws everything else with the vault's icon", () => {
-    expect(bookmarkGlyph(bookmark("note", "note://Brief"), null)).toEqual({
-      from: "obsidian",
-      names: ["library"],
-      fallback: "file-text"
+    expect(bookmarkNoteTarget("note://Brief#^block-1")).toEqual({
+      linkpath: "Brief",
+      subpath: "#^block-1"
     });
-    expect(bookmarkGlyph(bookmark("folder", "vault://Work"), null)).toEqual({
-      from: "obsidian",
-      names: ["library"],
-      fallback: "folder"
-    });
-    expect(bookmarkGlyph(bookmark("obsidian", "obsidian://open?vault=V"), null)).toEqual({
-      from: "obsidian",
-      names: ["library"],
-      fallback: "external-link"
-    });
-  });
-});
-
-describe("obsidianUriAction", () => {
-  it("names the plugin action a URI calls", () => {
-    expect(obsidianUriAction("obsidian://pythia?vault=Vault%202.0&cmd=resume&id=71b21d6b")).toBe(
-      "pythia"
-    );
-    expect(obsidianUriAction("obsidian://Advanced-URI/?vault=x")).toBe("advanced-uri");
-  });
-
-  it("leaves the actions Obsidian answers itself alone", () => {
-    expect(obsidianUriAction("obsidian://open?vault=Vault&file=Note")).toBeNull();
-    expect(obsidianUriAction("obsidian://search?vault=Vault&query=x")).toBeNull();
-    expect(obsidianUriAction("obsidian://vault/Vault/Note")).toBeNull();
-  });
-
-  it("says nothing about a URI without an action, or a link of another kind", () => {
-    expect(obsidianUriAction("obsidian://?vault=x")).toBeNull();
-    expect(obsidianUriAction("https://pythia.example")).toBeNull();
-    expect(obsidianUriAction("note://pythia")).toBeNull();
-  });
-});
-
-describe("pluginIcon", () => {
-  const COMMANDS = [
-    { id: "pythia:open", icon: "pythia-logo" },
-    { id: "pythia:favorite", icon: "star" },
-    { id: "pythia:new", icon: "pythia-logo" },
-    { id: "pythia:regenerate", icon: "refresh-cw" },
-    { id: "other:open", icon: "star" },
-    { id: "other:new", icon: "star" }
-  ];
-
-  it("takes the plugin's ribbon button first", () => {
-    const ribbon = [
-      { id: "switcher:Open quick switcher", icon: "lucide-navigation" },
-      { id: "pythia:Pythia", icon: "pythia-ribbon" }
-    ];
-
-    expect(pluginIcon({ ribbon, commands: COMMANDS }, "pythia")).toBe("pythia-ribbon");
-  });
-
-  it("falls back to its commands when it has no ribbon button", () => {
-    const ribbon = [{ id: "other:Other", icon: "star" }];
-
-    expect(pluginIcon({ ribbon, commands: COMMANDS }, "pythia")).toBe("pythia-logo");
-    expect(pluginIcon({ commands: COMMANDS }, "pythia")).toBe("pythia-logo");
-  });
-
-  it("falls back to its commands when its ribbon button names no icon", () => {
-    expect(
-      pluginIcon({ ribbon: [{ id: "pythia:Pythia", icon: "" }], commands: COMMANDS }, "pythia")
-    ).toBe("pythia-logo");
-  });
-
-  it("takes the icon named most, among several ribbon buttons as among commands", () => {
-    const ribbon = [
-      { id: "p:Settings", icon: "gear" },
-      { id: "p:Open", icon: "logo" },
-      { id: "p:New", icon: "logo" }
-    ];
-
-    expect(pluginIcon({ ribbon }, "p")).toBe("logo");
-  });
-
-  it("gives a tie to the one registered first", () => {
-    expect(
-      pluginIcon(
-        {
-          commands: [
-            { id: "p:a", icon: "first" },
-            { id: "p:b", icon: "second" }
-          ]
-        },
-        "p"
-      )
-    ).toBe("first");
-  });
-
-  it("does not take another plugin's, even with a shared prefix", () => {
-    expect(
-      pluginIcon(
-        {
-          ribbon: [{ id: "pythia-extra:Open", icon: "star" }],
-          commands: [{ id: "pythia-extra:open", icon: "star" }]
-        },
-        "pythia"
-      )
-    ).toBeNull();
-  });
-
-  it("ignores a missing, empty or malformed icon", () => {
-    expect(
-      pluginIcon(
-        {
-          commands: [{ id: "p:a" }, { id: "p:b", icon: "  " }, { id: "p:c", icon: 42 }]
-        },
-        "p"
-      )
-    ).toBeNull();
-  });
-
-  it("is null for a plugin that is not there, or with nothing to read", () => {
-    expect(pluginIcon({ commands: COMMANDS }, "absent")).toBeNull();
-    expect(pluginIcon({}, "pythia")).toBeNull();
   });
 });

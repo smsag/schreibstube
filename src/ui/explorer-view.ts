@@ -40,12 +40,7 @@ import type { PublishMark } from "../services/publish-mark";
 import { matchesText, type SearchHit } from "../services/file-search";
 import { FileSearchIndex } from "../services/search-index";
 import { sortSiblings, type ExplorerNode } from "../services/explorer-state";
-import {
-  bookmarkLinkPath,
-  isBookmarkTreeEmpty,
-  type Bookmark,
-  type BookmarkFolder
-} from "../services/bookmark-file";
+import { bookmarkNoteTarget, isBookmarkTreeEmpty, type Bookmark } from "../services/bookmark-file";
 import { rowKeyAction } from "../services/explorer-keys";
 import {
   EMPTY_SELECTION,
@@ -90,7 +85,8 @@ import {
   type SectionId,
   type SectionOptions
 } from "./explorer-section";
-import { drawBookmarkIcon } from "./bookmark-quick-open";
+import { PendingReveal } from "../services/pending-reveal";
+import { renderBookmarkRows } from "./bookmark-section";
 import { applyIcon, installIconFont } from "./icon-font";
 import { drawTaskCount } from "./task-count-label";
 import { SCHREIBSTUBE_ICON } from "./schreibstube-icon";
@@ -145,10 +141,6 @@ const FALLBACK_ROW_HEIGHT_PX = 27;
 
 /** How close to the top a held header lands, allowing for sub-pixel layout. */
 const STUCK_TOLERANCE_PX = 1.5;
-
-/** Separator inside a bookmark folder key. A vault name can hold a slash; it
- *  cannot hold this. */
-const FOLDER_SEP = "\u001f";
 
 export interface ExplorerPaneHost {
   explorer: ExplorerController;
@@ -228,11 +220,8 @@ export class ExplorerPaneView extends ItemView {
   private matchCount = 0;
   /** Files under each folder, counted once per draw. */
   private folderCounts = new Map<string, number>();
-  /** A path to scroll to once the next draw has put it on screen. */
-  private revealing: string | null = null;
-  /** Whether that reveal followed a note being opened rather than a request:
-   *  it then scrolls only if the row is out of view, and does not flash. */
-  private revealingQuietly = false;
+  /** A path to scroll to once a draw has put it on screen. */
+  private readonly revealing = new PendingReveal();
   /** A note just pressed in one of the pane's own lists, waiting for the
    *  file-open it causes; that one opens folders but does not scroll. */
   private panePress: PanePress | null = null;
@@ -495,8 +484,7 @@ export class ExplorerPaneView extends ItemView {
 
   private reveal(path: string, redraw = true, quietly = false): void {
     this.revealedTree = true;
-    this.revealing = path;
-    this.revealingQuietly = quietly;
+    this.revealing.request(path, quietly);
     // The caller sometimes draws immediately afterwards, and queueing a frame
     // as well would rebuild the whole tree a second time for nothing.
     if (redraw) this.requestRender();
@@ -931,94 +919,43 @@ export class ExplorerPaneView extends ItemView {
 
     // A filter that matches nothing leaves the section empty on purpose: the
     // filter box is right above it and says why.
-    for (const bookmark of tree.loose) this.renderBookmarkRow(body, bookmark, 0);
-    for (const folder of tree.folders) this.renderBookmarkFolder(body, folder, "", 0);
-  }
-
-  /** Returns how many bookmark rows were drawn, so a filter that matches
-   *  nothing can say so rather than showing empty folders. */
-  private renderBookmarkFolder(
-    host: HTMLElement,
-    folder: BookmarkFolder,
-    parentKey: string,
-    depth: number
-  ): number {
-    const key = parentKey.length > 0 ? `${parentKey}${FOLDER_SEP}${folder.name}` : folder.name;
-    const matching = this.bookmarkMatches(folder);
-    if (matching === 0) return 0;
-
-    // A filter opens every folder that still has something in it, and closes
-    // nothing the person had opened by hand.
-    const collapsed = this.query.length === 0 && this.collapsedBookmarks.has(key);
-
-    const row = host.createDiv({ cls: "schreibstube-explorer-row is-folder" });
-    indent(row, depth);
-
-    applyIcon(
-      row.createSpan({ cls: "schreibstube-explorer-twisty" }),
-      collapsed ? "chevron-right" : "chevron-down"
-    );
-    applyIcon(row.createSpan({ cls: "schreibstube-explorer-glyph" }), "folder");
-    row.createSpan({ cls: "schreibstube-explorer-name", text: folder.name });
-
-    row.addEventListener("click", () => {
-      if (this.collapsedBookmarks.has(key)) this.collapsedBookmarks.delete(key);
-      else this.collapsedBookmarks.add(key);
-      this.browsed();
-      this.writeMemory();
-      this.requestRender();
+    renderBookmarkRows(body, tree, {
+      // A filter opens every folder that still has something in it, and closes
+      // nothing the person had opened by hand.
+      isFolded: (key) => this.query.length === 0 && this.collapsedBookmarks.has(key),
+      isShown: (bookmark) => this.bookmarkShown(bookmark),
+      pluginIconFor: (bookmark) => sections.pluginIconFor(bookmark),
+      fold: (key) => {
+        if (this.collapsedBookmarks.has(key)) this.collapsedBookmarks.delete(key);
+        else this.collapsedBookmarks.add(key);
+        this.browsed();
+        this.writeMemory();
+        this.requestRender();
+      },
+      open: (bookmark) => {
+        // Which note a bookmark names is resolved when it opens, so the press
+        // is noted without a path.
+        if (bookmark.kind === "note") this.notePanePress(null);
+        sections.openBookmark(bookmark);
+      }
     });
-
-    if (collapsed) return 1;
-
-    let drawn = 1;
-    for (const bookmark of folder.bookmarks) {
-      drawn += this.renderBookmarkRow(host, bookmark, depth + 1);
-    }
-    for (const sub of folder.subfolders) {
-      drawn += this.renderBookmarkFolder(host, sub, key, depth + 1);
-    }
-    return drawn;
   }
 
-  private renderBookmarkRow(host: HTMLElement, bookmark: Bookmark, depth: number): number {
-    if (!this.matchesQuery(bookmark.name)) return 0;
-    // A note deleted a moment ago has left the tree, Latest and the pinned
-    // block; this was the one list still waiting for the vault's own event.
-    if (bookmark.kind === "note") {
-      const target = this.app.metadataCache.getFirstLinkpathDest(
-        bookmarkLinkPath(bookmark.url),
-        this.host?.sections.bookmarksPath() ?? ""
-      );
-      if (target && this.host?.explorer.isTrashed(target.path)) return 0;
-    }
+  /**
+   * Whether a bookmark row is drawn: the filter matches its name or where it
+   * leads — the same two things "Open bookmark" searches — and it is not a note
+   * deleted a moment ago, which has left the tree, Latest and the pinned block
+   * already and would otherwise wait here for the vault's own event.
+   */
+  private bookmarkShown(bookmark: Bookmark): boolean {
+    if (!this.matchesQuery(bookmark.name) && !this.matchesQuery(bookmark.url)) return false;
+    if (bookmark.kind !== "note") return true;
 
-    const row = host.createDiv({ cls: "schreibstube-explorer-row is-bookmark" });
-    indent(row, depth);
-    row.setAttribute("data-kind", bookmark.kind);
-    row.setAttribute("title", bookmark.url);
-
-    row.createSpan({ cls: "schreibstube-explorer-twisty" });
-    drawBookmarkIcon(
-      row.createSpan({ cls: "schreibstube-explorer-glyph" }),
-      bookmark,
-      this.host?.sections.pluginIconFor(bookmark) ?? null
+    const target = this.app.metadataCache.getFirstLinkpathDest(
+      bookmarkNoteTarget(bookmark.url).linkpath,
+      this.host?.sections.bookmarksPath() ?? ""
     );
-    row.createSpan({ cls: "schreibstube-explorer-name", text: bookmark.name });
-
-    row.addEventListener("click", () => {
-      // Which note a bookmark names is resolved when it opens, so the press
-      // is noted without a path.
-      if (bookmark.kind === "note") this.notePanePress(null);
-      void this.host?.sections.openBookmark(bookmark);
-    });
-    return 1;
-  }
-
-  /** How many bookmarks under a folder survive the filter. */
-  private bookmarkMatches(folder: BookmarkFolder): number {
-    const here = folder.bookmarks.filter((bookmark) => this.matchesQuery(bookmark.name)).length;
-    return folder.subfolders.reduce((total, sub) => total + this.bookmarkMatches(sub), here);
+    return !(target && this.host?.explorer.isTrashed(target.path));
   }
 
   private renderLatest(host: HTMLElement): void {
@@ -1826,7 +1763,7 @@ export class ExplorerPaneView extends ItemView {
    * alike, so none of them can be the one that forgets.
    */
   private browsed(): void {
-    this.revealing = null;
+    this.revealing.browsed();
   }
 
   private glyphFor(file: TAbstractFile): string {
@@ -1841,17 +1778,22 @@ export class ExplorerPaneView extends ItemView {
   }
 
   private scrollToRevealed(): void {
-    const path = this.revealing;
+    const path = this.revealing.path;
     if (path === null || !this.body) return;
 
     const row = this.body.querySelector(`[data-path="${CSS.escape(path)}"]`);
     // A pane in a collapsed sidebar has no layout to scroll. The reveal waits
     // for the draw that follows the sidebar opening, rather than opening it.
-    if (row instanceof HTMLElement && row.getClientRects().length === 0) return;
-    this.revealing = null;
-    if (!(row instanceof HTMLElement)) return;
+    const reveal = this.revealing.settle(
+      !(row instanceof HTMLElement)
+        ? "missing"
+        : row.getClientRects().length === 0
+          ? "without-layout"
+          : "on-screen"
+    );
+    if (reveal === null || !(row instanceof HTMLElement)) return;
 
-    if (this.revealingQuietly) {
+    if (reveal.quietly) {
       if (!isInView(row)) row.scrollIntoView({ block: "center" });
       return;
     }

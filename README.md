@@ -478,13 +478,14 @@ They are read from a Markdown file in the vault, `bookmarks.md` unless a setting
 - [[Design Brief]]
 ```
 
-| Line            | Meaning                                          |
-| --------------- | ------------------------------------------------ |
-| `# Heading`     | A folder                                         |
-| `## Heading`    | A subfolder, one level only                      |
-| `- [Name](url)` | A bookmark                                       |
-| `- [[Note]]`    | A bookmark to a note, with an optional `\|label` |
-| Anything else   | Ignored                                          |
+| Line                   | Meaning                                                         |
+| ---------------------- | --------------------------------------------------------------- |
+| `# Heading`            | A folder                                                        |
+| `## Heading` and below | A folder inside the one above it, at any depth                  |
+| `- [Name](url)`        | A bookmark                                                      |
+| `- [[Note]]`           | A bookmark to a note, with an optional `#Heading` and `\|label` |
+| `- [ ] [Name](url)`    | A bookmark too: the task box is left out                        |
+| Anything else          | Ignored                                                         |
 
 | Scheme                | Opens                                              |
 | --------------------- | -------------------------------------------------- |
@@ -493,8 +494,9 @@ They are read from a Markdown file in the vault, `bookmarks.md` unless a setting
 | `vault://path`        | Reveals that folder in this pane, ancestors opened |
 | `note://linkpath`     | The note                                           |
 | No scheme             | The note, as in `[Name](Folder/My%20Note.md)`      |
+| `www.`                | The page, as if it began with `https://`           |
 
-A bookmark wears one of three icons, all in grey: the globe for a web link; for an `obsidian://` link that calls a plugin, such as `obsidian://pythia?…`, that plugin's icon, the one on its ribbon button or else the one its commands carry; and for everything else — a note, a folder, a link Obsidian answers itself such as `obsidian://open`, a plugin without an icon — Obsidian's library icon. A link without a scheme is what Obsidian writes for a note when wikilinks are turned off, and it is read relative to the bookmarks file, as Obsidian reads it. Any other scheme is dropped while the file is read, so a `javascript:` line pasted into a synced file never becomes a row that can be tapped.
+A bookmark wears one of three icons, all in grey: the globe for a web link; for an `obsidian://` link that calls a plugin, such as `obsidian://pythia?…`, that plugin's icon, the one on its ribbon button or else the one its commands carry; and for everything else — a note, a folder, a link Obsidian answers itself such as `obsidian://open`, a plugin without an icon — Obsidian's library icon. A link without a scheme is what Obsidian writes for a note when wikilinks are turned off, and it is read relative to the bookmarks file, as Obsidian reads it. Any other scheme is dropped while the file is read, so a `javascript:` line pasted into a synced file never becomes a row that can be tapped. A link to a heading or a block — `[[Note#Goals]]`, `[Goals](Note.md#Goals)` — opens the note there. The file is read within a budget: the first 256 KB, lines of up to 4,096 characters and 2,000 bookmarks; past that the pane shows what it read and leaves a warning in the developer console.
 
 Right-click a folder anywhere in Obsidian and choose **Copy path for Schreibstube** to get its `vault://` URL, ready to paste into the file. **Open bookmark** searches the list by name, folder or URL from the command palette, in the order the file has them.
 
