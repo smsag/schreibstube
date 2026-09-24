@@ -34,6 +34,7 @@ export default defineConfig({
         "**/*.test.ts",
         "**/*.test.mjs",
         "bridge/publish/sftp-fixture.mjs",
+        "bridge/publish/bench.mjs",
         "src/services/workspace-internals.ts",
         "src/testing/**"
       ],

@@ -20,7 +20,14 @@ const { Server, utils } = ssh2;
 const STATUS = ssh2.utils.sftp.STATUS_CODE;
 const OPEN_MODE = ssh2.utils.sftp.OPEN_MODE;
 
-export async function startSftpServer({ user = "web", password = "geheim" } = {}) {
+/**
+ * `latencyMs` delays every SFTP request before it is answered, as the distance
+ * to a real host does; `stats` counts requests by type and records the paths
+ * opened for reading, so a test can say what a publish cost in round trips
+ * rather than in milliseconds, which a busy machine would make flaky.
+ */
+export async function startSftpServer({ user = "web", password = "geheim", latencyMs = 0 } = {}) {
+  const stats = { requests: {}, reads: [] };
   const root = await mkdtemp(join(tmpdir(), "schreibstube-sftp-"));
   const { privateKey } = generateKeyPairSync("rsa", {
     modulusLength: 2048,
@@ -35,8 +42,11 @@ export async function startSftpServer({ user = "web", password = "geheim" } = {}
     .replace(/=+$/, "")}`;
 
   let connections = 0;
+  const clients = new Set();
   const server = new Server({ hostKeys: [privateKey] }, (client) => {
     connections += 1;
+    clients.add(client);
+    client.on("close", () => clients.delete(client));
     client
       .on("authentication", (context) => {
         const ok =
@@ -47,7 +57,7 @@ export async function startSftpServer({ user = "web", password = "geheim" } = {}
       .on("ready", () => {
         client.on("session", (accept) => {
           accept()
-            .on("sftp", (acceptSftp) => serve(acceptSftp(), root))
+            .on("sftp", (acceptSftp) => serve(acceptSftp(), root, { latencyMs, stats }))
             .on("error", () => {});
         });
       })
@@ -62,20 +72,50 @@ export async function startSftpServer({ user = "web", password = "geheim" } = {}
     fingerprint,
     user,
     password,
+    stats,
+    /** Start counting afresh, for the publish about to be measured. */
+    resetStats() {
+      stats.requests = {};
+      stats.reads = [];
+    },
+    /** Every request counted since the last reset. */
+    get requestCount() {
+      return Object.values(stats.requests).reduce((sum, n) => sum + n, 0);
+    },
     /** SSH connections opened so far, each one a login. */
     get connections() {
       return connections;
     },
     async stop() {
+      // The bridge keeps an idle connection open for a while, and close()
+      // waits for every connection to go; the fixture hangs up itself.
+      for (const client of clients) client.end();
       await new Promise((done) => server.close(done));
       await rm(root, { recursive: true, force: true });
     }
   };
 }
 
-function serve(sftp, root) {
+function serve(channel, root, { latencyMs, stats }) {
   const handles = new Map();
   let next = 0;
+
+  // Every handler below is registered through this: it counts the request and,
+  // with a latency set, answers it that much later.
+  const sftp = {
+    on(event, handler) {
+      channel.on(event, (...args) => {
+        stats.requests[event] = (stats.requests[event] ?? 0) + 1;
+        if (latencyMs > 0) setTimeout(() => handler(...args), latencyMs);
+        else handler(...args);
+      });
+    },
+    handle: (...args) => channel.handle(...args),
+    status: (...args) => channel.status(...args),
+    data: (...args) => channel.data(...args),
+    name: (...args) => channel.name(...args),
+    attrs: (...args) => channel.attrs(...args)
+  };
 
   const open = (value) => {
     const id = Buffer.alloc(4);
@@ -106,6 +146,7 @@ function serve(sftp, root) {
         sftp.handle(id, open({ stream: createWriteStream(full), path: full }));
       } else {
         await stat(full);
+        stats.reads.push(path);
         sftp.handle(id, open({ stream: createReadStream(full), path: full, reading: true }));
       }
     } catch {
