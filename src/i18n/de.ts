@@ -335,15 +335,6 @@ export const de: Messages = {
     explorerBookmarksFileDesc:
       "Vault-Pfad der Markdown-Datei, aus der die Lesezeichen gelesen werden. Eine Überschrift " +
       "ist ein Ordner, ein Listenpunkt ein Link.",
-    explorerLatest: "Bereich Zuletzt",
-    explorerLatestDesc:
-      "Eine kurze Liste zwischen Lesezeichen und Baum: Notizen, deren Quelle im Dokument-Sync " +
-      "sich geändert hat und die noch nicht angesehen wurden.",
-    explorerLatestCount: "Angezeigte Notizen",
-    explorerLatestCountDesc: (max: number) => `Wie viele Notizen die Liste zeigt (1 bis ${max}).`,
-    explorerLatestExclude: "Nie anzeigen",
-    explorerLatestExcludeDesc:
-      "Vault-Pfade, durch Komma oder Zeilenumbruch getrennt. Ein Ordner schließt alles darin aus.",
     explorerTaskCounts: "Aufgabenzähler",
     explorerTaskCountsDesc:
       'Zeigt hinter dem Namen einer Notiz, wie viele Aufgaben sie enthält und wie viele davon offen sind, als "1 / 7". ' +
@@ -771,7 +762,7 @@ export const de: Messages = {
     sections: {
       pinned: "Angeheftet",
       bookmarks: "Lesezeichen",
-      latest: "Zuletzt",
+      latest: "Extern aktualisiert",
       files: "Dateien und Ordner"
     },
 
@@ -792,7 +783,6 @@ export const de: Messages = {
     },
 
     latest: {
-      synced: "Extern aktualisiert",
       alert: "Eine Quelle wurde im Hintergrund aktualisiert",
       empty: "Keine Quelle hat sich geändert."
     },

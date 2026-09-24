@@ -39,7 +39,6 @@ import {
 import {
   hasUnseenSync,
   newestSync,
-  parseExcludedPaths,
   selectLatest,
   type LatestCandidate,
   type LatestSelection
@@ -293,21 +292,13 @@ export class PaneSectionsController {
    * sorted twice per keystroke.
    */
   latestFiles(): LatestSelection {
-    const settings = this.getSettings();
-    // The sync records are part of the answer now, so a poll that found a
-    // source changed reaches the next draw rather than the cached answer.
-    const key = [
-      settings.explorerLatestCount,
-      settings.explorerLatestExcluded,
-      syncSignature(settings.syncState)
-    ].join("|");
+    // The sync records are the answer, so a poll that found a source changed
+    // reaches the next draw rather than the cached answer.
+    const key = syncSignature(this.getSettings().syncState);
 
     if (this.latest && key === this.latestKey) return this.latest;
 
-    this.latest = selectLatest(this.candidates(), {
-      count: settings.explorerLatestCount,
-      excluded: parseExcludedPaths(settings.explorerLatestExcluded)
-    });
+    this.latest = selectLatest(this.candidates());
     this.latestKey = key;
     return this.latest;
   }

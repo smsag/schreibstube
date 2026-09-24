@@ -11,7 +11,7 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
-- **Latest lists only the notes a source changed.** The "Created" and "Modified" lists are gone: Obsidian's own recent files already show a note created or edited in the vault, and the two lists came along from an earlier plugin rather than from anything Schreibstube does. What stays is the list of notes whose Document sync source changed, with its mark on the section icon. The count and the excluded paths now apply to that list alone, and the bookmarks file is no longer excluded on its own.
+- **"Latest" is now "Updated externally", and only there when Document sync is on.** The "Created" and "Modified" lists are gone: Obsidian's own recent files already show a note created or edited in the vault, and the two lists came along from an earlier plugin rather than from anything Schreibstube does. What stays is the list of notes whose Document sync source changed, newest first and up to fifty, with its mark on the section icon and no heading of its own inside the section. The section has no settings any more — the switch, the count and the excluded paths are gone, and are removed from the plugin's data file the next time it starts — and it appears only while **Document sync** is turned on.
 - **Open bookmark lists your bookmarks in the order of the file.** It no longer puts the ones last opened on this device first, and nothing about opening a bookmark is remembered any more. The list an earlier version kept on each device is deleted from it the first time this version starts. The bookmarks file is the only thing that decides what the list holds and in which order.
 
 ### Fixed

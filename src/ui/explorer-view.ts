@@ -601,7 +601,8 @@ export class ExplorerPaneView extends ItemView {
 
     if (this.shelf) this.renderPinned(this.shelf, host);
     if (settings.explorerBookmarksEnabled) this.renderBookmarks(host);
-    if (settings.explorerLatestEnabled) this.renderLatest(host);
+    // Only a vault that mirrors sources has anything to show here.
+    if (settings.syncEnabled) this.renderLatest(host);
     this.renderFiles(host);
 
     host.scrollTop = scrollTop;
@@ -974,29 +975,22 @@ export class ExplorerPaneView extends ItemView {
     });
     if (!body) return;
 
-    const labels = t().explorer.latest;
-    const drawn = this.renderLatestGroup(body, labels.synced, sections.latestFiles().synced);
+    // The section's own name says what the rows are; a heading over its one
+    // list would only say it twice.
+    const drawn = this.renderLatestRows(body, sections.latestFiles().synced);
 
     if (drawn === 0) {
-      body.createEl("p", { cls: "schreibstube-explorer-empty", text: labels.empty });
+      body.createEl("p", { cls: "schreibstube-explorer-empty", text: t().explorer.latest.empty });
     }
   }
 
-  private renderLatestGroup(
-    host: HTMLElement,
-    label: string,
-    files: readonly LatestCandidate[]
-  ): number {
+  private renderLatestRows(host: HTMLElement, files: readonly LatestCandidate[]): number {
     const controller = this.host?.explorer;
     // A file deleted a moment ago is gone from the tree at once; it would be
     // odd for it to sit on in a list two sections above.
     const matching = files.filter(
       (file) => this.matchesFile(file.path) && controller?.isTrashed(file.path) !== true
     );
-    if (matching.length === 0) return 0;
-
-    host.createDiv({ cls: "schreibstube-explorer-subheading", text: label });
-
     for (const file of matching) {
       const row = host.createDiv({ cls: "schreibstube-explorer-row is-latest" });
       indent(row, 0);

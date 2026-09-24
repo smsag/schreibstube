@@ -6,7 +6,9 @@ import {
   MAX_RENAME_CONTENT_CHARS,
   MIN_FILENAME_LENGTH,
   MIN_RENAME_CONTENT_CHARS,
-  normalizeSettings
+  holdsRetiredSettings,
+  normalizeSettings,
+  RETIRED_SETTING_KEYS
 } from "./plugin-settings";
 
 describe("normalizeSettings", () => {
@@ -504,5 +506,31 @@ describe("a connection's header tags", () => {
     }).publishAccounts;
     expect(withTags?.headerTags).toEqual(["essay", "reise", "projekt"]);
     expect(older?.headerTags).toEqual([]);
+  });
+});
+
+describe("settings an earlier version wrote", () => {
+  const OLD = {
+    explorerLatestEnabled: true,
+    explorerLatestCount: 5,
+    explorerLatestExcluded: "Privat"
+  };
+
+  it("leaves the former Latest section's settings out", () => {
+    const settings = normalizeSettings(OLD as never) as unknown as Record<string, unknown>;
+
+    for (const key of RETIRED_SETTING_KEYS) expect(key in settings).toBe(false);
+  });
+
+  it("asks for a save while the data file still holds one of them", () => {
+    expect(holdsRetiredSettings(OLD)).toBe(true);
+    expect(holdsRetiredSettings({ explorerLatestCount: 5 })).toBe(true);
+  });
+
+  it("asks for none once the data file is clean, or when there is none", () => {
+    expect(holdsRetiredSettings(normalizeSettings(OLD as never))).toBe(false);
+    expect(holdsRetiredSettings({})).toBe(false);
+    expect(holdsRetiredSettings(null)).toBe(false);
+    expect(holdsRetiredSettings("not an object")).toBe(false);
   });
 });

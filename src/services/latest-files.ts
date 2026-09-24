@@ -1,5 +1,6 @@
 /**
- * What "latest" means, given a vault: the notes whose source last changed.
+ * What the pane's "Updated externally" section lists: the notes whose source
+ * last changed.
  *
  * One list, of the notes a Document sync source has moved and that still wait
  * to be looked at. A note created or edited in the vault is already at the top
@@ -26,25 +27,20 @@ export interface LatestSelection {
   synced: LatestCandidate[];
 }
 
-export interface LatestOptions {
-  /** How many rows the list shows. */
-  count: number;
-  /** Paths never shown: a file, or a folder standing for everything under it. */
-  excluded?: ReadonlySet<string>;
-}
-
-/** The ceiling on the count setting. High enough to be useless to exceed,
- *  low enough that the section cannot become the whole pane. */
-export const LATEST_COUNT_MAX = 50;
-export const LATEST_COUNT_DEFAULT = 5;
+/**
+ * The most rows the section shows. Every note still waiting is listed — it is
+ * what is left to look at, and a sixth one held back would be one nobody
+ * looks at — but a vault that mirrors hundreds of sources must not turn the
+ * section into the whole pane.
+ */
+export const LATEST_MAX = 50;
 
 /**
  * The newest moment a source changed, across the notes shown as updated.
  *
  * Read from the list the pane draws rather than from every record, so what the
- * mark stands for is exactly what a tap on it shows: a note excluded from the
- * section, or beyond the count it holds, cannot leave a mark pointing at a list
- * it is not in.
+ * mark stands for is exactly what a tap on it shows: a note beyond the ceiling
+ * the section holds cannot leave a mark pointing at a list it is not in.
  */
 export function newestSync(files: readonly LatestCandidate[]): number | null {
   let newest: number | null = null;
@@ -68,66 +64,14 @@ export function hasUnseenSync(files: readonly LatestCandidate[], seenAt: number)
   return newest !== null && newest > seenAt;
 }
 
-export function selectLatest(
-  candidates: readonly LatestCandidate[],
-  { count, excluded }: LatestOptions
-): LatestSelection {
-  if (count <= 0) return { synced: [] };
-
-  // Normalised once rather than per file: the list is a handful of entries and
-  // the vault is thousands of notes.
-  const barred = excluded && excluded.size > 0 ? normalizeExcluded(excluded) : [];
-
+/** The notes whose source changed and wait to be looked at, newest first. */
+export function selectLatest(candidates: readonly LatestCandidate[]): LatestSelection {
   const synced = candidates
-    .filter((file) => file.syncedAt !== undefined && !isExcluded(file.path, barred))
+    .filter((file) => file.syncedAt !== undefined)
     .sort((a, b) => (b.syncedAt ?? 0) - (a.syncedAt ?? 0) || compareName(a, b))
-    .slice(0, count);
+    .slice(0, LATEST_MAX);
 
   return { synced };
-}
-
-/**
- * The exclusion list as a person writes it in the settings field: paths
- * separated by commas or newlines, because both are what people type.
- */
-export function parseExcludedPaths(value: string): Set<string> {
-  return new Set(
-    value
-      .split(/[,\n]/)
-      .map((entry) => entry.trim().replace(/^\/+/, "").replace(/\/+$/, ""))
-      .filter((entry) => entry.length > 0)
-  );
-}
-
-/**
- * Whether a path is excluded by one of the entries.
- *
- * A folder stands for everything under it. Nobody types out every note in a
- * private folder, and a folder is what a person means when they write one into
- * a field called "never show these" — so an entry that names a folder excluded
- * nothing at all, silently, which is the worst way for this particular setting
- * to fail.
- *
- * Compared without case, because the filesystems this runs on — macOS, iOS,
- * Windows — do not distinguish it either, and a person typing the path from
- * memory should not have to.
- */
-export function isExcluded(path: string, excluded: readonly string[]): boolean {
-  const candidate = path.toLowerCase();
-
-  // A separator is required, so "Familie" does not take "Familienrecht/x.md"
-  // with it.
-  return excluded.some((entry) => candidate === entry || candidate.startsWith(`${entry}/`));
-}
-
-/** The entries as `isExcluded` wants them: trimmed of slashes, lower case. */
-export function normalizeExcluded(excluded: Iterable<string>): string[] {
-  const entries: string[] = [];
-  for (const entry of excluded) {
-    const cleaned = entry.trim().replace(/^\/+/, "").replace(/\/+$/, "").toLowerCase();
-    if (cleaned.length > 0) entries.push(cleaned);
-  }
-  return entries;
 }
 
 /** A stable tie-break, so two notes written in the same millisecond do not

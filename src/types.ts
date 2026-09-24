@@ -89,12 +89,6 @@ export interface SchreibstubeSettings {
   /** Vault path of the Markdown file the bookmarks are read from. The plugin
    *  never writes it: a person edits it like any other note. */
   explorerBookmarksFile: string;
-  /** Show the recent-notes section between bookmarks and the file tree. */
-  explorerLatestEnabled: boolean;
-  /** How many notes each recent-notes list shows. */
-  explorerLatestCount: number;
-  /** Vault paths kept out of the recent-notes lists, comma or newline separated. */
-  explorerLatestExcluded: string;
   /** Show "open / total" tasks after a note's name in the file pane. */
   explorerTaskCounts: boolean;
   /** Draw `:folder:` in a note as the icon, and offer the icons while one is typed. */

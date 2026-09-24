@@ -1,10 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   hasUnseenSync,
-  isExcluded,
-  normalizeExcluded,
+  LATEST_MAX,
   newestSync,
-  parseExcludedPaths,
   selectLatest,
   type LatestCandidate
 } from "./latest-files";
@@ -25,112 +23,40 @@ const MIRRORS: LatestCandidate[] = [
 
 describe("selectLatest", () => {
   it("lists them newest first, and only the ones a source changed", () => {
-    const { synced } = selectLatest(MIRRORS, { count: 5 });
+    const { synced } = selectLatest(MIRRORS);
 
     expect(synced.map((file) => file.path)).toEqual(["Quellen/Neu.md", "Quellen/Alt.md"]);
   });
 
-  it("keeps to the count", () => {
-    const many = [note("a.md", 10), note("b.md", 20), note("c.md", 30), note("d.md", 40)];
+  it("lists every note still waiting, well past the old default of five", () => {
+    const many = Array.from({ length: 12 }, (_, i) => note(`n${i}.md`, i + 1));
 
-    expect(selectLatest(many, { count: 2 }).synced.map((file) => file.path)).toEqual([
-      "d.md",
-      "c.md"
-    ]);
+    expect(selectLatest(many).synced).toHaveLength(12);
   });
 
-  it("returns nothing when the count is zero", () => {
-    expect(selectLatest(MIRRORS, { count: 0 })).toEqual({ synced: [] });
+  it("stops at the ceiling, keeping the newest", () => {
+    const many = Array.from({ length: LATEST_MAX + 7 }, (_, i) => note(`n${i}.md`, i + 1));
+    const { synced } = selectLatest(many);
+
+    expect(synced).toHaveLength(LATEST_MAX);
+    expect(synced[0]?.syncedAt).toBe(LATEST_MAX + 7);
   });
 
   it("is empty in a vault that mirrors nothing", () => {
-    expect(selectLatest([note("Alt.md"), note("Neu.md")], { count: 5 }).synced).toEqual([]);
-  });
-
-  it("obeys the exclusion list", () => {
-    const { synced } = selectLatest(MIRRORS, {
-      count: 5,
-      excluded: parseExcludedPaths("Quellen/Neu.md")
-    });
-
-    expect(synced.map((file) => file.path)).toEqual(["Quellen/Alt.md"]);
+    expect(selectLatest([note("Alt.md"), note("Neu.md")]).synced).toEqual([]);
   });
 
   it("breaks a tie by path, so a redraw does not reorder rows", () => {
     const tied = [note("B.md", 50), note("A.md", 50), note("C.md", 50)];
 
-    expect(selectLatest(tied, { count: 5 }).synced.map((file) => file.path)).toEqual([
-      "A.md",
-      "B.md",
-      "C.md"
-    ]);
+    expect(selectLatest(tied).synced.map((file) => file.path)).toEqual(["A.md", "B.md", "C.md"]);
   });
 
   it("does not mutate what it was given", () => {
     const input = [...MIRRORS];
-    selectLatest(input, { count: 2 });
+    selectLatest(input);
 
     expect(input.map((file) => file.path)).toEqual(MIRRORS.map((file) => file.path));
-  });
-});
-
-describe("parseExcludedPaths", () => {
-  it("accepts commas, newlines and leading slashes", () => {
-    expect(parseExcludedPaths("bookmarks.md, /Archiv/alt.md\nProjekte/Notiz.md")).toEqual(
-      new Set(["bookmarks.md", "Archiv/alt.md", "Projekte/Notiz.md"])
-    );
-  });
-
-  it("reads an empty field as no exclusions", () => {
-    expect(parseExcludedPaths("  ,\n ")).toEqual(new Set());
-  });
-});
-
-describe("excluding a folder", () => {
-  const PRIVATE: LatestCandidate[] = [
-    note("Familiäres/Scheidung.md", 900),
-    note("Familiäres/Kinder/Zeugnis.md", 800),
-    note("Familienrecht/Urteil.md", 700),
-    note("Arbeit/Notiz.md", 600)
-  ];
-
-  it("takes everything under the folder out of the list", () => {
-    // The setting used to match a file path exactly, so naming a folder — which
-    // is what anyone types into a field called "never show these" — excluded
-    // nothing at all, without saying so.
-    const { synced } = selectLatest(PRIVATE, {
-      count: 5,
-      excluded: parseExcludedPaths("Familiäres")
-    });
-
-    expect(synced.map((file) => file.path)).toEqual(["Familienrecht/Urteil.md", "Arbeit/Notiz.md"]);
-  });
-
-  it("needs a separator, so a shared prefix is not swept up with it", () => {
-    const barred = normalizeExcluded(new Set(["Familie"]));
-
-    expect(isExcluded("Familie/Brief.md", barred)).toBe(true);
-    expect(isExcluded("Familienrecht/Urteil.md", barred)).toBe(false);
-  });
-
-  it("still excludes a single file named outright", () => {
-    const barred = normalizeExcluded(new Set(["Arbeit/Notiz.md"]));
-
-    expect(isExcluded("Arbeit/Notiz.md", barred)).toBe(true);
-    expect(isExcluded("Arbeit/Andere.md", barred)).toBe(false);
-  });
-
-  it("ignores case, as the filesystems it runs on do", () => {
-    const barred = normalizeExcluded(parseExcludedPaths("familiäres"));
-
-    expect(isExcluded("Familiäres/Scheidung.md", barred)).toBe(true);
-  });
-
-  it("forgives a leading or trailing slash", () => {
-    const barred = normalizeExcluded(parseExcludedPaths("/Familiäres/, Arbeit/"));
-
-    expect(isExcluded("Familiäres/Scheidung.md", barred)).toBe(true);
-    expect(isExcluded("Arbeit/Notiz.md", barred)).toBe(true);
   });
 });
 
