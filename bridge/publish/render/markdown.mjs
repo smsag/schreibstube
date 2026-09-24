@@ -20,7 +20,7 @@ import { slugify } from "../path.mjs";
 
 /** Bumped when the output of a given source would change. A changed version
  *  re-renders every page on the next commit, without re-uploading anything. */
-export const RENDER_VERSION = 2;
+export const RENDER_VERSION = 3;
 
 const katex = katexModule.default ?? katexModule;
 
@@ -50,10 +50,11 @@ export function createRenderer({ allowHtml = true, allowDiagrams = true } = {}) 
  *
  * `site` carries the lookup tables the Obsidian rules need. The returned flags
  * say which generator assets the page has to load, so a site without diagrams
- * never ships a diagram bundle.
+ * never ships a diagram bundle. `sourcePath` is the note's place in the vault,
+ * which a relative image path is read against.
  */
-export function renderMarkdown(md, source, site) {
-  const env = { site, usedMermaid: false };
+export function renderMarkdown(md, source, site, { sourcePath = "" } = {}) {
+  const env = { site, sourcePath, usedMermaid: false };
   const html = md.render(prepare(source), env);
   return {
     html,

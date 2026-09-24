@@ -272,6 +272,16 @@ describe("referencedAttachments", () => {
     expect(referencedAttachments("![alt](https://example.com/x.png)")).toEqual([]);
   });
 
+  it("finds a path in angle brackets, which may hold spaces", () => {
+    expect(referencedAttachments("![alt](<Grundriss EG.png>)")).toEqual(["Grundriss EG.png"]);
+    expect(referencedAttachments("![alt](<bild.png>)")).toEqual(["bild.png"]);
+  });
+
+  it("finds the images in a slideshow block, which the site shows as well", () => {
+    const block = "```schreibstube-slideshow\n![Eins](a.png)\n![Zwei](<b c.png>)\n```";
+    expect(referencedAttachments(block)).toEqual(["a.png", "b c.png"]);
+  });
+
   it("lists each attachment once, however often it appears", () => {
     expect(referencedAttachments("![[a.png]] ![[a.png]]")).toEqual(["a.png"]);
   });

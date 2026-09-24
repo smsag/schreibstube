@@ -15,6 +15,7 @@ const CALLOUT = /^\[!([A-Za-z]+)\]([+-]?)[ \t]*(.*)$/;
 export function obsidian(md, { allowDiagrams = true } = {}) {
   md.inline.ruler.before("link", "wikilink", wikilink);
   md.core.ruler.after("block", "callout", callouts);
+  md.core.ruler.after("inline", "vault-image", vaultImages);
   overrideFence(md, allowDiagrams);
   overrideLinks(md);
 }
@@ -82,6 +83,9 @@ function pushEmbed(state, { path, alias, site }) {
     caption.content = alt;
     token.children = [caption];
     token.content = alt;
+    // Already pointing at the published file; the Markdown image rule would
+    // otherwise look its URL up as a vault path and find nothing.
+    token.meta = { resolved: true };
     return;
   }
 
@@ -94,6 +98,108 @@ function pushEmbed(state, { path, alias, site }) {
   }
 
   pushText(state, alias || path);
+}
+
+/**
+ * `![alt](bild.png)`, the other way a vault embeds an image.
+ *
+ * The plugin uploads the file under a content-addressed name, so the path as
+ * written names nothing on the site and has to be looked up like an embed. A
+ * local image that was not published degrades to its alt text, as an embed
+ * does: on a static site there is nothing else at a relative path it could
+ * mean. A remote image is left exactly as written.
+ */
+function vaultImages(state) {
+  const site = state.env?.site ?? emptySite();
+  const notePath = state.env?.sourcePath ?? "";
+
+  for (const block of state.tokens) {
+    if (block.type !== "inline" || !block.children) continue;
+
+    block.children = block.children.map((token) => {
+      if (token.type !== "image" || token.meta?.resolved) return token;
+      const src = token.attrGet("src") ?? "";
+      if (isRemote(src)) return token;
+
+      const asset = assetCandidates(src, notePath)
+        .map((candidate) => site.assets?.get(key(candidate)))
+        .find(Boolean);
+      const alt = token.content;
+
+      if (!asset) {
+        const text = new state.Token("text", "", 0);
+        text.content = alt || decodeReference(src);
+        return text;
+      }
+
+      if (asset.kind === "video") {
+        const video = new state.Token("html_inline", "", 0);
+        video.content =
+          `<video class="embed" controls preload="metadata" src="${escapeAttribute(asset.url)}">` +
+          `</video>`;
+        return video;
+      }
+
+      token.attrSet("src", asset.url);
+      token.attrSet("loading", "lazy");
+      if (!alt) {
+        const caption = new state.Token("text", "", 0);
+        caption.content = asset.name;
+        token.children = [caption];
+        token.content = asset.name;
+      }
+      return token;
+    });
+  }
+}
+
+/**
+ * Where a Markdown image path may point, most specific first: the path from
+ * the vault root, then relative to the note's own folder, then the bare file
+ * name — the order Obsidian itself tries, so a relative path lands on the file
+ * the author sees rather than on another one that shares its name.
+ */
+export function assetCandidates(src, notePath = "") {
+  const reference = decodeReference(src).split(/[?#]/)[0].trim();
+  if (!reference) return [];
+
+  const folder = notePath.includes("/") ? notePath.slice(0, notePath.lastIndexOf("/")) : "";
+  const relative = normalisePath(folder ? `${folder}/${reference}` : reference);
+  const name = reference.split("/").pop();
+
+  return [...new Set([normalisePath(reference), relative, name].filter(Boolean))];
+}
+
+/** Collapses `.` and `..`; a path that climbs out of the vault names nothing. */
+function normalisePath(path) {
+  const parts = [];
+  for (const part of path.split("/")) {
+    if (part === "" || part === ".") continue;
+    if (part === "..") {
+      if (parts.length === 0) return "";
+      parts.pop();
+      continue;
+    }
+    parts.push(part);
+  }
+  return parts.join("/");
+}
+
+/**
+ * markdown-it percent-encodes a link as it parses it, so `my photo.png` in
+ * angle brackets arrives as `my%20photo.png`. A name that is not valid
+ * escaping — `100%-Finanzierung.png` is a file somebody has — stays as it is.
+ */
+function decodeReference(src) {
+  try {
+    return decodeURI(src);
+  } catch {
+    return src;
+  }
+}
+
+function isRemote(src) {
+  return /^[a-z][a-z0-9+.-]*:/i.test(src) || src.startsWith("//");
 }
 
 function pushLink(state, { path, heading, alias, site }) {

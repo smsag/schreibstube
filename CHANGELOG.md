@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Fixed
+
+- **A published image written as `![alt](bild.png)` shows on the site.** Only the `![[bild.png]]` form was pointed at the uploaded file; the Markdown form kept the path as written, which names nothing on the server, so the picture was uploaded and then shown as a broken image. It is now found the way Obsidian finds it — from the vault root, then from the note's own folder, then by its name — including a name spelt with `%20`, in angle brackets, or with umlauts, and a video written this way plays. A path in angle brackets with spaces in it, such as `![](<Grundriss EG.png>)`, was not uploaded at all and now is. An image that was not published shows its alt text rather than a broken picture. Pages already on the site are rendered again on the next publish.
+
 ## 1.44.0 - 2026-09-24
 
 Faster publishing, safer on a phone, and a note that always opens. A
