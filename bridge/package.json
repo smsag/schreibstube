@@ -1,6 +1,6 @@
 {
   "name": "schreibstube-bridge",
-  "version": "2.5.0",
+  "version": "2.6.0",
   "private": true,
   "type": "module",
   "description": "Stateless HTTP bridge that lets the Schreibstube Obsidian plugin reach protocols a WebView cannot speak, from desktop and mobile.",
