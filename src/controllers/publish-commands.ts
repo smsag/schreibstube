@@ -10,7 +10,8 @@ import {
   listTargets,
   planPublish,
   uploadAsset,
-  uploadSource
+  uploadSource,
+  uploadThumbnail
 } from "../services/publish-client";
 import {
   PROTOCOL_VERSION,
@@ -19,8 +20,16 @@ import {
   type PublishAsset,
   type PublishBridgeConfig,
   type PublishIndex,
-  type PublishNote
+  type PublishNote,
+  type UploadRequest
 } from "../services/publish-protocol";
+import {
+  isSendableThumbnail,
+  THUMBNAIL_MAX_PX,
+  THUMBNAIL_QUALITY,
+  thumbnailType
+} from "../services/publish-thumbnail";
+import { getImageMimeType, resizeImageToBytes } from "../services/image-resize";
 import {
   ATTACHMENT_EXTENSIONS,
   findSlugCollision,
@@ -28,7 +37,8 @@ import {
   isPublishableAttachment,
   readPublishFields,
   referencedAttachments,
-  resolveNote
+  resolveNote,
+  slideshowReferences
 } from "../services/publish-index";
 import { PublishAccountModal, PublishPlanModal } from "../ui/publish-modals";
 import { mapLimit } from "../utils/map-limit";
@@ -112,7 +122,8 @@ export class PublishCommands {
       const { bridge, index, plan, sources, assets } = prepared;
 
       let done = 0;
-      const total = plan.uploadSources.length + plan.uploadAssets.length;
+      const total =
+        plan.uploadSources.length + plan.uploadAssets.length + plan.uploadThumbnails.length;
       const uploaded = (): void => {
         done += 1;
         notice.setMessage(t().common.notice(t().publish.uploading(done, total)));
@@ -137,6 +148,22 @@ export class PublishCommands {
         }
         const content = await this.readAttachment(asset.path, entry.sha256);
         await uploadAsset(bridge, account.target, entry.sha256, asset.name, content);
+        uploaded();
+      });
+
+      // One at a time: each is a photograph decoded in full, and two at once
+      // is twice the memory a phone may not have. A thumbnail that cannot be
+      // made or sent is left out — the filmstrip shows the picture itself,
+      // and the next publish asks again — rather than failing the publish.
+      await mapLimit(plan.uploadThumbnails, 1, async (entry) => {
+        const asset = assets.get(entry.sha256);
+        if (asset) {
+          try {
+            await this.sendThumbnail(bridge, account.target, entry, asset);
+          } catch (error) {
+            this.logger.debug(`Thumbnail skipped for ${entry.sourcePath}.`, error);
+          }
+        }
         uploaded();
       });
 
@@ -188,6 +215,29 @@ export class PublishCommands {
       new Notice(`Schreibstube: ${message}`);
       return null;
     }
+  }
+
+  /** Make the filmstrip thumbnail of one picture, and send it if it is small enough. */
+  private async sendThumbnail(
+    bridge: PublishBridgeConfig,
+    target: string,
+    entry: UploadRequest,
+    asset: { name: string; path: string }
+  ): Promise<void> {
+    const type = thumbnailType(asset.name);
+    if (!type) return;
+    const content = await this.readAttachment(asset.path, entry.sha256);
+    const extension = asset.name.split(".").pop() ?? "";
+    const { bytes } = await resizeImageToBytes(
+      content,
+      getImageMimeType(extension) ?? type,
+      THUMBNAIL_MAX_PX,
+      THUMBNAIL_QUALITY,
+      type
+    );
+    if (!isSendableThumbnail(bytes.byteLength)) return;
+    const body = bytes.slice().buffer as ArrayBuffer;
+    await uploadThumbnail(bridge, target, entry.sha256, asset.name, await hash(bytes), body);
   }
 
   /**
@@ -258,11 +308,25 @@ export class PublishCommands {
       sources.set(sha256, bytes.buffer as ArrayBuffer);
       notes.push({ ...note, sha256 });
 
+      // A filmstrip shows its pictures small as well, and asks for thumbnails.
+      const filmstrip = new Set(
+        slideshowReferences(content, "filmstrip")
+          .map((reference) => this.app.metadataCache.getFirstLinkpathDest(reference, file.path))
+          .filter((target): target is TFile => target instanceof TFile)
+          .map((target) => target.path)
+      );
+
       for (const reference of referencedAttachments(content)) {
         const target = this.app.metadataCache.getFirstLinkpathDest(reference, file.path);
         if (!(target instanceof TFile)) continue;
         if (!isPublishableAttachment(target.name, ATTACHMENT_EXTENSIONS)) continue;
-        if (assetEntries.some((entry) => entry.sourcePath === target.path)) continue;
+        const wantsThumbnail = filmstrip.has(target.path) && thumbnailType(target.name) !== null;
+        const known = assetEntries.find((entry) => entry.sourcePath === target.path);
+        if (known) {
+          // Shown plainly in one note and in a filmstrip in another.
+          if (wantsThumbnail) known.thumbnail = true;
+          continue;
+        }
 
         // Read to be hashed, then let go: the bytes are read again only if
         // the bridge asks for them. Kept for the whole run, every picture a
@@ -275,7 +339,8 @@ export class PublishCommands {
           sourcePath: target.path,
           sha256: assetHash,
           name: target.name,
-          bytes: data.byteLength
+          bytes: data.byteLength,
+          ...(wantsThumbnail ? { thumbnail: true } : {})
         });
       }
     }

@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { assetCandidates, key } from "./render/obsidian.mjs";
 import { LABELS } from "./client/slideshow.mjs";
+import { MAX_THUMBNAIL_BYTES, thumbnailExtension } from "./path.mjs";
 import { imagesForLayout, parseSlideshow, regionLabel, stripColumns } from "./render/slideshow.mjs";
 
 /**
@@ -47,6 +48,13 @@ describe("the shared slideshow contract, on the bridge", () => {
       expect(LABELS[name]).toBe(labels[name]);
     }
     expect(LABELS.showImage(2)).toBe(labels.showImage.replace("{n}", "2"));
+  });
+
+  it("serves thumbnails of the same pictures, in the same types, within the same limit", () => {
+    for (const [name, type] of table.thumbnails.types) {
+      expect(thumbnailExtension(name) || null).toBe(type);
+    }
+    expect(MAX_THUMBNAIL_BYTES).toBe(table.thumbnails.maxBytes);
   });
 
   it("sets strips in the same number of columns", () => {

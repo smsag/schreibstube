@@ -7,7 +7,12 @@
  * on a public site, and a wrong publish flag is a note that should not be one.
  */
 
-import { linkpathCandidates, parseSlideshow, SLIDESHOW_LANGUAGE } from "./slideshow";
+import {
+  linkpathCandidates,
+  parseSlideshow,
+  SLIDESHOW_LANGUAGE,
+  type SlideshowLayout
+} from "./slideshow";
 
 /**
  * Which frontmatter key carries which meaning.
@@ -225,7 +230,7 @@ export function referencedAttachments(content: string): string[] {
     if (target && !/^[a-z][a-z0-9+.-]*:/i.test(target)) found.add(target);
   }
 
-  for (const reference of slideshowImages(body)) found.add(reference);
+  for (const reference of slideshowReferences(content)) found.add(reference);
 
   return [...found];
 }
@@ -237,9 +242,11 @@ export function referencedAttachments(content: string): string[] {
  * space in a path (`![](my photo.png)`), which the pattern above cannot, so a
  * picture the note showed in the vault was never uploaded and went missing on
  * the site without a word. Every path the block would try is offered; the
- * caller keeps only those that name a file.
+ * caller keeps only those that name a file. With a `layout`, only the blocks
+ * of that layout count: a filmstrip's pictures are the ones with thumbnails.
  */
-function slideshowImages(body: string): string[] {
+export function slideshowReferences(content: string, layout?: SlideshowLayout): string[] {
+  const body = stripFrontmatter(content);
   const found: string[] = [];
   const fence = new RegExp("^ {0,3}(`{3,}|~{3,})[ \\t]*" + SLIDESHOW_LANGUAGE + "[ \\t]*$", "gm");
 
@@ -250,7 +257,7 @@ function slideshowImages(body: string): string[] {
     const rest = body.slice(start);
     const end = close.exec(rest);
     const block = parseSlideshow(end ? rest.slice(0, end.index) : rest);
-    if (!block.ok) continue;
+    if (!block.ok || (layout !== undefined && block.layout !== layout)) continue;
     for (const image of block.images) {
       for (const candidate of linkpathCandidates(image.src)) {
         // The path with its angle brackets still on names nothing anyone wrote.

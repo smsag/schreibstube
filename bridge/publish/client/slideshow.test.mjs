@@ -164,6 +164,22 @@ describe("the stage", () => {
     expect(figure.querySelector(".slideshow-caption").textContent).toBe("Drei");
   });
 
+  it("draws a thumbnail from the small copy when the site has one", () => {
+    document.body.innerHTML = renderSlideshow(`layout: filmstrip\n${four}`, (src) => ({
+      ...ASSETS[src],
+      thumbnail: src === "b.png" ? "thumbs/b.jpg" : undefined
+    })).html;
+    const figure = document.querySelector("figure.slideshow");
+    figure.querySelector(".slideshow-items").scrollTo = vi.fn();
+    enhance(figure);
+    const sources = [...figure.querySelectorAll(".slideshow-thumb img")].map((img) =>
+      img.getAttribute("src")
+    );
+    expect(sources).toEqual(["a.png", "thumbs/b.jpg", "c.png", "d.png"]);
+    // The stage still shows the picture itself.
+    expect(figure.querySelectorAll(".slideshow-item img")[1].getAttribute("src")).toBe("b.png");
+  });
+
   it("does nothing the second time, so a block is never given two headers", () => {
     const figure = mount(four);
     enhance(figure);

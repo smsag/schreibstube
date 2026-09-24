@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createRenderer, renderMarkdown } from "./render/markdown.mjs";
 import { notePage } from "./render/page.mjs";
 import { parseSlideshow, regionLabel, renderSlideshow } from "./render/slideshow.mjs";
+import { availableThumbnails, ThumbnailLedger } from "./routes.mjs";
 import { buildSite, sha256 } from "./site.mjs";
 
 const md = createRenderer();
@@ -202,5 +203,75 @@ describe("buildSite", () => {
     );
     expect(bare.has("assets/slideshow.js")).toBe(false);
     expect(bare.has("assets/slideshow.css")).toBe(false);
+  });
+});
+
+describe("filmstrip thumbnails", () => {
+  const strip = block("layout: filmstrip", "![Eins](Bilder/a.png)", "![Zwei](Bilder/b.png)");
+  const page = {
+    sourcePath: "Blog/show.md",
+    sha256: sha256(strip),
+    slug: "show",
+    title: "S",
+    date: ""
+  };
+  const assets = ["a", "b"].map((name, i) => ({
+    sourcePath: `Blog/Bilder/${name}.png`,
+    sha256: String(i + 1).repeat(64),
+    name: `${name}.png`,
+    thumbnail: true
+  }));
+  const thumbOf = (i, name) => `assets/thumbs/${String(i).repeat(12)}-${name}.png`;
+
+  async function build(thumbnails) {
+    const files = await buildSite(
+      { siteTitle: "S", notes: [page], assets },
+      new Map([[sha256(strip), strip]]),
+      { thumbnails }
+    );
+    return files.get("show/index.html").toString();
+  }
+
+  it("names the thumbnail of a picture the site has one of", async () => {
+    const html = await build(new Set([thumbOf(1, "a")]));
+    expect(html).toContain(`data-thumbnail="../${thumbOf(1, "a")}"`);
+    expect(html.match(/data-thumbnail/g)).toHaveLength(1);
+  });
+
+  it("names none while the site has none, so the picture itself is shown", async () => {
+    expect(await build(new Set())).not.toContain("data-thumbnail");
+  });
+
+  it("gives other layouts no thumbnails, since they show their pictures large", async () => {
+    const tiles = block("layout: strip", "![Eins](Bilder/a.png)", "![Zwei](Bilder/b.png)");
+    const files = await buildSite(
+      { siteTitle: "S", notes: [{ ...page, sha256: sha256(tiles) }], assets },
+      new Map([[sha256(tiles), tiles]]),
+      { thumbnails: new Set([thumbOf(1, "a"), thumbOf(2, "b")]) }
+    );
+    expect(files.get("show/index.html").toString()).not.toContain("data-thumbnail");
+  });
+
+  it("counts a thumbnail as there when the manifest has it or an upload wrote it", () => {
+    const manifest = { files: { [thumbOf(1, "a")]: { sha256: "x", bytes: 3 } } };
+    const written = new Map([[thumbOf(2, "b"), { sha256: "y", bytes: 4 }]]);
+    const available = availableThumbnails({ assets }, manifest, written);
+    expect([...available.keys()].sort()).toEqual([thumbOf(1, "a"), thumbOf(2, "b")]);
+    expect(availableThumbnails({ assets }, { files: {} }).size).toBe(0);
+    expect(
+      availableThumbnails({ assets: assets.map((a) => ({ ...a, thumbnail: false })) }, manifest)
+        .size
+    ).toBe(0);
+  });
+
+  it("remembers what it wrote per target, until the manifest records it", () => {
+    const ledger = new ThumbnailLedger();
+    ledger.record("blog", "assets/thumbs/a.png", { sha256: "x", bytes: 1 });
+    ledger.record("notizen", "assets/thumbs/b.png", { sha256: "y", bytes: 1 });
+    expect([...ledger.written("blog").keys()]).toEqual(["assets/thumbs/a.png"]);
+    ledger.forget("blog", ["assets/thumbs/a.png"]);
+    expect(ledger.written("blog").size).toBe(0);
+    expect(ledger.written("notizen").size).toBe(1);
+    ledger.forget("archiv", ["x"]);
   });
 });

@@ -1,5 +1,5 @@
 {
-  "comment": "The slideshow block is read by the plugin in the vault and again by the bridge for the site, and the plugin also collects the files it uploads from it. Both suites run these cases, so the readings cannot drift apart. 'images' is what the block names; 'shown' is how many of them its layout shows; 'files' is the vault file each image must be found as, both when the plugin uploads it and when the bridge looks it up. 'labels' are the German words for the block, shared the same way.",
+  "comment": "The slideshow block is read by the plugin in the vault and again by the bridge for the site, and the plugin also collects the files it uploads from it. Both suites run these cases, so the readings cannot drift apart. 'images' is what the block names; 'shown' is how many of them its layout shows; 'files' is the vault file each image must be found as, both when the plugin uploads it and when the bridge looks it up. 'labels' are the German words for the block, shared the same way. 'thumbnails' is the rule for the filmstrip's small copies.",
   "cases": [
     {
       "name": "two images, the default layout",
@@ -812,5 +812,20 @@
     "exit": "Vollbild verlassen",
     "compareHandle": "Trenner verschieben",
     "showImage": "Bild {n} anzeigen"
+  },
+  "thumbnails": {
+    "comment": "Which pictures a filmstrip gets a thumbnail of, as what file type, and the most one may weigh. The plugin makes them by this rule and the bridge serves them by it; null is none.",
+    "maxBytes": 200000,
+    "types": [
+      ["haus.png", "png"],
+      ["Haus.JPG", "jpg"],
+      ["haus.jpeg", "jpg"],
+      ["haus.webp", "jpg"],
+      ["plan.svg", null],
+      ["tanz.gif", null],
+      ["haus.avif", null],
+      ["clip.mp4", null],
+      ["ohne-endung", null]
+    ]
   }
 }

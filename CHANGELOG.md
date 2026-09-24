@@ -7,6 +7,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - **Slideshows on the published site.** A note with a slideshow block used to publish the block's text as a code sample. The page now shows the slideshow in the layout the note chose — stage, filmstrip, feature, strip, masonry or before-and-after — with the alt text and controls in the header, the arrow keys, thumbnails, the divider and the fullscreen view, from a small script the site carries itself. Without scripts the pictures still read: the stage swipes, the tiles stand in a grid, and a comparison sets its two pictures side by side. Pictures that were not published are left out, and a block with a mistake in it stays off the page instead of appearing as code. The block is read on the site by the same rules as in the vault, and one table of examples keeps the two readings the same.
+- **A published filmstrip loads small thumbnails.** The row under the stage showed each photograph at full size, shrunk to a stamp, so a phone downloaded several whole photographs just to draw the row. The plugin now makes a small copy of each filmstrip picture when it publishes, and only of those the site does not have yet, so an unchanged photograph is shrunk once, on its first publish. A picture whose copy could not be made is shown as before. This needs the bridge's protocol 2; an older bridge publishes the filmstrip without thumbnails.
 
 ### Fixed
 

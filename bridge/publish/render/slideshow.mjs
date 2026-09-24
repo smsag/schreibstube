@@ -138,7 +138,9 @@ export function renderSlideshow(source, resolve) {
   const published = [];
   for (const image of parsed.images) {
     const asset = resolve(image.src);
-    if (asset && asset.kind !== "video") published.push({ url: asset.url, alt: image.alt });
+    if (asset && asset.kind !== "video") {
+      published.push({ url: asset.url, alt: image.alt, thumbnail: asset.thumbnail });
+    }
   }
 
   const images = imagesForLayout(parsed.layout, published);
@@ -159,7 +161,13 @@ export function renderSlideshow(source, resolve) {
             `<span class="slideshow-label" aria-hidden="true">${escapeHtml(image.alt)}</span>`
           : "";
       const eager = index === 0 && EAGER_FIRST.has(layout);
-      return `<div class="slideshow-item">${imageTag(image, eager)}${label}</div>`;
+      // The filmstrip's script draws its thumbnails from the small copy when
+      // the site has one, and from the picture itself when it has not.
+      const thumbnail =
+        layout === "filmstrip" && image.thumbnail
+          ? ` data-thumbnail="${escapeAttribute(image.thumbnail)}"`
+          : "";
+      return `<div class="slideshow-item">${imageTag(image, eager, thumbnail)}${label}</div>`;
     })
     .join("\n");
 
@@ -173,7 +181,7 @@ export function renderSlideshow(source, resolve) {
   };
 }
 
-function imageTag({ url, alt }, eager = false) {
+function imageTag({ url, alt }, eager = false, extra = "") {
   const loading = eager ? "" : ' loading="lazy"';
-  return `<img src="${escapeAttribute(url)}" alt="${escapeAttribute(alt)}"${loading} decoding="async">`;
+  return `<img src="${escapeAttribute(url)}" alt="${escapeAttribute(alt)}"${loading} decoding="async"${extra}>`;
 }

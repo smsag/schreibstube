@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { de } from "../i18n/de";
 import { referencedAttachments } from "./publish-index";
+import { MAX_THUMBNAIL_BYTES, thumbnailType } from "./publish-thumbnail";
 import { imagesForLayout, parseSlideshow, stripColumns } from "./slideshow";
 
 /**
@@ -37,6 +38,7 @@ const table = JSON.parse(readFileSync("contracts/slideshow-cases.json", "utf8"))
   cases: Case[];
   stripColumns: [number, number][];
   labels: Labels;
+  thumbnails: { maxBytes: number; types: [string, string | null][] };
 };
 
 const count = (template: string, n: number) => template.replace("{n}", String(n));
@@ -79,6 +81,15 @@ describe("the shared slideshow contract, in the plugin", () => {
     expect(words.exit).toBe(labels.exit);
     expect(words.compareHandle).toBe(labels.compareHandle);
     expect(words.showImage(2)).toBe(count(labels.showImage, 2));
+  });
+
+  it("makes thumbnails of the same pictures, in the same types, within the same limit", () => {
+    const extension: Record<string, string> = { "image/png": "png", "image/jpeg": "jpg" };
+    for (const [name, type] of table.thumbnails.types) {
+      const made = thumbnailType(name);
+      expect(made === null ? null : extension[made]).toBe(type);
+    }
+    expect(MAX_THUMBNAIL_BYTES).toBe(table.thumbnails.maxBytes);
   });
 
   it("sets strips in the same number of columns", () => {

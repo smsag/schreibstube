@@ -91,6 +91,29 @@ describe("summarisePlan", () => {
   });
 });
 
+describe("thumbnails in a plan", () => {
+  it("reads the thumbnails a protocol-2 bridge asks for", () => {
+    const plan = parsePlan({
+      notes: 1,
+      uploadThumbnails: [{ sourcePath: "Blog/haus.jpg", sha256: "a".repeat(64), name: "haus.jpg" }]
+    });
+    expect(plan.uploadThumbnails).toEqual([
+      { sourcePath: "Blog/haus.jpg", sha256: "a".repeat(64), name: "haus.jpg" }
+    ]);
+    expect(summarisePlan(plan)).toContain("1 Vorschaubild(er)");
+    expect(summarisePlan(plan)).not.toContain("nichts zu übertragen");
+  });
+
+  it("reads none from a protocol-1 bridge, which never sends the field", () => {
+    expect(parsePlan({ notes: 1 }).uploadThumbnails).toEqual([]);
+  });
+
+  it("does not call a plan empty while a thumbnail is missing", () => {
+    const plan = parsePlan({ uploadThumbnails: [{ sourcePath: "a.jpg", sha256: "b" }] });
+    expect(isEmptyPlan(plan)).toBe(false);
+  });
+});
+
 describe("describePublishError", () => {
   it("explains a rejected token in terms of the setting to fix", () => {
     expect(describePublishError(401, '{"error":"Unauthorized."}')).toMatch(/token/i);

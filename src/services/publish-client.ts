@@ -117,6 +117,26 @@ export async function uploadAsset(
   );
 }
 
+/**
+ * A thumbnail, addressed by the picture it shows (`source`) and checked by its
+ * own bytes (`sha256`). Protocol 2.
+ */
+export async function uploadThumbnail(
+  config: PublishBridgeConfig,
+  target: string,
+  source: string,
+  name: string,
+  sha256: string,
+  content: ArrayBuffer
+): Promise<void> {
+  await upload(
+    config,
+    `/publish/thumbnail?target=${encodeURIComponent(target)}&source=${source}` +
+      `&sha256=${sha256}&name=${encodeURIComponent(name)}`,
+    content
+  );
+}
+
 async function send(
   config: PublishBridgeConfig,
   method: "GET" | "POST",

@@ -332,7 +332,7 @@ function stage(doc, win, figure, items, images, view) {
         image.alt ? `${LABELS.showImage(index + 1)}: ${image.alt}` : LABELS.showImage(index + 1)
       );
       const img = doc.createElement("img");
-      img.src = image.src;
+      img.src = image.thumbnail || image.src;
       img.alt = "";
       img.loading = "lazy";
       thumb.appendChild(img);
@@ -511,7 +511,11 @@ export function enhance(figure, doc = figure.ownerDocument, win = doc.defaultVie
   const items = [...figure.querySelectorAll(".slideshow-items > .slideshow-item")];
   const images = items.map((item) => {
     const img = item.querySelector("img");
-    return { src: img?.getAttribute("src") ?? "", alt: img?.getAttribute("alt") ?? "" };
+    return {
+      src: img?.getAttribute("src") ?? "",
+      alt: img?.getAttribute("alt") ?? "",
+      thumbnail: img?.dataset.thumbnail || ""
+    };
   });
   if (images.length < 2) return;
 

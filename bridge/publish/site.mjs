@@ -16,6 +16,7 @@ import {
   isValidSlug,
   pagePath,
   slugify,
+  thumbnailPath,
   VIDEO_EXTENSIONS
 } from "./path.mjs";
 import { generatorAssets } from "./assets.mjs";
@@ -57,6 +58,9 @@ export function checkIndex(index) {
   for (const asset of index.assets) {
     if (!asset?.sourcePath) throw new IndexError("An asset is missing its sourcePath.");
     if (!isHash(asset.sha256)) throw new IndexError(`${asset.sourcePath}: missing content hash.`);
+    if (asset.thumbnail !== undefined && typeof asset.thumbnail !== "boolean") {
+      throw new IndexError(`${asset.sourcePath}: thumbnail must be true or false.`);
+    }
   }
 
   return index;
@@ -79,7 +83,7 @@ export function orderNotes(notes) {
  */
 export async function buildSite(index, sources, options = {}) {
   const ordered = orderNotes(index.notes);
-  const site = lookups(index);
+  const site = lookups(index, options.thumbnails);
   const md = createRenderer(options);
 
   const files = new Map();
@@ -138,7 +142,7 @@ export async function buildSite(index, sources, options = {}) {
  * wikilinks are written. URLs are relative to a note page, which is the only
  * place a rendered body is ever placed.
  */
-function lookups(index) {
+function lookups(index, thumbnails = new Set()) {
   const notes = new Map();
   for (const note of index.notes) {
     const entry = { url: `../${note.slug}/`, title: note.title, slug: note.slug };
@@ -158,6 +162,11 @@ function lookups(index) {
       name,
       kind: VIDEO_EXTENSIONS.has(extension) ? "video" : "image"
     };
+    // Named as the plan and the commit name it, from the name the index sent.
+    const thumbnail = asset.thumbnail
+      ? thumbnailPath(asset.sha256, asset.name ?? asset.sourcePath)
+      : null;
+    if (thumbnail && thumbnails.has(thumbnail)) entry.thumbnail = `../${thumbnail}`;
     for (const alias of aliases(asset.sourcePath)) assets.set(alias, entry);
   }
 

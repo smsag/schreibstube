@@ -38,17 +38,31 @@ const client = vi.hoisted(() => ({
   commit: vi.fn(),
   uploadSource: vi.fn(),
   uploadAsset: vi.fn(),
-  health: vi.fn()
+  uploadThumbnail: vi.fn(),
+  health: vi.fn(),
+  resize: vi.fn()
 }));
 
 vi.mock("../services/publish-client", () => ({
-  planPublish: client.plan,
+  // The real client always answers with a thumbnail list, empty from a
+  // protocol-1 bridge; a test's plan names one only when it asks for some.
+  planPublish: async (...args: unknown[]) => ({
+    uploadThumbnails: [],
+    ...(await client.plan(...args))
+  }),
   commitPublish: client.commit,
   uploadSource: client.uploadSource,
   uploadAsset: client.uploadAsset,
+  uploadThumbnail: client.uploadThumbnail,
   listTargets: vi.fn(async () => []),
   bridgeHealth: client.health,
   checkTarget: vi.fn()
+}));
+
+// A canvas is the platform's; what is tested here is what is done with it.
+vi.mock("../services/image-resize", async (original) => ({
+  ...(await original<typeof import("../services/image-resize")>()),
+  resizeImageToBytes: client.resize
 }));
 
 const { Notice } = await import("../testing/obsidian-stub");
@@ -143,6 +157,12 @@ beforeEach(() => {
   });
   client.uploadSource.mockReset();
   client.uploadAsset.mockReset();
+  client.uploadThumbnail.mockReset();
+  client.resize.mockReset();
+  client.resize.mockResolvedValue({
+    bytes: new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3]),
+    mimeType: "image/jpeg"
+  });
   client.health.mockReset();
   client.health.mockResolvedValue({ version: "2.1.0", protocol: 1, capabilities: ["publish"] });
 });
@@ -609,5 +629,170 @@ describe("uploading from a phone's point of view", () => {
     expect(client.uploadAsset).toHaveBeenCalledTimes(8);
     expect(most).toBe(3);
     expect(client.commit).toHaveBeenCalled();
+  });
+});
+
+describe("filmstrip thumbnails", () => {
+  const photo = { path: "Blog/Bilder/haus.jpg", bytes: new Uint8Array([0xff, 0xd8, 0xff, 9]) };
+  const other = { path: "Blog/Bilder/garten.jpg", bytes: new Uint8Array([0xff, 0xd8, 0xff, 8]) };
+  const drawing = { path: "Blog/Bilder/plan.svg", bytes: new TextEncoder().encode("<svg/>") };
+
+  // Vault paths: the fake vault resolves those and bare names, not paths
+  // relative to the note.
+  const block = (layout: string, ...lines: string[]) =>
+    "```schreibstube-slideshow\nlayout: " + layout + "\n" + lines.join("\n") + "\n```";
+
+  const assetsPlanned = () =>
+    plannedIndex().assets as { sourcePath: string; sha256: string; thumbnail?: boolean }[];
+
+  /** A plan that asks for the thumbnail of every asset the index marked. */
+  function planAskingThumbnails() {
+    client.plan.mockImplementation(
+      async (
+        _bridge: unknown,
+        _target: unknown,
+        index: {
+          notes: unknown[];
+          assets: { sourcePath: string; sha256: string; name: string; thumbnail?: boolean }[];
+        }
+      ) => ({
+        target: "blog",
+        baseUrl: "https://blog.example.com",
+        uploadSources: [],
+        uploadAssets: [],
+        uploadThumbnails: index.assets
+          .filter((asset) => asset.thumbnail)
+          .map((asset) => ({
+            sourcePath: asset.sourcePath,
+            sha256: asset.sha256,
+            name: asset.name
+          })),
+        willDelete: [],
+        unchangedSources: index.notes.length,
+        notes: index.notes.length
+      })
+    );
+  }
+
+  it("asks for a thumbnail of a filmstrip's photographs only", async () => {
+    const vault = fakeVault({
+      notes: [
+        {
+          path: "Blog/Erste.md",
+          content:
+            block("filmstrip", "![](Blog/Bilder/haus.jpg)", "![](Blog/Bilder/plan.svg)") +
+            "\n\n" +
+            block("strip", "![](Blog/Bilder/garten.jpg)", "![](Blog/Bilder/haus.jpg)"),
+          frontmatter: published
+        }
+      ],
+      binaries: [photo, other, drawing]
+    });
+
+    await controller(vault).commands.preview();
+    const marked = Object.fromEntries(
+      assetsPlanned().map((asset) => [asset.sourcePath, asset.thumbnail === true])
+    );
+    expect(marked).toEqual({
+      "Blog/Bilder/haus.jpg": true,
+      "Blog/Bilder/plan.svg": false,
+      "Blog/Bilder/garten.jpg": false
+    });
+  });
+
+  it("asks for it when a picture shown plainly first is in a filmstrip later", async () => {
+    const vault = fakeVault({
+      notes: [
+        { path: "Blog/A.md", content: "![[haus.jpg]]", frontmatter: published },
+        {
+          path: "Blog/B.md",
+          content: block("filmstrip", "![](Blog/Bilder/haus.jpg)", "![](Blog/Bilder/garten.jpg)"),
+          frontmatter: published
+        }
+      ],
+      binaries: [photo, other]
+    });
+
+    await controller(vault).commands.preview();
+    expect(assetsPlanned().every((asset) => asset.thumbnail === true)).toBe(true);
+  });
+
+  it("makes and sends the thumbnails the plan asks for, named after their picture", async () => {
+    const vault = fakeVault({
+      notes: [
+        {
+          path: "Blog/Erste.md",
+          content: block("filmstrip", "![](Blog/Bilder/haus.jpg)", "![](Blog/Bilder/garten.jpg)"),
+          frontmatter: published
+        }
+      ],
+      binaries: [photo, other]
+    });
+    planAskingThumbnails();
+
+    await controller(vault).commands.publish();
+    await runEnded();
+
+    expect(client.resize).toHaveBeenCalledTimes(2);
+    expect(client.resize.mock.calls[0]?.slice(3)).toEqual([0.8, "image/jpeg"]);
+    expect(client.uploadThumbnail).toHaveBeenCalledTimes(2);
+    const [, target, source, name, sha256, body] = client.uploadThumbnail.mock.calls[0]!;
+    expect(target).toBe("blog");
+    expect(assetsPlanned().map((asset) => asset.sha256)).toContain(source);
+    expect(name).toMatch(/\.jpg$/);
+    expect(sha256).toMatch(/^[0-9a-f]{64}$/);
+    expect(new Uint8Array(body)).toEqual(new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3]));
+    expect(client.commit).toHaveBeenCalled();
+  });
+
+  it("publishes without a thumbnail it could not make, or one too large to send", async () => {
+    const vault = fakeVault({
+      notes: [
+        {
+          path: "Blog/Erste.md",
+          content: block("filmstrip", "![](Blog/Bilder/haus.jpg)", "![](Blog/Bilder/garten.jpg)"),
+          frontmatter: published
+        }
+      ],
+      binaries: [photo, other]
+    });
+    planAskingThumbnails();
+    client.resize
+      .mockRejectedValueOnce(new Error("image failed to load"))
+      .mockResolvedValueOnce({ bytes: new Uint8Array(300_000), mimeType: "image/jpeg" });
+
+    await controller(vault).commands.publish();
+    await runEnded();
+
+    expect(client.uploadThumbnail).not.toHaveBeenCalled();
+    expect(client.commit).toHaveBeenCalled();
+    expect(Notice.shown.some((message) => /published —/.test(message))).toBe(true);
+  });
+
+  it("decodes one photograph at a time", async () => {
+    const vault = fakeVault({
+      notes: [
+        {
+          path: "Blog/Erste.md",
+          content: block("filmstrip", "![](Blog/Bilder/haus.jpg)", "![](Blog/Bilder/garten.jpg)"),
+          frontmatter: published
+        }
+      ],
+      binaries: [photo, other]
+    });
+    planAskingThumbnails();
+    let running = 0;
+    let most = 0;
+    client.resize.mockImplementation(async () => {
+      running += 1;
+      most = Math.max(most, running);
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      running -= 1;
+      return { bytes: new Uint8Array([0xff, 0xd8, 0xff, 1]), mimeType: "image/jpeg" };
+    });
+
+    await controller(vault).commands.publish();
+    await runEnded();
+    expect(most).toBe(1);
   });
 });
