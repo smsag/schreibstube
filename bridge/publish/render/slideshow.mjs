@@ -33,6 +33,14 @@ export const DEFAULT_SLIDESHOW_LAYOUT = "slideshow";
 const MAX_STRIP_COLUMNS = 4;
 const STRIP_WRAP_COLUMNS = 3;
 
+/**
+ * The layouts that open on one picture larger than the rest. That picture is
+ * fetched with the page rather than when it scrolls near: at the top of a
+ * note it is the largest thing on screen, and waiting for layout to find it
+ * is what makes a page feel slow. Every other picture waits.
+ */
+const EAGER_FIRST = new Set(["slideshow", "filmstrip", "feature"]);
+
 /** A feature is a scene and two details; a comparison is two sides. */
 const LAYOUT_IMAGE_LIMIT = { feature: 3, compare: 2 };
 
@@ -143,12 +151,15 @@ export function renderSlideshow(source, resolve) {
   const style =
     layout === "strip" ? ` style="--slideshow-columns: ${stripColumns(images.length)}"` : "";
   const items = images
-    .map((image) => {
+    .map((image, index) => {
       const label =
         layout === "compare" && image.alt
-          ? `<span class="slideshow-label">${escapeHtml(image.alt)}</span>`
+          ? // The picture carries the same words as its alt text; read twice
+            // they are noise, so the visible label is for the eye only.
+            `<span class="slideshow-label" aria-hidden="true">${escapeHtml(image.alt)}</span>`
           : "";
-      return `<div class="slideshow-item">${imageTag(image)}${label}</div>`;
+      const eager = index === 0 && EAGER_FIRST.has(layout);
+      return `<div class="slideshow-item">${imageTag(image, eager)}${label}</div>`;
     })
     .join("\n");
 
@@ -162,6 +173,7 @@ export function renderSlideshow(source, resolve) {
   };
 }
 
-function imageTag({ url, alt }) {
-  return `<img src="${escapeAttribute(url)}" alt="${escapeAttribute(alt)}" loading="lazy" decoding="async">`;
+function imageTag({ url, alt }, eager = false) {
+  const loading = eager ? "" : ' loading="lazy"';
+  return `<img src="${escapeAttribute(url)}" alt="${escapeAttribute(alt)}"${loading} decoding="async">`;
 }

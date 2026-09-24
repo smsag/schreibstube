@@ -46,8 +46,21 @@ describe("renderSlideshow", () => {
     expect(html).toContain(
       '<figure class="slideshow slideshow-slideshow" data-layout="slideshow" role="group" aria-label="Diaschau, 2 Bilder">'
     );
-    expect(html).toContain('<img src="../assets/aaa-a.png" alt="Eins" loading="lazy"');
+    expect(html).toContain('<img src="../assets/aaa-a.png" alt="Eins" decoding="async">');
     expect(html).toContain('<img src="../assets/bbb-b.png" alt="Zwei" loading="lazy"');
+  });
+
+  it("fetches the picture a stage or a feature opens on with the page, and the rest later", () => {
+    const eager = (layout) =>
+      renderSlideshow(`layout: ${layout}\n![](a.png)\n![](b.png)\n![](c.png)`, resolve).html.match(
+        /<img(?![^>]*loading="lazy")[^>]*>/g
+      ) ?? [];
+    for (const layout of ["slideshow", "filmstrip", "feature"]) {
+      expect(eager(layout)).toEqual([expect.stringContaining("aaa-a.png")]);
+    }
+    for (const layout of ["strip", "masonry", "compare"]) {
+      expect(eager(layout)).toEqual([]);
+    }
   });
 
   it("gives a strip its column count", () => {
@@ -72,8 +85,10 @@ describe("renderSlideshow", () => {
       "layout: compare\n![Vorher](a.png)\n![Nachher](b.png)",
       resolve
     );
-    expect(html).toContain('<span class="slideshow-label">Vorher</span>');
-    expect(html).toContain('<span class="slideshow-label">Nachher</span>');
+    // Shown to the eye; a screen reader has the same words from the alt text.
+    expect(html).toContain('<span class="slideshow-label" aria-hidden="true">Vorher</span>');
+    expect(html).toContain('<span class="slideshow-label" aria-hidden="true">Nachher</span>');
+    expect(html).toContain('alt="Vorher"');
   });
 
   it("leaves out a picture the site does not have, and a video", () => {

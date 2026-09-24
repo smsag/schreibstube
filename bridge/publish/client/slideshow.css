@@ -4,7 +4,7 @@
    picture to picture and swipes on its own, the tiles are a grid, the wall is
    columns, and a comparison is two pictures side by side. `slideshow.js` adds
    the plugin's header, controls and fullscreen view and marks the block
-   `is-enhanced`; the rules for that state are the ones below it.
+   `is-enhanced`; rules for either state say so in their selector.
 
    Colours come from the site's theme where it names them — the built-in
    stylesheet's tokens or a vault theme's — with a neutral fallback, so a
@@ -418,6 +418,10 @@
 .slideshow-fs {
   width: 100vw;
   max-width: none;
+  /* The first for Safari before 15.4, which reads no dvh; the second where a
+     phone's toolbar comes and goes, so the view is never taller than the
+     screen it is on. */
+  height: 100vh;
   height: 100dvh;
   max-height: none;
   margin: 0;

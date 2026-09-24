@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { assetCandidates, key } from "./render/obsidian.mjs";
-import { imagesForLayout, parseSlideshow, stripColumns } from "./render/slideshow.mjs";
+import { LABELS } from "./client/slideshow.mjs";
+import { imagesForLayout, parseSlideshow, regionLabel, stripColumns } from "./render/slideshow.mjs";
 
 /**
  * The slideshow block is read by the plugin in the vault and here for the
@@ -33,6 +34,20 @@ describe("the shared slideshow contract, on the bridge", () => {
       });
     });
   }
+
+  it("names each layout in the shared words", () => {
+    for (const [layout, template] of Object.entries(table.labels.region)) {
+      expect(regionLabel(layout, 3)).toBe(template.replace("{n}", "3"));
+    }
+  });
+
+  it("labels the site's controls in the shared words", () => {
+    const { labels } = table;
+    for (const name of ["previous", "next", "fullscreen", "exit", "compareHandle"]) {
+      expect(LABELS[name]).toBe(labels[name]);
+    }
+    expect(LABELS.showImage(2)).toBe(labels.showImage.replace("{n}", "2"));
+  });
 
   it("sets strips in the same number of columns", () => {
     for (const [count, columns] of table.stripColumns) {
