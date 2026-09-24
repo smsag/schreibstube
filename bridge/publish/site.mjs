@@ -92,7 +92,7 @@ export async function buildSite(index, sources, options = {}) {
       throw new IndexError(`Source not uploaded for ${note.sourcePath}.`);
     }
 
-    const rendered = renderMarkdown(md, source, site);
+    const rendered = renderMarkdown(md, source, site, { sourcePath: note.sourcePath });
     usedMath = usedMath || rendered.usedMath;
     usedMermaid = usedMermaid || rendered.usedMermaid;
 

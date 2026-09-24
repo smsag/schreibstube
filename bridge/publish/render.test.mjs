@@ -6,6 +6,7 @@ import {
   stripComments,
   stripFrontmatter
 } from "./render/markdown.mjs";
+import { assetCandidates } from "./render/obsidian.mjs";
 import { formatDate, indexPage, notePage } from "./render/page.mjs";
 import { buildSite, checkIndex, orderNotes, sha256 } from "./site.mjs";
 
@@ -152,6 +153,111 @@ describe("embeds", () => {
 
   it("degrades an embed of something that was not published", () => {
     expect(render("![[fehlt.png]]", context)).toContain("fehlt.png");
+  });
+});
+
+describe("Markdown images", () => {
+  const context = site({
+    assets: [
+      { key: "bild.png", url: "../assets/aaa-bild.png", name: "bild.png", kind: "image" },
+      { key: "clip.mp4", url: "../assets/bbb-clip.mp4", name: "clip.mp4", kind: "video" },
+      {
+        key: "my photo.png",
+        url: "../assets/ccc-my-photo.png",
+        name: "my photo.png",
+        kind: "image"
+      },
+      {
+        key: "grundstück.png",
+        url: "../assets/ddd-grundstueck.png",
+        name: "Grundstück.png",
+        kind: "image"
+      },
+      {
+        key: "texte/bilder/haus.png",
+        url: "../assets/eee-haus.png",
+        name: "haus.png",
+        kind: "image"
+      },
+      { key: "anhang/haus.png", url: "../assets/fff-haus.png", name: "haus.png", kind: "image" }
+    ]
+  });
+
+  const renderIn = (source, sourcePath) => renderMarkdown(md, source, context, { sourcePath }).html;
+
+  it("points a vault image at the file the site serves", () => {
+    const html = render("![Das Haus](bild.png)", context);
+    expect(html).toContain('src="../assets/aaa-bild.png"');
+    expect(html).toContain('alt="Das Haus"');
+    expect(html).toContain('loading="lazy"');
+  });
+
+  it("finds a name written with %20 or in angle brackets", () => {
+    expect(render("![a](my%20photo.png)", context)).toContain("../assets/ccc-my-photo.png");
+    expect(render("![a](<my photo.png>)", context)).toContain("../assets/ccc-my-photo.png");
+  });
+
+  it("finds a name with umlauts, which the parser percent-encodes", () => {
+    expect(render("![a](Grundstück.png)", context)).toContain("../assets/ddd-grundstueck.png");
+  });
+
+  it("reads a relative path against the note's own folder", () => {
+    const html = renderIn("![a](bilder/haus.png)", "Texte/Beitrag.md");
+    expect(html).toContain("../assets/eee-haus.png");
+    expect(renderIn("![a](../Anhang/haus.png)", "Texte/Beitrag.md")).toContain(
+      "../assets/fff-haus.png"
+    );
+  });
+
+  it("names the file in the alt text when the author left it empty", () => {
+    expect(render("![](bild.png)", context)).toContain('alt="bild.png"');
+  });
+
+  it("plays a video rather than showing a broken image", () => {
+    expect(render("![](clip.mp4)", context)).toContain(
+      '<video class="embed" controls preload="metadata" src="../assets/bbb-clip.mp4">'
+    );
+  });
+
+  it("degrades an image that was not published to its alt text", () => {
+    const html = render("![Das fehlt](fehlt.png)", context);
+    expect(html).not.toContain("<img");
+    expect(html).toContain("Das fehlt");
+  });
+
+  it("leaves a remote image where it is", () => {
+    expect(render("![a](https://example.com/x.png)", context)).toContain(
+      'src="https://example.com/x.png"'
+    );
+  });
+
+  it("escapes the alt text rather than letting it close the tag", () => {
+    expect(render('![a "><script>](bild.png)', context)).not.toContain("<script>");
+  });
+});
+
+describe("assetCandidates", () => {
+  it("tries the vault path, then the note's folder, then the bare name", () => {
+    expect(assetCandidates("bilder/haus.png", "Texte/Beitrag.md")).toEqual([
+      "bilder/haus.png",
+      "Texte/bilder/haus.png",
+      "haus.png"
+    ]);
+  });
+
+  it("resolves a step up, and refuses one that climbs out of the vault", () => {
+    expect(assetCandidates("../Anhang/haus.png", "Texte/Beitrag.md")).toEqual([
+      "Anhang/haus.png",
+      "haus.png"
+    ]);
+  });
+
+  it("keeps a percent that escapes nothing", () => {
+    expect(assetCandidates("100%-Finanzierung.png")).toEqual(["100%-Finanzierung.png"]);
+  });
+
+  it("drops a query or a fragment", () => {
+    expect(assetCandidates("bild.png#klein")).toEqual(["bild.png"]);
   });
 });
 
@@ -385,6 +491,21 @@ describe("buildSite", () => {
   it("resolves links between notes", async () => {
     const files = await buildSite(index, sources);
     expect(files.get("erste/index.html").toString()).toContain('href="../zweite/"');
+  });
+
+  it("points a Markdown image at the uploaded file, read from the note's folder", async () => {
+    const withImage = "Ein Bild: ![Das Haus](Bilder/haus.png)\n";
+    const hash = "a".repeat(64);
+    const files = await buildSite(
+      {
+        ...index,
+        notes: [{ ...index.notes[0], sha256: sha256(withImage) }],
+        assets: [{ sourcePath: "Blog/Bilder/haus.png", sha256: hash, name: "haus.png" }]
+      },
+      new Map([[sha256(withImage), withImage]])
+    );
+    const page = files.get("erste/index.html").toString();
+    expect(page).toMatch(/<img src="\.\.\/assets\/a+-haus\.png" alt="Das Haus" loading="lazy">/);
   });
 
   it("is deterministic, which is the reason rendering lives here", async () => {
