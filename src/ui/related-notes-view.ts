@@ -17,6 +17,7 @@
  */
 import { ItemView, Keymap, type ViewStateResult, type WorkspaceLeaf } from "obsidian";
 import { t } from "../i18n";
+import { openTargetOf, type PaneTarget } from "../services/pane-target";
 import type { RelatedReason } from "../services/related-notes";
 import { applyIcon, installIconFont } from "./icon-font";
 
@@ -36,7 +37,7 @@ export interface RelatedNotesHost {
   cards(path: string): RelatedCard[];
   /** The title to put at the top: what the list is related *to*. */
   titleOf(path: string): string | null;
-  open(path: string, newTab: boolean): Promise<void>;
+  open(path: string, where: PaneTarget): Promise<void>;
   showMenu(path: string, event: MouseEvent): void;
 }
 
@@ -187,15 +188,15 @@ export class RelatedNotesView extends ItemView {
       why.createSpan({ cls: "schreibstube-related-chip", text: reasonLabel(reason) });
     }
 
-    // A modifier opens a tab, the way a link in the editor does, so a related
+    // A modifier opens a tab, a split or a window, the way a link in the editor does, so a related
     // note can be kept open beside the one already in front of the person.
     el.addEventListener("click", (event) => {
-      void host.open(card.path, Keymap.isModEvent(event) !== false);
+      void host.open(card.path, openTargetOf(Keymap.isModEvent(event)));
     });
     el.addEventListener("keydown", (event) => {
       if (event.key !== "Enter" && event.key !== " ") return;
       event.preventDefault();
-      void host.open(card.path, Keymap.isModEvent(event) !== false);
+      void host.open(card.path, openTargetOf(Keymap.isModEvent(event)));
     });
     el.addEventListener("contextmenu", (event) => {
       event.preventDefault();

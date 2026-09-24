@@ -800,6 +800,7 @@ export const de: Messages = {
     menu: {
       open: "Öffnen",
       openNewTab: "In neuem Tab öffnen",
+      openNewWindow: "In neuem Fenster öffnen",
       setIcon: "Symbol wählen …",
       changeIcon: "Symbol ändern …",
       clearIcon: "Symbol entfernen",

@@ -16,6 +16,7 @@ import { t } from "../i18n";
 export type ExplorerAction =
   | "open"
   | "open-new-tab"
+  | "open-new-window"
   | "set-icon"
   | "clear-icon"
   | "keep-top"
@@ -64,6 +65,8 @@ export interface ExplorerTarget {
   hasBoundNotes?: boolean;
   /** For a folder: whether it holds a picture of its own, subfolders aside. */
   hasImages?: boolean;
+  /** Whether a note can open in a window of its own: the desktop, not a phone. */
+  windows?: boolean;
 }
 
 /** Where the items other plugins contribute end up. */
@@ -116,6 +119,9 @@ export function buildExplorerMenu(
       { id: "open", label: menu.open, icon: "file-text" },
       { id: "open-new-tab", label: menu.openNewTab, icon: "layout-panel-left" }
     ];
+    if (target.windows) {
+      open.push({ id: "open-new-window", label: menu.openNewWindow, icon: "app-window" });
+    }
     // Listing what a note sits among is a way of opening it, not a way of
     // changing it, so it belongs in this block rather than below with the
     // actions that write. Only a note has it: an attachment carries no links

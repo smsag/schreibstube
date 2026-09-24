@@ -545,6 +545,7 @@ export const enExtra = {
     menu: {
       open: "Open",
       openNewTab: "Open in new tab",
+      openNewWindow: "Open in new window",
       setIcon: "Set icon…",
       changeIcon: "Change icon…",
       clearIcon: "Remove icon",

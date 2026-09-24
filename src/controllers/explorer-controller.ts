@@ -11,6 +11,7 @@ import {
   getAllTags,
   Menu,
   Notice,
+  Platform,
   TAbstractFile,
   TFile,
   TFolder,
@@ -44,6 +45,7 @@ import {
   type UndoableAction
 } from "../services/undo-stack";
 import { topLevelOnly } from "../services/explorer-selection";
+import { availableTarget, type PaneTarget } from "../services/pane-target";
 import { planImport, type DroppedFile, type ImportRefusal } from "../services/import-plan";
 import {
   entryFor,
@@ -854,7 +856,8 @@ export class ExplorerController {
       hasBoundNotes: file instanceof TFolder && this.hasBoundNotes(file),
       // Its own pictures, not its subfolders': the entry opens a grid of this
       // folder, and a grid of nothing is worse than no entry.
-      hasImages: file instanceof TFolder && hasFolderImages(file, (path) => this.isTrashed(path))
+      hasImages: file instanceof TFolder && hasFolderImages(file, (path) => this.isTrashed(path)),
+      windows: Platform.isDesktopApp
     };
   }
 
@@ -881,7 +884,9 @@ export class ExplorerController {
       case "open":
         return this.open(file, false);
       case "open-new-tab":
-        return this.open(file, true);
+        return this.open(file, "tab");
+      case "open-new-window":
+        return this.open(file, "window");
       case "set-icon":
         return this.chooseIcon(file);
       case "clear-icon":
@@ -933,9 +938,10 @@ export class ExplorerController {
     }
   }
 
-  async open(file: TAbstractFile, newTab: boolean): Promise<void> {
+  /** Open a file where a press or a menu asked: in place, a tab, a split or a window. */
+  async open(file: TAbstractFile, where: PaneTarget): Promise<void> {
     if (!(file instanceof TFile)) return;
-    const leaf = this.app.workspace.getLeaf(newTab ? "tab" : false);
+    const leaf = this.app.workspace.getLeaf(availableTarget(where, Platform.isDesktopApp));
     await leaf.openFile(file);
   }
 

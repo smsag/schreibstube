@@ -32,6 +32,7 @@ import {
   type WorkspaceLeaf
 } from "obsidian";
 import { t } from "../i18n";
+import { openTargetOf, treeRowTarget } from "../services/pane-target";
 import type { ExplorerController } from "../controllers/explorer-controller";
 import type { PaneSectionsController } from "../controllers/pane-sections";
 import { syncBadgeIcon, type SyncBadge } from "../services/explorer-badge";
@@ -851,13 +852,16 @@ export class ExplorerPaneView extends ItemView {
     // than opening a second copy of the tree inside the section.
     wirePress(row, {
       isDragging: () => this.drag.active !== null,
-      activate: () => {
+      activate: (event) => {
         if (isFolder) {
           this.revealFolder(file.path);
           return;
         }
-        this.notePanePress(file.path);
-        void controller.open(file, false);
+        const where = event ? openTargetOf(Keymap.isModEvent(event)) : false;
+        // Only a note opened in place is in front of the person; one opened
+        // beside it or in another window leaves the tree free to follow.
+        if (where === false) this.notePanePress(file.path);
+        void controller.open(file, where);
       },
       showMenu: (at) => controller.showMenu(file, at)
     });
@@ -1083,9 +1087,10 @@ export class ExplorerPaneView extends ItemView {
       // renamed or moved without first finding it in the tree below.
       wirePress(row, {
         isDragging: () => this.drag.active !== null,
-        activate: () => {
-          this.notePanePress(file.path);
-          void this.host?.sections.openLatest(file.path);
+        activate: (event) => {
+          const where = event ? openTargetOf(Keymap.isModEvent(event)) : false;
+          if (where === false) this.notePanePress(file.path);
+          void this.host?.sections.openLatest(file.path, where);
         },
         showMenu: (at) => {
           const current = this.app.vault.getAbstractFileByPath(file.path);
@@ -1191,7 +1196,7 @@ export class ExplorerPaneView extends ItemView {
       // The folder is part of the result, so pressing it opens what the row
       // above it names rather than doing nothing.
       label.addEventListener("click", (event) => {
-        void controller?.open(file, Keymap.isModEvent(event) !== false);
+        void controller?.open(file, openTargetOf(Keymap.isModEvent(event)));
       });
       drawn += 1;
     }
@@ -1561,9 +1566,17 @@ export class ExplorerPaneView extends ItemView {
     if (!controller) return;
 
     const activate = (event?: MouseEvent): void => {
+      const mod = event ? openTargetOf(Keymap.isModEvent(event)) : false;
+      // The split and window chords open, as they do everywhere else; plain
+      // Cmd and Shift stay with the selection, which they already mean here.
+      const target = treeRowTarget(mod, event?.shiftKey === true);
+      if (!isFolder && (target === "split" || target === "window")) {
+        void controller.open(file, target);
+        return;
+      }
       const modifiers = {
         shift: event?.shiftKey === true,
-        toggle: event ? Keymap.isModEvent(event) !== false : false
+        toggle: mod !== false
       };
       // A click with a modifier builds a selection and opens nothing: the
       // rows are being gathered for an action, not visited one by one.

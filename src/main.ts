@@ -469,9 +469,9 @@ export default class SchreibstubePlugin extends Plugin {
           const file = this.app.vault.getAbstractFileByPath(path);
           return file instanceof TFile ? (explorer.titleFor(file) ?? file.basename) : null;
         },
-        open: async (path, newTab) => {
+        open: async (path, where) => {
           const file = this.app.vault.getAbstractFileByPath(path);
-          if (file) await explorer.open(file, newTab);
+          if (file) await explorer.open(file, where);
         },
         showMenu: (path, event) => explorer.showMenuForPath(path, event)
       });
@@ -509,7 +509,7 @@ export default class SchreibstubePlugin extends Plugin {
         open: async (path, into) => {
           const file = this.app.vault.getAbstractFileByPath(path);
           if (!(file instanceof TFile)) return;
-          if (into === "tab") await explorer.open(file, true);
+          if (into === "tab") await explorer.open(file, "tab");
           else await into.openFile(file);
         },
         showMenu: (path, at) => explorer.showMenuForPath(path, at),
@@ -525,9 +525,9 @@ export default class SchreibstubePlugin extends Plugin {
     if (explorer) {
       view.connect({
         cards: (tag) => explorer.tagCards(tag),
-        open: async (path, newTab) => {
+        open: async (path, where) => {
           const file = this.app.vault.getAbstractFileByPath(path);
-          if (file) await explorer.open(file, newTab);
+          if (file) await explorer.open(file, where);
         },
         showMenu: (path, event) => explorer.showMenuForPath(path, event)
       });
