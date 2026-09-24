@@ -137,7 +137,7 @@ beforeAll(async () => {
       ...process.env,
       PORT: String(port),
       PUBLISH_TOKEN: TOKEN,
-      PUBLISH_TARGETS: "blog,notizen,archiv",
+      PUBLISH_TARGETS: "blog,notizen,archiv,falsch",
       PUBLISH_BLOG_HOST: "127.0.0.1",
       PUBLISH_BLOG_PORT: String(sftp.port),
       PUBLISH_BLOG_USER: sftp.user,
@@ -163,6 +163,14 @@ beforeAll(async () => {
       PUBLISH_ARCHIV_HOST_FINGERPRINT: sftp.fingerprint,
       PUBLISH_ARCHIV_ROOT: "/archiv",
       PUBLISH_ARCHIV_BASE_URL: "https://archiv.example.com",
+      // The same host, pinned to a fingerprint it does not have.
+      PUBLISH_FALSCH_HOST: "127.0.0.1",
+      PUBLISH_FALSCH_PORT: String(sftp.port),
+      PUBLISH_FALSCH_USER: sftp.user,
+      PUBLISH_FALSCH_PASSWORD: sftp.password,
+      PUBLISH_FALSCH_HOST_FINGERPRINT: "SHA256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+      PUBLISH_FALSCH_ROOT: "/falsch",
+      PUBLISH_FALSCH_BASE_URL: "https://falsch.example.com",
       MAIL_TOKEN,
       IMAP_HOST: "127.0.0.1",
       IMAP_PORT: "1",
@@ -203,7 +211,8 @@ describe("targets", () => {
       targets: [
         { name: "blog", baseUrl: "https://blog.example.com", siteTitle: "Schreibstube" },
         { name: "notizen", baseUrl: "https://notizen.example.com", siteTitle: "notizen" },
-        { name: "archiv", baseUrl: "https://archiv.example.com", siteTitle: "archiv" }
+        { name: "archiv", baseUrl: "https://archiv.example.com", siteTitle: "archiv" },
+        { name: "falsch", baseUrl: "https://falsch.example.com", siteTitle: "falsch" }
       ]
     });
   });
@@ -460,5 +469,17 @@ describe("a state directory inside the web root", () => {
   it("is not written where the state lies outside the web root", async () => {
     expect((await upload("blog")).status).toBe(200);
     expect(await readdir(join(sftp.root, "state"))).not.toContain(".htaccess");
+  });
+});
+
+describe("a host key that does not match", () => {
+  it("is refused, naming the key type the server presented", async () => {
+    const response = await post("/publish/diagnostics", { target: "falsch" });
+    expect(response.status).toBe(200);
+    expect(response.json.ok).toBe(false);
+    expect(response.json.error).toMatch(/^Host key mismatch/);
+    // The fixture holds only an RSA key, so that is what the bridge is shown.
+    expect(response.json.error).toContain(`presented ssh-rsa ${sftp.fingerprint}`);
+    expect(response.json.error).toContain("must be the ssh-rsa one");
   });
 });

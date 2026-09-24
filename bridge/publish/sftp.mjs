@@ -28,6 +28,23 @@ export function fingerprintOf(key) {
   return `SHA256:${createHash("sha256").update(key).digest("base64").replace(/=+$/, "")}`;
 }
 
+/**
+ * The algorithm a raw SSH public key blob names, such as `ssh-ed25519`.
+ *
+ * A server holds several host keys, and which one a client is shown depends
+ * on the client: this library prefers ED25519, then ECDSA, then RSA. A
+ * fingerprint read for another type can never match, so the mismatch says
+ * which type was presented rather than leaving that to be guessed.
+ */
+export function keyTypeOf(key) {
+  const blob = Buffer.isBuffer(key) ? key : Buffer.from(key ?? []);
+  if (blob.length < 4) return "unknown";
+  const length = blob.readUInt32BE(0);
+  if (length === 0 || length > 64 || blob.length < 4 + length) return "unknown";
+  const name = blob.subarray(4, 4 + length).toString("latin1");
+  return /^[a-z0-9@.-]+$/i.test(name) ? name : "unknown";
+}
+
 export function fingerprintsMatch(presented, configured) {
   const normalise = (value) =>
     String(value)
@@ -40,6 +57,7 @@ export function fingerprintsMatch(presented, configured) {
 export async function connect(target) {
   const client = new Client();
   let presented = null;
+  let presentedType = null;
 
   try {
     await client.connect({
@@ -51,6 +69,7 @@ export async function connect(target) {
       readyTimeout: target.timeoutMs,
       hostVerifier: (key) => {
         presented = fingerprintOf(key);
+        presentedType = keyTypeOf(key);
         return fingerprintsMatch(presented, target.fingerprint);
       }
     });
@@ -58,7 +77,8 @@ export async function connect(target) {
     if (presented && !fingerprintsMatch(presented, target.fingerprint)) {
       throw new SftpError(
         `Host key mismatch for ${target.host}. Configured ${target.fingerprint}, ` +
-          `server presented ${presented}. Refusing to connect.`
+          `server presented ${presentedType} ${presented}. Refusing to connect. ` +
+          `A fingerprint read with ssh-keyscan must be the ${presentedType} one.`
       );
     }
     throw new SftpError(`Cannot reach ${target.host}: ${err.message}`);

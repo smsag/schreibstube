@@ -175,8 +175,19 @@ image and checks that both halves of that happened.
 
 Copy `.env.example` and fill it in. To offer publishing, set `PUBLISH_TOKEN`,
 `PUBLISH_TARGETS`, and one block of variables per target — host, user, a key or
-a password, the host fingerprint, the web root and the site URL. Read the
-fingerprint with `ssh-keyscan -t rsa your-host | ssh-keygen -lf -`.
+a password, the host fingerprint, the web root and the site URL.
+
+**The fingerprint is the ED25519 key's.** A server holds several host keys, and
+the bridge is shown the ED25519 one where the server has it, else ECDSA, else
+RSA. List them all:
+
+```bash
+ssh-keyscan your-host | ssh-keygen -lf -
+```
+
+and take the line ending in `(ED25519)`; if there is none, `(ECDSA)`; `(RSA)`
+only when it is the only one. A fingerprint of another type never matches, and
+the bridge refuses with a message naming the type it was shown.
 
 To offer mail, set `MAIL_TOKEN`,
 `IMAP_HOST`, `SMTP_HOST`, `MAIL_USER`, `MAIL_PASSWORD` and `MAIL_FROM`;
