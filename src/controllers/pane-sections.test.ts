@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Platform } from "obsidian";
-import { PaneSectionsController } from "./pane-sections";
+import { PaneSectionsController, RETIRED_STORAGE_KEYS } from "./pane-sections";
 import { fakeVault } from "../testing/fake-app";
 import { DEFAULT_SETTINGS } from "../services/plugin-settings";
 import type { SchreibstubeSettings } from "../types";
@@ -12,7 +12,9 @@ function fakeStorage() {
   return {
     store,
     loadLocalStorage: (key: string) => store.get(key) ?? null,
-    saveLocalStorage: (key: string, value: unknown) => void store.set(key, value)
+    // Obsidian clears an entry saved as null, so the fake does too.
+    saveLocalStorage: (key: string, value: unknown) =>
+      void (value === null ? store.delete(key) : store.set(key, value))
   };
 }
 
@@ -209,5 +211,81 @@ describe("opening a note from the recent lists", () => {
     const { pane, getLeaf } = opener();
     await pane.openLatest("Quellen/Eins.md", "window");
     expect(getLeaf).toHaveBeenCalledWith("tab");
+  });
+});
+
+describe("what earlier versions left on a device", () => {
+  it("clears the recently opened bookmarks on start", async () => {
+    const storage = fakeStorage();
+    storage.store.set("schreibstube:bookmarks:recent", ["https://example.com"]);
+    const { pane } = controllerFor({}, storage);
+
+    await pane.start();
+
+    expect(storage.store.has("schreibstube:bookmarks:recent")).toBe(false);
+  });
+
+  it("writes nothing on a device that holds none of it", async () => {
+    const storage = fakeStorage();
+    const save = vi.spyOn(storage, "saveLocalStorage");
+    const { pane } = controllerFor({}, storage);
+
+    await pane.start();
+
+    for (const key of RETIRED_STORAGE_KEYS) {
+      expect(save).not.toHaveBeenCalledWith(key, null);
+    }
+  });
+});
+
+describe("the icon of a plugin a bookmark calls", () => {
+  const PYTHIA = {
+    id: "p",
+    name: "Resume",
+    url: "obsidian://pythia?vault=Vault%202.0&cmd=resume&id=71b2",
+    kind: "obsidian" as const
+  };
+
+  function withCommands(commands: Record<string, unknown>) {
+    const { pane } = controllerFor({});
+    (pane as unknown as { app: { commands: unknown } }).app.commands = { commands };
+    return pane;
+  }
+
+  it("reads the icon off the plugin's commands", () => {
+    const pane = withCommands({
+      "pythia:open": { id: "pythia:open", icon: "pythia-logo" },
+      "pythia:star": { id: "pythia:star", icon: "star" },
+      "pythia:new": { id: "pythia:new", icon: "pythia-logo" }
+    });
+
+    expect(pane.pluginIconFor(PYTHIA)).toBe("pythia-logo");
+  });
+
+  it("prefers the plugin's ribbon button to its commands", () => {
+    const pane = withCommands({ "pythia:open": { id: "pythia:open", icon: "pythia-logo" } });
+    const app = (pane as unknown as { app: { workspace?: unknown } }).app;
+    app.workspace = { leftRibbon: { items: [{ id: "pythia:Pythia", icon: "pythia-ribbon" }] } };
+
+    expect(pane.pluginIconFor(PYTHIA)).toBe("pythia-ribbon");
+  });
+
+  it("has none for a link Obsidian answers itself, or one of another kind", () => {
+    const pane = withCommands({ "open:x": { id: "open:x", icon: "star" } });
+
+    expect(
+      pane.pluginIconFor({ ...PYTHIA, url: "obsidian://open?vault=Vault&file=Note" })
+    ).toBeNull();
+    expect(pane.pluginIconFor({ ...PYTHIA, url: "https://example.com", kind: "web" })).toBeNull();
+  });
+
+  it("finds the icon of a plugin that loaded after the first look", () => {
+    const pane = withCommands({});
+    expect(pane.pluginIconFor(PYTHIA)).toBeNull();
+
+    (pane as unknown as { app: { commands: unknown } }).app.commands = {
+      commands: { "pythia:open": { id: "pythia:open", icon: "pythia-logo" } }
+    };
+    expect(pane.pluginIconFor(PYTHIA)).toBe("pythia-logo");
   });
 });

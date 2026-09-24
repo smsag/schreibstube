@@ -1,17 +1,10 @@
 /**
- * What "latest" means, given a vault.
+ * What "latest" means, given a vault: the notes whose source last changed.
  *
- * Three lists: the notes whose source last changed, the notes most recently
- * created, and the notes most recently changed. They overlap almost completely
- * in a young vault, because a note created ten minutes ago was also changed ten
- * minutes ago, and a section that shows the same five notes three times is a
- * section nobody reads. So each list is drawn from what the lists above it did
- * not already take, and a note updated by its source is claimed by that list
- * first: it is the most specific thing that can be said about why it moved.
- *
- * Only Markdown counts. An attachment written by a paste is the most recently
- * created file in the vault more often than any note is, and it is never what
- * the person was looking for.
+ * One list, of the notes a Document sync source has moved and that still wait
+ * to be looked at. A note created or edited in the vault is already at the top
+ * of Obsidian's own recent files; what the pane can say that nothing else does
+ * is that something outside the vault changed it.
  */
 
 /** One vault file, reduced to what the ordering needs. */
@@ -19,8 +12,6 @@ export interface LatestCandidate {
   path: string;
   /** What the row shows: the note's basename, not its path. */
   name: string;
-  createdAt: number;
-  modifiedAt: number;
   /**
    * When this note's source was last seen to have changed, if it mirrors one.
    *
@@ -33,17 +24,12 @@ export interface LatestCandidate {
 export interface LatestSelection {
   /** Mirrored notes whose source changed, newest first. */
   synced: LatestCandidate[];
-  created: LatestCandidate[];
-  modified: LatestCandidate[];
 }
 
 export interface LatestOptions {
-  /** How many rows each subsection shows. */
+  /** How many rows the list shows. */
   count: number;
-  /**
-   * Paths never shown: a file, or a folder standing for everything under it.
-   * The bookmarks file is the usual single file.
-   */
+  /** Paths never shown: a file, or a folder standing for everything under it. */
   excluded?: ReadonlySet<string>;
 }
 
@@ -86,35 +72,18 @@ export function selectLatest(
   candidates: readonly LatestCandidate[],
   { count, excluded }: LatestOptions
 ): LatestSelection {
-  if (count <= 0) return { synced: [], created: [], modified: [] };
+  if (count <= 0) return { synced: [] };
 
   // Normalised once rather than per file: the list is a handful of entries and
   // the vault is thousands of notes.
   const barred = excluded && excluded.size > 0 ? normalizeExcluded(excluded) : [];
 
-  const eligible =
-    barred.length > 0
-      ? candidates.filter((file) => !isExcluded(file.path, barred))
-      : [...candidates];
-
-  const synced = eligible
-    .filter((file) => file.syncedAt !== undefined)
+  const synced = candidates
+    .filter((file) => file.syncedAt !== undefined && !isExcluded(file.path, barred))
     .sort((a, b) => (b.syncedAt ?? 0) - (a.syncedAt ?? 0) || compareName(a, b))
     .slice(0, count);
 
-  const taken = new Set(synced.map((file) => file.path));
-  const created = eligible
-    .filter((file) => !taken.has(file.path))
-    .sort((a, b) => b.createdAt - a.createdAt || compareName(a, b))
-    .slice(0, count);
-
-  for (const file of created) taken.add(file.path);
-  const modified = eligible
-    .filter((file) => !taken.has(file.path))
-    .sort((a, b) => b.modifiedAt - a.modifiedAt || compareName(a, b))
-    .slice(0, count);
-
-  return { synced, created, modified };
+  return { synced };
 }
 
 /**

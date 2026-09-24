@@ -9,8 +9,7 @@
  * It is a Markdown file in the vault, written by hand. Two consequences follow
  * and both are deliberate. Nothing here writes: the pane shows what the file
  * says and a person edits the file, so there is no second writer to reconcile
- * and no conflict a sync client has to resolve. And the format stays the one
- * Launchpad used, so an existing `bookmarks.md` is read as it stands.
+ * and no conflict a sync client has to resolve.
  *
  * ```markdown
  * # Work
@@ -19,16 +18,18 @@
  *
  * ## Design
  * - [[Design Brief]]
+ * - [Weekly review](Reviews/Weekly%20review.md)
  * ```
  *
  * A heading opens a folder, a second-level heading opens a subfolder, a list
- * item is a bookmark, and anything else is ignored rather than reported. A file
+ * item is a bookmark, and anything else is ignored rather than reported. A
+ * Markdown link without a scheme is a note, because that is what Obsidian
+ * writes for one when wikilinks are turned off. A file
  * a person types into by hand has to tolerate the lines they did not mean as
  * bookmarks.
  */
 
-/** Where the file sits unless a setting says otherwise. Launchpad's default,
- *  so a vault that already has one is picked up without being told. */
+/** Where the file sits unless a setting says otherwise. */
 export const BOOKMARK_FILE_DEFAULT = "bookmarks.md";
 
 /**
@@ -79,7 +80,8 @@ const SCHEMES: ReadonlyArray<{ prefix: string; kind: BookmarkKind }> = [
   { prefix: "note://", kind: "note" }
 ];
 
-/** The icon each kind gets in the pane, from the bundled set. */
+/** The icon each kind gets from the bundled set: the globe a web link wears,
+ *  and what the others fall back to when Obsidian cannot draw theirs. */
 const KIND_ICONS: Record<BookmarkKind, string> = {
   web: "world",
   obsidian: "external-link",
@@ -103,8 +105,38 @@ const ITEM = /^\s*[-*]\s+\[(.+?)\]\((.+)\)\s*$/;
 /** `- [[Note]]` and `- [[Note|Label]]`, which is what a person types by hand. */
 const WIKILINK = /^\s*[-*]\s+\[\[([^\]|]+)(?:\|([^\]]+))?\]\]\s*$/;
 
-export function bookmarkIcon(kind: BookmarkKind): string {
-  return KIND_ICONS[kind];
+/** Any scheme at all, allowed or not: `mailto:` and `javascript:` included. */
+const ANY_SCHEME = /^[a-z][a-z0-9+.-]*:/i;
+
+/**
+ * Obsidian's icon for everything the vault answers: Lucide's shelf of books,
+ * the one Pythia's vault-context toggle wears. One icon for notes, folders and
+ * Obsidian's own links, because to the person tapping them they are all the
+ * same thing — somewhere in the vault, not somewhere on the web.
+ */
+export const VAULT_ICON = "library";
+
+/** How a bookmark's icon is drawn. */
+export type BookmarkGlyph =
+  /** From the bundled set, which the pane's own font draws. */
+  | { from: "bundled"; name: string }
+  /** By Obsidian, the first name it knows; `fallback` from the bundled set if it knows none. */
+  | { from: "obsidian"; names: string[]; fallback: string };
+
+/**
+ * Three kinds of icon, and nothing else: a web link wears the globe, a link
+ * calling a plugin wears that plugin's icon, and everything else wears the
+ * vault's. A plugin whose icon Obsidian turns out not to know falls back to
+ * the vault's too, because its link is still one Obsidian answers.
+ */
+export function bookmarkGlyph(bookmark: Bookmark, plugin: string | null): BookmarkGlyph {
+  if (bookmark.kind === "web") return { from: "bundled", name: KIND_ICONS.web };
+
+  return {
+    from: "obsidian",
+    names: plugin !== null ? [plugin, VAULT_ICON] : [VAULT_ICON],
+    fallback: KIND_ICONS[bookmark.kind]
+  };
 }
 
 export function emptyBookmarkTree(): BookmarkTree {
@@ -174,7 +206,8 @@ function parseItem(line: string): Bookmark | null {
   if (!item) return null;
 
   const name = clean(item[1] ?? "");
-  const url = clean(item[2] ?? "");
+  // Obsidian wraps a link target holding a space in angle brackets.
+  const url = clean(item[2] ?? "").replace(/^<(.*)>$/, "$1");
   if (name.length === 0 || url.length === 0) return null;
 
   const inner = url.match(/^\[\[([^\]|]+)(?:\|[^\]]+)?\]\]$/);
@@ -184,13 +217,118 @@ function parseItem(line: string): Bookmark | null {
   }
 
   const kind = classifyBookmarkUrl(url);
-  return kind ? { name, url, kind } : null;
+  if (kind) return { name, url, kind };
+
+  const linkpath = markdownLinkPath(url);
+  return linkpath ? { name, url: `note://${linkpath}`, kind: "note" } : null;
+}
+
+/**
+ * The note a scheme-less link target names, as a link path: `Today%20I%20learned.md`
+ * is `Today I learned`. Null for anything that has a scheme, which the allow-list
+ * has already refused, and for `//host` and a bare `#heading`, which name no note.
+ */
+function markdownLinkPath(target: string): string | null {
+  if (ANY_SCHEME.test(target) || target.startsWith("//")) return null;
+
+  let path = target.split("#")[0] ?? "";
+  try {
+    path = decodeURIComponent(path);
+  } catch {
+    // A hand-typed percent sign is not an escape; the path is read as written.
+  }
+
+  path = clean(path)
+    .replace(/^\.?\//, "")
+    .replace(/\.md$/i, "");
+  return path.length > 0 ? path : null;
 }
 
 /** The kind of a URL, or null when the scheme is not one that may be opened. */
 export function classifyBookmarkUrl(url: string): BookmarkKind | null {
   const match = SCHEMES.find((scheme) => url.toLowerCase().startsWith(scheme.prefix));
   return match?.kind ?? null;
+}
+
+/**
+ * The actions Obsidian answers itself. Any other `obsidian://` action was
+ * registered by a plugin, which is what lets its row wear that plugin's icon.
+ */
+const BUILT_IN_ACTIONS: ReadonlySet<string> = new Set([
+  "open",
+  "new",
+  "search",
+  "daily",
+  "unique",
+  "choose-vault",
+  "hook-get-address",
+  "vault"
+]);
+
+/**
+ * A ribbon button or a command, as the icon lookup needs it: its id, which
+ * Obsidian prefixes with the plugin's own (`pythia:…`), and whatever it named
+ * as icon.
+ */
+export interface RegisteredIcon {
+  id: string;
+  icon?: unknown;
+}
+
+/** Where a plugin's icon can be read off, best first. */
+export interface PluginIconSources {
+  ribbon?: readonly RegisteredIcon[];
+  commands?: readonly RegisteredIcon[];
+}
+
+/**
+ * The plugin action an `obsidian://` bookmark calls: `pythia` for
+ * `obsidian://pythia?vault=…`. Null for anything else, and for an action
+ * Obsidian answers itself.
+ */
+export function obsidianUriAction(url: string): string | null {
+  if (classifyBookmarkUrl(url) !== "obsidian") return null;
+
+  const action = (url.slice("obsidian://".length).split(/[?#/]/)[0] ?? "").toLowerCase();
+  return action.length > 0 && !BUILT_IN_ACTIONS.has(action) ? action : null;
+}
+
+/**
+ * The icon a plugin draws itself with.
+ *
+ * Obsidian keeps no icon per plugin, so it is read off what the plugin put on
+ * screen. Its ribbon button first: that is where a plugin shows itself, and a
+ * plugin that puts no icon on its commands usually still has one. Its commands
+ * after that. Within either, the icon named most stands for the plugin — a
+ * command's own "star" or "refresh" loses to the logo on the others — and a
+ * tie goes to the one registered first. Null when the plugin shows no icon,
+ * or is not there, and the row keeps the generic one.
+ */
+export function pluginIcon(sources: PluginIconSources, pluginId: string): string | null {
+  const prefix = `${pluginId}:`;
+  return (
+    mostNamedIcon(sources.ribbon ?? [], prefix) ?? mostNamedIcon(sources.commands ?? [], prefix)
+  );
+}
+
+function mostNamedIcon(items: readonly RegisteredIcon[], prefix: string): string | null {
+  const counts = new Map<string, number>();
+
+  for (const item of items) {
+    if (!item.id.startsWith(prefix)) continue;
+    if (typeof item.icon !== "string" || item.icon.trim().length === 0) continue;
+    counts.set(item.icon, (counts.get(item.icon) ?? 0) + 1);
+  }
+
+  let best: string | null = null;
+  let bestCount = 0;
+  for (const [icon, count] of counts) {
+    if (count > bestCount) {
+      best = icon;
+      bestCount = count;
+    }
+  }
+  return best;
 }
 
 /** Whether the tree holds anything at all, which decides the empty state. */

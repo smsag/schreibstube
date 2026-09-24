@@ -1,25 +1,17 @@
 /**
  * "Open bookmark", from the command palette.
  *
- * The pane is the place to browse; this is the place to go straight there. With
- * nothing typed it offers what was opened most recently on this device, then
- * everything else in the order the file has it — a list of links is remembered
- * by position, so re-sorting it alphabetically would make it harder to use, not
- * easier.
+ * The pane is the place to browse; this is the place to go straight there. The
+ * list keeps the order the file has it — a list of links is remembered by
+ * position, so re-sorting it would make it harder to use, not easier.
  */
 import { SuggestModal, type App } from "obsidian";
 import { t } from "../i18n";
 import type { PaneSectionsController } from "../controllers/pane-sections";
-import { bookmarkIcon, type BookmarkEntry } from "../services/bookmark-file";
-import { applyIcon, installIconFont } from "./icon-font";
+import { bookmarkGlyph, type Bookmark, type BookmarkEntry } from "../services/bookmark-file";
+import { applyIcon, applyObsidianIcon, installIconFont } from "./icon-font";
 
-interface Suggestion {
-  entry: BookmarkEntry;
-  /** Shown as the aux line: where the bookmark sits, or that it is recent. */
-  recent: boolean;
-}
-
-export class BookmarkQuickOpenModal extends SuggestModal<Suggestion> {
+export class BookmarkQuickOpenModal extends SuggestModal<BookmarkEntry> {
   constructor(
     app: App,
     private readonly sections: PaneSectionsController
@@ -29,43 +21,30 @@ export class BookmarkQuickOpenModal extends SuggestModal<Suggestion> {
     installIconFont(this.containerEl.doc);
   }
 
-  getSuggestions(query: string): Suggestion[] {
+  getSuggestions(query: string): BookmarkEntry[] {
     const needle = query.trim().toLowerCase();
-    const all = this.sections.bookmarkEntries();
-
-    if (needle.length === 0) {
-      const recent = this.sections.recentBookmarks();
-      const seen = new Set(recent.map((entry) => entry.bookmark.url));
-
-      return [
-        ...recent.map((entry) => ({ entry, recent: true })),
-        ...all
-          .filter((entry) => !seen.has(entry.bookmark.url))
-          .map((entry) => ({ entry, recent: false }))
-      ];
-    }
-
-    return all.filter((entry) => matches(entry, needle)).map((entry) => ({ entry, recent: false }));
+    return this.sections.bookmarkEntries().filter((entry) => matches(entry, needle));
   }
 
-  renderSuggestion({ entry, recent }: Suggestion, el: HTMLElement): void {
+  renderSuggestion(entry: BookmarkEntry, el: HTMLElement): void {
     el.addClass("schreibstube-bookmark-suggestion");
 
-    applyIcon(
+    drawBookmarkIcon(
       el.createSpan({ cls: "schreibstube-explorer-glyph" }),
-      bookmarkIcon(entry.bookmark.kind)
+      entry.bookmark,
+      this.sections.pluginIconFor(entry.bookmark)
     );
 
     const text = el.createDiv({ cls: "schreibstube-bookmark-suggestion-text" });
     text.createDiv({ text: entry.bookmark.name });
 
-    const aside = recent
-      ? t().explorer.bookmarks.recent
-      : entry.folderPath || t().explorer.bookmarks.all;
-    text.createDiv({ cls: "schreibstube-bookmark-suggestion-path", text: aside });
+    text.createDiv({
+      cls: "schreibstube-bookmark-suggestion-path",
+      text: entry.folderPath || t().explorer.bookmarks.all
+    });
   }
 
-  onChooseSuggestion({ entry }: Suggestion): void {
+  onChooseSuggestion(entry: BookmarkEntry): void {
     this.sections.openBookmark(entry.bookmark);
   }
 }
@@ -79,4 +58,15 @@ function matches(entry: BookmarkEntry, needle: string): boolean {
     entry.folderPath.toLowerCase().includes(needle) ||
     entry.bookmark.url.toLowerCase().includes(needle)
   );
+}
+
+/**
+ * A bookmark's icon: the globe for the web, the plugin's own for a link that
+ * calls one, the vault's for everything else. Shared with the pane, so a
+ * bookmark looks the same in both places.
+ */
+export function drawBookmarkIcon(el: HTMLElement, bookmark: Bookmark, plugin: string | null): void {
+  const glyph = bookmarkGlyph(bookmark, plugin);
+  if (glyph.from === "bundled") applyIcon(el, glyph.name);
+  else applyObsidianIcon(el, glyph.names, glyph.fallback);
 }

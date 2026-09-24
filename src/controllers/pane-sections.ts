@@ -1,5 +1,5 @@
 /**
- * The two lists above the file tree: bookmarks, and what was written lately.
+ * The two lists above the file tree: bookmarks, and the notes a source changed.
  *
  * They sit in one controller because they are the same kind of thing. Neither
  * writes anything, both are a snapshot of the vault re-derived when the vault
@@ -22,12 +22,15 @@ import {
   bookmarkLinkPath,
   emptyBookmarkTree,
   flattenBookmarks,
+  obsidianUriAction,
   parseBookmarkFile,
+  pluginIcon,
   type Bookmark,
   type BookmarkEntry,
   type BookmarkTree
 } from "../services/bookmark-file";
 import { hasWaitingUpdate, type SyncRecord } from "../services/sync-document";
+import { registeredCommands, registeredRibbonItems } from "../services/workspace-internals";
 import {
   hasUnseenSync,
   newestSync,
@@ -37,27 +40,22 @@ import {
   type LatestSelection
 } from "../services/latest-files";
 
-/** How many opened bookmarks the quick-open list remembers. */
-export const RECENT_BOOKMARKS_MAX = 5;
-
-/**
- * Where the recents live.
- *
- * Obsidian's local storage is per device and per vault, which is what this
- * wants: a phone and a laptop each keep their own recents, and neither writes
- * to the bookmarks file to do it.
- */
-const RECENTS_KEY = "schreibstube:bookmarks:recent";
-
 /**
  * Where the mark's "already seen" lives.
  *
- * Device-local for the same reason the recents are: having looked at something
- * is a fact about a person at a screen, not about the vault. A change noticed on
- * the laptop is still news on the phone, and a mark that cleared itself on one
- * device would be a mark nobody ever saw.
+ * Obsidian's local storage is per device and per vault, which is what this
+ * wants: having looked at something is a fact about a person at a screen, not
+ * about the vault. A change noticed on the laptop is still news on the phone,
+ * and a mark that cleared itself on one device would be a mark nobody ever saw.
  */
 const LATEST_SEEN_KEY = "schreibstube:latest:seen";
+
+/**
+ * What earlier versions kept on a device and nothing reads any more: the
+ * bookmarks opened last, which "Open bookmark" once offered first. Cleared on
+ * start so an update leaves nothing of it behind.
+ */
+export const RETIRED_STORAGE_KEYS: readonly string[] = ["schreibstube:bookmarks:recent"];
 
 /** The subset of Obsidian's App that keeps device-local state. Older builds
  *  may not have it, so every use is feature-detected. */
@@ -71,12 +69,14 @@ export class PaneSectionsController {
   private loadedPath: string | null = null;
   private loading = false;
   private staleWhileLoading = false;
-  private recents: string[] = [];
 
   private latest: LatestSelection | null = null;
   private latestKey = "";
   /** Null until this device has said what it has seen, which is not zero. */
   private seenAt: number | null = null;
+  /** Found icons only: a plugin loading after this one has none yet, and a
+   *  miss remembered would keep its row generic for the whole session. */
+  private readonly pluginIcons = new Map<string, string>();
 
   private readonly listeners = new Set<() => void>();
 
@@ -90,7 +90,7 @@ export class PaneSectionsController {
   ) {}
 
   async start(): Promise<void> {
-    this.recents = this.readRecents();
+    this.clearRetiredStorage();
     this.seenAt = this.readSeenAt();
     await this.reload();
   }
@@ -185,8 +185,6 @@ export class PaneSectionsController {
    * known-good target opens rather than whether it may open at all.
    */
   openBookmark(bookmark: Bookmark): void {
-    this.rememberRecent(bookmark.url);
-
     switch (bookmark.kind) {
       case "web":
         window.open(bookmark.url, "_blank", "noopener,noreferrer");
@@ -201,6 +199,26 @@ export class PaneSectionsController {
         void this.openNote(bookmark);
         return;
     }
+  }
+
+  /**
+   * The icon of the plugin an `obsidian://` bookmark calls, when it has one:
+   * `obsidian://pythia?…` wears Pythia's own logo rather than a generic arrow.
+   * Null for every other bookmark, and the row keeps the icon of its kind.
+   */
+  pluginIconFor(bookmark: Bookmark): string | null {
+    const action = obsidianUriAction(bookmark.url);
+    if (action === null) return null;
+
+    const known = this.pluginIcons.get(action);
+    if (known !== undefined) return known;
+
+    const icon = pluginIcon(
+      { ribbon: registeredRibbonItems(this.app), commands: registeredCommands(this.app) },
+      action
+    );
+    if (icon !== null) this.pluginIcons.set(action, icon);
+    return icon;
   }
 
   private revealFolder(bookmark: Bookmark): void {
@@ -220,7 +238,9 @@ export class PaneSectionsController {
 
   private async openNote(bookmark: Bookmark): Promise<void> {
     const linkpath = bookmarkLinkPath(bookmark.url);
-    const file = this.app.metadataCache.getFirstLinkpathDest(linkpath, "");
+    // Resolved from the file the link is written in, as Obsidian resolves it,
+    // so a relative link beside a bookmarks file in a subfolder still finds it.
+    const file = this.app.metadataCache.getFirstLinkpathDest(linkpath, this.bookmarksPath());
 
     if (!file) {
       new Notice(t().common.notice(t().explorer.bookmarks.missingNote(linkpath)));
@@ -230,53 +250,10 @@ export class PaneSectionsController {
     await this.app.workspace.getLeaf(false).openFile(file);
   }
 
-  /** The bookmarks opened most recently on this device, newest first. */
-  recentBookmarks(): BookmarkEntry[] {
-    const entries = this.bookmarkEntries();
-    return this.recents
-      .map((url) => entries.find((entry) => entry.bookmark.url === url))
-      .filter((entry): entry is BookmarkEntry => entry !== undefined);
-  }
-
-  private rememberRecent(url: string): void {
-    this.recents = [url, ...this.recents.filter((value) => value !== url)].slice(
-      0,
-      RECENT_BOOKMARKS_MAX
-    );
-    this.writeRecents();
-  }
-
-  private readRecents(): string[] {
-    const storage = this.app as unknown as LocalStorageApi;
-    if (typeof storage.loadLocalStorage !== "function") return [];
-
-    try {
-      const raw = storage.loadLocalStorage(RECENTS_KEY);
-      if (!Array.isArray(raw)) return [];
-      return raw
-        .filter((value): value is string => typeof value === "string")
-        .slice(0, RECENT_BOOKMARKS_MAX);
-    } catch (error) {
-      this.logger.debug("Could not read the recent bookmarks:", error);
-      return [];
-    }
-  }
-
-  private writeRecents(): void {
-    const storage = this.app as unknown as LocalStorageApi;
-    if (typeof storage.saveLocalStorage !== "function") return;
-
-    try {
-      storage.saveLocalStorage(RECENTS_KEY, this.recents);
-    } catch (error) {
-      this.logger.debug("Could not store the recent bookmarks:", error);
-    }
-  }
-
   // --- latest -------------------------------------------------------------
 
   /**
-   * The three recent-note lists.
+   * The notes whose source changed.
    *
    * Computed on demand and kept until something changes it, because the pane
    * redraws on every vault event and a vault of a few thousand notes cannot be
@@ -294,12 +271,9 @@ export class PaneSectionsController {
 
     if (this.latest && key === this.latestKey) return this.latest;
 
-    const excluded = parseExcludedPaths(settings.explorerLatestExcluded);
-    excluded.add(this.bookmarksPath());
-
     this.latest = selectLatest(this.candidates(), {
       count: settings.explorerLatestCount,
-      excluded
+      excluded: parseExcludedPaths(settings.explorerLatestExcluded)
     });
     this.latestKey = key;
     return this.latest;
@@ -349,6 +323,25 @@ export class PaneSectionsController {
     this.emit();
   }
 
+  private clearRetiredStorage(): void {
+    const storage = this.app as unknown as LocalStorageApi;
+    if (
+      typeof storage.loadLocalStorage !== "function" ||
+      typeof storage.saveLocalStorage !== "function"
+    ) {
+      return;
+    }
+
+    for (const key of RETIRED_STORAGE_KEYS) {
+      try {
+        // Read first, so a device already clean is not written to on every start.
+        if (storage.loadLocalStorage(key) !== null) storage.saveLocalStorage(key, null);
+      } catch (error) {
+        this.logger.debug(`Could not clear ${key}:`, error);
+      }
+    }
+  }
+
   private readSeenAt(): number | null {
     const storage = this.app as unknown as LocalStorageApi;
     if (typeof storage.loadLocalStorage !== "function") return null;
@@ -376,21 +369,20 @@ export class PaneSectionsController {
   private candidates(): LatestCandidate[] {
     const syncState = this.getSettings().syncState;
 
-    return this.app.vault.getMarkdownFiles().map((file) => {
+    const candidates: LatestCandidate[] = [];
+
+    for (const file of this.app.vault.getMarkdownFiles()) {
       // Listed under "updated externally" only while the update is still to be
       // taken: a note already level with its source has nothing for "Quelle
       // prüfen" to show, and a row and a mark promising otherwise were the
       // pane saying something the panel then denied.
       const record = syncState[file.path];
       const syncedAt = hasWaitingUpdate(record) ? record?.changedAt : undefined;
-      return {
-        path: file.path,
-        name: file.basename,
-        createdAt: file.stat.ctime,
-        modifiedAt: file.stat.mtime,
-        ...(syncedAt !== undefined ? { syncedAt } : {})
-      };
-    });
+      if (syncedAt !== undefined)
+        candidates.push({ path: file.path, name: file.basename, syncedAt });
+    }
+
+    return candidates;
   }
 
   async openLatest(path: string, where: PaneTarget = false): Promise<void> {
@@ -412,7 +404,7 @@ export class PaneSectionsController {
 }
 
 /**
- * A short stand-in for the sync records, so the recent lists notice a poll.
+ * A short stand-in for the sync records, so the Latest list notices a poll.
  *
  * The lists are cached until something changes them, and a source changing is
  * now one of those things — but it happens in the plugin's data file rather

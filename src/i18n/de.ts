@@ -337,16 +337,13 @@ export const de: Messages = {
       "ist ein Ordner, ein Listenpunkt ein Link.",
     explorerLatest: "Bereich Zuletzt",
     explorerLatestDesc:
-      "Drei kurze Listen zwischen Lesezeichen und Baum: Notizen, deren Quelle sich zuletzt " +
-      "geändert hat, die zuletzt erstellten und die zuletzt geänderten. Was als erstellt " +
-      "erscheint, wiederholt sich nicht als geändert.",
-    explorerLatestCount: "Notizen je Liste",
-    explorerLatestCountDesc: (max: number) =>
-      `Wie viele Notizen jede der beiden Listen zeigt (1 bis ${max}).`,
+      "Eine kurze Liste zwischen Lesezeichen und Baum: Notizen, deren Quelle im Dokument-Sync " +
+      "sich geändert hat und die noch nicht angesehen wurden.",
+    explorerLatestCount: "Angezeigte Notizen",
+    explorerLatestCountDesc: (max: number) => `Wie viele Notizen die Liste zeigt (1 bis ${max}).`,
     explorerLatestExclude: "Nie anzeigen",
     explorerLatestExcludeDesc:
-      "Vault-Pfade, durch Komma oder Zeilenumbruch getrennt. Ein Ordner schließt alles darin " +
-      "aus. Die Lesezeichen-Datei ist immer ausgenommen.",
+      "Vault-Pfade, durch Komma oder Zeilenumbruch getrennt. Ein Ordner schließt alles darin aus.",
     explorerTaskCounts: "Aufgabenzähler",
     explorerTaskCountsDesc:
       'Zeigt hinter dem Namen einer Notiz, wie viele Aufgaben sie enthält und wie viele davon offen sind, als "1 / 7". ' +
@@ -790,16 +787,13 @@ export const de: Messages = {
       copied: (path: string) => `${path} als Lesezeichen-Link kopiert.`,
       copyFailed: "die Zwischenablage steht hier nicht zur Verfügung.",
       quickOpen: "Lesezeichen suchen …",
-      recent: "Zuletzt geöffnet",
       all: "Alle Lesezeichen"
     },
 
     latest: {
       synced: "Extern aktualisiert",
       alert: "Eine Quelle wurde im Hintergrund aktualisiert",
-      created: "Erstellt",
-      modified: "Geändert",
-      empty: "Noch keine Notizen."
+      empty: "Keine Quelle hat sich geändert."
     },
 
     menu: {

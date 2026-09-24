@@ -12,6 +12,7 @@
  * glyph is then a change to the generated map rather than a migration of every
  * vault's icons.
  */
+import { setIcon } from "obsidian";
 import { ICON_CODEPOINTS, ICON_FONT_WOFF2, ICON_GROUPS } from "./icon-font.generated";
 
 export { ICON_FONT_VERSION } from "./icon-font.generated";
@@ -119,6 +120,27 @@ export function applyIcon(el: HTMLElement, name: string | undefined): boolean {
   const glyph = name ? ICON_CODEPOINTS[name] : undefined;
   el.setText(glyph ?? "");
   return glyph !== undefined;
+}
+
+/**
+ * An icon Obsidian draws — its own Lucide set, or one a plugin registered —
+ * trying each name in turn, and one of the bundled set when Obsidian knows
+ * none of them: a plugin disabled since, or an icon it never added.
+ */
+export function applyObsidianIcon(
+  el: HTMLElement,
+  names: readonly string[],
+  fallback: string
+): void {
+  for (const name of names) {
+    setIcon(el, name);
+    if (el.querySelector("svg")) {
+      el.addClass("is-obsidian-icon");
+      el.setAttribute("aria-hidden", "true");
+      return;
+    }
+  }
+  applyIcon(el, fallback);
 }
 
 /** Icons whose name or group matches, for the picker's search box. */

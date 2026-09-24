@@ -41,7 +41,6 @@ import { matchesText, type SearchHit } from "../services/file-search";
 import { FileSearchIndex } from "../services/search-index";
 import { sortSiblings, type ExplorerNode } from "../services/explorer-state";
 import {
-  bookmarkIcon,
   bookmarkLinkPath,
   isBookmarkTreeEmpty,
   type Bookmark,
@@ -91,6 +90,7 @@ import {
   type SectionId,
   type SectionOptions
 } from "./explorer-section";
+import { drawBookmarkIcon } from "./bookmark-quick-open";
 import { applyIcon, installIconFont } from "./icon-font";
 import { drawTaskCount } from "./task-count-label";
 import { SCHREIBSTUBE_ICON } from "./schreibstube-icon";
@@ -551,6 +551,7 @@ export class ExplorerPaneView extends ItemView {
   collapseAll(): void {
     this.expanded.clear();
     this.revealedFolders.clear();
+    this.browsed();
     this.writeMemory();
     this.requestRender();
   }
@@ -564,6 +565,7 @@ export class ExplorerPaneView extends ItemView {
   expandAll(paths: readonly string[] = folderPathsUnder(this.app.vault.getRoot())): void {
     for (const path of paths) this.expanded.add(path);
     this.collapsedSections.delete("files");
+    this.browsed();
     this.writeMemory();
     this.requestRender();
   }
@@ -685,6 +687,7 @@ export class ExplorerPaneView extends ItemView {
   }
 
   private toggleSection(id: SectionId, collapsed: boolean): void {
+    this.browsed();
     if (collapsed) {
       this.collapsedSections.delete(id);
     } else {
@@ -702,6 +705,7 @@ export class ExplorerPaneView extends ItemView {
    * that answered it by closing the list would be a joke.
    */
   private acknowledgeAlert(id: SectionId, alert: SectionAlert): void {
+    this.browsed();
     this.collapsedSections.delete(id);
     this.writeMemory();
     alert.acknowledge();
@@ -960,6 +964,7 @@ export class ExplorerPaneView extends ItemView {
     row.addEventListener("click", () => {
       if (this.collapsedBookmarks.has(key)) this.collapsedBookmarks.delete(key);
       else this.collapsedBookmarks.add(key);
+      this.browsed();
       this.writeMemory();
       this.requestRender();
     });
@@ -983,7 +988,7 @@ export class ExplorerPaneView extends ItemView {
     if (bookmark.kind === "note") {
       const target = this.app.metadataCache.getFirstLinkpathDest(
         bookmarkLinkPath(bookmark.url),
-        ""
+        this.host?.sections.bookmarksPath() ?? ""
       );
       if (target && this.host?.explorer.isTrashed(target.path)) return 0;
     }
@@ -994,7 +999,11 @@ export class ExplorerPaneView extends ItemView {
     row.setAttribute("title", bookmark.url);
 
     row.createSpan({ cls: "schreibstube-explorer-twisty" });
-    applyIcon(row.createSpan({ cls: "schreibstube-explorer-glyph" }), bookmarkIcon(bookmark.kind));
+    drawBookmarkIcon(
+      row.createSpan({ cls: "schreibstube-explorer-glyph" }),
+      bookmark,
+      this.host?.sections.pluginIconFor(bookmark) ?? null
+    );
     row.createSpan({ cls: "schreibstube-explorer-name", text: bookmark.name });
 
     row.addEventListener("click", () => {
@@ -1028,15 +1037,8 @@ export class ExplorerPaneView extends ItemView {
     });
     if (!body) return;
 
-    const { synced, created, modified } = sections.latestFiles();
     const labels = t().explorer.latest;
-
-    // The source having changed is the most specific thing that can be said
-    // about why a note moved, so it is said first.
-    const drawn =
-      this.renderLatestGroup(body, labels.synced, synced, true) +
-      this.renderLatestGroup(body, labels.created, created) +
-      this.renderLatestGroup(body, labels.modified, modified);
+    const drawn = this.renderLatestGroup(body, labels.synced, sections.latestFiles().synced);
 
     if (drawn === 0) {
       body.createEl("p", { cls: "schreibstube-explorer-empty", text: labels.empty });
@@ -1046,8 +1048,7 @@ export class ExplorerPaneView extends ItemView {
   private renderLatestGroup(
     host: HTMLElement,
     label: string,
-    files: readonly LatestCandidate[],
-    withBadge = false
+    files: readonly LatestCandidate[]
   ): number {
     const controller = this.host?.explorer;
     // A file deleted a moment ago is gone from the tree at once; it would be
@@ -1079,7 +1080,7 @@ export class ExplorerPaneView extends ItemView {
       // is waiting to be looked at or already in the note.
       const target = this.app.vault.getAbstractFileByPath(file.path);
       if (target instanceof TFile) {
-        if (withBadge) this.renderBadge(row, target);
+        this.renderBadge(row, target);
         this.renderTaskCount(row, target);
       }
 
@@ -1809,13 +1810,23 @@ export class ExplorerPaneView extends ItemView {
     } else {
       this.expanded.add(path);
     }
-    // A reveal still waiting for the pane to have a layout — a note opened
-    // while the sidebar was shut — would land on this draw, pulling the
-    // person away from the folder they are opening. Browsing is the answer
-    // to "where am I" they chose instead.
-    this.revealing = null;
+    this.browsed();
     this.writeMemory();
     this.requestRender();
+  }
+
+  /**
+   * The person folded or unfolded something by hand.
+   *
+   * A reveal still waiting for the pane to have a layout — a note opened while
+   * the sidebar was shut, which on a phone is every note — would land on the
+   * draw this causes and pull the person away from what they just opened or
+   * closed. Browsing is the answer to "where am I" they chose instead. Every
+   * fold goes through here, in the tree, the bookmarks and the section headers
+   * alike, so none of them can be the one that forgets.
+   */
+  private browsed(): void {
+    this.revealing = null;
   }
 
   private glyphFor(file: TAbstractFile): string {
