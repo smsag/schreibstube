@@ -2,7 +2,29 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## 1.46.0 - 2026-09-24
+
+Bookmarks that show what the file says. A bookmark written as Obsidian
+writes a note link without wikilinks — `[Name](Note.md)` — is shown and
+opens its note; a link to a heading opens the note there; task lines,
+deeper headings and `www.` addresses read as meant, and a long line can no
+longer hold up the pane. Every bookmark wears one of three grey icons: the
+globe for the web, the plugin's own for a link that calls one, the library
+for everything in the vault. "Open bookmark" keeps the file's order and
+remembers nothing, and folding a bookmark folder no longer throws the
+explorer to the open note. "Latest" becomes "Extern aktualisiert": only the
+notes a Document sync source changed, only while Document sync is on, and
+without settings of its own. Printing gets its standard fonts and a round
+of fixes, and a published site can carry a tab icon from its theme.
+
+Mobile checklist: not run. What a phone would answer differently: a
+`[[Note#Heading]]` bookmark opening scrolled to its heading, a tap on an
+`obsidian://` plugin link reaching the plugin, folding a bookmark folder
+right after opening a note leaving the pane where it was, and the plugin
+icons and the library icon drawing in the pane.
+
+The bridge moves to 2.8.0 for the site's tab icon; its protocol stays at 3,
+and bridge 2.7.0 still publishes for this release, without the icon.
 
 ### Added
 
