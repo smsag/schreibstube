@@ -34,7 +34,9 @@ export async function startSftpServer({ user = "web", password = "geheim" } = {}
     .digest("base64")
     .replace(/=+$/, "")}`;
 
+  let connections = 0;
   const server = new Server({ hostKeys: [privateKey] }, (client) => {
+    connections += 1;
     client
       .on("authentication", (context) => {
         const ok =
@@ -60,6 +62,10 @@ export async function startSftpServer({ user = "web", password = "geheim" } = {}
     fingerprint,
     user,
     password,
+    /** SSH connections opened so far, each one a login. */
+    get connections() {
+      return connections;
+    },
     async stop() {
       await new Promise((done) => server.close(done));
       await rm(root, { recursive: true, force: true });

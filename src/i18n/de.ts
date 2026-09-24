@@ -181,6 +181,8 @@ export const de: Messages = {
     emptyFolder: (folder: string) =>
       `${folder} enthält keine Notizen — bitte den Ordner des Kontos prüfen. Nichts wurde veröffentlicht oder entfernt.`,
     missingSource: (path: string) => `die Quelle zu ${path} fehlt — bitte erneut versuchen.`,
+    changedDuringPublish: (path: string) =>
+      `${path} wurde während der Veröffentlichung geändert — erneut veröffentlichen, um die neue Fassung zu senden.`,
     writeBackFailed: (path: string) =>
       `veröffentlicht, aber ${path} konnte nicht aktualisiert werden.`,
     unknownTarget: (target: string) => `die Bridge kennt kein Ziel namens ${target}.`,

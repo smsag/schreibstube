@@ -192,6 +192,8 @@ export const en = {
     emptyFolder: (folder: string) =>
       `${folder} holds no notes — check the account's folder. Nothing was published or taken down.`,
     missingSource: (path: string) => `the source for ${path} is missing — please try again.`,
+    changedDuringPublish: (path: string) =>
+      `${path} changed while publishing — publish again to send the new version.`,
     writeBackFailed: (path: string) => `published, but ${path} could not be updated.`,
     unknownTarget: (target: string) => `the bridge has no target named ${target}.`,
     connectionOk: (target: string, entries: number) =>

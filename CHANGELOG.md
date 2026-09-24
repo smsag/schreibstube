@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Changed
+
+- **Publishing from a phone no longer holds every picture in memory.** Before asking the bridge anything, publishing read every image and video the published notes show and kept all of them until the run was over, including the ones the site already had. On a phone, whose Obsidian runs with far less memory than a desktop, a site with a few hundred photos or a handful of videos could get the app closed in the middle of a publish. Attachments are now read to be hashed and let go, and read again only if the bridge asks for them. A file edited between the two readings stops the run with its name instead of being sent as something it no longer is.
+- **A first publish takes a fraction of the time.** Files were uploaded one after another, and the bridge logged in to the web host afresh for each of them: with three hundred notes, a first publish from a phone took minutes, long enough for the phone to pause the app halfway. The plugin now uploads three files at a time, and the bridge keeps its connection to the web host open while a publish is running, so it logs in once instead of once per file.
+
 ## 1.43.0 - 2026-09-24
 
 Publishing you can see, and a bridge that tells the truth. The explorer

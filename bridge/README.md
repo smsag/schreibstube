@@ -139,8 +139,11 @@ publish that already succeeded.
 `/publish/render` can rebuild the whole site after a template change with
 nothing uploaded and no vault in reach.
 
-Every write goes to a temporary name and is renamed over its target, so a reader
-never sees a half-written page. The host key is checked against a configured
+The requests of one publish share one SFTP connection per target, closed after
+fifteen seconds without use, so a first publish of many files logs in once
+rather than once per file; a connection that failed in a way that may have
+broken it is never reused. Every write goes to a temporary name and is renamed
+over its target, so a reader never sees a half-written page. The host key is checked against a configured
 fingerprint: a stateless container cannot trust on first use, because it would
 re-trust a new key after every restart.
 

@@ -31,6 +31,7 @@ import {
   resolveNote
 } from "../services/publish-index";
 import { PublishAccountModal, PublishPlanModal } from "../ui/publish-modals";
+import { mapLimit } from "../utils/map-limit";
 
 /**
  * The publish commands: preview a publish, run one, open the site.
@@ -112,26 +113,32 @@ export class PublishCommands {
 
       let done = 0;
       const total = plan.uploadSources.length + plan.uploadAssets.length;
+      const uploaded = (): void => {
+        done += 1;
+        notice.setMessage(t().common.notice(t().publish.uploading(done, total)));
+      };
 
-      for (const entry of plan.uploadSources) {
+      // A few at a time: over a phone's connection each upload is mostly
+      // waiting, and one after another a first publish took minutes — long
+      // enough for the phone to suspend the app in the middle of it.
+      await mapLimit(plan.uploadSources, UPLOAD_CONCURRENCY, async (entry) => {
         const content = sources.get(entry.sha256);
         if (!content) {
           throw new Error(t().publish.missingSource(entry.sourcePath));
         }
         await uploadSource(bridge, account.target, entry.sha256, content);
-        done += 1;
-        notice.setMessage(t().common.notice(t().publish.uploading(done, total)));
-      }
+        uploaded();
+      });
 
-      for (const entry of plan.uploadAssets) {
+      await mapLimit(plan.uploadAssets, UPLOAD_CONCURRENCY, async (entry) => {
         const asset = assets.get(entry.sha256);
         if (!asset) {
           throw new Error(t().publish.missingSource(entry.sourcePath));
         }
-        await uploadAsset(bridge, account.target, entry.sha256, asset.name, asset.content);
-        done += 1;
-        notice.setMessage(t().common.notice(t().publish.uploading(done, total)));
-      }
+        const content = await this.readAttachment(asset.path, entry.sha256);
+        await uploadAsset(bridge, account.target, entry.sha256, asset.name, content);
+        uploaded();
+      });
 
       notice.setMessage(t().common.notice(t().publish.building));
       const summary = await commitPublish(bridge, account.target, index);
@@ -184,6 +191,24 @@ export class PublishCommands {
   }
 
   /**
+   * An attachment's bytes, read again for its upload.
+   *
+   * The file may have changed since the plan hashed it. Sent as it is now, it
+   * would be refused for not matching the hash the bridge was promised, and
+   * the site would be built on a picture that is no longer the vault's; so the
+   * run stops and says which file moved under it.
+   */
+  private async readAttachment(path: string, sha256: string): Promise<ArrayBuffer> {
+    const file = this.app.vault.getAbstractFileByPath(path);
+    if (!(file instanceof TFile)) throw new Error(t().publish.missingSource(path));
+    const content = await this.app.vault.readBinary(file);
+    if ((await hash(new Uint8Array(content))) !== sha256) {
+      throw new Error(t().publish.changedDuringPublish(path));
+    }
+    return content;
+  }
+
+  /**
    * Everything in the folder that says it wants to be published.
    *
    * Only notes carrying the flag are read in full, and only the attachments
@@ -207,7 +232,7 @@ export class PublishCommands {
 
     const notes: PublishNote[] = [];
     const sources = new Map<string, ArrayBuffer>();
-    const assets = new Map<string, { name: string; content: ArrayBuffer }>();
+    const assets = new Map<string, { name: string; path: string }>();
     const assetEntries: PublishAsset[] = [];
     const resolved = [];
 
@@ -239,9 +264,13 @@ export class PublishCommands {
         if (!isPublishableAttachment(target.name, ATTACHMENT_EXTENSIONS)) continue;
         if (assetEntries.some((entry) => entry.sourcePath === target.path)) continue;
 
+        // Read to be hashed, then let go: the bytes are read again only if
+        // the bridge asks for them. Kept for the whole run, every picture a
+        // site shows sat in memory at once, which a phone's WebView does not
+        // survive for long.
         const data = await this.app.vault.readBinary(target);
         const assetHash = await hash(new Uint8Array(data));
-        assets.set(assetHash, { name: target.name, content: data });
+        assets.set(assetHash, { name: target.name, path: target.path });
         assetEntries.push({
           sourcePath: target.path,
           sha256: assetHash,
@@ -395,8 +424,15 @@ export class PublishCommands {
 interface Collected {
   index: PublishIndex;
   sources: Map<string, ArrayBuffer>;
-  assets: Map<string, { name: string; content: ArrayBuffer }>;
+  /** Where each attachment is, by hash — never its bytes, which can be large. */
+  assets: Map<string, { name: string; path: string }>;
 }
+
+/**
+ * Uploads in flight at once. Few, because the bytes of each are in memory
+ * until it is sent, and a video may weigh 25 MB on a phone.
+ */
+const UPLOAD_CONCURRENCY = 3;
 
 interface Prepared extends Collected {
   bridge: PublishBridgeConfig;

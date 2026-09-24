@@ -293,6 +293,24 @@ describe("a first publish", () => {
   });
 });
 
+describe("logging in", () => {
+  it("logs in once for a whole publish, not once per request", async () => {
+    // An edit, so the publish has an upload between its plan and its commit.
+    const text = "# Erste\n\nNoch einmal anders.\n";
+    const next = bothNotes();
+    next.notes[0].sha256 = sha256(text);
+
+    const before = sftp.connections;
+    const result = await publish(next, sources().set(sha256(text), text));
+    expect(result.status).toBe(200);
+    // Plan, upload and commit share one connection; one left open by an
+    // earlier test may even have been reused, which counts as none.
+    expect(sftp.connections - before).toBeLessThanOrEqual(1);
+
+    expect((await publish(bothNotes(), sources())).status).toBe(200);
+  });
+});
+
 describe("a second publish with no changes", () => {
   it("uploads nothing", async () => {
     const plan = await post("/publish/plan", { target: "blog", index: bothNotes() });
