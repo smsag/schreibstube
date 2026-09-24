@@ -302,9 +302,13 @@ describe("a second publish with no changes", () => {
   });
 
   it("writes nothing, because every page came out the same", async () => {
+    sftp.resetStats();
     const result = await publish(bothNotes(), sources());
     expect(result.json.written).toBe(0);
     expect(result.json.unchanged).toBeGreaterThan(0);
+    // The notes were uploaded through this bridge, so it renders them from
+    // memory instead of reading each one back from the host.
+    expect(sftp.stats.reads.filter((path) => path.includes("/src/"))).toEqual([]);
   });
 });
 

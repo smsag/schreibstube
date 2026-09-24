@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Changed
+
+- **Publishing a large site is quick again after the first time.** Every publish rendered the whole site, and read every stored note back from the web host to do it, one request after another: with three hundred notes, one edited sentence cost about twelve seconds of waiting. The bridge now keeps the notes it has uploaded or read in memory — a note is stored under the hash of its content, so a kept copy can never be out of date — and reads, writes and deletes several files at a time instead of one by one. Measured against a test server that answers every request ten milliseconds late, one edited note of three hundred went from 12.1 to 0.8 seconds, and the build step of a first publish from 45 to 7 seconds. The first publish after a redeploy reads the notes once, several at a time.
+
 ## 1.43.0 - 2026-09-24
 
 Publishing you can see, and a bridge that tells the truth. The explorer

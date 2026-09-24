@@ -114,6 +114,18 @@ as a real process and drives it over HTTP, because configuration is read and the
 port bound at import time, and because routing, auth and the body limits are
 properties of the running service.
 
+How long a publish takes is measured rather than guessed:
+
+```bash
+npm run bench --prefix bridge -- 300 10   # notes, milliseconds per SFTP request
+```
+
+It publishes a generated site against the test SFTP server, which answers
+every request that many milliseconds late, and prints the time and the number
+of SFTP requests for a first publish, one edited note, no change, and a commit
+right after a restart. The request count does not depend on the machine and is
+the number to compare between versions.
+
 ## Publishing
 
 A publish folder becomes a static site: the plugin uploads Markdown and
@@ -138,6 +150,14 @@ publish that already succeeded.
 **Sources are kept.** `<state>/src/<sha256>.md` holds the Markdown, so
 `/publish/render` can rebuild the whole site after a template change with
 nothing uploaded and no vault in reach.
+
+**Sources are also kept in memory.** A note is addressed by the hash of its
+content, so a copy the bridge holds can never be stale, and a commit renders
+from memory whatever this process has uploaded or read before: editing one
+note of three hundred reads one note, not three hundred. What is not in memory
+— after a redeploy — is read several requests at a time, and so are the
+writes and deletions. Up to 32 MB of notes are kept, least recently used first
+out.
 
 Every write goes to a temporary name and is renamed over its target, so a reader
 never sees a half-written page. The host key is checked against a configured

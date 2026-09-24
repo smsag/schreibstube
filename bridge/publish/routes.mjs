@@ -25,6 +25,8 @@ import { assetPath, checkRelativePath, extensionOf, PathError, VIDEO_EXTENSIONS 
 import { RENDER_VERSION } from "./render/markdown.mjs";
 import { buildSite, checkIndex, IndexError, sha256 } from "./site.mjs";
 import { connect, SftpError } from "./sftp.mjs";
+import { mapLimit, SFTP_CONCURRENCY } from "./pool.mjs";
+import { SourceCache } from "./source-cache.mjs";
 
 const MANIFEST_FILE = "manifest.json";
 const HISTORY_FILE = "history.json";
@@ -63,6 +65,9 @@ export function createPublishRoutes(config, { version }) {
   // One publish at a time per target. The bridge runs as a single instance, so
   // an in-memory lock is the whole story.
   const busy = new Set();
+  // Stored notes by content hash, shared by every target: the same text is
+  // the same note wherever it is published.
+  const cache = new SourceCache();
   // Targets whose state directory is known to carry its deny file, so the
   // check costs one round trip per target and process rather than per upload.
   const guarded = new Set();
@@ -144,6 +149,8 @@ export function createPublishRoutes(config, { version }) {
         return withRemote(target, config, async (remote) => {
           await guard(remote, target);
           await remote.writeAbsolute(remote.stateAbsolute(`${SOURCE_DIRECTORY}/${hash}.md`), body);
+          // The commit that follows renders this note; it need not read it back.
+          cache.set(hash, body);
           log(
             "info",
             `source ${hash.slice(0, 12)} stored for ${target.name} (${body.length} bytes)`
@@ -217,7 +224,7 @@ export function createPublishRoutes(config, { version }) {
               Buffer.from(JSON.stringify(index, null, 2), "utf8")
             );
 
-            return publishSite({ remote, target, index, generator, log });
+            return publishSite({ remote, target, index, generator, log, cache, stored });
           })
         );
       },
@@ -243,7 +250,8 @@ export function createPublishRoutes(config, { version }) {
               target,
               index: validateIndex(stored, publish),
               generator,
-              log
+              log,
+              cache
             });
           })
         );
@@ -260,17 +268,24 @@ export function createPublishRoutes(config, { version }) {
  * the next run recognises as already correct; the manifest last, so a crash
  * before it means the next run re-does work rather than losing a file.
  */
-async function publishSite({ remote, target, index, generator, log }) {
+async function publishSite({ remote, target, index, generator, log, cache, stored }) {
   const started = Date.now();
 
+  // Only the notes the cache does not hold are read, and those several at a
+  // time. A note read here that does not hash to its name is still rendered,
+  // as before, but not cached under a name it contradicts.
   const sources = new Map();
-  for (const note of index.notes) {
-    if (sources.has(note.sha256)) continue;
-    const content = await remote.readFile(
-      remote.stateAbsolute(`${SOURCE_DIRECTORY}/${note.sha256}.md`)
-    );
-    sources.set(note.sha256, content.toString("utf8"));
+  const missing = [];
+  for (const hash of new Set(index.notes.map((note) => note.sha256))) {
+    const text = cache.get(hash);
+    if (text === undefined) missing.push(hash);
+    else sources.set(hash, text);
   }
+  await mapLimit(missing, SFTP_CONCURRENCY, async (hash) => {
+    const content = await remote.readFile(remote.stateAbsolute(`${SOURCE_DIRECTORY}/${hash}.md`));
+    cache.set(hash, content);
+    sources.set(hash, content.toString("utf8"));
+  });
 
   const files = await buildSite(
     { ...index, siteTitle: index.siteTitle || target.siteTitle },
@@ -295,20 +310,22 @@ async function publishSite({ remote, target, index, generator, log }) {
   );
   const difference = diffOutputs(files, manifest, sha256, uploaded);
 
-  for (const path of difference.write) {
-    await remote.writeFile(path, files.get(path));
-  }
-  for (const path of difference.delete) {
-    await remote.remove(path).catch(() => {});
-  }
+  // Each phase finishes before the next starts, which is the recovery story
+  // above; within a phase the order never mattered, so it runs in parallel.
+  await mapLimit(difference.write, SFTP_CONCURRENCY, (path) =>
+    remote.writeFile(path, files.get(path))
+  );
+  await mapLimit(difference.delete, SFTP_CONCURRENCY, (path) =>
+    remote.remove(path).catch(() => {})
+  );
   const pruned = await remote.pruneEmptyDirectories(difference.delete);
 
-  const collected = orphanSources(await storedSourceHashes(remote), index);
-  for (const hash of collected) {
-    await remote
-      .removeAbsolute(remote.stateAbsolute(`${SOURCE_DIRECTORY}/${hash}.md`))
-      .catch(() => {});
-  }
+  // A commit already listed the stored sources to check the index; a render
+  // has not, and asks here.
+  const collected = orphanSources(stored ?? (await storedSourceHashes(remote)), index);
+  await mapLimit(collected, SFTP_CONCURRENCY, (hash) =>
+    remote.removeAbsolute(remote.stateAbsolute(`${SOURCE_DIRECTORY}/${hash}.md`)).catch(() => {})
+  );
 
   await remote.writeAbsolute(
     remote.stateAbsolute(MANIFEST_FILE),
