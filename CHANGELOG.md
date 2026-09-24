@@ -4,13 +4,6 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
-### Changed
-
-- **A slideshow's header stays out of the way.** The alt text and the controls in the row above a slideshow now appear only while the pointer is over the block or a control has the keyboard focus. On a phone, which has no pointer, a tap on a picture or on the row shows them and the next tap, or a swipe, hides them again. The row keeps its height, so nothing below the block moves when they come and go. This is the same in every layout, from the stage to the before-and-after.
-- **Back returns from a picture to its tiles.** A tile opened its picture in a new tab, so the tab's Back arrow had nowhere to go and the grid was reached again only through the folder's menu. A tile now opens its picture in the tiles tab itself, and Back brings the grid back as it was, on the folder it was showing. A modifier click, Cmd or Ctrl, opens a new tab instead, for the grid and the picture side by side.
-- **The explorer no longer follows a note into another window.** The pane opens the folders above the open note and scrolls its row into view, whichever way the note was opened. It did that for a note in a popped-out window too, and again every time that window was focused, so the tree in the main window kept scrolling to a note nobody was looking at there. A note in another window is now left alone entirely: the tree stays as it was arranged. A note in the pane's own window is followed as before.
-- **A swipe on a slideshow is the slideshow's alone.** A sideways swipe across the stage or the scene in the note has turned the page since the block existed, but the note could scroll with it and, on a phone, Obsidian could answer the same swipe by sliding a sidebar in over the note. Once a finger is clearly moving sideways the block now claims the gesture: the note stays put and nothing above the block sees it. Which travel is a tap, a swipe or a scroll is one small decision module with tests.
-
 ### Fixed
 
 - **A delivered email is no longer reported as failed.** The bridge gave sending and filing the copy in Sent one deadline together, so a Sent folder that was slow to answer turned a message already with its recipient into "send failed", and sending again delivered it twice. Each step now has its own deadline: once the message is out, a slow or failing Sent folder only means the copy was not filed, which the notice says. The plugin also waits longer than the bridge does, so it no longer gives up on a send the bridge is still finishing.
@@ -18,11 +11,41 @@ All notable changes to this project will be documented in this file.
 - **A long publish is no longer reported as failed while it succeeds.** The plugin waited two minutes for the site to be built, the bridge allows five; a large site went live after the plugin had already said it failed, and publishing again met "already running". The plugin now waits longer than the bridge.
 - **A dropped connection to the web host no longer fails an upload at once.** Whether to try an upload again was read from the wording of the error, and the wording for a failed SFTP step names no status, so it was given up on at the first try. The decision now rests on the status the bridge answered with, and an upload that arrived truncated is sent again too.
 - **The bridge's own files on the web host are shut off from visitors.** A publish target without its own state directory keeps its sources, index and manifest in `.schreibstube` inside the web root, where the Markdown of every published note, frontmatter and `%%` comments included, could be read by anyone who guessed the address. The bridge now puts a `.htaccess` denying access into that directory before the first file lands there, leaves one it finds alone, and warns at every start, because a server other than Apache needs a rule of its own. A state directory must now be an absolute path.
-- **A delete no longer leaves the explorer standing still for seconds.** The row of a deleted file went away only after the trash call had returned, and that call was wrapped in two listings of the vault's trash folder, taken before and after, to learn the name the file landed under for undo. On a trash that is never emptied, a vault on a synced drive, or a system trash on a slow volume, that took seconds, and for those seconds the pane showed a row for a file that was just deleted, as if it had frozen. The row now goes the moment the delete is confirmed, and comes back only if the trash refuses. The landing name is found with one look at the path the trash keeps for it; the listings are taken only when a namesake was already there, which the trash renames around.
-- **The explorer no longer jumps when a note is opened from its own lists.** Pressing a note in the pinned rows, the recent lists or the bookmarks opened it, and the pane then followed the open note by scrolling the tree far below to the same note's row, carrying the pane away from the row that was just pressed. A note opened from the pane's own lists now has its folders opened as before, but the scroll stays where it is. A note opened by any other route is still brought into view.
+
+## 1.42.0 - 2026-09-24
+
+A quieter slideshow and a steadier explorer. The alt text and the controls
+above a slideshow now appear only while the pointer is over the block, or
+after a tap on a phone, and a swipe across the pictures stays with the
+block instead of scrolling the note or pulling a sidebar in. A picture
+opened from the tile grid opens in the grid's own tab, so Back returns to
+the grid. The explorer no longer follows a note into a popped-out window,
+no longer scrolls away from a note you just pressed in its own lists, and
+takes a deleted row away the moment the delete is confirmed rather than
+seconds later. The icon picker no longer shows blank squares after a plugin
+update, and the tag icon draws as a tag.
+
+Mobile checklist: not run. What a phone would answer differently: a tap on
+a slideshow showing its header and a second tap hiding it, a swipe across
+the stage turning the page without Obsidian's sidebar sliding in, a
+deleted row going before the vault's own event arrives, and a tap in the
+recent lists leaving the tree where it is.
+
+The bridge's protocol is unchanged; bridge 2.4.0 still pairs with this release.
+
+### Changed
+
+- **A slideshow's header stays out of the way.** The alt text and the controls in the row above a slideshow now appear only while the pointer is over the block or a control has the keyboard focus. On a phone, which has no pointer, a tap on a picture or on the row shows them and the next tap, or a swipe, hides them again. The row keeps its height, so nothing below the block moves when they come and go. This is the same in every layout, from the stage to the before-and-after.
+- **A swipe on a slideshow is the slideshow's alone.** A sideways swipe across the stage or the scene in the note has turned the page since the block existed, but the note could scroll with it and, on a phone, Obsidian could answer the same swipe by sliding a sidebar in over the note. Once a finger is clearly moving sideways the block now claims the gesture: the note stays put and nothing above the block sees it. Which travel is a tap, a swipe or a scroll is one small decision module with tests.
+- **Back returns from a picture to its tiles.** A tile opened its picture in a new tab, so the tab's Back arrow had nowhere to go and the grid was reached again only through the folder's menu. A tile now opens its picture in the tiles tab itself, and Back brings the grid back as it was, on the folder it was showing. A modifier click, Cmd or Ctrl, opens a new tab instead, for the grid and the picture side by side.
+- **The explorer no longer follows a note into another window.** The pane opens the folders above the open note and scrolls its row into view, whichever way the note was opened. It did that for a note in a popped-out window too, and again every time that window was focused, so the tree in the main window kept scrolling to a note nobody was looking at there. A note in another window is now left alone entirely: the tree stays as it was arranged. A note in the pane's own window is followed as before.
+
+### Fixed
+
 - **The icon picker no longer shows blank squares after an update.** The plugin's icon font is put into the window once and was never taken out again, and Obsidian updates a plugin in place, in the same window. After an update the window kept the previous version's font, the picker listed every icon the new version knew, and each icon the old font lacked was a blank square until Obsidian was restarted. The font now leaves with the plugin on unload, and a font from another build is replaced rather than kept.
 - **The tag icon draws as a tag.** Its codepoint lies above the Basic Multilingual Plane, and the generated map wrote it as four digits and a leftover, which drew as a foreign letter followed by a 6. The map now writes every codepoint in the braced form.
-
+- **The explorer no longer jumps when a note is opened from its own lists.** Pressing a note in the pinned rows, the recent lists or the bookmarks opened it, and the pane then followed the open note by scrolling the tree far below to the same note's row, carrying the pane away from the row that was just pressed. A note opened from the pane's own lists now has its folders opened as before, but the scroll stays where it is. A note opened by any other route is still brought into view.
+- **A delete no longer leaves the explorer standing still for seconds.** The row of a deleted file went away only after the trash call had returned, and that call was wrapped in two listings of the vault's trash folder, taken before and after, to learn the name the file landed under for undo. On a trash that is never emptied, a vault on a synced drive, or a system trash on a slow volume, that took seconds, and for those seconds the pane showed a row for a file that was just deleted, as if it had frozen. The row now goes the moment the delete is confirmed, and comes back only if the trash refuses. The landing name is found with one look at the path the trash keeps for it; the listings are taken only when a namesake was already there, which the trash renames around.
 
 ## 1.41.0 - 2026-09-23
 
