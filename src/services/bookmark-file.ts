@@ -9,8 +9,7 @@
  * It is a Markdown file in the vault, written by hand. Two consequences follow
  * and both are deliberate. Nothing here writes: the pane shows what the file
  * says and a person edits the file, so there is no second writer to reconcile
- * and no conflict a sync client has to resolve. And the format stays the one
- * Launchpad used, so an existing `bookmarks.md` is read as it stands.
+ * and no conflict a sync client has to resolve.
  *
  * ```markdown
  * # Work
@@ -30,8 +29,7 @@
  * bookmarks.
  */
 
-/** Where the file sits unless a setting says otherwise. Launchpad's default,
- *  so a vault that already has one is picked up without being told. */
+/** Where the file sits unless a setting says otherwise. */
 export const BOOKMARK_FILE_DEFAULT = "bookmarks.md";
 
 /**

@@ -496,7 +496,7 @@ They are read from a Markdown file in the vault, `bookmarks.md` unless a setting
 
 A link without a scheme is what Obsidian writes for a note when wikilinks are turned off, and it is read relative to the bookmarks file, as Obsidian reads it. Any other scheme is dropped while the file is read, so a `javascript:` line pasted into a synced file never becomes a row that can be tapped.
 
-Right-click a folder anywhere in Obsidian and choose **Copy path for Schreibstube** to get its `vault://` URL, ready to paste into the file. **Open bookmark** searches the list by name, folder or URL from the command palette, offering what was opened most recently on that device first.
+Right-click a folder anywhere in Obsidian and choose **Copy path for Schreibstube** to get its `vault://` URL, ready to paste into the file. **Open bookmark** searches the list by name, folder or URL from the command palette, in the order the file has them.
 
 #### Latest
 

@@ -37,25 +37,13 @@ import {
   type LatestSelection
 } from "../services/latest-files";
 
-/** How many opened bookmarks the quick-open list remembers. */
-export const RECENT_BOOKMARKS_MAX = 5;
-
-/**
- * Where the recents live.
- *
- * Obsidian's local storage is per device and per vault, which is what this
- * wants: a phone and a laptop each keep their own recents, and neither writes
- * to the bookmarks file to do it.
- */
-const RECENTS_KEY = "schreibstube:bookmarks:recent";
-
 /**
  * Where the mark's "already seen" lives.
  *
- * Device-local for the same reason the recents are: having looked at something
- * is a fact about a person at a screen, not about the vault. A change noticed on
- * the laptop is still news on the phone, and a mark that cleared itself on one
- * device would be a mark nobody ever saw.
+ * Obsidian's local storage is per device and per vault, which is what this
+ * wants: having looked at something is a fact about a person at a screen, not
+ * about the vault. A change noticed on the laptop is still news on the phone,
+ * and a mark that cleared itself on one device would be a mark nobody ever saw.
  */
 const LATEST_SEEN_KEY = "schreibstube:latest:seen";
 
@@ -71,7 +59,6 @@ export class PaneSectionsController {
   private loadedPath: string | null = null;
   private loading = false;
   private staleWhileLoading = false;
-  private recents: string[] = [];
 
   private latest: LatestSelection | null = null;
   private latestKey = "";
@@ -90,7 +77,6 @@ export class PaneSectionsController {
   ) {}
 
   async start(): Promise<void> {
-    this.recents = this.readRecents();
     this.seenAt = this.readSeenAt();
     await this.reload();
   }
@@ -185,8 +171,6 @@ export class PaneSectionsController {
    * known-good target opens rather than whether it may open at all.
    */
   openBookmark(bookmark: Bookmark): void {
-    this.rememberRecent(bookmark.url);
-
     switch (bookmark.kind) {
       case "web":
         window.open(bookmark.url, "_blank", "noopener,noreferrer");
@@ -230,49 +214,6 @@ export class PaneSectionsController {
     }
 
     await this.app.workspace.getLeaf(false).openFile(file);
-  }
-
-  /** The bookmarks opened most recently on this device, newest first. */
-  recentBookmarks(): BookmarkEntry[] {
-    const entries = this.bookmarkEntries();
-    return this.recents
-      .map((url) => entries.find((entry) => entry.bookmark.url === url))
-      .filter((entry): entry is BookmarkEntry => entry !== undefined);
-  }
-
-  private rememberRecent(url: string): void {
-    this.recents = [url, ...this.recents.filter((value) => value !== url)].slice(
-      0,
-      RECENT_BOOKMARKS_MAX
-    );
-    this.writeRecents();
-  }
-
-  private readRecents(): string[] {
-    const storage = this.app as unknown as LocalStorageApi;
-    if (typeof storage.loadLocalStorage !== "function") return [];
-
-    try {
-      const raw = storage.loadLocalStorage(RECENTS_KEY);
-      if (!Array.isArray(raw)) return [];
-      return raw
-        .filter((value): value is string => typeof value === "string")
-        .slice(0, RECENT_BOOKMARKS_MAX);
-    } catch (error) {
-      this.logger.debug("Could not read the recent bookmarks:", error);
-      return [];
-    }
-  }
-
-  private writeRecents(): void {
-    const storage = this.app as unknown as LocalStorageApi;
-    if (typeof storage.saveLocalStorage !== "function") return;
-
-    try {
-      storage.saveLocalStorage(RECENTS_KEY, this.recents);
-    } catch (error) {
-      this.logger.debug("Could not store the recent bookmarks:", error);
-    }
   }
 
   // --- latest -------------------------------------------------------------

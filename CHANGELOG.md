@@ -8,6 +8,10 @@ All notable changes to this project will be documented in this file.
 
 - **A tab icon for the published site, named by its theme.** A `theme.css` may name the site's icon as `--site-icon: url("data:image/svg+xml,…")`, beside its other colours and pictures; the bridge writes it as a file and links it from every page, so the browser tab shows it. An SVG or a PNG of at most 32 kB; an SVG holding a script, an event handler or anything it would load from elsewhere is left out, and the site publishes without an icon. Only the bridge changes: the protocol stays at 3, and no plugin release is needed.
 
+### Changed
+
+- **Open bookmark lists your bookmarks in the order of the file.** It no longer puts the ones last opened on this device first, and nothing about opening a bookmark is remembered any more. The bookmarks file is the only thing that decides what the list holds and in which order.
+
 ### Fixed
 
 - **A bookmark written as a Markdown link to a note is shown.** `- [Today I learned](Today%20I%20learned.md)` is how Obsidian links a note when wikilinks are turned off, and the bookmarks pane dropped every such line without a word, so a list written that way was missing its entries and a folder holding only those did not appear at all. A link without a scheme now opens the note it names, read relative to the bookmarks file as Obsidian reads it, and a link Obsidian wrapped in `<…>` because it holds a space is read too.

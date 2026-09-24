@@ -790,7 +790,6 @@ export const de: Messages = {
       copied: (path: string) => `${path} als Lesezeichen-Link kopiert.`,
       copyFailed: "die Zwischenablage steht hier nicht zur Verfügung.",
       quickOpen: "Lesezeichen suchen …",
-      recent: "Zuletzt geöffnet",
       all: "Alle Lesezeichen"
     },
 

@@ -531,7 +531,6 @@ export const enExtra = {
       copied: (path: string) => `${path} copied as a bookmark link.`,
       copyFailed: "the clipboard is not available here.",
       quickOpen: "Search bookmarks…",
-      recent: "Recently opened",
       all: "All bookmarks"
     },
 
