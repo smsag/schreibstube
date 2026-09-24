@@ -13,6 +13,7 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- **The explorer no longer jumps when a note is opened from its own lists.** Pressing a note in the pinned rows, the recent lists or the bookmarks opened it, and the pane then followed the open note by scrolling the tree far below to the same note's row, carrying the pane away from the row that was just pressed. A note opened from the pane's own lists now has its folders opened as before, but the scroll stays where it is. A note opened by any other route is still brought into view.
 - **The icon picker no longer shows blank squares after an update.** The plugin's icon font is put into the window once and was never taken out again, and Obsidian updates a plugin in place, in the same window. After an update the window kept the previous version's font, the picker listed every icon the new version knew, and each icon the old font lacked was a blank square until Obsidian was restarted. The font now leaves with the plugin on unload, and a font from another build is replaced rather than kept.
 - **The tag icon draws as a tag.** Its codepoint lies above the Basic Multilingual Plane, and the generated map wrote it as four digits and a leftover, which drew as a foreign letter followed by a 6. The map now writes every codepoint in the braced form.
 
