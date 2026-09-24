@@ -81,7 +81,7 @@ import {
   moveTargetAt,
   orderAfterDrop
 } from "./explorer-drop";
-import { DragGesture, wirePress } from "./explorer-gestures";
+import { DragGesture, wireListFocus, wirePress } from "./explorer-gestures";
 import { readPaneMemory, stateFromMemory, writePaneMemory } from "./explorer-memory";
 import {
   renderSection as renderSectionHeader,
@@ -328,14 +328,14 @@ export class ExplorerPaneView extends ItemView {
     this.shelf = root.createDiv({ cls: "schreibstube-explorer-shelf" });
     this.body = root.createDiv({ cls: "schreibstube-explorer-body", attr: { tabindex: "0" } });
     this.body.addEventListener("scroll", () => this.syncShelfRule(), { passive: true });
-    // Tab reaches the list here and is handed straight to a row: the open
-    // note's, since that is where a person is, or the first. The box itself
-    // is never the thing to be on.
-    this.body.addEventListener("focus", (event) => {
-      if (event.target !== this.body) return;
-      const rows = this.treeRows();
-      (rows.find((row) => row.hasClass("is-active")) ?? rows[0])?.focus();
-    });
+    // Tab reaches the list here and is handed to the open note's row, where a
+    // person is, or the first; a press keeps the focus it brought.
+    this.register(
+      wireListFocus(this.body, () => {
+        const rows = this.treeRows();
+        return rows.find((row) => row.hasClass("is-active")) ?? rows[0];
+      })
+    );
     this.wireImportDrop(this.body);
 
     // The vault changes under the pane: a note created by a template, a file
