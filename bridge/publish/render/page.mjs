@@ -16,7 +16,8 @@ export function notePage({
   usedMermaid,
   usedSlideshow = false,
   hasIndex = true,
-  nav = []
+  nav = [],
+  icon = null
 }) {
   // A note is served from <slug>/index.html, so everything shared is one level up.
   const up = "../";
@@ -26,6 +27,7 @@ export function notePage({
     description: note.description,
     siteTitle,
     nav,
+    icon,
     usedMath,
     usedMermaid,
     usedSlideshow,
@@ -41,13 +43,14 @@ export function notePage({
   });
 }
 
-export function indexPage({ notes, siteTitle, nav = [] }) {
+export function indexPage({ notes, siteTitle, nav = [], icon = null }) {
   return page({
     up: "",
     title: siteTitle,
     description: "",
     siteTitle,
     nav,
+    icon,
     usedMath: false,
     usedMermaid: false,
     hasIndex: false,
@@ -62,7 +65,7 @@ export function indexPage({ notes, siteTitle, nav = [] }) {
  * A header tag's page: the notes carrying it, listed as the start page lists
  * them. Served from tag/<slug>/index.html, so everything shared is two up.
  */
-export function tagPage({ entry, siteTitle, nav = [] }) {
+export function tagPage({ entry, siteTitle, nav = [], icon = null }) {
   const up = "../../";
   return page({
     up,
@@ -70,6 +73,7 @@ export function tagPage({ entry, siteTitle, nav = [] }) {
     description: "",
     siteTitle,
     nav,
+    icon,
     current: entry.slug,
     usedMath: false,
     usedMermaid: false,
@@ -118,6 +122,7 @@ function page({
   siteTitle,
   nav = [],
   current = null,
+  icon = null,
   usedMath,
   usedMermaid,
   usedSlideshow = false,
@@ -129,6 +134,9 @@ function page({
     `<meta name="viewport" content="width=device-width, initial-scale=1">`,
     `<title>${escapeHtml(title)}</title>`,
     description ? `<meta name="description" content="${escapeHtml(description)}">` : null,
+    icon
+      ? `<link rel="icon" href="${up}${escapeHtml(icon.path)}" type="${escapeHtml(icon.type)}">`
+      : null,
     `<link rel="stylesheet" href="${up}assets/theme.css">`,
     usedMath ? `<link rel="stylesheet" href="${up}assets/katex/katex.css">` : null,
     usedSlideshow ? `<link rel="stylesheet" href="${up}assets/slideshow.css">` : null

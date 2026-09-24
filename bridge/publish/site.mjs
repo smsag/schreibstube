@@ -24,6 +24,7 @@ import {
   VIDEO_EXTENSIONS
 } from "./path.mjs";
 import { generatorAssets } from "./assets.mjs";
+import { siteIconFromTheme } from "./site-icon.mjs";
 import { key } from "./render/obsidian.mjs";
 
 export class IndexError extends Error {}
@@ -138,6 +139,8 @@ export async function buildSite(index, sources, options = {}) {
   const md = createRenderer(options);
 
   const nav = headerNav(index);
+  const siteIcon = siteIconFromTheme(index.themeCss);
+  const icon = siteIcon ? { path: siteIcon.path, type: siteIcon.type } : null;
   const files = new Map();
   let usedMath = false;
   let usedMermaid = false;
@@ -162,6 +165,7 @@ export async function buildSite(index, sources, options = {}) {
           body: rendered.html,
           siteTitle: index.siteTitle,
           nav,
+          icon,
           usedMath: rendered.usedMath,
           usedMermaid: rendered.usedMermaid,
           usedSlideshow: rendered.usedSlideshow
@@ -173,10 +177,13 @@ export async function buildSite(index, sources, options = {}) {
 
   files.set(
     "index.html",
-    Buffer.from(indexPage({ notes: ordered, siteTitle: index.siteTitle, nav }), "utf8")
+    Buffer.from(indexPage({ notes: ordered, siteTitle: index.siteTitle, nav, icon }), "utf8")
   );
   for (const entry of nav) {
-    files.set(entry.path, Buffer.from(tagPage({ entry, siteTitle: index.siteTitle, nav }), "utf8"));
+    files.set(
+      entry.path,
+      Buffer.from(tagPage({ entry, siteTitle: index.siteTitle, nav, icon }), "utf8")
+    );
   }
 
   for (const [path, content] of await generatorAssets({
@@ -187,6 +194,7 @@ export async function buildSite(index, sources, options = {}) {
   })) {
     files.set(path, content);
   }
+  if (siteIcon) files.set(siteIcon.path, siteIcon.bytes);
 
   return files;
 }

@@ -208,6 +208,19 @@ the way Obsidian counts tags, so a note's other tags never leave the vault. A
 header tag no published note carries gets no link and no page. A protocol-2
 plugin sends none, and the header is as it was.
 
+A theme may name the site's **tab icon**:
+`--site-icon: url("data:image/svg+xml,…")` anywhere in `theme.css` (a PNG as
+`data:image/png;base64,…` works too). The bridge reads it out of the theme it
+was sent, writes it as `assets/site-icon.svg` (or `.png`) and links it from
+every page's head, because a browser asks for an icon by address and never
+looks inside a stylesheet. The icon is served from the site's own domain, so it
+is checked: at most 32 kB, an SVG whose root is `<svg>` with no script, no
+event handler, no `foreignObject`, no `javascript:` and nothing loaded from
+elsewhere, or a PNG that begins like one. An icon that fails is left out — the
+site loses its tab icon, not its publish. An SVG icon may carry its own
+`prefers-color-scheme` rule to switch for a dark tab bar. No field of the index
+changed: the theme was always sent, so the protocol stays at 3.
+
 ## Dependencies and advisories
 
 CI runs `npm audit --omit=dev --audit-level=high` over this tree on every

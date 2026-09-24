@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Added
+
+- **A tab icon for the published site, named by its theme.** A `theme.css` may name the site's icon as `--site-icon: url("data:image/svg+xml,…")`, beside its other colours and pictures; the bridge writes it as a file and links it from every page, so the browser tab shows it. An SVG or a PNG of at most 32 kB; an SVG holding a script, an event handler or anything it would load from elsewhere is left out, and the site publishes without an icon. Only the bridge changes: the protocol stays at 3, and no plugin release is needed.
+
 ## 1.45.0 - 2026-09-24
 
 A published site that looks like the notes it came from. Slideshows publish
