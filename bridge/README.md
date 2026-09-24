@@ -238,8 +238,32 @@ SMTP_HOST=smtp.strato.de     SMTP_PORT=465   SMTP_SECURE=true
 MAIL_USER=you@your-domain.de                 # the full address, not a short name
 ```
 
-If your Sent folder is named differently (some setups use `INBOX.Sent` or
-`Gesendet`), set `SENT_MAILBOX` to match, or to an empty value to skip filing.
+Strato's Sent folder is `Sent Items` on the server, whatever your mail app
+calls it ("Gesendete Objekte" in Strato's webmail). You should not need to set
+it: see below.
+
+### Where the sent copy goes
+
+SMTP delivers a message and keeps nothing, so the bridge files the copy in your
+Sent folder over IMAP itself. For that it needs the folder's name on the server,
+which is often not the name a mail app shows. `SENT_MAILBOX` decides:
+
+- **Unset** (the default): the bridge asks the server which folder it tags as
+  Sent (IMAP's `\Sent` marker, the one mail apps go by) and files there. Only
+  the server's own tag counts, never a guess from a folder's name. A server that
+  tags nothing gets `Sent`. The answer is asked once and kept until the next
+  deploy.
+- **A name**, such as `Sent Items` or `INBOX.Sent`: always that folder, even
+  when the server tags another one.
+- **Empty** (`SENT_MAILBOX=`): no copy is filed, for a server that files what
+  its SMTP sends by itself.
+
+Gmail files its own copy, so on Gmail the bridge files nothing unless
+`SENT_MAILBOX` names a folder, and reports the copy as filed.
+
+If the plugin says a mail was sent but no copy was filed, the folder was not
+found. Set `SENT_MAILBOX` to its name on the server: in Apple Mail, Settings →
+Accounts → Mailbox Behaviors shows it; in Thunderbird, the folder's Properties.
 
 ## Deploying on Sliplane
 

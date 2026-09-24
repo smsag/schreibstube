@@ -221,8 +221,9 @@ function loadMail(env) {
     from: env.MAIL_FROM.trim(),
     defaultMailbox: env.DEFAULT_MAILBOX?.trim() || "INBOX",
     // SMTP does not file a copy in Sent — the bridge APPENDs it over IMAP.
-    // Set to an empty string to skip that step (e.g. if the server does it).
-    sentMailbox: env.SENT_MAILBOX === "" ? "" : env.SENT_MAILBOX?.trim() || "Sent"
+    // A name is used as written; an empty string skips the step (e.g. if the
+    // server does it); unset, null, asks the server which folder it tags Sent.
+    sentMailbox: env.SENT_MAILBOX === "" ? "" : env.SENT_MAILBOX?.trim() || null
   };
 }
 

@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Changed
+
+- **The bridge finds your Sent folder by itself.** A sent message's copy went to a folder called `Sent`, and a mailbox that names it otherwise — Strato's is `Sent Items`, shown as "Gesendete Objekte" — got no copy until `SENT_MAILBOX` was set by hand. Left unset, the bridge now asks the mail server which folder it marks as Sent and files there. Only the server's own marker counts, never a guess from a name; a server that marks nothing gets `Sent` as before, and a name set in `SENT_MAILBOX` still wins over the marker. On Gmail, which keeps its own copy of what it sends, the bridge files none, where filing one now would put every message in the thread twice.
+
 ### Fixed
 
 - **A delivered email is no longer reported as failed.** The bridge gave sending and filing the copy in Sent one deadline together, so a Sent folder that was slow to answer turned a message already with its recipient into "send failed", and sending again delivered it twice. Each step now has its own deadline: once the message is out, a slow or failing Sent folder only means the copy was not filed, which the notice says. The plugin also waits longer than the bridge does, so it no longer gives up on a send the bridge is still finishing.
