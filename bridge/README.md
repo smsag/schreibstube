@@ -29,6 +29,7 @@ route that does not exist yet.
 
 | Bridge | Protocol | Plugin          | Notes                                                        |
 | ------ | -------- | --------------- | ------------------------------------------------------------ |
+| 2.8.x  | 3        | 1.8.0 and later | The site's tab icon, named by its theme                      |
 | 2.7.x  | 3        | 1.8.0 and later | Slideshows, filmstrip thumbnails, header tags and tag pages  |
 | 2.6.x  | 1        | 1.8.0 and later | Notes cached in memory, parallel SFTP, one login per publish |
 | 2.5.x  | 1        | 1.8.0 and later | Sent folder by tag, state guard, absolute `STATE_ROOT`       |
