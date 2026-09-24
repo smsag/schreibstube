@@ -47,6 +47,30 @@ describe("buildExplorerMenu", () => {
     });
   });
 
+  it("offers a new window right after a new tab, where there are windows", () => {
+    const sections = buildExplorerMenu(target({ windows: true }), "off");
+    expect(sections[0]?.items.map((item) => item.id)).toEqual([
+      "open",
+      "open-new-tab",
+      "open-new-window",
+      "related"
+    ]);
+    expect(sections[0]?.items[2]).toEqual({
+      id: "open-new-window",
+      label: "Open in new window",
+      icon: "app-window"
+    });
+  });
+
+  it("offers no window on a phone or a tablet, and none for a folder", () => {
+    expect(ids(buildExplorerMenu(target({ windows: false }), "off"))).not.toContain(
+      "open-new-window"
+    );
+    expect(ids(buildExplorerMenu(target({ kind: "folder", windows: true }), "off"))).not.toContain(
+      "open-new-window"
+    );
+  });
+
   it("leaves the other plugins out when they are turned off", () => {
     expect(ids(buildExplorerMenu(target(), "off"))).not.toContain("more");
   });

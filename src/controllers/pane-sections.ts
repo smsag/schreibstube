@@ -12,8 +12,9 @@
  * syncs then has one writer per device — the person — and a bookmark list that
  * can be fixed with a text editor when something is wrong with it.
  */
-import { Notice, TFile, TFolder, type App } from "obsidian";
+import { Notice, Platform, TFile, TFolder, type App } from "obsidian";
 import { t } from "../i18n";
+import { availableTarget, type PaneTarget } from "../services/pane-target";
 import type { Logger } from "../services/logger";
 import type { SchreibstubeSettings } from "../types";
 import {
@@ -392,10 +393,10 @@ export class PaneSectionsController {
     });
   }
 
-  async openLatest(path: string): Promise<void> {
+  async openLatest(path: string, where: PaneTarget = false): Promise<void> {
     const file = this.app.vault.getAbstractFileByPath(path);
     if (!(file instanceof TFile)) return;
-    await this.app.workspace.getLeaf(false).openFile(file);
+    await this.app.workspace.getLeaf(availableTarget(where, Platform.isDesktopApp)).openFile(file);
   }
 
   // --- internals ----------------------------------------------------------

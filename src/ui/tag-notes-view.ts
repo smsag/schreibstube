@@ -11,6 +11,7 @@
  */
 import { ItemView, Keymap, type ViewStateResult, type WorkspaceLeaf } from "obsidian";
 import { t } from "../i18n";
+import { openTargetOf, type PaneTarget } from "../services/pane-target";
 import { normalizeTag, summarizeTagCards, type TagCard } from "../services/tag-pins";
 import { drawTaskCount } from "./task-count-label";
 import { applyIcon, installIconFont } from "./icon-font";
@@ -19,7 +20,7 @@ export const TAG_NOTES_VIEW_TYPE = "schreibstube-tag-notes";
 
 export interface TagNotesHost {
   cards(tag: string): TagCard[];
-  open(path: string, newTab: boolean): Promise<void>;
+  open(path: string, where: PaneTarget): Promise<void>;
   showMenu(path: string, event: MouseEvent): void;
 }
 
@@ -152,15 +153,15 @@ export class TagNotesView extends ItemView {
       text: card.folder.length > 0 ? card.folder : t().explorer.tags.root
     });
 
-    // A modifier opens a tab, the way a link in the editor does, so a card can
+    // A modifier opens a tab, a split or a window, the way a link in the editor does, so a card can
     // be kept open beside the note already in front of the person.
     el.addEventListener("click", (event) => {
-      void host.open(card.path, Keymap.isModEvent(event) !== false);
+      void host.open(card.path, openTargetOf(Keymap.isModEvent(event)));
     });
     el.addEventListener("keydown", (event) => {
       if (event.key !== "Enter" && event.key !== " ") return;
       event.preventDefault();
-      void host.open(card.path, Keymap.isModEvent(event) !== false);
+      void host.open(card.path, openTargetOf(Keymap.isModEvent(event)));
     });
     el.addEventListener("contextmenu", (event) => {
       event.preventDefault();
