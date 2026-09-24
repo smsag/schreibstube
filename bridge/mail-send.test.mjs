@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { sendMessage } from "./mail.mjs";
+import { sendMessage, sentMailboxFor } from "./mail.mjs";
 
 /**
  * Characterisation tests for the send path.
@@ -227,5 +227,70 @@ describe("sendMessage, deadlines", () => {
     await expect(
       sendMessage(config({ upstreamTimeoutMs: 20 }), { sendMail: never }, minimal)
     ).rejects.toThrow(/Send timed out/);
+  });
+});
+
+describe("sentMailboxFor, asking the server", () => {
+  const account = (overrides = {}) =>
+    config({
+      sentMailbox: null,
+      imap: { host: "imap.example.com", port: 993, auth: { user: "post@example.com" } },
+      ...overrides
+    });
+
+  const server = (mailboxes, capabilities = ["IMAP4REV1", "SPECIAL-USE"]) => {
+    const calls = { list: 0 };
+    return {
+      calls,
+      capabilities: new Map(capabilities.map((name) => [name, true])),
+      async list() {
+        calls.list += 1;
+        return mailboxes;
+      }
+    };
+  };
+
+  const sentItems = {
+    path: "Sent Items",
+    specialUse: "\\Sent",
+    specialUseSource: "extension",
+    flags: new Set(["\\Sent"])
+  };
+
+  it("uses SENT_MAILBOX without asking the server", async () => {
+    const client = server([sentItems]);
+    expect(await sentMailboxFor(account({ sentMailbox: "Ausgang" }), client, new Map())).toEqual({
+      mailbox: "Ausgang",
+      filedByServer: false
+    });
+    expect(client.calls.list).toBe(0);
+  });
+
+  it("asks once per account and remembers the answer", async () => {
+    const cache = new Map();
+    const client = server([sentItems]);
+    expect((await sentMailboxFor(account(), client, cache)).mailbox).toBe("Sent Items");
+    expect((await sentMailboxFor(account(), client, cache)).mailbox).toBe("Sent Items");
+    expect(client.calls.list).toBe(1);
+  });
+
+  it("reads Gmail from the capabilities the connection reported", async () => {
+    const client = server([{ ...sentItems, path: "[Gmail]/Sent Mail" }], ["X-GM-EXT-1"]);
+    expect(await sentMailboxFor(account(), client, new Map())).toEqual({
+      mailbox: null,
+      filedByServer: true
+    });
+  });
+
+  it("falls back for this send, and asks again next time, when LIST fails", async () => {
+    const cache = new Map();
+    const failing = {
+      capabilities: new Map(),
+      async list() {
+        throw new Error("LIST refused");
+      }
+    };
+    expect((await sentMailboxFor(account(), failing, cache)).mailbox).toBe("Sent");
+    expect(cache.size).toBe(0);
   });
 });

@@ -133,15 +133,20 @@ describe("loadConfig, defaults", () => {
   it("defaults the mailboxes", () => {
     const { mail } = loadConfig(env());
     expect(mail.defaultMailbox).toBe("INBOX");
-    expect(mail.sentMailbox).toBe("Sent");
+    // Unset means "ask the server", not a fixed name.
+    expect(mail.sentMailbox).toBeNull();
   });
 
   it("treats an empty SENT_MAILBOX as 'do not file a copy'", () => {
     expect(loadConfig(env({ SENT_MAILBOX: "" })).mail.sentMailbox).toBe("");
   });
 
-  it("treats a blank SENT_MAILBOX as the default, not as opting out", () => {
-    expect(loadConfig(env({ SENT_MAILBOX: "   " })).mail.sentMailbox).toBe("Sent");
+  it("treats a blank SENT_MAILBOX as unset, not as opting out", () => {
+    expect(loadConfig(env({ SENT_MAILBOX: "   " })).mail.sentMailbox).toBeNull();
+  });
+
+  it("keeps a name with a space, as Strato's Sent folder has", () => {
+    expect(loadConfig(env({ SENT_MAILBOX: " Sent Items " })).mail.sentMailbox).toBe("Sent Items");
   });
 });
 
