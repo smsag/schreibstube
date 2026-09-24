@@ -20,7 +20,7 @@ Ein deutscher Geschäftsbrief nach DIN 5008: Absender klein über dem Anschrifte
 
 Trage deinen Absender einmal hier oben in `schreibstubeData` ein. Er gilt dann für jeden Brief, der diese Vorlage benutzt.
 
-Lege deine Schriftdateien in `fonts/` ab — `.ttf` oder `.otf`. Ohne eigene Schrift setzt Typst den Brief in seiner eingebauten Schrift, was funktioniert, aber nicht nach dir aussieht.
+Lege deine Schriftdateien in `fonts/` ab — `.ttf` oder `.otf`. Ohne eigene Schrift wird der Brief in der Standardschrift gesetzt, die das Plugin mit dem Satzteil lädt — Libertinus Serif. Das funktioniert, sieht aber nicht nach dir aus.
 
 ## Benutzen
 

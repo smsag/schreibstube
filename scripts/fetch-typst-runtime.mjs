@@ -8,6 +8,10 @@
  * them. A mismatch fails the release rather than publishing something the
  * plugin would then refuse to load.
  *
+ * The standard fonts go the same way. The typesetter has no typeface of its
+ * own, so the faces Typst defaults to are fetched from typst-assets at the
+ * pinned tag, checked, and attached beside the compiler.
+ *
  *   node scripts/fetch-typst-runtime.mjs           # verify and write to dist/
  *   node scripts/fetch-typst-runtime.mjs --print   # print the hashes, for a bump
  */
@@ -22,6 +26,14 @@ const root = fileURLToPath(new URL("..", import.meta.url));
 const manifest = readFileSync(join(root, "src/services/typst-runtime.ts"), "utf8");
 
 const version = read(/RUNTIME_VERSION = "([^"]+)"/, "RUNTIME_VERSION");
+const fontsVersion = read(/FONTS_VERSION = "([^"]+)"/, "FONTS_VERSION");
+const fontSource = read(/FONT_SOURCE = `([^`]+)`/, "FONT_SOURCE").replace(
+  "${FONTS_VERSION}",
+  fontsVersion
+);
+const fonts = [...manifest.matchAll(/\["([\w.-]+\.(?:otf|ttf))", "([0-9a-f]{64})"\]/g)].map(
+  ([, file, sha256]) => ({ file, sha256, name: `typst-runtime-fonts-${fontsVersion}-${file}` })
+);
 const packageName = read(/RUNTIME_PACKAGE = "([^"]+)"/, "RUNTIME_PACKAGE");
 const assets = [...manifest.matchAll(/name: `([^`]+)`,\s*\n\s*sha256: "([0-9a-f]{64})"/g)].map(
   ([, name, sha256]) => ({ name: name.replace("${RUNTIME_VERSION}", version), sha256 })
@@ -74,6 +86,29 @@ try {
 
     writeFileSync(join(out, asset.name), bytes);
     console.log(`${asset.name} verified (${(bytes.length / 1024 / 1024).toFixed(1)} MB)`);
+  }
+
+  if (fonts.length === 0) fail("no pinned fonts found in typst-runtime.ts");
+  for (const font of fonts) {
+    const response = await fetch(`${fontSource}${font.file}`);
+    if (!response.ok) fail(`${font.file}: HTTP ${response.status} from typst-assets`);
+    const bytes = Buffer.from(await response.arrayBuffer());
+    const actual = createHash("sha256").update(bytes).digest("hex");
+
+    if (printOnly) {
+      console.log(`${font.file}\n  ${actual}  (${(bytes.length / 1024).toFixed(0)} KB)`);
+      continue;
+    }
+    if (actual !== font.sha256) {
+      console.error(
+        `${font.file} does not match what the plugin expects.\n` +
+          `  pinned:  ${font.sha256}\n  fetched: ${actual}`
+      );
+      failed = true;
+      continue;
+    }
+    writeFileSync(join(out, font.name), bytes);
+    console.log(`${font.name} verified (${(bytes.length / 1024).toFixed(0)} KB)`);
   }
 
   if (failed) process.exit(1);

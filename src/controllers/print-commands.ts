@@ -827,6 +827,7 @@ export class PrintCommands {
       this.pluginVersion,
       {
         downloading: (label, megabytes) => messages.downloading(label, megabytes),
+        downloadingFont: (face) => messages.downloadingFont(face),
         verifying: messages.verifying,
         starting: messages.starting,
         compiling: messages.compiling,

@@ -84,6 +84,35 @@ export function buildJob(input: JobInput): PrintJob {
   };
 }
 
+/** What the worker is sent: the job as the compiler's calls take it. */
+export interface CompilePayload {
+  main: string;
+  fonts: Uint8Array[];
+  sources: { path: string; text: string }[];
+  binaries: { path: string; bytes: Uint8Array }[];
+}
+
+/**
+ * The job, split the way the compiler reads it.
+ *
+ * Typst source is added as text and everything else is mapped as bytes, and
+ * the compiler addresses both from the root. One function for the plugin and
+ * for the CI step that compiles the fixtures, so what CI checks is what a
+ * device sends.
+ */
+export function compilePayload(job: PrintJob): CompilePayload {
+  const sources = [{ path: `/${MAIN_FILE}`, text: job.main }];
+  const binaries: { path: string; bytes: Uint8Array }[] = [];
+  for (const file of job.files) {
+    if (file.path.endsWith(".typ")) {
+      sources.push({ path: `/${file.path}`, text: new TextDecoder().decode(file.bytes) });
+    } else {
+      binaries.push({ path: `/${file.path}`, bytes: file.bytes });
+    }
+  }
+  return { main: `/${MAIN_FILE}`, fonts: job.fonts, sources, binaries };
+}
+
 /**
  * The page, when the descriptor stated one.
  *

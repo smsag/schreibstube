@@ -187,7 +187,8 @@ export const enExtra = {
     printAddTemplateButton: "Add",
     printAddTemplateDesc:
       "Writes one of the two example templates into a folder you choose. Neither carries a " +
-      "typeface, since fonts are licensed; a template with none is set in Typst's own.",
+      "typeface, since fonts are licensed; a template with none is set in the standard fonts " +
+      "fetched with the typesetter.",
     printTemplateRoot: "Templates folder",
     printTemplateRootDesc:
       "Where a new template goes by default. A template is any folder with a template.md marked " +
@@ -680,6 +681,7 @@ export const enExtra = {
     drawing: (index: number, total: number) => `drawing diagram ${index} of ${total}…`,
     downloading: (label: string, megabytes: number) =>
       `fetching the ${label} (${megabytes} MB, once per device)…`,
+    downloadingFont: (face: string) => `fetching the font ${face} (once per device)…`,
     verifying: "checking what was downloaded…",
     starting: "starting the typesetter…",
     compiling: "typesetting…",

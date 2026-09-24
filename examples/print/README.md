@@ -37,8 +37,9 @@ family rather than as a family of its own, which is why the layout asks for it
 with `stretch: 75%` rather than by name — a font that names its condensed cut
 separately would be asked for by name instead.
 
-With no fonts at all a template still prints: Typst sets it in its own built-in
-face. It will look like a document, just not like yours.
+With no fonts at all a template still prints, set in the standard fonts the
+plugin fetches with the typesetter: Libertinus Serif, and DejaVu Sans Mono for
+code. It will look like a document, just not like yours.
 
 ## Writing your own
 

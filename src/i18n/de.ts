@@ -441,7 +441,8 @@ export const de: Messages = {
     printAddTemplateButton: "Anlegen",
     printAddTemplateDesc:
       "Legt eine der beiden Beispielvorlagen in einem Ordner deiner Wahl an. Keine bringt eine " +
-      "Schrift mit, denn Schriften sind lizenziert; eine Vorlage ohne wird in Typsts eigener gesetzt.",
+      "Schrift mit, denn Schriften sind lizenziert; eine Vorlage ohne wird in der Standardschrift " +
+      "gesetzt, die mit dem Satzteil geladen wird.",
     printTemplateRoot: "Vorlagenordner",
     printTemplateRootDesc:
       "Wohin eine neue Vorlage standardmäßig kommt. Eine Vorlage ist jeder Ordner mit einer " +
@@ -949,6 +950,7 @@ export const de: Messages = {
     drawing: (index: number, total: number) => `zeichne Diagramm ${index} von ${total} …`,
     downloading: (label: string, megabytes: number) =>
       `lade den Satzteil „${label}“ (${megabytes} MB, einmal pro Gerät) …`,
+    downloadingFont: (face: string) => `lade die Schrift ${face} (einmal pro Gerät) …`,
     verifying: "prüfe das Geladene …",
     starting: "starte den Satz …",
     compiling: "setze …",

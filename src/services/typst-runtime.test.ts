@@ -9,6 +9,10 @@ import {
   RUNTIME_VERSION,
   runtimeAssetUrl,
   runtimeCachePath,
+  DEVICE_ASSETS,
+  FONT_ASSETS,
+  fontFaceOf,
+  FONTS_VERSION,
   staleRuntimeFiles,
   toHex,
   WASM_ASSET
@@ -122,5 +126,43 @@ describe("staleRuntimeFiles", () => {
       "typst-runtime-0.6.0.wasm",
       "typst-runtime-0.6.0.mjs"
     ]);
+  });
+});
+
+describe("the standard fonts", () => {
+  it("pins every face by hash, under the release's runtime glob", () => {
+    expect(FONT_ASSETS.length).toBeGreaterThanOrEqual(8);
+    for (const asset of FONT_ASSETS) {
+      expect(asset.sha256).toMatch(/^[0-9a-f]{64}$/);
+      expect(asset.name).toMatch(
+        new RegExp(`^typst-runtime-fonts-${FONTS_VERSION}-[\\w-]+\\.(otf|ttf)$`)
+      );
+      expect(asset.label).toBe("font");
+    }
+    expect(new Set(FONT_ASSETS.map((asset) => asset.name)).size).toBe(FONT_ASSETS.length);
+  });
+
+  it("carries a text face and a code face in all four styles", () => {
+    const faces = FONT_ASSETS.map(fontFaceOf);
+    for (const style of ["Regular", "Italic", "Bold", "BoldItalic"]) {
+      expect(faces).toContain(`LibertinusSerif-${style}`);
+    }
+    expect(faces).toEqual(
+      expect.arrayContaining([
+        "DejaVuSansMono",
+        "DejaVuSansMono-Oblique",
+        "DejaVuSansMono-Bold",
+        "DejaVuSansMono-BoldOblique"
+      ])
+    );
+  });
+
+  it("counts them among what a device keeps, and as current rather than stale", () => {
+    expect(DEVICE_ASSETS).toEqual([...RUNTIME_ASSETS, ...FONT_ASSETS]);
+    const names = DEVICE_ASSETS.map((asset) => asset.name);
+    expect(staleRuntimeFiles(names)).toEqual([]);
+    expect(
+      staleRuntimeFiles(["typst-runtime-fonts-0.13.0-LibertinusSerif-Regular.otf"])
+    ).toHaveLength(1);
   });
 });

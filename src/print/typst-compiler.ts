@@ -17,16 +17,18 @@ import { requestUrl, type App } from "obsidian";
 import { WORKER_SOURCE } from "./typst-worker";
 import type { Logger } from "../services/logger";
 import type { PrintJob } from "../services/print-job";
-import { MAIN_FILE } from "../services/print-job";
+import { compilePayload } from "../services/print-job";
 import { COMPILE_TIMEOUT_MS } from "../services/print-template";
 import {
   checkRuntimeBytes,
+  COMPILER_MEGABYTES,
+  DEVICE_ASSETS,
+  FONT_ASSETS,
+  fontFaceOf,
   LOADER_ASSET,
   readCompileResult,
-  RUNTIME_ASSETS,
   runtimeAssetUrl,
   runtimeCachePath,
-  RUNTIME_MEGABYTES,
   staleRuntimeFiles,
   toHex,
   WASM_ASSET,
@@ -42,6 +44,7 @@ export type ProgressReport = (message: string) => void;
 
 export interface RuntimeStrings {
   downloading: (label: string, megabytes: number) => string;
+  downloadingFont: (face: string) => string;
   verifying: string;
   starting: string;
   compiling: string;
@@ -66,6 +69,7 @@ interface WorkerReply {
 export class TypstCompiler {
   private module: WebAssembly.Module | null = null;
   private loader: string | null = null;
+  private fonts: Uint8Array[] = [];
   private worker: Worker | null = null;
   private workerUrl: string | null = null;
   private ready: Promise<void> | null = null;
@@ -90,22 +94,7 @@ export class TypstCompiler {
     await this.load(progress);
     progress(this.strings.compiling);
 
-    const sources: { path: string; text: string }[] = [{ path: `/${MAIN_FILE}`, text: job.main }];
-    const binaries: { path: string; bytes: Uint8Array }[] = [];
-
-    for (const file of job.files) {
-      if (file.path.endsWith(".typ")) {
-        sources.push({ path: `/${file.path}`, text: new TextDecoder().decode(file.bytes) });
-      } else {
-        binaries.push({ path: `/${file.path}`, bytes: file.bytes });
-      }
-    }
-
-    const reply = await this.request(
-      "compile",
-      { main: `/${MAIN_FILE}`, fonts: job.fonts, sources, binaries },
-      COMPILE_TIMEOUT_MS
-    );
+    const reply = await this.request("compile", compilePayload(job), COMPILE_TIMEOUT_MS);
 
     if (reply.pdf) return readCompileResult(reply.pdf);
     return readCompileResult({ diagnostics: reply.diagnostics ?? [] });
@@ -124,7 +113,7 @@ export class TypstCompiler {
 
   /** Whether the runtime is already on this device, so a command can say so. */
   async isInstalled(): Promise<boolean> {
-    for (const asset of RUNTIME_ASSETS) {
+    for (const asset of DEVICE_ASSETS) {
       if (!(await this.app.vault.adapter.exists(runtimeCachePath(this.pluginDir, asset)))) {
         return false;
       }
@@ -135,14 +124,14 @@ export class TypstCompiler {
   /**
    * Take the typesetter off the device.
    *
-   * Somebody switching printing off has 28 MB sitting in their vault folder
+   * Somebody switching printing off has 30 MB sitting in their vault folder
    * for a feature they stopped using, and no way to see it from inside the app.
    * Removing it is safe: the next print fetches and checks it again.
    */
   async remove(): Promise<void> {
     this.dispose();
     const adapter = this.app.vault.adapter;
-    for (const asset of RUNTIME_ASSETS) {
+    for (const asset of DEVICE_ASSETS) {
       const path = runtimeCachePath(this.pluginDir, asset);
       try {
         if (await adapter.exists(path)) await adapter.remove(path);
@@ -199,6 +188,11 @@ export class TypstCompiler {
   private async acquire(progress: ProgressReport): Promise<void> {
     const wasm = await this.bytesOf(WASM_ASSET, progress);
     const loader = await this.bytesOf(LOADER_ASSET, progress);
+    // The faces text is set in when a template brings none. Without them a
+    // page has nothing to draw its words with and comes out blank.
+    const fonts: Uint8Array[] = [];
+    for (const asset of FONT_ASSETS) fonts.push(await this.bytesOf(asset, progress));
+    this.fonts = fonts;
 
     progress(this.strings.starting);
     this.module ??= await WebAssembly.compile(wasm as BufferSource);
@@ -208,7 +202,11 @@ export class TypstCompiler {
     // are let go before the next attempt takes their place.
     this.stopWorker();
     this.worker = this.startWorker();
-    await this.request("init", { module: this.module, loader: this.loader }, DOWNLOAD_TIMEOUT_MS);
+    await this.request(
+      "init",
+      { module: this.module, loader: this.loader, fonts: this.fonts },
+      DOWNLOAD_TIMEOUT_MS
+    );
     await this.removeStale();
   }
 
@@ -243,7 +241,11 @@ export class TypstCompiler {
 
   private async download(asset: RuntimeAsset, progress: ProgressReport): Promise<Uint8Array> {
     const url = runtimeAssetUrl(this.pluginVersion, asset);
-    progress(this.strings.downloading(asset.label, Math.round(megabytesOf(asset))));
+    progress(
+      asset.label === "font"
+        ? this.strings.downloadingFont(fontFaceOf(asset))
+        : this.strings.downloading(asset.label, megabytesOf(asset))
+    );
     this.logger.debug(`print: fetching ${url}`);
 
     let response: Awaited<ReturnType<typeof requestUrl>>;
@@ -330,5 +332,5 @@ async function sha256(bytes: Uint8Array): Promise<string> {
 }
 
 function megabytesOf(asset: RuntimeAsset): number {
-  return asset.label === "compiler" ? RUNTIME_MEGABYTES : 1;
+  return asset.label === "compiler" ? COMPILER_MEGABYTES : 1;
 }
