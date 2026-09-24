@@ -70,6 +70,7 @@ import {
 } from "../services/tree-move";
 import { hasSourceBinding, resolveSourceUrl, SYNC_FRONTMATTER_KEY } from "../services/sync-source";
 import { someFileUnder } from "../services/vault-tree";
+import { arrivedReceipt, LOCAL_TRASH, localTrashPath } from "../services/trash-receipt";
 import { folderImages, hasFolderImages, type FolderImages } from "../services/folder-images";
 import { openSubmenu } from "../services/workspace-internals";
 import { describePollSummary, type PollSummary } from "../services/sync-summary";
@@ -170,10 +171,6 @@ export type Toaster = (message: string, undoLabel: string, onUndo: () => void) =
 export interface ImportSource extends DroppedFile {
   bytes: () => Promise<ArrayBuffer>;
 }
-
-/** The folder the vault's own trash lives in. Hidden from the vault API,
- *  reachable through the adapter, which is how a deleted file comes back. */
-const LOCAL_TRASH = ".trash";
 
 /** How long the notice offering an undo stays. As long as the undo itself. */
 const UNDO_NOTICE_MS = UNDO_WINDOW_MS;
@@ -1217,6 +1214,17 @@ export class ExplorerController {
     const steps: DeleteStep[] = [];
     let localTrash = true;
 
+    // The rows go before the trash call, not after it. The vault's own
+    // delete event is what the pane listens to, and it arrives when a
+    // watcher notices rather than when the file went — seconds later on a
+    // phone. The trash call itself can take as long: a system trash on a
+    // slow volume, a vault on a synced drive. A row sitting there for those
+    // seconds after a confirmed delete reads as a pane that froze. So the
+    // rows go the moment the person confirmed, and the call and the event,
+    // when they come, only confirm it; a call that fails brings its row back.
+    for (const file of files) this.holdTrashed(file.path);
+    this.emit();
+
     for (const file of files) {
       const path = file.path;
       let receipt: string | null;
@@ -1227,27 +1235,14 @@ export class ExplorerController {
         // A row that stays put after a confirmed delete otherwise reads as
         // the pane having missed the change rather than the delete failing.
         new Notice(t().common.notice(t().explorer.delete.failed(file.name)));
-        continue;
-      }
-
-      // The file is gone the moment this returns. The vault's own delete
-      // event is what the pane listens to, and it arrives when a watcher
-      // notices rather than when the file went — seconds later on a phone,
-      // which is a row sitting there after you deleted it. So the row goes
-      // now, and the event, when it comes, only confirms it.
-      this.trashed.add(path);
-      const handle = this.setTimer(() => {
-        this.trashTimers.delete(path);
-        if (!this.trashed.has(path)) return;
         this.forgetTrashed(path);
         this.emit();
-      }, TRASH_GRACE_MS);
-      this.trashTimers.set(path, handle);
+        continue;
+      }
 
       if (receipt === null) localTrash = false;
       else steps.push({ from: path, trashedTo: receipt });
     }
-    this.emit();
 
     if (steps.length === 0 && !localTrash && files.length > 0) {
       new Notice(t().common.notice(t().explorer.undo.systemTrash));
@@ -1277,17 +1272,39 @@ export class ExplorerController {
    * the trash is the system's, which is answered with null — a delete that
    * worked and cannot be undone from here.
    */
+  /** Take a row away on trust, until the vault confirms it or the grace runs out. */
+  private holdTrashed(path: string): void {
+    this.trashed.add(path);
+    const handle = this.setTimer(() => {
+      this.trashTimers.delete(path);
+      if (!this.trashed.has(path)) return;
+      this.forgetTrashed(path);
+      this.emit();
+    }, TRASH_GRACE_MS);
+    this.trashTimers.set(path, handle);
+  }
+
+  /**
+   * Trash the file and say where it went, or null for a trash the adapter
+   * cannot see into.
+   *
+   * The vault's own trash keeps the file's name, so one look at that path
+   * after the call is the receipt. Listing the trash before and after was
+   * how it used to be found, and a trash that is never emptied made every
+   * delete wait on two listings of it; the listings are kept only for the
+   * one case they answer, a namesake already there, which the trash renames
+   * around.
+   */
   private async trashWithReceipt(file: TAbstractFile): Promise<string | null> {
     const adapter = this.app.vault.adapter;
-    const before = await this.listTrash(adapter);
-    await this.app.fileManager.trashFile(file);
-    const after = await this.listTrash(adapter);
+    const expected = localTrashPath(file.name);
+    const taken = await adapter.exists(expected);
+    const before = taken ? await this.listTrash(adapter) : null;
 
-    // Something else may land in the trash between the two listings — a sync
-    // client, another device — so an arrival carrying this file's own name
-    // is believed before any other.
-    const arrived = after.filter((entry) => !before.includes(entry));
-    return arrived.find((entry) => basename(entry) === file.name) ?? arrived[0] ?? null;
+    await this.app.fileManager.trashFile(file);
+
+    if (before === null) return (await adapter.exists(expected)) ? expected : null;
+    return arrivedReceipt(file.name, before, await this.listTrash(adapter));
   }
 
   private async listTrash(adapter: DataAdapter): Promise<string[]> {
