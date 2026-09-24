@@ -187,7 +187,8 @@ export const enExtra = {
     printAddTemplateButton: "Add",
     printAddTemplateDesc:
       "Writes one of the two example templates into a folder you choose. Neither carries a " +
-      "typeface, since fonts are licensed; a template with none is set in Typst's own.",
+      "typeface, since fonts are licensed; a template with none is set in the standard fonts " +
+      "fetched with the typesetter.",
     printTemplateRoot: "Templates folder",
     printTemplateRootDesc:
       "Where a new template goes by default. A template is any folder with a template.md marked " +
@@ -680,6 +681,7 @@ export const enExtra = {
     drawing: (index: number, total: number) => `drawing diagram ${index} of ${total}…`,
     downloading: (label: string, megabytes: number) =>
       `fetching the ${label} (${megabytes} MB, once per device)…`,
+    downloadingFont: (face: string) => `fetching the font ${face} (once per device)…`,
     verifying: "checking what was downloaded…",
     starting: "starting the typesetter…",
     compiling: "typesetting…",
@@ -712,7 +714,36 @@ export const enExtra = {
     chooseFolder: "Put the template in which folder?",
     templateExists: (path: string) => `${path} already exists and was left alone.`,
     templateAdded: (path: string) =>
-      `${path} added. Open its template.md to see what it needs, and put a font in its fonts/ folder.`
+      `${path} added. Open its template.md to see what it needs, and put a font in its fonts/ folder.`,
+    diagramAsSource: (language: string) => `${language}: could not be drawn, printed as source`,
+    htmlDropped: "HTML is dropped when printing",
+    embedNotPrinted: (target: string) => `embedded note is not printed: ${target}`,
+    imageNotFound: (source: string) => `image not found: ${source}`,
+    footnoteMissing: (name: string) => `footnote [^${name}] has no text and was left out`,
+    notReplaced: (path: string) =>
+      `${path} is somebody else's file and was left alone; nothing was printed.`,
+    outputIsFolder: (path: string) =>
+      `${path} is a folder, so the document cannot be written there`,
+    replaceTitle: "Replace this file?",
+    replaceMessage: (path: string) =>
+      `${path} already exists and was not made by printing. Replace it with the printed note?`,
+    replaceSubmit: "Replace",
+    limits: {
+      fontFiles: (count: number, max: number) => `${count} font files, at most ${max} are used`,
+      fontBytes: (megabytes: number, max: number) =>
+        `fonts total ${megabytes} MB, at most ${max} MB are used`,
+      pictureFiles: (count: number, max: number) => `${count} pictures, at most ${max} are used`,
+      pictureBytes: (megabytes: number, max: number) =>
+        `pictures total ${megabytes} MB, at most ${max} MB are used`,
+      pdfBytes: (megabytes: number, max: number) =>
+        `the document came to ${megabytes} MB, at most ${max} MB are written`
+    },
+    layout: {
+      tooLarge: (kilobytes: number) => `layout is larger than ${kilobytes} KB`,
+      package: (line: number) => `line ${line}: packages cannot be used, printing works offline`,
+      leavesFolder: (line: number) => `line ${line}: a path may not leave the template folder`,
+      absolute: (line: number) => `line ${line}: a path must be relative to the template folder`
+    }
   },
 
   secrets: {

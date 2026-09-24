@@ -441,7 +441,8 @@ export const de: Messages = {
     printAddTemplateButton: "Anlegen",
     printAddTemplateDesc:
       "Legt eine der beiden Beispielvorlagen in einem Ordner deiner Wahl an. Keine bringt eine " +
-      "Schrift mit, denn Schriften sind lizenziert; eine Vorlage ohne wird in Typsts eigener gesetzt.",
+      "Schrift mit, denn Schriften sind lizenziert; eine Vorlage ohne wird in der Standardschrift " +
+      "gesetzt, die mit dem Satzteil geladen wird.",
     printTemplateRoot: "Vorlagenordner",
     printTemplateRootDesc:
       "Wohin eine neue Vorlage standardmäßig kommt. Eine Vorlage ist jeder Ordner mit einer " +
@@ -949,6 +950,7 @@ export const de: Messages = {
     drawing: (index: number, total: number) => `zeichne Diagramm ${index} von ${total} …`,
     downloading: (label: string, megabytes: number) =>
       `lade den Satzteil „${label}“ (${megabytes} MB, einmal pro Gerät) …`,
+    downloadingFont: (face: string) => `lade die Schrift ${face} (einmal pro Gerät) …`,
     verifying: "prüfe das Geladene …",
     starting: "starte den Satz …",
     compiling: "setze …",
@@ -982,7 +984,39 @@ export const de: Messages = {
     templateExists: (path: string) => `${path} gibt es schon und blieb unangetastet.`,
     templateAdded: (path: string) =>
       `${path} angelegt. Die template.md darin sagt, was die Vorlage braucht; eine Schrift kommt ` +
-      "in ihren fonts/-Ordner."
+      "in ihren fonts/-Ordner.",
+    diagramAsSource: (language: string) =>
+      `${language}: ließ sich nicht zeichnen und steht als Quelltext da`,
+    htmlDropped: "HTML wird beim Drucken weggelassen",
+    embedNotPrinted: (target: string) => `eingebettete Notiz wird nicht gedruckt: ${target}`,
+    imageNotFound: (source: string) => `Bild nicht gefunden: ${source}`,
+    footnoteMissing: (name: string) => `Fußnote [^${name}] hat keinen Text und fehlt`,
+    notReplaced: (path: string) =>
+      `${path} ist eine fremde Datei und blieb unangetastet; gedruckt wurde nichts.`,
+    outputIsFolder: (path: string) => `${path} ist ein Ordner, dort lässt sich nichts hinschreiben`,
+    replaceTitle: "Datei ersetzen?",
+    replaceMessage: (path: string) =>
+      `${path} gibt es schon, und sie stammt nicht aus einem Druck. Durch die gedruckte Notiz ersetzen?`,
+    replaceSubmit: "Ersetzen",
+    limits: {
+      fontFiles: (count: number, max: number) =>
+        `${count} Schriftdateien, höchstens ${max} werden benutzt`,
+      fontBytes: (megabytes: number, max: number) =>
+        `Schriften zusammen ${megabytes} MB, höchstens ${max} MB werden benutzt`,
+      pictureFiles: (count: number, max: number) =>
+        `${count} Bilder, höchstens ${max} werden benutzt`,
+      pictureBytes: (megabytes: number, max: number) =>
+        `Bilder zusammen ${megabytes} MB, höchstens ${max} MB werden benutzt`,
+      pdfBytes: (megabytes: number, max: number) =>
+        `das Dokument hat ${megabytes} MB, höchstens ${max} MB werden geschrieben`
+    },
+    layout: {
+      tooLarge: (kilobytes: number) => `das Layout ist größer als ${kilobytes} KB`,
+      package: (line: number) => `Zeile ${line}: Pakete gehen nicht, gedruckt wird ohne Netz`,
+      leavesFolder: (line: number) =>
+        `Zeile ${line}: ein Pfad darf den Vorlagenordner nicht verlassen`,
+      absolute: (line: number) => `Zeile ${line}: ein Pfad muss relativ zum Vorlagenordner sein`
+    }
   },
 
   secrets: {

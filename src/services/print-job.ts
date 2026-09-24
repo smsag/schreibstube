@@ -6,6 +6,7 @@
  * other. The compiler sees nothing else — no vault, no disk, no network —
  * which is what makes a template's reach exactly the folder it lives in.
  */
+import { t } from "../i18n";
 import { PRELUDE_FILE, PRELUDE_SOURCE } from "./print-prelude";
 import { typstDictionary } from "./typst-value";
 import {
@@ -14,6 +15,7 @@ import {
   MAX_FONT_FILES,
   MAX_IMAGE_BYTES,
   MAX_IMAGE_FILES,
+  MAX_PDF_BYTES,
   type PrintTemplate
 } from "./print-template";
 
@@ -57,8 +59,12 @@ export function buildJob(input: JobInput): PrintJob {
 
   const main =
     `// Generated for this print. Edit the template, not this file.\n` +
-    `#import ${JSON.stringify(LAYOUT_FILE)}: ${template.entry}\n` +
+    // The prelude first and the whole layout after it: a helper the template
+    // defines shadows the default of the same name, which is how a template
+    // restyles a callout. Importing only the entry left the prelude's version
+    // in force whatever the template said.
     `#import ${JSON.stringify(PRELUDE_FILE)}: *\n` +
+    `#import ${JSON.stringify(LAYOUT_FILE)}: *\n` +
     `\n` +
     `#let data = ${typstDictionary(input.data)}\n` +
     (page ? `${page}\n` : "") +
@@ -76,6 +82,35 @@ export function buildJob(input: JobInput): PrintJob {
     ],
     fonts: input.fonts.map((font) => font.bytes)
   };
+}
+
+/** What the worker is sent: the job as the compiler's calls take it. */
+export interface CompilePayload {
+  main: string;
+  fonts: Uint8Array[];
+  sources: { path: string; text: string }[];
+  binaries: { path: string; bytes: Uint8Array }[];
+}
+
+/**
+ * The job, split the way the compiler reads it.
+ *
+ * Typst source is added as text and everything else is mapped as bytes, and
+ * the compiler addresses both from the root. One function for the plugin and
+ * for the CI step that compiles the fixtures, so what CI checks is what a
+ * device sends.
+ */
+export function compilePayload(job: PrintJob): CompilePayload {
+  const sources = [{ path: `/${MAIN_FILE}`, text: job.main }];
+  const binaries: { path: string; bytes: Uint8Array }[] = [];
+  for (const file of job.files) {
+    if (file.path.endsWith(".typ")) {
+      sources.push({ path: `/${file.path}`, text: new TextDecoder().decode(file.bytes) });
+    } else {
+      binaries.push({ path: `/${file.path}`, bytes: file.bytes });
+    }
+  }
+  return { main: `/${MAIN_FILE}`, fonts: job.fonts, sources, binaries };
 }
 
 /**
@@ -108,32 +143,91 @@ function marginValue(margin: string): string {
  * knows that.
  */
 export function checkJobLimits(input: JobInput): string[] {
+  return [
+    ...checkFontBudget(input.fonts.map((file) => file.bytes.byteLength)),
+    ...checkPictureBudget(input.assets.map((file) => file.bytes.byteLength))
+  ];
+}
+
+/**
+ * Whether fonts of these sizes fit the job.
+ *
+ * Asked once with the sizes the vault reports, before a byte is read — a
+ * folder holding a whole type family would otherwise be in memory in full by
+ * the time the total was checked — and once more on the job itself.
+ */
+export function checkFontBudget(sizes: readonly number[]): string[] {
   const problems: string[] = [];
-
-  if (input.fonts.length > MAX_FONT_FILES) {
-    problems.push(`${input.fonts.length} font files, at most ${MAX_FONT_FILES} are used`);
+  const words = t().print.limits;
+  if (sizes.length > MAX_FONT_FILES) problems.push(words.fontFiles(sizes.length, MAX_FONT_FILES));
+  const bytes = sum(sizes);
+  if (bytes > MAX_FONT_BYTES) {
+    problems.push(words.fontBytes(megabytes(bytes), megabytes(MAX_FONT_BYTES)));
   }
-  const fontBytes = total(input.fonts);
-  if (fontBytes > MAX_FONT_BYTES) {
-    problems.push(
-      `fonts total ${megabytes(fontBytes)} MB, at most ${megabytes(MAX_FONT_BYTES)} MB are used`
-    );
-  }
-  if (input.assets.length > MAX_IMAGE_FILES) {
-    problems.push(`${input.assets.length} pictures, at most ${MAX_IMAGE_FILES} are used`);
-  }
-  const assetBytes = total(input.assets);
-  if (assetBytes > MAX_IMAGE_BYTES) {
-    problems.push(
-      `pictures total ${megabytes(assetBytes)} MB, at most ${megabytes(MAX_IMAGE_BYTES)} MB are used`
-    );
-  }
-
   return problems;
 }
 
-function total(files: readonly JobFile[]): number {
-  return files.reduce((sum, file) => sum + file.bytes.byteLength, 0);
+/** The same for pictures: the template's own before they are read, then all of them. */
+export function checkPictureBudget(sizes: readonly number[]): string[] {
+  const problems: string[] = [];
+  const words = t().print.limits;
+  if (sizes.length > MAX_IMAGE_FILES) {
+    problems.push(words.pictureFiles(sizes.length, MAX_IMAGE_FILES));
+  }
+  const bytes = sum(sizes);
+  if (bytes > MAX_IMAGE_BYTES) {
+    problems.push(words.pictureBytes(megabytes(bytes), megabytes(MAX_IMAGE_BYTES)));
+  }
+  return problems;
+}
+
+/** Whether a finished document may be written, or what is wrong with it. */
+export function checkPdfSize(bytes: number): string | null {
+  return bytes > MAX_PDF_BYTES
+    ? t().print.limits.pdfBytes(megabytes(bytes), megabytes(MAX_PDF_BYTES))
+    : null;
+}
+
+/**
+ * Where a vault picture goes inside the job.
+ *
+ * Named after its vault path, with anything a job path should not hold made a
+ * dash — which maps `a b.png` and `a-b.png` to the same name, and printed one
+ * of them twice. So a name already given to another picture gets a number, and
+ * the same picture asked for twice keeps the name it was given first.
+ */
+export function jobAssetPath(vaultPath: string, assigned: Map<string, string>): string {
+  const known = assigned.get(vaultPath);
+  if (known !== undefined) return known;
+
+  const flat = vaultPath.replace(/[^A-Za-z0-9._-]+/g, "-");
+  const taken = new Set(assigned.values());
+  const dot = flat.lastIndexOf(".");
+  const stem = dot > 0 ? flat.slice(0, dot) : flat;
+  const extension = dot > 0 ? flat.slice(dot) : "";
+
+  let path = `assets/${flat}`;
+  for (let n = 2; taken.has(path); n += 1) path = `assets/${stem}-${n}${extension}`;
+  assigned.set(vaultPath, path);
+  return path;
+}
+
+/**
+ * Whether a PDF already in the vault is one a print wrote.
+ *
+ * Printing writes `Note.pdf` beside the note, and a vault often already has a
+ * file of that name that is nobody's print — a scan, a download, the signed
+ * copy. One Typst made is taken to be an earlier print and replaced; anything
+ * else is asked about first. Typst names itself as the creator in the
+ * document's information and in its XMP, both uncompressed.
+ */
+export function isTypesetPdf(bytes: Uint8Array): boolean {
+  const text = new TextDecoder("latin1").decode(bytes);
+  return /\/Creator\s*\(Typst[ )]|<xmp:CreatorTool>Typst[ <]/.test(text);
+}
+
+function sum(values: readonly number[]): number {
+  return values.reduce((total, value) => total + value, 0);
 }
 
 function megabytes(bytes: number): number {

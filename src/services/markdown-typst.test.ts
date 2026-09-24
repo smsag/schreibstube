@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { diagramCaption, escapeText, markdownToTypst } from "./markdown-typst";
+import { PRELUDE_SOURCE } from "./print-prelude";
 
 const convert = (source: string, options = {}): string =>
   markdownToTypst(source, options).body.trim();
@@ -340,5 +341,129 @@ describe("what Typst would have refused or swallowed", () => {
 
   it("nests a list indented with a tab", () => {
     expect(convert("- eins\n\t- zwei\n- drei")).toContain("  - zwei");
+  });
+});
+
+describe("what Typst would have read as a call or a field", () => {
+  // Typst carries an embedded expression on into a `(`, `[` or `.name` that
+  // touches it, so each of these used to stop the whole document.
+  it("ends an expression before text that would continue it", () => {
+    expect(convert("Die Funktion `f`(x)")).toBe('Die Funktion #raw("f");(x)');
+    expect(convert("Datei `package`.json")).toBe('Datei #raw("package");.json');
+    expect(convert("**Anmerkung**(siehe unten)")).toBe("#strong[Anmerkung];(siehe unten)");
+    expect(convert("[Seite](https://example.de)(Quelle)")).toBe(
+      '#link("https://example.de")[Seite];(Quelle)'
+    );
+    expect(convert("*kursiv*. Ende")).toBe("#emph[kursiv];. Ende");
+  });
+
+  it("carries the guard through a label that ends in an expression", () => {
+    expect(convert("[**fett**](notiz.md)(x)")).toBe("#strong[fett];(x)");
+  });
+
+  it("adds nothing where the text cannot continue the expression", () => {
+    expect(convert("`a` und **b**, dann")).toBe('#raw("a") und #strong[b], dann');
+    expect(convert("*a**b*")).not.toContain(";");
+  });
+});
+
+describe("callouts and quotes, as part of the note around them", () => {
+  it("gives a diagram inside a callout its own picture, not the note's first", () => {
+    const source = "```mermaid\nA\n```\n\n> [!note]\n> ```mermaid\n> B\n> ```";
+    const found = markdownToTypst(source).diagrams;
+    expect(found.map((block) => [block.index, block.source])).toEqual([
+      [0, "A"],
+      [1, "B"]
+    ]);
+
+    const pictures = new Map(found.map((block) => [block.index, [`${block.source}.png`]]));
+    const body = markdownToTypst(source, {
+      diagramImage: (block) => pictures.get(block.index) ?? null
+    }).body;
+    expect(body).toContain('#schreibstube-diagram(("A.png",), "")');
+    expect(body).toContain('#schreibstube-diagram(("B.png",), "")');
+  });
+
+  it("captions a diagram in a callout with the heading above the callout", () => {
+    const conversion = markdownToTypst("## Ablauf\n\n> [!note]\n> ```mermaid\n> A\n> ```");
+    expect(conversion.diagrams[0]?.caption).toBe("Ablauf");
+  });
+
+  it("reaches a footnote defined outside the quote that cites it", () => {
+    expect(convert("> Zitat[^q]\n\n[^q]: Die Quelle")).toBe(
+      "#quote(block: true)[\nZitat#footnote[Die Quelle]\n]"
+    );
+    expect(convert("> [!note]\n> Text[^n]\n\n[^n]: Anmerkung")).toContain(
+      "Text#footnote[Anmerkung]"
+    );
+  });
+});
+
+describe("footnotes", () => {
+  it("ends a footnote that cites itself instead of expanding it for ever", () => {
+    expect(convert("Text[^a]\n\n[^a]: siehe [^a]")).toBe("Text#footnote[siehe ]");
+    expect(convert("x[^a]\n\n[^a]: A[^b]\n[^b]: B[^a]")).toBe("x#footnote[A#footnote[B]]");
+  });
+
+  it("says so when a footnote has no definition", () => {
+    const conversion = markdownToTypst("Text[^fehlt]");
+    expect(conversion.body.trim()).toBe("Text");
+    expect(conversion.warnings).toContain("footnote [^fehlt] has no text and was left out");
+  });
+
+  it("does not read a line inside a fence as a definition", () => {
+    const out = convert("Text[^1]\n\n```\n[^1]: im Code\n```\n\n[^1]: richtig");
+    expect(out).toContain("#footnote[richtig]");
+    expect(out).toContain("[^1]: im Code");
+  });
+});
+
+describe("lists, as the note numbered and ticked them", () => {
+  it("starts a numbered list where the note started it", () => {
+    expect(convert("3. drei\n4. vier")).toBe("3. drei\n+ vier");
+    expect(convert("1. eins\n2. zwei")).toBe("+ eins\n+ zwei");
+  });
+
+  it("draws a task's box rather than printing its brackets", () => {
+    expect(convert("- [ ] offen\n- [x] erledigt")).toBe(
+      "- #schreibstube-task(false) offen\n- #schreibstube-task(true) erledigt"
+    );
+  });
+});
+
+describe("the prelude the body calls", () => {
+  it("defines every helper the converter emits", () => {
+    const body = markdownToTypst(
+      "![b](b.png)\n\n```mermaid\nA\n```\n\n```ts\nx\n```\n\n| a |\n|---|\n| 1 |\n\n" +
+        "> [!tip] T\n> x\n\n- [ ] t",
+      resolved
+    ).body;
+    const called = new Set([...body.matchAll(/#(schreibstube-[a-z]+)\(/g)].map((m) => m[1]));
+    expect([...called].sort()).toEqual([
+      "schreibstube-callout",
+      "schreibstube-code",
+      "schreibstube-diagram",
+      "schreibstube-image",
+      "schreibstube-table",
+      "schreibstube-task"
+    ]);
+    for (const name of called) expect(PRELUDE_SOURCE).toContain(`#let ${name}(`);
+  });
+
+  it("takes a callout's body as the argument the trailing block becomes", () => {
+    // `callout(kind, title)[body]` is one call with three arguments; a helper
+    // that took two and returned a function refused every callout.
+    expect(convert("> [!tip] T\n> x")).toMatch(/^#schreibstube-callout\("tip", \[T\]\)\[/);
+    expect(PRELUDE_SOURCE).toContain("#let schreibstube-callout(kind, title, body) =");
+  });
+
+  it("lets a code block and a callout break across pages", () => {
+    // An unbreakable block longer than a page runs off its bottom.
+    for (const name of ["schreibstube-code", "schreibstube-callout"]) {
+      const start = PRELUDE_SOURCE.indexOf(`#let ${name}(`);
+      const definition = PRELUDE_SOURCE.slice(start, PRELUDE_SOURCE.indexOf("\n}\n", start));
+      expect(definition).toContain("breakable: true");
+      expect(definition).not.toContain("breakable: false");
+    }
   });
 });

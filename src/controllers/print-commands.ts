@@ -19,14 +19,26 @@ import type { SchreibstubeSettings } from "../types";
 import { getImageMimeType, resizeImageToBytes } from "../services/image-resize";
 import { markdownToTypst, type Conversion, type DiagramBlock } from "../services/markdown-typst";
 import { noteTitle, resolvePrintData, templateNameOf } from "../services/print-data";
-import { buildJob, checkJobLimits, type JobFile } from "../services/print-job";
+import {
+  buildJob,
+  checkFontBudget,
+  checkJobLimits,
+  checkPdfSize,
+  checkPictureBudget,
+  isTypesetPdf,
+  jobAssetPath,
+  type JobFile
+} from "../services/print-job";
 import {
   checkLayout,
+  chooseTemplate,
   DESCRIPTOR_FILE,
   FONT_DIRECTORY,
   isFontFile,
   LAYOUT_FILE,
   MAX_DIAGRAM_BYTES,
+  MAX_PDF_BYTES,
+  MAX_SOURCE_IMAGE_BYTES,
   parseTemplate,
   TEMPLATE_FLAG,
   TEMPLATE_ROOT_DEFAULT,
@@ -40,6 +52,7 @@ import {
   standaloneSvg,
   svgSize
 } from "../services/svg-capture";
+import { toArrayBuffer } from "../utils/array-buffer";
 import { withTimeout } from "../utils/with-timeout";
 import {
   canvasExportApi,
@@ -51,7 +64,7 @@ import {
 } from "../services/workspace-internals";
 import { TypstCompiler } from "../print/typst-compiler";
 import { activeLocale } from "../i18n";
-import { RUNTIME_MEGABYTES } from "../services/typst-runtime";
+import { describeDiagnostics, RUNTIME_MEGABYTES } from "../services/typst-runtime";
 import { PrintExampleModal, PrintTemplateModal } from "../ui/print-modals";
 import { ConfirmModal, FolderPickerModal } from "../ui/explorer-modals";
 import { EXAMPLE_TEMPLATES, type ExampleTemplate } from "../services/print-examples";
@@ -83,6 +96,17 @@ const SETTLE_MS = 4_000;
 
 /** How long one capture may take. A print must end, even badly. */
 const EXPORT_MS = 15_000;
+
+/**
+ * How long a fence may take to render before it is given up on.
+ *
+ * Rendering runs another plugin's code, and one that never settles would hold
+ * the print — and its notice, which stays until the print ends — for ever.
+ */
+const RENDER_MS = 20_000;
+
+/** How long a drawing may take to read back as a picture. */
+const DECODE_MS = 10_000;
 
 export class PrintCommands {
   private compiler: TypstCompiler | null = null;
@@ -187,15 +211,13 @@ export class PrintCommands {
     }
 
     const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter;
-    const named = templateNameOf(frontmatter);
-    const chosen =
-      templates.find((template) => template.name === named) ??
-      (named !== null ? null : await this.ask(templates));
-
-    if (!chosen) {
-      if (named !== null) new Notice(t().common.notice(messages.unknownTemplate(named)));
+    const choice = chooseTemplate(templates, templateNameOf(frontmatter));
+    if (choice.kind === "unknown") {
+      new Notice(t().common.notice(messages.unknownTemplate(choice.name)));
       return;
     }
+    const chosen = choice.kind === "use" ? choice.template : await this.ask(choice.among);
+    if (!chosen) return;
 
     const notice = new Notice(t().common.notice(messages.working(chosen.name)), 0);
     try {
@@ -247,18 +269,83 @@ export class PrintCommands {
 
     const outcome = await this.compilerFor().compile(buildJob(input), progress);
     if (!outcome.ok) {
-      throw new Error(messages.compilerRefused(outcome.diagnostics.slice(0, 2).join("; ")));
+      throw new Error(messages.compilerRefused(describeDiagnostics(outcome.diagnostics)));
     }
+    const tooLarge = checkPdfSize(outcome.pdf.byteLength);
+    if (tooLarge !== null) throw new Error(tooLarge);
 
     const path = this.outputPath(file);
-    await this.app.vault.adapter.writeBinary(path, toArrayBuffer(outcome.pdf));
+    if (!(await this.write(path, outcome.pdf))) {
+      new Notice(t().common.notice(messages.notReplaced(path)), 8000);
+      return;
+    }
+    this.logger.debug(`print: wrote ${path}`);
 
     const kilobytes = Math.max(1, Math.round(outcome.pdf.byteLength / 1024));
     new Notice(t().common.notice(messages.done(path, kilobytes)), 8000);
     if (conversion.warnings.length > 0) {
       new Notice(t().common.notice(messages.withWarnings(conversion.warnings.join("; "))), 10_000);
     }
-    this.reveal(path);
+  }
+
+  /**
+   * Put the document in the vault, through the vault.
+   *
+   * Through the vault rather than its adapter, so the file is in the index —
+   * and on a phone in the file list — the moment it is written, and a missing
+   * output folder is made first. An existing PDF is replaced without a word
+   * only when Typst made it, which is to say when it is an earlier print; any
+   * other file of that name is somebody's, and is asked about.
+   *
+   * Answers whether the document was written.
+   */
+  private async write(path: string, pdf: Uint8Array): Promise<boolean> {
+    const existing = this.app.vault.getAbstractFileByPath(path);
+    if (existing instanceof TFile) {
+      if (!(await this.mayReplace(existing))) return false;
+      await this.app.vault.modifyBinary(existing, toArrayBuffer(pdf));
+      return true;
+    }
+    if (existing) throw new Error(t().print.outputIsFolder(path));
+
+    const folder = path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : "";
+    if (folder) await this.makeFolder(folder);
+    await this.app.vault.createBinary(path, toArrayBuffer(pdf));
+    return true;
+  }
+
+  private async mayReplace(file: TFile): Promise<boolean> {
+    if (file.stat.size <= MAX_PDF_BYTES) {
+      const bytes = await this.readBytes(file.path);
+      if (bytes && isTypesetPdf(bytes)) return true;
+    }
+    const messages = t().print;
+    return this.confirm({
+      title: messages.replaceTitle,
+      message: messages.replaceMessage(file.path),
+      submitLabel: messages.replaceSubmit
+    });
+  }
+
+  /** A yes-or-no question that also answers when it is dismissed. */
+  private confirm(options: {
+    title: string;
+    message: string;
+    submitLabel: string;
+  }): Promise<boolean> {
+    return new Promise((resolve) => {
+      let answered = false;
+      const modal = new ConfirmModal(this.app, options, () => {
+        answered = true;
+        resolve(true);
+      });
+      const close = modal.onClose.bind(modal);
+      modal.onClose = () => {
+        close();
+        if (!answered) resolve(false);
+      };
+      modal.open();
+    });
   }
 
   /**
@@ -314,19 +401,23 @@ export class PrintCommands {
     // converter is synchronous, so an embedded picture is named here and read
     // afterwards rather than awaited inside a parser.
     const wanted = new Map<string, TFile>();
-    const conversion: Conversion = markdownToTypst(source, {
-      hrIsPageBreak: template.hrIsPageBreak,
-      diagramImage: (block) => drawings.get(block.index) ?? null,
-      diagramTitle: (block) => titles.get(block.index) ?? null,
-      image: ({ source: link }) => {
-        const target = this.app.metadataCache.getFirstLinkpathDest(link, file.path);
-        if (!target || getImageMimeType(target.extension) === null) return null;
-        const path = `assets/${target.path.replace(/[^A-Za-z0-9._-]+/g, "-")}`;
-        wanted.set(path, target);
-        return path;
-      }
-    });
+    const assigned = new Map<string, string>();
+    const pass = (usable: (path: string) => boolean): Conversion =>
+      markdownToTypst(source, {
+        hrIsPageBreak: template.hrIsPageBreak,
+        diagramImage: (block) => drawings.get(block.index) ?? null,
+        diagramTitle: (block) => titles.get(block.index) ?? null,
+        image: ({ source: link }) => {
+          const target = this.app.metadataCache.getFirstLinkpathDest(link, file.path);
+          if (!target || getImageMimeType(target.extension) === null) return null;
+          const path = jobAssetPath(target.path, assigned);
+          if (!usable(path)) return null;
+          wanted.set(path, target);
+          return path;
+        }
+      });
 
+    const conversion = pass(() => true);
     const warnings = [...captureWarnings, ...conversion.warnings];
     for (const [path, target] of wanted) {
       const bytes = await this.picture(target, template);
@@ -336,18 +427,8 @@ export class PrintCommands {
 
     // A picture that could not be read leaves a placement pointing at nothing,
     // which the compiler would refuse. Convert once more without it.
-    if (wanted.size > 0 && [...wanted.keys()].some((path) => !assets.has(path))) {
-      const usable = markdownToTypst(source, {
-        hrIsPageBreak: template.hrIsPageBreak,
-        diagramImage: (block) => drawings.get(block.index) ?? null,
-        diagramTitle: (block) => titles.get(block.index) ?? null,
-        image: ({ source: link }) => {
-          const target = this.app.metadataCache.getFirstLinkpathDest(link, file.path);
-          if (!target) return null;
-          const path = `assets/${target.path.replace(/[^A-Za-z0-9._-]+/g, "-")}`;
-          return assets.has(path) ? path : null;
-        }
-      });
+    if ([...wanted.keys()].some((path) => !assets.has(path))) {
+      const usable = pass((path) => assets.has(path));
       return { body: usable.body, warnings, assets: [...assets.values()] };
     }
 
@@ -378,17 +459,20 @@ export class PrintCommands {
 
     const component = new Component();
     try {
-      await MarkdownRenderer.render(
-        this.app,
-        `\`\`\`${block.language}\n${block.source}\n\`\`\``,
-        host,
-        sourcePath,
-        component
+      await withTimeout(
+        MarkdownRenderer.render(
+          this.app,
+          `\`\`\`${block.language}\n${block.source}\n\`\`\``,
+          host,
+          sourcePath,
+          component
+        ).then(settle),
+        RENDER_MS,
+        (seconds) => `${block.language} did not finish drawing within ${seconds}s`
       );
       // A plugin that draws asynchronously has had a frame by now; mermaid and
       // the canvases both draw within one. A plugin that needs longer says so
       // itself, below.
-      await settle();
 
       // A canvas its own plugin can export is exported by that plugin: it knows
       // what is drawing and what is a control, which panel of a carousel is
@@ -512,6 +596,15 @@ export class PrintCommands {
   private async picture(file: TFile, template: PrintTemplate): Promise<Uint8Array | null> {
     const mimeType = getImageMimeType(file.extension);
     if (mimeType === null) return null;
+    // Bounded before it is read: the picture is made smaller only after it is
+    // decoded, and decoding a photograph of any size first is how a phone
+    // runs out of memory halfway through a print.
+    if (file.stat.size > MAX_SOURCE_IMAGE_BYTES) {
+      this.logger.warn(
+        `print: ${file.path} is ${Math.round(file.stat.size / 1048576)} MB, over the limit`
+      );
+      return null;
+    }
 
     try {
       const buffer = await this.app.vault.readBinary(file);
@@ -528,31 +621,43 @@ export class PrintCommands {
     }
   }
 
+  /**
+   * The template's typefaces.
+   *
+   * Their sizes are held to the budget as the vault reports them, before any
+   * is read, so a folder with a whole family in it is refused rather than
+   * loaded in full and refused afterwards.
+   */
   private async fonts(template: PrintTemplate): Promise<JobFile[]> {
-    const folder = this.app.vault.getAbstractFileByPath(`${template.folder}/${FONT_DIRECTORY}`);
-    if (!(folder instanceof TFolder)) return [];
-
-    const fonts: JobFile[] = [];
-    for (const child of folder.children) {
-      if (!(child instanceof TFile) || !isFontFile(child.name)) continue;
-      const bytes = await this.readBytes(child.path);
-      if (bytes) fonts.push({ path: `${FONT_DIRECTORY}/${child.name}`, bytes });
-    }
-    return fonts;
+    const files = this.filesIn(`${template.folder}/${FONT_DIRECTORY}`, isFontFile);
+    const problems = checkFontBudget(files.map((file) => file.stat.size));
+    if (problems.length > 0) throw new Error(`${template.name}: ${problems.join("; ")}`);
+    return this.readAll(files, (file) => `${FONT_DIRECTORY}/${file.name}`);
   }
 
   /** Pictures the template itself carries, such as the photo on a CV. */
   private async templateAssets(template: PrintTemplate): Promise<JobFile[]> {
-    const folder = this.app.vault.getAbstractFileByPath(template.folder);
-    if (!(folder instanceof TFolder)) return [];
+    const files = this.filesIn(template.folder, (name) => TEMPLATE_ASSET.test(name));
+    const problems = checkPictureBudget(files.map((file) => file.stat.size));
+    if (problems.length > 0) throw new Error(`${template.name}: ${problems.join("; ")}`);
+    return this.readAll(files, (file) => file.name);
+  }
 
-    const assets: JobFile[] = [];
-    for (const child of folder.children) {
-      if (!(child instanceof TFile) || !TEMPLATE_ASSET.test(child.name)) continue;
-      const bytes = await this.readBytes(child.path);
-      if (bytes) assets.push({ path: child.name, bytes });
+  private filesIn(path: string, wanted: (name: string) => boolean): TFile[] {
+    const folder = this.app.vault.getAbstractFileByPath(path);
+    if (!(folder instanceof TFolder)) return [];
+    return folder.children.filter(
+      (child): child is TFile => child instanceof TFile && wanted(child.name)
+    );
+  }
+
+  private async readAll(files: TFile[], pathOf: (file: TFile) => string): Promise<JobFile[]> {
+    const read: JobFile[] = [];
+    for (const file of files) {
+      const bytes = await this.readBytes(file.path);
+      if (bytes) read.push({ path: pathOf(file), bytes });
     }
-    return assets;
+    return read;
   }
 
   /**
@@ -722,6 +827,7 @@ export class PrintCommands {
       this.pluginVersion,
       {
         downloading: (label, megabytes) => messages.downloading(label, megabytes),
+        downloadingFont: (face) => messages.downloadingFont(face),
         verifying: messages.verifying,
         starting: messages.starting,
         compiling: messages.compiling,
@@ -749,11 +855,6 @@ export class PrintCommands {
     const base = `${file.basename}.pdf`;
     if (folder) return `${folder}/${base}`;
     return file.parent && file.parent.path !== "/" ? `${file.parent.path}/${base}` : base;
-  }
-
-  private reveal(path: string): void {
-    const written = this.app.vault.getAbstractFileByPath(path);
-    if (written instanceof TFile) this.logger.debug(`print: wrote ${written.path}`);
   }
 
   private async readText(path: string): Promise<string | null> {
@@ -790,7 +891,11 @@ async function rasterise(svg: SVGElement): Promise<Uint8Array | null> {
   const url = URL.createObjectURL(new Blob([standalone], { type: "image/svg+xml;charset=utf-8" }));
 
   try {
-    const image = await loadImage(url);
+    const image = await withTimeout(
+      loadImage(url),
+      DECODE_MS,
+      (seconds) => `the drawing did not read back within ${seconds}s`
+    );
     const canvas = document.createElement("canvas");
     canvas.width = target.width;
     canvas.height = target.height;
@@ -820,8 +925,4 @@ function settle(): Promise<void> {
   return new Promise((resolve) => {
     window.requestAnimationFrame(() => window.requestAnimationFrame(() => resolve()));
   });
-}
-
-function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
-  return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
 }

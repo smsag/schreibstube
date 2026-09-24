@@ -44,8 +44,16 @@ import { fileURLToPath } from "node:url";
  * in the bundle already; what it spent was the last kilobyte of headroom,
  * and one kilobyte is a build that breaks on the next line anyone writes.
  * The headroom left is for the next feature, not a new normal.
+ *
+ * Raised to 490 KB at 477 KB, for printing that works (+6 KB): callouts, a
+ * template's own helpers, code before a bracket and diagrams inside a callout
+ * all failed to print, and the fixes brought what a print needs to be safe —
+ * no silent overwrite of somebody's PDF, deadlines on other plugins' drawing,
+ * budgets before a read — and its warnings and refusals in both languages,
+ * which are most of the six. Trimming to fit would have meant leaving those
+ * in English again. The headroom left is for the next feature.
  */
-const MAX_BUNDLE_KB = 480;
+const MAX_BUNDLE_KB = 490;
 
 const bundle = fileURLToPath(new URL("../main.js", import.meta.url));
 const source = readFileSync(bundle, "utf8");

@@ -82,8 +82,9 @@ const module = `/**
  * find a folder on a web page — which on a phone is not really possible at all.
  *
  * Fonts are not carried. A typeface is licensed, a repository is no place to
- * redistribute one, and a template with no font still prints: Typst sets it in
- * its own. The descriptor says so in the prose a person reads after adding it.
+ * redistribute one, and a template with no font still prints: it is set in the
+ * standard fonts the plugin fetches with the typesetter. The descriptor says so
+ * in the prose a person reads after adding it.
  */
 
 export interface ExampleFile {

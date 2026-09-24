@@ -1,7 +1,23 @@
 import { describe, expect, it } from "vitest";
-import { buildJob, checkJobLimits, MAIN_FILE, type JobInput } from "./print-job";
+import {
+  buildJob,
+  checkFontBudget,
+  checkJobLimits,
+  checkPdfSize,
+  checkPictureBudget,
+  isTypesetPdf,
+  jobAssetPath,
+  MAIN_FILE,
+  type JobInput
+} from "./print-job";
 import { PRELUDE_FILE } from "./print-prelude";
-import { LAYOUT_FILE, MAX_FONT_FILES, MAX_IMAGE_FILES, parseTemplate } from "./print-template";
+import {
+  LAYOUT_FILE,
+  MAX_FONT_FILES,
+  MAX_IMAGE_FILES,
+  MAX_PDF_BYTES,
+  parseTemplate
+} from "./print-template";
 
 const bytes = (size: number): Uint8Array => new Uint8Array(size);
 
@@ -22,10 +38,13 @@ function input(overrides: Partial<JobInput> = {}): JobInput {
 }
 
 describe("buildJob", () => {
-  it("imports the layout and the prelude, and applies the entry function", () => {
+  it("imports the prelude, then the whole layout, and applies the entry function", () => {
     const job = buildJob(input());
-    expect(job.main).toContain('#import "template.typ": letter');
-    expect(job.main).toContain('#import "schreibstube.typ": *');
+    const prelude = job.main.indexOf('#import "schreibstube.typ": *');
+    const layout = job.main.indexOf('#import "template.typ": *');
+    // In this order, so a helper the layout defines shadows the prelude's.
+    expect(prelude).toBeGreaterThan(-1);
+    expect(layout).toBeGreaterThan(prelude);
     expect(job.main).toContain("#show: body => letter(body, data)");
     expect(job.main.endsWith("Sehr geehrte Damen und Herren,\n")).toBe(true);
   });
@@ -113,5 +132,67 @@ describe("checkJobLimits", () => {
 
     const heavy = [{ path: "assets/a.png", bytes: bytes(25 * 1024 * 1024) }];
     expect(checkJobLimits(input({ assets: heavy })).join()).toContain("pictures total 25 MB");
+  });
+});
+
+describe("budgets asked before anything is read", () => {
+  it("holds font sizes to the same limits the job is held to", () => {
+    expect(checkFontBudget([300_000, 200_000])).toEqual([]);
+    expect(checkFontBudget([9 * 1024 * 1024])).toEqual(["fonts total 9 MB, at most 8 MB are used"]);
+    expect(checkFontBudget(Array.from({ length: MAX_FONT_FILES + 1 }, () => 1))).toHaveLength(1);
+  });
+
+  it("holds picture sizes to theirs", () => {
+    expect(checkPictureBudget([1024])).toEqual([]);
+    expect(checkPictureBudget([25 * 1024 * 1024]).join()).toContain("pictures total 25 MB");
+  });
+
+  it("refuses to write a document over the limit, and names both sizes", () => {
+    expect(checkPdfSize(1024)).toBeNull();
+    expect(checkPdfSize(MAX_PDF_BYTES)).toBeNull();
+    expect(checkPdfSize(31 * 1024 * 1024)).toBe(
+      "the document came to 31 MB, at most 30 MB are written"
+    );
+  });
+});
+
+describe("jobAssetPath", () => {
+  it("names a picture after its vault path", () => {
+    expect(jobAssetPath("Bilder/Foto 1.jpg", new Map())).toBe("assets/Bilder-Foto-1.jpg");
+  });
+
+  it("keeps two pictures apart whose names flatten to the same thing", () => {
+    const assigned = new Map<string, string>();
+    expect(jobAssetPath("a b.png", assigned)).toBe("assets/a-b.png");
+    expect(jobAssetPath("a-b.png", assigned)).toBe("assets/a-b-2.png");
+    expect(jobAssetPath("a/b.png", assigned)).toBe("assets/a-b-3.png");
+  });
+
+  it("gives the same picture the same name every time it is asked for", () => {
+    const assigned = new Map<string, string>();
+    const first = jobAssetPath("a-b.png", assigned);
+    jobAssetPath("a b.png", assigned);
+    expect(jobAssetPath("a-b.png", assigned)).toBe(first);
+  });
+
+  it("numbers a name without an extension too", () => {
+    const assigned = new Map<string, string>();
+    jobAssetPath("x y", assigned);
+    expect(jobAssetPath("x-y", assigned)).toBe("assets/x-y-2");
+  });
+});
+
+describe("isTypesetPdf", () => {
+  const pdf = (text: string): Uint8Array => new TextEncoder().encode(`%PDF-1.7\n${text}\n%%EOF`);
+
+  it("recognises a document Typst made, by its information or its XMP", () => {
+    expect(isTypesetPdf(pdf("<</Creator(Typst 0.14.2)/ModDate(D:2026)>>"))).toBe(true);
+    expect(isTypesetPdf(pdf("<xmp:CreatorTool>Typst 0.14.2</xmp:CreatorTool>"))).toBe(true);
+  });
+
+  it("takes anything else for somebody's own file", () => {
+    expect(isTypesetPdf(pdf("<</Creator(Microsoft Word)/Producer(Typst-ish)>>"))).toBe(false);
+    expect(isTypesetPdf(pdf("Typst appears in the text of this scan"))).toBe(false);
+    expect(isTypesetPdf(new Uint8Array())).toBe(false);
   });
 });

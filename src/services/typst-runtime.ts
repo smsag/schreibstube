@@ -23,7 +23,10 @@ export const RUNTIME_VERSION = "0.7.0";
  * they spend it, and "about 28 MB" is what that sentence needs. The exact size
  * is whatever the pinned bytes weigh.
  */
-export const RUNTIME_MEGABYTES = 28;
+export const RUNTIME_MEGABYTES = 30;
+
+/** Of that, the compiler alone, for the sentence said while it arrives. */
+export const COMPILER_MEGABYTES = 28;
 
 /** The Typst language version that build compiles. Templates are written for it. */
 export const TYPST_VERSION = "0.14";
@@ -34,7 +37,7 @@ export interface RuntimeAsset {
   /** Lowercase hex SHA-256 of the exact bytes that must arrive. */
   sha256: string;
   /** What it is, for a message a person reads while waiting. */
-  label: "compiler" | "loader";
+  label: "compiler" | "loader" | "font";
 }
 
 /**
@@ -61,6 +64,70 @@ export const RUNTIME_ASSETS: readonly RuntimeAsset[] = [
 export const WASM_ASSET = RUNTIME_ASSETS[0] as RuntimeAsset;
 export const LOADER_ASSET = RUNTIME_ASSETS[1] as RuntimeAsset;
 
+/** The typst-assets release the standard fonts are taken from. Bumped with Typst. */
+export const FONTS_VERSION = "0.14.2";
+
+/** How a font asset is named: under the release's `typst-runtime-*` glob, and by version. */
+const FONT_PREFIX = `typst-runtime-fonts-${FONTS_VERSION}-`;
+
+/** Where the release workflow fetches them from; a device fetches them from the release. */
+export const FONT_SOURCE = `https://raw.githubusercontent.com/typst/typst-assets/v${FONTS_VERSION}/files/fonts/`;
+
+/**
+ * The faces Typst sets text in when a template names none.
+ *
+ * The typesetter has no typeface of its own: in a browser there are no system
+ * fonts to find, and a page set without a face is a blank page. These are the
+ * ones Typst itself defaults to — Libertinus Serif for text, DejaVu Sans Mono
+ * for code — in the four styles a note uses, pinned like the compiler and
+ * fetched with it. Both licences allow redistribution with the notice each
+ * font carries in its own metadata.
+ */
+export const FONT_FILES: readonly (readonly [string, string])[] = [
+  [
+    "LibertinusSerif-Regular.otf",
+    "fcf06307a77367394fcb0ccb241e59eea70dba3d732be309647611224679c733"
+  ],
+  [
+    "LibertinusSerif-Italic.otf",
+    "9a393d63d6e05f620d3dc0190dfd35a8ede58c0808cf0fc9de7fcb9c723e4c24"
+  ],
+  ["LibertinusSerif-Bold.otf", "0264914210ed51b3231ebc92ce529e9f2e166ba9eebf0cd4a579558690a27b64"],
+  [
+    "LibertinusSerif-BoldItalic.otf",
+    "47a665259f09f554f5d133d7718cdad43ff462c6a6b2328f38023465e62d57ce"
+  ],
+  ["DejaVuSansMono.ttf", "b4a6c3e4faab8773f4ff761d56451646409f29abedd68f05d38c2df667d3c582"],
+  [
+    "DejaVuSansMono-Oblique.ttf",
+    "742097840c541870e8d6dc5c9b37bb1ceeea6c0dedd1d475faf903ef9df734b0"
+  ],
+  ["DejaVuSansMono-Bold.ttf", "bce60f1b4421acd9ea51ba6623d7024ecbe6817a953e3654df62a5e6bdf8f769"],
+  [
+    "DejaVuSansMono-BoldOblique.ttf",
+    "91713a71d550bba22c2a6b2bb2a9ad8f9a159e12e4e9f0a5b2677998ba21213e"
+  ]
+];
+
+/** The fonts as release assets: named so the release's `typst-runtime-*` glob carries them. */
+export const FONT_ASSETS: readonly RuntimeAsset[] = FONT_FILES.map(([file, sha256]) => ({
+  name: fontAssetName(file),
+  sha256,
+  label: "font"
+}));
+
+/** Everything a device keeps beside the plugin to print. */
+export const DEVICE_ASSETS: readonly RuntimeAsset[] = [...RUNTIME_ASSETS, ...FONT_ASSETS];
+
+export function fontAssetName(file: string): string {
+  return `${FONT_PREFIX}${file}`;
+}
+
+/** The face a font asset holds, for a message: `LibertinusSerif-Bold`. */
+export function fontFaceOf(asset: RuntimeAsset): string {
+  return asset.name.slice(FONT_PREFIX.length).replace(/\.[^.]+$/, "");
+}
+
 /** Where the npm package keeps each file, for the script that builds the assets. */
 export const RUNTIME_PACKAGE = "@myriaddreamin/typst-ts-web-compiler";
 export const RUNTIME_SOURCE_PATHS: Record<string, string> = {
@@ -84,6 +151,21 @@ export function runtimeAssetUrl(pluginVersion: string, asset: RuntimeAsset): str
 /** Where it is kept once fetched: beside the plugin, not inside the vault's notes. */
 export function runtimeCachePath(pluginDir: string, asset: RuntimeAsset): string {
   return `${pluginDir.replace(/\/+$/, "")}/${asset.name}`;
+}
+
+/**
+ * Runtime files beside the plugin that no longer belong to it.
+ *
+ * Bumping the pinned version leaves the previous 28 MB where it was: nothing
+ * reads it again, and nobody can see it from inside the app. Only files named
+ * the way this module names them are ever offered, so a person's own file in
+ * the plugin folder is never at risk.
+ */
+export function staleRuntimeFiles(names: readonly string[]): string[] {
+  const current = new Set(DEVICE_ASSETS.map((asset) => asset.name));
+  return names.filter(
+    (name) => /^typst-runtime-[\w.-]+\.(wasm|mjs|otf|ttf)$/.test(name) && !current.has(name)
+  );
 }
 
 /** A digest as the hashes above are written. */

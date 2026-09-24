@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { typstDictionary, typstKey, typstLength, typstString, typstArray } from "./typst-value";
+import {
+  printableText,
+  typstArray,
+  typstDictionary,
+  typstKey,
+  typstLength,
+  typstString
+} from "./typst-value";
 
 describe("typstString", () => {
   it("quotes plain text", () => {
@@ -83,5 +90,24 @@ describe("typstArray", () => {
 
   it("escapes each value rather than trusting a file name", () => {
     expect(typstArray(['a"b.png'])).toBe('("a\\"b.png",)');
+  });
+});
+
+describe("printableText", () => {
+  it("reads a YAML date as the day it names, wherever the device is", () => {
+    // YAML reads a bare date as midnight UTC; local getters put it a day early
+    // anywhere west of Greenwich.
+    expect(printableText(new Date("2026-04-12T00:00:00Z"))).toBe("2026-04-12");
+    expect(printableText(new Date("invalid"))).toBeNull();
+  });
+
+  it("prints text, numbers, flags and lists of them, and nothing else", () => {
+    expect(printableText("x")).toBe("x");
+    expect(printableText(3.5)).toBe("3.5");
+    expect(printableText(false)).toBe("false");
+    expect(printableText(["a", 1])).toBe("a\n1");
+    expect(printableText(["a", { b: 1 }])).toBeNull();
+    expect(printableText(Number.NaN)).toBeNull();
+    expect(printableText({ a: 1 })).toBeNull();
   });
 });

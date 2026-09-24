@@ -6,7 +6,8 @@
  * diagram sits on a page, how wide a table runs, what a warning looks like,
  * are design decisions, and design decisions belong to the template. These are
  * the defaults for a template that has no opinion; a template with one defines
- * its own before the body is placed, and its definition wins.
+ * its own at the top level of its layout, and its definition wins: `main.typ`
+ * imports the prelude first and the layout after it.
  *
  * Written as source rather than assembled, because it is read by whoever
  * writes a template and has to look like what they would write themselves.
@@ -14,7 +15,7 @@
 export const PRELUDE_FILE = "schreibstube.typ";
 
 export const PRELUDE_SOURCE = `// Defaults the converted note calls. A template may define any of these
-// itself before the body is placed, and its version is used instead.
+// at the top level of its layout, and its version is used instead.
 
 #let schreibstube-image(path, alt) = {
   figure(image(path, width: 100%), caption: none)
@@ -39,9 +40,11 @@ export const PRELUDE_SOURCE = `// Defaults the converted note calls. A template 
   }
 }
 
+// Breakable, like the callout below: a block that may not break and is longer
+// than a page does not move to the next one, it runs off the bottom of this one.
 #let schreibstube-code(source, language) = {
   block(
-    breakable: false,
+    breakable: true,
     width: 100%,
     fill: luma(245),
     inset: 8pt,
@@ -60,13 +63,15 @@ export const PRELUDE_SOURCE = `// Defaults the converted note calls. A template 
   table(columns: columns, align: align, inset: (x: 6pt, y: 4pt), ..cells)
 }
 
-#let schreibstube-callout(kind, title) = body => {
+// The body arrives as the third argument: Typst hands a trailing content block
+// to the function it follows, so callout(kind, title)[body] is one call.
+#let schreibstube-callout(kind, title, body) = {
   let accent = if kind == "warning" { rgb("#c08a2e") } else if kind == "danger" {
     rgb("#b4534a")
   } else if kind == "tip" { rgb("#4f8a6b") } else { luma(120) }
 
   block(
-    breakable: false,
+    breakable: true,
     width: 100%,
     inset: (x: 10pt, y: 8pt),
     stroke: (left: 2pt + accent, rest: 0.5pt + luma(200)),
@@ -77,4 +82,14 @@ export const PRELUDE_SOURCE = `// Defaults the converted note calls. A template 
     #body
   ]
 }
+
+// A task's box, drawn rather than typed so that no font has to carry the glyph.
+#let schreibstube-task(done) = box(
+  width: 0.75em,
+  height: 0.75em,
+  baseline: 0.05em,
+  stroke: 0.6pt + luma(90),
+  inset: 0.15em,
+  if done { box(width: 100%, height: 100%, fill: luma(90)) },
+)
 `;

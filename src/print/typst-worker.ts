@@ -9,10 +9,13 @@
  * Written as source text rather than as a module because a plugin has no URL a
  * worker can be started from: the text becomes a blob, and the blob becomes
  * the worker. Everything it needs arrives in messages, and it holds nothing
- * between prints but the instantiated module, which is the expensive part.
+ * between prints but the instantiated module and the standard fonts, which
+ * are the expensive parts.
  */
 export const WORKER_SOURCE = String.raw`
 let typst = null;
+// The standard faces, sent once with the module rather than with every print.
+let baseFonts = [];
 
 self.onmessage = async (event) => {
   const { id, kind, payload } = event.data ?? {};
@@ -30,6 +33,7 @@ self.onmessage = async (event) => {
       // without copying twenty-eight megabytes, and instantiating it is what
       // is left to do.
       await typst.default({ module_or_path: payload.module });
+      baseFonts = payload.fonts ?? [];
       self.postMessage({ id, ok: true });
       return;
     }
@@ -42,6 +46,10 @@ self.onmessage = async (event) => {
       // and nothing else. There is no file system here to reach anyway, and
       // saying so is cheaper than relying on that.
       await builder.set_dummy_access_model();
+      // The template's own faces beside the standard ones: Typst chooses by
+      // family, so a template that names its font gets it, and one that names
+      // none is set in the standard face rather than in nothing.
+      for (const font of baseFonts) await builder.add_raw_font(font);
       for (const font of payload.fonts) await builder.add_raw_font(font);
 
       const compiler = await builder.build();

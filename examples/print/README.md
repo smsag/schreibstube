@@ -37,8 +37,9 @@ family rather than as a family of its own, which is why the layout asks for it
 with `stretch: 75%` rather than by name — a font that names its condensed cut
 separately would be asked for by name instead.
 
-With no fonts at all a template still prints: Typst sets it in its own built-in
-face. It will look like a document, just not like yours.
+With no fonts at all a template still prints, set in the standard fonts the
+plugin fetches with the typesetter: Libertinus Serif, and DejaVu Sans Mono for
+code. It will look like a document, just not like yours.
 
 ## Writing your own
 
@@ -49,6 +50,6 @@ its own folder or use a package, because printing happens on the device with no
 network.
 
 The helpers a converted note calls — `schreibstube-image`, `-diagram`,
-`-table`, `-callout` — have defaults, and a template that wants a different
-look defines its own before the body is placed. See `PRINTING.md` in the
+`-code`, `-table`, `-callout`, `-task` — have defaults, and a template that
+wants a different look defines its own at the top level of `template.typ`. See `PRINTING.md` in the
 repository for the whole contract.

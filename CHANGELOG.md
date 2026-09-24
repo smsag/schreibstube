@@ -8,6 +8,22 @@ All notable changes to this project will be documented in this file.
 
 - **A tab icon for the published site, named by its theme.** A `theme.css` may name the site's icon as `--site-icon: url("data:image/svg+xml,…")`, beside its other colours and pictures; the bridge writes it as a file and links it from every page, so the browser tab shows it. An SVG or a PNG of at most 32 kB; an SVG holding a script, an event handler or anything it would load from elsewhere is left out, and the site publishes without an icon. Only the bridge changes: the protocol stays at 3, and no plugin release is needed.
 
+### Fixed
+
+- **A template without its own font no longer prints blank pages.** The typesetter has no typeface of its own, and a page set without one is empty, so both example templates and any template without a `fonts/` folder printed pages with no words on them. The standard fonts Typst itself uses, Libertinus Serif for text and DejaVu Sans Mono for code, now come with the typesetter: fetched once per device beside it, about 2 MB more, and checked against pinned hashes the same way. A template that brings its own font still gets it.
+- **Printing a note with a callout works.** Every callout stopped the print with "unexpected argument": the default helper took the callout's text in a way Typst does not pass it. The same was true of a template's own helpers, which the documentation said would replace the defaults and never did, because only the template's entry function was imported. A helper a template defines at the top level of `template.typ` now wins over the default, as documented.
+- **Code or bold right before a bracket or a dot no longer stops the print.** `` `f`(x) ``, `` `package`.json ``, `**Note**(see below)` and a link followed by `(`: Typst read the bracket as a call on the code or the bold text and refused the document. These now print as written.
+- **A diagram inside a callout prints its own picture.** It was numbered from zero again inside the callout and got the picture of the note's first diagram, silently. A footnote cited inside a quote or a callout is no longer dropped, and a footnote that cites itself no longer crashes the print.
+- **Long code blocks and callouts continue on the next page** instead of running off the bottom of this one.
+- **Printed lists keep what the note says.** A numbered list that starts at 3 starts at 3, and a task list shows its boxes, ticked or not, instead of `[ ]` and `[x]`.
+- **Printing never overwrites a PDF that is not a print.** A reprint still replaces the previous print, but a PDF of the same name from anywhere else is asked about first. The document is written through the vault, so it appears in the file list at once, also on a phone, and a missing output folder is created.
+- **Two pictures whose names differ only in spaces or punctuation both print.** One of them used to be printed twice.
+- **A template name that fits two folders is asked about** instead of being settled by whichever came first. A note can also name the template by its folder path.
+- **A print can no longer hang.** Drawing a diagram and reading it back now have a time limit, so another plugin that never finishes drawing cannot keep the print and its notice open for ever. Fonts, template pictures and note pictures are checked against the size limits before they are read, not after, and a PDF over the limit is refused rather than written.
+- **Printing speaks German.** The notes about what was left out, and the reasons a template was refused, were always in English.
+- **Switching printing off removes old typesetter versions too.** After an update, the previous 28 MB version stayed in the plugin folder for good. It is now removed as soon as the new one is ready.
+- **A date in a note's print data is the day it says** in every time zone. West of Greenwich it printed as the day before.
+
 ## 1.45.0 - 2026-09-24
 
 A published site that looks like the notes it came from. Slideshows publish

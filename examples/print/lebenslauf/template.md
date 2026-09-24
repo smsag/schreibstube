@@ -28,7 +28,7 @@ Kursives wird grau und aufrecht gesetzt — gedacht für die Stufe hinter einem 
 
 Trage Name, Adresse und Kontakt hier oben in `schreibstubeData` ein. Für ein Foto legst du die Bilddatei in diesen Ordner und setzt `photo` auf ihren Dateinamen; ohne Foto rückt der Kopf nach links und nichts bleibt leer stehen.
 
-Lege deine Schriftdateien in `fonts/` ab. Diese Vorlage fragt nach Fira Sans und Fira Sans Condensed; ohne sie setzt Typst in seiner eingebauten Schrift.
+Lege deine Schriftdateien in `fonts/` ab. Diese Vorlage fragt nach Fira Sans und Fira Sans Condensed; ohne sie wird der Lebenslauf in der Standardschrift gesetzt, die das Plugin mit dem Satzteil lädt — Libertinus Serif.
 
 ## Benutzen
 
