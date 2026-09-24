@@ -67,28 +67,22 @@ function wikilink(state, silent) {
 }
 
 function pushEmbed(state, { path, alias, site }) {
+  const { label, ...size } = splitSize(alias ?? "");
   const asset = site.assets?.get(key(path));
   if (asset) {
     if (asset.kind === "video") {
       const token = state.push("html_inline", "", 0);
-      token.content =
-        `<video class="embed" controls preload="metadata" src="${escapeAttribute(asset.url)}">` +
-        `</video>`;
+      token.content = videoTag(asset.url, size);
       return;
     }
     const token = state.push("image", "img", 0);
-    const alt = alias || asset.name;
     token.attrs = [
       ["src", asset.url],
-      ["alt", alt],
+      ["alt", ""],
       ["loading", "lazy"]
     ];
-    // markdown-it renders the alt text from the token's children, not from the
-    // attribute, so an image with no children publishes with an empty alt.
-    const caption = new state.Token("text", "", 0);
-    caption.content = alt;
-    token.children = [caption];
-    token.content = alt;
+    setCaption(state, token, label || asset.name);
+    applySize(token, size);
     // Already pointing at the published file; the Markdown image rule would
     // otherwise look its URL up as a vault path and find nothing.
     token.meta = { resolved: true };
@@ -99,11 +93,53 @@ function pushEmbed(state, { path, alias, site }) {
   // page that is published in its own right, and would need loop detection.
   const note = site.notes?.get(key(path));
   if (note) {
-    pushAnchor(state, note.url, alias || note.title);
+    pushAnchor(state, note.url, label || note.title);
     return;
   }
 
-  pushText(state, alias || path);
+  pushText(state, label || path);
+}
+
+/** Pictures are never set wider or taller than this, whatever a note asks. */
+export const MAX_DIMENSION = 10_000;
+
+/**
+ * Obsidian's size, written after the last `|`: `300` for a width, `300x200`
+ * for a width and a height. `![[bild.png|300]]` and `![Haus|300](bild.png)`
+ * mean it the same way; whatever comes before the size is the alt text. Text
+ * that ends in no size is all alt text, as it always was.
+ */
+export function splitSize(text) {
+  const match = /^(?:([\s\S]*)\|)?\s*(\d{1,5})(?:\s*x\s*(\d{1,5}))?\s*$/.exec(String(text));
+  if (!match) return { label: String(text) };
+  const width = Number(match[2]);
+  const height = match[3] === undefined ? undefined : Number(match[3]);
+  if (width < 1 || width > MAX_DIMENSION) return { label: String(text) };
+  if (height !== undefined && (height < 1 || height > MAX_DIMENSION)) {
+    return { label: String(text) };
+  }
+  return { label: (match[1] ?? "").trim(), width, ...(height ? { height } : {}) };
+}
+
+// markdown-it renders an image's alt text from the token's children, not
+// from its attribute, so the children are what has to change.
+function setCaption(state, token, alt) {
+  const caption = new state.Token("text", "", 0);
+  caption.content = alt;
+  token.children = [caption];
+  token.content = alt;
+}
+
+// Attributes rather than a style: the theme's max-width still holds, so a
+// picture sized wider than the column is not pushed past it.
+function applySize(token, { width, height }) {
+  if (width) token.attrSet("width", String(width));
+  if (height) token.attrSet("height", String(height));
+}
+
+function videoTag(url, { width, height } = {}) {
+  const size = (width ? ` width="${width}"` : "") + (height ? ` height="${height}"` : "");
+  return `<video class="embed" controls preload="metadata" src="${escapeAttribute(url)}"${size}></video>`;
 }
 
 /**
@@ -125,10 +161,17 @@ function vaultImages(state) {
     block.children = block.children.map((token) => {
       if (token.type !== "image" || token.meta?.resolved) return token;
       const src = token.attrGet("src") ?? "";
+      const { label, ...size } = splitSize(token.content);
+      const sized = size.width !== undefined;
+      if (sized) {
+        setCaption(state, token, label);
+        applySize(token, size);
+      }
+      // Sized or not, a remote picture keeps its address.
       if (isRemote(src)) return token;
 
       const asset = findAsset(site, src, notePath);
-      const alt = token.content;
+      const alt = sized ? label : token.content;
 
       if (!asset) {
         const text = new state.Token("text", "", 0);
@@ -138,20 +181,13 @@ function vaultImages(state) {
 
       if (asset.kind === "video") {
         const video = new state.Token("html_inline", "", 0);
-        video.content =
-          `<video class="embed" controls preload="metadata" src="${escapeAttribute(asset.url)}">` +
-          `</video>`;
+        video.content = videoTag(asset.url, size);
         return video;
       }
 
       token.attrSet("src", asset.url);
       token.attrSet("loading", "lazy");
-      if (!alt) {
-        const caption = new state.Token("text", "", 0);
-        caption.content = asset.name;
-        token.children = [caption];
-        token.content = asset.name;
-      }
+      if (!alt) setCaption(state, token, asset.name);
       return token;
     });
   }

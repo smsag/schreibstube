@@ -6,7 +6,7 @@ import {
   stripComments,
   stripFrontmatter
 } from "./render/markdown.mjs";
-import { assetCandidates } from "./render/obsidian.mjs";
+import { assetCandidates, MAX_DIMENSION, splitSize } from "./render/obsidian.mjs";
 import { formatDate, indexPage, notePage } from "./render/page.mjs";
 import { buildSite, checkIndex, orderNotes, sha256 } from "./site.mjs";
 
@@ -233,6 +233,81 @@ describe("Markdown images", () => {
 
   it("escapes the alt text rather than letting it close the tag", () => {
     expect(render('![a "><script>](bild.png)', context)).not.toContain("<script>");
+  });
+});
+
+describe("sizes, as Obsidian writes them", () => {
+  const context = site({
+    notes: [{ key: "andere", url: "../andere/", title: "Andere", slug: "andere" }],
+    assets: [
+      { key: "bild.png", url: "../assets/aaa-bild.png", name: "bild.png", kind: "image" },
+      { key: "clip.mp4", url: "../assets/bbb-clip.mp4", name: "clip.mp4", kind: "video" }
+    ]
+  });
+
+  it("reads a width, or a width and a height, after the last bar", () => {
+    expect(splitSize("300")).toEqual({ label: "", width: 300 });
+    expect(splitSize("300x200")).toEqual({ label: "", width: 300, height: 200 });
+    expect(splitSize("Das Haus|300")).toEqual({ label: "Das Haus", width: 300 });
+    expect(splitSize("Das Haus | 300 x 200")).toEqual({
+      label: "Das Haus",
+      width: 300,
+      height: 200
+    });
+    expect(splitSize("a|b|300")).toEqual({ label: "a|b", width: 300 });
+  });
+
+  it("leaves text that ends in no size as alt text", () => {
+    expect(splitSize("Das Haus")).toEqual({ label: "Das Haus" });
+    expect(splitSize("Haus 300")).toEqual({ label: "Haus 300" });
+    expect(splitSize("300px")).toEqual({ label: "300px" });
+    expect(splitSize("")).toEqual({ label: "" });
+  });
+
+  it("will not set a picture to nothing, or to the size of a building", () => {
+    expect(splitSize("0")).toEqual({ label: "0" });
+    expect(splitSize(`${MAX_DIMENSION + 1}`)).toEqual({ label: `${MAX_DIMENSION + 1}` });
+    expect(splitSize("300x0")).toEqual({ label: "300x0" });
+    expect(splitSize("123456")).toEqual({ label: "123456" });
+  });
+
+  it("sizes an embed, naming the file in the alt text rather than the number", () => {
+    const html = render("![[bild.png|300]]", context);
+    expect(html).toContain('width="300"');
+    expect(html).toContain('alt="bild.png"');
+    expect(render("![[bild.png|300x200]]", context)).toContain('width="300" height="200"');
+  });
+
+  it("sizes a Markdown picture, keeping the alt text before the bar", () => {
+    const html = render("![Das Haus|300](bild.png)", context);
+    expect(html).toContain('src="../assets/aaa-bild.png"');
+    expect(html).toContain('alt="Das Haus"');
+    expect(html).toContain('width="300"');
+    expect(html).not.toContain("|300");
+  });
+
+  it("sizes a picture from the web without fetching it", () => {
+    const html = render("![Engelbart|100x145](https://example.com/e.jpg)", context);
+    expect(html).toContain('src="https://example.com/e.jpg"');
+    expect(html).toContain('alt="Engelbart" width="100" height="145"');
+  });
+
+  it("sizes a video", () => {
+    expect(render("![[clip.mp4|400]]", context)).toContain(
+      '<video class="embed" controls preload="metadata" src="../assets/bbb-clip.mp4" width="400">'
+    );
+    expect(render("![|400x300](clip.mp4)", context)).toContain('width="400" height="300"');
+  });
+
+  it("drops the size from what stands in for a missing picture or a linked note", () => {
+    expect(render("![Das fehlt|300](fehlt.png)", context)).toContain("<p>Das fehlt</p>");
+    expect(render("![[fehlt.png|300]]", context)).toContain("<p>fehlt.png</p>");
+    expect(render("![[Andere|300]]", context)).toContain(">Andere</a>");
+  });
+
+  it("leaves an alias that is not a size as it was", () => {
+    expect(render("![[bild.png|Das Haus]]", context)).toContain('alt="Das Haus"');
+    expect(render("![[bild.png|Das Haus]]", context)).not.toContain("width=");
   });
 });
 
