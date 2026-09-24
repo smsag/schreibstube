@@ -14,6 +14,7 @@ import {
 } from "../services/publish-client";
 import {
   PROTOCOL_VERSION,
+  isEmptyPlan,
   summarisePlan,
   type PublishAsset,
   type PublishBridgeConfig,
@@ -170,6 +171,10 @@ export class PublishCommands {
 
       const plan = await planPublish(bridge, account.target, collected.index);
       this.logger.debug("Publish plan.", summarisePlan(plan));
+      if (isEmptyPlan(plan)) {
+        new Notice(t().common.notice(t().publish.noNotes(account.folder)));
+        return null;
+      }
       return { bridge, ...collected, plan };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -191,6 +196,14 @@ export class PublishCommands {
       .getMarkdownFiles()
       .filter((file) => isInsideFolder(file.path, account.folder))
       .sort((a, b) => a.path.localeCompare(b.path));
+
+    // An index with no notes takes every page down. A folder with no notes at
+    // all is far more often a mistyped setting, or a phone whose vault has not
+    // synced yet, than a site meant to be emptied, so it never gets that far.
+    if (files.length === 0) {
+      new Notice(t().common.notice(t().publish.emptyFolder(account.folder)));
+      return null;
+    }
 
     const notes: PublishNote[] = [];
     const sources = new Map<string, ArrayBuffer>();
@@ -236,11 +249,6 @@ export class PublishCommands {
           bytes: data.byteLength
         });
       }
-    }
-
-    if (notes.length === 0) {
-      new Notice(t().common.notice(t().publish.noNotes(account.folder)));
-      return null;
     }
 
     const collision = findSlugCollision(resolved);
