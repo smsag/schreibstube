@@ -108,6 +108,18 @@ describe("parseBookmarkFile", () => {
     });
   });
 
+  it("passes a plugin's Obsidian URI through untouched, escapes and query included", () => {
+    // A plugin reads its own query, so the vault name stays escaped as written.
+    const url =
+      "obsidian://pythia?vault=Vault%202.0&cmd=resume&id=71b21d6b-39d8-42f3-bc2a-52b4096502b9";
+    const tree = parseBookmarkFile(`- [Resume](${url})\n- [Wrapped](<${url}>)`);
+
+    expect(tree.loose).toEqual([
+      { name: "Resume", url, kind: "obsidian" },
+      { name: "Wrapped", url, kind: "obsidian" }
+    ]);
+  });
+
   it("drops schemes that must never be opened", () => {
     const tree = parseBookmarkFile(
       [
