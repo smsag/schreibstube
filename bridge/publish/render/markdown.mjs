@@ -20,7 +20,7 @@ import { slugify } from "../path.mjs";
 
 /** Bumped when the output of a given source would change. A changed version
  *  re-renders every page on the next commit, without re-uploading anything. */
-export const RENDER_VERSION = 4;
+export const RENDER_VERSION = 5;
 
 const katex = katexModule.default ?? katexModule;
 

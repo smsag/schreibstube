@@ -11,6 +11,8 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- **A published picture keeps the size the note gives it.** Obsidian reads a number after the last `|` of an embedded picture as its width, and `300x200` as width and height — `![[bild.png|300]]`, `![Haus|300](bild.png)`. The site read the same number as the picture's alt text and showed it at full width. It now sets the size as Obsidian does, for pictures from the vault and from the web and for videos, and keeps what comes before the bar as the alt text. A picture is still never wider than the text column. Pages already on the site are rendered again on the next publish.
+
 - **A published image written as `![alt](bild.png)` shows on the site.** Only the `![[bild.png]]` form was pointed at the uploaded file; the Markdown form kept the path as written, which names nothing on the server, so the picture was uploaded and then shown as a broken image. It is now found the way Obsidian finds it — from the vault root, then from the note's own folder, then by its name — including a name spelt with `%20`, in angle brackets, or with umlauts, and a video written this way plays. A path in angle brackets with spaces in it, such as `![](<Grundriss EG.png>)`, was not uploaded at all and now is. An image that was not published shows its alt text rather than a broken picture. Pages already on the site are rendered again on the next publish.
 
 ## 1.44.0 - 2026-09-24
