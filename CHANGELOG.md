@@ -2,7 +2,31 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## 1.43.0 - 2026-09-24
+
+Publishing you can see, and a bridge that tells the truth. The explorer
+marks every note that is marked for publication with a small globe, and its
+title says whether the site's latest run put the note online or whether it
+is still waiting. Unpublishing the last page of a site now takes it down;
+before, the command stopped at "nothing is marked" and the page stayed
+online. On the bridge, a delivered email is no longer reported as failed
+when filing the copy in Sent is slow, the copy goes to the folder the mail
+server marks as Sent without being named, and code on a published page
+keeps its `%%` instead of losing the prose between two code blocks. A long
+publish is no longer reported as failed while it succeeds, an upload is
+retried after a dropped connection to the web host, and the bridge's own
+files inside a web root are shut off from visitors.
+
+Mobile checklist: not run. What a phone would answer differently: the globe
+drawing beside a name, and next to a sync cloud, at the phone's row size;
+and a publish from a phone whose vault has not finished syncing being
+refused as an empty folder rather than taking the site down.
+
+The bridge moves to 2.5.0 and its protocol is unchanged, so bridge 2.4.0
+still serves this release, without the fixes above that live in the
+bridge. A publish target whose `STATE_ROOT` is relative no longer boots on
+2.5.0: it must be an absolute path on the SFTP host, as `ROOT` already had
+to be.
 
 ### Added
 
