@@ -2,23 +2,41 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## 1.45.0 - 2026-09-24
+
+A published site that looks like the notes it came from. Slideshows publish
+in the layout the note chose — stage, filmstrip, feature, strip, masonry or
+before-and-after — with their controls and a fullscreen view, and a
+filmstrip loads small thumbnails the plugin makes instead of whole
+photographs. Pictures written as `![alt](bild.png)` now show, a size given
+after the bar is kept, and each connection can link up to three tags from
+the site's header, each to a page of its notes. In the explorer, a note
+pressed in the recent lists opens again instead of the tree jumping away,
+and every file menu offers **In neuem Fenster öffnen**, with Obsidian's
+modifier clicks for a tab, a split or a window.
+
+Mobile checklist: not run. What a phone would answer differently: a
+publish making filmstrip thumbnails without the app being closed, a
+slideshow on the published site swiping and its divider dragging under a
+finger, and a tap on a recent-list entry opening its note.
+
+The bridge moves to 2.7.0 and its protocol to 3: thumbnails, header tags and
+the tag pages travel in it. Deploy the bridge first. Bridge 2.6.0, at
+protocol 1, still publishes for this release, without thumbnails and without
+header tags, and the plugin says the bridge is behind; bridge 2.7.0 serves
+every plugin since 1.8.0.
 
 ### Added
 
 - **Tags in the header of a published site.** Each connection can name up to three tags in its settings; every page of the site then links them on the right of the header, each to a page listing the published notes that carry it, newest first. Tags count as Obsidian counts them — in the note's properties or its text, case aside, nested ones included — and a tag no published note carries is left out. Only which of the three tags a note carries is sent to the bridge; a note's other tags stay in the vault. This needs the bridge's protocol 3; an older bridge publishes the site without them.
-
 - **Open in a new window, from the explorer.** Every file menu of the pane — the tree, the recent lists, the pinned rows, the picture tiles and the related-notes and tag cards — now offers **In neuem Fenster öffnen** beside **In neuem Tab öffnen**, on the desktop; a phone or a tablet has no second window and does not show it. A press follows Obsidian's modifiers as well: ⌘ opens a new tab, ⌘⌥ a split, ⌘⌥⇧ a new window, in the recent lists, the pinned rows and the cards. In the tree, where ⌘ and ⇧ already build a selection, they still do, and only the split and window chords open.
-
 - **Slideshows on the published site.** A note with a slideshow block used to publish the block's text as a code sample. The page now shows the slideshow in the layout the note chose — stage, filmstrip, feature, strip, masonry or before-and-after — with the alt text and controls in the header, the arrow keys, thumbnails, the divider and the fullscreen view, from a small script the site carries itself. Without scripts the pictures still read: the stage swipes, the tiles stand in a grid, and a comparison sets its two pictures side by side. Pictures that were not published are left out, and a block with a mistake in it stays off the page instead of appearing as code. The block is read on the site by the same rules as in the vault, and one table of examples keeps the two readings the same.
 - **A published filmstrip loads small thumbnails.** The row under the stage showed each photograph at full size, shrunk to a stamp, so a phone downloaded several whole photographs just to draw the row. The plugin now makes a small copy of each filmstrip picture when it publishes, and only of those the site does not have yet, so an unchanged photograph is shrunk once, on its first publish. A picture whose copy could not be made is shown as before. This needs the bridge's protocol 2; an older bridge publishes the filmstrip without thumbnails.
 
 ### Fixed
 
 - **A note pressed in the explorer's recent lists opens again.** Since the tree became reachable by keyboard, the list around it handed any focus it received to the open note's row. A row in the recent lists or the bookmarks cannot hold the focus itself, so pressing one focused the list, and handing that on scrolled the tree to the open note while the button was still down. The button then came up over another row, the click reached neither, and nothing opened; what showed was the tree jumping to the note already open. The list now hands on only the focus that Tab brings, and a press keeps its own.
-
 - **A published picture keeps the size the note gives it.** Obsidian reads a number after the last `|` of an embedded picture as its width, and `300x200` as width and height — `![[bild.png|300]]`, `![Haus|300](bild.png)`. The site read the same number as the picture's alt text and showed it at full width. It now sets the size as Obsidian does, for pictures from the vault and from the web and for videos, and keeps what comes before the bar as the alt text. A picture is still never wider than the text column. Pages already on the site are rendered again on the next publish.
-
 - **A published image written as `![alt](bild.png)` shows on the site.** Only the `![[bild.png]]` form was pointed at the uploaded file; the Markdown form kept the path as written, which names nothing on the server, so the picture was uploaded and then shown as a broken image. It is now found the way Obsidian finds it — from the vault root, then from the note's own folder, then by its name — including a name spelt with `%20`, in angle brackets, or with umlauts, and a video written this way plays. A path in angle brackets with spaces in it, such as `![](<Grundriss EG.png>)`, was not uploaded at all and now is. An image that was not published shows its alt text rather than a broken picture. Pages already on the site are rendered again on the next publish.
 
 ## 1.44.0 - 2026-09-24
