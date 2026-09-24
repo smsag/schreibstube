@@ -1,11 +1,12 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
-import { readFile, readdir } from "node:fs/promises";
+import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { startSftpServer } from "./sftp-fixture.mjs";
+import { STATE_GUARD } from "./routes.mjs";
 
 /**
  * The publish capability, end to end.
@@ -136,7 +137,7 @@ beforeAll(async () => {
       ...process.env,
       PORT: String(port),
       PUBLISH_TOKEN: TOKEN,
-      PUBLISH_TARGETS: "blog",
+      PUBLISH_TARGETS: "blog,notizen,archiv",
       PUBLISH_BLOG_HOST: "127.0.0.1",
       PUBLISH_BLOG_PORT: String(sftp.port),
       PUBLISH_BLOG_USER: sftp.user,
@@ -146,6 +147,22 @@ beforeAll(async () => {
       PUBLISH_BLOG_STATE_ROOT: STATE,
       PUBLISH_BLOG_BASE_URL: "https://blog.example.com",
       PUBLISH_BLOG_SITE_TITLE: "Schreibstube",
+      // A second target on the same host, with its state left at the default
+      // inside its web root.
+      PUBLISH_NOTIZEN_HOST: "127.0.0.1",
+      PUBLISH_NOTIZEN_PORT: String(sftp.port),
+      PUBLISH_NOTIZEN_USER: sftp.user,
+      PUBLISH_NOTIZEN_PASSWORD: sftp.password,
+      PUBLISH_NOTIZEN_HOST_FINGERPRINT: sftp.fingerprint,
+      PUBLISH_NOTIZEN_ROOT: "/notizen",
+      PUBLISH_NOTIZEN_BASE_URL: "https://notizen.example.com",
+      PUBLISH_ARCHIV_HOST: "127.0.0.1",
+      PUBLISH_ARCHIV_PORT: String(sftp.port),
+      PUBLISH_ARCHIV_USER: sftp.user,
+      PUBLISH_ARCHIV_PASSWORD: sftp.password,
+      PUBLISH_ARCHIV_HOST_FINGERPRINT: sftp.fingerprint,
+      PUBLISH_ARCHIV_ROOT: "/archiv",
+      PUBLISH_ARCHIV_BASE_URL: "https://archiv.example.com",
       MAIL_TOKEN,
       IMAP_HOST: "127.0.0.1",
       IMAP_PORT: "1",
@@ -183,7 +200,11 @@ describe("targets", () => {
       headers: { authorization: `Bearer ${TOKEN}` }
     });
     expect(await response.json()).toEqual({
-      targets: [{ name: "blog", baseUrl: "https://blog.example.com", siteTitle: "Schreibstube" }]
+      targets: [
+        { name: "blog", baseUrl: "https://blog.example.com", siteTitle: "Schreibstube" },
+        { name: "notizen", baseUrl: "https://notizen.example.com", siteTitle: "notizen" },
+        { name: "archiv", baseUrl: "https://archiv.example.com", siteTitle: "archiv" }
+      ]
     });
   });
 
@@ -412,5 +433,32 @@ describe("refusals", () => {
     unsafe.notes[0].slug = "../../etc";
     const response = await post("/publish/plan", { target: "blog", index: unsafe });
     expect(response.status).toBe(400);
+  });
+});
+
+describe("a state directory inside the web root", () => {
+  const upload = (target) =>
+    put(`/publish/source?target=${target}&sha256=${sha256(second)}`, Buffer.from(second, "utf8"));
+
+  it("gets a deny file before the first source lands in it", async () => {
+    expect((await upload("notizen")).status).toBe(200);
+    const guard = await readFile(join(sftp.root, "notizen", ".schreibstube", ".htaccess"), "utf8");
+    expect(guard).toBe(STATE_GUARD);
+    expect(guard).toContain("Require all denied");
+  });
+
+  it("keeps a deny file the operator wrote", async () => {
+    const own = "Require ip 10.0.0.0/8\n";
+    await mkdir(join(sftp.root, "archiv", ".schreibstube"), { recursive: true });
+    await writeFile(join(sftp.root, "archiv", ".schreibstube", ".htaccess"), own);
+    expect((await upload("archiv")).status).toBe(200);
+    expect(await readFile(join(sftp.root, "archiv", ".schreibstube", ".htaccess"), "utf8")).toBe(
+      own
+    );
+  });
+
+  it("is not written where the state lies outside the web root", async () => {
+    expect((await upload("blog")).status).toBe(200);
+    expect(await readdir(join(sftp.root, "state"))).not.toContain(".htaccess");
   });
 });

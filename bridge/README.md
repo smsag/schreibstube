@@ -187,6 +187,33 @@ request. So does a variable that is set and unreadable: a numeric one that is
 not a positive integer, or a flag spelled as neither true nor false. Leave a
 variable out to take its default; do not leave it half-written.
 
+**Where a target keeps its state.** `PUBLISH_<TARGET>_STATE_ROOT` is an
+absolute path on the SFTP host, and it holds every published note's Markdown as
+written — frontmatter and `%%` comments included — beside an index naming each
+note's place in the vault. Put it outside the web root wherever the host allows
+that. Left out, it defaults to `<ROOT>/.schreibstube`, inside the served tree,
+and then:
+
+- the bridge writes a `.htaccess` that denies everything into that directory
+  before the first file lands there. Apache honours it, which covers most
+  shared hosting. A `.htaccess` that is already there is left alone.
+- every start logs a warning naming the target, because a server that ignores
+  `.htaccess` serves the directory. nginx needs a rule of its own:
+
+  ```nginx
+  location ^~ /.schreibstube/ { deny all; }
+  ```
+
+**Budgets.** `REQUEST_TIMEOUT_MS` (30 s) bounds a request and
+`UPSTREAM_TIMEOUT_MS` (20 s) each operation against a mail or SFTP server. A
+send is two such operations, delivery and then filing the copy in Sent, each
+with its own deadline, and the request is allowed both plus five seconds. A
+Sent folder that does not answer in time is reported as `filedInSent: false`,
+never as a failed send, because a person told a delivered message failed sends
+it again. Publishing allows 180 s for an upload and 300 s for a commit. The
+plugin waits 60 s for mail and 330 s for a commit; raise the budgets only so far
+that the bridge still answers first.
+
 The size limits are variables too: `MAX_BODY_BYTES` for a request body,
 `MAX_TEXT_CHARS` for the text kept from a message and `MAX_MESSAGE_BYTES` for
 what one message may weigh on the wire; `PUBLISH_MAX_SOURCE_BYTES`,
@@ -259,6 +286,9 @@ are the entire perimeter:
   operation has a deadline, and repeated token failures from one address are
   throttled. Behind a proxy that throttle needs `TRUST_PROXY=true`, or the
   address it sees is the proxy's and one stranger's failures lock everyone out.
+- A publish target's state directory is kept out of the web root, or, at its
+  default inside it, guarded by a deny `.htaccess` and a warning at every start
+  (see Configuration).
 - Add an IP allowlist or rate limit at the platform level if your provider
   offers one.
 

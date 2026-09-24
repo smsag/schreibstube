@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { buildEndpoint, extractError, normalizeBaseUrl } from "./bridge-protocol";
+import {
+  BridgeError,
+  buildEndpoint,
+  extractCode,
+  extractError,
+  normalizeBaseUrl
+} from "./bridge-protocol";
 
 /** The URL, the credential and the error shape every capability shares. */
 
@@ -69,5 +75,28 @@ describe("extractError", () => {
 
   it("truncates a body that is not worth showing in full", () => {
     expect(extractError("x".repeat(500))).toHaveLength(200);
+  });
+});
+
+describe("extractCode", () => {
+  it("reads the bridge's stable code", () => {
+    expect(extractCode('{"error":"SFTP failed.","code":"sftp_error","requestId":"req_1"}')).toBe(
+      "sftp_error"
+    );
+  });
+
+  it("is empty for a body that is not the bridge's", () => {
+    expect(extractCode("<html>Bad Gateway</html>")).toBe("");
+    expect(extractCode('{"code":5}')).toBe("");
+  });
+});
+
+describe("BridgeError", () => {
+  it("keeps the wording for the person and the status for the code", () => {
+    const error = new BridgeError("the web host error — SFTP failed.", 502, "sftp_error");
+    expect(error).toBeInstanceOf(Error);
+    expect(error.message).toBe("the web host error — SFTP failed.");
+    expect(error.status).toBe(502);
+    expect(error.code).toBe("sftp_error");
   });
 });

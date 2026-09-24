@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { MIN_TOKEN_LENGTH, PROTOCOL_VERSION, capabilityNames, loadConfig } from "./config.mjs";
+import {
+  MIN_TOKEN_LENGTH,
+  PROTOCOL_VERSION,
+  capabilityNames,
+  isWithin,
+  loadConfig
+} from "./config.mjs";
 
 /**
  * These began as characterisation tests for the single-capability
@@ -193,5 +199,54 @@ describe("loadConfig, parsing", () => {
   it("uses the same credentials for both protocols", () => {
     const { mail } = loadConfig(env());
     expect(mail.imap.auth).toEqual(mail.smtp.auth);
+  });
+});
+
+describe("loadConfig, the publish state directory", () => {
+  const publishEnv = (overrides = {}) => ({
+    PUBLISH_TOKEN: TOKEN,
+    PUBLISH_TARGETS: "blog",
+    PUBLISH_BLOG_HOST: "sftp.example.com",
+    PUBLISH_BLOG_USER: "web",
+    PUBLISH_BLOG_PASSWORD: "geheim",
+    PUBLISH_BLOG_HOST_FINGERPRINT: "SHA256:abc",
+    PUBLISH_BLOG_ROOT: "/var/www/blog/",
+    PUBLISH_BLOG_BASE_URL: "https://blog.example.com",
+    ...overrides
+  });
+
+  it("defaults to a directory inside the web root, and says so", () => {
+    const { blog } = loadConfig(publishEnv()).publish.targets;
+    expect(blog.stateRoot).toBe("/var/www/blog/.schreibstube");
+    expect(blog.stateInsideRoot).toBe(true);
+  });
+
+  it("knows a directory outside the web root is outside", () => {
+    const { blog } = loadConfig(publishEnv({ PUBLISH_BLOG_STATE_ROOT: "/var/schreibstube/blog/" }))
+      .publish.targets;
+    expect(blog.stateRoot).toBe("/var/schreibstube/blog");
+    expect(blog.stateInsideRoot).toBe(false);
+  });
+
+  it("refuses a relative state directory, as it refuses a relative root", () => {
+    expect(() => loadConfig(publishEnv({ PUBLISH_BLOG_STATE_ROOT: "state" }))).toThrow(
+      /STATE_ROOT must be an absolute path/
+    );
+  });
+});
+
+describe("isWithin", () => {
+  it("compares by segment, not by prefix", () => {
+    expect(isWithin("/var/www/blog-state", "/var/www/blog")).toBe(false);
+    expect(isWithin("/var/www/blog/state", "/var/www/blog")).toBe(true);
+    expect(isWithin("/var/www/blog", "/var/www/blog/")).toBe(true);
+  });
+
+  it("counts a path that climbs as inside, because that is the answer that warns", () => {
+    expect(isWithin("/var/www/blog/../state", "/srv")).toBe(true);
+  });
+
+  it("puts everything inside a root of /", () => {
+    expect(isWithin("/anything", "/")).toBe(true);
   });
 });

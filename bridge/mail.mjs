@@ -9,6 +9,7 @@ import { ImapFlow } from "imapflow";
 import { simpleParser } from "mailparser";
 import nodemailer from "nodemailer";
 import { randomUUID } from "node:crypto";
+import { withDeadline } from "./timeout.mjs";
 
 /**
  * Compile a message to RFC 5322 bytes without sending it. Using a stream
@@ -80,8 +81,12 @@ async function attempt(work) {
  * is known before the send and can be returned to the plugin, which stores it
  * in the note's frontmatter. That stored ID is the only thing tying later
  * replies back to the note, so it must survive the round trip intact.
+ *
+ * The two legs carry a deadline each. One deadline over both turned a slow
+ * APPEND after a delivered message into a failed send, and a person told the
+ * send failed sends again: the duplicate lands with the recipient.
  */
-export async function sendMessage(config, transport, request) {
+export async function sendMessage(config, transport, request, { fileInSent = appendToSent } = {}) {
   const from = request.from?.trim() || config.from;
   const messageId = request.messageId?.trim() || generateMessageId(from);
 
@@ -102,16 +107,24 @@ export async function sendMessage(config, transport, request) {
   const compiled = await compiler.sendMail(mail);
   const raw = compiled.message;
 
-  await transport.sendMail({
-    envelope: {
-      from: extractAddress(from),
-      to: [...toList(request.to), ...toList(request.cc), ...toList(request.bcc)]
-    },
-    raw
-  });
+  await withDeadline(
+    transport.sendMail({
+      envelope: {
+        from: extractAddress(from),
+        to: [...toList(request.to), ...toList(request.cc), ...toList(request.bcc)]
+      },
+      raw
+    }),
+    config.upstreamTimeoutMs,
+    "Send"
+  );
 
   const sentAt = new Date().toISOString();
-  const filed = await appendToSent(config, raw);
+  const filed = await withDeadline(
+    fileInSent(config, raw),
+    config.upstreamTimeoutMs,
+    "Filing in Sent"
+  ).catch(() => false);
 
   return { messageId, sentAt, filedInSent: filed };
 }

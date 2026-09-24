@@ -8,9 +8,11 @@
  */
 import { asRecord, describeBridgeError as describeError, str } from "./bridge-protocol";
 
-/** How long to wait for a bridge response before giving up. IMAP searches over
- *  a large mailbox are slower than a typical API call, so this is generous. */
-export const MAIL_REQUEST_TIMEOUT_MS = 45_000;
+/** How long to wait for a bridge response before giving up. Longer than the
+ *  bridge's own allowance for a send, 45 s by default for delivery and filing
+ *  in Sent: a plugin that gives up first reports a delivered message as a
+ *  failure, and the user sends it again. */
+export const MAIL_REQUEST_TIMEOUT_MS = 60_000;
 
 export interface MailBridgeConfig {
   baseUrl: string;

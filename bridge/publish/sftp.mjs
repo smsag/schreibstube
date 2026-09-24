@@ -136,6 +136,11 @@ class Remote {
     }
   }
 
+  /** False, "d", "-" or "l", as the client reports it. */
+  async exists(path) {
+    return this.client.exists(path);
+  }
+
   async readFile(path) {
     const buffer = await this.client.get(path);
     return Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer);

@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Fixed
+
+- **A delivered email is no longer reported as failed.** The bridge gave sending and filing the copy in Sent one deadline together, so a Sent folder that was slow to answer turned a message already with its recipient into "send failed", and sending again delivered it twice. Each step now has its own deadline: once the message is out, a slow or failing Sent folder only means the copy was not filed, which the notice says. The plugin also waits longer than the bridge does, so it no longer gives up on a send the bridge is still finishing.
+- **Code on a published page keeps its `%%`.** The bridge removes `%%…%%` comments before rendering, and it did so inside code too: a format string in one code block and a SQL pattern in another were read as one comment, and everything between them, prose included, vanished from the page without a word. Comments are now recognised only outside code blocks and inline code, as in Obsidian.
+- **A long publish is no longer reported as failed while it succeeds.** The plugin waited two minutes for the site to be built, the bridge allows five; a large site went live after the plugin had already said it failed, and publishing again met "already running". The plugin now waits longer than the bridge.
+- **A dropped connection to the web host no longer fails an upload at once.** Whether to try an upload again was read from the wording of the error, and the wording for a failed SFTP step names no status, so it was given up on at the first try. The decision now rests on the status the bridge answered with, and an upload that arrived truncated is sent again too.
+- **The bridge's own files on the web host are shut off from visitors.** A publish target without its own state directory keeps its sources, index and manifest in `.schreibstube` inside the web root, where the Markdown of every published note, frontmatter and `%%` comments included, could be read by anyone who guessed the address. The bridge now puts a `.htaccess` denying access into that directory before the first file lands there, leaves one it finds alone, and warns at every start, because a server other than Apache needs a rule of its own. A state directory must now be an absolute path.
+
 ## 1.42.0 - 2026-09-24
 
 A quieter slideshow and a steadier explorer. The alt text and the controls

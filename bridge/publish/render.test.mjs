@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  codeRanges,
   createRenderer,
   renderMarkdown,
   stripComments,
@@ -43,6 +44,35 @@ describe("frontmatter and comments", () => {
 
   it("removes a comment spanning several lines", () => {
     expect(stripComments("a\n%%\nnotiz\n%%\nb")).toBe("a\n\nb");
+  });
+
+  it("keeps a %% inside fenced code, and the prose between two such blocks", () => {
+    const source =
+      '```py\nprint("%%d" % 5)\n```\n\nWichtiger Absatz.\n\n~~~sql\nWHERE x LIKE "%%"\n~~~\n';
+    expect(stripComments(source)).toBe(source);
+  });
+
+  it("keeps a %% inside inline code, and still strips a comment beside it", () => {
+    expect(stripComments("a `x %% y` b %% weg %% c `%%` d")).toBe("a `x %% y` b  c `%%` d");
+  });
+
+  it("reads a lone backtick as text, so a comment after it still goes", () => {
+    expect(stripComments("ein ` Strich %% weg %% Ende")).toBe("ein ` Strich  Ende");
+  });
+
+  it("hides a code block that a comment in prose spans", () => {
+    expect(stripComments("a %%\n```\ncode\n```\n%% b")).toBe("a  b");
+  });
+
+  it("leaves an unclosed %% as text", () => {
+    expect(stripComments("hundert %% sicher")).toBe("hundert %% sicher");
+  });
+
+  it("stays linear on a note full of stray backticks", () => {
+    const source = "` ``".repeat(200_000) + " %% weg %%";
+    const started = Date.now();
+    expect(stripComments(source).endsWith(" ")).toBe(true);
+    expect(Date.now() - started).toBeLessThan(2000);
   });
 
   it("keeps frontmatter out of the rendered page", () => {
@@ -372,5 +402,20 @@ describe("buildSite", () => {
 
   it("refuses to build when a source was never uploaded", async () => {
     await expect(buildSite(index, new Map())).rejects.toThrow(/not uploaded/);
+  });
+});
+
+describe("codeRanges", () => {
+  it("runs an unclosed fence to the end, as CommonMark reads it", () => {
+    expect(codeRanges("a\n```\n%%")).toEqual([[2, 8]]);
+  });
+
+  it("closes a fence only on the same character, at least as long", () => {
+    const source = "````\n```\n~~~~\n````\nx";
+    expect(codeRanges(source)).toEqual([[0, source.length - 1]]);
+  });
+
+  it("pairs an inline run only with one of its own width", () => {
+    expect(codeRanges("``a ` b`` c")).toEqual([[0, 9]]);
   });
 });

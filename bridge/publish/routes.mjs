@@ -33,6 +33,29 @@ const HISTORY_FILE = "history.json";
 const HISTORY_LENGTH = 50;
 const INDEX_FILE = "index.json";
 const SOURCE_DIRECTORY = "src";
+const STATE_GUARD_FILE = ".htaccess";
+
+/**
+ * Written into a state directory that lies inside the web root.
+ *
+ * The directory holds every published note's Markdown as written — the
+ * frontmatter and the `%%` comments the page leaves out — and an index naming
+ * each note's place in the vault. Served, all of that is one guessable URL
+ * away. Apache and its lookalikes, which is most shared hosting, read this file
+ * and refuse; other servers need the deny rule the README names, and the bridge
+ * says so when it starts.
+ */
+export const STATE_GUARD = [
+  "# Written by the Schreibstube bridge. Nothing in here is part of the site.",
+  "<IfModule mod_authz_core.c>",
+  "  Require all denied",
+  "</IfModule>",
+  "<IfModule !mod_authz_core.c>",
+  "  Order allow,deny",
+  "  Deny from all",
+  "</IfModule>",
+  ""
+].join("\n");
 
 export function createPublishRoutes(config, { version }) {
   const publish = config.publish;
@@ -40,6 +63,14 @@ export function createPublishRoutes(config, { version }) {
   // One publish at a time per target. The bridge runs as a single instance, so
   // an in-memory lock is the whole story.
   const busy = new Set();
+  // Targets whose state directory is known to carry its deny file, so the
+  // check costs one round trip per target and process rather than per upload.
+  const guarded = new Set();
+  const guard = async (remote, target) => {
+    if (!target.stateInsideRoot || guarded.has(target.name)) return;
+    await guardState(remote);
+    guarded.add(target.name);
+  };
 
   const route = (method, path, maxBytes, bodyType, handler, timeoutMs) => ({
     method,
@@ -111,6 +142,7 @@ export function createPublishRoutes(config, { version }) {
         const hash = verifyHash(body, query.get("sha256"));
 
         return withRemote(target, config, async (remote) => {
+          await guard(remote, target);
           await remote.writeAbsolute(remote.stateAbsolute(`${SOURCE_DIRECTORY}/${hash}.md`), body);
           log(
             "info",
@@ -169,6 +201,7 @@ export function createPublishRoutes(config, { version }) {
 
         return exclusive(busy, target.name, () =>
           withRemote(target, config, async (remote) => {
+            await guard(remote, target);
             const stored = await storedSourceHashes(remote);
             const missing = index.notes.filter((note) => !stored.includes(note.sha256));
             if (missing.length > 0) {
@@ -335,6 +368,18 @@ async function appendHistory(remote, summary) {
     // The site is published either way; a missing history entry is not a
     // reason to report a failure.
   }
+}
+
+/**
+ * Put the deny file into the state directory, unless one is there.
+ *
+ * An existing file is left alone: an operator who wrote their own rules for
+ * the directory knows their server better than this does.
+ */
+async function guardState(remote) {
+  const path = remote.stateAbsolute(STATE_GUARD_FILE);
+  if (await remote.exists(path)) return;
+  await remote.writeAbsolute(path, Buffer.from(STATE_GUARD, "utf8"));
 }
 
 async function storedSourceHashes(remote) {

@@ -59,6 +59,19 @@ const server = createServer((req, res) => {
 
 server.listen(config.port, () => {
   log("info", `listening on :${config.port} — capabilities: ${capabilities.join(", ")}`);
+  // Said at every start rather than once in a README: the state directory
+  // holds every note as written, and a server that ignores .htaccess serves it.
+  for (const target of Object.values(config.publish?.targets ?? {})) {
+    if (target.stateInsideRoot) {
+      log(
+        "warn",
+        `publish target ${target.name}: state directory lies inside the web root; ` +
+          `the bridge writes a deny .htaccess there, and any server that ignores one ` +
+          `needs a rule denying ${target.stateRoot.slice(target.root.length) || "/"} — ` +
+          `or set PUBLISH_${target.name.toUpperCase().replace(/[^A-Z0-9]/g, "_")}_STATE_ROOT outside it.`
+      );
+    }
+  }
 });
 
 for (const signal of ["SIGTERM", "SIGINT"]) {

@@ -137,6 +137,14 @@ function loadTarget(env, name) {
     throw new Error(`${prefix}_BASE_URL must be https:// (or localhost).`);
   }
 
+  const stateRoot = (read("STATE_ROOT") || `${root.replace(/\/+$/, "")}/.schreibstube`).replace(
+    /\/+$/,
+    ""
+  );
+  if (!stateRoot.startsWith("/")) {
+    throw new Error(`${prefix}_STATE_ROOT must be an absolute path.`);
+  }
+
   const key = read("KEY");
   const password = read("PASSWORD");
   if (!key && !password) {
@@ -161,10 +169,8 @@ function loadTarget(env, name) {
     root: root.replace(/\/+$/, ""),
     // Sources and the manifest belong outside the served tree where the host
     // allows it; under it is the fallback, and then a deny rule is needed.
-    stateRoot: (read("STATE_ROOT") || `${root.replace(/\/+$/, "")}/.schreibstube`).replace(
-      /\/+$/,
-      ""
-    ),
+    stateRoot,
+    stateInsideRoot: isWithin(stateRoot, root.replace(/\/+$/, "")),
     baseUrl,
     siteTitle: read("SITE_TITLE") || name,
     // A personal site is the author's own HTML; a shared vault is not. The
@@ -218,6 +224,19 @@ function loadMail(env) {
     // Set to an empty string to skip that step (e.g. if the server does it).
     sentMailbox: env.SENT_MAILBOX === "" ? "" : env.SENT_MAILBOX?.trim() || "Sent"
   };
+}
+
+/**
+ * Whether a remote path lies at or below a directory.
+ *
+ * By segments, so `/var/www/blog-state` is not inside `/var/www/blog`. A path
+ * with `..` in it is counted as inside, because a web server may resolve it
+ * back into the served tree and the safe answer is the one that warns.
+ */
+export function isWithin(path, directory) {
+  if (path.split("/").includes("..")) return true;
+  const base = directory.replace(/\/+$/, "");
+  return path === base || path.startsWith(`${base}/`) || base === "";
 }
 
 /** The names of the capabilities this configuration actually offers. */
