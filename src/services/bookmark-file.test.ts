@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   bookmarkFolderPath,
-  bookmarkIcon,
+  bookmarkGlyph,
   bookmarkLinkPath,
   classifyBookmarkUrl,
   emptyBookmarkTree,
@@ -218,12 +218,46 @@ describe("urls", () => {
   it("reads the link path out of a note URL", () => {
     expect(bookmarkLinkPath("note://Work/Brief")).toBe("Work/Brief");
   });
+});
 
-  it("gives every kind an icon", () => {
-    expect(bookmarkIcon("web")).toBe("world");
-    expect(bookmarkIcon("folder")).toBe("folder");
-    expect(bookmarkIcon("note")).toBe("file-text");
-    expect(bookmarkIcon("obsidian")).toBe("external-link");
+describe("bookmarkGlyph", () => {
+  const bookmark = (kind: "web" | "obsidian" | "folder" | "note", url: string) => ({
+    name: "B",
+    url,
+    kind
+  });
+
+  it("draws a web link with the bundled globe, whatever else is known", () => {
+    expect(bookmarkGlyph(bookmark("web", "https://example.com"), "ignored")).toEqual({
+      from: "bundled",
+      name: "world"
+    });
+  });
+
+  it("draws a plugin link with the plugin's icon, the vault's behind it", () => {
+    expect(bookmarkGlyph(bookmark("obsidian", "obsidian://pythia?x=1"), "pythia-logo")).toEqual({
+      from: "obsidian",
+      names: ["pythia-logo", "library"],
+      fallback: "external-link"
+    });
+  });
+
+  it("draws everything else with the vault's icon", () => {
+    expect(bookmarkGlyph(bookmark("note", "note://Brief"), null)).toEqual({
+      from: "obsidian",
+      names: ["library"],
+      fallback: "file-text"
+    });
+    expect(bookmarkGlyph(bookmark("folder", "vault://Work"), null)).toEqual({
+      from: "obsidian",
+      names: ["library"],
+      fallback: "folder"
+    });
+    expect(bookmarkGlyph(bookmark("obsidian", "obsidian://open?vault=V"), null)).toEqual({
+      from: "obsidian",
+      names: ["library"],
+      fallback: "external-link"
+    });
   });
 });
 

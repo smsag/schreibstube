@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
-- **A bookmark that calls a plugin wears that plugin's icon.** `obsidian://pythia?vault=…&cmd=resume&id=…` is drawn with Pythia's logo in the bookmarks pane and in **Open bookmark**, instead of the generic arrow. The icon is the one on the plugin's ribbon button, or, for a plugin without one, the one it puts on its commands; so it appears for any plugin that shows an icon, hidden ribbon buttons included, and goes when the plugin is turned off. A link Obsidian answers itself, such as `obsidian://open`, keeps the arrow.
+- **Bookmark icons say where a bookmark leads.** Three icons, all in grey, in the bookmarks pane and in **Open bookmark**: the globe for a web link; the plugin's own icon for a link that calls one, so `obsidian://pythia?vault=…&cmd=resume&id=…` wears Pythia's logo; and Obsidian's library icon for everything in the vault — notes, folders and links Obsidian answers itself, such as `obsidian://open`. A plugin's icon is the one on its ribbon button, hidden ones included, or else the one it puts on its commands; a plugin without one, or turned off, gets the library icon.
 - **A tab icon for the published site, named by its theme.** A `theme.css` may name the site's icon as `--site-icon: url("data:image/svg+xml,…")`, beside its other colours and pictures; the bridge writes it as a file and links it from every page, so the browser tab shows it. An SVG or a PNG of at most 32 kB; an SVG holding a script, an event handler or anything it would load from elsewhere is left out, and the site publishes without an icon. Only the bridge changes: the protocol stays at 3, and no plugin release is needed.
 
 ### Changed

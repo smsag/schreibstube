@@ -8,8 +8,8 @@
 import { SuggestModal, type App } from "obsidian";
 import { t } from "../i18n";
 import type { PaneSectionsController } from "../controllers/pane-sections";
-import { bookmarkIcon, type Bookmark, type BookmarkEntry } from "../services/bookmark-file";
-import { applyIcon, applyPluginIcon, installIconFont } from "./icon-font";
+import { bookmarkGlyph, type Bookmark, type BookmarkEntry } from "../services/bookmark-file";
+import { applyIcon, applyObsidianIcon, installIconFont } from "./icon-font";
 
 export class BookmarkQuickOpenModal extends SuggestModal<BookmarkEntry> {
   constructor(
@@ -61,12 +61,12 @@ function matches(entry: BookmarkEntry, needle: string): boolean {
 }
 
 /**
- * A bookmark's icon: the plugin's own for an `obsidian://` link that calls
- * one, the icon of its kind otherwise. Shared with the pane, so a bookmark
- * looks the same in both places.
+ * A bookmark's icon: the globe for the web, the plugin's own for a link that
+ * calls one, the vault's for everything else. Shared with the pane, so a
+ * bookmark looks the same in both places.
  */
 export function drawBookmarkIcon(el: HTMLElement, bookmark: Bookmark, plugin: string | null): void {
-  const fallback = bookmarkIcon(bookmark.kind);
-  if (plugin === null) applyIcon(el, fallback);
-  else applyPluginIcon(el, plugin, fallback);
+  const glyph = bookmarkGlyph(bookmark, plugin);
+  if (glyph.from === "bundled") applyIcon(el, glyph.name);
+  else applyObsidianIcon(el, glyph.names, glyph.fallback);
 }

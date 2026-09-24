@@ -80,7 +80,8 @@ const SCHEMES: ReadonlyArray<{ prefix: string; kind: BookmarkKind }> = [
   { prefix: "note://", kind: "note" }
 ];
 
-/** The icon each kind gets in the pane, from the bundled set. */
+/** The icon each kind gets from the bundled set: the globe a web link wears,
+ *  and what the others fall back to when Obsidian cannot draw theirs. */
 const KIND_ICONS: Record<BookmarkKind, string> = {
   web: "world",
   obsidian: "external-link",
@@ -107,8 +108,35 @@ const WIKILINK = /^\s*[-*]\s+\[\[([^\]|]+)(?:\|([^\]]+))?\]\]\s*$/;
 /** Any scheme at all, allowed or not: `mailto:` and `javascript:` included. */
 const ANY_SCHEME = /^[a-z][a-z0-9+.-]*:/i;
 
-export function bookmarkIcon(kind: BookmarkKind): string {
-  return KIND_ICONS[kind];
+/**
+ * Obsidian's icon for everything the vault answers: Lucide's shelf of books,
+ * the one Pythia's vault-context toggle wears. One icon for notes, folders and
+ * Obsidian's own links, because to the person tapping them they are all the
+ * same thing — somewhere in the vault, not somewhere on the web.
+ */
+export const VAULT_ICON = "library";
+
+/** How a bookmark's icon is drawn. */
+export type BookmarkGlyph =
+  /** From the bundled set, which the pane's own font draws. */
+  | { from: "bundled"; name: string }
+  /** By Obsidian, the first name it knows; `fallback` from the bundled set if it knows none. */
+  | { from: "obsidian"; names: string[]; fallback: string };
+
+/**
+ * Three kinds of icon, and nothing else: a web link wears the globe, a link
+ * calling a plugin wears that plugin's icon, and everything else wears the
+ * vault's. A plugin whose icon Obsidian turns out not to know falls back to
+ * the vault's too, because its link is still one Obsidian answers.
+ */
+export function bookmarkGlyph(bookmark: Bookmark, plugin: string | null): BookmarkGlyph {
+  if (bookmark.kind === "web") return { from: "bundled", name: KIND_ICONS.web };
+
+  return {
+    from: "obsidian",
+    names: plugin !== null ? [plugin, VAULT_ICON] : [VAULT_ICON],
+    fallback: KIND_ICONS[bookmark.kind]
+  };
 }
 
 export function emptyBookmarkTree(): BookmarkTree {

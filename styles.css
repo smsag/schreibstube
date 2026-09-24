@@ -1438,10 +1438,9 @@ a.external-link.schreibstube-reminder-mark {
   color: var(--icon-color, var(--text-muted));
 }
 
-/* A plugin's own icon, drawn by Obsidian as an SVG: sized to the glyph box and
-   coloured like the glyphs beside it, so a bookmark calling Pythia wears
-   Pythia's logo without standing out of the row. */
-.schreibstube-explorer-glyph.is-plugin-icon {
+/* An icon Obsidian draws as an SVG — the vault's shelf, or a plugin's own —
+   sized to the glyph box and coloured like the glyphs beside it. */
+.schreibstube-explorer-glyph.is-obsidian-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1449,9 +1448,18 @@ a.external-link.schreibstube-reminder-mark {
   height: var(--schreibstube-glyph-size);
 }
 
-.schreibstube-explorer-glyph.is-plugin-icon svg {
+.schreibstube-explorer-glyph.is-obsidian-icon svg {
   width: 100%;
   height: 100%;
+}
+
+/* A bookmark's icon says what kind of place it opens, not whose it is, so all
+   of them are grey: a plugin's coloured logo too, which is what the filter is
+   for — colour set on the element would not reach a fill drawn into the SVG. */
+.schreibstube-explorer-row.is-bookmark .schreibstube-explorer-glyph,
+.schreibstube-bookmark-suggestion .schreibstube-explorer-glyph {
+  color: var(--text-muted);
+  filter: grayscale(1);
 }
 
 .schreibstube-explorer-row.is-folder .schreibstube-explorer-glyph {

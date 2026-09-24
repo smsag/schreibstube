@@ -123,16 +123,22 @@ export function applyIcon(el: HTMLElement, name: string | undefined): boolean {
 }
 
 /**
- * An icon another plugin registered with Obsidian, falling back to one of the
- * bundled set when Obsidian has nothing under the name — a plugin disabled
- * since, or an icon it never added.
+ * An icon Obsidian draws — its own Lucide set, or one a plugin registered —
+ * trying each name in turn, and one of the bundled set when Obsidian knows
+ * none of them: a plugin disabled since, or an icon it never added.
  */
-export function applyPluginIcon(el: HTMLElement, name: string, fallback: string): void {
-  setIcon(el, name);
-  if (el.querySelector("svg")) {
-    el.addClass("is-plugin-icon");
-    el.setAttribute("aria-hidden", "true");
-    return;
+export function applyObsidianIcon(
+  el: HTMLElement,
+  names: readonly string[],
+  fallback: string
+): void {
+  for (const name of names) {
+    setIcon(el, name);
+    if (el.querySelector("svg")) {
+      el.addClass("is-obsidian-icon");
+      el.setAttribute("aria-hidden", "true");
+      return;
+    }
   }
   applyIcon(el, fallback);
 }
