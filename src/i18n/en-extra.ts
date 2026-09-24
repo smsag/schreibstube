@@ -595,7 +595,12 @@ export const enExtra = {
       unchecked: "Bound to a source, never checked",
       error: "The source cannot be fetched",
       checkedAt: (when: string) => `last checked ${when}`,
-      never: "never checked"
+      never: "never checked",
+      published: (site: string, when: string) => `Published on ${site} · ${when}`,
+      marked: (site: string) => `Marked for publication on ${site}`,
+      notYetPublished: "not published yet",
+      siteLastPublished: (when: string) => `the site was last published ${when}`,
+      siteNeverPublished: "the site has not been published from this vault yet"
     },
 
     bind: {

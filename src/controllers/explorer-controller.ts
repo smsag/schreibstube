@@ -24,6 +24,7 @@ import { t } from "../i18n";
 import type { Logger } from "../services/logger";
 import type { SchreibstubeSettings } from "../types";
 import { syncBadgeFor, type SyncBadge } from "../services/explorer-badge";
+import { publishMarkFor, type PublishMark } from "../services/publish-mark";
 import {
   buildExplorerMenu,
   buildSelectionMenu,
@@ -687,6 +688,21 @@ export class ExplorerController {
       bound: true,
       sourceValid: resolveSourceUrl(frontmatter?.[SYNC_FRONTMATTER_KEY]).ok,
       ...(record ? { record } : {})
+    });
+  }
+
+  /** Whether a note is marked for publication, and whether that has happened. */
+  publishMarkOf(file: TFile): PublishMark {
+    if (file.extension !== "md") return { state: "none" };
+    const settings = this.getSettings();
+    if (settings.publishAccounts.length === 0) return { state: "none" };
+
+    return publishMarkFor({
+      path: file.path,
+      frontmatter: this.app.metadataCache.getFileCache(file)?.frontmatter,
+      accounts: settings.publishAccounts,
+      keys: settings.publishFrontmatterKeys,
+      lastRuns: settings.publishLastRun
     });
   }
 

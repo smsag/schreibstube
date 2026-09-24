@@ -35,6 +35,7 @@ import { t } from "../i18n";
 import type { ExplorerController } from "../controllers/explorer-controller";
 import type { PaneSectionsController } from "../controllers/pane-sections";
 import { syncBadgeIcon, type SyncBadge } from "../services/explorer-badge";
+import type { PublishMark } from "../services/publish-mark";
 import { matchesText, type SearchHit } from "../services/file-search";
 import { FileSearchIndex } from "../services/search-index";
 import { sortSiblings, type ExplorerNode } from "../services/explorer-state";
@@ -1531,14 +1532,25 @@ export class ExplorerPaneView extends ItemView {
     if (!controller) return;
 
     const badge = controller.badgeFor(file);
-    if (badge === "none") return;
+    if (badge !== "none") {
+      const label = badgeLabel(badge, controller.pendingChangesFor(file));
+      const el = row.createSpan({ cls: "schreibstube-explorer-badge" });
+      el.setAttribute("data-sync", badge);
+      el.setAttribute("aria-label", label);
+      el.setAttribute("title", `${label}\n${controller.lastCheckedFor(file)}`);
+      applyIcon(el, syncBadgeIcon(badge));
+    }
 
-    const label = badgeLabel(badge, controller.pendingChangesFor(file));
-    const el = row.createSpan({ cls: "schreibstube-explorer-badge" });
-    el.setAttribute("data-sync", badge);
-    el.setAttribute("aria-label", label);
-    el.setAttribute("title", `${label}\n${controller.lastCheckedFor(file)}`);
-    applyIcon(el, syncBadgeIcon(badge));
+    // After the sync mark, which can ask for something; this one only reports.
+    const mark = controller.publishMarkOf(file);
+    if (mark.state !== "none") {
+      const [label, detail] = publishMarkLines(mark);
+      const el = row.createSpan({ cls: "schreibstube-explorer-badge" });
+      el.setAttribute("data-publish", mark.state);
+      el.setAttribute("aria-label", detail ? `${label}, ${detail}` : label);
+      el.setAttribute("title", detail ? `${label}\n${detail}` : label);
+      applyIcon(el, "world-upload");
+    }
   }
 
   private wireRow(row: HTMLElement, file: TAbstractFile, isFolder: boolean): void {
@@ -1878,6 +1890,34 @@ function displayName(file: TAbstractFile): string {
   if (!(file instanceof TFile)) return file.name;
   const parts = fileNameParts(file.name, file.extension);
   return parts.hidden ? parts.stem : file.name;
+}
+
+/**
+ * The publication mark's title: what the note is, then what that means now.
+ *
+ * Times are the reader's own, as the sync mark's are.
+ */
+function publishMarkLines(mark: Exclude<PublishMark, { state: "none" }>): [string, string] {
+  const labels = t().explorer.badge;
+  const when = (iso: string): string => new Date(iso).toLocaleString();
+  if (mark.state === "published") {
+    return [labels.published(siteOf(mark.url) || mark.account, when(mark.at)), mark.url];
+  }
+  const detail = mark.recorded
+    ? labels.notYetPublished
+    : mark.lastRun
+      ? labels.siteLastPublished(when(mark.lastRun))
+      : labels.siteNeverPublished;
+  return [labels.marked(mark.account), detail];
+}
+
+/** The host of a published page's address, which names the site best. */
+function siteOf(url: string): string {
+  try {
+    return new URL(url).host;
+  } catch {
+    return "";
+  }
 }
 
 function badgeLabel(badge: SyncBadge, pending: number): string {

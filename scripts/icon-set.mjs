@@ -44,6 +44,9 @@ export const UI_ICONS = [
   "cloud-check",
   "cloud-download",
   "cloud-off",
+  // The file pane's mark for a note marked for publication: a globe, so it
+  // cannot be read as one of the cloud marks for sync beside it.
+  "world-upload",
   "alert-triangle",
   "refresh",
   "search",
