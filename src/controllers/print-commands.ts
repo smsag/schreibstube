@@ -12,7 +12,17 @@
  * theme is forced while that happens, because paper is white whatever the
  * vault is set to.
  */
-import { Component, MarkdownRenderer, Notice, TFile, TFolder, type App } from "obsidian";
+import {
+  Component,
+  loadMermaid,
+  MarkdownRenderer,
+  Notice,
+  TFile,
+  TFolder,
+  type App
+} from "obsidian";
+import { renderMermaidSvg, svgElementFrom, type MermaidLike } from "../print/mermaid-render";
+import { mermaidRenderId } from "../services/print-mermaid";
 import { t } from "../i18n";
 import type { Logger } from "../services/logger";
 import type { SchreibstubeSettings } from "../types";
@@ -679,6 +689,24 @@ export class PrintCommands {
 
     const component = new Component();
     try {
+      // Mermaid is asked for a drawing of its own rather than captured from
+      // the one in the note: that one's labels are HTML, which a canvas cannot
+      // export, and its colours are the app's. See services/print-mermaid.ts.
+      if (block.language === "mermaid") {
+        const markup = await renderMermaidSvg(
+          loadMermaid as () => Promise<MermaidLike>,
+          block.source,
+          mermaidRenderId(block.index, Date.now()),
+          RENDER_MS,
+          host
+        );
+        const drawn = host.appendChild(svgElementFrom(markup));
+        const picture = await rasterise(drawn);
+        return picture
+          ? { pictures: [picture], expected: 1, title: "" }
+          : { pictures: [], expected: 1, title: "" };
+      }
+
       await withTimeout(
         MarkdownRenderer.render(
           this.app,
@@ -690,9 +718,9 @@ export class PrintCommands {
         RENDER_MS,
         (seconds) => `${block.language} did not finish drawing within ${seconds}s`
       );
-      // A plugin that draws asynchronously has had a frame by now; mermaid and
-      // the canvases both draw within one. A plugin that needs longer says so
-      // itself, below.
+      // A plugin that draws asynchronously has had a frame by now; the
+      // canvases draw within one. A plugin that needs longer says so itself,
+      // below.
 
       // A canvas its own plugin can export is exported by that plugin: it knows
       // what is drawing and what is a control, which panel of a carousel is
