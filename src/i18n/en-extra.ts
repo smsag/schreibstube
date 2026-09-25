@@ -734,6 +734,7 @@ export const enExtra = {
     diagramAsSource: (language: string) => `${language}: could not be drawn, printed as source`,
     htmlDropped: "HTML is dropped when printing",
     embedNotPrinted: (target: string) => `embedded note is not printed: ${target}`,
+    imageUnsupported: (name: string) => `${name} is in a format a print cannot carry`,
     imageNotFound: (source: string) => `image not found: ${source}`,
     footnoteMissing: (name: string) => `footnote [^${name}] has no text and was left out`,
     notReplaced: (path: string) =>

@@ -67,14 +67,25 @@ vi.mock("../ui/explorer-modals", () => ({
 vi.mock("../ui/print-modals", () => ({ PrintExampleModal: class {} }));
 
 /** The longest edge each picture was asked to be made, by the size hint it came with. */
-const resized = vi.hoisted(() => ({ edges: [] as number[] }));
+const resized = vi.hoisted(() => ({
+  edges: [] as number[],
+  /** What each picture was decoded as and drawn again as. */
+  types: [] as [string, string | undefined][]
+}));
 
 // Resizing draws on a canvas, which the tests do not have; what matters here
 // is how large a picture was asked to be.
 vi.mock("../services/image-resize", async (original) => ({
   ...(await original<typeof import("../services/image-resize")>()),
-  resizeImageToBytes: async (buffer: ArrayBuffer, _mime: string, maxPx: number) => {
+  resizeImageToBytes: async (
+    buffer: ArrayBuffer,
+    mime: string,
+    maxPx: number,
+    _quality?: number,
+    output?: string
+  ) => {
     resized.edges.push(maxPx);
+    resized.types.push([mime, output]);
     return { bytes: new Uint8Array(buffer) };
   }
 }));
@@ -266,6 +277,7 @@ beforeEach(() => {
   answers.preselected = [];
   answers.slideshowChoice = [];
   resized.edges = [];
+  resized.types = [];
   answers.change = null;
   answers.afterPreview = true;
   answers.fixesMargin = [];
@@ -624,3 +636,57 @@ describe("slideshows in the print dialog", () => {
 function files(paths: string[]): Record<string, Uint8Array> {
   return Object.fromEntries(paths.map((path) => [path, new Uint8Array([137, 80, 78, 71])]));
 }
+
+describe("pictures in formats Typst does not read as they are", () => {
+  const main = (): string => compiler.jobs[compiler.jobs.length - 1]?.main ?? "";
+  const job = () =>
+    compiler.jobs[compiler.jobs.length - 1] as unknown as {
+      files: { path: string; bytes: Uint8Array }[];
+    };
+
+  it("prints an AVIF as the JPEG it is drawn into, named so Typst reads it as one", async () => {
+    const { commands } = vault({
+      note: "Text\n\n![](Visuals/IMG_2443.avif)",
+      existing: files(["Visuals/IMG_2443.avif"])
+    });
+    await quick(commands);
+
+    expect(resized.types).toEqual([["image/avif", "image/jpeg"]]);
+    expect(main()).toContain('#schreibstube-image("assets/Visuals-IMG_2443.avif.jpg", "")');
+    expect(Notice.shown.join("\n")).not.toContain("not found");
+  });
+
+  it("names a GIF for the PNG it becomes, which kept a whole print from compiling", async () => {
+    const { commands } = vault({ note: "![](anim.gif)", existing: files(["anim.gif"]) });
+    await quick(commands);
+
+    expect(resized.types).toEqual([["image/gif", "image/png"]]);
+    expect(main()).toContain('"assets/anim.gif.png"');
+  });
+
+  it("hands an SVG to Typst untouched, without drawing it into pixels", async () => {
+    const svg = new TextEncoder().encode('<svg xmlns="http://www.w3.org/2000/svg"/>');
+    const { commands } = vault({ note: "![](plan.svg)", existing: { "plan.svg": svg } });
+    await quick(commands);
+
+    expect(resized.types).toEqual([]);
+    expect(main()).toContain('"assets/plan.svg"');
+    expect(job().files.find((file) => file.path === "assets/plan.svg")?.bytes).toEqual(svg);
+  });
+
+  it("says a picture's format cannot be printed, rather than that it is missing", async () => {
+    const { commands } = vault({ note: "![](scan.tiff)", existing: files(["scan.tiff"]) });
+    await quick(commands);
+
+    const said = Notice.shown.join("\n");
+    expect(said).toContain("scan.tiff is in a format a print cannot carry");
+    expect(said).not.toContain("image not found");
+  });
+
+  it("still says so when a picture is not in the vault at all", async () => {
+    const { commands } = vault({ note: "![](weg.png)" });
+    await quick(commands);
+
+    expect(Notice.shown.join("\n")).toContain("image not found: weg.png");
+  });
+});

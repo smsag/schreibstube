@@ -59,7 +59,7 @@ export interface ConvertOptions {
   /** What the plugin that drew it calls it, when it has a name for it. */
   diagramTitle?: (block: DiagramBlock) => string | null;
   /** The same for an embedded image: a path inside the job, or null. */
-  image?: (request: ImageRequest) => string | null;
+  image?: (request: ImageRequest) => string | null | ImageRefusal;
   /**
    * The note's properties, as key and value, to be printed at the top: after
    * the first heading when the note opens with one, so a title stays first.
@@ -67,6 +67,14 @@ export interface ConvertOptions {
   properties?: readonly (readonly [string, string])[];
   /** How a slideshow is printed: as it stands on screen, or every picture stacked. */
   slideshows?: SlideshowPrintMode;
+}
+
+/**
+ * A picture the caller found and will not print, with the reason in words a
+ * notice can show — a format no print can carry is not a picture "not found".
+ */
+export interface ImageRefusal {
+  refused: string;
 }
 
 export interface Conversion {
@@ -123,6 +131,22 @@ const ORDERED = /^(\s*)(\d{1,9})[.)]\s+(.*)$/;
 const TABLE_DELIMITER = /^ {0,3}\|?\s*:?-{1,}:?\s*(\|\s*:?-{1,}:?\s*)*\|?\s*$/;
 const FOOTNOTE_DEFINITION = /^ {0,3}\[\^([^\]\s]+)\]:\s*(.*)$/;
 const TASK = /^\[([ xX])\]\s+/;
+
+/**
+ * The elements a note writes as raw HTML. Anything else between angle
+ * brackets — `<Name>`, `<GOAL OR OBJECTIVE>` — is text, and prints as text.
+ */
+const HTML_ELEMENTS = new Set(
+  (
+    "a abbr address article aside audio b bdi bdo big blockquote body br button caption center " +
+    "cite code col colgroup data dd del details dfn dialog div dl dt em embed fieldset figcaption " +
+    "figure font footer form h1 h2 h3 h4 h5 h6 head header hr html i iframe img input ins kbd label " +
+    "legend li link main mark meta meter nav noscript object ol optgroup option output p param " +
+    "picture pre progress q rp rt ruby s samp script section select small source span strike " +
+    "strong style sub summary sup svg table tbody td template textarea tfoot th thead time title tr " +
+    "track tt u ul var video wbr"
+  ).split(" ")
+);
 
 /**
  * What a callout or a quote shares with the note around it.
@@ -330,9 +354,8 @@ class Converter {
     const placed: string[] = [];
     for (const image of plan.images) {
       const request = { source: image.src, alt: image.alt, width: image.width };
-      const path = this.options.image?.(request) ?? null;
-      if (path === null) this.warn(t().print.imageNotFound(image.src));
-      else placed.push(`(${quote(path)}, ${quote(image.alt)}),`);
+      const path = this.resolveImage(request);
+      if (path !== null) placed.push(`(${quote(path)}, ${quote(image.alt)}),`);
     }
     if (placed.length === 0) return "";
     return `#schreibstube-slideshow(${quote(plan.arrangement)}, (${placed.join(" ")}), columns: ${plan.columns})\n`;
@@ -572,8 +595,11 @@ class Converter {
           continue;
         }
 
-        const tag = /^<\/?[A-Za-z][^>]*>/.exec(rest);
-        if (tag) {
+        // Only an element HTML knows is a tag. `<DOING SOMETHING>` in a
+        // template sentence is a placeholder a person typed, and it used to be
+        // dropped as HTML, taking the words it held off the page.
+        const tag = /^<\/?([A-Za-z][A-Za-z0-9-]*)\b[^>]*>/.exec(rest);
+        if (tag && HTML_ELEMENTS.has((tag[1] ?? "").toLowerCase())) {
           // Raw HTML has no meaning on paper and no safe rendering; dropping
           // the tag keeps the words it wrapped.
           this.warn(t().print.htmlDropped);
@@ -657,7 +683,9 @@ class Converter {
 
   /** Markup, and whether it ends in an expression — see `inline`. */
   private embed(target: string, alias: string): [string, boolean] {
-    if (/\.(png|jpe?g|gif|webp|avif|svg|bmp)$/i.test(target)) return this.image(target, alias);
+    if (/\.(png|jpe?g|gif|webp|avif|svg|bmp|heic|heif)$/i.test(target)) {
+      return this.image(target, alias);
+    }
     // An embedded note would have to be read and converted, which is a second
     // document inside this one; saying so beats printing a stray file name.
     this.warn(t().print.embedNotPrinted(target));
@@ -665,12 +693,17 @@ class Converter {
   }
 
   private image(source: string, alt: string): [string, boolean] {
-    const path = this.options.image?.({ source, alt }) ?? null;
-    if (path === null) {
-      this.warn(t().print.imageNotFound(source));
-      return [escapeText(alt), false];
-    }
+    const path = this.resolveImage({ source, alt });
+    if (path === null) return [escapeText(alt), false];
     return [`#schreibstube-image(${quote(path)}, ${quote(alt)})`, true];
+  }
+
+  /** A picture's path in the job, or null after saying why there is none. */
+  private resolveImage(request: ImageRequest): string | null {
+    const answer = this.options.image?.(request) ?? null;
+    if (typeof answer === "string") return answer;
+    this.warn(answer === null ? t().print.imageNotFound(request.source) : answer.refused);
+    return null;
   }
 
   /**
@@ -795,43 +828,57 @@ function stripFrontmatter(source: string): string {
 }
 
 /**
- * `%%…%%` is a note to oneself and never reaches paper.
+ * `%%…%%` and `<!-- … -->` are notes to oneself and never reach paper.
  *
- * Outside a fenced block only: Obsidian shows `%%` inside one as the two
- * characters they are, and a pre-pass over the whole note used to delete from
- * one line of code to another.
+ * Obsidian hides both, the HTML comment as a browser would; it used to be
+ * printed as the text it is. Outside a fenced block only: Obsidian shows
+ * either inside one as the characters they are, and a pre-pass over the whole
+ * note used to delete from one line of code to another. Either may run over
+ * several lines, and a line that is all comment leaves no blank behind.
  */
 function stripComments(source: string): string {
   const lines = source.split("\n");
   const fenced = fencedLines(lines);
+  const closer: Record<string, string> = { "%%": "%%", "<!--": "-->" };
 
   let out = "";
-  let open = false;
+  let open: string | null = null;
 
   for (const [index, line] of lines.entries()) {
     const suffix = index === lines.length - 1 ? "" : "\n";
 
-    if (fenced[index] && !open) {
+    if (fenced[index] && open === null) {
       out += line + suffix;
       continue;
     }
 
-    let text = line;
-    if (open) {
-      const close = text.indexOf("%%");
-      if (close === -1) continue;
-      text = text.slice(close + 2);
-      open = false;
+    const startedOpen = open !== null;
+    let rest = line;
+    let kept = "";
+    for (;;) {
+      if (open !== null) {
+        const close = rest.indexOf(open);
+        if (close === -1) break;
+        rest = rest.slice(close + open.length);
+        open = null;
+        continue;
+      }
+      const percent = rest.indexOf("%%");
+      const html = rest.indexOf("<!--");
+      const at = percent === -1 ? html : html === -1 ? percent : Math.min(percent, html);
+      if (at === -1) {
+        kept += rest;
+        break;
+      }
+      const opener = at === percent ? "%%" : "<!--";
+      kept += rest.slice(0, at);
+      rest = rest.slice(at + opener.length);
+      open = closer[opener] ?? null;
     }
 
-    text = text.replace(/%%[\s\S]*?%%/g, "");
-    const dangling = text.indexOf("%%");
-    if (dangling !== -1) {
-      text = text.slice(0, dangling);
-      open = true;
-    }
-
-    out += text + suffix;
+    // A line inside a comment that never reached its end is not a line at all.
+    if (startedOpen && open !== null && kept === "") continue;
+    out += kept + suffix;
   }
 
   return out;
