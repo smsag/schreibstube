@@ -22,6 +22,8 @@ export interface ExampleTemplate {
   name: string;
   /** Where it came from, for the documentation to agree with the code. */
   source: string;
+  /** The descriptor's frontmatter, parsed at build time as Obsidian would. */
+  frontmatter: Record<string, unknown>;
   files: ExampleFile[];
 }
 
@@ -29,6 +31,20 @@ export const EXAMPLE_TEMPLATES: readonly ExampleTemplate[] = [
   {
     name: "Brief",
     source: "examples/print/brief",
+    frontmatter: {
+      schreibstubePrintTemplate: true,
+      schreibstubeEntry: "letter",
+      schreibstubePage: { size: "a4" },
+      schreibstubeData: {
+        senderName: "Vorname Nachname",
+        senderAddress: "Musterstraße 1\n12345 Musterstadt",
+        senderPhone: "",
+        senderEmail: "",
+        recipient: "",
+        subject: "",
+        signature: "Mit freundlichen Grüßen"
+      }
+    },
     files: [
       {
         name: "template.md",
@@ -43,6 +59,18 @@ export const EXAMPLE_TEMPLATES: readonly ExampleTemplate[] = [
   {
     name: "Lebenslauf",
     source: "examples/print/lebenslauf",
+    frontmatter: {
+      schreibstubePrintTemplate: true,
+      schreibstubeEntry: "cv",
+      schreibstubePage: { size: "a4" },
+      schreibstubeHrIsPageBreak: true,
+      schreibstubeData: {
+        name: "Vorname Nachname",
+        address: "Musterstraße 1, 12345 Musterstadt, DE",
+        contact: "+49 000 0000000 · du@example.de",
+        photo: ""
+      }
+    },
     files: [
       {
         name: "template.md",
@@ -51,6 +79,25 @@ export const EXAMPLE_TEMPLATES: readonly ExampleTemplate[] = [
       {
         name: "template.typ",
         text: '// A CV: a photo and the contact block at the top, then the note\'s own\n// headings. Level three is a section, four a role, five the employer and the\n// dates — which is the shape the Markdown already has, so nothing has to be\n// restructured to print it.\n\n#let cv(body, data) = {\n  set page(paper: "a4", margin: (top: 18mm, bottom: 20mm, x: 20mm))\n  set text(font: ("Fira Sans", "Liberation Sans"), size: 10.2pt, lang: "de")\n  set par(leading: 0.58em, spacing: 0.72em, justify: false)\n\n  // The condensed cuts hold a long German job title on one line, which is the\n  // whole reason a CV uses them. Fira registers them as a width on the same\n  // family rather than as a family of their own, so they are asked for by\n  // stretch; a font that names its condensed cut separately is asked for by\n  // name instead.\n  let condensed(size: 10pt, weight: 700, fill: black, body) = text(\n    font: "Fira Sans",\n    stretch: 75%,\n    weight: weight,\n    size: size,\n    fill: fill,\n    body,\n  )\n\n  show heading.where(level: 3): it => block(above: 1.35em, below: 0.55em)[\n    #condensed(size: 14.9pt)[#it.body]\n  ]\n  show heading.where(level: 4): it => block(above: 1.05em, below: 0.1em)[\n    #condensed(size: 12pt)[#it.body]\n  ]\n  show heading.where(level: 5): it => block(above: 0em, below: 0.45em)[\n    #condensed(size: 10.7pt, weight: 600, fill: luma(107))[#it.body]\n  ]\n  // A skill\'s level, written in italics in the note, is a quiet aside on paper.\n  show emph: it => text(fill: luma(107), style: "normal")[#it.body]\n\n  set list(indent: 6pt, spacing: 0.4em, marker: [•])\n\n  block[\n    #grid(\n      columns: if data.photo != "" { (84pt, 1fr) } else { (1fr,) },\n      gutter: 12pt,\n      align: bottom,\n      ..(\n        if data.photo != "" {\n          (image(data.photo, width: 84pt, height: 84pt, fit: "cover"),)\n        } else { () }\n      ),\n      [\n        #set par(leading: 0.5em, spacing: 0.35em)\n        #condensed(size: 25.6pt)[#data.name]\n        #v(2pt)\n        #data.address\n        #if data.contact != "" [\\ #data.contact]\n      ],\n    )\n  ]\n\n  v(9pt)\n  body\n}\n'
+      }
+    ]
+  },
+  {
+    name: "Standard",
+    source: "examples/print/standard",
+    frontmatter: {
+      schreibstubePrintTemplate: true,
+      schreibstubeEntry: "standard",
+      schreibstubePage: { size: "a4" }
+    },
+    files: [
+      {
+        name: "template.md",
+        text: "---\nschreibstubePrintTemplate: true\nschreibstubeEntry: standard\nschreibstubePage: { size: a4 }\n---\n\n# Standard\n\nDie Vorlage, mit der gedruckt wird, wenn nichts anderes verlangt ist: A4, die Überschriften der Notiz, die Seitenzahl unten, sobald es mehr als eine Seite ist. Sie ist in Schreibstube eingebaut und muss nicht im Vault liegen.\n\n## Anpassen\n\nDiese Kopie im Vault ersetzt die eingebaute, solange sie `Standard` heißt: Ändere hier die `template.typ`, und jede Notiz ohne eigene Vorlage wird so gedruckt. Soll wieder die eingebaute gelten, benenne diesen Ordner um oder lösche ihn.\n\nLege eine Schrift in `fonts/` und nenne sie in der `template.typ` bei `set text(font: …)`. Ohne eigene Schrift wird in der Standardschrift gesetzt, die das Plugin mit dem Satzteil lädt — Libertinus Serif, und DejaVu Sans Mono für Code.\n\n## Benutzen\n\nNichts. Eine Notiz ohne `schreibstubePrintTemplate` wird mit der Standardvorlage gedruckt, solange in den Druck-Einstellungen keine andere als Standard gewählt ist. Ausdrücklich verlangen lässt sie sich auch:\n\n```yaml\n---\nschreibstubePrintTemplate: Standard\n---\n```\n\n## Werte, die die Vorlage liest\n\n| Schlüssel | Woher                                   | Wofür                                         |\n| --------- | --------------------------------------- | --------------------------------------------- |\n| `title`   | erste Überschrift der Notiz, sonst Name | Titel des PDFs; Titelzeile, wenn keine da ist |\n| `lang`    | Sprache des Plugins                     | Silbentrennung                                |\n"
+      },
+      {
+        name: "template.typ",
+        text: '// The page a note is printed on when nothing else is asked for: A4, the\n// standard fonts, the note\'s own headings, and the page number at the foot\n// once there is more than one page.\n//\n// Nothing here needs a value from the note. `data.title` is the note\'s first\n// heading, or its file name when it has none, and names the PDF; `data.lang`\n// is the language the plugin speaks, so words break the way that language\n// breaks them.\n\n#let standard(body, data) = {\n  set document(title: data.title)\n  set page(\n    paper: "a4",\n    margin: (x: 25mm, top: 25mm, bottom: 30mm),\n    footer: context {\n      let total = counter(page).final().first()\n      if total > 1 {\n        align(center, text(size: 9pt, fill: luma(110), counter(page).display("1 / 1", both: true)))\n      }\n    },\n  )\n  set text(font: "Libertinus Serif", size: 11pt, lang: data.lang, hyphenate: true)\n  set par(justify: true, leading: 0.65em, spacing: 1.2em)\n\n  show heading: set block(above: 1.6em, below: 0.8em)\n  show heading.where(level: 1): set text(size: 20pt, weight: "semibold")\n  show heading.where(level: 2): set text(size: 15pt, weight: "semibold")\n  show heading.where(level: 3): set text(size: 12.5pt, weight: "semibold")\n  show heading: it => {\n    set par(justify: false)\n    it\n  }\n\n  show raw: set text(font: "DejaVu Sans Mono", size: 0.85em)\n  show link: it => text(fill: rgb("#2f5d8a"), it)\n  show footnote.entry: set text(size: 9pt)\n\n  // A note without a first heading still gets a title: its file name, set\n  // the way a heading would be, so the page does not begin mid-thought.\n  context if query(heading.where(level: 1)).len() == 0 {\n    block(below: 1em, text(size: 20pt, weight: "semibold", data.title))\n  }\n\n  body\n}\n'
       }
     ]
   }

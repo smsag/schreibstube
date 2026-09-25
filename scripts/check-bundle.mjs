@@ -52,8 +52,16 @@ import { fileURLToPath } from "node:url";
  * budgets before a read — and its warnings and refusals in both languages,
  * which are most of the six. Trimming to fit would have meant leaving those
  * in English again. The headroom left is for the next feature.
+ *
+ * Raised to 500 KB at 486 KB, for printing without a template of one's own
+ * (+6 KB): the built-in Standard, carried as the text of its layout and of the
+ * descriptor a person reads when they lay it down to change it, its parsed
+ * frontmatter so no YAML parser ships, the default-template setting and its
+ * words in two languages. Trimming the descriptor to fit would have cut the
+ * instructions a template author reads first. What is left is for the next
+ * feature.
  */
-const MAX_BUNDLE_KB = 490;
+const MAX_BUNDLE_KB = 500;
 
 const bundle = fileURLToPath(new URL("../main.js", import.meta.url));
 const source = readFileSync(bundle, "utf8");

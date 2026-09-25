@@ -186,6 +186,13 @@ export const enExtra = {
     printOutputFolderDesc:
       "Where a printed PDF is written. Leave empty to put it beside the note it came from.",
     printOutputBesideNote: "beside the note",
+    printDefaultTemplate: "Default template",
+    printDefaultTemplateDesc:
+      "What a note that names no template is printed with. A note chooses its own with " +
+      "schreibstubePrintTemplate in its frontmatter.",
+    printDefaultBuiltin: "Standard (built in)",
+    printDefaultAsk: "Ask every time",
+    printDefaultMissing: (path: string) => `${path} (not found)`,
     commandsHeading: "Commands",
     commandsIntro: 'In the command palette, each one prefixed with "Schreibstube: ".',
 
@@ -656,9 +663,9 @@ export const enExtra = {
 
   print: {
     noNote: "open a note first — printing sets the note you are looking at.",
-    noTemplates:
-      "no print template in this vault. A template is a folder holding a template.md and a " +
-      'template.typ; "Add a template" in the print settings puts one in.',
+    defaultMissing: (path: string) =>
+      `the default template ${path} is no longer in this vault; choose one, or pick another default in the print settings.`,
+    builtIn: "built in",
     unknownTemplate: (name: string) =>
       `this note asks for the template "${name}", and no folder in this vault is one.`,
     noLayout: (name: string) => `${name} has no template.typ, so there is nothing to print with.`,

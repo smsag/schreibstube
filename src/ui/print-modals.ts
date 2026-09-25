@@ -30,7 +30,10 @@ export class PrintTemplateModal extends SuggestModal<PrintTemplate> {
 
   override renderSuggestion(template: PrintTemplate, el: HTMLElement): void {
     el.createDiv({ text: template.name });
-    el.createEl("small", { cls: "schreibstube-print-folder", text: template.folder });
+    el.createEl("small", {
+      cls: "schreibstube-print-folder",
+      text: template.builtIn ? t().print.builtIn : template.folder
+    });
   }
 
   override onChooseSuggestion(template: PrintTemplate): void {

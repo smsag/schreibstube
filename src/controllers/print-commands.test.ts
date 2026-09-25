@@ -78,6 +78,8 @@ interface VaultOptions {
   /** Font files in a template's fonts folder, by size. */
   fonts?: number[];
   outputFolder?: string;
+  /** The default-template setting; the built-in one unless a test says otherwise. */
+  defaultTemplate?: string;
 }
 
 function vault(options: VaultOptions = {}) {
@@ -167,7 +169,8 @@ function vault(options: VaultOptions = {}) {
   const settings = {
     printEnabled: true,
     printTemplateRoot: "Vorlagen/Druck",
-    printOutputFolder: options.outputFolder ?? ""
+    printOutputFolder: options.outputFolder ?? "",
+    printDefaultTemplate: options.defaultTemplate ?? ""
   } as SchreibstubeSettings;
 
   const commands = new PrintCommands(
@@ -296,7 +299,10 @@ describe("choosing the template", () => {
 
 describe("the budget, before anything is read", () => {
   it("refuses a font folder over the limit without reading a single font", async () => {
-    const { commands, read, written } = vault({ fonts: [5 * 1024 * 1024, 5 * 1024 * 1024] });
+    const { commands, read, written } = vault({
+      named: "Brief",
+      fonts: [5 * 1024 * 1024, 5 * 1024 * 1024]
+    });
     await commands.printActiveNote();
 
     expect(read.filter((path) => path.includes("/fonts/"))).toEqual([]);
@@ -305,9 +311,80 @@ describe("the budget, before anything is read", () => {
   });
 
   it("reads fonts within the limit", async () => {
-    const { commands, read } = vault({ fonts: [1024] });
+    const { commands, read } = vault({ named: "Brief", fonts: [1024] });
     await commands.printActiveNote();
 
     expect(read).toContain("Vorlagen/Druck/Brief/fonts/face-0.ttf");
+  });
+});
+
+describe("the default template", () => {
+  const entryOf = (): string =>
+    /#show: body => ([\w-]+)\(/.exec(compiler.jobs[0]?.main ?? "")?.[1] ?? "";
+
+  it("prints with the built-in one in a vault that has no template at all", async () => {
+    const { commands, written } = vault({ templates: [] });
+    await commands.printActiveNote();
+
+    expect(answers.offered).toEqual([]);
+    expect(entryOf()).toBe("standard");
+    expect(written).toEqual([{ path: "Briefe/Anfrage.pdf", how: "create" }]);
+  });
+
+  it("prints a note that names none with the built-in one, without asking", async () => {
+    const { commands } = vault();
+    await commands.printActiveNote();
+
+    expect(answers.offered).toEqual([]);
+    expect(entryOf()).toBe("standard");
+  });
+
+  it("takes the built-in layout from the plugin, not from a folder in the vault", async () => {
+    const { commands, read } = vault({ templates: [] });
+    await commands.printActiveNote();
+
+    expect(compiler.jobs[0]?.main).toContain('#import "template.typ": *');
+    expect(read).toEqual([]);
+  });
+
+  it("uses the vault template the settings name", async () => {
+    const { commands } = vault({ defaultTemplate: "Vorlagen/Druck/Brief" });
+    await commands.printActiveNote();
+
+    expect(answers.offered).toEqual([]);
+    expect(entryOf()).toBe("template");
+  });
+
+  it("asks among all of them, the built-in one included, when the setting says ask", async () => {
+    const { commands } = vault({ defaultTemplate: ":ask" });
+    await commands.printActiveNote();
+
+    // The vault's own first, the built-in one after them.
+    expect(answers.offered).toEqual([["Vorlagen/Druck/Brief", ":builtin/Standard"]]);
+  });
+
+  it("says so and asks when the default the settings name has gone", async () => {
+    const { commands } = vault({ defaultTemplate: "Weg/Vorlage" });
+    await commands.printActiveNote();
+
+    expect(Notice.shown.join("\n")).toContain(
+      "the default template Weg/Vorlage is no longer in this vault"
+    );
+    expect(answers.offered).toHaveLength(1);
+  });
+
+  it("prints with a vault copy called Standard rather than the built-in one", async () => {
+    const { commands } = vault({ templates: ["Vorlagen/Druck/Standard"] });
+    await commands.printActiveNote();
+
+    // The copy's layout is the test's own, whose entry is `template`.
+    expect(entryOf()).toBe("template");
+  });
+
+  it("prints with the built-in one when a note asks for Standard by name", async () => {
+    const { commands } = vault({ named: "Standard" });
+    await commands.printActiveNote();
+
+    expect(entryOf()).toBe("standard");
   });
 });

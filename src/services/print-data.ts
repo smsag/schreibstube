@@ -53,6 +53,9 @@ export function resolvePrintData(
 function builtins(context: BuiltinContext): Record<string, string> {
   return {
     title: context.title,
+    // The language the plugin speaks, as Typst names one, so a template can
+    // hyphenate the way that language does without a note having to say so.
+    lang: context.locale,
     noteName: context.noteName,
     date: formatDate(context.now, context.locale),
     isoDate: isoDate(context.now),

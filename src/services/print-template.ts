@@ -92,7 +92,15 @@ export interface PrintTemplate {
   data: Record<string, string>;
   /** The function `main.typ` applies. */
   entry: string;
+  /** Carried by the plugin rather than read from a folder in the vault. */
+  builtIn?: boolean;
 }
+
+/** The setting's value for "ask every time", which no vault path can be. */
+export const DEFAULT_TEMPLATE_ASK = ":ask";
+
+/** The setting's value for the built-in template: also what it starts as. */
+export const DEFAULT_TEMPLATE_BUILTIN = "";
 
 export const DEFAULT_PAGE: PageSetup = { size: "a4", margin: null };
 export const DEFAULT_ENTRY = "template";
@@ -230,7 +238,8 @@ const PATH_ARGUMENT =
 /** What printing a note should do about which template to use. */
 export type TemplateChoice =
   | { kind: "use"; template: PrintTemplate }
-  | { kind: "ask"; among: PrintTemplate[] }
+  /** `missingDefault` is the default the settings name and the vault no longer has. */
+  | { kind: "ask"; among: PrintTemplate[]; missingDefault?: string }
   | { kind: "unknown"; name: string };
 
 /**
@@ -239,22 +248,48 @@ export type TemplateChoice =
  * A note may name its template by folder name or by folder path. Two templates
  * can share a folder name in different places, which the picker already shows;
  * a name that fits more than one is asked about among those it fits, rather
- * than settled by whichever the vault happened to list first.
+ * than settled by whichever the vault happened to list first. A template in the
+ * vault shadows the built-in one of the same name: a person who copied
+ * `Standard` into the vault to change it means the copy.
+ *
+ * A note that names none gets the default the settings choose — the built-in
+ * template unless somebody chose otherwise — or the picker, when that is the
+ * choice or the chosen template is no longer there.
  */
 export function chooseTemplate(
   templates: readonly PrintTemplate[],
-  named: string | null
+  named: string | null,
+  preferred: string = DEFAULT_TEMPLATE_BUILTIN
 ): TemplateChoice {
-  if (named === null) return { kind: "ask", among: [...templates] };
+  if (named === null) return chooseDefault(templates, preferred);
 
   const path = named.replace(/^\/+|\/+$/g, "");
-  const byPath = templates.find((template) => template.folder === path);
+  const byPath = templates.find((template) => !template.builtIn && template.folder === path);
   if (byPath) return { kind: "use", template: byPath };
 
-  const byName = templates.filter((template) => template.name === named);
+  const all = templates.filter((template) => template.name === named);
+  const inVault = all.filter((template) => !template.builtIn);
+  const byName = inVault.length > 0 ? inVault : all;
   if (byName.length === 1 && byName[0]) return { kind: "use", template: byName[0] };
   if (byName.length > 1) return { kind: "ask", among: byName };
   return { kind: "unknown", name: named };
+}
+
+function chooseDefault(templates: readonly PrintTemplate[], preferred: string): TemplateChoice {
+  if (preferred === DEFAULT_TEMPLATE_ASK) return { kind: "ask", among: [...templates] };
+
+  if (preferred === DEFAULT_TEMPLATE_BUILTIN) {
+    const builtIn = templates.find((template) => template.builtIn);
+    // A vault copy called by the built-in's name is the one a person edited.
+    const shadow = builtIn && templates.find((t) => !t.builtIn && t.name === builtIn.name);
+    const chosen = shadow ?? builtIn;
+    return chosen ? { kind: "use", template: chosen } : { kind: "ask", among: [...templates] };
+  }
+
+  const path = preferred.replace(/^\/+|\/+$/g, "");
+  const chosen = templates.find((template) => !template.builtIn && template.folder === path);
+  if (chosen) return { kind: "use", template: chosen };
+  return { kind: "ask", among: [...templates], missingDefault: path };
 }
 
 /** Whether a font file is one Typst can read. */

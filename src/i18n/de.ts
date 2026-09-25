@@ -440,6 +440,13 @@ export const de: Messages = {
     printOutputFolderDesc:
       "Wohin ein gedrucktes PDF geschrieben wird. Leer lassen, damit es neben der Notiz liegt.",
     printOutputBesideNote: "neben der Notiz",
+    printDefaultTemplate: "Standardvorlage",
+    printDefaultTemplateDesc:
+      "Womit eine Notiz gedruckt wird, die keine Vorlage nennt. Eine Notiz wählt ihre eigene " +
+      "mit schreibstubePrintTemplate im Frontmatter.",
+    printDefaultBuiltin: "Standard (eingebaut)",
+    printDefaultAsk: "Jedes Mal fragen",
+    printDefaultMissing: (path: string) => `${path} (nicht gefunden)`,
     commandsHeading: "Befehle",
     commandsIntro: "In der Befehlspalette, jeweils mit „Schreibstube: “ davor.",
 
@@ -925,9 +932,9 @@ export const de: Messages = {
 
   print: {
     noNote: "zuerst eine Notiz öffnen — gedruckt wird die Notiz, die vor dir liegt.",
-    noTemplates:
-      "keine Druckvorlage in diesem Vault. Eine Vorlage ist ein Ordner mit template.md und " +
-      "template.typ; „Vorlage anlegen“ in den Druck-Einstellungen legt eine an.",
+    defaultMissing: (path: string) =>
+      `die Standardvorlage ${path} gibt es in diesem Vault nicht mehr; wähle eine aus, oder stelle in den Druck-Einstellungen eine andere ein.`,
+    builtIn: "eingebaut",
     unknownTemplate: (name: string) =>
       `diese Notiz verlangt die Vorlage „${name}“, und kein Ordner in diesem Vault ist eine.`,
     noLayout: (name: string) => `${name} hat keine template.typ — damit lässt sich nichts drucken.`,

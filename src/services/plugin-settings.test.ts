@@ -534,3 +534,24 @@ describe("settings an earlier version wrote", () => {
     expect(holdsRetiredSettings("not an object")).toBe(false);
   });
 });
+
+describe("the default print template", () => {
+  it("starts as the built-in one, for a vault that never chose", () => {
+    expect(DEFAULT_SETTINGS.printDefaultTemplate).toBe("");
+    expect(normalizeSettings({}).printDefaultTemplate).toBe("");
+  });
+
+  it("keeps a folder or the ask marker, trimmed", () => {
+    expect(
+      normalizeSettings({ printDefaultTemplate: " Vorlagen/Brief " }).printDefaultTemplate
+    ).toBe("Vorlagen/Brief");
+    expect(normalizeSettings({ printDefaultTemplate: ":ask" }).printDefaultTemplate).toBe(":ask");
+  });
+
+  it("falls back to the built-in one for a value that is not text", () => {
+    const loaded = { printDefaultTemplate: 3 } as unknown as Parameters<
+      typeof normalizeSettings
+    >[0];
+    expect(normalizeSettings(loaded).printDefaultTemplate).toBe("");
+  });
+});

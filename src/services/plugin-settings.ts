@@ -14,7 +14,7 @@ import {
 import { BOOKMARK_FILE_DEFAULT } from "./bookmark-file";
 import { LLM_PROVIDER_IDS, PROVIDER_MODELS } from "./llm-providers";
 import { DEFAULT_PUBLISH_KEYS, normalizeHeaderTags, normalizePublishKeys } from "./publish-index";
-import { TEMPLATE_ROOT_DEFAULT } from "./print-template";
+import { DEFAULT_TEMPLATE_BUILTIN, TEMPLATE_ROOT_DEFAULT } from "./print-template";
 import { DEFAULT_REPORT_FILE } from "./reminder-status";
 import { normalizePropertyIcons } from "./property-icons";
 import { DEFAULT_DATE_FORMAT, normalizeDateFormat } from "./today-value";
@@ -128,6 +128,7 @@ export const DEFAULT_SETTINGS: SchreibstubeSettings = {
   printEnabled: false,
   printTemplateRoot: TEMPLATE_ROOT_DEFAULT,
   printOutputFolder: "",
+  printDefaultTemplate: DEFAULT_TEMPLATE_BUILTIN,
   remindersEnabled: false,
   remindersList: "",
   remindersShortcut: DEFAULT_REMINDERS_SHORTCUT,
@@ -330,6 +331,10 @@ export function normalizeSettings(loaded: LoadedSettings): SchreibstubeSettings 
     printOutputFolder: trimmedStringOrDefault(
       loaded?.printOutputFolder,
       DEFAULT_SETTINGS.printOutputFolder
+    ),
+    printDefaultTemplate: trimmedStringOrDefault(
+      loaded?.printDefaultTemplate,
+      DEFAULT_SETTINGS.printDefaultTemplate
     ),
     remindersEnabled: loaded?.remindersEnabled === true,
     remindersList: trimmedStringOrDefault(loaded?.remindersList, DEFAULT_SETTINGS.remindersList),

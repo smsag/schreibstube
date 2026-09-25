@@ -184,3 +184,56 @@ describe("chooseTemplate", () => {
     expect(chooseTemplate([brief], "Rechnung")).toEqual({ kind: "unknown", name: "Rechnung" });
   });
 });
+
+describe("chooseTemplate with a default", () => {
+  const at = (folder: string) => parseTemplate(folder, {}).template;
+  const brief = at("Vorlagen/Druck/Brief");
+  const builtIn = { ...at(":builtin/Standard"), name: "Standard", builtIn: true };
+  const copy = at("Vorlagen/Druck/Standard");
+
+  it("prints a note that names none with the built-in template by default", () => {
+    expect(chooseTemplate([brief, builtIn], null)).toEqual({ kind: "use", template: builtIn });
+  });
+
+  it("prefers a vault copy called by the built-in's name, which is the one a person edited", () => {
+    expect(chooseTemplate([brief, copy, builtIn], null)).toEqual({ kind: "use", template: copy });
+    expect(chooseTemplate([copy, builtIn], "Standard")).toEqual({ kind: "use", template: copy });
+  });
+
+  it("uses a vault template the settings name by its folder", () => {
+    expect(chooseTemplate([brief, builtIn], null, "Vorlagen/Druck/Brief")).toEqual({
+      kind: "use",
+      template: brief
+    });
+  });
+
+  it("asks every time when the settings say so", () => {
+    expect(chooseTemplate([brief, builtIn], null, ":ask")).toEqual({
+      kind: "ask",
+      among: [brief, builtIn]
+    });
+  });
+
+  it("asks, and names the default, when the one the settings name has gone", () => {
+    expect(chooseTemplate([brief, builtIn], null, "Weg/Vorlage/")).toEqual({
+      kind: "ask",
+      among: [brief, builtIn],
+      missingDefault: "Weg/Vorlage"
+    });
+  });
+
+  it("never takes the built-in's pseudo-folder for a path a note or setting names", () => {
+    expect(chooseTemplate([brief, builtIn], ":builtin/Standard")).toEqual({
+      kind: "unknown",
+      name: ":builtin/Standard"
+    });
+    expect(chooseTemplate([brief, builtIn], null, ":builtin/Standard").kind).toBe("ask");
+  });
+
+  it("finds the built-in one by name when a note asks for Standard", () => {
+    expect(chooseTemplate([brief, builtIn], "Standard")).toEqual({
+      kind: "use",
+      template: builtIn
+    });
+  });
+});
