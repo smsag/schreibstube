@@ -294,7 +294,19 @@ What the bridge does and the plugin does not: rendering the Markdown, holding th
 
 Turns the note you are looking at into a PDF, through the built-in **Standard** template or one you keep in the vault. It works on every platform Obsidian runs on — Windows, macOS, Linux, iOS, Android — offline, with no bridge and no account: Typst is compiled to WebAssembly and typesets on the device. A letter written on a train becomes a PDF on that train.
 
-- **Doc drucken** — print the active note
+- **Doc drucken** — print the active note, through the print dialog
+- **Doc drucken (ohne Dialog)** — print it straight away, as its template sets it
+
+#### The print dialog
+
+**Doc drucken** opens a dialog with four choices beside a preview of the pages they make:
+
+- **Vorlage** — the template, starting with the one the note or the settings choose.
+- **Ränder** — Klein (15 mm), Standard (the template's own) or Breit (35 mm). A template that sets its own margins, such as the letter, keeps them; the choice is then greyed out.
+- **Trennlinien als Seitenumbruch** — a horizontal rule starts a new page, starting from the template's own habit.
+- **Eigenschaften drucken** — the note's properties as a short list under its title, leaving out the plugin's own `schreibstube…` keys.
+
+The preview is the document itself, set again after each change and drawn by the same PDF viewer Obsidian uses; **Drucken** writes those very pages. Nothing is remembered: every print starts from the template.
 
 **Vorlage anlegen** in the print settings writes an example template into a folder you choose.
 

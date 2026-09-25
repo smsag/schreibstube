@@ -436,7 +436,7 @@ describe("the prelude the body calls", () => {
     const body = markdownToTypst(
       "![b](b.png)\n\n```mermaid\nA\n```\n\n```ts\nx\n```\n\n| a |\n|---|\n| 1 |\n\n" +
         "> [!tip] T\n> x\n\n- [ ] t",
-      resolved
+      { ...resolved, properties: [["autor", "x"]] }
     ).body;
     const called = new Set([...body.matchAll(/#(schreibstube-[a-z]+)\(/g)].map((m) => m[1]));
     expect([...called].sort()).toEqual([
@@ -444,6 +444,7 @@ describe("the prelude the body calls", () => {
       "schreibstube-code",
       "schreibstube-diagram",
       "schreibstube-image",
+      "schreibstube-properties",
       "schreibstube-table",
       "schreibstube-task"
     ]);
@@ -465,5 +466,42 @@ describe("the prelude the body calls", () => {
       expect(definition).toContain("breakable: true");
       expect(definition).not.toContain("breakable: false");
     }
+  });
+});
+
+describe("the note's properties", () => {
+  const rows = [
+    ["autor", "Steffen"],
+    ["tags", "a, b"]
+  ] as const;
+
+  it("go first, as literals, when the note opens without a heading", () => {
+    expect(convert("Text", { properties: rows })).toBe(
+      '#schreibstube-properties((("autor", "Steffen"), ("tags", "a, b"),))\n\nText'
+    );
+  });
+
+  it("go after the title when the note opens with one", () => {
+    const out = convert("# Titel\n\nText", { properties: rows });
+    expect(out.indexOf("= Titel")).toBeLessThan(out.indexOf("#schreibstube-properties"));
+    expect(out.indexOf("#schreibstube-properties")).toBeLessThan(out.indexOf("Text"));
+  });
+
+  it("go first when the note opens with a lower heading, which is not its title", () => {
+    expect(convert("## Abschnitt", { properties: rows })).toMatch(/^#schreibstube-properties/);
+  });
+
+  it("are printed once, not again inside every quote", () => {
+    const out = convert("> [!note]\n> Inhalt\n\n> Zitat", { properties: rows });
+    expect(out.match(/schreibstube-properties/g)).toHaveLength(1);
+  });
+
+  it("cannot become markup, whatever a value holds", () => {
+    const out = convert("x", { properties: [["notiz", '"); #panic("']] });
+    expect(out).toContain('("notiz", "\\"); #panic(\\"")');
+  });
+
+  it("add nothing when there are none", () => {
+    expect(convert("Text", { properties: [] })).toBe("Text");
   });
 });

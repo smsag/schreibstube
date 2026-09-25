@@ -153,6 +153,33 @@ node scripts/fetch-typst-runtime.mjs   # once: the pinned runtime and fonts, int
 npm run check:print
 ```
 
+## The print dialog
+
+"Doc drucken" opens `ui/print-dialog.ts` once the note has been read and its
+diagrams drawn; "Doc drucken (ohne Dialog)" skips it and prints as the
+template sets the page, unless the default-template setting says to ask.
+
+The note is read, and every diagram drawn and captured, once — before the
+dialog opens. A change in the dialog rebuilds the job and compiles it, which
+is the cheap part; a template's files and each picture at a template's size
+are read once per dialog too. The preview is that compile's PDF, drawn page by
+page with the pdf.js Obsidian ships (`pdf/pdf-preview.ts`, the first twelve
+pages), and "Drucken" writes the same bytes when nothing changed since it was
+set. A preview set for older choices is thrown away.
+
+What each choice means is `services/print-options.ts`:
+
+| Choice                        | Effect                                                                                                                                                                                                                              |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Vorlage                       | The template; its page-break habit comes with it                                                                                                                                                                                    |
+| Ränder                        | `standard` keeps the template's margin; `small` and `wide` set 15 and 35 mm through the page rule `main.typ` sets before the layout. A layout that sets its own margin (`layoutFixesMargin`) keeps it, and the choice is greyed out |
+| Trennlinien als Seitenumbruch | The converter's `hrIsPageBreak`                                                                                                                                                                                                     |
+| Eigenschaften drucken         | `frontmatterRows`: the note's properties without the `schreibstube…` keys, lists on one line, links as their names; placed after a leading `=` heading as `#schreibstube-properties(rows)`                                          |
+
+Nothing is remembered between prints. The built-in Standard sets its margins
+in its descriptor rather than its layout, which is what lets the presets move
+them; a vault template that wants the presets does the same.
+
 ## The built-in template
 
 A note prints before the vault holds any template. The plugin carries one,
@@ -247,14 +274,15 @@ defines any of them at the top level of `template.typ`, and its definition
 wins: `main.typ` imports the prelude first and everything the layout defines
 after it.
 
-| Helper                 | Signature                     | Given                                                                       |
-| ---------------------- | ----------------------------- | --------------------------------------------------------------------------- |
-| `schreibstube-image`   | `(path, alt)`                 | one embedded picture                                                        |
-| `schreibstube-diagram` | `(paths, caption)`            | **an array** of pictures, all from one fence, and one caption for the group |
-| `schreibstube-code`    | `(source, language)`          | a fence that is not a diagram, or one that could not be drawn               |
-| `schreibstube-table`   | `(columns:, align:, ..cells)` | a pipe table; the first argument among `cells` may be a `table.header`      |
-| `schreibstube-callout` | `(kind, title, body)`         | an Obsidian callout, `kind` one of `note`, `tip`, `warning`, `danger`       |
-| `schreibstube-task`    | `(done)`                      | the box in front of a task-list item                                        |
+| Helper                    | Signature                     | Given                                                                          |
+| ------------------------- | ----------------------------- | ------------------------------------------------------------------------------ |
+| `schreibstube-image`      | `(path, alt)`                 | one embedded picture                                                           |
+| `schreibstube-diagram`    | `(paths, caption)`            | **an array** of pictures, all from one fence, and one caption for the group    |
+| `schreibstube-code`       | `(source, language)`          | a fence that is not a diagram, or one that could not be drawn                  |
+| `schreibstube-table`      | `(columns:, align:, ..cells)` | a pipe table; the first argument among `cells` may be a `table.header`         |
+| `schreibstube-callout`    | `(kind, title, body)`         | an Obsidian callout, `kind` one of `note`, `tip`, `warning`, `danger`          |
+| `schreibstube-task`       | `(done)`                      | the box in front of a task-list item                                           |
+| `schreibstube-properties` | `(rows)`                      | the note's properties, when the dialog prints them: an array of `(key, value)` |
 
 Because the layout is imported whole, a top-level name in it may shadow one the
 prelude defines. That is the mechanism, so name private helpers of your own

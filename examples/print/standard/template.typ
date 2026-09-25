@@ -9,9 +9,10 @@
 
 #let standard(body, data) = {
   set document(title: data.title)
+  // The margins are the descriptor's, not set here, so the print dialog's
+  // "Klein" and "Breit" can replace them; a layout that sets its own keeps it.
   set page(
     paper: "a4",
-    margin: (x: 25mm, top: 25mm, bottom: 30mm),
     footer: context {
       let total = counter(page).final().first()
       if total > 1 {

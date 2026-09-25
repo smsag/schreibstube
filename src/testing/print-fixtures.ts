@@ -14,10 +14,15 @@ import { markdownToTypst } from "../services/markdown-typst";
 import { buildJob, jobAssetPath, type JobFile, type PrintJob } from "../services/print-job";
 import { resolvePrintData } from "../services/print-data";
 import { parseTemplate } from "../services/print-template";
+import { applyOptions, initialOptions, type MarginPreset } from "../services/print-options";
 
 export interface PrintCase {
   name: string;
   markdown: string;
+  /** The note's properties, printed as the dialog prints them when asked. */
+  properties?: [string, string][];
+  /** A margin preset from the dialog, instead of the template's own. */
+  margin?: MarginPreset;
 }
 
 export const PRINT_CASES: readonly PrintCase[] = [
@@ -70,7 +75,18 @@ export const PRINT_CASES: readonly PrintCase[] = [
       "## Ablauf\n\n```mermaid\nA\n```\n\n> [!note]\n> ```mermaid\n> B\n> ```\n\n```mermaid\nC\n```"
   },
   { name: "rule-and-break", markdown: "oben<br>\nunten\n\n---\n\nnächste Seite" },
-  { name: "empty", markdown: "" }
+  { name: "empty", markdown: "" },
+  {
+    name: "properties",
+    markdown: "# Titel\n\nText.",
+    properties: [
+      ["autor", "Steffen"],
+      ["tags", "brief, anfrage"],
+      ["quote", '"); #panic("']
+    ]
+  },
+  { name: "small-margin", markdown: "Text mit kleinem Rand.", margin: "small" },
+  { name: "wide-margin", markdown: "Text mit breitem Rand.", margin: "wide" }
 ];
 
 /** A template as the script finds it: a folder's descriptor frontmatter and layout. */
@@ -107,9 +123,13 @@ export function fixtureJobs(templates: readonly FixtureTemplate[]): FixtureJob[]
   const jobs: FixtureJob[] = [];
 
   for (const fixture of templates) {
-    const { template } = parseTemplate(fixture.folder, fixture.frontmatter);
+    const { template: own } = parseTemplate(fixture.folder, fixture.frontmatter);
 
     for (const printCase of PRINT_CASES) {
+      const template = applyOptions({
+        ...initialOptions(own),
+        margin: printCase.margin ?? "standard"
+      });
       const pictures = new Map<string, JobFile>();
       const assigned = new Map<string, string>();
       const place = (path: string): string => {
@@ -119,6 +139,7 @@ export function fixtureJobs(templates: readonly FixtureTemplate[]): FixtureJob[]
 
       const conversion = markdownToTypst(printCase.markdown, {
         hrIsPageBreak: template.hrIsPageBreak,
+        properties: printCase.properties ?? [],
         diagramImage: (block) => [place(`assets/diagram-${block.index}-0.png`)],
         image: ({ source }) => place(jobAssetPath(source, assigned))
       });

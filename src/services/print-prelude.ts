@@ -83,6 +83,25 @@ export const PRELUDE_SOURCE = `// Defaults the converted note calls. A template 
   ]
 }
 
+// The note's properties, when a print asks for them: a quiet two-column list
+// above the text, each row a key and its value.
+#let schreibstube-properties(rows) = block(
+  width: 100%,
+  below: 1.4em,
+  inset: (bottom: 0.6em),
+  stroke: (bottom: 0.5pt + luma(200)),
+  {
+    set text(size: 0.88em)
+    set par(justify: false)
+    grid(
+      columns: (auto, 1fr),
+      column-gutter: 1.2em,
+      row-gutter: 0.55em,
+      ..rows.map(row => (text(fill: luma(100), row.at(0)), row.at(1))).flatten(),
+    )
+  },
+)
+
 // A task's box, drawn rather than typed so that no font has to carry the glyph.
 #let schreibstube-task(done) = box(
   width: 0.75em,

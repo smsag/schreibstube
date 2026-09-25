@@ -52,6 +52,11 @@ export interface ConvertOptions {
   diagramTitle?: (block: DiagramBlock) => string | null;
   /** The same for an embedded image: a path inside the job, or null. */
   image?: (request: ImageRequest) => string | null;
+  /**
+   * The note's properties, as key and value, to be printed at the top: after
+   * the first heading when the note opens with one, so a title stays first.
+   */
+  properties?: readonly (readonly [string, string])[];
 }
 
 export interface Conversion {
@@ -150,7 +155,13 @@ class Converter {
   }
 
   run(): Conversion {
-    const body = this.blocks(0).join("\n");
+    const blocks = this.blocks(0);
+    const rows = this.options.properties ?? [];
+    if (rows.length > 0) {
+      const table = `#schreibstube-properties((${rows.map(([key, value]) => `(${quote(key)}, ${quote(value)}),`).join(" ")}))\n`;
+      blocks.splice(/^= /.test(blocks[0] ?? "") ? 1 : 0, 0, table);
+    }
+    const body = blocks.join("\n");
     return {
       body: `${body.replace(/\n{3,}/g, "\n\n").trim()}\n`,
       diagrams: this.shared.diagrams,
@@ -178,7 +189,9 @@ class Converter {
 
   /** A quote's inside, converted as part of this note rather than beside it. */
   private nested(source: string): string {
-    return new Converter(source, this.options, this.shared, this.heading).run().body;
+    // The properties belong to the document, not to every quote inside it.
+    const options = { ...this.options, properties: [] };
+    return new Converter(source, options, this.shared, this.heading).run().body;
   }
 
   /** Every block at this indent, until the indent drops or the source ends. */
