@@ -213,6 +213,11 @@ export const requestUrl = async (): Promise<never> => {
   throw new Error("requestUrl is not available in tests; mock the client module instead.");
 };
 
+/** Obsidian lends its Mermaid to plugins; a test that draws hands in its own. */
+export const loadMermaid = async (): Promise<never> => {
+  throw new Error("loadMermaid is not available in tests; hand the renderer a fake.");
+};
+
 /** Obsidian lends its pdf.js to plugins; no test has a real one to lend. */
 export const loadPdfJs = async (): Promise<never> => {
   throw new Error("loadPdfJs is not available in tests; inject a reader instead.");

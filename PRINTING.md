@@ -376,7 +376,29 @@ an inline style, so a theme can see what printing does instead of fighting it:
 | `theme-light`              | Obsidian's own. A canvas resolves its colours from the variables in scope while it renders, so rendering under this class bakes the light ones in — which paper needs, whatever the vault is set to.                                                                                                                                                                       |
 | `vizardry-no-enrich`       | Asks a canvas plugin to skip the enrichment it would otherwise fetch from the network. Printing is meant to work offline, and this is what keeps that true when a plugin would rather call out. The plugin may publish its own name for this class on its API, and that name wins; the one here is the fallback, pinned because a class cannot be imported across plugins. |
 
-What is captured, in order:
+### Mermaid
+
+Mermaid is not captured from the note. Obsidian draws it with the app's theme
+and with most labels — every flowchart's — as HTML inside `<foreignObject>`,
+and a browser refuses to let a canvas that has drawn one be read back
+(`Tainted canvases may not be exported`): the diagram went to paper as its
+source. So printing asks Obsidian's Mermaid (`loadMermaid()`) for a drawing of
+its own, with the diagram's text changed by `printableMermaid` in
+`services/print-mermaid.ts`:
+
+- `%%{init: {"theme": "default", "darkMode": false}}%%` first — after a
+  frontmatter block, never before one — and only when the diagram names no
+  theme itself, in its frontmatter or a directive of its own;
+- `%%{init: {"htmlLabels": false, …}}%%` last, so labels are SVG text whatever
+  the diagram says.
+
+Mermaid applies a render's directives to that render only; Obsidian's own
+diagrams are untouched. It draws inside the print stage, since a Gantt chart
+takes its width from where it is drawn. The SVG is then captured as below.
+Checked in Chromium against Mermaid 11: flowchart, sequence, class, state,
+ER, mindmap, pie and Gantt all capture, where flowcharts used to fail.
+
+What is captured, in order, for every other fence:
 
 1. **The plugin's own export**, when the block's language names a plugin that
    offers one at or above the contract version this plugin knows

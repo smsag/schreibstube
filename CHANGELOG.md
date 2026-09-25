@@ -15,6 +15,10 @@ All notable changes to this project will be documented in this file.
 - **The template picker is gone.** Where printing used to ask which template to use, the dialog's template choice does, with the note's or the settings' template already selected.
 - **Standard takes its margins from its descriptor.** The built-in template used to set them in its layout, where no preset could reach them. A copy of Standard in the vault made before this keeps its own margins until it is laid down again.
 
+### Fixed
+
+- **Mermaid flowcharts print as pictures.** A flowchart, and most class and state diagrams, went to paper as their source text: Mermaid writes their labels as HTML, and the browser refuses to let such a drawing be turned into a picture. Printing now asks Mermaid for a drawing of its own with plain text labels, in the light theme unless the diagram chose a theme itself. Flowcharts, sequence, class, state, ER, mindmap, pie and Gantt diagrams were checked to print, and a vault in dark mode no longer prints dark diagrams on white paper. Gantt charts, which came out with no width, print at the width of the page. The diagrams in the note itself are unchanged.
+
 ## 1.47.0 - 2026-09-25
 
 Printing with nothing to set up. Switch printing on and print a note: it
