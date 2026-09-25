@@ -17,8 +17,7 @@ import { requestUrl, type App } from "obsidian";
 import { WORKER_SOURCE } from "./typst-worker";
 import type { Logger } from "../services/logger";
 import type { PrintJob } from "../services/print-job";
-import { compilePayload } from "../services/print-job";
-import { COMPILE_TIMEOUT_MS } from "../services/print-template";
+import { compileDeadline, compilePayload } from "../services/print-job";
 import {
   checkRuntimeBytes,
   COMPILER_MEGABYTES,
@@ -39,6 +38,9 @@ import {
 /** How long the runtime's download may take before it is called a failure. */
 const DOWNLOAD_TIMEOUT_MS = 180_000;
 
+/** Past this, the notice says how long the wait may be rather than only "typesetting". */
+const LONG_COMPILE_MS = 30_000;
+
 /** Said while a person waits, so a long first print explains itself. */
 export type ProgressReport = (message: string) => void;
 
@@ -48,6 +50,9 @@ export interface RuntimeStrings {
   verifying: string;
   starting: string;
   compiling: string;
+  /** Said instead when the document is long enough that the wait is worth naming. */
+  compilingLong: (seconds: number) => string;
+  compileTimeout: (seconds: number) => string;
   mismatch: (detail: string) => string;
   unreachable: (detail: string) => string;
   timeout: (seconds: number) => string;
@@ -92,9 +97,16 @@ export class TypstCompiler {
    */
   async compile(job: PrintJob, progress: ProgressReport): Promise<CompileOutcome> {
     await this.load(progress);
-    progress(this.strings.compiling);
+    const deadline = compileDeadline(job);
+    progress(
+      deadline > LONG_COMPILE_MS
+        ? this.strings.compilingLong(Math.round(deadline / 1000))
+        : this.strings.compiling
+    );
 
-    const reply = await this.request("compile", compilePayload(job), COMPILE_TIMEOUT_MS);
+    const reply = await this.request("compile", compilePayload(job), deadline, (seconds) =>
+      this.strings.compileTimeout(seconds)
+    );
 
     if (reply.pdf) return readCompileResult(reply.pdf);
     return readCompileResult({ diagnostics: reply.diagnostics ?? [] });
@@ -205,7 +217,8 @@ export class TypstCompiler {
     await this.request(
       "init",
       { module: this.module, loader: this.loader, fonts: this.fonts },
-      DOWNLOAD_TIMEOUT_MS
+      DOWNLOAD_TIMEOUT_MS,
+      (seconds) => this.strings.timeout(seconds)
     );
     await this.removeStale();
   }
@@ -307,7 +320,12 @@ export class TypstCompiler {
     this.dispose();
   }
 
-  private request(kind: string, payload: unknown, timeoutMs: number): Promise<WorkerReply> {
+  private request(
+    kind: string,
+    payload: unknown,
+    timeoutMs: number,
+    late: (seconds: number) => string
+  ): Promise<WorkerReply> {
     const worker = this.worker;
     if (!worker) return Promise.reject(new Error("the compiler is not running"));
 
@@ -315,10 +333,10 @@ export class TypstCompiler {
     return new Promise<WorkerReply>((resolve, reject) => {
       const timer = window.setTimeout(() => {
         this.pending.delete(id);
-        // A compile that has not finished by now is not going to, and the
-        // thread it is on cannot be interrupted — so it is thrown away.
+        // The thread cannot be interrupted, so a request that has overrun its
+        // deadline takes the thread with it; the next print starts a new one.
         this.dispose();
-        reject(new Error(`the compiler did not finish within ${Math.round(timeoutMs / 1000)}s`));
+        reject(new Error(late(Math.round(timeoutMs / 1000))));
       }, timeoutMs);
 
       this.pending.set(id, { resolve, reject, timer });

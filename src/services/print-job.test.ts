@@ -5,6 +5,9 @@ import {
   checkJobLimits,
   checkPdfSize,
   checkPictureBudget,
+  COMPILE_BASE_MS,
+  COMPILE_MAX_MS,
+  compileDeadline,
   isTypesetPdf,
   jobAssetPath,
   MAIN_FILE,
@@ -194,5 +197,47 @@ describe("isTypesetPdf", () => {
     expect(isTypesetPdf(pdf("<</Creator(Microsoft Word)/Producer(Typst-ish)>>"))).toBe(false);
     expect(isTypesetPdf(pdf("Typst appears in the text of this scan"))).toBe(false);
     expect(isTypesetPdf(new Uint8Array())).toBe(false);
+  });
+});
+
+describe("compileDeadline", () => {
+  const job = (body: string, pictureBytes = 0, fontBytes = 0) =>
+    buildJob(
+      input({
+        body,
+        assets: pictureBytes > 0 ? [{ path: "assets/a.png", bytes: bytes(pictureBytes) }] : [],
+        fonts: fontBytes > 0 ? [{ path: "fonts/a.ttf", bytes: bytes(fontBytes) }] : []
+      })
+    );
+
+  it("gives a letter the base and barely more", () => {
+    const deadline = compileDeadline(job("Sehr geehrte Damen und Herren,\n"));
+    expect(deadline).toBeGreaterThanOrEqual(COMPILE_BASE_MS);
+    expect(deadline).toBeLessThan(COMPILE_BASE_MS + 1_000);
+  });
+
+  it("gives a long document the time a slow phone needs for its text", () => {
+    // 480 KB set in 1.6 s on a laptop; ten times that is 16 s, and the
+    // deadline has to clear it on top of building the compiler.
+    const deadline = compileDeadline(job("x".repeat(480 * 1024)));
+    expect(deadline).toBeGreaterThan(COMPILE_BASE_MS + 16_000);
+    // The old flat 20 s is what failed a long chapter.
+    expect(deadline).toBeGreaterThan(20_000 * 2);
+  });
+
+  it("counts pictures and fonts as well as text", () => {
+    const plain = compileDeadline(job("Text"));
+    expect(compileDeadline(job("Text", 10 * 1024 * 1024))).toBeGreaterThan(plain + 2_000);
+    expect(compileDeadline(job("Text", 0, 4 * 1024 * 1024))).toBeGreaterThan(plain + 1_000);
+  });
+
+  it("never waits longer than the ceiling, however large the note", () => {
+    expect(compileDeadline(job("x".repeat(20 * 1024 * 1024)))).toBe(COMPILE_MAX_MS);
+  });
+
+  it("grows with the job and never shrinks below the base", () => {
+    const sizes = [0, 10, 100, 1000].map((kb) => compileDeadline(job("x".repeat(kb * 1024))));
+    expect([...sizes].sort((a, b) => a - b)).toEqual(sizes);
+    expect(Math.min(...sizes)).toBeGreaterThanOrEqual(COMPILE_BASE_MS);
   });
 });

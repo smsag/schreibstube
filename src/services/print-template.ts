@@ -63,7 +63,6 @@ export const MAX_LAYOUT_BYTES = 256 * 1024;
  */
 export const MAX_SOURCE_IMAGE_BYTES = 40 * 1024 * 1024;
 export const MAX_PDF_BYTES = 30 * 1024 * 1024;
-export const COMPILE_TIMEOUT_MS = 20_000;
 
 /** Image bounds a template may narrow but not widen. */
 export const IMAGE_MAX_PX_LIMIT = 4000;

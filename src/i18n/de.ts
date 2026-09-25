@@ -939,6 +939,10 @@ export const de: Messages = {
     verifying: "prüfe das Geladene …",
     starting: "starte den Satz …",
     compiling: "setze …",
+    compilingLong: (seconds: number) =>
+      `setze ein langes Dokument — das kann auf diesem Gerät bis zu ${seconds} s dauern …`,
+    compileTimeout: (seconds: number) =>
+      `das Dokument brauchte länger als ${seconds} s und wurde abgebrochen. Versuch es in zwei Teilen.`,
     mismatch: (detail: string) =>
       `der geladene Satzteil ist nicht der erwartete und wurde nicht benutzt (${detail}).`,
     timeout: (seconds: number) => `keine Antwort innerhalb von ${seconds}s`,

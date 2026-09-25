@@ -670,6 +670,10 @@ export const enExtra = {
     verifying: "checking what was downloaded…",
     starting: "starting the typesetter…",
     compiling: "typesetting…",
+    compilingLong: (seconds: number) =>
+      `typesetting a long document — this can take up to ${seconds} s on this device…`,
+    compileTimeout: (seconds: number) =>
+      `the document took longer than ${seconds} s to set and was stopped. Try printing it in two parts.`,
     mismatch: (detail: string) =>
       `the downloaded typesetter is not what this version expects and was not used (${detail}).`,
     timeout: (seconds: number) => `no answer within ${seconds}s`,

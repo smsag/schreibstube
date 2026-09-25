@@ -263,8 +263,13 @@ fails validation is reported by name and reason:
   inside the job's shadow file system, which holds only the template's files
   and the note's captured assets.
 - Limits: at most 12 font files and 8 MB of fonts, 120 images and 24 MB of
-  images per job, 20 s of compile time, 30 MB of PDF. Each is a named
-  `MAX_…` constant with a test.
+  images per job, 30 MB of PDF. Each is a named `MAX_…` constant with a
+  test.
+- A compile deadline that grows with the job: 20 s, plus 60 ms per kilobyte
+  of text and 300 ms per megabyte of pictures and fonts, at most 3 minutes.
+  The costs are ten times what the laptop measured in `compileDeadline`
+  (`services/print-job.ts`), for the slowest phone. A long document says in
+  its notice how long it may take; one that overruns is stopped and says so.
 
 ## Diagrams
 
