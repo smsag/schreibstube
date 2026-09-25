@@ -831,6 +831,8 @@ export class PrintCommands {
         verifying: messages.verifying,
         starting: messages.starting,
         compiling: messages.compiling,
+        compilingLong: (seconds) => messages.compilingLong(seconds),
+        compileTimeout: (seconds) => messages.compileTimeout(seconds),
         mismatch: (detail) => messages.mismatch(detail),
         unreachable: (detail) => messages.unreachable(detail),
         timeout: (seconds) => messages.timeout(seconds)

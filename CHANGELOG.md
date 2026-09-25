@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Fixed
+
+- **A long document prints on a phone.** Setting a document was given twenty seconds, whatever its length. A letter needs a fraction of that, but a long chapter on a slow phone needed more, so it was stopped just before it would have finished. The time allowed now grows with the document: twenty seconds, plus time for its text, pictures and fonts, and never more than three minutes. For a long document the notice says how long it may take, and one that still runs over says so in plain words instead of an English line about the compiler.
+
 ## 1.46.0 - 2026-09-24
 
 Bookmarks that show what the file says. A bookmark written as Obsidian

@@ -114,6 +114,40 @@ export function compilePayload(job: PrintJob): CompilePayload {
 }
 
 /**
+ * How long a compile may run before it is given up on.
+ *
+ * It used to be twenty seconds for every document, which is a deadline a
+ * letter never nears and a long chapter on a phone could not meet: the time is
+ * spent on text, and grows with it. Measured on a laptop with the pinned
+ * runtime, 160 KB of body set in 0.65 s, 480 KB in 1.6 s and 960 KB — a book —
+ * in 5.1 s, about 5.5 ms per kilobyte at the high end; pictures and fonts
+ * cost about 27 ms per megabyte. A phone can be ten times slower, so the
+ * per-unit costs below are ten times those, on top of a base that covers
+ * building the compiler and its fonts.
+ *
+ * It is still a deadline. The compile runs on a thread nothing can interrupt,
+ * and one that has run for three minutes is thrown away rather than waited on.
+ */
+export const COMPILE_BASE_MS = 20_000;
+export const COMPILE_MS_PER_TEXT_KB = 60;
+export const COMPILE_MS_PER_BINARY_MB = 300;
+export const COMPILE_MAX_MS = 180_000;
+
+export function compileDeadline(job: PrintJob): number {
+  let text = new TextEncoder().encode(job.main).byteLength;
+  let binary = job.fonts.reduce((total, font) => total + font.byteLength, 0);
+  for (const file of job.files) {
+    if (file.path.endsWith(".typ")) text += file.bytes.byteLength;
+    else binary += file.bytes.byteLength;
+  }
+  const estimate =
+    COMPILE_BASE_MS +
+    (text / 1024) * COMPILE_MS_PER_TEXT_KB +
+    (binary / (1024 * 1024)) * COMPILE_MS_PER_BINARY_MB;
+  return Math.round(Math.min(COMPILE_MAX_MS, estimate));
+}
+
+/**
  * The page, when the descriptor stated one.
  *
  * Set before the layout runs, so a layout that says nothing about paper still
