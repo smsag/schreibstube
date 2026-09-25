@@ -83,6 +83,129 @@ export const PRELUDE_SOURCE = `// Defaults the converted note calls. A template 
   ]
 }
 
+// The note's properties, when a print asks for them: a quiet two-column list
+// above the text, each row a key and its value.
+#let schreibstube-properties(rows) = block(
+  width: 100%,
+  below: 1.4em,
+  inset: (bottom: 0.6em),
+  stroke: (bottom: 0.5pt + luma(200)),
+  {
+    set text(size: 0.88em)
+    set par(justify: false)
+    grid(
+      columns: (auto, 1fr),
+      column-gutter: 1.2em,
+      row-gutter: 0.55em,
+      ..rows.map(row => (text(fill: luma(100), row.at(0)), row.at(1))).flatten(),
+    )
+  },
+)
+
+// A slideshow, arranged as the print asked. Each picture arrives as a path and
+// its description. "single" and "stacked" set them at the text's width with
+// the description beneath; "filmstrip" is its first picture over a row of
+// thumbnails; "feature" one large scene beside two details; "strip" equal
+// tiles; "masonry" columns at the pictures' own proportions; "compare" two
+// side by side, each named. Tiles are cut to the proportions the screen gives
+// them, so the page looks like the note.
+#let schreibstube-slideshow(kind, images, columns: 1) = {
+  let gap = 4pt
+  let caption(alt) = if alt != "" {
+    align(center, text(size: 0.85em, fill: luma(90), alt))
+  }
+  let tile(path, w, h) = image(path, width: w, height: h, fit: "cover")
+  if kind == "single" or kind == "stacked" {
+    for (path, alt) in images {
+      block(breakable: false, width: 100%, below: 1em, {
+        align(center, image(path, width: 100%, fit: "contain"))
+        caption(alt)
+      })
+    }
+  } else if kind == "filmstrip" {
+    let (stage, ..thumbs) = images
+    block(breakable: false, width: 100%, layout(size => {
+      align(center, image(stage.at(0), width: 100%, fit: "contain"))
+      caption(stage.at(1))
+      let w = (size.width - gap * (columns - 1)) / columns
+      grid(columns: (w,) * columns, gutter: gap, ..thumbs.map(t => tile(t.at(0), w, w * 3 / 4)))
+    }))
+  } else if kind == "feature" {
+    block(breakable: false, width: 100%, layout(size => {
+      let main = (size.width - gap) * 2 / 3
+      let height = main * 2 / 3
+      let side = size.width - gap - main
+      let details = images.slice(1)
+      let each = if details.len() == 0 { height } else {
+        (height - gap * (details.len() - 1)) / details.len()
+      }
+      grid(
+        columns: (main, side),
+        gutter: gap,
+        tile(images.at(0).at(0), main, height),
+        stack(spacing: gap, ..details.map(d => tile(d.at(0), side, each))),
+      )
+    }))
+  } else if kind == "strip" {
+    block(breakable: false, width: 100%, layout(size => {
+      let w = (size.width - gap * (columns - 1)) / columns
+      grid(columns: (w,) * columns, gutter: gap, ..images.map(i => tile(i.at(0), w, w * 3 / 4)))
+    }))
+  } else if kind == "masonry" {
+    // Balanced columns in reading order, as the screen's CSS columns set them:
+    // each picture measured, the series cut into columns of equal height, down
+    // one and on to the next. Typst's own columns fill the first to the foot of
+    // the page instead. A series taller than a page goes on in a further block.
+    layout(size => {
+      let w = (size.width - gap * (columns - 1)) / columns
+      let limit = if size.height < 40cm { size.height } else { 22cm }
+      let heights = images.map(i => measure(image(i.at(0), width: w)).height + gap)
+      let chunks = ()
+      let chunk = ()
+      let sum = 0pt
+      for k in range(images.len()) {
+        if chunk.len() > 0 and sum + heights.at(k) > limit * columns * 0.75 {
+          chunks.push(chunk)
+          chunk = ()
+          sum = 0pt
+        }
+        chunk.push(k)
+        sum += heights.at(k)
+      }
+      if chunk.len() > 0 { chunks.push(chunk) }
+      for chunk in chunks {
+        let target = chunk.map(k => heights.at(k)).sum() / columns
+        let cols = range(columns).map(_ => ())
+        let current = 0
+        let filled = 0pt
+        for k in chunk {
+          let h = heights.at(k)
+          if filled > 0pt and filled + h / 2 > target and current < columns - 1 {
+            current += 1
+            filled = 0pt
+          }
+          cols.at(current).push(image(images.at(k).at(0), width: w))
+          filled += h
+        }
+        block(breakable: false, below: gap, grid(
+          columns: (w,) * columns,
+          column-gutter: gap,
+          ..cols.map(c => stack(spacing: gap, ..c)),
+        ))
+      }
+    })
+  } else if kind == "compare" {
+    block(breakable: false, width: 100%, layout(size => {
+      let w = (size.width - gap) / 2
+      grid(
+        columns: (w, w),
+        gutter: gap,
+        ..images.map(i => stack(spacing: 3pt, tile(i.at(0), w, w * 2 / 3), caption(i.at(1)))),
+      )
+    }))
+  }
+}
+
 // A task's box, drawn rather than typed so that no font has to carry the glyph.
 #let schreibstube-task(done) = box(
   width: 0.75em,

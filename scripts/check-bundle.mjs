@@ -60,8 +60,16 @@ import { fileURLToPath } from "node:url";
  * words in two languages. Trimming the descriptor to fit would have cut the
  * instructions a template author reads first. What is left is for the next
  * feature.
+ *
+ * Raised to 510 KB at 506 KB, for the print dialog and slideshows on paper
+ * (+14 KB since 492): the dialog with its preview drawn by Obsidian's pdf.js,
+ * the choices it offers and what each means, the note's properties on paper,
+ * and every slideshow layout as the Typst that arranges it — the arrangement
+ * code ships as text in the prelude, which is most of the growth — each in two
+ * languages. The dialog was built at 499 KB, one kilobyte short; this is the
+ * decision that was deferred then, taken once for both.
  */
-const MAX_BUNDLE_KB = 500;
+const MAX_BUNDLE_KB = 510;
 
 const bundle = fileURLToPath(new URL("../main.js", import.meta.url));
 const source = readFileSync(bundle, "utf8");

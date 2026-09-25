@@ -9,6 +9,7 @@ import type { Messages } from "./en";
 export const de: Messages = {
   commands: {
     print: "Doc drucken",
+    printQuick: "Doc drucken (ohne Dialog)",
     focusSentence: "Fokus: Satz",
     focusParagraph: "Fokus: Absatz",
     newNote: "Neues Doc",
@@ -935,6 +936,29 @@ export const de: Messages = {
     defaultMissing: (path: string) =>
       `die Standardvorlage ${path} gibt es in diesem Vault nicht mehr; wähle eine aus, oder stelle in den Druck-Einstellungen eine andere ein.`,
     builtIn: "eingebaut",
+    slideshowUnreadable: (detail: string) =>
+      `eine Diashow wurde als Quelltext gedruckt — ${detail}`,
+    preparing: "bereite den Druck vor …",
+    dialog: {
+      title: "Drucken",
+      template: "Vorlage",
+      margins: "Ränder",
+      margin: { small: "Klein", standard: "Standard", wide: "Breit" },
+      marginFixed: "Diese Vorlage legt ihre Ränder selbst fest.",
+      pageBreaks: "Trennlinien als Seitenumbruch",
+      frontmatter: "Eigenschaften drucken",
+      slideshows: "Diashows",
+      slideshow: { layout: "Wie in der Notiz", stacked: "Alle Bilder untereinander" },
+      print: "Drucken",
+      working: "Vorschau wird gesetzt …",
+      pages: (shown: number, total: number) =>
+        shown === total
+          ? total === 1
+            ? "1 Seite"
+            : `${total} Seiten`
+          : `die ersten ${shown} von ${total} Seiten`,
+      failed: (detail: string) => `Keine Vorschau — ${detail}`
+    },
     unknownTemplate: (name: string) =>
       `diese Notiz verlangt die Vorlage „${name}“, und kein Ordner in diesem Vault ist eine.`,
     noLayout: (name: string) => `${name} hat keine template.typ — damit lässt sich nichts drucken.`,
@@ -962,8 +986,6 @@ export const de: Messages = {
     done: (path: string, kilobytes: number) => `${path} gedruckt (${kilobytes} KB).`,
     withWarnings: (detail: string) => `gedruckt, aber etwas fehlt — ${detail}`,
     failed: (detail: string) => `Drucken fehlgeschlagen — ${detail}`,
-    chooseTemplate: "Mit welcher Vorlage drucken?",
-    templateHint: "schreibstubePrintTemplate in der Notiz setzen, um das zu überspringen.",
     offTitle: "Drucken ist aus",
     offMessage: (megabytes: number) =>
       `Gesetzt wird auf diesem Gerät statt auf einem Server — dafür braucht es einen Satzteil: ` +

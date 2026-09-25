@@ -1,7 +1,7 @@
 ---
 schreibstubePrintTemplate: true
 schreibstubeEntry: standard
-schreibstubePage: { size: a4 }
+schreibstubePage: { size: a4, margin: "25mm 25mm 30mm" }
 ---
 
 # Standard

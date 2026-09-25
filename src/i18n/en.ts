@@ -11,6 +11,7 @@ import { enExtra } from "./en-extra";
 export const en = {
   commands: {
     print: "Print doc",
+    printQuick: "Print doc (without dialog)",
     focusSentence: "Focus: sentence",
     focusParagraph: "Focus: paragraph",
     newNote: "New doc",

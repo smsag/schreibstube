@@ -1936,6 +1936,73 @@ a.external-link.schreibstube-reminder-mark {
   font-size: var(--font-smallest);
 }
 
+/* The print dialog: the choices beside the pages they make. Side by side where
+   there is room, the pages under the choices on a phone. The pages sit on the
+   secondary background so that white paper reads as paper in either theme. */
+.schreibstube-print-dialog {
+  width: min(1040px, 94vw);
+}
+
+.schreibstube-print-dialog-body {
+  display: grid;
+  grid-template-columns: minmax(240px, 1fr) 2fr;
+  gap: var(--size-4-4);
+}
+
+@media (max-width: 720px) {
+  .schreibstube-print-dialog-body {
+    grid-template-columns: 1fr;
+  }
+}
+
+.schreibstube-print-dialog-preview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-4-2);
+  min-width: 0;
+}
+
+.schreibstube-print-dialog-status {
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+}
+
+.schreibstube-print-dialog-status.is-error {
+  color: var(--text-error);
+}
+
+.schreibstube-print-dialog-pages {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--size-4-3);
+  max-height: 68vh;
+  min-height: 240px;
+  overflow-y: auto;
+  padding: var(--size-4-3);
+  border-radius: var(--radius-m);
+  background: var(--background-secondary);
+  transition: opacity 120ms ease;
+}
+
+/* A preview being set again is dimmed rather than emptied, so the page does
+   not jump while the next one is on its way. */
+.schreibstube-print-dialog-pages.is-stale {
+  opacity: 0.45;
+}
+
+.schreibstube-print-page {
+  max-width: 100%;
+  height: auto;
+  background: #ffffff;
+  box-shadow: var(--shadow-s);
+}
+
+.schreibstube-print-dialog-warnings {
+  color: var(--text-warning);
+  font-size: var(--font-ui-smaller);
+}
+
 /* ══ Image slideshow (```schreibstube-slideshow```) ══════════════════════════
    Two or more images: one at a time on a stage, one large with its details
    beside it, or all at once in a strip. A header row with the controls, and a

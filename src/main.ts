@@ -1207,6 +1207,12 @@ export default class SchreibstubePlugin extends Plugin {
       void this.print?.printActiveNote();
     });
 
+    // The same print without the dialog, for a note that is printed as it is
+    // again and again.
+    this.addGatedCommand("print-note-quick", t().commands.printQuick, "print", () => {
+      void this.print?.printActiveNoteQuickly();
+    });
+
     this.addCommand({
       id: "publish-folder",
       name: t().commands.publish,

@@ -666,6 +666,28 @@ export const enExtra = {
     defaultMissing: (path: string) =>
       `the default template ${path} is no longer in this vault; choose one, or pick another default in the print settings.`,
     builtIn: "built in",
+    slideshowUnreadable: (detail: string) => `a slideshow was printed as its source — ${detail}`,
+    preparing: "preparing the print…",
+    dialog: {
+      title: "Print",
+      template: "Template",
+      margins: "Margins",
+      margin: { small: "Small", standard: "Standard", wide: "Wide" },
+      marginFixed: "This template sets its own margins.",
+      pageBreaks: "Horizontal rules as page breaks",
+      frontmatter: "Print properties",
+      slideshows: "Slideshows",
+      slideshow: { layout: "As in the note", stacked: "Every picture, one under another" },
+      print: "Print",
+      working: "Setting the preview…",
+      pages: (shown: number, total: number) =>
+        shown === total
+          ? total === 1
+            ? "1 page"
+            : `${total} pages`
+          : `the first ${shown} of ${total} pages`,
+      failed: (detail: string) => `No preview — ${detail}`
+    },
     unknownTemplate: (name: string) =>
       `this note asks for the template "${name}", and no folder in this vault is one.`,
     noLayout: (name: string) => `${name} has no template.typ, so there is nothing to print with.`,
@@ -693,8 +715,6 @@ export const enExtra = {
     done: (path: string, kilobytes: number) => `printed ${path} (${kilobytes} KB).`,
     withWarnings: (detail: string) => `printed, with something left out — ${detail}`,
     failed: (detail: string) => `printing failed — ${detail}`,
-    chooseTemplate: "Print with which template?",
-    templateHint: "Set schreibstubePrintTemplate in the note to skip this.",
     offTitle: "Printing is off",
     offMessage: (megabytes: number) =>
       `Printing sets the note on this device rather than on a server, so it needs a typesetter: ` +

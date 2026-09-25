@@ -16,6 +16,8 @@
 import { t } from "../i18n";
 import { fencedLines, fenceMarker } from "./markdown-fence";
 import { typstArray, typstString } from "./typst-value";
+import { parseSlideshow, SLIDESHOW_LANGUAGE } from "./slideshow";
+import { slideshowForPrint, type SlideshowPrintMode } from "./print-slideshow";
 
 /** What a tab is worth when a list's nesting is measured, as in the editor. */
 const TAB_COLUMNS = 4;
@@ -36,6 +38,12 @@ export interface ImageRequest {
   /** `![alt](src)` or the target of `![[src]]`. */
   source: string;
   alt: string;
+  /**
+   * The share of the text width the picture takes on the page, when it is
+   * less than all of it — a slideshow's tile — so it is read no larger than
+   * it prints.
+   */
+  width?: number;
 }
 
 export interface ConvertOptions {
@@ -52,6 +60,13 @@ export interface ConvertOptions {
   diagramTitle?: (block: DiagramBlock) => string | null;
   /** The same for an embedded image: a path inside the job, or null. */
   image?: (request: ImageRequest) => string | null;
+  /**
+   * The note's properties, as key and value, to be printed at the top: after
+   * the first heading when the note opens with one, so a title stays first.
+   */
+  properties?: readonly (readonly [string, string])[];
+  /** How a slideshow is printed: as it stands on screen, or every picture stacked. */
+  slideshows?: SlideshowPrintMode;
 }
 
 export interface Conversion {
@@ -61,6 +76,8 @@ export interface Conversion {
   diagrams: DiagramBlock[];
   /** What could not be carried over, in the words a notice can show. */
   warnings: string[];
+  /** How many slideshows the note holds, so the dialog only asks when there are some. */
+  slideshows: number;
 }
 
 /** Callout kinds Obsidian ships, mapped to the four the prelude draws. */
@@ -122,6 +139,7 @@ interface Shared {
   warnings: string[];
   /** Footnotes being expanded right now, so one that cites itself ends. */
   expanding: Set<string>;
+  slideshows: number;
 }
 
 export function markdownToTypst(source: string, options: ConvertOptions = {}): Conversion {
@@ -129,7 +147,8 @@ export function markdownToTypst(source: string, options: ConvertOptions = {}): C
     footnotes: new Map(),
     diagrams: [],
     warnings: [],
-    expanding: new Set()
+    expanding: new Set(),
+    slideshows: 0
   }).run();
 }
 
@@ -150,11 +169,18 @@ class Converter {
   }
 
   run(): Conversion {
-    const body = this.blocks(0).join("\n");
+    const blocks = this.blocks(0);
+    const rows = this.options.properties ?? [];
+    if (rows.length > 0) {
+      const table = `#schreibstube-properties((${rows.map(([key, value]) => `(${quote(key)}, ${quote(value)}),`).join(" ")}))\n`;
+      blocks.splice(/^= /.test(blocks[0] ?? "") ? 1 : 0, 0, table);
+    }
+    const body = blocks.join("\n");
     return {
       body: `${body.replace(/\n{3,}/g, "\n\n").trim()}\n`,
       diagrams: this.shared.diagrams,
-      warnings: this.shared.warnings
+      warnings: this.shared.warnings,
+      slideshows: this.shared.slideshows
     };
   }
 
@@ -178,7 +204,9 @@ class Converter {
 
   /** A quote's inside, converted as part of this note rather than beside it. */
   private nested(source: string): string {
-    return new Converter(source, this.options, this.shared, this.heading).run().body;
+    // The properties belong to the document, not to every quote inside it.
+    const options = { ...this.options, properties: [] };
+    return new Converter(source, options, this.shared, this.heading).run().body;
   }
 
   /** Every block at this indent, until the indent drops or the source ends. */
@@ -254,6 +282,11 @@ class Converter {
 
     const source = content.join("\n");
 
+    if (language.toLowerCase() === SLIDESHOW_LANGUAGE) {
+      const printed = this.slideshow(source);
+      if (printed !== null) return printed;
+    }
+
     if (DIAGRAM_LANGUAGES.has(language.toLowerCase())) {
       const block: DiagramBlock = {
         index: this.shared.diagrams.length,
@@ -275,6 +308,34 @@ class Converter {
     }
 
     return `#schreibstube-code(${quote(source)}, ${quote(language)})\n`;
+  }
+
+  /**
+   * A slideshow, as the print dialog asked for it.
+   *
+   * Read by the same parser that renders it, so a block the screen refuses is
+   * refused here too, and printed as its source with the screen's reason. A
+   * picture that is not in the vault is left out and named, as an embedded
+   * one would be; the rest of the slideshow still prints.
+   */
+  private slideshow(source: string): string | null {
+    const parsed = parseSlideshow(source);
+    if (!parsed.ok) {
+      this.warn(t().print.slideshowUnreadable(parsed.message));
+      return null;
+    }
+    this.shared.slideshows += 1;
+
+    const plan = slideshowForPrint(parsed, this.options.slideshows ?? "layout");
+    const placed: string[] = [];
+    for (const image of plan.images) {
+      const request = { source: image.src, alt: image.alt, width: image.width };
+      const path = this.options.image?.(request) ?? null;
+      if (path === null) this.warn(t().print.imageNotFound(image.src));
+      else placed.push(`(${quote(path)}, ${quote(image.alt)}),`);
+    }
+    if (placed.length === 0) return "";
+    return `#schreibstube-slideshow(${quote(plan.arrangement)}, (${placed.join(" ")}), columns: ${plan.columns})\n`;
   }
 
   /** A blockquote, or the callout Obsidian writes in the shape of one. */
