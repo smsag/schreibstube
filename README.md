@@ -292,7 +292,7 @@ What the bridge does and the plugin does not: rendering the Markdown, holding th
 
 ### Printing
 
-Turns the note you are looking at into a PDF, through a template you keep in the vault. It works on every platform Obsidian runs on — Windows, macOS, Linux, iOS, Android — offline, with no bridge and no account: Typst is compiled to WebAssembly and typesets on the device. A letter written on a train becomes a PDF on that train.
+Turns the note you are looking at into a PDF, through the built-in **Standard** template or one you keep in the vault. It works on every platform Obsidian runs on — Windows, macOS, Linux, iOS, Android — offline, with no bridge and no account: Typst is compiled to WebAssembly and typesets on the device. A letter written on a train becomes a PDF on that train.
 
 - **Doc drucken** — print the active note
 
@@ -306,9 +306,11 @@ Once on, the settings show whether the typesetter is on this device, with a butt
 
 #### Getting a template
 
-Press **Vorlage anlegen** under **Einstellungen → Drucken**. It asks which of the two examples you want and which folder to put it in — any folder in the vault, not only the templates folder — then writes it and opens its `template.md`. You do not need to leave the app, which on a phone you could not do anyway.
+You don't need one to start: a note that names no template is printed with **Standard**, which the plugin carries — A4, the note's own headings, justified text, the page number at the foot. **Standardvorlage** in the print settings chooses another default, or asks every time; a note picks its own with `schreibstubePrintTemplate` in its frontmatter.
 
-The same two templates are in [`examples/print/`](examples/print/) if you would rather copy them by hand.
+To change how pages look, press **Vorlage anlegen** under **Einstellungen → Drucken**. It asks which of the three examples you want (Standard, a letter or a CV) and which folder to put it in — any folder in the vault, not only the templates folder — then writes it and opens its `template.md`. You do not need to leave the app, which on a phone you could not do anyway.
+
+The same three templates are in [`examples/print/`](examples/print/) if you would rather copy them by hand.
 
 A template is found wherever you keep it. What makes a folder a template is the flag in its `template.md`, not its location, so the templates folder setting only says where a new one is suggested — a template beside the notes that use it works exactly the same.
 
@@ -722,12 +724,13 @@ The token is deliberately separate from the mail token, so a leaked publish toke
 
 ### Printing
 
-| Setting          | What it does                                                                               |
-| ---------------- | ------------------------------------------------------------------------------------------ |
-| Enable printing  | Off until you switch it on. Switching it on is what fetches the ~30 MB typesetter.         |
-| Templates folder | Where a new template is suggested. Templates are found anywhere. Default `Vorlagen/Druck`. |
-| Output folder    | Where a PDF is written. Empty means beside the note it came from.                          |
-| The typesetter   | Whether it is on this device, with a button to fetch or remove it.                         |
+| Setting          | What it does                                                                                |
+| ---------------- | ------------------------------------------------------------------------------------------- |
+| Enable printing  | Off until you switch it on. Switching it on is what fetches the ~30 MB typesetter.          |
+| Default template | What a note that names none is printed with: Standard (built in), a vault template, or ask. |
+| Templates folder | Where a new template is suggested. Templates are found anywhere. Default `Vorlagen/Druck`.  |
+| Output folder    | Where a PDF is written. Empty means beside the note it came from.                           |
+| The typesetter   | Whether it is on this device, with a button to fetch or remove it.                          |
 
 Only the switch shows while printing is off: there is nothing to configure for a feature with no typesetter on the device and no print to aim anywhere.
 

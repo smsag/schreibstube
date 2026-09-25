@@ -127,6 +127,11 @@ export interface SchreibstubeSettings {
   /** Where a printed PDF is written; empty means beside the note. */
   printOutputFolder: string;
   /**
+   * The template a note that names none is printed with: empty for the
+   * built-in `Standard`, `:ask` for the picker, or a vault template's folder.
+   */
+  printDefaultTemplate: string;
+  /**
    * Sending a task to Apple's Reminders through a Shortcut. Off until a
    * person says otherwise: the command opens another application, which is
    * not something a plugin should start doing on its own.

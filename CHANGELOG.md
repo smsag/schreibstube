@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Added
+
+- **Printing works without a template of your own.** Schreibstube now carries a template called Standard: A4, the note's own headings, justified text hyphenated in the plugin's language, footnotes at the foot of the page, and the page number once there is more than one page. A note with no heading gets its file name as a title. It is the default for any note that names no template, so switching printing on and printing a note is all it takes. "Vorlage anlegen" offers it as a third example, and a copy in the vault called Standard is the one that prints, so it can be changed like any other template.
+- **A default template in the print settings.** "Standardvorlage" chooses what a note that names no template is printed with: Standard, any template in the vault, or "Jedes Mal fragen" for the picker. A default whose folder has gone is reported, and the picker opens.
+
+### Changed
+
+- **A note without a template is no longer asked about.** It used to open the template picker every time; it now prints with the default, Standard unless you chose another. Set "Standardvorlage" to "Jedes Mal fragen" to keep being asked. The notice that the vault has no template is gone, since there always is one.
+
 ### Fixed
 
 - **A long document prints on a phone.** Setting a document was given twenty seconds, whatever its length. A letter needs a fraction of that, but a long chapter on a slow phone needed more, so it was stopped just before it would have finished. The time allowed now grows with the document: twenty seconds, plus time for its text, pictures and fonts, and never more than three minutes. For a long document the notice says how long it may take, and one that still runs over says so in plain words instead of an English line about the compiler.

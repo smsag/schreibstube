@@ -13,6 +13,7 @@
 import { readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
+import { parse } from "yaml";
 
 const ROOT = "examples/print";
 const OUT = "src/services/print-examples.ts";
@@ -56,7 +57,17 @@ const entries = folders.map((folder) => {
     .map((name) => ({ name, text: readFileSync(join(ROOT, folder, name), "utf8") }));
 
   const name = folder.charAt(0).toUpperCase() + folder.slice(1);
-  return { folder, name, files };
+
+  // Parsed here, once, so that the plugin can use a carried template — the
+  // built-in one prints without being in the vault — without a YAML parser of
+  // its own. Obsidian parses the copy a person lays down; this is what it
+  // would read.
+  const descriptor = files.find((file) => file.name === "template.md")?.text ?? "";
+  const match = /^---\r?\n([\s\S]*?)\r?\n---/.exec(descriptor);
+  if (!match) throw new Error(`${ROOT}/${folder}/template.md has no frontmatter`);
+  const frontmatter = parse(match[1]);
+
+  return { folder, name, files, frontmatter };
 });
 
 const body = entries
@@ -64,6 +75,7 @@ const body = entries
     (entry) => `  {
     name: ${JSON.stringify(entry.name)},
     source: ${JSON.stringify(`${ROOT}/${entry.folder}`)},
+    frontmatter: ${JSON.stringify(entry.frontmatter)},
     files: [
 ${entry.files
   .map((file) => `      { name: ${JSON.stringify(file.name)}, text: ${JSON.stringify(file.text)} }`)
@@ -97,6 +109,8 @@ export interface ExampleTemplate {
   name: string;
   /** Where it came from, for the documentation to agree with the code. */
   source: string;
+  /** The descriptor's frontmatter, parsed at build time as Obsidian would. */
+  frontmatter: Record<string, unknown>;
   files: ExampleFile[];
 }
 

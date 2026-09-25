@@ -82,6 +82,7 @@ import { vaultUrlFor } from "./services/bookmark-file";
 import { MailCommands } from "./controllers/mail-commands";
 import { PublishCommands } from "./controllers/publish-commands";
 import { PrintCommands } from "./controllers/print-commands";
+import type { PrintTemplate } from "./services/print-template";
 import { SchreibstubeSettingTab } from "./settings/index";
 import { setLanguage, t } from "./i18n";
 import type { FocusMode, HeadingEntry, SchreibstubeSettings } from "./types";
@@ -925,6 +926,11 @@ export default class SchreibstubePlugin extends Plugin {
 
   async removePrintRuntime(): Promise<void> {
     await this.print?.removeRuntime();
+  }
+
+  /** The vault's own templates, for the tab to offer as the default. */
+  printTemplates(): PrintTemplate[] {
+    return this.print?.templates() ?? [];
   }
 
   /** Adding a template is set up once, so it is a button on the print tab. */

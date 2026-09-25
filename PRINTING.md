@@ -153,6 +153,34 @@ node scripts/fetch-typst-runtime.mjs   # once: the pinned runtime and fonts, int
 npm run check:print
 ```
 
+## The built-in template
+
+A note prints before the vault holds any template. The plugin carries one,
+**Standard**: A4, 25 mm margins, Libertinus Serif at 11 pt, justified and
+hyphenated in the plugin's language, the note's own headings, footnotes at the
+foot of the page, and the page number once there is more than one page. A note
+without a first heading gets its file name as a title.
+
+It is `examples/print/standard/`, carried like the other examples: the
+generator writes its files and its parsed frontmatter into
+`services/print-examples.ts`, and `services/print-builtin.ts` builds the
+template from them, so the plugin needs no YAML parser and the built-in and
+the copy "Vorlage anlegen" lays down cannot drift. Its folder is
+`:builtin/Standard`, a path no vault can hold, and it reads no file from the
+vault.
+
+Which template a note gets (`chooseTemplate` in `services/print-template.ts`):
+
+1. The one it names in `schreibstubePrintTemplate`, by folder path or name. A
+   vault template shadows the built-in one of the same name, so a copy of
+   Standard in the vault is the Standard that prints.
+2. Otherwise the default from the setting `printDefaultTemplate`: empty for
+   Standard (the default), a vault template's folder, or `:ask` for the picker.
+   A default whose folder has gone is reported, and the picker is shown.
+
+The template contract below holds for Standard exactly as for a vault template;
+it only calls `data.title` and the built-in `data.lang`.
+
 ## The template contract
 
 A template is a folder anywhere in the vault. What makes it one is the flag in its descriptor,
@@ -246,10 +274,12 @@ For every key the template reads, the first of these wins:
    recipient and subject and a CV its title.
 2. The template's `schreibstubeData`, so the sender is written once.
 3. Built-ins: `date` is today in the note's language unless the note sets it,
-   `title` is the note's title, `noteName` the file's basename.
+   `title` is the note's title, `noteName` the file's basename, `lang` the
+   plugin's language (`de` or `en`), for a template to hyphenate by.
 
 A note picks its template with `schreibstubePrintTemplate: Brief`; without it,
-the command asks and remembers the answer in the note. Keys are prefixed
+the default template from the settings is used — Standard unless somebody chose
+another — and the picker only when the setting asks for it. Keys are prefixed
 `schreibstube`, as every frontmatter key this plugin reads.
 
 ### What a template may not do
@@ -382,7 +412,8 @@ proven anywhere else:
 
 ### Epic 4: the two example templates — done
 
-`examples/print/brief/` and `examples/print/lebenslauf/`, each documented in
+`examples/print/brief/` and `examples/print/lebenslauf/` (and, later, the built-in
+`examples/print/standard/`), each documented in
 its own `template.md`, with `examples/print/README.md` on installing one and
 on fonts. Neither ships a typeface of its own choosing: they ask for Fira Sans
 by name, and without it they are set in the standard fonts the plugin fetches

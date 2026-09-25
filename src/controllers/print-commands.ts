@@ -68,6 +68,7 @@ import { describeDiagnostics, RUNTIME_MEGABYTES } from "../services/typst-runtim
 import { PrintExampleModal, PrintTemplateModal } from "../ui/print-modals";
 import { ConfirmModal, FolderPickerModal } from "../ui/explorer-modals";
 import { EXAMPLE_TEMPLATES, type ExampleTemplate } from "../services/print-examples";
+import { builtinTemplate } from "../services/print-builtin";
 import { missingCapability, readPlatformFeatures } from "../services/print-capability";
 
 /** Pictures a template folder may carry for its own layout to place. */
@@ -204,17 +205,23 @@ export class PrintCommands {
       return;
     }
 
-    const templates = this.templates();
-    if (templates.length === 0) {
-      new Notice(t().common.notice(messages.noTemplates), 8000);
-      return;
-    }
+    // The built-in template is always among them, so a vault with no
+    // template of its own prints rather than explaining what a template is.
+    const builtIn = builtinTemplate();
+    const templates = [...this.templates(), ...(builtIn ? [builtIn.template] : [])];
 
     const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter;
-    const choice = chooseTemplate(templates, templateNameOf(frontmatter));
+    const choice = chooseTemplate(
+      templates,
+      templateNameOf(frontmatter),
+      this.settings().printDefaultTemplate
+    );
     if (choice.kind === "unknown") {
       new Notice(t().common.notice(messages.unknownTemplate(choice.name)));
       return;
+    }
+    if (choice.kind === "ask" && choice.missingDefault !== undefined) {
+      new Notice(t().common.notice(messages.defaultMissing(choice.missingDefault)), 8000);
     }
     const chosen = choice.kind === "use" ? choice.template : await this.ask(choice.among);
     if (!chosen) return;
@@ -239,7 +246,9 @@ export class PrintCommands {
     const messages = t().print;
     const source = await this.app.vault.read(file);
 
-    const layout = await this.readText(`${template.folder}/${LAYOUT_FILE}`);
+    const layout = template.builtIn
+      ? (builtinTemplate()?.layout ?? null)
+      : await this.readText(`${template.folder}/${LAYOUT_FILE}`);
     if (layout === null) throw new Error(messages.noLayout(template.name));
 
     const problems = checkLayout(layout);
@@ -629,6 +638,7 @@ export class PrintCommands {
    * loaded in full and refused afterwards.
    */
   private async fonts(template: PrintTemplate): Promise<JobFile[]> {
+    if (template.builtIn) return [];
     const files = this.filesIn(`${template.folder}/${FONT_DIRECTORY}`, isFontFile);
     const problems = checkFontBudget(files.map((file) => file.stat.size));
     if (problems.length > 0) throw new Error(`${template.name}: ${problems.join("; ")}`);
@@ -637,6 +647,7 @@ export class PrintCommands {
 
   /** Pictures the template itself carries, such as the photo on a CV. */
   private async templateAssets(template: PrintTemplate): Promise<JobFile[]> {
+    if (template.builtIn) return [];
     const files = this.filesIn(template.folder, (name) => TEMPLATE_ASSET.test(name));
     const problems = checkPictureBudget(files.map((file) => file.stat.size));
     if (problems.length > 0) throw new Error(`${template.name}: ${problems.join("; ")}`);
