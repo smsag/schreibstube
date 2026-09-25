@@ -305,6 +305,7 @@ Turns the note you are looking at into a PDF, through the built-in **Standard** 
 - **Ränder** — Klein (15 mm), Standard (the template's own) or Breit (35 mm). A template that sets its own margins, such as the letter, keeps them; the choice is then greyed out.
 - **Trennlinien als Seitenumbruch** — a horizontal rule starts a new page, starting from the template's own habit.
 - **Eigenschaften drucken** — the note's properties as a short list under its title, leaving out the plugin's own `schreibstube…` keys.
+- **Diashows** — only when the note holds a slideshow: **Wie in der Notiz** prints each one as it stands on screen before anybody steps through it (a stage its first picture, a filmstrip its first picture over the thumbnails, a feature, strip, masonry or comparison as arranged); **Alle Bilder untereinander** prints every picture of every slideshow at the text's width, each with its description.
 
 The preview is the document itself, set again after each change and drawn by the same PDF viewer Obsidian uses; **Drucken** writes those very pages. Nothing is remembered: every print starts from the template.
 

@@ -175,6 +175,33 @@ What each choice means is `services/print-options.ts`:
 | Ränder                        | `standard` keeps the template's margin; `small` and `wide` set 15 and 35 mm through the page rule `main.typ` sets before the layout. A layout that sets its own margin (`layoutFixesMargin`) keeps it, and the choice is greyed out |
 | Trennlinien als Seitenumbruch | The converter's `hrIsPageBreak`                                                                                                                                                                                                     |
 | Eigenschaften drucken         | `frontmatterRows`: the note's properties without the `schreibstube…` keys, lists on one line, links as their names; placed after a leading `=` heading as `#schreibstube-properties(rows)`                                          |
+| Diashows                      | Offered when the note holds one. `layout` (the default, and what the quick print uses) or `stacked`; see below                                                                                                                      |
+
+### Slideshows on paper
+
+A ` ```schreibstube-slideshow ` block is read by the same `parseSlideshow` that
+renders it, so a block the screen refuses prints as its source with the
+screen's reason. `services/print-slideshow.ts` decides which pictures reach the
+page and how wide each is; the prelude's `schreibstube-slideshow(kind, images,
+columns:)` arranges them, and a template may replace it.
+
+| Layout      | "Wie in der Notiz"                                                                                                                     | "Alle Bilder untereinander"                                                                                                                         |
+| ----------- | -------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `slideshow` | the first picture, text width, description beneath                                                                                     | every picture of the block, one under another at the text's width, each with its description; a page break falls between pictures, never inside one |
+| `filmstrip` | the first picture over every thumbnail, eight to a row                                                                                 | as above                                                                                                                                            |
+| `feature`   | the scene (⅔) beside two details, 3:2                                                                                                  | as above                                                                                                                                            |
+| `strip`     | equal 4:3 tiles in `stripColumns` columns                                                                                              | as above                                                                                                                                            |
+| `masonry`   | three balanced columns at the pictures' own proportions, read down each column; a series taller than a page goes on in a further block | as above                                                                                                                                            |
+| `compare`   | before and after side by side, each named                                                                                              | as above                                                                                                                                            |
+
+Each picture is read only as large as it prints: the image request carries
+the share of the text width it takes, and `pictureEdge` turns the template's
+`maxPx` into the edge to resize to, never below 400 px. A strip tile a third
+of the page wide is read at a third of the size, which keeps a long filmstrip
+inside the job's picture budget. Picture paths are tried the way the screen
+tries them (`linkpathCandidates`), so `my%20photo.png` is found. A picture
+that is not in the vault is left out and named; the rest of the slideshow
+prints.
 
 Nothing is remembered between prints. The built-in Standard sets its margins
 in its descriptor rather than its layout, which is what lets the presets move
@@ -274,15 +301,16 @@ defines any of them at the top level of `template.typ`, and its definition
 wins: `main.typ` imports the prelude first and everything the layout defines
 after it.
 
-| Helper                    | Signature                     | Given                                                                          |
-| ------------------------- | ----------------------------- | ------------------------------------------------------------------------------ |
-| `schreibstube-image`      | `(path, alt)`                 | one embedded picture                                                           |
-| `schreibstube-diagram`    | `(paths, caption)`            | **an array** of pictures, all from one fence, and one caption for the group    |
-| `schreibstube-code`       | `(source, language)`          | a fence that is not a diagram, or one that could not be drawn                  |
-| `schreibstube-table`      | `(columns:, align:, ..cells)` | a pipe table; the first argument among `cells` may be a `table.header`         |
-| `schreibstube-callout`    | `(kind, title, body)`         | an Obsidian callout, `kind` one of `note`, `tip`, `warning`, `danger`          |
-| `schreibstube-task`       | `(done)`                      | the box in front of a task-list item                                           |
-| `schreibstube-properties` | `(rows)`                      | the note's properties, when the dialog prints them: an array of `(key, value)` |
+| Helper                    | Signature                     | Given                                                                                                                                             |
+| ------------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `schreibstube-image`      | `(path, alt)`                 | one embedded picture                                                                                                                              |
+| `schreibstube-diagram`    | `(paths, caption)`            | **an array** of pictures, all from one fence, and one caption for the group                                                                       |
+| `schreibstube-code`       | `(source, language)`          | a fence that is not a diagram, or one that could not be drawn                                                                                     |
+| `schreibstube-table`      | `(columns:, align:, ..cells)` | a pipe table; the first argument among `cells` may be a `table.header`                                                                            |
+| `schreibstube-callout`    | `(kind, title, body)`         | an Obsidian callout, `kind` one of `note`, `tip`, `warning`, `danger`                                                                             |
+| `schreibstube-task`       | `(done)`                      | the box in front of a task-list item                                                                                                              |
+| `schreibstube-properties` | `(rows)`                      | the note's properties, when the dialog prints them: an array of `(key, value)`                                                                    |
+| `schreibstube-slideshow`  | `(kind, images, columns: 1)`  | a slideshow: `kind` one of `single`, `filmstrip`, `feature`, `strip`, `masonry`, `compare`, `stacked`; `images` an array of `(path, description)` |
 
 Because the layout is imported whole, a top-level name in it may shadow one the
 prelude defines. That is the mechanism, so name private helpers of your own

@@ -79,6 +79,8 @@ import {
 import { ConfirmModal, FolderPickerModal } from "../ui/explorer-modals";
 import { EXAMPLE_TEMPLATES, type ExampleTemplate } from "../services/print-examples";
 import { builtinTemplate } from "../services/print-builtin";
+import { pictureEdge } from "../services/print-slideshow";
+import { linkpathCandidates } from "../services/slideshow";
 import { missingCapability, readPlatformFeatures } from "../services/print-capability";
 
 /** Pictures a template folder may carry for its own layout to place. */
@@ -114,6 +116,8 @@ interface PrintSession {
   titles: Map<number, string>;
   diagramAssets: Map<string, JobFile>;
   captureWarnings: string[];
+  /** How many slideshows the note holds, for the dialog to ask about them. */
+  slideshows: number;
   pictures: Map<string, Uint8Array | null>;
   templates: Map<string, TemplateFiles>;
 }
@@ -221,6 +225,7 @@ export class PrintCommands {
     new PrintDialog(this.app, {
       templates,
       initial: initialOptions(preselected),
+      hasSlideshows: session.slideshows > 0,
       fixesMargin: async (template) =>
         layoutFixesMargin((await this.templateFiles(session, template)).layout),
       preview: async (options, progress) => {
@@ -414,13 +419,16 @@ export class PrintCommands {
       titles: new Map(),
       diagramAssets: new Map(),
       captureWarnings: [],
+      slideshows: 0,
       pictures: new Map(),
       templates: new Map()
     };
 
     // The first pass only asks what diagrams are there; nothing is resolved,
     // so the answer is the list and nothing else.
-    const found = markdownToTypst(source).diagrams;
+    const first = markdownToTypst(source);
+    session.slideshows = first.slideshows;
+    const found = first.diagrams;
     for (const block of found) {
       progress(messages.drawing(block.index + 1, found.length));
       const drawn = await this.draw(block, file.path);
@@ -486,21 +494,25 @@ export class PrintCommands {
 
     // The converter is synchronous, so an embedded picture is named here and
     // read afterwards rather than awaited inside a parser.
-    const wanted = new Map<string, TFile>();
+    // A picture used twice — a filmstrip's first frame is its stage and a
+    // thumbnail — is read once, at the larger of the two sizes.
+    const wanted = new Map<string, { target: TFile; edge: number }>();
     const assigned = new Map<string, string>();
     const properties = options.frontmatter ? frontmatterRows(frontmatter) : [];
     const pass = (usable: (path: string) => boolean): Conversion =>
       markdownToTypst(source, {
         hrIsPageBreak: template.hrIsPageBreak,
         properties,
+        slideshows: options.slideshows,
         diagramImage: (block) => session.drawings.get(block.index) ?? null,
         diagramTitle: (block) => session.titles.get(block.index) ?? null,
-        image: ({ source: link }) => {
-          const target = this.app.metadataCache.getFirstLinkpathDest(link, file.path);
+        image: ({ source: link, width }) => {
+          const target = this.resolveImage(link, file.path);
           if (!target || getImageMimeType(target.extension) === null) return null;
           const path = jobAssetPath(target.path, assigned);
           if (!usable(path)) return null;
-          wanted.set(path, target);
+          const edge = pictureEdge(template.images.maxPx, width ?? 1);
+          wanted.set(path, { target, edge: Math.max(edge, wanted.get(path)?.edge ?? 0) });
           return path;
         }
       });
@@ -508,8 +520,8 @@ export class PrintCommands {
     let conversion = pass(() => true);
     const warnings = [...session.captureWarnings, ...conversion.warnings];
     const assets = new Map(session.diagramAssets);
-    for (const [path, target] of wanted) {
-      const bytes = await this.cachedPicture(session, target, template);
+    for (const [path, { target, edge }] of wanted) {
+      const bytes = await this.cachedPicture(session, target, template, edge);
       if (bytes) assets.set(path, { path, bytes });
       else warnings.push(messages.pictureFailed(target.name));
     }
@@ -544,11 +556,29 @@ export class PrintCommands {
   private async cachedPicture(
     session: PrintSession,
     file: TFile,
-    template: PrintTemplate
+    template: PrintTemplate,
+    edge: number
   ): Promise<Uint8Array | null> {
-    const key = `${template.images.maxPx}:${template.images.quality}:${file.path}`;
-    if (!session.pictures.has(key)) session.pictures.set(key, await this.picture(file, template));
+    const key = `${edge}:${template.images.quality}:${file.path}`;
+    if (!session.pictures.has(key)) {
+      session.pictures.set(key, await this.picture(file, template, edge));
+    }
     return session.pictures.get(key) ?? null;
+  }
+
+  /**
+   * The vault file a picture's written path names, tried the ways the
+   * slideshow on screen tries it: as written, unwrapped from `<…>`, and with
+   * its `%20`s decoded, by link and then by path.
+   */
+  private resolveImage(link: string, sourcePath: string): TFile | null {
+    for (const candidate of linkpathCandidates(link)) {
+      const file =
+        this.app.metadataCache.getFirstLinkpathDest(candidate, sourcePath) ??
+        this.app.vault.getAbstractFileByPath(candidate);
+      if (file instanceof TFile) return file;
+    }
+    return null;
   }
 
   private async compileJob(
@@ -783,7 +813,11 @@ export class PrintCommands {
     return { pictures, expected: canvases.length, title };
   }
 
-  private async picture(file: TFile, template: PrintTemplate): Promise<Uint8Array | null> {
+  private async picture(
+    file: TFile,
+    template: PrintTemplate,
+    edge: number
+  ): Promise<Uint8Array | null> {
     const mimeType = getImageMimeType(file.extension);
     if (mimeType === null) return null;
     // Bounded before it is read: the picture is made smaller only after it is
@@ -801,7 +835,7 @@ export class PrintCommands {
       const resized = await resizeImageToBytes(
         buffer,
         mimeType,
-        template.images.maxPx,
+        Math.min(edge, template.images.maxPx),
         template.images.quality
       );
       return resized.bytes;

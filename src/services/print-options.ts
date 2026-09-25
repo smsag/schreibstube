@@ -1,13 +1,14 @@
 /**
  * What the print dialog lets a person change, and what each choice means.
  *
- * Four choices, and nothing about them is remembered: each print starts from
+ * Five choices, and nothing about them is remembered: each print starts from
  * the template, because the template is where a page's design lives and a
  * dialog that carried yesterday's margins into today's letter would be a
  * second, invisible template.
  */
 import { printableText } from "./typst-value";
 import type { PrintTemplate } from "./print-template";
+import type { SlideshowPrintMode } from "./print-slideshow";
 
 /** "standard" is the template's own margin; the other two replace it. */
 export type MarginPreset = "small" | "standard" | "wide";
@@ -26,6 +27,8 @@ export interface PrintOptions {
   hrIsPageBreak: boolean;
   /** Whether the note's properties are printed at the top of the document. */
   frontmatter: boolean;
+  /** Slideshows as they stand on screen, or every picture stacked. */
+  slideshows: SlideshowPrintMode;
 }
 
 /** Where a print starts: the template as it is, and no properties on paper. */
@@ -34,7 +37,8 @@ export function initialOptions(template: PrintTemplate): PrintOptions {
     template,
     margin: "standard",
     hrIsPageBreak: template.hrIsPageBreak,
-    frontmatter: false
+    frontmatter: false,
+    slideshows: "layout"
   };
 }
 

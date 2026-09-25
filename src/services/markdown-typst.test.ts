@@ -435,7 +435,7 @@ describe("the prelude the body calls", () => {
   it("defines every helper the converter emits", () => {
     const body = markdownToTypst(
       "![b](b.png)\n\n```mermaid\nA\n```\n\n```ts\nx\n```\n\n| a |\n|---|\n| 1 |\n\n" +
-        "> [!tip] T\n> x\n\n- [ ] t",
+        "> [!tip] T\n> x\n\n- [ ] t\n\n```schreibstube-slideshow\n![a](a.png)\n![b](b.png)\n```",
       { ...resolved, properties: [["autor", "x"]] }
     ).body;
     const called = new Set([...body.matchAll(/#(schreibstube-[a-z]+)\(/g)].map((m) => m[1]));
@@ -445,6 +445,7 @@ describe("the prelude the body calls", () => {
       "schreibstube-diagram",
       "schreibstube-image",
       "schreibstube-properties",
+      "schreibstube-slideshow",
       "schreibstube-table",
       "schreibstube-task"
     ]);
@@ -503,5 +504,68 @@ describe("the note's properties", () => {
 
   it("add nothing when there are none", () => {
     expect(convert("Text", { properties: [] })).toBe("Text");
+  });
+});
+
+describe("slideshows", () => {
+  const fence = (body: string) => "```schreibstube-slideshow\n" + body + "\n```";
+  const three =
+    "layout: feature\n![Strand](strand.jpg)\n![Hafen](hafen%20alt.jpg)\n![Markt](markt.jpg)";
+  const asked: { source: string; width?: number }[] = [];
+  const image = (request: { source: string; width?: number }) => {
+    asked.push(request);
+    return `assets/${request.source}`;
+  };
+
+  it("prints a slideshow as it stands on screen, never as its source", () => {
+    const conversion = markdownToTypst(fence(three), { image });
+    expect(conversion.body.trim()).toBe(
+      '#schreibstube-slideshow("feature", (("assets/strand.jpg", "Strand"), ' +
+        '("assets/hafen%20alt.jpg", "Hafen"), ("assets/markt.jpg", "Markt"),), columns: 2)'
+    );
+    expect(conversion.body).not.toContain("schreibstube-code");
+    expect(conversion.slideshows).toBe(1);
+  });
+
+  it("asks for each picture at the width it prints", () => {
+    asked.length = 0;
+    markdownToTypst(fence(three), { image });
+    expect(asked.map((request) => request.width)).toEqual([2 / 3, 1 / 3, 1 / 3]);
+  });
+
+  it("stacks every picture when the print asks for that", () => {
+    const body = markdownToTypst(fence("![a](a.png)\n![b](b.png)\n![c](c.png)"), {
+      image,
+      slideshows: "stacked"
+    }).body;
+    expect(body).toContain('#schreibstube-slideshow("stacked", (("assets/a.png", "a"), ');
+    expect(body).toContain('("assets/c.png", "c"),), columns: 1)');
+  });
+
+  it("leaves out a picture that is not there, names it, and prints the rest", () => {
+    const conversion = markdownToTypst(fence("layout: strip\n![a](a.png)\n![weg](weg.png)"), {
+      image: ({ source }) => (source === "weg.png" ? null : `assets/${source}`)
+    });
+    expect(conversion.body).toContain('(("assets/a.png", "a"),)');
+    expect(conversion.warnings).toContain("image not found: weg.png");
+  });
+
+  it("prints a block the screen refuses as its source, with the screen's reason", () => {
+    const conversion = markdownToTypst(fence("![nur eins](a.png)"), { image });
+    expect(conversion.body).toContain("#schreibstube-code(");
+    expect(conversion.warnings[0]).toMatch(/^a slideshow was printed as its source — /);
+    expect(conversion.slideshows).toBe(0);
+  });
+
+  it("counts every slideshow, also one inside a callout", () => {
+    const source =
+      fence(three) +
+      "\n\n> [!note]\n> ```schreibstube-slideshow\n> ![a](a.png)\n> ![b](b.png)\n> ```";
+    expect(markdownToTypst(source, { image }).slideshows).toBe(2);
+  });
+
+  it("escapes a description that would otherwise end the literal", () => {
+    const body = markdownToTypst(fence('![Er sagte "hallo"](a.png)\n![b](b.png)'), { image }).body;
+    expect(body).toContain('"Er sagte \\"hallo\\""');
   });
 });

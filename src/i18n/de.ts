@@ -936,6 +936,8 @@ export const de: Messages = {
     defaultMissing: (path: string) =>
       `die Standardvorlage ${path} gibt es in diesem Vault nicht mehr; wähle eine aus, oder stelle in den Druck-Einstellungen eine andere ein.`,
     builtIn: "eingebaut",
+    slideshowUnreadable: (detail: string) =>
+      `eine Diashow wurde als Quelltext gedruckt — ${detail}`,
     preparing: "bereite den Druck vor …",
     dialog: {
       title: "Drucken",
@@ -945,6 +947,8 @@ export const de: Messages = {
       marginFixed: "Diese Vorlage legt ihre Ränder selbst fest.",
       pageBreaks: "Trennlinien als Seitenumbruch",
       frontmatter: "Eigenschaften drucken",
+      slideshows: "Diashows",
+      slideshow: { layout: "Wie in der Notiz", stacked: "Alle Bilder untereinander" },
       print: "Drucken",
       working: "Vorschau wird gesetzt …",
       pages: (shown: number, total: number) =>

@@ -19,7 +19,8 @@ describe("initialOptions", () => {
       template: own,
       margin: "standard",
       hrIsPageBreak: true,
-      frontmatter: false
+      frontmatter: false,
+      slideshows: "layout"
     });
   });
 
@@ -36,7 +37,8 @@ describe("withTemplate", () => {
       template: other,
       margin: "wide",
       hrIsPageBreak: true,
-      frontmatter: true
+      frontmatter: true,
+      slideshows: "layout"
     });
   });
 });

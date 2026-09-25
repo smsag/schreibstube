@@ -666,6 +666,7 @@ export const enExtra = {
     defaultMissing: (path: string) =>
       `the default template ${path} is no longer in this vault; choose one, or pick another default in the print settings.`,
     builtIn: "built in",
+    slideshowUnreadable: (detail: string) => `a slideshow was printed as its source — ${detail}`,
     preparing: "preparing the print…",
     dialog: {
       title: "Print",
@@ -675,6 +676,8 @@ export const enExtra = {
       marginFixed: "This template sets its own margins.",
       pageBreaks: "Horizontal rules as page breaks",
       frontmatter: "Print properties",
+      slideshows: "Slideshows",
+      slideshow: { layout: "As in the note", stacked: "Every picture, one under another" },
       print: "Print",
       working: "Setting the preview…",
       pages: (shown: number, total: number) =>

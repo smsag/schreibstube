@@ -15,6 +15,8 @@ import { buildJob, jobAssetPath, type JobFile, type PrintJob } from "../services
 import { resolvePrintData } from "../services/print-data";
 import { parseTemplate } from "../services/print-template";
 import { applyOptions, initialOptions, type MarginPreset } from "../services/print-options";
+import type { SlideshowPrintMode } from "../services/print-slideshow";
+import { SLIDESHOW_LAYOUTS } from "../services/slideshow";
 
 export interface PrintCase {
   name: string;
@@ -23,6 +25,14 @@ export interface PrintCase {
   properties?: [string, string][];
   /** A margin preset from the dialog, instead of the template's own. */
   margin?: MarginPreset;
+  /** How the dialog prints slideshows; as they stand on screen unless named. */
+  slideshows?: SlideshowPrintMode;
+}
+
+/** A slideshow of `count` pictures in `layout`, as a note writes one. */
+function slideshow(layout: string, count: number): string {
+  const pictures = Array.from({ length: count }, (_, i) => `![Bild ${i + 1}](bild-${i + 1}.png)`);
+  return ["```schreibstube-slideshow", `layout: ${layout}`, ...pictures, "```"].join("\n");
 }
 
 export const PRINT_CASES: readonly PrintCase[] = [
@@ -86,7 +96,18 @@ export const PRINT_CASES: readonly PrintCase[] = [
     ]
   },
   { name: "small-margin", markdown: "Text mit kleinem Rand.", margin: "small" },
-  { name: "wide-margin", markdown: "Text mit breitem Rand.", margin: "wide" }
+  { name: "wide-margin", markdown: "Text mit breitem Rand.", margin: "wide" },
+  // Every layout as it stands on screen, with more pictures than a feature or
+  // a comparison shows, and a filmstrip long enough to wrap its thumbnails.
+  ...SLIDESHOW_LAYOUTS.map((layout) => ({
+    name: `slideshow-${layout}`,
+    markdown: `Vor der Diashow.\n\n${slideshow(layout, layout === "filmstrip" ? 11 : 5)}`
+  })),
+  {
+    name: "slideshow-stacked",
+    markdown: `Vor der Diashow.\n\n${slideshow("feature", 4)}`,
+    slideshows: "stacked"
+  }
 ];
 
 /** A template as the script finds it: a folder's descriptor frontmatter and layout. */
@@ -140,6 +161,7 @@ export function fixtureJobs(templates: readonly FixtureTemplate[]): FixtureJob[]
       const conversion = markdownToTypst(printCase.markdown, {
         hrIsPageBreak: template.hrIsPageBreak,
         properties: printCase.properties ?? [],
+        slideshows: printCase.slideshows ?? "layout",
         diagramImage: (block) => [place(`assets/diagram-${block.index}-0.png`)],
         image: ({ source }) => place(jobAssetPath(source, assigned))
       });

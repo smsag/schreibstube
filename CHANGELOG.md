@@ -7,6 +7,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - **A print dialog with a preview.** "Doc drucken" now opens a dialog before anything is written: choose the template, the margins (Klein, Standard, Breit), whether horizontal rules start a new page, and whether the note's properties are printed under its title. Beside the choices, the pages themselves: the document is set again after each change and drawn by the PDF viewer Obsidian uses, and "Drucken" writes exactly those pages. Nothing is remembered; each print starts from its template. A template that sets its own margins, like the letter, keeps them, and the margin choice is greyed out for it.
+- **Slideshows print.** A slideshow used to reach the paper as its source text, a grey block of image links. It now prints as it stands in the note before anybody steps through it: a stage its first picture, a filmstrip its first picture over the thumbnails, a feature its scene and two details, a strip its tiles, a masonry its balanced columns, a comparison its before and after side by side. For a note that holds one, the print dialog also offers "Alle Bilder untereinander", which prints every picture of every slideshow at the text's width, each with its description. Each picture is read only as large as it prints, so a long filmstrip stays within the picture budget, and a path written with `%20` is found as on screen.
 - **"Doc drucken (ohne Dialog)"** prints straight away, as the template sets the page, for a note printed again and again.
 
 ### Changed

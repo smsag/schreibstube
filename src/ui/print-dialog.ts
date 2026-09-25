@@ -17,6 +17,7 @@ import {
   type MarginPreset,
   type PrintOptions
 } from "../services/print-options";
+import { SLIDESHOW_PRINT_MODES, type SlideshowPrintMode } from "../services/print-slideshow";
 import type { PrintTemplate } from "../services/print-template";
 
 /** A document set for the dialog, with what it could not carry over. */
@@ -28,6 +29,8 @@ export interface PreparedPrint {
 export interface PrintDialogHost {
   templates: PrintTemplate[];
   initial: PrintOptions;
+  /** Whether the note holds a slideshow; the choice about them is offered only then. */
+  hasSlideshows: boolean;
   /** Whether the template's layout sets its own margins, so the presets do nothing. */
   fixesMargin: (template: PrintTemplate) => Promise<boolean>;
   preview: (options: PrintOptions, progress: (message: string) => void) => Promise<PreparedPrint>;
@@ -142,6 +145,15 @@ export class PrintDialog extends Modal {
     new Setting(el).setName(words.frontmatter).addToggle((toggle) => {
       toggle.setValue(this.options.frontmatter).onChange((value) => {
         this.options = { ...this.options, frontmatter: value };
+        this.changed();
+      });
+    });
+
+    if (!this.host.hasSlideshows) return;
+    new Setting(el).setName(words.slideshows).addDropdown((dropdown) => {
+      for (const mode of SLIDESHOW_PRINT_MODES) dropdown.addOption(mode, words.slideshow[mode]);
+      dropdown.setValue(this.options.slideshows).onChange((value) => {
+        this.options = { ...this.options, slideshows: value as SlideshowPrintMode };
         this.changed();
       });
     });

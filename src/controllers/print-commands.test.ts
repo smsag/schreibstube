@@ -35,6 +35,8 @@ const answers = vi.hoisted(() => ({
   offered: [] as string[][],
   /** The template each dialog opened with, by folder. */
   preselected: [] as string[],
+  /** Whether each dialog offered the choice about slideshows. */
+  slideshowChoice: [] as boolean[],
   /** What the person changes in the dialog before pressing "Drucken". */
   change: null as null | ((options: PrintOptions, templates: PrintTemplate[]) => PrintOptions),
   /** Whether "Drucken" is pressed after the preview was set, so its document is reused. */
@@ -64,6 +66,19 @@ vi.mock("../ui/explorer-modals", () => ({
 
 vi.mock("../ui/print-modals", () => ({ PrintExampleModal: class {} }));
 
+/** The longest edge each picture was asked to be made, by the size hint it came with. */
+const resized = vi.hoisted(() => ({ edges: [] as number[] }));
+
+// Resizing draws on a canvas, which the tests do not have; what matters here
+// is how large a picture was asked to be.
+vi.mock("../services/image-resize", async (original) => ({
+  ...(await original<typeof import("../services/image-resize")>()),
+  resizeImageToBytes: async (buffer: ArrayBuffer, _mime: string, maxPx: number) => {
+    resized.edges.push(maxPx);
+    return { bytes: new Uint8Array(buffer) };
+  }
+}));
+
 // The dialog as a person uses it: it opens, the preview is set, a choice may
 // change, and "Drucken" is pressed.
 vi.mock("../ui/print-dialog", () => ({
@@ -76,6 +91,7 @@ vi.mock("../ui/print-dialog", () => ({
       const { host } = this;
       answers.offered.push(host.templates.map((template) => template.folder));
       answers.preselected.push(host.initial.template.folder);
+      answers.slideshowChoice.push(host.hasSlideshows);
       answers.finished = (async () => {
         const options = answers.change
           ? answers.change(host.initial, host.templates)
@@ -189,6 +205,7 @@ function vault(options: VaultOptions = {}) {
         ),
       getAbstractFileByPath: (path: string) => files.get(path) ?? null,
       read: async (file: TFile) => texts.get(file.path) ?? "",
+      readBinary: async (file: TFile) => (bytes.get(file.path) ?? new Uint8Array()).buffer.slice(0),
       createBinary: vi.fn(async (path: string) => {
         written.push({ path, how: "create" });
         return addFile(path, compiler.pdf);
@@ -247,6 +264,8 @@ beforeEach(() => {
   answers.asked = [];
   answers.offered = [];
   answers.preselected = [];
+  answers.slideshowChoice = [];
+  resized.edges = [];
   answers.change = null;
   answers.afterPreview = true;
   answers.fixesMargin = [];
@@ -555,3 +574,53 @@ describe("the print dialog", () => {
     expect(Notice.shown.join("\n")).toContain("the template did not compile");
   });
 });
+
+describe("slideshows in the print dialog", () => {
+  const main = (): string => compiler.jobs[compiler.jobs.length - 1]?.main ?? "";
+  const show =
+    "# Urlaub\n\n```schreibstube-slideshow\nlayout: strip\n![Strand](Bilder/strand.png)\n" +
+    "![Hafen](Bilder/hafen%20alt.png)\n![Markt](Bilder/markt.png)\n```";
+  const pictures = ["Bilder/strand.png", "Bilder/hafen alt.png", "Bilder/markt.png"];
+
+  it("offers the choice only for a note that holds a slideshow", async () => {
+    const plain = vault();
+    await viaDialog(plain.commands);
+    const withShow = vault({ note: show, existing: files(pictures) });
+    await viaDialog(withShow.commands);
+
+    expect(answers.slideshowChoice).toEqual([false, true]);
+  });
+
+  it("prints a slideshow as it stands in the note, finding a path written with %20", async () => {
+    const { commands } = vault({ note: show, existing: files(pictures) });
+    await viaDialog(commands);
+
+    expect(main()).toContain('#schreibstube-slideshow("strip", ');
+    expect(main()).toContain("columns: 3");
+    expect(main()).toContain('"assets/Bilder-hafen-alt.png"');
+    // Three tiles across the text: each read at a third of the template's limit.
+    expect(resized.edges).toEqual([534, 534, 534]);
+  });
+
+  it("stacks every picture when the dialog says so", async () => {
+    answers.change = (options) => ({ ...options, slideshows: "stacked" });
+    const { commands } = vault({ note: show, existing: files(pictures) });
+    await viaDialog(commands);
+
+    expect(main()).toContain('#schreibstube-slideshow("stacked", ');
+    expect(main()).toContain("columns: 1");
+    expect(resized.edges).toEqual([1600, 1600, 1600]);
+  });
+
+  it("prints a slideshow as it stands when printed without the dialog", async () => {
+    const { commands } = vault({ note: show, existing: files(pictures) });
+    await quick(commands);
+
+    expect(main()).toContain('#schreibstube-slideshow("strip", ');
+  });
+});
+
+/** Picture files for the fake vault: a PNG signature is all the reader looks at. */
+function files(paths: string[]): Record<string, Uint8Array> {
+  return Object.fromEntries(paths.map((path) => [path, new Uint8Array([137, 80, 78, 71])]));
+}
