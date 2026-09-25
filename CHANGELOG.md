@@ -2,7 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## 1.47.0 - 2026-09-25
+
+Printing with nothing to set up. Switch printing on and print a note: it
+comes out on Standard, a template the plugin now carries — A4, the note's
+own headings, justified text hyphenated in the plugin's language, footnotes
+at the foot of the page, page numbers once there are two. "Standardvorlage"
+in the print settings picks another default, or the picker every time;
+"Vorlage anlegen" lays Standard down in the vault to be changed, and the
+copy then prints in its place. A long document gets the time it needs:
+the deadline for setting a page now grows with the note instead of
+stopping a long chapter on a phone at twenty seconds.
+
+Mobile checklist: not run. What a phone would answer differently: a first
+print in a vault with no template coming out on Standard, a long note
+finishing where it used to be stopped, with the notice naming how long it
+may take, and the default-template dropdown in the print settings.
+
+The bridge stays at 2.8.0, and its protocol at 3; nothing here touches it.
 
 ### Added
 
