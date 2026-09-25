@@ -2,7 +2,28 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## 1.48.0 - 2026-09-25
+
+See the page before it is written. "Doc drucken" now opens a dialog with
+the template, the margins (Klein, Standard, Breit), rules as page breaks
+and the note's properties beside a preview of the pages themselves, drawn
+by Obsidian's own PDF viewer; "Drucken" writes exactly those pages, and
+"Doc drucken (ohne Dialog)" prints straight away as before. Slideshows
+reach the paper as they stand in the note — a stage's first picture, a
+filmstrip over its thumbnails, a feature, strip, masonry or comparison as
+arranged — or, if the dialog says so, every picture stacked. And Mermaid
+flowcharts, which printed as their source text, print as diagrams in the
+light theme.
+
+Mobile checklist: not run, and neither was a desktop print in Obsidian
+itself; everything here was checked with the pinned typesetter and, for
+Mermaid, in Chromium against Mermaid 11. What a device would answer
+differently: the dialog's layout on a phone, the preview drawn by
+Obsidian's pdf.js, the margin choice greyed out for the letter, a
+flowchart printed from a vault in dark mode, and Obsidian's own Mermaid
+version behaving as Mermaid 11 did.
+
+The bridge stays at 2.8.0, and its protocol at 3; nothing here touches it.
 
 ### Added
 
