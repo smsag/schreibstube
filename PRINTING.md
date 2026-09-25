@@ -132,7 +132,19 @@ referenced, `<br>` as a line break, and horizontal rules as an optional page
 break.
 
 Dropped, with a warning rather than in silence: raw HTML, embedded notes, and
-a picture that cannot be read. A diagram that could not be drawn prints as its
+a picture that cannot be read. Raw HTML means an element HTML knows — `<span>`,
+`<kbd>`, `<div>` —, whose tags go and whose words stay; anything else between
+angle brackets, such as the placeholder `<DOING SOMETHING>`, is text and prints
+as text. HTML comments (`<!-- … -->`) never reach paper, like `%%…%%`.
+
+Pictures: anything the device can decode is printed, drawn again at the size it
+prints as a format Typst reads (`services/print-images.ts`). JPEG, PNG and WebP
+stay what they are; GIF and BMP become PNG, since a canvas cannot write them;
+AVIF and HEIC become JPEG, on a white ground where they were transparent. The
+picture's name in the job ends in what the bytes now are — `IMG_2443.avif.jpg`
+— because Typst tells a format by its extension. SVG goes to Typst as it is and
+prints as lines. A picture in a format no print can carry is named as such; one
+that is not in the vault is named as not found. A diagram that could not be drawn prints as its
 own source in a code block — a missing diagram is a page that lies about what
 the note says.
 

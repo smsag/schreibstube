@@ -101,9 +101,15 @@ async function resizeImage(
 
     const ctx = canvas.getContext("2d");
     if (!ctx) throw new Error("canvas 2d context unavailable");
+    const encoded = encodedMimeType(outputType);
+    // JPEG has no transparency: a transparent picture drawn into it turns
+    // black where it was clear. Paper is white, so that is what shows through.
+    if (encoded === "image/jpeg") {
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, dims.width, dims.height);
+    }
     ctx.drawImage(img, 0, 0, dims.width, dims.height);
 
-    const encoded = encodedMimeType(outputType);
     return { blob: await canvasToBlob(canvas, encoded, quality), mimeType: encoded };
   } finally {
     URL.revokeObjectURL(url);

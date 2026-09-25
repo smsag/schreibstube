@@ -26,7 +26,7 @@ import { mermaidRenderId } from "../services/print-mermaid";
 import { t } from "../i18n";
 import type { Logger } from "../services/logger";
 import type { SchreibstubeSettings } from "../types";
-import { getImageMimeType, resizeImageToBytes } from "../services/image-resize";
+import { resizeImageToBytes } from "../services/image-resize";
 import { markdownToTypst, type Conversion, type DiagramBlock } from "../services/markdown-typst";
 import { noteTitle, resolvePrintData, templateNameOf } from "../services/print-data";
 import {
@@ -90,6 +90,7 @@ import { ConfirmModal, FolderPickerModal } from "../ui/explorer-modals";
 import { EXAMPLE_TEMPLATES, type ExampleTemplate } from "../services/print-examples";
 import { builtinTemplate } from "../services/print-builtin";
 import { pictureEdge } from "../services/print-slideshow";
+import { printAssetName, printImageFormat } from "../services/print-images";
 import { linkpathCandidates } from "../services/slideshow";
 import { missingCapability, readPlatformFeatures } from "../services/print-capability";
 
@@ -518,8 +519,11 @@ export class PrintCommands {
         diagramTitle: (block) => session.titles.get(block.index) ?? null,
         image: ({ source: link, width }) => {
           const target = this.resolveImage(link, file.path);
-          if (!target || getImageMimeType(target.extension) === null) return null;
-          const path = jobAssetPath(target.path, assigned);
+          if (!target) return null;
+          const format = printImageFormat(target.extension);
+          if (!format) return { refused: messages.imageUnsupported(target.name) };
+          // Named for what the bytes will be: Typst reads the extension.
+          const path = jobAssetPath(printAssetName(target.path, format), assigned);
           if (!usable(path)) return null;
           const edge = pictureEdge(template.images.maxPx, width ?? 1);
           wanted.set(path, { target, edge: Math.max(edge, wanted.get(path)?.edge ?? 0) });
@@ -846,8 +850,8 @@ export class PrintCommands {
     template: PrintTemplate,
     edge: number
   ): Promise<Uint8Array | null> {
-    const mimeType = getImageMimeType(file.extension);
-    if (mimeType === null) return null;
+    const format = printImageFormat(file.extension);
+    if (format === null) return null;
     // Bounded before it is read: the picture is made smaller only after it is
     // decoded, and decoding a photograph of any size first is how a phone
     // runs out of memory halfway through a print.
@@ -860,11 +864,14 @@ export class PrintCommands {
 
     try {
       const buffer = await this.app.vault.readBinary(file);
+      // An SVG is drawn by Typst itself, as lines, at any size.
+      if (format.kind === "vector") return new Uint8Array(buffer);
       const resized = await resizeImageToBytes(
         buffer,
-        mimeType,
+        format.sourceType,
         Math.min(edge, template.images.maxPx),
-        template.images.quality
+        template.images.quality,
+        format.outputType
       );
       return resized.bytes;
     } catch (error) {

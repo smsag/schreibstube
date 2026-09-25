@@ -1007,6 +1007,7 @@ export const de: Messages = {
       `${language}: ließ sich nicht zeichnen und steht als Quelltext da`,
     htmlDropped: "HTML wird beim Drucken weggelassen",
     embedNotPrinted: (target: string) => `eingebettete Notiz wird nicht gedruckt: ${target}`,
+    imageUnsupported: (name: string) => `${name} hat ein Format, das sich nicht drucken lässt`,
     imageNotFound: (source: string) => `Bild nicht gefunden: ${source}`,
     footnoteMissing: (name: string) => `Fußnote [^${name}] hat keinen Text und fehlt`,
     notReplaced: (path: string) =>

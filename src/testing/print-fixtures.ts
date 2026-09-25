@@ -17,6 +17,7 @@ import { parseTemplate } from "../services/print-template";
 import { applyOptions, initialOptions, type MarginPreset } from "../services/print-options";
 import type { SlideshowPrintMode } from "../services/print-slideshow";
 import { SLIDESHOW_LAYOUTS } from "../services/slideshow";
+import { printAssetName, printImageFormat } from "../services/print-images";
 
 export interface PrintCase {
   name: string;
@@ -85,6 +86,20 @@ export const PRINT_CASES: readonly PrintCase[] = [
       "## Ablauf\n\n```mermaid\nA\n```\n\n> [!note]\n> ```mermaid\n> B\n> ```\n\n```mermaid\nC\n```"
   },
   { name: "rule-and-break", markdown: "oben<br>\nunten\n\n---\n\nnächste Seite" },
+  {
+    // Each picture named for what printing turns it into: Typst reads the
+    // extension, and PNG bytes called .gif stopped the whole document.
+    name: "image-formats",
+    markdown:
+      "Formate.\n\n![](a.jpg) ![](b.JPEG) ![](c.png) ![](d.gif) ![](e.webp) ![](f.avif) " +
+      "![](g.heic) ![](h.bmp) ![](i.svg) ![](j.tiff)"
+  },
+  {
+    name: "angle-brackets-and-comments",
+    markdown:
+      "| Faktor | Satz |\n|---|---|\n| Bestätigt | WE LEARNED THAT <DOING SOMETHING> WORKS |\n\n" +
+      "Ein <span>Wort</span> <!-- verborgen --> und %%auch%% mehr.\n\n<!--\nganz\n-->\nDanach."
+  },
   { name: "empty", markdown: "" },
   {
     name: "properties",
@@ -139,6 +154,19 @@ export const PIXEL_PNG = Uint8Array.from(
   (char) => char.charCodeAt(0)
 );
 
+/** The same pixel as JPEG, WebP and SVG, for the formats printing writes. */
+const PIXEL_JPEG = bytesOf(
+  "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/2wBDAQkJCQwLDBgNDRgyIRwhMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjL/wAARCAABAAEDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwAooooA/9k="
+);
+const PIXEL_WEBP = bytesOf("UklGRiQAAABXRUJQVlA4IBgAAABQAQCdASoBAAEAAUAmJaQABHQAAORAAAA=");
+const PIXEL_SVG = new TextEncoder().encode(
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"><rect width="1" height="1" fill="#808080"/></svg>'
+);
+
+function bytesOf(base64: string): Uint8Array {
+  return Uint8Array.from(atob(base64), (char) => char.charCodeAt(0));
+}
+
 /** Every case, for every template, as the job a print would hand the compiler. */
 export function fixtureJobs(templates: readonly FixtureTemplate[]): FixtureJob[] {
   const jobs: FixtureJob[] = [];
@@ -153,8 +181,8 @@ export function fixtureJobs(templates: readonly FixtureTemplate[]): FixtureJob[]
       });
       const pictures = new Map<string, JobFile>();
       const assigned = new Map<string, string>();
-      const place = (path: string): string => {
-        pictures.set(path, { path, bytes: PIXEL_PNG });
+      const place = (path: string, bytes: Uint8Array = PIXEL_PNG): string => {
+        pictures.set(path, { path, bytes });
         return path;
       };
 
@@ -163,7 +191,20 @@ export function fixtureJobs(templates: readonly FixtureTemplate[]): FixtureJob[]
         properties: printCase.properties ?? [],
         slideshows: printCase.slideshows ?? "layout",
         diagramImage: (block) => [place(`assets/diagram-${block.index}-0.png`)],
-        image: ({ source }) => place(jobAssetPath(source, assigned))
+        // As the print command names and draws pictures: by what they become.
+        image: ({ source }) => {
+          const format = printImageFormat(source.split(".").pop() ?? "");
+          if (!format) return { refused: `${source} cannot be printed` };
+          const bytes =
+            format.kind === "vector"
+              ? PIXEL_SVG
+              : format.outputType === "image/jpeg"
+                ? PIXEL_JPEG
+                : format.outputType === "image/webp"
+                  ? PIXEL_WEBP
+                  : PIXEL_PNG;
+          return place(jobAssetPath(printAssetName(source, format), assigned), bytes);
+        }
       });
 
       const data = resolvePrintData(

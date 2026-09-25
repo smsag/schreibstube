@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Fixed
+
+- **A GIF no longer stops the whole print.** A GIF is redrawn for printing, and a canvas can only redraw it as PNG — but it kept its `.gif` name, the typesetter read the PNG as a broken GIF, and the document was refused. Every picture is now named for what it has become.
+- **AVIF, HEIC, BMP and SVG pictures print.** Printing only knew JPEG, PNG, GIF and WebP, and reported any other picture as "not found" even when it was right there. Anything the device can show is now printed: AVIF and HEIC as JPEG, BMP as PNG, and SVG as the drawing itself, sharp at any size. A picture in a format that really cannot be printed says so instead of claiming it is missing.
+- **Placeholders in angle brackets print.** A sentence like "WE LEARNED THAT <DOING SOMETHING> CAN BE LEVERAGED" lost its placeholders, because anything between angle brackets was taken for HTML and dropped. Only real HTML tags are dropped now; everything else prints as written.
+- **HTML comments stay off the page.** A `<!-- … -->` comment, which Obsidian hides, was printed as text. It is now left out, like `%%…%%`.
+
 ## 1.48.0 - 2026-09-25
 
 See the page before it is written. "Doc drucken" now opens a dialog with

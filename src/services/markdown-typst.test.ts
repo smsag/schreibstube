@@ -569,3 +569,74 @@ describe("slideshows", () => {
     expect(body).toContain('"Er sagte \\"hallo\\""');
   });
 });
+
+describe("angle brackets that are not HTML", () => {
+  it("prints a placeholder as the text it is, where it used to be dropped as HTML", () => {
+    const conversion = markdownToTypst(
+      "WE LEARNED THAT <DOING SOMETHING> CAN BE LEVERAGED TO ACHIEVE <GOAL OR OBJECTIVE>"
+    );
+    expect(conversion.body).toContain("\\<DOING SOMETHING\\>");
+    expect(conversion.body).toContain("\\<GOAL OR OBJECTIVE\\>");
+    expect(conversion.warnings).toEqual([]);
+  });
+
+  it("keeps a placeholder in a table cell", () => {
+    const body = markdownToTypst("| a | b |\n|---|---|\n| x | BY <DOING SOMETHING> |").body;
+    expect(body).toContain("BY \\<DOING SOMETHING\\>");
+  });
+
+  it("still drops real HTML, whatever its case, and keeps the words it wrapped", () => {
+    const conversion = markdownToTypst('Ein <SPAN class="x">Wort</SPAN> und <kbd>Strg</kbd>');
+    expect(conversion.body.trim()).toBe("Ein Wort und Strg");
+    expect(conversion.warnings).toEqual(["HTML is dropped when printing"]);
+  });
+
+  it("does not take a name for a tag because it starts like one", () => {
+    expect(markdownToTypst("<spanish> und <iframes-ohne-ende>").body).toContain("\\<spanish\\>");
+  });
+});
+
+describe("HTML comments", () => {
+  it("never reach paper, on one line or across several", () => {
+    expect(convert("vorher <!-- geheim --> nachher")).toBe("vorher  nachher");
+    // A line opening with `<!--` starts an HTML block, which ends the paragraph
+    // above it, in Obsidian as in CommonMark.
+    expect(convert("oben\n<!--\nganz\ngeheim\n-->\nunten")).toBe("oben\n\nunten");
+  });
+
+  it("stay what they are inside a fenced block", () => {
+    expect(convert("```html\n<!-- sichtbar -->\n```")).toContain("<!-- sichtbar -->");
+  });
+
+  it("mix with Obsidian's own comments", () => {
+    expect(convert("a %%x%% b <!-- y --> c")).toBe("a  b  c");
+    expect(convert("a <!-- %% --> b %% <!-- %% c")).toBe("a  b  c");
+  });
+});
+
+describe("a picture the caller refuses", () => {
+  it("is named with the caller's reason rather than as not found", () => {
+    const conversion = markdownToTypst("![Foto](scan.tiff)", {
+      image: () => ({ refused: "scan.tiff is in a format a print cannot carry" })
+    });
+    expect(conversion.body.trim()).toBe("Foto");
+    expect(conversion.warnings).toEqual(["scan.tiff is in a format a print cannot carry"]);
+  });
+
+  it("is named the same way inside a slideshow", () => {
+    const conversion = markdownToTypst(
+      "```schreibstube-slideshow\nlayout: strip\n![a](a.png)\n![b](b.tiff)\n```",
+      {
+        image: ({ source }) =>
+          source.endsWith(".tiff") ? { refused: "b.tiff refused" } : `x/${source}`
+      }
+    );
+    expect(conversion.warnings).toEqual(["b.tiff refused"]);
+    expect(conversion.body).toContain('("x/a.png", "a")');
+  });
+
+  it("reads an embedded HEIC as a picture, not as a note", () => {
+    const conversion = markdownToTypst("![[IMG_1.heic]]", { image: () => "assets/IMG_1.heic.jpg" });
+    expect(conversion.body).toContain('#schreibstube-image("assets/IMG_1.heic.jpg"');
+  });
+});
