@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Removed
+
+- **Tasks can no longer be sent to Erinnerungen.** The two commands, **Send task to Erinnerungen** and **Compare with Erinnerungen**, the entry in the editor's context menu, the Erinnerungen section in the settings and the mark after a sent task are gone, and the plugin no longer watches a report file. A task that was sent keeps its `obsidian://schreibstube?task=…` link as an ordinary link, which now leads nowhere; delete it from the line if it is in the way.
+
 ## 1.49.0 - 2026-09-26
 
 Find things by what they are about. Pictures can be described in words

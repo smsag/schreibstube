@@ -37,31 +37,6 @@ describe("normalizeSettings", () => {
     expect(normalizeSettings({ overlayEnabled: false }).overlayEnabled).toBe(false);
   });
 
-  it("keeps sending to Reminders off unless a person switched it on", () => {
-    expect(normalizeSettings({}).remindersEnabled).toBe(false);
-    expect(normalizeSettings({ remindersEnabled: "yes" as never }).remindersEnabled).toBe(false);
-    expect(normalizeSettings({ remindersEnabled: true }).remindersEnabled).toBe(true);
-  });
-
-  it("trims the Reminders list and Shortcut names, and keeps an emptied one empty", () => {
-    expect(normalizeSettings({ remindersList: "  Arbeit " }).remindersList).toBe("Arbeit");
-    expect(normalizeSettings({ remindersShortcut: " Mine " }).remindersShortcut).toBe("Mine");
-    expect(normalizeSettings({ remindersShortcut: "" }).remindersShortcut).toBe("");
-    expect(normalizeSettings({}).remindersShortcut).toBe("Schreibstube Reminder");
-    expect(normalizeSettings({ remindersShortcut: 3 as never }).remindersShortcut).toBe(
-      "Schreibstube Reminder"
-    );
-  });
-
-  it("names the status Shortcut and the report file, and keeps the path inside the vault", () => {
-    expect(normalizeSettings({}).remindersStatusShortcut).toBe("Schreibstube Reminder Status");
-    expect(normalizeSettings({}).remindersReportFile).toBe("schreibstube-reminders.txt");
-    expect(normalizeSettings({ remindersReportFile: "/notes/done.txt " }).remindersReportFile).toBe(
-      "notes/done.txt"
-    );
-    expect(normalizeSettings({ remindersReportFile: "" }).remindersReportFile).toBe("");
-  });
-
   it("keeps the task counts in the file pane off unless switched on", () => {
     expect(normalizeSettings({}).explorerTaskCounts).toBe(false);
     expect(normalizeSettings({ explorerTaskCounts: "on" as never }).explorerTaskCounts).toBe(false);
