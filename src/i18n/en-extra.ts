@@ -824,8 +824,8 @@ export const enExtra = {
     state: {
       off: "Off.",
       blocked:
-        "Paused on this phone while Pythia is switched on: two language models are more than " +
-        "the phone lets one app hold.",
+        "Paused on this phone while Pythia runs a language model of its own: two are more " +
+        "than the phone lets one app hold. A Pythia that uses this search lifts the pause.",
       notBuilt:
         "Not built yet. It builds when the Explorer filter is first used, or with Build now.",
       loading: "Loading the model…",

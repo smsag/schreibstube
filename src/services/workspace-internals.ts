@@ -553,3 +553,23 @@ export function isCommunityPluginEnabled(app: App, id: string): boolean {
     return false;
   }
 }
+
+/**
+ * Whether a community plugin is enabled and still loads a language model of
+ * its own. Pythia says it does not by `ownsEmbeddingModel === false`, once it
+ * asks Schreibstube instead; a Pythia without the flag is an older one that
+ * still runs its own model. Read through the undocumented plugin registry,
+ * and anything unexpected reads as "it does", which keeps Schreibstube's model
+ * off a phone — the side that cannot crash it.
+ */
+export function pluginRunsOwnModel(app: App, id: string): boolean {
+  if (!isCommunityPluginEnabled(app, id)) return false;
+  try {
+    const registry = (app as unknown as { plugins?: { getPlugin?: (id: string) => unknown } })
+      .plugins;
+    const plugin = registry?.getPlugin?.(id) as { ownsEmbeddingModel?: unknown } | null | undefined;
+    return plugin?.ownsEmbeddingModel !== false;
+  } catch {
+    return true;
+  }
+}

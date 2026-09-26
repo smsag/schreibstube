@@ -25,7 +25,7 @@ import { selectIndexPaths, scopeSignature } from "../../services/semantic/index-
 import { isIndexingOptedOut, type RetrievedNote } from "../../services/semantic/vault-retrieval";
 import { catchUpIndex, CATCH_UP_DELAY_MS } from "../../services/semantic/vault-catch-up";
 import { peekIndexMeta } from "../../services/semantic/embedding-index";
-import { isCommunityPluginEnabled } from "../../services/workspace-internals";
+import { pluginRunsOwnModel } from "../../services/workspace-internals";
 import { createEmbeddingProvider } from "./host/embedding-provider-factory";
 import { embeddingWorkerUrl } from "./host/worker-bundle-url";
 import { SemanticConversations } from "./semantic-conversations";
@@ -137,7 +137,7 @@ export class SemanticEngine {
 
   /** Whether a second model would join Pythia's on a phone. */
   private blocked(): boolean {
-    return Platform.isMobile && isCommunityPluginEnabled(this.plugin.app, "pythia");
+    return Platform.isMobile && pluginRunsOwnModel(this.plugin.app, "pythia");
   }
 
   /** Whether search by meaning is switched on and may run on this device. */

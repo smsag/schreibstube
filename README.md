@@ -542,7 +542,7 @@ A small language model (multilingual MiniLM, the same one Pythia uses) runs on t
 
 After that the index follows the vault: an edited, created, moved or deleted note is read again on its own, a couple of seconds after the vault goes quiet. The note being written is held back until you leave it or stop typing for half a minute, so a phone does not re-read it on every autosave. A desktop catches up at launch with what changed while it was closed, including edits synced from a phone. A note with `schreibstubeIndex: false` in its frontmatter is left out.
 
-On a phone, search by meaning pauses while Pythia is switched on there: two language models are more memory than the phone lets one app hold. If Pythia already built an index of the vault, Schreibstube copies it once instead of reading every note again.
+On a phone, search by meaning pauses while a Pythia that runs a language model of its own is switched on there: two models are more memory than the phone lets one app hold. A Pythia that asks Schreibstube instead, and loads no model of its own, lifts the pause. If Pythia already built an index of the vault, Schreibstube copies it once instead of reading every note again.
 
 ### Related notes
 
