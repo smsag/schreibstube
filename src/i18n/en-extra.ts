@@ -404,6 +404,7 @@ export const enExtra = {
     termAvoidDesc: "Flagged in every checked note, with the term offered in its place.",
     termAvoidPlaceholder: "Word to avoid",
     termAvoidSubmit: "Add",
+    termAvoidSuggestions: "Translations on the term note:",
     termAvoidErrors: {
       empty: "Enter a word.",
       same: "That is the term itself.",

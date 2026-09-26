@@ -90,7 +90,7 @@ schreibstubeAvoid:
 Das Recht gegen Absprachen und Marktmacht, die den Wettbewerb beschränken.
 ```
 
-The list is managed in the proofreading panel's **Terms** section: select the word in the note, press **Add rule**, pick the term. A chip removes a word again, and the term's name opens its note. The panel writes `schreibstubeAvoid` and nothing else on the note.
+The list is managed in the proofreading panel's **Terms** section: select the word in the note, press **Add rule**, pick the term. The dialog offers the term's recorded translations (Pythia's `term_en`, `term_it`, …) as words to avoid; a tap fills the field, and the word is added only when you press **Add**. A chip removes a word again, and the term's name opens its note. The panel writes `schreibstubeAvoid` and nothing else on the note.
 
 - The note's `language` decides which inflection endings an avoided word tolerates; without one, German.
 - The first paragraph of the body is shown on the card and handed to the correction pass, so the model knows which sense is meant. A definition Pythia's model wrote is marked as such.

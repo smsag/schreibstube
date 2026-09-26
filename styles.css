@@ -219,7 +219,8 @@
    --btn-warning, <Obsidian token>)`, so a surface overrides one property
    rather than a rule. This plugin overrides none: it has no contrast-computed
    label token of its own, and the Obsidian default is the honest value. */
-:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker) .sb {
+:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker, .schreibstube-prompt)
+  .sb {
   -webkit-appearance: none;
   appearance: none;
   box-sizing: border-box;
@@ -257,30 +258,36 @@
   color: var(--text-muted);
   -webkit-text-fill-color: var(--text-muted);
 }
-:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker) .sb svg {
+:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker, .schreibstube-prompt)
+  .sb
+  svg {
   width: 12px;
   height: 12px;
   stroke-width: 1.6;
   flex-shrink: 0;
   pointer-events: none;
 }
-:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker) .sb:focus-visible {
+:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker, .schreibstube-prompt)
+  .sb:focus-visible {
   outline: 2px solid var(--btn-accent, var(--color-accent));
   outline-offset: 1px;
 }
-:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker) .sb:disabled {
+:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker, .schreibstube-prompt)
+  .sb:disabled {
   cursor: default;
   opacity: 1;
 } /* core: button[disabled] { opacity: 0.7 } */
 /* A disabled Send is the "Optimizing…" label (ADR-187): readable, so never dimmed. */
-:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker)
+:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker, .schreibstube-prompt)
   .sb:disabled:not(.sb-primary) {
   opacity: 0.5;
 }
 
 /* Primary — the one action its surface exists for. Send's `.stop` is destructive. */
-:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker) .sb.sb-primary,
-:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker) .sb.sb-primary:hover {
+:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker, .schreibstube-prompt)
+  .sb.sb-primary,
+:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker, .schreibstube-prompt)
+  .sb.sb-primary:hover {
   padding: 3px var(--s2, 8px);
   background: var(--btn-accent, var(--color-accent));
   border-color: var(--btn-accent, var(--color-accent));
@@ -288,8 +295,9 @@
   -webkit-text-fill-color: var(--btn-on-accent, var(--text-on-accent));
 }
 /* Secondary — offered next to it. A toggle (model hint) fills while on. */
-:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker) .sb.sb-secondary,
-:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker)
+:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker, .schreibstube-prompt)
+  .sb.sb-secondary,
+:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker, .schreibstube-prompt)
   .sb.sb-secondary:hover {
   padding: 3px var(--s2, 8px);
   background: transparent;
@@ -298,17 +306,21 @@
   -webkit-text-fill-color: var(--btn-accent, var(--color-accent));
 }
 /* Quiet — cancel, discard, copy. */
-:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker) .sb.sb-quiet,
-:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker) .sb.sb-quiet:hover {
+:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker, .schreibstube-prompt)
+  .sb.sb-quiet,
+:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker, .schreibstube-prompt)
+  .sb.sb-quiet:hover {
   background: transparent;
   padding: 3px var(--s2, 8px);
 }
 /* Destructive — removes something: Delete, and Send while it reads Stop. */
-:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker) .sb.sb-destructive,
-:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker)
+:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker, .schreibstube-prompt)
+  .sb.sb-destructive,
+:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker, .schreibstube-prompt)
   .sb.sb-destructive:hover,
-:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker) .sb.sb-primary.stop,
-:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker)
+:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker, .schreibstube-prompt)
+  .sb.sb-primary.stop,
+:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker, .schreibstube-prompt)
   .sb.sb-primary.stop:hover {
   padding: 3px var(--s2, 8px);
   background: transparent;
@@ -318,8 +330,10 @@
 }
 /* Link — inline text action. The negative margin gives a 24px target without
    growing the line it sits in. */
-:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker) .sb.sb-link,
-:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker) .sb.sb-link:hover {
+:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker, .schreibstube-prompt)
+  .sb.sb-link,
+:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker, .schreibstube-prompt)
+  .sb.sb-link:hover {
   font-family: var(--font-interface);
   font-weight: 400;
   padding: 4px 2px;
@@ -330,30 +344,36 @@
   -webkit-text-fill-color: var(--btn-accent, var(--color-accent));
 }
 /* Icon — one 24px box, one 12px glyph. */
-:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker) .sb.sb-icon,
-:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker) .sb.sb-icon:hover {
+:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker, .schreibstube-prompt)
+  .sb.sb-icon,
+:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker, .schreibstube-prompt)
+  .sb.sb-icon:hover {
   width: 24px;
   height: 24px;
   padding: 0;
   background: transparent;
 }
-:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker) .sb.sb-icon.is-inline {
+:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker, .schreibstube-prompt)
+  .sb.sb-icon.is-inline {
   margin-block: -4px;
   vertical-align: middle;
 }
-:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker) .sb.sb-icon.is-warning,
-:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker)
+:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker, .schreibstube-prompt)
+  .sb.sb-icon.is-warning,
+:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker, .schreibstube-prompt)
   .sb.sb-icon.is-warning:hover {
   color: var(--btn-warning, var(--color-orange));
   -webkit-text-fill-color: var(--btn-warning, var(--color-orange));
 }
-:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker) .sb.sb-icon.is-stale {
+:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker, .schreibstube-prompt)
+  .sb.sb-icon.is-stale {
   color: var(--btn-accent, var(--color-accent));
   -webkit-text-fill-color: var(--btn-accent, var(--color-accent));
 }
 /* The floating # trigger: the one deliberate exception to the 24px box. */
-:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker) .sb.sb-icon.is-float,
-:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker)
+:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker, .schreibstube-prompt)
+  .sb.sb-icon.is-float,
+:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker, .schreibstube-prompt)
   .sb.sb-icon.is-float:hover {
   width: 36px;
   height: 36px;
@@ -365,12 +385,13 @@
   -webkit-text-fill-color: var(--btn-accent, var(--color-accent));
 }
 /* On: a toggle that is set (toolbar web/vault/template, accepted model hint). */
-:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker) .sb.sb-icon.is-active,
-:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker)
+:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker, .schreibstube-prompt)
+  .sb.sb-icon.is-active,
+:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker, .schreibstube-prompt)
   .sb.sb-icon.is-active:hover,
-:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker)
+:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker, .schreibstube-prompt)
   .sb.sb-secondary.is-accepted,
-:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker)
+:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker, .schreibstube-prompt)
   .sb.sb-secondary.is-accepted:hover {
   background: var(--btn-accent, var(--color-accent));
   border-color: var(--btn-accent, var(--color-accent));
@@ -379,24 +400,28 @@
 }
 /* Segment — one choice from a group (header instructions, effort). The group's
    container draws the frame; chosen = accent tint, in both places. */
-:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker) .sb.sb-seg,
-:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker) .sb.sb-seg:hover {
+:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker, .schreibstube-prompt)
+  .sb.sb-seg,
+:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker, .schreibstube-prompt)
+  .sb.sb-seg:hover {
   padding: 3px var(--s2, 8px);
   border: 0;
   border-radius: 0;
   font-weight: 400;
   background: transparent;
 }
-:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker)
+:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker, .schreibstube-prompt)
   .sb.sb-seg
   + .sb.sb-seg {
   border-left: 1px solid var(--background-modifier-border);
 }
-:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker) .sb.sb-seg.is-pinned,
-:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker)
+:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker, .schreibstube-prompt)
+  .sb.sb-seg.is-pinned,
+:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker, .schreibstube-prompt)
   .sb.sb-seg.is-pinned:hover,
-:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker) .sb.sb-seg.active,
-:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker)
+:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker, .schreibstube-prompt)
+  .sb.sb-seg.active,
+:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker, .schreibstube-prompt)
   .sb.sb-seg.active:hover {
   background: color-mix(in srgb, var(--btn-accent, var(--color-accent)) 14%, transparent);
   color: var(--btn-accent, var(--color-accent));
@@ -404,13 +429,16 @@
   font-weight: 500;
 }
 /* A model without effort: the dimmed dash is a statement, not a control state. */
-:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker) .sb.sb-seg.is-off {
+:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker, .schreibstube-prompt)
+  .sb.sb-seg.is-off {
   color: var(--text-faint);
   -webkit-text-fill-color: var(--text-faint);
 }
 /* Tab — the comparison card keeps its underline; accessibility only (ADR-188). */
-:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker) .sb.sb-tab,
-:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker) .sb.sb-tab:hover {
+:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker, .schreibstube-prompt)
+  .sb.sb-tab,
+:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker, .schreibstube-prompt)
+  .sb.sb-tab:hover {
   min-height: 28px;
   padding: var(--s1, 4px) var(--s2, 8px);
   border: 0;
@@ -420,8 +448,9 @@
   font-weight: 400;
   background: transparent;
 }
-:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker) .sb.sb-tab.is-active,
-:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker)
+:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker, .schreibstube-prompt)
+  .sb.sb-tab.is-active,
+:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker, .schreibstube-prompt)
   .sb.sb-tab.is-active:hover {
   font-weight: 600;
   border-bottom-color: var(--btn-accent, var(--color-accent));
@@ -430,8 +459,9 @@
 }
 /* Chip — a status you can tap. The warning is the tint; the label stays normal
    (orange text measures under 3:1 on white). */
-:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker) .sb.sb-chip-warn,
-:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker)
+:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker, .schreibstube-prompt)
+  .sb.sb-chip-warn,
+:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker, .schreibstube-prompt)
   .sb.sb-chip-warn:hover {
   padding: 3px var(--s2, 8px);
   border-color: var(--color-orange); /* no color-mix: plain */
@@ -446,55 +476,56 @@
    touch; the transition runs only here, so a state fill is never animated on
    the tap that set it (ADR-155). */
 @media (hover: hover) {
-  :is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker)
+  :is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker, .schreibstube-prompt)
     .sb.sb-primary:hover:not(:disabled):not(.stop),
-  :is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker)
+  :is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker, .schreibstube-prompt)
     .sb.sb-icon.is-active:hover:not(:disabled),
-  :is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker)
+  :is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker, .schreibstube-prompt)
     .sb.sb-secondary.is-accepted:hover:not(:disabled) {
     background: color-mix(in srgb, var(--btn-accent, var(--color-accent)) 88%, white);
   }
-  :is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker)
+  :is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker, .schreibstube-prompt)
     .sb.sb-secondary:hover:not(:disabled):not(.is-accepted),
-  :is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker)
+  :is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker, .schreibstube-prompt)
     .sb.sb-destructive:hover:not(:disabled),
-  :is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker)
+  :is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker, .schreibstube-prompt)
     .sb.sb-primary.stop:hover:not(:disabled),
-  :is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker)
+  :is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker, .schreibstube-prompt)
     .sb.sb-icon.is-float:hover:not(:disabled),
-  :is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker)
+  :is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker, .schreibstube-prompt)
     .sb.sb-icon.is-warning:hover:not(:disabled) {
     background: var(--background-modifier-hover);
   }
-  :is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker)
+  :is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker, .schreibstube-prompt)
     .sb.sb-quiet:hover:not(:disabled),
-  :is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker)
+  :is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker, .schreibstube-prompt)
     .sb.sb-icon:hover:not(:disabled):not(.is-active):not(.is-float):not(.is-warning),
-  :is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker)
+  :is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker, .schreibstube-prompt)
     .sb.sb-seg:hover:not(:disabled):not(.is-pinned):not(.active) {
     background: var(--background-modifier-hover);
     color: var(--text-normal);
     -webkit-text-fill-color: var(--text-normal);
   }
-  :is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker)
+  :is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker, .schreibstube-prompt)
     .sb.sb-link:hover:not(:disabled) {
     background: var(--background-modifier-hover);
     padding-inline: 6px;
     margin-inline: -4px;
   }
-  :is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker)
+  :is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker, .schreibstube-prompt)
     .sb.sb-tab:hover:not(:disabled):not(.is-active) {
     color: var(--text-normal);
     -webkit-text-fill-color: var(--text-normal);
     border-bottom-color: var(--background-modifier-border);
   }
-  :is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker)
+  :is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker, .schreibstube-prompt)
     .sb.sb-chip-warn:hover:not(:disabled) {
     background: color-mix(in srgb, var(--color-orange) 22%, transparent);
   }
 }
 @media (hover: hover) and (prefers-reduced-motion: no-preference) {
-  :is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker) .sb {
+  :is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker, .schreibstube-prompt)
+    .sb {
     transition:
       background-color 120ms ease,
       color 120ms ease,
@@ -504,16 +535,18 @@
 /* Touch: every target at least 32px. Inline links and icons grow into their
    negative margin rather than pushing the line apart. */
 @media (pointer: coarse) {
-  :is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker) .sb {
+  :is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker, .schreibstube-prompt)
+    .sb {
     min-height: 32px;
   }
-  :is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker)
+  :is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker, .schreibstube-prompt)
     .sb.sb-icon:not(.is-float) {
     width: 32px;
     height: 32px;
   }
-  :is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker) .sb.sb-link,
-  :is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker)
+  :is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker, .schreibstube-prompt)
+    .sb.sb-link,
+  :is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker, .schreibstube-prompt)
     .sb.sb-icon.is-inline {
     margin-block: -8px;
   }
@@ -535,7 +568,8 @@
 /* `hidden` must hide. The UA's `[hidden] { display: none }` loses to ANY
    author `display`, so the base rule's inline-flex (and any layout rule) would show
    an element the code hid — the search panel's clear ✕ was always visible. */
-:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker) [hidden] {
+:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker, .schreibstube-prompt)
+  [hidden] {
   display: none !important;
 }
 
@@ -875,7 +909,8 @@
    explorer's clear ✕ as a blank box in the monospace stack. A glyph in a span
    inside a button needs nothing: the rule above is still the most specific one
    reaching it. The size stays with the layout class; it is the glyph's box. */
-:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker) .sb.schreibstube-icon {
+:is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker, .schreibstube-prompt)
+  .sb.schreibstube-icon {
   font-family: "schreibstube-icons";
   font-weight: normal;
 }
@@ -1910,6 +1945,20 @@
 
 .schreibstube-prompt-desc {
   color: var(--text-muted);
+}
+
+/* Values the dialog can offer; a tap fills the field, it never submits. */
+.schreibstube-prompt-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.schreibstube-prompt-suggestions-label {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
 }
 
 .schreibstube-prompt-error {

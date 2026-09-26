@@ -159,6 +159,15 @@ describe("Obsidian's button rules never reach a Schreibstube button", () => {
     }
   });
 
+  it("phone prompt: an offered value is a segment, not a full-width modal button", () => {
+    const host = mount(
+      "is-mobile is-phone",
+      ["modal-container", "modal", "modal-content schreibstube-prompt"],
+      `<div class="schreibstube-prompt-suggestions"><button class="sb sb-seg schreibstube-prompt-suggestion">cartel law · EN</button></div>`
+    );
+    expectNoLeak(host.querySelector<HTMLElement>("button")!, "phone prompt");
+  });
+
   it("a disabled button is dimmed by the role set, never by core's button[disabled]", () => {
     // The kit owns the disabled look: a primary stays readable (it carries the
     // "working…" label), everything else dims to 0.5. Core's 0.7 is the value
