@@ -75,8 +75,19 @@ import { fileURLToPath } from "node:url";
  * fences and HTML — the note it becomes, the settings that switch it on and
  * where it writes, all in two languages. The semantic engine that will index
  * these notes is not in this number; it brings its own raise and its reason.
+ *
+ * Raised to 1450 KB at 1420 KB, for search by meaning (+898 KB on 522). Nearly
+ * all of it is the model runtime — the tokenizer and the ONNX glue from
+ * transformers.js, about 870 KB — carried as one string and started in a
+ * worker or a frame only when the setting is on. It ships inside main.js
+ * because a BRAT install is three files; a fourth would not arrive. A string
+ * literal is scanned at start, not compiled, so the cost every user pays daily
+ * is the read, not the parse this budget was set against. The engine itself —
+ * index, journal, watcher, fusion and settings in two languages — is the
+ * remaining ~30 KB. The model weights are not in this number: they download
+ * on first use. What is left is for the next feature, not a new normal.
  */
-const MAX_BUNDLE_KB = 525;
+const MAX_BUNDLE_KB = 1450;
 
 const bundle = fileURLToPath(new URL("../main.js", import.meta.url));
 const source = readFileSync(bundle, "utf8");

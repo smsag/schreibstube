@@ -466,6 +466,7 @@ export const enExtra = {
     taskCount: (done: number, total: number) => `${done} of ${total} tasks done`,
     filterEmpty: "Nothing here answers that.",
     filterMore: (count: number) => `${count} more match. Narrow the filter to see them.`,
+    foundByMeaning: "Found by meaning: the words differ, the subject matches.",
     collapseAll: "Collapse all",
     expandAll: "Expand all",
     pinnedMore: "Show all pinned",
@@ -789,6 +790,44 @@ export const enExtra = {
     }
   },
 
+  semantic: {
+    building: "Search by meaning: reading the vault…",
+    progress: (done: number, total: number) => `Search by meaning: ${done} of ${total} notes read`,
+    busy: "Search by meaning is already reading the vault.",
+    heading: "Search by meaning",
+    intro:
+      "Finds notes by what they are about, not only by the words in their name. A small " +
+      "language model runs on this device; nothing leaves it. The first build reads every " +
+      "note once, which takes a few minutes on a desktop.",
+    enabled: "Search by meaning",
+    enabledDesc: (megabytes: number) =>
+      "Adds notes that match what was typed in meaning to the Explorer filter, after a short " +
+      `pause in typing. Downloads the model (about ${megabytes} MB) the first time.`,
+    maxNotes: "Most notes to index",
+    maxNotesDesc: (min: number, max: number) =>
+      `The newest notes up to this number are read. Between ${min} and ${max}.`,
+    buildNow: "Build now",
+    rebuild: "Rebuild",
+    rebuildDesc: "Reads every note again from scratch.",
+    status: "Status",
+    state: {
+      off: "Off.",
+      blocked:
+        "Paused on this phone while Pythia is switched on: two language models are more than " +
+        "the phone lets one app hold.",
+      notBuilt:
+        "Not built yet. It builds when the Explorer filter is first used, or with Build now.",
+      loading: "Loading the model…",
+      building: (done: number, total: number) => `Reading notes: ${done} of ${total}.`,
+      ready: (count: number) => (count === 1 ? "Ready: 1 note." : `Ready: ${count} notes.`),
+      partial: (count: number) => `Unfinished: ${count} notes read. Build now to finish.`,
+      outdated: (count: number) =>
+        `${count} notes, but the notes to index have changed. Build now to catch up.`,
+      failed: (error: string) => `Failed: ${error}`,
+      outOfMemory: "The device ran out of memory. Lower the number of notes and build again.",
+      paused: "Paused after a build did not finish twice in a row. Build now to try again."
+    }
+  },
   secrets: {
     notSelected: (label: string) => `no ${label} selected — open Settings to choose one.`,
     notFound: (label: string) => `${label} not found — check Settings.`,

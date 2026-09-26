@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
+import type { App } from "obsidian";
 import {
+  isCommunityPluginEnabled,
   registeredCommands,
   registeredRibbonItems,
   registrySignature
@@ -114,5 +116,19 @@ describe("registrySignature", () => {
       }
     } as never;
     expect(registrySignature(broken)).toBe("");
+  });
+});
+
+describe("isCommunityPluginEnabled", () => {
+  const app = (enabledPlugins: unknown) => ({ plugins: { enabledPlugins } }) as unknown as App;
+
+  it("reads Obsidian's set of enabled plugin ids", () => {
+    expect(isCommunityPluginEnabled(app(new Set(["pythia"])), "pythia")).toBe(true);
+    expect(isCommunityPluginEnabled(app(new Set(["other"])), "pythia")).toBe(false);
+  });
+
+  it("reads any other shape as not enabled", () => {
+    expect(isCommunityPluginEnabled(app(["pythia"]), "pythia")).toBe(false);
+    expect(isCommunityPluginEnabled({} as App, "pythia")).toBe(false);
   });
 });

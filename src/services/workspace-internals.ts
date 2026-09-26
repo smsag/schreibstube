@@ -534,3 +534,22 @@ export function refreshLeafHeader(leaf: WorkspaceLeaf): void {
   const update = (leaf as unknown as LeafInternals).updateHeader;
   if (typeof update === "function") update.call(leaf);
 }
+
+/**
+ * Whether another community plugin is switched on in this vault.
+ *
+ * `app.plugins.enabledPlugins` is undocumented: a Set of plugin ids. The
+ * semantic engine asks about Pythia, which runs a model of its own, because two
+ * such models on a phone are over the memory the OS allows one app. A shape
+ * that is not a Set reads as "not enabled", which lets the engine load — the
+ * old behaviour, and the safe side on a desktop.
+ */
+export function isCommunityPluginEnabled(app: App, id: string): boolean {
+  try {
+    const enabled = (app as unknown as { plugins?: { enabledPlugins?: unknown } }).plugins
+      ?.enabledPlugins;
+    return enabled instanceof Set && enabled.has(id);
+  } catch {
+    return false;
+  }
+}

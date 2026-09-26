@@ -4,6 +4,7 @@ import { createContext } from "./context";
 import { renderEditor } from "./editor";
 import { renderReminders } from "./reminders";
 import { renderExplorer } from "./explorer";
+import { renderSemantic } from "./semantic";
 import { renderAi } from "./ai";
 import { renderProofreading } from "./proofreading";
 import { renderSync } from "./sync";
@@ -36,6 +37,7 @@ export class SchreibstubeSettingTab extends PluginSettingTab {
     renderEditor(ctx);
     renderReminders(ctx);
     renderExplorer(ctx);
+    renderSemantic(ctx);
     renderAi(ctx);
     renderProofreading(ctx);
     renderSync(ctx);
