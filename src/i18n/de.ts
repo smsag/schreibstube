@@ -1101,8 +1101,8 @@ export const de: Messages = {
     state: {
       off: "Aus.",
       blocked:
-        "Auf diesem Telefon pausiert, solange Pythia eingeschaltet ist: Zwei Sprachmodelle sind " +
-        "mehr, als das Telefon einer App erlaubt.",
+        "Auf diesem Telefon pausiert, solange Pythia ein eigenes Sprachmodell lädt: Zwei sind " +
+        "mehr, als das Telefon einer App erlaubt. Ein Pythia, das diese Suche nutzt, hebt die Pause auf.",
       notBuilt:
         "Noch nicht aufgebaut. Das geschieht bei der ersten Nutzung des Explorer-Filters oder mit „Jetzt aufbauen“.",
       loading: "Modell wird geladen…",

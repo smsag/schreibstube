@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { App } from "obsidian";
 import {
   isCommunityPluginEnabled,
+  pluginRunsOwnModel,
   registeredCommands,
   registeredRibbonItems,
   registrySignature
@@ -130,5 +131,39 @@ describe("isCommunityPluginEnabled", () => {
   it("reads any other shape as not enabled", () => {
     expect(isCommunityPluginEnabled(app(["pythia"]), "pythia")).toBe(false);
     expect(isCommunityPluginEnabled({} as App, "pythia")).toBe(false);
+  });
+});
+
+describe("pluginRunsOwnModel", () => {
+  const app = (enabled: string[], plugin: unknown) =>
+    ({
+      plugins: { enabledPlugins: new Set(enabled), getPlugin: () => plugin }
+    }) as unknown as App;
+
+  it("is false for a plugin that is not enabled", () => {
+    expect(pluginRunsOwnModel(app([], { ownsEmbeddingModel: true }), "pythia")).toBe(false);
+  });
+
+  it("believes a plugin that says it has no model of its own", () => {
+    expect(pluginRunsOwnModel(app(["pythia"], { ownsEmbeddingModel: false }), "pythia")).toBe(
+      false
+    );
+  });
+
+  it("assumes an older plugin without the flag still runs one", () => {
+    expect(pluginRunsOwnModel(app(["pythia"], {}), "pythia")).toBe(true);
+    expect(pluginRunsOwnModel(app(["pythia"], null), "pythia")).toBe(true);
+  });
+
+  it("assumes a model when the registry cannot be read", () => {
+    const broken = {
+      plugins: {
+        enabledPlugins: new Set(["pythia"]),
+        getPlugin: () => {
+          throw new Error("x");
+        }
+      }
+    } as unknown as App;
+    expect(pluginRunsOwnModel(broken, "pythia")).toBe(true);
   });
 });

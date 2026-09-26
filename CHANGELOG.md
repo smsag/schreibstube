@@ -6,6 +6,8 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- **Search by meaning runs on a phone next to Pythia.** It paused on a phone whenever Pythia was switched on, because both loaded a language model and two are more than a phone allows one app. A Pythia that uses Schreibstube's search and loads no model of its own no longer causes the pause; an older Pythia still does.
+
 - **Pythia's conversations can be found by meaning.** Search by meaning now also indexes the conversations Pythia hands over, with the same model on the device, so Pythia can find a chat by what it was about and show conversations like the one open without loading a model of its own. An index Pythia already built is taken over, not rebuilt. Only Pythia may hand conversations over, and what it lists is checked and bounded first.
 
 - **A description finds its picture again after a rename outside Obsidian.** A picture renamed in Finder or by a sync while Obsidian was closed left its description pointing at nothing. Shortly after the vault opens, such a note is matched to its picture by content — the size and a fingerprint of the bytes it recorded — and re-linked when the match is certain. **Explorer: orphaned picture descriptions** does the same on demand and lists the notes whose picture could not be found. None of them is ever removed.
