@@ -16,7 +16,6 @@ import { LATEST_COUNT_DEFAULT, LATEST_COUNT_MAX } from "./latest-files";
 import { LLM_PROVIDER_IDS, PROVIDER_MODELS } from "./llm-providers";
 import { DEFAULT_PUBLISH_KEYS, normalizePublishKeys } from "./publish-index";
 import { TEMPLATE_ROOT_DEFAULT } from "./print-template";
-import { DEFAULT_REPORT_FILE } from "./reminder-status";
 import { normalizePropertyIcons } from "./property-icons";
 import { DEFAULT_DATE_FORMAT, normalizeDateFormat } from "./today-value";
 
@@ -75,10 +74,6 @@ export const DEFAULT_PROOFREAD_PROMPT =
   "Grammatik, Zeichensetzung und offensichtliche Stilfehler. Ändere niemals die " +
   "Aussage, den Ton oder die Fachbegriffe des Textes. Kürze nicht und ergänze nichts.";
 
-/** The name the README tells a person to give the Shortcut, so the default works as is. */
-export const DEFAULT_REMINDERS_SHORTCUT = "Schreibstube Reminder";
-export const DEFAULT_REMINDERS_STATUS_SHORTCUT = "Schreibstube Reminder Status";
-
 const ALLOWED_PROVIDERS = new Set<LlmProvider>(LLM_PROVIDER_IDS);
 
 export const DEFAULT_SETTINGS: SchreibstubeSettings = {
@@ -132,11 +127,6 @@ export const DEFAULT_SETTINGS: SchreibstubeSettings = {
   printEnabled: false,
   printTemplateRoot: TEMPLATE_ROOT_DEFAULT,
   printOutputFolder: "",
-  remindersEnabled: false,
-  remindersList: "",
-  remindersShortcut: DEFAULT_REMINDERS_SHORTCUT,
-  remindersStatusShortcut: DEFAULT_REMINDERS_STATUS_SHORTCUT,
-  remindersReportFile: DEFAULT_REPORT_FILE,
   propertyIcons: {},
   dateFormat: DEFAULT_DATE_FORMAT,
   debugLogging: false
@@ -326,21 +316,7 @@ export function normalizeSettings(loaded: LoadedSettings): SchreibstubeSettings 
     printOutputFolder: trimmedStringOrDefault(
       loaded?.printOutputFolder,
       DEFAULT_SETTINGS.printOutputFolder
-    ),
-    remindersEnabled: loaded?.remindersEnabled === true,
-    remindersList: trimmedStringOrDefault(loaded?.remindersList, DEFAULT_SETTINGS.remindersList),
-    remindersShortcut: trimmedStringOrDefault(
-      loaded?.remindersShortcut,
-      DEFAULT_SETTINGS.remindersShortcut
-    ),
-    remindersStatusShortcut: trimmedStringOrDefault(
-      loaded?.remindersStatusShortcut,
-      DEFAULT_SETTINGS.remindersStatusShortcut
-    ),
-    remindersReportFile: trimmedStringOrDefault(
-      loaded?.remindersReportFile,
-      DEFAULT_SETTINGS.remindersReportFile
-    ).replace(/^\/+/, "")
+    )
   };
 }
 

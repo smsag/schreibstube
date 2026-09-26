@@ -130,20 +130,6 @@ export interface SchreibstubeSettings {
   printTemplateRoot: string;
   /** Where a printed PDF is written; empty means beside the note. */
   printOutputFolder: string;
-  /**
-   * Sending a task to Apple's Reminders through a Shortcut. Off until a
-   * person says otherwise: the command opens another application, which is
-   * not something a plugin should start doing on its own.
-   */
-  remindersEnabled: boolean;
-  /** Reminders list the Shortcut is asked to create in; empty leaves it to the Shortcut. */
-  remindersList: string;
-  /** Name of the Shortcut that creates the reminder. */
-  remindersShortcut: string;
-  /** Name of the Shortcut that reports which reminders are done. */
-  remindersStatusShortcut: string;
-  /** Vault path of the file an automation writes that report to; empty turns the poll off. */
-  remindersReportFile: string;
   /** Icon name per frontmatter key, lower-cased; drawn in place of the type icon. */
   propertyIcons: Record<string, string>;
   /** Moment format for today's date entered into text. Date properties always get ISO. */

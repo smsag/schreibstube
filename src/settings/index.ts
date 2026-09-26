@@ -2,7 +2,6 @@ import { App, PluginSettingTab } from "obsidian";
 import type SchreibstubePlugin from "../main";
 import { createContext } from "./context";
 import { renderEditor } from "./editor";
-import { renderReminders } from "./reminders";
 import { renderExplorer } from "./explorer";
 import { renderAi } from "./ai";
 import { renderProofreading } from "./proofreading";
@@ -34,7 +33,6 @@ export class SchreibstubeSettingTab extends PluginSettingTab {
     const ctx = createContext(this.app, this.plugin, containerEl, () => this.display());
 
     renderEditor(ctx);
-    renderReminders(ctx);
     renderExplorer(ctx);
     renderAi(ctx);
     renderProofreading(ctx);

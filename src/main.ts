@@ -2,7 +2,6 @@ import {
   type Editor,
   MarkdownView,
   Notice,
-  Platform,
   Plugin,
   TFile,
   TFolder,
@@ -25,7 +24,6 @@ import { buildSlideshowInsertion } from "./services/slideshow";
 import { createLogger, type Logger } from "./services/logger";
 import {
   commandAvailable,
-  remindersScope,
   renameTarget,
   type CommandContext,
   type GatedCommand
@@ -36,9 +34,6 @@ import { hasSourceBinding } from "./services/sync-source";
 import { describePollSummary } from "./services/sync-summary";
 import { mergeSyncState, sameSyncState } from "./services/sync-merge";
 import type { SyncRecord } from "./services/sync-document";
-import { isTaskLine, TASK_PROTOCOL_ACTION } from "./services/reminder-export";
-import { sentTaskIds } from "./services/reminder-status";
-import { ReminderCommands } from "./controllers/reminder-commands";
 import { NoteCommands } from "./controllers/note-commands";
 import { PdfCommands } from "./controllers/pdf-commands";
 import { LinkModeController } from "./controllers/link-mode-controller";
@@ -120,7 +115,6 @@ export default class SchreibstubePlugin extends Plugin {
   private mail: MailCommands | null = null;
   private publish: PublishCommands | null = null;
   private print: PrintCommands | null = null;
-  private reminders: ReminderCommands | null = null;
   private notes: NoteCommands | null = null;
   private pdf: PdfCommands | null = null;
 
@@ -170,7 +164,6 @@ export default class SchreibstubePlugin extends Plugin {
         await this.saveSettings();
       }
     );
-    this.reminders = new ReminderCommands(this.app, () => this.settings, this.logger);
     this.notes = new NoteCommands(this.app, this.logger);
     // The reader is reached for only when the command runs. Obsidian's pdf.js
     // is fetched on that first call, and every vault that never summarises a
@@ -289,16 +282,6 @@ export default class SchreibstubePlugin extends Plugin {
 
     this.registerCommands();
 
-    // The same action as the command, where a right-click or a long press
-    // lands. Obsidian puts the cursor on the clicked line before it asks for
-    // the menu, so the task under the cursor is the task under the pointer.
-    this.registerEvent(
-      this.app.workspace.on("editor-menu", (menu, editor, view) => {
-        if (!(view instanceof MarkdownView) || !view.file) return;
-        if (!commandAvailable("send-reminder", this.commandContext())) return;
-        this.reminders?.addMenuItem(menu, editor, view.file);
-      })
-    );
     // Selected lines into a table. The plain conversion is offered only when
     // it would work, since the menu is built for this very selection; the AI
     // one whenever several lines are selected, and says what it needs if the
@@ -329,12 +312,6 @@ export default class SchreibstubePlugin extends Plugin {
         );
       })
     );
-    // The link a reminder carries, obsidian://schreibstube?task=<id>, and the
-    // callback the status Shortcut answers through, obsidian://schreibstube?done=1.
-    this.registerObsidianProtocolHandler(TASK_PROTOCOL_ACTION, (params) => {
-      void this.reminders?.handleProtocol(params);
-    });
-
     // The file pane is the plugin's main surface and everything else it offers
     // is a command. Without a ribbon icon there is nothing to find: enabling
     // the plugin changes nothing anyone can see until they open the palette
@@ -725,10 +702,6 @@ export default class SchreibstubePlugin extends Plugin {
   }
 
   private handlePollTick(now: Date): void {
-    // The report file an automation writes for Reminders rides on the same
-    // tick: one stat of one file, and a read only when it has changed.
-    void this.reminders?.pollReportFile();
-
     const schedule = this.activePollSchedule();
     if (!schedule) return;
     if (!shouldFire(schedule, now, this.lastPollMinute)) return;
@@ -949,10 +922,7 @@ export default class SchreibstubePlugin extends Plugin {
       selection: (view?.editor.getSelection().trim().length ?? 0) > 0,
       bound:
         file !== null && hasSourceBinding(this.app.metadataCache.getFileCache(file)?.frontmatter),
-      explorerOpen: this.app.workspace.getLeavesOfType(EXPLORER_VIEW_TYPE).length > 0,
-      task: view !== null && isTaskLine(view.editor.getLine(view.editor.getCursor().line)),
-      apple: Platform.isMacOS || Platform.isIosApp,
-      sentTask: view !== null && sentTaskIds(view.editor.getValue()).length > 0
+      explorerOpen: this.app.workspace.getLeavesOfType(EXPLORER_VIEW_TYPE).length > 0
     };
   }
 
@@ -1053,25 +1023,6 @@ export default class SchreibstubePlugin extends Plugin {
     // Into the property field being typed in, or the note's text otherwise.
     this.addGatedCommand("insert-today", t().commands.insertToday, "insert-today", () => {
       this.properties?.insertToday();
-    });
-
-    this.addGatedCommand(
-      "send-task-to-reminders",
-      t().commands.sendToReminders,
-      "send-reminder",
-      () => {
-        this.reminders?.sendTaskAtCursor();
-      }
-    );
-
-    // The id is the one that asked about every note, which is still what it
-    // does wherever the open note has no sent task.
-    this.addGatedCommand("fetch-done-from-reminders", t().commands.reminders, "reminders", () => {
-      if (remindersScope(this.commandContext()) === "note") {
-        this.reminders?.checkActiveNote();
-      } else {
-        this.reminders?.checkEverything();
-      }
     });
 
     this.addCommand({

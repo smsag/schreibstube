@@ -556,42 +556,6 @@ Two things are worth knowing. The page is the physical page, counted from the fr
 
 A scanned PDF has no text layer, so there is nothing to read and the command says so rather than opening an empty list. Documents longer than 200 pages are read up to that point, and the notice says how much was covered.
 
-#### Sending a task to Erinnerungen
-
-On macOS and iOS a task can be handed to Apple's Reminders. Put the cursor on the task and run **Send task to Erinnerungen**, or right-click the line (long-press on a phone) and choose **Send to Erinnerungen**. The task's line becomes the reminder's title, tags included, and the text indented under it becomes the note. The command is offered only when the cursor is on a task; switch the feature on under **Settings → Schreibstube → Erinnerungen** first.
-
-Obsidian cannot talk to Reminders directly, so the work is done by a Shortcut you build once in the Shortcuts app, named as in the settings (**Schreibstube Reminder** by default):
-
-1. Create a shortcut that accepts **Text** as input.
-2. Add **Get Dictionary from Input**.
-3. Add **Add New Reminder** with Title from the dictionary's `title`, Notes from `notes`, and the list from `list`. If the list field will not take a variable, choose the list inside the Shortcut instead.
-
-The plugin sends one JSON object: `title`, `notes`, `list`, `link` and `note` (the note's title). `notes` already holds the body, a line `↩ Note title`, and the link, so the simplest Shortcut needs only `title` and `notes`.
-
-The link is `obsidian://schreibstube?task=<id>`. The command writes the same link onto the task line, as a Markdown link at its end:
-
-```markdown
-- [ ] Bank anrufen #geld [⏰](obsidian://schreibstube?task=ab12cd)
-```
-
-In Obsidian that link shows as a small Reminders-style mark after the task, in Live Preview and in Reading view; put the cursor on the line and the source is there as usual. Anywhere else the clock stands in. Following the link from the reminder opens the vault, the note and the task's line, however the note has been renamed or moved since, because the plugin looks for the line that carries the same link. Delete the link from the line and the reminder can no longer find its way back.
-
-What does not carry over: Reminders' own tags. There is no way to set one from outside, so `#tag` stays as text in the title, visible and searchable but not coloured. Editing a reminder after it is created is not part of this.
-
-#### Done in Erinnerungen, ticked in the note
-
-A reminder completed on the phone can tick its task in the note. The plugin cannot ask Reminders, so a second Shortcut does, named as in the settings (**Schreibstube Reminder Status** by default):
-
-1. Create a shortcut that accepts **Text** as input.
-2. Add **Find Reminders** with _Is Completed_ true, the list you use, and _Notes contains_ `schreibstube?task=`.
-3. Add **Get Details of Reminders** for the **Notes**, then **Combine Text** with new lines, and end with that text as the output.
-
-**Compare with Erinnerungen** runs it. With a note open that has sent tasks, it asks about those; anywhere else it asks about every completed reminder in the list. Either way it opens the Shortcut through `x-callback-url`; Shortcuts hands its output back to the plugin, which ticks every open task the output names, in whichever note it lives. A task already done, whatever its marker, is left alone.
-
-Without running anything: add **Save File** to the same shortcut, overwriting the **Report file** from the settings (`schreibstube-reminders.txt` in the vault root by default), and run the shortcut from an automation, on iOS for example every hour. The plugin looks at the file every twenty seconds, reads it when it has changed, and ticks the tasks it names. macOS Shortcuts has no time-based automations, but a file written by the phone reaches the Mac through the vault's own sync, and the command works everywhere.
-
-The Shortcut's output can be any text that contains the reminders' links; the plugin picks the ids out of it and ignores the rest.
-
 ### Commands
 
 Commands are named after what they act on, so related ones sort together in the palette: `Doc …` for the note in front of you (`Doc korrigieren`, `Doc drucken`, `Doc aktualisieren`), `Einfügen: …` for what goes into it, `Fokus: …`, `Explorer: …` and `Links: …` for the view. Things done once or rarely — adding a print template, opening the published site — are buttons in their settings section rather than commands. Each settings section also lists the commands its feature brings, so switching something on and learning what to type is one page rather than two.
