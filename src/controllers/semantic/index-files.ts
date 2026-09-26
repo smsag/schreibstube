@@ -13,11 +13,11 @@ export class SemanticIndexFiles implements IndexStore {
   constructor(
     private readonly plugin: Plugin,
     private readonly modelId: EmbeddingModelId,
-    private readonly suffix = ".bin"
+    private readonly suffix = ".bin",
+    /** Which index: the vault's notes, or the conversations a source hands over. */
+    private readonly prefix: "semantic-notes" | "semantic-conversations" = "semantic-notes"
   ) {
-    this.path = normalizePath(
-      `${pluginDir(plugin)}/semantic-notes-${vectorFamily(modelId)}${suffix}`
-    );
+    this.path = normalizePath(`${pluginDir(plugin)}/${prefix}-${vectorFamily(modelId)}${suffix}`);
   }
 
   async exists(): Promise<boolean> {
@@ -38,7 +38,7 @@ export class SemanticIndexFiles implements IndexStore {
   }
 
   journal(): IndexStore {
-    return new SemanticIndexFiles(this.plugin, this.modelId, ".journal.bin");
+    return new SemanticIndexFiles(this.plugin, this.modelId, ".journal.bin", this.prefix);
   }
 
   /**
@@ -55,10 +55,12 @@ export class SemanticIndexFiles implements IndexStore {
     const adapter = this.plugin.app.vault.adapter;
     const pythiaDir = normalizePath(`${this.plugin.app.vault.configDir}/plugins/pythia`);
     const family = vectorFamily(this.modelId);
-    const base = normalizePath(`${pythiaDir}/vault-embeddings-${family}.bin`);
+    // Pythia's names for the same two indexes.
+    const name = this.prefix === "semantic-notes" ? "vault-embeddings" : "related-embeddings";
+    const base = normalizePath(`${pythiaDir}/${name}-${family}.bin`);
     if (!(await adapter.exists(base))) return false;
     await this.write(await adapter.readBinary(base));
-    const journal = normalizePath(`${pythiaDir}/vault-embeddings-${family}.journal.bin`);
+    const journal = normalizePath(`${pythiaDir}/${name}-${family}.journal.bin`);
     if (await adapter.exists(journal))
       await this.journal().write(await adapter.readBinary(journal));
     return true;

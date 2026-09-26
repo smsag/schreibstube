@@ -28,6 +28,7 @@ import { peekIndexMeta } from "../../services/semantic/embedding-index";
 import { isCommunityPluginEnabled } from "../../services/workspace-internals";
 import { createEmbeddingProvider } from "./host/embedding-provider-factory";
 import { embeddingWorkerUrl } from "./host/worker-bundle-url";
+import { SemanticConversations } from "./semantic-conversations";
 import { SemanticIndexFiles } from "./index-files";
 import { registerVaultWatcher } from "./vault-watcher";
 
@@ -73,6 +74,8 @@ export class SemanticEngine {
   private deferred: { changed: Map<string, TFile>; deleted: Set<string> } | null = null;
   private fileCount: { scope: string; count: number; complete: boolean } | null | undefined;
   private readonly listeners = new Set<() => void>();
+  /** Conversations a chat plugin hands over through the API. */
+  readonly conversations: SemanticConversations;
 
   constructor(
     private readonly plugin: Plugin,
@@ -80,6 +83,14 @@ export class SemanticEngine {
     private readonly logger: Logger
   ) {
     this.guard = vaultBuildGuard(plugin.app);
+    this.conversations = new SemanticConversations({
+      plugin,
+      logger,
+      enabled: () => this.enabled(),
+      modelId: () => this.modelId(),
+      provider: () => this.ensureProvider(),
+      changed: () => this.emit()
+    });
   }
 
   /** Register the vault watcher, the phone's residency rule and the launch catch-up. */
@@ -90,7 +101,7 @@ export class SemanticEngine {
     });
     this.residency = installEmbeddingResidency(this.plugin, {
       provider: () => this.provider,
-      building: () => this.syncing,
+      building: () => this.syncing || this.conversations.isSyncing(),
       mobile: Platform.isMobile,
       onBackground: (hidden) => {
         if (this.syncing) this.guard.markBackground(hidden);
@@ -129,7 +140,8 @@ export class SemanticEngine {
     return Platform.isMobile && isCommunityPluginEnabled(this.plugin.app, "pythia");
   }
 
-  private enabled(): boolean {
+  /** Whether search by meaning is switched on and may run on this device. */
+  enabled(): boolean {
     return this.getSettings().semanticSearchEnabled && !this.blocked();
   }
 
@@ -163,6 +175,7 @@ export class SemanticEngine {
     if (this.provider && this.providerModel === modelId) return this.provider;
     this.provider?.unload();
     this.service = null;
+    this.conversations.reset();
     this.provider = new ResidentProvider(
       createEmbeddingProvider(
         modelId,
@@ -486,6 +499,7 @@ export class SemanticEngine {
       this.providerModel = null;
       this.service = null;
       this.deferred = null;
+      this.conversations.reset();
     }
     this.emit();
   }
