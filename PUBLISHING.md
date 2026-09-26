@@ -155,17 +155,19 @@ PUBLISH_BLOG_BASE_URL=https://blog.example.com
 PUBLISH_BLOG_SITE_TITLE=Schreibstube
 ```
 
-Startup rejects a target whose root is not absolute, whose base URL is not
-`https://`, which has neither a key nor a password, which has both, or which
-has no host fingerprint. Host key verification cannot be trust-on-first-use
-here: the container is stateless and would re-trust a new key after every
-restart, which is not verification at all.
+Startup rejects a target whose root or state root is not absolute, whose base
+URL is not `https://`, which has neither a key nor a password, which has both,
+or which has no host fingerprint. Host key verification cannot be
+trust-on-first-use here: the container is stateless and would re-trust a new
+key after every restart, which is not verification at all.
 
 `STATE_ROOT` is a path on the SFTP host, not on the bridge. The bridge keeps no
 disk state of its own, so it stays as disposable as it is today and Sliplane
 needs no volume. The state root should sit outside the served tree; the default
-keeps it under the web root for hosts that allow nothing else, and the
-deployment notes then require a deny rule for `/.schreibstube/`.
+keeps it under the web root for hosts that allow nothing else. There the bridge
+writes a deny `.htaccess` into it before the first source lands, leaves one it
+finds alone, and warns at every start, since only Apache reads the file: any
+other server needs its own deny rule for `/.schreibstube/`.
 
 The one deployment constraint is that the service runs as a **single
 instance**. The per-target publish lock is in memory, and two instances behind a

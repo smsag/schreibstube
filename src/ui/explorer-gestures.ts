@@ -1,5 +1,5 @@
 /**
- * The two gestures a row of the file pane answers to.
+ * The gestures a row of the file pane answers to.
  *
  * A press-hold-move that carries the row somewhere, and a press held still
  * that opens its menu. On a phone they begin as the same press, and which one
@@ -420,4 +420,47 @@ export function wirePress(row: HTMLElement, handlers: PressHandlers): void {
     },
     { passive: true }
   );
+}
+
+/**
+ * Tab reaches the list and is handed straight to a row: `target`'s, which is
+ * the open note's or the first. The list itself is never the thing to be on.
+ *
+ * Only Tab, though. A row outside the tree — in the recent lists, in the
+ * bookmarks — cannot hold the focus itself, so a press on one focuses the list
+ * around it, and handing that focus on scrolled the tree to the open note
+ * while the button was still down. The release then landed on another row, the
+ * click reached neither, and the note that was pressed did not open. Focus a
+ * press brings stays where the press put it.
+ */
+export function wireListFocus(
+  list: HTMLElement,
+  target: () => HTMLElement | undefined
+): () => void {
+  const win = list.ownerDocument.defaultView ?? window;
+  let pressing = false;
+
+  const press = (): void => {
+    pressing = true;
+  };
+  const release = (): void => {
+    pressing = false;
+  };
+  const handOn = (event: FocusEvent): void => {
+    if (event.target !== list || pressing) return;
+    target()?.focus();
+  };
+
+  // Captured, so the flag is up before the browser moves the focus.
+  list.addEventListener("pointerdown", press, true);
+  win.addEventListener("pointerup", release, true);
+  win.addEventListener("pointercancel", release, true);
+  list.addEventListener("focus", handOn);
+
+  return () => {
+    list.removeEventListener("pointerdown", press, true);
+    win.removeEventListener("pointerup", release, true);
+    win.removeEventListener("pointercancel", release, true);
+    list.removeEventListener("focus", handOn);
+  };
 }

@@ -6,7 +6,9 @@ import {
   MAX_RENAME_CONTENT_CHARS,
   MIN_FILENAME_LENGTH,
   MIN_RENAME_CONTENT_CHARS,
-  normalizeSettings
+  holdsRetiredSettings,
+  normalizeSettings,
+  RETIRED_SETTING_KEYS
 } from "./plugin-settings";
 
 describe("normalizeSettings", () => {
@@ -356,7 +358,9 @@ describe("normalizeSettings — publishing", () => {
 
   it("keeps a complete account", () => {
     const accounts = normalizeSettings({
-      publishAccounts: [{ id: "a", name: "Blog", folder: "Blog", target: "blog", writeBack: true }]
+      publishAccounts: [
+        { id: "a", name: "Blog", folder: "Blog", target: "blog", writeBack: true, headerTags: [] }
+      ]
     }).publishAccounts;
     expect(accounts).toHaveLength(1);
     expect(accounts[0]).toMatchObject({ name: "Blog", folder: "Blog", target: "blog" });
@@ -365,8 +369,15 @@ describe("normalizeSettings — publishing", () => {
   it("drops an account that cannot publish anything", () => {
     const accounts = normalizeSettings({
       publishAccounts: [
-        { id: "a", name: "Ohne Ordner", folder: "", target: "blog", writeBack: true },
-        { id: "b", name: "Ohne Ziel", folder: "Blog", target: "", writeBack: true }
+        {
+          id: "a",
+          name: "Ohne Ordner",
+          folder: "",
+          target: "blog",
+          writeBack: true,
+          headerTags: []
+        },
+        { id: "b", name: "Ohne Ziel", folder: "Blog", target: "", writeBack: true, headerTags: [] }
       ]
     }).publishAccounts;
     expect(accounts).toEqual([]);
@@ -375,7 +386,7 @@ describe("normalizeSettings — publishing", () => {
   it("trims the slashes a folder is often typed with", () => {
     const accounts = normalizeSettings({
       publishAccounts: [
-        { id: "a", name: "Blog", folder: "/Blog/", target: "blog", writeBack: true }
+        { id: "a", name: "Blog", folder: "/Blog/", target: "blog", writeBack: true, headerTags: [] }
       ]
     }).publishAccounts;
     expect(accounts[0]?.folder).toBe("Blog");
@@ -383,7 +394,9 @@ describe("normalizeSettings — publishing", () => {
 
   it("names an account after its folder when no name was given", () => {
     const accounts = normalizeSettings({
-      publishAccounts: [{ id: "a", name: "", folder: "Blog", target: "blog", writeBack: true }]
+      publishAccounts: [
+        { id: "a", name: "", folder: "Blog", target: "blog", writeBack: true, headerTags: [] }
+      ]
     }).publishAccounts;
     expect(accounts[0]?.name).toBe("Blog");
   });
@@ -447,5 +460,114 @@ describe("icon shortcodes", () => {
     expect(normalizeSettings({}).iconShortcodes).toBe(true);
     expect(normalizeSettings({ iconShortcodes: "off" as never }).iconShortcodes).toBe(true);
     expect(normalizeSettings({ iconShortcodes: false }).iconShortcodes).toBe(false);
+  });
+});
+
+describe("a connection's header tags", () => {
+  it("keeps up to three tags, read as tags, and gives an older connection none", () => {
+    const [withTags, older] = normalizeSettings({
+      publishAccounts: [
+        {
+          id: "a",
+          name: "Blog",
+          folder: "Blog",
+          target: "blog",
+          writeBack: true,
+          headerTags: ["#essay", "essay", "reise", "projekt", "mehr"]
+        },
+        // Saved before connections had header tags.
+        { id: "b", name: "Alt", folder: "Alt", target: "alt", writeBack: true } as never
+      ]
+    }).publishAccounts;
+    expect(withTags?.headerTags).toEqual(["essay", "reise", "projekt"]);
+    expect(older?.headerTags).toEqual([]);
+  });
+});
+
+describe("settings an earlier version wrote", () => {
+  const OLD = {
+    explorerLatestEnabled: true,
+    explorerLatestCount: 5,
+    explorerLatestExcluded: "Privat"
+  };
+
+  it("leaves the former Latest section's settings out", () => {
+    const settings = normalizeSettings(OLD as never) as unknown as Record<string, unknown>;
+
+    for (const key of RETIRED_SETTING_KEYS) expect(key in settings).toBe(false);
+  });
+
+  it("asks for a save while the data file still holds one of them", () => {
+    expect(holdsRetiredSettings(OLD)).toBe(true);
+    expect(holdsRetiredSettings({ explorerLatestCount: 5 })).toBe(true);
+  });
+
+  it("asks for none once the data file is clean, or when there is none", () => {
+    expect(holdsRetiredSettings(normalizeSettings(OLD as never))).toBe(false);
+    expect(holdsRetiredSettings({})).toBe(false);
+    expect(holdsRetiredSettings(null)).toBe(false);
+    expect(holdsRetiredSettings("not an object")).toBe(false);
+  });
+});
+
+describe("the default print template", () => {
+  it("starts as the built-in one, for a vault that never chose", () => {
+    expect(DEFAULT_SETTINGS.printDefaultTemplate).toBe("");
+    expect(normalizeSettings({}).printDefaultTemplate).toBe("");
+  });
+
+  it("keeps a folder or the ask marker, trimmed", () => {
+    expect(
+      normalizeSettings({ printDefaultTemplate: " Vorlagen/Brief " }).printDefaultTemplate
+    ).toBe("Vorlagen/Brief");
+    expect(normalizeSettings({ printDefaultTemplate: ":ask" }).printDefaultTemplate).toBe(":ask");
+  });
+
+  it("falls back to the built-in one for a value that is not text", () => {
+    const loaded = { printDefaultTemplate: 3 } as unknown as Parameters<
+      typeof normalizeSettings
+    >[0];
+    expect(normalizeSettings(loaded).printDefaultTemplate).toBe("");
+  });
+});
+
+describe("picture description settings", () => {
+  it("are off, in their own folder, in the interface language, without tags by default", () => {
+    const s = normalizeSettings({});
+    expect(s.imageDescriptionsEnabled).toBe(false);
+    expect(s.imageDescriptionFolder).toBe("Bildbeschreibungen");
+    expect(s.imageDescriptionLanguage).toBe("auto");
+    expect(s.imageDescriptionKeywordsAsTags).toBe(false);
+  });
+
+  it("switch on only for a real true, never for a truthy string", () => {
+    expect(
+      normalizeSettings({ imageDescriptionsEnabled: "yes" as unknown as boolean })
+        .imageDescriptionsEnabled
+    ).toBe(false);
+    expect(normalizeSettings({ imageDescriptionsEnabled: true }).imageDescriptionsEnabled).toBe(
+      true
+    );
+  });
+
+  it("keep a language only when it is one they can write", () => {
+    expect(
+      normalizeSettings({ imageDescriptionLanguage: "fr" as never }).imageDescriptionLanguage
+    ).toBe("auto");
+    expect(normalizeSettings({ imageDescriptionLanguage: "en" }).imageDescriptionLanguage).toBe(
+      "en"
+    );
+  });
+});
+
+describe("description notes in the Explorer", () => {
+  it("are folded into their pictures unless shown on purpose", () => {
+    expect(normalizeSettings({}).explorerDescriptionNotes).toBe("hide");
+    expect(normalizeSettings({ explorerDescriptionNotes: "show" }).explorerDescriptionNotes).toBe(
+      "show"
+    );
+    expect(
+      normalizeSettings({ explorerDescriptionNotes: "maybe" as never }).explorerDescriptionNotes
+    ).toBe("hide");
   });
 });

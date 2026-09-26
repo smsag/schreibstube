@@ -13,8 +13,11 @@
  * by callbacks the caller supplies, which is what keeps the whole conversion
  * testable in a few milliseconds.
  */
+import { t } from "../i18n";
 import { fencedLines, fenceMarker } from "./markdown-fence";
 import { typstArray, typstString } from "./typst-value";
+import { parseSlideshow, SLIDESHOW_LANGUAGE } from "./slideshow";
+import { slideshowForPrint, type SlideshowPrintMode } from "./print-slideshow";
 
 /** What a tab is worth when a list's nesting is measured, as in the editor. */
 const TAB_COLUMNS = 4;
@@ -35,6 +38,12 @@ export interface ImageRequest {
   /** `![alt](src)` or the target of `![[src]]`. */
   source: string;
   alt: string;
+  /**
+   * The share of the text width the picture takes on the page, when it is
+   * less than all of it — a slideshow's tile — so it is read no larger than
+   * it prints.
+   */
+  width?: number;
 }
 
 export interface ConvertOptions {
@@ -50,7 +59,22 @@ export interface ConvertOptions {
   /** What the plugin that drew it calls it, when it has a name for it. */
   diagramTitle?: (block: DiagramBlock) => string | null;
   /** The same for an embedded image: a path inside the job, or null. */
-  image?: (request: ImageRequest) => string | null;
+  image?: (request: ImageRequest) => string | null | ImageRefusal;
+  /**
+   * The note's properties, as key and value, to be printed at the top: after
+   * the first heading when the note opens with one, so a title stays first.
+   */
+  properties?: readonly (readonly [string, string])[];
+  /** How a slideshow is printed: as it stands on screen, or every picture stacked. */
+  slideshows?: SlideshowPrintMode;
+}
+
+/**
+ * A picture the caller found and will not print, with the reason in words a
+ * notice can show — a format no print can carry is not a picture "not found".
+ */
+export interface ImageRefusal {
+  refused: string;
 }
 
 export interface Conversion {
@@ -60,6 +84,8 @@ export interface Conversion {
   diagrams: DiagramBlock[];
   /** What could not be carried over, in the words a notice can show. */
   warnings: string[];
+  /** How many slideshows the note holds, so the dialog only asks when there are some. */
+  slideshows: number;
 }
 
 /** Callout kinds Obsidian ships, mapped to the four the prelude draws. */
@@ -104,46 +130,107 @@ const BULLET = /^(\s*)([-*+])\s+(.*)$/;
 const ORDERED = /^(\s*)(\d{1,9})[.)]\s+(.*)$/;
 const TABLE_DELIMITER = /^ {0,3}\|?\s*:?-{1,}:?\s*(\|\s*:?-{1,}:?\s*)*\|?\s*$/;
 const FOOTNOTE_DEFINITION = /^ {0,3}\[\^([^\]\s]+)\]:\s*(.*)$/;
+const TASK = /^\[([ xX])\]\s+/;
+
+/**
+ * The elements a note writes as raw HTML. Anything else between angle
+ * brackets — `<Name>`, `<GOAL OR OBJECTIVE>` — is text, and prints as text.
+ */
+const HTML_ELEMENTS = new Set(
+  (
+    "a abbr address article aside audio b bdi bdo big blockquote body br button caption center " +
+    "cite code col colgroup data dd del details dfn dialog div dl dt em embed fieldset figcaption " +
+    "figure font footer form h1 h2 h3 h4 h5 h6 head header hr html i iframe img input ins kbd label " +
+    "legend li link main mark meta meter nav noscript object ol optgroup option output p param " +
+    "picture pre progress q rp rt ruby s samp script section select small source span strike " +
+    "strong style sub summary sup svg table tbody td template textarea tfoot th thead time title tr " +
+    "track tt u ul var video wbr"
+  ).split(" ")
+);
+
+/**
+ * What a callout or a quote shares with the note around it.
+ *
+ * A quote is converted as a document of its own, but it is not one: its
+ * diagrams are numbered in the note's order — the capture was keyed that way,
+ * and a diagram numbered from zero again inside a callout was handed the
+ * note's first picture — and its footnote references reach definitions that
+ * stand outside it.
+ */
+interface Shared {
+  footnotes: Map<string, string>;
+  diagrams: DiagramBlock[];
+  warnings: string[];
+  /** Footnotes being expanded right now, so one that cites itself ends. */
+  expanding: Set<string>;
+  slideshows: number;
+}
 
 export function markdownToTypst(source: string, options: ConvertOptions = {}): Conversion {
-  return new Converter(source, options).run();
+  return new Converter(source, options, {
+    footnotes: new Map(),
+    diagrams: [],
+    warnings: [],
+    expanding: new Set(),
+    slideshows: 0
+  }).run();
 }
 
 class Converter {
   private readonly lines: string[];
-  private readonly footnotes = new Map<string, string>();
-  private readonly diagrams: DiagramBlock[] = [];
-  private readonly warnings: string[] = [];
   private at = 0;
-  private heading = "";
+  /** Whether the last `inline` ended in an expression, for a caller that splices it in. */
+  private endsOpen = false;
 
   constructor(
     source: string,
-    private readonly options: ConvertOptions
+    private readonly options: ConvertOptions,
+    private readonly shared: Shared,
+    private heading = ""
   ) {
     this.lines = stripFrontmatter(stripComments(source)).split(/\r?\n/);
     this.collectFootnotes();
   }
 
   run(): Conversion {
-    const body = this.blocks(0).join("\n");
+    const blocks = this.blocks(0);
+    const rows = this.options.properties ?? [];
+    if (rows.length > 0) {
+      const table = `#schreibstube-properties((${rows.map(([key, value]) => `(${quote(key)}, ${quote(value)}),`).join(" ")}))\n`;
+      blocks.splice(/^= /.test(blocks[0] ?? "") ? 1 : 0, 0, table);
+    }
+    const body = blocks.join("\n");
     return {
       body: `${body.replace(/\n{3,}/g, "\n\n").trim()}\n`,
-      diagrams: this.diagrams,
-      warnings: this.warnings
+      diagrams: this.shared.diagrams,
+      warnings: this.shared.warnings,
+      slideshows: this.shared.slideshows
     };
   }
 
   /**
    * A footnote is defined anywhere and referenced anywhere, so the definitions
    * are read first and the reference sites carry the text. Typst places a
-   * footnote where it is used, which is the same reading order.
+   * footnote where it is used, which is the same reading order. A line inside
+   * a fence that happens to look like a definition is code, not a footnote,
+   * and the first definition of a name wins, as it does in the editor.
    */
   private collectFootnotes(): void {
-    for (const line of this.lines) {
+    const fenced = fencedLines(this.lines);
+    for (const [index, line] of this.lines.entries()) {
+      if (fenced[index]) continue;
       const match = FOOTNOTE_DEFINITION.exec(line);
-      if (match?.[1] !== undefined) this.footnotes.set(match[1], match[2] ?? "");
+      if (match?.[1] !== undefined && !this.shared.footnotes.has(match[1])) {
+        this.shared.footnotes.set(match[1], match[2] ?? "");
+      }
     }
+  }
+
+  /** A quote's inside, converted as part of this note rather than beside it. */
+  private nested(source: string): string {
+    // The properties belong to the document, not to every quote inside it.
+    const options = { ...this.options, properties: [] };
+    return new Converter(source, options, this.shared, this.heading).run().body;
   }
 
   /** Every block at this indent, until the indent drops or the source ends. */
@@ -219,14 +306,19 @@ class Converter {
 
     const source = content.join("\n");
 
+    if (language.toLowerCase() === SLIDESHOW_LANGUAGE) {
+      const printed = this.slideshow(source);
+      if (printed !== null) return printed;
+    }
+
     if (DIAGRAM_LANGUAGES.has(language.toLowerCase())) {
       const block: DiagramBlock = {
-        index: this.diagrams.length,
+        index: this.shared.diagrams.length,
         language: language.toLowerCase(),
         source,
         caption: this.heading
       };
-      this.diagrams.push(block);
+      this.shared.diagrams.push(block);
 
       // A fence may hold several drawings — a carousel shows one panel and
       // hides the rest, and a page has no carousel — so the helper is given
@@ -236,10 +328,37 @@ class Converter {
         const caption = diagramCaption(block.caption, this.options.diagramTitle?.(block) ?? "");
         return `#schreibstube-diagram(${typstArray(paths)}, ${quote(caption)})\n`;
       }
-      this.warnings.push(`${language}: could not be drawn, printed as source`);
+      this.shared.warnings.push(t().print.diagramAsSource(language));
     }
 
     return `#schreibstube-code(${quote(source)}, ${quote(language)})\n`;
+  }
+
+  /**
+   * A slideshow, as the print dialog asked for it.
+   *
+   * Read by the same parser that renders it, so a block the screen refuses is
+   * refused here too, and printed as its source with the screen's reason. A
+   * picture that is not in the vault is left out and named, as an embedded
+   * one would be; the rest of the slideshow still prints.
+   */
+  private slideshow(source: string): string | null {
+    const parsed = parseSlideshow(source);
+    if (!parsed.ok) {
+      this.warn(t().print.slideshowUnreadable(parsed.message));
+      return null;
+    }
+    this.shared.slideshows += 1;
+
+    const plan = slideshowForPrint(parsed, this.options.slideshows ?? "layout");
+    const placed: string[] = [];
+    for (const image of plan.images) {
+      const request = { source: image.src, alt: image.alt, width: image.width };
+      const path = this.resolveImage(request);
+      if (path !== null) placed.push(`(${quote(path)}, ${quote(image.alt)}),`);
+    }
+    if (placed.length === 0) return "";
+    return `#schreibstube-slideshow(${quote(plan.arrangement)}, (${placed.join(" ")}), columns: ${plan.columns})\n`;
   }
 
   /** A blockquote, or the callout Obsidian writes in the shape of one. */
@@ -257,23 +376,11 @@ class Converter {
     if (callout?.[1] !== undefined) {
       const kind = CALLOUT_KINDS[callout[1].toLowerCase()] ?? "note";
       const title = (callout[3] ?? "").trim() || titleCase(callout[1]);
-      const body = markdownToTypst(inner.slice(1).join("\n"), this.options);
-      this.adopt(body);
-      return `#schreibstube-callout(${quote(kind)}, [${this.inline(title)}])[\n${body.body}]\n`;
+      const body = this.nested(inner.slice(1).join("\n"));
+      return `#schreibstube-callout(${quote(kind)}, [${this.inline(title)}])[\n${body}]\n`;
     }
 
-    const body = markdownToTypst(inner.join("\n"), this.options);
-    this.adopt(body);
-    return `#quote(block: true)[\n${body.body}]\n`;
-  }
-
-  /** Diagrams and warnings found inside a nested conversion belong to this one. */
-  private adopt(conversion: Conversion): void {
-    for (const diagram of conversion.diagrams) {
-      diagram.index = this.diagrams.length;
-      this.diagrams.push(diagram);
-    }
-    this.warnings.push(...conversion.warnings);
+    return `#quote(block: true)[\n${this.nested(inner.join("\n"))}]\n`;
   }
 
   /**
@@ -286,6 +393,7 @@ class Converter {
    */
   private list(indent: number): string {
     const out: string[] = [];
+    let first = true;
 
     while (this.at < this.lines.length) {
       const line = this.lines[this.at];
@@ -306,8 +414,12 @@ class Converter {
       if (!match || indentOf(line) > indent + 3) break;
 
       this.at += 1;
-      const marker = bullet ? "-" : "+";
-      const parts = [this.inline(match[3] ?? "")];
+      // A numbered list that starts somewhere other than one says so on its
+      // first item, which Typst continues from; the rest number themselves.
+      const start = ordered ? Number(ordered[2]) : 1;
+      const marker = bullet ? "-" : first && start !== 1 ? `${start}.` : "+";
+      first = false;
+      const parts = [this.item(match[3] ?? "")];
 
       // Everything indented past the marker belongs to this item: a nested
       // list, a second paragraph, a fenced block.
@@ -318,6 +430,14 @@ class Converter {
     }
 
     return `${out.join("\n")}\n`;
+  }
+
+  /** An item's first line, with a task's box drawn rather than typed. */
+  private item(text: string): string {
+    const task = TASK.exec(text);
+    if (!task) return this.inline(text);
+    const done = task[1] !== " ";
+    return `#schreibstube-task(${done ? "true" : "false"}) ${this.inline(text.slice(task[0].length))}`;
   }
 
   private isTableStart(): boolean {
@@ -414,9 +534,20 @@ class Converter {
     let out = "";
     let plain = "";
     let i = 0;
+    // Whether `out` ends in an embedded expression. Typst carries one on into
+    // whatever touches it — `#raw("f")(x)` is a call, `#strong[A].b` a field —
+    // so text that begins with one of those is kept apart by a `;`, which
+    // Typst reads as the end of the expression and does not print.
+    let open = false;
 
+    const append = (markup: string, expression: boolean): void => {
+      if (markup === "") return;
+      if (open && /^[([.]/.test(markup)) out += ";";
+      out += markup;
+      open = expression;
+    };
     const flush = (): void => {
-      out += escapeText(plain);
+      append(escapeText(plain), false);
       plain = "";
     };
 
@@ -435,7 +566,7 @@ class Converter {
         const code = /^(`+)([\s\S]*?)\1(?!`)/.exec(rest);
         if (code?.[2] !== undefined) {
           flush();
-          out += `#raw(${quote(code[2].trim())})`;
+          append(`#raw(${quote(code[2].trim())})`, true);
           i += code[0].length;
           continue;
         }
@@ -449,7 +580,7 @@ class Converter {
           // the tag is eaten with it: leaving it would end the paragraph, and
           // a person who wrote `<br>` asked for the next line, not the next
           // block — which is how a sender's address is written in one breath.
-          out += " \\\n";
+          append(" \\\n", false);
           i += br[0].length;
           continue;
         }
@@ -459,16 +590,19 @@ class Converter {
         const autolink = /^<(https?:\/\/[^>\s]+|mailto:[^>\s]+)>/.exec(rest);
         if (autolink?.[1] !== undefined) {
           flush();
-          out += `#link(${quote(autolink[1])})`;
+          append(`#link(${quote(autolink[1])})`, true);
           i += autolink[0].length;
           continue;
         }
 
-        const tag = /^<\/?[A-Za-z][^>]*>/.exec(rest);
-        if (tag) {
+        // Only an element HTML knows is a tag. `<DOING SOMETHING>` in a
+        // template sentence is a placeholder a person typed, and it used to be
+        // dropped as HTML, taking the words it held off the page.
+        const tag = /^<\/?([A-Za-z][A-Za-z0-9-]*)\b[^>]*>/.exec(rest);
+        if (tag && HTML_ELEMENTS.has((tag[1] ?? "").toLowerCase())) {
           // Raw HTML has no meaning on paper and no safe rendering; dropping
           // the tag keeps the words it wrapped.
-          this.warn("HTML is dropped when printing");
+          this.warn(t().print.htmlDropped);
           i += tag[0].length;
           continue;
         }
@@ -478,7 +612,7 @@ class Converter {
         const embed = /^!\[\[([^\]|]+)(?:\|([^\]]*))?\]\]/.exec(rest);
         if (embed?.[1] !== undefined) {
           flush();
-          out += this.embed(embed[1].trim(), (embed[2] ?? "").trim());
+          append(...this.embed(embed[1].trim(), (embed[2] ?? "").trim()));
           i += embed[0].length;
           continue;
         }
@@ -491,7 +625,7 @@ class Converter {
           // A wikilink points inside the vault, where paper cannot follow; the
           // words stay, the link does not.
           const label = (link[2] ?? "").trim() || (link[1].split("#").pop() ?? link[1]).trim();
-          out += escapeText(label);
+          append(escapeText(label), false);
           i += link[0].length;
           continue;
         }
@@ -501,7 +635,7 @@ class Converter {
         const image = /^!\[([^\]]*)\]\(([^)\s]+)(?:\s+"[^"]*")?\)/.exec(rest);
         if (image?.[2] !== undefined) {
           flush();
-          out += this.image(image[2], image[1] ?? "");
+          append(...this.image(image[2], image[1] ?? ""));
           i += image[0].length;
           continue;
         }
@@ -511,8 +645,7 @@ class Converter {
         const footnote = /^\[\^([^\]\s]+)\]/.exec(rest);
         if (footnote?.[1] !== undefined) {
           flush();
-          const note = this.footnotes.get(footnote[1]);
-          out += note === undefined ? "" : `#footnote[${this.inline(note)}]`;
+          append(this.footnote(footnote[1]), true);
           i += footnote[0].length;
           continue;
         }
@@ -521,8 +654,11 @@ class Converter {
         if (link?.[2] !== undefined) {
           flush();
           const label = this.inline(link[1] ?? "");
+          const labelOpen = this.endsOpen;
           const target = link[2];
-          out += /^[a-z][a-z0-9+.-]*:/i.test(target) ? `#link(${quote(target)})[${label}]` : label;
+          if (/^[a-z][a-z0-9+.-]*:/i.test(target))
+            append(`#link(${quote(target)})[${label}]`, true);
+          else append(label, labelOpen);
           i += link[0].length;
           continue;
         }
@@ -531,7 +667,7 @@ class Converter {
       const emphasis = matchEmphasis(rest, plain.slice(-1) || text[i - 1] || "");
       if (emphasis) {
         flush();
-        out += `${emphasis.open}[${this.inline(emphasis.content)}${emphasis.close}`;
+        append(`${emphasis.open}[${this.inline(emphasis.content)}${emphasis.close}`, true);
         i += emphasis.length;
         continue;
       }
@@ -541,28 +677,59 @@ class Converter {
     }
 
     flush();
+    this.endsOpen = open;
     return out;
   }
 
-  private embed(target: string, alias: string): string {
-    if (/\.(png|jpe?g|gif|webp|avif|svg|bmp)$/i.test(target)) return this.image(target, alias);
+  /** Markup, and whether it ends in an expression — see `inline`. */
+  private embed(target: string, alias: string): [string, boolean] {
+    if (/\.(png|jpe?g|gif|webp|avif|svg|bmp|heic|heif)$/i.test(target)) {
+      return this.image(target, alias);
+    }
     // An embedded note would have to be read and converted, which is a second
     // document inside this one; saying so beats printing a stray file name.
-    this.warn(`embedded note is not printed: ${target}`);
-    return escapeText(alias || target);
+    this.warn(t().print.embedNotPrinted(target));
+    return [escapeText(alias || target), false];
   }
 
-  private image(source: string, alt: string): string {
-    const path = this.options.image?.({ source, alt }) ?? null;
-    if (path === null) {
-      this.warn(`image not found: ${source}`);
-      return escapeText(alt);
+  private image(source: string, alt: string): [string, boolean] {
+    const path = this.resolveImage({ source, alt });
+    if (path === null) return [escapeText(alt), false];
+    return [`#schreibstube-image(${quote(path)}, ${quote(alt)})`, true];
+  }
+
+  /** A picture's path in the job, or null after saying why there is none. */
+  private resolveImage(request: ImageRequest): string | null {
+    const answer = this.options.image?.(request) ?? null;
+    if (typeof answer === "string") return answer;
+    this.warn(answer === null ? t().print.imageNotFound(request.source) : answer.refused);
+    return null;
+  }
+
+  /**
+   * A footnote's text at the place it is cited.
+   *
+   * A definition that cites itself, directly or through another, would expand
+   * for ever; the inner citation is dropped instead, which is all a page could
+   * show of it anyway.
+   */
+  private footnote(name: string): string {
+    const note = this.shared.footnotes.get(name);
+    if (note === undefined) {
+      this.warn(t().print.footnoteMissing(name));
+      return "";
     }
-    return `#schreibstube-image(${quote(path)}, ${quote(alt)})`;
+    if (this.shared.expanding.has(name)) return "";
+    this.shared.expanding.add(name);
+    try {
+      return `#footnote[${this.inline(note)}]`;
+    } finally {
+      this.shared.expanding.delete(name);
+    }
   }
 
   private warn(message: string): void {
-    if (!this.warnings.includes(message)) this.warnings.push(message);
+    if (!this.shared.warnings.includes(message)) this.shared.warnings.push(message);
   }
 }
 
@@ -661,43 +828,57 @@ function stripFrontmatter(source: string): string {
 }
 
 /**
- * `%%…%%` is a note to oneself and never reaches paper.
+ * `%%…%%` and `<!-- … -->` are notes to oneself and never reach paper.
  *
- * Outside a fenced block only: Obsidian shows `%%` inside one as the two
- * characters they are, and a pre-pass over the whole note used to delete from
- * one line of code to another.
+ * Obsidian hides both, the HTML comment as a browser would; it used to be
+ * printed as the text it is. Outside a fenced block only: Obsidian shows
+ * either inside one as the characters they are, and a pre-pass over the whole
+ * note used to delete from one line of code to another. Either may run over
+ * several lines, and a line that is all comment leaves no blank behind.
  */
 function stripComments(source: string): string {
   const lines = source.split("\n");
   const fenced = fencedLines(lines);
+  const closer: Record<string, string> = { "%%": "%%", "<!--": "-->" };
 
   let out = "";
-  let open = false;
+  let open: string | null = null;
 
   for (const [index, line] of lines.entries()) {
     const suffix = index === lines.length - 1 ? "" : "\n";
 
-    if (fenced[index] && !open) {
+    if (fenced[index] && open === null) {
       out += line + suffix;
       continue;
     }
 
-    let text = line;
-    if (open) {
-      const close = text.indexOf("%%");
-      if (close === -1) continue;
-      text = text.slice(close + 2);
-      open = false;
+    const startedOpen = open !== null;
+    let rest = line;
+    let kept = "";
+    for (;;) {
+      if (open !== null) {
+        const close = rest.indexOf(open);
+        if (close === -1) break;
+        rest = rest.slice(close + open.length);
+        open = null;
+        continue;
+      }
+      const percent = rest.indexOf("%%");
+      const html = rest.indexOf("<!--");
+      const at = percent === -1 ? html : html === -1 ? percent : Math.min(percent, html);
+      if (at === -1) {
+        kept += rest;
+        break;
+      }
+      const opener = at === percent ? "%%" : "<!--";
+      kept += rest.slice(0, at);
+      rest = rest.slice(at + opener.length);
+      open = closer[opener] ?? null;
     }
 
-    text = text.replace(/%%[\s\S]*?%%/g, "");
-    const dangling = text.indexOf("%%");
-    if (dangling !== -1) {
-      text = text.slice(0, dangling);
-      open = true;
-    }
-
-    out += text + suffix;
+    // A line inside a comment that never reached its end is not a line at all.
+    if (startedOpen && open !== null && kept === "") continue;
+    out += kept + suffix;
   }
 
   return out;

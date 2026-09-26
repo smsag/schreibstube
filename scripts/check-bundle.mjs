@@ -44,8 +44,50 @@ import { fileURLToPath } from "node:url";
  * in the bundle already; what it spent was the last kilobyte of headroom,
  * and one kilobyte is a build that breaks on the next line anyone writes.
  * The headroom left is for the next feature, not a new normal.
+ *
+ * Raised to 490 KB at 477 KB, for printing that works (+6 KB): callouts, a
+ * template's own helpers, code before a bracket and diagrams inside a callout
+ * all failed to print, and the fixes brought what a print needs to be safe —
+ * no silent overwrite of somebody's PDF, deadlines on other plugins' drawing,
+ * budgets before a read — and its warnings and refusals in both languages,
+ * which are most of the six. Trimming to fit would have meant leaving those
+ * in English again. The headroom left is for the next feature.
+ *
+ * Raised to 500 KB at 486 KB, for printing without a template of one's own
+ * (+6 KB): the built-in Standard, carried as the text of its layout and of the
+ * descriptor a person reads when they lay it down to change it, its parsed
+ * frontmatter so no YAML parser ships, the default-template setting and its
+ * words in two languages. Trimming the descriptor to fit would have cut the
+ * instructions a template author reads first. What is left is for the next
+ * feature.
+ *
+ * Raised to 510 KB at 506 KB, for the print dialog and slideshows on paper
+ * (+14 KB since 492): the dialog with its preview drawn by Obsidian's pdf.js,
+ * the choices it offers and what each means, the note's properties on paper,
+ * and every slideshow layout as the Typst that arranges it — the arrangement
+ * code ships as text in the prelude, which is most of the growth — each in two
+ * languages. The dialog was built at 499 KB, one kilobyte short; this is the
+ * decision that was deferred then, taken once for both.
+ *
+ * Raised to 525 KB at 518 KB, for picture descriptions (+9 KB on 509): the
+ * instruction a vision model is sent, the check an answer must pass before a
+ * word of it is written — every bound, and the stripping of links, tags,
+ * fences and HTML — the note it becomes, the settings that switch it on and
+ * where it writes, all in two languages. The semantic engine that will index
+ * these notes is not in this number; it brings its own raise and its reason.
+ *
+ * Raised to 1450 KB at 1420 KB, for search by meaning (+898 KB on 522). Nearly
+ * all of it is the model runtime — the tokenizer and the ONNX glue from
+ * transformers.js, about 870 KB — carried as one string and started in a
+ * worker or a frame only when the setting is on. It ships inside main.js
+ * because a BRAT install is three files; a fourth would not arrive. A string
+ * literal is scanned at start, not compiled, so the cost every user pays daily
+ * is the read, not the parse this budget was set against. The engine itself —
+ * index, journal, watcher, fusion and settings in two languages — is the
+ * remaining ~30 KB. The model weights are not in this number: they download
+ * on first use. What is left is for the next feature, not a new normal.
  */
-const MAX_BUNDLE_KB = 480;
+const MAX_BUNDLE_KB = 1450;
 
 const bundle = fileURLToPath(new URL("../main.js", import.meta.url));
 const source = readFileSync(bundle, "utf8");

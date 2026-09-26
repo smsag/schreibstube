@@ -7,6 +7,7 @@ import {
 } from "@codemirror/view";
 import { RangeSetBuilder, type Extension } from "@codemirror/state";
 import { resolveFocusRange } from "../services/focus-range";
+import { topEdgeLine } from "../services/editor-top-edge";
 import type { SchreibstubeSettings } from "../types";
 
 export interface EditorViewportUpdate {
@@ -202,19 +203,8 @@ export function createEditorExtension(options: EditorExtensionOptions): Extensio
 }
 
 function resolveTopEdgeLine(view: EditorView): number {
-  const scrollerRect = view.scrollDOM.getBoundingClientRect();
   const overlay =
     (view.scrollDOM.querySelector(".schreibstube-overlay") as HTMLElement | null) ??
     (view.dom.ownerDocument.querySelector(".schreibstube-overlay") as HTMLElement | null);
-  const overlayHeight = overlay?.offsetHeight ?? 0;
-  const topEdgePos = view.posAtCoords({
-    x: scrollerRect.left + 1,
-    y: scrollerRect.top + overlayHeight + 1
-  });
-
-  if (topEdgePos !== null) {
-    return Math.max(0, view.state.doc.lineAt(topEdgePos).number - 1);
-  }
-
-  return Math.max(0, view.state.doc.lineAt(view.viewport.from).number - 1);
+  return topEdgeLine(view, overlay?.offsetHeight ?? 0);
 }

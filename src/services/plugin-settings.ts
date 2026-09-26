@@ -12,12 +12,12 @@ import {
   normalizeFocusSettings
 } from "./focus-settings";
 import { BOOKMARK_FILE_DEFAULT } from "./bookmark-file";
-import { LATEST_COUNT_DEFAULT, LATEST_COUNT_MAX } from "./latest-files";
 import { LLM_PROVIDER_IDS, PROVIDER_MODELS } from "./llm-providers";
-import { DEFAULT_PUBLISH_KEYS, normalizePublishKeys } from "./publish-index";
-import { TEMPLATE_ROOT_DEFAULT } from "./print-template";
+import { DEFAULT_PUBLISH_KEYS, normalizeHeaderTags, normalizePublishKeys } from "./publish-index";
+import { DEFAULT_TEMPLATE_BUILTIN, TEMPLATE_ROOT_DEFAULT } from "./print-template";
 import { normalizePropertyIcons } from "./property-icons";
 import { DEFAULT_DATE_FORMAT, normalizeDateFormat } from "./today-value";
+import { DEFAULT_DESCRIPTION_FOLDER, normalizeDescriptionFolder } from "./image-description";
 
 export { PROVIDER_MODELS } from "./llm-providers";
 
@@ -76,6 +76,11 @@ export const DEFAULT_PROOFREAD_PROMPT =
 
 const ALLOWED_PROVIDERS = new Set<LlmProvider>(LLM_PROVIDER_IDS);
 
+/** Bounds on the semantic index's note cap: below it the index is not worth a
+ *  model; above it the index outgrows what a phone holds in memory. */
+export const MIN_SEMANTIC_NOTES = 100;
+export const MAX_SEMANTIC_NOTES = 20000;
+
 export const DEFAULT_SETTINGS: SchreibstubeSettings = {
   language: "auto",
   ...DEFAULT_FOCUS_SETTINGS,
@@ -88,6 +93,14 @@ export const DEFAULT_SETTINGS: SchreibstubeSettings = {
   renameMaxContentChars: 4000,
   renameMaxFilenameLength: 60,
   renameMaxImagePx: 768,
+  imageDescriptionsEnabled: false,
+  imageDescriptionFolder: DEFAULT_DESCRIPTION_FOLDER,
+  imageDescriptionLanguage: "auto",
+  imageDescriptionKeywordsAsTags: false,
+  explorerDescriptionNotes: "hide",
+  recommendedPlacement: "sidebar",
+  semanticSearchEnabled: false,
+  semanticMaxNotes: 5000,
   summarizePrompt: DEFAULT_SUMMARIZE_PROMPT,
   summarizeMaxTokens: 512,
   proofreadPrompt: DEFAULT_PROOFREAD_PROMPT,
@@ -108,9 +121,6 @@ export const DEFAULT_SETTINGS: SchreibstubeSettings = {
   explorerForeignMenu: "submenu",
   explorerBookmarksEnabled: true,
   explorerBookmarksFile: BOOKMARK_FILE_DEFAULT,
-  explorerLatestEnabled: true,
-  explorerLatestCount: LATEST_COUNT_DEFAULT,
-  explorerLatestExcluded: "",
   explorerTaskCounts: false,
   iconShortcodes: true,
   mailBridgeUrl: "",
@@ -127,10 +137,33 @@ export const DEFAULT_SETTINGS: SchreibstubeSettings = {
   printEnabled: false,
   printTemplateRoot: TEMPLATE_ROOT_DEFAULT,
   printOutputFolder: "",
+  printDefaultTemplate: DEFAULT_TEMPLATE_BUILTIN,
   propertyIcons: {},
   dateFormat: DEFAULT_DATE_FORMAT,
   debugLogging: false
 };
+
+/**
+ * Keys an earlier version wrote into `data.json` and nothing reads any more:
+ * the settings of the pane's former "Latest" section, whose count and
+ * exclusions went with the lists they shaped.
+ */
+export const RETIRED_SETTING_KEYS: readonly string[] = [
+  "explorerLatestEnabled",
+  "explorerLatestCount",
+  "explorerLatestExcluded"
+];
+
+/**
+ * Whether the data file still holds a retired key, so the plugin writes it
+ * once on load. `normalizeSettings` leaves such keys out, but only a save
+ * takes them off the disk, and a person who never changes a setting might
+ * never cause one.
+ */
+export function holdsRetiredSettings(loaded: unknown): boolean {
+  if (!loaded || typeof loaded !== "object") return false;
+  return RETIRED_SETTING_KEYS.some((key) => Object.prototype.hasOwnProperty.call(loaded, key));
+}
 
 /** Settings as persisted: a data file a user can also edit by hand, so every
  *  field is validated rather than trusted. */
@@ -188,6 +221,22 @@ export function normalizeSettings(loaded: LoadedSettings): SchreibstubeSettings 
       MIN_IMAGE_PX,
       MAX_IMAGE_PX,
       DEFAULT_SETTINGS.renameMaxImagePx
+    ),
+    imageDescriptionsEnabled: loaded?.imageDescriptionsEnabled === true,
+    imageDescriptionFolder: normalizeDescriptionFolder(loaded?.imageDescriptionFolder),
+    imageDescriptionLanguage:
+      loaded?.imageDescriptionLanguage === "de" || loaded?.imageDescriptionLanguage === "en"
+        ? loaded.imageDescriptionLanguage
+        : "auto",
+    imageDescriptionKeywordsAsTags: loaded?.imageDescriptionKeywordsAsTags === true,
+    explorerDescriptionNotes: loaded?.explorerDescriptionNotes === "show" ? "show" : "hide",
+    recommendedPlacement: loaded?.recommendedPlacement === "footer" ? "footer" : "sidebar",
+    semanticSearchEnabled: loaded?.semanticSearchEnabled === true,
+    semanticMaxNotes: clampIntOrDefault(
+      loaded?.semanticMaxNotes,
+      MIN_SEMANTIC_NOTES,
+      MAX_SEMANTIC_NOTES,
+      DEFAULT_SETTINGS.semanticMaxNotes
     ),
     summarizePrompt: nonEmptyStringOrDefault(
       loaded?.summarizePrompt,
@@ -262,20 +311,6 @@ export function normalizeSettings(loaded: LoadedSettings): SchreibstubeSettings 
       loaded?.explorerBookmarksFile,
       DEFAULT_SETTINGS.explorerBookmarksFile
     ),
-    explorerLatestEnabled:
-      typeof loaded?.explorerLatestEnabled === "boolean"
-        ? loaded.explorerLatestEnabled
-        : DEFAULT_SETTINGS.explorerLatestEnabled,
-    explorerLatestCount: clampIntOrDefault(
-      loaded?.explorerLatestCount,
-      1,
-      LATEST_COUNT_MAX,
-      DEFAULT_SETTINGS.explorerLatestCount
-    ),
-    explorerLatestExcluded:
-      typeof loaded?.explorerLatestExcluded === "string"
-        ? loaded.explorerLatestExcluded
-        : DEFAULT_SETTINGS.explorerLatestExcluded,
     explorerTaskCounts: loaded?.explorerTaskCounts === true,
     // On unless switched off: the shortcode is the whole point of the icons
     // being in a note at all, and a setting nobody finds is a feature nobody has.
@@ -316,6 +351,10 @@ export function normalizeSettings(loaded: LoadedSettings): SchreibstubeSettings 
     printOutputFolder: trimmedStringOrDefault(
       loaded?.printOutputFolder,
       DEFAULT_SETTINGS.printOutputFolder
+    ),
+    printDefaultTemplate: trimmedStringOrDefault(
+      loaded?.printDefaultTemplate,
+      DEFAULT_SETTINGS.printDefaultTemplate
     )
   };
 }
@@ -348,7 +387,8 @@ function publishAccountsOrDefault(value: unknown): PublishAccount[] {
       name: typeof record.name === "string" && record.name.trim() ? record.name.trim() : folder,
       folder,
       target,
-      writeBack: record.writeBack !== false
+      writeBack: record.writeBack !== false,
+      headerTags: normalizeHeaderTags(record.headerTags)
     });
   }
 

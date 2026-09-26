@@ -61,6 +61,27 @@ describe("isWorthRetrying", () => {
   }
 });
 
+describe("isWorthRetrying, an answer from the bridge", () => {
+  const answer = (status: number, code = "", message = "the web host error — SFTP failed.") =>
+    Object.assign(new Error(message), { status, code });
+
+  for (const status of [502, 503, 504]) {
+    it(`repeats ${status}, however it is worded`, () => {
+      expect(isWorthRetrying(answer(status, "sftp_error"))).toBe(true);
+    });
+  }
+
+  it("repeats a hash mismatch, which is a truncated upload", () => {
+    expect(isWorthRetrying(answer(400, "hash_mismatch", "bytes do not match"))).toBe(true);
+  });
+
+  for (const status of [400, 401, 404, 409, 413, 429, 500]) {
+    it(`does not repeat ${status}, even when the wording sounds passing`, () => {
+      expect(isWorthRetrying(answer(status, "", "bridge is busy, network trouble"))).toBe(false);
+    });
+  }
+});
+
 describe("backoffMs", () => {
   it("grows with each attempt", () => {
     const first = backoffMs(1, 100, () => 0.5);

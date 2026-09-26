@@ -52,14 +52,28 @@ export function backoffMs(attempt: number, baseMs: number, random: () => number)
   return Math.round(window / 2 + window * random() * 0.5);
 }
 
+/** Answers that describe a moment rather than the request. */
+const PASSING_STATUSES = new Set([502, 503, 504]);
+
 /**
  * Which failures are worth a second attempt.
  *
  * A refused token or a rejected path will be refused again; repeating it only
  * delays the message. What is worth repeating is the connection that did not
  * complete, and the bridge that was briefly busy or restarting.
+ *
+ * An answer from the bridge is judged by its status and code, which do not
+ * depend on how the message is worded. A hash mismatch is the one refusal
+ * repeated: it means the bytes arrived truncated, and the next attempt carries
+ * them whole. Everything without a status — a timeout, a dropped connection —
+ * is judged by what it says.
  */
 export function isWorthRetrying(error: unknown): boolean {
+  const answer = error as { status?: unknown; code?: unknown } | null;
+  if (typeof answer?.status === "number") {
+    return PASSING_STATUSES.has(answer.status) || answer.code === "hash_mismatch";
+  }
+
   const message = error instanceof Error ? error.message : String(error);
   if (/\b(401|403|400|404|409|413)\b/.test(message)) return false;
   if (/token|unauthorized|not allowed|refused the/i.test(message)) return false;

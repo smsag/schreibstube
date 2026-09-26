@@ -10,8 +10,23 @@ import { EXAMPLE_TEMPLATES } from "./print-examples";
  * and nobody notices until a person compares the two. This is the noticing.
  */
 describe("the templates the plugin carries", () => {
-  it("carries both examples", () => {
-    expect(EXAMPLE_TEMPLATES.map((template) => template.name)).toEqual(["Brief", "Lebenslauf"]);
+  it("carries the examples, the built-in Standard among them", () => {
+    expect(EXAMPLE_TEMPLATES.map((template) => template.name)).toEqual([
+      "Brief",
+      "Lebenslauf",
+      "Standard"
+    ]);
+  });
+
+  it("carries each descriptor's frontmatter as Obsidian would read it", () => {
+    for (const template of EXAMPLE_TEMPLATES) {
+      expect(template.frontmatter.schreibstubePrintTemplate, template.name).toBe(true);
+      expect(typeof template.frontmatter.schreibstubeEntry, template.name).toBe("string");
+    }
+    const brief = EXAMPLE_TEMPLATES.find((template) => template.name === "Brief");
+    expect((brief?.frontmatter.schreibstubeData as Record<string, string>).senderAddress).toBe(
+      "Musterstraße 1\n12345 Musterstadt"
+    );
   });
 
   it("matches the folders it was generated from, byte for byte", () => {

@@ -9,6 +9,7 @@ import type { Messages } from "./en";
 export const de: Messages = {
   commands: {
     print: "Doc drucken",
+    printQuick: "Doc drucken (ohne Dialog)",
     focusSentence: "Fokus: Satz",
     focusParagraph: "Fokus: Absatz",
     newNote: "Neues Doc",
@@ -24,7 +25,8 @@ export const de: Messages = {
     collapseExplorer: "Explorer: Ordner zuklappen",
     explorerUndo: "Explorer: letztes Verschieben oder Löschen rückgängig machen",
     folderTiles: "Explorer: Ordner dieser Notiz als Kacheln",
-    related: "Verwandte Notizen",
+    orphanedDescriptions: "Explorer: verwaiste Bildbeschreibungen",
+    related: "Empfohlen",
     openBookmark: "Lesezeichen öffnen",
     pinTag: "Tag anheften",
     openReview: "Korrektur-Seitenleiste öffnen",
@@ -115,6 +117,10 @@ export const de: Messages = {
     addAccount: "Konto hinzufügen",
     writeBack: "Veröffentlichung in die Notiz schreiben",
     writeBackDesc: "Trägt Zeitpunkt und Adresse nach dem Veröffentlichen ins Frontmatter ein.",
+    headerTags: "Schlagwörter im Kopf",
+    headerTagsDesc:
+      "Bis zu drei Schlagwörter, oben auf jeder Seite verlinkt, jedes mit einer Seite der Notizen, die es tragen. Verschachtelte zählen mit: projekt listet auch Notizen mit projekt/alpha. Ein Schlagwort, das keine veröffentlichte Notiz trägt, bleibt weg.",
+    headerTagPlaceholder: "#schlagwort",
     targetPlaceholder: "Ziel auf der Bridge",
     targetsUnavailable: "Ziele nicht abrufbar — Namen eintragen.",
     keysHeading: "Frontmatter-Felder",
@@ -159,8 +165,13 @@ export const de: Messages = {
     failed: (reason: string) => `Veröffentlichung fehlgeschlagen — ${reason}`,
     busy: "eine Veröffentlichung läuft bereits.",
     noAccount: "kein Veröffentlichungs-Konto eingerichtet — siehe Einstellungen.",
-    noNotes: (folder: string) => `keine Notiz in ${folder} ist zur Veröffentlichung markiert.`,
+    noNotes: (folder: string) =>
+      `keine Notiz in ${folder} ist zur Veröffentlichung markiert, und nichts Veröffentlichtes ist mehr zu entfernen.`,
+    emptyFolder: (folder: string) =>
+      `${folder} enthält keine Notizen — bitte den Ordner des Kontos prüfen. Nichts wurde veröffentlicht oder entfernt.`,
     missingSource: (path: string) => `die Quelle zu ${path} fehlt — bitte erneut versuchen.`,
+    changedDuringPublish: (path: string) =>
+      `${path} wurde während der Veröffentlichung geändert — erneut veröffentlichen, um die neue Fassung zu senden.`,
     writeBackFailed: (path: string) =>
       `veröffentlicht, aber ${path} konnte nicht aktualisiert werden.`,
     unknownTarget: (target: string) => `die Bridge kennt kein Ziel namens ${target}.`,
@@ -268,18 +279,17 @@ export const de: Messages = {
     explorerBookmarksFileDesc:
       "Vault-Pfad der Markdown-Datei, aus der die Lesezeichen gelesen werden. Eine Überschrift " +
       "ist ein Ordner, ein Listenpunkt ein Link.",
-    explorerLatest: "Bereich Zuletzt",
-    explorerLatestDesc:
-      "Drei kurze Listen zwischen Lesezeichen und Baum: Notizen, deren Quelle sich zuletzt " +
-      "geändert hat, die zuletzt erstellten und die zuletzt geänderten. Was als erstellt " +
-      "erscheint, wiederholt sich nicht als geändert.",
-    explorerLatestCount: "Notizen je Liste",
-    explorerLatestCountDesc: (max: number) =>
-      `Wie viele Notizen jede der beiden Listen zeigt (1 bis ${max}).`,
-    explorerLatestExclude: "Nie anzeigen",
-    explorerLatestExcludeDesc:
-      "Vault-Pfade, durch Komma oder Zeilenumbruch getrennt. Ein Ordner schließt alles darin " +
-      "aus. Die Lesezeichen-Datei ist immer ausgenommen.",
+    explorerDescriptionNotes: "Bildbeschreibungen als Notizen zeigen",
+    explorerDescriptionNotesDesc:
+      "Aus: Ein beschriebenes Bild ist eine Zeile, auch über seine Beschreibung auffindbar, und die " +
+      "Beschreibungsnotiz bleibt aus dem Baum. An: Die Beschreibungsnotizen erscheinen als gewöhnliche Notizen.",
+    recommendedPlacement: "Empfohlen",
+    recommendedPlacementDesc:
+      "Wo die Notizen, Bilder und Gespräche erscheinen, die zur offenen Notiz gehören. Unter der " +
+      "Notiz liest man sie dort, wo die Notiz endet; die Seitenleiste lässt sich weiterhin über das " +
+      "Menü einer Notiz öffnen.",
+    recommendedSidebar: "In der rechten Seitenleiste",
+    recommendedFooter: "Unter der Notiz",
     explorerTaskCounts: "Aufgabenzähler",
     explorerTaskCountsDesc:
       'Zeigt hinter dem Namen einer Notiz, wie viele Aufgaben sie enthält und wie viele davon offen sind, als "1 / 7". ' +
@@ -310,6 +320,23 @@ export const de: Messages = {
     renameMaxCharsDesc: "Wie viele Zeichen vom Anfang der Notiz an das LLM gehen.",
     renameMaxFilename: "Maximale Länge des Dateinamens",
     renameMaxFilenameDesc: "Der erzeugte Dateiname wird auf so viele Zeichen gekürzt.",
+
+    describeHeading: "Bildbeschreibungen",
+    describeIntro:
+      "Ein Bild über sein Menü im Schreibstube-Explorer beschreiben: Das eingestellte Modell schreibt Titel, " +
+      "Beschreibung und Stichworte in eine eigene Notiz, damit das Bild über seinen Inhalt auffindbar wird. " +
+      "Das Bild wird vorher verkleinert, wobei die Standortdaten entfallen, und dann an den oben gewählten Anbieter geschickt.",
+    describeEnabled: "Bilder beschreiben",
+    describeEnabledDesc:
+      "Ergänzt „Bild beschreiben“ im Menü eines Bildes. Solange das aus ist, wird nichts gesendet.",
+    describeFolder: "Ordner für Beschreibungen",
+    describeFolderDesc: "Eine Notiz pro Bild, alle in diesem Ordner.",
+    describeLanguage: "Sprache der Beschreibungen",
+    describeLanguageAuto: "Sprache der Oberfläche",
+    describeTags: "Stichworte als Tags",
+    describeTagsDesc:
+      "Die Stichworte zusätzlich als Obsidian-Tags schreiben. Standardmäßig aus: Viele Bilder mit mehreren " +
+      "Stichworten füllen sonst den Tag-Bereich.",
 
     summarizeHeading: "Auswahl zusammenfassen",
     summarizeIntro:
@@ -374,7 +401,8 @@ export const de: Messages = {
     printAddTemplateButton: "Anlegen",
     printAddTemplateDesc:
       "Legt eine der beiden Beispielvorlagen in einem Ordner deiner Wahl an. Keine bringt eine " +
-      "Schrift mit, denn Schriften sind lizenziert; eine Vorlage ohne wird in Typsts eigener gesetzt.",
+      "Schrift mit, denn Schriften sind lizenziert; eine Vorlage ohne wird in der Standardschrift " +
+      "gesetzt, die mit dem Satzteil geladen wird.",
     printTemplateRoot: "Vorlagenordner",
     printTemplateRootDesc:
       "Wohin eine neue Vorlage standardmäßig kommt. Eine Vorlage ist jeder Ordner mit einer " +
@@ -384,6 +412,13 @@ export const de: Messages = {
     printOutputFolderDesc:
       "Wohin ein gedrucktes PDF geschrieben wird. Leer lassen, damit es neben der Notiz liegt.",
     printOutputBesideNote: "neben der Notiz",
+    printDefaultTemplate: "Standardvorlage",
+    printDefaultTemplateDesc:
+      "Womit eine Notiz gedruckt wird, die keine Vorlage nennt. Eine Notiz wählt ihre eigene " +
+      "mit schreibstubePrintTemplate im Frontmatter.",
+    printDefaultBuiltin: "Standard (eingebaut)",
+    printDefaultAsk: "Jedes Mal fragen",
+    printDefaultMissing: (path: string) => `${path} (nicht gefunden)`,
     commandsHeading: "Befehle",
     commandsIntro: "In der Befehlspalette, jeweils mit „Schreibstube: “ davor.",
 
@@ -447,7 +482,11 @@ export const de: Messages = {
     tableSelectionMoved: "der Text hat sich während der Umwandlung verändert; nichts ersetzt.",
     tableHeaderName: "Name",
     tableHeaderValue: "Wert",
-    failTable: "Schreibstube: Umwandlung in Tabelle fehlgeschlagen"
+    failTable: "Schreibstube: Umwandlung in Tabelle fehlgeschlagen",
+    describing: "beschreibt das Bild …",
+    described: (title: string) => `beschrieben: ${title}`,
+    describeUnusable: "die Beschreibung des Modells war unbrauchbar – nichts geschrieben.",
+    failDescribe: "Schreibstube: Bild beschreiben fehlgeschlagen"
   },
 
   properties: {
@@ -628,6 +667,17 @@ export const de: Messages = {
   },
 
   explorer: {
+    orphans: {
+      repaired: (count: number) =>
+        count === 1
+          ? "1 Beschreibung hat ihr Bild wiedergefunden."
+          : `${count} Beschreibungen haben ihre Bilder wiedergefunden.`,
+      none: "Jede Bildbeschreibung findet ihr Bild.",
+      placeholder: (count: number) =>
+        count === 1
+          ? "1 Beschreibung, deren Bild fehlt – öffnen"
+          : `${count} Beschreibungen, deren Bilder fehlen – eine öffnen`
+    },
     title: "Schreibstube Explorer",
     empty: "In diesem Vault liegt noch keine Datei.",
     searchPlaceholder: "Alle Sektionen filtern …",
@@ -635,6 +685,7 @@ export const de: Messages = {
     taskCount: (done: number, total: number) => `${done} von ${total} Aufgaben erledigt`,
     filterEmpty: "Darauf antwortet hier nichts.",
     filterMore: (count: number) => `${count} weitere Treffer. Filter eingrenzen, um sie zu sehen.`,
+    foundByMeaning: "Nach Bedeutung gefunden: andere Wörter, gleiches Thema.",
     collapseAll: "Alle zuklappen",
     expandAll: "Alle aufklappen",
     pinnedMore: "Alle Angehefteten zeigen",
@@ -642,14 +693,18 @@ export const de: Messages = {
     folderCount: (count: string) => `${count} Dateien`,
 
     related: {
-      viewTitle: "Verwandte Notizen",
-      viewNoNote: "Eine Notiz öffnen, um zu sehen, wobei sie steht.",
-      viewEmpty: "Nichts verlinkt, verschlagwortet oder legt diese Notiz neben eine andere.",
-      summary: (count: number) =>
-        count === 1 ? "1 verwandte Notiz" : `${count} verwandte Notizen`,
+      viewTitle: "Empfohlen",
+      viewNoNote: "Eine Notiz öffnen, um zu sehen, was zu ihr gehört.",
+      viewEmpty:
+        "Nichts verlinkt, verschlagwortet oder legt diese Notiz neben eine andere, und nichts liest sich ähnlich.",
+      summary: (count: number) => (count === 1 ? "1 Empfehlung" : `${count} Empfehlungen`),
       root: "Vault-Wurzel",
+      pictures: "Bilder",
+      notes: "Notizen und Dokumente",
+      conversations: "Gespräche",
       reasons: {
         link: "verlinkt",
+        meaning: "ähnlich im Inhalt",
         sharedLink: (count: number) =>
           count === 1 ? "1 gemeinsamer Link" : `${count} gemeinsame Links`,
         coCitation: (count: number) =>
@@ -706,7 +761,7 @@ export const de: Messages = {
     sections: {
       pinned: "Angeheftet",
       bookmarks: "Lesezeichen",
-      latest: "Zuletzt",
+      latest: "Extern aktualisiert",
       files: "Dateien und Ordner"
     },
 
@@ -718,25 +773,23 @@ export const de: Messages = {
       badTarget: (name: string) => `${name} zeigt auf nichts, was sich öffnen lässt.`,
       missingFolder: (path: string) => `unter ${path} liegt kein Ordner.`,
       missingNote: (path: string) => `es gibt keine Notiz namens ${path}.`,
+      openFailed: (name: string) => `${name} ließ sich nicht öffnen.`,
       copyPath: "Pfad für Schreibstube kopieren",
       copied: (path: string) => `${path} als Lesezeichen-Link kopiert.`,
       copyFailed: "die Zwischenablage steht hier nicht zur Verfügung.",
       quickOpen: "Lesezeichen suchen …",
-      recent: "Zuletzt geöffnet",
       all: "Alle Lesezeichen"
     },
 
     latest: {
-      synced: "Extern aktualisiert",
       alert: "Eine Quelle wurde im Hintergrund aktualisiert",
-      created: "Erstellt",
-      modified: "Geändert",
-      empty: "Noch keine Notizen."
+      empty: "Keine Quelle hat sich geändert."
     },
 
     menu: {
       open: "Öffnen",
       openNewTab: "In neuem Tab öffnen",
+      openNewWindow: "In neuem Fenster öffnen",
       setIcon: "Symbol wählen …",
       changeIcon: "Symbol ändern …",
       clearIcon: "Symbol entfernen",
@@ -744,7 +797,7 @@ export const de: Messages = {
       releaseTop: "Nicht mehr oben halten",
       pin: "Zu „Angeheftet“ hinzufügen",
       unpin: "Aus „Angeheftet“ entfernen",
-      related: "Verwandte Notizen",
+      related: "Empfohlen",
       showImages: "Bilder als Kacheln",
       pinTag: "Tag dieser Notiz anheften …",
       showTag: "Notizen mit diesem Tag zeigen",
@@ -758,6 +811,7 @@ export const de: Messages = {
       rename: "Umbenennen …",
       renameNoteAi: "Aus dem Text benennen …",
       renameImageAi: "Aus dem Bild benennen …",
+      describeImage: "Bild beschreiben",
       renaming: "Liest …",
       move: "Verschieben nach …",
       delete: "Löschen",
@@ -787,7 +841,12 @@ export const de: Messages = {
       unchecked: "An eine Quelle gebunden, noch nie geprüft",
       error: "Die Quelle lässt sich nicht laden",
       checkedAt: (when: string) => `zuletzt geprüft ${when}`,
-      never: "noch nie geprüft"
+      never: "noch nie geprüft",
+      published: (site: string, when: string) => `Veröffentlicht auf ${site} · ${when}`,
+      marked: (site: string) => `Zur Veröffentlichung auf ${site} markiert`,
+      notYetPublished: "noch nicht veröffentlicht",
+      siteLastPublished: (when: string) => `die Website wurde zuletzt ${when} veröffentlicht`,
+      siteNeverPublished: "die Website wurde aus diesem Vault noch nie veröffentlicht"
     },
 
     bind: {
@@ -866,9 +925,32 @@ export const de: Messages = {
 
   print: {
     noNote: "zuerst eine Notiz öffnen — gedruckt wird die Notiz, die vor dir liegt.",
-    noTemplates:
-      "keine Druckvorlage in diesem Vault. Eine Vorlage ist ein Ordner mit template.md und " +
-      "template.typ; „Vorlage anlegen“ in den Druck-Einstellungen legt eine an.",
+    defaultMissing: (path: string) =>
+      `die Standardvorlage ${path} gibt es in diesem Vault nicht mehr; wähle eine aus, oder stelle in den Druck-Einstellungen eine andere ein.`,
+    builtIn: "eingebaut",
+    slideshowUnreadable: (detail: string) =>
+      `eine Diashow wurde als Quelltext gedruckt — ${detail}`,
+    preparing: "bereite den Druck vor …",
+    dialog: {
+      title: "Drucken",
+      template: "Vorlage",
+      margins: "Ränder",
+      margin: { small: "Klein", standard: "Standard", wide: "Breit" },
+      marginFixed: "Diese Vorlage legt ihre Ränder selbst fest.",
+      pageBreaks: "Trennlinien als Seitenumbruch",
+      frontmatter: "Eigenschaften drucken",
+      slideshows: "Diashows",
+      slideshow: { layout: "Wie in der Notiz", stacked: "Alle Bilder untereinander" },
+      print: "Drucken",
+      working: "Vorschau wird gesetzt …",
+      pages: (shown: number, total: number) =>
+        shown === total
+          ? total === 1
+            ? "1 Seite"
+            : `${total} Seiten`
+          : `die ersten ${shown} von ${total} Seiten`,
+      failed: (detail: string) => `Keine Vorschau — ${detail}`
+    },
     unknownTemplate: (name: string) =>
       `diese Notiz verlangt die Vorlage „${name}“, und kein Ordner in diesem Vault ist eine.`,
     noLayout: (name: string) => `${name} hat keine template.typ — damit lässt sich nichts drucken.`,
@@ -876,9 +958,14 @@ export const de: Messages = {
     drawing: (index: number, total: number) => `zeichne Diagramm ${index} von ${total} …`,
     downloading: (label: string, megabytes: number) =>
       `lade den Satzteil „${label}“ (${megabytes} MB, einmal pro Gerät) …`,
+    downloadingFont: (face: string) => `lade die Schrift ${face} (einmal pro Gerät) …`,
     verifying: "prüfe das Geladene …",
     starting: "starte den Satz …",
     compiling: "setze …",
+    compilingLong: (seconds: number) =>
+      `setze ein langes Dokument — das kann auf diesem Gerät bis zu ${seconds} s dauern …`,
+    compileTimeout: (seconds: number) =>
+      `das Dokument brauchte länger als ${seconds} s und wurde abgebrochen. Versuch es in zwei Teilen.`,
     mismatch: (detail: string) =>
       `der geladene Satzteil ist nicht der erwartete und wurde nicht benutzt (${detail}).`,
     timeout: (seconds: number) => `keine Antwort innerhalb von ${seconds}s`,
@@ -891,8 +978,6 @@ export const de: Messages = {
     done: (path: string, kilobytes: number) => `${path} gedruckt (${kilobytes} KB).`,
     withWarnings: (detail: string) => `gedruckt, aber etwas fehlt — ${detail}`,
     failed: (detail: string) => `Drucken fehlgeschlagen — ${detail}`,
-    chooseTemplate: "Mit welcher Vorlage drucken?",
-    templateHint: "schreibstubePrintTemplate in der Notiz setzen, um das zu überspringen.",
     offTitle: "Drucken ist aus",
     offMessage: (megabytes: number) =>
       `Gesetzt wird auf diesem Gerät statt auf einem Server — dafür braucht es einen Satzteil: ` +
@@ -909,9 +994,83 @@ export const de: Messages = {
     templateExists: (path: string) => `${path} gibt es schon und blieb unangetastet.`,
     templateAdded: (path: string) =>
       `${path} angelegt. Die template.md darin sagt, was die Vorlage braucht; eine Schrift kommt ` +
-      "in ihren fonts/-Ordner."
+      "in ihren fonts/-Ordner.",
+    diagramAsSource: (language: string) =>
+      `${language}: ließ sich nicht zeichnen und steht als Quelltext da`,
+    htmlDropped: "HTML wird beim Drucken weggelassen",
+    embedNotPrinted: (target: string) => `eingebettete Notiz wird nicht gedruckt: ${target}`,
+    imageUnsupported: (name: string) => `${name} hat ein Format, das sich nicht drucken lässt`,
+    imageNotFound: (source: string) => `Bild nicht gefunden: ${source}`,
+    footnoteMissing: (name: string) => `Fußnote [^${name}] hat keinen Text und fehlt`,
+    notReplaced: (path: string) =>
+      `${path} ist eine fremde Datei und blieb unangetastet; gedruckt wurde nichts.`,
+    outputIsFolder: (path: string) => `${path} ist ein Ordner, dort lässt sich nichts hinschreiben`,
+    replaceTitle: "Datei ersetzen?",
+    replaceMessage: (path: string) =>
+      `${path} gibt es schon, und sie stammt nicht aus einem Druck. Durch die gedruckte Notiz ersetzen?`,
+    replaceSubmit: "Ersetzen",
+    limits: {
+      fontFiles: (count: number, max: number) =>
+        `${count} Schriftdateien, höchstens ${max} werden benutzt`,
+      fontBytes: (megabytes: number, max: number) =>
+        `Schriften zusammen ${megabytes} MB, höchstens ${max} MB werden benutzt`,
+      pictureFiles: (count: number, max: number) =>
+        `${count} Bilder, höchstens ${max} werden benutzt`,
+      pictureBytes: (megabytes: number, max: number) =>
+        `Bilder zusammen ${megabytes} MB, höchstens ${max} MB werden benutzt`,
+      pdfBytes: (megabytes: number, max: number) =>
+        `das Dokument hat ${megabytes} MB, höchstens ${max} MB werden geschrieben`
+    },
+    layout: {
+      tooLarge: (kilobytes: number) => `das Layout ist größer als ${kilobytes} KB`,
+      package: (line: number) => `Zeile ${line}: Pakete gehen nicht, gedruckt wird ohne Netz`,
+      leavesFolder: (line: number) =>
+        `Zeile ${line}: ein Pfad darf den Vorlagenordner nicht verlassen`,
+      absolute: (line: number) => `Zeile ${line}: ein Pfad muss relativ zum Vorlagenordner sein`
+    }
   },
 
+  semantic: {
+    building: "Suche nach Bedeutung: Vault wird gelesen…",
+    progress: (done: number, total: number) =>
+      `Suche nach Bedeutung: ${done} von ${total} Notizen gelesen`,
+    busy: "Die Suche nach Bedeutung liest den Vault bereits.",
+    heading: "Suche nach Bedeutung",
+    intro:
+      "Findet Notizen nach ihrem Inhalt, nicht nur nach den Wörtern im Namen. Ein kleines " +
+      "Sprachmodell läuft auf diesem Gerät; nichts verlässt es. Der erste Aufbau liest jede " +
+      "Notiz einmal, das dauert auf dem Desktop einige Minuten.",
+    enabled: "Suche nach Bedeutung",
+    enabledDesc: (megabytes: number) =>
+      "Ergänzt den Explorer-Filter nach einer kurzen Tipppause um Notizen, die dem Gesuchten " +
+      `inhaltlich entsprechen. Lädt beim ersten Mal das Modell (etwa ${megabytes} MB).`,
+    maxNotes: "Höchstens so viele Notizen",
+    maxNotesDesc: (min: number, max: number) =>
+      `Die neuesten Notizen bis zu dieser Zahl werden gelesen. Zwischen ${min} und ${max}.`,
+    buildNow: "Jetzt aufbauen",
+    rebuild: "Neu aufbauen",
+    rebuildDesc: "Liest jede Notiz noch einmal von vorn.",
+    status: "Stand",
+    state: {
+      off: "Aus.",
+      blocked:
+        "Auf diesem Telefon pausiert, solange Pythia ein eigenes Sprachmodell lädt: Zwei sind " +
+        "mehr, als das Telefon einer App erlaubt. Ein Pythia, das diese Suche nutzt, hebt die Pause auf.",
+      notBuilt:
+        "Noch nicht aufgebaut. Das geschieht bei der ersten Nutzung des Explorer-Filters oder mit „Jetzt aufbauen“.",
+      loading: "Modell wird geladen…",
+      building: (done: number, total: number) => `Notizen werden gelesen: ${done} von ${total}.`,
+      ready: (count: number) => (count === 1 ? "Bereit: 1 Notiz." : `Bereit: ${count} Notizen.`),
+      partial: (count: number) =>
+        `Unvollständig: ${count} Notizen gelesen. „Jetzt aufbauen“ macht es fertig.`,
+      outdated: (count: number) =>
+        `${count} Notizen, aber die zu lesenden Notizen haben sich geändert. „Jetzt aufbauen“ holt es nach.`,
+      failed: (error: string) => `Fehlgeschlagen: ${error}`,
+      outOfMemory: "Dem Gerät ging der Speicher aus. Weniger Notizen einstellen und neu aufbauen.",
+      paused:
+        "Pausiert, nachdem ein Aufbau zweimal nicht fertig wurde. „Jetzt aufbauen“ versucht es erneut."
+    }
+  },
   secrets: {
     notSelected: (label: string) => `kein ${label} ausgewählt — in den Einstellungen einen wählen.`,
     notFound: (label: string) => `${label} nicht gefunden — Einstellungen prüfen.`,

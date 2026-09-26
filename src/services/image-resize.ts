@@ -68,9 +68,16 @@ export async function resizeImageToBytes(
   buffer: ArrayBuffer,
   mimeType: string,
   maxPx: number,
-  quality = DEFAULT_QUALITY
+  quality = DEFAULT_QUALITY,
+  outputType = mimeType
 ): Promise<{ bytes: Uint8Array; mimeType: string }> {
-  const { blob, mimeType: encoded } = await resizeImage(buffer, mimeType, maxPx, quality);
+  const { blob, mimeType: encoded } = await resizeImage(
+    buffer,
+    mimeType,
+    maxPx,
+    quality,
+    outputType
+  );
   return { bytes: new Uint8Array(await blob.arrayBuffer()), mimeType: encoded };
 }
 
@@ -78,7 +85,8 @@ async function resizeImage(
   buffer: ArrayBuffer,
   mimeType: string,
   maxPx: number,
-  quality: number
+  quality: number,
+  outputType = mimeType
 ): Promise<{ blob: Blob; mimeType: string }> {
   const source = new Blob([buffer], { type: mimeType });
   const url = URL.createObjectURL(source);
@@ -93,9 +101,15 @@ async function resizeImage(
 
     const ctx = canvas.getContext("2d");
     if (!ctx) throw new Error("canvas 2d context unavailable");
+    const encoded = encodedMimeType(outputType);
+    // JPEG has no transparency: a transparent picture drawn into it turns
+    // black where it was clear. Paper is white, so that is what shows through.
+    if (encoded === "image/jpeg") {
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, dims.width, dims.height);
+    }
     ctx.drawImage(img, 0, 0, dims.width, dims.height);
 
-    const encoded = encodedMimeType(mimeType);
     return { blob: await canvasToBlob(canvas, encoded, quality), mimeType: encoded };
   } finally {
     URL.revokeObjectURL(url);

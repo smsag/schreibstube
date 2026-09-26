@@ -18,7 +18,11 @@ import {
 import { RefreshScheduler, type RefreshOptions } from "./services/refresh-scheduler";
 import { OverlayCoordinator } from "./services/overlay-coordinator";
 import { bootstrapSchreibstubeRuntime } from "./services/plugin-bootstrap";
-import { DEFAULT_SETTINGS, normalizeSettings } from "./services/plugin-settings";
+import {
+  DEFAULT_SETTINGS,
+  holdsRetiredSettings,
+  normalizeSettings
+} from "./services/plugin-settings";
 import { buildTaskSummaryInsertion, hasTaskSummaryBlock } from "./services/task-summary";
 import { buildSlideshowInsertion } from "./services/slideshow";
 import { createLogger, type Logger } from "./services/logger";
@@ -67,12 +71,25 @@ import {
   ExplorerController
 } from "./controllers/explorer-controller";
 import type { ExplorerFileStore } from "./services/explorer-store";
+import { SemanticEngine } from "./controllers/semantic/semantic-engine";
+import { createSemanticApi } from "./controllers/semantic/semantic-api";
+import { recommendNotes } from "./services/semantic/recommend";
+import { RecommendedFooter } from "./controllers/recommended-footer";
+import type {
+  PictureCard,
+  Recommendation,
+  RecommendedHost,
+  RelatedCard
+} from "./ui/recommended-panel";
+import type { SchreibstubeSemanticApi } from "./services/semantic/semantic-api";
 import { PaneSectionsController } from "./controllers/pane-sections";
 import { BookmarkQuickOpenModal } from "./ui/bookmark-quick-open";
+import { OrphanListModal } from "./ui/explorer-modals";
 import { vaultUrlFor } from "./services/bookmark-file";
 import { MailCommands } from "./controllers/mail-commands";
 import { PublishCommands } from "./controllers/publish-commands";
 import { PrintCommands } from "./controllers/print-commands";
+import type { PrintTemplate } from "./services/print-template";
 import { SchreibstubeSettingTab } from "./settings/index";
 import { setLanguage, t } from "./i18n";
 import type { FocusMode, HeadingEntry, SchreibstubeSettings } from "./types";
@@ -83,6 +100,13 @@ const POLL_TICK_MS = 20_000;
 
 /** Delay before the catch-up poll, so it never competes with opening a vault. */
 const POLL_CATCHUP_DELAY_MS = 8_000;
+
+/** Delay before orphaned picture descriptions are matched, after the catch-up
+ *  poll: the metadata cache has to have read the vault's frontmatter by then. */
+const ORPHAN_REPAIR_DELAY_MS = 20_000;
+
+/** Notes the Recommended panel draws at most, links and meaning together. */
+const RECOMMEND_LIMIT = 20;
 
 export default class SchreibstubePlugin extends Plugin {
   override settings: SchreibstubeSettings = DEFAULT_SETTINGS;
@@ -104,6 +128,11 @@ export default class SchreibstubePlugin extends Plugin {
   private proofread: ProofreadController | null = null;
   private explorer: ExplorerController | null = null;
   private sections: PaneSectionsController | null = null;
+  private recommendedFooter: RecommendedFooter | null = null;
+  /** Search by meaning; read by the settings tab and the Explorer filter. */
+  semantic: SemanticEngine | null = null;
+  /** Search by meaning for other plugins; Pythia reaches it through the plugin registry. */
+  api: SchreibstubeSemanticApi | null = null;
   /** Guards against firing twice inside one scheduled minute. */
   private lastPollMinute = -1;
   /** Sync records dropped here since the data file was last written, so the
@@ -204,6 +233,14 @@ export default class SchreibstubePlugin extends Plugin {
       }
     });
 
+    this.semantic = new SemanticEngine(this, () => this.settings, this.logger);
+    this.semantic.start();
+    this.api = createSemanticApi({
+      engine: this.semantic,
+      logger: this.logger,
+      vaultHit: (path) => this.vaultHit(path)
+    });
+
     this.explorer = new ExplorerController(
       this.app,
       () => this.settings,
@@ -218,6 +255,7 @@ export default class SchreibstubePlugin extends Plugin {
     // The pane's menu names a file from what is inside it; the AI commands are
     // what can do that, and they were built a moment ago.
     this.explorer.useNamer((file) => this.requireLlm().proposeName(file));
+    this.explorer.useDescriber((file) => this.requireLlm().describeImage(file));
     this.explorer.useTagOpener((tag) => this.activateTagNotes(tag));
     // From a note's menu: the reader named the note, so the panel stays on it.
     this.explorer.useRelatedOpener((path) => this.activateRelatedNotes(path, false));
@@ -226,6 +264,22 @@ export default class SchreibstubePlugin extends Plugin {
       this.activateFolderTiles(folder, following)
     );
     await this.explorer.start();
+    this.recommendedFooter = new RecommendedFooter(
+      this,
+      () => this.recommendedHost(),
+      () => this.settings.recommendedPlacement
+    );
+    this.recommendedFooter.start();
+    // A picture renamed outside Obsidian, or deleted while it was closed, left
+    // its description behind; the ones that only moved are found by content.
+    this.app.workspace.onLayoutReady(() => {
+      const repair = window.setTimeout(() => {
+        void this.explorer?.repairOrphans().catch((error: unknown) => {
+          this.logger.warn("Could not match orphaned picture descriptions:", error);
+        });
+      }, ORPHAN_REPAIR_DELAY_MS);
+      this.register(() => window.clearTimeout(repair));
+    });
 
     this.sections = new PaneSectionsController(
       this.app,
@@ -353,7 +407,38 @@ export default class SchreibstubePlugin extends Plugin {
     this.proofread?.stop();
     void this.explorer?.stop();
     this.sections?.stop();
+    this.semantic?.dispose();
+    // A caller holding the object finds it answering nothing; one asking the
+    // registry again finds no API at all.
+    this.api = null;
     this.clearOverlay();
+  }
+
+  /** A vault path as the API reports it: a description note as its picture. */
+  private vaultHit(path: string): { kind: "note" | "image"; id: string; title: string } | null {
+    const file = this.app.vault.getAbstractFileByPath(path);
+    if (!(file instanceof TFile)) return null;
+    const image = this.explorer?.imageDescribedBy(path) ?? null;
+    const picture = image === null ? null : this.app.vault.getAbstractFileByPath(image);
+    if (picture instanceof TFile)
+      return { kind: "image", id: picture.path, title: picture.basename };
+    const title = this.app.metadataCache.getFileCache(file)?.frontmatter?.title;
+    return { kind: "note", id: path, title: typeof title === "string" ? title : file.basename };
+  }
+
+  /** Match what can be matched, then list what could not, to open one. */
+  private async showOrphanedDescriptions(): Promise<void> {
+    const explorer = this.explorer;
+    if (!explorer) return;
+    const { repaired, remaining } = await explorer.repairOrphans();
+    if (repaired > 0) new Notice(t().common.notice(t().explorer.orphans.repaired(repaired)));
+    if (remaining.length === 0) {
+      if (repaired === 0) new Notice(t().common.notice(t().explorer.orphans.none));
+      return;
+    }
+    new OrphanListModal(this.app, remaining, (path) => {
+      void this.app.workspace.openLinkText(path, "", false);
+    }).open();
   }
 
   /** Open the review sidebar, reusing the existing leaf if it is already open. */
@@ -438,22 +523,85 @@ export default class SchreibstubePlugin extends Plugin {
 
   private createRelatedNotesView(leaf: WorkspaceLeaf): RelatedNotesView {
     const view = new RelatedNotesView(leaf);
+    const host = this.recommendedHost();
+    if (host) view.connect(host);
+    return view;
+  }
+
+  /** What the Recommended panel asks, wherever it is drawn. */
+  private recommendedHost(): RecommendedHost | null {
     const explorer = this.explorer;
-    if (explorer) {
-      view.connect({
-        cards: (path) => explorer.relatedCards(path),
-        titleOf: (path) => {
-          const file = this.app.vault.getAbstractFileByPath(path);
-          return file instanceof TFile ? (explorer.titleFor(file) ?? file.basename) : null;
-        },
-        open: async (path, newTab) => {
-          const file = this.app.vault.getAbstractFileByPath(path);
-          if (file) await explorer.open(file, newTab);
-        },
-        showMenu: (path, event) => explorer.showMenuForPath(path, event)
+    if (!explorer) return null;
+    return {
+      cards: (path) => explorer.relatedCards(path),
+      recommend: (path) => this.recommend(path),
+      titleOf: (path) => {
+        const file = this.app.vault.getAbstractFileByPath(path);
+        return file instanceof TFile ? (explorer.titleFor(file) ?? file.basename) : null;
+      },
+      open: async (path, where) => {
+        const file = this.app.vault.getAbstractFileByPath(path);
+        if (file) await explorer.open(file, where);
+      },
+      openConversation: (id) => {
+        // Pythia opens it itself when it can; otherwise its deep link does.
+        if (this.semantic?.conversations.open(id)) return;
+        window.open(`obsidian://pythia?cmd=resume&id=${encodeURIComponent(id)}`);
+      },
+      showMenu: (path, event) => explorer.showMenuForPath(path, event)
+    };
+  }
+
+  /**
+   * The link graph and search by meaning together, for one note. Null when
+   * search by meaning is off, so the panel keeps the graph's answer alone.
+   */
+  private async recommend(path: string): Promise<Recommendation | null> {
+    const explorer = this.explorer;
+    const engine = this.semantic;
+    if (!explorer || !engine?.enabled()) return null;
+    const found = await engine.relatedToNote(path, RECOMMEND_LIMIT);
+    const graph = explorer.relatedCards(path);
+
+    const meaning: { path: string }[] = [];
+    const pictures: PictureCard[] = [];
+    for (const hit of found.notes) {
+      // A description note stands for its picture, here as in the Explorer.
+      const image = explorer.imageDescribedBy(hit.id);
+      const picture = image === null ? null : this.app.vault.getAbstractFileByPath(image);
+      if (picture instanceof TFile) {
+        if (!pictures.some((p) => p.path === picture.path)) {
+          pictures.push({
+            path: picture.path,
+            title: picture.basename,
+            src: this.app.vault.getResourcePath(picture)
+          });
+        }
+        continue;
+      }
+      const note = this.app.vault.getAbstractFileByPath(hit.id);
+      if (note instanceof TFile && !explorer.isTrashed(note.path))
+        meaning.push({ path: note.path });
+    }
+
+    const cards = new Map(graph.map((card) => [card.path, card]));
+    const notes: RelatedCard[] = [];
+    for (const entry of recommendNotes(graph, meaning, RECOMMEND_LIMIT)) {
+      const known = cards.get(entry.path);
+      const file = this.app.vault.getAbstractFileByPath(entry.path);
+      if (!(file instanceof TFile)) continue;
+      notes.push({
+        path: entry.path,
+        title: known?.title ?? explorer.titleFor(file) ?? file.basename,
+        folder: file.parent && !file.parent.isRoot() ? file.parent.path : "",
+        reasons: entry.reasons
       });
     }
-    return view;
+    const conversations = found.conversations.map((c) => ({
+      id: c.id,
+      title: engine.conversations.titleOf(c.id)
+    }));
+    return { notes, pictures, conversations };
   }
 
   /**
@@ -486,7 +634,7 @@ export default class SchreibstubePlugin extends Plugin {
         open: async (path, into) => {
           const file = this.app.vault.getAbstractFileByPath(path);
           if (!(file instanceof TFile)) return;
-          if (into === "tab") await explorer.open(file, true);
+          if (into === "tab") await explorer.open(file, "tab");
           else await into.openFile(file);
         },
         showMenu: (path, at) => explorer.showMenuForPath(path, at),
@@ -502,9 +650,9 @@ export default class SchreibstubePlugin extends Plugin {
     if (explorer) {
       view.connect({
         cards: (tag) => explorer.tagCards(tag),
-        open: async (path, newTab) => {
+        open: async (path, where) => {
           const file = this.app.vault.getAbstractFileByPath(path);
-          if (file) await explorer.open(file, newTab);
+          if (file) await explorer.open(file, where);
         },
         showMenu: (path, event) => explorer.showMenuForPath(path, event)
       });
@@ -518,7 +666,8 @@ export default class SchreibstubePlugin extends Plugin {
       view.connect({
         explorer: this.explorer,
         sections: this.sections,
-        settings: () => this.settings
+        settings: () => this.settings,
+        meaning: async (text, limit) => (await this.semantic?.search(text, limit)) ?? []
       });
     }
     return view;
@@ -797,16 +946,18 @@ export default class SchreibstubePlugin extends Plugin {
   async loadSettings(): Promise<void> {
     const loaded = await this.loadData();
     this.settings = normalizeSettings(loaded);
+    if (holdsRetiredSettings(loaded)) await this.saveSettings();
   }
 
   async saveSettings(): Promise<void> {
     const run = this.saveChain.then(() => this.writeSettings());
     this.saveChain = run.catch(() => undefined);
     await run;
-    // A changed bookmarks path, count or exclusion list only matters once the
-    // pane has been told; nothing else watches the settings object.
+    // A changed bookmarks path, or Document sync turned on or off, only matters
+    // once the pane has been told; nothing else watches the settings object.
     void this.sections?.reloadIfPathChanged();
     this.sections?.invalidateLatest();
+    this.recommendedFooter?.sync();
   }
 
   /**
@@ -893,6 +1044,11 @@ export default class SchreibstubePlugin extends Plugin {
 
   async removePrintRuntime(): Promise<void> {
     await this.print?.removeRuntime();
+  }
+
+  /** The vault's own templates, for the tab to offer as the default. */
+  printTemplates(): PrintTemplate[] {
+    return this.print?.templates() ?? [];
   }
 
   /** Adding a template is set up once, so it is a button on the print tab. */
@@ -1056,6 +1212,12 @@ export default class SchreibstubePlugin extends Plugin {
       () => void this.explorer?.undoLast()
     );
 
+    this.addCommand({
+      id: "explorer-orphaned-descriptions",
+      name: t().commands.orphanedDescriptions,
+      callback: () => void this.showOrphanedDescriptions()
+    });
+
     // The folder of the note in front of you, as tiles — a route for the
     // palette and a hotkey, and for a phone where the pane may be shut.
     // Offered only when that folder has a picture of its own to show.
@@ -1145,6 +1307,12 @@ export default class SchreibstubePlugin extends Plugin {
 
     this.addGatedCommand("print-note", t().commands.print, "print", () => {
       void this.print?.printActiveNote();
+    });
+
+    // The same print without the dialog, for a note that is printed as it is
+    // again and again.
+    this.addGatedCommand("print-note-quick", t().commands.printQuick, "print", () => {
+      void this.print?.printActiveNoteQuickly();
     });
 
     this.addCommand({

@@ -1223,20 +1223,6 @@
   }
 }
 
-/* Created / Modified inside Latest: a label, not a row, so it carries no
-   chevron slot and no icon. It starts where the icons under it start, rather
-   than at the row inset, so each label sits over the list it names. */
-.schreibstube-explorer-subheading {
-  padding: 9px var(--schreibstube-row-inset) 3px
-    calc(
-      var(--schreibstube-row-inset) + var(--schreibstube-twisty-size) + var(--schreibstube-row-gap)
-    );
-  color: var(--text-faint);
-  font-size: 10px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
 .schreibstube-explorer-row.is-revealed {
   background: var(--text-selection);
 }
@@ -1410,6 +1396,30 @@
   flex: 0 0 auto;
   font-size: var(--schreibstube-glyph-size);
   color: var(--icon-color, var(--text-muted));
+}
+
+/* An icon Obsidian draws as an SVG — the vault's shelf, or a plugin's own —
+   sized to the glyph box and coloured like the glyphs beside it. */
+.schreibstube-explorer-glyph.is-obsidian-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--schreibstube-glyph-size);
+  height: var(--schreibstube-glyph-size);
+}
+
+.schreibstube-explorer-glyph.is-obsidian-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+/* A bookmark's icon says what kind of place it opens, not whose it is, so all
+   of them are grey: a plugin's coloured logo too, which is what the filter is
+   for — colour set on the element would not reach a fill drawn into the SVG. */
+.schreibstube-explorer-row.is-bookmark .schreibstube-explorer-glyph,
+.schreibstube-bookmark-suggestion .schreibstube-explorer-glyph {
+  color: var(--text-muted);
+  filter: grayscale(1);
 }
 
 .schreibstube-explorer-row.is-folder .schreibstube-explorer-glyph {
@@ -1805,6 +1815,57 @@
   white-space: nowrap;
 }
 
+/* The Recommended panel under a note (a setting): set off from the text by a
+   rule, as wide as the text, and after its last line. */
+.schreibstube-recommended-footer {
+  max-width: var(--file-line-width);
+  margin: 3em auto 2em;
+  padding-top: 1em;
+  border-top: 1px solid var(--background-modifier-border);
+  user-select: none;
+}
+
+/* The rows of the Recommended panel: pictures, notes and documents, and
+   conversations, each under a small heading once there is more than one. */
+.schreibstube-related-section {
+  margin: 12px 2px 6px;
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  font-weight: var(--font-semibold);
+}
+
+.schreibstube-related-pictures {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  gap: 6px;
+}
+
+.schreibstube-related-picture {
+  aspect-ratio: 1;
+  overflow: hidden;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--schreibstube-border-radius);
+  cursor: pointer;
+}
+
+.schreibstube-related-picture img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.schreibstube-related-picture:focus-visible {
+  outline: 2px solid var(--background-modifier-border-focus);
+  outline-offset: 1px;
+}
+
+.schreibstube-related-card.is-conversation .schreibstube-related-card-title {
+  display: flex;
+  align-items: center;
+  gap: var(--schreibstube-row-gap, 7px);
+}
+
 @media (hover: hover) {
   .schreibstube-related-card:hover {
     border-color: var(--background-modifier-border-hover);
@@ -1898,6 +1959,73 @@
   display: block;
   color: var(--text-muted);
   font-size: var(--font-smallest);
+}
+
+/* The print dialog: the choices beside the pages they make. Side by side where
+   there is room, the pages under the choices on a phone. The pages sit on the
+   secondary background so that white paper reads as paper in either theme. */
+.schreibstube-print-dialog {
+  width: min(1040px, 94vw);
+}
+
+.schreibstube-print-dialog-body {
+  display: grid;
+  grid-template-columns: minmax(240px, 1fr) 2fr;
+  gap: var(--size-4-4);
+}
+
+@media (max-width: 720px) {
+  .schreibstube-print-dialog-body {
+    grid-template-columns: 1fr;
+  }
+}
+
+.schreibstube-print-dialog-preview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-4-2);
+  min-width: 0;
+}
+
+.schreibstube-print-dialog-status {
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+}
+
+.schreibstube-print-dialog-status.is-error {
+  color: var(--text-error);
+}
+
+.schreibstube-print-dialog-pages {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--size-4-3);
+  max-height: 68vh;
+  min-height: 240px;
+  overflow-y: auto;
+  padding: var(--size-4-3);
+  border-radius: var(--radius-m);
+  background: var(--background-secondary);
+  transition: opacity 120ms ease;
+}
+
+/* A preview being set again is dimmed rather than emptied, so the page does
+   not jump while the next one is on its way. */
+.schreibstube-print-dialog-pages.is-stale {
+  opacity: 0.45;
+}
+
+.schreibstube-print-page {
+  max-width: 100%;
+  height: auto;
+  background: #ffffff;
+  box-shadow: var(--shadow-s);
+}
+
+.schreibstube-print-dialog-warnings {
+  color: var(--text-warning);
+  font-size: var(--font-ui-smaller);
 }
 
 /* ══ Image slideshow (```schreibstube-slideshow```) ══════════════════════════

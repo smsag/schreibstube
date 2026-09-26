@@ -197,3 +197,69 @@ describe("orphanSources", () => {
     ).toEqual([]);
   });
 });
+
+describe("planUploads and thumbnails", () => {
+  // A hash in hex: only a name that starts with one is the bridge's to delete.
+  const photo = { sourcePath: "Blog/haus.jpg", sha256: hash("cafe"), name: "haus.jpg", bytes: 9 };
+  const thumbnail = `assets/thumbs/${hash("cafe").slice(0, 12)}-haus.jpg`;
+  const original = `assets/${hash("cafe").slice(0, 12)}-haus.jpg`;
+
+  it("asks for the thumbnail of a marked picture the site lacks", () => {
+    const plan = planUploads({
+      index: index({ notes: [note("a")], assets: [{ ...photo, thumbnail: true }] }),
+      manifest: emptyManifest("blog"),
+      storedSourceHashes: []
+    });
+    expect(plan.uploadThumbnails).toEqual([
+      { sourcePath: "Blog/haus.jpg", sha256: hash("cafe"), name: "haus.jpg", path: thumbnail }
+    ]);
+  });
+
+  it("asks for none of a picture that is not marked, or cannot have one", () => {
+    const plan = planUploads({
+      index: index({
+        notes: [note("a")],
+        assets: [
+          photo,
+          { ...photo, sourcePath: "Blog/plan.svg", name: "plan.svg", thumbnail: true }
+        ]
+      }),
+      manifest: emptyManifest("blog"),
+      storedSourceHashes: []
+    });
+    expect(plan.uploadThumbnails).toEqual([]);
+  });
+
+  it("keeps a thumbnail the site has, and asks for it only once", () => {
+    const manifest = {
+      ...emptyManifest("blog"),
+      files: { [original]: { sha256: hash("cafe") }, [thumbnail]: { sha256: hash("t") } }
+    };
+    const plan = planUploads({
+      index: index({
+        notes: [note("a")],
+        assets: [
+          { ...photo, thumbnail: true },
+          { ...photo, sourcePath: "Blog/Kopie/haus.jpg", thumbnail: true }
+        ]
+      }),
+      manifest,
+      storedSourceHashes: [hash("a")]
+    });
+    expect(plan.uploadThumbnails).toEqual([]);
+    expect(plan.willDelete).toEqual([]);
+  });
+
+  it("takes a thumbnail down once no filmstrip shows its picture", () => {
+    const manifest = {
+      ...emptyManifest("blog"),
+      files: { [original]: { sha256: hash("cafe") }, [thumbnail]: { sha256: hash("t") } }
+    };
+    const plan = planUploads({
+      index: index({ notes: [note("a")], assets: [photo] }),
+      manifest,
+      storedSourceHashes: [hash("a")]
+    });
+    expect(plan.willDelete).toEqual([thumbnail]);
+  });
+});

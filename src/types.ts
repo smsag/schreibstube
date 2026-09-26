@@ -25,6 +25,8 @@ export interface PublishAccount {
   target: string;
   /** Write the published time and URL back into each note's frontmatter. */
   writeBack: boolean;
+  /** Up to three tags linked from the site's header, each to a page of its notes. */
+  headerTags: string[];
 }
 
 /** The summary of one publish, kept so the settings can show it afterwards. */
@@ -52,6 +54,19 @@ export interface SchreibstubeSettings {
   renameMaxContentChars: number;
   renameMaxFilenameLength: number;
   renameMaxImagePx: number;
+  // Picture descriptions: a vision model's words for a picture, kept as a note.
+  imageDescriptionsEnabled: boolean;
+  imageDescriptionFolder: string;
+  imageDescriptionLanguage: "auto" | "de" | "en";
+  imageDescriptionKeywordsAsTags: boolean;
+  /** Whether the Explorer shows description notes, or folds them into their pictures. */
+  explorerDescriptionNotes: "hide" | "show";
+  /** Where the Recommended panel follows the open note: the right sidebar, or under the note. */
+  recommendedPlacement: "sidebar" | "footer";
+  /** Search by meaning: the on-device semantic index of the vault's notes. */
+  semanticSearchEnabled: boolean;
+  /** How many notes the semantic index holds at most, newest first. */
+  semanticMaxNotes: number;
   // Summarize-specific tuning.
   summarizePrompt: string;
   summarizeMaxTokens: number;
@@ -87,12 +102,6 @@ export interface SchreibstubeSettings {
   /** Vault path of the Markdown file the bookmarks are read from. The plugin
    *  never writes it: a person edits it like any other note. */
   explorerBookmarksFile: string;
-  /** Show the recent-notes section between bookmarks and the file tree. */
-  explorerLatestEnabled: boolean;
-  /** How many notes each recent-notes list shows. */
-  explorerLatestCount: number;
-  /** Vault paths kept out of the recent-notes lists, comma or newline separated. */
-  explorerLatestExcluded: string;
   /** Show "open / total" tasks after a note's name in the file pane. */
   explorerTaskCounts: boolean;
   /** Draw `:folder:` in a note as the icon, and offer the icons while one is typed. */
@@ -130,6 +139,11 @@ export interface SchreibstubeSettings {
   printTemplateRoot: string;
   /** Where a printed PDF is written; empty means beside the note. */
   printOutputFolder: string;
+  /**
+   * The template a note that names none is printed with: empty for the
+   * built-in `Standard`, `:ask` for the picker, or a vault template's folder.
+   */
+  printDefaultTemplate: string;
   /** Icon name per frontmatter key, lower-cased; drawn in place of the type icon. */
   propertyIcons: Record<string, string>;
   /** Moment format for today's date entered into text. Date properties always get ISO. */

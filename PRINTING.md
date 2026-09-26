@@ -91,6 +91,25 @@ moved — and whose every byte is parsed on every start. It is fetched once per 
   being copied. The worker gets the fonts and the job's files, and answers with
   PDF bytes.
 
+### The standard fonts
+
+The typesetter has no typeface of its own. In a browser there are no system
+fonts for it to find, and a page set without a face is a blank page — which is
+what every template without a `fonts/` folder printed, both examples included,
+until these were added. So the faces Typst itself defaults to travel with the
+compiler: Libertinus Serif for text and DejaVu Sans Mono for code, regular,
+italic, bold and bold italic, about 2 MB in all.
+
+They are pinned exactly like the compiler: taken from `typst/typst-assets` at
+`FONTS_VERSION`, checked against the hashes in `FONT_FILES`, attached to the
+release as `typst-runtime-fonts-…`, fetched once per device and hashed again
+from the cache. The worker receives them once, at start, and adds them to every
+job beside the template's own. Typst picks by family, so a template that names
+its font gets it; one that names none, or names one it did not bring, is set in
+the standard face. Both licences (OFL, and the Bitstream Vera licence for
+DejaVu) allow redistribution with the notice each font carries in its own
+metadata.
+
 Measured on this hardware: 226 ms to instantiate, 171 ms to set the letter,
 433 ms to set the four-page CV with its photo and four font faces.
 
@@ -105,20 +124,128 @@ a server with room for a dependency tree, and this runs inside a bundle whose
 budget is a few hundred kilobytes, parsed on every start.
 
 Carried over: headings, paragraphs, emphasis, strong, strikethrough, highlight,
-ordered and unordered lists with nesting, links, wikilinks as their text,
+ordered and unordered lists with nesting and their start number, task lists,
+links, wikilinks as their text,
 images and embeds, tables with the alignment the delimiter row states, inline
 and fenced code, blockquotes, callouts, footnotes placed where they are
 referenced, `<br>` as a line break, and horizontal rules as an optional page
 break.
 
 Dropped, with a warning rather than in silence: raw HTML, embedded notes, and
-a picture that cannot be read. A diagram that could not be drawn prints as its
+a picture that cannot be read. Raw HTML means an element HTML knows — `<span>`,
+`<kbd>`, `<div>` —, whose tags go and whose words stay; anything else between
+angle brackets, such as the placeholder `<DOING SOMETHING>`, is text and prints
+as text. HTML comments (`<!-- … -->`) never reach paper, like `%%…%%`.
+
+Pictures: anything the device can decode is printed, drawn again at the size it
+prints as a format Typst reads (`services/print-images.ts`). JPEG, PNG and WebP
+stay what they are; GIF and BMP become PNG, since a canvas cannot write them;
+AVIF and HEIC become JPEG, on a white ground where they were transparent. The
+picture's name in the job ends in what the bytes now are — `IMG_2443.avif.jpg`
+— because Typst tells a format by its extension. SVG goes to Typst as it is and
+prints as lines. A picture in a format no print can carry is named as such; one
+that is not in the vault is named as not found. A diagram that could not be drawn prints as its
 own source in a code block — a missing diagram is a page that lies about what
 the note says.
 
 Not yet: LaTeX math. It is reported like the rest.
 
 Every construct has a test, and both sample documents are fixtures.
+
+A string test cannot say whether a string is Typst: every callout once failed
+to print while its test passed. So CI also compiles. `scripts/check-print-compile.mjs`
+builds a job for every case in `src/testing/print-fixtures.ts`, for both
+example templates and two made in the script — one with no opinions, one that
+replaces every helper — and runs it through the worker's own source on the
+pinned runtime and fonts. A job fails when Typst refuses it, or when the note
+has text and the PDF carries no font. Add a case with every converter fix.
+
+```bash
+node scripts/fetch-typst-runtime.mjs   # once: the pinned runtime and fonts, into dist/
+npm run check:print
+```
+
+## The print dialog
+
+"Doc drucken" opens `ui/print-dialog.ts` once the note has been read and its
+diagrams drawn; "Doc drucken (ohne Dialog)" skips it and prints as the
+template sets the page, unless the default-template setting says to ask.
+
+The note is read, and every diagram drawn and captured, once — before the
+dialog opens. A change in the dialog rebuilds the job and compiles it, which
+is the cheap part; a template's files and each picture at a template's size
+are read once per dialog too. The preview is that compile's PDF, drawn page by
+page with the pdf.js Obsidian ships (`pdf/pdf-preview.ts`, the first twelve
+pages), and "Drucken" writes the same bytes when nothing changed since it was
+set. A preview set for older choices is thrown away.
+
+What each choice means is `services/print-options.ts`:
+
+| Choice                        | Effect                                                                                                                                                                                                                              |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Vorlage                       | The template; its page-break habit comes with it                                                                                                                                                                                    |
+| Ränder                        | `standard` keeps the template's margin; `small` and `wide` set 15 and 35 mm through the page rule `main.typ` sets before the layout. A layout that sets its own margin (`layoutFixesMargin`) keeps it, and the choice is greyed out |
+| Trennlinien als Seitenumbruch | The converter's `hrIsPageBreak`                                                                                                                                                                                                     |
+| Eigenschaften drucken         | `frontmatterRows`: the note's properties without the `schreibstube…` keys, lists on one line, links as their names; placed after a leading `=` heading as `#schreibstube-properties(rows)`                                          |
+| Diashows                      | Offered when the note holds one. `layout` (the default, and what the quick print uses) or `stacked`; see below                                                                                                                      |
+
+### Slideshows on paper
+
+A ` ```schreibstube-slideshow ` block is read by the same `parseSlideshow` that
+renders it, so a block the screen refuses prints as its source with the
+screen's reason. `services/print-slideshow.ts` decides which pictures reach the
+page and how wide each is; the prelude's `schreibstube-slideshow(kind, images,
+columns:)` arranges them, and a template may replace it.
+
+| Layout      | "Wie in der Notiz"                                                                                                                     | "Alle Bilder untereinander"                                                                                                                         |
+| ----------- | -------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `slideshow` | the first picture, text width, description beneath                                                                                     | every picture of the block, one under another at the text's width, each with its description; a page break falls between pictures, never inside one |
+| `filmstrip` | the first picture over every thumbnail, eight to a row                                                                                 | as above                                                                                                                                            |
+| `feature`   | the scene (⅔) beside two details, 3:2                                                                                                  | as above                                                                                                                                            |
+| `strip`     | equal 4:3 tiles in `stripColumns` columns                                                                                              | as above                                                                                                                                            |
+| `masonry`   | three balanced columns at the pictures' own proportions, read down each column; a series taller than a page goes on in a further block | as above                                                                                                                                            |
+| `compare`   | before and after side by side, each named                                                                                              | as above                                                                                                                                            |
+
+Each picture is read only as large as it prints: the image request carries
+the share of the text width it takes, and `pictureEdge` turns the template's
+`maxPx` into the edge to resize to, never below 400 px. A strip tile a third
+of the page wide is read at a third of the size, which keeps a long filmstrip
+inside the job's picture budget. Picture paths are tried the way the screen
+tries them (`linkpathCandidates`), so `my%20photo.png` is found. A picture
+that is not in the vault is left out and named; the rest of the slideshow
+prints.
+
+Nothing is remembered between prints. The built-in Standard sets its margins
+in its descriptor rather than its layout, which is what lets the presets move
+them; a vault template that wants the presets does the same.
+
+## The built-in template
+
+A note prints before the vault holds any template. The plugin carries one,
+**Standard**: A4, 25 mm margins, Libertinus Serif at 11 pt, justified and
+hyphenated in the plugin's language, the note's own headings, footnotes at the
+foot of the page, and the page number once there is more than one page. A note
+without a first heading gets its file name as a title.
+
+It is `examples/print/standard/`, carried like the other examples: the
+generator writes its files and its parsed frontmatter into
+`services/print-examples.ts`, and `services/print-builtin.ts` builds the
+template from them, so the plugin needs no YAML parser and the built-in and
+the copy "Vorlage anlegen" lays down cannot drift. Its folder is
+`:builtin/Standard`, a path no vault can hold, and it reads no file from the
+vault.
+
+Which template a note gets (`chooseTemplate` in `services/print-template.ts`):
+
+1. The one it names in `schreibstubePrintTemplate`, by folder path or name. A
+   vault template shadows the built-in one of the same name, so a copy of
+   Standard in the vault is the Standard that prints.
+2. Otherwise the default from the setting `printDefaultTemplate`: empty for
+   Standard (the default), a vault template's folder, or `:ask` for the picker.
+   A default whose folder has gone is reported, and the picker is shown.
+
+The template contract below holds for Standard exactly as for a vault template;
+it only calls `data.title` and the built-in `data.lang`.
 
 ## The template contract
 
@@ -169,24 +296,37 @@ How to use this template, in prose, for whoever opens the folder.
 The plugin generates `main.typ`:
 
 ```typst
-#import "template.typ": letter
-#show: letter.with(data: (senderName: "…", recipient: "…", date: "13.09.2026", …))
+#import "schreibstube.typ": *
+#import "template.typ": *
+#let data = (senderName: "…", recipient: "…", date: "13.09.2026", …)
+#set page(paper: "a4", margin: 25mm)
+#show: body => letter(body, data)
 // the converted body follows
 ```
 
 ### The helpers a note calls
 
-The converter never emits Typst's own primitives for the four things a template
+The converter never emits Typst's own primitives for the things a template
 should own. It calls these instead, defined in `services/print-prelude.ts` and
 placed in the job as `schreibstube.typ`. A template that wants a different look
-defines any of them itself before the body is placed, and its definition wins.
+defines any of them at the top level of `template.typ`, and its definition
+wins: `main.typ` imports the prelude first and everything the layout defines
+after it.
 
-| Helper                 | Signature                             | Given                                                                       |
-| ---------------------- | ------------------------------------- | --------------------------------------------------------------------------- |
-| `schreibstube-image`   | `(path, alt)`                         | one embedded picture                                                        |
-| `schreibstube-diagram` | `(paths, caption)`                    | **an array** of pictures, all from one fence, and one caption for the group |
-| `schreibstube-code`    | `(source, language)`                  | a fence that is not a diagram, or one that could not be drawn               |
-| `schreibstube-callout` | `(kind, title)` returning `body => …` | an Obsidian callout, `kind` one of `note`, `tip`, `warning`, `danger`       |
+| Helper                    | Signature                     | Given                                                                                                                                             |
+| ------------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `schreibstube-image`      | `(path, alt)`                 | one embedded picture                                                                                                                              |
+| `schreibstube-diagram`    | `(paths, caption)`            | **an array** of pictures, all from one fence, and one caption for the group                                                                       |
+| `schreibstube-code`       | `(source, language)`          | a fence that is not a diagram, or one that could not be drawn                                                                                     |
+| `schreibstube-table`      | `(columns:, align:, ..cells)` | a pipe table; the first argument among `cells` may be a `table.header`                                                                            |
+| `schreibstube-callout`    | `(kind, title, body)`         | an Obsidian callout, `kind` one of `note`, `tip`, `warning`, `danger`                                                                             |
+| `schreibstube-task`       | `(done)`                      | the box in front of a task-list item                                                                                                              |
+| `schreibstube-properties` | `(rows)`                      | the note's properties, when the dialog prints them: an array of `(key, value)`                                                                    |
+| `schreibstube-slideshow`  | `(kind, images, columns: 1)`  | a slideshow: `kind` one of `single`, `filmstrip`, `feature`, `strip`, `masonry`, `compare`, `stacked`; `images` an array of `(path, description)` |
+
+Because the layout is imported whole, a top-level name in it may shadow one the
+prelude defines. That is the mechanism, so name private helpers of your own
+without the `schreibstube-` prefix.
 
 `schreibstube-diagram` takes an array rather than a single path because a fence
 may draw more than one picture — a carousel's panels are one fence and several
@@ -202,10 +342,12 @@ For every key the template reads, the first of these wins:
    recipient and subject and a CV its title.
 2. The template's `schreibstubeData`, so the sender is written once.
 3. Built-ins: `date` is today in the note's language unless the note sets it,
-   `title` is the note's title, `noteName` the file's basename.
+   `title` is the note's title, `noteName` the file's basename, `lang` the
+   plugin's language (`de` or `en`), for a template to hyphenate by.
 
 A note picks its template with `schreibstubePrintTemplate: Brief`; without it,
-the command asks and remembers the answer in the note. Keys are prefixed
+the default template from the settings is used — Standard unless somebody chose
+another — and the picker only when the setting asks for it. Keys are prefixed
 `schreibstube`, as every frontmatter key this plugin reads.
 
 ### What a template may not do
@@ -218,9 +360,14 @@ fails validation is reported by name and reason:
 - No path outside the template folder. Every `image()` and `read()` resolves
   inside the job's shadow file system, which holds only the template's files
   and the note's captured assets.
-- Limits: at most 12 font files and 8 MB of fonts, 40 images and 24 MB of
-  images per job, 20 s of compile time, 30 MB of PDF. Each is a named
-  `MAX_…` constant with a test.
+- Limits: at most 12 font files and 8 MB of fonts, 120 images and 24 MB of
+  images per job, 30 MB of PDF. Each is a named `MAX_…` constant with a
+  test.
+- A compile deadline that grows with the job: 20 s, plus 60 ms per kilobyte
+  of text and 300 ms per megabyte of pictures and fonts, at most 3 minutes.
+  The costs are ten times what the laptop measured in `compileDeadline`
+  (`services/print-job.ts`), for the slowest phone. A long document says in
+  its notice how long it may take; one that overruns is stopped and says so.
 
 ## Diagrams
 
@@ -241,7 +388,29 @@ an inline style, so a theme can see what printing does instead of fighting it:
 | `theme-light`              | Obsidian's own. A canvas resolves its colours from the variables in scope while it renders, so rendering under this class bakes the light ones in — which paper needs, whatever the vault is set to.                                                                                                                                                                       |
 | `vizardry-no-enrich`       | Asks a canvas plugin to skip the enrichment it would otherwise fetch from the network. Printing is meant to work offline, and this is what keeps that true when a plugin would rather call out. The plugin may publish its own name for this class on its API, and that name wins; the one here is the fallback, pinned because a class cannot be imported across plugins. |
 
-What is captured, in order:
+### Mermaid
+
+Mermaid is not captured from the note. Obsidian draws it with the app's theme
+and with most labels — every flowchart's — as HTML inside `<foreignObject>`,
+and a browser refuses to let a canvas that has drawn one be read back
+(`Tainted canvases may not be exported`): the diagram went to paper as its
+source. So printing asks Obsidian's Mermaid (`loadMermaid()`) for a drawing of
+its own, with the diagram's text changed by `printableMermaid` in
+`services/print-mermaid.ts`:
+
+- `%%{init: {"theme": "default", "darkMode": false}}%%` first — after a
+  frontmatter block, never before one — and only when the diagram names no
+  theme itself, in its frontmatter or a directive of its own;
+- `%%{init: {"htmlLabels": false, …}}%%` last, so labels are SVG text whatever
+  the diagram says.
+
+Mermaid applies a render's directives to that render only; Obsidian's own
+diagrams are untouched. It draws inside the print stage, since a Gantt chart
+takes its width from where it is drawn. The SVG is then captured as below.
+Checked in Chromium against Mermaid 11: flowchart, sequence, class, state,
+ER, mindmap, pie and Gantt all capture, where flowcharts used to fail.
+
+What is captured, in order, for every other fence:
 
 1. **The plugin's own export**, when the block's language names a plugin that
    offers one at or above the contract version this plugin knows
@@ -278,9 +447,15 @@ separate them.
 
 ## Output
 
-The PDF is written beside the note with the note's name, overwritten on
-reprint, then revealed in the file pane. A settings option redirects output to
-a fixed folder for vaults that keep exports apart.
+The PDF is written beside the note with the note's name, through the vault so
+it is in the file pane at once. A settings option redirects output to a fixed
+folder for vaults that keep exports apart; the folder is made if it is missing.
+
+A reprint replaces the previous print without asking. Any other PDF of that
+name — a scan, a download, a signed copy — is asked about first, and kept on a
+no. What counts as a previous print is a PDF whose creator is Typst
+(`isTypesetPdf` in `services/print-job.ts`). A document over 30 MB is refused
+rather than written.
 
 ## The plan
 
@@ -327,10 +502,12 @@ proven anywhere else:
 
 ### Epic 4: the two example templates — done
 
-`examples/print/brief/` and `examples/print/lebenslauf/`, each documented in
+`examples/print/brief/` and `examples/print/lebenslauf/` (and, later, the built-in
+`examples/print/standard/`), each documented in
 its own `template.md`, with `examples/print/README.md` on installing one and
-on fonts. Neither ships a typeface: fonts are licensed, and a repository is not
-a place to redistribute them.
+on fonts. Neither ships a typeface of its own choosing: they ask for Fira Sans
+by name, and without it they are set in the standard fonts the plugin fetches
+with the compiler.
 
 ### Epic 5: documentation and release — done
 

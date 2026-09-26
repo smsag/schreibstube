@@ -13,7 +13,11 @@
  */
 import { Setting } from "obsidian";
 import { t } from "../i18n";
-import { TEMPLATE_ROOT_DEFAULT } from "../services/print-template";
+import {
+  DEFAULT_TEMPLATE_ASK,
+  DEFAULT_TEMPLATE_BUILTIN,
+  TEMPLATE_ROOT_DEFAULT
+} from "../services/print-template";
 import { RUNTIME_MEGABYTES, TYPST_VERSION } from "../services/typst-runtime";
 import type { SettingsContext } from "./context";
 import { renderCommands } from "./commands";
@@ -49,6 +53,8 @@ export function renderPrint(ctx: SettingsContext): void {
 
   if (!ctx.plugin.settings.printEnabled) return;
 
+  renderDefaultTemplate(ctx);
+
   new Setting(ctx.containerEl)
     .setName(strings.printTemplateRoot)
     .setDesc(strings.printTemplateRootDesc)
@@ -83,6 +89,40 @@ export function renderPrint(ctx: SettingsContext): void {
     );
 
   renderCommands(ctx, [t().commands.print]);
+}
+
+/**
+ * Which template a note that names none is printed with.
+ *
+ * The built-in one first, because it is the answer that needs nothing in the
+ * vault; then every template the vault holds, by name and folder, since two
+ * can share a name; then the picker, for somebody who likes being asked. A
+ * default whose folder has gone is kept and marked rather than silently
+ * replaced, so the tab shows what printing will actually run into.
+ */
+function renderDefaultTemplate(ctx: SettingsContext): void {
+  const strings = t().settings;
+  const current = ctx.plugin.settings.printDefaultTemplate;
+  const templates = ctx.plugin.printTemplates();
+
+  new Setting(ctx.containerEl)
+    .setName(strings.printDefaultTemplate)
+    .setDesc(strings.printDefaultTemplateDesc)
+    .addDropdown((dropdown) => {
+      dropdown.addOption(DEFAULT_TEMPLATE_BUILTIN, strings.printDefaultBuiltin);
+      for (const template of templates) {
+        dropdown.addOption(template.folder, `${template.name} — ${template.folder}`);
+      }
+      const known =
+        current === DEFAULT_TEMPLATE_BUILTIN ||
+        current === DEFAULT_TEMPLATE_ASK ||
+        templates.some((template) => template.folder === current);
+      if (!known) dropdown.addOption(current, strings.printDefaultMissing(current));
+      dropdown.addOption(DEFAULT_TEMPLATE_ASK, strings.printDefaultAsk);
+      dropdown.setValue(current).onChange(async (value) => {
+        await ctx.update({ printDefaultTemplate: value });
+      });
+    });
 }
 
 /**

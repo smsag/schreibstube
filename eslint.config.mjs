@@ -63,6 +63,12 @@ export default tseslint.config(
     }
   },
 
+  // The published site's own scripts run in the reader's browser, not in Node.
+  {
+    files: ["bridge/publish/client/**/*.mjs"],
+    languageOptions: { globals: { ...globals.browser } }
+  },
+
   // Tests may reach for shapes the source never would.
   {
     files: ["**/*.test.ts", "**/*.test.mjs", "**/sftp-fixture.mjs", "src/testing/**/*.ts"],

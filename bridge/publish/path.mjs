@@ -102,6 +102,85 @@ export function assetPath(sha256, name) {
   return extension ? `assets/${short}-${stem}.${extension}` : `assets/${short}-${stem}`;
 }
 
+/**
+ * The small copy of a picture that a filmstrip shows under its stage.
+ *
+ * The plugin makes it, because it can decode the picture where the picture
+ * is, and names it after the picture it came from rather than after its own
+ * bytes: a thumbnail the site already has is then known to be current without
+ * the plugin decoding a photograph to find out. They live in a directory of
+ * their own, so no thumbnail's name can ever be an uploaded file's.
+ *
+ * A PNG keeps its transparency and stays a PNG; a photograph becomes a JPEG.
+ * Anything else — a drawing, an animation, a format a phone may not decode —
+ * has no thumbnail and the filmstrip shows the picture itself.
+ */
+export const THUMBNAIL_TYPES = new Map([
+  ["png", "png"],
+  ["jpg", "jpg"],
+  ["jpeg", "jpg"],
+  ["webp", "jpg"]
+]);
+
+/** What one thumbnail may weigh. A 240-pixel picture is a few kilobytes. */
+export const MAX_THUMBNAIL_BYTES = 200_000;
+
+/** The thumbnail's extension for a source name, or "" when it has none. */
+export function thumbnailExtension(name) {
+  return THUMBNAIL_TYPES.get(extensionOf(name)) ?? "";
+}
+
+/** Where the thumbnail of the picture `sha256`, named `name`, is served from. */
+export function thumbnailPath(sha256, name) {
+  const extension = thumbnailExtension(name);
+  if (!extension) return null;
+  const stem = slugify(String(name).replace(/\.[A-Za-z0-9]+$/, ""));
+  return `assets/thumbs/${String(sha256).slice(0, 12)}-${stem}.${extension}`;
+}
+
+/** Whether bytes begin the way the thumbnail's format says they must. */
+export function isThumbnailFormat(bytes, extension) {
+  if (extension === "jpg") {
+    return bytes.length > 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+  }
+  if (extension === "png") {
+    const signature = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+    return bytes.length > 8 && signature.every((byte, i) => bytes[i] === byte);
+  }
+  return false;
+}
+
+/** How many tags the header links to. */
+export const MAX_HEADER_TAGS = 3;
+
+/**
+ * Whether a header tag is one the bridge will draw: text, short, and without
+ * what no tag can hold — whitespace, a `#`, a control character, an empty
+ * segment between slashes. The plugin reads tags the way Obsidian does; this
+ * is the bridge refusing what it could not name a page after, not a second
+ * opinion on what a tag is.
+ */
+export function isHeaderTag(tag) {
+  return (
+    typeof tag === "string" &&
+    tag.length > 0 &&
+    tag.length <= 100 &&
+    !/[\s#]/.test(tag) &&
+    !CONTROL_CHARACTERS.test(tag) &&
+    !tag.split("/").some((segment) => segment.length === 0)
+  );
+}
+
+/** Where a header tag's page is served from: `tag/projekt-alpha/`. */
+export function tagPagePath(tag) {
+  return `tag/${slugify(tag)}/index.html`;
+}
+
+/** What the header calls a tag: its last segment, `alpha` for `projekt/alpha`. */
+export function tagLabel(tag) {
+  return String(tag).split("/").pop();
+}
+
 /** Where a note is served from. */
 export function pagePath(slug) {
   if (!isValidSlug(slug)) {

@@ -8,7 +8,17 @@
  */
 import { escapeHtml } from "./obsidian.mjs";
 
-export function notePage({ note, body, siteTitle, usedMath, usedMermaid, hasIndex = true }) {
+export function notePage({
+  note,
+  body,
+  siteTitle,
+  usedMath,
+  usedMermaid,
+  usedSlideshow = false,
+  hasIndex = true,
+  nav = [],
+  icon = null
+}) {
   // A note is served from <slug>/index.html, so everything shared is one level up.
   const up = "../";
   return page({
@@ -16,8 +26,11 @@ export function notePage({ note, body, siteTitle, usedMath, usedMermaid, hasInde
     title: `${note.title} — ${siteTitle}`,
     description: note.description,
     siteTitle,
+    nav,
+    icon,
     usedMath,
     usedMermaid,
+    usedSlideshow,
     hasIndex,
     main:
       `<article>\n` +
@@ -30,41 +43,103 @@ export function notePage({ note, body, siteTitle, usedMath, usedMermaid, hasInde
   });
 }
 
-export function indexPage({ notes, siteTitle }) {
-  const entries = notes
-    .map(
-      (note) =>
-        `<li>\n` +
-        `<a class="entry" href="${escapeHtml(note.slug)}/">${escapeHtml(note.title)}</a>\n` +
-        metaLine(note.date) +
-        (note.description ? `<p class="summary">${escapeHtml(note.description)}</p>\n` : "") +
-        `</li>`
-    )
-    .join("\n");
-
+export function indexPage({ notes, siteTitle, nav = [], icon = null }) {
   return page({
     up: "",
     title: siteTitle,
     description: "",
     siteTitle,
+    nav,
+    icon,
     usedMath: false,
     usedMermaid: false,
     hasIndex: false,
     main:
       notes.length > 0
-        ? `<ul class="index">\n${entries}\n</ul>\n`
+        ? `<ul class="index">\n${listEntries(notes, "")}\n</ul>\n`
         : `<p class="empty">Noch nichts veröffentlicht.</p>\n`
   });
 }
 
-function page({ up, title, description, siteTitle, usedMath, usedMermaid, hasIndex, main }) {
+/**
+ * A header tag's page: the notes carrying it, listed as the start page lists
+ * them. Served from tag/<slug>/index.html, so everything shared is two up.
+ */
+export function tagPage({ entry, siteTitle, nav = [], icon = null }) {
+  const up = "../../";
+  return page({
+    up,
+    title: `${entry.label} — ${siteTitle}`,
+    description: "",
+    siteTitle,
+    nav,
+    icon,
+    current: entry.slug,
+    usedMath: false,
+    usedMermaid: false,
+    hasIndex: true,
+    main:
+      `<h1 class="tag-title">${escapeHtml(entry.label)}</h1>\n` +
+      `<ul class="index">\n${listEntries(entry.notes, up)}\n</ul>\n`
+  });
+}
+
+function listEntries(notes, up) {
+  return notes
+    .map(
+      (note) =>
+        `<li>\n` +
+        `<a class="entry" href="${up}${escapeHtml(note.slug)}/">${escapeHtml(note.title)}</a>\n` +
+        metaLine(note.date) +
+        (note.description ? `<p class="summary">${escapeHtml(note.description)}</p>\n` : "") +
+        `</li>`
+    )
+    .join("\n");
+}
+
+/**
+ * The header tags as links. Nothing at all without them, so a site that sets
+ * none has the header it always had. The one being looked at is marked, for
+ * the eye and for a screen reader.
+ */
+function headerTags(nav, up, current) {
+  if (nav.length === 0) return "";
+  const links = nav
+    .map(
+      (entry) =>
+        `<a href="${up}tag/${escapeHtml(entry.slug)}/"` +
+        (entry.slug === current ? ' aria-current="page"' : "") +
+        `>${escapeHtml(entry.label)}</a>`
+    )
+    .join("");
+  return `<nav class="site-tags" aria-label="Schlagwörter">${links}</nav>`;
+}
+
+function page({
+  up,
+  title,
+  description,
+  siteTitle,
+  nav = [],
+  current = null,
+  icon = null,
+  usedMath,
+  usedMermaid,
+  usedSlideshow = false,
+  hasIndex,
+  main
+}) {
   const head = [
     `<meta charset="utf-8">`,
     `<meta name="viewport" content="width=device-width, initial-scale=1">`,
     `<title>${escapeHtml(title)}</title>`,
     description ? `<meta name="description" content="${escapeHtml(description)}">` : null,
+    icon
+      ? `<link rel="icon" href="${up}${escapeHtml(icon.path)}" type="${escapeHtml(icon.type)}">`
+      : null,
     `<link rel="stylesheet" href="${up}assets/theme.css">`,
-    usedMath ? `<link rel="stylesheet" href="${up}assets/katex/katex.css">` : null
+    usedMath ? `<link rel="stylesheet" href="${up}assets/katex/katex.css">` : null,
+    usedSlideshow ? `<link rel="stylesheet" href="${up}assets/slideshow.css">` : null
   ].filter(Boolean);
 
   // Five megabytes, fetched when a diagram is actually about to be read rather
@@ -98,14 +173,21 @@ function page({ up, title, description, siteTitle, usedMath, usedMermaid, hasInd
       `</script>\n`
     : "";
 
+  // A module runs after the page has been parsed, so it finds every block,
+  // and a browser that runs no scripts keeps the plain layouts.
+  const slideshowScript = usedSlideshow
+    ? `<script type="module" src="${up}assets/slideshow.js"></script>\n`
+    : "";
+
   return (
     `<!doctype html>\n` +
     `<html lang="de">\n` +
     `<head>\n${head.join("\n")}\n</head>\n` +
     `<body>\n` +
-    `<header class="site">${hasIndex ? `<a href="${up}">${escapeHtml(siteTitle)}</a>` : escapeHtml(siteTitle)}</header>\n` +
+    `<header class="site">${hasIndex ? `<a href="${up}">${escapeHtml(siteTitle)}</a>` : escapeHtml(siteTitle)}${headerTags(nav, up, current)}</header>\n` +
     `<main>\n${main}</main>\n` +
     scripts +
+    slideshowScript +
     `</body>\n` +
     `</html>\n`
   );
@@ -164,6 +246,20 @@ header.site {
 }
 
 header.site a { color: inherit; text-decoration: none; }
+
+header.site:has(.site-tags) {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem 1.25rem;
+}
+
+.site-tags { display: flex; flex-wrap: wrap; gap: 0.25rem 1.1rem; font-weight: 400; }
+.site-tags a { color: var(--muted); }
+.site-tags a:hover, .site-tags a[aria-current="page"] { color: var(--accent); }
+
+.tag-title { margin-bottom: 1rem; }
 
 main { max-width: 42rem; margin: 0 auto; }
 

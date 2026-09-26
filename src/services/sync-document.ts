@@ -123,7 +123,7 @@ export function nextSyncRecord(input: SyncOutcomeInput): SyncRecord {
  * baseline, and that is a fact about the bookkeeping rather than about the
  * document. Treating it as a change stamped every mirrored note in a vault the
  * first time it was checked after updating — a date they had not earned, a
- * place at the top of "Zuletzt" they had not earned, and a mark on the pane
+ * place at the top of "Extern aktualisiert" they had not earned, and a mark on the pane
  * saying something had come in when nothing had. The hash is adopted quietly
  * instead, and the next check has a baseline to compare against.
  *

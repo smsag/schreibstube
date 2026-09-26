@@ -67,6 +67,8 @@ export function renderAi(ctx: SettingsContext): void {
         })
     );
 
+  renderDescriptions(ctx);
+
   new Setting(ctx.containerEl).setName(t().settings.renameHeading).setHeading();
 
   new Setting(ctx.containerEl)
@@ -166,4 +168,53 @@ export function renderAi(ctx: SettingsContext): void {
     });
 
   renderCommands(ctx, [t().commands.rename, t().commands.summarize]);
+}
+
+/** Picture descriptions: the switch, where the notes go, their language and tags. */
+function renderDescriptions(ctx: SettingsContext): void {
+  const labels = t().settings;
+  new Setting(ctx.containerEl).setName(labels.describeHeading).setHeading();
+  new Setting(ctx.containerEl).setDesc(labels.describeIntro);
+
+  new Setting(ctx.containerEl)
+    .setName(labels.describeEnabled)
+    .setDesc(labels.describeEnabledDesc)
+    .addToggle((toggle) =>
+      toggle.setValue(ctx.plugin.settings.imageDescriptionsEnabled).onChange(async (value) => {
+        await ctx.update({ imageDescriptionsEnabled: value });
+      })
+    );
+
+  new Setting(ctx.containerEl)
+    .setName(labels.describeFolder)
+    .setDesc(labels.describeFolderDesc)
+    .addText((text) => {
+      text.setValue(ctx.plugin.settings.imageDescriptionFolder);
+      text.inputEl.addEventListener("blur", async () => {
+        await ctx.update({ imageDescriptionFolder: text.inputEl.value });
+        text.setValue(ctx.plugin.settings.imageDescriptionFolder);
+      });
+    });
+
+  new Setting(ctx.containerEl).setName(labels.describeLanguage).addDropdown((dropdown) => {
+    dropdown
+      .addOption("auto", labels.describeLanguageAuto)
+      .addOption("de", "Deutsch")
+      .addOption("en", "English")
+      .setValue(ctx.plugin.settings.imageDescriptionLanguage)
+      .onChange(async (value) => {
+        await ctx.update({ imageDescriptionLanguage: value as "auto" | "de" | "en" });
+      });
+  });
+
+  new Setting(ctx.containerEl)
+    .setName(labels.describeTags)
+    .setDesc(labels.describeTagsDesc)
+    .addToggle((toggle) =>
+      toggle
+        .setValue(ctx.plugin.settings.imageDescriptionKeywordsAsTags)
+        .onChange(async (value) => {
+          await ctx.update({ imageDescriptionKeywordsAsTags: value });
+        })
+    );
 }

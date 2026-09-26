@@ -12,6 +12,9 @@
  * the network. Both refusals name the template and the reason.
  */
 
+import { t } from "../i18n";
+import { printableText } from "./typst-value";
+
 /** The frontmatter flag that makes a note a template descriptor. */
 export const TEMPLATE_FLAG = "schreibstubePrintTemplate";
 
@@ -51,8 +54,15 @@ export const MAX_IMAGE_BYTES = 24 * 1024 * 1024;
  */
 export const MAX_DIAGRAM_BYTES = 8 * 1024 * 1024;
 export const MAX_LAYOUT_BYTES = 256 * 1024;
+
+/**
+ * What one picture in the vault may weigh before it is read at all.
+ *
+ * It is made smaller for the page, but only after it has been decoded whole,
+ * and a phone decoding an image of any size runs out of memory first.
+ */
+export const MAX_SOURCE_IMAGE_BYTES = 40 * 1024 * 1024;
 export const MAX_PDF_BYTES = 30 * 1024 * 1024;
-export const COMPILE_TIMEOUT_MS = 20_000;
 
 /** Image bounds a template may narrow but not widen. */
 export const IMAGE_MAX_PX_LIMIT = 4000;
@@ -82,7 +92,15 @@ export interface PrintTemplate {
   data: Record<string, string>;
   /** The function `main.typ` applies. */
   entry: string;
+  /** Carried by the plugin rather than read from a folder in the vault. */
+  builtIn?: boolean;
 }
+
+/** The setting's value for "ask every time", which no vault path can be. */
+export const DEFAULT_TEMPLATE_ASK = ":ask";
+
+/** The setting's value for the built-in template: also what it starts as. */
+export const DEFAULT_TEMPLATE_BUILTIN = "";
 
 export const DEFAULT_PAGE: PageSetup = { size: "a4", margin: null };
 export const DEFAULT_ENTRY = "template";
@@ -142,7 +160,7 @@ export function parseTemplate(
   const dataValue = record.schreibstubeData;
   if (isRecord(dataValue)) {
     for (const [key, value] of Object.entries(dataValue)) {
-      const text = scalar(value);
+      const text = printableText(value);
       if (text === null) problems.push(`data.${key} is not a value a template can print`);
       else data[key] = text;
     }
@@ -182,9 +200,10 @@ export function parseTemplate(
  */
 export function checkLayout(source: string): string[] {
   const problems: string[] = [];
+  const words = t().print.layout;
 
-  if (source.length > MAX_LAYOUT_BYTES) {
-    problems.push(`layout is larger than ${Math.round(MAX_LAYOUT_BYTES / 1024)} KB`);
+  if (new TextEncoder().encode(source).byteLength > MAX_LAYOUT_BYTES) {
+    problems.push(words.tooLarge(Math.round(MAX_LAYOUT_BYTES / 1024)));
   }
 
   const lines = source.split(/\r?\n/);
@@ -192,20 +211,85 @@ export function checkLayout(source: string): string[] {
     const at = index + 1;
     const code = line.replace(/\/\/.*$/, "");
 
-    if (/@(preview|local)\//.test(code)) {
-      problems.push(`line ${at}: packages cannot be used, printing works offline`);
-    }
-    for (const match of code.matchAll(/"((?:[^"\\]|\\.)*)"/g)) {
+    // Only a string that names a file is a path. Every string used to be read
+    // as one, so a layout that printed "../" as text was refused for it.
+    for (const match of code.matchAll(PATH_ARGUMENT)) {
       const value = match[1] ?? "";
-      if (/(^|[/\\])\.\.([/\\]|$)/.test(value)) {
-        problems.push(`line ${at}: a path may not leave the template folder`);
+      if (/^@(preview|local)\//.test(value)) {
+        problems.push(words.package(at));
+      } else if (/(^|[/\\])\.\.([/\\]|$)/.test(value)) {
+        problems.push(words.leavesFolder(at));
       } else if (value.startsWith("/") && value.length > 1) {
-        problems.push(`line ${at}: a path must be relative to the template folder`);
+        problems.push(words.absolute(at));
       }
     }
   });
 
   return [...new Set(problems)];
+}
+
+/**
+ * A string literal in the place Typst reads a file from: after `import` or
+ * `include`, or as the first argument of a function that opens one.
+ */
+const PATH_ARGUMENT =
+  /(?:\b(?:import|include)\s+|\b(?:image|read|json|csv|yaml|toml|xml|cbor|plugin|bibliography)\s*\(\s*)"((?:[^"\\]|\\.)*)"/g;
+
+/** What printing a note should do about which template to use. */
+export type TemplateChoice =
+  | { kind: "use"; template: PrintTemplate }
+  /** `missingDefault` is the default the settings name and the vault no longer has. */
+  | { kind: "ask"; among: PrintTemplate[]; missingDefault?: string }
+  | { kind: "unknown"; name: string };
+
+/**
+ * Which template a note gets.
+ *
+ * A note may name its template by folder name or by folder path. Two templates
+ * can share a folder name in different places, which the picker already shows;
+ * a name that fits more than one is asked about among those it fits, rather
+ * than settled by whichever the vault happened to list first. A template in the
+ * vault shadows the built-in one of the same name: a person who copied
+ * `Standard` into the vault to change it means the copy.
+ *
+ * A note that names none gets the default the settings choose — the built-in
+ * template unless somebody chose otherwise — or the picker, when that is the
+ * choice or the chosen template is no longer there.
+ */
+export function chooseTemplate(
+  templates: readonly PrintTemplate[],
+  named: string | null,
+  preferred: string = DEFAULT_TEMPLATE_BUILTIN
+): TemplateChoice {
+  if (named === null) return chooseDefault(templates, preferred);
+
+  const path = named.replace(/^\/+|\/+$/g, "");
+  const byPath = templates.find((template) => !template.builtIn && template.folder === path);
+  if (byPath) return { kind: "use", template: byPath };
+
+  const all = templates.filter((template) => template.name === named);
+  const inVault = all.filter((template) => !template.builtIn);
+  const byName = inVault.length > 0 ? inVault : all;
+  if (byName.length === 1 && byName[0]) return { kind: "use", template: byName[0] };
+  if (byName.length > 1) return { kind: "ask", among: byName };
+  return { kind: "unknown", name: named };
+}
+
+function chooseDefault(templates: readonly PrintTemplate[], preferred: string): TemplateChoice {
+  if (preferred === DEFAULT_TEMPLATE_ASK) return { kind: "ask", among: [...templates] };
+
+  if (preferred === DEFAULT_TEMPLATE_BUILTIN) {
+    const builtIn = templates.find((template) => template.builtIn);
+    // A vault copy called by the built-in's name is the one a person edited.
+    const shadow = builtIn && templates.find((t) => !t.builtIn && t.name === builtIn.name);
+    const chosen = shadow ?? builtIn;
+    return chosen ? { kind: "use", template: chosen } : { kind: "ask", among: [...templates] };
+  }
+
+  const path = preferred.replace(/^\/+|\/+$/g, "");
+  const chosen = templates.find((template) => !template.builtIn && template.folder === path);
+  if (chosen) return { kind: "use", template: chosen };
+  return { kind: "ask", among: [...templates], missingDefault: path };
 }
 
 /** Whether a font file is one Typst can read. */
@@ -219,19 +303,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function str(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
-}
-
-/** A frontmatter value a template can print: text, a number, a date, a flag. */
-function scalar(value: unknown): string | null {
-  if (typeof value === "string") return value;
-  if (typeof value === "number" && Number.isFinite(value)) return String(value);
-  if (typeof value === "boolean") return value ? "true" : "false";
-  if (value instanceof Date) return value.toISOString().slice(0, 10);
-  if (Array.isArray(value)) {
-    const parts = value.map(scalar);
-    return parts.every((part): part is string => part !== null) ? parts.join("\n") : null;
-  }
-  return null;
 }
 
 /** One to four lengths, as a CSS-shaped margin is written. */

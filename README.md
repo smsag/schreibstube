@@ -1,6 +1,6 @@
 # <img src="assets/logo.svg" alt="" width="28"> Schreibstube
 
-A writing-focused Obsidian plugin: a proof-read review sidebar with glossary support, document sync from remote Markdown sources, email send/query/merge over IMAP and SMTP, a sticky heading-stack overlay, a distraction-reducing focus mode, property icons and one-click dates in the Properties view, a task summary ribbon with per-heading counts, LLM-powered file renaming, text-to-table conversion, image slideshows in six layouts, a related-notes sidebar, and side-pane link opening.
+A writing-focused Obsidian plugin: a proof-read review sidebar with glossary support, document sync from remote Markdown sources, email send/query/merge over IMAP and SMTP, a sticky heading-stack overlay, a distraction-reducing focus mode, property icons and one-click dates in the Properties view, a task summary ribbon with per-heading counts, LLM-powered file renaming, text-to-table conversion, image slideshows in six layouts, a Recommended panel of notes, pictures and conversations, and side-pane link opening.
 
 ## Features
 
@@ -169,6 +169,20 @@ The rename does nothing if the note is shorter than the configured minimum lengt
 
 The same thing is on the explorer's context menu, as one entry that follows the file: **Rename from the text…** on a note, **Rename from the picture…** on an image, and nothing at all on a file neither path can read. From the menu the proposed name is not applied outright — it opens the pane's rename dialog with the suggestion in the field, where it can be read, corrected or cancelled, because a menu acts on a row in a tree rather than on the note in front of you.
 
+### Picture descriptions
+
+A photo can only be found by its file name, and `IMG_4711.jpg` says nothing about what it shows. Switch on **Describe pictures** in the settings, then right-click a picture in Schreibstube Explorer (long-press on a phone) and choose **Describe picture**: the configured model looks at it and writes a title, a short description, keywords and any text it can read into a note of its own, in the folder the settings name (`Bildbeschreibungen` unless you choose another). The note embeds the picture first, so opening it from a search shows the picture at once, and it is an ordinary note: Obsidian's search, the Explorer filter and any other plugin find the picture through it, and it stays if Schreibstube goes.
+
+In Schreibstube Explorer a described picture stays one row. Its description note is kept out of the tree, the filter and the folder counts, and the picture itself is found by the note's words: its title, its keywords and its description, a hit in the description counting for a little less than a keyword. A folder holding nothing but such notes is hidden with them. **Show picture descriptions as notes** in the Explorer settings brings them back as ordinary notes. What makes a note a description is the `schreibstubeImage` link in its frontmatter, not the folder it sits in: a note moved elsewhere keeps describing its picture, and a note you write yourself in the description folder is left alone.
+
+A description note follows its picture. Rename or move the picture, in Schreibstube Explorer or anywhere else, and a moment later the note points at the new place and is renamed to match, whether or not Obsidian's **Automatically update internal links** is on; a note you renamed yourself keeps your name. Delete the picture from Schreibstube Explorer and its note goes to the trash with it, and one undo brings both back. Deleted elsewhere, the note follows it to the trash ten seconds later, unless the picture is back by then or the note's link finds it again, which is what a sync that moves a file as a delete and a create looks like.
+
+A picture renamed outside Obsidian, or deleted while Obsidian was closed, leaves its note pointing at nothing. Shortly after the vault opens, Schreibstube looks for the picture by its content: the note recorded the picture's size and a fingerprint of its bytes when it was written, so only pictures of exactly that size are read, at most a hundred per run. When exactly one picture matches, and no other orphaned note claims it, the note is re-linked and renamed as if it had followed the picture. Anything less certain is left alone. **Explorer: orphaned picture descriptions** (`Explorer: verwaiste Bildbeschreibungen`) runs the same search on demand and lists the notes still without a picture, to open one and set its link by hand. An orphaned note is never removed.
+
+Describing a picture again replaces its note in place. The note records the picture's path, size and a fingerprint of its bytes, so a picture that changed can be told from one that did not. Keywords are written as a property and as plain text in the note; as Obsidian tags only if you switch that on, because many pictures with several keywords each fill the tag pane.
+
+What is sent and what is not: the picture is resized to the size set under **Rename file from content** before it leaves the device, and resizing drops its EXIF data, the location included. The model is asked not to say who a person is and not to read out licence plates, house numbers or other personal data. Nothing is sent while the setting is off. The answer is checked before anything is written: a reply without a title or a description writes nothing, every field has a length limit, and links, tags, headings, frontmatter fences and HTML are taken out of it.
+
 ### Summarize selection
 
 Select any text and run **Insert: AI summary of the selection** to send it to an LLM and replace the selection with the result. Built for turning raw text pasted from analytics and reporting tools into a running insight log: copy the numbers into a note, select them, summarize, and keep the distilled takeaway in place of the raw dump.
@@ -211,6 +225,8 @@ The only text a block shows is an image's alt text, in the header row above the 
 In `strip` and `masonry` the header names the image under the pointer or the keyboard focus, and a tile opens the fullscreen view at its place. The fullscreen view has a counter, the arrow keys, a swipe, and Esc to leave.
 
 The controls are icons standing on the page, drawn from the plugin's own icon font, with no fill behind them in any state. On a phone the scene stacks, its details side by side under it, and the strip settles on two columns. A swipe across the stage or the scene turns the page in the note itself, not only in the fullscreen view, and the block keeps that swipe to itself: it does not scroll the note and it does not slide a sidebar in.
+
+A published note keeps its slideshows: the site shows the same layout, with the alt text, the controls, the arrow keys and the fullscreen view, from a small script of its own. Where scripts do not run the pictures still read — the stage swipes, the tiles stand in a grid, a comparison sets its two pictures side by side. Only pictures that were published are shown, and a block with a mistake in it is left off the page rather than printed as code.
 
 ### Icons in the text
 
@@ -284,29 +300,44 @@ datum: 2026-09-12
 ---
 ```
 
-The site is one page per note plus an index sorted by date, newest first. Wikilinks between published notes become site links; a link to an unpublished note degrades to plain text rather than a dead link. Embedded images and video are uploaded under a content-addressed name, so a changed picture can never be served from a cache. Callouts, footnotes, tables, task lists, maths and Mermaid diagrams all render. A `theme.css` in the publish folder replaces the built-in stylesheet.
+The site is one page per note plus an index sorted by date, newest first. Wikilinks between published notes become site links; a link to an unpublished note degrades to plain text rather than a dead link. Embedded images and video are uploaded under a content-addressed name, so a changed picture can never be served from a cache. Callouts, footnotes, tables, task lists, maths and Mermaid diagrams all render. A `theme.css` in the publish folder replaces the built-in stylesheet. Up to three **header tags** per connection, set in its settings, are linked on the right of every page's header, each to a page listing the notes that carry it; nested tags count (`projekt` also lists `projekt/alpha`), a tag no published note carries is left out, and only which of those three tags a note carries is sent to the bridge — a note's other tags stay in the vault.
 
 What the bridge does and the plugin does not: rendering the Markdown, holding the SFTP credentials, and deciding what may be deleted. Only files the bridge itself wrote are ever removed, and the hosting key never enters the vault. See [`bridge/README.md`](bridge/README.md).
 
 ### Printing
 
-Turns the note you are looking at into a PDF, through a template you keep in the vault. It works on every platform Obsidian runs on — Windows, macOS, Linux, iOS, Android — offline, with no bridge and no account: Typst is compiled to WebAssembly and typesets on the device. A letter written on a train becomes a PDF on that train.
+Turns the note you are looking at into a PDF, through the built-in **Standard** template or one you keep in the vault. It works on every platform Obsidian runs on — Windows, macOS, Linux, iOS, Android — offline, with no bridge and no account: Typst is compiled to WebAssembly and typesets on the device. A letter written on a train becomes a PDF on that train.
 
-- **Doc drucken** — print the active note
+- **Doc drucken** — print the active note, through the print dialog
+- **Doc drucken (ohne Dialog)** — print it straight away, as its template sets it
+
+#### The print dialog
+
+**Doc drucken** opens a dialog with four choices beside a preview of the pages they make:
+
+- **Vorlage** — the template, starting with the one the note or the settings choose.
+- **Ränder** — Klein (15 mm), Standard (the template's own) or Breit (35 mm). A template that sets its own margins, such as the letter, keeps them; the choice is then greyed out.
+- **Trennlinien als Seitenumbruch** — a horizontal rule starts a new page, starting from the template's own habit.
+- **Eigenschaften drucken** — the note's properties as a short list under its title, leaving out the plugin's own `schreibstube…` keys.
+- **Diashows** — only when the note holds a slideshow: **Wie in der Notiz** prints each one as it stands on screen before anybody steps through it (a stage its first picture, a filmstrip its first picture over the thumbnails, a feature, strip, masonry or comparison as arranged); **Alle Bilder untereinander** prints every picture of every slideshow at the text's width, each with its description.
+
+The preview is the document itself, set again after each change and drawn by the same PDF viewer Obsidian uses; **Drucken** writes those very pages. Nothing is remembered: every print starts from the template.
 
 **Vorlage anlegen** in the print settings writes an example template into a folder you choose.
 
 #### Switching it on
 
-Printing is off until you turn it on, under **Einstellungen → Drucken**. That switch is what fetches the typesetter, which is 28 MB, so nothing is downloaded for a feature you have not asked for. Running the print command while it is off explains this and offers to turn it on.
+Printing is off until you turn it on, under **Einstellungen → Drucken**. That switch is what fetches the typesetter and its standard fonts, about 30 MB, so nothing is downloaded for a feature you have not asked for. Running the print command while it is off explains this and offers to turn it on.
 
 Once on, the settings show whether the typesetter is on this device, with a button to fetch it now or to remove it again. Fetching it in advance means your first print is not also a download. It comes from this plugin's own GitHub release and is checked against a hash committed in the source, on download and on every later start; a mismatch is refused and reported rather than repaired quietly. After that, printing never touches the network.
 
 #### Getting a template
 
-Press **Vorlage anlegen** under **Einstellungen → Drucken**. It asks which of the two examples you want and which folder to put it in — any folder in the vault, not only the templates folder — then writes it and opens its `template.md`. You do not need to leave the app, which on a phone you could not do anyway.
+You don't need one to start: a note that names no template is printed with **Standard**, which the plugin carries — A4, the note's own headings, justified text, the page number at the foot. **Standardvorlage** in the print settings chooses another default, or asks every time; a note picks its own with `schreibstubePrintTemplate` in its frontmatter.
 
-The same two templates are in [`examples/print/`](examples/print/) if you would rather copy them by hand.
+To change how pages look, press **Vorlage anlegen** under **Einstellungen → Drucken**. It asks which of the three examples you want (Standard, a letter or a CV) and which folder to put it in — any folder in the vault, not only the templates folder — then writes it and opens its `template.md`. You do not need to leave the app, which on a phone you could not do anyway.
+
+The same three templates are in [`examples/print/`](examples/print/) if you would rather copy them by hand.
 
 A template is found wherever you keep it. What makes a folder a template is the flag in its `template.md`, not its location, so the templates folder setting only says where a new one is suggested — a template beside the notes that use it works exactly the same.
 
@@ -415,22 +446,23 @@ Beside the note, with the note's name, overwritten on reprint, then revealed in 
 
 A file list of Schreibstube's own, opened from the ribbon icon in the left margin or with **Open Schreibstube Explorer**. It exists because three things cannot be done to Obsidian's explorer from a plugin without fighting it: an icon per item, a mark for sync state, and an order you can lift a file to the top of.
 
-The pane has four sections, each one collapsible, each remembering whether it was open on that device: **Pinned**, **Bookmarks**, **Latest**, and **Files and folders**. Pinned is drawn only when something is pinned and opens closed. Closed, it keeps three rows on the sticky strip and its icon carries the number of pins there are, the badge a closed folder carries; open, the strip holds as many as fit in half the pane and the rest continue in the scrolling list. A filter opens it for as long as it is set.
+The pane has four sections, each one collapsible, each remembering whether it was open on that device: **Pinned**, **Bookmarks**, **Updated externally**, and **Files and folders**. Updated externally is drawn only while Document sync is turned on. Pinned is drawn only when something is pinned and opens closed. Closed, it keeps three rows on the sticky strip and its icon carries the number of pins there are, the badge a closed folder carries; open, the strip holds as many as fit in half the pane and the rest continue in the scrolling list. A filter opens it for as long as it is set.
 
 - **Icons.** Right-click, or long-press on a phone, and pick from a set of icons grouped by what they are for — documents, folders, property, business, status. The set is a subsetted [Tabler](https://tabler.io/icons) webfont carried inside the bundle, so it works offline and on mobile, with no request to a CDN. A row without a chosen icon is drawn by its kind: a note as text, a PDF with its own mark, an Excalidraw drawing as a scribble, a base as a table, pictures and recordings as a picture, anything else as a blank sheet.
 - **Names.** Notes, SVG pictures, Excalidraw drawings and bases are shown without their extension — `Plan.md`, `Plan.svg`, `Plan.excalidraw.md`, `Plan.excalidraw.svg` and `Plan.base` all read **Plan**, and the icon tells them apart. Every other attachment keeps its extension, since `photo.png` beside `photo.jpg` needs it. **Rename** edits the part on screen and keeps the rest, so a drawing stays a drawing.
 - **The filter.** The box above the tree searches what a file is _called_, in every sense a vault gives the word: its name, the `title` in its frontmatter, its aliases, its tags and the folders above it. A hit in the name counts for most and a hit in a folder for least, since every file in a folder shares it; and every word typed is weighed by how rare it is in the vault, so a word most files carry barely moves a result while a word one file holds decides it. German compounds are found by the word at their end — _Vertrag_ offers _Mietvertrag_ — and a longer form finds a shorter one. Typing `tag:`, `pfad:`, `name:` or `alle:` (or `path:`, `file:`, `all:`) narrows to one dimension; any other word before a colon is ordinary text, so a note called `todo: Angebot` is still searched for by typing it. While the box has text the tree steps aside for a flat list of the matches, best first, each row carrying the folder it came from; a tree is the right shape for browsing and the wrong one for searching, and drawn as one the ranking is invisible. Clearing the box brings the tree back as it was. When more match than the list can draw, it keeps the best and says how many it is holding. A filter is read up to its first dozen words, which is well past anything anyone types and is what keeps a pasted paragraph from being scored against every file in the vault. What it is not is a content search: Obsidian's own search reads note bodies and has the operators for that.
+- **Search by meaning.** With **Search by meaning** switched on, the filter also finds notes by what they are about. After a short pause in typing, the notes whose content answers the words — a note about the bright kitchen with the lake view, typed as `küche mit seeblick`, whatever its name — join the list, and a row found only this way says so when the pointer rests on it. The two rankings are merged by place, not by score, and the file named exactly for what was typed keeps first place, so `Objekt 12` still finds `Objekt 12`. A described picture is found as the picture, through its description note. A `tag:`, `pfad:` or `name:` prefix leaves meaning out, since it asked for one dimension. The keyword rows never wait for it. See [Search by meaning](#search-by-meaning) for how the index is built and kept.
 - **Following the open note.** Whichever way a note is opened — a link, the quick switcher, a search — the pane opens the folders above it and brings its row into view, scrolling only when the row is off screen. Nothing else is collapsed. A collapsed sidebar stays collapsed; the row is in view when it is next opened. A note in a popped-out window is not followed: the pane is not where you are looking, and focusing that window leaves the tree exactly as you left it. A note pressed in one of the pane's own lists — pinned, recent or bookmarked — opens its folders but does not scroll the tree, because you are already looking at its row.
-- **Latest.** Three lists, each as long as the count in the settings: the notes whose source last changed, then the most recently created, then the most recently changed. Each note appears in only one of them, the first that claims it, so the section never says the same thing three times. The first list carries the sync mark, so it doubles as what is waiting to be looked at.
+- **Updated externally.** The notes whose Document sync source changed and that still wait to be looked at, newest first, up to fifty, with no heading of their own inside the section. The section's icon carries the sync mark while one of them is new to this device. It is there only while Document sync is turned on.
 - **Properties on a mirrored note.** A check keeps two of the note's own properties: `title`, taken from the document's first heading and written only once — a title already in the file is yours and is never overwritten — and `updatedAt`, stamped whenever the source has actually changed, not merely been checked. Properties only: a check never writes the body, which still waits in the review panel.
 - **Sync marks.** A note bound to a source shows what its mirror is doing: in sync, changes waiting from the poll, never checked, or a source that cannot be fetched. Shape carries the state and colour only reinforces it. Nothing is shown while document sync is off.
 - **Keeping a file at the top of its folder.** Some files in a folder matter more than the rest, and **Keep at top of folder** holds them above their siblings, in the order they were marked, folders included. Everything below keeps Obsidian's own arrangement: folders first, then files, numeric-aware so `Objekt 2` precedes `Objekt 10`. The row carries a pin glyph, which is what explains why it is where it is.
 - **Pinning.** Everything pinned appears in a **Pinned** section at the top of the pane, in the order it was pinned, wherever in the vault it lives, and the block can be dragged into any order. A pinned note is drawn by the `title` in its own frontmatter when it has one, because a pinned row is a shortlist entry to be recognised rather than a path to be read — the file itself is untouched, and its path is still on the row's tooltip. The tree below keeps filenames, which is where a file is looked for by name. Pinning is a separate mark from the one above: "wherever I am, I want this row" is a different wish from "inside this folder, this one first", and answering one no longer answers the other. A file can carry both, either, or neither.
 
-- **Pinning a tag.** A tag can sit in the Pinned block beside the files, and its row adds up the tasks of every note carrying it: `3 / 12` is three open out of twelve across all of them. Pin one with **Pin tag**, or from a note's menu with **Pin a tag of this note…**, which offers only that note's tags — Obsidian's own tag list gives a plugin no menu to add to. A note counts as tagged the way Obsidian's tag search sees it: the tag written in its frontmatter or anywhere in its text, every task in the note counting, tags nested underneath included (`#projekt` counts `#projekt/alpha`), and case ignored. A note is counted once per row however often it writes the tag, and a note carrying two pinned tags counts in both rows — each row answers its own question, and nothing adds the rows together. The figure is drawn whether or not **Task counts** is on, because it is what a tag is pinned for. Press the row and the right sidebar lists the tagged notes as cards, the most open tasks first and then the most recently changed; a card shows the note's title, its folder and its own count, a press opens the note, and a press with Cmd or Ctrl opens it in a new tab. The sidebar keeps one list at a time, so pressing the next tag replaces it, and it follows the vault as you tick tasks off. Right-click a pinned tag, or long-press it, to list its notes or remove the pin; it can be dragged into place like any pinned row.
+- **Pinning a tag.** A tag can sit in the Pinned block beside the files, and its row adds up the tasks of every note carrying it: `3 / 12` is three open out of twelve across all of them. Pin one with **Pin tag**, or from a note's menu with **Pin a tag of this note…**, which offers only that note's tags — Obsidian's own tag list gives a plugin no menu to add to. A note counts as tagged the way Obsidian's tag search sees it: the tag written in its frontmatter or anywhere in its text, every task in the note counting, tags nested underneath included (`#projekt` counts `#projekt/alpha`), and case ignored. A note is counted once per row however often it writes the tag, and a note carrying two pinned tags counts in both rows — each row answers its own question, and nothing adds the rows together. The figure is drawn whether or not **Task counts** is on, because it is what a tag is pinned for. Press the row and the right sidebar lists the tagged notes as cards, the most open tasks first and then the most recently changed; a card shows the note's title, its folder and its own count, a press opens the note, and a press with Cmd or Ctrl opens it in a new tab — with Alt as well beside it, with Alt and Shift in a new window. The sidebar keeps one list at a time, so pressing the next tag replaces it, and it follows the vault as you tick tasks off. Right-click a pinned tag, or long-press it, to list its notes or remove the pin; it can be dragged into place like any pinned row.
 - **How much a closed folder holds.** A small figure on the folder's icon, counting every file underneath it and its subfolders, drawn only while the folder is shut — open, the answer is on screen. Empty folders carry nothing, and past ninety-nine it says `99+`.
 - **Moving.** A row is dragged onto a folder to move into it — onto the folder itself or onto any row inside it, since the whole block a folder occupies is its target — and onto the "Files and folders" header to move out to the vault root. A finger drags as a mouse does: the press that opens the context menu at half a second also arms the drag, so holding still and letting go gives the menu, while holding and then moving gives the drag, and the menu steps aside as soon as the row starts moving. The list scrolls while a drag rests near its top or bottom edge, so a folder off screen can still be reached. **Move to…** on the menu does the same thing from a list of folders, for when the target is nowhere near. Whether a move is allowed is decided away from the pointer: a folder cannot go into itself or its own subtree, a name already taken is refused rather than overwritten, and a refusal says which it was. The move goes through Obsidian's own rename, so links follow.
-- **Several at once.** ⌘-click adds a row to the selection, ⇧-click takes every row between the last plain click and this one, and ⇧-arrow grows the range a row at a time; Escape lets it go. Right-click any selected row, or press the menu key on it, and the menu is for all of them: move them to a folder every one of them can go to, or delete them after one question.
+- **Several at once.** ⌘-click adds a row to the selection, ⇧-click takes every row between the last plain click and this one, and ⇧-arrow grows the range a row at a time; Escape lets it go. Obsidian's other two chords still open a note from the tree: ⌘⌥-click beside the open one, ⌘⌥⇧-click in a new window. In the recent lists and the pinned block, which select nothing, a press follows Obsidian throughout: ⌘ for a new tab, ⌘⌥ for a split, ⌘⌥⇧ for a new window. Right-click any selected row, or press the menu key on it, and the menu is for all of them: move them to a folder every one of them can go to, or delete them after one question.
 - **Undo.** The notice after a move or a delete carries **Undo** for thirty seconds; ⌘Z in the pane and the command **Explorer: undo the last move or delete** do the same. A move is moved back. A delete is lifted out of the vault's own `.trash` folder — so it works when Obsidian is set to use that, and the notice says so when it is set to use the system trash instead, which the pane cannot reach into.
 - **Files from the desktop.** Drop files from Finder or Explorer onto a folder, onto any row inside it, or onto the "Files and folders" header for the root. A name already taken gets the next free one, `Scan 1.pdf` beside `Scan.pdf`. A folder dropped from the desktop is refused rather than imported as an empty file, and a file over 200 MB or the fifty-first in one drop is left out and named in the notice.
 - **The menu.** A row carries no buttons. Right-click it, or long-press on a phone, and the menu opens with everything a row can be told to do. Deleting is on that menu and never happens on the spot: it opens a confirmation, and what it confirms is a move to the vault's trash.
@@ -438,7 +470,7 @@ The pane has four sections, each one collapsible, each remembering whether it wa
 
 A footer along the bottom names the vault and holds the two ways out of a pane that is not behaving: help, and the plugin's settings.
 
-The context menu is the pane's own, in a fixed order: open, icon and the two marks, sync, create, move, rename, rename from content and delete. Items other plugins contribute land behind one **More actions** entry at the end rather than in blocks between the actions — the pane fires Obsidian's `file-menu` event, so a plugin that adds to the file explorer's menu adds to this one without knowing the pane exists.
+The context menu is the pane's own, in a fixed order: open (in place, in a new tab, or on the desktop in a new window), icon and the two marks, sync, create, move, rename, rename from content and delete. Items other plugins contribute land behind one **More actions** entry at the end rather than in blocks between the actions — the pane fires Obsidian's `file-menu` event, so a plugin that adds to the file explorer's menu adds to this one without knowing the pane exists.
 
 The sync actions are why the menu is worth owning:
 
@@ -476,13 +508,14 @@ They are read from a Markdown file in the vault, `bookmarks.md` unless a setting
 - [[Design Brief]]
 ```
 
-| Line            | Meaning                                          |
-| --------------- | ------------------------------------------------ |
-| `# Heading`     | A folder                                         |
-| `## Heading`    | A subfolder, one level only                      |
-| `- [Name](url)` | A bookmark                                       |
-| `- [[Note]]`    | A bookmark to a note, with an optional `\|label` |
-| Anything else   | Ignored                                          |
+| Line                   | Meaning                                                         |
+| ---------------------- | --------------------------------------------------------------- |
+| `# Heading`            | A folder                                                        |
+| `## Heading` and below | A folder inside the one above it, at any depth                  |
+| `- [Name](url)`        | A bookmark                                                      |
+| `- [[Note]]`           | A bookmark to a note, with an optional `#Heading` and `\|label` |
+| `- [ ] [Name](url)`    | A bookmark too: the task box is left out                        |
+| Anything else          | Ignored                                                         |
 
 | Scheme                | Opens                                              |
 | --------------------- | -------------------------------------------------- |
@@ -490,22 +523,32 @@ They are read from a Markdown file in the vault, `bookmarks.md` unless a setting
 | `obsidian://`         | The Obsidian URI                                   |
 | `vault://path`        | Reveals that folder in this pane, ancestors opened |
 | `note://linkpath`     | The note                                           |
+| No scheme             | The note, as in `[Name](Folder/My%20Note.md)`      |
+| `www.`                | The page, as if it began with `https://`           |
 
-Anything else is dropped while the file is read, so a `javascript:` line pasted into a synced file never becomes a row that can be tapped.
+A bookmark wears one of three icons, all in grey: the globe for a web link; for an `obsidian://` link that calls a plugin, such as `obsidian://pythia?…`, that plugin's icon, the one on its ribbon button or else the one its commands carry; and for everything else — a note, a folder, a link Obsidian answers itself such as `obsidian://open`, a plugin without an icon — Obsidian's library icon. A link without a scheme is what Obsidian writes for a note when wikilinks are turned off, and it is read relative to the bookmarks file, as Obsidian reads it. Any other scheme is dropped while the file is read, so a `javascript:` line pasted into a synced file never becomes a row that can be tapped. A link to a heading or a block — `[[Note#Goals]]`, `[Goals](Note.md#Goals)` — opens the note there. The file is read within a budget: the first 256 KB, lines of up to 4,096 characters and 2,000 bookmarks; past that the pane shows what it read and leaves a warning in the developer console.
 
-Right-click a folder anywhere in Obsidian and choose **Copy path for Schreibstube** to get its `vault://` URL, ready to paste into the file. **Open bookmark** searches the list by name, folder or URL from the command palette, offering what was opened most recently on that device first.
+Right-click a folder anywhere in Obsidian and choose **Copy path for Schreibstube** to get its `vault://` URL, ready to paste into the file. **Open bookmark** searches the list by name, folder or URL from the command palette, in the order the file has them.
 
-#### Latest
+#### Updated externally
 
-Three short lists: the notes whose source last changed, those created most recently, and those changed most recently. A note shown as created is not repeated as changed, because in a young vault the two lists are otherwise the same list twice. Only Markdown counts, so an attachment written by a paste never takes the top row. The bookmarks file is always excluded, and further paths can be.
+The notes whose Document sync source changed and whose update is still to be taken, newest first, up to fifty. A note created or edited in the vault is not listed: Obsidian's own recent files already show that, and what the pane can say that nothing else does is that something outside the vault moved a note. The section has no settings of its own; it appears when **Document sync** is turned on in the settings and is gone when it is off.
 
 Icons and the two marks live in `explorer.json` inside the plugin folder, deliberately not in `data.json`: that file is rewritten whole on every save, so a second device would clobber it. Each entry carries its own timestamp and every write re-reads and merges per entry, so two devices editing different files both keep their change. The pane also watches the file for writes delivered by iCloud, Obsidian Sync or Git while it is open. A file that moves keeps its icon; one that disappears keeps it for thirty days, in case it turns up somewhere else under the same name.
 
-### Related notes
+### Search by meaning
 
-A sidebar listing the notes that belong with the one in front of you, opened with **Related notes** in the palette or from a note's menu in Schreibstube Explorer. From the palette it follows whatever note is open, so the answer is already on screen by the time the question occurs to you; asked for from a note's menu it stays on that note instead.
+A small language model (multilingual MiniLM, the same one Pythia uses) runs on the device and reads each note once into an index kept in the plugin's folder; no note and no query leaves the device, and the model itself is downloaded the first time, about 120 MB on a desktop and 75 MB on a phone, where a Latin-script cut of it is used. Switch it on under **Search by meaning** in the settings. The first build starts when the Explorer filter is first used, or with **Build now**, and takes a few minutes on a desktop; the status line there says how far it is. **Most notes to index** caps it at the newest notes, 5 000 by default.
 
-Nothing is downloaded and nothing is sent anywhere. A vault is a graph somebody built by hand, and every link, tag and folder is a person having already said that two notes belong together — so the ranking reads the link graph Obsidian has already resolved and costs no file reads at all. It works the same on a phone as on a desktop.
+After that the index follows the vault: an edited, created, moved or deleted note is read again on its own, a couple of seconds after the vault goes quiet. The note being written is held back until you leave it or stop typing for half a minute, so a phone does not re-read it on every autosave. A desktop catches up at launch with what changed while it was closed, including edits synced from a phone. A note with `schreibstubeIndex: false` in its frontmatter is left out.
+
+On a phone, search by meaning pauses while a Pythia that runs a language model of its own is switched on there: two models are more memory than the phone lets one app hold. A Pythia that asks Schreibstube instead, and loads no model of its own, lifts the pause. If Pythia already built an index of the vault, Schreibstube copies it once instead of reading every note again.
+
+### Recommended
+
+The notes, pictures and conversations that belong with the one in front of you, opened with **Recommended** in the palette or from a note's menu in Schreibstube Explorer. **Recommended** in the Explorer settings puts them in the right sidebar (the default) or under the note, where it ends. From the palette it follows whatever note is open, so the answer is already on screen by the time the question occurs to you; asked for from a note's menu it stays on that note instead.
+
+The links answer at once, and nothing is downloaded or sent anywhere for them. A vault is a graph somebody built by hand, and every link, tag and folder is a person having already said that two notes belong together — so the ranking reads the link graph Obsidian has already resolved and costs no file reads at all. It works the same on a phone as on a desktop.
 
 Five signals, in the order they are worth anything:
 
@@ -517,9 +560,11 @@ Five signals, in the order they are worth anything:
 | A shared tag      | A deliberate label, but about a group rather than this note |
 | The same folder   | The weakest, and only ever a tiebreak                       |
 
+With [Search by meaning](#search-by-meaning) switched on, a moment later the list gains what reads alike: notes nobody linked, marked **similar in meaning**; a row of **Pictures** whose descriptions are about the same thing; and **Conversations** from Pythia about it. They come from vectors already stored, so no model is loaded to draw them, and the two answers are merged by rank, with a note you linked keeping its place above one that merely sounds similar. A note not yet in the index has only its links to offer. Pressing a conversation opens it in Pythia.
+
 Every shared thing is weighted by how rare it is, which is the whole difference between this working and not. An index note linking to four hundred notes would otherwise make all four hundred related to each other and answer every question with the same five rows; a note linked by exactly two says a great deal about those two.
 
-Each card says why it is on the list, because a related note nobody can explain is one nobody trusts. A press opens the note, a press with Cmd or Ctrl opens it in a new tab, and a right-click or long press gives the pane's own menu. A note nothing links, tags or files beside anything else gets an empty list saying so, rather than one padded with the rest of its folder.
+Each card says why it is on the list, because a related note nobody can explain is one nobody trusts. A press opens the note, a press with Cmd or Ctrl opens it in a new tab — with Alt as well beside it, with Alt and Shift in a new window — and a right-click or long press gives the pane's own menu. A note nothing links, tags or files beside anything else gets an empty list saying so, rather than one padded with the rest of its folder.
 
 ### Link open modes
 
@@ -593,10 +638,16 @@ A command that cannot do anything where you are is not offered at all: the image
 | Items from other plugins | Where contributed menu items go: behind "More actions", inline, or not at all | Behind More actions |
 | Bookmarks section        | Show the bookmarks list above the file tree                                   | On                  |
 | Bookmarks file           | Vault path of the Markdown file the bookmarks are read from                   | `bookmarks.md`      |
-| Latest section           | Show the recently created and recently changed notes                          | On                  |
-| Notes per list           | How many notes each of the two lists shows                                    | 5                   |
-| Never show these         | Vault paths kept out of both lists, by comma or line break                    | empty               |
 | Icon set                 | Which icon set is bundled, and how many icons it holds                        | Tabler Icons (MIT)  |
+
+### Search by meaning
+
+| Setting             | Description                                                    | Default |
+| ------------------- | -------------------------------------------------------------- | ------- |
+| Search by meaning   | Let the Explorer filter also find notes by what they are about | Off     |
+| Most notes to index | How many of the newest notes are read, between 100 and 20 000  | 5 000   |
+| Status              | Where the index stands; **Build now** finishes or updates it   | —       |
+| Rebuild             | Read every note again from scratch                             | —       |
 
 ### AI models
 
@@ -684,12 +735,13 @@ The token is deliberately separate from the mail token, so a leaked publish toke
 
 ### Printing
 
-| Setting          | What it does                                                                               |
-| ---------------- | ------------------------------------------------------------------------------------------ |
-| Enable printing  | Off until you switch it on. Switching it on is what fetches the 28 MB typesetter.          |
-| Templates folder | Where a new template is suggested. Templates are found anywhere. Default `Vorlagen/Druck`. |
-| Output folder    | Where a PDF is written. Empty means beside the note it came from.                          |
-| The typesetter   | Whether it is on this device, with a button to fetch or remove it.                         |
+| Setting          | What it does                                                                                |
+| ---------------- | ------------------------------------------------------------------------------------------- |
+| Enable printing  | Off until you switch it on. Switching it on is what fetches the ~30 MB typesetter.          |
+| Default template | What a note that names none is printed with: Standard (built in), a vault template, or ask. |
+| Templates folder | Where a new template is suggested. Templates are found anywhere. Default `Vorlagen/Druck`.  |
+| Output folder    | Where a PDF is written. Empty means beside the note it came from.                           |
+| The typesetter   | Whether it is on this device, with a button to fetch or remove it.                          |
 
 Only the switch shows while printing is off: there is nothing to configure for a feature with no typesetter on the device and no print to aim anywhere.
 

@@ -315,6 +315,78 @@ function positive(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : null;
 }
 
+interface CommandsInternals {
+  commands?: { commands?: Record<string, unknown> };
+}
+
+interface RibbonInternals {
+  leftRibbon?: { items?: unknown };
+}
+
+/** An id and an icon off whatever the registry holds, or nothing. */
+function registeredIcon(value: unknown): { id: string; icon?: unknown } | null {
+  if (!value || typeof value !== "object") return null;
+  const { id, icon } = value as { id?: unknown; icon?: unknown };
+  return typeof id === "string" ? { id, icon } : null;
+}
+
+/**
+ * Every command registered right now, with the icon it named.
+ *
+ * `app.commands` is undocumented. What comes back is only an id and an icon
+ * name, each checked here, and an empty list whenever the shape is not the
+ * one expected.
+ */
+export function registeredCommands(app: App): { id: string; icon?: unknown }[] {
+  try {
+    const registry = (app as unknown as CommandsInternals).commands?.commands;
+    if (!registry || typeof registry !== "object") return [];
+    return Object.values(registry)
+      .map(registeredIcon)
+      .filter((item): item is { id: string; icon?: unknown } => item !== null);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Every ribbon button, hidden ones included, with its icon.
+ *
+ * `workspace.leftRibbon.items` is undocumented. A plugin's button is filed
+ * under `<plugin id>:<title>`, the key Obsidian also writes into
+ * `workspace.json` to remember which buttons are hidden. Checked the same way
+ * as the commands: an empty list whenever the shape is not the one expected.
+ */
+export function registeredRibbonItems(app: App): { id: string; icon?: unknown }[] {
+  try {
+    const items = (app.workspace as unknown as RibbonInternals | undefined)?.leftRibbon?.items;
+    if (!Array.isArray(items)) return [];
+    return items
+      .map(registeredIcon)
+      .filter((item): item is { id: string; icon?: unknown } => item !== null);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * A cheap stand-in for everything registered: how many commands and ribbon
+ * buttons there are. A plugin loading or unloading changes it, which is when
+ * an icon read off the two registries has to be read again.
+ */
+export function registrySignature(app: App): string {
+  try {
+    const commands = (app as unknown as CommandsInternals).commands?.commands;
+    const ribbon = (app.workspace as unknown as RibbonInternals | undefined)?.leftRibbon?.items;
+    const commandCount =
+      commands && typeof commands === "object" ? Object.keys(commands).length : 0;
+    const ribbonCount = Array.isArray(ribbon) ? ribbon.length : 0;
+    return `${commandCount}|${ribbonCount}`;
+  } catch {
+    return "";
+  }
+}
+
 interface PluginsInternals {
   plugins?: { plugins?: Record<string, { api?: unknown } | undefined> };
 }
@@ -461,4 +533,56 @@ export function installMenuShowHook(
 export function refreshLeafHeader(leaf: WorkspaceLeaf): void {
   const update = (leaf as unknown as LeafInternals).updateHeader;
   if (typeof update === "function") update.call(leaf);
+}
+
+/**
+ * Whether another community plugin is switched on in this vault.
+ *
+ * `app.plugins.enabledPlugins` is undocumented: a Set of plugin ids. The
+ * semantic engine asks about Pythia, which runs a model of its own, because two
+ * such models on a phone are over the memory the OS allows one app. A shape
+ * that is not a Set reads as "not enabled", which lets the engine load — the
+ * old behaviour, and the safe side on a desktop.
+ */
+export function isCommunityPluginEnabled(app: App, id: string): boolean {
+  try {
+    const enabled = (app as unknown as { plugins?: { enabledPlugins?: unknown } }).plugins
+      ?.enabledPlugins;
+    return enabled instanceof Set && enabled.has(id);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Whether a community plugin is enabled and still loads a language model of
+ * its own. Pythia says it does not by `ownsEmbeddingModel === false`, once it
+ * asks Schreibstube instead; a Pythia without the flag is an older one that
+ * still runs its own model. Read through the undocumented plugin registry,
+ * and anything unexpected reads as "it does", which keeps Schreibstube's model
+ * off a phone — the side that cannot crash it.
+ */
+export function pluginRunsOwnModel(app: App, id: string): boolean {
+  if (!isCommunityPluginEnabled(app, id)) return false;
+  try {
+    const registry = (app as unknown as { plugins?: { getPlugin?: (id: string) => unknown } })
+      .plugins;
+    const plugin = registry?.getPlugin?.(id) as { ownsEmbeddingModel?: unknown } | null | undefined;
+    return plugin?.ownsEmbeddingModel !== false;
+  } catch {
+    return true;
+  }
+}
+
+/**
+ * Where a footer goes under a note's text: the end of the scrolling content,
+ * so it scrolls with the note and sits after its last line, the way Obsidian's
+ * own backlinks in a document do. That content is `.cm-sizer` while editing
+ * and `.markdown-preview-sizer` while reading — undocumented class names, so
+ * a view without them simply gets no footer.
+ */
+export function noteFooterHost(viewContent: HTMLElement, reading: boolean): HTMLElement | null {
+  const selector = reading ? ".markdown-preview-sizer" : ".cm-sizer";
+  const found = viewContent.querySelector(selector);
+  return found instanceof HTMLElement ? found : null;
 }

@@ -16,6 +16,7 @@ describe("resolvePrintData", () => {
   it("offers what the plugin knows without being told", () => {
     expect(resolvePrintData(template({}), null, context)).toEqual({
       title: "Kündigung",
+      lang: "de",
       noteName: "2026-04-12",
       date: "12.04.2026",
       isoDate: "2026-04-12",
