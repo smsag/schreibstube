@@ -59,6 +59,8 @@ export interface SchreibstubeSettings {
   imageDescriptionFolder: string;
   imageDescriptionLanguage: "auto" | "de" | "en";
   imageDescriptionKeywordsAsTags: boolean;
+  /** Whether the Explorer shows description notes, or folds them into their pictures. */
+  explorerDescriptionNotes: "hide" | "show";
   // Summarize-specific tuning.
   summarizePrompt: string;
   summarizeMaxTokens: number;

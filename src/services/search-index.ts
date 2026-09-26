@@ -48,6 +48,8 @@ export interface FileMetadata {
   /** Tags as Obsidian reports them, `#` included; it reads frontmatter and
    *  body alike, which is what makes a tag search agree with its own. */
   tags?: readonly string[] | null;
+  /** A picture's description, from the note that describes it. */
+  description?: unknown;
 }
 
 /** Where the index reads from. The view satisfies this with the vault. */
@@ -113,7 +115,8 @@ export class FileSearchIndex {
       name: file.name,
       title: usableText(metadata?.title),
       aliases: aliasList(metadata?.aliases),
-      tags: (metadata?.tags ?? []).map((tag) => tag.replace(/^#/, ""))
+      tags: (metadata?.tags ?? []).map((tag) => tag.replace(/^#/, "")),
+      description: usableText(metadata?.description)
     });
     this.cache.set(file.path, fields);
     return fields;

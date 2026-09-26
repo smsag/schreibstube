@@ -81,6 +81,10 @@ export const enExtra = {
     explorerBookmarksFileDesc:
       "Vault path of the Markdown file the bookmarks are read from. A heading is a folder, a " +
       "list item is a link.",
+    explorerDescriptionNotes: "Show picture descriptions as notes",
+    explorerDescriptionNotesDesc:
+      "Off: a described picture is one row, found by its description too, and its description note stays " +
+      "out of the tree. On: the description notes appear as ordinary notes.",
     explorerTaskCounts: "Task counts",
     explorerTaskCountsDesc:
       'Show how many tasks a note holds and how many are still open, as "1 / 7" after its ' +

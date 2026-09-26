@@ -133,6 +133,9 @@ export interface SearchFields {
   tags: string[];
   /** The folders above the file. The file's own name is not repeated here. */
   path: string[];
+  /** What a picture shows, in the words of its description note. Empty for
+   *  everything else. */
+  description: string[];
 }
 
 /** One file as the filter sees it. */
@@ -147,7 +150,10 @@ export interface SearchCandidate {
  * The name leads because it is what the person chose and what the row shows.
  * A title is the name a note gives itself and is worth nearly as much; aliases
  * exist to be found by, so they sit level with the title. A tag is a deliberate
- * label but describes a group rather than this file. The path comes last by a
+ * label but describes a group rather than this file. A picture's description
+ * sits below it: every word of it is about this picture, but it is prose, and
+ * a word somewhere in two sentences says less than a keyword chosen for it.
+ * The path comes last by a
  * distance: every file in a folder shares it, so a folder name that matches
  * says almost nothing about which file inside it was meant — and without the
  * gap, typing a folder's name would bury the one file actually called that.
@@ -157,6 +163,7 @@ const FIELD_WEIGHTS: Record<keyof SearchFields, number> = {
   title: 0.9,
   aliases: 0.9,
   tags: 0.6,
+  description: 0.5,
   path: 0.25
 };
 
@@ -374,6 +381,8 @@ export interface SearchSubject {
   title?: string | null;
   aliases?: readonly string[];
   tags?: readonly string[];
+  /** A picture's description, from the note that describes it. */
+  description?: string | null;
 }
 
 /**
@@ -397,6 +406,7 @@ export function searchFields(subject: SearchSubject): SearchFields {
     title: tokenize(subject.title ?? ""),
     aliases: tokenize((subject.aliases ?? []).join(" ")),
     tags: tokenize((subject.tags ?? []).join(" ")),
-    path: tokenize(folders)
+    path: tokenize(folders),
+    description: tokenize(subject.description ?? "")
   };
 }

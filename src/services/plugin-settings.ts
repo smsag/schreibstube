@@ -97,6 +97,7 @@ export const DEFAULT_SETTINGS: SchreibstubeSettings = {
   imageDescriptionFolder: DEFAULT_DESCRIPTION_FOLDER,
   imageDescriptionLanguage: "auto",
   imageDescriptionKeywordsAsTags: false,
+  explorerDescriptionNotes: "hide",
   summarizePrompt: DEFAULT_SUMMARIZE_PROMPT,
   summarizeMaxTokens: 512,
   proofreadPrompt: DEFAULT_PROOFREAD_PROMPT,
@@ -230,6 +231,7 @@ export function normalizeSettings(loaded: LoadedSettings): SchreibstubeSettings 
         ? loaded.imageDescriptionLanguage
         : "auto",
     imageDescriptionKeywordsAsTags: loaded?.imageDescriptionKeywordsAsTags === true,
+    explorerDescriptionNotes: loaded?.explorerDescriptionNotes === "show" ? "show" : "hide",
     summarizePrompt: nonEmptyStringOrDefault(
       loaded?.summarizePrompt,
       DEFAULT_SETTINGS.summarizePrompt

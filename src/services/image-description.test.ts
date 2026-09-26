@@ -210,3 +210,13 @@ describe("normalizeDescriptionFolder — a hand-edited data.json must not choose
     expect(normalizeDescriptionFolder(input)).toBe(DEFAULT_DESCRIPTION_FOLDER);
   });
 });
+
+describe("the description in the frontmatter", () => {
+  it("is written there too, because the Explorer filter reads frontmatter", () => {
+    const note = renderDescriptionNote(
+      { path: "a.jpg", hash: "h", size: 1, describedAt: "2026-09-26T00:00:00Z" },
+      { title: "T", description: 'Eine "Küche".', keywords: [], visibleText: "" }
+    );
+    expect(note).toContain(`${DESCRIPTION_KEYS.description}: "Eine \\"Küche\\"."`);
+  });
+});

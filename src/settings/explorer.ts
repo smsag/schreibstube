@@ -66,6 +66,17 @@ export function renderExplorer(ctx: SettingsContext): void {
     });
 
   new Setting(ctx.containerEl)
+    .setName(t().settings.explorerDescriptionNotes)
+    .setDesc(t().settings.explorerDescriptionNotesDesc)
+    .addToggle((toggle) => {
+      toggle
+        .setValue(ctx.plugin.settings.explorerDescriptionNotes === "show")
+        .onChange(async (value) => {
+          await ctx.update({ explorerDescriptionNotes: value ? "show" : "hide" });
+        });
+    });
+
+  new Setting(ctx.containerEl)
     .setName(t().settings.explorerIcons)
     .setDesc(t().settings.explorerIconsDesc(allIconNames().length, ICON_FONT_VERSION));
 

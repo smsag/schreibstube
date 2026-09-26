@@ -185,7 +185,10 @@ export const DESCRIPTION_KEYS = {
   hash: "schreibstubeImageHash",
   size: "schreibstubeImageSize",
   describedAt: "schreibstubeDescribedAt",
-  keywords: "schreibstubeKeywords"
+  keywords: "schreibstubeKeywords",
+  /** The description again, in the frontmatter: the Explorer filter reads what
+   *  Obsidian's metadata cache holds, and that is frontmatter, not the body. */
+  description: "schreibstubeDescription"
 } as const;
 
 export interface DescribedImage {
@@ -243,6 +246,7 @@ export function renderDescriptionNote(
     `${DESCRIPTION_KEYS.size}: ${image.size}`,
     `${DESCRIPTION_KEYS.describedAt}: ${yaml(image.describedAt)}`,
     ...list(DESCRIPTION_KEYS.keywords, desc.keywords),
+    `${DESCRIPTION_KEYS.description}: ${yaml(desc.description)}`,
     ...(opts.keywordsAsTags
       ? list(
           "tags",

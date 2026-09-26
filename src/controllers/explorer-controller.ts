@@ -73,6 +73,8 @@ import {
 } from "../services/tree-move";
 import { hasSourceBinding, resolveSourceUrl, SYNC_FRONTMATTER_KEY } from "../services/sync-source";
 import { someFileUnder } from "../services/vault-tree";
+import { pairDescriptions, type DescriptionPairs } from "../services/description-pairs";
+import { DESCRIPTION_KEYS } from "../services/image-description";
 import { arrivedReceipt, LOCAL_TRASH, localTrashPath } from "../services/trash-receipt";
 import { folderImages, hasFolderImages, type FolderImages } from "../services/folder-images";
 import { openSubmenu } from "../services/workspace-internals";
@@ -210,6 +212,8 @@ export class ExplorerController {
   /** Set once the AI commands exist, which is after this controller is built. */
   private namer: FileNamer | null = null;
   private describer: ImageDescriber | null = null;
+  /** Which note describes which picture; rebuilt after the vault changes. */
+  private pairs: DescriptionPairs | null = null;
   private tagOpener: TagOpener | null = null;
   private relatedOpener: RelatedOpener | null = null;
   private tilesOpener: FolderTilesOpener | null = null;
@@ -254,6 +258,101 @@ export class ExplorerController {
       clearTimer: this.clearTimer
     });
     this.store.onChange(() => this.emit());
+  }
+
+  /**
+   * Forget which notes describe which pictures: a note changed, moved or went.
+   * Rebuilt on the next question, from frontmatter the metadata cache already
+   * holds, so a burst of changes costs one rebuild.
+   */
+  descriptionsChanged(): void {
+    this.pairs = null;
+  }
+
+  private descriptionPairs(): DescriptionPairs {
+    if (this.pairs) return this.pairs;
+    const candidates = [];
+    for (const file of this.app.vault.getMarkdownFiles()) {
+      const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter;
+      if (!frontmatter || !(DESCRIPTION_KEYS.image in frontmatter)) continue;
+      candidates.push({
+        path: file.path,
+        imageLink: frontmatter[DESCRIPTION_KEYS.image],
+        describedAt: frontmatter[DESCRIPTION_KEYS.describedAt]
+      });
+    }
+    this.pairs = pairDescriptions(
+      candidates,
+      (link, from) => this.app.metadataCache.getFirstLinkpathDest(link, from)?.path ?? null
+    );
+    return this.pairs;
+  }
+
+  /**
+   * Whether a change to this path can change the pairing: it is a description
+   * note or a described picture as things stand, or it now carries the key.
+   * Every save of every note is a metadata change, and rebuilding the pairing
+   * for each would scan the vault's frontmatter every couple of seconds while
+   * someone types.
+   */
+  touchesDescriptions(path: string): boolean {
+    const pairs = this.descriptionPairs();
+    if (pairs.notes.has(path) || pairs.byImage.has(path) || pairs.orphans.includes(path))
+      return true;
+    const file = this.app.vault.getFileByPath(path);
+    const frontmatter = file ? this.app.metadataCache.getFileCache(file)?.frontmatter : undefined;
+    return frontmatter !== undefined && DESCRIPTION_KEYS.image in frontmatter;
+  }
+
+  /** Whether this row is a description note the Explorer folds into its picture. */
+  hidesDescription(path: string): boolean {
+    return (
+      this.getSettings().explorerDescriptionNotes === "hide" &&
+      this.descriptionPairs().notes.has(path)
+    );
+  }
+
+  /**
+   * Whether a folder holds only description notes that are hidden. At least
+   * one, so an empty folder stays: it is somebody's, not ours.
+   */
+  hidesFolder(folder: TFolder): boolean {
+    if (this.getSettings().explorerDescriptionNotes !== "hide") return false;
+    return (
+      someFileUnder(folder, (file) => this.hidesDescription(file.path)) &&
+      !someFileUnder(folder, (file) => !this.hidesDescription(file.path))
+    );
+  }
+
+  /** The note a picture's description lives in, if it has one. */
+  descriptionNoteOf(imagePath: string): string | null {
+    return this.descriptionPairs().byImage.get(imagePath) ?? null;
+  }
+
+  /** The picture a note describes, if it is a description note. */
+  imageDescribedBy(notePath: string): string | null {
+    for (const [image, note] of this.descriptionPairs().byImage)
+      if (note === notePath) return image;
+    return null;
+  }
+
+  /**
+   * What a picture is found by, from its description note: the note's title,
+   * its keywords and its description. Frontmatter as the metadata cache holds
+   * it, untrusted in shape; the search index validates every field.
+   */
+  descriptionFields(
+    imagePath: string
+  ): { title: unknown; keywords: unknown; description: unknown } | null {
+    const notePath = this.descriptionNoteOf(imagePath);
+    const note = notePath ? this.app.vault.getFileByPath(notePath) : null;
+    const frontmatter = note ? this.app.metadataCache.getFileCache(note)?.frontmatter : undefined;
+    if (!frontmatter) return null;
+    return {
+      title: frontmatter.title,
+      keywords: frontmatter[DESCRIPTION_KEYS.keywords],
+      description: frontmatter[DESCRIPTION_KEYS.description]
+    };
   }
 
   /** Hand over the thing that can describe a picture. */

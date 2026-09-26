@@ -336,6 +336,10 @@ export const de: Messages = {
     explorerBookmarksFileDesc:
       "Vault-Pfad der Markdown-Datei, aus der die Lesezeichen gelesen werden. Eine Überschrift " +
       "ist ein Ordner, ein Listenpunkt ein Link.",
+    explorerDescriptionNotes: "Bildbeschreibungen als Notizen zeigen",
+    explorerDescriptionNotesDesc:
+      "Aus: Ein beschriebenes Bild ist eine Zeile, auch über seine Beschreibung auffindbar, und die " +
+      "Beschreibungsnotiz bleibt aus dem Baum. An: Die Beschreibungsnotizen erscheinen als gewöhnliche Notizen.",
     explorerTaskCounts: "Aufgabenzähler",
     explorerTaskCountsDesc:
       'Zeigt hinter dem Namen einer Notiz, wie viele Aufgaben sie enthält und wie viele davon offen sind, als "1 / 7". ' +

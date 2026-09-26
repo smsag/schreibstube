@@ -584,3 +584,15 @@ describe("picture description settings", () => {
     );
   });
 });
+
+describe("description notes in the Explorer", () => {
+  it("are folded into their pictures unless shown on purpose", () => {
+    expect(normalizeSettings({}).explorerDescriptionNotes).toBe("hide");
+    expect(normalizeSettings({ explorerDescriptionNotes: "show" }).explorerDescriptionNotes).toBe(
+      "show"
+    );
+    expect(
+      normalizeSettings({ explorerDescriptionNotes: "maybe" as never }).explorerDescriptionNotes
+    ).toBe("hide");
+  });
+});
