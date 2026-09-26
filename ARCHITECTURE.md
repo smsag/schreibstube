@@ -118,7 +118,7 @@ Other plugins reach it as `app.plugins.getPlugin("schreibstube").api`:
 api.version; // 1
 api.ready(); // switched on, and allowed to run on this device
 api.search(text, { kinds, limit, exclude }); // "note" | "image" | "conversation"
-api.related({ source: "pythia", id }, { kinds: ["conversation"], limit });
+api.related({ path } | { source: "pythia", id }, { kinds, limit }); // from stored vectors, no model
 api.registerSource("pythia", { list, onChanged }); // conversations to index
 api.onIndexChanged(cb);
 ```

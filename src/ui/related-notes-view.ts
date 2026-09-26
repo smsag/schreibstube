@@ -1,48 +1,27 @@
 /**
- * The notes related to the one in front of you, as cards in the right sidebar.
+ * What belongs with the open note, in the right sidebar: notes, pictures and
+ * conversations (`recommended-panel`).
  *
  * It follows the open note rather than being asked again for each one: the
  * point of the panel is that it is already showing the answer by the time the
- * question occurs to you. Pressing a card opens that note, the panel follows
- * along, and the next note is one press away.
+ * question occurs to you. Opened on one note from that note's menu, it stays on
+ * that note instead.
  *
- * Every card says why it is there. A list of related notes nobody can explain
- * is a list nobody trusts, and "because you linked them" and "because the same
- * note lists both" are different enough answers to be worth naming — the first
- * is something you did, the second something you can go and look at.
- *
- * It draws and reports. Which notes are related, how strongly and for which
- * reasons is decided in `related-notes` and handed over by the explorer
- * controller, which reads the link graph Obsidian has already resolved.
+ * It draws and reports. What belongs together, how strongly and why is decided
+ * in `related-notes` and `semantic/recommend`, and handed over by the host.
  */
-import { ItemView, Keymap, type ViewStateResult, type WorkspaceLeaf } from "obsidian";
+import { ItemView, type ViewStateResult, type WorkspaceLeaf } from "obsidian";
 import { t } from "../i18n";
-import { openTargetOf, type PaneTarget } from "../services/pane-target";
-import type { RelatedReason } from "../services/related-notes";
-import { applyIcon, installIconFont } from "./icon-font";
+import { installIconFont } from "./icon-font";
+import { RecommendedPanel, type RecommendedHost } from "./recommended-panel";
+
+export type { RelatedCard } from "./recommended-panel";
 
 export const RELATED_NOTES_VIEW_TYPE = "schreibstube-related-notes";
 
-/** One related note, as the sidebar draws it. */
-export interface RelatedCard {
-  path: string;
-  /** The `title` in the note's frontmatter when it has one, else its name. */
-  title: string;
-  /** The folder holding it; empty at the vault root. */
-  folder: string;
-  reasons: RelatedReason[];
-}
-
-export interface RelatedNotesHost {
-  cards(path: string): RelatedCard[];
-  /** The title to put at the top: what the list is related *to*. */
-  titleOf(path: string): string | null;
-  open(path: string, where: PaneTarget): Promise<void>;
-  showMenu(path: string, event: MouseEvent): void;
-}
-
 export class RelatedNotesView extends ItemView {
-  private host: RelatedNotesHost | null = null;
+  private host: RecommendedHost | null = null;
+  private panel: RecommendedPanel | null = null;
   private source: string | null = null;
   private pending = false;
   /**
@@ -73,7 +52,7 @@ export class RelatedNotesView extends ItemView {
     return "git-fork";
   }
 
-  connect(host: RelatedNotesHost): void {
+  connect(host: RecommendedHost): void {
     this.host = host;
     this.requestRender();
   }
@@ -136,88 +115,15 @@ export class RelatedNotesView extends ItemView {
   }
 
   private render(): void {
-    const root = this.contentEl;
-    root.empty();
-
-    const labels = t().explorer.related;
-    if (this.source === null || this.host === null) {
-      root.createDiv({ cls: "schreibstube-related-empty", text: labels.viewNoNote });
+    if (this.host === null) {
+      this.contentEl.empty();
+      this.contentEl.createDiv({
+        cls: "schreibstube-related-empty",
+        text: t().explorer.related.viewNoNote
+      });
       return;
     }
-
-    const header = root.createDiv({ cls: "schreibstube-related-header" });
-    const title = header.createDiv({ cls: "schreibstube-related-title" });
-    applyIcon(title.createSpan({ cls: "schreibstube-explorer-glyph" }), "link");
-    title.createSpan({ text: this.host.titleOf(this.source) ?? this.source });
-
-    const cards = this.host.cards(this.source);
-    header.createDiv({ cls: "schreibstube-related-summary", text: labels.summary(cards.length) });
-
-    if (cards.length === 0) {
-      // Not a failure and not an empty state to apologise for: a note nothing
-      // links, tags or files beside anything else genuinely has no neighbours,
-      // and saying so is more use than a list padded with its folder.
-      root.createDiv({ cls: "schreibstube-related-empty", text: labels.viewEmpty });
-      return;
-    }
-
-    const list = root.createDiv({ cls: "schreibstube-related-list" });
-    for (const card of cards) this.renderCard(list, card);
-  }
-
-  private renderCard(list: HTMLElement, card: RelatedCard): void {
-    const host = this.host;
-    if (!host) return;
-
-    const el = list.createDiv({
-      cls: "schreibstube-related-card",
-      attr: { role: "link", tabindex: "0", title: card.path }
-    });
-
-    el.createDiv({ cls: "schreibstube-related-card-title", text: card.title });
-    el.createDiv({
-      cls: "schreibstube-related-card-folder",
-      text: card.folder.length > 0 ? card.folder : t().explorer.related.root
-    });
-
-    // Why this note is on the list, strongest reason first. Two chips at most:
-    // the third reason is never what made the difference, and a card that is
-    // mostly chips stops being a note.
-    const why = el.createDiv({ cls: "schreibstube-related-card-why" });
-    for (const reason of card.reasons.slice(0, 2)) {
-      why.createSpan({ cls: "schreibstube-related-chip", text: reasonLabel(reason) });
-    }
-
-    // A modifier opens a tab, a split or a window, the way a link in the editor does, so a related
-    // note can be kept open beside the one already in front of the person.
-    el.addEventListener("click", (event) => {
-      void host.open(card.path, openTargetOf(Keymap.isModEvent(event)));
-    });
-    el.addEventListener("keydown", (event) => {
-      if (event.key !== "Enter" && event.key !== " ") return;
-      event.preventDefault();
-      void host.open(card.path, openTargetOf(Keymap.isModEvent(event)));
-    });
-    el.addEventListener("contextmenu", (event) => {
-      event.preventDefault();
-      host.showMenu(card.path, event);
-    });
-  }
-}
-
-/** What a reason says on a chip. */
-function reasonLabel(reason: RelatedReason): string {
-  const labels = t().explorer.related.reasons;
-  switch (reason.kind) {
-    case "link":
-      return labels.link;
-    case "shared-link":
-      return labels.sharedLink(reason.count);
-    case "co-citation":
-      return labels.coCitation(reason.count);
-    case "tag":
-      return labels.tag(reason.count);
-    default:
-      return labels.folder;
+    this.panel ??= new RecommendedPanel(this.contentEl, this.host);
+    this.panel.show(this.source);
   }
 }

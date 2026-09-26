@@ -32,6 +32,9 @@ export interface ConversationSource {
   list(): unknown[] | Promise<unknown[]>;
   /** Called by the source when conversations changed. Returns the unsubscribe. */
   onChanged(cb: () => void): () => void;
+  /** Show one conversation, when a card for it is pressed. Optional: without it
+   *  the card is shown and not pressable. */
+  open?(id: string): void;
 }
 
 export type RelatedRef = { path: string } | { source: string; id: string };

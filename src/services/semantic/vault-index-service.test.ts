@@ -534,3 +534,30 @@ describe("VaultIndexService — a phone does not rewrite a desktop's index (Pyth
     expect(keeperOf(store)).toBe("desktop");
   });
 });
+
+describe("VaultIndexService — related from stored vectors", () => {
+  it("ranks notes like another note's vectors, without embedding anything", async () => {
+    const p = new FakeProvider();
+    const svc = new VaultIndexService(p, new MemStore());
+    await svc.sync([alpha, note("Notes/alpha2.md", "more alpha here"), beta]);
+    p.embedded = [];
+
+    const vectors = svc.vectorsOf("Notes/alpha.md");
+    expect(vectors).not.toBeNull();
+    const ranked = await svc.rankByVectors(vectors ?? [], {
+      minScore: 0.5,
+      limit: 5,
+      exclude: ["Notes/alpha.md"]
+    });
+
+    expect(ranked.map((r) => r.id)).toEqual(["Notes/alpha2.md"]);
+    expect(p.embedded).toEqual([]);
+  });
+
+  it("has no vectors for a note it does not hold", async () => {
+    const svc = new VaultIndexService(new FakeProvider(), new MemStore());
+    await svc.sync([alpha]);
+    expect(svc.vectorsOf("Notes/none.md")).toBeNull();
+    expect(await svc.rankByVectors([], { minScore: 0, limit: 5 })).toEqual([]);
+  });
+});

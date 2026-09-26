@@ -78,6 +78,14 @@ import {
 import type { ExplorerFileStore } from "./services/explorer-store";
 import { SemanticEngine } from "./controllers/semantic/semantic-engine";
 import { createSemanticApi } from "./controllers/semantic/semantic-api";
+import { recommendNotes } from "./services/semantic/recommend";
+import { RecommendedFooter } from "./controllers/recommended-footer";
+import type {
+  PictureCard,
+  Recommendation,
+  RecommendedHost,
+  RelatedCard
+} from "./ui/recommended-panel";
 import type { SchreibstubeSemanticApi } from "./services/semantic/semantic-api";
 import { PaneSectionsController } from "./controllers/pane-sections";
 import { BookmarkQuickOpenModal } from "./ui/bookmark-quick-open";
@@ -102,6 +110,9 @@ const POLL_CATCHUP_DELAY_MS = 8_000;
  *  poll: the metadata cache has to have read the vault's frontmatter by then. */
 const ORPHAN_REPAIR_DELAY_MS = 20_000;
 
+/** Notes the Recommended panel draws at most, links and meaning together. */
+const RECOMMEND_LIMIT = 20;
+
 export default class SchreibstubePlugin extends Plugin {
   override settings: SchreibstubeSettings = DEFAULT_SETTINGS;
   private logger: Logger = createLogger(() => this.settings.debugLogging);
@@ -122,6 +133,7 @@ export default class SchreibstubePlugin extends Plugin {
   private proofread: ProofreadController | null = null;
   private explorer: ExplorerController | null = null;
   private sections: PaneSectionsController | null = null;
+  private recommendedFooter: RecommendedFooter | null = null;
   /** Search by meaning; read by the settings tab and the Explorer filter. */
   semantic: SemanticEngine | null = null;
   /** Search by meaning for other plugins; Pythia reaches it through the plugin registry. */
@@ -259,6 +271,12 @@ export default class SchreibstubePlugin extends Plugin {
       this.activateFolderTiles(folder, following)
     );
     await this.explorer.start();
+    this.recommendedFooter = new RecommendedFooter(
+      this,
+      () => this.recommendedHost(),
+      () => this.settings.recommendedPlacement
+    );
+    this.recommendedFooter.start();
     // A picture renamed outside Obsidian, or deleted while it was closed, left
     // its description behind; the ones that only moved are found by content.
     this.app.workspace.onLayoutReady(() => {
@@ -528,22 +546,85 @@ export default class SchreibstubePlugin extends Plugin {
 
   private createRelatedNotesView(leaf: WorkspaceLeaf): RelatedNotesView {
     const view = new RelatedNotesView(leaf);
+    const host = this.recommendedHost();
+    if (host) view.connect(host);
+    return view;
+  }
+
+  /** What the Recommended panel asks, wherever it is drawn. */
+  private recommendedHost(): RecommendedHost | null {
     const explorer = this.explorer;
-    if (explorer) {
-      view.connect({
-        cards: (path) => explorer.relatedCards(path),
-        titleOf: (path) => {
-          const file = this.app.vault.getAbstractFileByPath(path);
-          return file instanceof TFile ? (explorer.titleFor(file) ?? file.basename) : null;
-        },
-        open: async (path, where) => {
-          const file = this.app.vault.getAbstractFileByPath(path);
-          if (file) await explorer.open(file, where);
-        },
-        showMenu: (path, event) => explorer.showMenuForPath(path, event)
+    if (!explorer) return null;
+    return {
+      cards: (path) => explorer.relatedCards(path),
+      recommend: (path) => this.recommend(path),
+      titleOf: (path) => {
+        const file = this.app.vault.getAbstractFileByPath(path);
+        return file instanceof TFile ? (explorer.titleFor(file) ?? file.basename) : null;
+      },
+      open: async (path, where) => {
+        const file = this.app.vault.getAbstractFileByPath(path);
+        if (file) await explorer.open(file, where);
+      },
+      openConversation: (id) => {
+        // Pythia opens it itself when it can; otherwise its deep link does.
+        if (this.semantic?.conversations.open(id)) return;
+        window.open(`obsidian://pythia?cmd=resume&id=${encodeURIComponent(id)}`);
+      },
+      showMenu: (path, event) => explorer.showMenuForPath(path, event)
+    };
+  }
+
+  /**
+   * The link graph and search by meaning together, for one note. Null when
+   * search by meaning is off, so the panel keeps the graph's answer alone.
+   */
+  private async recommend(path: string): Promise<Recommendation | null> {
+    const explorer = this.explorer;
+    const engine = this.semantic;
+    if (!explorer || !engine?.enabled()) return null;
+    const found = await engine.relatedToNote(path, RECOMMEND_LIMIT);
+    const graph = explorer.relatedCards(path);
+
+    const meaning: { path: string }[] = [];
+    const pictures: PictureCard[] = [];
+    for (const hit of found.notes) {
+      // A description note stands for its picture, here as in the Explorer.
+      const image = explorer.imageDescribedBy(hit.id);
+      const picture = image === null ? null : this.app.vault.getAbstractFileByPath(image);
+      if (picture instanceof TFile) {
+        if (!pictures.some((p) => p.path === picture.path)) {
+          pictures.push({
+            path: picture.path,
+            title: picture.basename,
+            src: this.app.vault.getResourcePath(picture)
+          });
+        }
+        continue;
+      }
+      const note = this.app.vault.getAbstractFileByPath(hit.id);
+      if (note instanceof TFile && !explorer.isTrashed(note.path))
+        meaning.push({ path: note.path });
+    }
+
+    const cards = new Map(graph.map((card) => [card.path, card]));
+    const notes: RelatedCard[] = [];
+    for (const entry of recommendNotes(graph, meaning, RECOMMEND_LIMIT)) {
+      const known = cards.get(entry.path);
+      const file = this.app.vault.getAbstractFileByPath(entry.path);
+      if (!(file instanceof TFile)) continue;
+      notes.push({
+        path: entry.path,
+        title: known?.title ?? explorer.titleFor(file) ?? file.basename,
+        folder: file.parent && !file.parent.isRoot() ? file.parent.path : "",
+        reasons: entry.reasons
       });
     }
-    return view;
+    const conversations = found.conversations.map((c) => ({
+      id: c.id,
+      title: engine.conversations.titleOf(c.id)
+    }));
+    return { notes, pictures, conversations };
   }
 
   /**
@@ -903,6 +984,7 @@ export default class SchreibstubePlugin extends Plugin {
     // once the pane has been told; nothing else watches the settings object.
     void this.sections?.reloadIfPathChanged();
     this.sections?.invalidateLatest();
+    this.recommendedFooter?.sync();
   }
 
   /**

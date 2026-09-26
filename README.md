@@ -1,6 +1,6 @@
 # <img src="assets/logo.svg" alt="" width="28"> Schreibstube
 
-A writing-focused Obsidian plugin: a proof-read review sidebar with glossary support, document sync from remote Markdown sources, email send/query/merge over IMAP and SMTP, a sticky heading-stack overlay, a distraction-reducing focus mode, property icons and one-click dates in the Properties view, a task summary ribbon with per-heading counts, LLM-powered file renaming, text-to-table conversion, image slideshows in six layouts, a related-notes sidebar, and side-pane link opening.
+A writing-focused Obsidian plugin: a proof-read review sidebar with glossary support, document sync from remote Markdown sources, email send/query/merge over IMAP and SMTP, a sticky heading-stack overlay, a distraction-reducing focus mode, property icons and one-click dates in the Properties view, a task summary ribbon with per-heading counts, LLM-powered file renaming, text-to-table conversion, image slideshows in six layouts, a Recommended panel of notes, pictures and conversations, and side-pane link opening.
 
 ## Features
 
@@ -544,11 +544,11 @@ After that the index follows the vault: an edited, created, moved or deleted not
 
 On a phone, search by meaning pauses while a Pythia that runs a language model of its own is switched on there: two models are more memory than the phone lets one app hold. A Pythia that asks Schreibstube instead, and loads no model of its own, lifts the pause. If Pythia already built an index of the vault, Schreibstube copies it once instead of reading every note again.
 
-### Related notes
+### Recommended
 
-A sidebar listing the notes that belong with the one in front of you, opened with **Related notes** in the palette or from a note's menu in Schreibstube Explorer. From the palette it follows whatever note is open, so the answer is already on screen by the time the question occurs to you; asked for from a note's menu it stays on that note instead.
+The notes, pictures and conversations that belong with the one in front of you, opened with **Recommended** in the palette or from a note's menu in Schreibstube Explorer. **Recommended** in the Explorer settings puts them in the right sidebar (the default) or under the note, where it ends. From the palette it follows whatever note is open, so the answer is already on screen by the time the question occurs to you; asked for from a note's menu it stays on that note instead.
 
-Nothing is downloaded and nothing is sent anywhere. A vault is a graph somebody built by hand, and every link, tag and folder is a person having already said that two notes belong together — so the ranking reads the link graph Obsidian has already resolved and costs no file reads at all. It works the same on a phone as on a desktop.
+The links answer at once, and nothing is downloaded or sent anywhere for them. A vault is a graph somebody built by hand, and every link, tag and folder is a person having already said that two notes belong together — so the ranking reads the link graph Obsidian has already resolved and costs no file reads at all. It works the same on a phone as on a desktop.
 
 Five signals, in the order they are worth anything:
 
@@ -559,6 +559,8 @@ Five signals, in the order they are worth anything:
 | Co-citation       | The same third note points at both — how siblings are found |
 | A shared tag      | A deliberate label, but about a group rather than this note |
 | The same folder   | The weakest, and only ever a tiebreak                       |
+
+With [Search by meaning](#search-by-meaning) switched on, a moment later the list gains what reads alike: notes nobody linked, marked **similar in meaning**; a row of **Pictures** whose descriptions are about the same thing; and **Conversations** from Pythia about it. They come from vectors already stored, so no model is loaded to draw them, and the two answers are merged by rank, with a note you linked keeping its place above one that merely sounds similar. A note not yet in the index has only its links to offer. Pressing a conversation opens it in Pythia.
 
 Every shared thing is weighted by how rare it is, which is the whole difference between this working and not. An index note linking to four hundred notes would otherwise make all four hundred related to each other and answer every question with the same five rows; a note linked by exactly two says a great deal about those two.
 

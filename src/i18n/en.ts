@@ -30,7 +30,7 @@ export const en = {
     explorerUndo: "Explorer: undo the last move or delete",
     folderTiles: "Explorer: this note's folder as tiles",
     orphanedDescriptions: "Explorer: orphaned picture descriptions",
-    related: "Related notes",
+    related: "Recommended",
     openBookmark: "Open bookmark",
     pinTag: "Pin tag",
     openReview: "Open review sidebar",

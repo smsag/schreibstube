@@ -106,6 +106,21 @@ export class ConversationIndex {
     return rankRelated(sourceId, this.items, opts);
   }
 
+  /** Conversations like a note's stored vectors, best first. No model call. */
+  relatedToVectors(
+    chunks: readonly Int8Array[],
+    opts: { minScore: number; limit: number }
+  ): ScoredId[] {
+    if (chunks.length === 0) return [];
+    const source = [...chunks];
+    return this.items
+      .filter((i) => i.chunks.length > 0)
+      .map((i) => ({ id: i.id, score: maxPairwiseCosine(source, i.chunks) }))
+      .filter((r) => Number.isFinite(r.score) && r.score >= opts.minScore)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, opts.limit);
+  }
+
   /** Conversations that answer `text`, best first. Embeds the text once. */
   async query(
     text: string,

@@ -573,3 +573,16 @@ export function pluginRunsOwnModel(app: App, id: string): boolean {
     return true;
   }
 }
+
+/**
+ * Where a footer goes under a note's text: the end of the scrolling content,
+ * so it scrolls with the note and sits after its last line, the way Obsidian's
+ * own backlinks in a document do. That content is `.cm-sizer` while editing
+ * and `.markdown-preview-sizer` while reading — undocumented class names, so
+ * a view without them simply gets no footer.
+ */
+export function noteFooterHost(viewContent: HTMLElement, reading: boolean): HTMLElement | null {
+  const selector = reading ? ".markdown-preview-sizer" : ".cm-sizer";
+  const found = viewContent.querySelector(selector);
+  return found instanceof HTMLElement ? found : null;
+}

@@ -116,3 +116,17 @@ describe("ConversationIndex", () => {
     expect(provider.embedded.length).toBeGreaterThan(0);
   });
 });
+
+describe("ConversationIndex — conversations like a note", () => {
+  it("ranks by a note's stored vectors, without embedding", async () => {
+    const provider = new FakeProvider();
+    const index = new ConversationIndex(provider, new MemStore(), POLICY);
+    await index.sync([conv("a", "küche hell"), conv("b", "garten")]);
+    provider.embedded = [];
+
+    const noteVectors = [quantize(Float32Array.from([1, 0, 0, 0]))];
+    expect(index.relatedToVectors(noteVectors, OPTS).map((r) => r.id)).toEqual(["a"]);
+    expect(index.relatedToVectors([], OPTS)).toEqual([]);
+    expect(provider.embedded).toEqual([]);
+  });
+});
