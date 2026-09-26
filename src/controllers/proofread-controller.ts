@@ -22,7 +22,9 @@ import {
 import { GlossaryRegistry } from "../services/glossary-registry";
 import {
   addAvoid,
+  findTermOverlaps,
   isInTermFolder,
+  MAX_LISTED_OVERLAPS,
   MAX_AVOID_CHARS,
   removeAvoid,
   TERM_AVOID_KEY
@@ -558,7 +560,10 @@ export class ProofreadController {
       selected: this.selection.paths,
       available,
       source: this.selection.source,
-      errors: loaded.errors,
+      errors: [
+        ...loaded.errors,
+        ...overlapWarnings(findTermOverlaps(loaded.glossaries, settings.glossaryTermFolder))
+      ],
       missing: loaded.missing
     };
 
@@ -1056,6 +1061,22 @@ export class ProofreadController {
       listener(state);
     }
   }
+}
+
+/** One line per word both places define, up to a handful, then a count. */
+function overlapWarnings(overlaps: ReturnType<typeof findTermOverlaps>): string[] {
+  const lines = overlaps
+    .slice(0, MAX_LISTED_OVERLAPS)
+    .map((overlap) =>
+      t().proofread.termOverlap(
+        overlap.text,
+        overlap.term,
+        overlap.glossaryPath.split("/").pop()?.replace(/\.md$/, "") ?? overlap.glossaryPath
+      )
+    );
+  const rest = overlaps.length - MAX_LISTED_OVERLAPS;
+  if (rest > 0) lines.push(t().proofread.termOverlapMore(rest));
+  return lines;
 }
 
 function summarize(count: number, rejectedBlocks: number, failedChunks: number): string {

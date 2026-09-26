@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { compileGlossaries } from "./glossary-matcher";
+import type { Glossary } from "./glossary-parser";
 import {
   addAvoid,
   buildTermFolderGlossaries,
   definitionExcerpt,
+  findTermOverlaps,
   isInTermFolder,
   isTermNote,
   MAX_AVOID_CHARS,
@@ -223,5 +225,48 @@ describe("buildTermFolderGlossaries", () => {
     expect(matcher.constraints()).toEqual([
       { avoid: "cartel law", use: "Kartellrecht", note: "Definition." }
     ]);
+  });
+});
+
+describe("findTermOverlaps", () => {
+  const table: Glossary = {
+    path: "Glossaries/House.md",
+    language: "de",
+    defaultSeverity: "warning",
+    concepts: [
+      {
+        id: "objekt",
+        terms: [
+          { text: "Objekt", status: "preferred", match: "word", note: "" },
+          { text: "Cartel Law", status: "deprecated", match: "word", note: "" }
+        ]
+      }
+    ]
+  };
+  const folder = buildTermFolderGlossaries("Glossar", [
+    {
+      path: "Glossar/Terms/Kartellrecht.md",
+      term: "Kartellrecht",
+      avoid: ["cartel law", "Objekt"],
+      language: "de",
+      byModel: false,
+      note: ""
+    }
+  ]);
+
+  it("names each word both define, ignoring case, with both places", () => {
+    expect(findTermOverlaps([table, ...folder], "Glossar")).toEqual([
+      { text: "cartel law", term: "Kartellrecht", glossaryPath: "Glossaries/House.md" },
+      { text: "Objekt", term: "Kartellrecht", glossaryPath: "Glossaries/House.md" }
+    ]);
+  });
+
+  it("finds nothing without the folder, or without another glossary", () => {
+    expect(findTermOverlaps([table, ...folder], "")).toEqual([]);
+    expect(findTermOverlaps(folder, "Glossar")).toEqual([]);
+  });
+
+  it("does not report two table glossaries to each other", () => {
+    expect(findTermOverlaps([table, { ...table, path: "B.md" }], "Glossar")).toEqual([]);
   });
 });

@@ -414,7 +414,10 @@ export const enExtra = {
     } as Record<string, string>,
     termRuleAdded: (word: string, term: string) => `"${word}" is now flagged in favour of ${term}.`,
     termRuleRemoved: (word: string, term: string) => `"${word}" is no longer flagged for ${term}.`,
-    termWriteFailed: (reason: string) => `could not update the term note — ${reason}`
+    termWriteFailed: (reason: string) => `could not update the term note — ${reason}`,
+    termOverlap: (word: string, term: string, glossary: string) =>
+      `"${word}" is defined in ${glossary} and on the term note ${term}. Keep it in one place.`,
+    termOverlapMore: (count: number) => `…and ${count} more word(s) defined in both places.`
   },
 
   sync: {

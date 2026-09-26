@@ -198,3 +198,55 @@ export function buildTermFolderGlossaries(
     concepts
   }));
 }
+
+export interface TermOverlap {
+  /** The word as the term note spells it. */
+  text: string;
+  /** The term note's term, the concept the word belongs to there. */
+  term: string;
+  /** The other glossary that also names the word. */
+  glossaryPath: string;
+}
+
+/** How many overlaps are listed before the rest are only counted. */
+export const MAX_LISTED_OVERLAPS = 5;
+
+/**
+ * Words both the term folder and another glossary name, among the glossaries
+ * that apply to a note.
+ *
+ * Both apply, and where two claim the same words the one loaded first wins —
+ * a rule nobody sees. A word defined in two places is the case where the
+ * wrong one silently decides, so it is reported rather than resolved: which
+ * place should keep it is the person's call.
+ */
+export function findTermOverlaps(glossaries: Glossary[], folder: string): TermOverlap[] {
+  if (!folder) return [];
+  const elsewhere = new Map<string, string>();
+  for (const glossary of glossaries) {
+    if (glossary.path === folder) continue;
+    for (const concept of glossary.concepts) {
+      for (const term of concept.terms) {
+        const key = term.text.toLowerCase();
+        if (!elsewhere.has(key)) elsewhere.set(key, glossary.path);
+      }
+    }
+  }
+
+  const overlaps: TermOverlap[] = [];
+  const seen = new Set<string>();
+  for (const glossary of glossaries) {
+    if (glossary.path !== folder) continue;
+    for (const concept of glossary.concepts) {
+      const term = concept.terms.find((entry) => entry.status === "preferred")?.text ?? concept.id;
+      for (const entry of concept.terms) {
+        const key = entry.text.toLowerCase();
+        const glossaryPath = elsewhere.get(key);
+        if (glossaryPath === undefined || seen.has(key)) continue;
+        seen.add(key);
+        overlaps.push({ text: entry.text, term, glossaryPath });
+      }
+    }
+  }
+  return overlaps;
+}

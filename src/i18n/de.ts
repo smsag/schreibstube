@@ -657,7 +657,10 @@ export const de: Messages = {
       `„${word}“ wird jetzt zugunsten von ${term} markiert.`,
     termRuleRemoved: (word: string, term: string) =>
       `„${word}“ wird für ${term} nicht mehr markiert.`,
-    termWriteFailed: (reason: string) => `Begriffsnotiz konnte nicht geändert werden — ${reason}`
+    termWriteFailed: (reason: string) => `Begriffsnotiz konnte nicht geändert werden — ${reason}`,
+    termOverlap: (word: string, term: string, glossary: string) =>
+      `„${word}“ steht in ${glossary} und auf der Begriffsnotiz ${term}. Behalte es an einer Stelle.`,
+    termOverlapMore: (count: number) => `…und ${count} weitere(s) Wort/Wörter an beiden Stellen.`
   },
 
   sync: {

@@ -96,6 +96,8 @@ The list is managed in the proofreading panel's **Terms** section: select the wo
 - The first paragraph of the body is shown on the card and handed to the correction pass, so the model knows which sense is meant. A definition Pythia's model wrote is marked as such.
 - The term itself is never flagged, not even its capitalisation: a folder of model-written terms would otherwise flag every one at the start of a sentence.
 
+**Table or term folder?** They are two ways to write the same kind of rule, for two ways of working. A glossary table is the house style guide: written in one go, edited as a whole, pasted from a termbase export, and able to say everything TBX-Basic can (admitted and superseded terms, match modes, a severity). The term folder is what you learn along the way: one term at a time, with its meaning beside it, and only one kind of rule — avoid this word, use the term. Put a rule where its term is defined. When both define the same word for a note, the panel says so under the glossary line, because both apply and the one loaded first would decide without telling you.
+
 ### Document sync
 
 Binds a note to a remote Markdown file. The source is the single truth: incoming changes appear in the sidebar as cards you accept one by one, and nothing is ever pushed back. A bound note can live in any folder, since it is found by its frontmatter key rather than its location.

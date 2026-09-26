@@ -7,6 +7,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - **A folder of term notes is a glossary.** Set **Term folder** to the folder Pythia writes its glossary into, and each term note becomes a concept. Nothing is flagged until you say which words to avoid for a term: select the word, press **Add rule** in the proofreading panel's new **Terms** section and pick the term. The word is flagged in every checked note with the term offered in its place, and the term's definition rides on the card and into the correction pass. The panel writes one property on the note, `schreibstubeAvoid`, and nothing else. The term itself is never flagged, so a folder of model-written terms does not start correcting capitalisation.
+- **A word defined both in a glossary table and on a term note is named in the panel.** Both apply, and where they claim the same words the glossary loaded first would decide without saying so. The panel lists each such word under the glossary line, with both places, so it can be kept in one. The README now says which of the two formats a rule belongs in.
 
 ## 1.50.0 - 2026-09-27
 
