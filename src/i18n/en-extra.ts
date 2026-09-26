@@ -85,6 +85,13 @@ export const enExtra = {
     explorerDescriptionNotesDesc:
       "Off: a described picture is one row, found by its description too, and its description note stays " +
       "out of the tree. On: the description notes appear as ordinary notes.",
+    recommendedPlacement: "Recommended",
+    recommendedPlacementDesc:
+      "Where the notes, pictures and conversations that belong with the open note are shown. Under " +
+      "the note, they are read where the note ends; the sidebar panel can still be opened from a " +
+      "note's menu.",
+    recommendedSidebar: "In the right sidebar",
+    recommendedFooter: "Under the note",
     explorerTaskCounts: "Task counts",
     explorerTaskCountsDesc:
       'Show how many tasks a note holds and how many are still open, as "1 / 7" after its ' +
@@ -485,13 +492,18 @@ export const enExtra = {
     folderCount: (count: string) => `${count} files`,
 
     related: {
-      viewTitle: "Related notes",
-      viewNoNote: "Open a note to see what it sits among.",
-      viewEmpty: "Nothing links, tags or files this note beside anything else.",
-      summary: (count: number) => (count === 1 ? "1 related note" : `${count} related notes`),
+      viewTitle: "Recommended",
+      viewNoNote: "Open a note to see what belongs with it.",
+      viewEmpty:
+        "Nothing links, tags or files this note beside anything else, and nothing reads alike.",
+      summary: (count: number) => (count === 1 ? "1 recommendation" : `${count} recommendations`),
       root: "Vault root",
+      pictures: "Pictures",
+      notes: "Notes and documents",
+      conversations: "Conversations",
       reasons: {
         link: "linked",
+        meaning: "similar in meaning",
         sharedLink: (count: number) => (count === 1 ? "1 shared link" : `${count} shared links`),
         coCitation: (count: number) =>
           count === 1 ? "listed together" : `listed together ${count}×`,
@@ -583,7 +595,7 @@ export const enExtra = {
       releaseTop: "Stop keeping at top",
       pin: "Add to Pinned",
       unpin: "Remove from Pinned",
-      related: "Related notes",
+      related: "Recommended",
       showImages: "Images as tiles",
       pinTag: "Pin a tag of this note…",
       showTag: "Show tagged notes",

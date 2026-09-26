@@ -77,6 +77,19 @@ export function renderExplorer(ctx: SettingsContext): void {
     });
 
   new Setting(ctx.containerEl)
+    .setName(t().settings.recommendedPlacement)
+    .setDesc(t().settings.recommendedPlacementDesc)
+    .addDropdown((dropdown) => {
+      dropdown
+        .addOption("sidebar", t().settings.recommendedSidebar)
+        .addOption("footer", t().settings.recommendedFooter)
+        .setValue(ctx.plugin.settings.recommendedPlacement)
+        .onChange(async (value) => {
+          await ctx.update({ recommendedPlacement: value === "footer" ? "footer" : "sidebar" });
+        });
+    });
+
+  new Setting(ctx.containerEl)
     .setName(t().settings.explorerIcons)
     .setDesc(t().settings.explorerIconsDesc(allIconNames().length, ICON_FONT_VERSION));
 

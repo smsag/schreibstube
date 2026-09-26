@@ -85,12 +85,29 @@ describe("the semantic API", () => {
     expect(conversations.related).toHaveBeenCalledWith("c1", 5);
   });
 
-  it("does not yet answer related notes", async () => {
-    const { engine } = fakeEngine();
+  it("answers what is like a note: notes, pictures and conversations", async () => {
+    const { engine } = fakeEngine({
+      relatedToNote: vi.fn(async () => ({
+        notes: [
+          { id: "Notizen/küche.md", score: 0.8 },
+          { id: "Bildbeschreibungen/see.md", score: 0.7 },
+          { id: "gone.md", score: 0.6 }
+        ],
+        conversations: [{ id: "c1", score: 0.75 }]
+      }))
+    });
     const api = createSemanticApi({ engine, logger: NULL_LOGGER, vaultHit });
-    expect(
-      await api.related({ path: "a.md" }, { kinds: ["note", "conversation"], limit: 5 })
-    ).toEqual([]);
+
+    const hits = await api.related(
+      { path: "a.md" },
+      { kinds: ["note", "image", "conversation"], limit: 5 }
+    );
+
+    expect(hits.map((h) => [h.kind, h.id])).toEqual([
+      ["note", "Notizen/küche.md"],
+      ["conversation", "c1"],
+      ["image", "Bilder/see.jpg"]
+    ]);
   });
 
   it("lets Pythia register a source and nobody else", () => {

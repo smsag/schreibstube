@@ -4,6 +4,7 @@ import type { Logger } from "../../services/logger";
 import { t } from "../../i18n";
 import {
   DEFAULT_EMBEDDING_MODEL_ID,
+  DEFAULT_SIMILARITY_PRESET,
   effectiveEmbeddingModel,
   embedChunkChars,
   embeddingModelConfig,
@@ -426,6 +427,39 @@ export class SemanticEngine {
     } catch (e) {
       this.logger.warn("semantic engine: search failed", e);
       return [];
+    }
+  }
+
+  /**
+   * What is like the note at `path`, from vectors already stored: notes (a
+   * description note among them stands for its picture) and conversations.
+   * Never loads the model for the notes, so the panel can follow the open note
+   * on a phone that released it; a note not yet indexed has nothing to offer.
+   */
+  async relatedToNote(
+    path: string,
+    limit: number
+  ): Promise<{ notes: RetrievedNote[]; conversations: { id: string; score: number }[] }> {
+    const none = { notes: [], conversations: [] };
+    if (!this.enabled()) return none;
+    try {
+      await this.importOnce();
+      const svc = this.ensure();
+      if (!svc.isReady()) await svc.loadPersisted();
+      const vectors = svc.vectorsOf(path);
+      if (!vectors) return none;
+      const floor = embeddingModelConfig(this.modelId()).relatedFloors[DEFAULT_SIMILARITY_PRESET];
+      const notes = await svc.rankByVectors(vectors, { minScore: floor, limit, exclude: [path] });
+      const conversations = await this.conversations
+        .relatedToVectors(vectors, limit)
+        .catch((e: unknown) => {
+          this.logger.warn("semantic engine: related conversations failed", e);
+          return [];
+        });
+      return { notes, conversations };
+    } catch (e) {
+      this.logger.warn("semantic engine: related failed", e);
+      return none;
     }
   }
 

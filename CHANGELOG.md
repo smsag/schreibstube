@@ -6,6 +6,8 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- **Related notes became Recommended: notes, pictures and conversations.** The panel only knew the links, so a note about the kitchen nobody had linked never showed up beside it. With Search by meaning on, it now adds what reads alike — notes, a row of pictures whose descriptions match, and Pythia's conversations about the same thing — a moment after the links, from vectors already stored, so no model is loaded for it. A note you linked keeps its place above one that merely sounds similar, and every card says why it is there. **Recommended** in the Explorer settings shows it in the sidebar or under the note.
+
 - **Search by meaning runs on a phone next to Pythia.** It paused on a phone whenever Pythia was switched on, because both loaded a language model and two are more than a phone allows one app. A Pythia that uses Schreibstube's search and loads no model of its own no longer causes the pause; an older Pythia still does.
 
 - **Pythia's conversations can be found by meaning.** Search by meaning now also indexes the conversations Pythia hands over, with the same model on the device, so Pythia can find a chat by what it was about and show conversations like the one open without loading a model of its own. An index Pythia already built is taken over, not rebuilt. Only Pythia may hand conversations over, and what it lists is checked and bounded first.

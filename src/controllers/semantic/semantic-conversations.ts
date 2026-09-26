@@ -133,8 +133,33 @@ export class SemanticConversations {
   async related(id: string, limit: number): Promise<ScoredId[]> {
     const index = await this.ready();
     if (!index) return [];
-    const floors = embeddingModelConfig(this.host.modelId()).relatedFloors;
-    return index.related(id, { minScore: floors[DEFAULT_SIMILARITY_PRESET], limit });
+    return index.related(id, { minScore: this.relatedFloor(), limit });
+  }
+
+  /** The model's measured floor for "alike", at the balanced preset (Pythia ADR-169). */
+  private relatedFloor(): number {
+    return embeddingModelConfig(this.host.modelId()).relatedFloors[DEFAULT_SIMILARITY_PRESET];
+  }
+
+  /** Conversations like a note, from its stored vectors. */
+  async relatedToVectors(chunks: readonly Int8Array[], limit: number): Promise<ScoredId[]> {
+    const index = await this.ready();
+    if (!index) return [];
+    // Chunk against chunk, the comparison the related floors were measured on.
+    return index.relatedToVectors(chunks, { minScore: this.relatedFloor(), limit });
+  }
+
+  /** Open a conversation in the plugin that listed it, if it can. */
+  open(id: string): boolean {
+    const source = this.source;
+    if (!source?.open) return false;
+    try {
+      source.open(id);
+      return true;
+    } catch (e) {
+      this.host.logger.warn("semantic engine: the source could not open a conversation", e);
+      return false;
+    }
   }
 
   /** Conversations that answer `text`, best first. */

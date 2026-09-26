@@ -103,6 +103,7 @@ export const DEFAULT_SETTINGS: SchreibstubeSettings = {
   imageDescriptionLanguage: "auto",
   imageDescriptionKeywordsAsTags: false,
   explorerDescriptionNotes: "hide",
+  recommendedPlacement: "sidebar",
   semanticSearchEnabled: false,
   semanticMaxNotes: 5000,
   summarizePrompt: DEFAULT_SUMMARIZE_PROMPT,
@@ -239,6 +240,7 @@ export function normalizeSettings(loaded: LoadedSettings): SchreibstubeSettings 
         : "auto",
     imageDescriptionKeywordsAsTags: loaded?.imageDescriptionKeywordsAsTags === true,
     explorerDescriptionNotes: loaded?.explorerDescriptionNotes === "show" ? "show" : "hide",
+    recommendedPlacement: loaded?.recommendedPlacement === "footer" ? "footer" : "sidebar",
     semanticSearchEnabled: loaded?.semanticSearchEnabled === true,
     semanticMaxNotes: clampIntOrDefault(
       loaded?.semanticMaxNotes,

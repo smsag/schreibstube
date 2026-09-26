@@ -10,7 +10,7 @@ import {
 } from "./embedding-index";
 import { hashPolicyFor, resolveRowHash, type HashPolicy } from "./row-provenance";
 import { DEFAULT_EMBEDDING_MODEL_ID } from "./embedding-models";
-import { quantize, cosine } from "./vector-math";
+import { quantize, cosine, maxPairwiseCosine } from "./vector-math";
 import { noteEmbedChunks, type RetrievedNote } from "./vault-retrieval";
 import { IndexJournal } from "./index-journal";
 import { createLogger, type Logger } from "../logger";
@@ -604,6 +604,39 @@ export class VaultIndexService {
       await persist(this.items, true);
     }
     this.synced = true;
+  }
+
+  /** The stored vectors of one note, or null when it is not in the index. */
+  vectorsOf(path: string): Int8Array[] | null {
+    const item = this.items.find((i) => i.id === path);
+    return item && item.chunks.length > 0 ? item.chunks : null;
+  }
+
+  /**
+   * The indexed notes most like `chunks` — another note's stored vectors — best
+   * first. Nothing is embedded, so this never needs the model: it is what lets
+   * the Recommended panel follow the open note on a phone that released it.
+   */
+  async rankByVectors(
+    chunks: readonly Int8Array[],
+    opts: { minScore: number; limit: number; exclude?: Iterable<string> }
+  ): Promise<RetrievedNote[]> {
+    // Whatever is loaded answers, finished or not: a partial index still knows
+    // which of its notes are alike, and asking does not mark it ready.
+    if (chunks.length === 0) return [];
+    const excluded = new Set(opts.exclude ?? []);
+    const source = [...chunks];
+    const scored: RetrievedNote[] = [];
+    let scanned = 0;
+    for (const item of this.items) {
+      if (item.chunks.length > 0 && !excluded.has(item.id)) {
+        const score = maxPairwiseCosine(source, item.chunks);
+        if (Number.isFinite(score) && score >= opts.minScore) scored.push({ id: item.id, score });
+      }
+      if (++scanned % RANK_YIELD_EVERY === 0) await new Promise((r) => setTimeout(r, 0));
+    }
+    scored.sort((a, b) => b.score - a.score);
+    return scored.slice(0, opts.limit);
   }
 
   /**

@@ -84,11 +84,27 @@ export function createSemanticApi(deps: SemanticApiDeps): SchreibstubeSemanticAp
     async related(ref: RelatedRef, opts) {
       const kinds = readKinds(opts?.kinds);
       const limit = clampLimit(opts?.limit);
-      // Related notes and pictures come with the Recommended strip; until then
-      // only a conversation can be asked about.
-      if (!kinds.has("conversation") || typeof ref !== "object" || ref === null) return [];
-      if (!("source" in ref) || typeof ref.id !== "string") return [];
+      if (typeof ref !== "object" || ref === null) return [];
       try {
+        if ("path" in ref && typeof ref.path === "string") {
+          const found = await engine.relatedToNote(ref.path, limit);
+          const lists: Hit[][] = [];
+          if (kinds.has("note") || kinds.has("image")) {
+            const hits: Hit[] = [];
+            const seen = new Set<string>();
+            for (const note of found.notes) {
+              const hit = deps.vaultHit(note.id);
+              if (!hit || !kinds.has(hit.kind) || hit.id === ref.path || seen.has(hit.id)) continue;
+              seen.add(hit.id);
+              hits.push({ ...hit, score: note.score });
+            }
+            lists.push(hits);
+          }
+          if (kinds.has("conversation")) lists.push(conversationHits(found.conversations));
+          return mergeHits(lists, limit);
+        }
+        if (!kinds.has("conversation") || !("source" in ref) || typeof ref.id !== "string")
+          return [];
         return conversationHits(await engine.conversations.related(ref.id, limit));
       } catch (e) {
         logger.warn("semantic API: related failed", e);

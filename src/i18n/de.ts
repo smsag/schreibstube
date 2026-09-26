@@ -28,7 +28,7 @@ export const de: Messages = {
     explorerUndo: "Explorer: letztes Verschieben oder Löschen rückgängig machen",
     folderTiles: "Explorer: Ordner dieser Notiz als Kacheln",
     orphanedDescriptions: "Explorer: verwaiste Bildbeschreibungen",
-    related: "Verwandte Notizen",
+    related: "Empfohlen",
     openBookmark: "Lesezeichen öffnen",
     pinTag: "Tag anheften",
     openReview: "Korrektur-Seitenleiste öffnen",
@@ -341,6 +341,13 @@ export const de: Messages = {
     explorerDescriptionNotesDesc:
       "Aus: Ein beschriebenes Bild ist eine Zeile, auch über seine Beschreibung auffindbar, und die " +
       "Beschreibungsnotiz bleibt aus dem Baum. An: Die Beschreibungsnotizen erscheinen als gewöhnliche Notizen.",
+    recommendedPlacement: "Empfohlen",
+    recommendedPlacementDesc:
+      "Wo die Notizen, Bilder und Gespräche erscheinen, die zur offenen Notiz gehören. Unter der " +
+      "Notiz liest man sie dort, wo die Notiz endet; die Seitenleiste lässt sich weiterhin über das " +
+      "Menü einer Notiz öffnen.",
+    recommendedSidebar: "In der rechten Seitenleiste",
+    recommendedFooter: "Unter der Notiz",
     explorerTaskCounts: "Aufgabenzähler",
     explorerTaskCountsDesc:
       'Zeigt hinter dem Namen einer Notiz, wie viele Aufgaben sie enthält und wie viele davon offen sind, als "1 / 7". ' +
@@ -744,14 +751,18 @@ export const de: Messages = {
     folderCount: (count: string) => `${count} Dateien`,
 
     related: {
-      viewTitle: "Verwandte Notizen",
-      viewNoNote: "Eine Notiz öffnen, um zu sehen, wobei sie steht.",
-      viewEmpty: "Nichts verlinkt, verschlagwortet oder legt diese Notiz neben eine andere.",
-      summary: (count: number) =>
-        count === 1 ? "1 verwandte Notiz" : `${count} verwandte Notizen`,
+      viewTitle: "Empfohlen",
+      viewNoNote: "Eine Notiz öffnen, um zu sehen, was zu ihr gehört.",
+      viewEmpty:
+        "Nichts verlinkt, verschlagwortet oder legt diese Notiz neben eine andere, und nichts liest sich ähnlich.",
+      summary: (count: number) => (count === 1 ? "1 Empfehlung" : `${count} Empfehlungen`),
       root: "Vault-Wurzel",
+      pictures: "Bilder",
+      notes: "Notizen und Dokumente",
+      conversations: "Gespräche",
       reasons: {
         link: "verlinkt",
+        meaning: "ähnlich im Inhalt",
         sharedLink: (count: number) =>
           count === 1 ? "1 gemeinsamer Link" : `${count} gemeinsame Links`,
         coCitation: (count: number) =>
@@ -844,7 +855,7 @@ export const de: Messages = {
       releaseTop: "Nicht mehr oben halten",
       pin: "Zu „Angeheftet“ hinzufügen",
       unpin: "Aus „Angeheftet“ entfernen",
-      related: "Verwandte Notizen",
+      related: "Empfohlen",
       showImages: "Bilder als Kacheln",
       pinTag: "Tag dieser Notiz anheften …",
       showTag: "Notizen mit diesem Tag zeigen",

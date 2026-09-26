@@ -61,6 +61,8 @@ export interface SchreibstubeSettings {
   imageDescriptionKeywordsAsTags: boolean;
   /** Whether the Explorer shows description notes, or folds them into their pictures. */
   explorerDescriptionNotes: "hide" | "show";
+  /** Where the Recommended panel follows the open note: the right sidebar, or under the note. */
+  recommendedPlacement: "sidebar" | "footer";
   /** Search by meaning: the on-device semantic index of the vault's notes. */
   semanticSearchEnabled: boolean;
   /** How many notes the semantic index holds at most, newest first. */
