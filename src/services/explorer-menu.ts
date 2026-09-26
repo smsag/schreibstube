@@ -37,6 +37,7 @@ export type ExplorerAction =
   | "move"
   | "rename"
   | "rename-ai"
+  | "describe-image"
   | "delete"
   | "more";
 
@@ -47,6 +48,8 @@ export interface ExplorerTarget {
   markdown: boolean;
   /** A picture, which is named by being looked at rather than by being read. */
   image?: boolean;
+  /** A picture that can be described: picture descriptions are switched on. */
+  describable?: boolean;
   /**
    * Whether the note names a source in its frontmatter.
    *
@@ -194,6 +197,10 @@ export function buildExplorerMenu(
       { id: "move", label: menu.move, icon: "folder-input" },
       { id: "rename", label: menu.rename, icon: "pencil" },
       ...aiRenameItem(target),
+      // Only while descriptions are switched on: switched off, nothing may be sent.
+      ...(target.kind === "file" && target.image && target.describable
+        ? [{ id: "describe-image" as const, label: menu.describeImage, icon: "scan-text" }]
+        : []),
       { id: "delete", label: menu.delete, icon: "trash-2", warning: true }
     ]
   });

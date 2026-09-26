@@ -33,6 +33,24 @@ export interface ProviderModel {
   value: string;
 }
 
+/**
+ * What a picture is sent with: the question, the room for an answer, and how
+ * closely the model may look. A name needs a glance and a few tokens; a
+ * description needs the details a person would search for, and room to say them.
+ */
+interface ImageAsk {
+  userText: string;
+  maxTokens: number;
+  /** OpenAI's resolution hint; Anthropic reads the picture as sent. */
+  detail: "low" | "auto";
+}
+
+const RENAME_IMAGE_ASK: ImageAsk = {
+  userText: IMAGE_USER_PROMPT,
+  maxTokens: MAX_TOKENS,
+  detail: "low"
+};
+
 interface ProviderAdapter {
   label: string;
   /** Never empty: the first entry is the default for a fresh install. */
@@ -40,7 +58,13 @@ interface ProviderAdapter {
   url: string;
   headers(apiKey: string): Record<string, string>;
   textBody(model: string, systemPrompt: string, userMessage: string, maxTokens: number): unknown;
-  imageBody(model: string, systemPrompt: string, base64Image: string, mimeType: string): unknown;
+  imageBody(
+    model: string,
+    systemPrompt: string,
+    base64Image: string,
+    mimeType: string,
+    image: ImageAsk
+  ): unknown;
   parse(json: unknown): string;
 }
 
@@ -62,16 +86,16 @@ const ANTHROPIC: ProviderAdapter = {
     system: systemPrompt,
     messages: [{ role: "user", content: userMessage }]
   }),
-  imageBody: (model, systemPrompt, base64Image, mimeType) => ({
+  imageBody: (model, systemPrompt, base64Image, mimeType, image) => ({
     model,
-    max_tokens: MAX_TOKENS,
+    max_tokens: image.maxTokens,
     system: systemPrompt,
     messages: [
       {
         role: "user",
         content: [
           { type: "image", source: { type: "base64", media_type: mimeType, data: base64Image } },
-          { type: "text", text: IMAGE_USER_PROMPT }
+          { type: "text", text: image.userText }
         ]
       }
     ]
@@ -98,9 +122,9 @@ const OPENAI: ProviderAdapter = {
       { role: "user", content: userMessage }
     ]
   }),
-  imageBody: (model, systemPrompt, base64Image, mimeType) => ({
+  imageBody: (model, systemPrompt, base64Image, mimeType, image) => ({
     model,
-    max_tokens: MAX_TOKENS,
+    max_tokens: image.maxTokens,
     messages: [
       { role: "system", content: systemPrompt },
       {
@@ -108,9 +132,9 @@ const OPENAI: ProviderAdapter = {
         content: [
           {
             type: "image_url",
-            image_url: { url: `data:${mimeType};base64,${base64Image}`, detail: "low" }
+            image_url: { url: `data:${mimeType};base64,${base64Image}`, detail: image.detail }
           },
-          { type: "text", text: IMAGE_USER_PROMPT }
+          { type: "text", text: image.userText }
         ]
       }
     ]
@@ -198,7 +222,32 @@ export function buildImageRequest(
   return {
     url: adapter.url,
     headers: adapter.headers(apiKey),
-    body: JSON.stringify(adapter.imageBody(model, systemPrompt, base64Image, mimeType))
+    body: JSON.stringify(
+      adapter.imageBody(model, systemPrompt, base64Image, mimeType, RENAME_IMAGE_ASK)
+    )
+  };
+}
+
+/** A picture sent under a caller's own instruction — a description rather than
+ *  a name — with room for the answer and a closer look than a name needs. */
+export function buildImageDescriptionRequest(
+  provider: LlmProvider,
+  model: string,
+  apiKey: string,
+  image: { base64: string; mimeType: string },
+  ask: { systemPrompt: string; userText: string; maxTokens: number }
+): BuiltRequest {
+  const adapter = LLM_PROVIDERS[provider];
+  return {
+    url: adapter.url,
+    headers: adapter.headers(apiKey),
+    body: JSON.stringify(
+      adapter.imageBody(model, ask.systemPrompt, image.base64, image.mimeType, {
+        userText: ask.userText,
+        maxTokens: ask.maxTokens,
+        detail: "auto"
+      })
+    )
   };
 }
 

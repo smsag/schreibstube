@@ -218,3 +218,16 @@ describe("forgetUnder", () => {
     expect(index.size).toBe(1);
   });
 });
+
+describe("a described picture's words", () => {
+  it("reach the index through its metadata, validated like any other field", () => {
+    const index = new FileSearchIndex(
+      fakeSource([
+        { path: "Fotos/IMG_1.jpg", metadata: { description: "Terrasse mit Seeblick" } },
+        { path: "Fotos/IMG_2.jpg", metadata: { description: { not: "text" } } }
+      ])
+    );
+    expect(index.search("seeblick", 10).hits.map((h) => h.path)).toEqual(["Fotos/IMG_1.jpg"]);
+    expect(index.fieldsFor({ path: "Fotos/IMG_2.jpg", name: "IMG_2.jpg" }).description).toEqual([]);
+  });
+});

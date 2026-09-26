@@ -336,6 +336,10 @@ export const de: Messages = {
     explorerBookmarksFileDesc:
       "Vault-Pfad der Markdown-Datei, aus der die Lesezeichen gelesen werden. Eine Überschrift " +
       "ist ein Ordner, ein Listenpunkt ein Link.",
+    explorerDescriptionNotes: "Bildbeschreibungen als Notizen zeigen",
+    explorerDescriptionNotesDesc:
+      "Aus: Ein beschriebenes Bild ist eine Zeile, auch über seine Beschreibung auffindbar, und die " +
+      "Beschreibungsnotiz bleibt aus dem Baum. An: Die Beschreibungsnotizen erscheinen als gewöhnliche Notizen.",
     explorerTaskCounts: "Aufgabenzähler",
     explorerTaskCountsDesc:
       'Zeigt hinter dem Namen einer Notiz, wie viele Aufgaben sie enthält und wie viele davon offen sind, als "1 / 7". ' +
@@ -366,6 +370,23 @@ export const de: Messages = {
     renameMaxCharsDesc: "Wie viele Zeichen vom Anfang der Notiz an das LLM gehen.",
     renameMaxFilename: "Maximale Länge des Dateinamens",
     renameMaxFilenameDesc: "Der erzeugte Dateiname wird auf so viele Zeichen gekürzt.",
+
+    describeHeading: "Bildbeschreibungen",
+    describeIntro:
+      "Ein Bild über sein Menü im Schreibstube-Explorer beschreiben: Das eingestellte Modell schreibt Titel, " +
+      "Beschreibung und Stichworte in eine eigene Notiz, damit das Bild über seinen Inhalt auffindbar wird. " +
+      "Das Bild wird vorher verkleinert, wobei die Standortdaten entfallen, und dann an den oben gewählten Anbieter geschickt.",
+    describeEnabled: "Bilder beschreiben",
+    describeEnabledDesc:
+      "Ergänzt „Bild beschreiben“ im Menü eines Bildes. Solange das aus ist, wird nichts gesendet.",
+    describeFolder: "Ordner für Beschreibungen",
+    describeFolderDesc: "Eine Notiz pro Bild, alle in diesem Ordner.",
+    describeLanguage: "Sprache der Beschreibungen",
+    describeLanguageAuto: "Sprache der Oberfläche",
+    describeTags: "Stichworte als Tags",
+    describeTagsDesc:
+      "Die Stichworte zusätzlich als Obsidian-Tags schreiben. Standardmäßig aus: Viele Bilder mit mehreren " +
+      "Stichworten füllen sonst den Tag-Bereich.",
 
     summarizeHeading: "Auswahl zusammenfassen",
     summarizeIntro:
@@ -511,7 +532,11 @@ export const de: Messages = {
     tableSelectionMoved: "der Text hat sich während der Umwandlung verändert; nichts ersetzt.",
     tableHeaderName: "Name",
     tableHeaderValue: "Wert",
-    failTable: "Schreibstube: Umwandlung in Tabelle fehlgeschlagen"
+    failTable: "Schreibstube: Umwandlung in Tabelle fehlgeschlagen",
+    describing: "beschreibt das Bild …",
+    described: (title: string) => `beschrieben: ${title}`,
+    describeUnusable: "die Beschreibung des Modells war unbrauchbar – nichts geschrieben.",
+    failDescribe: "Schreibstube: Bild beschreiben fehlgeschlagen"
   },
 
   properties: {
@@ -820,6 +845,7 @@ export const de: Messages = {
       rename: "Umbenennen …",
       renameNoteAi: "Aus dem Text benennen …",
       renameImageAi: "Aus dem Bild benennen …",
+      describeImage: "Bild beschreiben",
       renaming: "Liest …",
       move: "Verschieben nach …",
       delete: "Löschen",

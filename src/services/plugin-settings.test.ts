@@ -555,3 +555,44 @@ describe("the default print template", () => {
     expect(normalizeSettings(loaded).printDefaultTemplate).toBe("");
   });
 });
+
+describe("picture description settings", () => {
+  it("are off, in their own folder, in the interface language, without tags by default", () => {
+    const s = normalizeSettings({});
+    expect(s.imageDescriptionsEnabled).toBe(false);
+    expect(s.imageDescriptionFolder).toBe("Bildbeschreibungen");
+    expect(s.imageDescriptionLanguage).toBe("auto");
+    expect(s.imageDescriptionKeywordsAsTags).toBe(false);
+  });
+
+  it("switch on only for a real true, never for a truthy string", () => {
+    expect(
+      normalizeSettings({ imageDescriptionsEnabled: "yes" as unknown as boolean })
+        .imageDescriptionsEnabled
+    ).toBe(false);
+    expect(normalizeSettings({ imageDescriptionsEnabled: true }).imageDescriptionsEnabled).toBe(
+      true
+    );
+  });
+
+  it("keep a language only when it is one they can write", () => {
+    expect(
+      normalizeSettings({ imageDescriptionLanguage: "fr" as never }).imageDescriptionLanguage
+    ).toBe("auto");
+    expect(normalizeSettings({ imageDescriptionLanguage: "en" }).imageDescriptionLanguage).toBe(
+      "en"
+    );
+  });
+});
+
+describe("description notes in the Explorer", () => {
+  it("are folded into their pictures unless shown on purpose", () => {
+    expect(normalizeSettings({}).explorerDescriptionNotes).toBe("hide");
+    expect(normalizeSettings({ explorerDescriptionNotes: "show" }).explorerDescriptionNotes).toBe(
+      "show"
+    );
+    expect(
+      normalizeSettings({ explorerDescriptionNotes: "maybe" as never }).explorerDescriptionNotes
+    ).toBe("hide");
+  });
+});

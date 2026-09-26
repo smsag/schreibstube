@@ -18,6 +18,7 @@ import { DEFAULT_TEMPLATE_BUILTIN, TEMPLATE_ROOT_DEFAULT } from "./print-templat
 import { DEFAULT_REPORT_FILE } from "./reminder-status";
 import { normalizePropertyIcons } from "./property-icons";
 import { DEFAULT_DATE_FORMAT, normalizeDateFormat } from "./today-value";
+import { DEFAULT_DESCRIPTION_FOLDER, normalizeDescriptionFolder } from "./image-description";
 
 export { PROVIDER_MODELS } from "./llm-providers";
 
@@ -92,6 +93,11 @@ export const DEFAULT_SETTINGS: SchreibstubeSettings = {
   renameMaxContentChars: 4000,
   renameMaxFilenameLength: 60,
   renameMaxImagePx: 768,
+  imageDescriptionsEnabled: false,
+  imageDescriptionFolder: DEFAULT_DESCRIPTION_FOLDER,
+  imageDescriptionLanguage: "auto",
+  imageDescriptionKeywordsAsTags: false,
+  explorerDescriptionNotes: "hide",
   summarizePrompt: DEFAULT_SUMMARIZE_PROMPT,
   summarizeMaxTokens: 512,
   proofreadPrompt: DEFAULT_PROOFREAD_PROMPT,
@@ -218,6 +224,14 @@ export function normalizeSettings(loaded: LoadedSettings): SchreibstubeSettings 
       MAX_IMAGE_PX,
       DEFAULT_SETTINGS.renameMaxImagePx
     ),
+    imageDescriptionsEnabled: loaded?.imageDescriptionsEnabled === true,
+    imageDescriptionFolder: normalizeDescriptionFolder(loaded?.imageDescriptionFolder),
+    imageDescriptionLanguage:
+      loaded?.imageDescriptionLanguage === "de" || loaded?.imageDescriptionLanguage === "en"
+        ? loaded.imageDescriptionLanguage
+        : "auto",
+    imageDescriptionKeywordsAsTags: loaded?.imageDescriptionKeywordsAsTags === true,
+    explorerDescriptionNotes: loaded?.explorerDescriptionNotes === "show" ? "show" : "hide",
     summarizePrompt: nonEmptyStringOrDefault(
       loaded?.summarizePrompt,
       DEFAULT_SETTINGS.summarizePrompt

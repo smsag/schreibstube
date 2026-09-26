@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   LLM_PROVIDER_IDS,
   PROVIDER_MODELS,
+  buildImageDescriptionRequest,
   buildImageRequest,
   buildSummaryRequest,
   buildTextRequest,
@@ -245,5 +246,45 @@ describe("sanitizeFilename and characters that are pairs", () => {
 
   it("counts characters as a person counts them", () => {
     expect([...sanitizeFilename("ä".repeat(80), 60)].length).toBe(60);
+  });
+});
+
+describe("buildImageDescriptionRequest", () => {
+  const ask = { systemPrompt: "SYS", userText: "Describe.", maxTokens: 900 };
+
+  it("sends the caller's instruction and token room to Anthropic", () => {
+    const body = JSON.parse(
+      buildImageDescriptionRequest(
+        "anthropic",
+        "m",
+        "sk",
+        { base64: "AAAA", mimeType: "image/jpeg" },
+        ask
+      ).body
+    );
+    expect(body.system).toBe("SYS");
+    expect(body.max_tokens).toBe(900);
+    expect(body.messages[0].content[1].text).toBe("Describe.");
+  });
+
+  it("looks closer than a name does on OpenAI", () => {
+    const body = JSON.parse(
+      buildImageDescriptionRequest(
+        "openai",
+        "m",
+        "sk",
+        { base64: "AAAA", mimeType: "image/jpeg" },
+        ask
+      ).body
+    );
+    expect(body.messages[0]).toEqual({ role: "system", content: "SYS" });
+    expect(body.messages[1].content[0].image_url.detail).toBe("auto");
+    expect(body.max_tokens).toBe(900);
+  });
+
+  it("leaves the rename request as it was: a glance and a few tokens", () => {
+    const body = JSON.parse(buildImageRequest("openai", "m", "sk", "AAAA", "image/png", 60).body);
+    expect(body.messages[1].content[0].image_url.detail).toBe("low");
+    expect(body.max_tokens).toBeLessThan(900);
   });
 });

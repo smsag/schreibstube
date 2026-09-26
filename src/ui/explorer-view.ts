@@ -201,17 +201,26 @@ export class ExplorerPaneView extends ItemView {
       this.app.vault
         .getAllLoadedFiles()
         .filter((entry): entry is TFile => entry instanceof TFile)
+        // A folded-in description note is found as its picture, never twice.
+        .filter((file) => this.host?.explorer.hidesDescription(file.path) !== true)
         .map((file) => ({ path: file.path, name: file.name })),
     metadata: (file) => {
       const target = this.app.vault.getAbstractFileByPath(file.path);
       if (!(target instanceof TFile)) return null;
       const cache = this.app.metadataCache.getFileCache(target);
+      // A described picture carries its description note's words: the title it
+      // was given, its keywords as tags, and the description itself.
+      const described = this.host?.explorer.descriptionFields(file.path) ?? null;
+      const keywords = Array.isArray(described?.keywords)
+        ? described.keywords.filter((k): k is string => typeof k === "string")
+        : [];
       return {
-        title: cache?.frontmatter?.title,
+        title: described?.title ?? cache?.frontmatter?.title,
         aliases: cache?.frontmatter?.aliases,
         // `getAllTags` reads the frontmatter and the body alike, the way
         // Obsidian's own tag search sees a note.
-        tags: getAllTags(cache ?? {})
+        tags: [...(getAllTags(cache ?? {}) ?? []), ...keywords],
+        description: described?.description
       };
     }
   });
@@ -334,6 +343,7 @@ export class ExplorerPaneView extends ItemView {
     this.registerEvent(this.app.vault.on("create", () => this.requestRender()));
     this.registerEvent(
       this.app.vault.on("delete", (file) => {
+        this.forgetDescribed(file.path);
         // A folder arrives as one event, for the folder; the files inside it
         // get none, so they are forgotten by prefix.
         this.index.forget(file.path);
@@ -346,6 +356,7 @@ export class ExplorerPaneView extends ItemView {
         // Both ends: the path it had is gone, and the path it has now holds a
         // different name and different folders above it. A folder moved takes
         // everything under it along, under paths the cache has not seen.
+        this.forgetDescribed(oldPath);
         this.index.forget(oldPath);
         this.index.forgetUnder(oldPath);
         this.index.forget(file.path);
@@ -357,6 +368,7 @@ export class ExplorerPaneView extends ItemView {
     // tokens are thrown away rather than left to answer for an older version.
     this.registerEvent(
       this.app.metadataCache.on("changed", (file) => {
+        this.forgetDescribed(file.path);
         this.index.forget(file.path);
         this.requestRender();
       })
@@ -1174,6 +1186,15 @@ export class ExplorerPaneView extends ItemView {
       // Deleted a moment ago: the vault has not said so yet, and a row that
       // stays put after a confirmed delete reads as the delete having failed.
       if (controller.isTrashed(child.path)) continue;
+      // A description note is its picture's words, not a row of its own; a
+      // folder holding nothing else goes with them.
+      if (
+        child instanceof TFolder
+          ? controller.hidesFolder(child)
+          : controller.hidesDescription(child.path)
+      ) {
+        continue;
+      }
 
       if (child instanceof TFolder) {
         this.renderRow(host, child, depth);
@@ -1225,6 +1246,26 @@ export class ExplorerPaneView extends ItemView {
     this.matchCount = hits.length;
 
     return { all: new Set(hits.map((hit) => hit.path)), ranked: shown };
+  }
+
+  /**
+   * A note that may describe a picture changed, moved or went: the picture's
+   * search fields are rebuilt from the pairing as it was and as it is now, and
+   * any other file's too if the note was not a description before — cheap,
+   * because pairing rebuilds lazily and only this one picture is forgotten.
+   */
+  private forgetDescribed(notePath: string): void {
+    const controller = this.host?.explorer;
+    if (!controller || !controller.touchesDescriptions(notePath)) return;
+    const before =
+      controller.imageDescribedBy(notePath) ??
+      (controller.descriptionNoteOf(notePath) ? notePath : null);
+    controller.descriptionsChanged();
+    const after = controller.imageDescribedBy(notePath);
+    if (before) this.index.forget(before);
+    if (after && after !== before) this.index.forget(after);
+    // Whether this note is now hidden changed the list the filter reads from.
+    if (before || after) this.index.forget(notePath);
   }
 
   /** A filter expands the tree for as long as it is set, without disturbing
@@ -1383,7 +1424,10 @@ export class ExplorerPaneView extends ItemView {
     if (known !== undefined) return known;
 
     const controller = this.host?.explorer;
-    const count = countFilesUnder(folder, (path) => controller?.isTrashed(path) === true);
+    const count = countFilesUnder(
+      folder,
+      (path) => controller?.isTrashed(path) === true || controller?.hidesDescription(path) === true
+    );
     this.folderCounts.set(folder.path, count);
     return count;
   }

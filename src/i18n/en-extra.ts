@@ -81,6 +81,10 @@ export const enExtra = {
     explorerBookmarksFileDesc:
       "Vault path of the Markdown file the bookmarks are read from. A heading is a folder, a " +
       "list item is a link.",
+    explorerDescriptionNotes: "Show picture descriptions as notes",
+    explorerDescriptionNotesDesc:
+      "Off: a described picture is one row, found by its description too, and its description note stays " +
+      "out of the tree. On: the description notes appear as ordinary notes.",
     explorerTaskCounts: "Task counts",
     explorerTaskCountsDesc:
       'Show how many tasks a note holds and how many are still open, as "1 / 7" after its ' +
@@ -111,6 +115,23 @@ export const enExtra = {
     renameMaxCharsDesc: "Number of characters from the beginning of the note sent to the LLM.",
     renameMaxFilename: "Maximum filename length",
     renameMaxFilenameDesc: "Generated filename will be truncated to this many characters.",
+
+    describeHeading: "Picture descriptions",
+    describeIntro:
+      "Describe a picture from its menu in Schreibstube Explorer: the configured model writes a title, a " +
+      "description and keywords into a note of its own, so the picture can be found by what it shows. " +
+      "The picture is resized first, which drops its location data, and then sent to the provider above.",
+    describeEnabled: "Describe pictures",
+    describeEnabledDesc:
+      "Adds Describe picture to a picture's menu. Nothing is sent anywhere while this is off.",
+    describeFolder: "Folder for descriptions",
+    describeFolderDesc: "One note per picture, all in this folder.",
+    describeLanguage: "Language of descriptions",
+    describeLanguageAuto: "Interface language",
+    describeTags: "Keywords as tags",
+    describeTagsDesc:
+      "Also write the keywords as Obsidian tags. Off by default: many pictures with several keywords each " +
+      "fill the tag pane.",
 
     summarizeHeading: "Summarize selection",
     summarizeIntro:
@@ -256,7 +277,11 @@ export const enExtra = {
     tableSelectionMoved: "the text changed while the table was being created; nothing replaced.",
     tableHeaderName: "Name",
     tableHeaderValue: "Value",
-    failTable: "Schreibstube: table conversion failed"
+    failTable: "Schreibstube: table conversion failed",
+    describing: "describing the picture…",
+    described: (title: string) => `described: ${title}`,
+    describeUnusable: "the model's description was unusable — nothing written.",
+    failDescribe: "Schreibstube: describing the picture failed"
   },
 
   properties: {
@@ -560,6 +585,7 @@ export const enExtra = {
       rename: "Rename…",
       renameNoteAi: "Rename from the text…",
       renameImageAi: "Rename from the picture…",
+      describeImage: "Describe picture",
       renaming: "Reading it…",
       move: "Move to…",
       delete: "Delete",

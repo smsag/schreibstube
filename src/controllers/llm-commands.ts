@@ -1,7 +1,7 @@
 import { MarkdownView, Notice, normalizePath, type App, type Editor, type TFile } from "obsidian";
 import type { SchreibstubeSettings } from "../types";
 import type { Logger } from "../services/logger";
-import { t } from "../i18n";
+import { activeLocale, t } from "../i18n";
 import { resolveApiKey } from "../services/secret";
 import { MAX_IMAGE_BYTES, getImageMimeType, resizeImageToBase64 } from "../services/image-resize";
 import {
@@ -11,6 +11,13 @@ import {
   stripFilenameExtension
 } from "../services/llm-rename";
 import { generateSummary } from "../services/llm-summarize";
+import { generateImageDescription } from "../services/llm-describe";
+import {
+  descriptionNotePath,
+  hashImageBytes,
+  renderDescriptionNote,
+  type DescriptionLanguage
+} from "../services/image-description";
 import { buildSummaryRequest, effectiveModel } from "../services/llm-providers";
 import { sendRequest } from "../services/llm-client";
 import {
@@ -136,6 +143,91 @@ export class LlmCommands {
     }
 
     return this.withBusy("rename", () => this.nameForNote(content, apiKey));
+  }
+
+  /**
+   * Describe a picture and keep the description as a note (image descriptions,
+   * Epic A1).
+   *
+   * One note per picture in the shared folder, replaced in place when the
+   * picture is described again. The picture is resized before it is sent — the
+   * canvas that does it drops EXIF, GPS included — and fingerprinted from the
+   * original bytes, so a later check can tell whether it changed.
+   */
+  async describeImage(file: TFile): Promise<void> {
+    const settings = this.getSettings();
+    if (!settings.imageDescriptionsEnabled) return;
+
+    const mimeType = getImageMimeType(file.extension);
+    if (!mimeType) {
+      new Notice(t().common.notice(t().ai.unsupportedImage));
+      return;
+    }
+    if (file.stat.size > MAX_IMAGE_BYTES) {
+      new Notice(t().common.notice(t().ai.imageTooLarge));
+      return;
+    }
+    const apiKey = this.requireApiKey();
+    if (!apiKey) return;
+
+    await this.withBusy("image description", async () => {
+      let buffer: ArrayBuffer;
+      let image: Awaited<ReturnType<typeof resizeImageToBase64>>;
+      try {
+        buffer = await this.app.vault.readBinary(file);
+        image = await resizeImageToBase64(buffer, mimeType, settings.renameMaxImagePx);
+      } catch (err) {
+        this.fail("image resize", t().ai.failImage, err);
+        return;
+      }
+
+      const language: DescriptionLanguage =
+        settings.imageDescriptionLanguage === "auto"
+          ? activeLocale()
+          : settings.imageDescriptionLanguage;
+      new Notice(t().common.notice(t().ai.describing));
+      let description;
+      try {
+        description = await generateImageDescription(image, language, settings, apiKey);
+      } catch (err) {
+        this.fail("image description", t().ai.failDescribe, err);
+        return;
+      }
+      if (!description) {
+        new Notice(t().common.notice(t().ai.describeUnusable));
+        return;
+      }
+
+      const note = renderDescriptionNote(
+        {
+          path: file.path,
+          hash: hashImageBytes(new Uint8Array(buffer)),
+          size: file.stat.size,
+          describedAt: new Date().toISOString()
+        },
+        description,
+        { keywordsAsTags: settings.imageDescriptionKeywordsAsTags, language }
+      );
+      const path = normalizePath(descriptionNotePath(settings.imageDescriptionFolder, file.path));
+      try {
+        await this.writeNote(path, note);
+      } catch (err) {
+        this.fail("image description", t().ai.failDescribe, err);
+        return;
+      }
+      new Notice(t().common.notice(t().ai.described(description.title)));
+    });
+  }
+
+  /** Create a note, or replace it in place so a link to it keeps working. */
+  private async writeNote(path: string, content: string): Promise<void> {
+    const folder = path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : "";
+    if (folder && !this.app.vault.getAbstractFileByPath(folder)) {
+      await this.app.vault.createFolder(folder);
+    }
+    const existing = this.app.vault.getFileByPath(path);
+    if (existing) await this.app.vault.modify(existing, content);
+    else await this.app.vault.create(path, content);
   }
 
   /** The model's name for a note's text, sanitized, or null with a notice. */

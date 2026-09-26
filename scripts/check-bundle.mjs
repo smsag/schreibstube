@@ -68,8 +68,15 @@ import { fileURLToPath } from "node:url";
  * code ships as text in the prelude, which is most of the growth — each in two
  * languages. The dialog was built at 499 KB, one kilobyte short; this is the
  * decision that was deferred then, taken once for both.
+ *
+ * Raised to 525 KB at 518 KB, for picture descriptions (+9 KB on 509): the
+ * instruction a vision model is sent, the check an answer must pass before a
+ * word of it is written — every bound, and the stripping of links, tags,
+ * fences and HTML — the note it becomes, the settings that switch it on and
+ * where it writes, all in two languages. The semantic engine that will index
+ * these notes is not in this number; it brings its own raise and its reason.
  */
-const MAX_BUNDLE_KB = 510;
+const MAX_BUNDLE_KB = 525;
 
 const bundle = fileURLToPath(new URL("../main.js", import.meta.url));
 const source = readFileSync(bundle, "utf8");

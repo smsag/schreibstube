@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Added
+
+- **Pictures can be described in words, and found by them.** A photo could only be found by its file name. Switch on **Describe pictures** in the settings, then choose **Describe picture** from a picture's menu in the Explorer: the configured model writes a title, a description, keywords and any text it can read into a note of its own, in one folder for all of them. The note embeds the picture, so every search in Obsidian now finds the picture by what it shows, and describing it again replaces the note in place. The picture is resized before it is sent, which drops its location data, and the model is asked not to identify people or read out personal data. Its answer is checked before a word is written: an answer without a title or a description writes nothing, and links, tags, headings and HTML are taken out.
+
+- **A described picture is one row, found by what it shows.** In Schreibstube Explorer the description note stays out of the tree, the filter and the folder counts, and the picture itself answers to the note's title, keywords and description. A folder holding only description notes is hidden with them. **Show picture descriptions as notes** in the Explorer settings shows them as ordinary notes again.
+
 ### Fixed
 
 - **A GIF no longer stops the whole print.** A GIF is redrawn for printing, and a canvas can only redraw it as PNG — but it kept its `.gif` name, the typesetter read the PNG as a broken GIF, and the document was refused. Every picture is now named for what it has become.

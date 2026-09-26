@@ -276,3 +276,31 @@ describe("matchesText", () => {
     expect(matchesText("tag:objekt", "objekt", ["all", "tags"])).toBe(true);
   });
 });
+
+describe("a picture found by its description", () => {
+  const pic = (path: string, description: string) => ({
+    path,
+    fields: searchFields({ path, name: path.split("/").pop()!, description })
+  });
+
+  it("finds IMG_4711.jpg by what it shows", () => {
+    const hits = rankFiles("kochinsel", [
+      pic("Fotos/IMG_4711.jpg", "Offene Küche mit weißer Kochinsel und Eichenparkett."),
+      pic("Fotos/IMG_4712.jpg", "Badezimmer mit Dusche.")
+    ]);
+    expect(hits.map((h) => h.path)).toEqual(["Fotos/IMG_4711.jpg"]);
+  });
+
+  it("ranks a file named for the word above a picture whose description mentions it", () => {
+    const named = {
+      path: "Kochinsel.md",
+      fields: searchFields({ path: "Kochinsel.md", name: "Kochinsel.md" })
+    };
+    const hits = rankFiles("kochinsel", [pic("IMG_1.jpg", "Eine Kochinsel."), named]);
+    expect(hits[0]?.path).toBe("Kochinsel.md");
+  });
+
+  it("gives nothing else a description field", () => {
+    expect(searchFields({ path: "a.md", name: "a.md" }).description).toEqual([]);
+  });
+});
