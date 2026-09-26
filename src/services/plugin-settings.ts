@@ -81,6 +81,11 @@ export const DEFAULT_REMINDERS_STATUS_SHORTCUT = "Schreibstube Reminder Status";
 
 const ALLOWED_PROVIDERS = new Set<LlmProvider>(LLM_PROVIDER_IDS);
 
+/** Bounds on the semantic index's note cap: below it the index is not worth a
+ *  model; above it the index outgrows what a phone holds in memory. */
+export const MIN_SEMANTIC_NOTES = 100;
+export const MAX_SEMANTIC_NOTES = 20000;
+
 export const DEFAULT_SETTINGS: SchreibstubeSettings = {
   language: "auto",
   ...DEFAULT_FOCUS_SETTINGS,
@@ -98,6 +103,8 @@ export const DEFAULT_SETTINGS: SchreibstubeSettings = {
   imageDescriptionLanguage: "auto",
   imageDescriptionKeywordsAsTags: false,
   explorerDescriptionNotes: "hide",
+  semanticSearchEnabled: false,
+  semanticMaxNotes: 5000,
   summarizePrompt: DEFAULT_SUMMARIZE_PROMPT,
   summarizeMaxTokens: 512,
   proofreadPrompt: DEFAULT_PROOFREAD_PROMPT,
@@ -232,6 +239,13 @@ export function normalizeSettings(loaded: LoadedSettings): SchreibstubeSettings 
         : "auto",
     imageDescriptionKeywordsAsTags: loaded?.imageDescriptionKeywordsAsTags === true,
     explorerDescriptionNotes: loaded?.explorerDescriptionNotes === "show" ? "show" : "hide",
+    semanticSearchEnabled: loaded?.semanticSearchEnabled === true,
+    semanticMaxNotes: clampIntOrDefault(
+      loaded?.semanticMaxNotes,
+      MIN_SEMANTIC_NOTES,
+      MAX_SEMANTIC_NOTES,
+      DEFAULT_SETTINGS.semanticMaxNotes
+    ),
     summarizePrompt: nonEmptyStringOrDefault(
       loaded?.summarizePrompt,
       DEFAULT_SETTINGS.summarizePrompt

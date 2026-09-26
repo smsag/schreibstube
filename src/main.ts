@@ -76,6 +76,7 @@ import {
   ExplorerController
 } from "./controllers/explorer-controller";
 import type { ExplorerFileStore } from "./services/explorer-store";
+import { SemanticEngine } from "./controllers/semantic/semantic-engine";
 import { PaneSectionsController } from "./controllers/pane-sections";
 import { BookmarkQuickOpenModal } from "./ui/bookmark-quick-open";
 import { vaultUrlFor } from "./services/bookmark-file";
@@ -114,6 +115,8 @@ export default class SchreibstubePlugin extends Plugin {
   private proofread: ProofreadController | null = null;
   private explorer: ExplorerController | null = null;
   private sections: PaneSectionsController | null = null;
+  /** Search by meaning; read by the settings tab and the Explorer filter. */
+  semantic: SemanticEngine | null = null;
   /** Guards against firing twice inside one scheduled minute. */
   private lastPollMinute = -1;
   /** Sync records dropped here since the data file was last written, so the
@@ -215,6 +218,9 @@ export default class SchreibstubePlugin extends Plugin {
         this.sections?.invalidateLatest();
       }
     });
+
+    this.semantic = new SemanticEngine(this, () => this.settings, this.logger);
+    this.semantic.start();
 
     this.explorer = new ExplorerController(
       this.app,
@@ -382,6 +388,7 @@ export default class SchreibstubePlugin extends Plugin {
     this.proofread?.stop();
     void this.explorer?.stop();
     this.sections?.stop();
+    this.semantic?.dispose();
     this.clearOverlay();
   }
 
@@ -547,7 +554,8 @@ export default class SchreibstubePlugin extends Plugin {
       view.connect({
         explorer: this.explorer,
         sections: this.sections,
-        settings: () => this.settings
+        settings: () => this.settings,
+        meaning: async (text, limit) => (await this.semantic?.search(text, limit)) ?? []
       });
     }
     return view;

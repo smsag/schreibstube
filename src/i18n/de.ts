@@ -724,6 +724,7 @@ export const de: Messages = {
     taskCount: (done: number, total: number) => `${done} von ${total} Aufgaben erledigt`,
     filterEmpty: "Darauf antwortet hier nichts.",
     filterMore: (count: number) => `${count} weitere Treffer. Filter eingrenzen, um sie zu sehen.`,
+    foundByMeaning: "Nach Bedeutung gefunden: andere Wörter, gleiches Thema.",
     collapseAll: "Alle zuklappen",
     expandAll: "Alle aufklappen",
     pinnedMore: "Alle Angehefteten zeigen",
@@ -1064,6 +1065,47 @@ export const de: Messages = {
     }
   },
 
+  semantic: {
+    building: "Suche nach Bedeutung: Vault wird gelesen…",
+    progress: (done: number, total: number) =>
+      `Suche nach Bedeutung: ${done} von ${total} Notizen gelesen`,
+    busy: "Die Suche nach Bedeutung liest den Vault bereits.",
+    heading: "Suche nach Bedeutung",
+    intro:
+      "Findet Notizen nach ihrem Inhalt, nicht nur nach den Wörtern im Namen. Ein kleines " +
+      "Sprachmodell läuft auf diesem Gerät; nichts verlässt es. Der erste Aufbau liest jede " +
+      "Notiz einmal, das dauert auf dem Desktop einige Minuten.",
+    enabled: "Suche nach Bedeutung",
+    enabledDesc: (megabytes: number) =>
+      "Ergänzt den Explorer-Filter nach einer kurzen Tipppause um Notizen, die dem Gesuchten " +
+      `inhaltlich entsprechen. Lädt beim ersten Mal das Modell (etwa ${megabytes} MB).`,
+    maxNotes: "Höchstens so viele Notizen",
+    maxNotesDesc: (min: number, max: number) =>
+      `Die neuesten Notizen bis zu dieser Zahl werden gelesen. Zwischen ${min} und ${max}.`,
+    buildNow: "Jetzt aufbauen",
+    rebuild: "Neu aufbauen",
+    rebuildDesc: "Liest jede Notiz noch einmal von vorn.",
+    status: "Stand",
+    state: {
+      off: "Aus.",
+      blocked:
+        "Auf diesem Telefon pausiert, solange Pythia eingeschaltet ist: Zwei Sprachmodelle sind " +
+        "mehr, als das Telefon einer App erlaubt.",
+      notBuilt:
+        "Noch nicht aufgebaut. Das geschieht bei der ersten Nutzung des Explorer-Filters oder mit „Jetzt aufbauen“.",
+      loading: "Modell wird geladen…",
+      building: (done: number, total: number) => `Notizen werden gelesen: ${done} von ${total}.`,
+      ready: (count: number) => (count === 1 ? "Bereit: 1 Notiz." : `Bereit: ${count} Notizen.`),
+      partial: (count: number) =>
+        `Unvollständig: ${count} Notizen gelesen. „Jetzt aufbauen“ macht es fertig.`,
+      outdated: (count: number) =>
+        `${count} Notizen, aber die zu lesenden Notizen haben sich geändert. „Jetzt aufbauen“ holt es nach.`,
+      failed: (error: string) => `Fehlgeschlagen: ${error}`,
+      outOfMemory: "Dem Gerät ging der Speicher aus. Weniger Notizen einstellen und neu aufbauen.",
+      paused:
+        "Pausiert, nachdem ein Aufbau zweimal nicht fertig wurde. „Jetzt aufbauen“ versucht es erneut."
+    }
+  },
   secrets: {
     notSelected: (label: string) => `kein ${label} ausgewählt — in den Einstellungen einen wählen.`,
     notFound: (label: string) => `${label} nicht gefunden — Einstellungen prüfen.`,

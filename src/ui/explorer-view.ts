@@ -39,6 +39,7 @@ import { syncBadgeIcon, type SyncBadge } from "../services/explorer-badge";
 import type { PublishMark } from "../services/publish-mark";
 import { matchesText, type SearchHit } from "../services/file-search";
 import { FileSearchIndex } from "../services/search-index";
+import { fuseRankings, meaningQuery, meaningRows } from "../services/semantic/search-fusion";
 import { sortSiblings, type ExplorerNode } from "../services/explorer-state";
 import { bookmarkNoteTarget, isBookmarkTreeEmpty, type Bookmark } from "../services/bookmark-file";
 import { rowKeyAction } from "../services/explorer-keys";
@@ -118,6 +119,18 @@ const FILTER_DEBOUNCE_MS = 150;
 const FILTER_ROW_CAP = 200;
 
 /**
+ * How long the typing must pause before the filter also asks by meaning.
+ *
+ * Longer than the redraw's pause: a meaning search runs the model once, and a
+ * query caught between two words means something else than the one finished.
+ * The keyword rows never wait for it; the meaning rows join them when ready.
+ */
+const MEANING_DEBOUNCE_MS = 300;
+
+/** How many notes meaning may add. Past the first screenful they are noise. */
+const MEANING_LIMIT = 20;
+
+/**
  * How many pinned rows the shelf holds while the block is closed.
  *
  * They cost nothing to leave there: the strip is on screen at every scroll
@@ -146,6 +159,9 @@ export interface ExplorerPaneHost {
   explorer: ExplorerController;
   sections: PaneSectionsController;
   settings: () => SchreibstubeSettings;
+  /** Notes whose meaning answers the text, best first; empty when search by
+   *  meaning is off or not ready. */
+  meaning?: (text: string, limit: number) => Promise<{ id: string }[]>;
 }
 
 export class ExplorerPaneView extends ItemView {
@@ -180,6 +196,12 @@ export class ExplorerPaneView extends ItemView {
   private pending = false;
   /** Waiting for the typing to stop before the filter redraws. */
   private filterTimer: number | null = null;
+  /** Waiting for a longer pause before asking by meaning. */
+  private meaningTimer: number | null = null;
+  /** What meaning found, and for which query; ignored once the query moved on. */
+  private meaning: { query: string; hits: { path: string }[] } | null = null;
+  /** Rows only meaning found, so they can say why they are there. */
+  private meaningOnly = new Set<string>();
   /** Every file the filter kept, however many that is. Null when no filter is
    *  set, which is the difference between "everything" and "nothing". */
   private matches: Set<string> | null = null;
@@ -291,6 +313,7 @@ export class ExplorerPaneView extends ItemView {
     search.addEventListener("input", () => {
       const value = search.value.trim().toLowerCase();
       this.cancelFilter();
+      this.askByMeaning(search.value, value);
       // Emptying the field is the one case that must not wait: it is how a
       // person gets the tree back, and there is nothing to compute for it.
       if (value.length === 0) {
@@ -427,6 +450,31 @@ export class ExplorerPaneView extends ItemView {
   private cancelFilter(): void {
     if (this.filterTimer !== null) window.clearTimeout(this.filterTimer);
     this.filterTimer = null;
+    if (this.meaningTimer !== null) window.clearTimeout(this.meaningTimer);
+    this.meaningTimer = null;
+  }
+
+  /**
+   * Ask by meaning once the typing has paused, and redraw when the answer comes.
+   *
+   * `raw` keeps its case: the model reads "Objekt" and "objekt" alike, but a
+   * name it recognises is better left as typed. The answer is kept against
+   * `key`, the query the filter uses, and dropped if the query moved on.
+   */
+  private askByMeaning(raw: string, key: string): void {
+    const ask = this.host?.meaning;
+    const text = meaningQuery(raw);
+    if (!ask || text === null) return;
+    this.meaningTimer = window.setTimeout(() => {
+      this.meaningTimer = null;
+      void ask(text, MEANING_LIMIT)
+        .then((hits) => {
+          if (this.query !== key || hits.length === 0) return;
+          this.meaning = { query: key, hits: hits.map((hit) => ({ path: hit.id })) };
+          this.requestRender();
+        })
+        .catch(() => undefined);
+    }, MEANING_DEBOUNCE_MS);
   }
 
   /**
@@ -1132,6 +1180,10 @@ export class ExplorerPaneView extends ItemView {
         result.remove();
         continue;
       }
+      if (this.meaningOnly.has(file.path)) {
+        result.addClass("is-meaning");
+        result.setAttr("title", t().explorer.foundByMeaning);
+      }
       const folder = file.parent && !file.parent.isRoot() ? file.parent.path : "";
       const label = result.createDiv({
         cls: "schreibstube-explorer-result-folder",
@@ -1244,8 +1296,25 @@ export class ExplorerPaneView extends ItemView {
 
     const { hits, shown } = this.index.search(this.query, FILTER_ROW_CAP);
     this.matchCount = hits.length;
+    this.meaningOnly.clear();
 
-    return { all: new Set(hits.map((hit) => hit.path)), ranked: shown };
+    const controller = this.host?.explorer;
+    const found = this.meaning?.query === this.query ? this.meaning.hits : [];
+    if (found.length === 0 || !controller) {
+      return { all: new Set(hits.map((hit) => hit.path)), ranked: shown };
+    }
+    // A folded-in description note is shown as its picture, here as everywhere.
+    const rows = meaningRows(found, (path) =>
+      controller.hidesDescription(path) ? controller.imageDescribedBy(path) : path
+    );
+    const fused = fuseRankings(hits, rows);
+    for (const hit of fused)
+      if (hit.by.length === 1 && hit.by[0] === "meaning") this.meaningOnly.add(hit.path);
+    this.matchCount = fused.length;
+    return {
+      all: new Set(fused.map((hit) => hit.path)),
+      ranked: fused.slice(0, FILTER_ROW_CAP).map(({ path, score }) => ({ path, score }))
+    };
   }
 
   /**

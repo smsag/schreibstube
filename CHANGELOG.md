@@ -10,6 +10,8 @@ All notable changes to this project will be documented in this file.
 
 - **A described picture is one row, found by what it shows.** In Schreibstube Explorer the description note stays out of the tree, the filter and the folder counts, and the picture itself answers to the note's title, keywords and description. A folder holding only description notes is hidden with them. **Show picture descriptions as notes** in the Explorer settings shows them as ordinary notes again.
 
+- **The Explorer filter finds notes by what they are about.** It only knew what a file is called, so a note about the kitchen with the lake view stayed hidden unless its name said so. Switch on **Search by meaning** in the settings: a small language model on the device reads every note once, and from then on the filter adds, after a short pause in typing, the notes whose content answers what was typed. The name still wins — the note called exactly what you typed stays on top — and a described picture comes up as the picture. Nothing leaves the device; the model is downloaded once. On a phone it pauses while Pythia is switched on there, and an index Pythia already built is reused instead of read again.
+
 ### Fixed
 
 - **A GIF no longer stops the whole print.** A GIF is redrawn for printing, and a canvas can only redraw it as PNG — but it kept its `.gif` name, the typesetter read the PNG as a broken GIF, and the document was refused. Every picture is now named for what it has become.
