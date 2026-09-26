@@ -645,6 +645,7 @@ export const de: Messages = {
     termAvoidDesc: "Wird in jeder geprüften Notiz markiert, mit dem Begriff als Vorschlag.",
     termAvoidPlaceholder: "Zu vermeidendes Wort",
     termAvoidSubmit: "Hinzufügen",
+    termAvoidSuggestions: "Übersetzungen auf der Begriffsnotiz:",
     termAvoidErrors: {
       empty: "Gib ein Wort ein.",
       same: "Das ist der Begriff selbst.",

@@ -14,9 +14,13 @@ import { describe, expect, it } from "vitest";
  * this sheet), and a new button can be created with no role at all. This file
  * is the second.
  */
-const css = readFileSync(new URL("../../styles.css", import.meta.url), "utf8");
+/** Whitespace folded, so a selector reads the same whether or not the
+ *  formatter wrapped it: the scope grew past the print width and every rule
+ *  that names it now breaks across lines. */
+const css = readFileSync(new URL("../../styles.css", import.meta.url), "utf8").replace(/\s+/g, " ");
 
-const SCOPE = ":is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker)";
+const SCOPE =
+  ":is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker, .schreibstube-prompt)";
 const ROLES = [
   "primary",
   "secondary",

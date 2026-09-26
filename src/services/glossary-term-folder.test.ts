@@ -11,11 +11,13 @@ import {
   MAX_AVOID_CHARS,
   MAX_AVOID_PER_TERM,
   MAX_DEFINITION_CHARS,
+  MAX_TRANSLATION_SUGGESTIONS,
   normalizeTermFolder,
   readAvoidList,
   readTermRule,
   removeAvoid,
   TERM_AVOID_KEY,
+  translationSuggestions,
   type TermNote
 } from "./glossary-term-folder";
 
@@ -268,5 +270,69 @@ describe("findTermOverlaps", () => {
 
   it("does not report two table glossaries to each other", () => {
     expect(findTermOverlaps([table, { ...table, path: "B.md" }], "Glossar")).toEqual([]);
+  });
+});
+
+describe("translationSuggestions", () => {
+  it("offers the recorded translations of a Pythia note", () => {
+    expect(
+      translationSuggestions(
+        { type: "term", language: "de", term_en: "cartel law", term_it: "diritto antitrust" },
+        "Kartellrecht"
+      )
+    ).toEqual([
+      { lang: "en", text: "cartel law" },
+      { lang: "it", text: "diritto antitrust" }
+    ]);
+  });
+
+  it("leaves out the note's own language, the term, and what is already listed", () => {
+    expect(
+      translationSuggestions(
+        {
+          language: "de",
+          term_de: "Kartellrecht (DE)",
+          term_en: "Cartel Law",
+          term_fr: "kartellrecht",
+          [TERM_AVOID_KEY]: ["cartel law"]
+        },
+        "Kartellrecht"
+      )
+    ).toEqual([]);
+  });
+
+  it("drops a value no rule could hold, and keys that only look like translations", () => {
+    expect(
+      translationSuggestions(
+        {
+          term_en: 3,
+          term_es: "a\nb",
+          term_it: "x".repeat(MAX_AVOID_CHARS + 1),
+          term_english: "cartel law",
+          definition_en: "Law against cartels."
+        },
+        "T"
+      )
+    ).toEqual([]);
+  });
+
+  it("offers one form once, however many languages share it", () => {
+    expect(translationSuggestions({ term_en: "Antitrust", term_fr: "antitrust" }, "T")).toEqual([
+      { lang: "en", text: "Antitrust" }
+    ]);
+  });
+
+  it("caps the list", () => {
+    const many = Object.fromEntries(
+      Array.from({ length: MAX_TRANSLATION_SUGGESTIONS + 3 }, (_, i) => [
+        `term_${String.fromCharCode(97 + i)}${String.fromCharCode(97 + i)}`,
+        `w${i}`
+      ])
+    );
+    expect(translationSuggestions(many, "T")).toHaveLength(MAX_TRANSLATION_SUGGESTIONS);
+  });
+
+  it("is empty without frontmatter", () => {
+    expect(translationSuggestions(undefined, "T")).toEqual([]);
   });
 });

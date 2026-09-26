@@ -250,3 +250,50 @@ export function findTermOverlaps(glossaries: Glossary[], folder: string): TermOv
   }
   return overlaps;
 }
+
+export interface TranslationSuggestion {
+  /** ISO 639 code of the language the form belongs to, lowercase. */
+  lang: string;
+  text: string;
+}
+
+/** How many translations the rule dialog offers at most. */
+export const MAX_TRANSLATION_SUGGESTIONS = 8;
+
+/**
+ * The term's recorded translations (`term_<lang>`, written by Pythia), offered
+ * as words to avoid — a German text that says "cartel law" where the house
+ * term is "Kartellrecht" is the common case.
+ *
+ * Offered, never applied: a translation is a model's answer to "what is this
+ * called in English", not a decision that the English form is wrong in a
+ * German text. Choosing one fills the field; the person still presses Add.
+ * The note's own language is left out (that form is the term), and so is any
+ * form already listed, the term itself, or one no rule could hold.
+ */
+export function translationSuggestions(
+  frontmatter: Record<string, unknown> | null | undefined,
+  term: string
+): TranslationSuggestion[] {
+  if (!frontmatter) return [];
+  const own =
+    typeof frontmatter.language === "string" ? frontmatter.language.trim().toLowerCase() : "";
+  const listed = new Set(
+    readAvoidList(frontmatter[TERM_AVOID_KEY]).map((word) => word.toLowerCase())
+  );
+  listed.add(term.trim().toLowerCase());
+
+  const out: TranslationSuggestion[] = [];
+  for (const [key, value] of Object.entries(frontmatter)) {
+    const lang = /^term_([a-z]{2,3})$/i.exec(key)?.[1]?.toLowerCase();
+    if (!lang || lang === own || typeof value !== "string") continue;
+    const text = value.trim();
+    if (!text || text.length > MAX_AVOID_CHARS || /[\r\n]/.test(text)) continue;
+    if (listed.has(text.toLowerCase())) continue;
+    listed.add(text.toLowerCase());
+    out.push({ lang, text });
+  }
+  return out
+    .sort((a, b) => a.lang.localeCompare(b.lang) || a.text.localeCompare(b.text))
+    .slice(0, MAX_TRANSLATION_SUGGESTIONS);
+}

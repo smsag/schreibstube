@@ -27,7 +27,8 @@ import {
   MAX_LISTED_OVERLAPS,
   MAX_AVOID_CHARS,
   removeAvoid,
-  TERM_AVOID_KEY
+  TERM_AVOID_KEY,
+  translationSuggestions
 } from "../services/glossary-term-folder";
 import { createChunkSender } from "../services/llm-proofread";
 import {
@@ -957,6 +958,13 @@ export class ProofreadController {
           placeholder: t().proofread.termAvoidPlaceholder,
           initial: word,
           submitLabel: t().proofread.termAvoidSubmit,
+          suggestions: translationSuggestions(this.termFrontmatter(entry.path), entry.term).map(
+            (suggestion) => ({
+              label: `${suggestion.text} · ${suggestion.lang.toUpperCase()}`,
+              value: suggestion.text
+            })
+          ),
+          suggestionsLabel: t().proofread.termAvoidSuggestions,
           validate: (value) => {
             const result = addAvoid(current(), value, entry.term);
             return "error" in result ? (t().proofread.termAvoidErrors[result.error] ?? null) : null;
