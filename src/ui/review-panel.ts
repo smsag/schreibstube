@@ -29,6 +29,12 @@ export interface GlossaryPanelState {
   missing: string[];
 }
 
+/** The term folder's rules, managed from the panel. Empty folder: not set. */
+export interface TermPanelState {
+  folder: string;
+  rules: { path: string; term: string; avoid: string[] }[];
+}
+
 export type SyncPanelStatus =
   "none" | "idle" | "checking" | "clean" | "diverged" | "unsynced" | "missing" | "error";
 
@@ -51,6 +57,7 @@ export interface ReviewState {
   suggestions: Suggestion[];
   progress: { completed: number; total: number } | null;
   glossary: GlossaryPanelState;
+  terms: TermPanelState;
   sync: SyncPanelState;
   /** A short line under the header: a result summary, or why nothing happened. */
   message: string;
@@ -66,6 +73,9 @@ export interface ReviewHandlers {
   onReveal(id: string): void;
   onToggleGlossary(path: string): void;
   onCheckSource(): void;
+  onAddTermRule(): void;
+  onRemoveTermRule(path: string, word: string): void;
+  onOpenTerm(path: string): void;
 }
 
 export const EMPTY_REVIEW_STATE: ReviewState = {
@@ -74,6 +84,7 @@ export const EMPTY_REVIEW_STATE: ReviewState = {
   suggestions: [],
   progress: null,
   glossary: { selected: [], available: [], source: "none", errors: [], missing: [] },
+  terms: { folder: "", rules: [] },
   sync: { bound: false, status: "none", source: "", checkedAt: 0, interval: "", message: "" },
   message: ""
 };
@@ -160,6 +171,7 @@ export class ReviewPanelView extends ItemView {
     this.renderHeader(root);
     this.renderSync(root);
     this.renderGlossary(root);
+    this.renderTerms(root);
 
     if (this.state.message) {
       root.createDiv({ cls: "schreibstube-review-message", text: this.state.message });
@@ -318,6 +330,53 @@ export class ReviewPanelView extends ItemView {
         continue;
       }
       chip.addEventListener("click", () => this.handlers?.onToggleGlossary(candidate.path));
+    }
+  }
+
+  /**
+   * The words the term folder flags, per term, and the way to add or remove
+   * one. Shown whenever a term folder is set, whatever this note resolves to:
+   * the rules belong to the folder, not to the note in front of the panel.
+   */
+  private renderTerms(root: HTMLElement): void {
+    const { folder, rules } = this.state.terms;
+    if (!folder) return;
+
+    const section = root.createDiv({
+      cls: "schreibstube-review-glossary schreibstube-review-terms"
+    });
+    const header = section.createDiv({ cls: "schreibstube-review-sync-row" });
+    header.createSpan({
+      cls: "schreibstube-review-glossary-label",
+      text: t().proofread.panelTerms(folder)
+    });
+    this.button(header, t().proofread.panelAddTermRule, "book-plus", false, () =>
+      this.handlers?.onAddTermRule()
+    );
+
+    if (rules.length === 0) {
+      section.createSpan({ cls: "schreibstube-review-hint", text: t().proofread.panelTermsEmpty });
+      return;
+    }
+
+    for (const rule of rules) {
+      const row = section.createDiv({ cls: "schreibstube-review-term" });
+      const name = row.createEl("button", {
+        cls: "sb sb-link schreibstube-review-term-name",
+        text: rule.term
+      });
+      name.setAttr("title", t().proofread.panelOpenTerm(rule.term));
+      name.addEventListener("click", () => this.handlers?.onOpenTerm(rule.path));
+
+      const chips = row.createDiv({ cls: "schreibstube-review-chips" });
+      for (const word of rule.avoid) {
+        const chip = chips.createEl("button", { cls: "sb sb-seg schreibstube-review-chip" });
+        chip.createSpan({ text: word });
+        setIcon(chip.createSpan({ cls: "schreibstube-review-icon" }), "x");
+        chip.setAttr("aria-label", t().proofread.panelRemoveTermRule(word));
+        chip.setAttr("title", t().proofread.panelRemoveTermRule(word));
+        chip.addEventListener("click", () => this.handlers?.onRemoveTermRule(rule.path, word));
+      }
     }
   }
 

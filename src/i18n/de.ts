@@ -374,6 +374,13 @@ export const de: Messages = {
     glossaryRulesDesc:
       "Eine Regel pro Zeile: Ordner | Glossarpfad. Die erste Übereinstimmung gilt.",
     glossaryRulesPlaceholder: "Kunden | Glossare/Kunden.md",
+    glossaryTermFolder: "Begriffsordner",
+    glossaryTermFolderDesc:
+      "Ein Ordner mit einer Notiz pro Begriff, etwa der Glossarordner, den Pythia schreibt. Jede " +
+      "Notiz ist ein Begriff; die unter schreibstubeAvoid aufgeführten Wörter werden markiert und " +
+      "der Begriff an ihrer Stelle vorgeschlagen. Gilt zusätzlich zu den Standard-Glossaren. Die " +
+      "Wörter pflegst du im Korrekturpanel.",
+    glossaryTermFolderPlaceholder: "Glossar",
     glossaryUnderline: "Glossartreffer im Editor unterstreichen",
     glossaryUnderlineDesc:
       "Markiert Begriffe der Stufe „Fehler“ beim Schreiben. Standardmäßig aus, damit lange " +
@@ -620,7 +627,37 @@ export const de: Messages = {
     reject: "Verwerfen",
     show: "Stelle zeigen",
     showInsert: "Einfügestelle zeigen",
-    acceptAll: (count: number) => `Alle übernehmen (${count})`
+    acceptAll: (count: number) => `Alle übernehmen (${count})`,
+    panelTerms: (folder: string) => `Begriffe (${folder})`,
+    panelTermsEmpty:
+      "Noch kein Wort zum Vermeiden markiert. Markiere eines in der Notiz, dann Regel hinzufügen.",
+    panelAddTermRule: "Regel hinzufügen",
+    panelRemoveTermRule: (word: string) => `„${word}“ wieder erlauben`,
+    panelOpenTerm: (term: string) => `${term} öffnen`,
+    termByModel: (definition: string) => `${definition} (Definition vom Modell)`,
+    termNoNotes: (folder: string) =>
+      folder ? `keine Begriffsnotizen in ${folder}.` : "kein Begriffsordner in den Einstellungen.",
+    termPickerPlaceholder: (word: string) =>
+      word
+        ? `Welcher Begriff soll „${word}“ ersetzen?`
+        : "Für welchen Begriff soll ein Wort vermieden werden?",
+    termAvoidTitle: (term: string) => `Vermeiden zugunsten von ${term}`,
+    termAvoidDesc: "Wird in jeder geprüften Notiz markiert, mit dem Begriff als Vorschlag.",
+    termAvoidPlaceholder: "Zu vermeidendes Wort",
+    termAvoidSubmit: "Hinzufügen",
+    termAvoidErrors: {
+      empty: "Gib ein Wort ein.",
+      same: "Das ist der Begriff selbst.",
+      duplicate: "Für diesen Begriff schon eingetragen.",
+      tooLong: "Zu lang für einen Begriff.",
+      tooMany: "Dieser Begriff führt schon so viele Wörter, wie er kann.",
+      multiline: "Nur eine Zeile."
+    },
+    termRuleAdded: (word: string, term: string) =>
+      `„${word}“ wird jetzt zugunsten von ${term} markiert.`,
+    termRuleRemoved: (word: string, term: string) =>
+      `„${word}“ wird für ${term} nicht mehr markiert.`,
+    termWriteFailed: (reason: string) => `Begriffsnotiz konnte nicht geändert werden — ${reason}`
   },
 
   sync: {

@@ -12,6 +12,7 @@ import {
   MIN_CONCURRENCY,
   MIN_PROOFREAD_TOKENS
 } from "../services/plugin-settings";
+import { normalizeTermFolder } from "../services/glossary-term-folder";
 import { GLOSSARY_CHANGED_EVENT } from "../utils/constants";
 import type { SettingsContext } from "./context";
 import { renderCommands } from "./commands";
@@ -103,6 +104,18 @@ export function renderProofreading(ctx: SettingsContext): void {
       text.setValue(ctx.plugin.settings.glossaryFolderRules);
       text.onChange(async (value) => {
         await ctx.update({ glossaryFolderRules: value });
+        window.dispatchEvent(new Event(GLOSSARY_CHANGED_EVENT));
+      });
+    });
+
+  new Setting(ctx.containerEl)
+    .setName(t().settings.glossaryTermFolder)
+    .setDesc(t().settings.glossaryTermFolderDesc)
+    .addText((text) => {
+      text.setPlaceholder(t().settings.glossaryTermFolderPlaceholder);
+      text.setValue(ctx.plugin.settings.glossaryTermFolder);
+      text.onChange(async (value) => {
+        await ctx.update({ glossaryTermFolder: normalizeTermFolder(value) });
         window.dispatchEvent(new Event(GLOSSARY_CHANGED_EVENT));
       });
     });

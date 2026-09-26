@@ -139,6 +139,12 @@ export const enExtra = {
     glossaryRules: "Folder rules",
     glossaryRulesDesc: "One rule per line: folder | glossary path. The first match wins.",
     glossaryRulesPlaceholder: "Clients | Glossaries/Clients.md",
+    glossaryTermFolder: "Term folder",
+    glossaryTermFolderDesc:
+      "A folder of one note per term, such as the glossary folder Pythia writes. Each note is a " +
+      "term; the words listed under schreibstubeAvoid on it are flagged, with the term offered " +
+      "instead. Joins the default glossaries. Manage the words in the proofreading panel.",
+    glossaryTermFolderPlaceholder: "Glossary",
     glossaryUnderline: "Underline glossary hits in the editor",
     glossaryUnderlineDesc:
       "Marks error-severity terms as you write. Off by default to keep long notes quiet.",
@@ -383,7 +389,32 @@ export const enExtra = {
     reject: "Discard",
     show: "Locate",
     showInsert: "Locate insertion point",
-    acceptAll: (count: number) => `Accept all (${count})`
+    acceptAll: (count: number) => `Accept all (${count})`,
+    panelTerms: (folder: string) => `Terms (${folder})`,
+    panelTermsEmpty: "No word is marked to avoid yet. Select one in the note, then Add rule.",
+    panelAddTermRule: "Add rule",
+    panelRemoveTermRule: (word: string) => `Allow "${word}" again`,
+    panelOpenTerm: (term: string) => `Open ${term}`,
+    termByModel: (definition: string) => `${definition} (definition by model)`,
+    termNoNotes: (folder: string) =>
+      folder ? `no term notes in ${folder}.` : "no term folder set in the settings.",
+    termPickerPlaceholder: (word: string) =>
+      word ? `Which term should replace "${word}"?` : "Which term should a word be avoided for?",
+    termAvoidTitle: (term: string) => `Avoid in favour of ${term}`,
+    termAvoidDesc: "Flagged in every checked note, with the term offered in its place.",
+    termAvoidPlaceholder: "Word to avoid",
+    termAvoidSubmit: "Add",
+    termAvoidErrors: {
+      empty: "Enter a word.",
+      same: "That is the term itself.",
+      duplicate: "Already listed for this term.",
+      tooLong: "Too long for a term.",
+      tooMany: "This term already lists as many words as it can.",
+      multiline: "One line only."
+    } as Record<string, string>,
+    termRuleAdded: (word: string, term: string) => `"${word}" is now flagged in favour of ${term}.`,
+    termRuleRemoved: (word: string, term: string) => `"${word}" is no longer flagged for ${term}.`,
+    termWriteFailed: (reason: string) => `could not update the term note — ${reason}`
   },
 
   sync: {

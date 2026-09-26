@@ -20,6 +20,13 @@ import {
   type GlossarySelection
 } from "../services/glossary-resolver";
 import { GlossaryRegistry } from "../services/glossary-registry";
+import {
+  addAvoid,
+  isInTermFolder,
+  MAX_AVOID_CHARS,
+  removeAvoid,
+  TERM_AVOID_KEY
+} from "../services/glossary-term-folder";
 import { createChunkSender } from "../services/llm-proofread";
 import {
   createCancelToken,
@@ -64,8 +71,11 @@ import {
   type GlossaryPanelState,
   type ReviewHandlers,
   type ReviewState,
-  type SyncPanelState
+  type SyncPanelState,
+  type TermPanelState
 } from "../ui/review-panel";
+import { PromptModal } from "../ui/explorer-modals";
+import { TermPickerModal } from "../ui/term-picker";
 
 export const GLOSSARY_FRONTMATTER_KEY = "schreibstubeGlossaries";
 
@@ -101,6 +111,7 @@ export class ProofreadController {
   private suggestions: Suggestion[] = [];
   private selection: GlossarySelection = { paths: [], source: "none" };
   private glossaryPanel: GlossaryPanelState = EMPTY_REVIEW_STATE.glossary;
+  private terms: TermPanelState = EMPTY_REVIEW_STATE.terms;
   private matcher: GlossaryMatcher = compileGlossaries([]);
   private progress: ReviewState["progress"] = null;
   private message = "";
@@ -121,7 +132,7 @@ export class ProofreadController {
     private readonly logger: Logger,
     private readonly syncStore: SyncStore
   ) {
-    this.registry = new GlossaryRegistry(app);
+    this.registry = new GlossaryRegistry(app, () => getSettings().glossaryTermFolder);
     this.poller = new SyncPoller(app, getSettings, syncStore, () => this.syncActiveFile(), logger);
   }
 
@@ -141,7 +152,10 @@ export class ProofreadController {
       onReject: (id) => this.reject(id),
       onReveal: (id) => this.reveal(id),
       onToggleGlossary: (path) => void this.toggleGlossary(path),
-      onCheckSource: () => void this.checkSource(true)
+      onCheckSource: () => void this.checkSource(true),
+      onAddTermRule: () => this.addTermRule(),
+      onRemoveTermRule: (path, word) => void this.removeTermRule(path, word),
+      onOpenTerm: (path) => void this.openTerm(path)
     };
   }
 
@@ -207,6 +221,19 @@ export class ProofreadController {
     if (this.selection.paths.some((selected) => path.endsWith(selected) || selected === path)) {
       await this.refreshGlossary(this.reviewedFile());
     }
+  }
+
+  /**
+   * A note in the term folder changed, appeared, moved or went. Called from the
+   * metadata cache rather than from the vault's modify: the folder is read
+   * from frontmatter, which the cache has not re-parsed yet when modify fires.
+   * The panel lists the folder's rules whatever the note resolves to, so it is
+   * refreshed even when the folder does not apply to the note.
+   */
+  async termNoteChanged(path: string): Promise<void> {
+    if (!isInTermFolder(path, this.getSettings().glossaryTermFolder)) return;
+    this.registry.invalidate(path);
+    await this.refreshGlossary(this.reviewedFile());
   }
 
   /** Follow a bound note when it moves, so its baseline is not lost. */
@@ -492,6 +519,10 @@ export class ProofreadController {
   private async refreshGlossary(file: TFile | null): Promise<void> {
     const settings = this.getSettings();
     const available = this.registry.listCandidates();
+    this.terms = {
+      folder: settings.glossaryTermFolder,
+      rules: this.registry.termRules().map(({ path, term, avoid }) => ({ path, term, avoid }))
+    };
 
     if (!file) {
       this.sync = EMPTY_REVIEW_STATE.sync;
@@ -509,7 +540,12 @@ export class ProofreadController {
       frontmatter: parseGlossaryList(frontmatter?.[GLOSSARY_FRONTMATTER_KEY]),
       folderRules: parseFolderRules(settings.glossaryFolderRules),
       session: this.sessionPicks.get(file.path),
-      fallback: settings.glossaryDefault
+      // The term folder joins the default rather than needing to be named in
+      // it: setting the folder is the whole configuration. A folder rule or the
+      // note's own list still decides alone, as for any other glossary.
+      fallback: settings.glossaryTermFolder
+        ? [...settings.glossaryDefault, settings.glossaryTermFolder]
+        : settings.glossaryDefault
     });
 
     const loaded = await this.registry.load(this.selection.paths, file.path);
@@ -890,6 +926,110 @@ export class ProofreadController {
     return null;
   }
 
+  /**
+   * Pick a term, then the word to avoid for it — the editor's selection when
+   * there is one, so the usual path is: select the word, Add rule, pick the
+   * term, Enter.
+   */
+  private addTermRule(): void {
+    const folder = this.getSettings().glossaryTermFolder;
+    const notes = this.registry.termNotes();
+    if (!folder || notes.length === 0) {
+      new Notice(t().common.notice(t().proofread.termNoNotes(folder)));
+      return;
+    }
+
+    const selection = this.resolveTargetView()?.editor.getSelection().trim() ?? "";
+    const word = /[\r\n]/.test(selection) || selection.length > MAX_AVOID_CHARS ? "" : selection;
+
+    new TermPickerModal(this.app, notes, t().proofread.termPickerPlaceholder(word), (entry) => {
+      const current = (): unknown => this.termFrontmatter(entry.path)?.[TERM_AVOID_KEY];
+      new PromptModal(
+        this.app,
+        {
+          title: t().proofread.termAvoidTitle(entry.term),
+          description: t().proofread.termAvoidDesc,
+          placeholder: t().proofread.termAvoidPlaceholder,
+          initial: word,
+          submitLabel: t().proofread.termAvoidSubmit,
+          validate: (value) => {
+            const result = addAvoid(current(), value, entry.term);
+            return "error" in result ? (t().proofread.termAvoidErrors[result.error] ?? null) : null;
+          }
+        },
+        (value) =>
+          void this.writeAvoid(
+            entry.path,
+            (stored) => {
+              const result = addAvoid(stored, value, entry.term);
+              return "list" in result ? result.list : null;
+            },
+            t().proofread.termRuleAdded(value.trim(), entry.term)
+          )
+      ).open();
+    }).open();
+  }
+
+  private async removeTermRule(path: string, word: string): Promise<void> {
+    const term = this.terms.rules.find((rule) => rule.path === path)?.term ?? path;
+    await this.writeAvoid(
+      path,
+      (stored) => removeAvoid(stored, word),
+      t().proofread.termRuleRemoved(word, term)
+    );
+  }
+
+  /** Change the one key this plugin owns on a term note. Everything else on
+   *  the note belongs to Pythia or to the person, and processFrontMatter
+   *  leaves it where it is. An emptied list removes the key. */
+  private async writeAvoid(
+    path: string,
+    change: (stored: unknown) => string[] | null,
+    done: string
+  ): Promise<void> {
+    const file = this.app.vault.getAbstractFileByPath(path);
+    if (!(file instanceof TFile)) {
+      new Notice(t().common.notice(t().proofread.termWriteFailed(path)));
+      return;
+    }
+    try {
+      await this.app.fileManager.processFrontMatter(
+        file,
+        (frontmatter: Record<string, unknown>) => {
+          const next = change(frontmatter[TERM_AVOID_KEY]);
+          if (next === null) return;
+          if (next.length === 0) delete frontmatter[TERM_AVOID_KEY];
+          else frontmatter[TERM_AVOID_KEY] = next;
+        }
+      );
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      new Notice(t().common.notice(t().proofread.termWriteFailed(reason)));
+      this.logger.error(`Term rule write failed for ${path}: ${reason}`);
+      return;
+    }
+    this.message = done;
+    this.registry.invalidate(path);
+    await this.refreshGlossary(this.reviewedFile());
+  }
+
+  /** Opened in a new tab: the note under review stays where it is. */
+  private async openTerm(path: string): Promise<void> {
+    const file = this.app.vault.getAbstractFileByPath(path);
+    if (!(file instanceof TFile)) {
+      new Notice(t().common.notice(t().proofread.panelGlossaryMissing(path)));
+      return;
+    }
+    await this.app.workspace.getLeaf("tab").openFile(file);
+  }
+
+  private termFrontmatter(path: string): Record<string, unknown> | undefined {
+    const file = this.app.vault.getAbstractFileByPath(path);
+    return file instanceof TFile
+      ? this.app.metadataCache.getFileCache(file)?.frontmatter
+      : undefined;
+  }
+
   private buildState(): ReviewState {
     const hasFile = this.filePath !== null;
     return {
@@ -904,6 +1044,7 @@ export class ProofreadController {
       suggestions: this.suggestions,
       progress: this.progress,
       glossary: this.glossaryPanel,
+      terms: this.terms,
       sync: this.sync,
       message: this.message
     };
