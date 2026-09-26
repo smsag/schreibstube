@@ -133,6 +133,7 @@ function fixture(options: FixtureOptions = {}): Fixture {
       getRoot: () => folder(""),
       getAbstractFileByPath: (path: string) => (present.has(path) ? node(path) : null),
       getAllLoadedFiles: () => [...present].map(node),
+      getMarkdownFiles: () => [...present].filter((p) => p.endsWith(".md")).map(node),
       createBinary,
       adapter: {
         exists: async (path: string) =>
@@ -151,7 +152,8 @@ function fixture(options: FixtureOptions = {}): Fixture {
       getFileCache: (file: TFile) => {
         const frontmatter = options.frontmatter?.[file.path];
         return frontmatter ? { frontmatter } : null;
-      }
+      },
+      getFirstLinkpathDest: (link: string) => (present.has(link) ? node(link) : null)
     }
   } as unknown as App;
 
@@ -403,6 +405,35 @@ describe("deleting several rows at once", () => {
     await settle();
 
     expect(f.asked).toEqual(['Move "a.md" to the trash?']);
+  });
+});
+
+describe("deleting a described picture", () => {
+  const note = "Bildbeschreibungen/see.jpg – 1234.md";
+  const described = () =>
+    fixture({
+      present: ["Bilder/see.jpg", note],
+      frontmatter: { [note]: { schreibstubeImage: "[[Bilder/see.jpg]]" } }
+    });
+
+  it("takes the description note along, and names only the picture", async () => {
+    const f = described();
+
+    await deleteViaMenu(f.controller, new TFile("Bilder/see.jpg"));
+
+    expect(f.trash).toEqual([".trash/see.jpg", ".trash/see.jpg – 1234.md"]);
+    expect(f.toasts[0]?.message).toContain('"see.jpg" moved to the trash');
+  });
+
+  it("brings both back with one undo", async () => {
+    const f = described();
+    await deleteViaMenu(f.controller, new TFile("Bilder/see.jpg"));
+
+    f.toasts[0]?.undo();
+    await settle();
+
+    expect(f.present.has("Bilder/see.jpg")).toBe(true);
+    expect(f.present.has(note)).toBe(true);
   });
 });
 
