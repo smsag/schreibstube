@@ -73,6 +73,7 @@ import {
 } from "../services/tree-move";
 import { hasSourceBinding, resolveSourceUrl, SYNC_FRONTMATTER_KEY } from "../services/sync-source";
 import { someFileUnder } from "../services/vault-tree";
+import { DescriptionFollower } from "./description-follower";
 import { pairDescriptions, type DescriptionPairs } from "../services/description-pairs";
 import { DESCRIPTION_KEYS } from "../services/image-description";
 import { arrivedReceipt, LOCAL_TRASH, localTrashPath } from "../services/trash-receipt";
@@ -231,6 +232,8 @@ export class ExplorerController {
   private readonly trashTimers = new Map<string, unknown>();
   /** The last move or delete, for as long as it can be taken back. */
   private readonly undo = new UndoStack();
+  /** Keeps each description note with its picture through a move or a delete. */
+  private readonly follower: DescriptionFollower;
 
   constructor(
     private readonly app: App,
@@ -258,6 +261,18 @@ export class ExplorerController {
       clearTimer: this.clearTimer
     });
     this.store.onChange(() => this.emit());
+    this.follower = new DescriptionFollower(
+      app,
+      {
+        setTimer: this.setTimer,
+        clearTimer: this.clearTimer,
+        changed: () => {
+          this.descriptionsChanged();
+          this.emit();
+        }
+      },
+      logger
+    );
   }
 
   /**
@@ -394,6 +409,7 @@ export class ExplorerController {
     // and it would fire into a controller nobody listens to.
     for (const handle of this.trashTimers.values()) this.clearTimer(handle);
     this.trashTimers.clear();
+    this.follower.stop();
     this.trashed.clear();
     this.listeners.clear();
     this.folderListeners.clear();
@@ -434,12 +450,14 @@ export class ExplorerController {
     // from the pane's point of view.
     this.forgetTrashedAround(file.path);
     this.store.mutate((data, now) => renamePath(data, oldPath, file.path, now));
+    this.follower.pictureRenamed(file, oldPath);
   }
 
   handleDelete(file: TAbstractFile): void {
     // The vault has caught up with what the pane already drew.
     this.forgetTrashed(file.path);
     this.store.mutate((data, now) => markMissing(data, file.path, now));
+    this.follower.pictureDeleted(file);
     // Not every delete changes the state file — a note with no icon and no
     // mark changes nothing — and the pane still has a row to take away.
     this.emit();
@@ -1342,9 +1360,13 @@ export class ExplorerController {
    * and move a file out again. The system trash it cannot see into, and
    * the notice says so rather than offering an undo that would do nothing.
    */
-  private async trashAll(files: TAbstractFile[]): Promise<void> {
+  private async trashAll(requested: TAbstractFile[]): Promise<void> {
     const steps: DeleteStep[] = [];
     let localTrash = true;
+    // A described picture takes its description note along, in the same
+    // batch, so one undo brings both back.
+    const asked = new Set(requested.map((file) => file.path));
+    const files = [...requested, ...this.descriptionsOf(requested, asked)];
 
     // The rows go before the trash call, not after it. The vault's own
     // delete event is what the pane listens to, and it arrives when a
@@ -1376,7 +1398,7 @@ export class ExplorerController {
       else steps.push({ from: path, trashedTo: receipt });
     }
 
-    if (steps.length === 0 && !localTrash && files.length > 0) {
+    if (steps.length === 0 && !localTrash && requested.length > 0) {
       new Notice(t().common.notice(t().explorer.undo.systemTrash));
       return;
     }
@@ -1384,15 +1406,30 @@ export class ExplorerController {
 
     const action: UndoableAction = { kind: "delete", steps };
     this.undo.push(action, this.now());
+    // The notice counts what the person chose; the notes came along unasked.
+    const chosen = steps.filter((step) => asked.has(step.from));
     const message =
-      steps.length === 1 && steps[0]
-        ? t().explorer.delete.done(basename(steps[0].from))
-        : t().explorer.delete.manyDone(steps.length);
+      chosen.length === 1 && chosen[0]
+        ? t().explorer.delete.done(basename(chosen[0].from))
+        : t().explorer.delete.manyDone(chosen.length);
     this.toast(
       t().common.notice(message),
       t().explorer.undo.action,
       () => void this.undoAction(action)
     );
+  }
+
+  /** The description notes of the pictures among `files`, not already chosen. */
+  private descriptionsOf(files: TAbstractFile[], chosen: Set<string>): TFile[] {
+    const notes: TFile[] = [];
+    for (const file of files) {
+      if (!(file instanceof TFile) || file.extension === "md") continue;
+      const path = this.descriptionNoteOf(file.path);
+      if (path === null || chosen.has(path)) continue;
+      const note = this.app.vault.getAbstractFileByPath(path);
+      if (note instanceof TFile) notes.push(note);
+    }
+    return notes;
   }
 
   /**
