@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 1.49.0 - 2026-09-26
+
+Find things by what they are about. Pictures can be described in words
+by the configured model and are then found by what they show; a
+description stays with its picture through a rename, a move or a delete,
+and finds it again by its content after a rename outside Obsidian. Search
+by meaning adds a small language model on the device: the Explorer filter
+finds notes by their subject as well as their name, and Related notes
+became Recommended, with notes, pictures and Pythia's conversations that
+read alike. Schreibstube now owns the one model on the device and offers
+it to Pythia through a small API, so the two no longer load a model each.
+Search by meaning is off until switched on in the settings; the model is
+downloaded once, on first use.
+
+Mobile checklist: not run. Everything here was checked by the test suite
+and the build; none of it has yet been tried in a vault on a phone or a
+desktop.
+
 ### Added
 
 - **Related notes became Recommended: notes, pictures and conversations.** The panel only knew the links, so a note about the kitchen nobody had linked never showed up beside it. With Search by meaning on, it now adds what reads alike — notes, a row of pictures whose descriptions match, and Pythia's conversations about the same thing — a moment after the links, from vectors already stored, so no model is loaded for it. A note you linked keeps its place above one that merely sounds similar, and every card says why it is there. **Recommended** in the Explorer settings shows it in the sidebar or under the note.
