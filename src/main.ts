@@ -230,6 +230,7 @@ export default class SchreibstubePlugin extends Plugin {
     // The pane's menu names a file from what is inside it; the AI commands are
     // what can do that, and they were built a moment ago.
     this.explorer.useNamer((file) => this.requireLlm().proposeName(file));
+    this.explorer.useDescriber((file) => this.requireLlm().describeImage(file));
     this.explorer.useTagOpener((tag) => this.activateTagNotes(tag));
     // From a note's menu: the reader named the note, so the panel stays on it.
     this.explorer.useRelatedOpener((path) => this.activateRelatedNotes(path, false));

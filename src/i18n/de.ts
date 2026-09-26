@@ -367,6 +367,23 @@ export const de: Messages = {
     renameMaxFilename: "Maximale Länge des Dateinamens",
     renameMaxFilenameDesc: "Der erzeugte Dateiname wird auf so viele Zeichen gekürzt.",
 
+    describeHeading: "Bildbeschreibungen",
+    describeIntro:
+      "Ein Bild über sein Menü im Schreibstube-Explorer beschreiben: Das eingestellte Modell schreibt Titel, " +
+      "Beschreibung und Stichworte in eine eigene Notiz, damit das Bild über seinen Inhalt auffindbar wird. " +
+      "Das Bild wird vorher verkleinert, wobei die Standortdaten entfallen, und dann an den oben gewählten Anbieter geschickt.",
+    describeEnabled: "Bilder beschreiben",
+    describeEnabledDesc:
+      "Ergänzt „Bild beschreiben“ im Menü eines Bildes. Solange das aus ist, wird nichts gesendet.",
+    describeFolder: "Ordner für Beschreibungen",
+    describeFolderDesc: "Eine Notiz pro Bild, alle in diesem Ordner.",
+    describeLanguage: "Sprache der Beschreibungen",
+    describeLanguageAuto: "Sprache der Oberfläche",
+    describeTags: "Stichworte als Tags",
+    describeTagsDesc:
+      "Die Stichworte zusätzlich als Obsidian-Tags schreiben. Standardmäßig aus: Viele Bilder mit mehreren " +
+      "Stichworten füllen sonst den Tag-Bereich.",
+
     summarizeHeading: "Auswahl zusammenfassen",
     summarizeIntro:
       "„Einfügen: KI-Zusammenfassung der Auswahl“ schickt den markierten Text an das LLM und ersetzt ihn durch das " +
@@ -511,7 +528,11 @@ export const de: Messages = {
     tableSelectionMoved: "der Text hat sich während der Umwandlung verändert; nichts ersetzt.",
     tableHeaderName: "Name",
     tableHeaderValue: "Wert",
-    failTable: "Schreibstube: Umwandlung in Tabelle fehlgeschlagen"
+    failTable: "Schreibstube: Umwandlung in Tabelle fehlgeschlagen",
+    describing: "beschreibt das Bild …",
+    described: (title: string) => `beschrieben: ${title}`,
+    describeUnusable: "die Beschreibung des Modells war unbrauchbar – nichts geschrieben.",
+    failDescribe: "Schreibstube: Bild beschreiben fehlgeschlagen"
   },
 
   properties: {
@@ -820,6 +841,7 @@ export const de: Messages = {
       rename: "Umbenennen …",
       renameNoteAi: "Aus dem Text benennen …",
       renameImageAi: "Aus dem Bild benennen …",
+      describeImage: "Bild beschreiben",
       renaming: "Liest …",
       move: "Verschieben nach …",
       delete: "Löschen",

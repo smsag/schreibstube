@@ -54,6 +54,11 @@ export interface SchreibstubeSettings {
   renameMaxContentChars: number;
   renameMaxFilenameLength: number;
   renameMaxImagePx: number;
+  // Picture descriptions: a vision model's words for a picture, kept as a note.
+  imageDescriptionsEnabled: boolean;
+  imageDescriptionFolder: string;
+  imageDescriptionLanguage: "auto" | "de" | "en";
+  imageDescriptionKeywordsAsTags: boolean;
   // Summarize-specific tuning.
   summarizePrompt: string;
   summarizeMaxTokens: number;

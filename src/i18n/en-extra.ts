@@ -112,6 +112,23 @@ export const enExtra = {
     renameMaxFilename: "Maximum filename length",
     renameMaxFilenameDesc: "Generated filename will be truncated to this many characters.",
 
+    describeHeading: "Picture descriptions",
+    describeIntro:
+      "Describe a picture from its menu in Schreibstube Explorer: the configured model writes a title, a " +
+      "description and keywords into a note of its own, so the picture can be found by what it shows. " +
+      "The picture is resized first, which drops its location data, and then sent to the provider above.",
+    describeEnabled: "Describe pictures",
+    describeEnabledDesc:
+      "Adds Describe picture to a picture's menu. Nothing is sent anywhere while this is off.",
+    describeFolder: "Folder for descriptions",
+    describeFolderDesc: "One note per picture, all in this folder.",
+    describeLanguage: "Language of descriptions",
+    describeLanguageAuto: "Interface language",
+    describeTags: "Keywords as tags",
+    describeTagsDesc:
+      "Also write the keywords as Obsidian tags. Off by default: many pictures with several keywords each " +
+      "fill the tag pane.",
+
     summarizeHeading: "Summarize selection",
     summarizeIntro:
       'The "Insert: AI summary of the selection" command sends the selected text to the LLM and replaces it with ' +
@@ -256,7 +273,11 @@ export const enExtra = {
     tableSelectionMoved: "the text changed while the table was being created; nothing replaced.",
     tableHeaderName: "Name",
     tableHeaderValue: "Value",
-    failTable: "Schreibstube: table conversion failed"
+    failTable: "Schreibstube: table conversion failed",
+    describing: "describing the picture…",
+    described: (title: string) => `described: ${title}`,
+    describeUnusable: "the model's description was unusable — nothing written.",
+    failDescribe: "Schreibstube: describing the picture failed"
   },
 
   properties: {
@@ -560,6 +581,7 @@ export const enExtra = {
       rename: "Rename…",
       renameNoteAi: "Rename from the text…",
       renameImageAi: "Rename from the picture…",
+      describeImage: "Describe picture",
       renaming: "Reading it…",
       move: "Move to…",
       delete: "Delete",

@@ -323,3 +323,25 @@ describe("buildSelectionMenu", () => {
     expect(buildSelectionMenu(2).find((item) => item.id === "delete-selected")?.warning).toBe(true);
   });
 });
+
+describe("describing a picture", () => {
+  const describeItem = (overrides: Partial<ExplorerTarget>) =>
+    buildExplorerMenu(target({ markdown: false, ...overrides }), "off")
+      .find((section) => section.id === "file")
+      ?.items.filter((item) => item.id === "describe-image");
+
+  it("is offered on a picture while descriptions are switched on", () => {
+    expect(describeItem({ image: true, describable: true })).toEqual([
+      { id: "describe-image", label: "Describe picture", icon: "scan-text" }
+    ]);
+  });
+
+  it("is not offered while they are off — nothing may be sent then", () => {
+    expect(describeItem({ image: true, describable: false })).toEqual([]);
+  });
+
+  it("is not offered on a note or on a folder", () => {
+    expect(describeItem({ markdown: true, describable: true })).toEqual([]);
+    expect(describeItem({ kind: "folder", describable: true })).toEqual([]);
+  });
+});

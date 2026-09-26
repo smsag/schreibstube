@@ -169,6 +169,14 @@ The rename does nothing if the note is shorter than the configured minimum lengt
 
 The same thing is on the explorer's context menu, as one entry that follows the file: **Rename from the text…** on a note, **Rename from the picture…** on an image, and nothing at all on a file neither path can read. From the menu the proposed name is not applied outright — it opens the pane's rename dialog with the suggestion in the field, where it can be read, corrected or cancelled, because a menu acts on a row in a tree rather than on the note in front of you.
 
+### Picture descriptions
+
+A photo can only be found by its file name, and `IMG_4711.jpg` says nothing about what it shows. Switch on **Describe pictures** in the settings, then right-click a picture in Schreibstube Explorer (long-press on a phone) and choose **Describe picture**: the configured model looks at it and writes a title, a short description, keywords and any text it can read into a note of its own, in the folder the settings name (`Bildbeschreibungen` unless you choose another). The note embeds the picture first, so opening it from a search shows the picture at once, and it is an ordinary note: Obsidian's search, the Explorer filter and any other plugin find the picture through it, and it stays if Schreibstube goes.
+
+Describing a picture again replaces its note in place. The note records the picture's path, size and a fingerprint of its bytes, so a picture that changed can be told from one that did not. Keywords are written as a property and as plain text in the note; as Obsidian tags only if you switch that on, because many pictures with several keywords each fill the tag pane.
+
+What is sent and what is not: the picture is resized to the size set under **Rename file from content** before it leaves the device, and resizing drops its EXIF data, the location included. The model is asked not to say who a person is and not to read out licence plates, house numbers or other personal data. Nothing is sent while the setting is off. The answer is checked before anything is written: a reply without a title or a description writes nothing, every field has a length limit, and links, tags, headings, frontmatter fences and HTML are taken out of it.
+
 ### Summarize selection
 
 Select any text and run **Insert: AI summary of the selection** to send it to an LLM and replace the selection with the result. Built for turning raw text pasted from analytics and reporting tools into a running insight log: copy the numbers into a note, select them, summarize, and keep the distilled takeaway in place of the raw dump.

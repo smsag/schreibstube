@@ -133,6 +133,8 @@ export const FOREIGN_MENU_SOURCE = "file-explorer";
  * the naming and the renaming stay in the hands they were already in.
  */
 export type FileNamer = (file: TFile) => Promise<string | null>;
+/** Describes a picture and keeps the description as a note. */
+export type ImageDescriber = (file: TFile) => Promise<void>;
 
 /** Where a pinned tag's notes are listed. The plugin owns the sidebar leaf. */
 export type TagOpener = (tag: string) => Promise<void>;
@@ -207,6 +209,7 @@ export class ExplorerController {
   private submenusSupported: boolean | null = null;
   /** Set once the AI commands exist, which is after this controller is built. */
   private namer: FileNamer | null = null;
+  private describer: ImageDescriber | null = null;
   private tagOpener: TagOpener | null = null;
   private relatedOpener: RelatedOpener | null = null;
   private tilesOpener: FolderTilesOpener | null = null;
@@ -251,6 +254,11 @@ export class ExplorerController {
       clearTimer: this.clearTimer
     });
     this.store.onChange(() => this.emit());
+  }
+
+  /** Hand over the thing that can describe a picture. */
+  useDescriber(describer: ImageDescriber): void {
+    this.describer = describer;
   }
 
   /** Hand over the thing that can name a file from its contents. */
@@ -848,6 +856,7 @@ export class ExplorerController {
       path: file.path,
       markdown: isFile && file.extension === "md",
       image: isFile && getImageMimeType(file.extension) !== null,
+      describable: this.getSettings().imageDescriptionsEnabled && this.describer !== null,
       bound: isFile && this.isBound(file),
       hasIcon: this.iconFor(file.path) !== undefined,
       kept: this.isKept(file.path),
@@ -931,6 +940,8 @@ export class ExplorerController {
         return this.rename(file);
       case "rename-ai":
         return this.renameByContent(file);
+      case "describe-image":
+        return file instanceof TFile ? this.describer?.(file) : undefined;
       case "delete":
         return this.remove(file);
       default:
