@@ -235,3 +235,12 @@ export class EditorSuggest<T> {
     return [];
   }
 }
+
+/** Obsidian's path clean-up, as far as the tests need it: one kind of slash,
+ *  no doubles, none at either end. */
+export function normalizePath(path: string): string {
+  return path
+    .replace(/\\/g, "/")
+    .replace(/\/+/g, "/")
+    .replace(/^\/|\/$/g, "");
+}

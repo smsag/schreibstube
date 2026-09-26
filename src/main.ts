@@ -77,6 +77,8 @@ import {
 } from "./controllers/explorer-controller";
 import type { ExplorerFileStore } from "./services/explorer-store";
 import { SemanticEngine } from "./controllers/semantic/semantic-engine";
+import { createSemanticApi } from "./controllers/semantic/semantic-api";
+import type { SchreibstubeSemanticApi } from "./services/semantic/semantic-api";
 import { PaneSectionsController } from "./controllers/pane-sections";
 import { BookmarkQuickOpenModal } from "./ui/bookmark-quick-open";
 import { OrphanListModal } from "./ui/explorer-modals";
@@ -122,6 +124,8 @@ export default class SchreibstubePlugin extends Plugin {
   private sections: PaneSectionsController | null = null;
   /** Search by meaning; read by the settings tab and the Explorer filter. */
   semantic: SemanticEngine | null = null;
+  /** Search by meaning for other plugins; Pythia reaches it through the plugin registry. */
+  api: SchreibstubeSemanticApi | null = null;
   /** Guards against firing twice inside one scheduled minute. */
   private lastPollMinute = -1;
   /** Sync records dropped here since the data file was last written, so the
@@ -226,6 +230,11 @@ export default class SchreibstubePlugin extends Plugin {
 
     this.semantic = new SemanticEngine(this, () => this.settings, this.logger);
     this.semantic.start();
+    this.api = createSemanticApi({
+      engine: this.semantic,
+      logger: this.logger,
+      vaultHit: (path) => this.vaultHit(path)
+    });
 
     this.explorer = new ExplorerController(
       this.app,
@@ -404,7 +413,22 @@ export default class SchreibstubePlugin extends Plugin {
     void this.explorer?.stop();
     this.sections?.stop();
     this.semantic?.dispose();
+    // A caller holding the object finds it answering nothing; one asking the
+    // registry again finds no API at all.
+    this.api = null;
     this.clearOverlay();
+  }
+
+  /** A vault path as the API reports it: a description note as its picture. */
+  private vaultHit(path: string): { kind: "note" | "image"; id: string; title: string } | null {
+    const file = this.app.vault.getAbstractFileByPath(path);
+    if (!(file instanceof TFile)) return null;
+    const image = this.explorer?.imageDescribedBy(path) ?? null;
+    const picture = image === null ? null : this.app.vault.getAbstractFileByPath(image);
+    if (picture instanceof TFile)
+      return { kind: "image", id: picture.path, title: picture.basename };
+    const title = this.app.metadataCache.getFileCache(file)?.frontmatter?.title;
+    return { kind: "note", id: path, title: typeof title === "string" ? title : file.basename };
   }
 
   /** Match what can be matched, then list what could not, to open one. */
