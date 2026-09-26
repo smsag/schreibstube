@@ -459,6 +459,17 @@ export const enExtra = {
   },
 
   explorer: {
+    orphans: {
+      repaired: (count: number) =>
+        count === 1
+          ? "1 description found its picture again."
+          : `${count} descriptions found their pictures again.`,
+      none: "Every picture description finds its picture.",
+      placeholder: (count: number) =>
+        count === 1
+          ? "1 description whose picture is missing — open it"
+          : `${count} descriptions whose pictures are missing — open one`
+    },
     title: "Schreibstube Explorer",
     empty: "This vault has no files yet.",
     searchPlaceholder: "Filter all sections…",

@@ -27,6 +27,7 @@ export const de: Messages = {
     collapseExplorer: "Explorer: Ordner zuklappen",
     explorerUndo: "Explorer: letztes Verschieben oder Löschen rückgängig machen",
     folderTiles: "Explorer: Ordner dieser Notiz als Kacheln",
+    orphanedDescriptions: "Explorer: verwaiste Bildbeschreibungen",
     related: "Verwandte Notizen",
     openBookmark: "Lesezeichen öffnen",
     pinTag: "Tag anheften",
@@ -717,6 +718,17 @@ export const de: Messages = {
   },
 
   explorer: {
+    orphans: {
+      repaired: (count: number) =>
+        count === 1
+          ? "1 Beschreibung hat ihr Bild wiedergefunden."
+          : `${count} Beschreibungen haben ihre Bilder wiedergefunden.`,
+      none: "Jede Bildbeschreibung findet ihr Bild.",
+      placeholder: (count: number) =>
+        count === 1
+          ? "1 Beschreibung, deren Bild fehlt – öffnen"
+          : `${count} Beschreibungen, deren Bilder fehlen – eine öffnen`
+    },
     title: "Schreibstube Explorer",
     empty: "In diesem Vault liegt noch keine Datei.",
     searchPlaceholder: "Alle Sektionen filtern …",
