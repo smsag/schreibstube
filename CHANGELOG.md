@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 1.50.0 - 2026-09-27
+
+Tasks are no longer sent to Erinnerungen. The commands, the context-menu
+entry, the settings section, the mark after a sent task and the watched
+report file are gone; a task sent earlier keeps its link, which now leads nowhere.
+
+Mobile checklist: not run. This release only takes code away; the test
+suite and the build checked it, and nothing has been tried on a phone.
+
+The bridge stays at 2.8.0, and its protocol at 3; nothing here touches it.
+
 ### Removed
 
 - **Tasks can no longer be sent to Erinnerungen.** The two commands, **Send task to Erinnerungen** and **Compare with Erinnerungen**, the entry in the editor's context menu, the Erinnerungen section in the settings and the mark after a sent task are gone, and the plugin no longer watches a report file. A task that was sent keeps its `obsidian://schreibstube?task=…` link as an ordinary link, which now leads nowhere; delete it from the line if it is in the way.
