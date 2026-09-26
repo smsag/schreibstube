@@ -10,6 +10,10 @@ All notable changes to this project will be documented in this file.
 - **A word defined both in a glossary table and on a term note is named in the panel.** Both apply, and where they claim the same words the glossary loaded first would decide without saying so. The panel lists each such word under the glossary line, with both places, so it can be kept in one. The README now says which of the two formats a rule belongs in.
 - **Add rule offers the term's translations.** Picking a term in the proofreading panel's **Add rule** now shows the translations recorded on its note (Pythia's `term_en`, `term_it`, …) as words to avoid — "cartel law" for *Kartellrecht* is the usual case. A tap fills the field; nothing is added until you press **Add**, because a translation says what a term is called elsewhere, not that the word is wrong in your text. Forms already listed, the term itself and the note's own language are not offered.
 
+### Fixed
+
+- **An icon chosen for a property no longer covers the property's name.** The glyph was drawn in a slot Obsidian keeps 4 pixels wide as a spacer, so a 16-pixel icon spilled over the first letters of the key. It now takes the box Obsidian's own icon has, and the name starts where it always did.
+
 ## 1.50.0 - 2026-09-27
 
 Tasks are no longer sent to Erinnerungen. The commands, the context-menu

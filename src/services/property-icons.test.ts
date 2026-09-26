@@ -73,6 +73,19 @@ describe("propertyIconCss", () => {
     expect(css).toContain('font-family: "icons"');
   });
 
+  it("gives the glyph the SVG's box, not the 4px spacer Obsidian's ::before has", () => {
+    // Obsidian 1.8.10, app.css: `.metadata-property-icon:before { content: "\200B";
+    // width: var(--size-4-1) }` inside a flex row. Keeping that width let the
+    // glyph spill over the key's name.
+    const rule = propertyIconCss({ status: "flag" }, glyphOf, "icons")
+      .split("\n")
+      .find((line) => line.includes("::before"));
+    expect(rule).toContain("width: var(--icon-size);");
+    expect(rule).toContain("min-width: var(--icon-size);");
+    expect(rule).toContain("flex-shrink: 0;");
+    expect(rule).toContain("margin-inline-start: var(--size-4-1);");
+  });
+
   it("leaves a key with an unknown icon on its type icon", () => {
     expect(propertyIconCss({ status: "gone" }, glyphOf, "icons")).toBe("");
   });
