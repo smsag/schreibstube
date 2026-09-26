@@ -79,6 +79,7 @@ import type { ExplorerFileStore } from "./services/explorer-store";
 import { SemanticEngine } from "./controllers/semantic/semantic-engine";
 import { PaneSectionsController } from "./controllers/pane-sections";
 import { BookmarkQuickOpenModal } from "./ui/bookmark-quick-open";
+import { OrphanListModal } from "./ui/explorer-modals";
 import { vaultUrlFor } from "./services/bookmark-file";
 import { MailCommands } from "./controllers/mail-commands";
 import { PublishCommands } from "./controllers/publish-commands";
@@ -94,6 +95,10 @@ const POLL_TICK_MS = 20_000;
 
 /** Delay before the catch-up poll, so it never competes with opening a vault. */
 const POLL_CATCHUP_DELAY_MS = 8_000;
+
+/** Delay before orphaned picture descriptions are matched, after the catch-up
+ *  poll: the metadata cache has to have read the vault's frontmatter by then. */
+const ORPHAN_REPAIR_DELAY_MS = 20_000;
 
 export default class SchreibstubePlugin extends Plugin {
   override settings: SchreibstubeSettings = DEFAULT_SETTINGS;
@@ -245,6 +250,16 @@ export default class SchreibstubePlugin extends Plugin {
       this.activateFolderTiles(folder, following)
     );
     await this.explorer.start();
+    // A picture renamed outside Obsidian, or deleted while it was closed, left
+    // its description behind; the ones that only moved are found by content.
+    this.app.workspace.onLayoutReady(() => {
+      const repair = window.setTimeout(() => {
+        void this.explorer?.repairOrphans().catch((error: unknown) => {
+          this.logger.warn("Could not match orphaned picture descriptions:", error);
+        });
+      }, ORPHAN_REPAIR_DELAY_MS);
+      this.register(() => window.clearTimeout(repair));
+    });
 
     this.sections = new PaneSectionsController(
       this.app,
@@ -390,6 +405,21 @@ export default class SchreibstubePlugin extends Plugin {
     this.sections?.stop();
     this.semantic?.dispose();
     this.clearOverlay();
+  }
+
+  /** Match what can be matched, then list what could not, to open one. */
+  private async showOrphanedDescriptions(): Promise<void> {
+    const explorer = this.explorer;
+    if (!explorer) return;
+    const { repaired, remaining } = await explorer.repairOrphans();
+    if (repaired > 0) new Notice(t().common.notice(t().explorer.orphans.repaired(repaired)));
+    if (remaining.length === 0) {
+      if (repaired === 0) new Notice(t().common.notice(t().explorer.orphans.none));
+      return;
+    }
+    new OrphanListModal(this.app, remaining, (path) => {
+      void this.app.workspace.openLinkText(path, "", false);
+    }).open();
   }
 
   /** Open the review sidebar, reusing the existing leaf if it is already open. */
@@ -1124,6 +1154,12 @@ export default class SchreibstubePlugin extends Plugin {
       "collapse-explorer",
       () => void this.explorer?.undoLast()
     );
+
+    this.addCommand({
+      id: "explorer-orphaned-descriptions",
+      name: t().commands.orphanedDescriptions,
+      callback: () => void this.showOrphanedDescriptions()
+    });
 
     // The folder of the note in front of you, as tiles — a route for the
     // palette and a hotkey, and for a phone where the pane may be shut.

@@ -74,6 +74,7 @@ import {
 import { hasSourceBinding, resolveSourceUrl, SYNC_FRONTMATTER_KEY } from "../services/sync-source";
 import { someFileUnder } from "../services/vault-tree";
 import { DescriptionFollower } from "./description-follower";
+import { OrphanRepair, type OrphanRepairResult } from "./orphan-repair";
 import { pairDescriptions, type DescriptionPairs } from "../services/description-pairs";
 import { DESCRIPTION_KEYS } from "../services/image-description";
 import { arrivedReceipt, LOCAL_TRASH, localTrashPath } from "../services/trash-receipt";
@@ -234,6 +235,8 @@ export class ExplorerController {
   private readonly undo = new UndoStack();
   /** Keeps each description note with its picture through a move or a delete. */
   private readonly follower: DescriptionFollower;
+  /** Re-links description notes whose picture moved while nobody watched. */
+  private readonly orphans: OrphanRepair;
 
   constructor(
     private readonly app: App,
@@ -273,6 +276,20 @@ export class ExplorerController {
       },
       logger
     );
+    this.orphans = new OrphanRepair(
+      app,
+      () => this.descriptionPairs(),
+      () => {
+        this.descriptionsChanged();
+        this.emit();
+      },
+      logger
+    );
+  }
+
+  /** Match orphaned description notes to their pictures by content. */
+  repairOrphans(): Promise<OrphanRepairResult> {
+    return this.orphans.repair();
   }
 
   /**

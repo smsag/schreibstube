@@ -220,3 +220,34 @@ export class TagPickerModal extends SuggestModal<VaultTag> {
     this.onChoose(entry.tag);
   }
 }
+
+/**
+ * The description notes whose picture could not be found, to open one.
+ *
+ * The only place they are listed: an orphan is never removed, and a note the
+ * person cannot find is as good as removed. Choosing one opens it, where the
+ * embed shows what is missing and the link can be set by hand.
+ */
+export class OrphanListModal extends SuggestModal<string> {
+  constructor(
+    app: App,
+    private readonly paths: readonly string[],
+    private readonly onChoose: (path: string) => void
+  ) {
+    super(app);
+    this.setPlaceholder(t().explorer.orphans.placeholder(paths.length));
+  }
+
+  getSuggestions(query: string): string[] {
+    const needle = query.trim().toLowerCase();
+    return this.paths.filter((path) => path.toLowerCase().includes(needle));
+  }
+
+  renderSuggestion(path: string, el: HTMLElement): void {
+    el.createSpan({ text: path });
+  }
+
+  onChooseSuggestion(path: string): void {
+    this.onChoose(path);
+  }
+}

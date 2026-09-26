@@ -29,6 +29,7 @@ export const en = {
     collapseExplorer: "Explorer: collapse folders",
     explorerUndo: "Explorer: undo the last move or delete",
     folderTiles: "Explorer: this note's folder as tiles",
+    orphanedDescriptions: "Explorer: orphaned picture descriptions",
     related: "Related notes",
     openBookmark: "Open bookmark",
     pinTag: "Pin tag",
