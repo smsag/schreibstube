@@ -919,6 +919,10 @@ export default class SchreibstubePlugin extends Plugin {
       this.app.vault.on("rename", (file, oldPath) => {
         if (file instanceof TFile) {
           void this.proofread?.handleNoteRenamed(oldPath, file.path);
+          // A term note that moves takes its rules with it; the metadata
+          // cache does not report a move as a change.
+          void this.proofread?.termNoteChanged(oldPath);
+          void this.proofread?.termNoteChanged(file.path);
         }
       })
     );
@@ -927,6 +931,7 @@ export default class SchreibstubePlugin extends Plugin {
       this.app.vault.on("delete", (file) => {
         if (file instanceof TFile) {
           void this.proofread?.handleNoteDeleted(file.path);
+          void this.proofread?.termNoteChanged(file.path);
         }
       })
     );
@@ -939,6 +944,7 @@ export default class SchreibstubePlugin extends Plugin {
         if (this.settings.syncState[file.path] !== undefined) {
           void this.proofread?.reconcileSyncRecords([file.path]);
         }
+        void this.proofread?.termNoteChanged(file.path);
       })
     );
   }

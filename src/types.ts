@@ -81,6 +81,9 @@ export interface SchreibstubeSettings {
   glossaryDefault: string[];
   glossaryFolderRules: string;
   glossaryLiveUnderline: boolean;
+  // A folder of one note per term (the glossary Pythia writes), read as one
+  // more glossary that joins the default. See services/glossary-term-folder.
+  glossaryTermFolder: string;
   // Document sync. A note bound to a remote Markdown source mirrors it: the
   // source is the truth and nothing is ever pushed back.
   syncEnabled: boolean;

@@ -609,6 +609,19 @@
   opacity: 0.7;
 }
 
+/* Term folder rules: one row per term, its avoided words as removable chips */
+
+.schreibstube-review-term {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+}
+
+.schreibstube-review-term .schreibstube-review-chip {
+  gap: 4px;
+}
+
 /* Change cards */
 
 .schreibstube-review-list {

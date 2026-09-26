@@ -31,6 +31,7 @@ interface FakeApp {
   vault: {
     getMarkdownFiles(): TFile[];
     read(file: TFile): Promise<string>;
+    cachedRead(file: TFile): Promise<string>;
     readBinary(file: TFile): Promise<ArrayBuffer>;
     getAbstractFileByPath(path: string): TFile | null;
   };
@@ -86,6 +87,7 @@ export function fakeVault({
     vault: {
       getMarkdownFiles: () => [...files.values()].filter((file) => file.extension === "md"),
       read: async (file) => contents.get(file.path) ?? "",
+      cachedRead: async (file) => contents.get(file.path) ?? "",
       readBinary: async (file) => {
         const binary = binaries.find((entry) => entry.path === file.path);
         if (!binary) throw new Error(`no binary for ${file.path}`);

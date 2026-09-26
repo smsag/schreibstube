@@ -12,6 +12,7 @@ import {
   normalizeFocusSettings
 } from "./focus-settings";
 import { BOOKMARK_FILE_DEFAULT } from "./bookmark-file";
+import { normalizeTermFolder } from "./glossary-term-folder";
 import { LLM_PROVIDER_IDS, PROVIDER_MODELS } from "./llm-providers";
 import { DEFAULT_PUBLISH_KEYS, normalizeHeaderTags, normalizePublishKeys } from "./publish-index";
 import { DEFAULT_TEMPLATE_BUILTIN, TEMPLATE_ROOT_DEFAULT } from "./print-template";
@@ -110,6 +111,7 @@ export const DEFAULT_SETTINGS: SchreibstubeSettings = {
   glossaryDefault: [],
   glossaryFolderRules: "",
   glossaryLiveUnderline: false,
+  glossaryTermFolder: "",
   syncEnabled: false,
   syncCheckOnOpen: true,
   syncMinIntervalMinutes: 10,
@@ -279,6 +281,7 @@ export function normalizeSettings(loaded: LoadedSettings): SchreibstubeSettings 
       typeof loaded?.glossaryLiveUnderline === "boolean"
         ? loaded.glossaryLiveUnderline
         : DEFAULT_SETTINGS.glossaryLiveUnderline,
+    glossaryTermFolder: normalizeTermFolder(loaded?.glossaryTermFolder),
     syncEnabled:
       typeof loaded?.syncEnabled === "boolean" ? loaded.syncEnabled : DEFAULT_SETTINGS.syncEnabled,
     syncCheckOnOpen:

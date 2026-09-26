@@ -71,6 +71,33 @@ When a match is an inflected form, the card is marked _Beugung prüfen_, because
 3. The pick in the sidebar header, which lasts for the session
 4. The vault-wide default in settings
 
+#### A term folder (Pythia's glossary)
+
+Set **Term folder** in the settings to a folder of one note per term, such as the glossary folder [Pythia](https://github.com/smsag/pythia) writes, and set the same folder in both plugins. Pythia fills it while you discuss a topic; Schreibstube reads it. Setting the folder is the whole configuration: it joins the vault-wide default.
+
+Each note in the folder is a concept whose preferred term is the note's term (its `term` property, or the file name). People and themes (`type: person`, `type: theme`) are left out. A note says nothing about which words to avoid, and nothing is flagged until you say so: the words listed under `schreibstubeAvoid` on a term note are flagged as deprecated, with the term offered instead.
+
+```markdown
+---
+type: term
+source: model
+language: de
+schreibstubeAvoid:
+  - cartel law
+  - Wettbewerbsrecht
+---
+
+Das Recht gegen Absprachen und Marktmacht, die den Wettbewerb beschränken.
+```
+
+The list is managed in the proofreading panel's **Terms** section: select the word in the note, press **Add rule**, pick the term. A chip removes a word again, and the term's name opens its note. The panel writes `schreibstubeAvoid` and nothing else on the note.
+
+- The note's `language` decides which inflection endings an avoided word tolerates; without one, German.
+- The first paragraph of the body is shown on the card and handed to the correction pass, so the model knows which sense is meant. A definition Pythia's model wrote is marked as such.
+- The term itself is never flagged, not even its capitalisation: a folder of model-written terms would otherwise flag every one at the start of a sentence.
+
+**Table or term folder?** They are two ways to write the same kind of rule, for two ways of working. A glossary table is the house style guide: written in one go, edited as a whole, pasted from a termbase export, and able to say everything TBX-Basic can (admitted and superseded terms, match modes, a severity). The term folder is what you learn along the way: one term at a time, with its meaning beside it, and only one kind of rule — avoid this word, use the term. Put a rule where its term is defined. When both define the same word for a note, the panel says so under the glossary line, because both apply and the one loaded first would decide without telling you.
+
 ### Document sync
 
 Binds a note to a remote Markdown file. The source is the single truth: incoming changes appear in the sidebar as cards you accept one by one, and nothing is ever pushed back. A bound note can live in any folder, since it is found by its frontmatter key rather than its location.
@@ -693,6 +720,7 @@ API keys are stored in Obsidian's built-in secret storage and are never written 
 | ------------------------------------- | ----------------------------------------------- | ------- |
 | Default glossaries                    | Vault paths, one per line                       | —       |
 | Folder rules                          | One per line: `folder \| glossary.md, other.md` | —       |
+| Term folder                           | One note per term; see _A term folder_ above    | —       |
 | Underline glossary hits in the editor | Marks error-severity terms while writing        | Off     |
 
 ### Document sync

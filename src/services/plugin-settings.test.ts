@@ -226,6 +226,14 @@ describe("normalizeSettings", () => {
     );
   });
 
+  it("defaults the term folder to none, and trims its slashes", () => {
+    expect(normalizeSettings({}).glossaryTermFolder).toBe("");
+    expect(normalizeSettings({ glossaryTermFolder: " /Glossar/ " }).glossaryTermFolder).toBe(
+      "Glossar"
+    );
+    expect(normalizeSettings({ glossaryTermFolder: 7 as never }).glossaryTermFolder).toBe("");
+  });
+
   it("defaults document sync to off", () => {
     expect(normalizeSettings({}).syncEnabled).toBe(false);
   });
