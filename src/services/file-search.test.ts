@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  forwardMatchStrength,
   matchesText,
   matchStrength,
   MAX_QUERY_TOKENS,
@@ -302,5 +303,69 @@ describe("a picture found by its description", () => {
 
   it("gives nothing else a description field", () => {
     expect(searchFields({ path: "a.md", name: "a.md" }).description).toEqual([]);
+  });
+});
+
+describe("a note's text in the ranking", () => {
+  const body = (hits: Record<string, Record<string, number>>) => ({
+    strengths: (token: string) => new Map(Object.entries(hits[token] ?? {}))
+  });
+  const candidate = (path: string): SearchCandidate => ({
+    path,
+    fields: searchFields({ path, name: path.split("/").pop() ?? path })
+  });
+  const files = [candidate("Briefe/Hausverwaltung.md"), candidate("Jahresabrechnung 2024.md")];
+
+  it("finds a note by a word only its text holds", () => {
+    const hits = rankFiles(
+      "jahres",
+      [files[0]!],
+      undefined,
+      body({ jahres: { "Briefe/Hausverwaltung.md": 0.9 } })
+    );
+    expect(hits.map((hit) => hit.path)).toEqual(["Briefe/Hausverwaltung.md"]);
+  });
+
+  it("ranks a file named for the word above one that only mentions it", () => {
+    const hits = rankFiles(
+      "jahresabrechnung",
+      files,
+      undefined,
+      body({ jahresabrechnung: { "Briefe/Hausverwaltung.md": 1 } })
+    );
+    expect(hits.map((hit) => hit.path)).toEqual([
+      "Jahresabrechnung 2024.md",
+      "Briefe/Hausverwaltung.md"
+    ]);
+  });
+
+  it("searches only the text under text: and inhalt:, and never under name:", () => {
+    const matcher = body({ jahresabrechnung: { "Briefe/Hausverwaltung.md": 1 } });
+    for (const prefix of ["text:", "inhalt:", "body:"]) {
+      expect(parseSearchScope(`${prefix} x`).scope).toBe("body");
+      expect(
+        rankFiles(`${prefix} jahresabrechnung`, files, undefined, matcher).map((hit) => hit.path)
+      ).toEqual(["Briefe/Hausverwaltung.md"]);
+    }
+    expect(
+      rankFiles("name: jahresabrechnung", files, undefined, matcher).map((hit) => hit.path)
+    ).toEqual(["Jahresabrechnung 2024.md"]);
+  });
+
+  it("ignores a hit for a file that is not a candidate", () => {
+    expect(
+      rankFiles("wort", [files[0]!], undefined, body({ wort: { "elsewhere.md": 1 } }))
+    ).toEqual([]);
+  });
+});
+
+describe("forwardMatchStrength", () => {
+  it("grades exact, prefix and infix, and never the shorter form", () => {
+    expect(forwardMatchStrength("vertrag", "vertrag")).toBe(1);
+    expect(forwardMatchStrength("vertrag", "vert")).toBeCloseTo(0.9);
+    expect(forwardMatchStrength("mietvertrag", "vertrag")).toBeCloseTo(0.6);
+    expect(forwardMatchStrength("mietvertrag", "vert")).toBe(0);
+    expect(forwardMatchStrength("jahr", "jahresabrechnung")).toBe(0);
+    expect(forwardMatchStrength("jahr", "")).toBe(0);
   });
 });

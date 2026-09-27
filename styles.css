@@ -852,6 +852,44 @@
   color: var(--text-error);
 }
 
+/* Search by meaning: the numbers under the status line. A label column and a
+   value that wraps beside it; on a phone's width the two stack. */
+.schreibstube-semantic-report {
+  margin: 0 0 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--background-modifier-border);
+  font-size: var(--font-ui-smaller);
+}
+
+.schreibstube-semantic-report:empty {
+  display: none;
+}
+
+.schreibstube-semantic-report-heading {
+  margin-bottom: 4px;
+  font-weight: var(--font-semibold);
+}
+
+.schreibstube-semantic-report-row {
+  display: grid;
+  grid-template-columns: minmax(7em, max-content) 1fr;
+  gap: 0 12px;
+  padding: 2px 0;
+}
+
+.schreibstube-semantic-report-label {
+  color: var(--text-muted);
+}
+
+.schreibstube-semantic-report-value {
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+
+.is-mobile .schreibstube-semantic-report-row {
+  grid-template-columns: 1fr;
+}
+
 /* Mail result picker: the metadata line under each subject. */
 .schreibstube-mail-result-meta {
   display: block;

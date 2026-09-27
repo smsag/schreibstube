@@ -1,4 +1,4 @@
-import { parseSearchScope } from "../file-search";
+import { parseSearchScope, queryTokens } from "../file-search";
 
 /**
  * One list from two rankings: what a file is called, and what it is about.
@@ -68,10 +68,55 @@ export const MEANING_MIN_CHARS = 3;
  * with notes that merely mean the same would override what was asked. `all:`
  * is the plain box said out loud, so it still counts.
  */
-export function meaningQuery(raw: string): string | null {
+export function meaningQuery(raw: string, wordHits = 0): string | null {
   const parsed = parseSearchScope(raw);
   if (parsed.explicit && parsed.scope !== "all") return null;
-  return parsed.query.length >= MEANING_MIN_CHARS ? parsed.query : null;
+  if (parsed.query.length < MEANING_MIN_CHARS) return null;
+  // One word is a word search. A sentence model reads a lone word — often only
+  // the start of one, "Jahres" on the way to "Jahresabrechnung" — as a vector
+  // close to nothing in particular, and what comes back is noise ranked beside
+  // the note that actually says the word. Meaning is asked for a single word
+  // only when the words found nothing at all.
+  if (queryTokens(parsed.query).length < 2 && wordHits > 0) return null;
+  return parsed.query;
+}
+
+/** How strict a meaning search is, for the query it was asked with. */
+export interface MeaningFloor {
+  /** Cosine below which a note does not answer. */
+  minScore: number;
+  /** Share of the best score a note must reach to stay; 0 keeps everything above `minScore`. */
+  relative: number;
+}
+
+/** The floor for a query of several words: Pythia's measured one for notes. */
+export const PHRASE_FLOOR: MeaningFloor = { minScore: 0.35, relative: 0 };
+
+/**
+ * The floor for a single word, asked only because the words found nothing.
+ *
+ * NOT measured, unlike `PHRASE_FLOOR`. A lone word scores lower against every
+ * passage than a phrase does — which is why "Jahres" came back empty at 0.35 —
+ * so the absolute floor is lowered and the noise that lets in is cut relative
+ * to the best hit instead: only notes nearly as close as the closest stay.
+ * Re-measure before trusting either number further.
+ */
+export const WORD_FLOOR: MeaningFloor = { minScore: 0.25, relative: 0.9 };
+
+/** Which floor a meaning query is held to. */
+export function meaningFloor(query: string): MeaningFloor {
+  return queryTokens(query).length < 2 ? WORD_FLOOR : PHRASE_FLOOR;
+}
+
+/** Keep the hits that clear `floor`, best first as they came. */
+export function applyMeaningFloor<T extends { score: number }>(
+  hits: readonly T[],
+  floor: MeaningFloor
+): T[] {
+  const above = hits.filter((hit) => hit.score >= floor.minScore);
+  const top = above.reduce((best, hit) => Math.max(best, hit.score), -Infinity);
+  if (floor.relative <= 0 || !Number.isFinite(top)) return above;
+  return above.filter((hit) => hit.score >= top * floor.relative);
 }
 
 /**

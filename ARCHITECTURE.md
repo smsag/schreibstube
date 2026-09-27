@@ -113,6 +113,24 @@ API rather than the index finding them. The decisions came from Pythia after it
 was hardened for the phone, and live in `services/semantic/`; the wiring is in
 `controllers/semantic/`.
 
+The desktop keeps the vault index; a phone holds it. A phone never builds on
+its own — a first build there ran for over an hour and iOS may end it whenever
+Obsidian goes to the background — so it reads the synced file, answers from it
+finished or not, and reads it again when the desktop has written a newer one.
+**Build now** on a phone embeds a budget of notes and merges what the desktop
+wrote meanwhile before it writes, so the two devices do not undo each other
+through the one file. The phone's own edits are embedded on the phone and go
+to a journal of its own (`…phone-journal.bin`), tied to the desktop's base like
+the shared journal and ignored once the desktop writes a new one. A build
+answers queries while it runs, and a note whose
+embed fails on the desktop — not by a deadline — is kept as a row without
+vectors, so it is not retried until its text changes.
+
+The Explorer filter reads note text too, separately from the model: a
+vocabulary of every note's words (`services/body-index.ts`), read once when the
+filter is first used. Both it and the model read a note through
+`services/note-text.ts`, which drops frontmatter, code, URLs and encoded data.
+
 Other plugins reach it as `app.plugins.getPlugin("schreibstube").api`:
 
 ```ts

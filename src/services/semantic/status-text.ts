@@ -10,12 +10,15 @@ export type SemanticState =
   | "partial"
   | "outdated"
   | "failed"
-  | "paused";
+  | "paused"
+  | "desktopBuilds";
 
 /** Where the index stands, as the settings tab reports it. */
 export interface SemanticStatus {
   state: SemanticState;
   count: number;
+  /** How many notes one "Build now" adds on a phone. */
+  budget?: number;
   done: number;
   total: number;
   error: string | null;
@@ -51,5 +54,7 @@ export function semanticStatusText(
       return status.outOfMemory ? strings.outOfMemory : strings.failed(status.error ?? "");
     case "paused":
       return strings.paused;
+    case "desktopBuilds":
+      return strings.desktopBuilds(status.count, status.budget ?? 0);
   }
 }

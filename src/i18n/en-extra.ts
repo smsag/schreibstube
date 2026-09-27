@@ -875,6 +875,12 @@ export const enExtra = {
     building: "Search by meaning: reading the vault…",
     progress: (done: number, total: number) => `Search by meaning: ${done} of ${total} notes read`,
     busy: "Search by meaning is already reading the vault.",
+    desktopBuilds: (read: number, total: number, budget: number) =>
+      `Search by meaning: ${read} of ${total} notes are ready. The desktop builds the rest; ` +
+      `Build now in the settings adds ${budget} on this phone.`,
+    phoneBudget: (count: number) =>
+      `Search by meaning: ${count} notes added on this phone. The desktop finishes the rest, ` +
+      "or press Build now again.",
     heading: "Search by meaning",
     intro:
       "Finds notes by what they are about, not only by the words in their name. A small " +
@@ -890,7 +896,83 @@ export const enExtra = {
     buildNow: "Build now",
     rebuild: "Rebuild",
     rebuildDesc: "Reads every note again from scratch.",
+    rebuildDescPhone:
+      "On a phone this adds notes like Build now: the index is the desktop's, and clearing it here would clear it there.",
     status: "Status",
+    report: {
+      heading: "Details",
+      coverage: "Coverage",
+      coverageValue: (indexed: number, inScope: number, share: number) =>
+        `${indexed} of ${inScope} notes (${share} %)`,
+      vault: "Vault",
+      vaultValue: (notes: number, optedOut: number, overCap: number, cap: number) =>
+        `${notes} notes` +
+        (optedOut > 0 ? `; ${optedOut} kept out by their frontmatter` : "") +
+        (overCap > 0 ? `; ${overCap} past the limit of ${cap}` : ""),
+      notIndexed: "Not in the index",
+      notIndexedValue: (missing: number, failed: number) =>
+        [
+          missing > 0 ? `${missing} not read yet` : "",
+          failed > 0 ? `${failed} failed, tried again once edited` : ""
+        ]
+          .filter(Boolean)
+          .join("; "),
+      passages: "Passages",
+      passagesValue: (count: number, perNote: string) => `${count}, ${perNote} per note`,
+      file: "Index file",
+      fileValue: (
+        size: string,
+        edits: string | null,
+        keeper: "desktop" | "mobile" | null,
+        writtenAt: number | null
+      ) =>
+        size +
+        (edits ? ` plus ${edits} of edits` : "") +
+        (keeper ? `; kept by the ${keeper === "desktop" ? "desktop" : "phone"}` : "") +
+        (writtenAt
+          ? `; written ${new Date(writtenAt).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })}`
+          : ""),
+      model: "Model",
+      modelValue: (model: string, backend: string | null, device: "desktop" | "mobile") =>
+        `${model} on this ${device === "mobile" ? "phone" : "desktop"}; ` +
+        (backend ? `running in ${backend}` : "not loaded"),
+      building: "Building",
+      buildingValue: (
+        done: number,
+        total: number,
+        counts: string,
+        pace: string | null,
+        left: string | null
+      ) =>
+        `${done} of ${total} notes; ${counts}` +
+        (pace ? `; ${pace} passages a second` : "") +
+        (left ? `; about ${left} left` : ""),
+      buildCounts: (embedded: number, reused: number, failed: number) =>
+        `${embedded} embedded, ${reused} unchanged` + (failed > 0 ? `, ${failed} failed` : ""),
+      lastBuild: "Last build",
+      lastCatchUp: "Last catch-up",
+      lastBuildValue: (
+        endedAt: number,
+        took: string,
+        counts: string,
+        pace: string | null,
+        stopped: boolean,
+        error: string | null
+      ) =>
+        `${new Date(endedAt).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })}, ` +
+        (error ? `failed after ${took}: ${error}` : `took ${took}; ${counts}`) +
+        (pace ? `; ${pace} passages a second` : "") +
+        (stopped ? "; stopped at the phone's limit" : ""),
+      textSearch: "Text search",
+      textSearchValue: (notes: number, words: number) =>
+        `${notes} notes read, ${words} different words`,
+      textSearchUnread:
+        "Not read yet. The Explorer filter reads the notes' text the first time it is used.",
+      seconds: (n: number) => `${n} s`,
+      minutes: (n: number) => `${n} min`,
+      hours: (h: number, m: number) => (m > 0 ? `${h} h ${m} min` : `${h} h`),
+      decimal: (n: number) => n.toFixed(1)
+    },
     state: {
       off: "Off.",
       blocked:
@@ -906,7 +988,10 @@ export const enExtra = {
         `${count} notes, but the notes to index have changed. Build now to catch up.`,
       failed: (error: string) => `Failed: ${error}`,
       outOfMemory: "The device ran out of memory. Lower the number of notes and build again.",
-      paused: "Paused after a build did not finish twice in a row. Build now to try again."
+      paused: "Paused after a build did not finish twice in a row. Build now to try again.",
+      desktopBuilds: (count: number, budget: number) =>
+        `${count} notes ready. A phone does not build the index on its own: the desktop ` +
+        `finishes it and it arrives by sync. Build now adds ${budget} notes here.`
     }
   },
   secrets: {

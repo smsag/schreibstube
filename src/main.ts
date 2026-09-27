@@ -700,6 +700,18 @@ export default class SchreibstubePlugin extends Plugin {
     return view;
   }
 
+  /** The Explorer filter's text index, for the settings: null while no pane
+   *  has read the vault's text. */
+  textSearchStats(): { notes: number; words: number } | null {
+    for (const leaf of this.app.workspace.getLeavesOfType(EXPLORER_VIEW_TYPE)) {
+      if (leaf.view instanceof ExplorerPaneView) {
+        const stats = leaf.view.textStats();
+        if (stats) return stats;
+      }
+    }
+    return null;
+  }
+
   private createExplorerView(leaf: WorkspaceLeaf): ExplorerPaneView {
     const view = new ExplorerPaneView(leaf);
     if (this.explorer && this.sections) {
@@ -707,7 +719,9 @@ export default class SchreibstubePlugin extends Plugin {
         explorer: this.explorer,
         sections: this.sections,
         settings: () => this.settings,
-        meaning: async (text, limit) => (await this.semantic?.search(text, limit)) ?? []
+        meaning: async (text, limit) => (await this.semantic?.search(text, limit)) ?? [],
+        meaningState: () => this.semantic?.searchState() ?? "none",
+        onMeaningChange: (listener) => this.semantic?.onChange(listener) ?? (() => undefined)
       });
     }
     return view;

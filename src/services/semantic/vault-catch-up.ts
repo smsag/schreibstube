@@ -13,7 +13,7 @@
 // something changed. Lifted out of `VaultRagService` so its order of steps is
 // tested here and the service stays under its size budget.
 
-import type { IndexableNote, VaultIndexService } from "./vault-index-service";
+import type { IndexableNote, ProgressListener, VaultIndexService } from "./vault-index-service";
 import type { BuildGuard } from "./build-guard";
 import { isOutOfMemoryError } from "./memory-error";
 
@@ -34,7 +34,7 @@ export interface CatchUpHost {
   notes(): IndexableNote[];
   modelId(): string;
   guard?: Pick<BuildGuard, "start" | "end"> | null;
-  onProgress(done: number, total: number): void;
+  onProgress: ProgressListener;
 }
 
 export type CatchUpResult = { ran: true; notes: number } | { ran: false; reason: "incomplete" };

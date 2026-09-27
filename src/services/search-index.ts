@@ -21,6 +21,7 @@
  */
 import {
   rankFiles,
+  type BodyMatcher,
   searchFields,
   type SearchCandidate,
   type SearchFields,
@@ -102,7 +103,11 @@ export class FileSearchIndex {
   /** One entry per file, dropped when the vault says that file changed. */
   private readonly cache = new Map<string, SearchFields>();
 
-  constructor(private readonly source: SearchSource) {}
+  constructor(
+    private readonly source: SearchSource,
+    /** The words of the notes' text, when the view keeps them. */
+    private readonly body?: BodyMatcher
+  ) {}
 
   /** Read one file's fields, from the cache when they are still good. */
   fieldsFor(file: IndexedFile): SearchFields {
@@ -164,7 +169,7 @@ export class FileSearchIndex {
       .files()
       .map((file) => ({ path: file.path, fields: this.fieldsFor(file) }));
 
-    const hits = rankFiles(query, candidates);
+    const hits = rankFiles(query, candidates, undefined, this.body);
     const shown = hits.slice(0, limit);
     return { hits, shown, held: hits.length - shown.length };
   }

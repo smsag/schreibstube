@@ -11,9 +11,11 @@ import {
 import { hashPolicyFor, resolveRowHash, type HashPolicy } from "./row-provenance";
 import { DEFAULT_EMBEDDING_MODEL_ID } from "./embedding-models";
 import { quantize, cosine, maxPairwiseCosine } from "./vector-math";
-import { noteEmbedChunks, type RetrievedNote } from "./vault-retrieval";
-import { IndexJournal } from "./index-journal";
+import { vaultNoteChunks, type RetrievedNote } from "./vault-retrieval";
+import { IndexJournal, applyJournal, deserializeJournal } from "./index-journal";
+import { isOutOfMemoryError } from "./memory-error";
 import { createLogger, type Logger } from "../logger";
+import type { BuildProgress } from "./index-report";
 
 /** Notes processed between cooperative yields during a build (keeps the UI alive). */
 const YIELD_EVERY_NOTES = 8;
@@ -68,6 +70,51 @@ const MIN_PERSIST_INTERVAL_MS = 30_000;
  */
 const MAX_CONSECUTIVE_EMBED_FAILURES = 5;
 
+/**
+ * Passages sent to the model in one request.
+ *
+ * A note used to go as ONE request, whatever its length, under one fixed
+ * deadline. The model works through a request sixteen passages at a time
+ * anyway, so a note of a thousand passages was sixty-odd inferences racing a
+ * deadline sized for a few — it timed out, was skipped, and was tried again
+ * from the start by every later build, paying the whole deadline each time.
+ * One request per model batch gives every request the same small amount of
+ * work, and lets a search's query slip in between two of them.
+ */
+export const EMBED_REQUEST_CHUNKS = 16;
+
+/** Called as notes are handled: how many of how many, and what became of them. */
+export type ProgressListener = (processed: number, total: number, detail: BuildProgress) => void;
+
+/** What the index holds for a set of notes, for the settings to report. */
+export interface Coverage {
+  /** Notes with vectors. */
+  indexed: number;
+  /** Notes held as failed. */
+  failed: number;
+  /** Notes with no row at all. */
+  missing: number;
+  /** Passages held for the notes with vectors. */
+  passages: number;
+}
+
+/** How a build ended. */
+export interface SyncResult {
+  /** Notes embedded (not reused) in this pass. */
+  embedded: number;
+  /** The pass stopped at its `maxEmbeds` budget before reaching every note. */
+  stopped: boolean;
+}
+
+/** What a build may do beyond the defaults. */
+export interface SyncOptions {
+  /** Stop after embedding this many notes, keeping them (0 or absent: no limit). */
+  maxEmbeds?: number;
+  /** Before each write, take rows another device wrote since this pass loaded,
+   *  for the notes this pass has not reached. See `doSync`. */
+  mergeFromStore?: boolean;
+}
+
 /** A vault note to index: its path (the index id) and a LAZY content loader.
  *  Content is loaded one note at a time during sync and released immediately, so
  *  peak memory is bounded regardless of vault size (Pythia ADR-120) — never the whole
@@ -104,6 +151,9 @@ export class VaultIndexService {
    *  never interleave — a targeted edit can't race a full build (Pythia ADR-121). */
   private chain: Promise<unknown> = Promise.resolve();
   private synced = false;
+  /** The rows a build in progress would write now, for a query that cannot
+   *  wait for the build to end. Null while no build runs. */
+  private live: (() => IndexedConversation[]) | null = null;
   /** When an edit batch last wrote the index, and the trailing write that is
    *  holding the batches since (Pythia ADR-220). */
   private lastEditWriteAt = Number.NEGATIVE_INFINITY;
@@ -123,10 +173,28 @@ export class VaultIndexService {
       logger?: Pick<Logger, "warn">;
       /** The kind of device this runs on, stamped on every write (Pythia ADR-221). */
       device?: IndexKeeper;
+      /** Where a phone keeps its own edits to an index a desktop keeps. */
+      phoneJournal?: IndexStore;
     } = {}
   ) {
     this.journal = store.journal ? new IndexJournal(store.journal(), this.logger) : null;
+    this.phoneJournal = opts.phoneJournal ? new IndexJournal(opts.phoneJournal, this.logger) : null;
   }
+
+  /**
+   * A phone's own edits, when the index is a desktop's (Pythia ADR-221 left
+   * them in memory only).
+   *
+   * A note written on the phone was embedded there and forgotten at the next
+   * launch, so until the desktop had seen the edit, the phone searched its
+   * own note by its old text — or not at all, if the note was new. The phone
+   * cannot write the shared files without the two devices overwriting each
+   * other, so it writes a journal of its own that only it reads. It is tied to
+   * the desktop's base like the shared one: once the desktop writes a new base
+   * — having seen the edits by then — the phone's journal is stale and
+   * ignored.
+   */
+  private readonly phoneJournal: IndexJournal | null;
 
   /** Where edits go instead of a base rewrite, when the store has one (Pythia ADR-222). */
   private readonly journal: IndexJournal | null;
@@ -135,6 +203,22 @@ export class VaultIndexService {
   private async writeBase(items: IndexedConversation[], meta: IndexMeta): Promise<void> {
     await this.store.write(serializeIndex(items, this.provider.dim, meta));
     this.journal?.reset(meta.writtenAt);
+    this.phoneJournal?.reset(meta.writtenAt);
+    this.baseStamp = meta.writtenAt;
+  }
+
+  /** The `writtenAt` of the base file this instance last read or wrote — the
+   *  base's own, never the journal's, so it compares with `peekIndexMeta`. */
+  private baseStamp: number | undefined;
+
+  /**
+   * Whether the base file on disk, as `peekIndexMeta` read it, is another one
+   * than the base this instance holds. Compared for identity, not order: the
+   * stamps come from two devices' clocks, and a desktop whose clock runs behind
+   * the phone's still wrote the newer file.
+   */
+  baseDiffersFrom(writtenAt: number | undefined): boolean {
+    return writtenAt !== undefined && writtenAt !== this.baseStamp;
   }
 
   private get logger(): Pick<Logger, "warn"> {
@@ -185,9 +269,21 @@ export class VaultIndexService {
     return run;
   }
 
-  /** Number of indexed notes (for status + cap checks). */
+  /** Number of notes the index can answer for (for status). A note whose embed
+   *  failed is held as an empty row so it is not retried until it changes, and
+   *  is not counted. */
   size(): number {
-    return this.items.length;
+    return this.items.reduce((n, item) => n + (item.chunks.length > 0 ? 1 : 0), 0);
+  }
+
+  /**
+   * Whether `query` answers now: the index is ready, or a build is running over
+   * rows that are already there. A first build of a large vault takes a while,
+   * and search by meaning used to answer nothing at all until its very last
+   * note — the index grew for an hour and none of it could be found.
+   */
+  isQueryable(): boolean {
+    return this.synced || this.live !== null;
   }
 
   /** Wipe the index (in-memory + persisted) and mark it not-ready, so the next
@@ -238,13 +334,18 @@ export class VaultIndexService {
     if (buf) {
       try {
         const { items, dim, meta } = deserializeIndex(buf);
+        this.baseStamp = meta.writtenAt;
         // A dim mismatch means a different model built the index — drop it and
         // let the next sync rebuild from scratch.
         if (dim === this.provider.dim) {
           const merged = this.journal
             ? await this.journal.load(meta.writtenAt, items, dim)
             : { items };
-          this.items = merged.items;
+          // The phone's own edits over the desktop's rows, never its meta: the
+          // index is still the desktop's.
+          this.items = this.phoneJournal
+            ? (await this.phoneJournal.load(meta.writtenAt, merged.items, dim)).items
+            : merged.items;
           this.meta = {
             ...meta,
             ...(merged.keeper ? { keeper: merged.keeper } : {}),
@@ -272,13 +373,14 @@ export class VaultIndexService {
    *  app (Pythia ADR-125). Defaults keep the off-thread cadence. */
   sync(
     notes: IndexableNote[],
-    onProgress?: (processed: number, total: number) => void,
+    onProgress?: ProgressListener,
     throttle: { yieldEveryNotes?: number; breatherMs?: number } = {},
     /** The scope these notes were selected under, recorded so a later session
      *  can tell whether the index still matches the settings (Pythia ADR-184). */
-    scope = ""
-  ): Promise<void> {
-    return this.enqueue(() => this.doSync(notes, onProgress, throttle, scope));
+    scope = "",
+    options: SyncOptions = {}
+  ): Promise<SyncResult> {
+    return this.enqueue(() => this.doSync(notes, onProgress, throttle, scope, options));
   }
 
   /**
@@ -298,10 +400,32 @@ export class VaultIndexService {
     });
   }
 
+  /**
+   * Read the persisted index again, replacing what this instance holds, and
+   * keep answering from it. For a phone, which does not keep the index but
+   * reads it: a desktop still building writes more of it every half minute,
+   * and a phone that read it once at launch answered from that copy all day.
+   * Edits held in memory (Pythia ADR-221) are dropped with it; the desktop
+   * re-embeds those notes when their change reaches it.
+   */
+  reload(): Promise<void> {
+    return this.enqueue(async () => {
+      if (this.cancelPendingEditWrite()) await this.writeEdits();
+      this.loaded = false;
+      this.items = [];
+      this.meta = EMPTY_INDEX_META;
+      await this.load();
+      this.synced = true;
+    });
+  }
+
   /** Read the persisted index WITHOUT making it queryable (Pythia ADR-221), so the
    *  catch-up can ask `isComplete` of an index it may then leave alone. Marking
    *  an unfinished index ready would stop the next send from resuming its build. */
   loadPersisted(): Promise<void> {
+    // Already read: nothing to wait for. Joining the queue would put a caller
+    // that only wants the rows (the Recommended panel) behind a whole build.
+    if (this.loaded) return Promise.resolve();
     return this.enqueue(() => this.load());
   }
 
@@ -345,8 +469,9 @@ export class VaultIndexService {
     let dirty = false;
     // Each row that moves is recorded for the journal (Pythia ADR-222): its new state, or
     // its removal when an update dropped it.
+    const journal = this.writesEdits() ? this.journal : this.phoneJournal;
     const note = (path: string): void =>
-      this.journal?.record(
+      journal?.record(
         path,
         this.items.find((i) => i.id === path)
       );
@@ -366,9 +491,9 @@ export class VaultIndexService {
     // Targeted edits keep whatever the index already claims about itself: a
     // watcher flush neither completes an unfinished build nor invalidates a
     // finished one.
-    // A phone holding a desktop's index keeps the edit in memory only (Pythia ADR-221);
-    // nothing is lost that the desktop does not redo, so no word is owed.
-    if (dirty && this.writesEdits()) await this.persistEdits();
+    // A phone holding a desktop's index writes its own journal, or keeps the
+    // edit in memory when it has none (Pythia ADR-221).
+    if (dirty && (this.writesEdits() || this.phoneJournal)) await this.persistEdits();
   }
 
   /** Write an edit batch now, or leave it to the window's trailing write (Pythia ADR-220).
@@ -391,6 +516,16 @@ export class VaultIndexService {
 
   private async writeEdits(): Promise<void> {
     this.lastEditWriteAt = Date.now();
+    if (!this.writesEdits()) {
+      // Signed as the phone's in its own file; the index's meta stays the
+      // desktop's, or the next edit would take the shared files over.
+      if (this.phoneJournal?.extendsBase)
+        await this.phoneJournal.write(this.provider.dim, {
+          keeper: this.device,
+          writtenAt: Date.now()
+        });
+      return;
+    }
     this.meta = this.stamp(this.meta);
     // Kilobytes to the journal while it is small; the base only to fold it in.
     if (this.journal?.canTake(this.items.length))
@@ -419,7 +554,7 @@ export class VaultIndexService {
     const maxChars = this.opts.maxChars ?? 500;
     let chunks: string[];
     try {
-      chunks = noteEmbedChunks(await note.load(), maxChars);
+      chunks = vaultNoteChunks(await note.load(), maxChars);
     } catch {
       return this.removeInMemory(note.path); // unreadable → drop
     }
@@ -434,11 +569,63 @@ export class VaultIndexService {
     if (reuse) return false; // unchanged (or a row this device accepts — Pythia ADR-201)
     if (idx < 0 && cap && cap > 0 && this.items.length >= cap) return false; // cap new adds
 
-    const raw = await this.provider.embed(chunks);
+    const raw = await this.embedAll(chunks);
     const item = { id: note.path, contentHash: hash, chunks: raw.map(quantize) };
     if (idx >= 0) this.items[idx] = item;
     else this.items.push(item);
     return true;
+  }
+
+  /**
+   * Whether a failed embed is held as a row without vectors, so it is not
+   * tried again until the note changes.
+   *
+   * Not a deadline: a request that ran out of time may only have been slow —
+   * a busy machine, an app sent to the background — and a note remembered as
+   * failed for that would stay out of the index until someone edited it. And
+   * never on a phone: the row goes into the file the desktop keeps, and a
+   * note too much for a phone would then be skipped by the desktop too.
+   */
+  private remembersFailure(e: unknown): boolean {
+    if (this.device === "mobile") return false;
+    const message = e instanceof Error ? e.message : String(e);
+    return !/timed? ?out/i.test(message);
+  }
+
+  /** Embed a note's passages one model batch per request (EMBED_REQUEST_CHUNKS). */
+  private async embedAll(chunks: string[]): Promise<Float32Array[]> {
+    const out: Float32Array[] = [];
+    for (let i = 0; i < chunks.length; i += EMBED_REQUEST_CHUNKS) {
+      const batch = chunks.slice(i, i + EMBED_REQUEST_CHUNKS);
+      const vectors = await this.provider.embed(batch);
+      if (vectors.length !== batch.length) {
+        throw new Error(`embed: ${batch.length} passages returned ${vectors.length} vectors`);
+      }
+      out.push(...vectors);
+    }
+    return out;
+  }
+
+  /**
+   * The rows on disk now, base and journal, or null when there are none this
+   * instance can read. For a phone's build, which must not overwrite what a
+   * desktop wrote while it ran (see `doSync`).
+   */
+  private async readStoreRows(): Promise<Map<string, IndexedConversation> | null> {
+    try {
+      const buf = await this.store.read();
+      if (!buf) return null;
+      const { items, dim, meta } = deserializeIndex(buf);
+      if (dim !== this.provider.dim) return null;
+      let rows = items;
+      const journalBuf = meta.writtenAt ? await this.store.journal?.().read() : null;
+      const journal = journalBuf ? deserializeJournal(journalBuf, dim) : null;
+      if (journal && journal.base === meta.writtenAt) rows = applyJournal(rows, journal);
+      return new Map(rows.map((row) => [row.id, row]));
+    } catch (e) {
+      this.logger.warn("semantic index: could not read the stored index to merge it", e);
+      return null;
+    }
   }
 
   /** Drop a note from the in-memory index (no persist). Returns whether it changed. */
@@ -450,31 +637,51 @@ export class VaultIndexService {
 
   private async doSync(
     notes: IndexableNote[],
-    onProgress?: (processed: number, total: number) => void,
+    onProgress?: ProgressListener,
     throttle: { yieldEveryNotes?: number; breatherMs?: number } = {},
-    scope = ""
-  ): Promise<void> {
+    scope = "",
+    options: SyncOptions = {}
+  ): Promise<SyncResult> {
     await this.load();
     const maxChars = this.opts.maxChars ?? 500;
     const yieldEvery = Math.max(1, throttle.yieldEveryNotes ?? YIELD_EVERY_NOTES);
     const breatherMs = Math.max(0, throttle.breatherMs ?? 0);
+    const maxEmbeds = Math.max(0, options.maxEmbeds ?? 0);
 
     // Reuse unchanged vectors by (path → item); rebuild the survivor list in
     // note order. `kept` holds only Int8 vectors (the index we need anyway);
     // note text and chunk strings are held only for the note being processed.
     const existing = new Map(this.items.map((i) => [i.id, i]));
     const kept: IndexedConversation[] = [];
-    const seen = new Set<string>();
-    /** Every note this pass has finished with, INCLUDING ones it skipped or
-     *  dropped — `seen` holds only survivors, and a mid-build snapshot must not
-     *  resurrect a note we just decided to drop. */
+    /** Every note this pass has finished with, INCLUDING ones it dropped: a
+     *  mid-build snapshot must not resurrect a note it just decided to drop. */
     const handled = new Set<string>();
     const desired = new Set(notes.map((n) => n.path));
     const total = notes.length;
     let embedded = 0;
+    let reused = 0;
+    let passages = 0;
+    /** Notes held as failed (a row without vectors) in `kept` right now. */
+    let failed = 0;
     let processed = 0;
-    let persistedEmbeds = 0;
+    /** `embedded + failed` as of the last write: whether there is anything new
+     *  to write is a question about both. */
+    let persistedChanges = 0;
+    const changes = (): number => embedded + failed;
+    const progress = (): BuildProgress => ({
+      done: processed,
+      total,
+      embedded,
+      reused,
+      failed,
+      passages
+    });
     let failedInARow = 0;
+    /** Notes given up on since the last success. If the streak turns out to be
+     *  a dead backend rather than bad notes, they were never judged and must
+     *  not be remembered as failed. */
+    let streak: string[] = [];
+    let stopped = false;
     let lastPersistAt = Date.now();
     const persistIntervalMs = this.opts.persistIntervalMs ?? MIN_PERSIST_INTERVAL_MS;
 
@@ -483,87 +690,140 @@ export class VaultIndexService {
     // would make every interrupted build delete the tail of its own index.
     //
     // Reads `existing` — captured once, before the loop — rather than `this.items`,
-    // which `persist` reassigns. The two are equivalent today (everything in
-    // `kept` is also in `handled`, so the filter drops it either way); `existing`
-    // is immutable for the length of the build, so the snapshot cannot depend on
-    // what `persist` happens to do to the live field. Belt and braces, not a fix.
-    const snapshot = (): IndexedConversation[] => [
-      ...kept,
-      ...[...existing.values()].filter((i) => !handled.has(i.id) && desired.has(i.id))
-    ];
+    // which `persist` reassigns. `existing` is immutable for the length of the
+    // build, so the snapshot cannot depend on what `persist` does to the live field.
+    //
+    // `fresher` is what the store holds now, when the pass was asked to merge
+    // (a phone, see below): for a note this pass has not reached, the store's
+    // row is newer than the one loaded when the pass began.
+    const snapshot = (fresher?: Map<string, IndexedConversation> | null): IndexedConversation[] => {
+      const rest: IndexedConversation[] = [];
+      const pending = new Set<string>();
+      for (const item of existing.values()) {
+        if (handled.has(item.id) || !desired.has(item.id)) continue;
+        rest.push(fresher?.get(item.id) ?? item);
+        pending.add(item.id);
+      }
+      if (fresher) {
+        for (const [id, item] of fresher) {
+          if (!handled.has(id) && desired.has(id) && !pending.has(id)) rest.push(item);
+        }
+      }
+      return [...kept, ...rest];
+    };
     // Memory follows disk. Without the assignment the two diverge the moment a
     // build is interrupted: `load()` is a no-op once `loaded` is set, so the NEXT
     // sync on this same instance would rebuild `existing` from the stale
     // pre-sync list and re-embed everything the failed pass had just persisted.
-    // The resume only worked across a restart, which is exactly the case a unit
-    // test with a fresh service instance fails to notice.
-    // A mid-build write is explicitly INCOMPLETE. That is the whole point: the
-    // rows are worth keeping, and the next session must still know the build
-    // never finished, or it serves a fraction of the vault and calls it done.
-    const persist = async (items: IndexedConversation[], complete: boolean): Promise<void> => {
+    // A mid-build write is explicitly INCOMPLETE: the rows are worth keeping, and
+    // the next session must still know the build never finished.
+    //
+    // A phone's pass merges before it writes. It loaded the file when it began;
+    // a desktop building meanwhile has written rows since, and writing the
+    // phone's snapshot as it stood would throw that desktop's work away — the
+    // two devices undoing each other through one synced file.
+    // `final` is the finished list; without it, the snapshot of a pass still
+    // under way is written.
+    const persist = async (
+      final: IndexedConversation[] | null,
+      complete: boolean
+    ): Promise<void> => {
+      const rows = final ?? snapshot(options.mergeFromStore ? await this.readStoreRows() : null);
       const meta = this.stamp({ complete, scope });
-      await this.writeBase(items, meta);
-      this.items = items;
+      await this.writeBase(rows, meta);
+      this.items = rows;
       this.meta = meta;
-      persistedEmbeds = embedded;
+      persistedChanges = changes();
       lastPersistAt = Date.now();
     };
 
+    this.live = () => snapshot();
     try {
       for (const note of notes) {
         processed++;
         handled.add(note.path);
         let chunks: string[];
         try {
-          chunks = noteEmbedChunks(await note.load(), maxChars);
+          chunks = vaultNoteChunks(await note.load(), maxChars);
         } catch {
-          onProgress?.(processed, total);
+          onProgress?.(processed, total, progress());
           continue; // unreadable note — skip (drops it from the index if it was there)
         }
         if (chunks.length === 0) {
-          onProgress?.(processed, total);
+          onProgress?.(processed, total, progress());
           continue;
         } // empty note
 
         const prev = existing.get(note.path);
         const { hash, reuse } = resolveRowHash(this.policy, prev?.contentHash, chunks);
         if (prev && reuse) {
-          kept.push(prev); // unchanged — reuse vectors, no re-embed
-          seen.add(note.path);
+          kept.push(prev); // unchanged (or failed before, unchanged) — no re-embed
+          reused++;
           // Resets the failure streak too. Not resetting here would let five
           // bad notes SCATTERED through a mostly-unchanged vault abort the
           // build — reinstating the very bug this guard sits next to. A dead
           // backend still trips it, because a cold build embeds every note.
           failedInARow = 0;
+          streak = [];
+        } else if (maxEmbeds > 0 && embedded + failed >= maxEmbeds) {
+          // Out of budget. The pass goes on through the notes it can reuse and
+          // past the ones that are gone; this one keeps whatever row it had.
+          handled.delete(note.path);
+          stopped = true;
         } else {
           try {
-            const raw = await this.provider.embed(chunks);
+            const raw = await this.embedAll(chunks);
             kept.push({ id: note.path, contentHash: hash, chunks: raw.map(quantize) });
-            seen.add(note.path);
             embedded++;
+            passages += raw.length;
             failedInARow = 0;
+            streak = [];
           } catch (e) {
-            // ONE note must not cost the build. Before Pythia ADR-182 this threw
-            // straight out of `doSync`, so a single note the backend choked on
-            // (an embed timeout on a very long one) discarded the whole pass and
-            // did it again on every retry — the index could never become ready.
-            // Drop it, say so, carry on — until it stops looking like one bad
-            // note and starts looking like a dead backend.
+            // ONE note must not cost the build (Pythia ADR-182): drop it, say so,
+            // carry on — until it stops looking like one bad note and starts
+            // looking like a dead backend.
             this.logger.warn(`semantic index: skipping "${note.path}" — embed failed`, e);
-            if (++failedInARow >= MAX_CONSECUTIVE_EMBED_FAILURES) throw e;
+            if (isOutOfMemoryError(e) || ++failedInARow >= MAX_CONSECUTIVE_EMBED_FAILURES) {
+              // Not the notes' fault: the ones this streak gave up on go back
+              // to what they were, to be tried again by the next build.
+              for (const path of streak) {
+                handled.delete(path);
+                const at = kept.findIndex((row) => row.id === path);
+                if (at >= 0) {
+                  kept.splice(at, 1);
+                  failed--;
+                }
+              }
+              handled.delete(note.path);
+              throw e;
+            }
+            streak.push(note.path);
+            if (this.remembersFailure(e)) {
+              // Remembered as failed: a row with no vectors under this content's
+              // hash, so the next build reuses the failure instead of paying for
+              // it again. An edit changes the hash and the note is tried anew.
+              kept.push({ id: note.path, contentHash: hash, chunks: [] });
+              failed++;
+            } else {
+              // Tried again by the next build, with whatever row it had.
+              handled.delete(note.path);
+            }
           }
         }
-        onProgress?.(processed, total);
+        onProgress?.(processed, total, progress());
         // Flush what is embedded so far, so an interruption costs at most the
         // last few notes instead of the entire build (Pythia ADR-182). Counted in
         // EMBEDS, not notes processed: the `continue` paths above (unreadable,
         // empty) jump past this check, so a modulus on `processed` could stride
         // over the flush point and skip it.
+        // Never inside a failure streak: if it ends as a dead backend, the
+        // failures it held are taken back, and a write would have kept them.
         if (
-          embedded - persistedEmbeds >= PERSIST_EVERY_EMBEDS &&
+          streak.length === 0 &&
+          changes() - persistedChanges >= PERSIST_EVERY_EMBEDS &&
           Date.now() - lastPersistAt >= persistIntervalMs
         ) {
-          await persist(snapshot(), false);
+          await persist(null, false);
         }
         // Cooperative yield: on the UI-thread (iframe) backend, embedding runs on the
         // renderer thread, so hand control back — finely, with a breather (Pythia ADR-125) —
@@ -575,23 +835,40 @@ export class VaultIndexService {
       // The rescue write gets its own guard — if the STORE is what failed (a full
       // disk, an evicted iCloud file), retrying it here would replace the real
       // cause with a duplicate of itself and lose the diagnosis.
-      if (embedded > persistedEmbeds) {
+      if (changes() > persistedChanges) {
         try {
-          await persist(snapshot(), false);
+          await persist(null, false);
         } catch (writeErr) {
           this.logger.warn("semantic index: could not persist partial index", writeErr);
         }
       }
+      this.live = null;
       throw e;
+    }
+    this.live = null;
+
+    if (stopped) {
+      // Out of budget: what was embedded is kept, and the index says it is
+      // unfinished, so the device that keeps it carries on from here.
+      const gone = [...existing.keys()].some((id) => !desired.has(id));
+      if (changes() > persistedChanges || gone || options.mergeFromStore)
+        await persist(null, false);
+      else this.items = snapshot();
+      this.synced = true;
+      return { embedded, stopped };
     }
 
     // Persist when the index changed (an embed since the last flush, or a note
     // present before is gone) — and ALSO when the file on disk does not yet say
     // this scope is complete, because that flag is the whole answer to "must I
     // build?" and a no-op sync is exactly when it is most likely to be wrong.
-    const dropped = [...existing.keys()].some((id) => !seen.has(id));
-    this.items = kept;
-    const changed = embedded > persistedEmbeds || dropped;
+    // The snapshot, not `kept` alone: a note that failed without being
+    // remembered (a deadline) keeps the row it had until a build gets through.
+    const final = snapshot();
+    const finalIds = new Set(final.map((row) => row.id));
+    const dropped = [...existing.keys()].some((id) => !finalIds.has(id));
+    this.items = final;
+    const changed = changes() > persistedChanges || dropped;
     // …and when another kind of device signed it: a full sync is how a device
     // takes the index over (a phone's Build now, a desktop's catch-up), and an
     // unchanged index it does not sign stays the other device's (Pythia ADR-221).
@@ -601,9 +878,30 @@ export class VaultIndexService {
       this.meta.scope !== scope ||
       this.meta.keeper !== this.device
     ) {
-      await persist(this.items, true);
+      await persist(final, true);
     }
     this.synced = true;
+    return { embedded, stopped };
+  }
+
+  /**
+   * What the index holds for `paths`: with vectors, failed, or nothing. During
+   * a build, the rows it has so far. Never loads anything.
+   */
+  coverage(paths: Iterable<string>): Coverage {
+    const rows = this.live?.() ?? this.items;
+    const byId = new Map(rows.map((row) => [row.id, row]));
+    const out: Coverage = { indexed: 0, failed: 0, missing: 0, passages: 0 };
+    for (const path of paths) {
+      const row = byId.get(path);
+      if (!row) out.missing++;
+      else if (row.chunks.length === 0) out.failed++;
+      else {
+        out.indexed++;
+        out.passages += row.chunks.length;
+      }
+    }
+    return out;
   }
 
   /** The stored vectors of one note, or null when it is not in the index. */
@@ -652,7 +950,10 @@ export class VaultIndexService {
     opts: { minScore?: number; limit?: number; exclude?: Iterable<string> } = {}
   ): Promise<RetrievedNote[]> {
     const q = text.trim();
-    if (!q || !this.synced || this.items.length === 0) return [];
+    if (!q || !this.isQueryable()) return [];
+    // During a build, the rows it has so far; they are what a write would keep.
+    const rows = this.synced && !this.live ? this.items : (this.live?.() ?? this.items);
+    if (rows.length === 0) return [];
     const [raw] = await this.provider.embed([q]);
     if (!raw) return [];
     const queryVec = quantize(raw);
@@ -661,7 +962,7 @@ export class VaultIndexService {
 
     const scored: RetrievedNote[] = [];
     let scanned = 0;
-    for (const item of this.items) {
+    for (const item of rows) {
       if (item.chunks.length > 0 && !excluded.has(item.id)) {
         let best = -Infinity;
         for (const chunk of item.chunks) {
