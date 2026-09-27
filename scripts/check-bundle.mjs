@@ -108,8 +108,17 @@ import { fileURLToPath } from "node:url";
  * growth. The shared vocabulary is the part that could not be smaller: a word
  * list per note would have cost memory on a phone instead of bytes here.
  * What is left is for the next feature, not a new normal.
+ *
+ * Raised to 1500 KB at 1490 KB, for a send that carries what the note says
+ * (+6 KB on 1489): the note read into plain text for the body, so a recipient
+ * no longer gets asterisks, brackets and the comments Obsidian hides; the
+ * draft read again at the press of Send and compared with the one shown; the
+ * dialogue that redraws itself, warns about a missing To and shows the text;
+ * and the unconfirmed send, told apart from a failed one — each notice in two
+ * languages. Each fixes a mail that went out wrong; none was optional. The
+ * comment stripping is the printer's, shared rather than written twice.
  */
-const MAX_BUNDLE_KB = 1490;
+const MAX_BUNDLE_KB = 1500;
 
 const bundle = fileURLToPath(new URL("../main.js", import.meta.url));
 const source = readFileSync(bundle, "utf8");

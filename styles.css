@@ -903,6 +903,23 @@
   font-size: var(--font-smaller);
 }
 
+/* The body as the recipient will read it: plain text, in the text face, since
+   a mail client shows it that way — the monospace a <pre> brings would make it
+   look like code. */
+.schreibstube-mail-preview {
+  max-height: 30vh;
+  overflow-y: auto;
+  margin: 8px 0;
+  padding: 8px 12px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  font-family: var(--font-text);
+  font-size: var(--font-smaller);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
 /* Publish plan dialog: the summary, the deletions, and the target it will go to. */
 .schreibstube-publish-summary,
 .schreibstube-publish-list {

@@ -9,7 +9,8 @@ import { ImapFlow } from "imapflow";
 import { simpleParser } from "mailparser";
 import nodemailer from "nodemailer";
 import { randomUUID } from "node:crypto";
-import { withDeadline } from "./timeout.mjs";
+import addressparser from "nodemailer/lib/addressparser";
+import { TimeoutError, withDeadline } from "./timeout.mjs";
 import { parseSender, senderDomain } from "./mail-address.mjs";
 import { chooseSentMailbox, FALLBACK_SENT_MAILBOX } from "./sent-mailbox.mjs";
 
@@ -115,17 +116,23 @@ export async function sendMessage(config, transport, request, { fileInSent = app
   const compiled = await compiler.sendMail(mail);
   const raw = compiled.message;
 
-  const delivery = await withDeadline(
-    transport.sendMail({
-      envelope: {
-        from: account.address,
-        to: [...toList(request.to), ...toList(request.cc), ...toList(request.bcc)]
-      },
-      raw
-    }),
-    config.upstreamTimeoutMs,
-    "Send"
-  );
+  let delivery;
+  try {
+    delivery = await withDeadline(
+      transport.sendMail({
+        envelope: {
+          from: account.address,
+          to: [...toList(request.to), ...toList(request.cc), ...toList(request.bcc)]
+        },
+        raw
+      }),
+      config.upstreamTimeoutMs,
+      "Send"
+    );
+  } catch (err) {
+    if (isUnconfirmed(err)) throw new SendUnconfirmedError(err);
+    throw err;
+  }
 
   const sentAt = new Date().toISOString();
   const filed = await withDeadline(
@@ -140,6 +147,33 @@ export async function sendMessage(config, transport, request, { fileInSent = app
   const rejected = Array.isArray(delivery?.rejected) ? delivery.rejected.map(String) : [];
 
   return { messageId, sentAt, filedInSent: filed, rejected };
+}
+
+/**
+ * A send whose outcome the bridge does not know.
+ *
+ * The deadline stops the waiting, not the SMTP session: the server may still
+ * take the message a moment later. Reported as a plain failure, it was sent
+ * again and arrived twice, so it is answered as what it is.
+ */
+export class SendUnconfirmedError extends Error {
+  constructor(cause) {
+    super(
+      `The mail server did not confirm the send (${cause.message}). ` +
+        "It may still be delivered — check Sent before sending again."
+    );
+    this.name = "SendUnconfirmedError";
+  }
+}
+
+/**
+ * Our own deadline, or a connection lost after the message was handed over
+ * and before the server answered it. A reply the server did give — a refused
+ * login, a refused recipient, a refused message — is a failure it reported.
+ */
+export function isUnconfirmed(err) {
+  if (err instanceof TimeoutError) return true;
+  return err?.command === "DATA" && !err?.responseCode;
 }
 
 /** APPEND the sent copy to the Sent mailbox. A failure here is reported but not
@@ -343,15 +377,23 @@ function generateMessageId(from) {
   return `<${randomUUID()}@${senderDomain(from)}>`;
 }
 
-function extractAddress(value) {
-  const match = /<([^>]+)>/.exec(value ?? "");
-  return (match ? match[1] : (value ?? "")).trim();
-}
-
+/**
+ * The bare addresses in a recipient field, for the envelope.
+ *
+ * Read by the same parser that writes the header, so the two cannot disagree:
+ * a split at every comma turned `"Seitz, Steffen" <s@x.de>` into an envelope
+ * recipient `"Seitz` that no header named, and a group's members were lost.
+ */
 function toList(value) {
   if (!value) return [];
-  const items = Array.isArray(value) ? value : String(value).split(",");
-  return items.map((item) => extractAddress(String(item))).filter(Boolean);
+  const items = Array.isArray(value) ? value : [value];
+  return items.flatMap((item) => flatten(addressparser(String(item))));
+}
+
+function flatten(entries) {
+  return entries.flatMap((entry) =>
+    entry.group ? flatten(entry.group) : entry.address ? [entry.address.trim()] : []
+  );
 }
 
 function joinAddresses(value) {

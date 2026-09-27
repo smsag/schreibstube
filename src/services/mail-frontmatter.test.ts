@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   parseAddressList,
   readMailFields,
+  splitAddresses,
   stripFrontmatter,
   validateSendable
 } from "./mail-frontmatter";
@@ -22,7 +23,34 @@ describe("parseAddressList", () => {
   });
 });
 
+describe("splitAddresses", () => {
+  it("keeps a comma inside a quoted name", () => {
+    expect(splitAddresses('"Seitz, Steffen" <s@x.de>, b@x.de')).toEqual([
+      '"Seitz, Steffen" <s@x.de>',
+      "b@x.de"
+    ]);
+  });
+
+  it("drops the empty pieces around stray commas", () => {
+    expect(splitAddresses(" a@x.de, ,b@x.de, ")).toEqual(["a@x.de", "b@x.de"]);
+  });
+});
+
 describe("readMailFields", () => {
+  it("reads when a send was left unconfirmed, as YAML's date or as text", () => {
+    expect(
+      readMailFields({ schreibstubeSendUnconfirmed: new Date("2026-09-25T08:35:00Z") })
+        .unconfirmedAt
+    ).toBe("2026-09-25T08:35:00.000Z");
+    expect(
+      readMailFields({ schreibstubeSendUnconfirmed: "2026-09-25T08:35:00Z" }).unconfirmedAt
+    ).toBe("2026-09-25T08:35:00Z");
+  });
+
+  it("splits list items that hold several addresses", () => {
+    expect(readMailFields({ schreibstubeTo: ["a@x.de, b@x.de"] }).to).toEqual(["a@x.de", "b@x.de"]);
+  });
+
   it("reads the full contract", () => {
     const fields = readMailFields({
       schreibstubeTo: "kunde@example.com",
@@ -39,7 +67,8 @@ describe("readMailFields", () => {
       from: "Büro <buero@example.de>",
       subject: "Angebot Objekt 4711",
       messageId: "<7f3a@example.de>",
-      mergedIds: ["<r1@example.com>"]
+      mergedIds: ["<r1@example.com>"],
+      unconfirmedAt: null
     });
   });
 
@@ -56,7 +85,8 @@ describe("readMailFields", () => {
       from: "",
       subject: "",
       messageId: null,
-      mergedIds: []
+      mergedIds: [],
+      unconfirmedAt: null
     });
   });
 });
@@ -68,7 +98,8 @@ describe("validateSendable", () => {
     from: "",
     subject: "Hi",
     messageId: null,
-    mergedIds: []
+    mergedIds: [],
+    unconfirmedAt: null
   };
 
   it("accepts a complete note", () => {
@@ -122,6 +153,18 @@ describe("validateSendable", () => {
       expect(result.message).toContain("schreibstubeFrom");
       expect(result.missing).toBe(false);
     }
+  });
+
+  it("accepts a sender whose quoted name holds a comma", () => {
+    expect(validateSendable({ ...base, from: '"Seitz, Steffen" <s@x.de>' })).toEqual({ ok: true });
+  });
+
+  it("accepts a recipient whose quoted name holds a comma", () => {
+    const fields = readMailFields({
+      schreibstubeTo: '"Seitz, Steffen" <s@x.de>',
+      schreibstubeSubject: "Hi"
+    });
+    expect(validateSendable(fields)).toEqual({ ok: true });
   });
 
   it("accepts a display-name form", () => {

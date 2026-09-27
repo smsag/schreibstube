@@ -12,9 +12,17 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- **A mail reads as the note does, not as its Markdown.** The body was the note's source, so a recipient read `**1. Wasserschaden**` with its asterisks and `[[Protokoll]]` with its brackets. It is now plain text as the rendered note reads: emphasis without marks, a link as its text with the address after it, tasks as boxes, code as written. The confirmation dialog shows the text exactly as it will be sent.
 - **The icon picker shows its icons twice as large.** The cells drew each glyph at the small text size of a button label, where several file and folder icons were hard to tell apart. They are now 22 pixels in a slightly larger cell, and the grid fits fewer to a row.
 
 ### Fixed
+
+- **A recipient typed just before sending is no longer left out.** Recipients and subject were read from Obsidian's index of the note when the command started, the body from the file itself. A property typed just before sending reached that index only after the dialog had opened, so the dialog showed an empty To, the mail went to the Cc alone, and the address appeared in the note a second later as if it had been used. The note is now read once for the dialog and again when Send is pressed, from the file; if the two differ, the dialog shows the note as it is now instead of sending.
+- **A note with no To recipient is flagged.** The dialog showed an empty To as a small dash. It now says, as a warning, that the mail goes to the Cc only.
+- **Comments are no longer mailed.** `%%…%%` and `<!-- … -->`, which Obsidian hides, were sent to the recipient with the rest of the text. They are now left out.
+- **A send the mail server never confirmed is no longer called failed.** When the bridge's deadline ran out, or the plugin's, or the connection dropped after the mail was handed over, the notice said the send failed, though the mail may have been delivered, and sending again delivered it twice. It now says the outcome is unknown and to look in Sent first, and the note is marked so the next send warns as well. This needs bridge 2.9.0 for the bridge's own deadline; the plugin's applies at once.
+- **Pressing Send twice sends once.** The button is held while the note is read again, and a note sent meanwhile from another dialog is shown with its resend warning instead of being sent a second time.
+- **A recipient's quoted name may contain a comma.** `"Seitz, Steffen" <s@example.de>` was split into two recipients, one of them not an address. The plugin and the bridge now split at the commas between addresses only.
 
 - **The bridge no longer sends mail without a sender.** A `MAIL_FROM` holding a name but no address compiled to a message with no From line and a Message-ID ending in `@localhost`, and the mail server accepted it, so the send looked fine and only the Sent copy showed something wrong. The bridge now refuses to start with such a `MAIL_FROM`, and refuses a request whose `from` is not one address, rather than sending under another name than the note asked for.
 

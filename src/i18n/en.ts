@@ -233,7 +233,12 @@ export const en = {
     confirmBcc: "Bcc",
     confirmSubject: "Subject",
     send: "Send",
-    resendWarning: "This note was already sent once. Sending again delivers a duplicate."
+    resendWarning: "This note was already sent once. Sending again delivers a duplicate.",
+    unconfirmedWarning:
+      "The last send of this note was never confirmed and may have been delivered. Check your Sent folder before sending again.",
+    noToWarning: "No To recipient: this mail goes only to the Cc.",
+    changedSinceShown:
+      "The note changed while this dialogue was open. This is what it says now — check it and press Send again."
   },
 
   diagnostics: {

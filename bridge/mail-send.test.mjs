@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { sendMessage, sentMailboxFor } from "./mail.mjs";
+import { isUnconfirmed, sendMessage, SendUnconfirmedError, sentMailboxFor } from "./mail.mjs";
+import { TimeoutError } from "./timeout.mjs";
 
 /**
  * Characterisation tests for the send path.
@@ -104,6 +105,19 @@ describe("sendMessage, recipients", () => {
     const { payload } = await send({ ...minimal, to: "Kunde GmbH <kunde@example.com>" });
     expect(payload.envelope.to).toEqual(["kunde@example.com"]);
     expect(payload.envelope.from).toBe("post@example.com");
+  });
+
+  it("keeps a quoted name with a comma as one envelope recipient", async () => {
+    const { payload } = await send({
+      ...minimal,
+      to: '"Seitz, Steffen" <s@example.com>, b@example.com'
+    });
+    expect(payload.envelope.to).toEqual(["s@example.com", "b@example.com"]);
+  });
+
+  it("puts a group's members into the envelope", async () => {
+    const { payload } = await send({ ...minimal, to: "Team: a@example.com, b@example.com;" });
+    expect(payload.envelope.to).toEqual(["a@example.com", "b@example.com"]);
   });
 
   it("splits a comma-separated recipient string for the envelope", async () => {
@@ -325,5 +339,41 @@ describe("sendMessage, what the server refused", () => {
   it("reports none when the server says nothing about refusals", async () => {
     const { result } = await send(minimal, {}, {});
     expect(result.rejected).toEqual([]);
+  });
+});
+
+describe("sendMessage, a send whose outcome is unknown", () => {
+  function failing(err) {
+    return {
+      async sendMail() {
+        throw err;
+      }
+    };
+  }
+
+  it("says so when its own deadline ran out", async () => {
+    await expect(
+      sendMessage(config(), failing(new TimeoutError("Send", 1000)), minimal)
+    ).rejects.toBeInstanceOf(SendUnconfirmedError);
+  });
+
+  it("says so when the connection dropped after the message was handed over", async () => {
+    const dropped = Object.assign(new Error("Connection closed"), { command: "DATA" });
+    await expect(sendMessage(config(), failing(dropped), minimal)).rejects.toBeInstanceOf(
+      SendUnconfirmedError
+    );
+  });
+
+  it("reports a refusal the server answered as the failure it is", async () => {
+    const refused = Object.assign(new Error("554 rejected"), {
+      command: "DATA",
+      responseCode: 554
+    });
+    await expect(sendMessage(config(), failing(refused), minimal)).rejects.toBe(refused);
+    const login = Object.assign(new Error("535 auth"), {
+      command: "AUTH PLAIN",
+      responseCode: 535
+    });
+    expect(isUnconfirmed(login)).toBe(false);
   });
 });

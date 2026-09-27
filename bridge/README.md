@@ -27,19 +27,19 @@ compatible. `/health` reports what a deployment is actually running, and the
 plugin says plainly when the bridge is behind rather than failing later on a
 route that does not exist yet.
 
-| Bridge | Protocol | Plugin          | Notes                                                           |
-| ------ | -------- | --------------- | --------------------------------------------------------------- |
-| 2.9.x  | 4        | 1.8.0 and later | Alias `from` on the own envelope, refusals, `MAIL_FROM` checked |
-| 2.8.x  | 3        | 1.8.0 and later | The site's tab icon, named by its theme                         |
-| 2.7.x  | 3        | 1.8.0 and later | Slideshows, filmstrip thumbnails, header tags and tag pages     |
-| 2.6.x  | 1        | 1.8.0 and later | Notes cached in memory, parallel SFTP, one login per publish    |
-| 2.5.x  | 1        | 1.8.0 and later | Sent folder by tag, state guard, absolute `STATE_ROOT`          |
-| 2.4.x  | 1        | 1.8.0 and later | Validated search body, fetch and asset byte bounds              |
-| 2.3.x  | 1        | 1.8.0 and later | `TRUST_PROXY`, Node 24, image without Mermaid's tree            |
-| 2.2.x  | 1        | 1.8.0 and later | Per-target switches, publish history, JSON logs                 |
-| 2.1.x  | 1        | 1.8.0 and later | Mail and publishing                                             |
-| 2.0.x  | 1        | 1.8.0 and later | Mail only; `BRIDGE_TOKEN` renamed to `MAIL_TOKEN`               |
-| 1.0.x  | —        | 1.7.0           | Mail only, single token, no version handshake                   |
+| Bridge | Protocol | Plugin          | Notes                                                            |
+| ------ | -------- | --------------- | ---------------------------------------------------------------- |
+| 2.9.x  | 4        | 1.8.0 and later | Alias `from`, refused and unconfirmed sends, `MAIL_FROM` checked |
+| 2.8.x  | 3        | 1.8.0 and later | The site's tab icon, named by its theme                          |
+| 2.7.x  | 3        | 1.8.0 and later | Slideshows, filmstrip thumbnails, header tags and tag pages      |
+| 2.6.x  | 1        | 1.8.0 and later | Notes cached in memory, parallel SFTP, one login per publish     |
+| 2.5.x  | 1        | 1.8.0 and later | Sent folder by tag, state guard, absolute `STATE_ROOT`           |
+| 2.4.x  | 1        | 1.8.0 and later | Validated search body, fetch and asset byte bounds               |
+| 2.3.x  | 1        | 1.8.0 and later | `TRUST_PROXY`, Node 24, image without Mermaid's tree             |
+| 2.2.x  | 1        | 1.8.0 and later | Per-target switches, publish history, JSON logs                  |
+| 2.1.x  | 1        | 1.8.0 and later | Mail and publishing                                              |
+| 2.0.x  | 1        | 1.8.0 and later | Mail only; `BRIDGE_TOKEN` renamed to `MAIL_TOKEN`                |
+| 1.0.x  | —        | 1.7.0           | Mail only, single token, no version handshake                    |
 
 ## Capabilities
 
@@ -105,6 +105,13 @@ Two details worth knowing:
   Whether the server accepts a From that differs is the provider's policy —
   test an alias once before relying on it — and an alias on a domain the
   provider does not sign for fails DMARC at many recipients.
+- **A send the server never confirmed is not called a failure.** When the
+  SMTP deadline runs out, or the connection drops after the message was handed
+  over, the server may still deliver it. `/send` then answers `504` with the
+  code `send_unconfirmed` instead of `502`, so the plugin can say "check Sent"
+  rather than "failed" — the answer that made people send a mail twice.
+  Recipients are read with nodemailer's own address parser for the envelope as
+  for the header, so a quoted name with a comma stays one recipient.
 - **Refused recipients are reported.** The server accepts a message as soon
   as it takes one recipient; the ones it turned down come back in `rejected`
   and are logged as a warning, by count, never by address.

@@ -836,7 +836,7 @@ function stripFrontmatter(source: string): string {
  * note used to delete from one line of code to another. Either may run over
  * several lines, and a line that is all comment leaves no blank behind.
  */
-function stripComments(source: string): string {
+export function stripComments(source: string): string {
   const lines = source.split("\n");
   const fenced = fencedLines(lines);
   const closer: Record<string, string> = { "%%": "%%", "<!--": "-->" };
