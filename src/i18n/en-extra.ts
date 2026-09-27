@@ -570,6 +570,12 @@ export const enExtra = {
       untitled: "Untitled conversation",
       picture: "Picture",
       conversation: "Conversation in Pythia",
+      copyLink: "Copy Obsidian URL",
+      copied: "Obsidian URL copied.",
+      copyFailed: "The URL could not be copied to the clipboard.",
+      openBeside: "Open to the right",
+      collapse: "Collapse Recommended",
+      expand: "Expand Recommended",
       reasons: {
         link: "linked",
         meaning: "similar in meaning",

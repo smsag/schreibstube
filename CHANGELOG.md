@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Changed
+
+- **Recommended entries say what they are with an icon, not a number.** The Explorer's icon for a file, Pythia's mark for a conversation, in the column where the rank stood; the order is still the ranking. The numbers a theme draws in front of a numbered list, Klartext's among them, no longer appear beside them either.
+- **Two buttons on a Recommended entry.** Under the pointer, one copies the entry's Obsidian URL (a conversation's is Pythia's link to it) and the other opens a file in a pane to the right. They sit at the entry's far end and are always shown on a phone.
+- **Recommended under a note folds, counts in a pill, and is set smaller.** A press on its heading folds the list away until you move to another note. The count is drawn in the pill the Explorer uses for tasks, and the entries take the sidebar's size rather than the note's.
+
+### Fixed
+
+- **Recommended under a note is as wide as the note.** It shrank to the length of its longest title, and with "Readable line length" off it stayed narrow and centred under text running the full width of the pane. It now takes the width of the text column in both views, whatever that setting says. In Reading view its entries also no longer sit a list indent further right than while editing.
+
 ## 1.54.0 - 2026-09-27
 
 Search by meaning moves to transformers 4. The newer runtime embeds a note to

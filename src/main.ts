@@ -80,6 +80,8 @@ import { createSemanticApi } from "./controllers/semantic/semantic-api";
 import { conversationIdOf, meaningOrder, recommendNotes } from "./services/semantic/recommend";
 import { RecommendedFooter } from "./controllers/recommended-footer";
 import type { Recommendation, RecommendedHost, RecommendedItem } from "./ui/recommended-panel";
+import { fileGlyph } from "./services/file-glyph";
+import { obsidianFileUrl, pythiaConversationUrl } from "./services/obsidian-url";
 import type { SchreibstubeSemanticApi } from "./services/semantic/semantic-api";
 import { PaneSectionsController } from "./controllers/pane-sections";
 import { BookmarkQuickOpenModal } from "./ui/bookmark-quick-open";
@@ -583,14 +585,41 @@ export default class SchreibstubePlugin extends Plugin {
       },
       openConversation: (id) => this.openConversation(id),
       count: () => this.settings.recommendedCount,
-      showMenu: (path, event) => explorer.showMenuForPath(path, event)
+      showMenu: (path, event) => explorer.showMenuForPath(path, event),
+      glyphOf: (path) => {
+        const file = this.app.vault.getAbstractFileByPath(path);
+        const chosen = explorer.iconFor(path);
+        return file instanceof TFile
+          ? fileGlyph(chosen, { kind: "file", extension: file.extension, name: file.name })
+          : fileGlyph(chosen, { kind: "other" });
+      },
+      copyLink: (link) => void this.copyLink(link)
     };
+  }
+
+  /** An entry's `obsidian://` link on the clipboard, said either way. */
+  private async copyLink(
+    link: { kind: "file"; path: string } | { kind: "conversation"; id: string }
+  ): Promise<void> {
+    const vault = this.app.vault.getName();
+    const url =
+      link.kind === "file"
+        ? obsidianFileUrl(vault, link.path)
+        : pythiaConversationUrl(vault, link.id);
+    const labels = t().explorer.related;
+    try {
+      await navigator.clipboard.writeText(url);
+      new Notice(t().common.notice(labels.copied));
+    } catch (error) {
+      this.logger.warn(`Could not copy ${url} to the clipboard:`, error);
+      new Notice(t().common.notice(labels.copyFailed));
+    }
   }
 
   /** Pythia opens a conversation itself when it can; otherwise its deep link does. */
   private openConversation(id: string): void {
     if (this.semantic?.conversations.open(id)) return;
-    window.open(`obsidian://pythia?cmd=resume&id=${encodeURIComponent(id)}`);
+    window.open(pythiaConversationUrl(this.app.vault.getName(), id));
   }
 
   /**
