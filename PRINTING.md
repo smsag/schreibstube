@@ -61,8 +61,10 @@ note + frontmatter
   ├─ services/typst-runtime.ts    which bytes the compiler may be
   ├─ services/svg-capture.ts      how large a drawing is, and how to detach it
   │
-  ├─ controllers/print-commands.ts
+  ├─ controllers/diagram-capture.ts
   │     draw each diagram off-screen in a light theme and capture it
+  │
+  ├─ controllers/print-commands.ts
   │     assemble the job: main.typ, template.typ, fonts, pictures
   │     hand the job over, write the PDF, say what was left out
   │

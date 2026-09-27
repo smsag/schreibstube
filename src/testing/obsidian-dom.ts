@@ -52,6 +52,9 @@ export function installObsidianDom(): void {
     },
     empty(this: HTMLElement) {
       this.textContent = "";
+    },
+    detach(this: HTMLElement) {
+      this.remove();
     }
   } as unknown as Helpers;
 
