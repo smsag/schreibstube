@@ -377,3 +377,20 @@ describe("sendMessage, a send whose outcome is unknown", () => {
     expect(isUnconfirmed(login)).toBe(false);
   });
 });
+
+describe("sendMessage, pictures", () => {
+  it("attaches them to the bytes that are delivered, and so to the copy in Sent", async () => {
+    const content = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 7]);
+    const { raw } = await send({
+      ...minimal,
+      attachments: [{ filename: "abbildung-1.png", contentType: "image/png", content }]
+    });
+    expect(raw).toContain("Content-Type: image/png; name=abbildung-1.png");
+    expect(raw).toContain(content.toString("base64"));
+  });
+
+  it("sends a plain text mail when there are none", async () => {
+    const { raw } = await send({ ...minimal, attachments: [] });
+    expect(raw).not.toContain("multipart");
+  });
+});

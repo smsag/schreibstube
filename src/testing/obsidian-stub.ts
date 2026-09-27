@@ -179,6 +179,19 @@ export function setIcon(el: HTMLElement, name: string): void {
   el.appendChild(svg);
 }
 
+/** Obsidian's frontmatter split: the YAML between the opening fences, and where the body starts. */
+export function getFrontMatterInfo(content: string): {
+  exists: boolean;
+  frontmatter: string;
+  contentStart: number;
+} {
+  const match = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(content);
+  if (!match) return { exists: false, frontmatter: "", contentStart: 0 };
+  return { exists: true, frontmatter: match[1] ?? "", contentStart: match[0].length };
+}
+
+export { parse as parseYaml } from "yaml";
+
 export const requestUrl = async (): Promise<never> => {
   throw new Error("requestUrl is not available in tests; mock the client module instead.");
 };

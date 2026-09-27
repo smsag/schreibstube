@@ -511,6 +511,7 @@ export const enExtra = {
     noMessages: "no messages matched.",
     noReplies: "no new replies.",
     sending: "sending…",
+    drawing: (index: number, total: number) => `drawing diagram ${index} of ${total} for the mail…`,
     searching: "searching mailbox…",
     merged: (count: number) => `merged ${count} new message(s).`,
     needsMessageId: (key: string) => `this note has no ${key} — send it as an email first.`,

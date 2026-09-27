@@ -174,17 +174,38 @@ export function replaceDiagramFences(
   fences: readonly DiagramFence[],
   pictures: ReadonlyMap<number, readonly { name: string; alt: string }[]>
 ): string {
+  const paragraphs = new Map<number, string[]>();
+  for (const [index, drawn] of pictures) {
+    paragraphs.set(
+      index,
+      drawn.map((picture) => `![${picture.alt}](${picture.name})`)
+    );
+  }
+  return replaceFences(content, fences, paragraphs);
+}
+
+/**
+ * The note with each listed fence replaced by paragraphs of one line each.
+ *
+ * Written with the fence's own quote markers and indentation, so what stood in
+ * a callout stays in the callout; a fence without an entry stays as it was.
+ */
+export function replaceFences(
+  content: string,
+  fences: readonly DiagramFence[],
+  paragraphs: ReadonlyMap<number, readonly string[]>
+): string {
   const lines = content.split("\n");
 
   // From the end, so a replacement never moves a fence not yet replaced.
   for (const fence of [...fences].sort((a, b) => b.start - a.start)) {
-    const drawn = pictures.get(fence.index);
-    if (!drawn || drawn.length === 0) continue;
+    const replacing = paragraphs.get(fence.index);
+    if (!replacing || replacing.length === 0) continue;
 
     const blank = fence.lead.replace(/\s+$/, "");
-    const replacement = drawn.flatMap((picture, at) => [
+    const replacement = replacing.flatMap((line, at) => [
       ...(at > 0 ? [blank] : []),
-      `${fence.lead}![${picture.alt}](${picture.name})`
+      `${fence.lead}${line}`
     ]);
     lines.splice(fence.start, fence.end - fence.start + 1, ...replacement);
   }
@@ -226,14 +247,19 @@ export interface DrawnDiagram {
   alt: string;
 }
 
+/** What any kept drawing holds: pictures, whose bytes are what the budget counts. */
+interface Kept {
+  pictures: readonly { bytes: Uint8Array }[];
+}
+
 /** Drawn canvases by key, the oldest let go first once the budget is spent. */
-export class DrawnDiagrams {
-  private readonly kept = new Map<string, DrawnDiagram>();
+export class DrawnDiagrams<T extends Kept = DrawnDiagram> {
+  private readonly kept = new Map<string, T>();
   private total = 0;
 
   constructor(private readonly budget = MAX_KEPT_DIAGRAM_BYTES) {}
 
-  get(key: string): DrawnDiagram | undefined {
+  get(key: string): T | undefined {
     const found = this.kept.get(key);
     if (found) {
       // Used again, so it is the last to go.
@@ -243,7 +269,7 @@ export class DrawnDiagrams {
     return found;
   }
 
-  set(key: string, diagram: DrawnDiagram): void {
+  set(key: string, diagram: T): void {
     this.drop(key);
     const size = sizeOf(diagram);
     // One drawing larger than the whole budget is used this once, not kept.
@@ -270,6 +296,6 @@ export class DrawnDiagrams {
   }
 }
 
-function sizeOf(diagram: DrawnDiagram): number {
+function sizeOf(diagram: Kept): number {
   return diagram.pictures.reduce((sum, picture) => sum + picture.bytes.byteLength, 0);
 }

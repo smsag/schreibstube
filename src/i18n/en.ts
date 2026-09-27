@@ -245,6 +245,16 @@ export const en = {
     unconfirmedWarning:
       "The last send of this note was never confirmed and may have been delivered. Check your Sent folder before sending again.",
     noToWarning: "No To recipient: this mail goes only to the Cc.",
+    confirmAttachments: "Attachments",
+    diagramsNotDrawnWarning: (count: number) =>
+      count === 1
+        ? "1 diagram could not be drawn or attached and goes as its source text."
+        : `${count} diagrams could not be drawn or attached and go as their source text.`,
+    bridgeTooOldWarning: (count: number) =>
+      `The mail bridge cannot carry pictures yet, so ${count === 1 ? "1 diagram goes" : `${count} diagrams go`} as source text. Redeploy the bridge to send them as pictures.`,
+    /** The word before a figure's number, and the start of its file name. */
+    figure: "Figure",
+    figureAttached: (filename: string) => `attached: ${filename}`,
     changedSinceShown:
       "The note changed while this dialogue was open. This is what it says now — check it and press Send again."
   },

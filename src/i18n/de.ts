@@ -234,6 +234,15 @@ export const de: Messages = {
     unconfirmedWarning:
       "Der letzte Versand dieser Notiz wurde nie bestätigt und ist womöglich angekommen. Vor einem erneuten Versand im Ordner „Gesendet“ nachsehen.",
     noToWarning: "Kein Empfänger unter „An“: Diese E-Mail geht nur an Cc.",
+    confirmAttachments: "Anhänge",
+    diagramsNotDrawnWarning: (count: number) =>
+      count === 1
+        ? "1 Visualisierung konnte nicht gezeichnet oder angehängt werden und geht als Quelltext mit."
+        : `${count} Visualisierungen konnten nicht gezeichnet oder angehängt werden und gehen als Quelltext mit.`,
+    bridgeTooOldWarning: (count: number) =>
+      `Die Mail-Bridge kann noch keine Bilder mitschicken, deshalb ${count === 1 ? "geht 1 Visualisierung" : `gehen ${count} Visualisierungen`} als Quelltext mit. Die Bridge neu deployen, um sie als Bilder zu senden.`,
+    figure: "Abbildung",
+    figureAttached: (filename: string) => `im Anhang: ${filename}`,
     changedSinceShown:
       "Die Notiz hat sich geändert, während dieser Dialog offen war. So lautet sie jetzt — bitte prüfen und erneut auf Senden drücken."
   },
@@ -774,6 +783,8 @@ export const de: Messages = {
     noMessages: "keine Nachricht gefunden.",
     noReplies: "keine neuen Antworten.",
     sending: "sendet …",
+    drawing: (index: number, total: number) =>
+      `zeichne Visualisierung ${index} von ${total} für die Mail …`,
     searching: "durchsucht das Postfach …",
     merged: (count: number) => `${count} neue Nachricht(en) übernommen.`,
     needsMessageId: (key: string) =>
