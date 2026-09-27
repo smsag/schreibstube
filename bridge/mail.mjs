@@ -110,7 +110,16 @@ export async function sendMessage(config, transport, request, { fileInSent = app
     text: request.text,
     messageId,
     inReplyTo: request.inReplyTo || undefined,
-    references: request.references?.length ? request.references : undefined
+    references: request.references?.length ? request.references : undefined,
+    // Checked and decoded by the route; compiled into the same bytes that are
+    // delivered and filed in Sent, so the copy there shows what was sent.
+    attachments: request.attachments?.length
+      ? request.attachments.map(({ filename, contentType, content }) => ({
+          filename,
+          contentType,
+          content
+        }))
+      : undefined
   };
 
   const compiled = await compiler.sendMail(mail);

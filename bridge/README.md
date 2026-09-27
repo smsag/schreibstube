@@ -29,6 +29,7 @@ route that does not exist yet.
 
 | Bridge | Protocol | Plugin          | Notes                                                            |
 | ------ | -------- | --------------- | ---------------------------------------------------------------- |
+| 2.10.x | 5        | 1.8.0 and later | A send may carry a note's diagrams as PNG attachments            |
 | 2.9.x  | 4        | 1.8.0 and later | Alias `from`, refused and unconfirmed sends, `MAIL_FROM` checked |
 | 2.8.x  | 3        | 1.8.0 and later | The site's tab icon, named by its theme                          |
 | 2.7.x  | 3        | 1.8.0 and later | Slideshows, filmstrip thumbnails, header tags and tag pages      |
@@ -57,20 +58,20 @@ memory, and a second instance would not see it.
 All endpoints except `/health` require `Authorization: Bearer <token>`, and the
 token must belong to the capability that owns the route.
 
-| Method | Path                   | Capability | Body                                                                         | Returns                                            |
-| ------ | ---------------------- | ---------- | ---------------------------------------------------------------------------- | -------------------------------------------------- |
-| `GET`  | `/health`              | —          | —                                                                            | `{status, version, protocol, capabilities[]}`      |
-| `POST` | `/diagnostics`         | mail       | —                                                                            | per-protocol reachability                          |
-| `POST` | `/send`                | mail       | `{to, cc?, bcc?, subject, text, from?, inReplyTo?, references?}`             | `{messageId, sentAt, filedInSent, rejected[]}`     |
-| `POST` | `/search`              | mail       | `{criteria:{from?,to?,subject?,text?,since?,references?}, mailbox?, limit?}` | `{messages[], mailbox, truncated}`                 |
-| `GET`  | `/publish/targets`     | publish    | —                                                                            | `{targets:[{name, baseUrl, siteTitle}]}`           |
-| `POST` | `/publish/diagnostics` | publish    | `{target}`                                                                   | `{ok, root, entries}` or `{ok:false, error}`       |
-| `POST` | `/publish/plan`        | publish    | `{target, index}`                                                            | what to upload, and what will be deleted           |
-| `PUT`  | `/publish/source`      | publish    | raw Markdown, `?target=&sha256=`                                             | `{sha256, bytes}`                                  |
-| `PUT`  | `/publish/asset`       | publish    | raw bytes, `?target=&sha256=&name=`                                          | `{sha256, bytes, path}`                            |
-| `PUT`  | `/publish/thumbnail`   | publish    | raw JPEG or PNG, `?target=&source=&sha256=&name=`                            | `{sha256, bytes, path}`                            |
-| `POST` | `/publish/commit`      | publish    | `{target, index}`                                                            | `{written, unchanged, deleted, pruned, collected}` |
-| `POST` | `/publish/render`      | publish    | `{target}`                                                                   | the same, rebuilt from stored state                |
+| Method | Path                   | Capability | Body                                                                           | Returns                                            |
+| ------ | ---------------------- | ---------- | ------------------------------------------------------------------------------ | -------------------------------------------------- |
+| `GET`  | `/health`              | —          | —                                                                              | `{status, version, protocol, capabilities[]}`      |
+| `POST` | `/diagnostics`         | mail       | —                                                                              | per-protocol reachability                          |
+| `POST` | `/send`                | mail       | `{to, cc?, bcc?, subject, text, from?, inReplyTo?, references?, attachments?}` | `{messageId, sentAt, filedInSent, rejected[]}`     |
+| `POST` | `/search`              | mail       | `{criteria:{from?,to?,subject?,text?,since?,references?}, mailbox?, limit?}`   | `{messages[], mailbox, truncated}`                 |
+| `GET`  | `/publish/targets`     | publish    | —                                                                              | `{targets:[{name, baseUrl, siteTitle}]}`           |
+| `POST` | `/publish/diagnostics` | publish    | `{target}`                                                                     | `{ok, root, entries}` or `{ok:false, error}`       |
+| `POST` | `/publish/plan`        | publish    | `{target, index}`                                                              | what to upload, and what will be deleted           |
+| `PUT`  | `/publish/source`      | publish    | raw Markdown, `?target=&sha256=`                                               | `{sha256, bytes}`                                  |
+| `PUT`  | `/publish/asset`       | publish    | raw bytes, `?target=&sha256=&name=`                                            | `{sha256, bytes, path}`                            |
+| `PUT`  | `/publish/thumbnail`   | publish    | raw JPEG or PNG, `?target=&source=&sha256=&name=`                              | `{sha256, bytes, path}`                            |
+| `POST` | `/publish/commit`      | publish    | `{target, index}`                                                              | `{written, unchanged, deleted, pruned, collected}` |
+| `POST` | `/publish/render`      | publish    | `{target}`                                                                     | the same, rebuilt from stored state                |
 
 `/health` is the version handshake: plugin and bridge deploy separately, and
 `protocol` is what lets the plugin say "redeploy the bridge" instead of failing
@@ -326,6 +327,16 @@ what one message may weigh on the wire; `PUBLISH_MAX_SOURCE_BYTES`,
 `PUBLISH_MAX_IMAGE_BYTES`, `PUBLISH_MAX_VIDEO_BYTES`, `PUBLISH_MAX_INDEX_BYTES`
 and `PUBLISH_MAX_FILES` for a publication. `.env.example` lists them with their
 defaults.
+
+A send may carry pictures, `attachments: [{filename, contentType, content}]`
+with the content in base64: the diagrams of a note, drawn by the plugin because
+no mail client can draw them. Only `image/png` is taken, under a plain name
+ending in `.png`, and the bytes have to begin like a PNG. At most 10 pictures,
+4 MB each and 10 MB together (`mail-attachments.mjs`); the send route alone
+reads a body large enough for them, `MAX_BODY_BYTES` plus that allowance in
+base64, and every other route keeps `MAX_BODY_BYTES`. A picture that fails is
+a refused request, never a mail sent without it, because its text would point
+at an attachment that is not there. A plugin before protocol 5 sends none.
 
 Generate the token with:
 

@@ -59,6 +59,15 @@ vi.mock("../services/publish-client", () => ({
   checkTarget: vi.fn()
 }));
 
+// Drawing needs a document and the drawing plugin; what is tested here is
+// what the publish does with the pictures it is given.
+const capture = vi.hoisted(() => ({ capture: vi.fn() }));
+vi.mock("./diagram-capture", () => ({
+  DiagramCapture: class {
+    capture = capture.capture;
+  }
+}));
+
 // A canvas is the platform's; what is tested here is what is done with it.
 vi.mock("../services/image-resize", async (original) => ({
   ...(await original<typeof import("../services/image-resize")>()),
@@ -166,6 +175,8 @@ beforeEach(() => {
   });
   client.health.mockReset();
   client.health.mockResolvedValue({ version: "2.1.0", protocol: 1, capabilities: ["publish"] });
+  capture.capture.mockReset();
+  capture.capture.mockResolvedValue({ pictures: [], expected: 0, title: "" });
 });
 
 describe("which notes are published", () => {
@@ -840,5 +851,113 @@ describe("header tags", () => {
     await controller(vault).commands.preview();
     expect(plannedIndex().headerTags).toBeUndefined();
     expect(plannedIndex().notes[0].tags).toBeUndefined();
+  });
+});
+
+describe("canvases drawn for the site", () => {
+  const canvasNote = ["# Plan", "", "```vizardry", "type: swot", "```", "", "after"].join("\n");
+  const vault = () =>
+    fakeVault({
+      notes: [{ path: "Blog/Plan.md", content: canvasNote, frontmatter: published }]
+    });
+  const png = (byte: number) => new Uint8Array([0x89, 0x50, 0x4e, 0x47, byte]);
+
+  // A bridge that has nothing yet: it asks for every source and every asset.
+  const askForEverything = () =>
+    client.plan.mockImplementation(
+      async (
+        _bridge: unknown,
+        _target: unknown,
+        index: {
+          notes: { sourcePath: string; sha256: string }[];
+          assets: { sourcePath: string; sha256: string }[];
+        }
+      ) => ({
+        target: "blog",
+        baseUrl: "https://blog.example.com",
+        uploadSources: index.notes.map(({ sourcePath, sha256 }) => ({ sourcePath, sha256 })),
+        uploadAssets: index.assets.map(({ sourcePath, sha256 }) => ({ sourcePath, sha256 })),
+        willDelete: [],
+        unchangedSources: 0,
+        notes: index.notes.length
+      })
+    );
+
+  function uploadedSource(): string {
+    const content = client.uploadSource.mock.calls.at(-1)?.[3] as ArrayBuffer;
+    return new TextDecoder().decode(content);
+  }
+
+  it("publishes a canvas as the picture drawn of it, and leaves the note alone", async () => {
+    askForEverything();
+    capture.capture.mockResolvedValue({ pictures: [png(1)], expected: 1, title: "SWOT [Q3]" });
+
+    const { commands } = controller(vault());
+    await commands.publish();
+    await runEnded();
+
+    const [asset] = plannedIndex().assets;
+    expect(asset.name).toMatch(/^schreibstube-diagram-[0-9a-f]{16}-1\.png$/);
+    expect(asset.sourcePath).toBe(asset.name);
+    expect(uploadedSource()).toBe(
+      ["# Plan", "", `![SWOT (Q3)](${asset.name})`, "", "after"].join("\n")
+    );
+    // The picture is sent from memory: there is no file in the vault to read.
+    expect(client.uploadAsset.mock.calls[0]?.[4]).toEqual(png(1).buffer);
+  });
+
+  it("publishes a canvas it could not draw as its source, and says so", async () => {
+    askForEverything();
+
+    const { commands } = controller(vault());
+    await commands.publish();
+    await runEnded();
+
+    expect(plannedIndex().assets).toEqual([]);
+    expect(uploadedSource()).toBe(canvasNote);
+    expect(Notice.shown).toContain(
+      "Schreibstube: 1 visualisation could not be drawn and is published as its source."
+    );
+  });
+
+  it("keeps a canvas that lost a panel as its source rather than publish it short", async () => {
+    capture.capture.mockResolvedValue({ pictures: [png(1)], expected: 2, title: "" });
+
+    await controller(vault()).commands.preview();
+
+    expect(plannedIndex().assets).toEqual([]);
+  });
+
+  it("draws an unchanged canvas once per session, not once per publish", async () => {
+    capture.capture.mockResolvedValue({ pictures: [png(1)], expected: 1, title: "" });
+
+    const { commands } = controller(vault());
+    await commands.preview();
+    await commands.preview();
+
+    expect(capture.capture).toHaveBeenCalledTimes(1);
+    expect(plannedIndex().assets).toHaveLength(1);
+  });
+
+  it("describes a picture whose canvas has no title", async () => {
+    askForEverything();
+    capture.capture.mockResolvedValue({ pictures: [png(1)], expected: 1, title: "" });
+
+    const { commands } = controller(vault());
+    await commands.publish();
+    await runEnded();
+
+    expect(uploadedSource()).toContain("![Visualisation](schreibstube-diagram-");
+  });
+
+  it("publishes a site without canvases without drawing or saying anything about them", async () => {
+    const plain = fakeVault({
+      notes: [{ path: "Blog/Erste.md", content: "# Erste", frontmatter: published }]
+    });
+
+    await controller(plain).commands.preview();
+
+    expect(capture.capture).not.toHaveBeenCalled();
+    expect(Notice.shown.some((message) => /visualisation/i.test(message))).toBe(false);
   });
 });

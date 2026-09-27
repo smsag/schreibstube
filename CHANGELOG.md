@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+A published site now shows a Vizardry canvas as the picture it is in the note,
+where it used to show the canvas's source text. The canvas is drawn in Obsidian
+before the upload and travels as a picture; a canvas with several panels shows
+each of them. One that cannot be drawn — Vizardry is not installed, say — is
+published as its source as before, and the publish says how many were. The
+bridge needs no update for this.
+
+A note sent as an email now carries its diagrams — Vizardry canvases and
+Mermaid charts — as attached pictures, since no mail client can draw them. The
+text names each one where it stood, "[Figure 1: SWOT — attached: figure-1.png]",
+and the dialogue lists the attachments before Send. A diagram that cannot be
+drawn, or would pass the bridge's limits (10 pictures, 4 MB each, 10 MB
+together), goes as its source, and the dialogue says so before the mail leaves.
+This needs the bridge at protocol 5; an older bridge gets the diagrams as
+source text, again said in the dialogue, never a mail pointing at pictures it
+does not carry.
+
 ## 1.56.0 - 2026-09-27
 
 The Lebenslauf template now sets a CV the way iA Writer does, measured line for

@@ -47,4 +47,32 @@ describe("POST /send", () => {
     const send = sendRoute(async () => ({ accepted: ["kunde@example.com"], rejected: ["x@y.de"] }));
     await expect(send(valid)).resolves.toMatchObject({ rejected: ["x@y.de"] });
   });
+
+  it("refuses a picture it cannot vouch for rather than send the mail without it", async () => {
+    let sent = false;
+    const send = sendRoute(async () => {
+      sent = true;
+      return { accepted: [], rejected: [] };
+    });
+    const attachments = [{ filename: "a.png", contentType: "image/png", content: "bm90IGEgcG5n" }];
+    await expect(send({ ...valid, attachments })).rejects.toMatchObject({
+      status: 400,
+      code: "invalid_request"
+    });
+    expect(sent).toBe(false);
+  });
+
+  it("reads a larger body on the send route than on any other", () => {
+    const routes = createMailRoutes(
+      {
+        upstreamTimeoutMs: 1000,
+        requestTimeoutMs: 1000,
+        mail: { from: "a@b.de", sentMailbox: "", maxTextChars: 40_000, maxBodyBytes: 1_000_000 }
+      },
+      { transport: { sendMail: async () => ({}) } }
+    );
+    const limit = (path) => routes.find((route) => route.path === path).maxBytes;
+    expect(limit("/send")).toBeGreaterThan(10_000_000);
+    expect(limit("/search")).toBe(1_000_000);
+  });
 });
