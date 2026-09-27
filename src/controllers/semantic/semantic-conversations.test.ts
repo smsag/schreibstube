@@ -18,13 +18,20 @@ class FakeProvider implements EmbeddingProvider {
 
 function setup(files: Record<string, ArrayBuffer> = {}) {
   const disk = new Map(Object.entries(files));
+  const touched: string[] = [];
   const plugin = {
     app: {
       vault: {
         configDir: ".obsidian",
         adapter: {
-          exists: async (p: string) => disk.has(p) || p === ".obsidian/plugins/schreibstube",
-          readBinary: async (p: string) => disk.get(p) ?? new ArrayBuffer(0),
+          exists: async (p: string) => {
+            touched.push(p);
+            return disk.has(p) || p === ".obsidian/plugins/schreibstube";
+          },
+          readBinary: async (p: string) => {
+            touched.push(p);
+            return disk.get(p) ?? new ArrayBuffer(0);
+          },
           writeBinary: async (p: string, b: ArrayBuffer) => void disk.set(p, b),
           mkdir: async () => undefined
         }
@@ -55,7 +62,17 @@ function setup(files: Record<string, ArrayBuffer> = {}) {
       return () => undefined;
     }
   };
-  return { conversations, provider, source, listed, notify: () => notify(), state, disk, changed };
+  return {
+    conversations,
+    provider,
+    source,
+    listed,
+    notify: () => notify(),
+    state,
+    disk,
+    changed,
+    touched
+  };
 }
 
 // The list deadline sets a timer on `window`, which a node test does not have.
@@ -99,19 +116,17 @@ describe("conversations handed over", () => {
     expect(await s.conversations.search("küche", 5, [])).toEqual([]);
   });
 
-  it("takes over Pythia's conversation index", async () => {
-    const pythia = serializeIndex([], 4);
+  // Pythia's files predate the runtime mark on every row, so a copy would only
+  // be embedded again; Pythia removes them itself.
+  it("leaves Pythia's old conversation index alone", async () => {
     const s = setup({
       ".obsidian/plugins/pythia/related-embeddings-xenova-paraphrase-multilingual-MiniLM-L12-v2.bin":
-        pythia
+        serializeIndex([], 4)
     });
     s.conversations.register(s.source);
     await s.conversations.search("küche", 5, []);
-    expect(
-      s.disk.has(
-        ".obsidian/plugins/schreibstube/semantic-conversations-xenova-paraphrase-multilingual-MiniLM-L12-v2.bin"
-      )
-    ).toBe(true);
+    expect(s.touched.length).toBeGreaterThan(0);
+    expect(s.touched.filter((p) => p.startsWith(".obsidian/plugins/pythia/"))).toEqual([]);
   });
 
   it("names a conversation by the title its source gave", async () => {

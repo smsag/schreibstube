@@ -99,7 +99,6 @@ export class SemanticEngine {
   private phase: Phase = { kind: "idle" };
   private syncing = false;
   private caughtUp = false;
-  private imported = false;
   private backend: string | null = null;
   private deferred: { changed: Map<string, TFile>; deleted: Set<string> } | null = null;
   /** Set at unload: every build still running stops at its next note. */
@@ -249,20 +248,6 @@ export class SemanticEngine {
     return this.service;
   }
 
-  /** Pythia's index, copied in once when this vault has none of its own. */
-  private async importOnce(): Promise<void> {
-    if (this.imported) return;
-    this.imported = true;
-    try {
-      if (await this.files().importFromPythia()) {
-        this.fileCount = undefined;
-        this.logger.info("semantic engine: imported Pythia's vault index");
-      }
-    } catch (e) {
-      this.logger.warn("semantic engine: could not import Pythia's vault index", e);
-    }
-  }
-
   /** The notes the index should hold, newest first, capped and opted out. */
   private collectNotes(): IndexableNote[] {
     return this.scopeNotes().notes;
@@ -374,7 +359,6 @@ export class SemanticEngine {
     this.syncing = true;
     this.lastPhoneLook = Date.now();
     try {
-      await this.importOnce();
       const svc = this.ensure();
       const heldBefore = svc.isReady();
       await svc.hydrateForQuery();
@@ -412,7 +396,6 @@ export class SemanticEngine {
     let loaded = false;
     let notice: Notice | null = null;
     try {
-      await this.importOnce();
       const provider = this.ensureProvider();
       if (reloadProvider) provider.unload();
       await provider.ready();
@@ -500,7 +483,6 @@ export class SemanticEngine {
     // otherwise start a build beside the catch-up.
     this.syncing = true;
     try {
-      await this.importOnce();
       if (!(await this.files().exists())) return;
       const result = await catchUpIndex({
         service: () => this.ensure(),
@@ -683,7 +665,6 @@ export class SemanticEngine {
     const none = { notes: [], conversations: [] };
     if (!this.enabled()) return none;
     try {
-      await this.importOnce();
       const svc = this.ensure();
       if (!svc.isReady()) await svc.loadPersisted();
       const vectors = svc.vectorsOf(path);
@@ -718,7 +699,6 @@ export class SemanticEngine {
     this.warming = true;
     void (async () => {
       try {
-        await this.importOnce();
         if (!(await this.files().exists())) return;
         const svc = this.ensure();
         if (Platform.isMobile) {
