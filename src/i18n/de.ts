@@ -826,6 +826,8 @@ export const de: Messages = {
       summary: (count: number) => (count === 1 ? "1 Empfehlung" : `${count} Empfehlungen`),
       root: "Vault-Wurzel",
       untitled: "Unbenanntes Gespräch",
+      picture: "Bild",
+      conversation: "Gespräch in Pythia",
       reasons: {
         link: "verlinkt",
         meaning: "ähnlich im Inhalt",
