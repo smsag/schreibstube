@@ -56,31 +56,6 @@ export class SemanticIndexFiles implements IndexStore {
     const stat = await this.plugin.app.vault.adapter.stat(this.path);
     return stat?.size ?? null;
   }
-
-  /**
-   * Copy Pythia's vault index in, once, when this vault has none of its own.
-   *
-   * Same model family, same vectors: a vault Pythia already indexed starts
-   * ready here instead of embedding every note again. The copy is taken as it
-   * is; the next build under Schreibstube's own scope keeps every row whose
-   * content still matches and embeds only the rest. Pythia's files are left
-   * where they are.
-   */
-  async importFromPythia(): Promise<boolean> {
-    if (await this.exists()) return false;
-    const adapter = this.plugin.app.vault.adapter;
-    const pythiaDir = normalizePath(`${this.plugin.app.vault.configDir}/plugins/pythia`);
-    const family = vectorFamily(this.modelId);
-    // Pythia's names for the same two indexes.
-    const name = this.prefix === "semantic-notes" ? "vault-embeddings" : "related-embeddings";
-    const base = normalizePath(`${pythiaDir}/${name}-${family}.bin`);
-    if (!(await adapter.exists(base))) return false;
-    await this.write(await adapter.readBinary(base));
-    const journal = normalizePath(`${pythiaDir}/${name}-${family}.journal.bin`);
-    if (await adapter.exists(journal))
-      await this.journal().write(await adapter.readBinary(journal));
-    return true;
-  }
 }
 
 function pluginDir(plugin: Plugin): string {

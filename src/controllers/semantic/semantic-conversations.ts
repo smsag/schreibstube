@@ -112,13 +112,6 @@ export class SemanticConversations {
         ".bin",
         "semantic-conversations"
       );
-      try {
-        if (await files.importFromPythia()) {
-          this.host.logger.info("semantic engine: imported Pythia's conversation index");
-        }
-      } catch (e) {
-        this.host.logger.warn("semantic engine: could not import Pythia's conversation index", e);
-      }
       this.index = new ConversationIndex(this.host.provider(), files, hashPolicyFor(modelId));
       this.indexModel = modelId;
       this.dirty = true;
