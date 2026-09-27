@@ -860,6 +860,7 @@ export const enExtra = {
       `${path} added. Open its template.md to see what it needs, and put a font in its fonts/ folder.`,
     diagramAsSource: (language: string) => `${language}: could not be drawn, printed as source`,
     htmlDropped: "HTML is dropped when printing",
+    mathAsSource: "math is printed as written, not typeset",
     embedNotPrinted: (target: string) => `embedded note is not printed: ${target}`,
     imageUnsupported: (name: string) => `${name} is in a format a print cannot carry`,
     imageNotFound: (source: string) => `image not found: ${source}`,

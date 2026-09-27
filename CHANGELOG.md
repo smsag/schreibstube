@@ -12,6 +12,10 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- **The print dialog keeps its buttons on screen.** Its page preview was sized on its own, and with the page count and a few warnings around it the dialog grew taller than the window allows and put Print below its bottom edge. The preview now takes the room that is left and scrolls its pages; a long list of warnings scrolls in its own box.
+- **Printing keeps what the note wrote.** A line ending in two spaces or a backslash keeps its break. A heading underlined with `===` or `---` prints as a heading, not as the text and a row of signs. A third list level stays at its own depth. Code indented four spaces prints as code. Reference-style links (`[text][label]`) are links, and their definition lines are not printed. A footnote written over indented lines carries its text, which used to land in the body. H<sub>2</sub>O and mc<sup>2</sup> keep their sub- and superscript.
+- **Math prints as it was written.** A formula used to lose its backslashes (`\int` printed as "int"). It now prints as its source in the code face, and the dialog says so: the note's TeX cannot be typeset on a device without a network.
+
 - **Recommended under a note is as wide as the note.** It shrank to the length of its longest title, and with "Readable line length" off it stayed narrow and centred under text running the full width of the pane. It now takes the width of the text column in both views, whatever that setting says. In Reading view its entries also no longer sit a list indent further right than while editing.
 
 ## 1.54.0 - 2026-09-27

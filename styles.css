@@ -2767,19 +2767,51 @@
 /* The print dialog: the choices beside the pages they make. Side by side where
    there is room, the pages under the choices on a phone. The pages sit on the
    secondary background so that white paper reads as paper in either theme. */
+/* The dialog is a column Obsidian caps at its modal height. The preview
+   takes what is left and scrolls its pages; the title, the settings and the
+   buttons at the foot keep their place. The pages used to be sized on their
+   own, at 68vh: with the page count, four warnings and the buttons around
+   them the dialog needed 744px of the 678px it had, scrolled, and put Print
+   below the bottom edge (measured in a 1024 × 800 window). */
 .schreibstube-print-dialog {
   width: min(1040px, 94vw);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.schreibstube-print-dialog > .modal-content {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
 }
 
 .schreibstube-print-dialog-body {
   display: grid;
+  flex: 1 1 auto;
   grid-template-columns: minmax(240px, 1fr) 2fr;
+  grid-template-rows: minmax(0, 1fr);
   gap: var(--size-4-4);
+  min-height: 0;
 }
 
+/* Settings that outgrow a short window scroll in their column. A scrolling
+   box clips at its edge, and the first dropdown's border and focus ring sat
+   on it; the padding gives them room. */
+.schreibstube-print-dialog-controls {
+  min-height: 0;
+  overflow-y: auto;
+  padding-block: var(--size-4-1);
+}
+
+/* One column on a narrow window: settings over preview, and the two scroll
+   as one, since there is no height to split between them. */
 @media (max-width: 720px) {
   .schreibstube-print-dialog-body {
     grid-template-columns: 1fr;
+    grid-template-rows: none;
+    overflow-y: auto;
   }
 }
 
@@ -2788,6 +2820,7 @@
   flex-direction: column;
   gap: var(--size-4-2);
   min-width: 0;
+  min-height: 0;
 }
 
 .schreibstube-print-dialog-status {
@@ -2804,8 +2837,8 @@
   flex-direction: column;
   align-items: center;
   gap: var(--size-4-3);
-  max-height: 68vh;
-  min-height: 240px;
+  flex: 1 1 auto;
+  min-height: 160px;
   overflow-y: auto;
   padding: var(--size-4-3);
   border-radius: var(--radius-m);
@@ -2826,7 +2859,12 @@
   box-shadow: var(--shadow-s);
 }
 
+/* Four lines at most; a note with twenty missing pictures scrolls its list
+   rather than the dialog. */
 .schreibstube-print-dialog-warnings {
+  flex: none;
+  max-height: calc(var(--font-ui-smaller) * var(--line-height-normal, 1.5) * 4);
+  overflow-y: auto;
   color: var(--text-warning);
   font-size: var(--font-ui-smaller);
 }

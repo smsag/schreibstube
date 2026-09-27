@@ -1132,6 +1132,7 @@ export const de: Messages = {
     diagramAsSource: (language: string) =>
       `${language}: ließ sich nicht zeichnen und steht als Quelltext da`,
     htmlDropped: "HTML wird beim Drucken weggelassen",
+    mathAsSource: "Formeln werden so gedruckt, wie sie geschrieben sind, nicht gesetzt",
     embedNotPrinted: (target: string) => `eingebettete Notiz wird nicht gedruckt: ${target}`,
     imageUnsupported: (name: string) => `${name} hat ein Format, das sich nicht drucken lässt`,
     imageNotFound: (source: string) => `Bild nicht gefunden: ${source}`,

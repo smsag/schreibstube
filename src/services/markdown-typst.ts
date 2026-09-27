@@ -130,7 +130,14 @@ const BULLET = /^(\s*)([-*+])\s+(.*)$/;
 const ORDERED = /^(\s*)(\d{1,9})[.)]\s+(.*)$/;
 const TABLE_DELIMITER = /^ {0,3}\|?\s*:?-{1,}:?\s*(\|\s*:?-{1,}:?\s*)*\|?\s*$/;
 const FOOTNOTE_DEFINITION = /^ {0,3}\[\^([^\]\s]+)\]:\s*(.*)$/;
+/** `[label]: target "title"` — where a reference-style link points. */
+const REFERENCE_DEFINITION =
+  /^ {0,3}\[([^\]^][^\]]*)\]:\s*<?([^\s>]+)>?(?:\s+(?:"[^"]*"|'[^']*'|\([^)]*\)))?\s*$/;
 const TASK = /^\[([ xX])\]\s+/;
+/** The line under a setext heading: `===` makes the text above it level 1, `---` level 2. */
+const SETEXT = /^ {0,3}(=+|-+)[ \t]*$/;
+/** A line that opens a block of math. */
+const MATH_BLOCK = /^ {0,3}\$\$/;
 
 /**
  * The elements a note writes as raw HTML. Anything else between angle
@@ -159,6 +166,8 @@ const HTML_ELEMENTS = new Set(
  */
 interface Shared {
   footnotes: Map<string, string>;
+  /** Reference-style link targets, by their label as Markdown compares them. */
+  references: Map<string, string>;
   diagrams: DiagramBlock[];
   warnings: string[];
   /** Footnotes being expanded right now, so one that cites itself ends. */
@@ -169,6 +178,7 @@ interface Shared {
 export function markdownToTypst(source: string, options: ConvertOptions = {}): Conversion {
   return new Converter(source, options, {
     footnotes: new Map(),
+    references: new Map(),
     diagrams: [],
     warnings: [],
     expanding: new Set(),
@@ -181,6 +191,9 @@ class Converter {
   private at = 0;
   /** Whether the last `inline` ended in an expression, for a caller that splices it in. */
   private endsOpen = false;
+  /** Lines that belong to a definition — a footnote with its indented
+   *  continuation, a link reference — and print nowhere of their own. */
+  private readonly consumed = new Set<number>();
 
   constructor(
     source: string,
@@ -189,7 +202,7 @@ class Converter {
     private heading = ""
   ) {
     this.lines = stripFrontmatter(stripComments(source)).split(/\r?\n/);
-    this.collectFootnotes();
+    this.collectDefinitions();
   }
 
   run(): Conversion {
@@ -214,14 +227,54 @@ class Converter {
    * footnote where it is used, which is the same reading order. A line inside
    * a fence that happens to look like a definition is code, not a footnote,
    * and the first definition of a name wins, as it does in the editor.
+   *
+   * A footnote's text may go on over indented lines, as far as the next line
+   * that is not indented; those lines are the footnote's, and used to print
+   * in the body while the footnote itself came out empty. A reference-style
+   * link's target is read the same way, and its definition line, which
+   * Obsidian does not show, is not printed either.
    */
-  private collectFootnotes(): void {
+  private collectDefinitions(): void {
     const fenced = fencedLines(this.lines);
-    for (const [index, line] of this.lines.entries()) {
+    for (let index = 0; index < this.lines.length; index += 1) {
       if (fenced[index]) continue;
-      const match = FOOTNOTE_DEFINITION.exec(line);
-      if (match?.[1] !== undefined && !this.shared.footnotes.has(match[1])) {
-        this.shared.footnotes.set(match[1], match[2] ?? "");
+      const line = this.lines[index] ?? "";
+
+      const footnote = FOOTNOTE_DEFINITION.exec(line);
+      if (footnote?.[1] !== undefined) {
+        this.consumed.add(index);
+        const text = [footnote[2] ?? ""];
+        let next = index + 1;
+        while (next < this.lines.length) {
+          const more = this.lines[next] ?? "";
+          const after = this.lines[next + 1] ?? "";
+          if (more.trim() === "" && indentOf(after) >= 4 && after.trim() !== "") {
+            this.consumed.add(next);
+            next += 1;
+            continue;
+          }
+          if (more.trim() === "" || indentOf(more) < 4) break;
+          text.push(more.trim());
+          this.consumed.add(next);
+          next += 1;
+        }
+        if (!this.shared.footnotes.has(footnote[1])) {
+          this.shared.footnotes.set(footnote[1], text.filter((part) => part !== "").join("\n"));
+        }
+        index = next - 1;
+        continue;
+      }
+
+      // A definition cannot interrupt a paragraph: straight under a line of
+      // text it is more of that text, as it is in the editor.
+      const previous = this.lines[index - 1];
+      const opens =
+        previous === undefined || previous.trim() === "" || this.consumed.has(index - 1);
+      const reference = opens ? REFERENCE_DEFINITION.exec(line) : null;
+      if (reference?.[1] !== undefined && reference[2] !== undefined) {
+        this.consumed.add(index);
+        const label = referenceLabel(reference[1]);
+        if (!this.shared.references.has(label)) this.shared.references.set(label, reference[2]);
       }
     }
   }
@@ -246,7 +299,7 @@ class Converter {
         continue;
       }
       if (indentOf(line) < indent) break;
-      if (FOOTNOTE_DEFINITION.test(line)) {
+      if (this.consumed.has(this.at)) {
         this.at += 1;
         continue;
       }
@@ -264,11 +317,20 @@ class Converter {
     const fence = fenceMarker(line);
     if (fence) return this.fence(fence);
 
+    // Four spaces deeper than the block around it is code, as in the editor.
+    // A list marker there is still a list: this converter has always read
+    // loosely indented lists, and a note relies on that more than on code
+    // written without a fence.
+    if (indentOf(line) >= indent + 4 && !BULLET.test(line) && !ORDERED.test(line)) {
+      return this.indentedCode(indent);
+    }
+
+    if (MATH_BLOCK.test(line)) return this.mathBlock();
+
     const heading = HEADING.exec(line);
     if (heading?.[1] !== undefined) {
       this.at += 1;
-      this.heading = (heading[2] ?? "").trim();
-      return `${"=".repeat(heading[1].length)} ${this.inline(this.heading)}\n`;
+      return this.headingBlock(heading[1].length, heading[2] ?? "");
     }
 
     if (HR.test(line)) {
@@ -281,6 +343,56 @@ class Converter {
     if (this.isTableStart()) return this.table();
 
     return this.paragraph(indent);
+  }
+
+  private headingBlock(level: number, text: string): string {
+    this.heading = text.trim();
+    return `${"=".repeat(level)} ${this.inline(this.heading)}\n`;
+  }
+
+  /** Code written by indenting it four spaces, set as a fence without a language. */
+  private indentedCode(indent: number): string {
+    const content: string[] = [];
+    while (this.at < this.lines.length) {
+      const line = this.lines[this.at] ?? "";
+      if (line.trim() !== "" && indentOf(line) < indent + 4) break;
+      content.push(dropColumns(line, indent + 4));
+      this.at += 1;
+    }
+    while (content.length > 0 && (content[content.length - 1] ?? "").trim() === "") content.pop();
+    return `#schreibstube-code(${quote(content.join("\n"))}, "")\n`;
+  }
+
+  /**
+   * A block of math, printed as it was written, in the code face.
+   *
+   * The note writes TeX, which Typst does not read, and turning one into the
+   * other needs packages a device without a network does not have. Set as
+   * text, the backslashes went: `\int` printed as "int". Printed as its
+   * source, with a warning, the formula is at least what the note says.
+   */
+  private mathBlock(): string {
+    const first = (this.lines[this.at] ?? "").trim().slice(2);
+    this.at += 1;
+    const content: string[] = [];
+    const close = first.indexOf("$$");
+    if (close !== -1) {
+      content.push(first.slice(0, close));
+    } else {
+      if (first.trim() !== "") content.push(first);
+      while (this.at < this.lines.length) {
+        const line = this.lines[this.at] ?? "";
+        this.at += 1;
+        const end = line.indexOf("$$");
+        if (end !== -1) {
+          content.push(line.slice(0, end));
+          break;
+        }
+        content.push(line);
+      }
+    }
+    this.warn(t().print.mathAsSource);
+    return `#schreibstube-code(${quote(content.join("\n").trim())}, "latex")\n`;
   }
 
   /**
@@ -492,7 +604,11 @@ class Converter {
     );
   }
 
-  /** Consecutive non-blank lines that are nothing else. */
+  /**
+   * Consecutive non-blank lines that are nothing else — or, when a `===` or
+   * `---` line follows them, a heading written the setext way, which used to
+   * print as the text and a row of equals signs, or the text and a rule.
+   */
   private paragraph(indent: number): string {
     const parts: string[] = [];
 
@@ -500,10 +616,20 @@ class Converter {
       const line = this.lines[this.at];
       if (line === undefined || line.trim() === "") break;
       if (indentOf(line) < indent) break;
+      if (this.consumed.has(this.at)) break;
+
+      const setext = parts.length > 0 ? SETEXT.exec(line) : null;
+      if (setext?.[1] !== undefined) {
+        this.at += 1;
+        const text = parts.map((part) => part.trim()).join(" ");
+        return this.headingBlock(setext[1].startsWith("=") ? 1 : 2, text);
+      }
+
       if (
         HEADING.test(line) ||
         HR.test(line) ||
         BLOCKQUOTE.test(line) ||
+        MATH_BLOCK.test(line) ||
         fenceMarker(line) !== null ||
         this.isTableStart()
       ) {
@@ -511,7 +637,7 @@ class Converter {
       }
       if (parts.length > 0 && (BULLET.test(line) || ORDERED.test(line))) break;
 
-      parts.push(line.trim());
+      parts.push(line);
       this.at += 1;
     }
 
@@ -520,7 +646,7 @@ class Converter {
       return "";
     }
 
-    return `${this.inline(parts.join("\n"))}\n`;
+    return `${this.inline(joinLines(parts))}\n`;
   }
 
   /**
@@ -562,6 +688,23 @@ class Converter {
         continue;
       }
 
+      // Math, inline or display, set as its source in the code face: see
+      // `mathBlock`. Read before the backslash escapes can reach it, which is
+      // what took `\frac` apart. `$` needs text right after it and right
+      // before its closing `$`, and no digit after that, so "$5 and $10" is
+      // two prices, not a formula.
+      if (char === "$") {
+        const math = /^\$\$([\s\S]+?)\$\$|^\$(?=\S)([^$\n]*?\S)\$(?!\d)/.exec(rest);
+        const formula = math?.[1] ?? math?.[2];
+        if (math && formula !== undefined) {
+          flush();
+          this.warn(t().print.mathAsSource);
+          append(`#raw(${quote(formula.trim())})`, true);
+          i += math[0].length;
+          continue;
+        }
+      }
+
       if (char === "`") {
         const code = /^(`+)([\s\S]*?)\1(?!`)/.exec(rest);
         if (code?.[2] !== undefined) {
@@ -592,6 +735,17 @@ class Converter {
           flush();
           append(`#link(${quote(autolink[1])})`, true);
           i += autolink[0].length;
+          continue;
+        }
+
+        // Sub- and superscript are the two tags a page can keep: H₂O and mc²
+        // printed as "H2O" and "mc2", which reads as a different thing.
+        const script = /^<(sub|sup)>([\s\S]*?)<\/\1>/i.exec(rest);
+        if (script?.[1] !== undefined && script[2] !== undefined) {
+          flush();
+          const fn = script[1].toLowerCase() === "sub" ? "#sub" : "#super";
+          append(`${fn}[${this.inline(script[2])}]`, true);
+          i += script[0].length;
           continue;
         }
 
@@ -655,12 +809,28 @@ class Converter {
           flush();
           const label = this.inline(link[1] ?? "");
           const labelOpen = this.endsOpen;
-          const target = link[2];
-          if (/^[a-z][a-z0-9+.-]*:/i.test(target))
-            append(`#link(${quote(target)})[${label}]`, true);
-          else append(label, labelOpen);
+          this.appendLink(append, label, labelOpen, link[2]);
           i += link[0].length;
           continue;
+        }
+
+        // A reference-style link, `[text][label]`, `[text][]` or `[label]`,
+        // where a definition elsewhere in the note gives the target. Only a
+        // label that is defined is a link; any other bracket is text.
+        const reference = /^\[([^\]]+)\](?:\[([^\]]*)\])?/.exec(rest);
+        if (reference?.[1] !== undefined) {
+          const shortcut = reference[2] === undefined;
+          const target = this.shared.references.get(referenceLabel(reference[2] || reference[1]));
+          if (
+            target !== undefined &&
+            !(shortcut && /^[(:]/.test(rest.slice(reference[0].length)))
+          ) {
+            flush();
+            const label = this.inline(reference[1]);
+            this.appendLink(append, label, this.endsOpen, target);
+            i += reference[0].length;
+            continue;
+          }
         }
       }
 
@@ -679,6 +849,17 @@ class Converter {
     flush();
     this.endsOpen = open;
     return out;
+  }
+
+  /** A link as paper can have it: to a web address, or its words alone. */
+  private appendLink(
+    append: (markup: string, expression: boolean) => void,
+    label: string,
+    labelOpen: boolean,
+    target: string
+  ): void {
+    if (/^[a-z][a-z0-9+.-]*:/i.test(target)) append(`#link(${quote(target)})[${label}]`, true);
+    else append(label, labelOpen);
   }
 
   /** Markup, and whether it ends in an expression — see `inline`. */
@@ -902,14 +1083,62 @@ function indentOf(line: string): number {
   return columns;
 }
 
-/** Continuation lines of a list item line up under its text. */
+/**
+ * Continuation lines of a list item line up under its text.
+ *
+ * A line already indented that far keeps its own indent: a nested list is
+ * drawn at its own depth, and pulling every line back to one column made a
+ * third level print at the second.
+ */
 function indentContinuation(text: string, indent: number): string {
   const [first = "", ...rest] = text.split("\n");
   if (rest.length === 0) return first;
   return [
     first,
-    ...rest.map((line) => (line.trim() === "" ? line : `${" ".repeat(indent)}${line.trimStart()}`))
+    ...rest.map((line) =>
+      line.trim() === "" || indentOf(line) >= indent
+        ? line
+        : `${" ".repeat(indent)}${line.trimStart()}`
+    )
   ].join("\n");
+}
+
+/**
+ * A paragraph's lines, joined as Markdown joins them: a soft break is a space
+ * on paper, and a line that ends in two spaces or a backslash keeps its break.
+ * Both used to be lost — the lines were trimmed before anyone looked. The break
+ * is handed on as `<br>`, which the inline pass already sets as Typst's.
+ */
+function joinLines(lines: readonly string[]): string {
+  return lines
+    .map((line, index) => {
+      const last = index === lines.length - 1;
+      const text = line.trim();
+      if (last) return text;
+      if (/ {2,}$/.test(line)) return `${text}<br>`;
+      if (/(?:^|[^\\])(?:\\\\)*\\$/.test(text)) return `${text.slice(0, -1)}<br>`;
+      return text;
+    })
+    .join("\n");
+}
+
+/** A reference label as Markdown compares them: case and runs of space do not count. */
+function referenceLabel(label: string): string {
+  return label.trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+/** A line with its first `columns` columns of indentation taken off. */
+function dropColumns(line: string, columns: number): string {
+  let taken = 0;
+  let index = 0;
+  while (index < line.length && taken < columns) {
+    const char = line[index];
+    if (char === " ") taken += 1;
+    else if (char === "\t") taken += TAB_COLUMNS;
+    else break;
+    index += 1;
+  }
+  return line.slice(index);
 }
 
 function splitRow(line: string): string[] {
