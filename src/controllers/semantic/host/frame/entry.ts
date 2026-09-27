@@ -47,10 +47,11 @@ function makeModel(config: EmbeddingModelConfig, reply: (m: unknown) => void): v
 }
 
 async function handle(
-  data: { requestId?: number; texts?: string[]; ping?: boolean },
+  data: { requestId?: number; texts?: string[]; ping?: boolean; priority?: boolean },
   reply: (m: unknown) => void
 ): Promise<void> {
   const { requestId, texts, ping } = data ?? {};
+  const priority = data?.priority === true;
   if (typeof requestId !== "number") return;
   try {
     if (!model) throw new Error("embedding backend not initialized");
@@ -62,7 +63,7 @@ async function handle(
     const all = texts ?? [];
     const vectors: number[][] = [];
     for (let i = 0; i < all.length; i += EMBED_BATCH_SIZE) {
-      const batch = await model.embedBatch(all.slice(i, i + EMBED_BATCH_SIZE));
+      const batch = await model.embedBatch(all.slice(i, i + EMBED_BATCH_SIZE), priority);
       for (const v of batch) vectors.push(Array.from(v));
     }
     reply({ requestId, vectors });
@@ -89,6 +90,7 @@ if (typeof window === "undefined") {
       requestId?: number;
       texts?: string[];
       ping?: boolean;
+      priority?: boolean;
     };
     if (data.type === "init" && data.config) {
       makeModel(data.config, reply);

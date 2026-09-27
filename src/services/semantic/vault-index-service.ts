@@ -108,6 +108,21 @@ export interface SyncResult {
 }
 
 /** What a build may do beyond the defaults. */
+/** Recent query vectors kept, so a query typed again is not embedded again. */
+const QUERY_VECTORS_KEPT = 32;
+
+/** Where the time of one query went. */
+export interface QueryTiming {
+  /** Embedding the query: the model's time, and any wait for it. */
+  embedMs: number;
+  /** Scoring every note against it. */
+  rankMs: number;
+  /** The query's vector came from memory. */
+  cached: boolean;
+  /** Notes scored. */
+  notes: number;
+}
+
 /** What became of one note in an edit batch. */
 type UpdateOutcome = "embedded" | "dropped" | "unchanged";
 
@@ -172,6 +187,17 @@ export class VaultIndexService {
    *  never interleave — a targeted edit can't race a full build (Pythia ADR-121). */
   private chain: Promise<unknown> = Promise.resolve();
   private synced = false;
+  /**
+   * The vectors of recent queries, by their text.
+   *
+   * Typing is not a sequence of new questions: a character deleted and typed
+   * again, the list drawn again when the index grows, the same query asked
+   * by the Explorer and then the API. Each of those ran the model again. A
+   * vector depends on the text and the model alone, and the model is this
+   * instance's for its whole life, so what was embedded once stays right.
+   */
+  private readonly queryVectors = new Map<string, Int8Array>();
+
   /** The rows a build in progress would write now, for a query that cannot
    *  wait for the build to end. Null while no build runs. */
   private live: (() => IndexedConversation[]) | null = null;
@@ -1074,16 +1100,37 @@ export class VaultIndexService {
    */
   async query(
     text: string,
-    opts: { minScore?: number; limit?: number; exclude?: Iterable<string> } = {}
+    opts: {
+      minScore?: number;
+      limit?: number;
+      exclude?: Iterable<string>;
+      /** Filled in with where the time went, for the settings and the log. */
+      timing?: QueryTiming;
+    } = {}
   ): Promise<RetrievedNote[]> {
     const q = text.trim();
     if (!q || !this.isQueryable()) return [];
     // During a build, the rows it has so far; they are what a write would keep.
     const rows = this.synced && !this.live ? this.items : (this.live?.() ?? this.items);
     if (rows.length === 0) return [];
-    const [raw] = await this.provider.embed([q]);
-    if (!raw) return [];
-    const queryVec = quantize(raw);
+    const started = monotonic();
+    let queryVec = this.queryVectors.get(q);
+    const cached = queryVec !== undefined;
+    if (queryVec) {
+      // Used again: moved to the back, so the oldest is the one let go.
+      this.queryVectors.delete(q);
+      this.queryVectors.set(q, queryVec);
+    } else {
+      const [raw] = await this.provider.embed([q], { priority: true });
+      if (!raw) return [];
+      queryVec = quantize(raw);
+      if (this.queryVectors.size >= QUERY_VECTORS_KEPT) {
+        const oldest = this.queryVectors.keys().next().value;
+        if (oldest !== undefined) this.queryVectors.delete(oldest);
+      }
+      this.queryVectors.set(q, queryVec);
+    }
+    const embedded = monotonic();
     const minScore = opts.minScore ?? 0.35;
     const excluded = new Set(opts.exclude ?? []);
 
@@ -1101,6 +1148,12 @@ export class VaultIndexService {
       if (++scanned % RANK_YIELD_EVERY === 0) await new Promise((r) => setTimeout(r, 0));
     }
     scored.sort((a, b) => b.score - a.score);
+    if (opts.timing) {
+      opts.timing.cached = cached;
+      opts.timing.embedMs = embedded - started;
+      opts.timing.rankMs = monotonic() - embedded;
+      opts.timing.notes = rows.length;
+    }
     return typeof opts.limit === "number" ? scored.slice(0, opts.limit) : scored;
   }
 }

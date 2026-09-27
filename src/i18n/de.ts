@@ -792,6 +792,7 @@ export const de: Messages = {
     filterEmpty: "Darauf antwortet hier nichts.",
     filterMore: (count: number) => `${count} weitere Treffer. Filter eingrenzen, um sie zu sehen.`,
     foundByMeaning: "Nach Bedeutung gefunden: andere Wörter, gleiches Thema.",
+    searchingByMeaning: "Suche nach Bedeutung …",
     collapseAll: "Alle zuklappen",
     expandAll: "Alle aufklappen",
     pinnedMore: "Alle Angehefteten zeigen",
@@ -1231,9 +1232,24 @@ export const de: Messages = {
         (error ? `nach ${took} fehlgeschlagen: ${error}` : `dauerte ${took}; ${counts}`) +
         (pace ? `; ${pace} Abschnitte je Sekunde` : "") +
         (stopped ? "; an der Grenze des Telefons angehalten" : ""),
+      lastSearch: "Letzte Suche",
+      lastSearchValue: (
+        total: string,
+        load: string | null,
+        embed: string | null,
+        rank: string,
+        notes: number,
+        hits: number
+      ) =>
+        `${total}` +
+        (load ? `; Modell laden ${load}` : "") +
+        (embed ? `; Anfrage ${embed}` : "; Anfrage aus dem Speicher") +
+        `; ${notes} Notizen ordnen ${rank}; ${hits} gefunden`,
       textSearch: "Textsuche",
-      textSearchValue: (notes: number, words: number) =>
-        `${notes} Notizen gelesen, ${words} verschiedene Wörter`,
+      textSearchValue: (notes: number, words: number, readIn: string | null) =>
+        `${notes} Notizen gelesen` +
+        (readIn ? ` in ${readIn}` : "") +
+        `, ${words} verschiedene Wörter`,
       textSearchUnread:
         "Noch nicht gelesen. Der Explorer-Filter liest den Text der Notizen bei seiner ersten Nutzung.",
       seconds: (n: number) => `${n} s`,

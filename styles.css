@@ -1348,6 +1348,28 @@
   font-size: var(--font-ui-smaller);
 }
 
+/* A search by meaning still running under the word results: a status, not a
+   row, so it pulses gently rather than standing there like an answer. */
+.schreibstube-explorer-searching {
+  font-style: italic;
+  animation: schreibstube-searching 1.2s ease-in-out infinite alternate;
+}
+
+@keyframes schreibstube-searching {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0.45;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .schreibstube-explorer-searching {
+    animation: none;
+  }
+}
+
 .schreibstube-explorer-row {
   display: flex;
   align-items: center;

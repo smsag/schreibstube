@@ -413,3 +413,34 @@ describe("VaultIndexService — a phone's own edits", () => {
     expect(second.vectorsOf("other.md")).not.toBeNull();
   });
 });
+
+describe("VaultIndexService — queries", () => {
+  it("asks for a query ahead of waiting batches, and embeds a repeated one only once", async () => {
+    const asked: { texts: string[]; priority: boolean }[] = [];
+    class Recording extends FakeProvider {
+      override async embed(
+        texts: string[],
+        options?: { priority?: boolean }
+      ): Promise<Float32Array[]> {
+        asked.push({ texts, priority: options?.priority === true });
+        return super.embed(texts);
+      }
+    }
+    const svc = new VaultIndexService(new Recording(), new MemStore());
+    await svc.sync([note("a.md", "alpha"), note("b.md", "beta")]);
+    asked.length = 0;
+
+    const timing = { embedMs: -1, rankMs: -1, cached: true, notes: 0 };
+    await svc.query("alpha", { minScore: 0.5, timing });
+    expect(asked).toEqual([{ texts: ["alpha"], priority: true }]);
+    expect(timing.cached).toBe(false);
+    expect(timing.notes).toBe(2);
+    expect(timing.embedMs).toBeGreaterThanOrEqual(0);
+
+    const again = { embedMs: -1, rankMs: -1, cached: false, notes: 0 };
+    const hits = await svc.query("alpha", { minScore: 0.5, timing: again });
+    expect(asked).toHaveLength(1); // from memory
+    expect(again.cached).toBe(true);
+    expect(hits.map((h) => h.id)).toEqual(["a.md"]);
+  });
+});

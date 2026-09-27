@@ -166,6 +166,8 @@ export interface ExplorerPaneHost {
   /** Notes whose meaning answers the text, best first; empty when search by
    *  meaning is off or not ready. */
   meaning?: (text: string, limit: number) => Promise<{ id: string }[]>;
+  /** Get ready for a search about to be typed: the filter field got focus. */
+  warm?: () => void;
   /** How much meaning can answer now, and a way to hear when that moves. */
   meaningState?: () => string;
   onMeaningChange?: (listener: () => void) => () => void;
@@ -213,6 +215,8 @@ export class ExplorerPaneView extends ItemView {
   private meaningTimer: number | null = null;
   /** What meaning found, and for which query; ignored once the query moved on. */
   private meaning: { query: string; hits: { path: string }[] } | null = null;
+  /** The query a search by meaning is running for, so the list can say so. */
+  private meaningPending: string | null = null;
   /** Rows only meaning found, so they can say why they are there. */
   private meaningOnly = new Set<string>();
   /** Every file the filter kept, however many that is. Null when no filter is
@@ -353,6 +357,14 @@ export class ExplorerPaneView extends ItemView {
     // own aria-label already names what it does — so `applyIcon` hides it.
     const loupe = filter.createSpan({ cls: "schreibstube-explorer-filter-loupe" });
     applyIcon(loupe, "search");
+
+    // Focus is the moment a search is about to be typed: the model and the
+    // notes' text are got ready then, not after the first word, so the first
+    // results do not wait for them.
+    search.addEventListener("focus", () => {
+      this.host?.warm?.();
+      this.readBodies();
+    });
 
     search.addEventListener("input", () => {
       // A scope with nothing after it — `tag:` on the way to `tag:foo` — is not
@@ -534,13 +546,23 @@ export class ExplorerPaneView extends ItemView {
       // the words already answer is not asked by meaning.
       const text = meaningQuery(raw, this.wordHitsFor(key));
       if (text === null) return;
+      // Said while it runs: a list of word results, or none, that is still
+      // waiting for meaning read as the whole answer — "nothing matches" stood
+      // on screen until the meaning rows arrived under it.
+      this.meaningPending = key;
+      this.requestRender();
+      const settle = (): void => {
+        if (this.meaningPending !== key) return;
+        this.meaningPending = null;
+        this.requestRender();
+      };
       void ask(text, MEANING_LIMIT)
         .then((hits) => {
           if (this.query !== key || hits.length === 0) return;
           this.meaning = { query: key, hits: hits.map((hit) => ({ path: hit.id })) };
-          this.requestRender();
         })
-        .catch(() => undefined);
+        .catch(() => undefined)
+        .finally(settle);
     }, MEANING_DEBOUNCE_MS);
   }
 
@@ -553,9 +575,13 @@ export class ExplorerPaneView extends ItemView {
 
   /** How much of the vault's text the filter has read, for the settings. Null
    *  until it has read any. */
-  textStats(): { notes: number; words: number } | null {
+  textStats(): { notes: number; words: number; readMs: number | null } | null {
     return this.bodies.size > 0
-      ? { notes: this.bodies.size, words: this.bodies.vocabularySize }
+      ? {
+          notes: this.bodies.size,
+          words: this.bodies.vocabularySize,
+          readMs: this.bodyLoader.lastReadMs
+        }
       : null;
   }
 
@@ -1295,12 +1321,19 @@ export class ExplorerPaneView extends ItemView {
       drawn += 1;
     }
 
+    const searching = this.meaningPending !== null && this.meaningPending === this.query;
     if (drawn === 0) {
       results.createEl("p", {
         cls: "schreibstube-explorer-empty",
-        text: t().explorer.filterEmpty
+        text: searching ? t().explorer.searchingByMeaning : t().explorer.filterEmpty
       });
       return;
+    }
+    if (searching) {
+      results.createEl("p", {
+        cls: "schreibstube-explorer-empty schreibstube-explorer-searching",
+        text: t().explorer.searchingByMeaning
+      });
     }
 
     // A list that stopped has to say so, or the file you are looking for is

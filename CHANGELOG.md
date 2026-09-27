@@ -6,11 +6,16 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- **The settings show where a search's time went.** A new line under search by meaning gives the last search's time, split into loading the model, embedding the query (or "from memory") and ranking the notes, and the text search line says how long reading the notes took. The same numbers go to the debug log, so a slow search can be told apart from a slow model.
+
 - **The settings say how search by meaning is doing.** Under the status line: how many of the notes to index are in it and why the rest are not (not read yet, failed, kept out by their frontmatter, past the note limit), how many passages it holds, the size of its files and which device keeps them, the model and where it runs, and for a build — running or the last one — how far it has come, how many notes were embedded or unchanged, passages a second and the time left. The Explorer filter's text index is counted too.
 - **A note written on a phone is indexed on the phone.** It was embedded there and forgotten at the next launch, and only once the phone had been searched. The phone now reads the index as soon as a note changes and keeps its own edits in a file of its own, which only it reads; the desktop's files are left alone, and the phone lets its edits go once the desktop has written a new index.
 - **The Explorer filter finds notes by the words in their text.** A note whose name says nothing about *Jahresabrechnung* is now found by that word, or by *Jahres* on the way to it, when its text holds it. A word in the text counts well below one in the name, title, aliases or tags, so a file called what you typed still comes first. `text:` (or `inhalt:`) searches the text alone. The text is read once, in the background, the first time the filter is used, and a note is read again when it is saved; frontmatter, code blocks, links' targets and URLs are not searched.
 
 ### Changed
+
+- **Search results arrive sooner.** Clicking into the Explorer filter now reads the index and loads the model, and starts reading the notes' text, so the first search no longer waits for them; this happens only where the index already exists, so nothing is downloaded for a click. A query typed again — a character deleted and retyped — is answered from memory instead of by the model, and a search goes ahead of the batches a build or a conversation sync has waiting.
+- **The filter says when it is still searching by meaning.** "Searching by meaning…" stands under the word results, or in place of "nothing matches", until the meaning results arrive, instead of the list looking finished before it was.
 
 - **Search by meaning answers while its index is being built.** Notes join the answers as they are read, instead of the whole vault arriving at the end of a build; a filter typed before the index could answer is asked again once it can.
 - **A single word is a word search.** Search by meaning is no longer asked for one word the words already answer: a sentence model reads a lone word, or the start of one, as close to nothing in particular, and the noise it returned sat beside the note that actually says the word. One word the words cannot find is still asked by meaning, held to a lower floor and cut to the hits nearly as close as the best.

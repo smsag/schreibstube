@@ -268,3 +268,27 @@ describe("BodyLoader — the vault changing under a pass", () => {
     expect(reads).toEqual([]);
   });
 });
+
+describe("BodyLoader — how long reading took", () => {
+  it("records the time of a pass that read something, and keeps it through an empty one", async () => {
+    let t = 0;
+    const source = {
+      paths: () => ["a.md", "b.md"],
+      read: async () => {
+        t += 100;
+        return "x";
+      }
+    };
+    const loader = new BodyLoader(
+      new BodyIndex(),
+      source,
+      () => Promise.resolve(),
+      () => t
+    );
+    expect(loader.lastReadMs).toBeNull();
+    await loader.ensure();
+    expect(loader.lastReadMs).toBe(200);
+    await loader.ensure(); // nothing left to read
+    expect(loader.lastReadMs).toBe(200);
+  });
+});

@@ -542,6 +542,7 @@ export const enExtra = {
     filterEmpty: "Nothing here answers that.",
     filterMore: (count: number) => `${count} more match. Narrow the filter to see them.`,
     foundByMeaning: "Found by meaning: the words differ, the subject matches.",
+    searchingByMeaning: "Searching by meaning…",
     collapseAll: "Collapse all",
     expandAll: "Expand all",
     pinnedMore: "Show all pinned",
@@ -963,9 +964,22 @@ export const enExtra = {
         (error ? `failed after ${took}: ${error}` : `took ${took}; ${counts}`) +
         (pace ? `; ${pace} passages a second` : "") +
         (stopped ? "; stopped at the phone's limit" : ""),
+      lastSearch: "Last search",
+      lastSearchValue: (
+        total: string,
+        load: string | null,
+        embed: string | null,
+        rank: string,
+        notes: number,
+        hits: number
+      ) =>
+        `${total}` +
+        (load ? `; loading the model ${load}` : "") +
+        (embed ? `; the query ${embed}` : "; the query from memory") +
+        `; ranking ${notes} notes ${rank}; ${hits} found`,
       textSearch: "Text search",
-      textSearchValue: (notes: number, words: number) =>
-        `${notes} notes read, ${words} different words`,
+      textSearchValue: (notes: number, words: number, readIn: string | null) =>
+        `${notes} notes read` + (readIn ? ` in ${readIn}` : "") + `, ${words} different words`,
       textSearchUnread:
         "Not read yet. The Explorer filter reads the notes' text the first time it is used.",
       seconds: (n: number) => `${n} s`,

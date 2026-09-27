@@ -213,6 +213,31 @@ describe("SemanticEngine", () => {
     expect(model.unloads).toBeGreaterThan(unloads);
   });
 
+  it("warms up on focus: reads a finished index and loads the model before the first search", async () => {
+    const w = world();
+    await built(w.engine());
+    const e = w.engine();
+    const loads = model.loads;
+    e.warm();
+    await until(() => e.searchState() === "ready" && model.loads > loads);
+    expect(e.searchState()).toBe("ready");
+    expect(model.loads).toBe(loads + 1);
+
+    await e.search("alpha one", 5);
+    const report = await e.report();
+    expect(report?.search?.loadMs).toBe(0); // the warm-up had already loaded it
+    expect(report?.search?.notes).toBe(2);
+  });
+
+  it("does not warm up a model nobody has used on this vault", async () => {
+    const w = world();
+    const e = w.engine();
+    e.warm();
+    await new Promise((r) => setTimeout(r, 20));
+    expect(model.loads).toBe(0);
+    expect(inside(e).syncing).toBe(false);
+  });
+
   it("stops a running build at unload and does not load the model again", async () => {
     const w = world(
       Object.fromEntries(Array.from({ length: 20 }, (_, i) => [`n${i}.md`, `alpha ${i}`]))

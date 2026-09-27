@@ -211,6 +211,8 @@ export class BodyLoader {
   private again = false;
   /** Stopped for good: the pane closed. */
   private cancelled = false;
+  /** How long the last pass that read anything took, for the settings. */
+  lastReadMs: number | null = null;
   /** The stamp of the read in flight for each path; absent when none is. */
   private readonly stamps = new Map<string, number>();
   private stamp = 0;
@@ -219,7 +221,9 @@ export class BodyLoader {
     private readonly index: BodyIndex,
     private readonly source: BodySource,
     private readonly pause: () => Promise<void> = () =>
-      new Promise((resolve) => setTimeout(resolve, 0))
+      new Promise((resolve) => setTimeout(resolve, 0)),
+    private readonly clock: () => number = () =>
+      typeof performance !== "undefined" ? performance.now() : Date.now()
   ) {}
 
   /**
@@ -236,11 +240,13 @@ export class BodyLoader {
       return this.running;
     }
     const run = async (): Promise<boolean> => {
+      const started = this.clock();
       let read = false;
       do {
         this.again = false;
         if (await this.fill()) read = true;
       } while (this.again && !this.cancelled);
+      if (read) this.lastReadMs = this.clock() - started;
       return read;
     };
     this.running = run().finally(() => {
