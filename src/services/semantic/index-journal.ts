@@ -106,6 +106,11 @@ export class IndexJournal {
     return this.upserts.size + this.removed.size;
   }
 
+  /** Whether there is a base this journal can be written against. */
+  get extendsBase(): boolean {
+    return this.base !== undefined;
+  }
+
   /** A base was written or loaded: the journal starts over against it. */
   reset(base: number | undefined): void {
     this.upserts.clear();

@@ -119,7 +119,10 @@ Obsidian goes to the background — so it reads the synced file, answers from it
 finished or not, and reads it again when the desktop has written a newer one.
 **Build now** on a phone embeds a budget of notes and merges what the desktop
 wrote meanwhile before it writes, so the two devices do not undo each other
-through the one file. A build answers queries while it runs, and a note whose
+through the one file. The phone's own edits are embedded on the phone and go
+to a journal of its own (`…phone-journal.bin`), tied to the desktop's base like
+the shared journal and ignored once the desktop writes a new one. A build
+answers queries while it runs, and a note whose
 embed fails on the desktop — not by a deadline — is kept as a row without
 vectors, so it is not retried until its text changes.
 

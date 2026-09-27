@@ -37,8 +37,19 @@ export class SemanticIndexFiles implements IndexStore {
     await adapter.writeBinary(this.path, buf);
   }
 
-  journal(): IndexStore {
+  journal(): SemanticIndexFiles {
     return new SemanticIndexFiles(this.plugin, this.modelId, ".journal.bin", this.prefix);
+  }
+
+  /** The phone's own edits to an index the desktop keeps; only a phone reads it. */
+  phoneJournal(): SemanticIndexFiles {
+    return new SemanticIndexFiles(this.plugin, this.modelId, ".phone-journal.bin", this.prefix);
+  }
+
+  /** The size of this file in bytes, or null when there is none. */
+  async size(): Promise<number | null> {
+    const stat = await this.plugin.app.vault.adapter.stat(this.path);
+    return stat?.size ?? null;
   }
 
   /**

@@ -331,3 +331,85 @@ describe("VaultIndexService — reading without waiting", () => {
     expect(svc.baseDiffersFrom(undefined)).toBe(false);
   });
 });
+
+describe("VaultIndexService — what it reports", () => {
+  it("counts indexed, failed and missing notes, and the passages held", async () => {
+    class FailOnGamma extends FakeProvider {
+      override async embed(texts: string[]): Promise<Float32Array[]> {
+        if (texts.some((t) => t.includes("gamma"))) throw new Error("bad");
+        return super.embed(texts);
+      }
+    }
+    const svc = new VaultIndexService(new FailOnGamma(), new MemStore());
+    const details: { embedded: number; failed: number; reused: number; passages: number }[] = [];
+    await svc.sync(
+      [note("a.md", "alpha"), note("b.md", "beta"), note("g.md", "gamma")],
+      (_done, _total, detail) => details.push(detail)
+    );
+    expect(details.at(-1)).toMatchObject({ embedded: 2, failed: 1, reused: 0, passages: 2 });
+    expect(svc.coverage(["a.md", "b.md", "g.md", "new.md"])).toEqual({
+      indexed: 2,
+      failed: 1,
+      missing: 1,
+      passages: 2
+    });
+  });
+});
+
+describe("VaultIndexService — a phone's own edits", () => {
+  const desktopIndex = async (store: MemStore): Promise<void> => {
+    await new VaultIndexService(new FakeProvider(), store, { device: "desktop" }).sync(
+      [note("a.md", "alpha")],
+      undefined,
+      {},
+      "s"
+    );
+  };
+  const phone = (store: MemStore, journal: MemStore): VaultIndexService =>
+    new VaultIndexService(new FakeProvider(), store, {
+      device: "mobile",
+      phoneJournal: journal,
+      persistIntervalMs: 0
+    });
+
+  it("keeps a note written on the phone across a restart, without touching the desktop's files", async () => {
+    const store = new MemStore();
+    await desktopIndex(store);
+    const writes = store.writes;
+    const journal = new MemStore();
+    const first = phone(store, journal);
+    await first.hydrateForQuery();
+    await first.applyBatch({ updates: [note("new.md", "beta written on the phone")], removes: [] });
+    expect(store.writes).toBe(writes); // the desktop's file is the desktop's
+    expect(journal.writes).toBe(1);
+
+    const second = phone(store, journal);
+    await second.hydrateForQuery();
+    expect(second.vectorsOf("new.md")).not.toBeNull();
+    expect(second.isComplete("s")).toBe(true); // still the desktop's index
+    expect(second.signature().keeper).toBe("desktop");
+  });
+
+  it("lets the phone's edits go once the desktop writes a new base", async () => {
+    const store = new MemStore();
+    await desktopIndex(store);
+    const journal = new MemStore();
+    const first = phone(store, journal);
+    await first.hydrateForQuery();
+    await first.applyBatch({ updates: [note("new.md", "beta")], removes: [] });
+
+    // The desktop saw the edit and rebuilt; the phone's journal is now stale.
+    // A base is known by its write time, so the two writes must not share a millisecond.
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    await new VaultIndexService(new FakeProvider(), store, { device: "desktop" }).sync(
+      [note("a.md", "alpha"), note("other.md", "gamma")],
+      undefined,
+      {},
+      "s"
+    );
+    const second = phone(store, journal);
+    await second.hydrateForQuery();
+    expect(second.vectorsOf("new.md")).toBeNull();
+    expect(second.vectorsOf("other.md")).not.toBeNull();
+  });
+});

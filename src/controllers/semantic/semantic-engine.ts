@@ -12,6 +12,7 @@ import {
   type EmbeddingModelId
 } from "../../services/semantic/embedding-models";
 import type { SemanticStatus } from "../../services/semantic/status-text";
+import type { BuildProgress, BuildRecord, IndexFacts } from "../../services/semantic/index-report";
 import {
   ResidentProvider,
   installEmbeddingResidency,
@@ -26,7 +27,7 @@ import { selectIndexPaths, scopeSignature } from "../../services/semantic/index-
 import { isIndexingOptedOut, type RetrievedNote } from "../../services/semantic/vault-retrieval";
 import { catchUpIndex, CATCH_UP_DELAY_MS } from "../../services/semantic/vault-catch-up";
 import { applyMeaningFloor, meaningFloor } from "../../services/semantic/search-fusion";
-import { peekIndexMeta } from "../../services/semantic/embedding-index";
+import { peekIndexMeta, type IndexKeeper } from "../../services/semantic/embedding-index";
 import { pluginRunsOwnModel } from "../../services/workspace-internals";
 import { createEmbeddingProvider } from "./host/embedding-provider-factory";
 import { embeddingWorkerUrl } from "./host/worker-bundle-url";
@@ -85,6 +86,8 @@ export class SemanticEngine {
   private deferred: { changed: Map<string, TFile>; deleted: Set<string> } | null = null;
   /** The phone has said once this session that the desktop builds the index. */
   private toldDesktopBuilds = false;
+  /** The build running now, or the last one this session. */
+  private lastBuild: BuildRecord | null = null;
   /** When the phone last looked for a newer index from the desktop. */
   private lastPhoneLook = Number.NEGATIVE_INFINITY;
   private fileCount: { scope: string; count: number; complete: boolean } | null | undefined;
@@ -215,7 +218,8 @@ export class SemanticEngine {
         maxChars: embedChunkChars(this.modelId()),
         hashPolicy: hashPolicyFor(this.modelId()),
         device: Platform.isMobile ? "mobile" : "desktop",
-        logger: this.logger
+        logger: this.logger,
+        ...(Platform.isMobile ? { phoneJournal: this.files().phoneJournal() } : {})
       });
     }
     return this.service;
@@ -237,23 +241,69 @@ export class SemanticEngine {
 
   /** The notes the index should hold, newest first, capped and opted out. */
   private collectNotes(): IndexableNote[] {
+    return this.scopeNotes().notes;
+  }
+
+  /** The notes to index, and what was left out on the way and why. */
+  private scopeNotes(): {
+    notes: IndexableNote[];
+    vaultNotes: number;
+    optedOut: number;
+    overCap: number;
+  } {
     const app = this.plugin.app;
-    const files = app.vault
-      .getMarkdownFiles()
+    const all = app.vault.getMarkdownFiles();
+    const files = all
       .filter((file) => {
         const frontmatter = app.metadataCache.getFileCache(file)?.frontmatter;
         return !isIndexingOptedOut(frontmatter) && frontmatter?.[OPT_OUT_KEY] !== false;
       })
       .sort((a, b) => b.stat.mtime - a.stat.mtime);
     const byPath = new Map(files.map((file) => [file.path, file]));
-    const { paths } = selectIndexPaths(
+    const { paths, total } = selectIndexPaths(
       files.map((file) => file.path),
       { include: [], skip: [], cap: this.getSettings().semanticMaxNotes }
     );
-    return paths.flatMap((path) => {
+    const notes = paths.flatMap((path) => {
       const file = byPath.get(path);
       return file ? [{ path, load: () => app.vault.cachedRead(file) }] : [];
     });
+    return {
+      notes,
+      vaultNotes: all.length,
+      optedOut: all.length - files.length,
+      overCap: total - paths.length
+    };
+  }
+
+  /** Start recording a build for the settings, and return its progress listener. */
+  private record(kind: BuildRecord["kind"], total: number) {
+    const build: BuildRecord = {
+      kind,
+      startedAt: Date.now(),
+      endedAt: null,
+      stopped: false,
+      error: null,
+      done: 0,
+      total,
+      embedded: 0,
+      reused: 0,
+      failed: 0,
+      passages: 0
+    };
+    this.lastBuild = build;
+    return (done: number, all: number, detail: BuildProgress): void => {
+      Object.assign(build, detail, { done, total: all });
+    };
+  }
+
+  /** The recorded build has ended, however it ended. */
+  private endRecord(outcome: { stopped?: boolean; error?: string | null } = {}): void {
+    const build = this.lastBuild;
+    if (!build || build.endedAt !== null) return;
+    build.endedAt = Date.now();
+    build.stopped = outcome.stopped ?? false;
+    build.error = outcome.error ?? null;
   }
 
   /**
@@ -354,9 +404,11 @@ export class SemanticEngine {
       const notes = this.collectNotes();
       notice = new Notice(t().semantic.building, 0);
       this.setPhase({ kind: "building", done: 0, total: notes.length });
+      const recordProgress = this.record("build", notes.length);
       const result = await svc.sync(
         notes,
-        (done, total) => {
+        (done, total, detail) => {
+          recordProgress(done, total, detail);
           notice?.setMessage(t().semantic.progress(done, total));
           this.setPhase({ kind: "building", done, total });
         },
@@ -366,12 +418,14 @@ export class SemanticEngine {
         Platform.isMobile ? { maxEmbeds: MOBILE_BUILD_BUDGET, mergeFromStore: true } : {}
       );
       this.guard.end();
+      this.endRecord({ stopped: result.stopped });
       this.setPhase({ kind: "idle" });
       if (result.stopped) new Notice(t().semantic.phoneBudget(result.embedded), 8_000);
       await this.flushDeferred();
     } catch (e) {
       const outOfMemory = isOutOfMemoryError(e);
       if (!outOfMemory) this.guard.end();
+      this.endRecord({ error: e instanceof Error ? e.message : String(e) });
       this.setPhase({
         kind: "failed",
         error: e instanceof Error ? e.message : String(e),
@@ -412,8 +466,16 @@ export class SemanticEngine {
         notes: () => this.collectNotes(),
         modelId: () => this.modelId(),
         guard: this.guard,
-        onProgress: (done, total) => this.setPhase({ kind: "building", done, total })
+        onProgress: (done, total, detail) => {
+          // Recorded from its first note on: a catch-up that finds the index
+          // incomplete never calls this, and leaves the last build's record.
+          if (this.lastBuild?.kind !== "catchUp" || this.lastBuild.endedAt !== null)
+            this.record("catchUp", total);
+          Object.assign(this.lastBuild!, detail, { done, total });
+          this.setPhase({ kind: "building", done, total });
+        }
       });
+      this.endRecord();
       this.setPhase({ kind: "idle" });
       await this.flushDeferred();
       this.logger.debug("semantic engine: catch-up", result);
@@ -424,6 +486,7 @@ export class SemanticEngine {
         outOfMemory: isOutOfMemoryError(e),
         loadFailed: false
       });
+      this.endRecord({ error: e instanceof Error ? e.message : String(e) });
       this.logger.warn("semantic engine: catch-up failed", e);
     } finally {
       this.syncing = false;
@@ -437,6 +500,10 @@ export class SemanticEngine {
     if (!this.enabled()) return;
     const svc = this.service;
     if (!svc?.isReady()) {
+      // A phone that has not read the index yet reads it now, and applies the
+      // edits held here once it has: a note written on the phone is indexed
+      // on the phone, not only once someone searches.
+      if (Platform.isMobile) this.refresh();
       const buf = (this.deferred ??= { changed: new Map(), deleted: new Set() });
       for (const file of changed) {
         buf.changed.set(file.path, file);
@@ -461,6 +528,9 @@ export class SemanticEngine {
     }
     await svc.applyBatch({ updates, removes }, { cap: this.getSettings().semanticMaxNotes });
     this.fileCount = undefined;
+    // Edits held while the index was being read, if they arrived after it
+    // had already applied the ones it held.
+    await this.flushDeferred();
     this.emit();
   }
 
@@ -620,6 +690,52 @@ export class SemanticEngine {
     if (!file || file.count === 0) return base;
     if (!file.complete) return { ...base, state: "partial", count: file.count };
     return { ...base, state: file.scope === scope ? "ready" : "outdated", count: file.count };
+  }
+
+  /**
+   * The numbers behind the status line, for the settings: how much of the
+   * vault the index covers and why the rest is not in it, the files, the
+   * model, and the pace of the current or last build. Reads the index file if
+   * this session has not, never loads the model.
+   */
+  async report(): Promise<Omit<IndexFacts, "text"> | null> {
+    if (!this.enabled()) return null;
+    const scope = this.scopeNotes();
+    const files = this.files();
+    let coverage = { indexed: 0, failed: 0, missing: scope.notes.length, passages: 0 };
+    let signature: { keeper?: IndexKeeper; writtenAt?: number } = {};
+    try {
+      const svc = this.ensure();
+      await svc.loadPersisted();
+      coverage = svc.coverage(scope.notes.map((note) => note.path));
+      signature = svc.signature();
+    } catch (e) {
+      this.logger.warn("semantic engine: could not read the index for its report", e);
+    }
+    const size = async (store: { size(): Promise<number | null> }): Promise<number | null> => {
+      try {
+        return await store.size();
+      } catch {
+        return null;
+      }
+    };
+    return {
+      model: embeddingModelConfig(this.modelId()).label,
+      backend: this.backend,
+      device: Platform.isMobile ? "mobile" : "desktop",
+      vaultNotes: scope.vaultNotes,
+      optedOut: scope.optedOut,
+      overCap: scope.overCap,
+      cap: this.getSettings().semanticMaxNotes,
+      inScope: scope.notes.length,
+      ...coverage,
+      indexBytes: await size(files),
+      journalBytes: await size(files.journal()),
+      phoneJournalBytes: Platform.isMobile ? await size(files.phoneJournal()) : null,
+      keeper: signature.keeper,
+      writtenAt: signature.writtenAt,
+      build: this.lastBuild ? { ...this.lastBuild } : null
+    };
   }
 
   /** The switch or the cap moved. Switched off, the model's memory is given

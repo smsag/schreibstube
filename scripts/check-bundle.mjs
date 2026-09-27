@@ -97,14 +97,16 @@ import { fileURLToPath } from "node:url";
  * cut one of the four the feature was asked for. What is left is for the next
  * feature, not a new normal.
  *
- * Raised to 1490 KB at 1471 KB, for finding notes by their text and a faster
- * index (+10 KB on 1461): the vocabulary index of every note's words and the
- * loader that fills it, the reading of a note as prose that both searches
- * share, passages cut at words and merged when short, a build that answers
- * while it runs and remembers a note that failed, a phone that holds the
- * desktop's index instead of building its own, and the notices of it in two
- * languages. The shared vocabulary is the part that could not be smaller: a
- * word list per note would have cost memory on a phone instead of bytes here.
+ * Raised to 1490 KB at 1480 KB, for finding notes by their text, a faster
+ * index and the numbers that show it (+19 KB on 1461): the vocabulary index
+ * of every note's words and the loader that fills it, the reading of a note
+ * as prose that both searches share, passages cut at words and merged when
+ * short, a build that answers while it runs and remembers a note that failed,
+ * a phone that holds the desktop's index and keeps its own edits in a journal
+ * of its own, and the report in the settings — coverage, files, model, pace
+ * and time left — with every word of it in two languages, which is half the
+ * growth. The shared vocabulary is the part that could not be smaller: a word
+ * list per note would have cost memory on a phone instead of bytes here.
  * What is left is for the next feature, not a new normal.
  */
 const MAX_BUNDLE_KB = 1490;

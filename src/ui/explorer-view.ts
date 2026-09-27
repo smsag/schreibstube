@@ -544,6 +544,14 @@ export class ExplorerPaneView extends ItemView {
     return this.index.search(key, 0).hits.length;
   }
 
+  /** How much of the vault's text the filter has read, for the settings. Null
+   *  until it has read any. */
+  textStats(): { notes: number; words: number } | null {
+    return this.bodies.size > 0
+      ? { notes: this.bodies.size, words: this.bodies.vocabularySize }
+      : null;
+  }
+
   /**
    * Read the notes' text into the filter, once, in the background, and draw
    * again when that found anything, so a word only the text holds turns up

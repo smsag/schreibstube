@@ -15,6 +15,7 @@ import { vaultNoteChunks, type RetrievedNote } from "./vault-retrieval";
 import { IndexJournal, applyJournal, deserializeJournal } from "./index-journal";
 import { isOutOfMemoryError } from "./memory-error";
 import { createLogger, type Logger } from "../logger";
+import type { BuildProgress } from "./index-report";
 
 /** Notes processed between cooperative yields during a build (keeps the UI alive). */
 const YIELD_EVERY_NOTES = 8;
@@ -81,6 +82,21 @@ const MAX_CONSECUTIVE_EMBED_FAILURES = 5;
  * work, and lets a search's query slip in between two of them.
  */
 export const EMBED_REQUEST_CHUNKS = 16;
+
+/** Called as notes are handled: how many of how many, and what became of them. */
+export type ProgressListener = (processed: number, total: number, detail: BuildProgress) => void;
+
+/** What the index holds for a set of notes, for the settings to report. */
+export interface Coverage {
+  /** Notes with vectors. */
+  indexed: number;
+  /** Notes held as failed. */
+  failed: number;
+  /** Notes with no row at all. */
+  missing: number;
+  /** Passages held for the notes with vectors. */
+  passages: number;
+}
 
 /** How a build ended. */
 export interface SyncResult {
@@ -157,10 +173,28 @@ export class VaultIndexService {
       logger?: Pick<Logger, "warn">;
       /** The kind of device this runs on, stamped on every write (Pythia ADR-221). */
       device?: IndexKeeper;
+      /** Where a phone keeps its own edits to an index a desktop keeps. */
+      phoneJournal?: IndexStore;
     } = {}
   ) {
     this.journal = store.journal ? new IndexJournal(store.journal(), this.logger) : null;
+    this.phoneJournal = opts.phoneJournal ? new IndexJournal(opts.phoneJournal, this.logger) : null;
   }
+
+  /**
+   * A phone's own edits, when the index is a desktop's (Pythia ADR-221 left
+   * them in memory only).
+   *
+   * A note written on the phone was embedded there and forgotten at the next
+   * launch, so until the desktop had seen the edit, the phone searched its
+   * own note by its old text — or not at all, if the note was new. The phone
+   * cannot write the shared files without the two devices overwriting each
+   * other, so it writes a journal of its own that only it reads. It is tied to
+   * the desktop's base like the shared one: once the desktop writes a new base
+   * — having seen the edits by then — the phone's journal is stale and
+   * ignored.
+   */
+  private readonly phoneJournal: IndexJournal | null;
 
   /** Where edits go instead of a base rewrite, when the store has one (Pythia ADR-222). */
   private readonly journal: IndexJournal | null;
@@ -169,6 +203,7 @@ export class VaultIndexService {
   private async writeBase(items: IndexedConversation[], meta: IndexMeta): Promise<void> {
     await this.store.write(serializeIndex(items, this.provider.dim, meta));
     this.journal?.reset(meta.writtenAt);
+    this.phoneJournal?.reset(meta.writtenAt);
     this.baseStamp = meta.writtenAt;
   }
 
@@ -306,7 +341,11 @@ export class VaultIndexService {
           const merged = this.journal
             ? await this.journal.load(meta.writtenAt, items, dim)
             : { items };
-          this.items = merged.items;
+          // The phone's own edits over the desktop's rows, never its meta: the
+          // index is still the desktop's.
+          this.items = this.phoneJournal
+            ? (await this.phoneJournal.load(meta.writtenAt, merged.items, dim)).items
+            : merged.items;
           this.meta = {
             ...meta,
             ...(merged.keeper ? { keeper: merged.keeper } : {}),
@@ -334,7 +373,7 @@ export class VaultIndexService {
    *  app (Pythia ADR-125). Defaults keep the off-thread cadence. */
   sync(
     notes: IndexableNote[],
-    onProgress?: (processed: number, total: number) => void,
+    onProgress?: ProgressListener,
     throttle: { yieldEveryNotes?: number; breatherMs?: number } = {},
     /** The scope these notes were selected under, recorded so a later session
      *  can tell whether the index still matches the settings (Pythia ADR-184). */
@@ -430,8 +469,9 @@ export class VaultIndexService {
     let dirty = false;
     // Each row that moves is recorded for the journal (Pythia ADR-222): its new state, or
     // its removal when an update dropped it.
+    const journal = this.writesEdits() ? this.journal : this.phoneJournal;
     const note = (path: string): void =>
-      this.journal?.record(
+      journal?.record(
         path,
         this.items.find((i) => i.id === path)
       );
@@ -451,9 +491,9 @@ export class VaultIndexService {
     // Targeted edits keep whatever the index already claims about itself: a
     // watcher flush neither completes an unfinished build nor invalidates a
     // finished one.
-    // A phone holding a desktop's index keeps the edit in memory only (Pythia ADR-221);
-    // nothing is lost that the desktop does not redo, so no word is owed.
-    if (dirty && this.writesEdits()) await this.persistEdits();
+    // A phone holding a desktop's index writes its own journal, or keeps the
+    // edit in memory when it has none (Pythia ADR-221).
+    if (dirty && (this.writesEdits() || this.phoneJournal)) await this.persistEdits();
   }
 
   /** Write an edit batch now, or leave it to the window's trailing write (Pythia ADR-220).
@@ -476,6 +516,16 @@ export class VaultIndexService {
 
   private async writeEdits(): Promise<void> {
     this.lastEditWriteAt = Date.now();
+    if (!this.writesEdits()) {
+      // Signed as the phone's in its own file; the index's meta stays the
+      // desktop's, or the next edit would take the shared files over.
+      if (this.phoneJournal?.extendsBase)
+        await this.phoneJournal.write(this.provider.dim, {
+          keeper: this.device,
+          writtenAt: Date.now()
+        });
+      return;
+    }
     this.meta = this.stamp(this.meta);
     // Kilobytes to the journal while it is small; the base only to fold it in.
     if (this.journal?.canTake(this.items.length))
@@ -587,7 +637,7 @@ export class VaultIndexService {
 
   private async doSync(
     notes: IndexableNote[],
-    onProgress?: (processed: number, total: number) => void,
+    onProgress?: ProgressListener,
     throttle: { yieldEveryNotes?: number; breatherMs?: number } = {},
     scope = "",
     options: SyncOptions = {}
@@ -609,6 +659,8 @@ export class VaultIndexService {
     const desired = new Set(notes.map((n) => n.path));
     const total = notes.length;
     let embedded = 0;
+    let reused = 0;
+    let passages = 0;
     /** Notes held as failed (a row without vectors) in `kept` right now. */
     let failed = 0;
     let processed = 0;
@@ -616,6 +668,14 @@ export class VaultIndexService {
      *  to write is a question about both. */
     let persistedChanges = 0;
     const changes = (): number => embedded + failed;
+    const progress = (): BuildProgress => ({
+      done: processed,
+      total,
+      embedded,
+      reused,
+      failed,
+      passages
+    });
     let failedInARow = 0;
     /** Notes given up on since the last success. If the streak turns out to be
      *  a dead backend rather than bad notes, they were never judged and must
@@ -686,11 +746,11 @@ export class VaultIndexService {
         try {
           chunks = vaultNoteChunks(await note.load(), maxChars);
         } catch {
-          onProgress?.(processed, total);
+          onProgress?.(processed, total, progress());
           continue; // unreadable note — skip (drops it from the index if it was there)
         }
         if (chunks.length === 0) {
-          onProgress?.(processed, total);
+          onProgress?.(processed, total, progress());
           continue;
         } // empty note
 
@@ -698,6 +758,7 @@ export class VaultIndexService {
         const { hash, reuse } = resolveRowHash(this.policy, prev?.contentHash, chunks);
         if (prev && reuse) {
           kept.push(prev); // unchanged (or failed before, unchanged) — no re-embed
+          reused++;
           // Resets the failure streak too. Not resetting here would let five
           // bad notes SCATTERED through a mostly-unchanged vault abort the
           // build — reinstating the very bug this guard sits next to. A dead
@@ -714,6 +775,7 @@ export class VaultIndexService {
             const raw = await this.embedAll(chunks);
             kept.push({ id: note.path, contentHash: hash, chunks: raw.map(quantize) });
             embedded++;
+            passages += raw.length;
             failedInARow = 0;
             streak = [];
           } catch (e) {
@@ -748,7 +810,7 @@ export class VaultIndexService {
             }
           }
         }
-        onProgress?.(processed, total);
+        onProgress?.(processed, total, progress());
         // Flush what is embedded so far, so an interruption costs at most the
         // last few notes instead of the entire build (Pythia ADR-182). Counted in
         // EMBEDS, not notes processed: the `continue` paths above (unreadable,
@@ -820,6 +882,26 @@ export class VaultIndexService {
     }
     this.synced = true;
     return { embedded, stopped };
+  }
+
+  /**
+   * What the index holds for `paths`: with vectors, failed, or nothing. During
+   * a build, the rows it has so far. Never loads anything.
+   */
+  coverage(paths: Iterable<string>): Coverage {
+    const rows = this.live?.() ?? this.items;
+    const byId = new Map(rows.map((row) => [row.id, row]));
+    const out: Coverage = { indexed: 0, failed: 0, missing: 0, passages: 0 };
+    for (const path of paths) {
+      const row = byId.get(path);
+      if (!row) out.missing++;
+      else if (row.chunks.length === 0) out.failed++;
+      else {
+        out.indexed++;
+        out.passages += row.chunks.length;
+      }
+    }
+    return out;
   }
 
   /** The stored vectors of one note, or null when it is not in the index. */

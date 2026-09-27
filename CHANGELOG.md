@@ -6,6 +6,8 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- **The settings say how search by meaning is doing.** Under the status line: how many of the notes to index are in it and why the rest are not (not read yet, failed, kept out by their frontmatter, past the note limit), how many passages it holds, the size of its files and which device keeps them, the model and where it runs, and for a build — running or the last one — how far it has come, how many notes were embedded or unchanged, passages a second and the time left. The Explorer filter's text index is counted too.
+- **A note written on a phone is indexed on the phone.** It was embedded there and forgotten at the next launch, and only once the phone had been searched. The phone now reads the index as soon as a note changes and keeps its own edits in a file of its own, which only it reads; the desktop's files are left alone, and the phone lets its edits go once the desktop has written a new index.
 - **The Explorer filter finds notes by the words in their text.** A note whose name says nothing about *Jahresabrechnung* is now found by that word, or by *Jahres* on the way to it, when its text holds it. A word in the text counts well below one in the name, title, aliases or tags, so a file called what you typed still comes first. `text:` (or `inhalt:`) searches the text alone. The text is read once, in the background, the first time the filter is used, and a note is read again when it is saved; frontmatter, code blocks, links' targets and URLs are not searched.
 
 ### Changed

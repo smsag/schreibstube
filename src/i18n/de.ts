@@ -1166,6 +1166,81 @@ export const de: Messages = {
     rebuildDescPhone:
       "Ergänzt auf einem Telefon Notizen wie „Jetzt aufbauen“: Der Index gehört dem Desktop, ihn hier zu leeren, leerte ihn auch dort.",
     status: "Stand",
+    report: {
+      heading: "Einzelheiten",
+      coverage: "Abdeckung",
+      coverageValue: (indexed: number, inScope: number, share: number) =>
+        `${indexed} von ${inScope} Notizen (${share} %)`,
+      vault: "Vault",
+      vaultValue: (notes: number, optedOut: number, overCap: number, cap: number) =>
+        `${notes} Notizen` +
+        (optedOut > 0 ? `; ${optedOut} per Frontmatter ausgenommen` : "") +
+        (overCap > 0 ? `; ${overCap} über der Grenze von ${cap}` : ""),
+      notIndexed: "Nicht im Index",
+      notIndexedValue: (missing: number, failed: number) =>
+        [
+          missing > 0 ? `${missing} noch nicht gelesen` : "",
+          failed > 0 ? `${failed} fehlgeschlagen, nach einer Änderung neu versucht` : ""
+        ]
+          .filter(Boolean)
+          .join("; "),
+      passages: "Abschnitte",
+      passagesValue: (count: number, perNote: string) => `${count}, ${perNote} je Notiz`,
+      file: "Indexdatei",
+      fileValue: (
+        size: string,
+        edits: string | null,
+        keeper: "desktop" | "mobile" | null,
+        writtenAt: number | null
+      ) =>
+        size +
+        (edits ? ` und ${edits} Änderungen` : "") +
+        (keeper ? `; geführt vom ${keeper === "desktop" ? "Desktop" : "Telefon"}` : "") +
+        (writtenAt
+          ? `; geschrieben ${new Date(writtenAt).toLocaleString("de-DE", { dateStyle: "medium", timeStyle: "short" })}`
+          : ""),
+      model: "Modell",
+      modelValue: (model: string, backend: string | null, device: "desktop" | "mobile") =>
+        `${model} auf diesem ${device === "mobile" ? "Telefon" : "Desktop"}; ` +
+        (backend ? `läuft in ${backend}` : "nicht geladen"),
+      building: "Aufbau",
+      buildingValue: (
+        done: number,
+        total: number,
+        counts: string,
+        pace: string | null,
+        left: string | null
+      ) =>
+        `${done} von ${total} Notizen; ${counts}` +
+        (pace ? `; ${pace} Abschnitte je Sekunde` : "") +
+        (left ? `; noch etwa ${left}` : ""),
+      buildCounts: (embedded: number, reused: number, failed: number) =>
+        `${embedded} eingebettet, ${reused} unverändert` +
+        (failed > 0 ? `, ${failed} fehlgeschlagen` : ""),
+      lastBuild: "Letzter Aufbau",
+      lastCatchUp: "Letzter Abgleich",
+      lastBuildValue: (
+        endedAt: number,
+        took: string,
+        counts: string,
+        pace: string | null,
+        stopped: boolean,
+        error: string | null
+      ) =>
+        `${new Date(endedAt).toLocaleString("de-DE", { dateStyle: "medium", timeStyle: "short" })}, ` +
+        (error ? `nach ${took} fehlgeschlagen: ${error}` : `dauerte ${took}; ${counts}`) +
+        (pace ? `; ${pace} Abschnitte je Sekunde` : "") +
+        (stopped ? "; an der Grenze des Telefons angehalten" : ""),
+      textSearch: "Textsuche",
+      textSearchValue: (notes: number, words: number) =>
+        `${notes} Notizen gelesen, ${words} verschiedene Wörter`,
+      textSearchUnread:
+        "Noch nicht gelesen. Der Explorer-Filter liest den Text der Notizen bei seiner ersten Nutzung.",
+      seconds: (n: number) => `${n} s`,
+      minutes: (n: number) => `${n} min`,
+      hours: (h: number, m: number) => (m > 0 ? `${h} h ${m} min` : `${h} h`),
+      decimal: (n: number) => n.toFixed(1).replace(".", ",")
+    },
     state: {
       off: "Aus.",
       blocked:
