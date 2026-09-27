@@ -7,6 +7,9 @@
  * cannot see.
  */
 
+/** A note names the glossaries that apply to it under this key. */
+export const GLOSSARY_FRONTMATTER_KEY = "schreibstubeGlossaries";
+
 export type GlossarySelectionSource = "frontmatter" | "folder" | "session" | "default" | "none";
 
 export interface FolderRule {

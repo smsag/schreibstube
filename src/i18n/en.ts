@@ -23,6 +23,7 @@ export const en = {
     table: "Insert: table from the selection",
     tableAi: "Insert: AI table from the selection",
     insertToday: "Insert: today's date",
+    addPropertySet: "Insert: property set",
     openExplorer: "Open explorer",
     collapseExplorer: "Explorer: collapse folders",
     explorerUndo: "Explorer: undo the last move or delete",

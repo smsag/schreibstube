@@ -142,6 +142,7 @@ export const DEFAULT_SETTINGS: SchreibstubeSettings = {
   printDefaultTemplate: DEFAULT_TEMPLATE_BUILTIN,
   propertyIcons: {},
   dateFormat: DEFAULT_DATE_FORMAT,
+  propertySetFolder: "",
   debugLogging: false
 };
 
@@ -207,6 +208,7 @@ export function normalizeSettings(loaded: LoadedSettings): SchreibstubeSettings 
     llmSecretName,
     propertyIcons: normalizePropertyIcons(loaded?.propertyIcons),
     dateFormat: normalizeDateFormat(loaded?.dateFormat),
+    propertySetFolder: normalizeTermFolder(loaded?.propertySetFolder),
     debugLogging:
       typeof loaded?.debugLogging === "boolean"
         ? loaded.debugLogging

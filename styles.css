@@ -1364,16 +1364,17 @@
   box-shadow: inset 0 0 0 2px var(--interactive-accent);
 }
 
-/* The undo in a notice: a word, not a button. The notice is already a box,
-   and a filled control inside it would be a box in a box. */
-.schreibstube-undo-action {
+/* The action in a notice (an undo, a property set): a word, not a button.
+   The notice is already a box, and a filled control inside it would be a box
+   in a box. */
+.schreibstube-notice-action {
   margin-left: var(--size-4-3);
   color: var(--interactive-accent);
   cursor: pointer;
   font-weight: var(--font-medium);
 }
 
-.schreibstube-undo-action:hover {
+.schreibstube-notice-action:hover {
   text-decoration: underline;
 }
 
@@ -2836,4 +2837,22 @@
 
 .schreibstube-tiles-more {
   padding-top: 0.75rem;
+}
+
+/* Property sets: the control beside Obsidian's "Add property" wears that
+   control's own class for its look; only the spacing between the two is ours,
+   matching the inset Obsidian gives its own. */
+.metadata-container .schreibstube-add-set {
+  margin-top: 0.5em;
+  margin-inline-start: var(--size-4-2);
+  padding-inline-start: var(--size-2-3);
+  font-size: var(--metadata-label-font-size);
+  font-family: var(--metadata-label-font);
+  cursor: var(--cursor);
+}
+
+.schreibstube-set-suggestion-detail {
+  display: block;
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
 }

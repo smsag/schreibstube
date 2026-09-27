@@ -38,6 +38,7 @@ controllers/         one per feature; they own flow and talk to Obsidian
   explorer-controller  the file pane: icons, pins, its menu, its sync actions
   pane-sections        the two read-only lists above the tree: bookmarks, latest
   property-controller  property icons and today's date in the Properties view
+  property-set-controller  property sets: the folder, Templater, and the four ways a set is offered
   semantic/            search by meaning: the model, the vault index, conversations, the API
 services/            pure decisions, no Obsidian imports, heavily tested
 processors/          editor extensions and reading-view post-processors

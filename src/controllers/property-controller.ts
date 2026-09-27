@@ -46,6 +46,8 @@ export class PropertyController {
   /** The property field last typed in, for a command run from the palette, which takes focus. */
   private lastField: HTMLElement | null = null;
   private unhookMenu: () => void = () => {};
+  /** Where "Add property set…" goes; the set controller owns what follows. */
+  private addSet: ((file: TFile | null) => void) | null = null;
 
   constructor(
     private readonly app: App,
@@ -79,6 +81,11 @@ export class PropertyController {
         this.lastField = null;
       }
     });
+  }
+
+  /** Offer "Add property set…" in every property's menu. */
+  setAddSetHandler(handler: (file: TFile | null) => void): void {
+    this.addSet = handler;
   }
 
   /** Forget a popped-out window that closed. */
@@ -129,6 +136,8 @@ export class PropertyController {
     const key = propertyKeyOf(pressed.row);
     if (!key) return;
 
+    const file = fileShownAround(this.app, pressed.row) ?? this.app.workspace.getActiveFile();
+
     menu.addSeparator();
     menu.addItem((item) =>
       item
@@ -136,8 +145,16 @@ export class PropertyController {
         .setIcon("image")
         .onClick(() => this.chooseIcon(key))
     );
+    const addSet = this.addSet;
+    if (addSet) {
+      menu.addItem((item) =>
+        item
+          .setTitle(t().properties.addSet)
+          .setIcon("list-plus")
+          .onClick(() => addSet(file))
+      );
+    }
 
-    const file = fileShownAround(this.app, pressed.row) ?? this.app.workspace.getActiveFile();
     const kind = propertyKindOf(propertyTypeOf(this.app, pressed.row, key));
     const current = file
       ? this.app.metadataCache.getFileCache(file)?.frontmatter?.[key]

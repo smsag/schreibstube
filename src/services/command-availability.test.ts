@@ -23,6 +23,7 @@ function offered(context: CommandContext): GatedCommand[] {
     "summarize",
     "table",
     "insert-today",
+    "property-set",
     "check-source",
     "send-mail",
     "fetch-replies",
@@ -38,6 +39,7 @@ describe("what the palette offers", () => {
     expect(offered(screen())).toEqual([
       "rename",
       "insert-today",
+      "property-set",
       "send-mail",
       "fetch-replies",
       "related"

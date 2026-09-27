@@ -88,25 +88,33 @@ function parseMessageId(value: unknown): string | null {
   return trimmed.startsWith("<") ? trimmed : `<${trimmed.replace(/^<|>$/g, "")}>`;
 }
 
-export type SendableResult = { ok: true } | { ok: false; message: string };
+/** `missing`: the note lacks a value a key must hold, which a property set
+ *  can start by adding the key; a wrong value it cannot fix. */
+export type SendableResult = { ok: true } | { ok: false; message: string; missing: boolean };
 
 export function validateSendable(fields: MailFields): SendableResult {
   if (fields.to.length === 0 && fields.cc.length === 0) {
     return {
       ok: false,
-      message: t().mailNotices.needsRecipient(FM_TO)
+      message: t().mailNotices.needsRecipient(FM_TO),
+      missing: true
     };
   }
 
   const invalid = [...fields.to, ...fields.cc].filter((address) => !looksLikeAddress(address));
   if (invalid.length > 0) {
-    return { ok: false, message: t().mailNotices.invalidRecipient(invalid.join(", ")) };
+    return {
+      ok: false,
+      message: t().mailNotices.invalidRecipient(invalid.join(", ")),
+      missing: false
+    };
   }
 
   if (!fields.subject) {
     return {
       ok: false,
-      message: t().mailNotices.needsSubject(FM_SUBJECT)
+      message: t().mailNotices.needsSubject(FM_SUBJECT),
+      missing: true
     };
   }
 
