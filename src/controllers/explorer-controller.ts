@@ -140,6 +140,8 @@ export const FOREIGN_MENU_SOURCE = "file-explorer";
 export type FileNamer = (file: TFile) => Promise<string | null>;
 /** Describes a picture and keeps the description as a note. */
 export type ImageDescriber = (file: TFile) => Promise<void>;
+/** Describes every undescribed picture under a folder. */
+export type FolderDescriberHook = (folder: TFolder) => Promise<void>;
 
 /** Where a pinned tag's notes are listed. The plugin owns the sidebar leaf. */
 export type TagOpener = (tag: string) => Promise<void>;
@@ -215,6 +217,7 @@ export class ExplorerController {
   /** Set once the AI commands exist, which is after this controller is built. */
   private namer: FileNamer | null = null;
   private describer: ImageDescriber | null = null;
+  private folderDescriber: FolderDescriberHook | null = null;
   /** Which note describes which picture; rebuilt after the vault changes. */
   private pairs: DescriptionPairs | null = null;
   private tagOpener: TagOpener | null = null;
@@ -392,6 +395,11 @@ export class ExplorerController {
   /** Hand over the thing that can describe a picture. */
   useDescriber(describer: ImageDescriber): void {
     this.describer = describer;
+  }
+
+  /** Hand over the thing that describes the pictures under a folder. */
+  useFolderDescriber(describer: FolderDescriberHook): void {
+    this.folderDescriber = describer;
   }
 
   /** Hand over the thing that can name a file from its contents. */
@@ -992,7 +1000,9 @@ export class ExplorerController {
       path: file.path,
       markdown: isFile && file.extension === "md",
       image: isFile && getImageMimeType(file.extension) !== null,
-      describable: this.getSettings().imageDescriptionsEnabled && this.describer !== null,
+      describable:
+        this.getSettings().imageDescriptionsEnabled &&
+        (isFile ? this.describer : this.folderDescriber) !== null,
       bound: isFile && this.isBound(file),
       hasIcon: this.iconFor(file.path) !== undefined,
       kept: this.isKept(file.path),
@@ -1078,6 +1088,8 @@ export class ExplorerController {
         return this.renameByContent(file);
       case "describe-image":
         return file instanceof TFile ? this.describer?.(file) : undefined;
+      case "describe-folder":
+        return file instanceof TFolder ? this.folderDescriber?.(file) : undefined;
       case "delete":
         return this.remove(file);
       default:

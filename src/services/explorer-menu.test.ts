@@ -345,3 +345,21 @@ describe("describing a picture", () => {
     expect(describeItem({ kind: "folder", describable: true })).toEqual([]);
   });
 });
+
+describe("describing a folder's pictures", () => {
+  const folderItem = (overrides: Partial<ExplorerTarget>) =>
+    buildExplorerMenu(target({ kind: "folder", markdown: false, ...overrides }), "off")
+      .find((section) => section.id === "file")
+      ?.items.filter((item) => item.id === "describe-folder");
+
+  it("is offered on a folder while descriptions are switched on", () => {
+    expect(folderItem({ describable: true })).toEqual([
+      { id: "describe-folder", label: "Describe pictures", icon: "scan-text" }
+    ]);
+  });
+
+  it("is not offered while they are off, nor on a file", () => {
+    expect(folderItem({ describable: false })).toEqual([]);
+    expect(folderItem({ kind: "file", image: true, describable: true })).toEqual([]);
+  });
+});

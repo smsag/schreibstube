@@ -38,6 +38,7 @@ export type ExplorerAction =
   | "rename"
   | "rename-ai"
   | "describe-image"
+  | "describe-folder"
   | "delete"
   | "more";
 
@@ -200,6 +201,12 @@ export function buildExplorerMenu(
       // Only while descriptions are switched on: switched off, nothing may be sent.
       ...(target.kind === "file" && target.image && target.describable
         ? [{ id: "describe-image" as const, label: menu.describeImage, icon: "scan-text" }]
+        : []),
+      // Every picture under the folder without a description, subfolders
+      // included: offered on any folder, since finding out whether one holds a
+      // picture deep down would cost a walk of it on every right-click.
+      ...(target.kind === "folder" && target.describable
+        ? [{ id: "describe-folder" as const, label: menu.describeFolder, icon: "scan-text" }]
         : []),
       { id: "delete", label: menu.delete, icon: "trash-2", warning: true }
     ]

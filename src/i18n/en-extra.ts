@@ -256,7 +256,34 @@ export const enExtra = {
     describing: "describing the picture…",
     described: (title: string) => `described: ${title}`,
     describeUnusable: "the model's description was unusable — nothing written.",
-    failDescribe: "Schreibstube: describing the picture failed"
+    failDescribe: "Schreibstube: describing the picture failed",
+    folder: {
+      off: "picture descriptions are switched off in the settings.",
+      nothing: (name: string, described: number) =>
+        described > 0
+          ? `every picture in ${name} has a description (${described}).`
+          : `no picture in ${name} to describe.`,
+      relinked: (count: number) =>
+        `${count} description(s) whose picture had been renamed were found again.`,
+      tooLarge: (count: number, megabytes: number) =>
+        `${count} picture(s) over ${megabytes} MB are left out.`,
+      deferred: (count: number, cap: number) =>
+        `${count} more wait for the next run: a run describes at most ${cap}.`,
+      confirmTitle: (count: number, name: string) => `Describe ${count} picture(s) in ${name}?`,
+      confirmBody: (count: number, provider: string) =>
+        `Each picture is made smaller, stripped of its location data and sent to ${provider}: ` +
+        `${count} request(s), one after another. Every description becomes a note.`,
+      confirmAction: "Describe",
+      progress: (done: number, total: number, name: string) =>
+        `Describing pictures in ${name}: ${done} of ${total}. `,
+      stop: "Stop",
+      stopping: "Stopping after this picture…",
+      done: (count: number, name: string) => `${count} picture(s) in ${name} described.`,
+      unusable: (count: number) =>
+        `${count} answer(s) were unusable; nothing was written for them.`,
+      failed: (count: number) => `${count} failed — the console says why.`,
+      stopped: "Stopped; the rest are still undescribed."
+    }
   },
 
   properties: {
@@ -640,6 +667,7 @@ export const enExtra = {
       renameNoteAi: "Rename from the text…",
       renameImageAi: "Rename from the picture…",
       describeImage: "Describe picture",
+      describeFolder: "Describe pictures",
       renaming: "Reading it…",
       move: "Move to…",
       delete: "Delete",
