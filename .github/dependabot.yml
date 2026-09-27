@@ -32,3 +32,9 @@ updates:
     directory: /bridge
     schedule:
       interval: weekly
+    # The image runs the Node that CI tests and `.nvmrc` names. A major bump
+    # here once moved production to 25, a line without long-term support that
+    # nothing tested on; it moves together with the rest, by hand.
+    ignore:
+      - dependency-name: node
+        update-types: ["version-update:semver-major"]
