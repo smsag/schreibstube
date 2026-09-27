@@ -1,19 +1,22 @@
 import { MarkdownView, type Plugin } from "obsidian";
 import { t } from "../i18n";
-import { noteFooterHost } from "../services/workspace-internals";
+import { noteFooterHost, watchViewMode } from "../services/workspace-internals";
 import { RecommendedPanel, type RecommendedHost } from "../ui/recommended-panel";
 
 interface Footer {
   el: HTMLElement;
   panel: RecommendedPanel;
   path: string | null;
+  /** Stops listening for the view's switch between editing and reading. */
+  unwatch: () => void;
 }
 
 /**
  * The Recommended panel under the note instead of in the sidebar (S1, a
  * setting). Wiring only: the panel is the sidebar's, drawn at the end of each
- * open note's scrolling content, so it is read where the note ends. Switched
- * back to the sidebar, every footer goes.
+ * open note's scrolling content, so it is read where the note ends — in
+ * editing and in Reading view alike, moved across when the view switches.
+ * Switched back to the sidebar, every footer goes.
  */
 export class RecommendedFooter {
   private readonly footers = new Map<MarkdownView, Footer>();
@@ -55,24 +58,28 @@ export class RecommendedFooter {
     }
     for (const [view, footer] of this.footers) {
       if (!views.has(view)) {
-        footer.el.remove();
-        this.footers.delete(view);
+        this.drop(view, footer);
       }
     }
     if (!on || !host) return;
 
     for (const view of views) {
-      const target = noteFooterHost(view.contentEl, view.getMode() === "preview");
+      const target = noteFooterHost(view, view.getMode() === "preview");
       if (!target) continue;
       let footer = this.footers.get(view);
-      if (!footer || footer.el.parentElement !== target) {
-        footer?.el.remove();
+      if (footer && footer.el.parentElement !== target) {
+        // The view switched between editing and reading: the same panel
+        // moves with its answer, rather than asking again for the same note.
+        target.appendChild(footer.el);
+      }
+      if (!footer) {
         const el = target.createDiv({ cls: "schreibstube-recommended-footer" });
         // Inside the editor's content: a press here must not place the cursor.
         el.setAttr("contenteditable", "false");
         el.createDiv({ cls: "schreibstube-related-section", text: t().explorer.related.viewTitle });
         const panel = new RecommendedPanel(el.createDiv(), host, { heading: false });
-        footer = { el, panel, path: null };
+        const unwatch = watchViewMode(view.containerEl, () => this.sync());
+        footer = { el, panel, path: null, unwatch };
         this.footers.set(view, footer);
       }
       const path = view.file?.path ?? null;
@@ -83,8 +90,13 @@ export class RecommendedFooter {
     }
   }
 
+  private drop(view: MarkdownView, footer: Footer): void {
+    footer.unwatch();
+    footer.el.remove();
+    this.footers.delete(view);
+  }
+
   private clear(): void {
-    for (const footer of this.footers.values()) footer.el.remove();
-    this.footers.clear();
+    for (const [view, footer] of this.footers) this.drop(view, footer);
   }
 }
