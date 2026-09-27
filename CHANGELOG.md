@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
-- **Search by meaning runs on transformers 4.** The newer runtime embeds a note slightly differently from the old one — close, but not the same numbers — so the index is rebuilt once on the desktop after the update, instead of ranking old and new vectors against each other. Until the rebuild reaches a note, its old entry keeps answering. An index taken over from Pythia is embedded again too, until Pythia moves to the same runtime.
+- **Search by meaning runs on transformers 4.** The newer runtime embeds a note slightly differently from the old one — close, but not the same numbers — so the index is rebuilt once on the desktop after the update, instead of ranking old and new vectors against each other. Until the rebuild reaches a note, its old entry keeps answering. An index taken over from Pythia is embedded again too: Pythia no longer runs a model of its own, so its old files stay on the old runtime.
 
 ### Fixed
 

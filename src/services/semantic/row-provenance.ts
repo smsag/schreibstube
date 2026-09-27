@@ -22,7 +22,7 @@
 // The runtime generation rides the same string (`EMBEDDING_RUNTIME`): a row embedded
 // under generation 2 or later ends in `@g<n>`, and a device accepts only rows of its
 // own generation. A row from an older runtime — this plugin's before an upgrade, or
-// an index copied from Pythia that has not moved yet — is re-embedded, never ranked
+// an index copied from Pythia, whose files predate the mark — is re-embedded, never ranked
 // beside the new ones. Generation 1 is the unmarked hash, so files written before
 // the mark existed read as what they are.
 
