@@ -23,7 +23,7 @@
  */
 import { Keymap } from "obsidian";
 import { t } from "../i18n";
-import { applyIcon, applyObsidianIcon } from "./icon-font";
+import { applyIcon, applyObsidianIcon, PYTHIA_GLYPH } from "./icon-font";
 import { TASK_PILL_CLASS } from "./task-count-label";
 import { openTargetOf, type PaneTarget } from "../services/pane-target";
 import type { RecommendReason } from "../services/semantic/recommend";
@@ -78,9 +78,6 @@ export interface RecommendedHost {
   /** Put the entry's `obsidian://` link on the clipboard, and say so. */
   copyLink(link: { kind: "file"; path: string } | { kind: "conversation"; id: string }): void;
 }
-
-/** Pythia's own mark, from the bundled icon font. */
-const CONVERSATION_GLYPH = "pythia";
 
 /**
  * How long an answer for the same note stands before a vault change asks again.
@@ -333,7 +330,7 @@ export class RecommendedPanel {
       title: conversation.title,
       what: labels.conversation,
       why: [labels.reasons.meaning],
-      glyph: CONVERSATION_GLYPH,
+      glyph: PYTHIA_GLYPH,
       kind: "is-conversation"
     });
     this.actions(el, { kind: "conversation", id: conversation.id });

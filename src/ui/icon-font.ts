@@ -40,6 +40,9 @@ const installed = new Set<Document>();
 /** The family the font is registered under, for stylesheets that draw from it. */
 export const ICON_FONT_FAMILY = "schreibstube-icons";
 
+/** Pythia's own mark, for anything in the pane that is one of its conversations. */
+export const PYTHIA_GLYPH = "pythia";
+
 /** The character `name` is drawn as, or undefined for a name the font does not have. */
 export function iconGlyph(name: string): string | undefined {
   return ICON_CODEPOINTS[name];

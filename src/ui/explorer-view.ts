@@ -93,7 +93,7 @@ import {
 } from "./explorer-section";
 import { PendingReveal } from "../services/pending-reveal";
 import { renderBookmarkRows } from "./bookmark-section";
-import { applyIcon, installIconFont } from "./icon-font";
+import { applyIcon, installIconFont, PYTHIA_GLYPH } from "./icon-font";
 import { drawTaskCount } from "./task-count-label";
 import { SCHREIBSTUBE_ICON } from "./schreibstube-icon";
 
@@ -1316,7 +1316,7 @@ export class ExplorerPaneView extends ItemView {
     if (!body) return;
 
     if (this.ranked) {
-      this.renderResults(body);
+      this.renderResults(body, host);
       return;
     }
 
@@ -1342,7 +1342,7 @@ export class ExplorerPaneView extends ItemView {
    * folder it came from underneath its name. Without that, two notes called
    * `Exposé.md` are one row twice.
    */
-  private renderResults(body: HTMLElement): void {
+  private renderResults(body: HTMLElement, host: HTMLElement): void {
     const controller = this.host?.explorer;
     const results = body.createDiv({ cls: "schreibstube-explorer-results" });
 
@@ -1381,7 +1381,7 @@ export class ExplorerPaneView extends ItemView {
 
     const conversations =
       this.conversationHits?.query === this.query ? this.conversationHits.hits : [];
-    this.renderConversationResults(body, conversations);
+    this.renderConversationResults(host, conversations);
 
     const searching = this.meaningPending !== null && this.meaningPending === this.query;
     if (drawn === 0 && conversations.length > 0) return;
@@ -1412,18 +1412,19 @@ export class ExplorerPaneView extends ItemView {
   }
 
   /**
-   * Pythia's conversations under the files a filter found, under a heading of
+   * Pythia's conversations under the files a filter found, in a section of
    * their own: a row that looks like a note but opens a chat would be a trap.
+   * Its header is every other section's — chevron, Pythia's mark, the label and
+   * the rule — so it reads as a part of the pane rather than a note under one.
    */
-  private renderConversationResults(body: HTMLElement, hits: readonly ConversationResult[]): void {
+  private renderConversationResults(host: HTMLElement, hits: readonly ConversationResult[]): void {
     const open = this.host?.openConversation;
     if (hits.length === 0 || !open) return;
 
-    const block = body.createDiv({ cls: "schreibstube-explorer-conversations" });
-    block.createDiv({
-      cls: "schreibstube-explorer-conversations-heading",
-      text: t().explorer.conversationsFound
+    const block = this.renderSection(host, "conversations", PYTHIA_GLYPH, {
+      total: hits.length
     });
+    if (!block) return;
     for (const hit of hits) {
       const row = block.createDiv({
         cls: "schreibstube-explorer-row is-conversation",
