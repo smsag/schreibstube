@@ -2,8 +2,33 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## 1.55.0 - 2026-09-27
 
+Printing looks like the notes it comes from. The Standard template is set
+like the Klartext theme — JetBrains Mono for the text, Fira Sans for the
+headings, faint dashes, quiet bars for quotes and callouts, hairlines around
+code and tables, the note's name at the foot of every page — and the print
+dialog chooses whether the text is set in the mono or the sans. Both fonts
+come with the typesetter. Standard is always the built-in template, and a
+note prints what it wrote: line breaks, underlined headings, a third list
+level, indented code, reference links, footnotes over several lines and
+sub- and superscript arrive as written. Adding a template works again, and
+the dialog keeps its buttons on screen.
+
+Recommended says what each entry is with an icon instead of a number, gives
+every entry a button to copy its link and one to open it beside the note, and
+under a note it folds away, counts in a pill and is as wide as the note. The
+Explorer's filter shows Pythia's conversations as a section like the others.
+
+Mobile checklist: not run, and nothing in this release was tried in the
+Obsidian app on desktop either; the test suite and the build checked it, and
+the print templates were compiled with the pinned typesetter. What a phone
+would answer differently: the first print after the update fetching the two
+fonts with the typesetter, the print dialog's height and its font choice at
+phone width, the two buttons on a Recommended entry, which a phone always
+shows, and folding Recommended under a note.
+
+The bridge is unchanged at 2.9.0.
 ### Changed
 
 - **Recommended entries say what they are with an icon, not a number.** The Explorer's icon for a file, Pythia's mark for a conversation, in the column where the rank stood; the order is still the ranking. The numbers a theme draws in front of a numbered list, Klartext's among them, no longer appear beside them either.
@@ -23,7 +48,6 @@ All notable changes to this project will be documented in this file.
 - **The print dialog keeps its buttons on screen.** Its page preview was sized on its own, and with the page count and a few warnings around it the dialog grew taller than the window allows and put Print below its bottom edge. The preview now takes the room that is left and scrolls its pages; a long list of warnings scrolls in its own box.
 - **Printing keeps what the note wrote.** A line ending in two spaces or a backslash keeps its break. A heading underlined with `===` or `---` prints as a heading, not as the text and a row of signs. A third list level stays at its own depth. Code indented four spaces prints as code. Reference-style links (`[text][label]`) are links, and their definition lines are not printed. A footnote written over indented lines carries its text, which used to land in the body. H<sub>2</sub>O and mc<sup>2</sup> keep their sub- and superscript.
 - **Math prints as it was written.** A formula used to lose its backslashes (`\int` printed as "int"). It now prints as its source in the code face, and the dialog says so: the note's TeX cannot be typeset on a device without a network.
-
 - **Recommended under a note is as wide as the note.** It shrank to the length of its longest title, and with "Readable line length" off it stayed narrow and centred under text running the full width of the pane. It now takes the width of the text column in both views, whatever that setting says. In Reading view its entries also no longer sit a list indent further right than while editing.
 
 ## 1.54.0 - 2026-09-27
