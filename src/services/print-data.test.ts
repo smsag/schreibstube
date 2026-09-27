@@ -26,12 +26,13 @@ describe("resolvePrintData", () => {
     });
   });
 
-  it("hands the monospace setting on as text, and lets a note decide for itself", () => {
+  it("hands the dialog's text-face choice on as text, over what the note said", () => {
     expect(resolvePrintData(template({}), null, { ...context, monospace: false }).monospace).toBe(
       "false"
     );
+    // The dialog started from the note's word, so a change made in it is final.
     const note = { schreibstubePrint: { monospace: false } };
-    expect(resolvePrintData(template({}), note, context).monospace).toBe("false");
+    expect(resolvePrintData(template({}), note, context).monospace).toBe("true");
   });
 
   it("lets the template state what is always the same", () => {

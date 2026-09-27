@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { BUILTIN_TEMPLATE_FOLDER, BUILTIN_TEMPLATE_NAME, builtinTemplate } from "./print-builtin";
+import {
+  BUILTIN_TEMPLATE_FOLDER,
+  BUILTIN_TEMPLATE_NAME,
+  builtinTemplate,
+  copyableExamples
+} from "./print-builtin";
 import { resolvePrintData } from "./print-data";
 import { checkLayout } from "./print-template";
 
@@ -13,6 +18,12 @@ describe("builtinTemplate", () => {
       entry: "standard",
       builtIn: true
     });
+  });
+
+  it("is not offered as an example to copy into the vault", () => {
+    const names = copyableExamples().map((example) => example.name);
+    expect(names).not.toContain(BUILTIN_TEMPLATE_NAME);
+    expect(names.length).toBeGreaterThan(0);
   });
 
   it("lives at a path no vault can hold", () => {

@@ -6,9 +6,10 @@
 // Nothing here needs a value from the note. `data.title` is the note's first
 // heading, or its file name when it has none, and names the PDF; `data.lang`
 // is the language the plugin speaks. `data.monospace` is "false" when the
-// print settings, or the note's own `schreibstubePrint`, ask for the text in
-// Fira Sans instead; headings, tables and labels are Fira Sans either way, and
-// code stays monospaced.
+// print dialog's "Text font" is Fira Sans, which it starts at when the note's
+// own `schreibstubePrint` says `monospace: false`. The text and the page foot
+// follow it; headings, tables and labels are Fira Sans either way, and code
+// stays monospaced.
 //
 // The theme's decisions, carried over: ragged right (a monospaced line set
 // justified opens holes between its words), marks in a faint grey at the text
@@ -116,7 +117,8 @@
     footer: context {
       let total = counter(page).final().first()
       if total > 1 {
-        set text(font: mono, size: 7.5pt, fill: faint)
+        // The foot is set in the text's face, so a page is one face or the other.
+        set text(font: if monospaced { mono } else { sans }, size: 7.5pt, fill: faint)
         grid(
           columns: (1fr, auto),
           data.title,

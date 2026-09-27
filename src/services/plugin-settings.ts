@@ -146,7 +146,6 @@ export const DEFAULT_SETTINGS: SchreibstubeSettings = {
   printTemplateRoot: TEMPLATE_ROOT_DEFAULT,
   printOutputFolder: "",
   printDefaultTemplate: DEFAULT_TEMPLATE_BUILTIN,
-  printMonospace: true,
   propertyIcons: {},
   dateFormat: DEFAULT_DATE_FORMAT,
   propertySetFolder: "",
@@ -373,10 +372,7 @@ export function normalizeSettings(loaded: LoadedSettings): SchreibstubeSettings 
     printDefaultTemplate: trimmedStringOrDefault(
       loaded?.printDefaultTemplate,
       DEFAULT_SETTINGS.printDefaultTemplate
-    ),
-    // Only an explicit false turns it off: anything else a hand-edited file
-    // holds keeps the look the template was designed with.
-    printMonospace: loaded?.printMonospace !== false
+    )
   };
 }
 

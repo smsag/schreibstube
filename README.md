@@ -403,9 +403,9 @@ Once on, the settings show whether the typesetter is on this device, with a butt
 
 #### Getting a template
 
-You don't need one to start: a note that names no template is printed with **Standard**, which the plugin carries: the Klartext theme on paper — A4, the note's own headings in Fira Sans, the text in JetBrains Mono, the title and page number at the foot. **Standardvorlage** in the print settings chooses another default, or asks every time; a note picks its own with `schreibstubePrintTemplate` in its frontmatter.
+You don't need one to start: a note that names no template is printed with **Standard**, which the plugin carries: the Klartext theme on paper — A4, the note's own headings in Fira Sans, the text in JetBrains Mono, the title and page number at the foot. **Standardvorlage** in the print settings chooses another default, or asks every time; a note picks its own with `schreibstubePrintTemplate` in its frontmatter. Standard is part of the plugin: it is always there, cannot be deleted and is not a folder in the vault. The print dialog's **Schrift des Textes** sets its text in JetBrains Mono or Fira Sans for that print; a note that wants Fira Sans every time says `schreibstubePrint: { monospace: false }`.
 
-To change how pages look, press **Vorlage anlegen** under **Einstellungen → Drucken**. It asks which of the three examples you want (Standard, a letter or a CV) and which folder to put it in — any folder in the vault, not only the templates folder — then writes it and opens its `template.md`. You do not need to leave the app, which on a phone you could not do anyway.
+To change how pages look, press **Vorlage anlegen** under **Einstellungen → Drucken**. It asks which of the two examples you want (a letter or a CV) and which folder to put it in — any folder in the vault, not only the templates folder — then writes it and opens its `template.md`. You do not need to leave the app, which on a phone you could not do anyway.
 
 The same three templates are in [`examples/print/`](examples/print/) if you would rather copy them by hand.
 
@@ -813,14 +813,13 @@ The token is deliberately separate from the mail token, so a leaked publish toke
 | ---------------- | ------------------------------------------------------------------------------------------- |
 | Enable printing  | Off until you switch it on. Switching it on is what fetches the ~34 MB typesetter.          |
 | Default template | What a note that names none is printed with: Standard (built in), a vault template, or ask. |
-| Monospaced text  | Standard sets its text in JetBrains Mono, like the Klartext theme; off, in Fira Sans.       |
 | Templates folder | Where a new template is suggested. Templates are found anywhere. Default `Vorlagen/Druck`.  |
 | Output folder    | Where a PDF is written. Empty means beside the note it came from.                           |
 | The typesetter   | Whether it is on this device, with a button to fetch or remove it.                          |
 
 Only the switch shows while printing is off: there is nothing to configure for a feature with no typesetter on the device and no print to aim anywhere.
 
-Everything else about a printed page — paper, margins, fonts, the sender's name — belongs to the template, which is a folder you can open. A setting for any of it here would be a second place to look. **Monospaced text** is the one exception: it is a preference about the built-in template, which has no folder until you copy it. A note decides for itself with `schreibstubePrint: { monospace: false }`.
+Everything else about a printed page — paper, margins, fonts, the sender's name — belongs to the template, which is a folder you can open. A setting for any of it here would be a second place to look.
 
 ### Diagnostics
 

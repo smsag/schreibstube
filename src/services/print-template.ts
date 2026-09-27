@@ -248,9 +248,11 @@ export type TemplateChoice =
  * A note may name its template by folder name or by folder path. Two templates
  * can share a folder name in different places, which the picker already shows;
  * a name that fits more than one is asked about among those it fits, rather
- * than settled by whichever the vault happened to list first. A template in the
- * vault shadows the built-in one of the same name: a person who copied
- * `Standard` into the vault to change it means the copy.
+ * than settled by whichever the vault happened to list first. The built-in
+ * template is always the one its name means: it is not a folder, cannot be
+ * removed, and no vault template can stand in for it. A vault template that
+ * happens to share its name — a copy made before that was so — is reached by
+ * its folder path.
  *
  * A note that names none gets the default the settings choose — the built-in
  * template unless somebody chose otherwise — or the picker, when that is the
@@ -263,13 +265,14 @@ export function chooseTemplate(
 ): TemplateChoice {
   if (named === null) return chooseDefault(templates, preferred);
 
+  const builtIn = templates.find((template) => template.builtIn && template.name === named);
+  if (builtIn) return { kind: "use", template: builtIn };
+
   const path = named.replace(/^\/+|\/+$/g, "");
   const byPath = templates.find((template) => !template.builtIn && template.folder === path);
   if (byPath) return { kind: "use", template: byPath };
 
-  const all = templates.filter((template) => template.name === named);
-  const inVault = all.filter((template) => !template.builtIn);
-  const byName = inVault.length > 0 ? inVault : all;
+  const byName = templates.filter((template) => template.name === named);
   if (byName.length === 1 && byName[0]) return { kind: "use", template: byName[0] };
   if (byName.length > 1) return { kind: "ask", among: byName };
   return { kind: "unknown", name: named };
@@ -280,10 +283,7 @@ function chooseDefault(templates: readonly PrintTemplate[], preferred: string): 
 
   if (preferred === DEFAULT_TEMPLATE_BUILTIN) {
     const builtIn = templates.find((template) => template.builtIn);
-    // A vault copy called by the built-in's name is the one a person edited.
-    const shadow = builtIn && templates.find((t) => !t.builtIn && t.name === builtIn.name);
-    const chosen = shadow ?? builtIn;
-    return chosen ? { kind: "use", template: chosen } : { kind: "ask", among: [...templates] };
+    return builtIn ? { kind: "use", template: builtIn } : { kind: "ask", among: [...templates] };
   }
 
   const path = preferred.replace(/^\/+|\/+$/g, "");

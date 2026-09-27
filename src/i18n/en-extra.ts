@@ -189,11 +189,6 @@ export const enExtra = {
     printDefaultTemplateDesc:
       "What a note that names no template is printed with. A note chooses its own with " +
       "schreibstubePrintTemplate in its frontmatter.",
-    printMonospace: "Monospaced text",
-    printMonospaceDesc:
-      "The built-in Standard template sets its text in JetBrains Mono, as the Klartext theme " +
-      "does. Off, it is set in Fira Sans; headings and tables are Fira Sans either way, and code " +
-      "stays monospaced. A note chooses for itself with schreibstubePrint: { monospace: false }.",
     printDefaultBuiltin: "Standard (built in)",
     printDefaultAsk: "Ask every time",
     printDefaultMissing: (path: string) => `${path} (not found)`,
@@ -807,6 +802,9 @@ export const enExtra = {
       margin: { small: "Small", standard: "Standard", wide: "Wide" },
       marginFixed: "This template sets its own margins.",
       pageBreaks: "Horizontal rules as page breaks",
+      textFace: "Text font",
+      textFaceMono: "JetBrains Mono",
+      textFaceSans: "Fira Sans",
       frontmatter: "Print properties",
       slideshows: "Slideshows",
       slideshow: { layout: "As in the note", stacked: "Every picture, one under another" },

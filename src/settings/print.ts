@@ -55,19 +55,6 @@ export function renderPrint(ctx: SettingsContext): void {
 
   renderDefaultTemplate(ctx);
 
-  // The one setting about how a page looks, and an exception to the rule
-  // above on purpose: it is a preference about the built-in template, which
-  // has no folder to open until somebody copies it, and it is asked for once
-  // rather than per note. Templates that do not read it are unaffected.
-  new Setting(ctx.containerEl)
-    .setName(strings.printMonospace)
-    .setDesc(strings.printMonospaceDesc)
-    .addToggle((toggle) => {
-      toggle.setValue(ctx.plugin.settings.printMonospace).onChange(async (value) => {
-        await ctx.update({ printMonospace: value });
-      });
-    });
-
   new Setting(ctx.containerEl)
     .setName(strings.printTemplateRoot)
     .setDesc(strings.printTemplateRootDesc)

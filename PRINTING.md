@@ -240,25 +240,30 @@ footnotes at the foot of the page, and the note's title and page number once
 there is more than one page. A note without a first heading gets its file name
 as a title.
 
-The one print setting about how a page looks, **Monospaced text**, reaches the
-layout as `data.monospace` (`"true"` or `"false"`). Off, the text is set in Fira
-Sans at 10 pt; headings, tables and code do not change. It is a built-in value
-like `title`, so a note overrides it in `schreibstubePrint`, and a template
-that does not read it is unaffected.
+The print dialog's **Text font** (JetBrains Mono or Fira Sans) reaches the
+layout as `data.monospace` (`"true"` or `"false"`). With Fira Sans the text and
+the page foot are set in it at 10 pt; headings, tables and code do not change.
+Like every choice in the dialog it holds for one print. It starts where the
+note's `schreibstubePrint.monospace` says (`noteMonospace` in
+`services/print-options.ts`), and is set after the note's data, so what the
+dialog shows is what prints. The row is offered only for a layout that reads
+`data.monospace` (`layoutReadsMonospace`), which in practice is Standard.
 
 It is `examples/print/standard/`, carried like the other examples: the
 generator writes its files and its parsed frontmatter into
 `services/print-examples.ts`, and `services/print-builtin.ts` builds the
-template from them, so the plugin needs no YAML parser and the built-in and
-the copy "Vorlage anlegen" lays down cannot drift. Its folder is
+template from them, so the plugin needs no YAML parser. Its folder is
 `:builtin/Standard`, a path no vault can hold, and it reads no file from the
-vault.
+vault. It belongs to the plugin, not the vault: always offered, never deleted
+with a folder, and not among the examples "Vorlage anlegen" lays down
+(`copyableExamples`), because a copy by the same name would only raise the
+question which one prints.
 
 Which template a note gets (`chooseTemplate` in `services/print-template.ts`):
 
-1. The one it names in `schreibstubePrintTemplate`, by folder path or name. A
-   vault template shadows the built-in one of the same name, so a copy of
-   Standard in the vault is the Standard that prints.
+1. The one it names in `schreibstubePrintTemplate`, by folder path or name.
+   `Standard` always means the built-in one; a vault template of that name —
+   a copy made when that was still possible — is reached by its folder path.
 2. Otherwise the default from the setting `printDefaultTemplate`: empty for
    Standard (the default), a vault template's folder, or `:ask` for the picker.
    A default whose folder has gone is reported, and the picker is shown.

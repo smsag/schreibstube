@@ -434,12 +434,6 @@ export const de: Messages = {
     printDefaultTemplateDesc:
       "Womit eine Notiz gedruckt wird, die keine Vorlage nennt. Eine Notiz wählt ihre eigene " +
       "mit schreibstubePrintTemplate im Frontmatter.",
-    printMonospace: "Text in Festbreitenschrift",
-    printMonospaceDesc:
-      "Die eingebaute Standardvorlage setzt den Text in JetBrains Mono, wie das Klartext-Theme. " +
-      "Ausgeschaltet wird er in Fira Sans gesetzt; Überschriften und Tabellen sind so oder so " +
-      "Fira Sans, Code bleibt in Festbreitenschrift. Eine Notiz wählt selbst mit " +
-      "schreibstubePrint: { monospace: false }.",
     printDefaultBuiltin: "Standard (eingebaut)",
     printDefaultAsk: "Jedes Mal fragen",
     printDefaultMissing: (path: string) => `${path} (nicht gefunden)`,
@@ -1078,6 +1072,9 @@ export const de: Messages = {
       margin: { small: "Klein", standard: "Standard", wide: "Breit" },
       marginFixed: "Diese Vorlage legt ihre Ränder selbst fest.",
       pageBreaks: "Trennlinien als Seitenumbruch",
+      textFace: "Schrift des Textes",
+      textFaceMono: "JetBrains Mono",
+      textFaceSans: "Fira Sans",
       frontmatter: "Eigenschaften drucken",
       slideshows: "Diashows",
       slideshow: { layout: "Wie in der Notiz", stacked: "Alle Bilder untereinander" },

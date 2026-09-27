@@ -1,5 +1,5 @@
 /**
- * The print dialog: four choices beside the pages they make.
+ * The print dialog: its choices beside the pages they make.
  *
  * Opened by "Doc drucken" once the note has been read and its diagrams drawn.
  * Every change sets the document again and draws its first pages, so what a
@@ -33,6 +33,8 @@ export interface PrintDialogHost {
   hasSlideshows: boolean;
   /** Whether the template's layout sets its own margins, so the presets do nothing. */
   fixesMargin: (template: PrintTemplate) => Promise<boolean>;
+  /** Whether the template's layout reads the text-face choice, so it is offered. */
+  readsMonospace: (template: PrintTemplate) => Promise<boolean>;
   preview: (options: PrintOptions, progress: (message: string) => void) => Promise<PreparedPrint>;
   /** `ready` is the preview's document when it was set with exactly these options. */
   print: (options: PrintOptions, ready: PreparedPrint | null) => Promise<void>;
@@ -52,6 +54,7 @@ export class PrintDialog extends Modal {
   private marginSetting: Setting | null = null;
   private marginDropdown: DropdownComponent | null = null;
   private breakToggle: ToggleComponent | null = null;
+  private faceSetting: Setting | null = null;
   private statusEl!: HTMLElement;
   private pagesEl!: HTMLElement;
   private warningsEl!: HTMLElement;
@@ -95,6 +98,7 @@ export class PrintDialog extends Modal {
       );
 
     void this.refreshMargin();
+    void this.refreshFace();
     this.changed();
   }
 
@@ -120,6 +124,7 @@ export class PrintDialog extends Modal {
         // Each template has its own habit about rules; the toggle follows it.
         this.breakToggle?.setValue(this.options.hrIsPageBreak);
         void this.refreshMargin();
+        void this.refreshFace();
         this.changed();
       });
     });
@@ -132,6 +137,18 @@ export class PrintDialog extends Modal {
         this.changed();
       });
     });
+
+    // Hidden until the layout is known to read it: a choice that changes
+    // nothing on the page is worse than no choice.
+    this.faceSetting = new Setting(el).setName(words.textFace).addDropdown((dropdown) => {
+      dropdown.addOption("mono", words.textFaceMono);
+      dropdown.addOption("sans", words.textFaceSans);
+      dropdown.setValue(this.options.monospace ? "mono" : "sans").onChange((value) => {
+        this.options = { ...this.options, monospace: value === "mono" };
+        this.changed();
+      });
+    });
+    this.faceSetting.settingEl.toggle(false);
 
     new Setting(el).setName(words.pageBreaks).addToggle((toggle) => {
       this.breakToggle = toggle;
@@ -175,6 +192,20 @@ export class PrintDialog extends Modal {
     if (this.closed || this.options.template !== template) return;
     this.marginDropdown?.setDisabled(fixed);
     this.marginSetting?.setDesc(fixed ? t().print.dialog.marginFixed : "");
+  }
+
+  /** Offer the text face only for a template whose layout reads it. */
+  private async refreshFace(): Promise<void> {
+    const template = this.options.template;
+    let reads = false;
+    try {
+      reads = await this.host.readsMonospace(template);
+    } catch {
+      // A template that cannot be read says so in the preview; a choice it
+      // might ignore is left out rather than guessed at.
+    }
+    if (this.closed || this.options.template !== template) return;
+    this.faceSetting?.settingEl.toggle(reads);
   }
 
   private changed(): void {

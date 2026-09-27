@@ -27,7 +27,10 @@ export interface BuiltinContext {
   noteName: string;
   now: Date;
   locale: Locale;
-  /** The print setting: whether the Standard template's text is monospaced. */
+  /**
+   * The dialog's text-face choice. It started from the note's own
+   * `schreibstubePrint.monospace`, so it is set after the note's data.
+   */
   monospace: boolean;
 }
 
@@ -47,7 +50,8 @@ export function resolvePrintData(
   return {
     ...builtins(context),
     ...template.data,
-    ...noteData(noteFrontmatter)
+    ...noteData(noteFrontmatter),
+    monospace: context.monospace ? "true" : "false"
   };
 }
 
@@ -61,10 +65,7 @@ function builtins(context: BuiltinContext): Record<string, string> {
     noteName: context.noteName,
     date: formatDate(context.now, context.locale),
     isoDate: isoDate(context.now),
-    year: String(context.now.getFullYear()),
-    // A setting rather than a fact, but it travels the same way: a template
-    // that cares reads it, and a note that says otherwise wins.
-    monospace: context.monospace ? "true" : "false"
+    year: String(context.now.getFullYear())
   };
 }
 

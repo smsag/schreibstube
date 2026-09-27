@@ -4,10 +4,11 @@
  * Printing used to need a template in the vault before it did anything, and a
  * person who had just switched it on met a notice about folders instead of a
  * page. The plugin now carries one it can print with directly: the `standard`
- * example, which is also what "Add a template" lays down for somebody who wants
- * to change it. One source, so the built-in and the copy cannot drift.
+ * example. It is part of the plugin, not of the vault — always there, never
+ * deleted with a folder, and not something "Add a template" lays down, because
+ * a copy by the same name would only raise the question which one prints.
  */
-import { EXAMPLE_TEMPLATES } from "./print-examples";
+import { EXAMPLE_TEMPLATES, type ExampleTemplate } from "./print-examples";
 import { LAYOUT_FILE, parseTemplate, type PrintTemplate } from "./print-template";
 
 /** The name a note asks for it by, and the name it carries in the picker. */
@@ -32,4 +33,9 @@ export function builtinTemplate(): BuiltinTemplate | null {
 
   const { template } = parseTemplate(BUILTIN_TEMPLATE_FOLDER, example.frontmatter);
   return { template: { ...template, name: BUILTIN_TEMPLATE_NAME, builtIn: true }, layout };
+}
+
+/** The examples "Add a template" offers: every one but the built-in. */
+export function copyableExamples(): ExampleTemplate[] {
+  return EXAMPLE_TEMPLATES.filter((entry) => entry.name !== BUILTIN_TEMPLATE_NAME);
 }

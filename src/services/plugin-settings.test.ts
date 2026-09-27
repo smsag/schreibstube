@@ -546,16 +546,6 @@ describe("the default print template", () => {
   });
 });
 
-describe("the monospaced print text", () => {
-  it("is on by default, and on for anything but an explicit false", () => {
-    expect(DEFAULT_SETTINGS.printMonospace).toBe(true);
-    expect(normalizeSettings({}).printMonospace).toBe(true);
-    expect(normalizeSettings({ printMonospace: false }).printMonospace).toBe(false);
-    const loaded = { printMonospace: "no" } as unknown as Parameters<typeof normalizeSettings>[0];
-    expect(normalizeSettings(loaded).printMonospace).toBe(true);
-  });
-});
-
 describe("picture description settings", () => {
   it("are off, in their own folder, in the interface language, without tags by default", () => {
     const s = normalizeSettings({});

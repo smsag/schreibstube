@@ -195,9 +195,23 @@ describe("chooseTemplate with a default", () => {
     expect(chooseTemplate([brief, builtIn], null)).toEqual({ kind: "use", template: builtIn });
   });
 
-  it("prefers a vault copy called by the built-in's name, which is the one a person edited", () => {
-    expect(chooseTemplate([brief, copy, builtIn], null)).toEqual({ kind: "use", template: copy });
-    expect(chooseTemplate([copy, builtIn], "Standard")).toEqual({ kind: "use", template: copy });
+  it("never lets a vault template called by the built-in's name stand in for it", () => {
+    expect(chooseTemplate([brief, copy, builtIn], null)).toEqual({
+      kind: "use",
+      template: builtIn
+    });
+    expect(chooseTemplate([copy, builtIn], "Standard")).toEqual({ kind: "use", template: builtIn });
+  });
+
+  it("reaches such a vault template by its folder path", () => {
+    expect(chooseTemplate([copy, builtIn], "Vorlagen/Druck/Standard")).toEqual({
+      kind: "use",
+      template: copy
+    });
+    expect(chooseTemplate([copy, builtIn], null, "Vorlagen/Druck/Standard")).toEqual({
+      kind: "use",
+      template: copy
+    });
   });
 
   it("uses a vault template the settings name by its folder", () => {
