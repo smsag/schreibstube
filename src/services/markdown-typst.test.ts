@@ -640,3 +640,82 @@ describe("a picture the caller refuses", () => {
     expect(conversion.body).toContain('#schreibstube-image("assets/IMG_1.heic.jpg"');
   });
 });
+
+/**
+ * What `examples/markdown-elements.md` printed wrong, construct by construct,
+ * found by reading its Typst against its source.
+ */
+describe("the constructs the sample note printed wrong", () => {
+  it("reads setext headings: === is level 1, --- level 2, not text and a rule", () => {
+    expect(convert("Alternative level 1\n===================\n\nAlternative level 2\n---")).toBe(
+      "= Alternative level 1\n\n== Alternative level 2"
+    );
+    // A rule after a blank line is still a rule, and one with spaces never underlines.
+    expect(convert("Text\n\n---")).toContain("#line(length: 100%)");
+    expect(convert("Text\n- - -")).toContain("#line(length: 100%)");
+  });
+
+  it("keeps a hard line break written with two spaces or a backslash", () => {
+    expect(convert("one  \ntwo")).toBe("one \\\ntwo");
+    expect(convert("one\\\ntwo")).toBe("one \\\ntwo");
+    // One trailing space, and an escaped backslash, are not breaks.
+    expect(convert("one \ntwo")).toBe("one\ntwo");
+    expect(convert("one\\\\\ntwo")).toBe("one\\\\\ntwo");
+  });
+
+  it("keeps a third list level at its own depth", () => {
+    expect(convert("- a\n  - b\n    - c\n      - d\n- e")).toBe(
+      "- a\n  - b\n    - c\n      - d\n- e"
+    );
+  });
+
+  it("sets code indented four spaces as code, and leaves a loosely indented list a list", () => {
+    expect(convert("Text\n\n    let x = 1\n      nested\n\nAfter")).toBe(
+      'Text\n\n#schreibstube-code("let x = 1\\n  nested", "")\n\nAfter'
+    );
+    // An indented line that continues a paragraph is the paragraph's.
+    expect(convert("Text\n    more")).toBe("Text\nmore");
+    expect(convert("- a\n\n    - b")).toContain("- b");
+  });
+
+  it("resolves reference-style links and prints no definition line", () => {
+    const note =
+      'A [reference link][ref], a [collapsed][] and a [shortcut].\n\n[ref]: https://example.com/ref "Title"\n[Collapsed]: https://c.example\n[shortcut]: <https://s.example>';
+    expect(convert(note)).toBe(
+      'A #link("https://example.com/ref")[reference link], a #link("https://c.example")[collapsed] and a #link("https://s.example")[shortcut];.'
+    );
+    // A bracket nobody defined is text, and a definition inside a fence is code.
+    expect(convert("An [undefined][nope] one.")).toBe("An \\[undefined\\]\\[nope\\] one.");
+    expect(convert("```\n[ref]: https://x\n```")).toContain("[ref]: https://x");
+    // Straight under a line of text, a definition is more of that text.
+    expect(convert("Text\n[x]: https://x.example")).toBe("Text\n\\[x\\]: https:\\//x.example");
+  });
+
+  it("takes a footnote's indented continuation into the footnote, not into the body", () => {
+    const note =
+      "Text.[^n]\n\n[^n]:\n    A named footnote, which may span\n    several indented lines.\n\nAfter.";
+    expect(convert(note)).toBe(
+      "Text.#footnote[A named footnote, which may span\nseveral indented lines.]\n\nAfter."
+    );
+  });
+
+  it("prints math as it was written, backslashes and all, and says so", () => {
+    const conversion = markdownToTypst(
+      "Inline $E = mc^2$ here.\n\n$$\n\\int_0^\\infty \\frac{1}{2}\n$$"
+    );
+    expect(conversion.body).toContain('#raw("E = mc^2")');
+    expect(conversion.body).toContain(
+      '#schreibstube-code("\\\\int_0^\\\\infty \\\\frac{1}{2}", "latex")'
+    );
+    expect(conversion.warnings).toContain("math is printed as written, not typeset");
+    // Prices and an escaped dollar are not math.
+    expect(convert("From $5 to $10.")).toBe("From \\$5 to \\$10.");
+    expect(convert("A \\$ sign and $x$")).toBe('A \\$ sign and #raw("x")');
+  });
+
+  it("keeps sub- and superscript, which change what the text says", () => {
+    const conversion = markdownToTypst("H<sub>2</sub>O and mc<sup>2</sup>");
+    expect(conversion.body.trim()).toBe("H#sub[2]O and mc#super[2]");
+    expect(conversion.warnings).toEqual([]);
+  });
+});
