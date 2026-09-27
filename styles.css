@@ -1004,15 +1004,21 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding: var(--schreibstube-padding) 0 0;
   height: 100%;
   overflow: hidden;
 }
 
+/* The filter sits where Obsidian puts its own search field under a header:
+   `.document-search-container` pads the note's find bar by --size-4-2 below a
+   header of --header-height, and the field is --input-height tall. The pane
+   starts under a tab strip of that same height, so the same gap and the same
+   height put this rule on the find bar's line across the window. The pane is
+   flush (the rule above sets its padding to 0), so the gap is the row's own
+   margin: a top padding here never applied and left the field 8px high. */
 .schreibstube-explorer-filter-row {
   position: relative;
   flex: 0 0 auto;
-  margin: 0 var(--schreibstube-padding);
+  margin: var(--size-4-2) var(--schreibstube-padding) 0;
 }
 
 /* The boundary of the filter field, and why it is not a border token.
@@ -1046,15 +1052,15 @@
 
    EVERY SELECTOR HERE NAMES `input`, and the state ones add `:not(:disabled)`.
    Measured in Obsidian: `input[type='search']` sets height at (0,1,1), which
-   beats a class rule at (0,1,0) — the field asked for 32px and got 30 for as
-   long as that rule has existed. Worse, `input[type='search']:not(:disabled):hover`
+   beats a class rule at (0,1,0), so the field's height is only ever this
+   rule's if this rule out-ranks it. Worse, `input[type='search']:not(:disabled):hover`
    sets BOTH `background-color` and `border-color` at (0,3,1), so a hover rule
    at (0,3,0) loses the fill and the edge the moment a pointer crosses the
    field. `input.schreibstube-explorer-filter` is (0,2,1) and `:not(:disabled)`
    carries a fourth class-level component, which is what wins. */
 .schreibstube-explorer input.schreibstube-explorer-filter {
   width: 100%;
-  height: 32px;
+  height: var(--input-height);
   /* Room for the loupe on the left and the clear button on the right, so
      neither runs under what is typed. */
   padding: 0 26px 0 22px;
