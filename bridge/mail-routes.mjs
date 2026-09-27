@@ -7,12 +7,20 @@
  */
 import { httpError } from "./http.mjs";
 import { withDeadline } from "./timeout.mjs";
-import { createSmtpTransport, diagnose, searchMessages, sendMessage } from "./mail.mjs";
+import {
+  createSmtpTransport,
+  diagnose,
+  searchMessages,
+  sendMessage,
+  SendUnconfirmedError
+} from "./mail.mjs";
 import { parseSender } from "./mail-address.mjs";
 
-export function createMailRoutes(config) {
+export function createMailRoutes(
+  config,
+  { transport = createSmtpTransport(config.mail, config.upstreamTimeoutMs) } = {}
+) {
   const mail = { ...config.mail, upstreamTimeoutMs: config.upstreamTimeoutMs };
-  const transport = createSmtpTransport(mail, config.upstreamTimeoutMs);
 
   const route = (path, handler, timeoutMs) => ({
     method: "POST",
@@ -81,6 +89,11 @@ async function upstream(work, label) {
   try {
     return await work();
   } catch (err) {
+    // Not a 502: that says the server refused, and a refused send is safe to
+    // repeat. This one may have been delivered, and the plugin must say so.
+    if (err instanceof SendUnconfirmedError) {
+      throw httpError(504, "send_unconfirmed", err.message);
+    }
     throw httpError(502, "upstream_error", `${label} failed: ${err.message}`);
   }
 }

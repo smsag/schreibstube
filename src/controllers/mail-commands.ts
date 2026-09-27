@@ -1,4 +1,11 @@
-import { MarkdownView, Notice, type App, type TFile } from "obsidian";
+import {
+  getFrontMatterInfo,
+  MarkdownView,
+  Notice,
+  parseYaml,
+  type App,
+  type TFile
+} from "obsidian";
 import type { SchreibstubeSettings } from "../types";
 import type { Logger } from "../services/logger";
 import { t } from "../i18n";
@@ -15,12 +22,19 @@ import {
 import {
   FM_MERGED_IDS,
   FM_MESSAGE_ID,
+  FM_SEND_UNCONFIRMED,
   FM_SENT_AT,
   readMailFields,
-  stripFrontmatter,
   validateSendable,
   type MailFields
 } from "../services/mail-frontmatter";
+import {
+  buildMailDraft,
+  isUnconfirmedSend,
+  sameDraft,
+  sendWarnings,
+  type MailDraft
+} from "../services/mail-draft";
 import {
   appendToSection,
   formatMessage,
@@ -28,7 +42,12 @@ import {
   mergeKey,
   selectUnmerged
 } from "../services/mail-merge";
-import { MailConfirmModal, MailResultModal, MailSearchModal } from "../ui/mail-modals";
+import {
+  MailConfirmModal,
+  MailResultModal,
+  MailSearchModal,
+  type MailConfirmDetails
+} from "../ui/mail-modals";
 
 /**
  * The three mail commands: send a note, query the mailbox, and merge replies
@@ -51,7 +70,7 @@ export class MailCommands {
   ) {}
 
   /** Send the active note. Addressing comes from frontmatter; the body is the
-   *  note with its frontmatter stripped. */
+   *  rest of the note, as plain text. */
   async sendNoteAsEmail(): Promise<void> {
     const file = this.app.workspace.getActiveFile();
     if (!file) {
@@ -63,48 +82,81 @@ export class MailCommands {
       return;
     }
 
-    const fields = this.readFields(file);
-    const sendable = validateSendable(fields);
+    const draft = await this.readDraft(file);
+    if (!draft || !this.checkDraft(file, draft)) {
+      return;
+    }
+
+    let shown = draft;
+    const modal = new MailConfirmModal(this.app, confirmDetails(draft), async () => {
+      // Read the note again at the press: a property typed just before the
+      // command reaches the file only after the dialogue opened, and the send
+      // must carry what the note says now, which must be what was shown.
+      const now = await this.readDraft(file);
+      if (!now || !this.checkDraft(file, now)) {
+        return true;
+      }
+      if (!sameDraft(shown, now)) {
+        shown = now;
+        modal.update(confirmDetails(now));
+        return false;
+      }
+      void this.performSend(file, bridge, now);
+      return true;
+    });
+    modal.open();
+  }
+
+  /**
+   * The note as one send: recipients, subject and body from one reading of
+   * the file. The metadata cache is not asked — it trails the file, and a send
+   * built from both mixed an old frontmatter with a new body.
+   */
+  private async readDraft(file: TFile): Promise<MailDraft | null> {
+    const content = await this.app.vault.read(file);
+    const info = getFrontMatterInfo(content);
+
+    let frontmatter: unknown = {};
+    if (info.exists) {
+      try {
+        frontmatter = parseYaml(info.frontmatter) as unknown;
+      } catch (err) {
+        this.logger.error("The note's frontmatter could not be parsed:", err);
+        new Notice(t().common.notice(t().mailNotices.frontmatterUnreadable));
+        return null;
+      }
+    }
+
+    return buildMailDraft(
+      frontmatter,
+      content.slice(info.contentStart),
+      this.getSettings().mailFrom
+    );
+  }
+
+  /** Whether the draft can be sent at all, saying why not where it cannot. */
+  private checkDraft(file: TFile, draft: MailDraft): boolean {
+    const sendable = validateSendable(draft.fields);
     if (!sendable.ok) {
       if (sendable.missing && this.offerFields) this.offerFields(file, sendable.message);
       else new Notice(`Schreibstube: ${sendable.message}`);
-      return;
+      return false;
     }
-
-    const content = await this.app.vault.read(file);
-    const body = stripFrontmatter(content).trim();
-    if (!body) {
+    if (!draft.body) {
       new Notice(t().common.notice(t().mailNotices.noBody));
-      return;
+      return false;
     }
-
-    // The note's own sender wins over the setting, which wins over MAIL_FROM.
-    const from = fields.from || this.getSettings().mailFrom.trim();
-
-    new MailConfirmModal(
-      this.app,
-      {
-        from,
-        to: fields.to,
-        cc: fields.cc,
-        subject: fields.subject,
-        alreadySent: fields.messageId !== null
-      },
-      () => {
-        void this.performSend(file, bridge, fields, body, from);
-      }
-    ).open();
+    return true;
   }
 
   private async performSend(
     file: TFile,
     bridge: MailBridgeConfig,
-    fields: MailFields,
-    body: string,
-    from: string
+    draft: MailDraft
   ): Promise<void> {
     await this.withBusy("send", async () => {
       const progress = new Notice(t().common.notice(t().mailNotices.sending), 0);
+      const { fields } = draft;
 
       let result: SendResult;
       try {
@@ -112,11 +164,15 @@ export class MailCommands {
           to: fields.to,
           cc: fields.cc,
           subject: fields.subject,
-          text: body,
-          ...(from ? { from } : {})
+          text: draft.body,
+          ...(draft.from ? { from: draft.from } : {})
         });
       } catch (err) {
-        this.fail("send", t().mailNotices.failSend, err);
+        if (isUnconfirmedSend(err)) {
+          await this.markUnconfirmed(file, err);
+        } else {
+          this.fail("send", t().mailNotices.failSend, err);
+        }
         return;
       } finally {
         progress.hide();
@@ -130,6 +186,7 @@ export class MailCommands {
         await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
           frontmatter[FM_MESSAGE_ID] = result.messageId;
           frontmatter[FM_SENT_AT] = result.sentAt;
+          delete frontmatter[FM_SEND_UNCONFIRMED];
         });
       } catch (err) {
         this.logger.error("Email sent but the Message-ID could not be stored:", err);
@@ -152,6 +209,24 @@ export class MailCommands {
         t().common.notice(result.filedInSent ? t().mailNotices.sent : t().mailNotices.sentNoCopy)
       );
     });
+  }
+
+  /**
+   * A send whose outcome never came back. It is not called a failure — that
+   * is what made a person send the mail a second time — and the note keeps a
+   * mark of it, so the next send is warned even though no Message-ID arrived.
+   */
+  private async markUnconfirmed(file: TFile, err: unknown): Promise<void> {
+    this.logger.error("send not confirmed:", err);
+    const detail = err instanceof Error ? err.message : "unknown error";
+    new Notice(t().common.notice(t().mailNotices.sendUnconfirmed(detail)), 0);
+    try {
+      await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
+        frontmatter[FM_SEND_UNCONFIRMED] = new Date().toISOString();
+      });
+    } catch (writeErr) {
+      this.logger.error(`${FM_SEND_UNCONFIRMED} could not be written:`, writeErr);
+    }
   }
 
   /** Search the mailbox and insert the chosen message into the active note. */
@@ -356,4 +431,15 @@ export class MailCommands {
     const detail = err instanceof Error ? err.message : "unknown error";
     new Notice(`${userMessage} — ${detail}`);
   }
+}
+
+function confirmDetails(draft: MailDraft): MailConfirmDetails {
+  return {
+    from: draft.from,
+    to: draft.fields.to,
+    cc: draft.fields.cc,
+    subject: draft.fields.subject,
+    body: draft.body,
+    warnings: sendWarnings(draft.fields)
+  };
 }

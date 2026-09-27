@@ -519,6 +519,9 @@ export const enExtra = {
     needsSubject: (key: string) => `add a "${key}:" line to the note's frontmatter first.`,
     sent: "email sent.",
     sentNoCopy: "email sent (no copy filed in Sent).",
+    sendUnconfirmed: (detail: string) =>
+      `send not confirmed — the email may have been delivered anyway. Check your Sent folder before sending again. (${detail})`,
+    frontmatterUnreadable: "the note's frontmatter cannot be read; check its properties.",
     sentRefused: (addresses: string) =>
       `email sent, but the mail server refused these recipients, who will not receive it: ${addresses}`,
     failSend: "Schreibstube: send failed",

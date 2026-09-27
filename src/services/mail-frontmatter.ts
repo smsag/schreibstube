@@ -11,6 +11,7 @@
  *   schreibstubeSubject: Angebot Objekt 4711
  *   schreibstubeMessageId: <7f3a…@your-domain.de>   # written on send
  *   schreibstubeSentAt: 2026-09-07T10:12:00Z        # written on send
+ *   schreibstubeSendUnconfirmed: 2026-09-07T10:12:00Z # a send whose outcome is unknown
  *   schreibstubeMergedIds: ["<reply-1@mail.kunde.de>"]
  *   ---
  *
@@ -32,6 +33,9 @@ export const FM_SUBJECT = "schreibstubeSubject";
 export const FM_MESSAGE_ID = "schreibstubeMessageId";
 export const FM_SENT_AT = "schreibstubeSentAt";
 export const FM_MERGED_IDS = "schreibstubeMergedIds";
+/** When a send was attempted whose outcome never came back: it may have been
+ *  delivered. Cleared by the next send that is confirmed. */
+export const FM_SEND_UNCONFIRMED = "schreibstubeSendUnconfirmed";
 
 export interface MailFields {
   to: string[];
@@ -41,6 +45,8 @@ export interface MailFields {
   subject: string;
   messageId: string | null;
   mergedIds: string[];
+  /** A send that may or may not have gone out, or null. */
+  unconfirmedAt: string | null;
 }
 
 export function readMailFields(frontmatter: unknown): MailFields {
@@ -55,7 +61,8 @@ export function readMailFields(frontmatter: unknown): MailFields {
     from: typeof record[FM_FROM] === "string" ? record[FM_FROM].trim() : "",
     subject: typeof record[FM_SUBJECT] === "string" ? record[FM_SUBJECT].trim() : "",
     messageId: parseMessageId(record[FM_MESSAGE_ID]),
-    mergedIds: parseStringList(record[FM_MERGED_IDS])
+    mergedIds: parseStringList(record[FM_MERGED_IDS]),
+    unconfirmedAt: parseTimestamp(record[FM_SEND_UNCONFIRMED])
   };
 }
 
@@ -63,15 +70,46 @@ export function readMailFields(frontmatter: unknown): MailFields {
  *  a list. */
 export function parseAddressList(value: unknown): string[] {
   if (Array.isArray(value)) {
-    return value.map((item) => String(item).trim()).filter(Boolean);
+    return value.flatMap((item) => splitAddresses(String(item)));
   }
   if (typeof value === "string") {
-    return value
-      .split(",")
-      .map((item) => item.trim())
-      .filter(Boolean);
+    return splitAddresses(value);
   }
   return [];
+}
+
+/**
+ * Split at the commas between addresses, not the ones inside a name.
+ *
+ * `"Seitz, Steffen" <s@x.de>` is one recipient; a plain split made it two,
+ * and the first half, `"Seitz`, was refused as not an address.
+ */
+export function splitAddresses(text: string): string[] {
+  const parts: string[] = [];
+  let current = "";
+  let quoted = false;
+  let bracketed = false;
+
+  for (const char of text) {
+    if (char === '"' && !bracketed) quoted = !quoted;
+    else if (char === "<" && !quoted) bracketed = true;
+    else if (char === ">" && !quoted) bracketed = false;
+
+    if (char === "," && !quoted && !bracketed) {
+      parts.push(current);
+      current = "";
+    } else {
+      current += char;
+    }
+  }
+  parts.push(current);
+  return parts.map((part) => part.trim()).filter(Boolean);
+}
+
+/** YAML reads an unquoted timestamp as a Date; a quoted one stays text. */
+function parseTimestamp(value: unknown): string | null {
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value.toISOString();
+  return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
 function parseStringList(value: unknown): string[] {
@@ -116,9 +154,9 @@ export function validateSendable(fields: MailFields): SendableResult {
     };
   }
 
-  // One sender, never a list: a comma here is two addresses to a mail server,
-  // and the bridge would refuse the send after the dialogue said it was fine.
-  if (fields.from && (fields.from.includes(",") || !looksLikeAddress(fields.from))) {
+  // One sender, never a list: the bridge refuses two, and would do so only
+  // after the dialogue had said the note was fine to send.
+  if (fields.from && (splitAddresses(fields.from).length !== 1 || !looksLikeAddress(fields.from))) {
     return {
       ok: false,
       message: t().mailNotices.invalidSender(FM_FROM, fields.from),
@@ -139,7 +177,7 @@ export function validateSendable(fields: MailFields): SendableResult {
 
 /** A deliberately loose check — it catches typos and missing domains without
  *  trying to reimplement RFC 5322. The mail server is the real authority. */
-function looksLikeAddress(value: string): boolean {
+export function looksLikeAddress(value: string): boolean {
   const address = /<([^>]+)>/.exec(value)?.[1] ?? value;
   return /^[^\s@]+@[^\s@.]+\.[^\s@]+$/.test(address.trim());
 }

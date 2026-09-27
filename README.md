@@ -298,7 +298,7 @@ If another plugin already uses the colon for emoji, switch this off under **Sett
 
 Send notes as email and pull messages back into your vault — on desktop **and** mobile.
 
-- **Send doc as mail** — recipients and subject come from the note's frontmatter; the body is the note with its frontmatter stripped. A confirmation dialog shows what is about to be sent.
+- **Send doc as mail** — recipients and subject come from the note's frontmatter; the body is the note as plain text. A confirmation dialog shows the sender, the recipients and the text exactly as they will be sent, and warns when there is no To recipient.
 - **Search mailbox** — search by sender, subject, full text or date, then insert the chosen message into the active note.
 - **Fetch replies into doc** — find replies to a note you sent and append the new ones. Re-running the command only ever adds what is new.
 
@@ -312,6 +312,7 @@ schreibstubeFrom: Büro <buero@your-domain.de> # optional: this note's sender
 schreibstubeSubject: Angebot Objekt 4711
 schreibstubeMessageId: <7f3a…@your-domain.de> # written on send
 schreibstubeSentAt: 2026-09-07T10:12:00.000Z # written on send
+schreibstubeSendUnconfirmed: 2026-09-07T10:12:00.000Z # written when a send's outcome is unknown
 schreibstubeMergedIds: ["<reply-1@mail.kunde.de>"] # written on merge; keeps merging idempotent
 ---
 ```
@@ -319,6 +320,12 @@ schreibstubeMergedIds: ["<reply-1@mail.kunde.de>"] # written on merge; keeps mer
 `schreibstubeMessageId` is what ties replies back to the note, so **Fetch replies** only works on notes that were sent from Obsidian.
 
 `schreibstubeFrom` sends one note under another address, such as an alias of your mailbox. Without it the note goes out under **Settings → Schreibstube → From**, and without that under the bridge's `MAIL_FROM`; the confirmation dialog names the sender either way. The alias sets only the `From` line: the mail is still sent through, and bounces return to, the bridge's mailbox. Replies go to the alias, so **Fetch replies** finds them only if the alias delivers into that mailbox. An address on a domain your mail provider does not send for, a freemail address for instance, is likely to be filed as spam or refused by the recipient's server.
+
+The body is sent the way the rendered note reads, as plain text: emphasis without its asterisks, headings as their text, a link as its text with the address after it, a wikilink as its name, tasks as ☐ and ☑. Comments — `%%…%%` and `<!-- … -->` — are never sent. An embedded file cannot travel in a text mail, so its name stands in its place. Code keeps its characters.
+
+The note is read again when **Send** is pressed. If it changed since the dialog opened — a property still being saved, an edit from sync — the dialog shows the note as it is now instead of sending, and a second press sends that.
+
+When the bridge or the connection gives up before the mail server has answered, the mail may have gone out anyway. That is reported as unconfirmed rather than failed, the note gets `schreibstubeSendUnconfirmed`, and the next send warns you to look in Sent first. A confirmed send removes the mark.
 
 If the mail server turns down some of the recipients, the send still succeeds for the others, and a notice that stays until dismissed names the ones that will not receive it.
 

@@ -2,6 +2,7 @@ import { t } from "../i18n";
 import { App, Modal, Setting, SuggestModal } from "obsidian";
 import { formatIsoMinutes } from "../utils/format-date";
 import type { MailMessage, SearchCriteria } from "../services/mail-protocol";
+import type { SendWarning } from "../services/mail-draft";
 
 /**
  * Criteria form for "Query mailbox". Every field is optional on its own, but
@@ -115,65 +116,109 @@ export class MailResultModal extends SuggestModal<MailMessage> {
   }
 }
 
+/** What the confirmation shows: exactly what Send will send. */
+export interface MailConfirmDetails {
+  from: string;
+  to: string[];
+  cc: string[];
+  subject: string;
+  body: string;
+  warnings: SendWarning[];
+}
+
 /**
- * Confirmation before a send.
+ * The last look before a mail leaves.
  *
- * Sending is outward-facing and cannot be undone, and the command acts on
- * whichever note happens to be active — so the recipients and subject are shown
- * once before anything leaves the vault. A note that already carries a
- * `message_id` is flagged, since sending again produces a second mail rather
- * than updating the first.
+ * Send does not close the dialogue by itself: the caller reads the note again
+ * and answers whether it still says what is shown. If it does not, the
+ * dialogue is drawn again from the note as it is now, and a second press sends
+ * that — never a version nobody saw.
  */
 export class MailConfirmModal extends Modal {
+  private changed = false;
+
   constructor(
     app: App,
-    private readonly details: {
-      from: string;
-      to: string[];
-      cc: string[];
-      subject: string;
-      alreadySent: boolean;
-    },
-    private readonly onConfirm: () => void
+    private details: MailConfirmDetails,
+    /** Resolves true when the mail was handed on and the dialogue may close. */
+    private readonly onConfirm: () => Promise<boolean>
   ) {
     super(app);
   }
 
+  /** Redraw from the note as it is now, saying that it changed. */
+  update(details: MailConfirmDetails): void {
+    this.details = details;
+    this.changed = true;
+    this.render();
+  }
+
   override onOpen(): void {
+    this.render();
+  }
+
+  private render(): void {
     const { contentEl } = this;
     contentEl.empty();
     contentEl.createEl("h3", { text: t().mail.confirmTitle });
 
-    new Setting(contentEl)
-      .setName(t().mail.confirmFrom)
-      .setDesc(this.details.from || t().mail.confirmFromDefault);
-    new Setting(contentEl).setName(t().mail.confirmTo).setDesc(this.details.to.join(", ") || "—");
-    if (this.details.cc.length > 0) {
-      new Setting(contentEl).setName(t().mail.confirmCc).setDesc(this.details.cc.join(", "));
-    }
-    new Setting(contentEl).setName(t().mail.confirmSubject).setDesc(this.details.subject);
-
-    if (this.details.alreadySent) {
+    if (this.changed) {
       contentEl.createEl("p", {
-        text: t().mail.resendWarning,
+        text: t().mail.changedSinceShown,
         cls: "schreibstube-mail-warning"
       });
     }
 
+    const { details } = this;
+    new Setting(contentEl)
+      .setName(t().mail.confirmFrom)
+      .setDesc(details.from || t().mail.confirmFromDefault);
+    new Setting(contentEl).setName(t().mail.confirmTo).setDesc(details.to.join(", ") || "—");
+    if (details.cc.length > 0) {
+      new Setting(contentEl).setName(t().mail.confirmCc).setDesc(details.cc.join(", "));
+    }
+    new Setting(contentEl).setName(t().mail.confirmSubject).setDesc(details.subject);
+
+    for (const warning of details.warnings) {
+      contentEl.createEl("p", { text: warningText(warning), cls: "schreibstube-mail-warning" });
+    }
+
+    contentEl.createEl("pre", { text: details.body, cls: "schreibstube-mail-preview" });
+
+    let sending = false;
     new Setting(contentEl)
       .addButton((button) => button.setButtonText(t().common.cancel).onClick(() => this.close()))
       .addButton((button) =>
         button
           .setButtonText(t().mail.send)
           .setCta()
-          .onClick(() => {
-            this.close();
-            this.onConfirm();
+          .onClick(async () => {
+            // A second press while the note is read again would send twice.
+            if (sending) return;
+            sending = true;
+            button.setDisabled(true);
+            try {
+              if (await this.onConfirm()) this.close();
+            } finally {
+              sending = false;
+              button.setDisabled(false);
+            }
           })
       );
   }
 
   override onClose(): void {
     this.contentEl.empty();
+  }
+}
+
+function warningText(warning: SendWarning): string {
+  switch (warning) {
+    case "unconfirmed":
+      return t().mail.unconfirmedWarning;
+    case "alreadySent":
+      return t().mail.resendWarning;
+    case "noTo":
+      return t().mail.noToWarning;
   }
 }

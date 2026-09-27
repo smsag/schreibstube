@@ -223,7 +223,12 @@ export const de: Messages = {
     confirmSubject: "Betreff",
     send: "Senden",
     resendWarning:
-      "Diese Notiz wurde bereits einmal gesendet. Ein weiterer Versand stellt ein Duplikat zu."
+      "Diese Notiz wurde bereits einmal gesendet. Ein weiterer Versand stellt ein Duplikat zu.",
+    unconfirmedWarning:
+      "Der letzte Versand dieser Notiz wurde nie bestätigt und ist womöglich angekommen. Vor einem erneuten Versand im Ordner „Gesendet“ nachsehen.",
+    noToWarning: "Kein Empfänger unter „An“: Diese E-Mail geht nur an Cc.",
+    changedSinceShown:
+      "Die Notiz hat sich geändert, während dieser Dialog offen war. So lautet sie jetzt — bitte prüfen und erneut auf Senden drücken."
   },
 
   diagnostics: {
@@ -771,6 +776,10 @@ export const de: Messages = {
     needsSubject: (key: string) => `zuerst eine Zeile „${key}:“ ins Frontmatter setzen.`,
     sent: "E-Mail gesendet.",
     sentNoCopy: "E-Mail gesendet (keine Kopie in „Gesendet“).",
+    sendUnconfirmed: (detail: string) =>
+      `Versand nicht bestätigt — die E-Mail ist womöglich trotzdem angekommen. Vor einem erneuten Versand im Ordner „Gesendet“ nachsehen. (${detail})`,
+    frontmatterUnreadable:
+      "das Frontmatter der Notiz lässt sich nicht lesen; bitte die Eigenschaften prüfen.",
     sentRefused: (addresses: string) =>
       `E-Mail gesendet, aber der Mailserver hat diese Empfänger abgelehnt; sie erhalten sie nicht: ${addresses}`,
     failSend: "Schreibstube: Senden fehlgeschlagen",
