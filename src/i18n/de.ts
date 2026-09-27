@@ -894,7 +894,7 @@ export const de: Messages = {
       bookmarks: "Lesezeichen",
       latest: "Extern aktualisiert",
       files: "Dateien und Ordner",
-      conversations: "Pythia-Unterhaltungen"
+      conversations: "Unterhaltungen"
     },
 
     bookmarks: {

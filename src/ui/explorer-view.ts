@@ -1414,14 +1414,15 @@ export class ExplorerPaneView extends ItemView {
   /**
    * Pythia's conversations under the files a filter found, in a section of
    * their own: a row that looks like a note but opens a chat would be a trap.
-   * Its header is every other section's — chevron, Pythia's mark, the label and
-   * the rule — so it reads as a part of the pane rather than a note under one.
+   * Its header is every other section's — chevron, two speech bubbles, the
+   * label and the rule — and each row carries Pythia's mark, as it does in
+   * Recommended, so where a row leads is said on the row itself.
    */
   private renderConversationResults(host: HTMLElement, hits: readonly ConversationResult[]): void {
     const open = this.host?.openConversation;
     if (hits.length === 0 || !open) return;
 
-    const block = this.renderSection(host, "conversations", PYTHIA_GLYPH, {
+    const block = this.renderSection(host, "conversations", "messages", {
       total: hits.length
     });
     if (!block) return;
@@ -1432,7 +1433,7 @@ export class ExplorerPaneView extends ItemView {
       });
       indent(row, 0);
       row.createSpan({ cls: "schreibstube-explorer-twisty" });
-      applyIcon(row.createSpan({ cls: "schreibstube-explorer-glyph" }), "messages");
+      applyIcon(row.createSpan({ cls: "schreibstube-explorer-glyph" }), PYTHIA_GLYPH);
       row.createSpan({ cls: "schreibstube-explorer-name", text: hit.title });
       row.addEventListener("click", () => open(hit.id));
       row.addEventListener("keydown", (event) => {

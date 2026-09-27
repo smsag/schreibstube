@@ -635,7 +635,7 @@ export const enExtra = {
       bookmarks: "Bookmarks",
       latest: "Updated externally",
       files: "Files and folders",
-      conversations: "Pythia conversations"
+      conversations: "Conversations"
     },
 
     bookmarks: {
