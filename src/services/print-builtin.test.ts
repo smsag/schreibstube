@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { BUILTIN_TEMPLATE_FOLDER, BUILTIN_TEMPLATE_NAME, builtinTemplate } from "./print-builtin";
+import { resolvePrintData } from "./print-data";
 import { checkLayout } from "./print-template";
 
 describe("builtinTemplate", () => {
@@ -24,8 +25,17 @@ describe("builtinTemplate", () => {
     expect(checkLayout(builtIn?.layout ?? "")).toEqual([]);
   });
 
-  it("reads nothing a note has to set: only the title and the language", () => {
+  it("reads nothing a note has to set: only the title, the language and the monospace setting", () => {
     const keys = [...(builtIn?.layout ?? "").matchAll(/data\.(\w+)/g)].map((match) => match[1]);
-    expect(new Set(keys)).toEqual(new Set(["title", "lang"]));
+    expect(new Set(keys)).toEqual(new Set(["title", "lang", "monospace"]));
+    // Each is one the plugin always provides, so a note that sets nothing prints.
+    const provided = resolvePrintData(builtIn!.template, null, {
+      title: "T",
+      noteName: "n",
+      now: new Date(2026, 8, 27),
+      locale: "de",
+      monospace: true
+    });
+    for (const key of keys) expect(provided).toHaveProperty(key as string);
   });
 });

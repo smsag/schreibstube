@@ -424,9 +424,25 @@ describe("lists, as the note numbered and ticked them", () => {
     expect(convert("1. eins\n2. zwei")).toBe("+ eins\n+ zwei");
   });
 
-  it("draws a task's box rather than printing its brackets", () => {
+  it("draws a task's box where the bullet would be, rather than printing its brackets", () => {
     expect(convert("- [ ] offen\n- [x] erledigt")).toBe(
-      "- #schreibstube-task(false) offen\n- #schreibstube-task(true) erledigt"
+      "#schreibstube-task-item(schreibstube-task(false))[offen]\n" +
+        "#schreibstube-task-item(schreibstube-task(true))[erledigt]"
+    );
+  });
+
+  it("keeps what is nested under a task inside it, and a plain item beside it a plain item", () => {
+    expect(convert("- [ ] oben\n  - [x] darunter\n  - Punkt\n- Rest")).toBe(
+      "#schreibstube-task-item(schreibstube-task(false))[oben\n" +
+        "  #schreibstube-task-item(schreibstube-task(true))[darunter]\n" +
+        "  - Punkt]\n" +
+        "- Rest"
+    );
+  });
+
+  it("keeps a numbered task's number and draws the box beside it", () => {
+    expect(convert("1. [x] erst\n2. [ ] dann")).toBe(
+      "+ #schreibstube-task(true) erst\n+ #schreibstube-task(false) dann"
     );
   });
 });
@@ -438,7 +454,9 @@ describe("the prelude the body calls", () => {
         "> [!tip] T\n> x\n\n- [ ] t\n\n```schreibstube-slideshow\n![a](a.png)\n![b](b.png)\n```",
       { ...resolved, properties: [["autor", "x"]] }
     ).body;
-    const called = new Set([...body.matchAll(/#(schreibstube-[a-z]+)\(/g)].map((m) => m[1]));
+    const called = new Set(
+      [...body.matchAll(/(?<![\w-])(schreibstube-[a-z-]+)\(/g)].map((m) => m[1])
+    );
     expect([...called].sort()).toEqual([
       "schreibstube-callout",
       "schreibstube-code",
@@ -447,7 +465,8 @@ describe("the prelude the body calls", () => {
       "schreibstube-properties",
       "schreibstube-slideshow",
       "schreibstube-table",
-      "schreibstube-task"
+      "schreibstube-task",
+      "schreibstube-task-item"
     ]);
     for (const name of called) expect(PRELUDE_SOURCE).toContain(`#let ${name}(`);
   });

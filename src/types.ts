@@ -149,6 +149,12 @@ export interface SchreibstubeSettings {
    * built-in `Standard`, `:ask` for the picker, or a vault template's folder.
    */
   printDefaultTemplate: string;
+  /**
+   * Whether the built-in Standard sets its text in JetBrains Mono, as the
+   * Klartext theme does; off sets it in Fira Sans. Reaches a template as
+   * `data.monospace`, which a note may override in `schreibstubePrint`.
+   */
+  printMonospace: boolean;
   /** Icon name per frontmatter key, lower-cased; drawn in place of the type icon. */
   propertyIcons: Record<string, string>;
   /** Moment format for today's date entered into text. Date properties always get ISO. */

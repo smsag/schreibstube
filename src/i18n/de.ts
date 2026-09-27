@@ -418,9 +418,9 @@ export const de: Messages = {
     printAddTemplate: "Vorlage anlegen",
     printAddTemplateButton: "Anlegen",
     printAddTemplateDesc:
-      "Legt eine der beiden Beispielvorlagen in einem Ordner deiner Wahl an. Keine bringt eine " +
-      "Schrift mit, denn Schriften sind lizenziert; eine Vorlage ohne wird in der Standardschrift " +
-      "gesetzt, die mit dem Satzteil geladen wird.",
+      "Legt eine der Beispielvorlagen in einem Ordner deiner Wahl an. Keine bringt eine " +
+      "Schriftdatei mit: Fira Sans, JetBrains Mono und Typsts eigene Schriften werden mit dem " +
+      "Satzteil geladen, und eine Vorlage ohne eigene Schrift wird darin gesetzt.",
     printTemplateRoot: "Vorlagenordner",
     printTemplateRootDesc:
       "Wohin eine neue Vorlage standardmäßig kommt. Eine Vorlage ist jeder Ordner mit einer " +
@@ -434,6 +434,12 @@ export const de: Messages = {
     printDefaultTemplateDesc:
       "Womit eine Notiz gedruckt wird, die keine Vorlage nennt. Eine Notiz wählt ihre eigene " +
       "mit schreibstubePrintTemplate im Frontmatter.",
+    printMonospace: "Text in Festbreitenschrift",
+    printMonospaceDesc:
+      "Die eingebaute Standardvorlage setzt den Text in JetBrains Mono, wie das Klartext-Theme. " +
+      "Ausgeschaltet wird er in Fira Sans gesetzt; Überschriften und Tabellen sind so oder so " +
+      "Fira Sans, Code bleibt in Festbreitenschrift. Eine Notiz wählt selbst mit " +
+      "schreibstubePrint: { monospace: false }.",
     printDefaultBuiltin: "Standard (eingebaut)",
     printDefaultAsk: "Jedes Mal fragen",
     printDefaultMissing: (path: string) => `${path} (nicht gefunden)`,

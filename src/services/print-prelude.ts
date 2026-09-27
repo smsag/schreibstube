@@ -215,4 +215,17 @@ export const PRELUDE_SOURCE = `// Defaults the converted note calls. A template 
   inset: 0.15em,
   if done { box(width: 100%, height: 100%, fill: luma(90)) },
 )
+
+// A bulleted task: a list of one item whose marker is the task's box, so the
+// box stands where the bullet would. The converter passes the box in, drawn by
+// whichever schreibstube-task is in force, so a template that redraws the box
+// needs nothing more. Consecutive items are separate lists, which Typst would
+// part by a paragraph's spacing; the block spacing is set to the list's own,
+// and the larger of two neighbouring gaps wins, so the space around the list
+// is what it was.
+#let schreibstube-task-item(marker, body) = context {
+  let gap = if list.spacing == auto { par.leading } else { list.spacing }
+  set block(spacing: gap)
+  list(marker: marker, body)
+}
 `;

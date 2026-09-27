@@ -9,7 +9,8 @@ const context = {
   title: "Kündigung",
   noteName: "2026-04-12",
   now: new Date(2026, 3, 12),
-  locale: "de" as const
+  locale: "de" as const,
+  monospace: true
 };
 
 describe("resolvePrintData", () => {
@@ -20,8 +21,17 @@ describe("resolvePrintData", () => {
       noteName: "2026-04-12",
       date: "12.04.2026",
       isoDate: "2026-04-12",
-      year: "2026"
+      year: "2026",
+      monospace: "true"
     });
+  });
+
+  it("hands the monospace setting on as text, and lets a note decide for itself", () => {
+    expect(resolvePrintData(template({}), null, { ...context, monospace: false }).monospace).toBe(
+      "false"
+    );
+    const note = { schreibstubePrint: { monospace: false } };
+    expect(resolvePrintData(template({}), note, context).monospace).toBe("false");
   });
 
   it("lets the template state what is always the same", () => {

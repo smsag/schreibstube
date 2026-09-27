@@ -6,13 +6,22 @@ schreibstubePage: { size: a4, margin: "25mm 25mm 30mm" }
 
 # Standard
 
-Die Vorlage, mit der gedruckt wird, wenn nichts anderes verlangt ist: A4, die Überschriften der Notiz, die Seitenzahl unten, sobald es mehr als eine Seite ist. Sie ist in Schreibstube eingebaut und muss nicht im Vault liegen.
+Die Vorlage, mit der gedruckt wird, wenn nichts anderes verlangt ist: das Klartext-Theme auf Papier. A4, der Text in JetBrains Mono und im Flattersatz, Überschriften, Tabellenköpfe und Callout-Beschriftungen in Fira Sans, Striche, Ziffern und Zitatbalken in hellem Grau, Code zwischen zwei Haarlinien, Links in Textfarbe mit gepunkteter Linie. Unten stehen Titel und Seitenzahl, sobald es mehr als eine Seite ist. Sie ist in Schreibstube eingebaut und muss nicht im Vault liegen.
 
 ## Anpassen
 
 Diese Kopie im Vault ersetzt die eingebaute, solange sie `Standard` heißt: Ändere hier die `template.typ`, und jede Notiz ohne eigene Vorlage wird so gedruckt. Soll wieder die eingebaute gelten, benenne diesen Ordner um oder lösche ihn.
 
-Lege eine Schrift in `fonts/` und nenne sie in der `template.typ` bei `set text(font: …)`. Ohne eigene Schrift wird in der Standardschrift gesetzt, die das Plugin mit dem Satzteil lädt — Libertinus Serif, und DejaVu Sans Mono für Code.
+Fira Sans und JetBrains Mono lädt das Plugin mit dem Satzteil. Eine andere Schrift legst du in `fonts/` und nennst sie in der `template.typ` bei `let mono` oder `let sans`.
+
+Soll der Text nicht in Festbreitenschrift stehen, schalte in den Druck-Einstellungen **Text in Festbreitenschrift** aus; dann wird er in Fira Sans gesetzt. Eine einzelne Notiz entscheidet selbst:
+
+```yaml
+---
+schreibstubePrint:
+  monospace: false
+---
+```
 
 ## Benutzen
 
@@ -26,7 +35,8 @@ schreibstubePrintTemplate: Standard
 
 ## Werte, die die Vorlage liest
 
-| Schlüssel | Woher                                   | Wofür                                         |
-| --------- | --------------------------------------- | --------------------------------------------- |
-| `title`   | erste Überschrift der Notiz, sonst Name | Titel des PDFs; Titelzeile, wenn keine da ist |
-| `lang`    | Sprache des Plugins                     | Silbentrennung                                |
+| Schlüssel   | Woher                                   | Wofür                                           |
+| ----------- | --------------------------------------- | ----------------------------------------------- |
+| `title`     | erste Überschrift der Notiz, sonst Name | Titel des PDFs; Titelzeile, wenn keine da ist   |
+| `lang`      | Sprache des Plugins                     | Silbentrennung                                  |
+| `monospace` | die Notiz, sonst die Druck-Einstellung  | `false`: Text in Fira Sans statt JetBrains Mono |

@@ -30,16 +30,19 @@ Neither template ships fonts, because typefaces are licensed and a repository
 is not a place to redistribute them. Put your own `.ttf` or `.otf` files in the
 template's `fonts/` folder and the template will set in them.
 
-Both examples ask for **Fira Sans**, which is free and available from Google
-Fonts. The CV also uses its condensed cut for headings, so a long German job
-title stays on one line. Fira registers that cut as a _width_ on the same
+Both examples ask for **Fira Sans**, which the plugin fetches with the
+typesetter (regular, italic, semibold and bold), so they print in it without a
+`fonts/` folder. The CV also uses its condensed cut for headings, so a long
+German job title stays on one line; that cut is not fetched, so put it in the
+CV's `fonts/` folder, or the headings are set at Fira's normal width. Fira registers that cut as a _width_ on the same
 family rather than as a family of its own, which is why the layout asks for it
 with `stretch: 75%` rather than by name — a font that names its condensed cut
 separately would be asked for by name instead.
 
 With no fonts at all a template still prints, set in the standard fonts the
 plugin fetches with the typesetter: Libertinus Serif, and DejaVu Sans Mono for
-code. It will look like a document, just not like yours.
+code, which is what Typst sets in when a layout names no font. Fira Sans and
+JetBrains Mono come with them, because the built-in Standard is set in those.
 
 ## Writing your own
 

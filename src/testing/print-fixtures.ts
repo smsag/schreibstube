@@ -28,6 +28,8 @@ export interface PrintCase {
   margin?: MarginPreset;
   /** How the dialog prints slideshows; as they stand on screen unless named. */
   slideshows?: SlideshowPrintMode;
+  /** The print setting; monospaced, as it ships, unless a case turns it off. */
+  monospace?: boolean;
 }
 
 /** A slideshow of `count` pictures in `layout`, as a note writes one. */
@@ -109,6 +111,11 @@ export const PRINT_CASES: readonly PrintCase[] = [
       ["tags", "brief, anfrage"],
       ["quote", '"); #panic("']
     ]
+  },
+  {
+    name: "sans-text",
+    markdown: "# Titel\n\n*Kursiv*, **fett**, ***beides*** und `Code`.\n\n- [ ] offen\n- Punkt",
+    monospace: false
   },
   { name: "small-margin", markdown: "Text mit kleinem Rand.", margin: "small" },
   { name: "wide-margin", markdown: "Text mit breitem Rand.", margin: "wide" },
@@ -214,7 +221,8 @@ export function fixtureJobs(templates: readonly FixtureTemplate[]): FixtureJob[]
           title: "Fixture",
           noteName: printCase.name,
           now: new Date(Date.UTC(2026, 8, 24)),
-          locale: "de"
+          locale: "de",
+          monospace: printCase.monospace ?? true
         }
       );
 

@@ -173,9 +173,9 @@ export const enExtra = {
     printAddTemplate: "Add a template",
     printAddTemplateButton: "Add",
     printAddTemplateDesc:
-      "Writes one of the two example templates into a folder you choose. Neither carries a " +
-      "typeface, since fonts are licensed; a template with none is set in the standard fonts " +
-      "fetched with the typesetter.",
+      "Writes one of the example templates into a folder you choose. None carries a font " +
+      "file: Fira Sans, JetBrains Mono and Typst's own faces are fetched with the typesetter, " +
+      "and a template that names no font is set in those.",
     printTemplateRoot: "Templates folder",
     printTemplateRootDesc:
       "Where a new template goes by default. A template is any folder with a template.md marked " +
@@ -189,6 +189,11 @@ export const enExtra = {
     printDefaultTemplateDesc:
       "What a note that names no template is printed with. A note chooses its own with " +
       "schreibstubePrintTemplate in its frontmatter.",
+    printMonospace: "Monospaced text",
+    printMonospaceDesc:
+      "The built-in Standard template sets its text in JetBrains Mono, as the Klartext theme " +
+      "does. Off, it is set in Fira Sans; headings and tables are Fira Sans either way, and code " +
+      "stays monospaced. A note chooses for itself with schreibstubePrint: { monospace: false }.",
     printDefaultBuiltin: "Standard (built in)",
     printDefaultAsk: "Ask every time",
     printDefaultMissing: (path: string) => `${path} (not found)`,

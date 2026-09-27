@@ -550,7 +550,8 @@ export class PrintCommands {
       title: noteTitle(source, file.basename),
       noteName: file.basename,
       now: new Date(),
-      locale: activeLocale()
+      locale: activeLocale(),
+      monospace: this.settings().printMonospace
     });
 
     const input = {
