@@ -1,6 +1,7 @@
 import { type App, type Editor, Notice, SuggestModal, type TFile } from "obsidian";
 import { t } from "../i18n";
 import type { Logger } from "../services/logger";
+import { modalAnswer, type ModalAnswer } from "../services/modal-answer";
 import { collectPassages } from "../services/pdf-passages";
 import type { PdfPassage } from "../services/pdf-passages";
 import { composePassageInsert } from "../services/pdf-insert";
@@ -136,14 +137,15 @@ export class PdfCommands {
 
 /** Which PDF, when the note points at more than one. */
 class PdfChooser extends SuggestModal<TFile> {
-  private answered = false;
+  private readonly answer: ModalAnswer<TFile | null>;
 
   constructor(
     app: App,
     private readonly pdfs: TFile[],
-    private readonly resolve: (file: TFile | null) => void
+    resolve: (file: TFile | null) => void
   ) {
     super(app);
+    this.answer = modalAnswer(resolve);
     this.setPlaceholder(t().pdf.choosePdf);
   }
 
@@ -160,13 +162,13 @@ class PdfChooser extends SuggestModal<TFile> {
   }
 
   onChooseSuggestion(file: TFile): void {
-    this.answered = true;
-    this.resolve(file);
+    this.answer.choose(file);
   }
 
   override onClose(): void {
     // Dismissing the chooser is an answer too, and a promise nobody settles
-    // would leave the command half-run for the rest of the session.
-    if (!this.answered) this.resolve(null);
+    // would leave the command half-run for the rest of the session. Obsidian
+    // closes the list before it reports the pick, so the pick still wins.
+    this.answer.closed(null);
   }
 }

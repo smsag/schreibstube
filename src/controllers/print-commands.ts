@@ -90,6 +90,7 @@ import {
 import { ConfirmModal, FolderPickerModal } from "../ui/explorer-modals";
 import type { ExampleTemplate } from "../services/print-examples";
 import { builtinTemplate, copyableExamples } from "../services/print-builtin";
+import { modalAnswer } from "../services/modal-answer";
 import { pictureEdge } from "../services/print-slideshow";
 import { printAssetName, printImageFormat } from "../services/print-images";
 import { linkpathCandidates } from "../services/slideshow";
@@ -663,15 +664,12 @@ export class PrintCommands {
     submitLabel: string;
   }): Promise<boolean> {
     return new Promise((resolve) => {
-      let answered = false;
-      const modal = new ConfirmModal(this.app, options, () => {
-        answered = true;
-        resolve(true);
-      });
+      const answer = modalAnswer<boolean>(resolve);
+      const modal = new ConfirmModal(this.app, options, () => answer.choose(true));
       const close = modal.onClose.bind(modal);
       modal.onClose = () => {
         close();
-        if (!answered) resolve(false);
+        answer.closed(false);
       };
       modal.open();
     });
@@ -1033,15 +1031,14 @@ export class PrintCommands {
     const folders = [root, ...all.filter((path) => path !== root), ""];
 
     return new Promise((resolve) => {
-      let answered = false;
-      const modal = new FolderPickerModal(this.app, folders, t().print.chooseFolder, (folder) => {
-        answered = true;
-        resolve(folder);
-      });
+      const answer = modalAnswer<string | null>(resolve);
+      const modal = new FolderPickerModal(this.app, folders, t().print.chooseFolder, (folder) =>
+        answer.choose(folder)
+      );
       const close = modal.onClose.bind(modal);
       modal.onClose = () => {
         close();
-        if (!answered) resolve(null);
+        answer.closed(null);
       };
       modal.open();
     });
