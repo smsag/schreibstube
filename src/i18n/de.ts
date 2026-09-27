@@ -494,7 +494,34 @@ export const de: Messages = {
     describing: "beschreibt das Bild …",
     described: (title: string) => `beschrieben: ${title}`,
     describeUnusable: "die Beschreibung des Modells war unbrauchbar – nichts geschrieben.",
-    failDescribe: "Schreibstube: Bild beschreiben fehlgeschlagen"
+    failDescribe: "Schreibstube: Bild beschreiben fehlgeschlagen",
+    folder: {
+      off: "Bildbeschreibungen sind in den Einstellungen ausgeschaltet.",
+      nothing: (name: string, described: number) =>
+        described > 0
+          ? `Jedes Bild in ${name} hat eine Beschreibung (${described}).`
+          : `In ${name} gibt es kein Bild zu beschreiben.`,
+      relinked: (count: number) =>
+        `${count} Beschreibung(en) umbenannter Bilder wurden wiedergefunden.`,
+      tooLarge: (count: number, megabytes: number) =>
+        `${count} Bild(er) über ${megabytes} MB bleiben außen vor.`,
+      deferred: (count: number, cap: number) =>
+        `${count} weitere warten auf den nächsten Lauf: Ein Lauf beschreibt höchstens ${cap}.`,
+      confirmTitle: (count: number, name: string) => `${count} Bild(er) in ${name} beschreiben?`,
+      confirmBody: (count: number, provider: string) =>
+        `Jedes Bild wird verkleinert, ohne Ortsdaten an ${provider} geschickt: ${count} ` +
+        `Anfrage(n), nacheinander. Jede Beschreibung wird eine Notiz.`,
+      confirmAction: "Beschreiben",
+      progress: (done: number, total: number, name: string) =>
+        `Bilder in ${name} werden beschrieben: ${done} von ${total}. `,
+      stop: "Anhalten",
+      stopping: "Hält nach diesem Bild an …",
+      done: (count: number, name: string) => `${count} Bild(er) in ${name} beschrieben.`,
+      unusable: (count: number) =>
+        `${count} Antwort(en) waren unbrauchbar; für sie wurde nichts geschrieben.`,
+      failed: (count: number) => `${count} fehlgeschlagen — die Konsole sagt, warum.`,
+      stopped: "Angehalten; der Rest ist noch unbeschrieben."
+    }
   },
 
   properties: {
@@ -891,6 +918,7 @@ export const de: Messages = {
       renameNoteAi: "Aus dem Text benennen …",
       renameImageAi: "Aus dem Bild benennen …",
       describeImage: "Bild beschreiben",
+      describeFolder: "Bilder beschreiben",
       renaming: "Liest …",
       move: "Verschieben nach …",
       delete: "Löschen",

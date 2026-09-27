@@ -44,6 +44,7 @@ import { LinkModeController } from "./controllers/link-mode-controller";
 import { LlmCommands } from "./controllers/llm-commands";
 import { PropertyController } from "./controllers/property-controller";
 import { PropertySetController } from "./controllers/property-set-controller";
+import { FolderDescriber } from "./controllers/folder-describer";
 import {
   convertSelectionToTable,
   insertTable,
@@ -69,7 +70,8 @@ import { uninstallIconFont } from "./ui/icon-font";
 import {
   EXPLORER_STATE_FILE,
   EXTERNAL_CHECK_MS,
-  ExplorerController
+  ExplorerController,
+  FOREIGN_MENU_SOURCE
 } from "./controllers/explorer-controller";
 import type { ExplorerFileStore } from "./services/explorer-store";
 import { SemanticEngine } from "./controllers/semantic/semantic-engine";
@@ -126,6 +128,8 @@ export default class SchreibstubePlugin extends Plugin {
   private linkMode: LinkModeController | null = null;
   private llm: LlmCommands | null = null;
   private properties: PropertyController | null = null;
+  /** Describes a folder's pictures; built on first use, from the pane and Obsidian's. */
+  private folderDescriberInstance: FolderDescriber | null = null;
   private propertySets: PropertySetController | null = null;
   private proofread: ProofreadController | null = null;
   private explorer: ExplorerController | null = null;
@@ -267,6 +271,7 @@ export default class SchreibstubePlugin extends Plugin {
     // what can do that, and they were built a moment ago.
     this.explorer.useNamer((file) => this.requireLlm().proposeName(file));
     this.explorer.useDescriber((file) => this.requireLlm().describeImage(file));
+    this.explorer.useFolderDescriber((folder) => this.folderDescriber.describe(folder));
     this.explorer.useTagOpener((tag) => this.activateTagNotes(tag));
     // From a note's menu: the reader named the note, so the panel stays on it.
     this.explorer.useRelatedOpener((path) => this.activateRelatedNotes(path, false));
@@ -808,7 +813,7 @@ export default class SchreibstubePlugin extends Plugin {
     // A folder is bookmarked by pasting its `vault://` URL into the bookmarks
     // file, so the path has to be obtainable without typing it out by hand.
     this.registerEvent(
-      this.app.workspace.on("file-menu", (menu, file) => {
+      this.app.workspace.on("file-menu", (menu, file, source) => {
         if (!(file instanceof TFolder)) return;
         menu.addItem((item) =>
           item
@@ -817,6 +822,17 @@ export default class SchreibstubePlugin extends Plugin {
             .setSection("info")
             .onClick(() => void this.copyBookmarkPath(file.path))
         );
+        // Obsidian's own file list offers it too. Not when Schreibstube's pane
+        // passes its folder menu on to other plugins: it has the entry already.
+        if (this.settings.imageDescriptionsEnabled && source !== FOREIGN_MENU_SOURCE) {
+          menu.addItem((item) =>
+            item
+              .setTitle(t().explorer.menu.describeFolder)
+              .setIcon("scan-text")
+              .setSection("action")
+              .onClick(() => void this.folderDescriber.describe(file))
+          );
+        }
       })
     );
 
@@ -835,6 +851,17 @@ export default class SchreibstubePlugin extends Plugin {
         void this.explorer?.checkForExternalChange();
       }, EXTERNAL_CHECK_MS)
     );
+  }
+
+  private get folderDescriber(): FolderDescriber {
+    this.folderDescriberInstance ??= new FolderDescriber(
+      this.app,
+      () => this.settings,
+      () => this.requireLlm(),
+      () => this.explorer,
+      this.logger
+    );
+    return this.folderDescriberInstance;
   }
 
   private requireProofread(): ProofreadController {
