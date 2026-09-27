@@ -7,6 +7,7 @@
 import { env, pipeline, type ProgressInfo } from "@huggingface/transformers";
 import type { EmbeddingModelConfig } from "../../../../services/semantic/embedding-models";
 import { sliceBatch } from "./batch-slice";
+import { TaskQueue } from "./task-queue";
 
 env.allowLocalModels = false;
 
@@ -74,7 +75,8 @@ async function isModelCached(repoId: string): Promise<boolean> {
 export class EmbeddingModel {
   #pipeline: FeaturePipeline | null = null;
   #device: Device = "wasm";
-  #queue: Promise<unknown> = Promise.resolve(); // serialize inference calls
+  /** Inference calls, one at a time; a search goes ahead of waiting batches. */
+  readonly #queue = new TaskQueue();
   readonly config: EmbeddingModelConfig;
   ready: Promise<void>;
 
@@ -135,22 +137,16 @@ export class EmbeddingModel {
    * shapes (and of calls) by the batch size. Returns one vector per input, in
    * input order.
    */
-  embedBatch(inputs: string[]): Promise<Float32Array[]> {
-    return new Promise((resolve, reject) => {
-      this.#queue = this.#queue.then(async () => {
-        try {
-          if (!this.#pipeline) return reject(new Error("pipeline not initialized"));
-          if (inputs.length === 0) return resolve([]);
-          const result = await this.#pipeline(inputs, {
-            pooling: this.config.pooling,
-            normalize: true,
-            padding: true
-          });
-          resolve(sliceBatch(result.data, result.dims, inputs.length));
-        } catch (err) {
-          reject(err instanceof Error ? err : new Error(String(err)));
-        }
+  embedBatch(inputs: string[], priority = false): Promise<Float32Array[]> {
+    return this.#queue.run(async () => {
+      if (!this.#pipeline) throw new Error("pipeline not initialized");
+      if (inputs.length === 0) return [];
+      const result = await this.#pipeline(inputs, {
+        pooling: this.config.pooling,
+        normalize: true,
+        padding: true
       });
-    });
+      return sliceBatch(result.data, result.dims, inputs.length);
+    }, priority);
   }
 }

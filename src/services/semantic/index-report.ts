@@ -37,6 +37,25 @@ export interface BuildRecord extends BuildProgress {
   error: string | null;
 }
 
+/** Where the time of one search by meaning went. */
+export interface SearchTiming {
+  /** When it ran, epoch ms. */
+  at: number;
+  /** From the question to the answer. */
+  totalMs: number;
+  /** Loading the model first, when it was not loaded. */
+  loadMs: number;
+  /** Embedding the query, including any wait for the model. */
+  embedMs: number;
+  /** Scoring the notes. */
+  rankMs: number;
+  /** The query's vector came from memory: nothing was embedded. */
+  cached: boolean;
+  /** Notes scored, and notes found. */
+  notes: number;
+  hits: number;
+}
+
 /** Everything the report is drawn from. */
 export interface IndexFacts {
   /** The model's name as the settings offer it, and the backend running it. */
@@ -66,8 +85,11 @@ export interface IndexFacts {
   keeper?: IndexKeeper | undefined;
   writtenAt?: number | undefined;
   build: BuildRecord | null;
-  /** The Explorer filter's text index, when the pane has read it. */
-  text: { notes: number; words: number } | null;
+  /** The last search by meaning this session. */
+  search: SearchTiming | null;
+  /** The Explorer filter's text index, when the pane has read it, and how
+   *  long its last reading took. */
+  text: { notes: number; words: number; readMs: number | null } | null;
 }
 
 export interface ReportRow {
@@ -105,6 +127,12 @@ export function remainingMs(progress: BuildProgress, elapsedMs: number): number 
 export function formatBytes(bytes: number, decimal: (n: number) => string): string {
   if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
   return `${decimal(bytes / (1024 * 1024))} MB`;
+}
+
+/** A short duration as milliseconds or seconds: a search is measured in these. */
+export function formatMs(ms: number, decimal: (n: number) => string): string {
+  if (ms < 1000) return `${Math.max(0, Math.round(ms))} ms`;
+  return `${decimal(ms / 1000)} s`;
 }
 
 /** A duration as seconds, minutes or hours, at the precision that matters. */
@@ -179,9 +207,30 @@ export function reportRows(f: IndexFacts, s: Strings, now: number): ReportRow[] 
       });
     }
   }
+  const q = f.search;
+  if (q) {
+    const ms = (n: number): string => formatMs(n, s.decimal);
+    rows.push({
+      label: s.lastSearch,
+      value: s.lastSearchValue(
+        ms(q.totalMs),
+        q.loadMs > 0 ? ms(q.loadMs) : null,
+        q.cached ? null : ms(q.embedMs),
+        ms(q.rankMs),
+        q.notes,
+        q.hits
+      )
+    });
+  }
   rows.push({
     label: s.textSearch,
-    value: f.text ? s.textSearchValue(f.text.notes, f.text.words) : s.textSearchUnread
+    value: f.text
+      ? s.textSearchValue(
+          f.text.notes,
+          f.text.words,
+          f.text.readMs === null ? null : formatMs(f.text.readMs, s.decimal)
+        )
+      : s.textSearchUnread
   });
   return rows;
 }

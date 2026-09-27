@@ -2,13 +2,20 @@
 // runtime. M1 defines the interface and tests everything against fakes; the real
 // transformers.js implementation (M2) plugs in here without touching the callers.
 
+/** How one embed request is to be treated. */
+export interface EmbedOptions {
+  /** Someone is waiting for it — a search. It goes ahead of the batches of a
+   *  build or sync still waiting for the model. */
+  priority?: boolean;
+}
+
 export interface EmbeddingProvider {
   /** Output dimensionality — must match the index's stored dim. */
   readonly dim: number;
   /** Resolves once the model is loaded and ready to embed. */
   ready(): Promise<void>;
   /** Embed each input string into a raw (un-normalized) vector, aligned by index. */
-  embed(texts: string[]): Promise<Float32Array[]>;
+  embed(texts: string[], options?: EmbedOptions): Promise<Float32Array[]>;
   /** Release the model/runtime (e.g. tear down the worker/iframe). */
   unload(): void;
   /** True only when inference runs on a BACKGROUND thread (a real Web Worker).

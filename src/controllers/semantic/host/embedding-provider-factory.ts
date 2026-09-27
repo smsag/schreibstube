@@ -14,7 +14,11 @@ import {
   EmbeddingOutOfMemoryError,
   isOutOfMemoryError
 } from "../../../services/semantic/memory-error";
-import { BackendGoneError, isBackendGone } from "../../../services/semantic/embedding-provider";
+import {
+  BackendGoneError,
+  isBackendGone,
+  type EmbedOptions
+} from "../../../services/semantic/embedding-provider";
 
 /**
  * The embedding provider Pythia actually uses (Pythia ADR-119): a Web Worker (off the UI
@@ -178,7 +182,7 @@ export class FallbackEmbeddingProvider implements EmbeddingProvider {
       throw new BackendGoneError("Embedding provider was unloaded while the model was loading");
   }
 
-  async embed(texts: string[]): Promise<Float32Array[]> {
+  async embed(texts: string[], options?: EmbedOptions): Promise<Float32Array[]> {
     // A backend that failed after it was ready — a Worker's error event — stays
     // failed; without this every later embed was refused until a restart.
     if (this.active?.isAlive?.() === false) {
@@ -194,7 +198,7 @@ export class FallbackEmbeddingProvider implements EmbeddingProvider {
     }
     const active = this.active;
     if (!active) throw new BackendGoneError("Embedding provider was unloaded");
-    return active.embed(texts);
+    return active.embed(texts, options);
   }
 
   loadFailed(): boolean {

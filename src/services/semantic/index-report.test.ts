@@ -5,6 +5,7 @@ import { de } from "../../i18n/de";
 import {
   formatBytes,
   formatDuration,
+  formatMs,
   passageRate,
   percent,
   remainingMs,
@@ -34,7 +35,8 @@ const facts: IndexFacts = {
   keeper: "desktop",
   writtenAt: Date.UTC(2026, 8, 27, 12, 0),
   build: null,
-  text: { notes: 256, words: 18_402 }
+  search: null,
+  text: { notes: 256, words: 18_402, readMs: null }
 };
 
 const build = (over: Partial<BuildRecord>): BuildRecord => ({
@@ -141,5 +143,43 @@ describe("reportRows", () => {
     const rows = reportRows(facts, de.semantic.report, 0);
     expect(value(rows, de.semantic.report.passages)).toBe("1000, 4,0 je Notiz");
     expect(value(rows, de.semantic.report.file)).toContain("2,5 MB");
+  });
+});
+
+describe("where a search's time went", () => {
+  const search = {
+    at: 0,
+    totalMs: 1240,
+    loadMs: 900,
+    embedMs: 180,
+    rankMs: 4,
+    cached: false,
+    notes: 256,
+    hits: 3
+  };
+
+  it("names the model's load, the query and the ranking", () => {
+    const rows = reportRows({ ...facts, search }, s, 0);
+    expect(value(rows, s.lastSearch)).toBe(
+      "1.2 s; loading the model 900 ms; the query 180 ms; ranking 256 notes 4 ms; 3 found"
+    );
+  });
+
+  it("says when nothing had to be loaded or embedded", () => {
+    const rows = reportRows({ ...facts, search: { ...search, loadMs: 0, cached: true } }, s, 0);
+    expect(value(rows, s.lastSearch)).toBe(
+      "1.2 s; the query from memory; ranking 256 notes 4 ms; 3 found"
+    );
+  });
+
+  it("says how long reading the text took", () => {
+    const rows = reportRows({ ...facts, text: { notes: 256, words: 10, readMs: 1400 } }, s, 0);
+    expect(value(rows, s.textSearch)).toBe("256 notes read in 1.4 s, 10 different words");
+  });
+
+  it("writes short durations in milliseconds", () => {
+    expect(formatMs(4.4, s.decimal)).toBe("4 ms");
+    expect(formatMs(999, s.decimal)).toBe("999 ms");
+    expect(formatMs(1500, s.decimal)).toBe("1.5 s");
   });
 });

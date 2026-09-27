@@ -702,7 +702,7 @@ export default class SchreibstubePlugin extends Plugin {
 
   /** The Explorer filter's text index, for the settings: null while no pane
    *  has read the vault's text. */
-  textSearchStats(): { notes: number; words: number } | null {
+  textSearchStats(): { notes: number; words: number; readMs: number | null } | null {
     for (const leaf of this.app.workspace.getLeavesOfType(EXPLORER_VIEW_TYPE)) {
       if (leaf.view instanceof ExplorerPaneView) {
         const stats = leaf.view.textStats();
@@ -720,6 +720,7 @@ export default class SchreibstubePlugin extends Plugin {
         sections: this.sections,
         settings: () => this.settings,
         meaning: async (text, limit) => (await this.semantic?.search(text, limit)) ?? [],
+        warm: () => this.semantic?.warm(),
         meaningState: () => this.semantic?.searchState() ?? "none",
         onMeaningChange: (listener) => this.semantic?.onChange(listener) ?? (() => undefined)
       });

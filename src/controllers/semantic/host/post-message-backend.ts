@@ -15,6 +15,7 @@
 import {
   BackendGoneError,
   isBackendGone,
+  type EmbedOptions,
   type EmbeddingProvider
 } from "../../../services/semantic/embedding-provider";
 import { visibleClock } from "../../../services/semantic/visible-clock";
@@ -142,10 +143,11 @@ export abstract class PostMessageEmbeddingProvider implements EmbeddingProvider 
     return this.request({ ping: true }, PING_TIMEOUT_MS).then(() => undefined);
   }
 
-  async embed(texts: string[]): Promise<Float32Array[]> {
+  async embed(texts: string[], options: EmbedOptions = {}): Promise<Float32Array[]> {
     await this.ready();
     if (texts.length === 0) return [];
-    const vectors = await this.request({ texts }, EMBED_TIMEOUT_MS);
+    const payload = options.priority ? { texts, priority: true } : { texts };
+    const vectors = await this.request(payload, EMBED_TIMEOUT_MS);
     return vectors.map((v) => Float32Array.from(v));
   }
 

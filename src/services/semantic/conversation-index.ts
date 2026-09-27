@@ -160,7 +160,7 @@ export class ConversationIndex {
   ): Promise<ScoredId[]> {
     const q = text.trim();
     if (!q || this.items.length === 0) return [];
-    const [raw] = await this.provider.embed([q]);
+    const [raw] = await this.provider.embed([q], { priority: true });
     if (!raw) return [];
     return rankByQuery(quantize(raw), this.items, opts);
   }

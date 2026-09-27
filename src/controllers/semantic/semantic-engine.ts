@@ -12,13 +12,22 @@ import {
   type EmbeddingModelId
 } from "../../services/semantic/embedding-models";
 import type { SemanticStatus } from "../../services/semantic/status-text";
-import type { BuildProgress, BuildRecord, IndexFacts } from "../../services/semantic/index-report";
+import type {
+  BuildProgress,
+  BuildRecord,
+  IndexFacts,
+  SearchTiming
+} from "../../services/semantic/index-report";
 import {
   ResidentProvider,
   installEmbeddingResidency,
   type EmbeddingResidency
 } from "../../services/semantic/residency";
-import { VaultIndexService, type IndexableNote } from "../../services/semantic/vault-index-service";
+import {
+  VaultIndexService,
+  type IndexableNote,
+  type QueryTiming
+} from "../../services/semantic/vault-index-service";
 import { hashPolicyFor } from "../../services/semantic/row-provenance";
 import { decideBuild, shouldCatchUp } from "../../services/semantic/build-decision";
 import { BuildGuard, vaultBuildGuard } from "../../services/semantic/build-guard";
@@ -34,6 +43,11 @@ import { embeddingWorkerUrl } from "./host/worker-bundle-url";
 import { SemanticConversations } from "./semantic-conversations";
 import { SemanticIndexFiles } from "./index-files";
 import { registerVaultWatcher } from "./vault-watcher";
+
+/** Milliseconds for timing a search: steps with no clock change. */
+function now(): number {
+  return typeof performance !== "undefined" ? performance.now() : Date.now();
+}
 
 /**
  * The most notes one "Build now" embeds on a phone.
@@ -92,6 +106,10 @@ export class SemanticEngine {
   private readonly stop = { aborted: false };
   /** The phone has said once this session that the desktop builds the index. */
   private toldDesktopBuilds = false;
+  /** Where the time of the last search by meaning went. */
+  private lastSearch: SearchTiming | null = null;
+  /** A warm-up is running; a second focus does not start another. */
+  private warming = false;
   /** The build running now, or the last one this session. */
   private lastBuild: BuildRecord | null = null;
   /** When the phone last looked for a newer index from the desktop. */
@@ -601,6 +619,7 @@ export class SemanticEngine {
    */
   async search(text: string, limit: number): Promise<RetrievedNote[]> {
     if (!this.enabled()) return [];
+    const started = now();
     const svc = this.service;
     if (!svc?.isQueryable()) {
       // Read but not made queryable — the Recommended panel or the settings
@@ -621,9 +640,30 @@ export class SemanticEngine {
       else if (Date.now() - this.lastPhoneLook >= PHONE_LOOK_EVERY_MS) this.refresh();
     }
     try {
+      // The model's load timed apart from the query, since it is the cost the
+      // warm-up on focus exists to take out of the first search.
+      let loadMs = 0;
+      const provider = this.ensureProvider();
+      if (!provider.loaded) {
+        const loadStart = now();
+        await provider.ready();
+        loadMs = now() - loadStart;
+      }
       const floor = meaningFloor(text);
-      const hits = await svc.query(text, { minScore: floor.minScore, limit });
-      return applyMeaningFloor(hits, floor);
+      const timing: QueryTiming = { embedMs: 0, rankMs: 0, cached: false, notes: 0 };
+      const hits = applyMeaningFloor(
+        await svc.query(text, { minScore: floor.minScore, limit, timing }),
+        floor
+      );
+      this.lastSearch = {
+        at: Date.now(),
+        totalMs: now() - started,
+        loadMs,
+        ...timing,
+        hits: hits.length
+      };
+      this.logger.debug("semantic engine: search", this.lastSearch);
+      return hits;
     } catch (e) {
       this.logger.warn("semantic engine: search failed", e);
       return [];
@@ -661,6 +701,45 @@ export class SemanticEngine {
       this.logger.warn("semantic engine: related failed", e);
       return none;
     }
+  }
+
+  /**
+   * Get ready for a search that is about to be typed: the Explorer's filter
+   * field got focus.
+   *
+   * A first search paid for everything at once — reading the index file, and
+   * loading the model into a Worker, a second or more on a desktop — while
+   * the person waited for the rows to appear. Started on focus, most of that
+   * is done by the time a word has been typed. Only where the index already
+   * exists: the model is not downloaded for someone who merely clicked the box.
+   */
+  warm(): void {
+    if (!this.enabled() || this.warming || this.syncing) return;
+    this.warming = true;
+    void (async () => {
+      try {
+        await this.importOnce();
+        if (!(await this.files().exists())) return;
+        const svc = this.ensure();
+        if (Platform.isMobile) {
+          this.refresh(); // the phone reads the desktop's index
+        } else if (!svc.isQueryable()) {
+          await svc.loadPersisted();
+          if (svc.isComplete(this.scope())) {
+            await svc.hydrateForQuery();
+            void this.flushDeferred();
+          } else {
+            this.refresh(); // an unfinished index resumes, as a search would
+          }
+        }
+        await this.ensureProvider().ready();
+        this.emit();
+      } catch (e) {
+        this.logger.debug("semantic engine: warm-up failed", e);
+      } finally {
+        this.warming = false;
+      }
+    })();
   }
 
   /** "Build now": finish or update the index, keeping its rows. */
@@ -778,7 +857,8 @@ export class SemanticEngine {
       phoneJournalBytes: Platform.isMobile ? await size(files.phoneJournal()) : null,
       keeper: signature.keeper,
       writtenAt: signature.writtenAt,
-      build: this.lastBuild ? { ...this.lastBuild } : null
+      build: this.lastBuild ? { ...this.lastBuild } : null,
+      search: this.lastSearch ? { ...this.lastSearch } : null
     };
   }
 
