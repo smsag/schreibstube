@@ -124,6 +124,10 @@ export interface MailConfirmDetails {
   subject: string;
   body: string;
   warnings: SendWarning[];
+  /** The file names of the pictures that go along. */
+  attachments: string[];
+  /** Diagrams that go as their source. */
+  undrawn: number;
 }
 
 /**
@@ -178,9 +182,17 @@ export class MailConfirmModal extends Modal {
       new Setting(contentEl).setName(t().mail.confirmCc).setDesc(details.cc.join(", "));
     }
     new Setting(contentEl).setName(t().mail.confirmSubject).setDesc(details.subject);
+    if (details.attachments.length > 0) {
+      new Setting(contentEl)
+        .setName(t().mail.confirmAttachments)
+        .setDesc(details.attachments.join(", "));
+    }
 
     for (const warning of details.warnings) {
-      contentEl.createEl("p", { text: warningText(warning), cls: "schreibstube-mail-warning" });
+      contentEl.createEl("p", {
+        text: warningText(warning, details.undrawn),
+        cls: "schreibstube-mail-warning"
+      });
     }
 
     contentEl.createEl("pre", { text: details.body, cls: "schreibstube-mail-preview" });
@@ -212,7 +224,7 @@ export class MailConfirmModal extends Modal {
   }
 }
 
-function warningText(warning: SendWarning): string {
+function warningText(warning: SendWarning, undrawn: number): string {
   switch (warning) {
     case "unconfirmed":
       return t().mail.unconfirmedWarning;
@@ -220,5 +232,9 @@ function warningText(warning: SendWarning): string {
       return t().mail.resendWarning;
     case "noTo":
       return t().mail.noToWarning;
+    case "diagramsNotDrawn":
+      return t().mail.diagramsNotDrawnWarning(undrawn);
+    case "bridgeTooOld":
+      return t().mail.bridgeTooOldWarning(undrawn);
   }
 }

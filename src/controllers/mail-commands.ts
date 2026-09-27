@@ -11,14 +11,27 @@ import type { Logger } from "../services/logger";
 import { t } from "../i18n";
 import { resolveApiKey } from "../services/secret";
 import { searchMail, sendMail } from "../services/mail-client";
+import { bridgeHealth } from "../services/publish-client";
 import { normalizeBaseUrl } from "../services/bridge-protocol";
 import {
   hasCriteria,
+  MAIL_ATTACHMENTS_PROTOCOL,
+  MAX_MAIL_ATTACHMENT_BYTES,
+  toBase64,
   type MailBridgeConfig,
   type MailMessage,
   type SearchCriteria,
   type SendResult
 } from "../services/mail-protocol";
+import { MAIL_DIAGRAM_LANGUAGES, mailFigures, type DrawnFigure } from "../services/mail-figures";
+import {
+  diagramKeyInput,
+  DrawnDiagrams,
+  findDiagramFences,
+  type DiagramFence
+} from "../services/publish-diagrams";
+import { sha256 } from "../utils/sha256";
+import { DiagramCapture } from "./diagram-capture";
 import {
   FM_MERGED_IDS,
   FM_MESSAGE_ID,
@@ -60,6 +73,14 @@ import {
  */
 export class MailCommands {
   private busy = false;
+  private readonly diagrams: DiagramCapture;
+  /**
+   * Diagrams drawn for this session's mails, by content: the dialogue reads the
+   * note again when Send is pressed, and must not draw everything twice.
+   */
+  private readonly drawn = new DrawnDiagrams<KeptFigure>();
+  /** The bridge's protocol, asked once per session when a note has a diagram. */
+  private bridgeProtocol: number | null = null;
 
   constructor(
     private readonly app: App,
@@ -67,7 +88,9 @@ export class MailCommands {
     private readonly logger: Logger,
     /** Offer the Mail property set when a note lacks the keys to send. */
     private readonly offerFields: ((file: TFile, message: string) => void) | null = null
-  ) {}
+  ) {
+    this.diagrams = new DiagramCapture(app, logger, "mail", MAX_MAIL_ATTACHMENT_BYTES);
+  }
 
   /** Send the active note. Addressing comes from frontmatter; the body is the
    *  rest of the note, as plain text. */
@@ -82,7 +105,7 @@ export class MailCommands {
       return;
     }
 
-    const draft = await this.readDraft(file);
+    const draft = await this.readDraft(file, bridge);
     if (!draft || !this.checkDraft(file, draft)) {
       return;
     }
@@ -92,7 +115,7 @@ export class MailCommands {
       // Read the note again at the press: a property typed just before the
       // command reaches the file only after the dialogue opened, and the send
       // must carry what the note says now, which must be what was shown.
-      const now = await this.readDraft(file);
+      const now = await this.readDraft(file, bridge);
       if (!now || !this.checkDraft(file, now)) {
         return true;
       }
@@ -112,7 +135,7 @@ export class MailCommands {
    * the file. The metadata cache is not asked — it trails the file, and a send
    * built from both mixed an old frontmatter with a new body.
    */
-  private async readDraft(file: TFile): Promise<MailDraft | null> {
+  private async readDraft(file: TFile, bridge: MailBridgeConfig): Promise<MailDraft | null> {
     const content = await this.app.vault.read(file);
     const info = getFrontMatterInfo(content);
 
@@ -127,11 +150,78 @@ export class MailCommands {
       }
     }
 
-    return buildMailDraft(
-      frontmatter,
-      content.slice(info.contentStart),
-      this.getSettings().mailFrom
-    );
+    const body = content.slice(info.contentStart);
+    const from = this.getSettings().mailFrom;
+    const fences = findDiagramFences(body, MAIL_DIAGRAM_LANGUAGES);
+    if (fences.length === 0) return buildMailDraft(frontmatter, body, from);
+
+    // Asked before anything is drawn: a bridge that cannot carry the pictures
+    // would deliver the mail without them while its text points at them.
+    const takesPictures = await this.bridgeTakesPictures(bridge);
+    const drawn = takesPictures ? await this.drawFigures(fences, file.path) : new Map();
+    const figures = mailFigures(body, fences, drawn, {
+      figure: t().mail.figure,
+      attached: t().mail.figureAttached
+    });
+    return buildMailDraft(frontmatter, figures.markdown, from, {
+      attachments: figures.attachments,
+      undrawn: figures.undrawn,
+      bridgeTooOld: !takesPictures
+    });
+  }
+
+  /**
+   * Whether the bridge takes pictures on a send.
+   *
+   * A bridge that cannot be asked is taken to be one that cannot: the diagrams
+   * then go as their source and the dialogue says so, which is a worse mail
+   * but an honest one. Only an answer is kept; a failed question is asked again.
+   */
+  private async bridgeTakesPictures(bridge: MailBridgeConfig): Promise<boolean> {
+    if (this.bridgeProtocol === null) {
+      try {
+        this.bridgeProtocol = (await bridgeHealth(bridge)).protocol;
+      } catch (err) {
+        this.logger.debug("Mail bridge health check failed.", err);
+        return false;
+      }
+    }
+    return this.bridgeProtocol >= MAIL_ATTACHMENTS_PROTOCOL;
+  }
+
+  /** Every diagram's pictures, drawn now or kept from the last reading. */
+  private async drawFigures(
+    fences: readonly DiagramFence[],
+    sourcePath: string
+  ): Promise<Map<number, DrawnFigure>> {
+    const figures = new Map<number, DrawnFigure>();
+    let progress: Notice | null = null;
+    try {
+      for (const fence of fences) {
+        const key = await sha256(new TextEncoder().encode(diagramKeyInput(fence)));
+        let kept = this.drawn.get(key);
+        if (!kept) {
+          const message = t().common.notice(
+            t().mailNotices.drawing(fence.index + 1, fences.length)
+          );
+          if (progress) progress.setMessage(message);
+          else progress = new Notice(message, 0);
+
+          const capture = await this.diagrams.capture(fence, sourcePath);
+          // Whole or not at all: a carousel short of a panel is not attached.
+          if (capture.pictures.length === 0 || capture.pictures.length < capture.expected) continue;
+          kept = { pictures: capture.pictures.map((bytes) => ({ bytes })), title: capture.title };
+          this.drawn.set(key, kept);
+        }
+        figures.set(fence.index, {
+          pictures: kept.pictures.map((picture) => picture.bytes),
+          title: kept.title
+        });
+      }
+    } finally {
+      progress?.hide();
+    }
+    return figures;
   }
 
   /** Whether the draft can be sent at all, saying why not where it cannot. */
@@ -165,7 +255,18 @@ export class MailCommands {
           cc: fields.cc,
           subject: fields.subject,
           text: draft.body,
-          ...(draft.from ? { from: draft.from } : {})
+          ...(draft.from ? { from: draft.from } : {}),
+          // Left out when there are none, so a mail without diagrams is the
+          // same request any bridge has always taken.
+          ...(draft.attachments.length > 0
+            ? {
+                attachments: draft.attachments.map((attachment) => ({
+                  filename: attachment.filename,
+                  contentType: "image/png" as const,
+                  content: toBase64(attachment.bytes)
+                }))
+              }
+            : {})
         });
       } catch (err) {
         if (isUnconfirmedSend(err)) {
@@ -440,6 +541,14 @@ function confirmDetails(draft: MailDraft): MailConfirmDetails {
     cc: draft.fields.cc,
     subject: draft.fields.subject,
     body: draft.body,
-    warnings: sendWarnings(draft.fields)
+    warnings: sendWarnings(draft.fields, draft),
+    attachments: draft.attachments.map((attachment) => attachment.filename),
+    undrawn: draft.undrawn
   };
+}
+
+/** A diagram as it is kept between readings of the note. */
+interface KeptFigure {
+  pictures: { bytes: Uint8Array }[];
+  title: string;
 }

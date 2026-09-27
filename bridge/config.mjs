@@ -15,8 +15,8 @@ import { parseSender } from "./mail-address.mjs";
 
 /** Bumped when the request or response shape changes in a way the plugin can
  *  see. Reported by /health so plugin and bridge can detect drift. 4: a send
- *  reports the recipients the server refused. */
-export const PROTOCOL_VERSION = 4;
+ *  reports the recipients the server refused. 5: a send may carry pictures. */
+export const PROTOCOL_VERSION = 5;
 
 /** Minimum token length. Short tokens are brute-forceable over a public URL. */
 export const MIN_TOKEN_LENGTH = 24;

@@ -57,6 +57,7 @@ import {
 import { PublishAccountModal, PublishPlanModal } from "../ui/publish-modals";
 import { toArrayBuffer } from "../utils/array-buffer";
 import { mapLimit } from "../utils/map-limit";
+import { sha256 as hash } from "../utils/sha256";
 import { DiagramCapture } from "./diagram-capture";
 
 /**
@@ -651,10 +652,4 @@ const UPLOAD_CONCURRENCY = 3;
 interface Prepared extends Collected {
   bridge: PublishBridgeConfig;
   plan: Awaited<ReturnType<typeof planPublish>>;
-}
-
-/** Web Crypto is present in both Obsidian runtimes, desktop and mobile. */
-async function hash(bytes: Uint8Array): Promise<string> {
-  const digest = await crypto.subtle.digest("SHA-256", bytes as unknown as ArrayBuffer);
-  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }

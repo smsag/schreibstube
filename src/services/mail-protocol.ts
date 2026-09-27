@@ -63,6 +63,43 @@ export interface SendRequest {
   from?: string;
   inReplyTo?: string;
   references?: string[];
+  /** The note's diagrams, drawn. Protocol 5; left out entirely when there are none. */
+  attachments?: MailAttachment[];
+}
+
+export interface MailAttachment {
+  filename: string;
+  contentType: "image/png";
+  /** Base64, as JSON carries bytes. */
+  content: string;
+}
+
+/**
+ * The first protocol whose bridge takes pictures on a send.
+ *
+ * An older bridge ignores a field it does not know, and would deliver the mail
+ * without its pictures while the text points at them. So the plugin asks
+ * first, and sends a diagram as its source to a bridge that cannot take one.
+ */
+export const MAIL_ATTACHMENTS_PROTOCOL = 5;
+
+/**
+ * The bridge's limits on pictures, mirrored so that a mail is never built that
+ * the bridge would refuse: a refused send is a person waiting for nothing. The
+ * contract test on the bridge holds the two to the same numbers.
+ */
+export const MAX_MAIL_ATTACHMENTS = 10;
+export const MAX_MAIL_ATTACHMENT_BYTES = 4_000_000;
+export const MAX_MAIL_ATTACHMENTS_TOTAL_BYTES = 10_000_000;
+
+/** Bytes as base64, a slice at a time: one spread of megabytes overflows the stack. */
+export function toBase64(bytes: Uint8Array): string {
+  let binary = "";
+  const slice = 0x8000;
+  for (let at = 0; at < bytes.length; at += slice) {
+    binary += String.fromCharCode(...bytes.subarray(at, at + slice));
+  }
+  return btoa(binary);
 }
 
 export interface SendResult {
