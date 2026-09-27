@@ -46,6 +46,16 @@ describe("Recommended as a register", () => {
     expect(thumb).not.toMatch(/margin-right|(^|[\s;])order\s*:/);
   });
 
+  it("moves the editor's end-of-note padding below the footer, so it starts where the note ends", () => {
+    // Obsidian pads the editor's content by half its height; the footer came
+    // after that padding and sat half a screen below the note (measured: 428px
+    // in a 760px pane, against 48px in Reading view).
+    const [editing] = bodies(".cm-sizer > .cm-contentContainer + .schreibstube-recommended-footer");
+    expect(editing).toMatch(/margin-top:\s*calc\(3em - var\(--schreibstube-editor-tail, 0px\)\);/);
+    expect(editing).toMatch(/padding-bottom:\s*var\(--schreibstube-editor-tail, 0px\);/);
+    expect(editing).toMatch(/position:\s*relative;/);
+  });
+
   it("draws the reasons as words on the line, never as chips", () => {
     expect(css).not.toMatch(/schreibstube-related-chip/);
   });

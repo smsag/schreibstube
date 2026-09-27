@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Fixed
+
+- **Recommended under a note starts where the note ends.** While editing, half a screen of space lay between the note's last line and Recommended: Obsidian pads the end of the editor by half its height so the last line can scroll up to the middle, and Recommended came after that padding. The padding now sits below Recommended, which starts 3em after the last line as it does in Reading view, and the note still scrolls past its end as far as before. Recommended also comes before the backlinks Obsidian can show in the document, not after them.
+
 ## 1.53.0 - 2026-09-27
 
 A mail sends what the note says. The recipients are read from the note when

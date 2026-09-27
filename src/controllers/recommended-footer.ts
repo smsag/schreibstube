@@ -1,5 +1,10 @@
 import { MarkdownView, type Plugin } from "obsidian";
-import { noteFooterHost, watchViewMode } from "../services/workspace-internals";
+import {
+  keepEditorTailBelow,
+  noteFooterHost,
+  placeAfterNote,
+  watchViewMode
+} from "../services/workspace-internals";
 import { RecommendedPanel, type RecommendedHost } from "../ui/recommended-panel";
 
 interface Footer {
@@ -8,6 +13,8 @@ interface Footer {
   path: string | null;
   /** Stops listening for the view's switch between editing and reading. */
   unwatch: () => void;
+  /** While editing: the editor the end-of-note padding is kept below the footer for, and how to stop. */
+  tail: { sizer: HTMLElement; stop: () => void } | null;
 }
 
 /**
@@ -69,16 +76,30 @@ export class RecommendedFooter {
       if (footer && footer.el.parentElement !== target) {
         // The view switched between editing and reading: the same panel
         // moves with its answer, rather than asking again for the same note.
-        target.appendChild(footer.el);
+        placeAfterNote(target, footer.el);
       }
       if (!footer) {
-        const el = target.createDiv({ cls: "schreibstube-recommended-footer" });
+        // Made in the note's own document: a note in a pop-out window has another.
+        const el = target.ownerDocument.createElement("div");
+        el.addClass("schreibstube-recommended-footer");
+        placeAfterNote(target, el);
         // Inside the editor's content: a press here must not place the cursor.
         el.setAttr("contenteditable", "false");
         const panel = new RecommendedPanel(el.createDiv(), host, { heading: false });
         const unwatch = watchViewMode(view.containerEl, () => this.sync());
-        footer = { el, panel, path: null, unwatch };
+        footer = { el, panel, path: null, unwatch, tail: null };
         this.footers.set(view, footer);
+      }
+      // In editing, the footer comes after the editor's own end-of-note
+      // padding; that padding is moved below it. Reading view pads the page
+      // after the footer already.
+      const editing = view.getMode() !== "preview";
+      if (footer.tail && (!editing || footer.tail.sizer !== target)) {
+        footer.tail.stop();
+        footer.tail = null;
+      }
+      if (editing && !footer.tail) {
+        footer.tail = { sizer: target, stop: keepEditorTailBelow(target, footer.el) };
       }
       const path = view.file?.path ?? null;
       if (footer.path !== path) {
@@ -90,6 +111,7 @@ export class RecommendedFooter {
 
   private drop(view: MarkdownView, footer: Footer): void {
     footer.unwatch();
+    footer.tail?.stop();
     footer.el.remove();
     this.footers.delete(view);
   }
