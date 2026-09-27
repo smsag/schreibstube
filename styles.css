@@ -1885,22 +1885,42 @@
   }
 }
 
-/* The notes related to the one that is open, as cards in the right sidebar. */
+/* Recommended: what belongs with the open note, one list, most relevant first.
+   The same list in the sidebar and under the note, drawn as the note's own
+   register rather than as boxes: the rank in a marker column, the title as a
+   link, one line saying what it is and why. It takes the note's text face,
+   so under the note it reads as the note continuing. */
 .schreibstube-related-notes {
   --schreibstube-row-gap: 7px;
+  --schreibstube-related-rank: 22px;
+  --schreibstube-related-thumb-gap: 10px;
+  font-family: var(--font-text);
+  font-size: var(--font-ui-small);
 }
 
+/* Under a note: as wide as the text and after its last line. The section
+   heading's rule sets it off from the text, so the footer draws none. */
+.schreibstube-recommended-footer {
+  --schreibstube-related-rank: 28px;
+  --schreibstube-related-thumb-gap: var(--size-4-4);
+  max-width: var(--file-line-width);
+  margin: 3em auto 2em;
+  user-select: none;
+}
+
+/* The sidebar's header: what the list belongs to, and how long it is. */
 .schreibstube-related-header {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: 4px 2px 10px;
+  margin-bottom: var(--size-4-4);
+  padding: 4px 2px 12px;
+  border-bottom: 1px solid var(--background-modifier-border);
+  font-family: var(--font-interface);
 }
 
 .schreibstube-related-title {
-  display: flex;
-  align-items: center;
-  gap: var(--schreibstube-row-gap);
+  color: var(--text-normal);
   font-weight: var(--font-semibold);
   overflow-wrap: anywhere;
 }
@@ -1908,6 +1928,7 @@
 .schreibstube-related-summary,
 .schreibstube-related-empty {
   color: var(--text-muted);
+  font-family: var(--font-interface);
   font-size: var(--font-ui-smaller);
 }
 
@@ -1915,92 +1936,79 @@
   padding: 4px 2px;
 }
 
+/* Under the note, the heading is the Explorer's section header: the label, a
+   rule to the count. The rule is drawn by the count, so nothing in the markup
+   exists only to be a line. */
+.schreibstube-related-section {
+  display: flex;
+  align-items: center;
+  gap: var(--size-4-3);
+  margin-bottom: 18px;
+  color: var(--text-muted);
+  font-family: var(--font-interface);
+  font-size: 10.5px;
+}
+
+.schreibstube-related-section-label {
+  font-weight: var(--font-semibold);
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.schreibstube-related-section-count {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: var(--size-4-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.schreibstube-related-section-count::before {
+  content: "";
+  flex: 1 1 auto;
+  height: 1px;
+  background: var(--background-modifier-border);
+}
+
 .schreibstube-related-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
+.schreibstube-related-notes .schreibstube-related-list {
+  gap: 12px;
+}
+
+/* One entry. NO column gap: a gap would open between the rank and the text as
+   well as before a thumbnail, and move that row's title off the edge every
+   other title starts on. The thumbnail keeps its distance with its own margin. */
 .schreibstube-related-card {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 8px 10px;
-  border: 1px solid var(--background-modifier-border);
-  border-left-width: 3px;
+  display: grid;
+  grid-template-columns: var(--schreibstube-related-rank) minmax(0, 1fr) auto;
+  align-items: baseline;
   border-radius: var(--schreibstube-border-radius);
-  background: var(--background-primary);
   cursor: pointer;
 }
 
 .schreibstube-related-card:focus-visible {
   outline: 2px solid var(--background-modifier-border-focus);
-  outline-offset: 1px;
+  outline-offset: 2px;
 }
 
-.schreibstube-related-card-title {
-  min-width: 0;
-  color: var(--text-normal);
-  overflow-wrap: anywhere;
-}
-
-.schreibstube-related-card-folder {
+.schreibstube-related-rank {
+  padding-right: 10px;
   color: var(--text-faint);
   font-size: var(--font-ui-smaller);
-  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
 }
 
-/* Why the card is on the list. It wraps rather than scrolls, because a reason
-   half off the edge of a sidebar is worse than one on a second line. */
-.schreibstube-related-card-why {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  margin-top: 4px;
-}
-
-.schreibstube-related-chip {
-  padding: 1px 6px;
-  border-radius: var(--schreibstube-border-radius);
-  background: var(--background-modifier-hover);
-  color: var(--text-muted);
-  font-size: var(--font-ui-smaller);
-  white-space: nowrap;
-}
-
-/* The Recommended panel under a note (a setting): set off from the text by a
-   rule, as wide as the text, and after its last line. */
-.schreibstube-recommended-footer {
-  max-width: var(--file-line-width);
-  margin: 3em auto 2em;
-  padding-top: 1em;
-  border-top: 1px solid var(--background-modifier-border);
-  user-select: none;
-}
-
-/* The footer's heading over the Recommended list. */
-.schreibstube-related-section {
-  margin: 12px 2px 6px;
-  color: var(--text-muted);
-  font-size: var(--font-ui-smaller);
-  font-weight: var(--font-semibold);
-}
-
-/* A picture is a card like the rest, its thumbnail beside its name: ranked
-   among the notes, it sits where its relevance puts it rather than in a strip
-   of its own. */
-.schreibstube-related-card.is-picture {
-  flex-direction: row;
-  align-items: center;
-  gap: 10px;
-}
-
-.schreibstube-related-card-thumb {
-  flex-shrink: 0;
-  width: 44px;
-  height: 44px;
-  object-fit: cover;
-  border-radius: var(--schreibstube-border-radius);
+.schreibstube-related-notes .schreibstube-related-rank {
+  padding-right: 8px;
 }
 
 .schreibstube-related-card-text {
@@ -2010,15 +2018,54 @@
   min-width: 0;
 }
 
-.schreibstube-related-card.is-conversation .schreibstube-related-card-title {
-  display: flex;
-  align-items: center;
-  gap: var(--schreibstube-row-gap, 7px);
+/* The title is a link, drawn as the note draws one: underlined, the line in a
+   light accent that darkens under the pointer. */
+.schreibstube-related-card-title {
+  color: var(--text-normal);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-decoration-color: color-mix(in srgb, var(--interactive-accent) 45%, transparent);
+  text-underline-offset: 3px;
+  overflow-wrap: anywhere;
+}
+
+/* What the entry is (its folder, a picture, a conversation) and why it is on
+   the list. --text-muted for both: this is information, not decoration, and
+   --text-faint is 3.3:1 on white. */
+.schreibstube-related-card-meta {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  overflow-wrap: anywhere;
+}
+
+/* Under the note there is width for one line; the sidebar gives each part its own. */
+.schreibstube-recommended-footer .schreibstube-related-card-why::before {
+  content: " · ";
+}
+
+.schreibstube-related-notes .schreibstube-related-card-folder,
+.schreibstube-related-notes .schreibstube-related-card-why {
+  display: block;
+}
+
+.schreibstube-related-card-thumb {
+  align-self: start;
+  width: 56px;
+  height: 40px;
+  margin-left: var(--schreibstube-related-thumb-gap);
+  object-fit: cover;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--schreibstube-border-radius);
+}
+
+.schreibstube-related-notes .schreibstube-related-card-thumb {
+  width: 44px;
+  height: 44px;
 }
 
 @media (hover: hover) {
-  .schreibstube-related-card:hover {
-    border-color: var(--background-modifier-border-hover);
+  .schreibstube-related-card:hover .schreibstube-related-card-title {
+    text-decoration-color: var(--interactive-accent);
   }
 }
 

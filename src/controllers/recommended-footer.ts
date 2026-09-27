@@ -1,5 +1,4 @@
 import { MarkdownView, type Plugin } from "obsidian";
-import { t } from "../i18n";
 import { noteFooterHost } from "../services/workspace-internals";
 import { RecommendedPanel, type RecommendedHost } from "../ui/recommended-panel";
 
@@ -70,7 +69,6 @@ export class RecommendedFooter {
         const el = target.createDiv({ cls: "schreibstube-recommended-footer" });
         // Inside the editor's content: a press here must not place the cursor.
         el.setAttr("contenteditable", "false");
-        el.createDiv({ cls: "schreibstube-related-section", text: t().explorer.related.viewTitle });
         const panel = new RecommendedPanel(el.createDiv(), host, { heading: false });
         footer = { el, panel, path: null };
         this.footers.set(view, footer);
