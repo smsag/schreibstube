@@ -39,6 +39,7 @@ import { syncBadgeIcon, type SyncBadge } from "../services/explorer-badge";
 import type { PublishMark } from "../services/publish-mark";
 import { matchesText, type SearchHit } from "../services/file-search";
 import { FileSearchIndex } from "../services/search-index";
+import { BodyIndex, BodyLoader } from "../services/body-index";
 import { fuseRankings, meaningQuery, meaningRows } from "../services/semantic/search-fusion";
 import { sortSiblings, type ExplorerNode } from "../services/explorer-state";
 import { bookmarkNoteTarget, isBookmarkTreeEmpty, type Bookmark } from "../services/bookmark-file";
@@ -127,6 +128,9 @@ const FILTER_ROW_CAP = 200;
  */
 const MEANING_DEBOUNCE_MS = 300;
 
+/** How much search by meaning can answer, least first. */
+const MEANING_REACH = ["", "none", "partial", "ready"];
+
 /** How many notes meaning may add. Past the first screenful they are noise. */
 const MEANING_LIMIT = 20;
 
@@ -162,6 +166,9 @@ export interface ExplorerPaneHost {
   /** Notes whose meaning answers the text, best first; empty when search by
    *  meaning is off or not ready. */
   meaning?: (text: string, limit: number) => Promise<{ id: string }[]>;
+  /** How much meaning can answer now, and a way to hear when that moves. */
+  meaningState?: () => string;
+  onMeaningChange?: (listener: () => void) => () => void;
 }
 
 export class ExplorerPaneView extends ItemView {
@@ -170,6 +177,12 @@ export class ExplorerPaneView extends ItemView {
   private collapsedSections = new Set<string>();
   private collapsedBookmarks = new Set<string>();
   private query = "";
+  /** The field as typed, case and all, for asking by meaning again. */
+  private rawQuery = "";
+  /** How many files the words alone found, and for which query. */
+  private wordHits: { query: string; count: number } | null = null;
+  /** What meaning could answer when it was last asked. */
+  private meaningState = "";
   private body: HTMLElement | null = null;
   /** The fixed strip above the scroller: the filter and the pinned block. */
   private shelf: HTMLElement | null = null;
@@ -218,34 +231,47 @@ export class ExplorerPaneView extends ItemView {
    * The vault as the filter reads it: names, titles, aliases and tags, read
    * once per file and kept until the vault says that file changed.
    */
-  private readonly index = new FileSearchIndex({
-    files: () =>
-      this.app.vault
-        .getAllLoadedFiles()
-        .filter((entry): entry is TFile => entry instanceof TFile)
-        // A folded-in description note is found as its picture, never twice.
-        .filter((file) => this.host?.explorer.hidesDescription(file.path) !== true)
-        .map((file) => ({ path: file.path, name: file.name })),
-    metadata: (file) => {
-      const target = this.app.vault.getAbstractFileByPath(file.path);
-      if (!(target instanceof TFile)) return null;
-      const cache = this.app.metadataCache.getFileCache(target);
-      // A described picture carries its description note's words: the title it
-      // was given, its keywords as tags, and the description itself.
-      const described = this.host?.explorer.descriptionFields(file.path) ?? null;
-      const keywords = Array.isArray(described?.keywords)
-        ? described.keywords.filter((k): k is string => typeof k === "string")
-        : [];
-      return {
-        title: described?.title ?? cache?.frontmatter?.title,
-        aliases: cache?.frontmatter?.aliases,
-        // `getAllTags` reads the frontmatter and the body alike, the way
-        // Obsidian's own tag search sees a note.
-        tags: [...(getAllTags(cache ?? {}) ?? []), ...keywords],
-        description: described?.description
-      };
+  /** The words of every note's text, read once when the filter is first used. */
+  private readonly bodies = new BodyIndex();
+  private readonly bodyLoader = new BodyLoader(this.bodies, {
+    paths: () => this.app.vault.getMarkdownFiles().map((file) => file.path),
+    read: async (path) => {
+      const file = this.app.vault.getAbstractFileByPath(path);
+      if (!(file instanceof TFile)) throw new Error(`not a file: ${path}`);
+      return this.app.vault.cachedRead(file);
     }
   });
+  private readonly index = new FileSearchIndex(
+    {
+      files: () =>
+        this.app.vault
+          .getAllLoadedFiles()
+          .filter((entry): entry is TFile => entry instanceof TFile)
+          // A folded-in description note is found as its picture, never twice.
+          .filter((file) => this.host?.explorer.hidesDescription(file.path) !== true)
+          .map((file) => ({ path: file.path, name: file.name })),
+      metadata: (file) => {
+        const target = this.app.vault.getAbstractFileByPath(file.path);
+        if (!(target instanceof TFile)) return null;
+        const cache = this.app.metadataCache.getFileCache(target);
+        // A described picture carries its description note's words: the title it
+        // was given, its keywords as tags, and the description itself.
+        const described = this.host?.explorer.descriptionFields(file.path) ?? null;
+        const keywords = Array.isArray(described?.keywords)
+          ? described.keywords.filter((k): k is string => typeof k === "string")
+          : [];
+        return {
+          title: described?.title ?? cache?.frontmatter?.title,
+          aliases: cache?.frontmatter?.aliases,
+          // `getAllTags` reads the frontmatter and the body alike, the way
+          // Obsidian's own tag search sees a note.
+          tags: [...(getAllTags(cache ?? {}) ?? []), ...keywords],
+          description: described?.description
+        };
+      }
+    },
+    this.bodies
+  );
   /** How many files the filter matched, so a capped list can say what it is
    *  holding back. */
   private matchCount = 0;
@@ -281,6 +307,23 @@ export class ExplorerPaneView extends ItemView {
     this.host = host;
     this.register(host.explorer.onChange(() => this.requestRender()));
     this.register(host.sections.onChange(() => this.requestRender()));
+    this.meaningState = host.meaningState?.() ?? "";
+    // A filter typed before meaning could answer — the model still loading, the
+    // index still building — is asked again once it can, rather than keeping
+    // the empty answer it got then.
+    if (host.onMeaningChange) {
+      this.register(
+        host.onMeaningChange(() => {
+          const state = host.meaningState?.() ?? "";
+          if (state === this.meaningState) return;
+          const more = MEANING_REACH.indexOf(state) > MEANING_REACH.indexOf(this.meaningState);
+          this.meaningState = state;
+          // Only when meaning can answer more than before: asking again after
+          // it could answer less would ask a failed build to start over.
+          if (more && this.query) this.askByMeaning(this.rawQuery, this.query);
+        })
+      );
+    }
     this.requestRender();
   }
 
@@ -313,7 +356,9 @@ export class ExplorerPaneView extends ItemView {
     search.addEventListener("input", () => {
       const value = search.value.trim().toLowerCase();
       this.cancelFilter();
+      this.rawQuery = search.value;
       this.askByMeaning(search.value, value);
+      if (value.length > 0) this.readBodies();
       // Emptying the field is the one case that must not wait: it is how a
       // person gets the tree back, and there is nothing to compute for it.
       if (value.length === 0) {
@@ -371,6 +416,8 @@ export class ExplorerPaneView extends ItemView {
         // get none, so they are forgotten by prefix.
         this.index.forget(file.path);
         this.index.forgetUnder(file.path);
+        this.bodyLoader.forget(file.path);
+        this.bodyLoader.forgetUnder(file.path);
         this.requestRender();
       })
     );
@@ -383,6 +430,10 @@ export class ExplorerPaneView extends ItemView {
         this.index.forget(oldPath);
         this.index.forgetUnder(oldPath);
         this.index.forget(file.path);
+        // The text moved with the file; the next filter reads it at its new path.
+        this.bodyLoader.forget(oldPath);
+        this.bodyLoader.forgetUnder(oldPath);
+        if (this.query) this.readBodies();
         this.requestRender();
       })
     );
@@ -393,6 +444,11 @@ export class ExplorerPaneView extends ItemView {
       this.app.metadataCache.on("changed", (file) => {
         this.forgetDescribed(file.path);
         this.index.forget(file.path);
+        // The cache is re-parsed after every save, so this is also the moment
+        // the note's text changed.
+        void this.bodyLoader.refresh(file.path).then(() => {
+          if (this.query) this.requestRender();
+        });
         this.requestRender();
       })
     );
@@ -463,10 +519,14 @@ export class ExplorerPaneView extends ItemView {
    */
   private askByMeaning(raw: string, key: string): void {
     const ask = this.host?.meaning;
-    const text = meaningQuery(raw);
-    if (!ask || text === null) return;
+    if (!ask || meaningQuery(raw) === null) return;
+    if (this.meaningTimer !== null) window.clearTimeout(this.meaningTimer);
     this.meaningTimer = window.setTimeout(() => {
       this.meaningTimer = null;
+      // Asked after the pause, when the words have had their turn: one word
+      // the words already answer is not asked by meaning.
+      const text = meaningQuery(raw, this.wordHitsFor(key));
+      if (text === null) return;
       void ask(text, MEANING_LIMIT)
         .then((hits) => {
           if (this.query !== key || hits.length === 0) return;
@@ -475,6 +535,29 @@ export class ExplorerPaneView extends ItemView {
         })
         .catch(() => undefined);
     }, MEANING_DEBOUNCE_MS);
+  }
+
+  /** How many files the words alone find for `key`, counted by the last draw
+   *  when it was for this query. */
+  private wordHitsFor(key: string): number {
+    if (this.wordHits?.query === key) return this.wordHits.count;
+    return this.index.search(key, 0).hits.length;
+  }
+
+  /**
+   * Read the notes' text into the filter, once, in the background, and draw
+   * again when that found anything, so a word only the text holds turns up
+   * without another keystroke.
+   */
+  private readBodies(): void {
+    void this.bodyLoader
+      .ensure()
+      .then((read) => {
+        if (!read || !this.query) return;
+        this.wordHits = null;
+        this.requestRender();
+      })
+      .catch(() => undefined);
   }
 
   /**
@@ -1296,6 +1379,7 @@ export class ExplorerPaneView extends ItemView {
 
     const { hits, shown } = this.index.search(this.query, FILTER_ROW_CAP);
     this.matchCount = hits.length;
+    this.wordHits = { query: this.query, count: hits.length };
     this.meaningOnly.clear();
 
     const controller = this.host?.explorer;

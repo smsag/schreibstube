@@ -707,7 +707,9 @@ export default class SchreibstubePlugin extends Plugin {
         explorer: this.explorer,
         sections: this.sections,
         settings: () => this.settings,
-        meaning: async (text, limit) => (await this.semantic?.search(text, limit)) ?? []
+        meaning: async (text, limit) => (await this.semantic?.search(text, limit)) ?? [],
+        meaningState: () => this.semantic?.searchState() ?? "none",
+        onMeaningChange: (listener) => this.semantic?.onChange(listener) ?? (() => undefined)
       });
     }
     return view;

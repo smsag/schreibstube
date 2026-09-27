@@ -14,10 +14,14 @@
  * by how rare it is across the vault. A word in every file's path barely moves
  * a score; a word in one file's title decides it.
  *
- * What this is not is a content search. Obsidian's own search reads every note
- * body and has the operators for it; a pane filter that quietly did the same
- * would be slower, worse and redundant. The line is deliberate: this searches
- * what a file is *called*, in every sense a vault gives that word.
+ * A note's text counts too, far below all of those. The filter used to stop at
+ * what a file is called, on the reasoning that Obsidian's own search reads
+ * bodies; but the pane is where people type, and a letter about the
+ * *Jahresabrechnung* that could not be found by that word — while it stood open
+ * beside the box — read as a broken search, not a principled one. A word in the
+ * text is weighted well under a word in the name, so a file *called* what was
+ * typed still comes first, and the words come from `body-index`, which reads
+ * each note once rather than per keystroke.
  *
  * Pure, so the whole rule is a test rather than something to check by typing
  * into a phone. The view supplies the fields; nothing here knows what Obsidian
@@ -121,6 +125,45 @@ export function matchStrength(fileTokens: readonly string[], queryToken: string)
   return best;
 }
 
+/**
+ * The same grades as `matchStrength`, for one word of a note's text, without
+ * the shorter-form match.
+ *
+ * A name is a handful of words chosen on purpose; a body is hundreds written in
+ * passing. "jahr" at the start of "jahresabrechnung" is a fair reason to offer
+ * a file *named* "Jahr 2024", and no reason at all to offer every note that
+ * mentions a year — which is what the reverse match would do across bodies.
+ */
+export function forwardMatchStrength(token: string, queryToken: string): number {
+  if (!queryToken) return 0;
+  if (token === queryToken) return EXACT;
+  if (token.startsWith(queryToken)) return PREFIX;
+  if (queryToken.length >= MIN_INFIX_QUERY && token.includes(queryToken)) return INFIX;
+  return 0;
+}
+
+/**
+ * Where the words of the vault's note bodies are looked up.
+ *
+ * Kept outside `SearchFields` because a body is not read the way a name is:
+ * the names are a synchronous read of the metadata cache, a body is a file
+ * read, and a vault's bodies share one vocabulary that is scored once per
+ * keystroke rather than once per file (`body-index`).
+ */
+export interface BodyMatcher {
+  /** The best strength, per path, with which some word of that note's text
+   *  answers `queryToken`. Paths absent from the map do not answer it. */
+  strengths(queryToken: string): ReadonlyMap<string, number>;
+}
+
+/**
+ * What a hit in a note's text is worth: under every field that names the
+ * file except the folders, which every file in them shares. A word written
+ * somewhere in a note says less about which note was meant than a tag, and
+ * more than the folder it sits in.
+ */
+export const BODY_WEIGHT = 0.35;
+
 /** The fields a file can be found by, each already tokenized. */
 export interface SearchFields {
   /** The file name as the pane shows it, extension included. */
@@ -203,7 +246,7 @@ export interface SearchHit {
  * note carries the word "Objekt" in its name cannot be narrowed by typing more
  * of it, only by saying which dimension was meant.
  */
-export type SearchScope = "all" | "tags" | "path" | "name";
+export type SearchScope = "all" | "tags" | "path" | "name" | "body";
 
 export interface ParsedQuery {
   scope: SearchScope;
@@ -233,6 +276,9 @@ const SCOPE_PREFIXES: Record<string, SearchScope> = {
   name: "name",
   file: "name",
   datei: "name",
+  text: "body",
+  inhalt: "body",
+  body: "body",
   all: "all",
   alle: "all"
 };
@@ -258,6 +304,8 @@ function fieldsForScope(scope: SearchScope): (keyof SearchFields)[] {
       return ["path"];
     case "name":
       return ["name"];
+    case "body":
+      return [];
     default:
       return FIELD_NAMES;
   }
@@ -278,7 +326,8 @@ function fieldsForScope(scope: SearchScope): (keyof SearchFields)[] {
 export function rankFiles(
   raw: string,
   candidates: readonly SearchCandidate[],
-  limit?: number
+  limit?: number,
+  body?: BodyMatcher
 ): SearchHit[] {
   const { scope, query } = parseSearchScope(raw);
   const words = queryTokens(query);
@@ -286,6 +335,11 @@ export function rankFiles(
 
   const fields = fieldsForScope(scope);
   const total = candidates.length;
+  // One lookup per word for the whole vault's text, not one per file.
+  const bodies =
+    body && (scope === "all" || scope === "body")
+      ? words.map((word) => body.strengths(word))
+      : null;
 
   // Every file scored against every word once, and the answers kept.
   //
@@ -311,6 +365,8 @@ export function rankFiles(
         const strength = matchStrength(candidateFields[field], token);
         if (strength > 0) best = Math.max(best, strength * FIELD_WEIGHTS[field]);
       }
+      const inText = bodies?.[column]?.get(candidates[row]?.path ?? "") ?? 0;
+      if (inText > 0) best = Math.max(best, inText * BODY_WEIGHT);
       if (best > 0) {
         strengths[row * words.length + column] = best;
         frequencies[column] = (frequencies[column] ?? 0) + 1;

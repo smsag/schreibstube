@@ -1142,6 +1142,12 @@ export const de: Messages = {
     progress: (done: number, total: number) =>
       `Suche nach Bedeutung: ${done} von ${total} Notizen gelesen`,
     busy: "Die Suche nach Bedeutung liest den Vault bereits.",
+    desktopBuilds: (read: number, total: number, budget: number) =>
+      `Suche nach Bedeutung: ${read} von ${total} Notizen sind bereit. Den Rest baut der Desktop auf; ` +
+      `„Jetzt aufbauen“ in den Einstellungen ergänzt ${budget} auf diesem Telefon.`,
+    phoneBudget: (count: number) =>
+      `Suche nach Bedeutung: ${count} Notizen auf diesem Telefon ergänzt. Den Rest erledigt der ` +
+      "Desktop, oder noch einmal „Jetzt aufbauen“.",
     heading: "Suche nach Bedeutung",
     intro:
       "Findet Notizen nach ihrem Inhalt, nicht nur nach den Wörtern im Namen. Ein kleines " +
@@ -1157,6 +1163,8 @@ export const de: Messages = {
     buildNow: "Jetzt aufbauen",
     rebuild: "Neu aufbauen",
     rebuildDesc: "Liest jede Notiz noch einmal von vorn.",
+    rebuildDescPhone:
+      "Ergänzt auf einem Telefon Notizen wie „Jetzt aufbauen“: Der Index gehört dem Desktop, ihn hier zu leeren, leerte ihn auch dort.",
     status: "Stand",
     state: {
       off: "Aus.",
@@ -1175,7 +1183,10 @@ export const de: Messages = {
       failed: (error: string) => `Fehlgeschlagen: ${error}`,
       outOfMemory: "Dem Gerät ging der Speicher aus. Weniger Notizen einstellen und neu aufbauen.",
       paused:
-        "Pausiert, nachdem ein Aufbau zweimal nicht fertig wurde. „Jetzt aufbauen“ versucht es erneut."
+        "Pausiert, nachdem ein Aufbau zweimal nicht fertig wurde. „Jetzt aufbauen“ versucht es erneut.",
+      desktopBuilds: (count: number, budget: number) =>
+        `${count} Notizen bereit. Ein Telefon baut den Index nicht selbst auf: Der Desktop ` +
+        `macht ihn fertig, er kommt per Sync. „Jetzt aufbauen“ ergänzt hier ${budget} Notizen.`
     }
   },
   secrets: {

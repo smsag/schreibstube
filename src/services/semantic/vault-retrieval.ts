@@ -12,6 +12,7 @@
 // Pythia ADR-183 and had already drifted — it never learned about `exclude`.
 
 import { chunkByHeadings } from "./heading-chunks";
+import { plainNoteText } from "../note-text";
 
 /** A scored note from a vault-retrieval query. */
 export interface RetrievedNote {
@@ -48,6 +49,103 @@ export function noteEmbedChunks(content: string, maxChars = 500): string[] {
       rest = rest.slice(maxChars);
     }
     if (rest.trim()) chunks.push(rest);
+  }
+  return chunks;
+}
+
+/**
+ * The most passages one note is embedded as.
+ *
+ * Embedding time is linear in passages, and a vault's build time was decided by
+ * its few longest notes: a pasted mail thread or an exported chat of a few
+ * hundred thousand characters cost more than the rest of the vault together,
+ * and ran past the request deadline so it was never finished at all. At the
+ * default model's ~420 characters a passage this is about forty thousand
+ * characters — twenty pages — which says what a note is about many times over.
+ */
+export const MAX_CHUNKS_PER_NOTE = 96;
+
+/** How much of a passage the next one repeats when a long section is cut. */
+const OVERLAP_SHARE = 0.15;
+/** A cut looks back this far for a space before it gives up and cuts mid-word. */
+const MIN_CUT_SHARE = 0.6;
+
+function isSpace(ch: string | undefined): boolean {
+  return ch === " " || ch === "\n" || ch === "\t";
+}
+
+/**
+ * Cut one long section into passages of at most `maxChars`, at spaces, each
+ * repeating the end of the one before.
+ *
+ * A hard cut every `maxChars` split words in two — two half-words that mean
+ * nothing, embedded into two passages — and a phrase that straddled the cut
+ * was in neither of them whole. Cutting at a space and overlapping by a few
+ * words keeps every sentence of reasonable length whole in at least one
+ * passage.
+ */
+function windows(text: string, maxChars: number): string[] {
+  const out: string[] = [];
+  const overlap = Math.floor(maxChars * OVERLAP_SHARE);
+  let start = 0;
+  while (start < text.length) {
+    let end = Math.min(text.length, start + maxChars);
+    if (end < text.length) {
+      const floor = start + Math.floor(maxChars * MIN_CUT_SHARE);
+      let cut = end;
+      while (cut > floor && !isSpace(text[cut])) cut--;
+      if (cut > floor) end = cut;
+    }
+    const piece = text.slice(start, end).trim();
+    if (piece) out.push(piece);
+    if (end >= text.length) break;
+    // Back up by the overlap, then forward to the start of a word.
+    let next = end - overlap;
+    while (next < end && !isSpace(text[next - 1])) next++;
+    start = next > start ? next : end;
+  }
+  return out;
+}
+
+/**
+ * The passages a vault note is embedded as.
+ *
+ * Differs from `noteEmbedChunks` in three ways, each of which cut the time a
+ * build took. The note is read as prose first (`plainNoteText`): no
+ * frontmatter, code, URLs or encoded data. Sections shorter than a passage are
+ * merged with their neighbours — a note of thirty short headings used to be
+ * thirty embeds of a line each, where five passages carry the same text. And a
+ * note stops at `MAX_CHUNKS_PER_NOTE`. Long sections are cut at spaces with an
+ * overlap (`windows`).
+ *
+ * Deterministic, which the content-hash reuse relies on: the same note always
+ * yields the same passages.
+ */
+export function vaultNoteChunks(markdown: string, maxChars = 500): string[] {
+  const text = plainNoteText(markdown);
+  const sections = chunkByHeadings(text)
+    .map((c) => c.text.trim())
+    .filter(Boolean);
+  const source = sections.length > 0 ? sections : [text.trim()].filter(Boolean);
+
+  const merged: string[] = [];
+  let pending = "";
+  for (const section of source) {
+    if (pending && pending.length + 2 + section.length <= maxChars) {
+      pending = `${pending}\n\n${section}`;
+    } else {
+      if (pending) merged.push(pending);
+      pending = section;
+    }
+  }
+  if (pending) merged.push(pending);
+
+  const chunks: string[] = [];
+  for (const piece of merged) {
+    for (const chunk of piece.length <= maxChars ? [piece] : windows(piece, maxChars)) {
+      chunks.push(chunk);
+      if (chunks.length >= MAX_CHUNKS_PER_NOTE) return chunks;
+    }
   }
   return chunks;
 }

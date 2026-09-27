@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { fuseRankings, meaningQuery, meaningRows } from "./search-fusion";
+import {
+  applyMeaningFloor,
+  fuseRankings,
+  meaningFloor,
+  meaningQuery,
+  meaningRows,
+  PHRASE_FLOOR,
+  WORD_FLOOR
+} from "./search-fusion";
 
 const list = (...paths: string[]) => paths.map((path) => ({ path }));
 
@@ -82,5 +90,30 @@ describe("meaningRows", () => {
       p === "gone.md" ? null : p === "note.md" ? "b.md" : p
     );
     expect(rows.map((r) => r.path)).toEqual(["b.md"]);
+  });
+});
+
+describe("meaning for one word", () => {
+  it("is not asked when the words already found something", () => {
+    expect(meaningQuery("Jahres", 3)).toBeNull();
+    expect(meaningQuery("Jahres", 0)).toBe("Jahres");
+  });
+
+  it("is always asked for a phrase", () => {
+    expect(meaningQuery("Rechte gegenüber Verwalter", 12)).toBe("Rechte gegenüber Verwalter");
+  });
+
+  it("holds a lone word to a lower floor, cut relative to the best hit", () => {
+    expect(meaningFloor("Jahres")).toBe(WORD_FLOOR);
+    expect(meaningFloor("zwei Wörter")).toBe(PHRASE_FLOOR);
+    const hits = [
+      { id: "a", score: 0.3 },
+      { id: "b", score: 0.28 },
+      { id: "c", score: 0.26 },
+      { id: "d", score: 0.2 }
+    ];
+    expect(applyMeaningFloor(hits, WORD_FLOOR).map((h) => h.id)).toEqual(["a", "b"]);
+    expect(applyMeaningFloor(hits, PHRASE_FLOOR)).toEqual([]);
+    expect(applyMeaningFloor([], WORD_FLOOR)).toEqual([]);
   });
 });

@@ -25,6 +25,7 @@ import { isOutOfMemoryError } from "../../services/semantic/memory-error";
 import { selectIndexPaths, scopeSignature } from "../../services/semantic/index-scope";
 import { isIndexingOptedOut, type RetrievedNote } from "../../services/semantic/vault-retrieval";
 import { catchUpIndex, CATCH_UP_DELAY_MS } from "../../services/semantic/vault-catch-up";
+import { applyMeaningFloor, meaningFloor } from "../../services/semantic/search-fusion";
 import { peekIndexMeta } from "../../services/semantic/embedding-index";
 import { pluginRunsOwnModel } from "../../services/workspace-internals";
 import { createEmbeddingProvider } from "./host/embedding-provider-factory";
@@ -34,12 +35,21 @@ import { SemanticIndexFiles } from "./index-files";
 import { registerVaultWatcher } from "./vault-watcher";
 
 /**
- * Below this, a note is not where the words were: a query scoring lower than
- * this against every passage of a note does not bring it up. Pythia's measured
- * vault-retrieval floor for its "balanced" preset, kept as is: it was measured
- * for this model on notes, and a guess here would be a guess.
+ * The most notes one "Build now" embeds on a phone.
+ *
+ * A phone holds the index a desktop builds (Pythia ADR-221); it does not build
+ * one. A first build there ran for well over an hour on a vault of a few
+ * hundred notes, on the UI thread, with iOS free to end it whenever Obsidian
+ * went to the background. So a phone never builds on its own, and a press adds
+ * this many — newest first — for a vault that has no desktop, or a note needed
+ * now.
  */
-export const SEMANTIC_MIN_SCORE = 0.35;
+export const MOBILE_BUILD_BUDGET = 50;
+
+/** How often a phone holding an unfinished index looks for the desktop's newer
+ *  copy while it is being searched. Reading the file is cheap; reading it on
+ *  every keystroke is not. */
+const PHONE_LOOK_EVERY_MS = 60_000;
 
 /** Frontmatter a note carries to stay out of the index. */
 const OPT_OUT_KEY = "schreibstubeIndex";
@@ -73,6 +83,10 @@ export class SemanticEngine {
   private imported = false;
   private backend: string | null = null;
   private deferred: { changed: Map<string, TFile>; deleted: Set<string> } | null = null;
+  /** The phone has said once this session that the desktop builds the index. */
+  private toldDesktopBuilds = false;
+  /** When the phone last looked for a newer index from the desktop. */
+  private lastPhoneLook = Number.NEGATIVE_INFINITY;
   private fileCount: { scope: string; count: number; complete: boolean } | null | undefined;
   private readonly listeners = new Set<() => void>();
   /** Conversations a chat plugin hands over through the API. */
@@ -250,6 +264,15 @@ export class SemanticEngine {
    */
   refresh(opts: { force?: boolean; manual?: boolean; clear?: boolean } = {}): void {
     if (!this.enabled() || this.syncing) return;
+    if (Platform.isMobile && !opts.manual) {
+      void this.holdOnPhone();
+      return;
+    }
+    // A build that failed this session is not started again by a search. The
+    // index now answers while it builds, so a failure moves what it can answer
+    // and the Explorer asks again — which would restart the build, fail, and
+    // go round for as long as the filter held text. "Build now" still retries.
+    if (!opts.manual && this.phase.kind === "failed") return;
     const decision = decideBuild(opts, {
       syncing: false,
       complete: this.service?.isComplete(this.scope()) ?? false,
@@ -262,6 +285,45 @@ export class SemanticEngine {
     this.guard.start(this.modelId());
     this.setPhase({ kind: "loading" });
     void this.build(opts, decision.reloadProvider);
+  }
+
+  /**
+   * A phone's automatic "build": read what the desktop wrote and answer from it,
+   * finished or not. Never embeds a note, so it never loads the model for the
+   * vault (a query still loads it, for the one query). When the index is not
+   * finished, say once where it is being finished.
+   */
+  private async holdOnPhone(): Promise<void> {
+    this.syncing = true;
+    this.lastPhoneLook = Date.now();
+    try {
+      await this.importOnce();
+      const svc = this.ensure();
+      const heldBefore = svc.isReady();
+      await svc.hydrateForQuery();
+      // The desktop may have written more since this session read the file.
+      if (heldBefore) {
+        const buf = await this.files().read();
+        if (svc.baseDiffersFrom(buf ? peekIndexMeta(buf)?.writtenAt : undefined))
+          await svc.reload();
+      }
+      // Edits made before the index was read waited for it; a phone applies
+      // them in memory, so its answers see them this session.
+      await this.flushDeferred();
+      if (!svc.isComplete(this.scope()) && !this.toldDesktopBuilds) {
+        this.toldDesktopBuilds = true;
+        new Notice(
+          t().semantic.desktopBuilds(svc.size(), this.collectNotes().length, MOBILE_BUILD_BUDGET),
+          12_000
+        );
+      }
+    } catch (e) {
+      this.logger.warn("semantic engine: could not read the index on this phone", e);
+    } finally {
+      this.syncing = false;
+      this.fileCount = undefined;
+      this.emit();
+    }
   }
 
   private async build(
@@ -292,17 +354,20 @@ export class SemanticEngine {
       const notes = this.collectNotes();
       notice = new Notice(t().semantic.building, 0);
       this.setPhase({ kind: "building", done: 0, total: notes.length });
-      await svc.sync(
+      const result = await svc.sync(
         notes,
         (done, total) => {
           notice?.setMessage(t().semantic.progress(done, total));
           this.setPhase({ kind: "building", done, total });
         },
         offThread ? {} : { yieldEveryNotes: 1, breatherMs: 12 },
-        scope
+        scope,
+        // A phone embeds a budget and merges what a desktop wrote meanwhile.
+        Platform.isMobile ? { maxEmbeds: MOBILE_BUILD_BUDGET, mergeFromStore: true } : {}
       );
       this.guard.end();
       this.setPhase({ kind: "idle" });
+      if (result.stopped) new Notice(t().semantic.phoneBudget(result.embedded), 8_000);
       await this.flushDeferred();
     } catch (e) {
       const outOfMemory = isOutOfMemoryError(e);
@@ -412,18 +477,39 @@ export class SemanticEngine {
   }
 
   /**
+   * How much a search by meaning can answer now: nothing, part of the vault
+   * (a build under way, or a phone holding an unfinished index), or all of it.
+   * The Explorer asks again when this moves, so a filter typed before the index
+   * could answer is not left without its meaning rows.
+   */
+  searchState(): "none" | "partial" | "ready" {
+    const svc = this.service;
+    if (!this.enabled() || !svc?.isQueryable()) return "none";
+    return svc.isComplete(this.scope()) && svc.isReady() ? "ready" : "partial";
+  }
+
+  /**
    * Notes whose meaning answers `text`, best first. Starts a build and answers
    * nothing while the index is not ready; the keyword results stand alone then.
    */
   async search(text: string, limit: number): Promise<RetrievedNote[]> {
     if (!this.enabled()) return [];
     const svc = this.service;
-    if (!svc?.isReady()) {
+    if (!svc?.isQueryable()) {
       this.refresh();
       return [];
     }
+    // A build left unfinished by an earlier session is resumed; a partial
+    // index answers meanwhile. A phone instead looks, now and then, whether
+    // the desktop has written more of it.
+    if (!svc.isComplete(this.scope())) {
+      if (!Platform.isMobile) this.refresh();
+      else if (Date.now() - this.lastPhoneLook >= PHONE_LOOK_EVERY_MS) this.refresh();
+    }
     try {
-      return await svc.query(text, { minScore: SEMANTIC_MIN_SCORE, limit });
+      const floor = meaningFloor(text);
+      const hits = await svc.query(text, { minScore: floor.minScore, limit });
+      return applyMeaningFloor(hits, floor);
     } catch (e) {
       this.logger.warn("semantic engine: search failed", e);
       return [];
@@ -472,8 +558,14 @@ export class SemanticEngine {
     this.refresh({ force: true, manual: true });
   }
 
-  /** "Rebuild": discard the rows and embed every note again. */
+  /** "Rebuild": discard the rows and embed every note again. On a phone this is
+   *  "Build now": the rows are the desktop's, and a phone that cleared them
+   *  would leave both devices a budget's worth of index. */
   rebuild(): void {
+    if (Platform.isMobile) {
+      this.buildNow();
+      return;
+    }
     if (this.syncing) {
       new Notice(t().semantic.busy);
       return;
@@ -518,6 +610,13 @@ export class SemanticEngine {
     }
     const file = this.fileCount;
     if (!this.guard.mayAutoBuild()) return { ...base, state: "paused", count: file?.count ?? 0 };
+    if (Platform.isMobile && (!file || !file.complete))
+      return {
+        ...base,
+        state: "desktopBuilds",
+        count: file?.count ?? 0,
+        budget: MOBILE_BUILD_BUDGET
+      };
     if (!file || file.count === 0) return base;
     if (!file.complete) return { ...base, state: "partial", count: file.count };
     return { ...base, state: file.scope === scope ? "ready" : "outdated", count: file.count };

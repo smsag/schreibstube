@@ -5,7 +5,7 @@
  * minutes and a phone may refuse the model, and without a line that says so
  * the feature just looks broken.
  */
-import { Setting } from "obsidian";
+import { Platform, Setting } from "obsidian";
 import { t } from "../i18n";
 import { MAX_SEMANTIC_NOTES, MIN_SEMANTIC_NOTES } from "../services/plugin-settings";
 import { semanticStatusText } from "../services/semantic/status-text";
@@ -65,7 +65,7 @@ export function renderSemantic(ctx: SettingsContext): void {
 
   new Setting(ctx.containerEl)
     .setName(strings.rebuild)
-    .setDesc(strings.rebuildDesc)
+    .setDesc(Platform.isMobile ? strings.rebuildDescPhone : strings.rebuildDesc)
     .addButton((button) => {
       button
         .setButtonText(strings.rebuild)

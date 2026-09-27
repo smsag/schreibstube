@@ -60,3 +60,14 @@ describe("semanticStatusText", () => {
     }
   });
 });
+
+describe("a phone holding the desktop's index", () => {
+  it("says the desktop builds it, and what Build now adds", () => {
+    const text = semanticStatusText(
+      { ...base, state: "desktopBuilds", count: 12, budget: 50 },
+      strings
+    );
+    expect(text).toContain("12 notes ready");
+    expect(text).toContain("50");
+  });
+});

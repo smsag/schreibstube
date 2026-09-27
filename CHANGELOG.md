@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Added
+
+- **The Explorer filter finds notes by the words in their text.** A note whose name says nothing about *Jahresabrechnung* is now found by that word, or by *Jahres* on the way to it, when its text holds it. A word in the text counts well below one in the name, title, aliases or tags, so a file called what you typed still comes first. `text:` (or `inhalt:`) searches the text alone. The text is read once, in the background, the first time the filter is used, and a note is read again when it is saved; frontmatter, code blocks, links' targets and URLs are not searched.
+
+### Changed
+
+- **Search by meaning answers while its index is being built.** Notes join the answers as they are read, instead of the whole vault arriving at the end of a build; a filter typed before the index could answer is asked again once it can.
+- **A single word is a word search.** Search by meaning is no longer asked for one word the words already answer: a sentence model reads a lone word, or the start of one, as close to nothing in particular, and the noise it returned sat beside the note that actually says the word. One word the words cannot find is still asked by meaning, held to a lower floor and cut to the hits nearly as close as the best.
+- **A phone no longer builds the index on its own.** The index a desktop builds arrives by sync, and a phone answers from it, finished or not — looking for a newer copy while it is searched. When it is not finished the phone says so once. **Build now** on a phone adds 50 notes, newest first, and keeps what the desktop wrote meanwhile; **Rebuild** on a phone does the same instead of clearing the desktop's index.
+- **Building the index is faster.** A note is embedded as its prose: no frontmatter, code, URLs or encoded pictures. Short sections are merged into one passage, long ones are cut at spaces with a little overlap instead of mid-word, and a note stops at 96 passages. Because every passage changes, the index is rebuilt once after updating.
+
+### Fixed
+
+- **A long note no longer stalls the build and is no longer paid for on every build.** A note went to the model as one request under one two-minute deadline, whatever its length; a long one ran out of time, was skipped, and was tried again from the start by every later build. It now goes a model batch at a time, and a note that still fails on the desktop is remembered and not tried again until it changes. A note that only ran out of time, or failed on a phone, is tried again by the next build; a build whose model stopped answering altogether leaves the index as it was.
+
 ## 1.51.0 - 2026-09-27
 
 A folder of Pythia's term notes can serve as a glossary: say which words to

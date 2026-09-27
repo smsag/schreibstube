@@ -96,8 +96,18 @@ import { fileURLToPath } from "node:url";
  * 7 KB, the decisions 3, the words 4. Leaving a way in out to fit would have
  * cut one of the four the feature was asked for. What is left is for the next
  * feature, not a new normal.
+ *
+ * Raised to 1490 KB at 1471 KB, for finding notes by their text and a faster
+ * index (+10 KB on 1461): the vocabulary index of every note's words and the
+ * loader that fills it, the reading of a note as prose that both searches
+ * share, passages cut at words and merged when short, a build that answers
+ * while it runs and remembers a note that failed, a phone that holds the
+ * desktop's index instead of building its own, and the notices of it in two
+ * languages. The shared vocabulary is the part that could not be smaller: a
+ * word list per note would have cost memory on a phone instead of bytes here.
+ * What is left is for the next feature, not a new normal.
  */
-const MAX_BUNDLE_KB = 1470;
+const MAX_BUNDLE_KB = 1490;
 
 const bundle = fileURLToPath(new URL("../main.js", import.meta.url));
 const source = readFileSync(bundle, "utf8");

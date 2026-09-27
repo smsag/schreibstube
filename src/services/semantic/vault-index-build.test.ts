@@ -128,18 +128,43 @@ describe("VaultIndexService — crash-safe build (Pythia ADR-182)", () => {
     expect(await s.query("alpha", { minScore: 0.5 })).toHaveLength(1);
   });
 
-  it("a resumed build re-embeds only what the interrupted one did not reach", async () => {
+  it("a note that failed is remembered, and not paid for again until it changes", async () => {
     const store = new MemStore();
     const first = new VaultIndexService(new FlakyProvider("gamma"), store, {
       persistIntervalMs: 0
     });
-    await first.sync([alpha, beta, gamma]); // gamma dropped, alpha+beta persisted
+    await first.sync([alpha, beta, gamma]); // gamma failed, alpha+beta persisted
+    expect(first.size()).toBe(2); // the failure is held, not counted
+    expect(first.vectorsOf(gamma.path)).toBeNull();
 
     const p2 = new FakeProvider();
     await new VaultIndexService(p2, store, { persistIntervalMs: 0 }).sync([alpha, beta, gamma]);
-    // alpha and beta came back from disk; only gamma cost an embed this time.
-    expect(p2.embedded.some((t) => t.includes("gamma"))).toBe(true);
-    expect(p2.embedded.some((t) => t.includes("alpha"))).toBe(false);
+    // Nothing changed, so nothing is embedded — not even the note that failed.
+    expect(p2.embedded).toEqual([]);
+
+    const p3 = new FakeProvider();
+    const edited = note(gamma.path, "gamma material, rewritten");
+    await new VaultIndexService(p3, store, { persistIntervalMs: 0 }).sync([alpha, beta, edited]);
+    expect(p3.embedded.some((t) => t.includes("rewritten"))).toBe(true);
+    expect(p3.embedded.some((t) => t.includes("alpha"))).toBe(false);
+  });
+
+  it("a dead backend is not remembered as failed notes", async () => {
+    const store = new MemStore();
+    await new VaultIndexService(new FakeProvider(), store, { persistIntervalMs: 0 }).sync([alpha]);
+    class DeadProvider extends FakeProvider {
+      override async embed(): Promise<Float32Array[]> {
+        throw new Error("worker gone");
+      }
+    }
+    const notes = Array.from({ length: 6 }, (_, i) => note(`Notes/d${i}.md`, `dead ${i}`));
+    const dead = new VaultIndexService(new DeadProvider(), store, { persistIntervalMs: 0 });
+    await expect(dead.sync([alpha, ...notes])).rejects.toThrow("worker gone");
+
+    // The next build, with a live backend, tries every one of them.
+    const live = new FakeProvider();
+    await new VaultIndexService(live, store, { persistIntervalMs: 0 }).sync([alpha, ...notes]);
+    expect(live.embedded).toHaveLength(6);
   });
 
   it("a mid-build flush never drops notes the pass has not reached yet", async () => {
@@ -226,7 +251,7 @@ describe("VaultIndexService — failure streak (Pythia ADR-182)", () => {
     const svc = new VaultIndexService(new PoisonProvider("poison"), store, {
       persistIntervalMs: 0
     });
-    await expect(svc.sync(withPoison)).resolves.toBeUndefined();
+    await expect(svc.sync(withPoison)).resolves.toMatchObject({ stopped: false });
     expect(svc.isReady()).toBe(true);
     expect(svc.size()).toBe(20); // the 20 good notes kept, the 5 bad ones dropped
   });

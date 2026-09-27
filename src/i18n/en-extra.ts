@@ -875,6 +875,12 @@ export const enExtra = {
     building: "Search by meaning: reading the vault…",
     progress: (done: number, total: number) => `Search by meaning: ${done} of ${total} notes read`,
     busy: "Search by meaning is already reading the vault.",
+    desktopBuilds: (read: number, total: number, budget: number) =>
+      `Search by meaning: ${read} of ${total} notes are ready. The desktop builds the rest; ` +
+      `Build now in the settings adds ${budget} on this phone.`,
+    phoneBudget: (count: number) =>
+      `Search by meaning: ${count} notes added on this phone. The desktop finishes the rest, ` +
+      "or press Build now again.",
     heading: "Search by meaning",
     intro:
       "Finds notes by what they are about, not only by the words in their name. A small " +
@@ -890,6 +896,8 @@ export const enExtra = {
     buildNow: "Build now",
     rebuild: "Rebuild",
     rebuildDesc: "Reads every note again from scratch.",
+    rebuildDescPhone:
+      "On a phone this adds notes like Build now: the index is the desktop's, and clearing it here would clear it there.",
     status: "Status",
     state: {
       off: "Off.",
@@ -906,7 +914,10 @@ export const enExtra = {
         `${count} notes, but the notes to index have changed. Build now to catch up.`,
       failed: (error: string) => `Failed: ${error}`,
       outOfMemory: "The device ran out of memory. Lower the number of notes and build again.",
-      paused: "Paused after a build did not finish twice in a row. Build now to try again."
+      paused: "Paused after a build did not finish twice in a row. Build now to try again.",
+      desktopBuilds: (count: number, budget: number) =>
+        `${count} notes ready. A phone does not build the index on its own: the desktop ` +
+        `finishes it and it arrives by sync. Build now adds ${budget} notes here.`
     }
   },
   secrets: {
