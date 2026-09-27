@@ -141,6 +141,30 @@ export const EMBEDDING_MODEL_IDS: readonly EmbeddingModelId[] = Object.keys(
 export const SELECTABLE_EMBEDDING_MODEL_IDS: readonly EmbeddingModelId[] =
   EMBEDDING_MODEL_IDS.filter((id) => !EMBEDDING_MODELS[id].variantOf);
 
+/**
+ * Which build of the embedding runtime produced a vector, as a number rows can carry.
+ *
+ * A vector is a function of the model AND the code that runs it. Measured when
+ * transformers 3.8.1 (onnxruntime-web 1.22) gave way to 4.3.0 (onnxruntime-web 1.31),
+ * on the English model, ten notes: the unquantized weights embed identically
+ * (cosine ≥ 0.99999), but the 8-bit weights Schreibstube loads do not — cosine
+ * 0.992–0.995 between the two runtimes' vectors of the same text, pairwise
+ * similarities moved by up to 0.022, and the nearest neighbour changed for two
+ * notes in ten. An index holding rows from both would rank one note against
+ * another with numbers from two different instruments, so a row embedded under
+ * an older generation is re-embedded rather than reused.
+ *
+ * Generation 1 is every row written before this existed; its hashes carry no mark.
+ * `tests` compare `transformers` and `onnxruntimeWeb` against the lockfile, so a
+ * dependency bump fails until someone measures it and either raises the
+ * generation or records that the vectors did not move.
+ */
+export const EMBEDDING_RUNTIME = {
+  generation: 2,
+  transformers: "4.3.0",
+  onnxruntimeWeb: "1.31.0-dev.20260914-8d85527a0"
+} as const;
+
 /** The model whose vectors `id` produces (Pythia ADR-200): a variant's family, else itself.
  *  Index files are named by this, so a device on a variant reads — and extends —
  *  the index another device built with the full model. */
