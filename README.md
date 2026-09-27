@@ -617,7 +617,7 @@ On a phone, search by meaning pauses while a Pythia that runs a language model o
 
 ### Recommended
 
-The notes, pictures and conversations that belong with the one in front of you, opened with **Recommended** in the palette or from a note's menu in Schreibstube Explorer. **Recommended** in the Explorer settings puts them in the right sidebar (the default) or under the note, where it ends. From the palette it follows whatever note is open, so the answer is already on screen by the time the question occurs to you; asked for from a note's menu it stays on that note instead.
+The notes, pictures and conversations that belong with the one in front of you, opened with **Recommended** in the palette or from a note's menu in Schreibstube Explorer. **Recommended** in the Explorer settings puts them in the right sidebar (the default) or under the note, where it ends — while editing and in Reading view alike, following the note when it switches between the two. From the palette it follows whatever note is open, so the answer is already on screen by the time the question occurs to you; asked for from a note's menu it stays on that note instead.
 
 The links answer at once, and nothing is downloaded or sent anywhere for them. A vault is a graph somebody built by hand, and every link, tag and folder is a person having already said that two notes belong together — so the ranking reads the link graph Obsidian has already resolved and costs no file reads at all. It works the same on a phone as on a desktop.
 

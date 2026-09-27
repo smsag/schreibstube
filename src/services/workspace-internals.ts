@@ -577,14 +577,48 @@ export function pluginRunsOwnModel(app: App, id: string): boolean {
 /**
  * Where a footer goes under a note's text: the end of the scrolling content,
  * so it scrolls with the note and sits after its last line, the way Obsidian's
- * own backlinks in a document do. That content is `.cm-sizer` while editing
- * and `.markdown-preview-sizer` while reading — undocumented class names, so
- * a view without them simply gets no footer.
+ * own backlinks in a document do. Undocumented class names, so a view without
+ * them simply gets no footer.
+ *
+ * While editing that is `.cm-sizer`. While reading it is the renderer's own
+ * footer section, `.mod-footer` inside `.markdown-preview-sizer`, where
+ * Obsidian puts the backlinks: the sizer itself is redrawn with
+ * `setChildrenInPlace(sections)` on every scroll, which threw out a footer
+ * appended to it, so the panel never stayed in Reading view. The section is
+ * taken from `previewMode.renderer.footer.el` when a view has that path, and
+ * looked for in the page otherwise.
  */
-export function noteFooterHost(viewContent: HTMLElement, reading: boolean): HTMLElement | null {
-  const selector = reading ? ".markdown-preview-sizer" : ".cm-sizer";
-  const found = viewContent.querySelector(selector);
+export function noteFooterHost(
+  view: { contentEl: HTMLElement },
+  reading: boolean
+): HTMLElement | null {
+  if (reading) {
+    // The section itself, read off the renderer: a long note detaches every
+    // section outside the part on screen, the footer among them, so a query
+    // finds it only once the note has been scrolled to its end.
+    const section = (view as { previewMode?: { renderer?: { footer?: { el?: unknown } } } })
+      .previewMode?.renderer?.footer?.el;
+    if (isElementLike(section)) return section;
+  }
+  const selector = reading ? ".markdown-preview-sizer > .mod-footer" : ".cm-sizer";
+  const found = view.contentEl.querySelector(selector);
   return found instanceof HTMLElement ? found : null;
+}
+
+/**
+ * Call `onChange` whenever a Markdown view switches between editing and
+ * reading. Obsidian announces no event for it — the switch is a view state
+ * that does not always count as a layout change — but it writes the mode to
+ * the view's `data-mode` attribute every time, and that is watched. A view
+ * without the attribute is not watched at all. Returns the way to stop.
+ */
+export function watchViewMode(viewContainer: HTMLElement, onChange: () => void): () => void {
+  if (!viewContainer.hasAttribute("data-mode") || typeof MutationObserver === "undefined") {
+    return () => undefined;
+  }
+  const observer = new MutationObserver(() => onChange());
+  observer.observe(viewContainer, { attributes: true, attributeFilter: ["data-mode"] });
+  return () => observer.disconnect();
 }
 
 /**
