@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { setLanguage } from "../i18n";
-import { applyPlan, planApply } from "./suggestion";
+import {
+  applyPlan,
+  planApply,
+  refreshStaleness,
+  settleStatuses,
+  type Suggestion
+} from "./suggestion";
 import { sourceUrlFromNote } from "./sync-source";
 import {
   buildSyncSuggestions,
@@ -10,6 +16,8 @@ import {
   localState,
   nextSyncRecord,
   normalizeNewlines,
+  redrawSyncCards,
+  settledByContent,
   splitNote,
   stripRemoteFrontmatter,
   type SyncRecord
@@ -461,5 +469,105 @@ describe("hasWaitingUpdate", () => {
   it("claims nothing for a record that never hashed its source", () => {
     expect(hasWaitingUpdate({ ...base, hash: "h" })).toBe(false);
     expect(hasWaitingUpdate(undefined)).toBe(false);
+  });
+});
+
+// ── An update taken one card at a time leaves "Extern aktualisiert" ─────────
+
+describe("taking an update one card at a time", () => {
+  const note = "---\nschreibstubeSyncedFrom: x\n---\nIntro line.\nOld sentence here.\nEnd.\n";
+  const remote = "Intro line.\nNew sentence here.\nEnd.\nAdded paragraph.\n";
+
+  /** Accept one card the way the panel does: plan, apply, settle, re-anchor. */
+  function accept(text: string, cards: Suggestion[], card: Suggestion) {
+    const plan = planApply(text, [card]);
+    const next = applyPlan(text, plan);
+    const applied = new Set(plan.changes.map((change) => change.id));
+    return { next, cards: refreshStaleness(next, settleStatuses(cards, plan, applied)) };
+  }
+
+  it("left the insertion below an accepted card stale when the cards were re-found", () => {
+    const cards = buildSyncSuggestions({ noteText: note, remoteBody: remote, state: "clean" });
+    const after = accept(note, cards, cards[0]!);
+    // The bug this fixes: an insertion placed by the text in front of it
+    // loses that text when the card above it is taken, and cannot be taken.
+    expect(after.cards.map((card) => card.status)).toEqual(["accepted", "stale"]);
+  });
+
+  it("finishes the update when the rest is drawn again, and the note leaves the list", () => {
+    const record: SyncRecord = {
+      hash: hashText(splitNote(note).body),
+      etag: "",
+      checkedAt: 1,
+      remoteHash: hashText(remote),
+      changedAt: 1
+    };
+    expect(hasWaitingUpdate(record)).toBe(true);
+
+    let text = note;
+    let cards = buildSyncSuggestions({ noteText: text, remoteBody: remote, state: "clean" });
+    for (let round = 0; round < 5; round++) {
+      const next = cards.find((card) => card.source === "remote" && card.status === "pending");
+      if (!next) break;
+      const step = accept(text, cards, next);
+      text = step.next;
+      cards = redrawSyncCards(step.cards, { noteText: text, remoteBody: remote, state: "clean" });
+      expect(cards.some((card) => card.status === "stale")).toBe(false);
+    }
+
+    expect(splitNote(text).body).toBe(remote);
+    const settled = settledByContent(record, splitNote(text).body);
+    expect(settled).not.toBeNull();
+    expect(hasWaitingUpdate(settled!)).toBe(false);
+  });
+
+  it("keeps every card that did not come from the source", () => {
+    const proofread: Suggestion = {
+      id: "p",
+      status: "pending",
+      kind: "replace",
+      source: "llm",
+      category: "spelling",
+      severity: "suggestion",
+      from: 40,
+      to: 45,
+      original: "Intro",
+      replacement: "Intro",
+      note: ""
+    } as Suggestion;
+    const redrawn = redrawSyncCards([proofread], {
+      noteText: note,
+      remoteBody: remote,
+      state: "clean"
+    });
+    expect(redrawn.filter((card) => card.source !== "remote")).toEqual([proofread]);
+    expect(redrawn.filter((card) => card.source === "remote")).toHaveLength(2);
+  });
+});
+
+describe("settledByContent", () => {
+  const record: SyncRecord = {
+    hash: hashText("old\n"),
+    etag: "e",
+    checkedAt: 1,
+    pendingChanges: 2,
+    remoteHash: hashText("new\n"),
+    changedAt: 1
+  };
+
+  it("settles a waiting note whose body is the source as last seen, however it got there", () => {
+    expect(settledByContent(record, "new\n")).toEqual({
+      ...record,
+      hash: hashText("new\n"),
+      pendingChanges: 0
+    });
+  });
+
+  it("leaves a note that still differs, and one that was not waiting", () => {
+    expect(settledByContent(record, "new")).toBeNull();
+    expect(settledByContent({ ...record, hash: record.remoteHash! }, "new\n")).toBeNull();
+    expect(settledByContent(undefined, "new\n")).toBeNull();
+    const { remoteHash: _unused, ...unhashed } = record;
+    expect(settledByContent(unhashed, "new\n")).toBeNull();
   });
 });

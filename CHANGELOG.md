@@ -14,6 +14,8 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- **An update taken one card at a time leaves "Extern aktualisiert".** Accepting the cards of a source update one by one could leave a card that inserts text stuck: it was placed by the text in front of it, and accepting the card above changed that text, so it went stale and could not be accepted. The update was never finished and the note stayed in the list. The rest of an update is now drawn again after every card taken, so each card that remains can be accepted.
+- **A note brought level with its source leaves "Extern aktualisiert" at once.** It used to leave only when the panel's last card was accepted, or at its next check. Now any route counts — typed, undone, pasted, or arriving from another device: once the note's text is the source's as last fetched, it is no longer listed.
 - **An icon chosen for a property no longer covers the property's name.** The glyph was drawn in a slot Obsidian keeps 4 pixels wide as a spacer, so a 16-pixel icon spilled over the first letters of the key. It now takes the box Obsidian's own icon has, and the name starts where it always did.
 
 ## 1.50.0 - 2026-09-27

@@ -967,6 +967,9 @@ export default class SchreibstubePlugin extends Plugin {
       this.app.vault.on("modify", (file) => {
         if (file instanceof TFile && file.extension === "md") {
           void this.proofread?.invalidateGlossary(file.path);
+          // A mirrored note made level with its source by any route leaves
+          // "Extern aktualisiert" now, not at its next check.
+          void this.proofread?.noteModified(file);
         }
       })
     );
