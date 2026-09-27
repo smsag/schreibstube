@@ -28,19 +28,10 @@ export interface LatestSelection {
 }
 
 /**
- * The most rows the section shows. Every note still waiting is listed — it is
- * what is left to look at, and a sixth one held back would be one nobody
- * looks at — but a vault that mirrors hundreds of sources must not turn the
- * section into the whole pane.
- */
-export const LATEST_MAX = 50;
-
-/**
  * The newest moment a source changed, across the notes shown as updated.
  *
  * Read from the list the pane draws rather than from every record, so what the
- * mark stands for is exactly what a tap on it shows: a note beyond the ceiling
- * the section holds cannot leave a mark pointing at a list it is not in.
+ * mark stands for is exactly what a tap on it shows.
  */
 export function newestSync(files: readonly LatestCandidate[]): number | null {
   let newest: number | null = null;
@@ -64,12 +55,17 @@ export function hasUnseenSync(files: readonly LatestCandidate[], seenAt: number)
   return newest !== null && newest > seenAt;
 }
 
-/** The notes whose source changed and wait to be looked at, newest first. */
+/**
+ * The notes whose source changed and wait to be looked at, newest first.
+ *
+ * Every one of them, without a ceiling. The section is what is left to look
+ * at: it held fifty, and an update past the fiftieth was never shown at all.
+ * The section collapses like any other when it grows long.
+ */
 export function selectLatest(candidates: readonly LatestCandidate[]): LatestSelection {
   const synced = candidates
     .filter((file) => file.syncedAt !== undefined)
-    .sort((a, b) => (b.syncedAt ?? 0) - (a.syncedAt ?? 0) || compareName(a, b))
-    .slice(0, LATEST_MAX);
+    .sort((a, b) => (b.syncedAt ?? 0) - (a.syncedAt ?? 0) || compareName(a, b));
 
   return { synced };
 }

@@ -298,6 +298,9 @@ export const de: Messages = {
       "Menü einer Notiz öffnen.",
     recommendedSidebar: "In der rechten Seitenleiste",
     recommendedFooter: "Unter der Notiz",
+    recommendedCount: "Anzahl der Empfehlungen",
+    recommendedCountDesc: (min: number, max: number) =>
+      `Wie viele Empfehlungen erscheinen, Notizen, Bilder und Gespräche zusammen, die relevantesten zuerst. ${min} bis ${max}.`,
     explorerTaskCounts: "Aufgabenzähler",
     explorerTaskCountsDesc:
       'Zeigt hinter dem Namen einer Notiz, wie viele Aufgaben sie enthält und wie viele davon offen sind, als "1 / 7". ' +
@@ -807,6 +810,7 @@ export const de: Messages = {
     filterEmpty: "Darauf antwortet hier nichts.",
     filterMore: (count: number) => `${count} weitere Treffer. Filter eingrenzen, um sie zu sehen.`,
     foundByMeaning: "Nach Bedeutung gefunden: andere Wörter, gleiches Thema.",
+    conversationsFound: "Pythia-Unterhaltungen",
     searchingByMeaning: "Suche nach Bedeutung …",
     collapseAll: "Alle zuklappen",
     expandAll: "Alle aufklappen",
@@ -821,9 +825,7 @@ export const de: Messages = {
         "Nichts verlinkt, verschlagwortet oder legt diese Notiz neben eine andere, und nichts liest sich ähnlich.",
       summary: (count: number) => (count === 1 ? "1 Empfehlung" : `${count} Empfehlungen`),
       root: "Vault-Wurzel",
-      pictures: "Bilder",
-      notes: "Notizen und Dokumente",
-      conversations: "Gespräche",
+      untitled: "Unbenanntes Gespräch",
       reasons: {
         link: "verlinkt",
         meaning: "ähnlich im Inhalt",

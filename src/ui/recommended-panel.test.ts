@@ -14,10 +14,16 @@ const card = (path: string, kinds: ("link" | "meaning" | "tag")[] = ["link"]) =>
   reasons: kinds.map((kind) => ({ kind, count: 1 }) as const)
 });
 
-function setup(recommend?: (path: string) => Promise<Recommendation | null>) {
+const note = (path: string, kinds?: ("link" | "meaning" | "tag")[]) => ({
+  kind: "note" as const,
+  card: card(path, kinds)
+});
+
+function setup(recommend?: (path: string) => Promise<Recommendation | null>, count = 7) {
   const root = document.createElement("div");
   const host: RecommendedHost = {
     cards: () => [card("linked.md")],
+    count: () => count,
     ...(recommend ? { recommend } : {}),
     titleOf: (path) => path,
     open: vi.fn(async () => undefined),
@@ -41,23 +47,39 @@ describe("RecommendedPanel", () => {
     expect(titles(root)).toEqual(["linked"]);
   });
 
-  it("draws meaning's answer when it comes: pictures, notes, conversations", async () => {
+  it("draws meaning's answer as one list, in the order it was ranked, not by kind", async () => {
     const { root, panel, host } = setup(async () => ({
-      notes: [card("linked.md"), card("kitchen.md", ["meaning"])],
-      pictures: [{ path: "Bilder/see.jpg", title: "see", src: "app://see.jpg" }],
-      conversations: [{ id: "c1", title: "Exposé Seestraße" }]
+      items: [
+        { kind: "conversation", conversation: { id: "c1", title: "Exposé Seestraße" } },
+        note("linked.md"),
+        {
+          kind: "picture",
+          picture: { path: "Bilder/see.jpg", title: "see", src: "app://see.jpg" }
+        },
+        note("kitchen.md", ["meaning"])
+      ]
     }));
     panel.show("a.md");
     await settle();
 
-    expect(titles(root)).toEqual(["linked", "kitchen", "Exposé Seestraße"]);
-    expect(root.querySelector(".schreibstube-related-picture img")?.getAttribute("src")).toBe(
-      "app://see.jpg"
-    );
+    expect(titles(root)).toEqual(["Exposé Seestraße", "linked", "see", "kitchen"]);
+    expect(root.querySelectorAll(".schreibstube-related-list")).toHaveLength(1);
+    expect(root.querySelector(".schreibstube-related-section")).toBeNull();
+    expect(root.querySelector(".is-picture img")?.getAttribute("src")).toBe("app://see.jpg");
     expect(root.textContent).toContain("similar in meaning");
 
     (root.querySelector(".is-conversation") as HTMLElement).click();
     expect(host.openConversation).toHaveBeenCalledWith("c1");
+  });
+
+  it("shows as many entries as the setting says", async () => {
+    const { root, panel } = setup(
+      async () => ({ items: ["a.md", "b.md", "c.md", "d.md"].map((path) => note(path)) }),
+      2
+    );
+    panel.show("x.md");
+    await settle();
+    expect(titles(root)).toEqual(["a", "b"]);
   });
 
   it("drops an answer for a note that is no longer shown", async () => {
@@ -65,7 +87,7 @@ describe("RecommendedPanel", () => {
     const { root, panel } = setup((path) => new Promise((r) => answers.set(path, r)));
     panel.show("a.md");
     panel.show("b.md");
-    answers.get("a.md")?.({ notes: [card("stale.md")], pictures: [], conversations: [] });
+    answers.get("a.md")?.({ items: [note("stale.md")] });
     await settle();
     expect(titles(root)).toEqual(["linked"]);
   });

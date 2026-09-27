@@ -12,6 +12,12 @@
  *
  * Every card keeps its reasons, "similar in meaning" among them, so it can
  * say why it is there.
+ *
+ * Notes, pictures and Pythia's conversations are ranked together, not in
+ * sections of their kind: the panel was a picture strip, then notes, then
+ * conversations, so the most relevant thing could sit under a heading below
+ * the ten least relevant of another kind. One list, by relevance, a length a
+ * person chose.
  */
 import type { RelatedReason } from "../related-notes";
 import { FUSION_K } from "./search-fusion";
@@ -66,4 +72,48 @@ export function recommendNotes(
   return [...byPath.values()]
     .sort((a, b) => b.score - a.score || a.path.localeCompare(b.path))
     .slice(0, limit);
+}
+
+/**
+ * The key a conversation takes in the fused ranking. A colon cannot occur in
+ * an Obsidian file name, so no vault path can ever be mistaken for one.
+ */
+const CONVERSATION_PREFIX = "conversation:";
+
+export function conversationKey(id: string): string {
+  return `${CONVERSATION_PREFIX}${id}`;
+}
+
+/** The conversation a ranking key names, or null for a vault path. */
+export function conversationIdOf(key: string): string | null {
+  return key.startsWith(CONVERSATION_PREFIX) ? key.slice(CONVERSATION_PREFIX.length) : null;
+}
+
+/**
+ * One ranking by meaning across the vault and Pythia's conversations.
+ *
+ * Their scores compare: the same model, the same comparison of the open
+ * note's passages against theirs, and the same floor to clear. A tie keeps
+ * the vault first, the thing the person wrote.
+ */
+export function meaningOrder(
+  notes: readonly { key: string; score: number }[],
+  conversations: readonly { id: string; score: number }[]
+): { path: string }[] {
+  const all = [
+    ...notes.map((hit, i) => ({ key: hit.key, score: hit.score, order: i })),
+    ...conversations.map((hit, i) => ({
+      key: conversationKey(hit.id),
+      score: hit.score,
+      order: notes.length + i
+    }))
+  ];
+  const seen = new Set<string>();
+  const out: { path: string }[] = [];
+  for (const hit of all.sort((a, b) => b.score - a.score || a.order - b.order)) {
+    if (seen.has(hit.key)) continue;
+    seen.add(hit.key);
+    out.push({ path: hit.key });
+  }
+  return out;
 }

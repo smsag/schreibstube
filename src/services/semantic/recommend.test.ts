@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { recommendNotes } from "./recommend";
+import { conversationIdOf, conversationKey, meaningOrder, recommendNotes } from "./recommend";
 import type { RelatedReason } from "../related-notes";
 
 const g = (path: string, ...reasons: RelatedReason[]) => ({ path, reasons });
@@ -31,5 +31,49 @@ describe("recommendNotes", () => {
 
   it("is empty when neither side found anything", () => {
     expect(recommendNotes([], [], 5)).toEqual([]);
+  });
+});
+
+describe("meaningOrder", () => {
+  it("ranks notes, pictures and conversations together by score", () => {
+    const order = meaningOrder(
+      [
+        { key: "a.md", score: 0.8 },
+        { key: "bild.jpg", score: 0.5 }
+      ],
+      [{ id: "c1", score: 0.7 }]
+    );
+    expect(order.map((hit) => hit.path)).toEqual(["a.md", conversationKey("c1"), "bild.jpg"]);
+  });
+
+  it("keeps the vault first on a tie", () => {
+    const order = meaningOrder([{ key: "a.md", score: 0.6 }], [{ id: "c1", score: 0.6 }]);
+    expect(order[0]?.path).toBe("a.md");
+  });
+
+  it("lists a picture found through two description notes once", () => {
+    const order = meaningOrder(
+      [
+        { key: "bild.jpg", score: 0.9 },
+        { key: "bild.jpg", score: 0.4 }
+      ],
+      []
+    );
+    expect(order).toEqual([{ path: "bild.jpg" }]);
+  });
+});
+
+describe("conversation keys", () => {
+  it("round-trip, and a vault path is never one", () => {
+    expect(conversationIdOf(conversationKey("9d66b8f5"))).toBe("9d66b8f5");
+    expect(conversationIdOf("Docs/Notiz.md")).toBeNull();
+  });
+});
+
+describe("one list across kinds", () => {
+  it("fuses a conversation with the link graph and stops at the count", () => {
+    const meaning = meaningOrder([{ key: "prose.md", score: 0.5 }], [{ id: "c1", score: 0.9 }]);
+    const out = recommendNotes([g("linked.md", link), g("tagged.md", tag)], meaning, 2);
+    expect(out.map((r) => r.path)).toEqual(["linked.md", conversationKey("c1")]);
   });
 });

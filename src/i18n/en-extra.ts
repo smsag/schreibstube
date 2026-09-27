@@ -54,6 +54,9 @@ export const enExtra = {
       "note's menu.",
     recommendedSidebar: "In the right sidebar",
     recommendedFooter: "Under the note",
+    recommendedCount: "Number of recommendations",
+    recommendedCountDesc: (min: number, max: number) =>
+      `How many recommendations are shown, notes, pictures and conversations together, the most relevant first. ${min} to ${max}.`,
     explorerTaskCounts: "Task counts",
     explorerTaskCountsDesc:
       'Show how many tasks a note holds and how many are still open, as "1 / 7" after its ' +
@@ -549,6 +552,7 @@ export const enExtra = {
     filterEmpty: "Nothing here answers that.",
     filterMore: (count: number) => `${count} more match. Narrow the filter to see them.`,
     foundByMeaning: "Found by meaning: the words differ, the subject matches.",
+    conversationsFound: "Pythia conversations",
     searchingByMeaning: "Searching by meaning…",
     collapseAll: "Collapse all",
     expandAll: "Expand all",
@@ -563,9 +567,7 @@ export const enExtra = {
         "Nothing links, tags or files this note beside anything else, and nothing reads alike.",
       summary: (count: number) => (count === 1 ? "1 recommendation" : `${count} recommendations`),
       root: "Vault root",
-      pictures: "Pictures",
-      notes: "Notes and documents",
-      conversations: "Conversations",
+      untitled: "Untitled conversation",
       reasons: {
         link: "linked",
         meaning: "similar in meaning",

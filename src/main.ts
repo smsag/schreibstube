@@ -76,14 +76,9 @@ import {
 import type { ExplorerFileStore } from "./services/explorer-store";
 import { SemanticEngine } from "./controllers/semantic/semantic-engine";
 import { createSemanticApi } from "./controllers/semantic/semantic-api";
-import { recommendNotes } from "./services/semantic/recommend";
+import { conversationIdOf, meaningOrder, recommendNotes } from "./services/semantic/recommend";
 import { RecommendedFooter } from "./controllers/recommended-footer";
-import type {
-  PictureCard,
-  Recommendation,
-  RecommendedHost,
-  RelatedCard
-} from "./ui/recommended-panel";
+import type { Recommendation, RecommendedHost, RecommendedItem } from "./ui/recommended-panel";
 import type { SchreibstubeSemanticApi } from "./services/semantic/semantic-api";
 import { PaneSectionsController } from "./controllers/pane-sections";
 import { BookmarkQuickOpenModal } from "./ui/bookmark-quick-open";
@@ -583,13 +578,16 @@ export default class SchreibstubePlugin extends Plugin {
         const file = this.app.vault.getAbstractFileByPath(path);
         if (file) await explorer.open(file, where);
       },
-      openConversation: (id) => {
-        // Pythia opens it itself when it can; otherwise its deep link does.
-        if (this.semantic?.conversations.open(id)) return;
-        window.open(`obsidian://pythia?cmd=resume&id=${encodeURIComponent(id)}`);
-      },
+      openConversation: (id) => this.openConversation(id),
+      count: () => this.settings.recommendedCount,
       showMenu: (path, event) => explorer.showMenuForPath(path, event)
     };
+  }
+
+  /** Pythia opens a conversation itself when it can; otherwise its deep link does. */
+  private openConversation(id: string): void {
+    if (this.semantic?.conversations.open(id)) return;
+    window.open(`obsidian://pythia?cmd=resume&id=${encodeURIComponent(id)}`);
   }
 
   /**
@@ -600,48 +598,68 @@ export default class SchreibstubePlugin extends Plugin {
     const explorer = this.explorer;
     const engine = this.semantic;
     if (!explorer || !engine?.enabled()) return null;
-    const found = await engine.relatedToNote(path, RECOMMEND_LIMIT);
+    const count = this.settings.recommendedCount;
+    const found = await engine.relatedToNote(path, Math.max(RECOMMEND_LIMIT, count));
     const graph = explorer.relatedCards(path);
 
-    const meaning: { path: string }[] = [];
-    const pictures: PictureCard[] = [];
+    // One meaning ranking over the vault: a description note stands for its
+    // picture, here as in the Explorer, and keeps the score it earned.
+    const pictures = new Map<string, TFile>();
+    const byMeaning: { key: string; score: number }[] = [];
     for (const hit of found.notes) {
-      // A description note stands for its picture, here as in the Explorer.
       const image = explorer.imageDescribedBy(hit.id);
       const picture = image === null ? null : this.app.vault.getAbstractFileByPath(image);
       if (picture instanceof TFile) {
-        if (!pictures.some((p) => p.path === picture.path)) {
-          pictures.push({
-            path: picture.path,
-            title: picture.basename,
-            src: this.app.vault.getResourcePath(picture)
-          });
-        }
+        pictures.set(picture.path, picture);
+        byMeaning.push({ key: picture.path, score: hit.score });
         continue;
       }
       const note = this.app.vault.getAbstractFileByPath(hit.id);
       if (note instanceof TFile && !explorer.isTrashed(note.path))
-        meaning.push({ path: note.path });
+        byMeaning.push({ key: note.path, score: hit.score });
     }
 
     const cards = new Map(graph.map((card) => [card.path, card]));
-    const notes: RelatedCard[] = [];
-    for (const entry of recommendNotes(graph, meaning, RECOMMEND_LIMIT)) {
+    const items: RecommendedItem[] = [];
+    const ranked = recommendNotes(graph, meaningOrder(byMeaning, found.conversations), count);
+    for (const entry of ranked) {
+      const conversation = conversationIdOf(entry.path);
+      if (conversation !== null) {
+        items.push({
+          kind: "conversation",
+          conversation: {
+            id: conversation,
+            title: engine.conversations.titleOf(conversation) ?? t().explorer.related.untitled
+          }
+        });
+        continue;
+      }
+      const picture = pictures.get(entry.path);
+      if (picture) {
+        items.push({
+          kind: "picture",
+          picture: {
+            path: picture.path,
+            title: picture.basename,
+            src: this.app.vault.getResourcePath(picture)
+          }
+        });
+        continue;
+      }
       const known = cards.get(entry.path);
       const file = this.app.vault.getAbstractFileByPath(entry.path);
       if (!(file instanceof TFile)) continue;
-      notes.push({
-        path: entry.path,
-        title: known?.title ?? explorer.titleFor(file) ?? file.basename,
-        folder: file.parent && !file.parent.isRoot() ? file.parent.path : "",
-        reasons: entry.reasons
+      items.push({
+        kind: "note",
+        card: {
+          path: entry.path,
+          title: known?.title ?? explorer.titleFor(file) ?? file.basename,
+          folder: file.parent && !file.parent.isRoot() ? file.parent.path : "",
+          reasons: entry.reasons
+        }
       });
     }
-    const conversations = found.conversations.map((c) => ({
-      id: c.id,
-      title: engine.conversations.titleOf(c.id)
-    }));
-    return { notes, pictures, conversations };
+    return { items };
   }
 
   /**
@@ -720,6 +738,9 @@ export default class SchreibstubePlugin extends Plugin {
         sections: this.sections,
         settings: () => this.settings,
         meaning: async (text, limit) => (await this.semantic?.search(text, limit)) ?? [],
+        conversations: async (text, limit) =>
+          (await this.semantic?.conversations.find(text, limit)) ?? [],
+        openConversation: (id) => this.openConversation(id),
         warm: () => this.semantic?.warm(),
         meaningState: () => this.semantic?.searchState() ?? "none",
         onMeaningChange: (listener) => this.semantic?.onChange(listener) ?? (() => undefined)
