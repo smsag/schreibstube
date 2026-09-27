@@ -851,10 +851,10 @@ The icon font is generated, not hand-edited. Add a name to `scripts/icon-set.mjs
 
 ```bash
 npm install --no-save @tabler/icons-webfont
-pip install fonttools brotli
+pip install fonttools brotli picosvg
 npm run build:icons
 ```
 
-That subsets the font to the names in the list and writes `src/ui/icon-font.generated.ts`, which is committed — a normal build needs neither the font package nor Python. Icons are stored by name, never by codepoint, so a font upgrade that moves a glyph changes the generated map instead of every vault's icons.
+That subsets the font to the names in the list, adds our own glyphs (the Schreibstube and Pythia logos, from `assets/`) and writes `src/ui/icon-font.generated.ts`, which is committed — a normal build needs neither the font package nor Python. Icons are stored by name, never by codepoint, so a font upgrade that moves a glyph changes the generated map instead of every vault's icons.
 
 Tabler Icons is MIT licensed; see `LICENSE` in `@tabler/icons-webfont` for the notice.

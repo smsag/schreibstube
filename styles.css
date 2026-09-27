@@ -1994,14 +1994,19 @@
 
 .schreibstube-icon-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(38px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(44px, 1fr));
   gap: 4px;
 }
 
-/* The icon grid's cells are segments too; only the size is theirs. */
-.schreibstube-icon-choice {
-  height: 38px;
-  font-size: 20px;
+/* The icon grid's cells are segments too; only the size is theirs. The
+   segment rule sets the small label size of a text control, so this has to
+   out-rank it to show a glyph large enough to tell apart from its neighbours
+   — a picker exists to compare icons, and at label size a file with lines
+   and a file with a fold were the same smudge. */
+.schreibstube-icon-picker .sb.sb-seg.schreibstube-icon-choice {
+  height: 44px;
+  font-size: 22px;
+  line-height: 1;
 }
 
 .schreibstube-prompt-desc {

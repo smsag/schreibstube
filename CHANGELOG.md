@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Added
+
+- **The Schreibstube and Pythia logos are icons.** A new "Logos" group in the icon picker holds both marks, for a folder, a property or `:schreibstube:` and `:pythia:` in the text. They are drawn to the same grid and stroke as the icons around them, so a logo next to a folder icon reads as one set. Our own glyphs are outlined from the logo files by the icon build and ride in the same font, so the bundle grew by nothing measurable.
+
+### Changed
+
+- **The icon picker shows its icons twice as large.** The cells drew each glyph at the small text size of a button label, where several file and folder icons were hard to tell apart. They are now 22 pixels in a slightly larger cell, and the grid fits fewer to a row.
+
 ## 1.52.0 - 2026-09-27
 
 Search finds notes by the words in their text, not only by what they are
