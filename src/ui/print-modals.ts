@@ -1,6 +1,7 @@
 import { SuggestModal, type App } from "obsidian";
 import { t } from "../i18n";
 import type { ExampleTemplate } from "../services/print-examples";
+import { modalAnswer, type ModalAnswer } from "../services/modal-answer";
 
 /**
  * Which example template to lay down in the vault.
@@ -9,14 +10,15 @@ import type { ExampleTemplate } from "../services/print-examples";
  * they can type the first letters of.
  */
 export class PrintExampleModal extends SuggestModal<ExampleTemplate> {
-  private answered = false;
+  private readonly answer: ModalAnswer<ExampleTemplate | null>;
 
   constructor(
     app: App,
     private readonly examples: readonly ExampleTemplate[],
-    private readonly onChoose: (example: ExampleTemplate | null) => void
+    onChoose: (example: ExampleTemplate | null) => void
   ) {
     super(app);
+    this.answer = modalAnswer(onChoose);
     this.setPlaceholder(t().print.chooseExample);
   }
 
@@ -36,12 +38,12 @@ export class PrintExampleModal extends SuggestModal<ExampleTemplate> {
   }
 
   override onChooseSuggestion(example: ExampleTemplate): void {
-    this.answered = true;
-    this.onChoose(example);
+    this.answer.choose(example);
   }
 
   override onClose(): void {
     super.onClose();
-    if (!this.answered) this.onChoose(null);
+    // Obsidian closes the list before it reports the pick; see modal-answer.
+    this.answer.closed(null);
   }
 }
