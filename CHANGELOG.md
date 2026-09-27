@@ -2,7 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## 1.54.0 - 2026-09-27
+
+Search by meaning moves to transformers 4. The newer runtime embeds a note to
+slightly different numbers than the old one, so every entry now records the
+runtime that made it, and the desktop rebuilds the index once after the update
+instead of ranking old and new entries against each other. Until the rebuild
+reaches a note, its old entry keeps answering, so Recommended and the Explorer
+filter are never empty in between. Pythia's old index is no longer copied in:
+Pythia runs no model of its own any more and removes those files itself.
+Recommended under a note now starts where the note ends while editing, not
+half a screen below it.
+
+Mobile checklist: not run, and the new runtime has not been tried in the
+Obsidian app on desktop either; the test suite and the build checked it. What
+to try first: that the desktop rebuilds the index once and Recommended still
+answers meanwhile, that a phone answers from the old index until the desktop
+has written the new one, and Recommended under a note while editing, with and
+without backlinks shown in the document.
+
+The bridge is unchanged at 2.9.0.
 
 ### Changed
 
