@@ -271,6 +271,43 @@ export function buildSyncSuggestions(options: SyncSuggestionOptions): Suggestion
   );
 }
 
+/**
+ * The update's cards, drawn again against the note as it now stands.
+ *
+ * A card is placed by its text, and an insertion by the text in front of it.
+ * Accepting one card at a time changed exactly that text for the card below
+ * it, which then went stale and could not be accepted — the update was never
+ * finished, and the note stayed in "Extern aktualisiert" (a queue taken with
+ * "Accept all" never met this, since one batch is placed against the text it
+ * was drawn from). The remaining difference between the note and the source
+ * is a fact, not a memory, so it is drawn again rather than re-found: every
+ * card from the source is replaced, and every other card is kept.
+ */
+export function redrawSyncCards(
+  existing: readonly Suggestion[],
+  options: SyncSuggestionOptions
+): Suggestion[] {
+  const others = existing.filter((suggestion) => suggestion.source !== "remote");
+  return [...others, ...buildSyncSuggestions(options)].sort(
+    (a, b) => a.from - b.from || a.to - b.to
+  );
+}
+
+/**
+ * The record, settled, when the note's body is the source as last seen; null
+ * when it is not, or when nothing is waiting.
+ *
+ * The baseline used to advance only when the panel's last card was accepted,
+ * so a note brought level any other way — typed, undone, pasted, synced from
+ * another device — stayed "updated externally" until its next check came due.
+ * Whatever made the note match the source, it matches; that is the whole test.
+ */
+export function settledByContent(record: SyncRecord | undefined, body: string): SyncRecord | null {
+  if (!record || !hasWaitingUpdate(record) || record.remoteHash === undefined) return null;
+  if (hashText(body) !== record.remoteHash) return null;
+  return { ...record, hash: record.remoteHash, pendingChanges: 0 };
+}
+
 function noteFor(state: LocalState): string {
   const cards = t().proofread;
 
