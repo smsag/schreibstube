@@ -11,18 +11,431 @@ All notable changes to this project will be documented in this file.
 ### Changed
 
 - **The icon picker shows its icons twice as large.** The cells drew each glyph at the small text size of a button label, where several file and folder icons were hard to tell apart. They are now 22 pixels in a slightly larger cell, and the grid fits fewer to a row.
-- **A slideshow's header stays out of the way.** The alt text and the controls in the row above a slideshow now appear only while the pointer is over the block or a control has the keyboard focus. On a phone, which has no pointer, a tap on a picture or on the row shows them and the next tap, or a swipe, hides them again. The row keeps its height, so nothing below the block moves when they come and go. This is the same in every layout, from the stage to the before-and-after.
-- **Back returns from a picture to its tiles.** A tile opened its picture in a new tab, so the tab's Back arrow had nowhere to go and the grid was reached again only through the folder's menu. A tile now opens its picture in the tiles tab itself, and Back brings the grid back as it was, on the folder it was showing. A modifier click, Cmd or Ctrl, opens a new tab instead, for the grid and the picture side by side.
-- **The explorer no longer follows a note into another window.** The pane opens the folders above the open note and scrolls its row into view, whichever way the note was opened. It did that for a note in a popped-out window too, and again every time that window was focused, so the tree in the main window kept scrolling to a note nobody was looking at there. A note in another window is now left alone entirely: the tree stays as it was arranged. A note in the pane's own window is followed as before.
-- **A swipe on a slideshow is the slideshow's alone.** A sideways swipe across the stage or the scene in the note has turned the page since the block existed, but the note could scroll with it and, on a phone, Obsidian could answer the same swipe by sliding a sidebar in over the note. Once a finger is clearly moving sideways the block now claims the gesture: the note stays put and nothing above the block sees it. Which travel is a tap, a swipe or a scroll is one small decision module with tests.
+
+## 1.52.0 - 2026-09-27
+
+Search finds notes by the words in their text, not only by what they are
+called: a letter about the *Jahresabrechnung* now turns up for "Jahres".
+Search by meaning builds its index much faster, answers while it builds, and
+no longer builds on a phone, which uses the desktop's index and indexes only
+the notes written on it. The Explorer filter gets ready as soon as it is
+clicked, says when it is still searching by meaning, and the settings show how
+the index covers the vault and where a search's time goes.
+
+The index is rebuilt once after updating, because every note is now read into
+passages differently. A desktop does it by itself in the background, starting
+about ten seconds after launch; a phone waits for the desktop's.
+
+Mobile checklist: not run, and nothing in this release was tried in the
+Obsidian app on desktop either. The test suite and the build checked it. What
+a phone would answer differently: whether a note written on the phone is still
+found after a restart, whether "Build now" adds 50 notes and says so, how the
+new numbers in the settings fit a phone's width, and how quickly the text
+filter answers on a real vault.
+
+The bridge stays at 2.8.0, and its protocol at 3; nothing here touches it.
+
+### Added
+
+- **The settings show where a search's time went.** A new line under search by meaning gives the last search's time, split into loading the model, embedding the query (or "from memory") and ranking the notes, and the text search line says how long reading the notes took. The same numbers go to the debug log, so a slow search can be told apart from a slow model.
+- **The settings say how search by meaning is doing.** Under the status line: how many of the notes to index are in it and why the rest are not (not read yet, failed, kept out by their frontmatter, past the note limit), how many passages it holds, the size of its files and which device keeps them, the model and where it runs, and for a build — running or the last one — how far it has come, how many notes were embedded or unchanged, passages a second and the time left. The Explorer filter's text index is counted too.
+- **A note written on a phone is indexed on the phone.** It was embedded there and forgotten at the next launch, and only once the phone had been searched. The phone now reads the index as soon as a note changes and keeps its own edits in a file of its own, which only it reads; the desktop's files are left alone, and the phone lets its edits go once the desktop has written a new index.
+- **The Explorer filter finds notes by the words in their text.** A note whose name says nothing about *Jahresabrechnung* is now found by that word, or by *Jahres* on the way to it, when its text holds it. A word in the text counts well below one in the name, title, aliases or tags, so a file called what you typed still comes first. `text:` (or `inhalt:`) searches the text alone. The text is read once, in the background, the first time the filter is used, and a note is read again when it is saved; frontmatter, code blocks, links' targets and URLs are not searched.
+
+### Changed
+
+- **Search results arrive sooner.** Clicking into the Explorer filter now reads the index and loads the model, and starts reading the notes' text, so the first search no longer waits for them; this happens only where the index already exists, so nothing is downloaded for a click. A query typed again — a character deleted and retyped — is answered from memory instead of by the model, and a search goes ahead of the batches a build or a conversation sync has waiting.
+- **The filter says when it is still searching by meaning.** "Searching by meaning…" stands under the word results, or in place of "nothing matches", until the meaning results arrive, instead of the list looking finished before it was.
+- **Search by meaning answers while its index is being built.** Notes join the answers as they are read, instead of the whole vault arriving at the end of a build; a filter typed before the index could answer is asked again once it can.
+- **A single word is a word search.** Search by meaning is no longer asked for one word the words already answer: a sentence model reads a lone word, or the start of one, as close to nothing in particular, and the noise it returned sat beside the note that actually says the word. One word the words cannot find is still asked by meaning, held to a lower floor and cut to the hits nearly as close as the best.
+- **A phone no longer builds the index on its own.** The index a desktop builds arrives by sync, and a phone answers from it, finished or not — looking for a newer copy while it is searched. When it is not finished the phone says so once. **Build now** on a phone adds 50 notes, newest first, and keeps what the desktop wrote meanwhile; **Rebuild** on a phone does the same instead of clearing the desktop's index.
+- **Building the index is faster.** A note is embedded as its prose: no frontmatter, code, URLs or encoded pictures. Short sections are merged into one passage, long ones are cut at spaces with a little overlap instead of mid-word, and a note stops at 96 passages. Because every passage changes, the index is rebuilt once after updating.
 
 ### Fixed
 
-- **A delete no longer leaves the explorer standing still for seconds.** The row of a deleted file went away only after the trash call had returned, and that call was wrapped in two listings of the vault's trash folder, taken before and after, to learn the name the file landed under for undo. On a trash that is never emptied, a vault on a synced drive, or a system trash on a slow volume, that took seconds, and for those seconds the pane showed a row for a file that was just deleted, as if it had frozen. The row now goes the moment the delete is confirmed, and comes back only if the trash refuses. The landing name is found with one look at the path the trash keeps for it; the listings are taken only when a namesake was already there, which the trash renames around.
-- **The explorer no longer jumps when a note is opened from its own lists.** Pressing a note in the pinned rows, the recent lists or the bookmarks opened it, and the pane then followed the open note by scrolling the tree far below to the same note's row, carrying the pane away from the row that was just pressed. A note opened from the pane's own lists now has its folders opened as before, but the scroll stays where it is. A note opened by any other route is still brought into view.
+- **Search by meaning answers from a finished index however it was first opened.** Opening the Recommended panel or the settings before the first search left every meaning search of the session empty on a desktop whose index was already complete.
+- **One failing edit no longer loses the others.** An edit batch stopped at the first note that would not embed, and nothing it had applied was written; a build then reported itself failed and automatic builds stopped for the session. The rest of the batch is applied and written, and the build's outcome is its own.
+- **A desktop no longer writes edits no one can read after a phone rebuilt the index.** A desktop left running while a phone ran Build now went on writing edits against the replaced index; it now takes the new index and puts its edits on top.
+- **Unloading while the model loads no longer loads it twice more.** The fallback from Worker to frame took an unload for a refusal and loaded the model into the next backend, the last time on the UI thread. A build running when the plugin was disabled stopped at the next note instead of running through the vault on a model nobody held; a Worker that failed after it was ready is started again instead of refusing every request until a restart.
+- **Build now reloads a model that failed to load anywhere**, not only in a build, and changing a setting ends the pause a failure put on automatic builds. Switching search by meaning off during a build gives the model's memory back when the build ends.
+- **The Recommended panel no longer loads the model** to embed a changed chat conversation; the next search does that. A long conversation is embedded in batches, and one that fails keeps the others.
+- **A phone embeds at most 10 notes of one batch of edits**, so a sync landing many changed notes at launch is left to the desktop instead of the phone's UI thread; "Build now" is no longer refused as busy meanwhile.
+- **Deadlines no longer freeze on a desktop** whose main window is minimised while a pop-out window is in use; they still pause on a phone in the background.
+- **The Explorer filter:** Hindi, Thai, Hebrew with points and Arabic with harakat stay whole words instead of breaking into single letters that matched almost everything; `tag:` or `pfad:` with nothing after it is no filter yet instead of "nothing matches"; "N more matches" no longer counts deleted notes.
+- **`schreibstubeIndex: "false"`** written as text now keeps a note out of the index, as `pythia: "false"` already did.
+- **A damaged index file is refused** rather than read into short vectors that made every later search fail.
+- **A long note no longer stalls the build and is no longer paid for on every build.** A note went to the model as one request under one two-minute deadline, whatever its length; a long one ran out of time, was skipped, and was tried again from the start by every later build. It now goes a model batch at a time, and a note that still fails on the desktop is remembered and not tried again until it changes. A note that only ran out of time, or failed on a phone, is tried again by the next build; a build whose model stopped answering altogether leaves the index as it was.
+
+## 1.51.0 - 2026-09-27
+
+A folder of Pythia's term notes can serve as a glossary: say which words to
+avoid for a term from the proofreading panel, and the term is offered in
+their place. Property sets add every key a job needs in one step, from
+Schreibstube's own features or from a folder of set notes, Templater
+templates included. A folder's pictures can be described in one run. Notes
+now leave "Extern aktualisiert" however their update was taken, and an icon
+on a property no longer covers its name.
+
+Use the term folder with Pythia 3.1.0 or later: an earlier Pythia rewrites a
+term note's properties when it looks the term up again, and drops
+`schreibstubeAvoid` with them.
+
+Mobile checklist: not run, and nothing in this release was tried in the
+Obsidian app on desktop either. The test suite and the build checked it.
+What a phone would answer differently: whether the **Add set** button finds
+its place beside **Add property** in the mobile properties view, and whether
+the folder menu's **Describe pictures** appears on a long press.
+
+The bridge stays at 2.8.0, and its protocol at 3; nothing here touches it.
+
+### Added
+
+- **Describe every picture in a folder.** Right-click a folder, in Schreibstube Explorer or in Obsidian's file list, and choose **Describe pictures** (`Bilder beschreiben`): every picture under it without a description gets one, subfolders included. Orphaned descriptions are matched to their renamed pictures first, so those are not described twice. The run says how many pictures it will send and to which provider, and waits for your yes; it goes one picture at a time, counts along in a notice with **Stop**, and ends with what was described, what the model could not describe and what failed. At most 100 pictures a run; pictures over 10 MB are left out and counted.
+- **A folder of term notes is a glossary.** Set **Term folder** to the folder Pythia writes its glossary into, and each term note becomes a concept. Nothing is flagged until you say which words to avoid for a term: select the word, press **Add rule** in the proofreading panel's new **Terms** section and pick the term. The word is flagged in every checked note with the term offered in its place, and the term's definition rides on the card and into the correction pass. The panel writes one property on the note, `schreibstubeAvoid`, and nothing else. The term itself is never flagged, so a folder of model-written terms does not start correcting capitalisation.
+- **A word defined both in a glossary table and on a term note is named in the panel.** Both apply, and where they claim the same words the glossary loaded first would decide without saying so. The panel lists each such word under the glossary line, with both places, so it can be kept in one. The README now says which of the two formats a rule belongs in.
+- **Property sets: add every key a job needs in one step.** Schreibstube's own features come as sets (Mail, Document sync, Print, Glossary note, Glossaries for this note), built from the keys each reads. Point **Property set folder** at a folder and every note in it is a set too: its frontmatter keys and values, not its body. Templater templates are rendered by Templater for the note they go into; without it the keys are added empty and the notice says so. A set is offered from a property's menu, from **Add set** beside Obsidian's **Add property**, from **Insert: property set**, when Mail finds its keys missing, and when a key you add by hand belongs to a set. It never overwrites: only missing keys are added.
+- **Add rule offers the term's translations.** Picking a term in the proofreading panel's **Add rule** now shows the translations recorded on its note (Pythia's `term_en`, `term_it`, …) as words to avoid — "cartel law" for *Kartellrecht* is the usual case. A tap fills the field; nothing is added until you press **Add**, because a translation says what a term is called elsewhere, not that the word is wrong in your text. Forms already listed, the term itself and the note's own language are not offered.
+
+### Fixed
+
+- **An update taken one card at a time leaves "Extern aktualisiert".** Accepting the cards of a source update one by one could leave a card that inserts text stuck: it was placed by the text in front of it, and accepting the card above changed that text, so it went stale and could not be accepted. The update was never finished and the note stayed in the list. The rest of an update is now drawn again after every card taken, so each card that remains can be accepted.
+- **A note brought level with its source leaves "Extern aktualisiert" at once.** It used to leave only when the panel's last card was accepted, or at its next check. Now any route counts — typed, undone, pasted, or arriving from another device: once the note's text is the source's as last fetched, it is no longer listed.
+- **An icon chosen for a property no longer covers the property's name.** The glyph was drawn in a slot Obsidian keeps 4 pixels wide as a spacer, so a 16-pixel icon spilled over the first letters of the key. It now takes the box Obsidian's own icon has, and the name starts where it always did.
+
+## 1.50.0 - 2026-09-27
+
+Tasks are no longer sent to Erinnerungen. The commands, the context-menu
+entry, the settings section, the mark after a sent task and the watched
+report file are gone; a task sent earlier keeps its link, which now leads nowhere.
+
+Mobile checklist: not run. This release only takes code away; the test
+suite and the build checked it, and nothing has been tried on a phone.
+
+The bridge stays at 2.8.0, and its protocol at 3; nothing here touches it.
+
+### Removed
+
+- **Tasks can no longer be sent to Erinnerungen.** The two commands, **Send task to Erinnerungen** and **Compare with Erinnerungen**, the entry in the editor's context menu, the Erinnerungen section in the settings and the mark after a sent task are gone, and the plugin no longer watches a report file. A task that was sent keeps its `obsidian://schreibstube?task=…` link as an ordinary link, which now leads nowhere; delete it from the line if it is in the way.
+
+## 1.49.0 - 2026-09-26
+
+Find things by what they are about. Pictures can be described in words
+by the configured model and are then found by what they show; a
+description stays with its picture through a rename, a move or a delete,
+and finds it again by its content after a rename outside Obsidian. Search
+by meaning adds a small language model on the device: the Explorer filter
+finds notes by their subject as well as their name, and Related notes
+became Recommended, with notes, pictures and Pythia's conversations that
+read alike. Schreibstube now owns the one model on the device and offers
+it to Pythia through a small API, so the two no longer load a model each.
+Search by meaning is off until switched on in the settings; the model is
+downloaded once, on first use.
+
+Mobile checklist: not run. Everything here was checked by the test suite
+and the build; none of it has yet been tried in a vault on a phone or a
+desktop.
+
+### Added
+
+- **Related notes became Recommended: notes, pictures and conversations.** The panel only knew the links, so a note about the kitchen nobody had linked never showed up beside it. With Search by meaning on, it now adds what reads alike — notes, a row of pictures whose descriptions match, and Pythia's conversations about the same thing — a moment after the links, from vectors already stored, so no model is loaded for it. A note you linked keeps its place above one that merely sounds similar, and every card says why it is there. **Recommended** in the Explorer settings shows it in the sidebar or under the note.
+
+- **Search by meaning runs on a phone next to Pythia.** It paused on a phone whenever Pythia was switched on, because both loaded a language model and two are more than a phone allows one app. A Pythia that uses Schreibstube's search and loads no model of its own no longer causes the pause; an older Pythia still does.
+
+- **Pythia's conversations can be found by meaning.** Search by meaning now also indexes the conversations Pythia hands over, with the same model on the device, so Pythia can find a chat by what it was about and show conversations like the one open without loading a model of its own. An index Pythia already built is taken over, not rebuilt. Only Pythia may hand conversations over, and what it lists is checked and bounded first.
+
+- **A description finds its picture again after a rename outside Obsidian.** A picture renamed in Finder or by a sync while Obsidian was closed left its description pointing at nothing. Shortly after the vault opens, such a note is matched to its picture by content — the size and a fingerprint of the bytes it recorded — and re-linked when the match is certain. **Explorer: orphaned picture descriptions** does the same on demand and lists the notes whose picture could not be found. None of them is ever removed.
+
+- **Pictures can be described in words, and found by them.** A photo could only be found by its file name. Switch on **Describe pictures** in the settings, then choose **Describe picture** from a picture's menu in the Explorer: the configured model writes a title, a description, keywords and any text it can read into a note of its own, in one folder for all of them. The note embeds the picture, so every search in Obsidian now finds the picture by what it shows, and describing it again replaces the note in place. The picture is resized before it is sent, which drops its location data, and the model is asked not to identify people or read out personal data. Its answer is checked before a word is written: an answer without a title or a description writes nothing, and links, tags, headings and HTML are taken out.
+
+- **A described picture is one row, found by what it shows.** In Schreibstube Explorer the description note stays out of the tree, the filter and the folder counts, and the picture itself answers to the note's title, keywords and description. A folder holding only description notes is hidden with them. **Show picture descriptions as notes** in the Explorer settings shows them as ordinary notes again.
+
+- **The Explorer filter finds notes by what they are about.** It only knew what a file is called, so a note about the kitchen with the lake view stayed hidden unless its name said so. Switch on **Search by meaning** in the settings: a small language model on the device reads every note once, and from then on the filter adds, after a short pause in typing, the notes whose content answers what was typed. The name still wins — the note called exactly what you typed stays on top — and a described picture comes up as the picture. Nothing leaves the device; the model is downloaded once. On a phone it pauses while Pythia is switched on there, and an index Pythia already built is reused instead of read again.
+
+- **A description note stays with its picture.** Renaming or moving a described picture left its note pointing at nothing unless Obsidian's "Automatically update internal links" was on, and the picture lost its words in the Explorer. The note now follows: its link and its embed point at the new place and it is renamed to match, unless you gave it a name of your own. Deleting the picture sends its note to the trash too; from Schreibstube Explorer both come back with one undo.
+
+### Fixed
+
+- **A GIF no longer stops the whole print.** A GIF is redrawn for printing, and a canvas can only redraw it as PNG — but it kept its `.gif` name, the typesetter read the PNG as a broken GIF, and the document was refused. Every picture is now named for what it has become.
+- **AVIF, HEIC, BMP and SVG pictures print.** Printing only knew JPEG, PNG, GIF and WebP, and reported any other picture as "not found" even when it was right there. Anything the device can show is now printed: AVIF and HEIC as JPEG, BMP as PNG, and SVG as the drawing itself, sharp at any size. A picture in a format that really cannot be printed says so instead of claiming it is missing.
+- **Placeholders in angle brackets print.** A sentence like "WE LEARNED THAT <DOING SOMETHING> CAN BE LEVERAGED" lost its placeholders, because anything between angle brackets was taken for HTML and dropped. Only real HTML tags are dropped now; everything else prints as written.
+- **HTML comments stay off the page.** A `<!-- … -->` comment, which Obsidian hides, was printed as text. It is now left out, like `%%…%%`.
+
+## 1.48.0 - 2026-09-25
+
+See the page before it is written. "Doc drucken" now opens a dialog with
+the template, the margins (Klein, Standard, Breit), rules as page breaks
+and the note's properties beside a preview of the pages themselves, drawn
+by Obsidian's own PDF viewer; "Drucken" writes exactly those pages, and
+"Doc drucken (ohne Dialog)" prints straight away as before. Slideshows
+reach the paper as they stand in the note — a stage's first picture, a
+filmstrip over its thumbnails, a feature, strip, masonry or comparison as
+arranged — or, if the dialog says so, every picture stacked. And Mermaid
+flowcharts, which printed as their source text, print as diagrams in the
+light theme.
+
+Mobile checklist: not run, and neither was a desktop print in Obsidian
+itself; everything here was checked with the pinned typesetter and, for
+Mermaid, in Chromium against Mermaid 11. What a device would answer
+differently: the dialog's layout on a phone, the preview drawn by
+Obsidian's pdf.js, the margin choice greyed out for the letter, a
+flowchart printed from a vault in dark mode, and Obsidian's own Mermaid
+version behaving as Mermaid 11 did.
+
+The bridge stays at 2.8.0, and its protocol at 3; nothing here touches it.
+
+### Added
+
+- **A print dialog with a preview.** "Doc drucken" now opens a dialog before anything is written: choose the template, the margins (Klein, Standard, Breit), whether horizontal rules start a new page, and whether the note's properties are printed under its title. Beside the choices, the pages themselves: the document is set again after each change and drawn by the PDF viewer Obsidian uses, and "Drucken" writes exactly those pages. Nothing is remembered; each print starts from its template. A template that sets its own margins, like the letter, keeps them, and the margin choice is greyed out for it.
+- **Slideshows print.** A slideshow used to reach the paper as its source text, a grey block of image links. It now prints as it stands in the note before anybody steps through it: a stage its first picture, a filmstrip its first picture over the thumbnails, a feature its scene and two details, a strip its tiles, a masonry its balanced columns, a comparison its before and after side by side. For a note that holds one, the print dialog also offers "Alle Bilder untereinander", which prints every picture of every slideshow at the text's width, each with its description. Each picture is read only as large as it prints, so a long filmstrip stays within the picture budget, and a path written with `%20` is found as on screen.
+- **"Doc drucken (ohne Dialog)"** prints straight away, as the template sets the page, for a note printed again and again.
+
+### Changed
+
+- **The template picker is gone.** Where printing used to ask which template to use, the dialog's template choice does, with the note's or the settings' template already selected.
+- **Standard takes its margins from its descriptor.** The built-in template used to set them in its layout, where no preset could reach them. A copy of Standard in the vault made before this keeps its own margins until it is laid down again.
+
+### Fixed
+
+- **Mermaid flowcharts print as pictures.** A flowchart, and most class and state diagrams, went to paper as their source text: Mermaid writes their labels as HTML, and the browser refuses to let such a drawing be turned into a picture. Printing now asks Mermaid for a drawing of its own with plain text labels, in the light theme unless the diagram chose a theme itself. Flowcharts, sequence, class, state, ER, mindmap, pie and Gantt diagrams were checked to print, and a vault in dark mode no longer prints dark diagrams on white paper. Gantt charts, which came out with no width, print at the width of the page. The diagrams in the note itself are unchanged.
+
+## 1.47.0 - 2026-09-25
+
+Printing with nothing to set up. Switch printing on and print a note: it
+comes out on Standard, a template the plugin now carries — A4, the note's
+own headings, justified text hyphenated in the plugin's language, footnotes
+at the foot of the page, page numbers once there are two. "Standardvorlage"
+in the print settings picks another default, or the picker every time;
+"Vorlage anlegen" lays Standard down in the vault to be changed, and the
+copy then prints in its place. A long document gets the time it needs:
+the deadline for setting a page now grows with the note instead of
+stopping a long chapter on a phone at twenty seconds.
+
+Mobile checklist: not run. What a phone would answer differently: a first
+print in a vault with no template coming out on Standard, a long note
+finishing where it used to be stopped, with the notice naming how long it
+may take, and the default-template dropdown in the print settings.
+
+The bridge stays at 2.8.0, and its protocol at 3; nothing here touches it.
+
+### Added
+
+- **Printing works without a template of your own.** Schreibstube now carries a template called Standard: A4, the note's own headings, justified text hyphenated in the plugin's language, footnotes at the foot of the page, and the page number once there is more than one page. A note with no heading gets its file name as a title. It is the default for any note that names no template, so switching printing on and printing a note is all it takes. "Vorlage anlegen" offers it as a third example, and a copy in the vault called Standard is the one that prints, so it can be changed like any other template.
+- **A default template in the print settings.** "Standardvorlage" chooses what a note that names no template is printed with: Standard, any template in the vault, or "Jedes Mal fragen" for the picker. A default whose folder has gone is reported, and the picker opens.
+
+### Changed
+
+- **A note without a template is no longer asked about.** It used to open the template picker every time; it now prints with the default, Standard unless you chose another. Set "Standardvorlage" to "Jedes Mal fragen" to keep being asked. The notice that the vault has no template is gone, since there always is one.
+
+### Fixed
+
+- **A long document prints on a phone.** Setting a document was given twenty seconds, whatever its length. A letter needs a fraction of that, but a long chapter on a slow phone needed more, so it was stopped just before it would have finished. The time allowed now grows with the document: twenty seconds, plus time for its text, pictures and fonts, and never more than three minutes. For a long document the notice says how long it may take, and one that still runs over says so in plain words instead of an English line about the compiler.
+
+## 1.46.0 - 2026-09-24
+
+Bookmarks that show what the file says. A bookmark written as Obsidian
+writes a note link without wikilinks — `[Name](Note.md)` — is shown and
+opens its note; a link to a heading opens the note there; task lines,
+deeper headings and `www.` addresses read as meant, and a long line can no
+longer hold up the pane. Every bookmark wears one of three grey icons: the
+globe for the web, the plugin's own for a link that calls one, the library
+for everything in the vault. "Open bookmark" keeps the file's order and
+remembers nothing, and folding a bookmark folder no longer throws the
+explorer to the open note. "Latest" becomes "Extern aktualisiert": only the
+notes a Document sync source changed, only while Document sync is on, and
+without settings of its own. Printing gets its standard fonts and a round
+of fixes, and a published site can carry a tab icon from its theme.
+
+Mobile checklist: not run. What a phone would answer differently: a
+`[[Note#Heading]]` bookmark opening scrolled to its heading, a tap on an
+`obsidian://` plugin link reaching the plugin, folding a bookmark folder
+right after opening a note leaving the pane where it was, and the plugin
+icons and the library icon drawing in the pane.
+
+The bridge moves to 2.8.0 for the site's tab icon; its protocol stays at 3,
+and bridge 2.7.0 still publishes for this release, without the icon.
+
+### Added
+
+- **Bookmark icons say where a bookmark leads.** Three icons, all in grey, in the bookmarks pane and in **Open bookmark**: the globe for a web link; the plugin's own icon for a link that calls one, so `obsidian://pythia?vault=…&cmd=resume&id=…` wears Pythia's logo; and Obsidian's library icon for everything in the vault — notes, folders and links Obsidian answers itself, such as `obsidian://open`. A plugin's icon is the one on its ribbon button, hidden ones included, or else the one it puts on its commands; a plugin without one gets the library icon, and so does one that is turned off, from the next redraw on.
+- **A tab icon for the published site, named by its theme.** A `theme.css` may name the site's icon as `--site-icon: url("data:image/svg+xml,…")`, beside its other colours and pictures; the bridge writes it as a file and links it from every page, so the browser tab shows it. An SVG or a PNG of at most 32 kB; an SVG holding a script, an event handler or anything it would load from elsewhere is left out, and the site publishes without an icon. Only the bridge changes: the protocol stays at 3, and no plugin release is needed.
+
+### Changed
+
+- **"Latest" is now "Updated externally", and only there when Document sync is on.** The "Created" and "Modified" lists are gone: Obsidian's own recent files already show a note created or edited in the vault, and the two lists came along from an earlier plugin rather than from anything Schreibstube does. What stays is the list of notes whose Document sync source changed, newest first and up to fifty, with its mark on the section icon and no heading of its own inside the section. The section has no settings any more — the switch, the count and the excluded paths are gone, and are removed from the plugin's data file the next time it starts — and it appears only while **Document sync** is turned on.
+- **Open bookmark lists your bookmarks in the order of the file.** It no longer puts the ones last opened on this device first, and nothing about opening a bookmark is remembered any more. The list an earlier version kept on each device is deleted from it the first time this version starts. The bookmarks file is the only thing that decides what the list holds and in which order.
+
+### Fixed
+
+- **A bookmark to a heading opens the note at that heading.** `[[Note#Goals]]` was looked up as a note called "Note#Goals" and never found; `[Goals](Note.md#Goals)` found the note but dropped the heading. Both now open the note scrolled to the heading or block, and an unlabelled one is named "Note > Goals" as Obsidian names it.
+- **Task lines, deeper headings and `www.` addresses in the bookmarks file read as meant.** `- [ ] [Name](url)` is a bookmark called "Name", not "] [Name". A `###` heading is a folder inside the `##` above it, at any depth, instead of vanishing and leaving its bookmarks in the folder above. `[Site](www.example.com)` opens the site instead of looking for a note of that name. Two folders of the same name fold separately.
+- **A long line in the bookmarks file can no longer hold up the pane.** Reading a line with many `](` or many spaces took time growing with the square of its length — seconds for one long line — and it happened on every save. Lines are now read in a single pass, and the file is read within a budget: the first 256 KB, lines of up to 4,096 characters, 2,000 bookmarks, with a warning in the developer console when the file goes past it.
+- **The bookmark filter finds a bookmark by where it leads, too.** Typing a domain into the pane's filter now keeps the bookmarks pointing there, as **Open bookmark** already did.
+- **A bookmark that fails to open says so** instead of failing without a word.
+- **Folding a bookmark folder no longer throws the explorer to the open note.** A note opened while the sidebar was shut — on a phone, every note — left its jump waiting for the next redraw, and folding a bookmark folder, opening or closing a section, or collapsing or expanding the whole tree was that redraw. Only folding a folder in the file tree already let go of it; now every fold does, and the pane stays where you are.
+- **A bookmark written as a Markdown link to a note is shown.** `- [Today I learned](Today%20I%20learned.md)` is how Obsidian links a note when wikilinks are turned off, and the bookmarks pane dropped every such line without a word, so a list written that way was missing its entries and a folder holding only those did not appear at all. A link without a scheme now opens the note it names, read relative to the bookmarks file as Obsidian reads it, and a link Obsidian wrapped in `<…>` because it holds a space is read too.
+- **A template without its own font no longer prints blank pages.** The typesetter has no typeface of its own, and a page set without one is empty, so both example templates and any template without a `fonts/` folder printed pages with no words on them. The standard fonts Typst itself uses, Libertinus Serif for text and DejaVu Sans Mono for code, now come with the typesetter: fetched once per device beside it, about 2 MB more, and checked against pinned hashes the same way. A template that brings its own font still gets it.
+- **Printing a note with a callout works.** Every callout stopped the print with "unexpected argument": the default helper took the callout's text in a way Typst does not pass it. The same was true of a template's own helpers, which the documentation said would replace the defaults and never did, because only the template's entry function was imported. A helper a template defines at the top level of `template.typ` now wins over the default, as documented.
+- **Code or bold right before a bracket or a dot no longer stops the print.** `` `f`(x) ``, `` `package`.json ``, `**Note**(see below)` and a link followed by `(`: Typst read the bracket as a call on the code or the bold text and refused the document. These now print as written.
+- **A diagram inside a callout prints its own picture.** It was numbered from zero again inside the callout and got the picture of the note's first diagram, silently. A footnote cited inside a quote or a callout is no longer dropped, and a footnote that cites itself no longer crashes the print.
+- **Long code blocks and callouts continue on the next page** instead of running off the bottom of this one.
+- **Printed lists keep what the note says.** A numbered list that starts at 3 starts at 3, and a task list shows its boxes, ticked or not, instead of `[ ]` and `[x]`.
+- **Printing never overwrites a PDF that is not a print.** A reprint still replaces the previous print, but a PDF of the same name from anywhere else is asked about first. The document is written through the vault, so it appears in the file list at once, also on a phone, and a missing output folder is created.
+- **Two pictures whose names differ only in spaces or punctuation both print.** One of them used to be printed twice.
+- **A template name that fits two folders is asked about** instead of being settled by whichever came first. A note can also name the template by its folder path.
+- **A print can no longer hang.** Drawing a diagram and reading it back now have a time limit, so another plugin that never finishes drawing cannot keep the print and its notice open for ever. Fonts, template pictures and note pictures are checked against the size limits before they are read, not after, and a PDF over the limit is refused rather than written.
+- **Printing speaks German.** The notes about what was left out, and the reasons a template was refused, were always in English.
+- **Switching printing off removes old typesetter versions too.** After an update, the previous 28 MB version stayed in the plugin folder for good. It is now removed as soon as the new one is ready.
+- **A date in a note's print data is the day it says** in every time zone. West of Greenwich it printed as the day before.
+
+## 1.45.0 - 2026-09-24
+
+A published site that looks like the notes it came from. Slideshows publish
+in the layout the note chose — stage, filmstrip, feature, strip, masonry or
+before-and-after — with their controls and a fullscreen view, and a
+filmstrip loads small thumbnails the plugin makes instead of whole
+photographs. Pictures written as `![alt](bild.png)` now show, a size given
+after the bar is kept, and each connection can link up to three tags from
+the site's header, each to a page of its notes. In the explorer, a note
+pressed in the recent lists opens again instead of the tree jumping away,
+and every file menu offers **In neuem Fenster öffnen**, with Obsidian's
+modifier clicks for a tab, a split or a window.
+
+Mobile checklist: not run. What a phone would answer differently: a
+publish making filmstrip thumbnails without the app being closed, a
+slideshow on the published site swiping and its divider dragging under a
+finger, and a tap on a recent-list entry opening its note.
+
+The bridge moves to 2.7.0 and its protocol to 3: thumbnails, header tags and
+the tag pages travel in it. Deploy the bridge first. Bridge 2.6.0, at
+protocol 1, still publishes for this release, without thumbnails and without
+header tags, and the plugin says the bridge is behind; bridge 2.7.0 serves
+every plugin since 1.8.0.
+
+### Added
+
+- **Tags in the header of a published site.** Each connection can name up to three tags in its settings; every page of the site then links them on the right of the header, each to a page listing the published notes that carry it, newest first. Tags count as Obsidian counts them — in the note's properties or its text, case aside, nested ones included — and a tag no published note carries is left out. Only which of the three tags a note carries is sent to the bridge; a note's other tags stay in the vault. This needs the bridge's protocol 3; an older bridge publishes the site without them.
+- **Open in a new window, from the explorer.** Every file menu of the pane — the tree, the recent lists, the pinned rows, the picture tiles and the related-notes and tag cards — now offers **In neuem Fenster öffnen** beside **In neuem Tab öffnen**, on the desktop; a phone or a tablet has no second window and does not show it. A press follows Obsidian's modifiers as well: ⌘ opens a new tab, ⌘⌥ a split, ⌘⌥⇧ a new window, in the recent lists, the pinned rows and the cards. In the tree, where ⌘ and ⇧ already build a selection, they still do, and only the split and window chords open.
+- **Slideshows on the published site.** A note with a slideshow block used to publish the block's text as a code sample. The page now shows the slideshow in the layout the note chose — stage, filmstrip, feature, strip, masonry or before-and-after — with the alt text and controls in the header, the arrow keys, thumbnails, the divider and the fullscreen view, from a small script the site carries itself. Without scripts the pictures still read: the stage swipes, the tiles stand in a grid, and a comparison sets its two pictures side by side. Pictures that were not published are left out, and a block with a mistake in it stays off the page instead of appearing as code. The block is read on the site by the same rules as in the vault, and one table of examples keeps the two readings the same.
+- **A published filmstrip loads small thumbnails.** The row under the stage showed each photograph at full size, shrunk to a stamp, so a phone downloaded several whole photographs just to draw the row. The plugin now makes a small copy of each filmstrip picture when it publishes, and only of those the site does not have yet, so an unchanged photograph is shrunk once, on its first publish. A picture whose copy could not be made is shown as before. This needs the bridge's protocol 2; an older bridge publishes the filmstrip without thumbnails.
+
+### Fixed
+
+- **A note pressed in the explorer's recent lists opens again.** Since the tree became reachable by keyboard, the list around it handed any focus it received to the open note's row. A row in the recent lists or the bookmarks cannot hold the focus itself, so pressing one focused the list, and handing that on scrolled the tree to the open note while the button was still down. The button then came up over another row, the click reached neither, and nothing opened; what showed was the tree jumping to the note already open. The list now hands on only the focus that Tab brings, and a press keeps its own.
+- **A published picture keeps the size the note gives it.** Obsidian reads a number after the last `|` of an embedded picture as its width, and `300x200` as width and height — `![[bild.png|300]]`, `![Haus|300](bild.png)`. The site read the same number as the picture's alt text and showed it at full width. It now sets the size as Obsidian does, for pictures from the vault and from the web and for videos, and keeps what comes before the bar as the alt text. A picture is still never wider than the text column. Pages already on the site are rendered again on the next publish.
+- **A published image written as `![alt](bild.png)` shows on the site.** Only the `![[bild.png]]` form was pointed at the uploaded file; the Markdown form kept the path as written, which names nothing on the server, so the picture was uploaded and then shown as a broken image. It is now found the way Obsidian finds it — from the vault root, then from the note's own folder, then by its name — including a name spelt with `%20`, in angle brackets, or with umlauts, and a video written this way plays. A path in angle brackets with spaces in it, such as `![](<Grundriss EG.png>)`, was not uploaded at all and now is. An image that was not published shows its alt text rather than a broken picture. Pages already on the site are rendered again on the next publish.
+
+## 1.44.0 - 2026-09-24
+
+Faster publishing, safer on a phone, and a note that always opens. A
+publish of a large site no longer reads every note back from the web host:
+the bridge keeps what it has seen in memory and talks to the host several
+requests at a time, so one edited note of three hundred takes under a
+second instead of twelve. A first publish uploads three files at a time
+over one login rather than one login per file, and publishing from a phone
+no longer holds every picture of the site in memory at once. A press on a
+note in the explorer that sometimes opened nothing — the heading stack
+failing inside the editor while it swapped notes — now opens it every
+time, and the filter's clear button is no longer hidden from screen
+readers.
+
+Mobile checklist: not run. What a phone would answer differently: a publish
+of a folder with many large pictures completing without the app being
+closed, and a first publish over mobile data finishing before the phone
+suspends the app.
+
+The bridge moves to 2.6.0 and its protocol is unchanged, so bridge 2.5.0
+still serves this release, without the speed-ups above that live in the
+bridge. Redeploy it to have them.
+
+### Changed
+
+- **Publishing a large site is quick again after the first time.** Every publish rendered the whole site, and read every stored note back from the web host to do it, one request after another: with three hundred notes, one edited sentence cost about twelve seconds of waiting. The bridge now keeps the notes it has uploaded or read in memory — a note is stored under the hash of its content, so a kept copy can never be out of date — and reads, writes and deletes several files at a time instead of one by one. Measured against a test server that answers every request ten milliseconds late, one edited note of three hundred went from 12.1 to 0.8 seconds, and the build step of a first publish from 45 to 7 seconds. The first publish after a redeploy reads the notes once, several at a time.
+- **Publishing from a phone no longer holds every picture in memory.** Before asking the bridge anything, publishing read every image and video the published notes show and kept all of them until the run was over, including the ones the site already had. On a phone, whose Obsidian runs with far less memory than a desktop, a site with a few hundred photos or a handful of videos could get the app closed in the middle of a publish. Attachments are now read to be hashed and let go, and read again only if the bridge asks for them. A file edited between the two readings stops the run with its name instead of being sent as something it no longer is.
+- **A first publish takes a fraction of the time.** Files were uploaded one after another, and the bridge logged in to the web host afresh for each of them: with three hundred notes, a first publish from a phone took minutes, long enough for the phone to pause the app halfway. The plugin now uploads three files at a time, and the bridge keeps its connection to the web host open while a publish is running, so it logs in once instead of once per file.
+
+### Fixed
+
+- **A note pressed in the explorer opens, every time.** Now and then a press on a note, most often one in the recent lists, opened nothing and moved nothing, and the developer console showed an error about `isText`. The heading stack asks the editor, on every scroll, which line sits under the overlay; asked in the moment the editor was swapping one note for another, the editor failed inside its own lookup, and a failure there stopped it drawing the new note at all. The question is now asked only of an editor that is on screen, and a failed answer falls back to the first line the editor has laid out, which the stack already did when no line was found.
+- **The filter's clear button is visible to screen readers.** The button hid itself from assistive technology while it could hold the focus, which the browser reports as an error every time the filter is cleared. The mark is now hidden, and the button is not.
+
+## 1.43.0 - 2026-09-24
+
+Publishing you can see, and a bridge that tells the truth. The explorer
+marks every note that is marked for publication with a small globe, and its
+title says whether the site's latest run put the note online or whether it
+is still waiting. Unpublishing the last page of a site now takes it down;
+before, the command stopped at "nothing is marked" and the page stayed
+online. On the bridge, a delivered email is no longer reported as failed
+when filing the copy in Sent is slow, the copy goes to the folder the mail
+server marks as Sent without being named, and code on a published page
+keeps its `%%` instead of losing the prose between two code blocks. A long
+publish is no longer reported as failed while it succeeds, an upload is
+retried after a dropped connection to the web host, and the bridge's own
+files inside a web root are shut off from visitors.
+
+Mobile checklist: not run. What a phone would answer differently: the globe
+drawing beside a name, and next to a sync cloud, at the phone's row size;
+and a publish from a phone whose vault has not finished syncing being
+refused as an empty folder rather than taking the site down.
+
+The bridge moves to 2.5.0 and its protocol is unchanged, so bridge 2.4.0
+still serves this release, without the fixes above that live in the
+bridge. A publish target whose `STATE_ROOT` is relative no longer boots on
+2.5.0: it must be an absolute path on the SFTP host, as `ROOT` already had
+to be.
+
+### Added
+
+- **The explorer marks what you publish.** A note marked for publication in a publishing account's folder carries a small globe after its name, in the tree, the pinned rows and the lists above it; every other note carries nothing. The globe's title says what the mark means now: "Published on writings.grembl.de" with the time, when the site's latest run put the note online, or "Marked for publication … not published yet" while it is waiting for the next run. The mark follows the flag the moment it is set, and it sits after the sync cloud where a note has both, so the one that can ask for something comes first.
+
+### Changed
+
+- **The bridge finds your Sent folder by itself.** A sent message's copy went to a folder called `Sent`, and a mailbox that names it otherwise — Strato's is `Sent Items`, shown as "Gesendete Objekte" — got no copy until `SENT_MAILBOX` was set by hand. Left unset, the bridge now asks the mail server which folder it marks as Sent and files there. Only the server's own marker counts, never a guess from a name; a server that marks nothing gets `Sent` as before, and a name set in `SENT_MAILBOX` still wins over the marker. On Gmail, which keeps its own copy of what it sends, the bridge files none, where filing one now would put every message in the thread twice.
+
+### Fixed
+
+- **Unpublishing the last page takes it down.** Setting `published: false` on the only published note of a site, and publishing, stopped at "no note is marked for publication" without asking the bridge, so the page stayed online however often it was run. A folder with no marked note now goes to the bridge like any other: the confirmation lists the pages that will be deleted, and confirming takes them down. A folder that holds no notes at all is still refused, because that is far more often a mistyped folder, or a phone whose vault has not synced yet, than a site meant to be emptied.
+- **The bridge's docs name the host key it actually checks.** The README and the example configuration read the web host's fingerprint with `ssh-keyscan -t rsa`, which prints only the RSA key, while the bridge is shown the server's ED25519 key wherever there is one. Following the docs to the letter produced a fingerprint that could never match, and a refusal that did not say why. The docs now list every key and say which one to take, and a mismatch names the key type the server presented.
+- **A delivered email is no longer reported as failed.** The bridge gave sending and filing the copy in Sent one deadline together, so a Sent folder that was slow to answer turned a message already with its recipient into "send failed", and sending again delivered it twice. Each step now has its own deadline: once the message is out, a slow or failing Sent folder only means the copy was not filed, which the notice says. The plugin also waits longer than the bridge does, so it no longer gives up on a send the bridge is still finishing.
+- **Code on a published page keeps its `%%`.** The bridge removes `%%…%%` comments before rendering, and it did so inside code too: a format string in one code block and a SQL pattern in another were read as one comment, and everything between them, prose included, vanished from the page without a word. Comments are now recognised only outside code blocks and inline code, as in Obsidian.
+- **A long publish is no longer reported as failed while it succeeds.** The plugin waited two minutes for the site to be built, the bridge allows five; a large site went live after the plugin had already said it failed, and publishing again met "already running". The plugin now waits longer than the bridge.
+- **A dropped connection to the web host no longer fails an upload at once.** Whether to try an upload again was read from the wording of the error, and the wording for a failed SFTP step names no status, so it was given up on at the first try. The decision now rests on the status the bridge answered with, and an upload that arrived truncated is sent again too.
+- **The bridge's own files on the web host are shut off from visitors.** A publish target without its own state directory keeps its sources, index and manifest in `.schreibstube` inside the web root, where the Markdown of every published note, frontmatter and `%%` comments included, could be read by anyone who guessed the address. The bridge now puts a `.htaccess` denying access into that directory before the first file lands there, leaves one it finds alone, and warns at every start, because a server other than Apache needs a rule of its own. A state directory must now be an absolute path.
+
+## 1.42.0 - 2026-09-24
+
+A quieter slideshow and a steadier explorer. The alt text and the controls
+above a slideshow now appear only while the pointer is over the block, or
+after a tap on a phone, and a swipe across the pictures stays with the
+block instead of scrolling the note or pulling a sidebar in. A picture
+opened from the tile grid opens in the grid's own tab, so Back returns to
+the grid. The explorer no longer follows a note into a popped-out window,
+no longer scrolls away from a note you just pressed in its own lists, and
+takes a deleted row away the moment the delete is confirmed rather than
+seconds later. The icon picker no longer shows blank squares after a plugin
+update, and the tag icon draws as a tag.
+
+Mobile checklist: not run. What a phone would answer differently: a tap on
+a slideshow showing its header and a second tap hiding it, a swipe across
+the stage turning the page without Obsidian's sidebar sliding in, a
+deleted row going before the vault's own event arrives, and a tap in the
+recent lists leaving the tree where it is.
+
+The bridge's protocol is unchanged; bridge 2.4.0 still pairs with this release.
+
+### Changed
+
+- **A slideshow's header stays out of the way.** The alt text and the controls in the row above a slideshow now appear only while the pointer is over the block or a control has the keyboard focus. On a phone, which has no pointer, a tap on a picture or on the row shows them and the next tap, or a swipe, hides them again. The row keeps its height, so nothing below the block moves when they come and go. This is the same in every layout, from the stage to the before-and-after.
+- **A swipe on a slideshow is the slideshow's alone.** A sideways swipe across the stage or the scene in the note has turned the page since the block existed, but the note could scroll with it and, on a phone, Obsidian could answer the same swipe by sliding a sidebar in over the note. Once a finger is clearly moving sideways the block now claims the gesture: the note stays put and nothing above the block sees it. Which travel is a tap, a swipe or a scroll is one small decision module with tests.
+- **Back returns from a picture to its tiles.** A tile opened its picture in a new tab, so the tab's Back arrow had nowhere to go and the grid was reached again only through the folder's menu. A tile now opens its picture in the tiles tab itself, and Back brings the grid back as it was, on the folder it was showing. A modifier click, Cmd or Ctrl, opens a new tab instead, for the grid and the picture side by side.
+- **The explorer no longer follows a note into another window.** The pane opens the folders above the open note and scrolls its row into view, whichever way the note was opened. It did that for a note in a popped-out window too, and again every time that window was focused, so the tree in the main window kept scrolling to a note nobody was looking at there. A note in another window is now left alone entirely: the tree stays as it was arranged. A note in the pane's own window is followed as before.
+
+### Fixed
+
 - **The icon picker no longer shows blank squares after an update.** The plugin's icon font is put into the window once and was never taken out again, and Obsidian updates a plugin in place, in the same window. After an update the window kept the previous version's font, the picker listed every icon the new version knew, and each icon the old font lacked was a blank square until Obsidian was restarted. The font now leaves with the plugin on unload, and a font from another build is replaced rather than kept.
 - **The tag icon draws as a tag.** Its codepoint lies above the Basic Multilingual Plane, and the generated map wrote it as four digits and a leftover, which drew as a foreign letter followed by a 6. The map now writes every codepoint in the braced form.
-
+- **The explorer no longer jumps when a note is opened from its own lists.** Pressing a note in the pinned rows, the recent lists or the bookmarks opened it, and the pane then followed the open note by scrolling the tree far below to the same note's row, carrying the pane away from the row that was just pressed. A note opened from the pane's own lists now has its folders opened as before, but the scroll stays where it is. A note opened by any other route is still brought into view.
+- **A delete no longer leaves the explorer standing still for seconds.** The row of a deleted file went away only after the trash call had returned, and that call was wrapped in two listings of the vault's trash folder, taken before and after, to learn the name the file landed under for undo. On a trash that is never emptied, a vault on a synced drive, or a system trash on a slow volume, that took seconds, and for those seconds the pane showed a row for a file that was just deleted, as if it had frozen. The row now goes the moment the delete is confirmed, and comes back only if the trash refuses. The landing name is found with one look at the path the trash keeps for it; the listings are taken only when a namesake was already there, which the trash renames around.
 
 ## 1.41.0 - 2026-09-23
 

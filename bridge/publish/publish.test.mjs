@@ -1,11 +1,12 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
-import { readFile, readdir } from "node:fs/promises";
+import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { startSftpServer } from "./sftp-fixture.mjs";
+import { STATE_GUARD } from "./routes.mjs";
 
 /**
  * The publish capability, end to end.
@@ -136,7 +137,7 @@ beforeAll(async () => {
       ...process.env,
       PORT: String(port),
       PUBLISH_TOKEN: TOKEN,
-      PUBLISH_TARGETS: "blog",
+      PUBLISH_TARGETS: "blog,notizen,archiv,falsch",
       PUBLISH_BLOG_HOST: "127.0.0.1",
       PUBLISH_BLOG_PORT: String(sftp.port),
       PUBLISH_BLOG_USER: sftp.user,
@@ -146,6 +147,30 @@ beforeAll(async () => {
       PUBLISH_BLOG_STATE_ROOT: STATE,
       PUBLISH_BLOG_BASE_URL: "https://blog.example.com",
       PUBLISH_BLOG_SITE_TITLE: "Schreibstube",
+      // A second target on the same host, with its state left at the default
+      // inside its web root.
+      PUBLISH_NOTIZEN_HOST: "127.0.0.1",
+      PUBLISH_NOTIZEN_PORT: String(sftp.port),
+      PUBLISH_NOTIZEN_USER: sftp.user,
+      PUBLISH_NOTIZEN_PASSWORD: sftp.password,
+      PUBLISH_NOTIZEN_HOST_FINGERPRINT: sftp.fingerprint,
+      PUBLISH_NOTIZEN_ROOT: "/notizen",
+      PUBLISH_NOTIZEN_BASE_URL: "https://notizen.example.com",
+      PUBLISH_ARCHIV_HOST: "127.0.0.1",
+      PUBLISH_ARCHIV_PORT: String(sftp.port),
+      PUBLISH_ARCHIV_USER: sftp.user,
+      PUBLISH_ARCHIV_PASSWORD: sftp.password,
+      PUBLISH_ARCHIV_HOST_FINGERPRINT: sftp.fingerprint,
+      PUBLISH_ARCHIV_ROOT: "/archiv",
+      PUBLISH_ARCHIV_BASE_URL: "https://archiv.example.com",
+      // The same host, pinned to a fingerprint it does not have.
+      PUBLISH_FALSCH_HOST: "127.0.0.1",
+      PUBLISH_FALSCH_PORT: String(sftp.port),
+      PUBLISH_FALSCH_USER: sftp.user,
+      PUBLISH_FALSCH_PASSWORD: sftp.password,
+      PUBLISH_FALSCH_HOST_FINGERPRINT: "SHA256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+      PUBLISH_FALSCH_ROOT: "/falsch",
+      PUBLISH_FALSCH_BASE_URL: "https://falsch.example.com",
       MAIL_TOKEN,
       IMAP_HOST: "127.0.0.1",
       IMAP_PORT: "1",
@@ -183,7 +208,12 @@ describe("targets", () => {
       headers: { authorization: `Bearer ${TOKEN}` }
     });
     expect(await response.json()).toEqual({
-      targets: [{ name: "blog", baseUrl: "https://blog.example.com", siteTitle: "Schreibstube" }]
+      targets: [
+        { name: "blog", baseUrl: "https://blog.example.com", siteTitle: "Schreibstube" },
+        { name: "notizen", baseUrl: "https://notizen.example.com", siteTitle: "notizen" },
+        { name: "archiv", baseUrl: "https://archiv.example.com", siteTitle: "archiv" },
+        { name: "falsch", baseUrl: "https://falsch.example.com", siteTitle: "falsch" }
+      ]
     });
   });
 
@@ -263,6 +293,24 @@ describe("a first publish", () => {
   });
 });
 
+describe("logging in", () => {
+  it("logs in once for a whole publish, not once per request", async () => {
+    // An edit, so the publish has an upload between its plan and its commit.
+    const text = "# Erste\n\nNoch einmal anders.\n";
+    const next = bothNotes();
+    next.notes[0].sha256 = sha256(text);
+
+    const before = sftp.connections;
+    const result = await publish(next, sources().set(sha256(text), text));
+    expect(result.status).toBe(200);
+    // Plan, upload and commit share one connection; one left open by an
+    // earlier test may even have been reused, which counts as none.
+    expect(sftp.connections - before).toBeLessThanOrEqual(1);
+
+    expect((await publish(bothNotes(), sources())).status).toBe(200);
+  });
+});
+
 describe("a second publish with no changes", () => {
   it("uploads nothing", async () => {
     const plan = await post("/publish/plan", { target: "blog", index: bothNotes() });
@@ -272,9 +320,13 @@ describe("a second publish with no changes", () => {
   });
 
   it("writes nothing, because every page came out the same", async () => {
+    sftp.resetStats();
     const result = await publish(bothNotes(), sources());
     expect(result.json.written).toBe(0);
     expect(result.json.unchanged).toBeGreaterThan(0);
+    // The notes were uploaded through this bridge, so it renders them from
+    // memory instead of reading each one back from the host.
+    expect(sftp.stats.reads.filter((path) => path.includes("/src/"))).toEqual([]);
   });
 });
 
@@ -348,6 +400,24 @@ describe("a renamed and an unpublished note", () => {
     await publish(bothNotes(), sources());
     expect(await readFile(stranger, "utf8")).toBe("nicht von uns");
   });
+
+  it("takes the last pages down when no note is published any more", async () => {
+    const empty = index({ notes: [] });
+    const plan = await post("/publish/plan", { target: "blog", index: empty });
+    expect(plan.json.willDelete).toEqual(
+      expect.arrayContaining(["erste/index.html", "zweite/index.html"])
+    );
+
+    const result = await publish(empty, sources());
+    expect(result.status).toBe(200);
+    await expect(readFile(siteFile("zweite", "index.html"))).rejects.toThrow();
+    // The site itself stays: an empty index page, and nobody else's files.
+    expect(await readFile(siteFile("index.html"), "utf8")).not.toContain("Zweite");
+    expect(await readFile(siteFile("fremd.html"), "utf8")).toBe("nicht von uns");
+
+    // Put the site back for what follows.
+    expect((await publish(bothNotes(), sources())).status).toBe(200);
+  });
 });
 
 describe("re-rendering from stored state", () => {
@@ -356,6 +426,148 @@ describe("re-rendering from stored state", () => {
     expect(response.status).toBe(200);
     expect(response.json.written).toBe(0);
     expect(response.json.unchanged).toBeGreaterThan(0);
+  });
+});
+
+describe("filmstrip thumbnails", () => {
+  // A target of its own, so these publishes leave the others' sites alone.
+  const target = "archiv";
+  const jpeg = (n) => Buffer.from([0xff, 0xd8, 0xff, 0xe0, n, n, n]);
+  const haus = jpeg(1);
+  const garten = jpeg(2);
+  const thumb = jpeg(9);
+  const strip =
+    "# Garten\n\n```schreibstube-slideshow\nlayout: filmstrip\n" +
+    "![Haus](Blog/haus.jpg)\n![Garten](Blog/garten.jpg)\n```\n";
+  const siteOf = (...parts) => join(sftp.root, "archiv", ...parts);
+
+  const thumbIndex = (thumbnail = true) =>
+    index({
+      notes: [
+        note({
+          sourcePath: "Blog/Garten.md",
+          sha256: sha256(strip),
+          slug: "garten",
+          title: "Garten"
+        })
+      ],
+      assets: [
+        {
+          sourcePath: "Blog/haus.jpg",
+          sha256: sha256(haus),
+          name: "haus.jpg",
+          bytes: haus.length,
+          thumbnail
+        },
+        {
+          sourcePath: "Blog/garten.jpg",
+          sha256: sha256(garten),
+          name: "garten.jpg",
+          bytes: garten.length,
+          thumbnail
+        }
+      ]
+    });
+
+  const thumbPath = (bytes, stem) => `assets/thumbs/${sha256(bytes).slice(0, 12)}-${stem}.jpg`;
+
+  async function uploadAll(plan) {
+    await put(
+      `/publish/source?target=${target}&sha256=${sha256(strip)}`,
+      Buffer.from(strip, "utf8")
+    );
+    for (const entry of plan.uploadAssets) {
+      const body = entry.name === "haus.jpg" ? haus : garten;
+      await put(
+        `/publish/asset?target=${target}&sha256=${entry.sha256}&name=${encodeURIComponent(entry.name)}`,
+        body
+      );
+    }
+  }
+
+  const sendThumbnail = (entry, body = thumb, extra = "") =>
+    put(
+      `/publish/thumbnail?target=${target}&source=${entry.sha256}&sha256=${sha256(body)}` +
+        `&name=${encodeURIComponent(entry.name)}${extra}`,
+      body
+    );
+
+  it("asks for a thumbnail of each marked picture, under thumbs/", async () => {
+    const plan = await post("/publish/plan", { target, index: thumbIndex() });
+    expect(plan.status).toBe(200);
+    expect(plan.json.uploadThumbnails.map((entry) => entry.path).sort()).toEqual(
+      [thumbPath(garten, "garten"), thumbPath(haus, "haus")].sort()
+    );
+  });
+
+  it("points the filmstrip at the pictures themselves while it has no thumbnails", async () => {
+    const plan = await post("/publish/plan", { target, index: thumbIndex() });
+    await uploadAll(plan.json);
+    const commit = await post("/publish/commit", { target, index: thumbIndex() });
+    expect(commit.status).toBe(200);
+    const page = await readFile(siteOf("garten", "index.html"), "utf8");
+    expect(page).toContain('class="slideshow slideshow-filmstrip"');
+    expect(page).not.toContain("data-thumbnail");
+    expect(await readFile(siteOf("assets", "slideshow.js"), "utf8")).toContain("thumbnail");
+  });
+
+  it("asks again next time, and points at a thumbnail once it is there", async () => {
+    const plan = await post("/publish/plan", { target, index: thumbIndex() });
+    expect(plan.json.uploadThumbnails).toHaveLength(2);
+    for (const entry of plan.json.uploadThumbnails) {
+      const sent = await sendThumbnail(entry);
+      expect(sent.status).toBe(200);
+      expect(sent.json.path).toBe(entry.path);
+    }
+    const commit = await post("/publish/commit", { target, index: thumbIndex() });
+    expect(commit.status).toBe(200);
+
+    const page = await readFile(siteOf("garten", "index.html"), "utf8");
+    expect(page).toContain(`data-thumbnail="../${thumbPath(haus, "haus")}"`);
+    expect(await readFile(siteOf(...thumbPath(haus, "haus").split("/")))).toEqual(thumb);
+    const recorded = JSON.parse(
+      await readFile(join(sftp.root, "archiv", ".schreibstube", "manifest.json"), "utf8")
+    ).files;
+    expect(recorded[thumbPath(haus, "haus")]).toEqual({
+      sha256: sha256(thumb),
+      bytes: thumb.length
+    });
+  });
+
+  it("asks for nothing once the site has them", async () => {
+    const plan = await post("/publish/plan", { target, index: thumbIndex() });
+    expect(plan.json.uploadThumbnails).toEqual([]);
+    expect(plan.json.willDelete).toEqual([]);
+  });
+
+  it("refuses a thumbnail that is not what its name says, too large, or of no picture", async () => {
+    const entry = { sha256: sha256(haus), name: "haus.jpg" };
+    const png = Buffer.from("89504e470d0a1a0a00", "hex");
+    const notImage = await sendThumbnail(entry, png);
+    expect(notImage.status).toBe(400);
+    expect(notImage.json.code).toBe("thumbnail_rejected");
+
+    const drawing = await sendThumbnail({ sha256: sha256(haus), name: "plan.svg" }, thumb);
+    expect(drawing.status).toBe(400);
+
+    const heavy = Buffer.concat([thumb, Buffer.alloc(200_001)]);
+    expect((await sendThumbnail(entry, heavy)).status).toBe(413);
+
+    const noSource = await put(
+      `/publish/thumbnail?target=${target}&sha256=${sha256(thumb)}&name=haus.jpg`,
+      thumb
+    );
+    expect(noSource.status).toBe(400);
+  });
+
+  it("takes the thumbnails down with the filmstrip", async () => {
+    const plan = await post("/publish/plan", { target, index: thumbIndex(false) });
+    expect(plan.json.willDelete).toEqual(
+      [thumbPath(garten, "garten"), thumbPath(haus, "haus")].sort()
+    );
+    const commit = await post("/publish/commit", { target, index: thumbIndex(false) });
+    expect(commit.status).toBe(200);
+    await expect(readFile(siteOf(...thumbPath(haus, "haus").split("/")))).rejects.toThrow();
   });
 });
 
@@ -412,5 +624,44 @@ describe("refusals", () => {
     unsafe.notes[0].slug = "../../etc";
     const response = await post("/publish/plan", { target: "blog", index: unsafe });
     expect(response.status).toBe(400);
+  });
+});
+
+describe("a state directory inside the web root", () => {
+  const upload = (target) =>
+    put(`/publish/source?target=${target}&sha256=${sha256(second)}`, Buffer.from(second, "utf8"));
+
+  it("gets a deny file before the first source lands in it", async () => {
+    expect((await upload("notizen")).status).toBe(200);
+    const guard = await readFile(join(sftp.root, "notizen", ".schreibstube", ".htaccess"), "utf8");
+    expect(guard).toBe(STATE_GUARD);
+    expect(guard).toContain("Require all denied");
+  });
+
+  it("keeps a deny file the operator wrote", async () => {
+    const own = "Require ip 10.0.0.0/8\n";
+    await mkdir(join(sftp.root, "archiv", ".schreibstube"), { recursive: true });
+    await writeFile(join(sftp.root, "archiv", ".schreibstube", ".htaccess"), own);
+    expect((await upload("archiv")).status).toBe(200);
+    expect(await readFile(join(sftp.root, "archiv", ".schreibstube", ".htaccess"), "utf8")).toBe(
+      own
+    );
+  });
+
+  it("is not written where the state lies outside the web root", async () => {
+    expect((await upload("blog")).status).toBe(200);
+    expect(await readdir(join(sftp.root, "state"))).not.toContain(".htaccess");
+  });
+});
+
+describe("a host key that does not match", () => {
+  it("is refused, naming the key type the server presented", async () => {
+    const response = await post("/publish/diagnostics", { target: "falsch" });
+    expect(response.status).toBe(200);
+    expect(response.json.ok).toBe(false);
+    expect(response.json.error).toMatch(/^Host key mismatch/);
+    // The fixture holds only an RSA key, so that is what the bridge is shown.
+    expect(response.json.error).toContain(`presented ssh-rsa ${sftp.fingerprint}`);
+    expect(response.json.error).toContain("must be the ssh-rsa one");
   });
 });

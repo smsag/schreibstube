@@ -2,7 +2,6 @@ import {
   type Editor,
   MarkdownView,
   Notice,
-  Platform,
   Plugin,
   TFile,
   TFolder,
@@ -19,13 +18,16 @@ import {
 import { RefreshScheduler, type RefreshOptions } from "./services/refresh-scheduler";
 import { OverlayCoordinator } from "./services/overlay-coordinator";
 import { bootstrapSchreibstubeRuntime } from "./services/plugin-bootstrap";
-import { DEFAULT_SETTINGS, normalizeSettings } from "./services/plugin-settings";
+import {
+  DEFAULT_SETTINGS,
+  holdsRetiredSettings,
+  normalizeSettings
+} from "./services/plugin-settings";
 import { buildTaskSummaryInsertion, hasTaskSummaryBlock } from "./services/task-summary";
 import { buildSlideshowInsertion } from "./services/slideshow";
 import { createLogger, type Logger } from "./services/logger";
 import {
   commandAvailable,
-  remindersScope,
   renameTarget,
   type CommandContext,
   type GatedCommand
@@ -36,14 +38,13 @@ import { hasSourceBinding } from "./services/sync-source";
 import { describePollSummary } from "./services/sync-summary";
 import { mergeSyncState, sameSyncState } from "./services/sync-merge";
 import type { SyncRecord } from "./services/sync-document";
-import { isTaskLine, TASK_PROTOCOL_ACTION } from "./services/reminder-export";
-import { sentTaskIds } from "./services/reminder-status";
-import { ReminderCommands } from "./controllers/reminder-commands";
 import { NoteCommands } from "./controllers/note-commands";
 import { PdfCommands } from "./controllers/pdf-commands";
 import { LinkModeController } from "./controllers/link-mode-controller";
 import { LlmCommands } from "./controllers/llm-commands";
 import { PropertyController } from "./controllers/property-controller";
+import { PropertySetController } from "./controllers/property-set-controller";
+import { FolderDescriber } from "./controllers/folder-describer";
 import {
   convertSelectionToTable,
   insertTable,
@@ -69,15 +70,29 @@ import { uninstallIconFont } from "./ui/icon-font";
 import {
   EXPLORER_STATE_FILE,
   EXTERNAL_CHECK_MS,
-  ExplorerController
+  ExplorerController,
+  FOREIGN_MENU_SOURCE
 } from "./controllers/explorer-controller";
 import type { ExplorerFileStore } from "./services/explorer-store";
+import { SemanticEngine } from "./controllers/semantic/semantic-engine";
+import { createSemanticApi } from "./controllers/semantic/semantic-api";
+import { recommendNotes } from "./services/semantic/recommend";
+import { RecommendedFooter } from "./controllers/recommended-footer";
+import type {
+  PictureCard,
+  Recommendation,
+  RecommendedHost,
+  RelatedCard
+} from "./ui/recommended-panel";
+import type { SchreibstubeSemanticApi } from "./services/semantic/semantic-api";
 import { PaneSectionsController } from "./controllers/pane-sections";
 import { BookmarkQuickOpenModal } from "./ui/bookmark-quick-open";
+import { OrphanListModal } from "./ui/explorer-modals";
 import { vaultUrlFor } from "./services/bookmark-file";
 import { MailCommands } from "./controllers/mail-commands";
 import { PublishCommands } from "./controllers/publish-commands";
 import { PrintCommands } from "./controllers/print-commands";
+import type { PrintTemplate } from "./services/print-template";
 import { SchreibstubeSettingTab } from "./settings/index";
 import { setLanguage, t } from "./i18n";
 import type { FocusMode, HeadingEntry, SchreibstubeSettings } from "./types";
@@ -88,6 +103,13 @@ const POLL_TICK_MS = 20_000;
 
 /** Delay before the catch-up poll, so it never competes with opening a vault. */
 const POLL_CATCHUP_DELAY_MS = 8_000;
+
+/** Delay before orphaned picture descriptions are matched, after the catch-up
+ *  poll: the metadata cache has to have read the vault's frontmatter by then. */
+const ORPHAN_REPAIR_DELAY_MS = 20_000;
+
+/** Notes the Recommended panel draws at most, links and meaning together. */
+const RECOMMEND_LIMIT = 20;
 
 export default class SchreibstubePlugin extends Plugin {
   override settings: SchreibstubeSettings = DEFAULT_SETTINGS;
@@ -106,9 +128,17 @@ export default class SchreibstubePlugin extends Plugin {
   private linkMode: LinkModeController | null = null;
   private llm: LlmCommands | null = null;
   private properties: PropertyController | null = null;
+  /** Describes a folder's pictures; built on first use, from the pane and Obsidian's. */
+  private folderDescriberInstance: FolderDescriber | null = null;
+  private propertySets: PropertySetController | null = null;
   private proofread: ProofreadController | null = null;
   private explorer: ExplorerController | null = null;
   private sections: PaneSectionsController | null = null;
+  private recommendedFooter: RecommendedFooter | null = null;
+  /** Search by meaning; read by the settings tab and the Explorer filter. */
+  semantic: SemanticEngine | null = null;
+  /** Search by meaning for other plugins; Pythia reaches it through the plugin registry. */
+  api: SchreibstubeSemanticApi | null = null;
   /** Guards against firing twice inside one scheduled minute. */
   private lastPollMinute = -1;
   /** Sync records dropped here since the data file was last written, so the
@@ -120,7 +150,6 @@ export default class SchreibstubePlugin extends Plugin {
   private mail: MailCommands | null = null;
   private publish: PublishCommands | null = null;
   private print: PrintCommands | null = null;
-  private reminders: ReminderCommands | null = null;
   private notes: NoteCommands | null = null;
   private pdf: PdfCommands | null = null;
 
@@ -148,8 +177,17 @@ export default class SchreibstubePlugin extends Plugin {
       },
       this.logger
     );
-    this.startProperties(this.properties);
-    this.mail = new MailCommands(this.app, () => this.settings, this.logger);
+    this.propertySets = new PropertySetController(this.app, () => this.settings, this.logger);
+    const propertySets = this.propertySets;
+    this.properties.setAddSetHandler((file) => void propertySets.pick(file));
+    this.startProperties(this.properties, propertySets);
+    this.mail = new MailCommands(
+      this.app,
+      () => this.settings,
+      this.logger,
+      (file, message) =>
+        propertySets.offerSet(file, "schreibstube:mail", message, t().properties.mailFieldsAction)
+    );
     this.publish = new PublishCommands(
       this.app,
       () => this.settings,
@@ -170,7 +208,6 @@ export default class SchreibstubePlugin extends Plugin {
         await this.saveSettings();
       }
     );
-    this.reminders = new ReminderCommands(this.app, () => this.settings, this.logger);
     this.notes = new NoteCommands(this.app, this.logger);
     // The reader is reached for only when the command runs. Obsidian's pdf.js
     // is fetched on that first call, and every vault that never summarises a
@@ -211,6 +248,14 @@ export default class SchreibstubePlugin extends Plugin {
       }
     });
 
+    this.semantic = new SemanticEngine(this, () => this.settings, this.logger);
+    this.semantic.start();
+    this.api = createSemanticApi({
+      engine: this.semantic,
+      logger: this.logger,
+      vaultHit: (path) => this.vaultHit(path)
+    });
+
     this.explorer = new ExplorerController(
       this.app,
       () => this.settings,
@@ -225,6 +270,8 @@ export default class SchreibstubePlugin extends Plugin {
     // The pane's menu names a file from what is inside it; the AI commands are
     // what can do that, and they were built a moment ago.
     this.explorer.useNamer((file) => this.requireLlm().proposeName(file));
+    this.explorer.useDescriber((file) => this.requireLlm().describeImage(file));
+    this.explorer.useFolderDescriber((folder) => this.folderDescriber.describe(folder));
     this.explorer.useTagOpener((tag) => this.activateTagNotes(tag));
     // From a note's menu: the reader named the note, so the panel stays on it.
     this.explorer.useRelatedOpener((path) => this.activateRelatedNotes(path, false));
@@ -233,6 +280,22 @@ export default class SchreibstubePlugin extends Plugin {
       this.activateFolderTiles(folder, following)
     );
     await this.explorer.start();
+    this.recommendedFooter = new RecommendedFooter(
+      this,
+      () => this.recommendedHost(),
+      () => this.settings.recommendedPlacement
+    );
+    this.recommendedFooter.start();
+    // A picture renamed outside Obsidian, or deleted while it was closed, left
+    // its description behind; the ones that only moved are found by content.
+    this.app.workspace.onLayoutReady(() => {
+      const repair = window.setTimeout(() => {
+        void this.explorer?.repairOrphans().catch((error: unknown) => {
+          this.logger.warn("Could not match orphaned picture descriptions:", error);
+        });
+      }, ORPHAN_REPAIR_DELAY_MS);
+      this.register(() => window.clearTimeout(repair));
+    });
 
     this.sections = new PaneSectionsController(
       this.app,
@@ -289,16 +352,6 @@ export default class SchreibstubePlugin extends Plugin {
 
     this.registerCommands();
 
-    // The same action as the command, where a right-click or a long press
-    // lands. Obsidian puts the cursor on the clicked line before it asks for
-    // the menu, so the task under the cursor is the task under the pointer.
-    this.registerEvent(
-      this.app.workspace.on("editor-menu", (menu, editor, view) => {
-        if (!(view instanceof MarkdownView) || !view.file) return;
-        if (!commandAvailable("send-reminder", this.commandContext())) return;
-        this.reminders?.addMenuItem(menu, editor, view.file);
-      })
-    );
     // Selected lines into a table. The plain conversion is offered only when
     // it would work, since the menu is built for this very selection; the AI
     // one whenever several lines are selected, and says what it needs if the
@@ -329,12 +382,6 @@ export default class SchreibstubePlugin extends Plugin {
         );
       })
     );
-    // The link a reminder carries, obsidian://schreibstube?task=<id>, and the
-    // callback the status Shortcut answers through, obsidian://schreibstube?done=1.
-    this.registerObsidianProtocolHandler(TASK_PROTOCOL_ACTION, (params) => {
-      void this.reminders?.handleProtocol(params);
-    });
-
     // The file pane is the plugin's main surface and everything else it offers
     // is a command. Without a ribbon icon there is nothing to find: enabling
     // the plugin changes nothing anyone can see until they open the palette
@@ -351,20 +398,43 @@ export default class SchreibstubePlugin extends Plugin {
    * later. Capture phase: the press has to be seen before Obsidian's own
    * handler opens the menu, whatever that handler does with the event.
    */
-  private startProperties(properties: PropertyController): void {
+  private startProperties(properties: PropertyController, sets: PropertySetController): void {
     const register = (doc: Document, type: string, handler: (event: Event) => void) => {
       this.registerDomEvent(doc, type as keyof DocumentEventMap, handler, { capture: true });
     };
     properties.attach(window, register);
+    sets.attach(window, register);
     this.registerEvent(
-      this.app.workspace.on("window-open", (_workspaceWindow, win) =>
-        properties.attach(win, register)
-      )
+      this.app.workspace.on("window-open", (_workspaceWindow, win) => {
+        properties.attach(win, register);
+        sets.attach(win, register);
+      })
     );
     this.registerEvent(
-      this.app.workspace.on("window-close", (_workspaceWindow, win) => properties.detach(win))
+      this.app.workspace.on("window-close", (_workspaceWindow, win) => {
+        properties.detach(win);
+        sets.detach(win);
+      })
     );
     properties.start();
+
+    // The Properties widget is drawn when a note opens and when a view
+    // switches between reading and editing; each is a moment to put the set
+    // control beside "Add property" again.
+    this.registerEvent(this.app.workspace.on("file-open", (file) => sets.noteOpened(file)));
+    this.registerEvent(this.app.workspace.on("layout-change", () => sets.decorateSoon()));
+    this.registerEvent(this.app.workspace.on("active-leaf-change", () => sets.decorateSoon()));
+    this.registerEvent(this.app.metadataCache.on("changed", (file) => sets.noteChanged(file)));
+    const setFolderTouched = (path: string) => sets.vaultChanged(path);
+    this.registerEvent(this.app.vault.on("modify", (file) => setFolderTouched(file.path)));
+    this.registerEvent(this.app.vault.on("create", (file) => setFolderTouched(file.path)));
+    this.registerEvent(this.app.vault.on("delete", (file) => setFolderTouched(file.path)));
+    this.registerEvent(
+      this.app.vault.on("rename", (file, oldPath) => {
+        setFolderTouched(oldPath);
+        setFolderTouched(file.path);
+      })
+    );
   }
 
   override onunload(): void {
@@ -372,11 +442,43 @@ export default class SchreibstubePlugin extends Plugin {
     uninstallIconFont();
     this.linkMode?.stop();
     this.properties?.stop();
+    this.propertySets?.stop();
     this.print?.stop();
     this.proofread?.stop();
     void this.explorer?.stop();
     this.sections?.stop();
+    this.semantic?.dispose();
+    // A caller holding the object finds it answering nothing; one asking the
+    // registry again finds no API at all.
+    this.api = null;
     this.clearOverlay();
+  }
+
+  /** A vault path as the API reports it: a description note as its picture. */
+  private vaultHit(path: string): { kind: "note" | "image"; id: string; title: string } | null {
+    const file = this.app.vault.getAbstractFileByPath(path);
+    if (!(file instanceof TFile)) return null;
+    const image = this.explorer?.imageDescribedBy(path) ?? null;
+    const picture = image === null ? null : this.app.vault.getAbstractFileByPath(image);
+    if (picture instanceof TFile)
+      return { kind: "image", id: picture.path, title: picture.basename };
+    const title = this.app.metadataCache.getFileCache(file)?.frontmatter?.title;
+    return { kind: "note", id: path, title: typeof title === "string" ? title : file.basename };
+  }
+
+  /** Match what can be matched, then list what could not, to open one. */
+  private async showOrphanedDescriptions(): Promise<void> {
+    const explorer = this.explorer;
+    if (!explorer) return;
+    const { repaired, remaining } = await explorer.repairOrphans();
+    if (repaired > 0) new Notice(t().common.notice(t().explorer.orphans.repaired(repaired)));
+    if (remaining.length === 0) {
+      if (repaired === 0) new Notice(t().common.notice(t().explorer.orphans.none));
+      return;
+    }
+    new OrphanListModal(this.app, remaining, (path) => {
+      void this.app.workspace.openLinkText(path, "", false);
+    }).open();
   }
 
   /** Open the review sidebar, reusing the existing leaf if it is already open. */
@@ -461,22 +563,85 @@ export default class SchreibstubePlugin extends Plugin {
 
   private createRelatedNotesView(leaf: WorkspaceLeaf): RelatedNotesView {
     const view = new RelatedNotesView(leaf);
+    const host = this.recommendedHost();
+    if (host) view.connect(host);
+    return view;
+  }
+
+  /** What the Recommended panel asks, wherever it is drawn. */
+  private recommendedHost(): RecommendedHost | null {
     const explorer = this.explorer;
-    if (explorer) {
-      view.connect({
-        cards: (path) => explorer.relatedCards(path),
-        titleOf: (path) => {
-          const file = this.app.vault.getAbstractFileByPath(path);
-          return file instanceof TFile ? (explorer.titleFor(file) ?? file.basename) : null;
-        },
-        open: async (path, newTab) => {
-          const file = this.app.vault.getAbstractFileByPath(path);
-          if (file) await explorer.open(file, newTab);
-        },
-        showMenu: (path, event) => explorer.showMenuForPath(path, event)
+    if (!explorer) return null;
+    return {
+      cards: (path) => explorer.relatedCards(path),
+      recommend: (path) => this.recommend(path),
+      titleOf: (path) => {
+        const file = this.app.vault.getAbstractFileByPath(path);
+        return file instanceof TFile ? (explorer.titleFor(file) ?? file.basename) : null;
+      },
+      open: async (path, where) => {
+        const file = this.app.vault.getAbstractFileByPath(path);
+        if (file) await explorer.open(file, where);
+      },
+      openConversation: (id) => {
+        // Pythia opens it itself when it can; otherwise its deep link does.
+        if (this.semantic?.conversations.open(id)) return;
+        window.open(`obsidian://pythia?cmd=resume&id=${encodeURIComponent(id)}`);
+      },
+      showMenu: (path, event) => explorer.showMenuForPath(path, event)
+    };
+  }
+
+  /**
+   * The link graph and search by meaning together, for one note. Null when
+   * search by meaning is off, so the panel keeps the graph's answer alone.
+   */
+  private async recommend(path: string): Promise<Recommendation | null> {
+    const explorer = this.explorer;
+    const engine = this.semantic;
+    if (!explorer || !engine?.enabled()) return null;
+    const found = await engine.relatedToNote(path, RECOMMEND_LIMIT);
+    const graph = explorer.relatedCards(path);
+
+    const meaning: { path: string }[] = [];
+    const pictures: PictureCard[] = [];
+    for (const hit of found.notes) {
+      // A description note stands for its picture, here as in the Explorer.
+      const image = explorer.imageDescribedBy(hit.id);
+      const picture = image === null ? null : this.app.vault.getAbstractFileByPath(image);
+      if (picture instanceof TFile) {
+        if (!pictures.some((p) => p.path === picture.path)) {
+          pictures.push({
+            path: picture.path,
+            title: picture.basename,
+            src: this.app.vault.getResourcePath(picture)
+          });
+        }
+        continue;
+      }
+      const note = this.app.vault.getAbstractFileByPath(hit.id);
+      if (note instanceof TFile && !explorer.isTrashed(note.path))
+        meaning.push({ path: note.path });
+    }
+
+    const cards = new Map(graph.map((card) => [card.path, card]));
+    const notes: RelatedCard[] = [];
+    for (const entry of recommendNotes(graph, meaning, RECOMMEND_LIMIT)) {
+      const known = cards.get(entry.path);
+      const file = this.app.vault.getAbstractFileByPath(entry.path);
+      if (!(file instanceof TFile)) continue;
+      notes.push({
+        path: entry.path,
+        title: known?.title ?? explorer.titleFor(file) ?? file.basename,
+        folder: file.parent && !file.parent.isRoot() ? file.parent.path : "",
+        reasons: entry.reasons
       });
     }
-    return view;
+    const conversations = found.conversations.map((c) => ({
+      id: c.id,
+      title: engine.conversations.titleOf(c.id)
+    }));
+    return { notes, pictures, conversations };
   }
 
   /**
@@ -509,7 +674,7 @@ export default class SchreibstubePlugin extends Plugin {
         open: async (path, into) => {
           const file = this.app.vault.getAbstractFileByPath(path);
           if (!(file instanceof TFile)) return;
-          if (into === "tab") await explorer.open(file, true);
+          if (into === "tab") await explorer.open(file, "tab");
           else await into.openFile(file);
         },
         showMenu: (path, at) => explorer.showMenuForPath(path, at),
@@ -525,14 +690,26 @@ export default class SchreibstubePlugin extends Plugin {
     if (explorer) {
       view.connect({
         cards: (tag) => explorer.tagCards(tag),
-        open: async (path, newTab) => {
+        open: async (path, where) => {
           const file = this.app.vault.getAbstractFileByPath(path);
-          if (file) await explorer.open(file, newTab);
+          if (file) await explorer.open(file, where);
         },
         showMenu: (path, event) => explorer.showMenuForPath(path, event)
       });
     }
     return view;
+  }
+
+  /** The Explorer filter's text index, for the settings: null while no pane
+   *  has read the vault's text. */
+  textSearchStats(): { notes: number; words: number; readMs: number | null } | null {
+    for (const leaf of this.app.workspace.getLeavesOfType(EXPLORER_VIEW_TYPE)) {
+      if (leaf.view instanceof ExplorerPaneView) {
+        const stats = leaf.view.textStats();
+        if (stats) return stats;
+      }
+    }
+    return null;
   }
 
   private createExplorerView(leaf: WorkspaceLeaf): ExplorerPaneView {
@@ -541,7 +718,11 @@ export default class SchreibstubePlugin extends Plugin {
       view.connect({
         explorer: this.explorer,
         sections: this.sections,
-        settings: () => this.settings
+        settings: () => this.settings,
+        meaning: async (text, limit) => (await this.semantic?.search(text, limit)) ?? [],
+        warm: () => this.semantic?.warm(),
+        meaningState: () => this.semantic?.searchState() ?? "none",
+        onMeaningChange: (listener) => this.semantic?.onChange(listener) ?? (() => undefined)
       });
     }
     return view;
@@ -647,7 +828,7 @@ export default class SchreibstubePlugin extends Plugin {
     // A folder is bookmarked by pasting its `vault://` URL into the bookmarks
     // file, so the path has to be obtainable without typing it out by hand.
     this.registerEvent(
-      this.app.workspace.on("file-menu", (menu, file) => {
+      this.app.workspace.on("file-menu", (menu, file, source) => {
         if (!(file instanceof TFolder)) return;
         menu.addItem((item) =>
           item
@@ -656,6 +837,17 @@ export default class SchreibstubePlugin extends Plugin {
             .setSection("info")
             .onClick(() => void this.copyBookmarkPath(file.path))
         );
+        // Obsidian's own file list offers it too. Not when Schreibstube's pane
+        // passes its folder menu on to other plugins: it has the entry already.
+        if (this.settings.imageDescriptionsEnabled && source !== FOREIGN_MENU_SOURCE) {
+          menu.addItem((item) =>
+            item
+              .setTitle(t().explorer.menu.describeFolder)
+              .setIcon("scan-text")
+              .setSection("action")
+              .onClick(() => void this.folderDescriber.describe(file))
+          );
+        }
       })
     );
 
@@ -674,6 +866,17 @@ export default class SchreibstubePlugin extends Plugin {
         void this.explorer?.checkForExternalChange();
       }, EXTERNAL_CHECK_MS)
     );
+  }
+
+  private get folderDescriber(): FolderDescriber {
+    this.folderDescriberInstance ??= new FolderDescriber(
+      this.app,
+      () => this.settings,
+      () => this.requireLlm(),
+      () => this.explorer,
+      this.logger
+    );
+    return this.folderDescriberInstance;
   }
 
   private requireProofread(): ProofreadController {
@@ -725,10 +928,6 @@ export default class SchreibstubePlugin extends Plugin {
   }
 
   private handlePollTick(now: Date): void {
-    // The report file an automation writes for Reminders rides on the same
-    // tick: one stat of one file, and a read only when it has changed.
-    void this.reminders?.pollReportFile();
-
     const schedule = this.activePollSchedule();
     if (!schedule) return;
     if (!shouldFire(schedule, now, this.lastPollMinute)) return;
@@ -783,6 +982,9 @@ export default class SchreibstubePlugin extends Plugin {
       this.app.vault.on("modify", (file) => {
         if (file instanceof TFile && file.extension === "md") {
           void this.proofread?.invalidateGlossary(file.path);
+          // A mirrored note made level with its source by any route leaves
+          // "Extern aktualisiert" now, not at its next check.
+          void this.proofread?.noteModified(file);
         }
       })
     );
@@ -797,6 +999,10 @@ export default class SchreibstubePlugin extends Plugin {
       this.app.vault.on("rename", (file, oldPath) => {
         if (file instanceof TFile) {
           void this.proofread?.handleNoteRenamed(oldPath, file.path);
+          // A term note that moves takes its rules with it; the metadata
+          // cache does not report a move as a change.
+          void this.proofread?.termNoteChanged(oldPath);
+          void this.proofread?.termNoteChanged(file.path);
         }
       })
     );
@@ -805,6 +1011,7 @@ export default class SchreibstubePlugin extends Plugin {
       this.app.vault.on("delete", (file) => {
         if (file instanceof TFile) {
           void this.proofread?.handleNoteDeleted(file.path);
+          void this.proofread?.termNoteChanged(file.path);
         }
       })
     );
@@ -817,6 +1024,7 @@ export default class SchreibstubePlugin extends Plugin {
         if (this.settings.syncState[file.path] !== undefined) {
           void this.proofread?.reconcileSyncRecords([file.path]);
         }
+        void this.proofread?.termNoteChanged(file.path);
       })
     );
   }
@@ -824,16 +1032,18 @@ export default class SchreibstubePlugin extends Plugin {
   async loadSettings(): Promise<void> {
     const loaded = await this.loadData();
     this.settings = normalizeSettings(loaded);
+    if (holdsRetiredSettings(loaded)) await this.saveSettings();
   }
 
   async saveSettings(): Promise<void> {
     const run = this.saveChain.then(() => this.writeSettings());
     this.saveChain = run.catch(() => undefined);
     await run;
-    // A changed bookmarks path, count or exclusion list only matters once the
-    // pane has been told; nothing else watches the settings object.
+    // A changed bookmarks path, or Document sync turned on or off, only matters
+    // once the pane has been told; nothing else watches the settings object.
     void this.sections?.reloadIfPathChanged();
     this.sections?.invalidateLatest();
+    this.recommendedFooter?.sync();
   }
 
   /**
@@ -922,6 +1132,11 @@ export default class SchreibstubePlugin extends Plugin {
     await this.print?.removeRuntime();
   }
 
+  /** The vault's own templates, for the tab to offer as the default. */
+  printTemplates(): PrintTemplate[] {
+    return this.print?.templates() ?? [];
+  }
+
   /** Adding a template is set up once, so it is a button on the print tab. */
   async addPrintTemplate(): Promise<void> {
     await this.print?.addTemplate();
@@ -949,10 +1164,7 @@ export default class SchreibstubePlugin extends Plugin {
       selection: (view?.editor.getSelection().trim().length ?? 0) > 0,
       bound:
         file !== null && hasSourceBinding(this.app.metadataCache.getFileCache(file)?.frontmatter),
-      explorerOpen: this.app.workspace.getLeavesOfType(EXPLORER_VIEW_TYPE).length > 0,
-      task: view !== null && isTaskLine(view.editor.getLine(view.editor.getCursor().line)),
-      apple: Platform.isMacOS || Platform.isIosApp,
-      sentTask: view !== null && sentTaskIds(view.editor.getValue()).length > 0
+      explorerOpen: this.app.workspace.getLeavesOfType(EXPLORER_VIEW_TYPE).length > 0
     };
   }
 
@@ -1055,23 +1267,8 @@ export default class SchreibstubePlugin extends Plugin {
       this.properties?.insertToday();
     });
 
-    this.addGatedCommand(
-      "send-task-to-reminders",
-      t().commands.sendToReminders,
-      "send-reminder",
-      () => {
-        this.reminders?.sendTaskAtCursor();
-      }
-    );
-
-    // The id is the one that asked about every note, which is still what it
-    // does wherever the open note has no sent task.
-    this.addGatedCommand("fetch-done-from-reminders", t().commands.reminders, "reminders", () => {
-      if (remindersScope(this.commandContext()) === "note") {
-        this.reminders?.checkActiveNote();
-      } else {
-        this.reminders?.checkEverything();
-      }
+    this.addGatedCommand("add-property-set", t().commands.addPropertySet, "property-set", () => {
+      void this.propertySets?.pick(this.app.workspace.getActiveFile());
     });
 
     this.addCommand({
@@ -1104,6 +1301,12 @@ export default class SchreibstubePlugin extends Plugin {
       "collapse-explorer",
       () => void this.explorer?.undoLast()
     );
+
+    this.addCommand({
+      id: "explorer-orphaned-descriptions",
+      name: t().commands.orphanedDescriptions,
+      callback: () => void this.showOrphanedDescriptions()
+    });
 
     // The folder of the note in front of you, as tiles — a route for the
     // palette and a hotkey, and for a phone where the pane may be shut.
@@ -1194,6 +1397,12 @@ export default class SchreibstubePlugin extends Plugin {
 
     this.addGatedCommand("print-note", t().commands.print, "print", () => {
       void this.print?.printActiveNote();
+    });
+
+    // The same print without the dialog, for a note that is printed as it is
+    // again and again.
+    this.addGatedCommand("print-note-quick", t().commands.printQuick, "print", () => {
+      void this.print?.printActiveNoteQuickly();
     });
 
     this.addCommand({

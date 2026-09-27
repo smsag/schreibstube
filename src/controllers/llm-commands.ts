@@ -1,7 +1,7 @@
 import { MarkdownView, Notice, normalizePath, type App, type Editor, type TFile } from "obsidian";
 import type { SchreibstubeSettings } from "../types";
 import type { Logger } from "../services/logger";
-import { t } from "../i18n";
+import { activeLocale, t } from "../i18n";
 import { resolveApiKey } from "../services/secret";
 import { MAX_IMAGE_BYTES, getImageMimeType, resizeImageToBase64 } from "../services/image-resize";
 import {
@@ -11,6 +11,13 @@ import {
   stripFilenameExtension
 } from "../services/llm-rename";
 import { generateSummary } from "../services/llm-summarize";
+import { generateImageDescription } from "../services/llm-describe";
+import {
+  descriptionNotePath,
+  hashImageBytes,
+  renderDescriptionNote,
+  type DescriptionLanguage
+} from "../services/image-description";
 import { buildSummaryRequest, effectiveModel } from "../services/llm-providers";
 import { sendRequest } from "../services/llm-client";
 import {
@@ -20,6 +27,11 @@ import {
   parseTableResponse
 } from "../services/llm-table";
 import type { MarkdownTable } from "../services/text-to-table";
+
+type DescribeOutcome =
+  | { kind: "described"; title: string }
+  | { kind: "unusable" }
+  | { kind: "failed"; label: string; message: string; error: unknown };
 import { insertTable, selectedLineRange } from "./table-insert";
 
 /**
@@ -136,6 +148,148 @@ export class LlmCommands {
     }
 
     return this.withBusy("rename", () => this.nameForNote(content, apiKey));
+  }
+
+  /** Describe one picture, from a command or its menu, and say what happened. */
+  async describeImage(file: TFile): Promise<void> {
+    const settings = this.getSettings();
+    if (!settings.imageDescriptionsEnabled) return;
+
+    const mimeType = getImageMimeType(file.extension);
+    if (!mimeType) {
+      new Notice(t().common.notice(t().ai.unsupportedImage));
+      return;
+    }
+    if (file.stat.size > MAX_IMAGE_BYTES) {
+      new Notice(t().common.notice(t().ai.imageTooLarge));
+      return;
+    }
+    const apiKey = this.requireApiKey();
+    if (!apiKey) return;
+
+    await this.withBusy("image description", async () => {
+      new Notice(t().common.notice(t().ai.describing));
+      const outcome = await this.describeOne(file, mimeType, apiKey);
+      if (outcome.kind === "described") {
+        new Notice(t().common.notice(t().ai.described(outcome.title)));
+      } else if (outcome.kind === "unusable") {
+        new Notice(t().common.notice(t().ai.describeUnusable));
+      } else {
+        this.fail(outcome.label, outcome.message, outcome.error);
+      }
+    });
+  }
+
+  /**
+   * Describe several pictures, one after another, as one AI command.
+   *
+   * One at a time: a provider's rate limit is per key, and a folder of a
+   * hundred pictures sent at once is a hundred requests refused together.
+   * Every picture is told apart in the tally rather than in a notice of its
+   * own, and a failure is logged and counted, never the end of the run: the
+   * next picture may well go through. Null when nothing ran — descriptions
+   * off, no key, or another AI command busy — each of which has said so.
+   */
+  async describeImages(
+    files: readonly TFile[],
+    progress: (done: number, total: number) => void,
+    stopped: () => boolean
+  ): Promise<{ described: number; unusable: number; failed: number; stopped: boolean } | null> {
+    if (!this.getSettings().imageDescriptionsEnabled) return null;
+    const apiKey = this.requireApiKey();
+    if (!apiKey) return null;
+
+    return this.withBusy("folder descriptions", async () => {
+      const tally = { described: 0, unusable: 0, failed: 0, stopped: false };
+      for (const [index, file] of files.entries()) {
+        if (stopped()) {
+          tally.stopped = true;
+          break;
+        }
+        progress(index, files.length);
+        const mimeType = getImageMimeType(file.extension);
+        if (!mimeType || file.stat.size > MAX_IMAGE_BYTES) {
+          tally.failed++;
+          continue;
+        }
+        const outcome = await this.describeOne(file, mimeType, apiKey);
+        if (outcome.kind === "described") tally.described++;
+        else if (outcome.kind === "unusable") tally.unusable++;
+        else {
+          tally.failed++;
+          this.logger.warn(`Describing ${file.path} failed:`, outcome.error);
+        }
+      }
+      if (!tally.stopped) progress(files.length, files.length);
+      return tally;
+    });
+  }
+
+  /**
+   * Describe one picture and keep the description as a note (image
+   * descriptions, Epic A1). What happened is returned, not announced: a single
+   * picture says it in a notice, a folder in its tally.
+   *
+   * One note per picture in the shared folder, replaced in place when the
+   * picture is described again. The picture is resized before it is sent — the
+   * canvas that does it drops EXIF, GPS included — and fingerprinted from the
+   * original bytes, so a later check can tell whether it changed.
+   */
+  private async describeOne(
+    file: TFile,
+    mimeType: string,
+    apiKey: string
+  ): Promise<DescribeOutcome> {
+    const settings = this.getSettings();
+    let buffer: ArrayBuffer;
+    let image: Awaited<ReturnType<typeof resizeImageToBase64>>;
+    try {
+      buffer = await this.app.vault.readBinary(file);
+      image = await resizeImageToBase64(buffer, mimeType, settings.renameMaxImagePx);
+    } catch (error) {
+      return { kind: "failed", label: "image resize", message: t().ai.failImage, error };
+    }
+
+    const language: DescriptionLanguage =
+      settings.imageDescriptionLanguage === "auto"
+        ? activeLocale()
+        : settings.imageDescriptionLanguage;
+    let description;
+    try {
+      description = await generateImageDescription(image, language, settings, apiKey);
+    } catch (error) {
+      return { kind: "failed", label: "image description", message: t().ai.failDescribe, error };
+    }
+    if (!description) return { kind: "unusable" };
+
+    const note = renderDescriptionNote(
+      {
+        path: file.path,
+        hash: hashImageBytes(new Uint8Array(buffer)),
+        size: file.stat.size,
+        describedAt: new Date().toISOString()
+      },
+      description,
+      { keywordsAsTags: settings.imageDescriptionKeywordsAsTags, language }
+    );
+    const path = normalizePath(descriptionNotePath(settings.imageDescriptionFolder, file.path));
+    try {
+      await this.writeNote(path, note);
+    } catch (error) {
+      return { kind: "failed", label: "image description", message: t().ai.failDescribe, error };
+    }
+    return { kind: "described", title: description.title };
+  }
+
+  /** Create a note, or replace it in place so a link to it keeps working. */
+  private async writeNote(path: string, content: string): Promise<void> {
+    const folder = path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : "";
+    if (folder && !this.app.vault.getAbstractFileByPath(folder)) {
+      await this.app.vault.createFolder(folder);
+    }
+    const existing = this.app.vault.getFileByPath(path);
+    if (existing) await this.app.vault.modify(existing, content);
+    else await this.app.vault.create(path, content);
   }
 
   /** The model's name for a note's text, sanitized, or null with a notice. */

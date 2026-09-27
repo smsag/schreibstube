@@ -7,10 +7,12 @@
  * source and refreshing it belong next to the note, not only in the command
  * palette, and a folder can refresh everything under it in one go.
  */
+import { showActionNotice } from "../ui/action-notice";
 import {
   getAllTags,
   Menu,
   Notice,
+  Platform,
   TAbstractFile,
   TFile,
   TFolder,
@@ -24,6 +26,7 @@ import { t } from "../i18n";
 import type { Logger } from "../services/logger";
 import type { SchreibstubeSettings } from "../types";
 import { syncBadgeFor, type SyncBadge } from "../services/explorer-badge";
+import { publishMarkFor, type PublishMark } from "../services/publish-mark";
 import {
   buildExplorerMenu,
   buildSelectionMenu,
@@ -43,6 +46,7 @@ import {
   type UndoableAction
 } from "../services/undo-stack";
 import { topLevelOnly } from "../services/explorer-selection";
+import { availableTarget, type PaneTarget } from "../services/pane-target";
 import { planImport, type DroppedFile, type ImportRefusal } from "../services/import-plan";
 import {
   entryFor,
@@ -70,6 +74,10 @@ import {
 } from "../services/tree-move";
 import { hasSourceBinding, resolveSourceUrl, SYNC_FRONTMATTER_KEY } from "../services/sync-source";
 import { someFileUnder } from "../services/vault-tree";
+import { DescriptionFollower } from "./description-follower";
+import { OrphanRepair, type OrphanRepairResult } from "./orphan-repair";
+import { pairDescriptions, type DescriptionPairs } from "../services/description-pairs";
+import { DESCRIPTION_KEYS } from "../services/image-description";
 import { arrivedReceipt, LOCAL_TRASH, localTrashPath } from "../services/trash-receipt";
 import { folderImages, hasFolderImages, type FolderImages } from "../services/folder-images";
 import { openSubmenu } from "../services/workspace-internals";
@@ -130,6 +138,10 @@ export const FOREIGN_MENU_SOURCE = "file-explorer";
  * the naming and the renaming stay in the hands they were already in.
  */
 export type FileNamer = (file: TFile) => Promise<string | null>;
+/** Describes a picture and keeps the description as a note. */
+export type ImageDescriber = (file: TFile) => Promise<void>;
+/** Describes every undescribed picture under a folder. */
+export type FolderDescriberHook = (folder: TFolder) => Promise<void>;
 
 /** Where a pinned tag's notes are listed. The plugin owns the sidebar leaf. */
 export type TagOpener = (tag: string) => Promise<void>;
@@ -204,6 +216,10 @@ export class ExplorerController {
   private submenusSupported: boolean | null = null;
   /** Set once the AI commands exist, which is after this controller is built. */
   private namer: FileNamer | null = null;
+  private describer: ImageDescriber | null = null;
+  private folderDescriber: FolderDescriberHook | null = null;
+  /** Which note describes which picture; rebuilt after the vault changes. */
+  private pairs: DescriptionPairs | null = null;
   private tagOpener: TagOpener | null = null;
   private relatedOpener: RelatedOpener | null = null;
   private tilesOpener: FolderTilesOpener | null = null;
@@ -221,6 +237,10 @@ export class ExplorerController {
   private readonly trashTimers = new Map<string, unknown>();
   /** The last move or delete, for as long as it can be taken back. */
   private readonly undo = new UndoStack();
+  /** Keeps each description note with its picture through a move or a delete. */
+  private readonly follower: DescriptionFollower;
+  /** Re-links description notes whose picture moved while nobody watched. */
+  private readonly orphans: OrphanRepair;
 
   constructor(
     private readonly app: App,
@@ -236,7 +256,8 @@ export class ExplorerController {
       hooks.confirm ??
       ((options, onConfirm) => new ConfirmModal(this.app, options, onConfirm).open());
     this.toast =
-      hooks.toast ?? ((message, label, onUndo) => showUndoNotice(message, label, onUndo));
+      hooks.toast ??
+      ((message, label, onUndo) => showActionNotice(message, label, onUndo, UNDO_NOTICE_MS));
     this.pickFolder =
       hooks.pickFolder ??
       ((folders, title, onPick) => new FolderPickerModal(this.app, folders, title, onPick).open());
@@ -248,6 +269,137 @@ export class ExplorerController {
       clearTimer: this.clearTimer
     });
     this.store.onChange(() => this.emit());
+    this.follower = new DescriptionFollower(
+      app,
+      {
+        setTimer: this.setTimer,
+        clearTimer: this.clearTimer,
+        changed: () => {
+          this.descriptionsChanged();
+          this.emit();
+        }
+      },
+      logger
+    );
+    this.orphans = new OrphanRepair(
+      app,
+      () => this.descriptionPairs(),
+      () => {
+        this.descriptionsChanged();
+        this.emit();
+      },
+      logger
+    );
+  }
+
+  /** Match orphaned description notes to their pictures by content. */
+  repairOrphans(): Promise<OrphanRepairResult> {
+    return this.orphans.repair();
+  }
+
+  /**
+   * Forget which notes describe which pictures: a note changed, moved or went.
+   * Rebuilt on the next question, from frontmatter the metadata cache already
+   * holds, so a burst of changes costs one rebuild.
+   */
+  descriptionsChanged(): void {
+    this.pairs = null;
+  }
+
+  private descriptionPairs(): DescriptionPairs {
+    if (this.pairs) return this.pairs;
+    const candidates = [];
+    for (const file of this.app.vault.getMarkdownFiles()) {
+      const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter;
+      if (!frontmatter || !(DESCRIPTION_KEYS.image in frontmatter)) continue;
+      candidates.push({
+        path: file.path,
+        imageLink: frontmatter[DESCRIPTION_KEYS.image],
+        describedAt: frontmatter[DESCRIPTION_KEYS.describedAt]
+      });
+    }
+    this.pairs = pairDescriptions(
+      candidates,
+      (link, from) => this.app.metadataCache.getFirstLinkpathDest(link, from)?.path ?? null
+    );
+    return this.pairs;
+  }
+
+  /**
+   * Whether a change to this path can change the pairing: it is a description
+   * note or a described picture as things stand, or it now carries the key.
+   * Every save of every note is a metadata change, and rebuilding the pairing
+   * for each would scan the vault's frontmatter every couple of seconds while
+   * someone types.
+   */
+  touchesDescriptions(path: string): boolean {
+    const pairs = this.descriptionPairs();
+    if (pairs.notes.has(path) || pairs.byImage.has(path) || pairs.orphans.includes(path))
+      return true;
+    const file = this.app.vault.getFileByPath(path);
+    const frontmatter = file ? this.app.metadataCache.getFileCache(file)?.frontmatter : undefined;
+    return frontmatter !== undefined && DESCRIPTION_KEYS.image in frontmatter;
+  }
+
+  /** Whether this row is a description note the Explorer folds into its picture. */
+  hidesDescription(path: string): boolean {
+    return (
+      this.getSettings().explorerDescriptionNotes === "hide" &&
+      this.descriptionPairs().notes.has(path)
+    );
+  }
+
+  /**
+   * Whether a folder holds only description notes that are hidden. At least
+   * one, so an empty folder stays: it is somebody's, not ours.
+   */
+  hidesFolder(folder: TFolder): boolean {
+    if (this.getSettings().explorerDescriptionNotes !== "hide") return false;
+    return (
+      someFileUnder(folder, (file) => this.hidesDescription(file.path)) &&
+      !someFileUnder(folder, (file) => !this.hidesDescription(file.path))
+    );
+  }
+
+  /** The note a picture's description lives in, if it has one. */
+  descriptionNoteOf(imagePath: string): string | null {
+    return this.descriptionPairs().byImage.get(imagePath) ?? null;
+  }
+
+  /** The picture a note describes, if it is a description note. */
+  imageDescribedBy(notePath: string): string | null {
+    for (const [image, note] of this.descriptionPairs().byImage)
+      if (note === notePath) return image;
+    return null;
+  }
+
+  /**
+   * What a picture is found by, from its description note: the note's title,
+   * its keywords and its description. Frontmatter as the metadata cache holds
+   * it, untrusted in shape; the search index validates every field.
+   */
+  descriptionFields(
+    imagePath: string
+  ): { title: unknown; keywords: unknown; description: unknown } | null {
+    const notePath = this.descriptionNoteOf(imagePath);
+    const note = notePath ? this.app.vault.getFileByPath(notePath) : null;
+    const frontmatter = note ? this.app.metadataCache.getFileCache(note)?.frontmatter : undefined;
+    if (!frontmatter) return null;
+    return {
+      title: frontmatter.title,
+      keywords: frontmatter[DESCRIPTION_KEYS.keywords],
+      description: frontmatter[DESCRIPTION_KEYS.description]
+    };
+  }
+
+  /** Hand over the thing that can describe a picture. */
+  useDescriber(describer: ImageDescriber): void {
+    this.describer = describer;
+  }
+
+  /** Hand over the thing that describes the pictures under a folder. */
+  useFolderDescriber(describer: FolderDescriberHook): void {
+    this.folderDescriber = describer;
   }
 
   /** Hand over the thing that can name a file from its contents. */
@@ -284,6 +436,7 @@ export class ExplorerController {
     // and it would fire into a controller nobody listens to.
     for (const handle of this.trashTimers.values()) this.clearTimer(handle);
     this.trashTimers.clear();
+    this.follower.stop();
     this.trashed.clear();
     this.listeners.clear();
     this.folderListeners.clear();
@@ -324,12 +477,14 @@ export class ExplorerController {
     // from the pane's point of view.
     this.forgetTrashedAround(file.path);
     this.store.mutate((data, now) => renamePath(data, oldPath, file.path, now));
+    this.follower.pictureRenamed(file, oldPath);
   }
 
   handleDelete(file: TAbstractFile): void {
     // The vault has caught up with what the pane already drew.
     this.forgetTrashed(file.path);
     this.store.mutate((data, now) => markMissing(data, file.path, now));
+    this.follower.pictureDeleted(file);
     // Not every delete changes the state file — a note with no icon and no
     // mark changes nothing — and the pane still has a row to take away.
     this.emit();
@@ -690,6 +845,21 @@ export class ExplorerController {
     });
   }
 
+  /** Whether a note is marked for publication, and whether that has happened. */
+  publishMarkOf(file: TFile): PublishMark {
+    if (file.extension !== "md") return { state: "none" };
+    const settings = this.getSettings();
+    if (settings.publishAccounts.length === 0) return { state: "none" };
+
+    return publishMarkFor({
+      path: file.path,
+      frontmatter: this.app.metadataCache.getFileCache(file)?.frontmatter,
+      accounts: settings.publishAccounts,
+      keys: settings.publishFrontmatterKeys,
+      lastRuns: settings.publishLastRun
+    });
+  }
+
   /**
    * What a note calls itself, or null when it says nothing.
    *
@@ -830,6 +1000,9 @@ export class ExplorerController {
       path: file.path,
       markdown: isFile && file.extension === "md",
       image: isFile && getImageMimeType(file.extension) !== null,
+      describable:
+        this.getSettings().imageDescriptionsEnabled &&
+        (isFile ? this.describer : this.folderDescriber) !== null,
       bound: isFile && this.isBound(file),
       hasIcon: this.iconFor(file.path) !== undefined,
       kept: this.isKept(file.path),
@@ -838,7 +1011,8 @@ export class ExplorerController {
       hasBoundNotes: file instanceof TFolder && this.hasBoundNotes(file),
       // Its own pictures, not its subfolders': the entry opens a grid of this
       // folder, and a grid of nothing is worse than no entry.
-      hasImages: file instanceof TFolder && hasFolderImages(file, (path) => this.isTrashed(path))
+      hasImages: file instanceof TFolder && hasFolderImages(file, (path) => this.isTrashed(path)),
+      windows: Platform.isDesktopApp
     };
   }
 
@@ -865,7 +1039,9 @@ export class ExplorerController {
       case "open":
         return this.open(file, false);
       case "open-new-tab":
-        return this.open(file, true);
+        return this.open(file, "tab");
+      case "open-new-window":
+        return this.open(file, "window");
       case "set-icon":
         return this.chooseIcon(file);
       case "clear-icon":
@@ -910,6 +1086,10 @@ export class ExplorerController {
         return this.rename(file);
       case "rename-ai":
         return this.renameByContent(file);
+      case "describe-image":
+        return file instanceof TFile ? this.describer?.(file) : undefined;
+      case "describe-folder":
+        return file instanceof TFolder ? this.folderDescriber?.(file) : undefined;
       case "delete":
         return this.remove(file);
       default:
@@ -917,9 +1097,10 @@ export class ExplorerController {
     }
   }
 
-  async open(file: TAbstractFile, newTab: boolean): Promise<void> {
+  /** Open a file where a press or a menu asked: in place, a tab, a split or a window. */
+  async open(file: TAbstractFile, where: PaneTarget): Promise<void> {
     if (!(file instanceof TFile)) return;
-    const leaf = this.app.workspace.getLeaf(newTab ? "tab" : false);
+    const leaf = this.app.workspace.getLeaf(availableTarget(where, Platform.isDesktopApp));
     await leaf.openFile(file);
   }
 
@@ -1210,9 +1391,13 @@ export class ExplorerController {
    * and move a file out again. The system trash it cannot see into, and
    * the notice says so rather than offering an undo that would do nothing.
    */
-  private async trashAll(files: TAbstractFile[]): Promise<void> {
+  private async trashAll(requested: TAbstractFile[]): Promise<void> {
     const steps: DeleteStep[] = [];
     let localTrash = true;
+    // A described picture takes its description note along, in the same
+    // batch, so one undo brings both back.
+    const asked = new Set(requested.map((file) => file.path));
+    const files = [...requested, ...this.descriptionsOf(requested, asked)];
 
     // The rows go before the trash call, not after it. The vault's own
     // delete event is what the pane listens to, and it arrives when a
@@ -1244,7 +1429,7 @@ export class ExplorerController {
       else steps.push({ from: path, trashedTo: receipt });
     }
 
-    if (steps.length === 0 && !localTrash && files.length > 0) {
+    if (steps.length === 0 && !localTrash && requested.length > 0) {
       new Notice(t().common.notice(t().explorer.undo.systemTrash));
       return;
     }
@@ -1252,15 +1437,30 @@ export class ExplorerController {
 
     const action: UndoableAction = { kind: "delete", steps };
     this.undo.push(action, this.now());
+    // The notice counts what the person chose; the notes came along unasked.
+    const chosen = steps.filter((step) => asked.has(step.from));
     const message =
-      steps.length === 1 && steps[0]
-        ? t().explorer.delete.done(basename(steps[0].from))
-        : t().explorer.delete.manyDone(steps.length);
+      chosen.length === 1 && chosen[0]
+        ? t().explorer.delete.done(basename(chosen[0].from))
+        : t().explorer.delete.manyDone(chosen.length);
     this.toast(
       t().common.notice(message),
       t().explorer.undo.action,
       () => void this.undoAction(action)
     );
+  }
+
+  /** The description notes of the pictures among `files`, not already chosen. */
+  private descriptionsOf(files: TAbstractFile[], chosen: Set<string>): TFile[] {
+    const notes: TFile[] = [];
+    for (const file of files) {
+      if (!(file instanceof TFile) || file.extension === "md") continue;
+      const path = this.descriptionNoteOf(file.path);
+      if (path === null || chosen.has(path)) continue;
+      const note = this.app.vault.getAbstractFileByPath(path);
+      if (note instanceof TFile) notes.push(note);
+    }
+    return notes;
   }
 
   /**
@@ -1626,36 +1826,6 @@ function importReason(reason: ImportRefusal): string {
     default:
       return messages.reasonTooMany;
   }
-}
-
-/**
- * A notice with the undo in it.
- *
- * A word at the end of the line rather than a button: the notice is already
- * a box, and Obsidian's own notices put their actions the same way. It stays
- * as long as the undo is offered, and goes the moment it is taken.
- */
-function showUndoNotice(message: string, label: string, onUndo: () => void): void {
-  const fragment = document.createDocumentFragment();
-  fragment.appendChild(document.createTextNode(message));
-  const action = fragment.appendChild(document.createElement("span"));
-  action.className = "schreibstube-undo-action";
-  action.setAttribute("role", "button");
-  action.setAttribute("tabindex", "0");
-  action.textContent = label;
-
-  const notice = new Notice(fragment, UNDO_NOTICE_MS);
-  const take = (): void => {
-    notice.hide();
-    onUndo();
-  };
-  action.addEventListener("click", take);
-  action.addEventListener("keydown", (event) => {
-    if (event.key === "Enter" || event.key === " ") {
-      event.preventDefault();
-      take();
-    }
-  });
 }
 
 function countChildren(folder: TFolder): number {

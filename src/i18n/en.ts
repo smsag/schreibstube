@@ -11,24 +11,25 @@ import { enExtra } from "./en-extra";
 export const en = {
   commands: {
     print: "Print doc",
+    printQuick: "Print doc (without dialog)",
     focusSentence: "Focus: sentence",
     focusParagraph: "Focus: paragraph",
     newNote: "New doc",
     insertTaskSummary: "Insert: task summary",
     insertSlideshow: "Insert: slideshow",
     insertPdfSummary: "Insert: summary from the attached PDF",
-    sendToReminders: "Send task to Erinnerungen",
-    reminders: "Compare with Erinnerungen",
     rename: "Rename doc with AI",
     summarize: "Insert: AI summary of the selection",
     table: "Insert: table from the selection",
     tableAi: "Insert: AI table from the selection",
     insertToday: "Insert: today's date",
+    addPropertySet: "Insert: property set",
     openExplorer: "Open explorer",
     collapseExplorer: "Explorer: collapse folders",
     explorerUndo: "Explorer: undo the last move or delete",
     folderTiles: "Explorer: this note's folder as tiles",
-    related: "Related notes",
+    orphanedDescriptions: "Explorer: orphaned picture descriptions",
+    related: "Recommended",
     openBookmark: "Open bookmark",
     pinTag: "Pin tag",
     openReview: "Open review sidebar",
@@ -64,21 +65,7 @@ export const en = {
      *  numbers have to appear as plain digits here. */
     ribbon: (open: number, total: number) => `${open} open of ${total}`,
     /** The badge after a heading. */
-    badge: (open: number, total: number) => `${open} of ${total} open`,
-    menuSend: "Send to Erinnerungen",
-    markTooltip: "Sent to Erinnerungen",
-    remindersOff:
-      "sending to Erinnerungen is off. Turn it on in Settings → Schreibstube → Erinnerungen.",
-    noShortcut: "no Shortcut name is set. Enter it in Settings → Schreibstube → Erinnerungen.",
-    notATask: "the cursor is not on a task.",
-    sent: (title: string) => `sent to Erinnerungen: ${title}`,
-    taskNotFound: "no note in this vault holds that task.",
-    noStatusShortcut:
-      "no status Shortcut name is set. Enter it in Settings → Schreibstube → Erinnerungen.",
-    noneSent: "no task in this note has been sent to Erinnerungen.",
-    checking: "asking Erinnerungen…",
-    nothingDone: "Erinnerungen reports nothing new as done.",
-    ticked: (count: number) => `${count} task(s) ticked as done in Erinnerungen.`
+    badge: (open: number, total: number) => `${open} of ${total} open`
   },
 
   slideshow: {
@@ -144,6 +131,10 @@ export const en = {
     addAccount: "Add account",
     writeBack: "Record the publication in the note",
     writeBackDesc: "Writes the time and the address into the frontmatter after publishing.",
+    headerTags: "Tags in the header",
+    headerTagsDesc:
+      "Up to three tags linked at the top of every page, each to a page listing the notes that carry it. Nested tags count: projekt also lists notes tagged projekt/alpha. A tag no published note carries is left out.",
+    headerTagPlaceholder: "#tag",
     targetPlaceholder: "Target on the bridge",
     targetsUnavailable: "Targets could not be loaded — type the name.",
     keysHeading: "Frontmatter fields",
@@ -187,8 +178,13 @@ export const en = {
     failed: (reason: string) => `publication failed — ${reason}`,
     busy: "a publication is already running.",
     noAccount: "no publishing account configured — see Settings.",
-    noNotes: (folder: string) => `no note in ${folder} is marked for publication.`,
+    noNotes: (folder: string) =>
+      `no note in ${folder} is marked for publication, and nothing published is left to take down.`,
+    emptyFolder: (folder: string) =>
+      `${folder} holds no notes — check the account's folder. Nothing was published or taken down.`,
     missingSource: (path: string) => `the source for ${path} is missing — please try again.`,
+    changedDuringPublish: (path: string) =>
+      `${path} changed while publishing — publish again to send the new version.`,
     writeBackFailed: (path: string) => `published, but ${path} could not be updated.`,
     unknownTarget: (target: string) => `the bridge has no target named ${target}.`,
     connectionOk: (target: string, entries: number) =>

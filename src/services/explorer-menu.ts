@@ -16,6 +16,7 @@ import { t } from "../i18n";
 export type ExplorerAction =
   | "open"
   | "open-new-tab"
+  | "open-new-window"
   | "set-icon"
   | "clear-icon"
   | "keep-top"
@@ -36,6 +37,8 @@ export type ExplorerAction =
   | "move"
   | "rename"
   | "rename-ai"
+  | "describe-image"
+  | "describe-folder"
   | "delete"
   | "more";
 
@@ -46,6 +49,8 @@ export interface ExplorerTarget {
   markdown: boolean;
   /** A picture, which is named by being looked at rather than by being read. */
   image?: boolean;
+  /** A picture that can be described: picture descriptions are switched on. */
+  describable?: boolean;
   /**
    * Whether the note names a source in its frontmatter.
    *
@@ -64,6 +69,8 @@ export interface ExplorerTarget {
   hasBoundNotes?: boolean;
   /** For a folder: whether it holds a picture of its own, subfolders aside. */
   hasImages?: boolean;
+  /** Whether a note can open in a window of its own: the desktop, not a phone. */
+  windows?: boolean;
 }
 
 /** Where the items other plugins contribute end up. */
@@ -116,6 +123,9 @@ export function buildExplorerMenu(
       { id: "open", label: menu.open, icon: "file-text" },
       { id: "open-new-tab", label: menu.openNewTab, icon: "layout-panel-left" }
     ];
+    if (target.windows) {
+      open.push({ id: "open-new-window", label: menu.openNewWindow, icon: "app-window" });
+    }
     // Listing what a note sits among is a way of opening it, not a way of
     // changing it, so it belongs in this block rather than below with the
     // actions that write. Only a note has it: an attachment carries no links
@@ -188,6 +198,16 @@ export function buildExplorerMenu(
       { id: "move", label: menu.move, icon: "folder-input" },
       { id: "rename", label: menu.rename, icon: "pencil" },
       ...aiRenameItem(target),
+      // Only while descriptions are switched on: switched off, nothing may be sent.
+      ...(target.kind === "file" && target.image && target.describable
+        ? [{ id: "describe-image" as const, label: menu.describeImage, icon: "scan-text" }]
+        : []),
+      // Every picture under the folder without a description, subfolders
+      // included: offered on any folder, since finding out whether one holds a
+      // picture deep down would cost a walk of it on every right-click.
+      ...(target.kind === "folder" && target.describable
+        ? [{ id: "describe-folder" as const, label: menu.describeFolder, icon: "scan-text" }]
+        : []),
       { id: "delete", label: menu.delete, icon: "trash-2", warning: true }
     ]
   });

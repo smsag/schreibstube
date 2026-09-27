@@ -7,10 +7,31 @@ const banner =
 const prod = process.argv.includes("--production");
 const watch = process.argv.includes("--watch");
 
+// The model runtime is built on its own, as one self-contained browser bundle,
+// so the ML library never enters main.js as code: main.js carries it as a
+// string and hands it to a Web Worker, or to an iframe where Workers are
+// blocked. The same bundle serves both and tells which it is at runtime, so it
+// is inlined once. Only what main.js imports reaches the release — until the
+// engine is wired in, the string is tree-shaken away with the code that reads it.
+const embeddingBuild = await esbuild.build({
+  entryPoints: ["src/controllers/semantic/host/frame/entry.ts"],
+  bundle: true,
+  platform: "browser",
+  format: "esm",
+  target: "esnext",
+  write: false,
+  minify: prod,
+  logLevel: "warning"
+});
+const embeddingSource = embeddingBuild.outputFiles[0].text;
+
 const context = await esbuild.context({
   banner: { js: banner },
   entryPoints: ["src/main.ts"],
   bundle: true,
+  define: {
+    __EMBEDDING_BUNDLE_PLACEHOLDER__: JSON.stringify(embeddingSource)
+  },
   external: ["obsidian", "@codemirror/view", "@codemirror/state", "@codemirror/language"],
   format: "cjs",
   target: "es2020",

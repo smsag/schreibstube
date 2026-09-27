@@ -14,10 +14,14 @@
  * by how rare it is across the vault. A word in every file's path barely moves
  * a score; a word in one file's title decides it.
  *
- * What this is not is a content search. Obsidian's own search reads every note
- * body and has the operators for it; a pane filter that quietly did the same
- * would be slower, worse and redundant. The line is deliberate: this searches
- * what a file is *called*, in every sense a vault gives that word.
+ * A note's text counts too, far below all of those. The filter used to stop at
+ * what a file is called, on the reasoning that Obsidian's own search reads
+ * bodies; but the pane is where people type, and a letter about the
+ * *Jahresabrechnung* that could not be found by that word — while it stood open
+ * beside the box — read as a broken search, not a principled one. A word in the
+ * text is weighted well under a word in the name, so a file *called* what was
+ * typed still comes first, and the words come from `body-index`, which reads
+ * each note once rather than per keystroke.
  *
  * Pure, so the whole rule is a test rather than something to check by typing
  * into a phone. The view supplies the fields; nothing here knows what Obsidian
@@ -47,7 +51,7 @@ export function queryTokens(query: string): string[] {
 /**
  * Lowercase word tokens, deduped, Unicode-aware.
  *
- * `\p{L}\p{N}` rather than `[a-z0-9]`: this is a German-first plugin, and the
+ * `\p{L}\p{M}\p{N}` rather than `[a-z0-9]`: this is a German-first plugin, and the
  * ASCII class fragmented every umlaut word — "Ernährung" became "ern" and
  * "hrung", which then cross-matched unrelated text on the stray pieces — while
  * reducing a non-Latin query to no tokens at all, which the empty-query branch
@@ -56,6 +60,10 @@ export function queryTokens(query: string): string[] {
  * NFC first because macOS stores a file name's umlaut decomposed, as "u" plus a
  * combining diaeresis. Without normalising, a file named on a Mac and a query
  * typed on a phone tokenize differently and never meet.
+ *
+ * Marks (`\p{M}`) belong to their letter: Hindi, Thai, Hebrew with points and
+ * Arabic with harakat write vowels as combining marks, and a class without them
+ * cut those words into one-letter tokens that prefix-matched almost everything.
  */
 export function tokenize(text: string): string[] {
   return Array.from(
@@ -63,7 +71,7 @@ export function tokenize(text: string): string[] {
       text
         .normalize("NFC")
         .toLowerCase()
-        .match(/[\p{L}\p{N}]+/gu) ?? []
+        .match(/[\p{L}\p{M}\p{N}]+/gu) ?? []
     )
   );
 }
@@ -121,6 +129,45 @@ export function matchStrength(fileTokens: readonly string[], queryToken: string)
   return best;
 }
 
+/**
+ * The same grades as `matchStrength`, for one word of a note's text, without
+ * the shorter-form match.
+ *
+ * A name is a handful of words chosen on purpose; a body is hundreds written in
+ * passing. "jahr" at the start of "jahresabrechnung" is a fair reason to offer
+ * a file *named* "Jahr 2024", and no reason at all to offer every note that
+ * mentions a year — which is what the reverse match would do across bodies.
+ */
+export function forwardMatchStrength(token: string, queryToken: string): number {
+  if (!queryToken) return 0;
+  if (token === queryToken) return EXACT;
+  if (token.startsWith(queryToken)) return PREFIX;
+  if (queryToken.length >= MIN_INFIX_QUERY && token.includes(queryToken)) return INFIX;
+  return 0;
+}
+
+/**
+ * Where the words of the vault's note bodies are looked up.
+ *
+ * Kept outside `SearchFields` because a body is not read the way a name is:
+ * the names are a synchronous read of the metadata cache, a body is a file
+ * read, and a vault's bodies share one vocabulary that is scored once per
+ * keystroke rather than once per file (`body-index`).
+ */
+export interface BodyMatcher {
+  /** The best strength, per path, with which some word of that note's text
+   *  answers `queryToken`. Paths absent from the map do not answer it. */
+  strengths(queryToken: string): ReadonlyMap<string, number>;
+}
+
+/**
+ * What a hit in a note's text is worth: under every field that names the
+ * file except the folders, which every file in them shares. A word written
+ * somewhere in a note says less about which note was meant than a tag, and
+ * more than the folder it sits in.
+ */
+export const BODY_WEIGHT = 0.35;
+
 /** The fields a file can be found by, each already tokenized. */
 export interface SearchFields {
   /** The file name as the pane shows it, extension included. */
@@ -133,6 +180,9 @@ export interface SearchFields {
   tags: string[];
   /** The folders above the file. The file's own name is not repeated here. */
   path: string[];
+  /** What a picture shows, in the words of its description note. Empty for
+   *  everything else. */
+  description: string[];
 }
 
 /** One file as the filter sees it. */
@@ -147,7 +197,10 @@ export interface SearchCandidate {
  * The name leads because it is what the person chose and what the row shows.
  * A title is the name a note gives itself and is worth nearly as much; aliases
  * exist to be found by, so they sit level with the title. A tag is a deliberate
- * label but describes a group rather than this file. The path comes last by a
+ * label but describes a group rather than this file. A picture's description
+ * sits below it: every word of it is about this picture, but it is prose, and
+ * a word somewhere in two sentences says less than a keyword chosen for it.
+ * The path comes last by a
  * distance: every file in a folder shares it, so a folder name that matches
  * says almost nothing about which file inside it was meant — and without the
  * gap, typing a folder's name would bury the one file actually called that.
@@ -157,6 +210,7 @@ const FIELD_WEIGHTS: Record<keyof SearchFields, number> = {
   title: 0.9,
   aliases: 0.9,
   tags: 0.6,
+  description: 0.5,
   path: 0.25
 };
 
@@ -196,7 +250,7 @@ export interface SearchHit {
  * note carries the word "Objekt" in its name cannot be narrowed by typing more
  * of it, only by saying which dimension was meant.
  */
-export type SearchScope = "all" | "tags" | "path" | "name";
+export type SearchScope = "all" | "tags" | "path" | "name" | "body";
 
 export interface ParsedQuery {
   scope: SearchScope;
@@ -226,6 +280,9 @@ const SCOPE_PREFIXES: Record<string, SearchScope> = {
   name: "name",
   file: "name",
   datei: "name",
+  text: "body",
+  inhalt: "body",
+  body: "body",
   all: "all",
   alle: "all"
 };
@@ -251,6 +308,8 @@ function fieldsForScope(scope: SearchScope): (keyof SearchFields)[] {
       return ["path"];
     case "name":
       return ["name"];
+    case "body":
+      return [];
     default:
       return FIELD_NAMES;
   }
@@ -271,7 +330,8 @@ function fieldsForScope(scope: SearchScope): (keyof SearchFields)[] {
 export function rankFiles(
   raw: string,
   candidates: readonly SearchCandidate[],
-  limit?: number
+  limit?: number,
+  body?: BodyMatcher
 ): SearchHit[] {
   const { scope, query } = parseSearchScope(raw);
   const words = queryTokens(query);
@@ -279,6 +339,11 @@ export function rankFiles(
 
   const fields = fieldsForScope(scope);
   const total = candidates.length;
+  // One lookup per word for the whole vault's text, not one per file.
+  const bodies =
+    body && (scope === "all" || scope === "body")
+      ? words.map((word) => body.strengths(word))
+      : null;
 
   // Every file scored against every word once, and the answers kept.
   //
@@ -304,6 +369,8 @@ export function rankFiles(
         const strength = matchStrength(candidateFields[field], token);
         if (strength > 0) best = Math.max(best, strength * FIELD_WEIGHTS[field]);
       }
+      const inText = bodies?.[column]?.get(candidates[row]?.path ?? "") ?? 0;
+      if (inText > 0) best = Math.max(best, inText * BODY_WEIGHT);
       if (best > 0) {
         strengths[row * words.length + column] = best;
         frequencies[column] = (frequencies[column] ?? 0) + 1;
@@ -374,6 +441,8 @@ export interface SearchSubject {
   title?: string | null;
   aliases?: readonly string[];
   tags?: readonly string[];
+  /** A picture's description, from the note that describes it. */
+  description?: string | null;
 }
 
 /**
@@ -397,6 +466,7 @@ export function searchFields(subject: SearchSubject): SearchFields {
     title: tokenize(subject.title ?? ""),
     aliases: tokenize((subject.aliases ?? []).join(" ")),
     tags: tokenize((subject.tags ?? []).join(" ")),
-    path: tokenize(folders)
+    path: tokenize(folders),
+    description: tokenize(subject.description ?? "")
   };
 }

@@ -45,7 +45,9 @@ export class MailCommands {
   constructor(
     private readonly app: App,
     private readonly getSettings: () => SchreibstubeSettings,
-    private readonly logger: Logger
+    private readonly logger: Logger,
+    /** Offer the Mail property set when a note lacks the keys to send. */
+    private readonly offerFields: ((file: TFile, message: string) => void) | null = null
   ) {}
 
   /** Send the active note. Addressing comes from frontmatter; the body is the
@@ -64,7 +66,8 @@ export class MailCommands {
     const fields = this.readFields(file);
     const sendable = validateSendable(fields);
     if (!sendable.ok) {
-      new Notice(`Schreibstube: ${sendable.message}`);
+      if (sendable.missing && this.offerFields) this.offerFields(file, sendable.message);
+      else new Notice(`Schreibstube: ${sendable.message}`);
       return;
     }
 

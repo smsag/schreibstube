@@ -23,44 +23,6 @@ export const enExtra = {
     focusOpacityDesc:
       "Opacity of out-of-focus lines in focus mode (0.2 = very faint, 0.8 = nearly full).",
 
-    remindersHeading: "Erinnerungen",
-    remindersIntro:
-      "Sends a task to Apple's Reminders through a Shortcut you install once. The task's line " +
-      "becomes the title, the text indented under it the note, and a link back to the task is " +
-      "added so the reminder can reopen the note at the right place. macOS and iOS only.",
-    remindersEnabled: "Send tasks to Erinnerungen",
-    remindersEnabledDesc: "Offer the command and the entry in the editor's context menu.",
-    remindersList: "Reminders list",
-    remindersListDesc:
-      "Name of the list the reminder is created in, handed to the Shortcut. Leave empty to let " +
-      "the Shortcut choose.",
-    remindersShortcut: "Shortcut name",
-    remindersShortcutDesc:
-      "The Shortcut that creates the reminder. It receives one text input: JSON with title, " +
-      "notes, list, link and note.",
-    remindersSetup: "Building the Shortcut",
-    remindersSetupDesc:
-      'In the Shortcuts app, create a shortcut with that name that accepts text. Add "Get ' +
-      'Dictionary from Input", then "Add New Reminder" with Title from the dictionary\'s title, ' +
-      "Notes from notes and the list from list. Tags written as #tag stay text: Reminders offers " +
-      "no way to set a real tag from outside.",
-    remindersStatusShortcut: "Status Shortcut name",
-    remindersStatusShortcutDesc:
-      "The Shortcut that reports which reminders are done. It receives JSON with ids, links and " +
-      "list, and its output is handed back to the plugin: any text that contains the reminders' " +
-      "links, such as their notes.",
-    remindersStatusSetup: "Building the status Shortcut",
-    remindersStatusSetupDesc:
-      'Create a shortcut with that name that accepts text. Add "Find Reminders" with Is Completed ' +
-      'true, List from the list you use, and Notes contains "schreibstube?task=". Add "Get Details ' +
-      'of Reminders" for the Notes, then "Combine Text" with new lines, and end with that text as ' +
-      'the output. To keep notes current without running anything, add "Save File" to the same ' +
-      "shortcut, overwriting the report file in the vault, and run it from an automation.",
-    remindersReportFile: "Report file",
-    remindersReportFileDesc:
-      "Vault path of the file an automation writes the status Shortcut's output to. The plugin " +
-      "reads it whenever it changes and ticks the tasks it names. Leave empty to turn this off.",
-
     explorerHeading: "Schreibstube Explorer",
     explorerIntro:
       "Schreibstube's own file list: an icon per file and folder, a sync mark on notes bound " +
@@ -81,18 +43,17 @@ export const enExtra = {
     explorerBookmarksFileDesc:
       "Vault path of the Markdown file the bookmarks are read from. A heading is a folder, a " +
       "list item is a link.",
-    explorerLatest: "Latest section",
-    explorerLatestDesc:
-      "Three short lists between the bookmarks and the tree: the notes whose source last " +
-      "changed, the notes most recently created, and " +
-      "those most recently changed. A note shown as created is not repeated as changed.",
-    explorerLatestCount: "Notes per list",
-    explorerLatestCountDesc: (max: number) =>
-      `How many notes each of the two lists shows (1 to ${max}).`,
-    explorerLatestExclude: "Never show these",
-    explorerLatestExcludeDesc:
-      "Vault paths, separated by commas or line breaks. A folder excludes everything inside it. " +
-      "The bookmarks file is always excluded.",
+    explorerDescriptionNotes: "Show picture descriptions as notes",
+    explorerDescriptionNotesDesc:
+      "Off: a described picture is one row, found by its description too, and its description note stays " +
+      "out of the tree. On: the description notes appear as ordinary notes.",
+    recommendedPlacement: "Recommended",
+    recommendedPlacementDesc:
+      "Where the notes, pictures and conversations that belong with the open note are shown. Under " +
+      "the note, they are read where the note ends; the sidebar panel can still be opened from a " +
+      "note's menu.",
+    recommendedSidebar: "In the right sidebar",
+    recommendedFooter: "Under the note",
     explorerTaskCounts: "Task counts",
     explorerTaskCountsDesc:
       'Show how many tasks a note holds and how many are still open, as "1 / 7" after its ' +
@@ -123,6 +84,23 @@ export const enExtra = {
     renameMaxCharsDesc: "Number of characters from the beginning of the note sent to the LLM.",
     renameMaxFilename: "Maximum filename length",
     renameMaxFilenameDesc: "Generated filename will be truncated to this many characters.",
+
+    describeHeading: "Picture descriptions",
+    describeIntro:
+      "Describe a picture from its menu in Schreibstube Explorer: the configured model writes a title, a " +
+      "description and keywords into a note of its own, so the picture can be found by what it shows. " +
+      "The picture is resized first, which drops its location data, and then sent to the provider above.",
+    describeEnabled: "Describe pictures",
+    describeEnabledDesc:
+      "Adds Describe picture to a picture's menu. Nothing is sent anywhere while this is off.",
+    describeFolder: "Folder for descriptions",
+    describeFolderDesc: "One note per picture, all in this folder.",
+    describeLanguage: "Language of descriptions",
+    describeLanguageAuto: "Interface language",
+    describeTags: "Keywords as tags",
+    describeTagsDesc:
+      "Also write the keywords as Obsidian tags. Off by default: many pictures with several keywords each " +
+      "fill the tag pane.",
 
     summarizeHeading: "Summarize selection",
     summarizeIntro:
@@ -161,6 +139,12 @@ export const enExtra = {
     glossaryRules: "Folder rules",
     glossaryRulesDesc: "One rule per line: folder | glossary path. The first match wins.",
     glossaryRulesPlaceholder: "Clients | Glossaries/Clients.md",
+    glossaryTermFolder: "Term folder",
+    glossaryTermFolderDesc:
+      "A folder of one note per term, such as the glossary folder Pythia writes. Each note is a " +
+      "term; the words listed under schreibstubeAvoid on it are flagged, with the term offered " +
+      "instead. Joins the default glossaries. Manage the words in the proofreading panel.",
+    glossaryTermFolderPlaceholder: "Glossary",
     glossaryUnderline: "Underline glossary hits in the editor",
     glossaryUnderlineDesc:
       "Marks error-severity terms as you write. Off by default to keep long notes quiet.",
@@ -187,7 +171,8 @@ export const enExtra = {
     printAddTemplateButton: "Add",
     printAddTemplateDesc:
       "Writes one of the two example templates into a folder you choose. Neither carries a " +
-      "typeface, since fonts are licensed; a template with none is set in Typst's own.",
+      "typeface, since fonts are licensed; a template with none is set in the standard fonts " +
+      "fetched with the typesetter.",
     printTemplateRoot: "Templates folder",
     printTemplateRootDesc:
       "Where a new template goes by default. A template is any folder with a template.md marked " +
@@ -197,6 +182,13 @@ export const enExtra = {
     printOutputFolderDesc:
       "Where a printed PDF is written. Leave empty to put it beside the note it came from.",
     printOutputBesideNote: "beside the note",
+    printDefaultTemplate: "Default template",
+    printDefaultTemplateDesc:
+      "What a note that names no template is printed with. A note chooses its own with " +
+      "schreibstubePrintTemplate in its frontmatter.",
+    printDefaultBuiltin: "Standard (built in)",
+    printDefaultAsk: "Ask every time",
+    printDefaultMissing: (path: string) => `${path} (not found)`,
     commandsHeading: "Commands",
     commandsIntro: 'In the command palette, each one prefixed with "Schreibstube: ".',
 
@@ -260,7 +252,38 @@ export const enExtra = {
     tableSelectionMoved: "the text changed while the table was being created; nothing replaced.",
     tableHeaderName: "Name",
     tableHeaderValue: "Value",
-    failTable: "Schreibstube: table conversion failed"
+    failTable: "Schreibstube: table conversion failed",
+    describing: "describing the picture…",
+    described: (title: string) => `described: ${title}`,
+    describeUnusable: "the model's description was unusable — nothing written.",
+    failDescribe: "Schreibstube: describing the picture failed",
+    folder: {
+      off: "picture descriptions are switched off in the settings.",
+      nothing: (name: string, described: number) =>
+        described > 0
+          ? `every picture in ${name} has a description (${described}).`
+          : `no picture in ${name} to describe.`,
+      relinked: (count: number) =>
+        `${count} description(s) whose picture had been renamed were found again.`,
+      tooLarge: (count: number, megabytes: number) =>
+        `${count} picture(s) over ${megabytes} MB are left out.`,
+      deferred: (count: number, cap: number) =>
+        `${count} more wait for the next run: a run describes at most ${cap}.`,
+      confirmTitle: (count: number, name: string) => `Describe ${count} picture(s) in ${name}?`,
+      confirmBody: (count: number, provider: string) =>
+        `Each picture is made smaller, stripped of its location data and sent to ${provider}: ` +
+        `${count} request(s), one after another. Every description becomes a note.`,
+      confirmAction: "Describe",
+      progress: (done: number, total: number, name: string) =>
+        `Describing pictures in ${name}: ${done} of ${total}. `,
+      stop: "Stop",
+      stopping: "Stopping after this picture…",
+      done: (count: number, name: string) => `${count} picture(s) in ${name} described.`,
+      unusable: (count: number) =>
+        `${count} answer(s) were unusable; nothing was written for them.`,
+      failed: (count: number) => `${count} failed — the console says why.`,
+      stopped: "Stopped; the rest are still undescribed."
+    }
   },
 
   properties: {
@@ -271,7 +294,40 @@ export const enExtra = {
     dateFormat: "Date format",
     dateFormatDesc: (example: string) =>
       `For text, e.g. DD.MM.YYYY or dddd, D. MMMM. Date properties always get YYYY-MM-DD. ` +
-      `Today: ${example}`
+      `Today: ${example}`,
+    setFolder: "Property set folder",
+    setFolderDesc:
+      "Every note in this folder is a property set: its frontmatter keys and values are added " +
+      "to a note, its body is not. Templater templates are rendered for the note they go into " +
+      "when Templater is installed. Schreibstube's own sets are always offered.",
+    setFolderPlaceholder: "Templates/Properties",
+    addSet: "Add property set…",
+    addSetButton: "Add set",
+    setPickerPlaceholder: "Which set should this note get?",
+    setFromSchreibstube: "Schreibstube",
+    setNames: {
+      mail: "Mail",
+      sync: "Document sync",
+      print: "Print",
+      glossaryNote: "Glossary note",
+      glossaries: "Glossaries for this note"
+    } as Record<string, string>,
+    setAdded: (name: string, added: number, kept: number) =>
+      kept > 0 ? `${name}: ${added} added, ${kept} already there.` : `${name}: ${added} added.`,
+    setNothingToAdd: (name: string) => `${name}: every key is already there.`,
+    setTemplaterMissing: (keys: string) =>
+      `Templater is not available, so these were added empty: ${keys}.`,
+    setTemplaterFailed: (reason: string, keys: string) =>
+      `Templater could not render the set (${reason}), so these were added empty: ${keys}.`,
+    setRenderedInvalid: (name: string) =>
+      `${name}: Templater's output is not valid frontmatter, so nothing was added.`,
+    setUnreadable: (name: string) => `${name}: its frontmatter could not be read.`,
+    setSkipped: (name: string, keys: string) =>
+      `${name}: left out ${keys} — a set adds text, numbers, yes/no and lists.`,
+    setWriteFailed: (reason: string) => `could not add the properties — ${reason}`,
+    setCompleteOffer: (name: string, missing: string) => `${name} also uses ${missing}.`,
+    setCompleteAction: "Add them",
+    mailFieldsAction: "Add mail fields"
   },
 
   cron: {
@@ -393,7 +449,36 @@ export const enExtra = {
     reject: "Discard",
     show: "Locate",
     showInsert: "Locate insertion point",
-    acceptAll: (count: number) => `Accept all (${count})`
+    acceptAll: (count: number) => `Accept all (${count})`,
+    panelTerms: (folder: string) => `Terms (${folder})`,
+    panelTermsEmpty: "No word is marked to avoid yet. Select one in the note, then Add rule.",
+    panelAddTermRule: "Add rule",
+    panelRemoveTermRule: (word: string) => `Allow "${word}" again`,
+    panelOpenTerm: (term: string) => `Open ${term}`,
+    termByModel: (definition: string) => `${definition} (definition by model)`,
+    termNoNotes: (folder: string) =>
+      folder ? `no term notes in ${folder}.` : "no term folder set in the settings.",
+    termPickerPlaceholder: (word: string) =>
+      word ? `Which term should replace "${word}"?` : "Which term should a word be avoided for?",
+    termAvoidTitle: (term: string) => `Avoid in favour of ${term}`,
+    termAvoidDesc: "Flagged in every checked note, with the term offered in its place.",
+    termAvoidPlaceholder: "Word to avoid",
+    termAvoidSubmit: "Add",
+    termAvoidSuggestions: "Translations on the term note:",
+    termAvoidErrors: {
+      empty: "Enter a word.",
+      same: "That is the term itself.",
+      duplicate: "Already listed for this term.",
+      tooLong: "Too long for a term.",
+      tooMany: "This term already lists as many words as it can.",
+      multiline: "One line only."
+    } as Record<string, string>,
+    termRuleAdded: (word: string, term: string) => `"${word}" is now flagged in favour of ${term}.`,
+    termRuleRemoved: (word: string, term: string) => `"${word}" is no longer flagged for ${term}.`,
+    termWriteFailed: (reason: string) => `could not update the term note — ${reason}`,
+    termOverlap: (word: string, term: string, glossary: string) =>
+      `"${word}" is defined in ${glossary} and on the term note ${term}. Keep it in one place.`,
+    termOverlapMore: (count: number) => `…and ${count} more word(s) defined in both places.`
   },
 
   sync: {
@@ -438,6 +523,17 @@ export const enExtra = {
   },
 
   explorer: {
+    orphans: {
+      repaired: (count: number) =>
+        count === 1
+          ? "1 description found its picture again."
+          : `${count} descriptions found their pictures again.`,
+      none: "Every picture description finds its picture.",
+      placeholder: (count: number) =>
+        count === 1
+          ? "1 description whose picture is missing — open it"
+          : `${count} descriptions whose pictures are missing — open one`
+    },
     title: "Schreibstube Explorer",
     empty: "This vault has no files yet.",
     searchPlaceholder: "Filter all sections…",
@@ -445,6 +541,8 @@ export const enExtra = {
     taskCount: (done: number, total: number) => `${done} of ${total} tasks done`,
     filterEmpty: "Nothing here answers that.",
     filterMore: (count: number) => `${count} more match. Narrow the filter to see them.`,
+    foundByMeaning: "Found by meaning: the words differ, the subject matches.",
+    searchingByMeaning: "Searching by meaning…",
     collapseAll: "Collapse all",
     expandAll: "Expand all",
     pinnedMore: "Show all pinned",
@@ -452,13 +550,18 @@ export const enExtra = {
     folderCount: (count: string) => `${count} files`,
 
     related: {
-      viewTitle: "Related notes",
-      viewNoNote: "Open a note to see what it sits among.",
-      viewEmpty: "Nothing links, tags or files this note beside anything else.",
-      summary: (count: number) => (count === 1 ? "1 related note" : `${count} related notes`),
+      viewTitle: "Recommended",
+      viewNoNote: "Open a note to see what belongs with it.",
+      viewEmpty:
+        "Nothing links, tags or files this note beside anything else, and nothing reads alike.",
+      summary: (count: number) => (count === 1 ? "1 recommendation" : `${count} recommendations`),
       root: "Vault root",
+      pictures: "Pictures",
+      notes: "Notes and documents",
+      conversations: "Conversations",
       reasons: {
         link: "linked",
+        meaning: "similar in meaning",
         sharedLink: (count: number) => (count === 1 ? "1 shared link" : `${count} shared links`),
         coCitation: (count: number) =>
           count === 1 ? "listed together" : `listed together ${count}×`,
@@ -514,7 +617,7 @@ export const enExtra = {
     sections: {
       pinned: "Pinned",
       bookmarks: "Bookmarks",
-      latest: "Latest",
+      latest: "Updated externally",
       files: "Files and folders"
     },
 
@@ -526,25 +629,23 @@ export const enExtra = {
       badTarget: (name: string) => `${name} does not point anywhere that can be opened.`,
       missingFolder: (path: string) => `there is no folder at ${path}.`,
       missingNote: (path: string) => `there is no note called ${path}.`,
+      openFailed: (name: string) => `${name} could not be opened.`,
       copyPath: "Copy path for Schreibstube",
       copied: (path: string) => `${path} copied as a bookmark link.`,
       copyFailed: "the clipboard is not available here.",
       quickOpen: "Search bookmarks…",
-      recent: "Recently opened",
       all: "All bookmarks"
     },
 
     latest: {
-      synced: "Updated externally",
       alert: "A source was updated in the background",
-      created: "Created",
-      modified: "Modified",
-      empty: "No notes yet."
+      empty: "No source has changed."
     },
 
     menu: {
       open: "Open",
       openNewTab: "Open in new tab",
+      openNewWindow: "Open in new window",
       setIcon: "Set icon…",
       changeIcon: "Change icon…",
       clearIcon: "Remove icon",
@@ -552,7 +653,7 @@ export const enExtra = {
       releaseTop: "Stop keeping at top",
       pin: "Add to Pinned",
       unpin: "Remove from Pinned",
-      related: "Related notes",
+      related: "Recommended",
       showImages: "Images as tiles",
       pinTag: "Pin a tag of this note…",
       showTag: "Show tagged notes",
@@ -566,6 +667,8 @@ export const enExtra = {
       rename: "Rename…",
       renameNoteAi: "Rename from the text…",
       renameImageAi: "Rename from the picture…",
+      describeImage: "Describe picture",
+      describeFolder: "Describe pictures",
       renaming: "Reading it…",
       move: "Move to…",
       delete: "Delete",
@@ -596,7 +699,12 @@ export const enExtra = {
       unchecked: "Bound to a source, never checked",
       error: "The source cannot be fetched",
       checkedAt: (when: string) => `last checked ${when}`,
-      never: "never checked"
+      never: "never checked",
+      published: (site: string, when: string) => `Published on ${site} · ${when}`,
+      marked: (site: string) => `Marked for publication on ${site}`,
+      notYetPublished: "not published yet",
+      siteLastPublished: (when: string) => `the site was last published ${when}`,
+      siteNeverPublished: "the site has not been published from this vault yet"
     },
 
     bind: {
@@ -665,9 +773,31 @@ export const enExtra = {
 
   print: {
     noNote: "open a note first — printing sets the note you are looking at.",
-    noTemplates:
-      "no print template in this vault. A template is a folder holding a template.md and a " +
-      'template.typ; "Add a template" in the print settings puts one in.',
+    defaultMissing: (path: string) =>
+      `the default template ${path} is no longer in this vault; choose one, or pick another default in the print settings.`,
+    builtIn: "built in",
+    slideshowUnreadable: (detail: string) => `a slideshow was printed as its source — ${detail}`,
+    preparing: "preparing the print…",
+    dialog: {
+      title: "Print",
+      template: "Template",
+      margins: "Margins",
+      margin: { small: "Small", standard: "Standard", wide: "Wide" },
+      marginFixed: "This template sets its own margins.",
+      pageBreaks: "Horizontal rules as page breaks",
+      frontmatter: "Print properties",
+      slideshows: "Slideshows",
+      slideshow: { layout: "As in the note", stacked: "Every picture, one under another" },
+      print: "Print",
+      working: "Setting the preview…",
+      pages: (shown: number, total: number) =>
+        shown === total
+          ? total === 1
+            ? "1 page"
+            : `${total} pages`
+          : `the first ${shown} of ${total} pages`,
+      failed: (detail: string) => `No preview — ${detail}`
+    },
     unknownTemplate: (name: string) =>
       `this note asks for the template "${name}", and no folder in this vault is one.`,
     noLayout: (name: string) => `${name} has no template.typ, so there is nothing to print with.`,
@@ -675,9 +805,14 @@ export const enExtra = {
     drawing: (index: number, total: number) => `drawing diagram ${index} of ${total}…`,
     downloading: (label: string, megabytes: number) =>
       `fetching the ${label} (${megabytes} MB, once per device)…`,
+    downloadingFont: (face: string) => `fetching the font ${face} (once per device)…`,
     verifying: "checking what was downloaded…",
     starting: "starting the typesetter…",
     compiling: "typesetting…",
+    compilingLong: (seconds: number) =>
+      `typesetting a long document — this can take up to ${seconds} s on this device…`,
+    compileTimeout: (seconds: number) =>
+      `the document took longer than ${seconds} s to set and was stopped. Try printing it in two parts.`,
     mismatch: (detail: string) =>
       `the downloaded typesetter is not what this version expects and was not used (${detail}).`,
     timeout: (seconds: number) => `no answer within ${seconds}s`,
@@ -690,8 +825,6 @@ export const enExtra = {
     done: (path: string, kilobytes: number) => `printed ${path} (${kilobytes} KB).`,
     withWarnings: (detail: string) => `printed, with something left out — ${detail}`,
     failed: (detail: string) => `printing failed — ${detail}`,
-    chooseTemplate: "Print with which template?",
-    templateHint: "Set schreibstubePrintTemplate in the note to skip this.",
     offTitle: "Printing is off",
     offMessage: (megabytes: number) =>
       `Printing sets the note on this device rather than on a server, so it needs a typesetter: ` +
@@ -707,9 +840,175 @@ export const enExtra = {
     chooseFolder: "Put the template in which folder?",
     templateExists: (path: string) => `${path} already exists and was left alone.`,
     templateAdded: (path: string) =>
-      `${path} added. Open its template.md to see what it needs, and put a font in its fonts/ folder.`
+      `${path} added. Open its template.md to see what it needs, and put a font in its fonts/ folder.`,
+    diagramAsSource: (language: string) => `${language}: could not be drawn, printed as source`,
+    htmlDropped: "HTML is dropped when printing",
+    embedNotPrinted: (target: string) => `embedded note is not printed: ${target}`,
+    imageUnsupported: (name: string) => `${name} is in a format a print cannot carry`,
+    imageNotFound: (source: string) => `image not found: ${source}`,
+    footnoteMissing: (name: string) => `footnote [^${name}] has no text and was left out`,
+    notReplaced: (path: string) =>
+      `${path} is somebody else's file and was left alone; nothing was printed.`,
+    outputIsFolder: (path: string) =>
+      `${path} is a folder, so the document cannot be written there`,
+    replaceTitle: "Replace this file?",
+    replaceMessage: (path: string) =>
+      `${path} already exists and was not made by printing. Replace it with the printed note?`,
+    replaceSubmit: "Replace",
+    limits: {
+      fontFiles: (count: number, max: number) => `${count} font files, at most ${max} are used`,
+      fontBytes: (megabytes: number, max: number) =>
+        `fonts total ${megabytes} MB, at most ${max} MB are used`,
+      pictureFiles: (count: number, max: number) => `${count} pictures, at most ${max} are used`,
+      pictureBytes: (megabytes: number, max: number) =>
+        `pictures total ${megabytes} MB, at most ${max} MB are used`,
+      pdfBytes: (megabytes: number, max: number) =>
+        `the document came to ${megabytes} MB, at most ${max} MB are written`
+    },
+    layout: {
+      tooLarge: (kilobytes: number) => `layout is larger than ${kilobytes} KB`,
+      package: (line: number) => `line ${line}: packages cannot be used, printing works offline`,
+      leavesFolder: (line: number) => `line ${line}: a path may not leave the template folder`,
+      absolute: (line: number) => `line ${line}: a path must be relative to the template folder`
+    }
   },
 
+  semantic: {
+    building: "Search by meaning: reading the vault…",
+    progress: (done: number, total: number) => `Search by meaning: ${done} of ${total} notes read`,
+    busy: "Search by meaning is already reading the vault.",
+    desktopBuilds: (read: number, total: number, budget: number) =>
+      `Search by meaning: ${read} of ${total} notes are ready. The desktop builds the rest; ` +
+      `Build now in the settings adds ${budget} on this phone.`,
+    phoneBudget: (count: number) =>
+      `Search by meaning: ${count} notes added on this phone. The desktop finishes the rest, ` +
+      "or press Build now again.",
+    heading: "Search by meaning",
+    intro:
+      "Finds notes by what they are about, not only by the words in their name. A small " +
+      "language model runs on this device; nothing leaves it. The first build reads every " +
+      "note once, which takes a few minutes on a desktop.",
+    enabled: "Search by meaning",
+    enabledDesc: (megabytes: number) =>
+      "Adds notes that match what was typed in meaning to the Explorer filter, after a short " +
+      `pause in typing. Downloads the model (about ${megabytes} MB) the first time.`,
+    maxNotes: "Most notes to index",
+    maxNotesDesc: (min: number, max: number) =>
+      `The newest notes up to this number are read. Between ${min} and ${max}.`,
+    buildNow: "Build now",
+    rebuild: "Rebuild",
+    rebuildDesc: "Reads every note again from scratch.",
+    rebuildDescPhone:
+      "On a phone this adds notes like Build now: the index is the desktop's, and clearing it here would clear it there.",
+    status: "Status",
+    report: {
+      heading: "Details",
+      coverage: "Coverage",
+      coverageValue: (indexed: number, inScope: number, share: number) =>
+        `${indexed} of ${inScope} notes (${share} %)`,
+      vault: "Vault",
+      vaultValue: (notes: number, optedOut: number, overCap: number, cap: number) =>
+        `${notes} notes` +
+        (optedOut > 0 ? `; ${optedOut} kept out by their frontmatter` : "") +
+        (overCap > 0 ? `; ${overCap} past the limit of ${cap}` : ""),
+      notIndexed: "Not in the index",
+      notIndexedValue: (missing: number, failed: number) =>
+        [
+          missing > 0 ? `${missing} not read yet` : "",
+          failed > 0 ? `${failed} failed, tried again once edited` : ""
+        ]
+          .filter(Boolean)
+          .join("; "),
+      passages: "Passages",
+      passagesValue: (count: number, perNote: string) => `${count}, ${perNote} per note`,
+      file: "Index file",
+      fileValue: (
+        size: string,
+        edits: string | null,
+        keeper: "desktop" | "mobile" | null,
+        writtenAt: number | null
+      ) =>
+        size +
+        (edits ? ` plus ${edits} of edits` : "") +
+        (keeper ? `; kept by the ${keeper === "desktop" ? "desktop" : "phone"}` : "") +
+        (writtenAt
+          ? `; written ${new Date(writtenAt).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })}`
+          : ""),
+      model: "Model",
+      modelValue: (model: string, backend: string | null, device: "desktop" | "mobile") =>
+        `${model} on this ${device === "mobile" ? "phone" : "desktop"}; ` +
+        (backend ? `running in ${backend}` : "not loaded"),
+      building: "Building",
+      buildingValue: (
+        done: number,
+        total: number,
+        counts: string,
+        pace: string | null,
+        left: string | null
+      ) =>
+        `${done} of ${total} notes; ${counts}` +
+        (pace ? `; ${pace} passages a second` : "") +
+        (left ? `; about ${left} left` : ""),
+      buildCounts: (embedded: number, reused: number, failed: number) =>
+        `${embedded} embedded, ${reused} unchanged` + (failed > 0 ? `, ${failed} failed` : ""),
+      lastBuild: "Last build",
+      lastCatchUp: "Last catch-up",
+      lastBuildValue: (
+        endedAt: number,
+        took: string,
+        counts: string,
+        pace: string | null,
+        stopped: boolean,
+        error: string | null
+      ) =>
+        `${new Date(endedAt).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })}, ` +
+        (error ? `failed after ${took}: ${error}` : `took ${took}; ${counts}`) +
+        (pace ? `; ${pace} passages a second` : "") +
+        (stopped ? "; stopped at the phone's limit" : ""),
+      lastSearch: "Last search",
+      lastSearchValue: (
+        total: string,
+        load: string | null,
+        embed: string | null,
+        rank: string,
+        notes: number,
+        hits: number
+      ) =>
+        `${total}` +
+        (load ? `; loading the model ${load}` : "") +
+        (embed ? `; the query ${embed}` : "; the query from memory") +
+        `; ranking ${notes} notes ${rank}; ${hits} found`,
+      textSearch: "Text search",
+      textSearchValue: (notes: number, words: number, readIn: string | null) =>
+        `${notes} notes read` + (readIn ? ` in ${readIn}` : "") + `, ${words} different words`,
+      textSearchUnread:
+        "Not read yet. The Explorer filter reads the notes' text the first time it is used.",
+      seconds: (n: number) => `${n} s`,
+      minutes: (n: number) => `${n} min`,
+      hours: (h: number, m: number) => (m > 0 ? `${h} h ${m} min` : `${h} h`),
+      decimal: (n: number) => n.toFixed(1)
+    },
+    state: {
+      off: "Off.",
+      blocked:
+        "Paused on this phone while Pythia runs a language model of its own: two are more " +
+        "than the phone lets one app hold. A Pythia that uses this search lifts the pause.",
+      notBuilt:
+        "Not built yet. It builds when the Explorer filter is first used, or with Build now.",
+      loading: "Loading the model…",
+      building: (done: number, total: number) => `Reading notes: ${done} of ${total}.`,
+      ready: (count: number) => (count === 1 ? "Ready: 1 note." : `Ready: ${count} notes.`),
+      partial: (count: number) => `Unfinished: ${count} notes read. Build now to finish.`,
+      outdated: (count: number) =>
+        `${count} notes, but the notes to index have changed. Build now to catch up.`,
+      failed: (error: string) => `Failed: ${error}`,
+      outOfMemory: "The device ran out of memory. Lower the number of notes and build again.",
+      paused: "Paused after a build did not finish twice in a row. Build now to try again.",
+      desktopBuilds: (count: number, budget: number) =>
+        `${count} notes ready. A phone does not build the index on its own: the desktop ` +
+        `finishes it and it arrives by sync. Build now adds ${budget} notes here.`
+    }
+  },
   secrets: {
     notSelected: (label: string) => `no ${label} selected — open Settings to choose one.`,
     notFound: (label: string) => `${label} not found — check Settings.`,

@@ -38,6 +38,8 @@ controllers/         one per feature; they own flow and talk to Obsidian
   explorer-controller  the file pane: icons, pins, its menu, its sync actions
   pane-sections        the two read-only lists above the tree: bookmarks, latest
   property-controller  property icons and today's date in the Properties view
+  property-set-controller  property sets: the folder, Templater, and the four ways a set is offered
+  semantic/            search by meaning: the model, the vault index, conversations, the API
 services/            pure decisions, no Obsidian imports, heavily tested
 processors/          editor extensions and reading-view post-processors
 print/               the Typst compiler and the worker it runs in
@@ -100,6 +102,52 @@ The file also has to survive being edited by hand, so the parser drops what it
 cannot use rather than reporting it — a line of prose in the middle of the file
 is ignored, and a scheme that must never be opened is dropped while reading,
 before it can become a row on a screen.
+
+## Search by meaning, and the API
+
+One language model runs on the device, and only Schreibstube loads it. It keeps
+two indexes in the plugin folder: the vault's notes (a description note stands
+for its picture), and the conversations a chat plugin hands over. Pythia keeps
+its chats in its own data file, outside the vault, so it lists them through the
+API rather than the index finding them. The decisions came from Pythia after it
+was hardened for the phone, and live in `services/semantic/`; the wiring is in
+`controllers/semantic/`.
+
+The desktop keeps the vault index; a phone holds it. A phone never builds on
+its own — a first build there ran for over an hour and iOS may end it whenever
+Obsidian goes to the background — so it reads the synced file, answers from it
+finished or not, and reads it again when the desktop has written a newer one.
+**Build now** on a phone embeds a budget of notes and merges what the desktop
+wrote meanwhile before it writes, so the two devices do not undo each other
+through the one file. The phone's own edits are embedded on the phone and go
+to a journal of its own (`…phone-journal.bin`), tied to the desktop's base like
+the shared journal and ignored once the desktop writes a new one. A build
+answers queries while it runs, and a note whose
+embed fails on the desktop — not by a deadline — is kept as a row without
+vectors, so it is not retried until its text changes.
+
+The Explorer filter reads note text too, separately from the model: a
+vocabulary of every note's words (`services/body-index.ts`), read once when the
+filter is first used. Both it and the model read a note through
+`services/note-text.ts`, which drops frontmatter, code, URLs and encoded data.
+
+Other plugins reach it as `app.plugins.getPlugin("schreibstube").api`:
+
+```ts
+api.version; // 1
+api.ready(); // switched on, and allowed to run on this device
+api.search(text, { kinds, limit, exclude }); // "note" | "image" | "conversation"
+api.related({ path } | { source: "pythia", id }, { kinds, limit }); // from stored vectors, no model
+api.registerSource("pythia", { list, onChanged }); // conversations to index
+api.onIndexChanged(cb);
+```
+
+It is supported for Pythia only. Plugins are not isolated from each other, so
+nothing can be closed; what is enforced is who may register a source, since a
+source is text that costs memory and embedding time. What a source lists is
+untrusted: checked, bounded to 1 000 conversations of 40 000 characters, and
+given five seconds to arrive. `limit` is clamped to 50, and a failure inside is
+answered with nothing rather than thrown into the caller.
 
 ## Why the file pane has its own state file
 

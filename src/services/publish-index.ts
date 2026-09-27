@@ -7,6 +7,14 @@
  * on a public site, and a wrong publish flag is a note that should not be one.
  */
 
+import {
+  linkpathCandidates,
+  parseSlideshow,
+  SLIDESHOW_LANGUAGE,
+  type SlideshowLayout
+} from "./slideshow";
+import { normalizeTag, tagIncludes } from "./tag-pins";
+
 /**
  * Which frontmatter key carries which meaning.
  *
@@ -216,13 +224,51 @@ export function referencedAttachments(content: string): string[] {
     if (target) found.add(target);
   }
 
-  for (const match of body.matchAll(/!\[[^\]]*\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g)) {
-    const target = decodeTarget(match[1] ?? "").trim();
+  // A path in angle brackets may hold spaces; a bare one may not.
+  for (const match of body.matchAll(/!\[[^\]]*\]\((?:<([^>\n]+)>|([^)\s]+))(?:\s+"[^"]*")?\)/g)) {
+    const target = decodeTarget(match[1] ?? match[2] ?? "").trim();
     // A remote image is already served from somewhere; only vault files travel.
     if (target && !/^[a-z][a-z0-9+.-]*:/i.test(target)) found.add(target);
   }
 
+  for (const reference of slideshowReferences(content)) found.add(reference);
+
   return [...found];
+}
+
+/**
+ * The pictures a slideshow block shows, read by the block's own rules.
+ *
+ * A slideshow line is not quite a Markdown image: the block accepts a bare
+ * space in a path (`![](my photo.png)`), which the pattern above cannot, so a
+ * picture the note showed in the vault was never uploaded and went missing on
+ * the site without a word. Every path the block would try is offered; the
+ * caller keeps only those that name a file. With a `layout`, only the blocks
+ * of that layout count: a filmstrip's pictures are the ones with thumbnails.
+ */
+export function slideshowReferences(content: string, layout?: SlideshowLayout): string[] {
+  const body = stripFrontmatter(content);
+  const found: string[] = [];
+  const fence = new RegExp("^ {0,3}(`{3,}|~{3,})[ \\t]*" + SLIDESHOW_LANGUAGE + "[ \\t]*$", "gm");
+
+  for (const open of body.matchAll(fence)) {
+    const marker = open[1] ?? "```";
+    const start = (open.index ?? 0) + open[0].length + 1;
+    const close = new RegExp("^ {0,3}" + marker[0] + "{" + marker.length + ",}[ \\t]*$", "m");
+    const rest = body.slice(start);
+    const end = close.exec(rest);
+    const block = parseSlideshow(end ? rest.slice(0, end.index) : rest);
+    if (!block.ok || (layout !== undefined && block.layout !== layout)) continue;
+    for (const image of block.images) {
+      for (const candidate of linkpathCandidates(image.src)) {
+        // The path with its angle brackets still on names nothing anyone wrote.
+        if (/^<.*>$/.test(candidate) || /^[a-z][a-z0-9+.-]*:/i.test(candidate)) continue;
+        found.push(candidate);
+      }
+    }
+  }
+
+  return found;
 }
 
 /**
@@ -267,4 +313,74 @@ export function isInsideFolder(path: string, folder: string): boolean {
   const normalized = folder.replace(/^\/+|\/+$/g, "");
   if (!normalized) return true;
   return path === normalized || path.startsWith(`${normalized}/`);
+}
+
+/** How many tags the site's header links to. More would crowd out the title. */
+export const MAX_HEADER_TAGS = 3;
+
+/**
+ * The header tags a connection asks for, from its settings.
+ *
+ * The settings share a file a person can edit, so each entry is read as a tag
+ * the way Obsidian reads one, without its `#`; anything that is not one, and a
+ * second spelling of one already listed, is dropped, and at most three stay.
+ */
+export function normalizeHeaderTags(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const tags: string[] = [];
+  const seen = new Set<string>();
+  for (const entry of value) {
+    if (typeof entry !== "string") continue;
+    const tag = normalizeTag(entry);
+    if (tag === null || seen.has(tag.toLowerCase())) continue;
+    seen.add(tag.toLowerCase());
+    tags.push(tag);
+    if (tags.length === MAX_HEADER_TAGS) break;
+  }
+  return tags;
+}
+
+/**
+ * The header tags a note falls under, as Obsidian counts tags: case aside, and
+ * a note tagged `#projekt/alpha` under a header tag `projekt`.
+ *
+ * Only these travel to the bridge. A note's other tags are the vault's
+ * business, and a published site has no use for them.
+ */
+export function headerTagsOf(carried: readonly string[], headerTags: readonly string[]): string[] {
+  return headerTags.filter((tag) => carried.some((note) => tagIncludes(tag, note)));
+}
+
+/**
+ * Every tag a note carries, as Obsidian's metadata has it: the `tags`
+ * property — a list, or one string of tags separated by commas or spaces —
+ * and the `#tags` written in the text. What Obsidian's own `getAllTags`
+ * reads, taken from the same cache so the publish needs nothing more.
+ */
+export function noteTags(
+  cache:
+    | {
+        frontmatter?: Record<string, unknown> | undefined;
+        tags?: readonly { tag: string }[] | undefined;
+      }
+    | null
+    | undefined
+): string[] {
+  const found: string[] = [];
+  const property = cache?.frontmatter?.tags ?? cache?.frontmatter?.tag;
+  const written = Array.isArray(property)
+    ? property
+    : typeof property === "string"
+      ? property.split(/[,\s]+/)
+      : [];
+  for (const entry of written) {
+    if (typeof entry !== "string") continue;
+    const tag = normalizeTag(entry);
+    if (tag !== null) found.push(tag);
+  }
+  for (const entry of cache?.tags ?? []) {
+    const tag = normalizeTag(entry.tag);
+    if (tag !== null) found.push(tag);
+  }
+  return found;
 }

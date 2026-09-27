@@ -7,9 +7,9 @@
  * write goes to a temporary name and is renamed over its target, so a reader
  * never sees a half-written page.
  *
- * Connections are opened per publish and closed again. The bridge serves one
- * user at a low request rate, so a pool would add reconnect handling for no
- * measurable win.
+ * A connection is shared by the requests of one publish and closed once it
+ * has been idle for a moment; `connection-pool.mjs` decides that. Opening one
+ * per request was simpler, and cost a login per uploaded file.
  */
 import { createHash, randomBytes } from "node:crypto";
 import Client from "ssh2-sftp-client";
@@ -28,6 +28,23 @@ export function fingerprintOf(key) {
   return `SHA256:${createHash("sha256").update(key).digest("base64").replace(/=+$/, "")}`;
 }
 
+/**
+ * The algorithm a raw SSH public key blob names, such as `ssh-ed25519`.
+ *
+ * A server holds several host keys, and which one a client is shown depends
+ * on the client: this library prefers ED25519, then ECDSA, then RSA. A
+ * fingerprint read for another type can never match, so the mismatch says
+ * which type was presented rather than leaving that to be guessed.
+ */
+export function keyTypeOf(key) {
+  const blob = Buffer.isBuffer(key) ? key : Buffer.from(key ?? []);
+  if (blob.length < 4) return "unknown";
+  const length = blob.readUInt32BE(0);
+  if (length === 0 || length > 64 || blob.length < 4 + length) return "unknown";
+  const name = blob.subarray(4, 4 + length).toString("latin1");
+  return /^[a-z0-9@.-]+$/i.test(name) ? name : "unknown";
+}
+
 export function fingerprintsMatch(presented, configured) {
   const normalise = (value) =>
     String(value)
@@ -40,6 +57,7 @@ export function fingerprintsMatch(presented, configured) {
 export async function connect(target) {
   const client = new Client();
   let presented = null;
+  let presentedType = null;
 
   try {
     await client.connect({
@@ -51,6 +69,7 @@ export async function connect(target) {
       readyTimeout: target.timeoutMs,
       hostVerifier: (key) => {
         presented = fingerprintOf(key);
+        presentedType = keyTypeOf(key);
         return fingerprintsMatch(presented, target.fingerprint);
       }
     });
@@ -58,7 +77,8 @@ export async function connect(target) {
     if (presented && !fingerprintsMatch(presented, target.fingerprint)) {
       throw new SftpError(
         `Host key mismatch for ${target.host}. Configured ${target.fingerprint}, ` +
-          `server presented ${presented}. Refusing to connect.`
+          `server presented ${presentedType} ${presented}. Refusing to connect. ` +
+          `A fingerprint read with ssh-keyscan must be the ${presentedType} one.`
       );
     }
     throw new SftpError(`Cannot reach ${target.host}: ${err.message}`);
@@ -71,6 +91,26 @@ class Remote {
   constructor(client, target) {
     this.client = client;
     this.target = target;
+    // Directories this connection has made sure of, as the promise that did
+    // it: a site's pages share a handful of parents, and asking for each one
+    // before every file was a round trip per file for nothing. Parallel writes
+    // into one new directory wait for the same request instead of racing.
+    this.directories = new Map();
+  }
+
+  /**
+   * Call `callback` once when the connection closes, from either end, so a
+   * shared connection the server hung up on is not handed out again.
+   */
+  onClose(callback) {
+    let called = false;
+    const once = () => {
+      if (called) return;
+      called = true;
+      callback();
+    };
+    this.client.on("close", once);
+    this.client.on("end", once);
   }
 
   async end() {
@@ -108,7 +148,7 @@ class Remote {
       throw new SftpError(`A directory is in the way: ${path}`);
     }
 
-    await this.client.mkdir(parentOf(path), true).catch(() => {});
+    await this.ensureDirectory(parentOf(path));
 
     const temporary = `${path}.schreibstube-${randomBytes(6).toString("hex")}`;
     await this.client.put(Buffer.from(content), temporary);
@@ -118,6 +158,18 @@ class Remote {
       await this.client.delete(temporary, true).catch(() => {});
       throw err;
     }
+  }
+
+  /** Create a directory and its parents, once per connection. */
+  ensureDirectory(path) {
+    let made = this.directories.get(path);
+    if (!made) {
+      // A failure here is not fatal, as it never was: the directory may exist
+      // already, and a write into one that does not will fail on its own.
+      made = this.client.mkdir(path, true).catch(() => {});
+      this.directories.set(path, made);
+    }
+    return made;
   }
 
   /**
@@ -134,6 +186,11 @@ class Remote {
       await this.client.delete(to, true).catch(() => {});
       await this.client.rename(from, to);
     }
+  }
+
+  /** False, "d", "-" or "l", as the client reports it. */
+  async exists(path) {
+    return this.client.exists(path);
   }
 
   async readFile(path) {
@@ -211,6 +268,8 @@ class Remote {
       if (entries.length > 0) continue;
       try {
         await this.client.rmdir(absolute);
+        // Gone now, so a later write on this connection has to make it again.
+        this.directories.delete(absolute);
         pruned += 1;
       } catch {
         // Busy, gone, or not ours to remove. Either way, not worth failing over.

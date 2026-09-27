@@ -46,6 +46,27 @@ jobs:
       # and within its size budget, which is what keeps it working on mobile.
       - run: npm run build
 
+  # String tests cannot say whether a string is Typst; every callout once
+  # failed to print while its test passed. This compiles every print fixture
+  # with the typesetter and fonts a device runs, fetched and hash-checked the
+  # way a release fetches them.
+  print-compile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - run: npm ci
+
+      - run: node scripts/fetch-typst-runtime.mjs
+
+      - run: npm run check:print
+
   # The Dockerfile is what the hosting platform runs. Building it here means a
   # broken image is found by CI rather than by the next deploy.
   bridge-image:

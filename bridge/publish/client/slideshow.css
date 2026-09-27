@@ -1,0 +1,547 @@
+/* The slideshow on a published page.
+
+   Every layout reads without a script: the stage is a strip that snaps from
+   picture to picture and swipes on its own, the tiles are a grid, the wall is
+   columns, and a comparison is two pictures side by side. `slideshow.js` adds
+   the plugin's header, controls and fullscreen view and marks the block
+   `is-enhanced`; rules for either state say so in their selector.
+
+   Colours come from the site's theme where it names them — the built-in
+   stylesheet's tokens or a vault theme's — with a neutral fallback, so a
+   theme.css written before slideshows existed still suits them. */
+
+.slideshow {
+  --slideshow-gap: 0.5rem;
+  --slideshow-radius: var(--radius, 4px);
+  --slideshow-muted: var(--text-muted, var(--muted, #6b6b6b));
+  --slideshow-ink: var(--text, var(--ink, currentColor));
+  --slideshow-accent: var(--accent, currentColor);
+
+  margin: 1.5rem 0;
+  padding: 0;
+  outline: none;
+}
+
+.slideshow:focus-visible {
+  outline: 2px solid var(--slideshow-accent);
+  outline-offset: 4px;
+  border-radius: var(--slideshow-radius);
+}
+
+.slideshow img {
+  display: block;
+  border-radius: var(--slideshow-radius);
+}
+
+/* ── The stage: slideshow and filmstrip ─────────────────────────────── */
+
+.slideshow-slideshow .slideshow-items,
+.slideshow-filmstrip .slideshow-items {
+  display: flex;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+  overscroll-behavior-x: contain;
+}
+
+.slideshow-slideshow .slideshow-items::-webkit-scrollbar,
+.slideshow-filmstrip .slideshow-items::-webkit-scrollbar {
+  display: none;
+}
+
+.slideshow-slideshow .slideshow-item,
+.slideshow-filmstrip .slideshow-item {
+  flex: 0 0 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 3 / 2;
+  scroll-snap-align: center;
+  scroll-snap-stop: always;
+}
+
+.slideshow-slideshow .slideshow-item img,
+.slideshow-filmstrip .slideshow-item img {
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+}
+
+/* Without a script there are no controls to say there is more, and a
+   scrollbar that hides until it is used says nothing either: the next
+   picture's edge shows instead. */
+.slideshow-slideshow:not(.is-enhanced) .slideshow-items,
+.slideshow-filmstrip:not(.is-enhanced) .slideshow-items {
+  gap: var(--slideshow-gap);
+}
+
+.slideshow-slideshow:not(.is-enhanced) .slideshow-item,
+.slideshow-filmstrip:not(.is-enhanced) .slideshow-item {
+  flex-basis: 88%;
+  scroll-snap-align: start;
+}
+
+/* ── Tiles: feature, strip, masonry ─────────────────────────────────── */
+
+.slideshow-feature .slideshow-items {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: var(--slideshow-gap);
+}
+
+.slideshow-feature .slideshow-item:first-child {
+  grid-row: 1 / span 2;
+  aspect-ratio: 3 / 2;
+}
+
+/* The details add nothing to the row's height: contained, they are stretched
+   to the large picture's and share it, rather than growing to their own
+   proportions and pushing the row below it. */
+.slideshow-feature .slideshow-item:not(:first-child) {
+  contain: size;
+}
+
+/* With one detail, it takes the whole column. Wide screens only: this rule
+   out-ranks the phone's, and there it put the detail above the scene. */
+@media (min-width: 601px) {
+  .slideshow-feature .slideshow-item:nth-child(2):last-child {
+    grid-row: 1 / span 2;
+  }
+}
+
+.slideshow-feature .slideshow-item,
+.slideshow-strip .slideshow-item {
+  min-height: 0;
+  overflow: hidden;
+  border-radius: var(--slideshow-radius);
+}
+
+.slideshow-feature .slideshow-item img,
+.slideshow-strip .slideshow-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.slideshow-strip .slideshow-items {
+  display: grid;
+  grid-template-columns: repeat(var(--slideshow-columns, 3), 1fr);
+  gap: var(--slideshow-gap);
+}
+
+.slideshow-strip .slideshow-item {
+  aspect-ratio: 4 / 3;
+}
+
+.slideshow-masonry .slideshow-items {
+  columns: 180px;
+  column-gap: var(--slideshow-gap);
+}
+
+.slideshow-masonry .slideshow-item {
+  margin-bottom: var(--slideshow-gap);
+  break-inside: avoid;
+}
+
+.slideshow-masonry .slideshow-item img {
+  width: 100%;
+  height: auto;
+}
+
+/* A tile the script has made a control: the picture is the control, with no
+   frame or fill; it dims a little under the pointer. */
+.slideshow .slideshow-tile {
+  cursor: pointer;
+}
+
+.slideshow .slideshow-tile img {
+  transition: opacity 0.1s ease;
+}
+
+@media (hover: hover) {
+  .slideshow .slideshow-tile:hover img {
+    opacity: 0.85;
+  }
+}
+
+.slideshow .slideshow-tile:focus-visible {
+  outline: 2px solid var(--slideshow-accent);
+  outline-offset: 2px;
+}
+
+/* ── Compare ────────────────────────────────────────────────────────── */
+
+/* Without a script: the two pictures side by side, each with its label. */
+.slideshow-compare .slideshow-items {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--slideshow-gap);
+}
+
+.slideshow-compare .slideshow-item {
+  position: relative;
+}
+
+.slideshow-compare .slideshow-item img {
+  width: 100%;
+  height: auto;
+}
+
+.slideshow-label {
+  position: absolute;
+  bottom: 0.5rem;
+  left: 0.5rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: var(--slideshow-radius);
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 0.75rem;
+  pointer-events: none;
+}
+
+/* With it: one frame, the first picture over the second, a divider between.
+   The frame takes the first picture's proportions once it has loaded. */
+.slideshow-compare.is-enhanced .slideshow-items {
+  display: block;
+  position: relative;
+  aspect-ratio: var(--slideshow-ratio, 3 / 2);
+  overflow: hidden;
+  border-radius: var(--slideshow-radius);
+  user-select: none;
+  cursor: ew-resize;
+}
+
+.slideshow-compare.is-enhanced .slideshow-item {
+  position: absolute;
+  inset: 0;
+}
+
+.slideshow-compare.is-enhanced .slideshow-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 0;
+  pointer-events: none;
+}
+
+.slideshow-compare.is-enhanced .slideshow-item:first-child {
+  z-index: 1;
+  clip-path: inset(0 calc(100% - var(--slideshow-split, 50%)) 0 0);
+}
+
+.slideshow-compare.is-enhanced .slideshow-item:nth-child(2) .slideshow-label {
+  left: auto;
+  right: 0.5rem;
+}
+
+.slideshow-compare-handle {
+  position: absolute;
+  z-index: 2;
+  top: 0;
+  bottom: 0;
+  left: var(--slideshow-split, 50%);
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  color: #fff;
+  cursor: ew-resize;
+  touch-action: none;
+}
+
+/* White with a dark hairline: the divider stands on a photograph, and a plain
+   line disappears into a bright one as a dark line does into a night shot. */
+.slideshow-compare-handle::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35);
+}
+
+.slideshow-compare-handle > span {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.slideshow-compare-handle:focus-visible {
+  outline: 2px solid var(--slideshow-accent);
+  outline-offset: 2px;
+}
+
+/* ── Header: the alt text and the controls ──────────────────────────── */
+
+.slideshow-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  min-height: 24px;
+  margin-bottom: 0.5rem;
+}
+
+.slideshow-caption {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.8125rem;
+  color: var(--slideshow-muted);
+}
+
+.slideshow-actions {
+  display: flex;
+  gap: 0.25rem;
+  flex-shrink: 0;
+}
+
+/* Out of the way until wanted: under the pointer, or on the keyboard's way
+   through. Faded rather than removed, so the page does not shift. A phone
+   has no pointer to bring them, so there they stay. */
+@media (hover: hover) {
+  .slideshow-caption,
+  .slideshow-actions {
+    opacity: 0;
+    transition: opacity 0.15s ease;
+  }
+
+  .slideshow:hover .slideshow-caption,
+  .slideshow:hover .slideshow-actions,
+  .slideshow:focus-visible .slideshow-caption,
+  .slideshow:focus-visible .slideshow-actions,
+  .slideshow:has(:focus-visible) .slideshow-caption,
+  .slideshow:has(:focus-visible) .slideshow-actions {
+    opacity: 1;
+  }
+}
+
+/* Icons standing on the page, with no fill behind them in any state. */
+.slideshow-control {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  color: var(--slideshow-muted);
+  font: inherit;
+  cursor: pointer;
+}
+
+.slideshow-control svg,
+.slideshow-compare-handle svg,
+.slideshow-fs svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+@media (hover: hover) {
+  .slideshow-control:hover {
+    color: var(--slideshow-ink);
+  }
+}
+
+.slideshow-control:focus-visible {
+  outline: 2px solid var(--slideshow-accent);
+  outline-offset: 2px;
+}
+
+/* ── Filmstrip thumbnails ───────────────────────────────────────────── */
+
+.slideshow-thumbs {
+  display: flex;
+  gap: 0.375rem;
+  margin-top: 0.5rem;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.slideshow-thumb {
+  flex: 0 0 auto;
+  width: 72px;
+  aspect-ratio: 4 / 3;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: none;
+  opacity: 0.55;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+
+.slideshow-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.slideshow-thumb[aria-current="true"] {
+  opacity: 1;
+  border-bottom-color: var(--slideshow-accent);
+}
+
+@media (hover: hover) {
+  .slideshow-thumb:hover {
+    opacity: 0.85;
+  }
+}
+
+/* ── Fullscreen ─────────────────────────────────────────────────────── */
+
+.slideshow-fs {
+  width: 100vw;
+  max-width: none;
+  /* The first for Safari before 15.4, which reads no dvh; the second where a
+     phone's toolbar comes and goes, so the view is never taller than the
+     screen it is on. */
+  height: 100vh;
+  height: 100dvh;
+  max-height: none;
+  margin: 0;
+  padding: 3.5rem 4rem;
+  border: none;
+  background: rgba(0, 0, 0, 0.92);
+  color: #fff;
+  touch-action: pan-y;
+}
+
+.slideshow-fs[open] {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.slideshow-fs::backdrop {
+  background: rgba(0, 0, 0, 0.92);
+}
+
+.slideshow-fs-img {
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  border-radius: 0;
+  user-select: none;
+}
+
+.slideshow-fs-control {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  color: rgba(255, 255, 255, 0.75);
+  cursor: pointer;
+}
+
+.slideshow-fs-control svg {
+  width: 22px;
+  height: 22px;
+}
+
+.slideshow-fs-control:hover,
+.slideshow-fs-control:focus-visible {
+  color: #fff;
+}
+
+.slideshow-fs-prev {
+  left: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.slideshow-fs-next {
+  right: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.slideshow-fs-close {
+  top: 0.75rem;
+  right: 0.75rem;
+}
+
+.slideshow-fs-counter {
+  position: absolute;
+  top: 1.1rem;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+/* ── Phone ──────────────────────────────────────────────────────────── */
+
+@media (max-width: 600px) {
+  .slideshow-feature .slideshow-items {
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: auto;
+  }
+
+  .slideshow-feature .slideshow-item:first-child {
+    grid-column: 1 / -1;
+    grid-row: auto;
+  }
+
+  .slideshow-feature .slideshow-item:not(:first-child) {
+    grid-row: auto;
+    aspect-ratio: 4 / 3;
+    contain: none;
+  }
+
+  /* A lone detail takes the row rather than half of it. */
+  .slideshow-feature .slideshow-item:nth-child(2):last-child {
+    grid-column: 1 / -1;
+    aspect-ratio: 3 / 2;
+  }
+
+  .slideshow-strip .slideshow-items {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .slideshow-fs {
+    padding: 3.5rem 0.75rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .slideshow *,
+  .slideshow-fs * {
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}

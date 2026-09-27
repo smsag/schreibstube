@@ -84,6 +84,10 @@ interface FixtureOptions {
   /** Something another device drops into the trash during every delete. */
   strayTrash?: string;
   present?: string[];
+  /** Settings other than the defaults, for the marks that read them. */
+  settings?: Partial<typeof DEFAULT_SETTINGS>;
+  /** Frontmatter by path, as the metadata cache would hand it over. */
+  frontmatter?: Record<string, Record<string, unknown>>;
 }
 
 function fixture(options: FixtureOptions = {}): Fixture {
@@ -129,6 +133,7 @@ function fixture(options: FixtureOptions = {}): Fixture {
       getRoot: () => folder(""),
       getAbstractFileByPath: (path: string) => (present.has(path) ? node(path) : null),
       getAllLoadedFiles: () => [...present].map(node),
+      getMarkdownFiles: () => [...present].filter((p) => p.endsWith(".md")).map(node),
       createBinary,
       adapter: {
         exists: async (path: string) =>
@@ -143,12 +148,19 @@ function fixture(options: FixtureOptions = {}): Fixture {
       }
     },
     fileManager: { trashFile, renameFile },
-    metadataCache: { getFileCache: () => null }
+    metadataCache: {
+      getFileCache: (file: TFile) => {
+        const frontmatter = options.frontmatter?.[file.path];
+        return frontmatter ? { frontmatter } : null;
+      },
+      getFirstLinkpathDest: (link: string) => (present.has(link) ? node(link) : null)
+    }
   } as unknown as App;
 
+  const settings = { ...DEFAULT_SETTINGS, ...options.settings };
   const controller = new ExplorerController(
     app,
-    () => DEFAULT_SETTINGS,
+    () => settings,
     {
       checkFile: async () => ({ checked: 0, changed: 0, failed: 0 }) as never,
       checkFolder: async () => ({ checked: 0, changed: 0, failed: 0 }) as never,
@@ -396,6 +408,35 @@ describe("deleting several rows at once", () => {
   });
 });
 
+describe("deleting a described picture", () => {
+  const note = "Bildbeschreibungen/see.jpg – 1234.md";
+  const described = () =>
+    fixture({
+      present: ["Bilder/see.jpg", note],
+      frontmatter: { [note]: { schreibstubeImage: "[[Bilder/see.jpg]]" } }
+    });
+
+  it("takes the description note along, and names only the picture", async () => {
+    const f = described();
+
+    await deleteViaMenu(f.controller, new TFile("Bilder/see.jpg"));
+
+    expect(f.trash).toEqual([".trash/see.jpg", ".trash/see.jpg – 1234.md"]);
+    expect(f.toasts[0]?.message).toContain('"see.jpg" moved to the trash');
+  });
+
+  it("brings both back with one undo", async () => {
+    const f = described();
+    await deleteViaMenu(f.controller, new TFile("Bilder/see.jpg"));
+
+    f.toasts[0]?.undo();
+    await settle();
+
+    expect(f.present.has("Bilder/see.jpg")).toBe(true);
+    expect(f.present.has(note)).toBe(true);
+  });
+});
+
 describe("undoing a delete", () => {
   it("offers an undo that lifts the file out of the vault's trash", async () => {
     const f = fixture({ present: ["Notizen/Entwurf.md"] });
@@ -636,5 +677,44 @@ describe("a folder's pictures as tiles", () => {
     expect(f.controller.folderTiles("Fotos")?.images.map((image) => image.name)).toEqual(["b.jpg"]);
     expect(f.controller.folderHasImages("Fotos")).toBe(true);
     expect(f.controller.folderHasImages("Fotos/Notiz.md")).toBe(false);
+  });
+});
+
+describe("the publication mark", () => {
+  const account = {
+    id: "grembl",
+    name: "Grembl",
+    folder: "Writings/Grembl",
+    target: "writings",
+    writeBack: true,
+    headerTags: []
+  };
+  const note = new TFile("Writings/Grembl/Test.md");
+
+  it("marks a note flagged in an account's folder", () => {
+    const f = fixture({
+      settings: { publishAccounts: [account] },
+      frontmatter: { [note.path]: { published: true } }
+    });
+    expect(f.controller.publishMarkOf(note as never)).toMatchObject({
+      state: "marked",
+      account: "Grembl"
+    });
+  });
+
+  it("marks nothing while no publishing account is set up", () => {
+    const f = fixture({ frontmatter: { [note.path]: { published: true } } });
+    expect(f.controller.publishMarkOf(note as never)).toEqual({ state: "none" });
+  });
+
+  it("marks no file that is not a note", () => {
+    // Flagged all the same, so only the extension can be what refuses it.
+    const f = fixture({
+      settings: { publishAccounts: [account] },
+      frontmatter: { "Writings/Grembl/Bild.png": { published: true } }
+    });
+    expect(f.controller.publishMarkOf(new TFile("Writings/Grembl/Bild.png") as never)).toEqual({
+      state: "none"
+    });
   });
 });

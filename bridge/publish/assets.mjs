@@ -33,7 +33,7 @@ const VENDORED_MERMAID = fileURLToPath(new URL("../vendor/mermaid.min.js", impor
  * `theme` is the stylesheet: the one from the publish folder when the vault
  * carries a `theme.css`, the built-in one otherwise.
  */
-export async function generatorAssets({ math, mermaid, theme }) {
+export async function generatorAssets({ math, mermaid, slideshow = false, theme }) {
   const files = new Map();
   files.set("assets/theme.css", Buffer.from(theme ?? THEME_CSS, "utf8"));
 
@@ -42,6 +42,9 @@ export async function generatorAssets({ math, mermaid, theme }) {
   }
   if (mermaid) {
     files.set("assets/mermaid.min.js", await mermaidBundle());
+  }
+  if (slideshow) {
+    for (const [path, content] of await slideshowAssets()) files.set(path, content);
   }
   return files;
 }
@@ -60,6 +63,18 @@ async function katexAssets() {
     }
     return files;
   });
+}
+
+/**
+ * The slideshow's stylesheet and script, from `client/`. The script is served
+ * as `.js` because a web host that does not know `.mjs` sends it with a type a
+ * browser refuses to run as a module.
+ */
+async function slideshowAssets() {
+  return cached("slideshow", async () => [
+    ["assets/slideshow.css", await readFile(new URL("./client/slideshow.css", import.meta.url))],
+    ["assets/slideshow.js", await readFile(new URL("./client/slideshow.mjs", import.meta.url))]
+  ]);
 }
 
 async function mermaidBundle() {

@@ -14,12 +14,23 @@ import type { Logger } from "../services/logger";
 import { t } from "../i18n";
 import { compileGlossaries, type GlossaryMatcher } from "../services/glossary-matcher";
 import {
+  GLOSSARY_FRONTMATTER_KEY,
   parseFolderRules,
   parseGlossaryList,
   resolveGlossarySelection,
   type GlossarySelection
 } from "../services/glossary-resolver";
 import { GlossaryRegistry } from "../services/glossary-registry";
+import {
+  addAvoid,
+  findTermOverlaps,
+  isInTermFolder,
+  MAX_LISTED_OVERLAPS,
+  MAX_AVOID_CHARS,
+  removeAvoid,
+  TERM_AVOID_KEY,
+  translationSuggestions
+} from "../services/glossary-term-folder";
 import { createChunkSender } from "../services/llm-proofread";
 import {
   createCancelToken,
@@ -33,6 +44,10 @@ import { fetchSource } from "../services/sync-fetcher";
 import {
   buildSyncSuggestions,
   hashText,
+  hasWaitingUpdate,
+  normalizeNewlines,
+  redrawSyncCards,
+  settledByContent,
   isRemoteChange,
   localState,
   nextSyncRecord,
@@ -64,10 +79,13 @@ import {
   type GlossaryPanelState,
   type ReviewHandlers,
   type ReviewState,
-  type SyncPanelState
+  type SyncPanelState,
+  type TermPanelState
 } from "../ui/review-panel";
+import { PromptModal } from "../ui/explorer-modals";
+import { TermPickerModal } from "../ui/term-picker";
 
-export const GLOSSARY_FRONTMATTER_KEY = "schreibstubeGlossaries";
+export { GLOSSARY_FRONTMATTER_KEY };
 
 export type ReviewStateListener = (state: ReviewState) => void;
 
@@ -98,9 +116,15 @@ export class ProofreadController {
   private readonly sessionPicks = new Map<string, string[]>();
 
   private filePath: string | null = null;
+  /** The source as the last check of the reviewed note fetched it, so the
+   *  update's cards can be drawn again after one is accepted. */
+  private syncSource: { path: string; remoteBody: string; state: LocalState } | null = null;
+  /** A settle write in flight, so a burst of keystrokes writes it once. */
+  private settling = false;
   private suggestions: Suggestion[] = [];
   private selection: GlossarySelection = { paths: [], source: "none" };
   private glossaryPanel: GlossaryPanelState = EMPTY_REVIEW_STATE.glossary;
+  private terms: TermPanelState = EMPTY_REVIEW_STATE.terms;
   private matcher: GlossaryMatcher = compileGlossaries([]);
   private progress: ReviewState["progress"] = null;
   private message = "";
@@ -121,7 +145,7 @@ export class ProofreadController {
     private readonly logger: Logger,
     private readonly syncStore: SyncStore
   ) {
-    this.registry = new GlossaryRegistry(app);
+    this.registry = new GlossaryRegistry(app, () => getSettings().glossaryTermFolder);
     this.poller = new SyncPoller(app, getSettings, syncStore, () => this.syncActiveFile(), logger);
   }
 
@@ -141,7 +165,10 @@ export class ProofreadController {
       onReject: (id) => this.reject(id),
       onReveal: (id) => this.reveal(id),
       onToggleGlossary: (path) => void this.toggleGlossary(path),
-      onCheckSource: () => void this.checkSource(true)
+      onCheckSource: () => void this.checkSource(true),
+      onAddTermRule: () => this.addTermRule(),
+      onRemoveTermRule: (path, word) => void this.removeTermRule(path, word),
+      onOpenTerm: (path) => void this.openTerm(path)
     };
   }
 
@@ -174,6 +201,7 @@ export class ProofreadController {
 
     this.stop();
     this.filePath = path;
+    this.syncSource = null;
     this.suggestions = [];
     this.progress = null;
     this.message = "";
@@ -186,12 +214,15 @@ export class ProofreadController {
   }
 
   /** Called as the user types: pending cards whose text has moved beyond
-   *  recognition become stale instead of silently applying elsewhere. */
+   *  recognition become stale instead of silently applying elsewhere, and a
+   *  mirrored note typed level with its source is settled. */
   notifyEditorChanged(): void {
-    if (this.suggestions.length === 0) return;
-
     const text = this.activeEditorText();
     if (text === null) return;
+    // Typed, undone or pasted level with the source is level with the source.
+    void this.settleIfLevel(text);
+
+    if (this.suggestions.length === 0) return;
 
     const refreshed = refreshStaleness(text, this.suggestions);
     if (refreshed.some((s, i) => s.status !== this.suggestions[i]?.status)) {
@@ -207,6 +238,19 @@ export class ProofreadController {
     if (this.selection.paths.some((selected) => path.endsWith(selected) || selected === path)) {
       await this.refreshGlossary(this.reviewedFile());
     }
+  }
+
+  /**
+   * A note in the term folder changed, appeared, moved or went. Called from the
+   * metadata cache rather than from the vault's modify: the folder is read
+   * from frontmatter, which the cache has not re-parsed yet when modify fires.
+   * The panel lists the folder's rules whatever the note resolves to, so it is
+   * refreshed even when the folder does not apply to the note.
+   */
+  async termNoteChanged(path: string): Promise<void> {
+    if (!isInTermFolder(path, this.getSettings().glossaryTermFolder)) return;
+    this.registry.invalidate(path);
+    await this.refreshGlossary(this.reviewedFile());
   }
 
   /** Follow a bound note when it moves, so its baseline is not lost. */
@@ -415,6 +459,18 @@ export class ProofreadController {
     const applied = new Set(plan.changes.map((change) => change.id));
     this.suggestions = settleStatuses(this.suggestions, plan, applied);
 
+    // What is left of the update is drawn again against the note as it now
+    // stands; re-finding the old cards left an insertion below an accepted
+    // card stale for good (see redrawSyncCards).
+    const source = this.syncSource;
+    if (fromSource && source && source.path === this.filePath) {
+      this.suggestions = redrawSyncCards(this.suggestions, {
+        noteText: editor.getValue(),
+        remoteBody: source.remoteBody,
+        state: source.state
+      });
+    }
+
     // Offsets recorded before this batch are now wrong by the size of it, so
     // every remaining card is re-anchored against the new text at once.
     this.suggestions = refreshStaleness(editor.getValue(), this.suggestions);
@@ -492,6 +548,10 @@ export class ProofreadController {
   private async refreshGlossary(file: TFile | null): Promise<void> {
     const settings = this.getSettings();
     const available = this.registry.listCandidates();
+    this.terms = {
+      folder: settings.glossaryTermFolder,
+      rules: this.registry.termRules().map(({ path, term, avoid }) => ({ path, term, avoid }))
+    };
 
     if (!file) {
       this.sync = EMPTY_REVIEW_STATE.sync;
@@ -509,7 +569,12 @@ export class ProofreadController {
       frontmatter: parseGlossaryList(frontmatter?.[GLOSSARY_FRONTMATTER_KEY]),
       folderRules: parseFolderRules(settings.glossaryFolderRules),
       session: this.sessionPicks.get(file.path),
-      fallback: settings.glossaryDefault
+      // The term folder joins the default rather than needing to be named in
+      // it: setting the folder is the whole configuration. A folder rule or the
+      // note's own list still decides alone, as for any other glossary.
+      fallback: settings.glossaryTermFolder
+        ? [...settings.glossaryDefault, settings.glossaryTermFolder]
+        : settings.glossaryDefault
     });
 
     const loaded = await this.registry.load(this.selection.paths, file.path);
@@ -522,7 +587,10 @@ export class ProofreadController {
       selected: this.selection.paths,
       available,
       source: this.selection.source,
-      errors: loaded.errors,
+      errors: [
+        ...loaded.errors,
+        ...overlapWarnings(findTermOverlaps(loaded.glossaries, settings.glossaryTermFolder))
+      ],
       missing: loaded.missing
     };
 
@@ -728,6 +796,7 @@ export class ProofreadController {
       );
 
       this.suggestions = mergeSuggestions(this.suggestions, suggestions, "remote");
+      this.syncSource = { path: file.path, remoteBody, state };
       this.sync = {
         bound: true,
         status: suggestions.length === 0 ? "clean" : state === "diverged" ? "diverged" : "idle",
@@ -783,6 +852,56 @@ export class ProofreadController {
       pendingChanges: 0
     });
 
+    this.sync = { ...this.sync, status: "clean", message: t().proofread.sourceMatches };
+    this.emit();
+  }
+
+  /**
+   * Settle the reviewed note's record once its body is the source as last
+   * seen, however it got there. The update's leftover cards go with it: the
+   * note and the source no longer differ, so there is nothing for them to say.
+   */
+  private async settleIfLevel(noteText: string): Promise<void> {
+    const path = this.filePath;
+    if (!path || this.settling) return;
+    const settled = settledByContent(
+      this.syncStore.get(path),
+      splitNote(normalizeNewlines(noteText)).body
+    );
+    if (!settled) return;
+
+    this.settling = true;
+    try {
+      await this.syncStore.set(path, settled);
+    } finally {
+      this.settling = false;
+    }
+    if (this.filePath === path) this.showLevel();
+  }
+
+  /**
+   * A bound note changed on disk: another device, a sync client, an edit in a
+   * note not under review. Settled if it is now level with its source. Read
+   * only for a record that is waiting, which is a handful of notes at most.
+   */
+  async noteModified(file: TFile): Promise<void> {
+    const record = this.syncStore.get(file.path);
+    if (!hasWaitingUpdate(record)) return;
+    const settled = settledByContent(
+      record,
+      splitNote(normalizeNewlines(await this.app.vault.cachedRead(file))).body
+    );
+    if (!settled) return;
+    await this.syncStore.set(file.path, settled);
+    if (file.path === this.filePath) this.showLevel();
+  }
+
+  /** The reviewed note is level with its source: the update's leftover cards
+   *  have nothing left to say, and the panel says the note matches. */
+  private showLevel(): void {
+    this.suggestions = this.suggestions.filter(
+      (suggestion) => suggestion.source !== "remote" || isDecided(suggestion)
+    );
     this.sync = { ...this.sync, status: "clean", message: t().proofread.sourceMatches };
     this.emit();
   }
@@ -890,6 +1009,117 @@ export class ProofreadController {
     return null;
   }
 
+  /**
+   * Pick a term, then the word to avoid for it — the editor's selection when
+   * there is one, so the usual path is: select the word, Add rule, pick the
+   * term, Enter.
+   */
+  private addTermRule(): void {
+    const folder = this.getSettings().glossaryTermFolder;
+    const notes = this.registry.termNotes();
+    if (!folder || notes.length === 0) {
+      new Notice(t().common.notice(t().proofread.termNoNotes(folder)));
+      return;
+    }
+
+    const selection = this.resolveTargetView()?.editor.getSelection().trim() ?? "";
+    const word = /[\r\n]/.test(selection) || selection.length > MAX_AVOID_CHARS ? "" : selection;
+
+    new TermPickerModal(this.app, notes, t().proofread.termPickerPlaceholder(word), (entry) => {
+      const current = (): unknown => this.termFrontmatter(entry.path)?.[TERM_AVOID_KEY];
+      new PromptModal(
+        this.app,
+        {
+          title: t().proofread.termAvoidTitle(entry.term),
+          description: t().proofread.termAvoidDesc,
+          placeholder: t().proofread.termAvoidPlaceholder,
+          initial: word,
+          submitLabel: t().proofread.termAvoidSubmit,
+          suggestions: translationSuggestions(this.termFrontmatter(entry.path), entry.term).map(
+            (suggestion) => ({
+              label: `${suggestion.text} · ${suggestion.lang.toUpperCase()}`,
+              value: suggestion.text
+            })
+          ),
+          suggestionsLabel: t().proofread.termAvoidSuggestions,
+          validate: (value) => {
+            const result = addAvoid(current(), value, entry.term);
+            return "error" in result ? (t().proofread.termAvoidErrors[result.error] ?? null) : null;
+          }
+        },
+        (value) =>
+          void this.writeAvoid(
+            entry.path,
+            (stored) => {
+              const result = addAvoid(stored, value, entry.term);
+              return "list" in result ? result.list : null;
+            },
+            t().proofread.termRuleAdded(value.trim(), entry.term)
+          )
+      ).open();
+    }).open();
+  }
+
+  private async removeTermRule(path: string, word: string): Promise<void> {
+    const term = this.terms.rules.find((rule) => rule.path === path)?.term ?? path;
+    await this.writeAvoid(
+      path,
+      (stored) => removeAvoid(stored, word),
+      t().proofread.termRuleRemoved(word, term)
+    );
+  }
+
+  /** Change the one key this plugin owns on a term note. Everything else on
+   *  the note belongs to Pythia or to the person, and processFrontMatter
+   *  leaves it where it is. An emptied list removes the key. */
+  private async writeAvoid(
+    path: string,
+    change: (stored: unknown) => string[] | null,
+    done: string
+  ): Promise<void> {
+    const file = this.app.vault.getAbstractFileByPath(path);
+    if (!(file instanceof TFile)) {
+      new Notice(t().common.notice(t().proofread.termWriteFailed(path)));
+      return;
+    }
+    try {
+      await this.app.fileManager.processFrontMatter(
+        file,
+        (frontmatter: Record<string, unknown>) => {
+          const next = change(frontmatter[TERM_AVOID_KEY]);
+          if (next === null) return;
+          if (next.length === 0) delete frontmatter[TERM_AVOID_KEY];
+          else frontmatter[TERM_AVOID_KEY] = next;
+        }
+      );
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      new Notice(t().common.notice(t().proofread.termWriteFailed(reason)));
+      this.logger.error(`Term rule write failed for ${path}: ${reason}`);
+      return;
+    }
+    this.message = done;
+    this.registry.invalidate(path);
+    await this.refreshGlossary(this.reviewedFile());
+  }
+
+  /** Opened in a new tab: the note under review stays where it is. */
+  private async openTerm(path: string): Promise<void> {
+    const file = this.app.vault.getAbstractFileByPath(path);
+    if (!(file instanceof TFile)) {
+      new Notice(t().common.notice(t().proofread.panelGlossaryMissing(path)));
+      return;
+    }
+    await this.app.workspace.getLeaf("tab").openFile(file);
+  }
+
+  private termFrontmatter(path: string): Record<string, unknown> | undefined {
+    const file = this.app.vault.getAbstractFileByPath(path);
+    return file instanceof TFile
+      ? this.app.metadataCache.getFileCache(file)?.frontmatter
+      : undefined;
+  }
+
   private buildState(): ReviewState {
     const hasFile = this.filePath !== null;
     return {
@@ -904,6 +1134,7 @@ export class ProofreadController {
       suggestions: this.suggestions,
       progress: this.progress,
       glossary: this.glossaryPanel,
+      terms: this.terms,
       sync: this.sync,
       message: this.message
     };
@@ -917,6 +1148,22 @@ export class ProofreadController {
   }
 }
 
+/** One line per word both places define, up to a handful, then a count. */
+function overlapWarnings(overlaps: ReturnType<typeof findTermOverlaps>): string[] {
+  const lines = overlaps
+    .slice(0, MAX_LISTED_OVERLAPS)
+    .map((overlap) =>
+      t().proofread.termOverlap(
+        overlap.text,
+        overlap.term,
+        overlap.glossaryPath.split("/").pop()?.replace(/\.md$/, "") ?? overlap.glossaryPath
+      )
+    );
+  const rest = overlaps.length - MAX_LISTED_OVERLAPS;
+  if (rest > 0) lines.push(t().proofread.termOverlapMore(rest));
+  return lines;
+}
+
 function summarize(count: number, rejectedBlocks: number, failedChunks: number): string {
   const parts = [count === 0 ? t().proofread.noSuggestions : t().proofread.suggestions(count)];
   if (rejectedBlocks > 0) {
@@ -926,4 +1173,9 @@ function summarize(count: number, rejectedBlocks: number, failedChunks: number):
     parts.push(t().proofread.chunksFailed(failedChunks));
   }
   return parts.join(" ");
+}
+
+/** A card the person has already answered: it stays, whatever else is redrawn. */
+function isDecided(suggestion: Suggestion): boolean {
+  return suggestion.status === "accepted" || suggestion.status === "rejected";
 }

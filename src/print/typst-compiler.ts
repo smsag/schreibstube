@@ -11,20 +11,24 @@
  * compiler's answer means — is decided in `services/typst-runtime.ts` and
  * tested there.
  */
+import { toArrayBuffer } from "../utils/array-buffer";
 import { withTimeout } from "../utils/with-timeout";
 import { requestUrl, type App } from "obsidian";
 import { WORKER_SOURCE } from "./typst-worker";
 import type { Logger } from "../services/logger";
 import type { PrintJob } from "../services/print-job";
-import { MAIN_FILE } from "../services/print-job";
-import { COMPILE_TIMEOUT_MS } from "../services/print-template";
+import { compileDeadline, compilePayload } from "../services/print-job";
 import {
   checkRuntimeBytes,
+  COMPILER_MEGABYTES,
+  DEVICE_ASSETS,
+  FONT_ASSETS,
+  fontFaceOf,
   LOADER_ASSET,
   readCompileResult,
-  RUNTIME_ASSETS,
   runtimeAssetUrl,
   runtimeCachePath,
+  staleRuntimeFiles,
   toHex,
   WASM_ASSET,
   type CompileOutcome,
@@ -34,14 +38,21 @@ import {
 /** How long the runtime's download may take before it is called a failure. */
 const DOWNLOAD_TIMEOUT_MS = 180_000;
 
+/** Past this, the notice says how long the wait may be rather than only "typesetting". */
+const LONG_COMPILE_MS = 30_000;
+
 /** Said while a person waits, so a long first print explains itself. */
 export type ProgressReport = (message: string) => void;
 
 export interface RuntimeStrings {
   downloading: (label: string, megabytes: number) => string;
+  downloadingFont: (face: string) => string;
   verifying: string;
   starting: string;
   compiling: string;
+  /** Said instead when the document is long enough that the wait is worth naming. */
+  compilingLong: (seconds: number) => string;
+  compileTimeout: (seconds: number) => string;
   mismatch: (detail: string) => string;
   unreachable: (detail: string) => string;
   timeout: (seconds: number) => string;
@@ -63,6 +74,7 @@ interface WorkerReply {
 export class TypstCompiler {
   private module: WebAssembly.Module | null = null;
   private loader: string | null = null;
+  private fonts: Uint8Array[] = [];
   private worker: Worker | null = null;
   private workerUrl: string | null = null;
   private ready: Promise<void> | null = null;
@@ -85,23 +97,15 @@ export class TypstCompiler {
    */
   async compile(job: PrintJob, progress: ProgressReport): Promise<CompileOutcome> {
     await this.load(progress);
-    progress(this.strings.compiling);
+    const deadline = compileDeadline(job);
+    progress(
+      deadline > LONG_COMPILE_MS
+        ? this.strings.compilingLong(Math.round(deadline / 1000))
+        : this.strings.compiling
+    );
 
-    const sources: { path: string; text: string }[] = [{ path: `/${MAIN_FILE}`, text: job.main }];
-    const binaries: { path: string; bytes: Uint8Array }[] = [];
-
-    for (const file of job.files) {
-      if (file.path.endsWith(".typ")) {
-        sources.push({ path: `/${file.path}`, text: new TextDecoder().decode(file.bytes) });
-      } else {
-        binaries.push({ path: `/${file.path}`, bytes: file.bytes });
-      }
-    }
-
-    const reply = await this.request(
-      "compile",
-      { main: `/${MAIN_FILE}`, fonts: job.fonts, sources, binaries },
-      COMPILE_TIMEOUT_MS
+    const reply = await this.request("compile", compilePayload(job), deadline, (seconds) =>
+      this.strings.compileTimeout(seconds)
     );
 
     if (reply.pdf) return readCompileResult(reply.pdf);
@@ -121,7 +125,7 @@ export class TypstCompiler {
 
   /** Whether the runtime is already on this device, so a command can say so. */
   async isInstalled(): Promise<boolean> {
-    for (const asset of RUNTIME_ASSETS) {
+    for (const asset of DEVICE_ASSETS) {
       if (!(await this.app.vault.adapter.exists(runtimeCachePath(this.pluginDir, asset)))) {
         return false;
       }
@@ -132,20 +136,35 @@ export class TypstCompiler {
   /**
    * Take the typesetter off the device.
    *
-   * Somebody switching printing off has 28 MB sitting in their vault folder
+   * Somebody switching printing off has 30 MB sitting in their vault folder
    * for a feature they stopped using, and no way to see it from inside the app.
    * Removing it is safe: the next print fetches and checks it again.
    */
   async remove(): Promise<void> {
     this.dispose();
     const adapter = this.app.vault.adapter;
-    for (const asset of RUNTIME_ASSETS) {
+    for (const asset of DEVICE_ASSETS) {
       const path = runtimeCachePath(this.pluginDir, asset);
       try {
         if (await adapter.exists(path)) await adapter.remove(path);
       } catch (error) {
         this.logger.warn(`print: ${asset.name} could not be removed`, error);
       }
+    }
+    await this.removeStale();
+  }
+
+  /** Runtimes of earlier pinned versions, which nothing will load again. */
+  private async removeStale(): Promise<void> {
+    const adapter = this.app.vault.adapter;
+    try {
+      const listed = await adapter.list(this.pluginDir);
+      const names = listed.files.map((path) => path.split("/").pop() ?? "");
+      for (const name of staleRuntimeFiles(names)) {
+        await adapter.remove(`${this.pluginDir.replace(/\/+$/, "")}/${name}`);
+      }
+    } catch (error) {
+      this.logger.warn("print: an earlier runtime could not be removed", error);
     }
   }
 
@@ -181,6 +200,11 @@ export class TypstCompiler {
   private async acquire(progress: ProgressReport): Promise<void> {
     const wasm = await this.bytesOf(WASM_ASSET, progress);
     const loader = await this.bytesOf(LOADER_ASSET, progress);
+    // The faces text is set in when a template brings none. Without them a
+    // page has nothing to draw its words with and comes out blank.
+    const fonts: Uint8Array[] = [];
+    for (const asset of FONT_ASSETS) fonts.push(await this.bytesOf(asset, progress));
+    this.fonts = fonts;
 
     progress(this.strings.starting);
     this.module ??= await WebAssembly.compile(wasm as BufferSource);
@@ -190,7 +214,13 @@ export class TypstCompiler {
     // are let go before the next attempt takes their place.
     this.stopWorker();
     this.worker = this.startWorker();
-    await this.request("init", { module: this.module, loader: this.loader }, DOWNLOAD_TIMEOUT_MS);
+    await this.request(
+      "init",
+      { module: this.module, loader: this.loader, fonts: this.fonts },
+      DOWNLOAD_TIMEOUT_MS,
+      (seconds) => this.strings.timeout(seconds)
+    );
+    await this.removeStale();
   }
 
   /**
@@ -224,7 +254,11 @@ export class TypstCompiler {
 
   private async download(asset: RuntimeAsset, progress: ProgressReport): Promise<Uint8Array> {
     const url = runtimeAssetUrl(this.pluginVersion, asset);
-    progress(this.strings.downloading(asset.label, Math.round(megabytesOf(asset))));
+    progress(
+      asset.label === "font"
+        ? this.strings.downloadingFont(fontFaceOf(asset))
+        : this.strings.downloading(asset.label, megabytesOf(asset))
+    );
     this.logger.debug(`print: fetching ${url}`);
 
     let response: Awaited<ReturnType<typeof requestUrl>>;
@@ -265,19 +299,33 @@ export class TypstCompiler {
     };
 
     worker.onerror = (event: ErrorEvent) => {
-      const error = new Error(event.message || "the compiler thread stopped");
-      for (const pending of this.pending.values()) {
-        window.clearTimeout(pending.timer);
-        pending.reject(error);
-      }
-      this.pending.clear();
-      this.dispose();
+      this.fail(new Error(event.message || "the compiler thread stopped"));
+    };
+    // A reply that cannot be read carries no id to answer, so whatever was
+    // waiting would otherwise wait out its whole deadline for nothing.
+    worker.onmessageerror = () => {
+      this.fail(new Error("the compiler answered in a form that could not be read"));
     };
 
     return worker;
   }
 
-  private request(kind: string, payload: unknown, timeoutMs: number): Promise<WorkerReply> {
+  /** Everything waiting is told why, and the thread is let go. */
+  private fail(error: Error): void {
+    for (const pending of this.pending.values()) {
+      window.clearTimeout(pending.timer);
+      pending.reject(error);
+    }
+    this.pending.clear();
+    this.dispose();
+  }
+
+  private request(
+    kind: string,
+    payload: unknown,
+    timeoutMs: number,
+    late: (seconds: number) => string
+  ): Promise<WorkerReply> {
     const worker = this.worker;
     if (!worker) return Promise.reject(new Error("the compiler is not running"));
 
@@ -285,10 +333,10 @@ export class TypstCompiler {
     return new Promise<WorkerReply>((resolve, reject) => {
       const timer = window.setTimeout(() => {
         this.pending.delete(id);
-        // A compile that has not finished by now is not going to, and the
-        // thread it is on cannot be interrupted — so it is thrown away.
+        // The thread cannot be interrupted, so a request that has overrun its
+        // deadline takes the thread with it; the next print starts a new one.
         this.dispose();
-        reject(new Error(`the compiler did not finish within ${Math.round(timeoutMs / 1000)}s`));
+        reject(new Error(late(Math.round(timeoutMs / 1000))));
       }, timeoutMs);
 
       this.pending.set(id, { resolve, reject, timer });
@@ -301,11 +349,6 @@ async function sha256(bytes: Uint8Array): Promise<string> {
   return toHex(await crypto.subtle.digest("SHA-256", toArrayBuffer(bytes)));
 }
 
-/** A view's own bytes, which is what both `subtle` and the adapter want. */
-function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
-  return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
-}
-
 function megabytesOf(asset: RuntimeAsset): number {
-  return asset.label === "compiler" ? 28 : 1;
+  return asset.label === "compiler" ? COMPILER_MEGABYTES : 1;
 }

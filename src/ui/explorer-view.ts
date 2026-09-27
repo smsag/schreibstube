@@ -32,19 +32,17 @@ import {
   type WorkspaceLeaf
 } from "obsidian";
 import { t } from "../i18n";
+import { openTargetOf, treeRowTarget } from "../services/pane-target";
 import type { ExplorerController } from "../controllers/explorer-controller";
 import type { PaneSectionsController } from "../controllers/pane-sections";
 import { syncBadgeIcon, type SyncBadge } from "../services/explorer-badge";
-import { matchesText, type SearchHit } from "../services/file-search";
+import type { PublishMark } from "../services/publish-mark";
+import { matchesText, parseSearchScope, type SearchHit } from "../services/file-search";
 import { FileSearchIndex } from "../services/search-index";
+import { BodyIndex, BodyLoader } from "../services/body-index";
+import { fuseRankings, meaningQuery, meaningRows } from "../services/semantic/search-fusion";
 import { sortSiblings, type ExplorerNode } from "../services/explorer-state";
-import {
-  bookmarkIcon,
-  bookmarkLinkPath,
-  isBookmarkTreeEmpty,
-  type Bookmark,
-  type BookmarkFolder
-} from "../services/bookmark-file";
+import { bookmarkNoteTarget, isBookmarkTreeEmpty, type Bookmark } from "../services/bookmark-file";
 import { rowKeyAction } from "../services/explorer-keys";
 import {
   EMPTY_SELECTION,
@@ -80,7 +78,7 @@ import {
   moveTargetAt,
   orderAfterDrop
 } from "./explorer-drop";
-import { DragGesture, wirePress } from "./explorer-gestures";
+import { DragGesture, wireListFocus, wirePress } from "./explorer-gestures";
 import { readPaneMemory, stateFromMemory, writePaneMemory } from "./explorer-memory";
 import {
   renderSection as renderSectionHeader,
@@ -89,6 +87,8 @@ import {
   type SectionId,
   type SectionOptions
 } from "./explorer-section";
+import { PendingReveal } from "../services/pending-reveal";
+import { renderBookmarkRows } from "./bookmark-section";
 import { applyIcon, installIconFont } from "./icon-font";
 import { drawTaskCount } from "./task-count-label";
 import { SCHREIBSTUBE_ICON } from "./schreibstube-icon";
@@ -120,6 +120,21 @@ const FILTER_DEBOUNCE_MS = 150;
 const FILTER_ROW_CAP = 200;
 
 /**
+ * How long the typing must pause before the filter also asks by meaning.
+ *
+ * Longer than the redraw's pause: a meaning search runs the model once, and a
+ * query caught between two words means something else than the one finished.
+ * The keyword rows never wait for it; the meaning rows join them when ready.
+ */
+const MEANING_DEBOUNCE_MS = 300;
+
+/** How much search by meaning can answer, least first. */
+const MEANING_REACH = ["", "none", "partial", "ready"];
+
+/** How many notes meaning may add. Past the first screenful they are noise. */
+const MEANING_LIMIT = 20;
+
+/**
  * How many pinned rows the shelf holds while the block is closed.
  *
  * They cost nothing to leave there: the strip is on screen at every scroll
@@ -144,14 +159,18 @@ const FALLBACK_ROW_HEIGHT_PX = 27;
 /** How close to the top a held header lands, allowing for sub-pixel layout. */
 const STUCK_TOLERANCE_PX = 1.5;
 
-/** Separator inside a bookmark folder key. A vault name can hold a slash; it
- *  cannot hold this. */
-const FOLDER_SEP = "\u001f";
-
 export interface ExplorerPaneHost {
   explorer: ExplorerController;
   sections: PaneSectionsController;
   settings: () => SchreibstubeSettings;
+  /** Notes whose meaning answers the text, best first; empty when search by
+   *  meaning is off or not ready. */
+  meaning?: (text: string, limit: number) => Promise<{ id: string }[]>;
+  /** Get ready for a search about to be typed: the filter field got focus. */
+  warm?: () => void;
+  /** How much meaning can answer now, and a way to hear when that moves. */
+  meaningState?: () => string;
+  onMeaningChange?: (listener: () => void) => () => void;
 }
 
 export class ExplorerPaneView extends ItemView {
@@ -160,6 +179,12 @@ export class ExplorerPaneView extends ItemView {
   private collapsedSections = new Set<string>();
   private collapsedBookmarks = new Set<string>();
   private query = "";
+  /** The field as typed, case and all, for asking by meaning again. */
+  private rawQuery = "";
+  /** How many files the words alone found, and for which query. */
+  private wordHits: { query: string; count: number } | null = null;
+  /** What meaning could answer when it was last asked. */
+  private meaningState = "";
   private body: HTMLElement | null = null;
   /** The fixed strip above the scroller: the filter and the pinned block. */
   private shelf: HTMLElement | null = null;
@@ -186,6 +211,14 @@ export class ExplorerPaneView extends ItemView {
   private pending = false;
   /** Waiting for the typing to stop before the filter redraws. */
   private filterTimer: number | null = null;
+  /** Waiting for a longer pause before asking by meaning. */
+  private meaningTimer: number | null = null;
+  /** What meaning found, and for which query; ignored once the query moved on. */
+  private meaning: { query: string; hits: { path: string }[] } | null = null;
+  /** The query a search by meaning is running for, so the list can say so. */
+  private meaningPending: string | null = null;
+  /** Rows only meaning found, so they can say why they are there. */
+  private meaningOnly = new Set<string>();
   /** Every file the filter kept, however many that is. Null when no filter is
    *  set, which is the difference between "everything" and "nothing". */
   private matches: Set<string> | null = null;
@@ -202,35 +235,55 @@ export class ExplorerPaneView extends ItemView {
    * The vault as the filter reads it: names, titles, aliases and tags, read
    * once per file and kept until the vault says that file changed.
    */
-  private readonly index = new FileSearchIndex({
-    files: () =>
-      this.app.vault
-        .getAllLoadedFiles()
-        .filter((entry): entry is TFile => entry instanceof TFile)
-        .map((file) => ({ path: file.path, name: file.name })),
-    metadata: (file) => {
-      const target = this.app.vault.getAbstractFileByPath(file.path);
-      if (!(target instanceof TFile)) return null;
-      const cache = this.app.metadataCache.getFileCache(target);
-      return {
-        title: cache?.frontmatter?.title,
-        aliases: cache?.frontmatter?.aliases,
-        // `getAllTags` reads the frontmatter and the body alike, the way
-        // Obsidian's own tag search sees a note.
-        tags: getAllTags(cache ?? {})
-      };
-    }
+  /** The words of every note's text, read once when the filter is first used. */
+  private readonly bodies = new BodyIndex();
+  private readonly bodyLoader = new BodyLoader(this.bodies, {
+    paths: () => this.app.vault.getMarkdownFiles().map((file) => file.path),
+    read: async (path) => {
+      const file = this.app.vault.getAbstractFileByPath(path);
+      if (!(file instanceof TFile)) throw new Error(`not a file: ${path}`);
+      return this.app.vault.cachedRead(file);
+    },
+    exists: (path) => this.app.vault.getAbstractFileByPath(path) instanceof TFile
   });
+  private readonly index = new FileSearchIndex(
+    {
+      files: () =>
+        this.app.vault
+          .getAllLoadedFiles()
+          .filter((entry): entry is TFile => entry instanceof TFile)
+          // A folded-in description note is found as its picture, never twice.
+          .filter((file) => this.host?.explorer.hidesDescription(file.path) !== true)
+          .map((file) => ({ path: file.path, name: file.name })),
+      metadata: (file) => {
+        const target = this.app.vault.getAbstractFileByPath(file.path);
+        if (!(target instanceof TFile)) return null;
+        const cache = this.app.metadataCache.getFileCache(target);
+        // A described picture carries its description note's words: the title it
+        // was given, its keywords as tags, and the description itself.
+        const described = this.host?.explorer.descriptionFields(file.path) ?? null;
+        const keywords = Array.isArray(described?.keywords)
+          ? described.keywords.filter((k): k is string => typeof k === "string")
+          : [];
+        return {
+          title: described?.title ?? cache?.frontmatter?.title,
+          aliases: cache?.frontmatter?.aliases,
+          // `getAllTags` reads the frontmatter and the body alike, the way
+          // Obsidian's own tag search sees a note.
+          tags: [...(getAllTags(cache ?? {}) ?? []), ...keywords],
+          description: described?.description
+        };
+      }
+    },
+    this.bodies
+  );
   /** How many files the filter matched, so a capped list can say what it is
    *  holding back. */
   private matchCount = 0;
   /** Files under each folder, counted once per draw. */
   private folderCounts = new Map<string, number>();
-  /** A path to scroll to once the next draw has put it on screen. */
-  private revealing: string | null = null;
-  /** Whether that reveal followed a note being opened rather than a request:
-   *  it then scrolls only if the row is out of view, and does not flash. */
-  private revealingQuietly = false;
+  /** A path to scroll to once a draw has put it on screen. */
+  private readonly revealing = new PendingReveal();
   /** A note just pressed in one of the pane's own lists, waiting for the
    *  file-open it causes; that one opens folders but does not scroll. */
   private panePress: PanePress | null = null;
@@ -259,6 +312,23 @@ export class ExplorerPaneView extends ItemView {
     this.host = host;
     this.register(host.explorer.onChange(() => this.requestRender()));
     this.register(host.sections.onChange(() => this.requestRender()));
+    this.meaningState = host.meaningState?.() ?? "";
+    // A filter typed before meaning could answer — the model still loading, the
+    // index still building — is asked again once it can, rather than keeping
+    // the empty answer it got then.
+    if (host.onMeaningChange) {
+      this.register(
+        host.onMeaningChange(() => {
+          const state = host.meaningState?.() ?? "";
+          if (state === this.meaningState) return;
+          const more = MEANING_REACH.indexOf(state) > MEANING_REACH.indexOf(this.meaningState);
+          this.meaningState = state;
+          // Only when meaning can answer more than before: asking again after
+          // it could answer less would ask a failed build to start over.
+          if (more && this.query) this.askByMeaning(this.rawQuery, this.query);
+        })
+      );
+    }
     this.requestRender();
   }
 
@@ -288,9 +358,24 @@ export class ExplorerPaneView extends ItemView {
     const loupe = filter.createSpan({ cls: "schreibstube-explorer-filter-loupe" });
     applyIcon(loupe, "search");
 
+    // Focus is the moment a search is about to be typed: the model and the
+    // notes' text are got ready then, not after the first word, so the first
+    // results do not wait for them.
+    search.addEventListener("focus", () => {
+      this.host?.warm?.();
+      this.readBodies();
+    });
+
     search.addEventListener("input", () => {
-      const value = search.value.trim().toLowerCase();
+      // A scope with nothing after it — `tag:` on the way to `tag:foo` — is not
+      // a filter yet: it showed "nothing matches" beside every bookmark, and
+      // `text:` alone started reading the whole vault's text.
+      const typed = search.value.trim().toLowerCase();
+      const value = parseSearchScope(typed).query.length === 0 ? "" : typed;
       this.cancelFilter();
+      this.rawQuery = search.value;
+      this.askByMeaning(search.value, value);
+      if (value.length > 0) this.readBodies();
       // Emptying the field is the one case that must not wait: it is how a
       // person gets the tree back, and there is nothing to compute for it.
       if (value.length === 0) {
@@ -311,7 +396,10 @@ export class ExplorerPaneView extends ItemView {
       cls: "sb sb-icon schreibstube-explorer-filter-clear",
       attr: { type: "button", "aria-label": t().explorer.clearFilter }
     });
-    applyIcon(clear, "x");
+    // On a child, not on the button: `applyIcon` hides what it draws into
+    // from assistive technology, and hidden the button was a focused control
+    // a screen reader could not see — which the browser reports as an error.
+    applyIcon(clear.createSpan(), "x");
     clear.addEventListener("click", () => {
       search.value = "";
       this.cancelFilter();
@@ -324,14 +412,14 @@ export class ExplorerPaneView extends ItemView {
     this.shelf = root.createDiv({ cls: "schreibstube-explorer-shelf" });
     this.body = root.createDiv({ cls: "schreibstube-explorer-body", attr: { tabindex: "0" } });
     this.body.addEventListener("scroll", () => this.syncShelfRule(), { passive: true });
-    // Tab reaches the list here and is handed straight to a row: the open
-    // note's, since that is where a person is, or the first. The box itself
-    // is never the thing to be on.
-    this.body.addEventListener("focus", (event) => {
-      if (event.target !== this.body) return;
-      const rows = this.treeRows();
-      (rows.find((row) => row.hasClass("is-active")) ?? rows[0])?.focus();
-    });
+    // Tab reaches the list here and is handed to the open note's row, where a
+    // person is, or the first; a press keeps the focus it brought.
+    this.register(
+      wireListFocus(this.body, () => {
+        const rows = this.treeRows();
+        return rows.find((row) => row.hasClass("is-active")) ?? rows[0];
+      })
+    );
     this.wireImportDrop(this.body);
 
     // The vault changes under the pane: a note created by a template, a file
@@ -340,10 +428,13 @@ export class ExplorerPaneView extends ItemView {
     this.registerEvent(this.app.vault.on("create", () => this.requestRender()));
     this.registerEvent(
       this.app.vault.on("delete", (file) => {
+        this.forgetDescribed(file.path);
         // A folder arrives as one event, for the folder; the files inside it
         // get none, so they are forgotten by prefix.
         this.index.forget(file.path);
         this.index.forgetUnder(file.path);
+        this.bodyLoader.forget(file.path);
+        this.bodyLoader.forgetUnder(file.path);
         this.requestRender();
       })
     );
@@ -352,9 +443,14 @@ export class ExplorerPaneView extends ItemView {
         // Both ends: the path it had is gone, and the path it has now holds a
         // different name and different folders above it. A folder moved takes
         // everything under it along, under paths the cache has not seen.
+        this.forgetDescribed(oldPath);
         this.index.forget(oldPath);
         this.index.forgetUnder(oldPath);
         this.index.forget(file.path);
+        // The text moved with the file; the next filter reads it at its new path.
+        this.bodyLoader.forget(oldPath);
+        this.bodyLoader.forgetUnder(oldPath);
+        if (this.query) this.readBodies();
         this.requestRender();
       })
     );
@@ -363,7 +459,13 @@ export class ExplorerPaneView extends ItemView {
     // tokens are thrown away rather than left to answer for an older version.
     this.registerEvent(
       this.app.metadataCache.on("changed", (file) => {
+        this.forgetDescribed(file.path);
         this.index.forget(file.path);
+        // The cache is re-parsed after every save, so this is also the moment
+        // the note's text changed.
+        void this.bodyLoader.refresh(file.path).then(() => {
+          if (this.query) this.requestRender();
+        });
         this.requestRender();
       })
     );
@@ -413,6 +515,8 @@ export class ExplorerPaneView extends ItemView {
 
   protected override async onClose(): Promise<void> {
     this.cancelFilter();
+    // The text read is this pane's; closed, it would read on into nothing.
+    this.bodyLoader.cancel();
     if (this.groundFrame !== null) this.containerEl.win.cancelAnimationFrame(this.groundFrame);
     this.groundFrame = null;
     this.contentEl.empty();
@@ -421,6 +525,80 @@ export class ExplorerPaneView extends ItemView {
   private cancelFilter(): void {
     if (this.filterTimer !== null) window.clearTimeout(this.filterTimer);
     this.filterTimer = null;
+    if (this.meaningTimer !== null) window.clearTimeout(this.meaningTimer);
+    this.meaningTimer = null;
+  }
+
+  /**
+   * Ask by meaning once the typing has paused, and redraw when the answer comes.
+   *
+   * `raw` keeps its case: the model reads "Objekt" and "objekt" alike, but a
+   * name it recognises is better left as typed. The answer is kept against
+   * `key`, the query the filter uses, and dropped if the query moved on.
+   */
+  private askByMeaning(raw: string, key: string): void {
+    const ask = this.host?.meaning;
+    if (!ask || meaningQuery(raw) === null) return;
+    if (this.meaningTimer !== null) window.clearTimeout(this.meaningTimer);
+    this.meaningTimer = window.setTimeout(() => {
+      this.meaningTimer = null;
+      // Asked after the pause, when the words have had their turn: one word
+      // the words already answer is not asked by meaning.
+      const text = meaningQuery(raw, this.wordHitsFor(key));
+      if (text === null) return;
+      // Said while it runs: a list of word results, or none, that is still
+      // waiting for meaning read as the whole answer — "nothing matches" stood
+      // on screen until the meaning rows arrived under it.
+      this.meaningPending = key;
+      this.requestRender();
+      const settle = (): void => {
+        if (this.meaningPending !== key) return;
+        this.meaningPending = null;
+        this.requestRender();
+      };
+      void ask(text, MEANING_LIMIT)
+        .then((hits) => {
+          if (this.query !== key || hits.length === 0) return;
+          this.meaning = { query: key, hits: hits.map((hit) => ({ path: hit.id })) };
+        })
+        .catch(() => undefined)
+        .finally(settle);
+    }, MEANING_DEBOUNCE_MS);
+  }
+
+  /** How many files the words alone find for `key`, counted by the last draw
+   *  when it was for this query. */
+  private wordHitsFor(key: string): number {
+    if (this.wordHits?.query === key) return this.wordHits.count;
+    return this.index.search(key, 0).hits.length;
+  }
+
+  /** How much of the vault's text the filter has read, for the settings. Null
+   *  until it has read any. */
+  textStats(): { notes: number; words: number; readMs: number | null } | null {
+    return this.bodies.size > 0
+      ? {
+          notes: this.bodies.size,
+          words: this.bodies.vocabularySize,
+          readMs: this.bodyLoader.lastReadMs
+        }
+      : null;
+  }
+
+  /**
+   * Read the notes' text into the filter, once, in the background, and draw
+   * again when that found anything, so a word only the text holds turns up
+   * without another keystroke.
+   */
+  private readBodies(): void {
+    void this.bodyLoader
+      .ensure()
+      .then((read) => {
+        if (!read || !this.query) return;
+        this.wordHits = null;
+        this.requestRender();
+      })
+      .catch(() => undefined);
   }
 
   /**
@@ -490,8 +668,7 @@ export class ExplorerPaneView extends ItemView {
 
   private reveal(path: string, redraw = true, quietly = false): void {
     this.revealedTree = true;
-    this.revealing = path;
-    this.revealingQuietly = quietly;
+    this.revealing.request(path, quietly);
     // The caller sometimes draws immediately afterwards, and queueing a frame
     // as well would rebuild the whole tree a second time for nothing.
     if (redraw) this.requestRender();
@@ -546,6 +723,7 @@ export class ExplorerPaneView extends ItemView {
   collapseAll(): void {
     this.expanded.clear();
     this.revealedFolders.clear();
+    this.browsed();
     this.writeMemory();
     this.requestRender();
   }
@@ -559,6 +737,7 @@ export class ExplorerPaneView extends ItemView {
   expandAll(paths: readonly string[] = folderPathsUnder(this.app.vault.getRoot())): void {
     for (const path of paths) this.expanded.add(path);
     this.collapsedSections.delete("files");
+    this.browsed();
     this.writeMemory();
     this.requestRender();
   }
@@ -606,7 +785,8 @@ export class ExplorerPaneView extends ItemView {
 
     if (this.shelf) this.renderPinned(this.shelf, host);
     if (settings.explorerBookmarksEnabled) this.renderBookmarks(host);
-    if (settings.explorerLatestEnabled) this.renderLatest(host);
+    // Only a vault that mirrors sources has anything to show here.
+    if (settings.syncEnabled) this.renderLatest(host);
     this.renderFiles(host);
 
     host.scrollTop = scrollTop;
@@ -680,6 +860,7 @@ export class ExplorerPaneView extends ItemView {
   }
 
   private toggleSection(id: SectionId, collapsed: boolean): void {
+    this.browsed();
     if (collapsed) {
       this.collapsedSections.delete(id);
     } else {
@@ -697,6 +878,7 @@ export class ExplorerPaneView extends ItemView {
    * that answered it by closing the list would be a joke.
    */
   private acknowledgeAlert(id: SectionId, alert: SectionAlert): void {
+    this.browsed();
     this.collapsedSections.delete(id);
     this.writeMemory();
     alert.acknowledge();
@@ -847,13 +1029,16 @@ export class ExplorerPaneView extends ItemView {
     // than opening a second copy of the tree inside the section.
     wirePress(row, {
       isDragging: () => this.drag.active !== null,
-      activate: () => {
+      activate: (event) => {
         if (isFolder) {
           this.revealFolder(file.path);
           return;
         }
-        this.notePanePress(file.path);
-        void controller.open(file, false);
+        const where = event ? openTargetOf(Keymap.isModEvent(event)) : false;
+        // Only a note opened in place is in front of the person; one opened
+        // beside it or in another window leaves the tree free to follow.
+        if (where === false) this.notePanePress(file.path);
+        void controller.open(file, where);
       },
       showMenu: (at) => controller.showMenu(file, at)
     });
@@ -919,89 +1104,43 @@ export class ExplorerPaneView extends ItemView {
 
     // A filter that matches nothing leaves the section empty on purpose: the
     // filter box is right above it and says why.
-    for (const bookmark of tree.loose) this.renderBookmarkRow(body, bookmark, 0);
-    for (const folder of tree.folders) this.renderBookmarkFolder(body, folder, "", 0);
+    renderBookmarkRows(body, tree, {
+      // A filter opens every folder that still has something in it, and closes
+      // nothing the person had opened by hand.
+      isFolded: (key) => this.query.length === 0 && this.collapsedBookmarks.has(key),
+      isShown: (bookmark) => this.bookmarkShown(bookmark),
+      pluginIconFor: (bookmark) => sections.pluginIconFor(bookmark),
+      fold: (key) => {
+        if (this.collapsedBookmarks.has(key)) this.collapsedBookmarks.delete(key);
+        else this.collapsedBookmarks.add(key);
+        this.browsed();
+        this.writeMemory();
+        this.requestRender();
+      },
+      open: (bookmark) => {
+        // Which note a bookmark names is resolved when it opens, so the press
+        // is noted without a path.
+        if (bookmark.kind === "note") this.notePanePress(null);
+        sections.openBookmark(bookmark);
+      }
+    });
   }
 
-  /** Returns how many bookmark rows were drawn, so a filter that matches
-   *  nothing can say so rather than showing empty folders. */
-  private renderBookmarkFolder(
-    host: HTMLElement,
-    folder: BookmarkFolder,
-    parentKey: string,
-    depth: number
-  ): number {
-    const key = parentKey.length > 0 ? `${parentKey}${FOLDER_SEP}${folder.name}` : folder.name;
-    const matching = this.bookmarkMatches(folder);
-    if (matching === 0) return 0;
+  /**
+   * Whether a bookmark row is drawn: the filter matches its name or where it
+   * leads — the same two things "Open bookmark" searches — and it is not a note
+   * deleted a moment ago, which has left the tree, Latest and the pinned block
+   * already and would otherwise wait here for the vault's own event.
+   */
+  private bookmarkShown(bookmark: Bookmark): boolean {
+    if (!this.matchesQuery(bookmark.name) && !this.matchesQuery(bookmark.url)) return false;
+    if (bookmark.kind !== "note") return true;
 
-    // A filter opens every folder that still has something in it, and closes
-    // nothing the person had opened by hand.
-    const collapsed = this.query.length === 0 && this.collapsedBookmarks.has(key);
-
-    const row = host.createDiv({ cls: "schreibstube-explorer-row is-folder" });
-    indent(row, depth);
-
-    applyIcon(
-      row.createSpan({ cls: "schreibstube-explorer-twisty" }),
-      collapsed ? "chevron-right" : "chevron-down"
+    const target = this.app.metadataCache.getFirstLinkpathDest(
+      bookmarkNoteTarget(bookmark.url).linkpath,
+      this.host?.sections.bookmarksPath() ?? ""
     );
-    applyIcon(row.createSpan({ cls: "schreibstube-explorer-glyph" }), "folder");
-    row.createSpan({ cls: "schreibstube-explorer-name", text: folder.name });
-
-    row.addEventListener("click", () => {
-      if (this.collapsedBookmarks.has(key)) this.collapsedBookmarks.delete(key);
-      else this.collapsedBookmarks.add(key);
-      this.writeMemory();
-      this.requestRender();
-    });
-
-    if (collapsed) return 1;
-
-    let drawn = 1;
-    for (const bookmark of folder.bookmarks) {
-      drawn += this.renderBookmarkRow(host, bookmark, depth + 1);
-    }
-    for (const sub of folder.subfolders) {
-      drawn += this.renderBookmarkFolder(host, sub, key, depth + 1);
-    }
-    return drawn;
-  }
-
-  private renderBookmarkRow(host: HTMLElement, bookmark: Bookmark, depth: number): number {
-    if (!this.matchesQuery(bookmark.name)) return 0;
-    // A note deleted a moment ago has left the tree, Latest and the pinned
-    // block; this was the one list still waiting for the vault's own event.
-    if (bookmark.kind === "note") {
-      const target = this.app.metadataCache.getFirstLinkpathDest(
-        bookmarkLinkPath(bookmark.url),
-        ""
-      );
-      if (target && this.host?.explorer.isTrashed(target.path)) return 0;
-    }
-
-    const row = host.createDiv({ cls: "schreibstube-explorer-row is-bookmark" });
-    indent(row, depth);
-    row.setAttribute("data-kind", bookmark.kind);
-    row.setAttribute("title", bookmark.url);
-
-    row.createSpan({ cls: "schreibstube-explorer-twisty" });
-    applyIcon(row.createSpan({ cls: "schreibstube-explorer-glyph" }), bookmarkIcon(bookmark.kind));
-    row.createSpan({ cls: "schreibstube-explorer-name", text: bookmark.name });
-
-    row.addEventListener("click", () => {
-      // Which note a bookmark names is resolved when it opens, so the press
-      // is noted without a path.
-      if (bookmark.kind === "note") this.notePanePress(null);
-      void this.host?.sections.openBookmark(bookmark);
-    });
-    return 1;
-  }
-
-  /** How many bookmarks under a folder survive the filter. */
-  private bookmarkMatches(folder: BookmarkFolder): number {
-    const here = folder.bookmarks.filter((bookmark) => this.matchesQuery(bookmark.name)).length;
-    return folder.subfolders.reduce((total, sub) => total + this.bookmarkMatches(sub), here);
+    return !(target && this.host?.explorer.isTrashed(target.path));
   }
 
   private renderLatest(host: HTMLElement): void {
@@ -1020,37 +1159,22 @@ export class ExplorerPaneView extends ItemView {
     });
     if (!body) return;
 
-    const { synced, created, modified } = sections.latestFiles();
-    const labels = t().explorer.latest;
-
-    // The source having changed is the most specific thing that can be said
-    // about why a note moved, so it is said first.
-    const drawn =
-      this.renderLatestGroup(body, labels.synced, synced, true) +
-      this.renderLatestGroup(body, labels.created, created) +
-      this.renderLatestGroup(body, labels.modified, modified);
+    // The section's own name says what the rows are; a heading over its one
+    // list would only say it twice.
+    const drawn = this.renderLatestRows(body, sections.latestFiles().synced);
 
     if (drawn === 0) {
-      body.createEl("p", { cls: "schreibstube-explorer-empty", text: labels.empty });
+      body.createEl("p", { cls: "schreibstube-explorer-empty", text: t().explorer.latest.empty });
     }
   }
 
-  private renderLatestGroup(
-    host: HTMLElement,
-    label: string,
-    files: readonly LatestCandidate[],
-    withBadge = false
-  ): number {
+  private renderLatestRows(host: HTMLElement, files: readonly LatestCandidate[]): number {
     const controller = this.host?.explorer;
     // A file deleted a moment ago is gone from the tree at once; it would be
     // odd for it to sit on in a list two sections above.
     const matching = files.filter(
       (file) => this.matchesFile(file.path) && controller?.isTrashed(file.path) !== true
     );
-    if (matching.length === 0) return 0;
-
-    host.createDiv({ cls: "schreibstube-explorer-subheading", text: label });
-
     for (const file of matching) {
       const row = host.createDiv({ cls: "schreibstube-explorer-row is-latest" });
       indent(row, 0);
@@ -1071,7 +1195,7 @@ export class ExplorerPaneView extends ItemView {
       // is waiting to be looked at or already in the note.
       const target = this.app.vault.getAbstractFileByPath(file.path);
       if (target instanceof TFile) {
-        if (withBadge) this.renderBadge(row, target);
+        this.renderBadge(row, target);
         this.renderTaskCount(row, target);
       }
 
@@ -1079,9 +1203,10 @@ export class ExplorerPaneView extends ItemView {
       // renamed or moved without first finding it in the tree below.
       wirePress(row, {
         isDragging: () => this.drag.active !== null,
-        activate: () => {
-          this.notePanePress(file.path);
-          void this.host?.sections.openLatest(file.path);
+        activate: (event) => {
+          const where = event ? openTargetOf(Keymap.isModEvent(event)) : false;
+          if (where === false) this.notePanePress(file.path);
+          void this.host?.sections.openLatest(file.path, where);
         },
         showMenu: (at) => {
           const current = this.app.vault.getAbstractFileByPath(file.path);
@@ -1179,6 +1304,10 @@ export class ExplorerPaneView extends ItemView {
         result.remove();
         continue;
       }
+      if (this.meaningOnly.has(file.path)) {
+        result.addClass("is-meaning");
+        result.setAttr("title", t().explorer.foundByMeaning);
+      }
       const folder = file.parent && !file.parent.isRoot() ? file.parent.path : "";
       const label = result.createDiv({
         cls: "schreibstube-explorer-result-folder",
@@ -1187,22 +1316,30 @@ export class ExplorerPaneView extends ItemView {
       // The folder is part of the result, so pressing it opens what the row
       // above it names rather than doing nothing.
       label.addEventListener("click", (event) => {
-        void controller?.open(file, Keymap.isModEvent(event) !== false);
+        void controller?.open(file, openTargetOf(Keymap.isModEvent(event)));
       });
       drawn += 1;
     }
 
+    const searching = this.meaningPending !== null && this.meaningPending === this.query;
     if (drawn === 0) {
       results.createEl("p", {
         cls: "schreibstube-explorer-empty",
-        text: t().explorer.filterEmpty
+        text: searching ? t().explorer.searchingByMeaning : t().explorer.filterEmpty
       });
       return;
     }
+    if (searching) {
+      results.createEl("p", {
+        cls: "schreibstube-explorer-empty schreibstube-explorer-searching",
+        text: t().explorer.searchingByMeaning
+      });
+    }
 
     // A list that stopped has to say so, or the file you are looking for is
-    // simply missing and nothing explains why.
-    const held = this.matchCount - drawn;
+    // simply missing and nothing explains why. Held back means past the cap —
+    // not a hit skipped above for being deleted, which is nowhere to be shown.
+    const held = this.matchCount - (this.ranked?.length ?? 0);
     if (held > 0) {
       results.createEl("p", {
         cls: "schreibstube-explorer-empty",
@@ -1233,6 +1370,15 @@ export class ExplorerPaneView extends ItemView {
       // Deleted a moment ago: the vault has not said so yet, and a row that
       // stays put after a confirmed delete reads as the delete having failed.
       if (controller.isTrashed(child.path)) continue;
+      // A description note is its picture's words, not a row of its own; a
+      // folder holding nothing else goes with them.
+      if (
+        child instanceof TFolder
+          ? controller.hidesFolder(child)
+          : controller.hidesDescription(child.path)
+      ) {
+        continue;
+      }
 
       if (child instanceof TFolder) {
         this.renderRow(host, child, depth);
@@ -1282,8 +1428,56 @@ export class ExplorerPaneView extends ItemView {
 
     const { hits, shown } = this.index.search(this.query, FILTER_ROW_CAP);
     this.matchCount = hits.length;
+    this.wordHits = { query: this.query, count: hits.length };
+    this.meaningOnly.clear();
 
-    return { all: new Set(hits.map((hit) => hit.path)), ranked: shown };
+    const controller = this.host?.explorer;
+    // Asked again with what the words find now: meaning asked for one word
+    // while the notes' text was still being read is noise once the text has
+    // been read and the words found the notes themselves.
+    const found =
+      this.meaning?.query === this.query && meaningQuery(this.rawQuery, hits.length) !== null
+        ? this.meaning.hits
+        : [];
+    if (found.length === 0 || !controller) {
+      return { all: new Set(hits.map((hit) => hit.path)), ranked: shown };
+    }
+    // A folded-in description note is shown as its picture, here as everywhere.
+    // A note the index still holds but the vault no longer has is not a row.
+    const rows = meaningRows(found, (path) => {
+      const shown = controller.hidesDescription(path) ? controller.imageDescribedBy(path) : path;
+      return shown !== null && this.app.vault.getAbstractFileByPath(shown) instanceof TFile
+        ? shown
+        : null;
+    });
+    const fused = fuseRankings(hits, rows);
+    for (const hit of fused)
+      if (hit.by.length === 1 && hit.by[0] === "meaning") this.meaningOnly.add(hit.path);
+    this.matchCount = fused.length;
+    return {
+      all: new Set(fused.map((hit) => hit.path)),
+      ranked: fused.slice(0, FILTER_ROW_CAP).map(({ path, score }) => ({ path, score }))
+    };
+  }
+
+  /**
+   * A note that may describe a picture changed, moved or went: the picture's
+   * search fields are rebuilt from the pairing as it was and as it is now, and
+   * any other file's too if the note was not a description before — cheap,
+   * because pairing rebuilds lazily and only this one picture is forgotten.
+   */
+  private forgetDescribed(notePath: string): void {
+    const controller = this.host?.explorer;
+    if (!controller || !controller.touchesDescriptions(notePath)) return;
+    const before =
+      controller.imageDescribedBy(notePath) ??
+      (controller.descriptionNoteOf(notePath) ? notePath : null);
+    controller.descriptionsChanged();
+    const after = controller.imageDescribedBy(notePath);
+    if (before) this.index.forget(before);
+    if (after && after !== before) this.index.forget(after);
+    // Whether this note is now hidden changed the list the filter reads from.
+    if (before || after) this.index.forget(notePath);
   }
 
   /** A filter expands the tree for as long as it is set, without disturbing
@@ -1442,7 +1636,10 @@ export class ExplorerPaneView extends ItemView {
     if (known !== undefined) return known;
 
     const controller = this.host?.explorer;
-    const count = countFilesUnder(folder, (path) => controller?.isTrashed(path) === true);
+    const count = countFilesUnder(
+      folder,
+      (path) => controller?.isTrashed(path) === true || controller?.hidesDescription(path) === true
+    );
     this.folderCounts.set(folder.path, count);
     return count;
   }
@@ -1531,14 +1728,25 @@ export class ExplorerPaneView extends ItemView {
     if (!controller) return;
 
     const badge = controller.badgeFor(file);
-    if (badge === "none") return;
+    if (badge !== "none") {
+      const label = badgeLabel(badge, controller.pendingChangesFor(file));
+      const el = row.createSpan({ cls: "schreibstube-explorer-badge" });
+      el.setAttribute("data-sync", badge);
+      el.setAttribute("aria-label", label);
+      el.setAttribute("title", `${label}\n${controller.lastCheckedFor(file)}`);
+      applyIcon(el, syncBadgeIcon(badge));
+    }
 
-    const label = badgeLabel(badge, controller.pendingChangesFor(file));
-    const el = row.createSpan({ cls: "schreibstube-explorer-badge" });
-    el.setAttribute("data-sync", badge);
-    el.setAttribute("aria-label", label);
-    el.setAttribute("title", `${label}\n${controller.lastCheckedFor(file)}`);
-    applyIcon(el, syncBadgeIcon(badge));
+    // After the sync mark, which can ask for something; this one only reports.
+    const mark = controller.publishMarkOf(file);
+    if (mark.state !== "none") {
+      const [label, detail] = publishMarkLines(mark);
+      const el = row.createSpan({ cls: "schreibstube-explorer-badge" });
+      el.setAttribute("data-publish", mark.state);
+      el.setAttribute("aria-label", detail ? `${label}, ${detail}` : label);
+      el.setAttribute("title", detail ? `${label}\n${detail}` : label);
+      applyIcon(el, "world-upload");
+    }
   }
 
   private wireRow(row: HTMLElement, file: TAbstractFile, isFolder: boolean): void {
@@ -1546,9 +1754,17 @@ export class ExplorerPaneView extends ItemView {
     if (!controller) return;
 
     const activate = (event?: MouseEvent): void => {
+      const mod = event ? openTargetOf(Keymap.isModEvent(event)) : false;
+      // The split and window chords open, as they do everywhere else; plain
+      // Cmd and Shift stay with the selection, which they already mean here.
+      const target = treeRowTarget(mod, event?.shiftKey === true);
+      if (!isFolder && (target === "split" || target === "window")) {
+        void controller.open(file, target);
+        return;
+      }
       const modifiers = {
         shift: event?.shiftKey === true,
-        toggle: event ? Keymap.isModEvent(event) !== false : false
+        toggle: mod !== false
       };
       // A click with a modifier builds a selection and opens nothing: the
       // rows are being gathered for an action, not visited one by one.
@@ -1781,13 +1997,23 @@ export class ExplorerPaneView extends ItemView {
     } else {
       this.expanded.add(path);
     }
-    // A reveal still waiting for the pane to have a layout — a note opened
-    // while the sidebar was shut — would land on this draw, pulling the
-    // person away from the folder they are opening. Browsing is the answer
-    // to "where am I" they chose instead.
-    this.revealing = null;
+    this.browsed();
     this.writeMemory();
     this.requestRender();
+  }
+
+  /**
+   * The person folded or unfolded something by hand.
+   *
+   * A reveal still waiting for the pane to have a layout — a note opened while
+   * the sidebar was shut, which on a phone is every note — would land on the
+   * draw this causes and pull the person away from what they just opened or
+   * closed. Browsing is the answer to "where am I" they chose instead. Every
+   * fold goes through here, in the tree, the bookmarks and the section headers
+   * alike, so none of them can be the one that forgets.
+   */
+  private browsed(): void {
+    this.revealing.browsed();
   }
 
   private glyphFor(file: TAbstractFile): string {
@@ -1802,17 +2028,22 @@ export class ExplorerPaneView extends ItemView {
   }
 
   private scrollToRevealed(): void {
-    const path = this.revealing;
+    const path = this.revealing.path;
     if (path === null || !this.body) return;
 
     const row = this.body.querySelector(`[data-path="${CSS.escape(path)}"]`);
     // A pane in a collapsed sidebar has no layout to scroll. The reveal waits
     // for the draw that follows the sidebar opening, rather than opening it.
-    if (row instanceof HTMLElement && row.getClientRects().length === 0) return;
-    this.revealing = null;
-    if (!(row instanceof HTMLElement)) return;
+    const reveal = this.revealing.settle(
+      !(row instanceof HTMLElement)
+        ? "missing"
+        : row.getClientRects().length === 0
+          ? "without-layout"
+          : "on-screen"
+    );
+    if (reveal === null || !(row instanceof HTMLElement)) return;
 
-    if (this.revealingQuietly) {
+    if (reveal.quietly) {
       if (!isInView(row)) row.scrollIntoView({ block: "center" });
       return;
     }
@@ -1878,6 +2109,34 @@ function displayName(file: TAbstractFile): string {
   if (!(file instanceof TFile)) return file.name;
   const parts = fileNameParts(file.name, file.extension);
   return parts.hidden ? parts.stem : file.name;
+}
+
+/**
+ * The publication mark's title: what the note is, then what that means now.
+ *
+ * Times are the reader's own, as the sync mark's are.
+ */
+function publishMarkLines(mark: Exclude<PublishMark, { state: "none" }>): [string, string] {
+  const labels = t().explorer.badge;
+  const when = (iso: string): string => new Date(iso).toLocaleString();
+  if (mark.state === "published") {
+    return [labels.published(siteOf(mark.url) || mark.account, when(mark.at)), mark.url];
+  }
+  const detail = mark.recorded
+    ? labels.notYetPublished
+    : mark.lastRun
+      ? labels.siteLastPublished(when(mark.lastRun))
+      : labels.siteNeverPublished;
+  return [labels.marked(mark.account), detail];
+}
+
+/** The host of a published page's address, which names the site best. */
+function siteOf(url: string): string {
+  try {
+    return new URL(url).host;
+  } catch {
+    return "";
+  }
 }
 
 function badgeLabel(badge: SyncBadge, pending: number): string {

@@ -68,3 +68,26 @@ export function typstArray(values: readonly string[]): string {
   if (values.length === 1) return `(${typstString(values[0] as string)},)`;
   return `(${values.map((value) => typstString(value)).join(", ")})`;
 }
+
+/**
+ * A frontmatter value as the text a template prints: text, a number, a flag,
+ * a date, or a list of those one per line; null for anything else.
+ *
+ * One reading for the descriptor and the note alike. They had one each, and a
+ * date meant a different day in each: YAML reads `2026-04-12` as midnight UTC,
+ * which the note's copy read back in local time — the day before, anywhere
+ * west of Greenwich.
+ */
+export function printableText(value: unknown): string | null {
+  if (typeof value === "string") return value;
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  if (typeof value === "boolean") return value ? "true" : "false";
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value.toISOString().slice(0, 10);
+  }
+  if (Array.isArray(value)) {
+    const parts = value.map(printableText);
+    return parts.every((part): part is string => part !== null) ? parts.join("\n") : null;
+  }
+  return null;
+}

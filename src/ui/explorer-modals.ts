@@ -18,6 +18,10 @@ export interface PromptOptions {
   submitLabel: string;
   /** Return a message to keep the dialogue open and show why. */
   validate?: (value: string) => string | null;
+  /** Values offered under the field. A tap fills the field and nothing more:
+   *  the person still submits, so an offer never becomes a choice unseen. */
+  suggestions?: { label: string; value: string }[];
+  suggestionsLabel?: string;
 }
 
 export class PromptModal extends Modal {
@@ -35,6 +39,9 @@ export class PromptModal extends Modal {
   override onOpen(): void {
     const { contentEl } = this;
     contentEl.empty();
+    // The scope the button roles are drawn in, so an offered value is a
+    // segment like every other in the plugin rather than Obsidian's button.
+    contentEl.addClass("schreibstube-prompt");
     contentEl.createEl("h3", { text: this.options.title });
 
     if (this.options.description) {
@@ -53,6 +60,28 @@ export class PromptModal extends Modal {
       attr: { placeholder: this.options.placeholder ?? "", "aria-label": this.options.title }
     });
     input.value = this.value;
+
+    const suggestions = this.options.suggestions ?? [];
+    if (suggestions.length > 0) {
+      const row = contentEl.createDiv({ cls: "schreibstube-prompt-suggestions" });
+      if (this.options.suggestionsLabel) {
+        row.createSpan({
+          cls: "schreibstube-prompt-suggestions-label",
+          text: this.options.suggestionsLabel
+        });
+      }
+      for (const suggestion of suggestions) {
+        const chip = row.createEl("button", {
+          cls: "sb sb-seg schreibstube-prompt-suggestion",
+          text: suggestion.label
+        });
+        chip.addEventListener("click", () => {
+          input.value = suggestion.value;
+          error.hide();
+          input.focus();
+        });
+      }
+    }
 
     const submit = (): void => {
       const value = input.value.trim();
@@ -218,5 +247,36 @@ export class TagPickerModal extends SuggestModal<VaultTag> {
 
   onChooseSuggestion(entry: VaultTag): void {
     this.onChoose(entry.tag);
+  }
+}
+
+/**
+ * The description notes whose picture could not be found, to open one.
+ *
+ * The only place they are listed: an orphan is never removed, and a note the
+ * person cannot find is as good as removed. Choosing one opens it, where the
+ * embed shows what is missing and the link can be set by hand.
+ */
+export class OrphanListModal extends SuggestModal<string> {
+  constructor(
+    app: App,
+    private readonly paths: readonly string[],
+    private readonly onChoose: (path: string) => void
+  ) {
+    super(app);
+    this.setPlaceholder(t().explorer.orphans.placeholder(paths.length));
+  }
+
+  getSuggestions(query: string): string[] {
+    const needle = query.trim().toLowerCase();
+    return this.paths.filter((path) => path.toLowerCase().includes(needle));
+  }
+
+  renderSuggestion(path: string, el: HTMLElement): void {
+    el.createSpan({ text: path });
+  }
+
+  onChooseSuggestion(path: string): void {
+    this.onChoose(path);
   }
 }

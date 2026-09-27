@@ -1,6 +1,6 @@
 import { requestUrl } from "obsidian";
 import { withTimeout } from "../utils/with-timeout";
-import { authHeaders, buildEndpoint } from "./bridge-protocol";
+import { BridgeError, authHeaders, buildEndpoint, extractCode } from "./bridge-protocol";
 import {
   MAIL_REQUEST_TIMEOUT_MS,
   describeBridgeError,
@@ -50,7 +50,11 @@ async function postJson(config: MailBridgeConfig, path: string, body: unknown): 
   );
 
   if (response.status < 200 || response.status >= 300) {
-    throw new Error(describeBridgeError(response.status, response.text));
+    throw new BridgeError(
+      describeBridgeError(response.status, response.text),
+      response.status,
+      extractCode(response.text)
+    );
   }
 
   return response.json;

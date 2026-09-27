@@ -8,7 +8,6 @@
 import { Setting } from "obsidian";
 import { t } from "../i18n";
 import { BOOKMARK_FILE_DEFAULT } from "../services/bookmark-file";
-import { LATEST_COUNT_MAX } from "../services/latest-files";
 import { ICON_FONT_VERSION, allIconNames } from "../ui/icon-font";
 import type { ExplorerForeignMenu } from "../types";
 import type { SettingsContext } from "./context";
@@ -58,43 +57,36 @@ export function renderExplorer(ctx: SettingsContext): void {
     });
 
   new Setting(ctx.containerEl)
-    .setName(t().settings.explorerLatest)
-    .setDesc(t().settings.explorerLatestDesc)
-    .addToggle((toggle) => {
-      toggle.setValue(ctx.plugin.settings.explorerLatestEnabled).onChange(async (value) => {
-        await ctx.update({ explorerLatestEnabled: value });
-      });
-    });
-
-  new Setting(ctx.containerEl)
-    .setName(t().settings.explorerLatestCount)
-    .setDesc(t().settings.explorerLatestCountDesc(LATEST_COUNT_MAX))
-    .addSlider((slider) => {
-      slider
-        .setLimits(1, LATEST_COUNT_MAX, 1)
-        .setDynamicTooltip()
-        .setValue(ctx.plugin.settings.explorerLatestCount)
-        .onChange(async (value) => {
-          await ctx.update({ explorerLatestCount: value });
-        });
-    });
-
-  new Setting(ctx.containerEl)
-    .setName(t().settings.explorerLatestExclude)
-    .setDesc(t().settings.explorerLatestExcludeDesc)
-    .addTextArea((area) => {
-      area.setValue(ctx.plugin.settings.explorerLatestExcluded).onChange(async (value) => {
-        await ctx.update({ explorerLatestExcluded: value });
-      });
-    });
-
-  new Setting(ctx.containerEl)
     .setName(t().settings.explorerTaskCounts)
     .setDesc(t().settings.explorerTaskCountsDesc)
     .addToggle((toggle) => {
       toggle.setValue(ctx.plugin.settings.explorerTaskCounts).onChange(async (value) => {
         await ctx.update({ explorerTaskCounts: value });
       });
+    });
+
+  new Setting(ctx.containerEl)
+    .setName(t().settings.explorerDescriptionNotes)
+    .setDesc(t().settings.explorerDescriptionNotesDesc)
+    .addToggle((toggle) => {
+      toggle
+        .setValue(ctx.plugin.settings.explorerDescriptionNotes === "show")
+        .onChange(async (value) => {
+          await ctx.update({ explorerDescriptionNotes: value ? "show" : "hide" });
+        });
+    });
+
+  new Setting(ctx.containerEl)
+    .setName(t().settings.recommendedPlacement)
+    .setDesc(t().settings.recommendedPlacementDesc)
+    .addDropdown((dropdown) => {
+      dropdown
+        .addOption("sidebar", t().settings.recommendedSidebar)
+        .addOption("footer", t().settings.recommendedFooter)
+        .setValue(ctx.plugin.settings.recommendedPlacement)
+        .onChange(async (value) => {
+          await ctx.update({ recommendedPlacement: value === "footer" ? "footer" : "sidebar" });
+        });
     });
 
   new Setting(ctx.containerEl)

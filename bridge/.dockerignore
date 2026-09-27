@@ -8,3 +8,4 @@ npm-debug.log
 *.test.mjs
 publish/**/*.test.mjs
 publish/sftp-fixture.mjs
+publish/bench.mjs

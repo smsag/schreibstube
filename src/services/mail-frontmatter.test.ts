@@ -74,6 +74,7 @@ describe("validateSendable", () => {
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.message).toMatch(/recipient/i);
+      expect(result.missing).toBe(true);
     }
   });
 
@@ -82,6 +83,7 @@ describe("validateSendable", () => {
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.message).toMatch(/subject/i);
+      expect(result.missing).toBe(true);
     }
   });
 
@@ -90,6 +92,8 @@ describe("validateSendable", () => {
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.message).toMatch(/not-an-address/);
+      // A wrong address is not something a property set could add.
+      expect(result.missing).toBe(false);
     }
   });
 

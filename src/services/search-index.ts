@@ -21,6 +21,7 @@
  */
 import {
   rankFiles,
+  type BodyMatcher,
   searchFields,
   type SearchCandidate,
   type SearchFields,
@@ -48,6 +49,8 @@ export interface FileMetadata {
   /** Tags as Obsidian reports them, `#` included; it reads frontmatter and
    *  body alike, which is what makes a tag search agree with its own. */
   tags?: readonly string[] | null;
+  /** A picture's description, from the note that describes it. */
+  description?: unknown;
 }
 
 /** Where the index reads from. The view satisfies this with the vault. */
@@ -100,7 +103,11 @@ export class FileSearchIndex {
   /** One entry per file, dropped when the vault says that file changed. */
   private readonly cache = new Map<string, SearchFields>();
 
-  constructor(private readonly source: SearchSource) {}
+  constructor(
+    private readonly source: SearchSource,
+    /** The words of the notes' text, when the view keeps them. */
+    private readonly body?: BodyMatcher
+  ) {}
 
   /** Read one file's fields, from the cache when they are still good. */
   fieldsFor(file: IndexedFile): SearchFields {
@@ -113,7 +120,8 @@ export class FileSearchIndex {
       name: file.name,
       title: usableText(metadata?.title),
       aliases: aliasList(metadata?.aliases),
-      tags: (metadata?.tags ?? []).map((tag) => tag.replace(/^#/, ""))
+      tags: (metadata?.tags ?? []).map((tag) => tag.replace(/^#/, "")),
+      description: usableText(metadata?.description)
     });
     this.cache.set(file.path, fields);
     return fields;
@@ -161,7 +169,7 @@ export class FileSearchIndex {
       .files()
       .map((file) => ({ path: file.path, fields: this.fieldsFor(file) }));
 
-    const hits = rankFiles(query, candidates);
+    const hits = rankFiles(query, candidates, undefined, this.body);
     const shown = hits.slice(0, limit);
     return { hits, shown, held: hits.length - shown.length };
   }

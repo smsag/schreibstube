@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  COMMIT_REQUEST_TIMEOUT_MS,
   describePublishError,
+  isEmptyPlan,
   parsePlan,
   parseSummary,
   parseTargets,
@@ -89,6 +91,29 @@ describe("summarisePlan", () => {
   });
 });
 
+describe("thumbnails in a plan", () => {
+  it("reads the thumbnails a protocol-2 bridge asks for", () => {
+    const plan = parsePlan({
+      notes: 1,
+      uploadThumbnails: [{ sourcePath: "Blog/haus.jpg", sha256: "a".repeat(64), name: "haus.jpg" }]
+    });
+    expect(plan.uploadThumbnails).toEqual([
+      { sourcePath: "Blog/haus.jpg", sha256: "a".repeat(64), name: "haus.jpg" }
+    ]);
+    expect(summarisePlan(plan)).toContain("1 Vorschaubild(er)");
+    expect(summarisePlan(plan)).not.toContain("nichts zu übertragen");
+  });
+
+  it("reads none from a protocol-1 bridge, which never sends the field", () => {
+    expect(parsePlan({ notes: 1 }).uploadThumbnails).toEqual([]);
+  });
+
+  it("does not call a plan empty while a thumbnail is missing", () => {
+    const plan = parsePlan({ uploadThumbnails: [{ sourcePath: "a.jpg", sha256: "b" }] });
+    expect(isEmptyPlan(plan)).toBe(false);
+  });
+});
+
 describe("describePublishError", () => {
   it("explains a rejected token in terms of the setting to fix", () => {
     expect(describePublishError(401, '{"error":"Unauthorized."}')).toMatch(/token/i);
@@ -123,5 +148,28 @@ describe("describePublishError", () => {
 
   it("falls back to the raw body when the response is not JSON", () => {
     expect(describePublishError(500, "<html>gateway</html>")).toContain("gateway");
+  });
+});
+
+describe("COMMIT_REQUEST_TIMEOUT_MS", () => {
+  it("outlasts the 300 s the bridge allows a commit, so success is never reported as failure", () => {
+    expect(COMMIT_REQUEST_TIMEOUT_MS).toBeGreaterThan(300_000);
+  });
+});
+
+describe("isEmptyPlan", () => {
+  const plan = (overrides = {}) =>
+    parsePlan({ notes: 0, willDelete: [], uploadSources: [], uploadAssets: [], ...overrides });
+
+  it("is empty when nothing is published, uploaded or deleted", () => {
+    expect(isEmptyPlan(plan())).toBe(true);
+  });
+
+  it("is not empty while a page is left to take down", () => {
+    expect(isEmptyPlan(plan({ willDelete: ["erste/index.html"] }))).toBe(false);
+  });
+
+  it("is not empty with a note to publish, even an unchanged one", () => {
+    expect(isEmptyPlan(plan({ notes: 1 }))).toBe(false);
   });
 });
