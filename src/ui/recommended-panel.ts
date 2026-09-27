@@ -1,6 +1,10 @@
 /**
  * What belongs with the open note: notes, pictures and conversations in one
- * list, most relevant first, each card saying why it is there.
+ * list, most relevant first, each entry saying what it is and why it is there.
+ *
+ * Drawn as the note's own register rather than as boxes: the rank in a marker
+ * column, the title as a link, and one line under it. Every title starts on the
+ * same edge, a picture's too; its thumbnail sits apart at the far end.
  *
  * Drawn in two steps. The link graph answers at once, from what Obsidian has
  * already resolved, so the panel is never empty while it waits. Search by
@@ -17,7 +21,6 @@ import { Keymap } from "obsidian";
 import { t } from "../i18n";
 import { openTargetOf, type PaneTarget } from "../services/pane-target";
 import type { RecommendReason } from "../services/semantic/recommend";
-import { applyIcon } from "./icon-font";
 
 /** One related note, as a card draws it. */
 export interface RelatedCard {
@@ -83,6 +86,8 @@ export class RecommendedPanel {
   constructor(
     private readonly root: HTMLElement,
     private readonly host: RecommendedHost,
+    /** `heading`: the note's title over the list (the sidebar); without it,
+     *  a section heading with the count (under the note). */
     private readonly opts: { heading: boolean } = { heading: true }
   ) {}
 
@@ -135,10 +140,21 @@ export class RecommendedPanel {
 
     if (this.opts.heading) {
       const header = root.createDiv({ cls: "schreibstube-related-header" });
-      const title = header.createDiv({ cls: "schreibstube-related-title" });
-      applyIcon(title.createSpan({ cls: "schreibstube-explorer-glyph" }), "link");
-      title.createSpan({ text: this.host.titleOf(path) ?? path });
+      header.createDiv({
+        cls: "schreibstube-related-title",
+        text: this.host.titleOf(path) ?? path
+      });
       header.createDiv({ cls: "schreibstube-related-summary", text: labels.summary(total) });
+    } else {
+      // Under the note the note is the title; the heading names the section and
+      // counts it, the way the Explorer's section headers do.
+      const section = root.createDiv({ cls: "schreibstube-related-section" });
+      section.createSpan({ cls: "schreibstube-related-section-label", text: labels.viewTitle });
+      section.createSpan({
+        cls: "schreibstube-related-section-count",
+        text: String(total),
+        attr: { "aria-label": labels.summary(total) }
+      });
     }
 
     if (total === 0) {
@@ -146,12 +162,44 @@ export class RecommendedPanel {
       return;
     }
 
-    const list = root.createDiv({ cls: "schreibstube-related-list" });
-    for (const item of items) {
-      if (item.kind === "note") this.renderCard(list, item.card);
-      else if (item.kind === "picture") this.renderPicture(list, item.picture);
-      else this.renderConversation(list, item.conversation);
+    const list = root.createEl("ol", { cls: "schreibstube-related-list" });
+    items.forEach((item, index) => {
+      const rank = index + 1;
+      if (item.kind === "note") this.renderCard(list, rank, item.card);
+      else if (item.kind === "picture") this.renderPicture(list, rank, item.picture);
+      else this.renderConversation(list, rank, item.conversation);
+    });
+  }
+
+  /**
+   * One entry: its rank, its title, and a line of what it is and why. Every
+   * kind is built here, so a picture's title cannot start anywhere but on the
+   * edge the others start on.
+   */
+  private renderRow(
+    list: HTMLElement,
+    rank: number,
+    row: { title: string; what: string; why: readonly string[]; path?: string; kind?: string }
+  ): HTMLElement {
+    const el = list.createEl("li").createDiv({
+      cls: row.kind ? `schreibstube-related-card ${row.kind}` : "schreibstube-related-card",
+      attr: { role: "link", tabindex: "0" }
+    });
+    if (row.path !== undefined) el.setAttribute("title", row.path);
+    // The list is an <ol>: the number is for the eye, the order is already told.
+    el.createSpan({
+      cls: "schreibstube-related-rank",
+      text: String(rank),
+      attr: { "aria-hidden": "true" }
+    });
+    const text = el.createDiv({ cls: "schreibstube-related-card-text" });
+    text.createDiv({ cls: "schreibstube-related-card-title", text: row.title });
+    const meta = text.createDiv({ cls: "schreibstube-related-card-meta" });
+    meta.createSpan({ cls: "schreibstube-related-card-folder", text: row.what });
+    if (row.why.length > 0) {
+      meta.createSpan({ cls: "schreibstube-related-card-why", text: row.why.join(" · ") });
     }
+    return el;
   }
 
   /** Press, Enter or Space opens; a modifier opens beside, as a link does. */
@@ -164,21 +212,14 @@ export class RecommendedPanel {
     });
   }
 
-  private renderCard(list: HTMLElement, card: RelatedCard): void {
-    const el = list.createDiv({
-      cls: "schreibstube-related-card",
-      attr: { role: "link", tabindex: "0", title: card.path }
+  private renderCard(list: HTMLElement, rank: number, card: RelatedCard): void {
+    const el = this.renderRow(list, rank, {
+      title: card.title,
+      what: card.folder.length > 0 ? card.folder : t().explorer.related.root,
+      // Two reasons at most: the third is never what made the difference.
+      why: card.reasons.slice(0, 2).map(reasonLabel),
+      path: card.path
     });
-    el.createDiv({ cls: "schreibstube-related-card-title", text: card.title });
-    el.createDiv({
-      cls: "schreibstube-related-card-folder",
-      text: card.folder.length > 0 ? card.folder : t().explorer.related.root
-    });
-    // Two chips at most: the third reason is never what made the difference.
-    const why = el.createDiv({ cls: "schreibstube-related-card-why" });
-    for (const reason of card.reasons.slice(0, 2)) {
-      why.createSpan({ cls: "schreibstube-related-chip", text: reasonLabel(reason) });
-    }
     this.pressable(el, (event) => {
       void this.host.open(card.path, openTargetOf(Keymap.isModEvent(event)));
     });
@@ -188,22 +229,19 @@ export class RecommendedPanel {
     });
   }
 
-  /** A picture as a card like the rest, its thumbnail beside its name. */
-  private renderPicture(list: HTMLElement, picture: PictureCard): void {
-    const el = list.createDiv({
-      cls: "schreibstube-related-card is-picture",
-      attr: { role: "link", tabindex: "0", title: picture.path }
+  /** A picture is an entry like the rest, its thumbnail at the far end. */
+  private renderPicture(list: HTMLElement, rank: number, picture: PictureCard): void {
+    const labels = t().explorer.related;
+    const el = this.renderRow(list, rank, {
+      title: picture.title,
+      what: labels.picture,
+      why: [labels.reasons.meaning],
+      path: picture.path,
+      kind: "is-picture"
     });
     el.createEl("img", {
       cls: "schreibstube-related-card-thumb",
       attr: { src: picture.src, alt: "", loading: "lazy" }
-    });
-    const text = el.createDiv({ cls: "schreibstube-related-card-text" });
-    text.createDiv({ cls: "schreibstube-related-card-title", text: picture.title });
-    const why = text.createDiv({ cls: "schreibstube-related-card-why" });
-    why.createSpan({
-      cls: "schreibstube-related-chip",
-      text: t().explorer.related.reasons.meaning
     });
     this.pressable(el, (event) => {
       void this.host.open(picture.path, openTargetOf(Keymap.isModEvent(event)));
@@ -214,24 +252,23 @@ export class RecommendedPanel {
     });
   }
 
-  private renderConversation(list: HTMLElement, conversation: ConversationCard): void {
-    const el = list.createDiv({
-      cls: "schreibstube-related-card is-conversation",
-      attr: { role: "link", tabindex: "0" }
-    });
-    const title = el.createDiv({ cls: "schreibstube-related-card-title" });
-    applyIcon(title.createSpan({ cls: "schreibstube-explorer-glyph" }), "messages");
-    title.createSpan({ text: conversation.title });
-    const why = el.createDiv({ cls: "schreibstube-related-card-why" });
-    why.createSpan({
-      cls: "schreibstube-related-chip",
-      text: t().explorer.related.reasons.meaning
+  private renderConversation(
+    list: HTMLElement,
+    rank: number,
+    conversation: ConversationCard
+  ): void {
+    const labels = t().explorer.related;
+    const el = this.renderRow(list, rank, {
+      title: conversation.title,
+      what: labels.conversation,
+      why: [labels.reasons.meaning],
+      kind: "is-conversation"
     });
     this.pressable(el, () => this.host.openConversation(conversation.id));
   }
 }
 
-/** What a reason says on a chip. */
+/** What a reason says on an entry's line. */
 function reasonLabel(reason: RecommendReason): string {
   const labels = t().explorer.related.reasons;
   switch (reason.kind) {

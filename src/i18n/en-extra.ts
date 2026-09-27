@@ -568,6 +568,8 @@ export const enExtra = {
       summary: (count: number) => (count === 1 ? "1 recommendation" : `${count} recommendations`),
       root: "Vault root",
       untitled: "Untitled conversation",
+      picture: "Picture",
+      conversation: "Conversation in Pythia",
       reasons: {
         link: "linked",
         meaning: "similar in meaning",

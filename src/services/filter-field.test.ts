@@ -155,7 +155,24 @@ describe(`the explorer's filter field, against ${GROUNDS_MEASURED_IN}`, () => {
     // Obsidian's `input[type='search'] { height: var(--input-height) }`.
     const field = ruleBody(".schreibstube-explorer input.schreibstube-explorer-filter {");
     expect(field).toMatch(/padding:\s*0 26px 0 22px;/);
-    expect(field).toMatch(/height:\s*32px;/);
+    expect(field).toMatch(/height:\s*var\(--input-height\);/);
+  });
+
+  it("sits on the line of Obsidian's own find bar: its gap below the header, its height", () => {
+    // `.document-search-container` pads the find bar by --size-4-2 under a
+    // header of --header-height, and the pane starts under a tab strip of that
+    // height. Measured before: the explorer's rule 4px above the find bar's,
+    // because the gap was a padding the flush pane rule zeroed, and the field
+    // was 32px against Obsidian's 30.
+    expect(ruleBody(".schreibstube-explorer-filter-row {")).toMatch(
+      /margin:\s*var\(--size-4-2\) var\(--schreibstube-padding\) 0;/
+    );
+    const field = ruleBody(".schreibstube-explorer input.schreibstube-explorer-filter {");
+    expect(field).toMatch(/height:\s*var\(--input-height\);/);
+    // The pane stays flush: the gap belongs to the row, not to a padding that loses.
+    expect(
+      ruleBody('.workspace-leaf-content[data-type="schreibstube-explorer"] .view-content {')
+    ).toMatch(/padding:\s*0;/);
   });
 
   it("draws the loupe in --text-muted, never --text-faint", () => {

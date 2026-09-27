@@ -72,6 +72,91 @@ describe("RecommendedPanel", () => {
     expect(host.openConversation).toHaveBeenCalledWith("c1");
   });
 
+  it("draws each entry as a register row: its rank, its title, what it is and why", async () => {
+    const { root, panel } = setup(async () => ({
+      items: [
+        {
+          ...note("Erfolge/elli.md", ["meaning", "tag"]),
+          card: {
+            ...card("Erfolge/elli.md", ["meaning", "tag"]),
+            folder: "Erfolge",
+            title: "ELLI PIM"
+          }
+        },
+        { kind: "conversation", conversation: { id: "c1", title: "Left Shift Testing" } },
+        {
+          kind: "picture",
+          picture: { path: "Bilder/plan.png", title: "plan", src: "app://plan.png" }
+        }
+      ]
+    }));
+    panel.show("a.md");
+    await settle();
+
+    expect(root.querySelector("ol.schreibstube-related-list")).not.toBeNull();
+    const ranks = Array.from(root.querySelectorAll(".schreibstube-related-rank"));
+    expect(ranks.map((el) => el.textContent)).toEqual(["1", "2", "3"]);
+    // The <ol> tells the order; the number is for the eye.
+    expect(ranks.every((el) => el.getAttribute("aria-hidden") === "true")).toBe(true);
+
+    const meta = Array.from(root.querySelectorAll(".schreibstube-related-card-meta")).map((el) =>
+      Array.from(el.children).map((part) => part.textContent)
+    );
+    expect(meta).toEqual([
+      ["Erfolge", "similar in meaning · 1 shared tag"],
+      ["Conversation in Pythia", "similar in meaning"],
+      ["Picture", "similar in meaning"]
+    ]);
+    // Reasons are words on the line now, never chips.
+    expect(root.querySelector(".schreibstube-related-chip")).toBeNull();
+  });
+
+  it("starts a picture's title on the edge every other title starts on, its thumbnail apart at the end", async () => {
+    const { root, panel } = setup(async () => ({
+      items: [
+        note("a.md"),
+        { kind: "picture", picture: { path: "p.png", title: "p", src: "app://p.png" } }
+      ]
+    }));
+    panel.show("x.md");
+    await settle();
+
+    // The same three places in the same order for every kind: rank, text, and
+    // for a picture its thumbnail after the text, never in front of it.
+    const shape = (el: Element) => Array.from(el.children).map((child) => child.className);
+    const [noteRow, pictureRow] = Array.from(root.querySelectorAll(".schreibstube-related-card"));
+    expect(shape(noteRow!)).toEqual([
+      "schreibstube-related-rank",
+      "schreibstube-related-card-text"
+    ]);
+    expect(shape(pictureRow!)).toEqual([
+      "schreibstube-related-rank",
+      "schreibstube-related-card-text",
+      "schreibstube-related-card-thumb"
+    ]);
+  });
+
+  it("heads the list under a note with the section and its count, and the sidebar with the note", async () => {
+    const recommend = async () => ({ items: [note("a.md"), note("b.md")] });
+    const under = setup(recommend);
+    const footer = new RecommendedPanel(under.root, under.host, { heading: false });
+    footer.show("x.md");
+    await settle();
+    expect(under.root.querySelector(".schreibstube-related-section-label")?.textContent).toBe(
+      "Recommended"
+    );
+    expect(under.root.querySelector(".schreibstube-related-section-count")?.textContent).toBe("2");
+    expect(under.root.querySelector(".schreibstube-related-header")).toBeNull();
+
+    const side = setup(recommend);
+    side.panel.show("x.md");
+    await settle();
+    expect(side.root.querySelector(".schreibstube-related-title")?.textContent).toBe("x.md");
+    expect(side.root.querySelector(".schreibstube-related-summary")?.textContent).toBe(
+      "2 recommendations"
+    );
+  });
+
   it("shows as many entries as the setting says", async () => {
     const { root, panel } = setup(
       async () => ({ items: ["a.md", "b.md", "c.md", "d.md"].map((path) => note(path)) }),
