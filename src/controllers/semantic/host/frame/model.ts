@@ -38,10 +38,16 @@ if (env.backends?.onnx?.wasm) {
 // transformers.js's `pipeline()` overloads produce a union type too large for TS
 // to represent (TS2590), so we cast to these minimal local signatures.
 // `padding` is what makes a BATCH possible: without it transformers refuses a
-// multi-text call whose members tokenize to different lengths. Padding is
-// mathematically neutral for mean pooling — the attention mask excludes the pad
-// positions — so batching does not change a single vector, which is what lets it
-// ship without re-measuring Pythia ADR-169's floors.
+// multi-text call whose members tokenize to different lengths. Padding itself is
+// neutral for mean pooling — the attention mask excludes the pad positions — but
+// batching is not quite: the 8-bit weights quantize activations with one scale per
+// batch, so a text's vector depends a little on what it is batched with. Measured
+// on the multilingual model: with full-precision weights a text embeds identically
+// alone and beside any other; with `q8` it embeds identically beside itself, and at
+// cosine 0.995–0.996 beside a different text, padded or not — under 3.8.1 and 4.3.0
+// alike. That is noise far below the related floors (Pythia ADR-169), which is why
+// they were not re-measured; it is not zero, so the same note embedded in two
+// batches need not produce the same bytes.
 // `truncation` is deliberately NOT here: see EMBED_BATCH_SIZE's note.
 type FeaturePipeline = (
   input: string | string[],
