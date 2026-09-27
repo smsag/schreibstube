@@ -401,7 +401,12 @@ export class PaneSectionsController {
       // prüfen" to show, and a row and a mark promising otherwise were the
       // pane saying something the panel then denied.
       const record = syncState[file.path];
-      const syncedAt = hasWaitingUpdate(record) ? record?.changedAt : undefined;
+      // A waiting update without the moment it arrived — a record written
+      // before that moment was kept — is still waiting: it is listed by when
+      // it was last checked rather than left out of the list altogether.
+      const syncedAt = hasWaitingUpdate(record)
+        ? (record?.changedAt ?? record?.checkedAt ?? 0)
+        : undefined;
       if (syncedAt !== undefined)
         candidates.push({ path: file.path, name: file.basename, syncedAt });
     }

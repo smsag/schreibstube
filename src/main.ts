@@ -583,13 +583,15 @@ export default class SchreibstubePlugin extends Plugin {
         const file = this.app.vault.getAbstractFileByPath(path);
         if (file) await explorer.open(file, where);
       },
-      openConversation: (id) => {
-        // Pythia opens it itself when it can; otherwise its deep link does.
-        if (this.semantic?.conversations.open(id)) return;
-        window.open(`obsidian://pythia?cmd=resume&id=${encodeURIComponent(id)}`);
-      },
+      openConversation: (id) => this.openConversation(id),
       showMenu: (path, event) => explorer.showMenuForPath(path, event)
     };
+  }
+
+  /** Pythia opens a conversation itself when it can; otherwise its deep link does. */
+  private openConversation(id: string): void {
+    if (this.semantic?.conversations.open(id)) return;
+    window.open(`obsidian://pythia?cmd=resume&id=${encodeURIComponent(id)}`);
   }
 
   /**
@@ -720,6 +722,9 @@ export default class SchreibstubePlugin extends Plugin {
         sections: this.sections,
         settings: () => this.settings,
         meaning: async (text, limit) => (await this.semantic?.search(text, limit)) ?? [],
+        conversations: async (text, limit) =>
+          (await this.semantic?.conversations.find(text, limit)) ?? [],
+        openConversation: (id) => this.openConversation(id),
         warm: () => this.semantic?.warm(),
         meaningState: () => this.semantic?.searchState() ?? "none",
         onMeaningChange: (listener) => this.semantic?.onChange(listener) ?? (() => undefined)

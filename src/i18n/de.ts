@@ -807,6 +807,7 @@ export const de: Messages = {
     filterEmpty: "Darauf antwortet hier nichts.",
     filterMore: (count: number) => `${count} weitere Treffer. Filter eingrenzen, um sie zu sehen.`,
     foundByMeaning: "Nach Bedeutung gefunden: andere Wörter, gleiches Thema.",
+    conversationsFound: "Pythia-Unterhaltungen",
     searchingByMeaning: "Suche nach Bedeutung …",
     collapseAll: "Alle zuklappen",
     expandAll: "Alle aufklappen",

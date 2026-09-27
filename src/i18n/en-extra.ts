@@ -549,6 +549,7 @@ export const enExtra = {
     filterEmpty: "Nothing here answers that.",
     filterMore: (count: number) => `${count} more match. Narrow the filter to see them.`,
     foundByMeaning: "Found by meaning: the words differ, the subject matches.",
+    conversationsFound: "Pythia conversations",
     searchingByMeaning: "Searching by meaning…",
     collapseAll: "Collapse all",
     expandAll: "Expand all",

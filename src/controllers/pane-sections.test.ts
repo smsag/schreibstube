@@ -164,6 +164,21 @@ describe("the mark that a source changed", () => {
     expect(pane.latestFiles().synced.map((file) => file.path)).toEqual(["Quellen/Eins.md"]);
   });
 
+  it("lists a waiting update whose record never kept when it arrived", async () => {
+    const { changedAt: _dropped, ...withoutMoment } = record(now);
+    const state: Record<string, SyncRecord> = {
+      "Quellen/Eins.md": { ...withoutMoment, checkedAt: now - 5000 },
+      "Quellen/Zwei.md": record(now)
+    };
+    const { pane } = controllerFor(state);
+    await pane.start();
+
+    expect(pane.latestFiles().synced.map((file) => file.path)).toEqual([
+      "Quellen/Zwei.md",
+      "Quellen/Eins.md"
+    ]);
+  });
+
   it("drops a note from the list once its update is taken", async () => {
     const state: Record<string, SyncRecord> = { "Quellen/Eins.md": record(now) };
     const { pane } = controllerFor(state);
