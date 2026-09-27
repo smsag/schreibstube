@@ -14,6 +14,7 @@ import { quantize, cosine, maxPairwiseCosine } from "./vector-math";
 import { vaultNoteChunks, type RetrievedNote } from "./vault-retrieval";
 import { IndexJournal, applyJournal, deserializeJournal } from "./index-journal";
 import { isOutOfMemoryError } from "./memory-error";
+import { BackendGoneError, isBackendGone } from "./embedding-provider";
 import { createLogger, type Logger } from "../logger";
 import type { BuildProgress } from "./index-report";
 
@@ -107,7 +108,27 @@ export interface SyncResult {
 }
 
 /** What a build may do beyond the defaults. */
+/** What became of one note in an edit batch. */
+type UpdateOutcome = "embedded" | "dropped" | "unchanged";
+
+/** What an edit batch may do. */
+export interface BatchOptions {
+  /** Add no new note past this many (the note limit). */
+  cap?: number;
+  /** Embed at most this many notes; the rest keep their rows (0 or absent: no limit). */
+  maxEmbeds?: number;
+}
+
+const EMPTY_EDITS = { upserts: [], removed: [] };
+
+/** Milliseconds for measuring intervals: steps with no clock change. */
+function monotonic(): number {
+  return typeof performance !== "undefined" ? performance.now() : Date.now();
+}
+
 export interface SyncOptions {
+  /** Checked before each note; set, the pass stops and keeps what it has. */
+  signal?: { readonly aborted: boolean };
   /** Stop after embedding this many notes, keeping them (0 or absent: no limit). */
   maxEmbeds?: number;
   /** Before each write, take rows another device wrote since this pass loaded,
@@ -204,6 +225,7 @@ export class VaultIndexService {
     await this.store.write(serializeIndex(items, this.provider.dim, meta));
     this.journal?.reset(meta.writtenAt);
     this.phoneJournal?.reset(meta.writtenAt);
+    await this.rememberBaseMtime();
     this.baseStamp = meta.writtenAt;
   }
 
@@ -330,6 +352,7 @@ export class VaultIndexService {
 
   private async load(): Promise<void> {
     if (this.loaded) return;
+    await this.rememberBaseMtime();
     const buf = await this.store.read();
     if (buf) {
       try {
@@ -342,10 +365,17 @@ export class VaultIndexService {
             ? await this.journal.load(meta.writtenAt, items, dim)
             : { items };
           // The phone's own edits over the desktop's rows, never its meta: the
-          // index is still the desktop's.
-          this.items = this.phoneJournal
-            ? (await this.phoneJournal.load(meta.writtenAt, merged.items, dim)).items
-            : merged.items;
+          // index is still the desktop's. Where the desktop's journal is the
+          // newer of the two, its rows win again for the notes it touched — a
+          // note edited on the phone, then on the desktop, is the desktop's.
+          let rows = merged.items;
+          if (this.phoneJournal) {
+            const mine = await this.phoneJournal.load(meta.writtenAt, rows, dim);
+            rows = mine.items;
+            if (this.journal && (merged.writtenAt ?? 0) > (mine.writtenAt ?? 0))
+              rows = applyJournal(rows, this.journal.content());
+          }
+          this.items = rows;
           this.meta = {
             ...meta,
             ...(merged.keeper ? { keeper: merged.keeper } : {}),
@@ -455,14 +485,14 @@ export class VaultIndexService {
    */
   applyBatch(
     changes: { updates: IndexableNote[]; removes: string[] },
-    opts: { cap?: number } = {}
+    opts: BatchOptions = {}
   ): Promise<void> {
     return this.enqueue(() => this.doApplyBatch(changes, opts));
   }
 
   private async doApplyBatch(
     changes: { updates: IndexableNote[]; removes: string[] },
-    opts: { cap?: number }
+    opts: BatchOptions
   ): Promise<void> {
     await this.load();
     if (!this.synced) return; // patch only a built index; a full build handles the rest
@@ -481,8 +511,25 @@ export class VaultIndexService {
         note(path);
       }
     let n = 0;
+    let embeds = 0;
+    const budget = Math.max(0, opts.maxEmbeds ?? 0);
     for (const update of changes.updates) {
-      if (await this.updateInMemory(update, opts.cap)) {
+      let outcome: UpdateOutcome;
+      try {
+        outcome = await this.updateInMemory(update, {
+          cap: opts.cap,
+          mayEmbed: budget === 0 || embeds < budget
+        });
+      } catch (e) {
+        // One note must not cost the batch: the ones before it are applied and
+        // written below, the ones after it still get their turn. Only a backend
+        // that is gone ends the batch, since every later note would fail too.
+        this.logger.warn(`semantic index: could not update "${update.path}"`, e);
+        if (isBackendGone(e) || isOutOfMemoryError(e)) break;
+        continue;
+      }
+      if (outcome === "embedded") embeds++;
+      if (outcome !== "unchanged") {
         dirty = true;
         note(update.path);
       }
@@ -501,7 +548,8 @@ export class VaultIndexService {
    *  from the timer — it must not interleave with a build. */
   private async persistEdits(): Promise<void> {
     const interval = this.opts.persistIntervalMs ?? MIN_PERSIST_INTERVAL_MS;
-    const wait = this.lastEditWriteAt + interval - Date.now();
+    // Never longer than the interval, whatever the clock did in between.
+    const wait = Math.min(interval, this.lastEditWriteAt + interval - monotonic());
     if (wait <= 0) {
       this.cancelPendingEditWrite();
       await this.writeEdits();
@@ -510,12 +558,14 @@ export class VaultIndexService {
     if (this.pendingEditWrite) return; // one trailing write carries every batch in the window
     this.pendingEditWrite = setTimeout(() => {
       this.pendingEditWrite = null;
-      void this.enqueue(() => this.writeEdits());
+      this.enqueue(() => this.writeEdits()).catch((e: unknown) => {
+        this.logger.warn("semantic index: held edits could not be written", e);
+      });
     }, wait);
   }
 
   private async writeEdits(): Promise<void> {
-    this.lastEditWriteAt = Date.now();
+    this.lastEditWriteAt = monotonic();
     if (!this.writesEdits()) {
       // Signed as the phone's in its own file; the index's meta stays the
       // desktop's, or the next edit would take the shared files over.
@@ -524,6 +574,15 @@ export class VaultIndexService {
           keeper: this.device,
           writtenAt: Date.now()
         });
+      return;
+    }
+    // Another device has written a new base since this one read or wrote it —
+    // a phone's Build now while this desktop ran. A journal written against the
+    // old base would be ignored by every reader, and a compaction would write
+    // this device's stale rows over the new ones: take the new base and put the
+    // edits on top of it instead.
+    if (await this.baseReplacedOnDisk()) {
+      await this.adoptStoredBase();
       return;
     }
     this.meta = this.stamp(this.meta);
@@ -548,17 +607,22 @@ export class VaultIndexService {
     });
   }
 
-  /** Re-embed / add / drop a single note IN MEMORY (no persist). Returns whether
-   *  the index changed. Empty/unreadable content drops the note. */
-  private async updateInMemory(note: IndexableNote, cap?: number): Promise<boolean> {
+  /** Re-embed / add / drop a single note IN MEMORY (no persist). Empty or
+   *  unreadable content drops the note; `mayEmbed: false` leaves a note that
+   *  would need the model as it is. */
+  private async updateInMemory(
+    note: IndexableNote,
+    opts: { cap?: number | undefined; mayEmbed: boolean }
+  ): Promise<UpdateOutcome> {
     const maxChars = this.opts.maxChars ?? 500;
+    const drop = (): UpdateOutcome => (this.removeInMemory(note.path) ? "dropped" : "unchanged");
     let chunks: string[];
     try {
       chunks = vaultNoteChunks(await note.load(), maxChars);
     } catch {
-      return this.removeInMemory(note.path); // unreadable → drop
+      return drop(); // unreadable → drop
     }
-    if (chunks.length === 0) return this.removeInMemory(note.path); // emptied → drop
+    if (chunks.length === 0) return drop(); // emptied → drop
 
     const idx = this.items.findIndex((i) => i.id === note.path);
     const { hash, reuse } = resolveRowHash(
@@ -566,14 +630,16 @@ export class VaultIndexService {
       idx >= 0 ? this.items[idx]?.contentHash : undefined,
       chunks
     );
-    if (reuse) return false; // unchanged (or a row this device accepts — Pythia ADR-201)
-    if (idx < 0 && cap && cap > 0 && this.items.length >= cap) return false; // cap new adds
+    if (reuse) return "unchanged"; // or a row this device accepts — Pythia ADR-201
+    const cap = opts.cap ?? 0;
+    if (idx < 0 && cap > 0 && this.size() >= cap) return "unchanged"; // cap new adds
+    if (!opts.mayEmbed) return "unchanged";
 
     const raw = await this.embedAll(chunks);
     const item = { id: note.path, contentHash: hash, chunks: raw.map(quantize) };
     if (idx >= 0) this.items[idx] = item;
     else this.items.push(item);
-    return true;
+    return "embedded";
   }
 
   /**
@@ -587,7 +653,7 @@ export class VaultIndexService {
    * note too much for a phone would then be skipped by the desktop too.
    */
   private remembersFailure(e: unknown): boolean {
-    if (this.device === "mobile") return false;
+    if (this.device === "mobile" || isBackendGone(e)) return false;
     const message = e instanceof Error ? e.message : String(e);
     return !/timed? ?out/i.test(message);
   }
@@ -607,25 +673,67 @@ export class VaultIndexService {
   }
 
   /**
-   * The rows on disk now, base and journal, or null when there are none this
-   * instance can read. For a phone's build, which must not overwrite what a
-   * desktop wrote while it ran (see `doSync`).
+   * The rows on disk now, base and journal: `"none"` when there is no index
+   * there (or another model's), `"unreadable"` when there is one that cannot be
+   * read — a half-synced file. The two are kept apart because a merge that
+   * cannot read must not write as if there were nothing to merge.
    */
-  private async readStoreRows(): Promise<Map<string, IndexedConversation> | null> {
+  private async readStoreRows(): Promise<
+    { rows: Map<string, IndexedConversation>; meta: IndexMeta } | "none" | "unreadable"
+  > {
     try {
       const buf = await this.store.read();
-      if (!buf) return null;
+      if (!buf) return "none";
       const { items, dim, meta } = deserializeIndex(buf);
-      if (dim !== this.provider.dim) return null;
+      if (dim !== this.provider.dim) return "none";
       let rows = items;
       const journalBuf = meta.writtenAt ? await this.store.journal?.().read() : null;
       const journal = journalBuf ? deserializeJournal(journalBuf, dim) : null;
       if (journal && journal.base === meta.writtenAt) rows = applyJournal(rows, journal);
-      return new Map(rows.map((row) => [row.id, row]));
+      return { rows: new Map(rows.map((row) => [row.id, row])), meta };
     } catch (e) {
       this.logger.warn("semantic index: could not read the stored index to merge it", e);
-      return null;
+      return "unreadable";
     }
+  }
+
+  /** The base file's modification time as last read or written here. */
+  private baseMtime: number | null = null;
+
+  private async rememberBaseMtime(): Promise<void> {
+    try {
+      this.baseMtime = (await this.store.mtime?.()) ?? null;
+    } catch {
+      this.baseMtime = null;
+    }
+  }
+
+  /** Whether the base on disk is no longer the one this instance read or
+   *  wrote. Only a store that can tell (a real file) is asked. */
+  private async baseReplacedOnDisk(): Promise<boolean> {
+    if (!this.store.mtime || this.baseMtime === null) return false;
+    try {
+      const now = await this.store.mtime();
+      return now !== null && now !== this.baseMtime;
+    } catch {
+      return false;
+    }
+  }
+
+  /** Take the base another device wrote, with this device's edits on top. */
+  private async adoptStoredBase(): Promise<void> {
+    const stored = await this.readStoreRows();
+    if (typeof stored !== "object") {
+      // Nothing readable to put the edits on: they stay in memory, and the
+      // next edit tries again.
+      this.logger.warn("semantic index: another device replaced the index; could not read it");
+      return;
+    }
+    const rows = applyJournal([...stored.rows.values()], this.journal?.content() ?? EMPTY_EDITS);
+    const meta = this.stamp({ complete: stored.meta.complete, scope: stored.meta.scope });
+    await this.writeBase(rows, meta);
+    this.items = rows;
+    this.meta = meta;
   }
 
   /** Drop a note from the in-memory index (no persist). Returns whether it changed. */
@@ -682,7 +790,7 @@ export class VaultIndexService {
      *  not be remembered as failed. */
     let streak: string[] = [];
     let stopped = false;
-    let lastPersistAt = Date.now();
+    let lastPersistAt = monotonic();
     const persistIntervalMs = this.opts.persistIntervalMs ?? MIN_PERSIST_INTERVAL_MS;
 
     // A mid-build snapshot = what this pass has rebuilt so far, PLUS the notes it
@@ -701,7 +809,8 @@ export class VaultIndexService {
       const pending = new Set<string>();
       for (const item of existing.values()) {
         if (handled.has(item.id) || !desired.has(item.id)) continue;
-        rest.push(fresher?.get(item.id) ?? item);
+        // The phone's own journaled row is newer than any the store holds.
+        rest.push(this.phoneJournal?.has(item.id) ? item : (fresher?.get(item.id) ?? item));
         pending.add(item.id);
       }
       if (fresher) {
@@ -728,18 +837,30 @@ export class VaultIndexService {
       final: IndexedConversation[] | null,
       complete: boolean
     ): Promise<void> => {
-      const rows = final ?? snapshot(options.mergeFromStore ? await this.readStoreRows() : null);
+      let fresher: Map<string, IndexedConversation> | null = null;
+      if (final === null && options.mergeFromStore) {
+        const stored = await this.readStoreRows();
+        // A file that cannot be read now is not an empty one: writing as if it
+        // were would throw away what the desktop wrote. Try at the next flush.
+        if (stored === "unreadable") {
+          this.items = snapshot();
+          return;
+        }
+        fresher = stored === "none" ? null : stored.rows;
+      }
+      const rows = final ?? snapshot(fresher);
       const meta = this.stamp({ complete, scope });
       await this.writeBase(rows, meta);
       this.items = rows;
       this.meta = meta;
       persistedChanges = changes();
-      lastPersistAt = Date.now();
+      lastPersistAt = monotonic();
     };
 
     this.live = () => snapshot();
     try {
       for (const note of notes) {
+        if (options.signal?.aborted) throw new BackendGoneError("The build was stopped");
         processed++;
         handled.add(note.path);
         let chunks: string[];
@@ -783,7 +904,11 @@ export class VaultIndexService {
             // carry on — until it stops looking like one bad note and starts
             // looking like a dead backend.
             this.logger.warn(`semantic index: skipping "${note.path}" — embed failed`, e);
-            if (isOutOfMemoryError(e) || ++failedInARow >= MAX_CONSECUTIVE_EMBED_FAILURES) {
+            if (
+              isOutOfMemoryError(e) ||
+              isBackendGone(e) ||
+              ++failedInARow >= MAX_CONSECUTIVE_EMBED_FAILURES
+            ) {
               // Not the notes' fault: the ones this streak gave up on go back
               // to what they were, to be tried again by the next build.
               for (const path of streak) {
@@ -798,7 +923,9 @@ export class VaultIndexService {
               throw e;
             }
             streak.push(note.path);
-            if (this.remembersFailure(e)) {
+            // Remembered only once this pass has embedded something: before
+            // that, a failure says as much about the model as about the note.
+            if (embedded > 0 && this.remembersFailure(e)) {
               // Remembered as failed: a row with no vectors under this content's
               // hash, so the next build reuses the failure instead of paying for
               // it again. An edit changes the hash and the note is tried anew.
@@ -821,7 +948,7 @@ export class VaultIndexService {
         if (
           streak.length === 0 &&
           changes() - persistedChanges >= PERSIST_EVERY_EMBEDS &&
-          Date.now() - lastPersistAt >= persistIntervalMs
+          monotonic() - lastPersistAt >= persistIntervalMs
         ) {
           await persist(null, false);
         }

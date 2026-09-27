@@ -195,3 +195,20 @@ export function isIndexingOptedOut(frontmatter: unknown): boolean {
   const value = (frontmatter as Record<string, unknown>).pythia;
   return value === false || value === "false";
 }
+
+/** Frontmatter a note carries to stay out of Schreibstube's index. */
+export const OPT_OUT_KEY = "schreibstubeIndex";
+
+/**
+ * Whether a note's frontmatter keeps it out of the index: Pythia's key or
+ * Schreibstube's, each read the same way — an explicit `false`, or the string
+ * "false" a hand-edited or synced property often turns into. The two were read
+ * differently, so `schreibstubeIndex: "false"` indexed the note it meant to
+ * keep out.
+ */
+export function optedOut(frontmatter: unknown): boolean {
+  if (isIndexingOptedOut(frontmatter)) return true;
+  if (!frontmatter || typeof frontmatter !== "object") return false;
+  const value = (frontmatter as Record<string, unknown>)[OPT_OUT_KEY];
+  return value === false || value === "false";
+}

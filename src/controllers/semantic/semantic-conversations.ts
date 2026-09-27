@@ -86,7 +86,15 @@ export class SemanticConversations {
     this.dirty = true;
   }
 
-  private async ready(): Promise<ConversationIndex | null> {
+  /**
+   * The index, brought up to date with the source first when `embed` allows.
+   *
+   * Without it — the Recommended panel, which promises not to load the model —
+   * the stored index answers as it is, and the next search syncs it. Loading
+   * the model to embed one changed chat message on every note switch cost a
+   * phone several hundred megabytes it had just released.
+   */
+  private async ready(embed = true): Promise<ConversationIndex | null> {
     const source = this.source;
     if (!source || !this.host.enabled()) return null;
     const modelId = this.host.modelId();
@@ -108,6 +116,10 @@ export class SemanticConversations {
       this.indexModel = modelId;
       this.dirty = true;
     }
+    if (!embed) {
+      await this.index.loadStored();
+      return this.index;
+    }
     if (this.dirty) {
       this.dirty = false;
       try {
@@ -118,7 +130,8 @@ export class SemanticConversations {
         );
         const items = normalizeConversations(listed);
         this.titles = new Map(items.map((item) => [item.id, item.title]));
-        await this.host.provider().ready();
+        // No explicit load: the sync loads the model only if it has something
+        // to embed.
         await this.index.sync(items);
         this.host.changed();
       } catch (e) {
@@ -143,7 +156,7 @@ export class SemanticConversations {
 
   /** Conversations like a note, from its stored vectors. */
   async relatedToVectors(chunks: readonly Int8Array[], limit: number): Promise<ScoredId[]> {
-    const index = await this.ready();
+    const index = await this.ready(false);
     if (!index) return [];
     // Chunk against chunk, the comparison the related floors were measured on.
     return index.relatedToVectors(chunks, { minScore: this.relatedFloor(), limit });

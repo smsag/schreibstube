@@ -51,7 +51,7 @@ export function queryTokens(query: string): string[] {
 /**
  * Lowercase word tokens, deduped, Unicode-aware.
  *
- * `\p{L}\p{N}` rather than `[a-z0-9]`: this is a German-first plugin, and the
+ * `\p{L}\p{M}\p{N}` rather than `[a-z0-9]`: this is a German-first plugin, and the
  * ASCII class fragmented every umlaut word — "Ernährung" became "ern" and
  * "hrung", which then cross-matched unrelated text on the stray pieces — while
  * reducing a non-Latin query to no tokens at all, which the empty-query branch
@@ -60,6 +60,10 @@ export function queryTokens(query: string): string[] {
  * NFC first because macOS stores a file name's umlaut decomposed, as "u" plus a
  * combining diaeresis. Without normalising, a file named on a Mac and a query
  * typed on a phone tokenize differently and never meet.
+ *
+ * Marks (`\p{M}`) belong to their letter: Hindi, Thai, Hebrew with points and
+ * Arabic with harakat write vowels as combining marks, and a class without them
+ * cut those words into one-letter tokens that prefix-matched almost everything.
  */
 export function tokenize(text: string): string[] {
   return Array.from(
@@ -67,7 +71,7 @@ export function tokenize(text: string): string[] {
       text
         .normalize("NFC")
         .toLowerCase()
-        .match(/[\p{L}\p{N}]+/gu) ?? []
+        .match(/[\p{L}\p{M}\p{N}]+/gu) ?? []
     )
   );
 }

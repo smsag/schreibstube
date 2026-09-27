@@ -35,6 +35,8 @@ export interface CatchUpHost {
   modelId(): string;
   guard?: Pick<BuildGuard, "start" | "end"> | null;
   onProgress: ProgressListener;
+  /** Set to stop the catch-up at its next note (the plugin is unloading). */
+  signal?: { readonly aborted: boolean };
 }
 
 export type CatchUpResult = { ran: true; notes: number } | { ran: false; reason: "incomplete" };
@@ -56,7 +58,13 @@ export async function catchUpIndex(h: CatchUpHost): Promise<CatchUpResult> {
   // that the OS kills while embedding is the same event as a build that is.
   h.guard?.start(h.modelId());
   try {
-    await svc.sync(notes, h.onProgress, CATCH_UP_THROTTLE, scope);
+    await svc.sync(
+      notes,
+      h.onProgress,
+      CATCH_UP_THROTTLE,
+      scope,
+      h.signal ? { signal: h.signal } : {}
+    );
   } catch (e) {
     // Out of memory is one allocation short of a kill, so its marker stays.
     if (!isOutOfMemoryError(e)) h.guard?.end();

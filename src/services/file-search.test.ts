@@ -369,3 +369,10 @@ describe("forwardMatchStrength", () => {
     expect(forwardMatchStrength("jahr", "")).toBe(0);
   });
 });
+
+describe("tokenize — scripts that write vowels as marks", () => {
+  it("keeps a word whole with its combining marks", () => {
+    expect(tokenize("हिन्दी")).toEqual(["हिन्दी"]);
+    expect(tokenize("שָׁלוֹם")).toHaveLength(1);
+  });
+});

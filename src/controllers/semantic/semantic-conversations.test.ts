@@ -123,3 +123,18 @@ describe("conversations handed over", () => {
     expect(s.conversations.titleOf("unknown")).toBe("unknown");
   });
 });
+
+describe("conversations beside a note", () => {
+  it("answer from what is stored, without embedding a changed conversation", async () => {
+    const s = setup();
+    s.conversations.register(s.source);
+    await s.conversations.search("küche", 5, []); // the index is built once
+    const embedded = s.provider.embedded.length;
+    s.listed.push({ id: "c3", title: "", updatedAt: 3, summary: "", messages: ["küche neu"] });
+    s.notify();
+    await s.conversations.relatedToVectors([new Int8Array([127, 0, 0, 0])], 5);
+    expect(s.provider.embedded.length).toBe(embedded); // no model for the panel
+    await s.conversations.search("küche", 5, []); // a search does bring it up to date
+    expect(s.provider.embedded.length).toBeGreaterThan(embedded);
+  });
+});

@@ -51,7 +51,18 @@ export class WorkerEmbeddingProvider extends PostMessageEmbeddingProvider {
       this.blobUrl = URL.createObjectURL(blob);
       url = this.blobUrl;
     }
-    const worker = new Worker(url, { type: "module" });
+    let worker: Worker;
+    try {
+      worker = new Worker(url, { type: "module" });
+    } catch (e) {
+      // Refused outright (a CSP): no channel will exist for `unload` to close,
+      // so the bundle's URL — about a megabyte — is released here.
+      if (this.blobUrl) {
+        URL.revokeObjectURL(this.blobUrl);
+        this.blobUrl = null;
+      }
+      throw e;
+    }
     const onMessage = (event: MessageEvent): void => this.receive(event.data as BackendMessage);
     const onError = (event: ErrorEvent): void =>
       this.failLoad(new Error(event.message || "Embedding worker error"));

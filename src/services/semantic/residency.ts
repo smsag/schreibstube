@@ -86,6 +86,16 @@ export class ResidentProvider implements EmbeddingProvider {
   backendFailures(): string[] {
     return this.inner.backendFailures?.() ?? [];
   }
+
+  loadFailed(): boolean {
+    return this.inner.loadFailed?.() ?? false;
+  }
+
+  dispose(): void {
+    if (this.inner.dispose) this.inner.dispose();
+    else this.inner.unload();
+    this.isLoaded = false;
+  }
 }
 
 export interface ResidencyDeps {
@@ -122,7 +132,11 @@ export class EmbeddingResidency {
   }
 
   onVisibility(hidden: boolean): void {
-    this.clock.note(hidden);
+    // Deadlines pause only where the OS pauses the work: on a phone. A desktop
+    // keeps its Worker running behind a minimised window — and a person working
+    // in a pop-out window leaves the main one "hidden" — so a clock frozen there
+    // let a hung request wait forever.
+    if (this.deps.mobile) this.clock.note(hidden);
     this.deps.onBackground(hidden);
     if (!this.deps.mobile) return;
     if (hidden) this.release("background");

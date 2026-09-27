@@ -11,6 +11,8 @@ const unloaded: string[] = [];
 /** The message a failing backend throws, when a test needs a specific one. */
 const failWith: { message: string | null } = { message: null };
 const built: string[] = [];
+/** Backends that failed after they were ready (a Worker's error event). */
+const dead = new Set<string>();
 
 vi.mock("./worker-embedding-provider", () => ({
   WorkerEmbeddingProvider: class {
@@ -33,6 +35,9 @@ vi.mock("./worker-embedding-provider", () => ({
     }
     isOffThread(): boolean {
       return true;
+    }
+    isAlive(): boolean {
+      return !dead.has(this.kind);
     }
     unload(): void {
       unloaded.push(this.kind);
@@ -91,6 +96,7 @@ beforeEach(() => {
   hold.on = null;
   hold.release = null;
   unloaded.length = 0;
+  dead.clear();
   vi.spyOn(console, "warn").mockImplementation(() => {});
 });
 
@@ -263,5 +269,54 @@ describe("FallbackEmbeddingProvider — unloaded while the model is still loadin
     await provider.ready();
     expect(provider.backend?.()).toBe("worker (blob)");
     expect(seen).toEqual(["worker (blob)"]);
+  });
+});
+
+describe("FallbackEmbeddingProvider — an unload is not a refusal", () => {
+  it("stops the chain when unloaded while the first backend loads", async () => {
+    hold.on = "blobWorker";
+    const { provider } = make();
+    const load = provider.ready();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    provider.unload();
+    hold.release?.();
+    await expect(load).rejects.toThrow("unloaded");
+    // No second or third model loaded for a provider nobody wants any more.
+    expect(built).toEqual(["blobWorker"]);
+  });
+
+  it("starts a backend again when the one that was ready has failed", async () => {
+    const { provider } = make();
+    await provider.ready();
+    dead.add("blobWorker");
+    const again = provider.embed(["x"]);
+    dead.clear();
+    await again;
+    expect(built).toEqual(["blobWorker", "blobWorker"]);
+  });
+
+  it("says a load failed until one starts again, and refuses to load once disposed", async () => {
+    fail.blobWorker = true;
+    fail.resourceWorker = true;
+    fail.iframe = true;
+    const { provider } = make();
+    await expect(provider.ready()).rejects.toThrow();
+    await Promise.resolve();
+    expect(provider.loadFailed?.()).toBe(true);
+    provider.unload();
+    expect(provider.loadFailed?.()).toBe(false);
+
+    fail.blobWorker = false;
+    provider.dispose?.();
+    await expect(provider.ready()).rejects.toThrow("disposed");
+    await expect(provider.embed(["x"])).rejects.toThrow("disposed");
+  });
+
+  it("tells a model that will not load apart from a bad text", async () => {
+    fail.blobWorker = true;
+    fail.resourceWorker = true;
+    fail.iframe = true;
+    const { provider } = make();
+    await expect(provider.embed(["x"])).rejects.toMatchObject({ name: "BackendGoneError" });
   });
 });

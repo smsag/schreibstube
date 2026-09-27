@@ -14,6 +14,7 @@ import {
   EmbeddingOutOfMemoryError,
   isOutOfMemoryError
 } from "../../../services/semantic/memory-error";
+import { BackendGoneError, isBackendGone } from "../../../services/semantic/embedding-provider";
 
 /**
  * The embedding provider Pythia actually uses (Pythia ADR-119): a Web Worker (off the UI
@@ -49,6 +50,10 @@ export class FallbackEmbeddingProvider implements EmbeddingProvider {
   /** Backends this load has built and not yet handed over or discarded — the only
    *  handle on a model that is still loading. */
   private readonly starting = new Set<EmbeddingProvider>();
+  /** The last load failed and none has started since. */
+  private failedLoad = false;
+  /** Disposed: no load starts again. */
+  private disposed = false;
 
   constructor(
     private readonly modelId: EmbeddingModelId,
@@ -76,7 +81,15 @@ export class FallbackEmbeddingProvider implements EmbeddingProvider {
   }
 
   ready(): Promise<void> {
-    if (!this.readyPromise) this.readyPromise = this.initialize();
+    if (this.disposed)
+      return Promise.reject(new BackendGoneError("Embedding provider was disposed"));
+    if (!this.readyPromise) {
+      const load = this.initialize();
+      this.readyPromise = load;
+      load.catch(() => {
+        if (this.readyPromise === load) this.failedLoad = true;
+      });
+    }
     return this.readyPromise;
   }
 
@@ -92,6 +105,7 @@ export class FallbackEmbeddingProvider implements EmbeddingProvider {
       return this.engage(blobWorker, "worker (blob)", gen);
     } catch (err) {
       blobWorker.unload();
+      this.abandonIfStale(gen);
       this.record("worker (blob)", err);
       this.logger.warn("semantic engine: blob worker unavailable", err);
     } finally {
@@ -111,6 +125,7 @@ export class FallbackEmbeddingProvider implements EmbeddingProvider {
         return this.engage(resWorker, "worker (resource)", gen);
       } catch (err) {
         resWorker.unload();
+        this.abandonIfStale(gen);
         this.record("worker (resource)", err);
         this.logger.warn(
           "semantic engine: resource-path worker unavailable — falling back to iframe (UI thread)",
@@ -139,7 +154,7 @@ export class FallbackEmbeddingProvider implements EmbeddingProvider {
       // that no later `unload()` can reach, which is exactly the memory that
       // gets Obsidian killed. Release it and fail the load that asked for it.
       provider.unload();
-      throw new Error("Embedding provider was unloaded while the model was loading");
+      throw new BackendGoneError("Embedding provider was unloaded while the model was loading");
     }
     this.active = provider;
     this.activeBackend = backend;
@@ -150,9 +165,46 @@ export class FallbackEmbeddingProvider implements EmbeddingProvider {
     this.onBackend?.(backend, [...this.failures]);
   }
 
+  /**
+   * Stop a load that was abandoned: unloaded while a backend was starting.
+   *
+   * Its failure is the unload, not a refusal — the chain used to read it as
+   * "this backend cannot run here" and go on to load the model into the next
+   * one, twice, the last time on the UI thread, for a provider nobody wanted
+   * any more. On a phone that is the load that gets Obsidian killed.
+   */
+  private abandonIfStale(gen: number): void {
+    if (gen !== this.generation)
+      throw new BackendGoneError("Embedding provider was unloaded while the model was loading");
+  }
+
   async embed(texts: string[]): Promise<Float32Array[]> {
-    await this.ready();
-    return this.active!.embed(texts);
+    // A backend that failed after it was ready — a Worker's error event — stays
+    // failed; without this every later embed was refused until a restart.
+    if (this.active?.isAlive?.() === false) {
+      this.logger.warn("semantic engine: the embedding backend failed — starting it again");
+      this.unload();
+    }
+    try {
+      await this.ready();
+    } catch (e) {
+      // A model that will not load is the backend, never the text being embedded.
+      if (isOutOfMemoryError(e) || isBackendGone(e)) throw e;
+      throw new BackendGoneError(e instanceof Error ? e.message : String(e));
+    }
+    const active = this.active;
+    if (!active) throw new BackendGoneError("Embedding provider was unloaded");
+    return active.embed(texts);
+  }
+
+  loadFailed(): boolean {
+    return this.failedLoad;
+  }
+
+  /** Unload, and refuse every later load: the owner is going away. */
+  dispose(): void {
+    this.disposed = true;
+    this.unload();
   }
 
   /** Reflects the backend that actually initialized: true only if the Worker
@@ -186,6 +238,7 @@ export class FallbackEmbeddingProvider implements EmbeddingProvider {
     this.activeBackend = null;
     this.failures.length = 0;
     this.readyPromise = null;
+    this.failedLoad = false;
   }
 }
 

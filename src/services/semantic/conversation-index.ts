@@ -9,6 +9,12 @@ import type { IndexStore } from "./index-store";
 import { cosine, maxPairwiseCosine, quantize } from "./vector-math";
 import { resolveRowHash, type HashPolicy } from "./row-provenance";
 import { conversationChunks, type ConversationItem } from "./conversation-source";
+import { isBackendGone } from "./embedding-provider";
+import { isOutOfMemoryError } from "./memory-error";
+
+/** Passages per request, as for notes (`EMBED_REQUEST_CHUNKS`): a long
+ *  conversation sent whole ran out of its deadline and cost the whole sync. */
+const CONVERSATION_REQUEST_CHUNKS = 16;
 
 export interface ScoredId {
   id: string;
@@ -90,15 +96,41 @@ export class ConversationIndex {
     const byId = new Map(this.items.map((i) => [i.id, i]));
     for (const id of toDrop) byId.delete(id);
     const embed = new Set(toEmbed);
+    let failures = 0;
     for (const d of desired) {
       if (!embed.has(d.id)) continue;
-      const raw = await this.provider.embed(d.chunks);
-      byId.set(d.id, { id: d.id, contentHash: d.contentHash, chunks: raw.map(quantize) });
+      try {
+        const raw = await this.embedAll(d.chunks);
+        byId.set(d.id, { id: d.id, contentHash: d.contentHash, chunks: raw.map(quantize) });
+      } catch (e) {
+        // A backend that is gone ends the sync; one conversation that fails
+        // keeps its old row, if it had one, and is tried at the next sync.
+        if (isBackendGone(e) || isOutOfMemoryError(e)) throw e;
+        failures++;
+      }
     }
+    if (failures > 0 && failures === embed.size && toDrop.length === 0) return; // nothing new
     this.items = desired
       .map((d) => byId.get(d.id))
       .filter((i): i is IndexedConversation => i !== undefined);
     await this.store.write(serializeIndex(this.items, this.provider.dim));
+  }
+
+  private async embedAll(chunks: string[]): Promise<Float32Array[]> {
+    const out: Float32Array[] = [];
+    for (let i = 0; i < chunks.length; i += CONVERSATION_REQUEST_CHUNKS) {
+      const batch = chunks.slice(i, i + CONVERSATION_REQUEST_CHUNKS);
+      const vectors = await this.provider.embed(batch);
+      if (vectors.length !== batch.length)
+        throw new Error(`embed: ${batch.length} passages returned ${vectors.length} vectors`);
+      out.push(...vectors);
+    }
+    return out;
+  }
+
+  /** Read the stored index without embedding anything. */
+  async loadStored(): Promise<void> {
+    await this.load();
   }
 
   /** Conversations like `sourceId`, from stored vectors: no model call. */

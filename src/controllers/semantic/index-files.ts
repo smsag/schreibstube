@@ -46,6 +46,11 @@ export class SemanticIndexFiles implements IndexStore {
     return new SemanticIndexFiles(this.plugin, this.modelId, ".phone-journal.bin", this.prefix);
   }
 
+  async mtime(): Promise<number | null> {
+    const stat = await this.plugin.app.vault.adapter.stat(this.path);
+    return stat?.mtime ?? null;
+  }
+
   /** The size of this file in bytes, or null when there is none. */
   async size(): Promise<number | null> {
     const stat = await this.plugin.app.vault.adapter.stat(this.path);

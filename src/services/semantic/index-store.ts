@@ -4,4 +4,7 @@ export interface IndexStore {
   write(buf: ArrayBuffer): Promise<void>;
   /** The journal file beside this index, where a store has one. */
   journal?(): IndexStore;
+  /** When the file was last modified, or null when there is none. Lets an
+   *  instance notice another device replacing a file it holds in memory. */
+  mtime?(): Promise<number | null>;
 }
