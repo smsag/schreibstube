@@ -2,6 +2,29 @@
 
 All notable changes to this project will be documented in this file.
 
+## 1.56.0 - 2026-09-27
+
+The Lebenslauf template now sets a CV the way iA Writer does, measured line for
+line against the same CV exported from it: tighter lists, looser running text,
+fixed steps around the headings, and no employer line running into its title.
+Fira Sans Condensed comes with the typesetter for its headings, so the first
+print after the update fetches two more font files. A copy of the template
+already in the vault is not changed; replace its template.typ and its
+schreibstubePage line to take the new version.
+
+Mobile checklist: not run. The template was checked in the Obsidian app on
+Linux desktop: added fresh, added a second time into the same folder, and a CV
+printed with it. What to try first on a phone: the first print after the update
+and a CV with a photo.
+
+The bridge is unchanged at 2.9.0.
+
+### Changed
+
+- **The Lebenslauf template sets a CV the way iA Writer does.** Its spacing is measured against the same CV exported from iA Writer and matches it: lines in a list 12.8 pt apart and items 13.6 pt, running text 14.4 pt, fixed steps around every heading. A role's employer line no longer runs into its title, and a page no longer ends on a title whose bullets start the next one. The photo sits beside the name at 77 pt with rounded corners, the contact entries are spaced around their dots, and the PDF carries the name as title and author.
+- **Adding a template into a folder that already has it says how to update it.** The copy is still left alone, and the notice now says to replace its `template.typ`, or to rename the folder and add the template again.
+- **Fira Sans Condensed comes with the typesetter.** The Lebenslauf headings are set in its semibold and bold, so they no longer fall back to the normal width. The first print on a device downloads about 35 MB rather than 34.
+
 ## 1.55.0 - 2026-09-27
 
 Printing looks like the Klartext theme. The built-in Standard template sets the

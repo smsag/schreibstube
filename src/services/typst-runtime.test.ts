@@ -171,6 +171,13 @@ describe("the fonts", () => {
     );
   });
 
+  it("carries the condensed cuts the Lebenslauf template sets its headings in", () => {
+    const faces = FONT_ASSETS.map(fontFaceOf);
+    expect(faces).toEqual(
+      expect.arrayContaining(["FiraSansCondensed-SemiBold", "FiraSansCondensed-Bold"])
+    );
+  });
+
   it("carries every face the Standard template sets text in", () => {
     const faces = FONT_ASSETS.map(fontFaceOf);
     expect(faces).toEqual(

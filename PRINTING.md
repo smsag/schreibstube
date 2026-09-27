@@ -101,12 +101,13 @@ compiler: Libertinus Serif for text and DejaVu Sans Mono for code, regular,
 italic, bold and bold italic, about 2 MB in all. Beside them travel the faces
 the built-in Standard is set in, the Klartext theme's: Fira Sans (regular,
 italic, semibold, bold, bold italic) and JetBrains Mono (regular, italic, bold,
-bold italic), about 3.4 MB. They are the full upstream files, not the Latin
+bold italic), about 3.4 MB, and Fira Sans Condensed semibold and bold for the
+Lebenslauf example's headings, about 1 MB. They are the full upstream files, not the Latin
 subsets the theme embeds, so a subscript digit or an arrow in a note has a
 glyph.
 
 They are pinned exactly like the compiler. `services/typst-fonts.json` lists
-three sets, each with its upstream at a tag or commit (`typst/typst-assets`,
+four sets, each with its upstream at a tag or commit (`typst/typst-assets`,
 `google/fonts`, `JetBrains/JetBrainsMono`) and a hash per file; the release
 script reads the same file, fetches, checks, and attaches each font as
 `typst-runtime-fonts-<set version>-<file>`, and a device fetches it once and

@@ -858,9 +858,10 @@ export const enExtra = {
     runtimeRemoved: "the typesetter was removed. The next print fetches it again.",
     chooseExample: "Which template shall I add?",
     chooseFolder: "Put the template in which folder?",
-    templateExists: (path: string) => `${path} already exists and was left alone.`,
-    templateAdded: (path: string) =>
-      `${path} added. Open its template.md to see what it needs, and put a font in its fonts/ folder.`,
+    templateExists: (path: string) =>
+      `${path} already exists and was left alone. For a new version, replace its template.typ, ` +
+      "or rename the folder and add the template again.",
+    templateAdded: (path: string) => `${path} added. Open its template.md to see what it needs.`,
     diagramAsSource: (language: string) => `${language}: could not be drawn, printed as source`,
     htmlDropped: "HTML is dropped when printing",
     mathAsSource: "math is printed as written, not typeset",

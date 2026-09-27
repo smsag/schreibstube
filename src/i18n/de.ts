@@ -1128,10 +1128,11 @@ export const de: Messages = {
     runtimeRemoved: "der Satzteil wurde entfernt. Der nächste Druck lädt ihn erneut.",
     chooseExample: "Welche Vorlage soll ich anlegen?",
     chooseFolder: "In welchen Ordner soll die Vorlage?",
-    templateExists: (path: string) => `${path} gibt es schon und blieb unangetastet.`,
+    templateExists: (path: string) =>
+      `${path} gibt es schon und blieb unangetastet. Für eine neue Version ersetze dort die ` +
+      "template.typ, oder benenne den Ordner um und lege die Vorlage neu an.",
     templateAdded: (path: string) =>
-      `${path} angelegt. Die template.md darin sagt, was die Vorlage braucht; eine Schrift kommt ` +
-      "in ihren fonts/-Ordner.",
+      `${path} angelegt. Die template.md darin sagt, was die Vorlage braucht.`,
     diagramAsSource: (language: string) =>
       `${language}: ließ sich nicht zeichnen und steht als Quelltext da`,
     htmlDropped: "HTML wird beim Drucken weggelassen",
