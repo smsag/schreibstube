@@ -835,6 +835,7 @@ export const de: Messages = {
         property: "Immobilien",
         business: "Geschäft",
         status: "Status",
+        logos: "Logos",
         misc: "Sonstiges"
       }
     },

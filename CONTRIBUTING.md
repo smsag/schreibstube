@@ -53,9 +53,14 @@ asks for them.
 
   ```bash
   npm install --no-save @tabler/icons-webfont
-  pip install fonttools brotli
+  pip install fonttools brotli picosvg
   npm run build:icons
   ```
+
+  An icon Tabler does not have — our own logos — goes in `CUSTOM_ICONS` with
+  an SVG drawn to Tabler's rules (24-unit grid, 2-unit stroke, round caps and
+  joins), and in a group. The build outlines its strokes and adds it to the
+  same font, at a codepoint from U+F0000 given by its place in the list.
 
   The generated `src/ui/icon-font.generated.ts` is committed, so nobody else
   needs either. Icons are stored by name; a font upgrade changes the generated

@@ -585,6 +585,7 @@ export const enExtra = {
         property: "Property",
         business: "Business",
         status: "Status",
+        logos: "Logos",
         misc: "Everything else"
       }
     },

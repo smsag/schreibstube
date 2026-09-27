@@ -4,8 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Added
+
+- **The Schreibstube and Pythia logos are icons.** A new "Logos" group in the icon picker holds both marks, for a folder, a property or `:schreibstube:` and `:pythia:` in the text. They are drawn to the same grid and stroke as the icons around them, so a logo next to a folder icon reads as one set. Our own glyphs are outlined from the logo files by the icon build and ride in the same font, so the bundle grew by nothing measurable.
+
 ### Changed
 
+- **The icon picker shows its icons twice as large.** The cells drew each glyph at the small text size of a button label, where several file and folder icons were hard to tell apart. They are now 22 pixels in a slightly larger cell, and the grid fits fewer to a row.
 - **A slideshow's header stays out of the way.** The alt text and the controls in the row above a slideshow now appear only while the pointer is over the block or a control has the keyboard focus. On a phone, which has no pointer, a tap on a picture or on the row shows them and the next tap, or a swipe, hides them again. The row keeps its height, so nothing below the block moves when they come and go. This is the same in every layout, from the stage to the before-and-after.
 - **Back returns from a picture to its tiles.** A tile opened its picture in a new tab, so the tab's Back arrow had nowhere to go and the grid was reached again only through the folder's menu. A tile now opens its picture in the tiles tab itself, and Back brings the grid back as it was, on the folder it was showing. A modifier click, Cmd or Ctrl, opens a new tab instead, for the grid and the picture side by side.
 - **The explorer no longer follows a note into another window.** The pane opens the folders above the open note and scrolls its row into view, whichever way the note was opened. It did that for a note in a popped-out window too, and again every time that window was focused, so the tree in the main window kept scrolling to a note nobody was looking at there. A note in another window is now left alone entirely: the tree stays as it was arranged. A note in the pane's own window is followed as before.

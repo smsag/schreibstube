@@ -21,6 +21,21 @@
  * again is the whole repair.
  */
 
+/**
+ * Glyphs Tabler does not have, drawn from our own artwork.
+ *
+ * Each source follows Tabler's rules — the 24-unit grid, a 2-unit stroke,
+ * round caps and joins, `currentColor` — so it can sit in a row of Tabler
+ * glyphs without reading as a guest. The build outlines the strokes and adds
+ * the result to the font; a name here still has to appear in a group or in
+ * `UI_ICONS` to be shipped at all. A name Tabler also uses fails the build,
+ * since two glyphs under one name would leave which one a vault gets to chance.
+ */
+export const CUSTOM_ICONS = [
+  { name: "schreibstube", source: "assets/logo.svg" },
+  { name: "pythia", source: "assets/icons/pythia.svg" }
+];
+
 /** Glyphs the interface itself needs, whether or not a user can pick them. */
 export const UI_ICONS = [
   "chevron-right",
@@ -291,6 +306,10 @@ export const ICON_GROUPS = [
       "thumb-down",
       "trending-down"
     ]
+  },
+  {
+    id: "logos",
+    icons: ["schreibstube", "pythia"]
   },
   {
     id: "misc",
