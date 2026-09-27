@@ -41,6 +41,10 @@ import { matchesText, parseSearchScope, type SearchHit } from "../services/file-
 import { FileSearchIndex } from "../services/search-index";
 import { BodyIndex, BodyLoader } from "../services/body-index";
 import { fuseRankings, meaningQuery, meaningRows } from "../services/semantic/search-fusion";
+import {
+  CONVERSATION_RESULTS,
+  type ConversationResult
+} from "../services/semantic/conversation-search";
 import { sortSiblings, type ExplorerNode } from "../services/explorer-state";
 import { bookmarkNoteTarget, isBookmarkTreeEmpty, type Bookmark } from "../services/bookmark-file";
 import { rowKeyAction } from "../services/explorer-keys";
@@ -166,6 +170,10 @@ export interface ExplorerPaneHost {
   /** Notes whose meaning answers the text, best first; empty when search by
    *  meaning is off or not ready. */
   meaning?: (text: string, limit: number) => Promise<{ id: string }[]>;
+  /** Pythia's conversations that answer the text: they are not files, so the
+   *  filter's own index never holds them. */
+  conversations?: (text: string, limit: number) => Promise<ConversationResult[]>;
+  openConversation?: (id: string) => void;
   /** Get ready for a search about to be typed: the filter field got focus. */
   warm?: () => void;
   /** How much meaning can answer now, and a way to hear when that moves. */
@@ -213,6 +221,9 @@ export class ExplorerPaneView extends ItemView {
   private filterTimer: number | null = null;
   /** Waiting for a longer pause before asking by meaning. */
   private meaningTimer: number | null = null;
+  private conversationTimer: number | null = null;
+  /** The conversations found for a query, kept against it. */
+  private conversationHits: { query: string; hits: ConversationResult[] } | null = null;
   /** What meaning found, and for which query; ignored once the query moved on. */
   private meaning: { query: string; hits: { path: string }[] } | null = null;
   /** The query a search by meaning is running for, so the list can say so. */
@@ -375,6 +386,7 @@ export class ExplorerPaneView extends ItemView {
       this.cancelFilter();
       this.rawQuery = search.value;
       this.askByMeaning(search.value, value);
+      this.askConversations(search.value, value);
       if (value.length > 0) this.readBodies();
       // Emptying the field is the one case that must not wait: it is how a
       // person gets the tree back, and there is nothing to compute for it.
@@ -527,6 +539,34 @@ export class ExplorerPaneView extends ItemView {
     this.filterTimer = null;
     if (this.meaningTimer !== null) window.clearTimeout(this.meaningTimer);
     this.meaningTimer = null;
+    if (this.conversationTimer !== null) window.clearTimeout(this.conversationTimer);
+    this.conversationTimer = null;
+  }
+
+  /**
+   * Ask for Pythia's conversations once the typing has paused.
+   *
+   * A plain search only: a `tag:` or `path:` scope asks about files, and a
+   * conversation has neither. Asked whatever the words found — a note called
+   * what was typed does not make the conversation about it any less wanted.
+   */
+  private askConversations(raw: string, key: string): void {
+    const ask = this.host?.conversations;
+    const scoped = parseSearchScope(key);
+    if (!ask || key.length === 0 || scoped.explicit) {
+      this.conversationHits = null;
+      return;
+    }
+    this.conversationTimer = window.setTimeout(() => {
+      this.conversationTimer = null;
+      void ask(raw.trim(), CONVERSATION_RESULTS)
+        .then((hits) => {
+          if (this.query !== key) return;
+          this.conversationHits = { query: key, hits };
+          this.requestRender();
+        })
+        .catch(() => undefined);
+    }, MEANING_DEBOUNCE_MS);
   }
 
   /**
@@ -1082,7 +1122,13 @@ export class ExplorerPaneView extends ItemView {
 
   private renderBookmarks(host: HTMLElement): void {
     const sections = this.host?.sections;
-    const body = this.renderSection(host, "bookmarks", "bookmark");
+    // Opened by a filter as the other lists are: a closed section kept its
+    // matching bookmarks out of sight.
+    const filtering = this.query.length > 0;
+    const body = this.renderSection(host, "bookmarks", "bookmark", {
+      forceOpen: filtering,
+      closable: !filtering
+    });
     if (!body || !sections) return;
 
     const tree = sections.bookmarks();
@@ -1147,7 +1193,24 @@ export class ExplorerPaneView extends ItemView {
     const sections = this.host?.sections;
     if (!sections) return;
 
+    const controller = this.host?.explorer;
+    // A file deleted a moment ago is gone from the tree at once; it would be
+    // odd for it to sit on in a list two sections above.
+    const rows = sections
+      .latestFiles()
+      .synced.filter(
+        (file) => this.matchesFile(file.path) && controller?.isTrashed(file.path) !== true
+      );
+    // A filter opens the section for as long as it is set, as it opens the
+    // pinned block: a closed section hid the very notes that matched, and the
+    // search read as not knowing about them. With nothing matching, the
+    // section stays out of the results rather than saying it is empty.
+    const filtering = this.query.length > 0;
+    if (filtering && rows.length === 0) return;
+
     const body = this.renderSection(host, "latest", "clock", {
+      forceOpen: filtering,
+      closable: !filtering,
       ...(sections.syncAlert()
         ? {
             alert: {
@@ -1161,7 +1224,7 @@ export class ExplorerPaneView extends ItemView {
 
     // The section's own name says what the rows are; a heading over its one
     // list would only say it twice.
-    const drawn = this.renderLatestRows(body, sections.latestFiles().synced);
+    const drawn = this.renderLatestRows(body, rows);
 
     if (drawn === 0) {
       body.createEl("p", { cls: "schreibstube-explorer-empty", text: t().explorer.latest.empty });
@@ -1170,12 +1233,7 @@ export class ExplorerPaneView extends ItemView {
 
   private renderLatestRows(host: HTMLElement, files: readonly LatestCandidate[]): number {
     const controller = this.host?.explorer;
-    // A file deleted a moment ago is gone from the tree at once; it would be
-    // odd for it to sit on in a list two sections above.
-    const matching = files.filter(
-      (file) => this.matchesFile(file.path) && controller?.isTrashed(file.path) !== true
-    );
-    for (const file of matching) {
+    for (const file of files) {
       const row = host.createDiv({ cls: "schreibstube-explorer-row is-latest" });
       indent(row, 0);
       row.setAttribute("title", file.path);
@@ -1215,7 +1273,7 @@ export class ExplorerPaneView extends ItemView {
       });
     }
 
-    return matching.length;
+    return files.length;
   }
 
   /**
@@ -1321,7 +1379,12 @@ export class ExplorerPaneView extends ItemView {
       drawn += 1;
     }
 
+    const conversations =
+      this.conversationHits?.query === this.query ? this.conversationHits.hits : [];
+    this.renderConversationResults(body, conversations);
+
     const searching = this.meaningPending !== null && this.meaningPending === this.query;
+    if (drawn === 0 && conversations.length > 0) return;
     if (drawn === 0) {
       results.createEl("p", {
         cls: "schreibstube-explorer-empty",
@@ -1344,6 +1407,37 @@ export class ExplorerPaneView extends ItemView {
       results.createEl("p", {
         cls: "schreibstube-explorer-empty",
         text: t().explorer.filterMore(held)
+      });
+    }
+  }
+
+  /**
+   * Pythia's conversations under the files a filter found, under a heading of
+   * their own: a row that looks like a note but opens a chat would be a trap.
+   */
+  private renderConversationResults(body: HTMLElement, hits: readonly ConversationResult[]): void {
+    const open = this.host?.openConversation;
+    if (hits.length === 0 || !open) return;
+
+    const block = body.createDiv({ cls: "schreibstube-explorer-conversations" });
+    block.createDiv({
+      cls: "schreibstube-explorer-conversations-heading",
+      text: t().explorer.conversationsFound
+    });
+    for (const hit of hits) {
+      const row = block.createDiv({
+        cls: "schreibstube-explorer-row is-conversation",
+        attr: { role: "link", tabindex: "0", title: hit.title }
+      });
+      indent(row, 0);
+      row.createSpan({ cls: "schreibstube-explorer-twisty" });
+      applyIcon(row.createSpan({ cls: "schreibstube-explorer-glyph" }), "messages");
+      row.createSpan({ cls: "schreibstube-explorer-name", text: hit.title });
+      row.addEventListener("click", () => open(hit.id));
+      row.addEventListener("keydown", (event) => {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        event.preventDefault();
+        open(hit.id);
       });
     }
   }

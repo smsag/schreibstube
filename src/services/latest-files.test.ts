@@ -1,11 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  hasUnseenSync,
-  LATEST_MAX,
-  newestSync,
-  selectLatest,
-  type LatestCandidate
-} from "./latest-files";
+import { hasUnseenSync, newestSync, selectLatest, type LatestCandidate } from "./latest-files";
 
 function note(path: string, syncedAt?: number): LatestCandidate {
   return {
@@ -34,12 +28,13 @@ describe("selectLatest", () => {
     expect(selectLatest(many).synced).toHaveLength(12);
   });
 
-  it("stops at the ceiling, keeping the newest", () => {
-    const many = Array.from({ length: LATEST_MAX + 7 }, (_, i) => note(`n${i}.md`, i + 1));
+  it("lists every note still waiting, however many, newest first", () => {
+    const many = Array.from({ length: 500 }, (_, i) => note(`n${i}.md`, i + 1));
     const { synced } = selectLatest(many);
 
-    expect(synced).toHaveLength(LATEST_MAX);
-    expect(synced[0]?.syncedAt).toBe(LATEST_MAX + 7);
+    expect(synced).toHaveLength(500);
+    expect(synced[0]?.syncedAt).toBe(500);
+    expect(synced[499]?.syncedAt).toBe(1);
   });
 
   it("is empty in a vault that mirrors nothing", () => {

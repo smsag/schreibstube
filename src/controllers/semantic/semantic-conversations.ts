@@ -3,6 +3,11 @@ import type { Logger } from "../../services/logger";
 import { ConversationIndex, type ScoredId } from "../../services/semantic/conversation-index";
 import { normalizeConversations } from "../../services/semantic/conversation-source";
 import {
+  matchConversationTitles,
+  mergeConversationResults,
+  type ConversationResult
+} from "../../services/semantic/conversation-search";
+import {
   DEFAULT_SIMILARITY_PRESET,
   embeddingModelConfig,
   type EmbeddingModelId
@@ -173,6 +178,26 @@ export class SemanticConversations {
       this.host.logger.warn("semantic engine: the source could not open a conversation", e);
       return false;
     }
+  }
+
+  /**
+   * Conversations for what was typed into the Explorer filter: by the words of
+   * their title, then by meaning. A meaning search that fails still leaves the
+   * titles, which the listing it started has just brought up to date.
+   */
+  async find(text: string, limit: number): Promise<ConversationResult[]> {
+    let byMeaning: ScoredId[] = [];
+    try {
+      byMeaning = await this.search(text, limit, []);
+    } catch (e) {
+      this.host.logger.warn("semantic engine: conversations could not be searched by meaning", e);
+    }
+    const known = [...this.titles].map(([id, title]) => ({ id, title }));
+    return mergeConversationResults(
+      matchConversationTitles(text, known),
+      byMeaning.map((hit) => ({ id: hit.id, title: this.titleOf(hit.id) })),
+      limit
+    );
   }
 
   /** Conversations that answer `text`, best first. */
