@@ -84,6 +84,7 @@ import {
 } from "../ui/review-panel";
 import { PromptModal } from "../ui/explorer-modals";
 import { TermPickerModal } from "../ui/term-picker";
+import { flashRevealIn } from "../processors/reveal-flash";
 
 export { GLOSSARY_FRONTMATTER_KEY };
 
@@ -515,6 +516,15 @@ export class ProofreadController {
     const to = view.editor.offsetToPos(range.to);
     view.editor.setSelection(from, to);
     view.editor.scrollIntoView({ from, to }, true);
+    // The selection alone is drawn faintly while the panel keeps the focus;
+    // the mark says where to look. An insertion is marked at its point, not
+    // over the words the selection borrows to make that point visible.
+    flashRevealIn(
+      view.contentEl,
+      suggestion.kind === "insert" && anchor.to === anchor.from
+        ? { from: anchor.from, to: anchor.from, point: anchor.from }
+        : { from: range.from, to: range.to, point: null }
+    );
   }
 
   /**
