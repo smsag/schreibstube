@@ -120,7 +120,18 @@ describe("conversations handed over", () => {
     s.conversations.register(s.source);
     await s.conversations.search("küche", 5, []);
     expect(s.conversations.titleOf("c1")).toBe("Exposé");
-    expect(s.conversations.titleOf("unknown")).toBe("unknown");
+    // Unknown is said as such, so the panel can name it rather than show an id.
+    expect(s.conversations.titleOf("unknown")).toBeNull();
+    expect(s.conversations.titleOf("c2")).toBeNull(); // listed, but without a title
+  });
+
+  it("knows the titles beside a note without a search and without the model", async () => {
+    const s = setup();
+    s.listed[0]!.title = "Exposé";
+    s.conversations.register(s.source);
+    await s.conversations.relatedToVectors([new Int8Array([127, 0, 0, 0])], 5);
+    expect(s.conversations.titleOf("c1")).toBe("Exposé");
+    expect(s.provider.embedded).toHaveLength(0);
   });
 });
 

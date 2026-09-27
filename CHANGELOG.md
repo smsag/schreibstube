@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- **The number of recommendations is yours to set.** **Number of recommendations** in the Explorer settings says how many entries the Recommended panel shows, 7 unless you choose between 1 and 30.
 - **The Explorer filter finds Pythia's conversations.** A conversation is not a file, so the filter never found one, though the Recommended panel showed them beside a note. They now appear under a heading of their own below the files: by the words of their title, and by what they are about when search by meaning is on. Pressing one opens it in Pythia.
 - **A note can name its own sender.** `schreibstubeFrom: Büro <buero@your-domain.de>` sends that one note under another address, such as an alias of your mailbox; without it the sender is the one in the settings, and then the bridge's. The confirmation dialog now always names who the mail is from. The alias sets the From line only: the mail still leaves through the bridge's mailbox, and bounces come back there. A sender that is not one address — a name alone, or two addresses — is refused before anything is sent.
 - **A recipient the mail server refused is named.** The server takes a message as soon as it accepts one recipient, and a send reported plain success even when an address was turned down. A notice that stays until dismissed now lists the recipients who will not receive the mail. This needs bridge 2.9.0.
@@ -13,11 +14,13 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- **Recommended is one list, most relevant first.** The panel drew a strip of pictures, then notes and documents, then conversations, each under its own heading, so the best answer could sit below a heading after ten weaker ones of another kind. Notes, pictures and Pythia's conversations are now ranked together and shown as one list; a picture is a card with its thumbnail, in the place its relevance gives it.
 - **A mail reads as the note does, not as its Markdown.** The body was the note's source, so a recipient read `**1. Wasserschaden**` with its asterisks and `[[Protokoll]]` with its brackets. It is now plain text as the rendered note reads: emphasis without marks, a link as its text with the address after it, tasks as boxes, code as written. The confirmation dialog shows the text exactly as it will be sent.
 - **The icon picker shows its icons twice as large.** The cells drew each glyph at the small text size of a button label, where several file and folder icons were hard to tell apart. They are now 22 pixels in a slightly larger cell, and the grid fits fewer to a row.
 
 ### Fixed
 
+- **A conversation in Recommended shows its title, not its id.** The panel reads the stored index without loading the model, and the titles only ever arrived with a search, so a conversation card read as `9d66b8f5-d76f-…`. The titles are now listed from Pythia on their own, and a conversation whose title is not known yet reads "Untitled conversation".
 - **A search shows the matching notes in "Updated externally" and in Bookmarks.** A filter opened the pinned block but left the other lists as they were, so a closed section kept its matching notes out of sight and the search seemed not to know them. Both now open while a filter is set, showing the rows that match, and a section with nothing matching stays out of the results.
 - **"Updated externally" lists every waiting update.** The section stopped at fifty notes, and an update past the fiftieth was never shown. It now lists all of them. A waiting update whose record never kept the moment it arrived is listed too, by when it was last checked, instead of being left out.
 

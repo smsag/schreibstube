@@ -52,7 +52,7 @@ export function createSemanticApi(deps: SemanticApiDeps): SchreibstubeSemanticAp
     found.map((hit) => ({
       kind: "conversation",
       id: hit.id,
-      title: engine.conversations.titleOf(hit.id),
+      title: engine.conversations.titleOf(hit.id) ?? hit.id,
       score: hit.score
     }));
 
