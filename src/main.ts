@@ -53,6 +53,7 @@ import {
 } from "./controllers/table-insert";
 import { ProofreadController } from "./controllers/proofread-controller";
 import { createGlossaryUnderlineExtension } from "./processors/glossary-underline";
+import { revealFlashExtension } from "./processors/reveal-flash";
 import {
   createIconShortcodeExtension,
   registerIconShortcodePostProcessor
@@ -312,6 +313,8 @@ export default class SchreibstubePlugin extends Plugin {
         getMatcher: () => this.proofread?.activeMatcher() ?? compileGlossaries([])
       })
     );
+    // Where "Show passage" landed, marked for a moment.
+    this.registerEditorExtension(revealFlashExtension);
     // `:folder:` in a note: the picker while one is typed, the glyph in Live
     // Preview, and the glyph in Reading view. One setting switches all three.
     const iconShortcodes = (): boolean => this.settings.iconShortcodes;

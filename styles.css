@@ -814,6 +814,71 @@
   text-underline-offset: 3px;
 }
 
+/* Where "Show passage" landed: a tint over the passage, a bar beside its lines
+   and, for an insertion, a mark at its point — in the theme's accent, fading
+   out over the 2.6 s the mark stays (REVEAL_FLASH_MS). The bar is a shadow
+   rather than a border so the line's text does not move by its width. */
+.schreibstube-reveal-flash {
+  background-color: color-mix(in srgb, var(--interactive-accent) 28%, transparent);
+  border-radius: 2px;
+  animation: schreibstube-reveal-tint 2.6s ease-in forwards;
+}
+
+/* The bar fades by its own colour: fading the line would fade its text. */
+.schreibstube-reveal-line {
+  box-shadow: inset 3px 0 0 var(--interactive-accent);
+  animation: schreibstube-reveal-line 2.6s ease-in forwards;
+}
+
+.schreibstube-reveal-point {
+  display: inline-block;
+  width: 2px;
+  height: 1.2em;
+  margin: 0 1px;
+  vertical-align: text-bottom;
+  background-color: var(--interactive-accent);
+  animation: schreibstube-reveal-bar 2.6s ease-in forwards;
+}
+
+@keyframes schreibstube-reveal-tint {
+  0%,
+  60% {
+    background-color: color-mix(in srgb, var(--interactive-accent) 28%, transparent);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+@keyframes schreibstube-reveal-line {
+  0%,
+  60% {
+    box-shadow: inset 3px 0 0 var(--interactive-accent);
+  }
+  100% {
+    box-shadow: inset 3px 0 0 transparent;
+  }
+}
+
+@keyframes schreibstube-reveal-bar {
+  0%,
+  60% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* Without motion the mark simply stands until it is taken away. */
+@media (prefers-reduced-motion: reduce) {
+  .schreibstube-reveal-flash,
+  .schreibstube-reveal-line,
+  .schreibstube-reveal-point {
+    animation: none;
+  }
+}
+
 /* Source-bound notes */
 
 .schreibstube-review-sync {
