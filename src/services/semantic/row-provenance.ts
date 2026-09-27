@@ -18,9 +18,16 @@
 //
 // The index format is unchanged: the tag lives inside the hash string both
 // services already compare, so an existing file stays valid.
+//
+// The runtime generation rides the same string (`EMBEDDING_RUNTIME`): a row embedded
+// under generation 2 or later ends in `@g<n>`, and a device accepts only rows of its
+// own generation. A row from an older runtime — this plugin's before an upgrade, or
+// an index copied from Pythia, whose files predate the mark — is re-embedded, never ranked
+// beside the new ones. Generation 1 is the unmarked hash, so files written before
+// the mark existed read as what they are.
 
 import { conversationContentHash } from "./embedding-index";
-import { embeddingModelConfig, type EmbeddingModelId } from "./embedding-models";
+import { EMBEDDING_RUNTIME, embeddingModelConfig, type EmbeddingModelId } from "./embedding-models";
 
 export interface HashPolicy {
   /** The hash this device writes for a row built from `chunks`. */
@@ -39,22 +46,31 @@ export function isLatinExact(chunks: string[]): boolean {
   return !chunks.some((c) => NON_LATIN_LETTER.test(c));
 }
 
-const FULL: HashPolicy = {
-  rowHash: (chunks) => conversationContentHash(chunks),
-  accepts: (stored, chunks) => stored === conversationContentHash(chunks)
-};
+/** The mark a row of runtime `generation` carries at the end of its hash. */
+export function generationMark(generation: number): string {
+  return generation > 1 ? `@g${generation}` : "";
+}
 
-/** The policy for the model this device embeds with. */
-export function hashPolicyFor(modelId: EmbeddingModelId): HashPolicy {
+/** The policy for the model this device embeds with, under the runtime it ships. */
+export function hashPolicyFor(
+  modelId: EmbeddingModelId,
+  generation: number = EMBEDDING_RUNTIME.generation
+): HashPolicy {
   const config = embeddingModelConfig(modelId);
-  if (!config.variantOf) return FULL;
+  const mark = generationMark(generation);
+  if (!config.variantOf) {
+    return {
+      rowHash: (chunks) => conversationContentHash(chunks) + mark,
+      accepts: (stored, chunks) => stored === conversationContentHash(chunks) + mark
+    };
+  }
   const tag = `~${config.variantNote ?? "variant"}`;
   const exact = config.variantNote === "latinScript" ? isLatinExact : () => false;
   return {
-    rowHash: (chunks) => conversationContentHash(chunks) + (exact(chunks) ? "" : tag),
+    rowHash: (chunks) => conversationContentHash(chunks) + (exact(chunks) ? "" : tag) + mark,
     accepts: (stored, chunks) => {
       const plain = conversationContentHash(chunks);
-      return stored === plain || stored === plain + tag;
+      return stored === plain + mark || stored === plain + tag + mark;
     }
   };
 }

@@ -85,26 +85,43 @@ describe("ConversationIndex", () => {
     expect(store.writes).toBe(1);
   });
 
-  it("takes over an index Pythia wrote without embedding again", async () => {
-    const item = conv("a", "küche");
+  /** A store holding one row for `item` under `contentHash`. */
+  const storeWith = (item: ConversationItem, contentHash: string): MemStore => {
     const chunks = conversationChunks(item);
     const store = new MemStore();
     store.buf = serializeIndex(
       [
         {
-          id: "a",
-          contentHash: conversationContentHash(chunks),
+          id: item.id,
+          contentHash,
           chunks: chunks.map(() => quantize(Float32Array.from([1, 0, 0, 0])))
         }
       ],
       4
     );
-    const provider = new FakeProvider();
-    const index = new ConversationIndex(provider, store, POLICY);
+    return store;
+  };
 
-    await index.sync([item]);
+  it("takes over an index Pythia wrote under the same runtime without embedding again", async () => {
+    const item = conv("a", "küche");
+    const provider = new FakeProvider();
+    const store = storeWith(item, POLICY.rowHash(conversationChunks(item)));
+
+    await new ConversationIndex(provider, store, POLICY).sync([item]);
 
     expect(provider.embedded).toEqual([]);
+  });
+
+  it("embeds again a row an older runtime wrote, rather than rank it beside new ones", async () => {
+    const item = conv("a", "küche");
+    const provider = new FakeProvider();
+    // Unmarked: generation 1, the hash every file written before the mark carries.
+    const store = storeWith(item, conversationContentHash(conversationChunks(item)));
+
+    const index = new ConversationIndex(provider, store, POLICY);
+    await index.sync([item]);
+
+    expect(provider.embedded.length).toBeGreaterThan(0);
     expect(index.size()).toBe(1);
   });
 

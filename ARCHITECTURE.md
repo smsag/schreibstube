@@ -126,6 +126,18 @@ answers queries while it runs, and a note whose
 embed fails on the desktop — not by a deadline — is kept as a row without
 vectors, so it is not retried until its text changes.
 
+A vector depends on the code that runs the model as well as on the model: a
+new transformers or onnxruntime-web can move every one of them. Each row's hash
+therefore ends in the runtime generation that embedded it
+(`EMBEDDING_RUNTIME` in `services/semantic/embedding-models.ts`), a device reuses
+only rows of its own generation, and an index finished under an older one reads
+as unfinished, so the desktop rebuilds it. Until that rebuild reaches a note,
+its old row keeps answering — a slightly different ranking for a while is
+better than an empty Recommended, above all on a phone that waits for the
+desktop. A test holds the generation to the versions in the lockfile, so a
+dependency bump cannot land until someone has measured whether the vectors
+moved.
+
 The Explorer filter reads note text too, separately from the model: a
 vocabulary of every note's words (`services/body-index.ts`), read once when the
 filter is first used. Both it and the model read a note through

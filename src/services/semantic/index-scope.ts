@@ -2,6 +2,8 @@
 // Kept separate from the Obsidian-bound VaultRagService so the decision logic is
 // unit-testable without a vault.
 
+import { EMBEDDING_RUNTIME } from "./embedding-models";
+
 export interface IndexScopeOptions {
   /** Normalized include folders (no trailing slash). Empty = the whole vault. */
   include: string[];
@@ -46,13 +48,17 @@ export function selectIndexPaths(allPaths: string[], opts: IndexScopeOptions): I
 
 /**
  * What this index is an index OF (Pythia ADR-184): the folders, the skip folders, the
- * note cap and the model. Persisted with the rows, so a session that starts
+ * note cap, the model and the runtime generation that embedded it. Persisted with the rows, so a session that starts
  * with different settings can tell the file no longer matches them.
  *
  * Narrowing `vaultContextFolders` is the case that matters: until the index is
  * rebuilt it still holds notes that are now out of scope, and retrieval would
  * keep inlining them into prompts. That is a privacy decision the user made
  * and the index has to honour.
+ *
+ * The generation is here for the same reason: an index finished under an older
+ * runtime is not finished under this one. Without it the build would find the file
+ * complete and never reach the rows `hashPolicyFor` refuses.
  */
 export function scopeSignature(
   s: {
@@ -63,10 +69,14 @@ export function scopeSignature(
   },
   /** The model's vector FAMILY, not the variant (Pythia ADR-200): the desktop's index
    *  must read as complete on a phone running the vector-identical variant. */
-  family: string
+  family: string,
+  generation: number = EMBEDDING_RUNTIME.generation
 ): string {
   const norm = (f: string) => (f ?? "").replace(/\/+$/, "");
   const folders = [...s.vaultContextFolders].map(norm).filter(Boolean).sort();
   const skip = [s.conversationsFolder, s.scratchFolder].map(norm).filter(Boolean).sort();
-  return JSON.stringify([folders, skip, s.vaultContextMaxIndexedNotes, family]);
+  const signature: unknown[] = [folders, skip, s.vaultContextMaxIndexedNotes, family];
+  // Generation 1 is the four-part form every earlier file carries.
+  if (generation > 1) signature.push(generation);
+  return JSON.stringify(signature);
 }

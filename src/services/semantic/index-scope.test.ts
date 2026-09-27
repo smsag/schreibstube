@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { selectIndexPaths } from "./index-scope";
+import { scopeSignature, selectIndexPaths } from "./index-scope";
 
 const paths = [
   "Product Practice/a.md",
@@ -83,5 +83,30 @@ describe("selectIndexPaths", () => {
       cap: 0
     });
     expect(r.paths).toEqual(["Insights/c.md"]);
+  });
+});
+
+describe("scopeSignature — the runtime generation", () => {
+  const settings = {
+    vaultContextFolders: ["Notes/"],
+    conversationsFolder: "Pythia",
+    scratchFolder: "",
+    vaultContextMaxIndexedNotes: 0
+  };
+  const family = "xenova-paraphrase-multilingual-MiniLM-L12-v2";
+
+  it("keeps the form every index written before the generation carries", () => {
+    expect(scopeSignature(settings, family, 1)).toBe(
+      JSON.stringify([["Notes"], ["Pythia"], 0, family])
+    );
+  });
+
+  it("makes an index finished under an older runtime read as unfinished", () => {
+    expect(scopeSignature(settings, family, 2)).not.toBe(scopeSignature(settings, family, 1));
+    expect(scopeSignature(settings, family, 3)).not.toBe(scopeSignature(settings, family, 2));
+  });
+
+  it("follows the runtime the plugin ships when no generation is given", () => {
+    expect(scopeSignature(settings, family)).toBe(scopeSignature(settings, family, 2));
   });
 });
