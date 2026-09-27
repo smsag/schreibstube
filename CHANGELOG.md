@@ -6,11 +6,17 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- **A note can name its own sender.** `schreibstubeFrom: Büro <buero@your-domain.de>` sends that one note under another address, such as an alias of your mailbox; without it the sender is the one in the settings, and then the bridge's. The confirmation dialog now always names who the mail is from. The alias sets the From line only: the mail still leaves through the bridge's mailbox, and bounces come back there. A sender that is not one address — a name alone, or two addresses — is refused before anything is sent.
+- **A recipient the mail server refused is named.** The server takes a message as soon as it accepts one recipient, and a send reported plain success even when an address was turned down. A notice that stays until dismissed now lists the recipients who will not receive the mail. This needs bridge 2.9.0.
 - **The Schreibstube and Pythia logos are icons.** A new "Logos" group in the icon picker holds both marks, for a folder, a property or `:schreibstube:` and `:pythia:` in the text. They are drawn to the same grid and stroke as the icons around them, so a logo next to a folder icon reads as one set. Our own glyphs are outlined from the logo files by the icon build and ride in the same font, so the bundle grew by nothing measurable.
 
 ### Changed
 
 - **The icon picker shows its icons twice as large.** The cells drew each glyph at the small text size of a button label, where several file and folder icons were hard to tell apart. They are now 22 pixels in a slightly larger cell, and the grid fits fewer to a row.
+
+### Fixed
+
+- **The bridge no longer sends mail without a sender.** A `MAIL_FROM` holding a name but no address compiled to a message with no From line and a Message-ID ending in `@localhost`, and the mail server accepted it, so the send looked fine and only the Sent copy showed something wrong. The bridge now refuses to start with such a `MAIL_FROM`, and refuses a request whose `from` is not one address, rather than sending under another name than the note asked for.
 
 ## 1.52.0 - 2026-09-27
 

@@ -74,6 +74,14 @@ describe("loadConfig, required values", () => {
     });
   }
 
+  it("refuses a MAIL_FROM without an address, which sent mail with no From", () => {
+    expect(() => loadConfig(env({ MAIL_FROM: "Steffen Seitz" }))).toThrow(/^MAIL_FROM must hold/);
+  });
+
+  it("accepts a MAIL_FROM that is a bare address", () => {
+    expect(loadConfig(env({ MAIL_FROM: " post@example.com " })).mail.from).toBe("post@example.com");
+  });
+
   it("rejects a token below the minimum length, naming the length it got", () => {
     expect(() => loadConfig(env({ MAIL_TOKEN: "kurz" }))).toThrow(/got 4/);
   });

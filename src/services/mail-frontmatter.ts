@@ -7,6 +7,7 @@
  *   ---
  *   schreibstubeTo: kunde@example.com
  *   schreibstubeCc: [innendienst@example.com]
+ *   schreibstubeFrom: Büro <buero@your-domain.de>   # optional, per note
  *   schreibstubeSubject: Angebot Objekt 4711
  *   schreibstubeMessageId: <7f3a…@your-domain.de>   # written on send
  *   schreibstubeSentAt: 2026-09-07T10:12:00Z        # written on send
@@ -25,6 +26,8 @@ import { t } from "../i18n";
  * be a collision waiting to happen. */
 export const FM_TO = "schreibstubeTo";
 export const FM_CC = "schreibstubeCc";
+/** The sender for this one note, over the setting and the bridge's MAIL_FROM. */
+export const FM_FROM = "schreibstubeFrom";
 export const FM_SUBJECT = "schreibstubeSubject";
 export const FM_MESSAGE_ID = "schreibstubeMessageId";
 export const FM_SENT_AT = "schreibstubeSentAt";
@@ -33,6 +36,8 @@ export const FM_MERGED_IDS = "schreibstubeMergedIds";
 export interface MailFields {
   to: string[];
   cc: string[];
+  /** Empty when the note names no sender of its own. */
+  from: string;
   subject: string;
   messageId: string | null;
   mergedIds: string[];
@@ -47,6 +52,7 @@ export function readMailFields(frontmatter: unknown): MailFields {
   return {
     to: parseAddressList(record[FM_TO]),
     cc: parseAddressList(record[FM_CC]),
+    from: typeof record[FM_FROM] === "string" ? record[FM_FROM].trim() : "",
     subject: typeof record[FM_SUBJECT] === "string" ? record[FM_SUBJECT].trim() : "",
     messageId: parseMessageId(record[FM_MESSAGE_ID]),
     mergedIds: parseStringList(record[FM_MERGED_IDS])
@@ -106,6 +112,16 @@ export function validateSendable(fields: MailFields): SendableResult {
     return {
       ok: false,
       message: t().mailNotices.invalidRecipient(invalid.join(", ")),
+      missing: false
+    };
+  }
+
+  // One sender, never a list: a comma here is two addresses to a mail server,
+  // and the bridge would refuse the send after the dialogue said it was fine.
+  if (fields.from && (fields.from.includes(",") || !looksLikeAddress(fields.from))) {
+    return {
+      ok: false,
+      message: t().mailNotices.invalidSender(FM_FROM, fields.from),
       missing: false
     };
   }

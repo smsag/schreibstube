@@ -21,19 +21,19 @@ function config(overrides = {}) {
   };
 }
 
-function recorder() {
+function recorder(answer = { accepted: [], rejected: [] }) {
   const calls = [];
   return {
     calls,
     async sendMail(payload) {
       calls.push(payload);
-      return { accepted: [] };
+      return answer;
     }
   };
 }
 
-async function send(request, configOverrides = {}) {
-  const transport = recorder();
+async function send(request, configOverrides = {}, answer) {
+  const transport = recorder(answer);
   const result = await sendMessage(config(configOverrides), transport, request);
   const payload = transport.calls[0];
   return { result, payload, raw: payload.raw.toString("utf8") };
@@ -63,9 +63,9 @@ describe("sendMessage, the Message-ID", () => {
     expect(raw).toContain("Message-ID: <fest@example.com>");
   });
 
-  it("falls back to localhost when the From carries no domain", async () => {
-    const { result } = await send(minimal, { from: "post" });
-    expect(result.messageId).toMatch(/@localhost>$/);
+  it("takes its domain from the From the message carries", async () => {
+    const { result } = await send({ ...minimal, from: "Büro <buero@alias.example.org>" });
+    expect(result.messageId).toMatch(/@alias\.example\.org>$/);
   });
 });
 
@@ -129,10 +129,24 @@ describe("sendMessage, the rest of the message", () => {
     expect(raw).toContain("From: Schreibstube <post@example.com>");
   });
 
-  it("lets the caller override the From", async () => {
-    const { raw, payload } = await send({ ...minimal, from: "Andere <andere@example.com>" });
+  it("lets the caller set the From header", async () => {
+    const { raw } = await send({ ...minimal, from: "Andere <andere@example.com>" });
     expect(raw).toContain("From: Andere <andere@example.com>");
-    expect(payload.envelope.from).toBe("andere@example.com");
+  });
+
+  it("keeps the mailbox's own address as the envelope sender under an alias", async () => {
+    const { payload } = await send({ ...minimal, from: "Andere <andere@example.com>" });
+    expect(payload.envelope.from).toBe("post@example.com");
+  });
+
+  it("quotes a display name with a comma instead of reading two senders", async () => {
+    const { raw } = await send({ ...minimal, from: "Seitz, Steffen <s@example.com>" });
+    expect(raw).toContain('From: "Seitz, Steffen" <s@example.com>');
+  });
+
+  it("encodes a display name with an umlaut", async () => {
+    const { raw } = await send({ ...minimal, from: "Jürgen Müller <jm@example.com>" });
+    expect(raw).toMatch(/^From: =\?UTF-8\?.+\?= <jm@example\.com>$/m);
   });
 
   it("ignores a blank From override", async () => {
@@ -292,5 +306,24 @@ describe("sentMailboxFor, asking the server", () => {
     };
     expect((await sentMailboxFor(account(), failing, cache)).mailbox).toBe("Sent");
     expect(cache.size).toBe(0);
+  });
+});
+
+describe("sendMessage, what the server refused", () => {
+  it("reports the recipients the server turned down", async () => {
+    const { result } = await send(
+      { ...minimal, cc: ["weg@example.com"] },
+      {},
+      {
+        accepted: ["kunde@example.com"],
+        rejected: ["weg@example.com"]
+      }
+    );
+    expect(result.rejected).toEqual(["weg@example.com"]);
+  });
+
+  it("reports none when the server says nothing about refusals", async () => {
+    const { result } = await send(minimal, {}, {});
+    expect(result.rejected).toEqual([]);
   });
 });

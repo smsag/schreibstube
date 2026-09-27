@@ -128,6 +128,7 @@ export class MailConfirmModal extends Modal {
   constructor(
     app: App,
     private readonly details: {
+      from: string;
       to: string[];
       cc: string[];
       subject: string;
@@ -143,6 +144,9 @@ export class MailConfirmModal extends Modal {
     contentEl.empty();
     contentEl.createEl("h3", { text: t().mail.confirmTitle });
 
+    new Setting(contentEl)
+      .setName(t().mail.confirmFrom)
+      .setDesc(this.details.from || t().mail.confirmFromDefault);
     new Setting(contentEl).setName(t().mail.confirmTo).setDesc(this.details.to.join(", ") || "—");
     if (this.details.cc.length > 0) {
       new Setting(contentEl).setName(t().mail.confirmCc).setDesc(this.details.cc.join(", "));

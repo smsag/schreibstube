@@ -10,6 +10,7 @@ import { simpleParser } from "mailparser";
 import nodemailer from "nodemailer";
 import { randomUUID } from "node:crypto";
 import { withDeadline } from "./timeout.mjs";
+import { parseSender, senderDomain } from "./mail-address.mjs";
 import { chooseSentMailbox, FALLBACK_SENT_MAILBOX } from "./sent-mailbox.mjs";
 
 /**
@@ -86,16 +87,22 @@ async function attempt(work) {
  * The two legs carry a deadline each. One deadline over both turned a slow
  * APPEND after a delivered message into a failed send, and a person told the
  * send failed sends again: the duplicate lands with the recipient.
+ *
+ * A request's `from` sets the From header only. The envelope sender stays the
+ * mailbox's own address: it is what the server authenticated, what its SPF
+ * record vouches for, and where a bounce is sent — so a bounce for an alias
+ * lands in the mailbox the bridge can search, not at an address nobody reads.
  */
 export async function sendMessage(config, transport, request, { fileInSent = appendToSent } = {}) {
-  const from = request.from?.trim() || config.from;
+  const account = parseSender(config.from);
+  const from = parseSender(request.from) ?? account;
   const messageId = request.messageId?.trim() || generateMessageId(from);
 
   // Note the absence of `bcc`: the compiled bytes go out verbatim and are
   // APPENDed to Sent, so a Bcc header here would expose blind recipients to
   // everyone. Blind recipients are carried in the SMTP envelope instead.
   const mail = {
-    from,
+    from: from.name ? { name: from.name, address: from.address } : from.address,
     to: joinAddresses(request.to),
     cc: joinAddresses(request.cc),
     subject: request.subject,
@@ -108,10 +115,10 @@ export async function sendMessage(config, transport, request, { fileInSent = app
   const compiled = await compiler.sendMail(mail);
   const raw = compiled.message;
 
-  await withDeadline(
+  const delivery = await withDeadline(
     transport.sendMail({
       envelope: {
-        from: extractAddress(from),
+        from: account.address,
         to: [...toList(request.to), ...toList(request.cc), ...toList(request.bcc)]
       },
       raw
@@ -127,7 +134,12 @@ export async function sendMessage(config, transport, request, { fileInSent = app
     "Filing in Sent"
   ).catch(() => false);
 
-  return { messageId, sentAt, filedInSent: filed };
+  // The server takes a message when it takes any recipient, and says which it
+  // turned down; a send reported as plain success hid that one address of
+  // three was never going to receive it.
+  const rejected = Array.isArray(delivery?.rejected) ? delivery.rejected.map(String) : [];
+
+  return { messageId, sentAt, filedInSent: filed, rejected };
 }
 
 /** APPEND the sent copy to the Sent mailbox. A failure here is reported but not
@@ -328,8 +340,7 @@ async function safeLogout(client) {
 }
 
 function generateMessageId(from) {
-  const domain = extractAddress(from).split("@")[1] || "localhost";
-  return `<${randomUUID()}@${domain}>`;
+  return `<${randomUUID()}@${senderDomain(from)}>`;
 }
 
 function extractAddress(value) {

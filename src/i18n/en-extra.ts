@@ -514,9 +514,13 @@ export const enExtra = {
     needsEditor: "open a note in editing mode to insert the message.",
     needsRecipient: (key: string) => `add a "${key}:" recipient to the note's frontmatter first.`,
     invalidRecipient: (addresses: string) => `not a valid email address: ${addresses}`,
+    invalidSender: (key: string, value: string) =>
+      `"${key}" must be one address, alone or as "Name <address>": ${value}`,
     needsSubject: (key: string) => `add a "${key}:" line to the note's frontmatter first.`,
     sent: "email sent.",
     sentNoCopy: "email sent (no copy filed in Sent).",
+    sentRefused: (addresses: string) =>
+      `email sent, but the mail server refused these recipients, who will not receive it: ${addresses}`,
     failSend: "Schreibstube: send failed",
     failSearch: "Schreibstube: mailbox search failed",
     failMerge: "Schreibstube: merging replies failed"

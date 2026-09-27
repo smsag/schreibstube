@@ -8,6 +8,7 @@
 import { httpError } from "./http.mjs";
 import { withDeadline } from "./timeout.mjs";
 import { createSmtpTransport, diagnose, searchMessages, sendMessage } from "./mail.mjs";
+import { parseSender } from "./mail-address.mjs";
 
 export function createMailRoutes(config) {
   const mail = { ...config.mail, upstreamTimeoutMs: config.upstreamTimeoutMs };
@@ -38,7 +39,11 @@ export function createMailRoutes(config) {
         // it would cut the filing short and fail a send that was delivered.
         const result = await upstream(() => sendMessage(mail, transport, body), "Send");
         // Recipients are intentionally absent from the log line.
-        log("info", `sent ${result.messageId} (filed in sent: ${result.filedInSent})`);
+        log(
+          result.rejected.length > 0 ? "warn" : "info",
+          `sent ${result.messageId} (filed in sent: ${result.filedInSent}, ` +
+            `refused recipients: ${result.rejected.length})`
+        );
         return result;
       },
       sendTimeoutMs
@@ -92,6 +97,15 @@ function validateSend(body, maxTextChars) {
   }
   if (body.text.length > maxTextChars) {
     return `Body exceeds the ${maxTextChars} character limit.`;
+  }
+  // A blank `from` means "the bridge's own"; anything else has to be one
+  // address, since falling back quietly would send under another name than
+  // the note asked for.
+  if (body.from !== undefined && body.from !== null) {
+    if (typeof body.from !== "string") return "from must be a string.";
+    if (body.from.trim() && !parseSender(body.from)) {
+      return 'from must be one address, alone or after a name: "Name <you@example.de>".';
+    }
   }
   return null;
 }

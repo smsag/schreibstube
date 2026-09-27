@@ -233,6 +233,17 @@ describe("errors", () => {
     expect(response.json.requestId).toMatch(/^req_[0-9a-f]{8}$/);
   });
 
+  it("refuses a from that is not one address rather than sending as MAIL_FROM", async () => {
+    const response = await call("/send", { body: { ...valid, from: "Steffen Seitz" } });
+    expect(response.status).toBe(400);
+    expect(response.json.code).toBe("invalid_request");
+  });
+
+  it("refuses a from that is not a string", async () => {
+    const response = await call("/send", { body: { ...valid, from: ["a@example.com"] } });
+    expect(response.status).toBe(400);
+  });
+
   it("gives every request its own id", async () => {
     const first = await call("/send", { token: null });
     const second = await call("/send", { token: null });

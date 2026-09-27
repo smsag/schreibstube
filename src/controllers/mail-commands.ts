@@ -78,16 +78,20 @@ export class MailCommands {
       return;
     }
 
+    // The note's own sender wins over the setting, which wins over MAIL_FROM.
+    const from = fields.from || this.getSettings().mailFrom.trim();
+
     new MailConfirmModal(
       this.app,
       {
+        from,
         to: fields.to,
         cc: fields.cc,
         subject: fields.subject,
         alreadySent: fields.messageId !== null
       },
       () => {
-        void this.performSend(file, bridge, fields, body);
+        void this.performSend(file, bridge, fields, body, from);
       }
     ).open();
   }
@@ -96,10 +100,10 @@ export class MailCommands {
     file: TFile,
     bridge: MailBridgeConfig,
     fields: MailFields,
-    body: string
+    body: string,
+    from: string
   ): Promise<void> {
     await this.withBusy("send", async () => {
-      const settings = this.getSettings();
       const progress = new Notice(t().common.notice(t().mailNotices.sending), 0);
 
       let result: SendResult;
@@ -109,7 +113,7 @@ export class MailCommands {
           cc: fields.cc,
           subject: fields.subject,
           text: body,
-          ...(settings.mailFrom ? { from: settings.mailFrom } : {})
+          ...(from ? { from } : {})
         });
       } catch (err) {
         this.fail("send", t().mailNotices.failSend, err);
@@ -138,6 +142,12 @@ export class MailCommands {
       }
 
       this.logger.debug("Sent note as email:", result.messageId);
+      if (result.rejected.length > 0) {
+        // Stays until dismissed: a recipient who will never get the mail is
+        // the one outcome that must not scroll away.
+        new Notice(t().common.notice(t().mailNotices.sentRefused(result.rejected.join(", "))), 0);
+        return;
+      }
       new Notice(
         t().common.notice(result.filedInSent ? t().mailNotices.sent : t().mailNotices.sentNoCopy)
       );

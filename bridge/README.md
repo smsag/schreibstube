@@ -27,18 +27,19 @@ compatible. `/health` reports what a deployment is actually running, and the
 plugin says plainly when the bridge is behind rather than failing later on a
 route that does not exist yet.
 
-| Bridge | Protocol | Plugin          | Notes                                                        |
-| ------ | -------- | --------------- | ------------------------------------------------------------ |
-| 2.8.x  | 3        | 1.8.0 and later | The site's tab icon, named by its theme                      |
-| 2.7.x  | 3        | 1.8.0 and later | Slideshows, filmstrip thumbnails, header tags and tag pages  |
-| 2.6.x  | 1        | 1.8.0 and later | Notes cached in memory, parallel SFTP, one login per publish |
-| 2.5.x  | 1        | 1.8.0 and later | Sent folder by tag, state guard, absolute `STATE_ROOT`       |
-| 2.4.x  | 1        | 1.8.0 and later | Validated search body, fetch and asset byte bounds           |
-| 2.3.x  | 1        | 1.8.0 and later | `TRUST_PROXY`, Node 24, image without Mermaid's tree         |
-| 2.2.x  | 1        | 1.8.0 and later | Per-target switches, publish history, JSON logs              |
-| 2.1.x  | 1        | 1.8.0 and later | Mail and publishing                                          |
-| 2.0.x  | 1        | 1.8.0 and later | Mail only; `BRIDGE_TOKEN` renamed to `MAIL_TOKEN`            |
-| 1.0.x  | —        | 1.7.0           | Mail only, single token, no version handshake                |
+| Bridge | Protocol | Plugin          | Notes                                                           |
+| ------ | -------- | --------------- | --------------------------------------------------------------- |
+| 2.9.x  | 4        | 1.8.0 and later | Alias `from` on the own envelope, refusals, `MAIL_FROM` checked |
+| 2.8.x  | 3        | 1.8.0 and later | The site's tab icon, named by its theme                         |
+| 2.7.x  | 3        | 1.8.0 and later | Slideshows, filmstrip thumbnails, header tags and tag pages     |
+| 2.6.x  | 1        | 1.8.0 and later | Notes cached in memory, parallel SFTP, one login per publish    |
+| 2.5.x  | 1        | 1.8.0 and later | Sent folder by tag, state guard, absolute `STATE_ROOT`          |
+| 2.4.x  | 1        | 1.8.0 and later | Validated search body, fetch and asset byte bounds              |
+| 2.3.x  | 1        | 1.8.0 and later | `TRUST_PROXY`, Node 24, image without Mermaid's tree            |
+| 2.2.x  | 1        | 1.8.0 and later | Per-target switches, publish history, JSON logs                 |
+| 2.1.x  | 1        | 1.8.0 and later | Mail and publishing                                             |
+| 2.0.x  | 1        | 1.8.0 and later | Mail only; `BRIDGE_TOKEN` renamed to `MAIL_TOKEN`               |
+| 1.0.x  | —        | 1.7.0           | Mail only, single token, no version handshake                   |
 
 ## Capabilities
 
@@ -60,7 +61,7 @@ token must belong to the capability that owns the route.
 | ------ | ---------------------- | ---------- | ---------------------------------------------------------------------------- | -------------------------------------------------- |
 | `GET`  | `/health`              | —          | —                                                                            | `{status, version, protocol, capabilities[]}`      |
 | `POST` | `/diagnostics`         | mail       | —                                                                            | per-protocol reachability                          |
-| `POST` | `/send`                | mail       | `{to, cc?, bcc?, subject, text, from?, inReplyTo?, references?}`             | `{messageId, sentAt, filedInSent}`                 |
+| `POST` | `/send`                | mail       | `{to, cc?, bcc?, subject, text, from?, inReplyTo?, references?}`             | `{messageId, sentAt, filedInSent, rejected[]}`     |
 | `POST` | `/search`              | mail       | `{criteria:{from?,to?,subject?,text?,since?,references?}, mailbox?, limit?}` | `{messages[], mailbox, truncated}`                 |
 | `GET`  | `/publish/targets`     | publish    | —                                                                            | `{targets:[{name, baseUrl, siteTitle}]}`           |
 | `POST` | `/publish/diagnostics` | publish    | `{target}`                                                                   | `{ok, root, entries}` or `{ok:false, error}`       |
@@ -96,6 +97,17 @@ Two details worth knowing:
   rather than letting the MTA assign one. The plugin stores that value in the
   note's frontmatter, and it is the only thing linking later replies back to the
   note — so it has to be known before the send, not after.
+- **`from` sets the From line, not the sender of record.** A request may name
+  any one address, with or without a name, as its `from`; anything else is
+  refused with a 400 rather than sent under `MAIL_FROM`. The SMTP envelope
+  always carries `MAIL_FROM`'s address: that is the address the server
+  authenticated and its SPF record vouches for, and bounces return to it.
+  Whether the server accepts a From that differs is the provider's policy —
+  test an alias once before relying on it — and an alias on a domain the
+  provider does not sign for fails DMARC at many recipients.
+- **Refused recipients are reported.** The server accepts a message as soon
+  as it takes one recipient; the ones it turned down come back in `rejected`
+  and are logged as a warning, by count, never by address.
 - **SMTP does not file a copy in Sent.** After a successful send the bridge
   `APPEND`s the same bytes to the Sent mailbox over IMAP. A failure there is
   reported in `filedInSent` but is not treated as a failed send — the mail is
@@ -269,7 +281,8 @@ To offer mail, set `MAIL_TOKEN`,
 everything else has a sensible default. Set none of them and the bridge does not
 offer mail; set some, and it names the ones still missing. Missing or weak
 values fail at startup with a precise message rather than on the first
-request. So does a variable that is set and unreadable: a numeric one that is
+request. So does a variable that is set and unreadable: a `MAIL_FROM` with no
+address in it, a numeric one that is
 not a positive integer, or a flag spelled as neither true nor false. Leave a
 variable out to take its default; do not leave it half-written.
 

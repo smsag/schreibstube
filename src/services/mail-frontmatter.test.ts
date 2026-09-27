@@ -27,6 +27,7 @@ describe("readMailFields", () => {
     const fields = readMailFields({
       schreibstubeTo: "kunde@example.com",
       schreibstubeCc: ["innen@example.de"],
+      schreibstubeFrom: " Büro <buero@example.de> ",
       schreibstubeSubject: " Angebot Objekt 4711 ",
       schreibstubeMessageId: "<7f3a@example.de>",
       schreibstubeMergedIds: ["<r1@example.com>"]
@@ -35,6 +36,7 @@ describe("readMailFields", () => {
     expect(fields).toEqual({
       to: ["kunde@example.com"],
       cc: ["innen@example.de"],
+      from: "Büro <buero@example.de>",
       subject: "Angebot Objekt 4711",
       messageId: "<7f3a@example.de>",
       mergedIds: ["<r1@example.com>"]
@@ -51,6 +53,7 @@ describe("readMailFields", () => {
     expect(readMailFields(undefined)).toEqual({
       to: [],
       cc: [],
+      from: "",
       subject: "",
       messageId: null,
       mergedIds: []
@@ -59,7 +62,14 @@ describe("readMailFields", () => {
 });
 
 describe("validateSendable", () => {
-  const base = { to: ["a@x.de"], cc: [], subject: "Hi", messageId: null, mergedIds: [] };
+  const base = {
+    to: ["a@x.de"],
+    cc: [],
+    from: "",
+    subject: "Hi",
+    messageId: null,
+    mergedIds: []
+  };
 
   it("accepts a complete note", () => {
     expect(validateSendable(base)).toEqual({ ok: true });
@@ -93,6 +103,23 @@ describe("validateSendable", () => {
     if (!result.ok) {
       expect(result.message).toMatch(/not-an-address/);
       // A wrong address is not something a property set could add.
+      expect(result.missing).toBe(false);
+    }
+  });
+
+  it("accepts a sender of the note's own, with or without a name", () => {
+    expect(validateSendable({ ...base, from: "buero@x.de" })).toEqual({ ok: true });
+    expect(validateSendable({ ...base, from: "Büro <buero@x.de>" })).toEqual({ ok: true });
+  });
+
+  it.each([
+    ["a name alone", "Steffen Seitz"],
+    ["two addresses", "a@x.de, b@x.de"]
+  ])("refuses %s as the sender, naming the key", (_, from) => {
+    const result = validateSendable({ ...base, from });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.message).toContain("schreibstubeFrom");
       expect(result.missing).toBe(false);
     }
   });

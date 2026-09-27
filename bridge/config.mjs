@@ -11,9 +11,12 @@
  * opaque protocol error.
  */
 
+import { parseSender } from "./mail-address.mjs";
+
 /** Bumped when the request or response shape changes in a way the plugin can
- *  see. Reported by /health so plugin and bridge can detect drift. */
-export const PROTOCOL_VERSION = 3;
+ *  see. Reported by /health so plugin and bridge can detect drift. 4: a send
+ *  reports the recipients the server refused. */
+export const PROTOCOL_VERSION = 4;
 
 /** Minimum token length. Short tokens are brute-forceable over a public URL. */
 export const MIN_TOKEN_LENGTH = 24;
@@ -218,7 +221,7 @@ function loadMail(env) {
       secure: smtpSecure,
       auth
     },
-    from: env.MAIL_FROM.trim(),
+    from: sender(env.MAIL_FROM),
     defaultMailbox: env.DEFAULT_MAILBOX?.trim() || "INBOX",
     // SMTP does not file a copy in Sent — the bridge APPENDs it over IMAP.
     // A name is used as written; an empty string skips the step (e.g. if the
@@ -251,6 +254,21 @@ function token(value, name) {
     throw new Error(
       `${name} must be at least ${MIN_TOKEN_LENGTH} characters ` +
         `(got ${trimmed.length}). Generate one with: openssl rand -base64 32`
+    );
+  }
+  return trimmed;
+}
+
+/**
+ * MAIL_FROM, refused at startup unless it holds an address. A name alone sent
+ * mail with no From header, which the server accepted and reported as sent.
+ */
+function sender(value) {
+  const trimmed = value.trim();
+  if (!parseSender(trimmed)) {
+    throw new Error(
+      "MAIL_FROM must hold one address, alone or after a name: " +
+        '"you@example.de" or "Your Name <you@example.de>".'
     );
   }
   return trimmed;
