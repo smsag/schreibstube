@@ -1973,6 +1973,21 @@
   user-select: none;
 }
 
+/* While editing, the footer follows the editor's content in `.cm-sizer`, and
+   Obsidian pads the end of that content inline, half the editor's height, so
+   the last line can scroll to the middle. The footer is pulled up into that
+   padding and puts the same amount below itself (keepEditorTailBelow sets the
+   variable), so it starts 3em after the note's last line, as in Reading view,
+   and the note still scrolls past its end as far as before. Only straight
+   after the content (placeAfterNote puts it there): anything between, such as
+   the backlinks Obsidian can show in the document, would be covered. Positioned,
+   so it paints and takes presses above the content whose padding it sits in. */
+.cm-sizer > .cm-contentContainer + .schreibstube-recommended-footer {
+  position: relative;
+  margin-top: calc(3em - var(--schreibstube-editor-tail, 0px));
+  padding-bottom: var(--schreibstube-editor-tail, 0px);
+}
+
 /* The sidebar's header: what the list belongs to, and how long it is. */
 .schreibstube-related-header {
   display: flex;

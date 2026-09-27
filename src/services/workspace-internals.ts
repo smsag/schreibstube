@@ -606,6 +606,67 @@ export function noteFooterHost(
 }
 
 /**
+ * Put `block` in `host`: in an editing view (a `.cm-sizer`) straight after the
+ * editor's content, ahead of anything Obsidian adds after it, such as the
+ * backlinks shown in the document; anywhere else, at the end. Straight after
+ * the content is the one place where the editor's end-of-note padding can be
+ * moved below the block without the block covering something else.
+ */
+export function placeAfterNote(host: HTMLElement, block: HTMLElement): void {
+  const content = Array.from(host.children).find((child) =>
+    child.classList.contains("cm-contentContainer")
+  );
+  if (content) {
+    if (content.nextElementSibling !== block) content.after(block);
+  } else if (block.parentElement !== host || host.lastElementChild !== block) {
+    host.appendChild(block);
+  }
+}
+
+/** The CSS variable a block after the editor content reads the editor's tail from. */
+export const EDITOR_TAIL_VAR = "--schreibstube-editor-tail";
+
+/**
+ * The editor's tail: the `padding-bottom` Obsidian writes inline on
+ * `.cm-content`, in px. Obsidian sets it to half the editor's height (100px
+ * while the find bar is open) so the last line can scroll up to the middle.
+ * Anything but a finite, positive px length reads as no tail at all.
+ */
+export function editorTail(paddingBottom: string): number {
+  const value = paddingBottom.trim();
+  if (!/^\d+(\.\d+)?px$/.test(value)) return 0;
+  const px = parseFloat(value);
+  return Number.isFinite(px) && px > 0 ? px : 0;
+}
+
+/**
+ * Keep the editor's tail below `block`, a block appended to `.cm-sizer` after
+ * the editor's content. Obsidian pads the end of `.cm-content` inline, so a
+ * block placed after it sat half a screen below the note's last line. This
+ * hands the tail's size to the block as a CSS variable, which the stylesheet
+ * uses to pull the block up into that padding and put as much again below it:
+ * the block starts where the note ends, and the note still scrolls past its
+ * end as far as before. The padding changes with the pane's size and the find
+ * bar, so it is watched. Without a `.cm-content` nothing is done. Returns the
+ * way to stop, which also clears the variable.
+ */
+export function keepEditorTailBelow(sizer: HTMLElement, block: HTMLElement): () => void {
+  const clear = () => block.style.removeProperty(EDITOR_TAIL_VAR);
+  const content = sizer.querySelector(".cm-content");
+  if (!(content instanceof HTMLElement)) return clear;
+  const apply = () =>
+    block.style.setProperty(EDITOR_TAIL_VAR, `${editorTail(content.style.paddingBottom)}px`);
+  apply();
+  if (typeof MutationObserver === "undefined") return clear;
+  const observer = new MutationObserver(apply);
+  observer.observe(content, { attributes: true, attributeFilter: ["style"] });
+  return () => {
+    observer.disconnect();
+    clear();
+  };
+}
+
+/**
  * Call `onChange` whenever a Markdown view switches between editing and
  * reading. Obsidian announces no event for it — the switch is a view state
  * that does not always count as a layout change — but it writes the mode to
