@@ -1964,12 +1964,19 @@
 }
 
 /* Under a note: as wide as the text and after its last line. The section
-   heading's rule sets it off from the text, so the footer draws none. */
+   heading's rule sets it off from the text, so the footer draws none.
+
+   The width is the host's. Both hosts, `.cm-sizer` and the reading view's
+   footer section, sit inside the sizer Obsidian narrows to the readable line
+   length when that setting is on, and leave full width when it is off; a
+   width of the footer's own would disagree with the second. And no auto
+   margins: `.cm-sizer` is a flex column, where auto side margins do not
+   centre a full-width block but shrink it to its longest title. Measured in
+   a 948px editor, the footer drew 254px. */
 .schreibstube-recommended-footer {
   --schreibstube-related-rank: 28px;
   --schreibstube-related-thumb-gap: var(--size-4-4);
-  max-width: var(--file-line-width);
-  margin: 3em auto 2em;
+  margin: 3em 0 2em;
   user-select: none;
 }
 
@@ -2061,6 +2068,15 @@
 
 .schreibstube-related-notes .schreibstube-related-list {
   gap: 12px;
+}
+
+/* In Reading view the footer is inside `.markdown-rendered`, and Obsidian's
+   `.markdown-rendered ol > li` indents every item by 3ch, measured 19.2px: the
+   ranks and titles sat that far right of where they sit while editing. The
+   footer's class outranks the rule (0,2,1 against 0,1,2), a theme's copy of it
+   too. */
+.schreibstube-recommended-footer .schreibstube-related-list > li {
+  margin-inline-start: 0;
 }
 
 /* One entry. NO column gap: a gap would open between the rank and the text as

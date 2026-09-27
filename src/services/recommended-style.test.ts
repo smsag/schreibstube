@@ -56,6 +56,23 @@ describe("Recommended as a register", () => {
     expect(editing).toMatch(/position:\s*relative;/);
   });
 
+  it("takes the width of the text under it, not a width of its own", () => {
+    // Both hosts sit in the sizer Obsidian narrows only with readable line
+    // length on; a max-width here narrowed the footer with it off. And
+    // .cm-sizer is a flex column, where auto side margins shrink the footer to
+    // its longest title (measured 254px in a 948px editor).
+    const [footer] = bodies(".schreibstube-recommended-footer");
+    expect(footer).not.toMatch(/(max-)?width\s*:/);
+    expect(footer).not.toMatch(/margin[^;]*\bauto\b/);
+    expect(footer).not.toMatch(/margin-(left|right|inline)[^;]*:/);
+  });
+
+  it("does not take Reading view's list indent", () => {
+    // Obsidian's `.markdown-rendered ol > li` indents 3ch; the footer is inside it.
+    const [item] = bodies(".schreibstube-recommended-footer .schreibstube-related-list > li");
+    expect(item).toMatch(/margin-inline-start:\s*0;/);
+  });
+
   it("draws the reasons as words on the line, never as chips", () => {
     expect(css).not.toMatch(/schreibstube-related-chip/);
   });

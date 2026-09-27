@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Fixed
+
+- **Recommended under a note is as wide as the note.** It shrank to the length of its longest title, and with "Readable line length" off it stayed narrow and centred under text running the full width of the pane. It now takes the width of the text column in both views, whatever that setting says. In Reading view its entries also no longer sit a list indent further right than while editing.
+
 ## 1.54.0 - 2026-09-27
 
 Search by meaning moves to transformers 4. The newer runtime embeds a note to
