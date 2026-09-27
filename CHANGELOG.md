@@ -17,6 +17,7 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- **The bridge runs on the Node it is tested on again.** An automatic update had moved the bridge's image to Node 25, a release line without long-term support whose updates have ended, while every test ran on Node 24. The image is back on Node 24, and updates to a new major version of Node are no longer proposed automatically for it; they move with the rest of the repository, by hand.
 - **A recipient typed just before sending is no longer left out.** Recipients and subject were read from Obsidian's index of the note when the command started, the body from the file itself. A property typed just before sending reached that index only after the dialog had opened, so the dialog showed an empty To, the mail went to the Cc alone, and the address appeared in the note a second later as if it had been used. The note is now read once for the dialog and again when Send is pressed, from the file; if the two differ, the dialog shows the note as it is now instead of sending.
 - **A note with no To recipient is flagged.** The dialog showed an empty To as a small dash. It now says, as a warning, that the mail goes to the Cc only.
 - **Comments are no longer mailed.** `%%…%%` and `<!-- … -->`, which Obsidian hides, were sent to the recipient with the rest of the text. They are now left out.
