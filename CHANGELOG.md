@@ -2,7 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## 1.56.0 - 2026-09-27
+
+The Lebenslauf template now sets a CV the way iA Writer does, measured line for
+line against the same CV exported from it: tighter lists, looser running text,
+fixed steps around the headings, and no employer line running into its title.
+Fira Sans Condensed comes with the typesetter for its headings, so the first
+print after the update fetches two more font files. A copy of the template
+already in the vault is not changed; replace its template.typ and its
+schreibstubePage line to take the new version.
+
+Mobile checklist: not run. The template was checked in the Obsidian app on
+Linux desktop: added fresh, added a second time into the same folder, and a CV
+printed with it. What to try first on a phone: the first print after the update
+and a CV with a photo.
+
+The bridge is unchanged at 2.9.0.
 
 ### Changed
 
