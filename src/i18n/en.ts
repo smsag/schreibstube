@@ -185,6 +185,14 @@ export const en = {
     missingSource: (path: string) => `the source for ${path} is missing — please try again.`,
     changedDuringPublish: (path: string) =>
       `${path} changed while publishing — publish again to send the new version.`,
+    drawingDiagrams: (index: number, total: number) =>
+      `drawing visualisation ${index} of ${total} for the website…`,
+    diagramsNotDrawn: (count: number) =>
+      count === 1
+        ? "1 visualisation could not be drawn and is published as its source."
+        : `${count} visualisations could not be drawn and are published as their source.`,
+    /** A published picture's description when the canvas gives it no title. */
+    diagramAlt: "Visualisation",
     writeBackFailed: (path: string) => `published, but ${path} could not be updated.`,
     unknownTarget: (target: string) => `the bridge has no target named ${target}.`,
     connectionOk: (target: string, entries: number) =>
@@ -237,6 +245,16 @@ export const en = {
     unconfirmedWarning:
       "The last send of this note was never confirmed and may have been delivered. Check your Sent folder before sending again.",
     noToWarning: "No To recipient: this mail goes only to the Cc.",
+    confirmAttachments: "Attachments",
+    diagramsNotDrawnWarning: (count: number) =>
+      count === 1
+        ? "1 diagram could not be drawn or attached and goes as its source text."
+        : `${count} diagrams could not be drawn or attached and go as their source text.`,
+    bridgeTooOldWarning: (count: number) =>
+      `The mail bridge cannot carry pictures yet, so ${count === 1 ? "1 diagram goes" : `${count} diagrams go`} as source text. Redeploy the bridge to send them as pictures.`,
+    /** The word before a figure's number, and the start of its file name. */
+    figure: "Figure",
+    figureAttached: (filename: string) => `attached: ${filename}`,
     changedSinceShown:
       "The note changed while this dialogue was open. This is what it says now — check it and press Send again."
   },

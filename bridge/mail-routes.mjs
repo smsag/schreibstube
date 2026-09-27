@@ -15,6 +15,7 @@ import {
   SendUnconfirmedError
 } from "./mail.mjs";
 import { parseSender } from "./mail-address.mjs";
+import { checkAttachments, maxSendBodyBytes } from "./mail-attachments.mjs";
 
 export function createMailRoutes(
   config,
@@ -22,11 +23,11 @@ export function createMailRoutes(
 ) {
   const mail = { ...config.mail, upstreamTimeoutMs: config.upstreamTimeoutMs };
 
-  const route = (path, handler, timeoutMs) => ({
+  const route = (path, handler, timeoutMs, maxBytes = mail.maxBodyBytes) => ({
     method: "POST",
     path,
     capability: "mail",
-    maxBytes: mail.maxBodyBytes,
+    maxBytes,
     handler,
     timeoutMs
   });
@@ -42,19 +43,26 @@ export function createMailRoutes(
       async ({ body, log }) => {
         const problem = validateSend(body, mail.maxTextChars);
         if (problem) throw httpError(400, "invalid_request", problem);
+        const checked = checkAttachments(body.attachments);
+        if (checked.problem) throw httpError(400, "invalid_request", checked.problem);
+        const request = { ...body, attachments: checked.attachments };
 
         // sendMessage keeps a deadline per leg itself; one around the whole of
         // it would cut the filing short and fail a send that was delivered.
-        const result = await upstream(() => sendMessage(mail, transport, body), "Send");
+        const result = await upstream(() => sendMessage(mail, transport, request), "Send");
         // Recipients are intentionally absent from the log line.
         log(
           result.rejected.length > 0 ? "warn" : "info",
           `sent ${result.messageId} (filed in sent: ${result.filedInSent}, ` +
-            `refused recipients: ${result.rejected.length})`
+            `refused recipients: ${result.rejected.length}, ` +
+            `attachments: ${request.attachments.length})`
         );
         return result;
       },
-      sendTimeoutMs
+      sendTimeoutMs,
+      // The one route whose body may carry pictures; every other keeps the
+      // small limit.
+      maxSendBodyBytes(mail.maxBodyBytes)
     ),
 
     route("/search", async ({ body, log }) => {

@@ -42,8 +42,23 @@ import {
   resolveNote,
   slideshowReferences
 } from "../services/publish-index";
+import {
+  diagramAlt,
+  diagramAssetName,
+  diagramKeyInput,
+  DrawnDiagrams,
+  findDiagramFences,
+  MAX_PUBLISHED_DIAGRAM_BYTES,
+  replaceDiagramFences,
+  type DiagramFence,
+  type DrawnDiagram,
+  type DrawnPicture
+} from "../services/publish-diagrams";
 import { PublishAccountModal, PublishPlanModal } from "../ui/publish-modals";
+import { toArrayBuffer } from "../utils/array-buffer";
 import { mapLimit } from "../utils/map-limit";
+import { sha256 as hash } from "../utils/sha256";
+import { DiagramCapture } from "./diagram-capture";
 
 /**
  * The publish commands: preview a publish, run one, open the site.
@@ -61,13 +76,18 @@ export class PublishCommands {
   private busy = false;
   /** The handshake runs once per session, not once per request. */
   private handshakeDone = false;
+  private readonly diagrams: DiagramCapture;
+  /** Canvases drawn for an earlier publish in this session, by content. */
+  private readonly drawn = new DrawnDiagrams();
 
   constructor(
     private readonly app: App,
     private readonly getSettings: () => SchreibstubeSettings,
     private readonly saveSettings: (patch: Partial<SchreibstubeSettings>) => Promise<void>,
     private readonly logger: Logger
-  ) {}
+  ) {
+    this.diagrams = new DiagramCapture(app, logger, "publish", MAX_PUBLISHED_DIAGRAM_BYTES);
+  }
 
   /** Show what a publish would do, and stop there. */
   async preview(): Promise<void> {
@@ -148,7 +168,10 @@ export class PublishCommands {
         if (!asset) {
           throw new Error(t().publish.missingSource(entry.sourcePath));
         }
-        const content = await this.readAttachment(asset.path, entry.sha256);
+        // A drawn canvas is no file in the vault; its bytes were kept instead.
+        const content = asset.bytes
+          ? toArrayBuffer(asset.bytes)
+          : await this.readAttachment(asset.path, entry.sha256);
         await uploadAsset(bridge, account.target, entry.sha256, asset.name, content);
         uploaded();
       });
@@ -284,69 +307,103 @@ export class PublishCommands {
 
     const notes: PublishNote[] = [];
     const sources = new Map<string, ArrayBuffer>();
-    const assets = new Map<string, { name: string; path: string }>();
+    const assets = new Map<string, CollectedAsset>();
     const assetEntries: PublishAsset[] = [];
     const resolved = [];
 
+    // Read first, so that the canvases of every note can be counted before
+    // the first is drawn: drawing takes long enough to want a count.
+    const published = [];
     for (const file of files) {
       const cache = this.app.metadataCache.getFileCache(file);
       if (!readPublishFields(cache?.frontmatter, keys).published) continue;
-
       const content = await this.app.vault.read(file);
-      const note = resolveNote(
-        {
-          path: file.path,
-          basename: file.basename,
-          content,
-          createdMs: file.stat.ctime,
-          frontmatter: cache?.frontmatter
-        },
-        keys
-      );
-      resolved.push(note);
+      published.push({ file, cache, content, fences: findDiagramFences(content) });
+    }
+    const drawing = new DrawingProgress(
+      published.reduce((sum, entry) => sum + entry.fences.length, 0)
+    );
 
-      const bytes = new TextEncoder().encode(content);
-      const sha256 = await hash(bytes);
-      sources.set(sha256, bytes.buffer as ArrayBuffer);
-      const carried =
-        account.headerTags.length > 0 ? headerTagsOf(noteTags(cache), account.headerTags) : [];
-      notes.push({ ...note, sha256, ...(carried.length > 0 ? { tags: carried } : {}) });
+    try {
+      for (const { file, cache, content, fences } of published) {
+        const note = resolveNote(
+          {
+            path: file.path,
+            basename: file.basename,
+            content,
+            createdMs: file.stat.ctime,
+            frontmatter: cache?.frontmatter
+          },
+          keys
+        );
+        resolved.push(note);
 
-      // A filmstrip shows its pictures small as well, and asks for thumbnails.
-      const filmstrip = new Set(
-        slideshowReferences(content, "filmstrip")
-          .map((reference) => this.app.metadataCache.getFirstLinkpathDest(reference, file.path))
-          .filter((target): target is TFile => target instanceof TFile)
-          .map((target) => target.path)
-      );
-
-      for (const reference of referencedAttachments(content)) {
-        const target = this.app.metadataCache.getFirstLinkpathDest(reference, file.path);
-        if (!(target instanceof TFile)) continue;
-        if (!isPublishableAttachment(target.name, ATTACHMENT_EXTENSIONS)) continue;
-        const wantsThumbnail = filmstrip.has(target.path) && thumbnailType(target.name) !== null;
-        const known = assetEntries.find((entry) => entry.sourcePath === target.path);
-        if (known) {
-          // Shown plainly in one note and in a filmstrip in another.
-          if (wantsThumbnail) known.thumbnail = true;
-          continue;
+        // The copy that is uploaded shows each canvas as the picture drawn of it.
+        const uploaded = await this.withDiagrams(content, fences, file.path, drawing);
+        for (const picture of uploaded.pictures) {
+          if (assets.has(picture.sha256)) continue;
+          assets.set(picture.sha256, {
+            name: picture.name,
+            path: picture.name,
+            bytes: picture.bytes
+          });
+          assetEntries.push({
+            sourcePath: picture.name,
+            sha256: picture.sha256,
+            name: picture.name,
+            bytes: picture.bytes.byteLength
+          });
         }
 
-        // Read to be hashed, then let go: the bytes are read again only if
-        // the bridge asks for them. Kept for the whole run, every picture a
-        // site shows sat in memory at once, which a phone's WebView does not
-        // survive for long.
-        const data = await this.app.vault.readBinary(target);
-        const assetHash = await hash(new Uint8Array(data));
-        assets.set(assetHash, { name: target.name, path: target.path });
-        assetEntries.push({
-          sourcePath: target.path,
-          sha256: assetHash,
-          name: target.name,
-          bytes: data.byteLength,
-          ...(wantsThumbnail ? { thumbnail: true } : {})
-        });
+        const bytes = new TextEncoder().encode(uploaded.content);
+        const sha256 = await hash(bytes);
+        sources.set(sha256, bytes.buffer as ArrayBuffer);
+        const carried =
+          account.headerTags.length > 0 ? headerTagsOf(noteTags(cache), account.headerTags) : [];
+        notes.push({ ...note, sha256, ...(carried.length > 0 ? { tags: carried } : {}) });
+
+        // A filmstrip shows its pictures small as well, and asks for thumbnails.
+        const filmstrip = new Set(
+          slideshowReferences(content, "filmstrip")
+            .map((reference) => this.app.metadataCache.getFirstLinkpathDest(reference, file.path))
+            .filter((target): target is TFile => target instanceof TFile)
+            .map((target) => target.path)
+        );
+
+        for (const reference of referencedAttachments(content)) {
+          const target = this.app.metadataCache.getFirstLinkpathDest(reference, file.path);
+          if (!(target instanceof TFile)) continue;
+          if (!isPublishableAttachment(target.name, ATTACHMENT_EXTENSIONS)) continue;
+          const wantsThumbnail = filmstrip.has(target.path) && thumbnailType(target.name) !== null;
+          const known = assetEntries.find((entry) => entry.sourcePath === target.path);
+          if (known) {
+            // Shown plainly in one note and in a filmstrip in another.
+            if (wantsThumbnail) known.thumbnail = true;
+            continue;
+          }
+
+          // Read to be hashed, then let go: the bytes are read again only if
+          // the bridge asks for them. Kept for the whole run, every picture a
+          // site shows sat in memory at once, which a phone's WebView does not
+          // survive for long.
+          const data = await this.app.vault.readBinary(target);
+          const assetHash = await hash(new Uint8Array(data));
+          assets.set(assetHash, { name: target.name, path: target.path });
+          assetEntries.push({
+            sourcePath: target.path,
+            sha256: assetHash,
+            name: target.name,
+            bytes: data.byteLength,
+            ...(wantsThumbnail ? { thumbnail: true } : {})
+          });
+        }
       }
+    } finally {
+      // A read that fails partway must not leave the count on screen for ever.
+      drawing.finish();
+    }
+    if (drawing.lost > 0) {
+      new Notice(t().common.notice(t().publish.diagramsNotDrawn(drawing.lost)), 10_000);
     }
 
     const collision = findSlugCollision(resolved);
@@ -365,6 +422,61 @@ export class PublishCommands {
     };
 
     return { index, sources, assets };
+  }
+
+  /**
+   * A note's text as it is uploaded: each canvas that could be drawn replaced
+   * by its pictures, and the pictures themselves.
+   *
+   * A canvas is drawn whole or not at all. One whose panels partly failed stays
+   * its source rather than being published a panel short, which nothing on
+   * the page would admit to.
+   */
+  private async withDiagrams(
+    content: string,
+    fences: readonly DiagramFence[],
+    sourcePath: string,
+    drawing: DrawingProgress
+  ): Promise<{ content: string; pictures: DrawnPicture[] }> {
+    if (fences.length === 0) return { content, pictures: [] };
+
+    const placed = new Map<number, { name: string; alt: string }[]>();
+    const pictures: DrawnPicture[] = [];
+    for (const fence of fences) {
+      drawing.next();
+      const diagram = await this.drawDiagram(fence, sourcePath);
+      if (!diagram) {
+        drawing.lost += 1;
+        continue;
+      }
+      placed.set(
+        fence.index,
+        diagram.pictures.map((picture) => ({ name: picture.name, alt: diagram.alt }))
+      );
+      pictures.push(...diagram.pictures);
+    }
+    return { content: replaceDiagramFences(content, fences, placed), pictures };
+  }
+
+  /** One canvas's pictures, drawn now or kept from an earlier publish. */
+  private async drawDiagram(fence: DiagramFence, sourcePath: string): Promise<DrawnDiagram | null> {
+    const key = await hash(new TextEncoder().encode(diagramKeyInput(fence)));
+    const kept = this.drawn.get(key);
+    if (kept) return kept;
+
+    const capture = await this.diagrams.capture(fence, sourcePath);
+    if (capture.pictures.length === 0 || capture.pictures.length < capture.expected) return null;
+
+    const pictures = await Promise.all(
+      capture.pictures.map(async (bytes, panel) => ({
+        name: diagramAssetName(key, panel),
+        sha256: await hash(bytes),
+        bytes
+      }))
+    );
+    const diagram = { pictures, alt: diagramAlt(capture.title, t().publish.diagramAlt) };
+    this.drawn.set(key, diagram);
+    return diagram;
   }
 
   private async recordRun(
@@ -495,7 +607,40 @@ interface Collected {
   index: PublishIndex;
   sources: Map<string, ArrayBuffer>;
   /** Where each attachment is, by hash — never its bytes, which can be large. */
-  assets: Map<string, { name: string; path: string }>;
+  assets: Map<string, CollectedAsset>;
+}
+
+interface CollectedAsset {
+  name: string;
+  path: string;
+  /** A drawn canvas, which is no file to read again: its bytes, bounded. */
+  bytes?: Uint8Array;
+}
+
+/**
+ * The notice that counts canvases while they are drawn.
+ *
+ * Shown only once there is something to draw, so a site without a canvas
+ * publishes exactly as it did.
+ */
+class DrawingProgress {
+  lost = 0;
+  private drawn = 0;
+  private notice: Notice | null = null;
+
+  constructor(private readonly total: number) {}
+
+  next(): void {
+    this.drawn += 1;
+    const message = t().common.notice(t().publish.drawingDiagrams(this.drawn, this.total));
+    if (this.notice) this.notice.setMessage(message);
+    else this.notice = new Notice(message, 0);
+  }
+
+  finish(): void {
+    this.notice?.hide();
+    this.notice = null;
+  }
 }
 
 /**
@@ -507,10 +652,4 @@ const UPLOAD_CONCURRENCY = 3;
 interface Prepared extends Collected {
   bridge: PublishBridgeConfig;
   plan: Awaited<ReturnType<typeof planPublish>>;
-}
-
-/** Web Crypto is present in both Obsidian runtimes, desktop and mobile. */
-async function hash(bytes: Uint8Array): Promise<string> {
-  const digest = await crypto.subtle.digest("SHA-256", bytes as unknown as ArrayBuffer);
-  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }

@@ -251,10 +251,12 @@ describe("errors", () => {
   });
 });
 
+// /search rather than /send: the send route alone reads a larger body, room
+// for the pictures of a note, and has its own test in mail-routes.
 describe("request bodies", () => {
   it("rejects an announced body over the limit", async () => {
-    const response = await call("/send", {
-      body: { ...valid, subject: "x".repeat(MAX_BODY_BYTES) }
+    const response = await call("/search", {
+      body: { criteria: { subject: "x".repeat(MAX_BODY_BYTES) } }
     });
     expect(response.status).toBe(413);
     expect(response.json.error).toContain(String(MAX_BODY_BYTES));
@@ -262,7 +264,7 @@ describe("request bodies", () => {
   });
 
   it("rejects an oversized body that announced no length, with the reason rather than a reset", async () => {
-    const response = await streamed("/send", ['{"text":"', "x".repeat(MAX_BODY_BYTES), '"}']);
+    const response = await streamed("/search", ['{"text":"', "x".repeat(MAX_BODY_BYTES), '"}']);
     expect(response.status).toBe(413);
   });
 
