@@ -93,6 +93,9 @@ interface FixtureOptions {
 function fixture(options: FixtureOptions = {}): Fixture {
   const timers = fakeTimers();
   const trash: string[] = [...(options.trashHolds ?? [])];
+  // What each entry the fake trash moved there looked like; anything else in
+  // the trash is a stranger, with a size no file of the tests has.
+  const arrivals = new Map<string, { type: "file" | "folder"; size: number; mtime: number }>();
   const present = new Set(options.present ?? []);
   const trashFile = vi.fn(async (file: TFile | TFolder) => {
     if (options.trashFails) throw new Error("no trash on this volume");
@@ -103,7 +106,14 @@ function fixture(options: FixtureOptions = {}): Fixture {
     // there makes the arrival take a numbered one.
     const name = file.path.split("/").pop() ?? file.path;
     const wanted = `.trash/${name}`;
-    trash.push(trash.includes(wanted) ? wanted.replace(/(\.[^.]+)$/, " 1$1") : wanted);
+    const landed = trash.includes(wanted) ? wanted.replace(/(\.[^.]+)$/, " 1$1") : wanted;
+    trash.push(landed);
+    arrivals.set(
+      landed,
+      file instanceof TFile
+        ? { type: "file", size: file.stat.size, mtime: file.stat.mtime }
+        : { type: "folder", size: 0, mtime: 0 }
+    );
   });
   const renameFile = vi.fn(async (file: TFile | TFolder, to: string) => {
     present.delete(file.path);
@@ -139,6 +149,10 @@ function fixture(options: FixtureOptions = {}): Fixture {
         exists: async (path: string) =>
           path === ".trash" ? trash.length > 0 : trash.includes(path) || present.has(path),
         list: async () => ({ files: [...trash], folders: [] }),
+        stat: async (path: string) =>
+          trash.includes(path)
+            ? (arrivals.get(path) ?? { type: "file", size: 4096, mtime: 1 })
+            : null,
         rename: async (from: string, to: string) => {
           const at = trash.indexOf(from);
           if (at === -1) throw new Error(`nothing at ${from}`);
@@ -299,6 +313,18 @@ describe("deleting from the pane", () => {
     expect(f.present.has("a.md")).toBe(true);
   });
 
+  it("offers no undo for a namesake that lands where the file was expected", async () => {
+    // The bug: with the system trash, a sync client dropping a note of the
+    // same name into `.trash` during the call was taken for the receipt, and
+    // the undo would have moved that stranger onto the deleted note's path.
+    const f = fixture({ present: ["a.md"], systemTrash: true, strayTrash: ".trash/a.md" });
+
+    await deleteViaMenu(f.controller, new TFile("a.md"));
+
+    expect(f.toasts).toEqual([]);
+    expect(Notice.shown.join(" ")).toContain("system trash");
+  });
+
   it("says so when the trash refuses, and hides nothing", async () => {
     const f = fixture({ trashFails: true });
 
@@ -319,6 +345,40 @@ describe("the grace between the trash call and the vault's own event", () => {
 
     expect(f.controller.isTrashed("Entwurf.md")).toBe(false);
     expect(f.timers.pending.size).toBe(0);
+  });
+
+  it("does not start until the trash call has returned", async () => {
+    // The bug: the grace began at the confirm, and a call slower than it —
+    // or the last of a long batch — brought its row back mid-delete.
+    const f = fixture();
+    let released: () => void = () => undefined;
+    f.trashFile.mockImplementationOnce(() => new Promise<void>((resolve) => (released = resolve)));
+
+    await f.controller.run("delete", new TFile("Entwurf.md") as never);
+    await settle();
+    expect(f.timers.pending.size).toBe(0);
+    f.timers.fire();
+    expect(f.controller.isTrashed("Entwurf.md")).toBe(true);
+
+    released();
+    await settle();
+    expect(f.timers.pending.size).toBe(1);
+    expect(f.controller.isTrashed("Entwurf.md")).toBe(true);
+  });
+
+  it("does not start for a row the vault confirmed during the call", async () => {
+    const f = fixture();
+    let released: () => void = () => undefined;
+    f.trashFile.mockImplementationOnce(() => new Promise<void>((resolve) => (released = resolve)));
+
+    await f.controller.run("delete", new TFile("Entwurf.md") as never);
+    await settle();
+    f.controller.handleDelete(new TFile("Entwurf.md") as never);
+    released();
+    await settle();
+
+    expect(f.timers.pending.size).toBe(0);
+    expect(f.controller.isTrashed("Entwurf.md")).toBe(false);
   });
 
   it("gives the row back when no delete event ever arrives", async () => {
