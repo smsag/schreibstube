@@ -4,10 +4,32 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 1.52.0 - 2026-09-27
+
+Search finds notes by the words in their text, not only by what they are
+called: a letter about the *Jahresabrechnung* now turns up for "Jahres".
+Search by meaning builds its index much faster, answers while it builds, and
+no longer builds on a phone, which uses the desktop's index and indexes only
+the notes written on it. The Explorer filter gets ready as soon as it is
+clicked, says when it is still searching by meaning, and the settings show how
+the index covers the vault and where a search's time goes.
+
+The index is rebuilt once after updating, because every note is now read into
+passages differently. A desktop does it by itself in the background, starting
+about ten seconds after launch; a phone waits for the desktop's.
+
+Mobile checklist: not run, and nothing in this release was tried in the
+Obsidian app on desktop either. The test suite and the build checked it. What
+a phone would answer differently: whether a note written on the phone is still
+found after a restart, whether "Build now" adds 50 notes and says so, how the
+new numbers in the settings fit a phone's width, and how quickly the text
+filter answers on a real vault.
+
+The bridge stays at 2.8.0, and its protocol at 3; nothing here touches it.
+
 ### Added
 
 - **The settings show where a search's time went.** A new line under search by meaning gives the last search's time, split into loading the model, embedding the query (or "from memory") and ranking the notes, and the text search line says how long reading the notes took. The same numbers go to the debug log, so a slow search can be told apart from a slow model.
-
 - **The settings say how search by meaning is doing.** Under the status line: how many of the notes to index are in it and why the rest are not (not read yet, failed, kept out by their frontmatter, past the note limit), how many passages it holds, the size of its files and which device keeps them, the model and where it runs, and for a build — running or the last one — how far it has come, how many notes were embedded or unchanged, passages a second and the time left. The Explorer filter's text index is counted too.
 - **A note written on a phone is indexed on the phone.** It was embedded there and forgotten at the next launch, and only once the phone had been searched. The phone now reads the index as soon as a note changes and keeps its own edits in a file of its own, which only it reads; the desktop's files are left alone, and the phone lets its edits go once the desktop has written a new index.
 - **The Explorer filter finds notes by the words in their text.** A note whose name says nothing about *Jahresabrechnung* is now found by that word, or by *Jahres* on the way to it, when its text holds it. A word in the text counts well below one in the name, title, aliases or tags, so a file called what you typed still comes first. `text:` (or `inhalt:`) searches the text alone. The text is read once, in the background, the first time the filter is used, and a note is read again when it is saved; frontmatter, code blocks, links' targets and URLs are not searched.
@@ -16,7 +38,6 @@ All notable changes to this project will be documented in this file.
 
 - **Search results arrive sooner.** Clicking into the Explorer filter now reads the index and loads the model, and starts reading the notes' text, so the first search no longer waits for them; this happens only where the index already exists, so nothing is downloaded for a click. A query typed again — a character deleted and retyped — is answered from memory instead of by the model, and a search goes ahead of the batches a build or a conversation sync has waiting.
 - **The filter says when it is still searching by meaning.** "Searching by meaning…" stands under the word results, or in place of "nothing matches", until the meaning results arrive, instead of the list looking finished before it was.
-
 - **Search by meaning answers while its index is being built.** Notes join the answers as they are read, instead of the whole vault arriving at the end of a build; a filter typed before the index could answer is asked again once it can.
 - **A single word is a word search.** Search by meaning is no longer asked for one word the words already answer: a sentence model reads a lone word, or the start of one, as close to nothing in particular, and the noise it returned sat beside the note that actually says the word. One word the words cannot find is still asked by meaning, held to a lower floor and cut to the hits nearly as close as the best.
 - **A phone no longer builds the index on its own.** The index a desktop builds arrives by sync, and a phone answers from it, finished or not — looking for a newer copy while it is searched. When it is not finished the phone says so once. **Build now** on a phone adds 50 notes, newest first, and keeps what the desktop wrote meanwhile; **Rebuild** on a phone does the same instead of clearing the desktop's index.
@@ -25,15 +46,14 @@ All notable changes to this project will be documented in this file.
 ### Fixed
 
 - **Search by meaning answers from a finished index however it was first opened.** Opening the Recommended panel or the settings before the first search left every meaning search of the session empty on a desktop whose index was already complete.
-- **A note is no longer kept out of the index for good by a model that failed, not the note.** A model that would not load during the launch catch-up, a Worker that crashed, or an unload mid-note marked the notes involved as failed until someone edited them. Only a note that fails once the model has proven itself in that pass is remembered now; a backend that is gone ends the pass and leaves the notes to the next one.
 - **One failing edit no longer loses the others.** An edit batch stopped at the first note that would not embed, and nothing it had applied was written; a build then reported itself failed and automatic builds stopped for the session. The rest of the batch is applied and written, and the build's outcome is its own.
-- **A phone and a desktop no longer overwrite each other's edits.** A note edited on the phone and then on the desktop showed the phone's older version on the phone. A desktop left running while a phone ran Build now went on writing edits against the replaced index, which no reader could see; it now takes the new index and puts its edits on top. A phone that cannot read the desktop's file while merging no longer writes over it.
+- **A desktop no longer writes edits no one can read after a phone rebuilt the index.** A desktop left running while a phone ran Build now went on writing edits against the replaced index; it now takes the new index and puts its edits on top.
 - **Unloading while the model loads no longer loads it twice more.** The fallback from Worker to frame took an unload for a refusal and loaded the model into the next backend, the last time on the UI thread. A build running when the plugin was disabled stopped at the next note instead of running through the vault on a model nobody held; a Worker that failed after it was ready is started again instead of refusing every request until a restart.
 - **Build now reloads a model that failed to load anywhere**, not only in a build, and changing a setting ends the pause a failure put on automatic builds. Switching search by meaning off during a build gives the model's memory back when the build ends.
 - **The Recommended panel no longer loads the model** to embed a changed chat conversation; the next search does that. A long conversation is embedded in batches, and one that fails keeps the others.
 - **A phone embeds at most 10 notes of one batch of edits**, so a sync landing many changed notes at launch is left to the desktop instead of the phone's UI thread; "Build now" is no longer refused as busy meanwhile.
 - **Deadlines no longer freeze on a desktop** whose main window is minimised while a pop-out window is in use; they still pause on a phone in the background.
-- **The Explorer filter:** `%%` in inline code and a code block closed with deeper indentation no longer hide the rest of a note from both searches; Hindi, Thai, Hebrew with points and Arabic with harakat stay whole words; `text:` or `tag:` with nothing after it is no filter yet instead of "nothing matches"; meaning rows for a single word are dropped once the text shows the words found the notes; "N more matches" no longer counts deleted notes; notes renamed during the first text read are read, and the read stops when the pane closes. The text index keeps its answers across saves instead of reading the whole vocabulary again on each.
+- **The Explorer filter:** Hindi, Thai, Hebrew with points and Arabic with harakat stay whole words instead of breaking into single letters that matched almost everything; `tag:` or `pfad:` with nothing after it is no filter yet instead of "nothing matches"; "N more matches" no longer counts deleted notes.
 - **`schreibstubeIndex: "false"`** written as text now keeps a note out of the index, as `pythia: "false"` already did.
 - **A damaged index file is refused** rather than read into short vectors that made every later search fail.
 - **A long note no longer stalls the build and is no longer paid for on every build.** A note went to the model as one request under one two-minute deadline, whatever its length; a long one ran out of time, was skipped, and was tried again from the start by every later build. It now goes a model batch at a time, and a note that still fails on the desktop is remembered and not tried again until it changes. A note that only ran out of time, or failed on a phone, is tried again by the next build; a build whose model stopped answering altogether leaves the index as it was.
