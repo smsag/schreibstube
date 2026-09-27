@@ -18,6 +18,7 @@ export type GatedCommand =
   | "summarize"
   | "table"
   | "insert-today"
+  | "property-set"
   | "check-source"
   | "send-mail"
   | "fetch-replies"
@@ -56,6 +57,9 @@ export function commandAvailable(command: GatedCommand, context: CommandContext)
       return context.markdown && context.selection;
     // A date goes into the note or one of its properties.
     case "insert-today":
+      return context.markdown;
+    // A set's keys go into a note's frontmatter; there is nowhere else to put them.
+    case "property-set":
       return context.markdown;
     // A picture carries no links and no tags, so there is nothing to relate it
     // by. Whether the note has any neighbours is the panel's answer to give,

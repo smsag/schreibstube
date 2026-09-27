@@ -234,6 +234,13 @@ describe("normalizeSettings", () => {
     expect(normalizeSettings({ glossaryTermFolder: 7 as never }).glossaryTermFolder).toBe("");
   });
 
+  it("defaults the property set folder to none, and trims its slashes", () => {
+    expect(normalizeSettings({}).propertySetFolder).toBe("");
+    expect(normalizeSettings({ propertySetFolder: "/Vorlagen/Sets/" }).propertySetFolder).toBe(
+      "Vorlagen/Sets"
+    );
+  });
+
   it("defaults document sync to off", () => {
     expect(normalizeSettings({}).syncEnabled).toBe(false);
   });

@@ -586,3 +586,60 @@ export function noteFooterHost(viewContent: HTMLElement, reading: boolean): HTML
   const found = viewContent.querySelector(selector);
   return found instanceof HTMLElement ? found : null;
 }
+
+/**
+ * Templater, the community plugin, as a renderer for a template's text.
+ *
+ * Templater has no public API for this. Its plugin object carries a
+ * `templater` with `create_running_config(template, target, runMode)` and
+ * `parse_template(config, text)`; both are read here, checked to be functions,
+ * and nothing else is touched. Run mode 1 is Templater's "append to the active
+ * file": it renders against the target note without creating or overwriting a
+ * file, which is the only mode that means "what would this say in that note".
+ * Null when Templater is not installed or has changed shape; the caller then
+ * says so and adds the keys empty.
+ */
+const TEMPLATER_ID = "templater-obsidian";
+const TEMPLATER_APPEND_TO_ACTIVE_FILE = 1;
+
+export type TemplaterRender = (template: TFile, target: TFile, text: string) => Promise<string>;
+
+interface TemplaterInternals {
+  create_running_config?: (template: TFile, target: TFile, runMode: number) => unknown;
+  parse_template?: (config: unknown, text: string) => Promise<unknown>;
+}
+
+export function templaterRenderer(app: App): TemplaterRender | null {
+  const plugin = (app as unknown as { plugins?: { plugins?: Record<string, unknown> } }).plugins
+    ?.plugins?.[TEMPLATER_ID] as { templater?: TemplaterInternals } | undefined;
+  const templater = plugin?.templater;
+  const createConfig = templater?.create_running_config;
+  const parse = templater?.parse_template;
+  if (typeof createConfig !== "function" || typeof parse !== "function") return null;
+  return async (template, target, text) => {
+    const config = createConfig.call(templater, template, target, TEMPLATER_APPEND_TO_ACTIVE_FILE);
+    const rendered = await parse.call(templater, config, text);
+    if (typeof rendered !== "string") throw new Error("Templater returned no text.");
+    return rendered;
+  };
+}
+
+/**
+ * Obsidian's "Add property" control at the foot of a Properties widget, and
+ * the widget around it. Class names, read here only; a build that renames
+ * them leaves Schreibstube's own control out rather than misplaced.
+ */
+const PROPERTIES_WIDGET = ".metadata-container";
+const ADD_PROPERTY_CONTROL = ".metadata-add-button";
+
+/** Every "Add property" control under `root`, for a control of our own beside it. */
+export function addPropertyControls(root: ParentNode): HTMLElement[] {
+  return Array.from(root.querySelectorAll(`${PROPERTIES_WIDGET} ${ADD_PROPERTY_CONTROL}`)).filter(
+    isElementLike
+  );
+}
+
+/** Every Properties widget under `root`, to be watched for being rebuilt. */
+export function propertiesWidgets(root: ParentNode): HTMLElement[] {
+  return Array.from(root.querySelectorAll(PROPERTIES_WIDGET)).filter(isElementLike);
+}

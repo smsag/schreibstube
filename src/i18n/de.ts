@@ -21,6 +21,7 @@ export const de: Messages = {
     table: "Einfügen: Tabelle aus der Auswahl",
     tableAi: "Einfügen: KI-Tabelle aus der Auswahl",
     insertToday: "Einfügen: heutiges Datum",
+    addPropertySet: "Einfügen: Eigenschaften-Set",
     openExplorer: "Explorer öffnen",
     collapseExplorer: "Explorer: Ordner zuklappen",
     explorerUndo: "Explorer: letztes Verschieben oder Löschen rückgängig machen",
@@ -504,7 +505,44 @@ export const de: Messages = {
     dateFormat: "Datumsformat",
     dateFormatDesc: (example: string) =>
       `Für Text, z. B. DD.MM.YYYY oder dddd, D. MMMM. Datums-Eigenschaften bekommen immer ` +
-      `YYYY-MM-DD. Heute: ${example}`
+      `YYYY-MM-DD. Heute: ${example}`,
+    setFolder: "Ordner für Eigenschaften-Sets",
+    setFolderDesc:
+      "Jede Notiz in diesem Ordner ist ein Eigenschaften-Set: Ihre Frontmatter-Schlüssel und " +
+      "-Werte werden einer Notiz hinzugefügt, ihr Text nicht. Templater-Vorlagen werden für die " +
+      "Zielnotiz ausgeführt, wenn Templater installiert ist. Schreibstubes eigene Sets stehen " +
+      "immer zur Wahl.",
+    setFolderPlaceholder: "Vorlagen/Eigenschaften",
+    addSet: "Eigenschaften-Set hinzufügen …",
+    addSetButton: "Set hinzufügen",
+    setPickerPlaceholder: "Welches Set soll die Notiz bekommen?",
+    setFromSchreibstube: "Schreibstube",
+    setNames: {
+      mail: "Mail",
+      sync: "Dokument-Sync",
+      print: "Drucken",
+      glossaryNote: "Glossarnotiz",
+      glossaries: "Glossare dieser Notiz"
+    },
+    setAdded: (name: string, added: number, kept: number) =>
+      kept > 0
+        ? `${name}: ${added} hinzugefügt, ${kept} schon vorhanden.`
+        : `${name}: ${added} hinzugefügt.`,
+    setNothingToAdd: (name: string) => `${name}: Alle Schlüssel sind schon vorhanden.`,
+    setTemplaterMissing: (keys: string) =>
+      `Templater ist nicht verfügbar, darum wurden diese leer angelegt: ${keys}.`,
+    setTemplaterFailed: (reason: string, keys: string) =>
+      `Templater konnte das Set nicht ausführen (${reason}), darum wurden diese leer angelegt: ${keys}.`,
+    setRenderedInvalid: (name: string) =>
+      `${name}: Die Ausgabe von Templater ist kein gültiges Frontmatter, es wurde nichts hinzugefügt.`,
+    setUnreadable: (name: string) => `${name}: Das Frontmatter ließ sich nicht lesen.`,
+    setSkipped: (name: string, keys: string) =>
+      `${name}: ${keys} ausgelassen — ein Set fügt Text, Zahlen, Ja/Nein und Listen hinzu.`,
+    setWriteFailed: (reason: string) =>
+      `Eigenschaften konnten nicht hinzugefügt werden — ${reason}`,
+    setCompleteOffer: (name: string, missing: string) => `${name} nutzt auch ${missing}.`,
+    setCompleteAction: "Ergänzen",
+    mailFieldsAction: "Mail-Felder hinzufügen"
   },
 
   cron: {

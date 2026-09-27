@@ -14,6 +14,7 @@ import type { Logger } from "../services/logger";
 import { t } from "../i18n";
 import { compileGlossaries, type GlossaryMatcher } from "../services/glossary-matcher";
 import {
+  GLOSSARY_FRONTMATTER_KEY,
   parseFolderRules,
   parseGlossaryList,
   resolveGlossarySelection,
@@ -80,7 +81,7 @@ import {
 import { PromptModal } from "../ui/explorer-modals";
 import { TermPickerModal } from "../ui/term-picker";
 
-export const GLOSSARY_FRONTMATTER_KEY = "schreibstubeGlossaries";
+export { GLOSSARY_FRONTMATTER_KEY };
 
 export type ReviewStateListener = (state: ReviewState) => void;
 

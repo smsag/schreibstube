@@ -86,8 +86,18 @@ import { fileURLToPath } from "node:url";
  * index, journal, watcher, fusion and settings in two languages — is the
  * remaining ~30 KB. The model weights are not in this number: they download
  * on first use. What is left is for the next feature, not a new normal.
+ *
+ * Raised to 1470 KB at 1453 KB, for property sets (+15 KB on 1438): the sets
+ * Schreibstube's own features need, built from the keys they read; a folder
+ * of set notes, Templater templates among them, read and validated before a
+ * key is written; four ways in — the property menu, a control beside "Add
+ * property", Mail finding its keys missing and a key just typed that belongs
+ * to a set — and every notice of it in two languages. The controller is
+ * 7 KB, the decisions 3, the words 4. Leaving a way in out to fit would have
+ * cut one of the four the feature was asked for. What is left is for the next
+ * feature, not a new normal.
  */
-const MAX_BUNDLE_KB = 1450;
+const MAX_BUNDLE_KB = 1470;
 
 const bundle = fileURLToPath(new URL("../main.js", import.meta.url));
 const source = readFileSync(bundle, "utf8");

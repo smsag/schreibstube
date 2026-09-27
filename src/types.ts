@@ -151,6 +151,8 @@ export interface SchreibstubeSettings {
   propertyIcons: Record<string, string>;
   /** Moment format for today's date entered into text. Date properties always get ISO. */
   dateFormat: string;
+  /** Every note in this folder is a property set (services/property-sets). */
+  propertySetFolder: string;
   // Diagnostics.
   debugLogging: boolean;
 }

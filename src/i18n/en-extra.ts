@@ -267,7 +267,40 @@ export const enExtra = {
     dateFormat: "Date format",
     dateFormatDesc: (example: string) =>
       `For text, e.g. DD.MM.YYYY or dddd, D. MMMM. Date properties always get YYYY-MM-DD. ` +
-      `Today: ${example}`
+      `Today: ${example}`,
+    setFolder: "Property set folder",
+    setFolderDesc:
+      "Every note in this folder is a property set: its frontmatter keys and values are added " +
+      "to a note, its body is not. Templater templates are rendered for the note they go into " +
+      "when Templater is installed. Schreibstube's own sets are always offered.",
+    setFolderPlaceholder: "Templates/Properties",
+    addSet: "Add property set…",
+    addSetButton: "Add set",
+    setPickerPlaceholder: "Which set should this note get?",
+    setFromSchreibstube: "Schreibstube",
+    setNames: {
+      mail: "Mail",
+      sync: "Document sync",
+      print: "Print",
+      glossaryNote: "Glossary note",
+      glossaries: "Glossaries for this note"
+    } as Record<string, string>,
+    setAdded: (name: string, added: number, kept: number) =>
+      kept > 0 ? `${name}: ${added} added, ${kept} already there.` : `${name}: ${added} added.`,
+    setNothingToAdd: (name: string) => `${name}: every key is already there.`,
+    setTemplaterMissing: (keys: string) =>
+      `Templater is not available, so these were added empty: ${keys}.`,
+    setTemplaterFailed: (reason: string, keys: string) =>
+      `Templater could not render the set (${reason}), so these were added empty: ${keys}.`,
+    setRenderedInvalid: (name: string) =>
+      `${name}: Templater's output is not valid frontmatter, so nothing was added.`,
+    setUnreadable: (name: string) => `${name}: its frontmatter could not be read.`,
+    setSkipped: (name: string, keys: string) =>
+      `${name}: left out ${keys} — a set adds text, numbers, yes/no and lists.`,
+    setWriteFailed: (reason: string) => `could not add the properties — ${reason}`,
+    setCompleteOffer: (name: string, missing: string) => `${name} also uses ${missing}.`,
+    setCompleteAction: "Add them",
+    mailFieldsAction: "Add mail fields"
   },
 
   cron: {

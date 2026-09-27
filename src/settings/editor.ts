@@ -4,6 +4,7 @@
 import { Setting } from "obsidian";
 import { activeLocale, t } from "../i18n";
 import { MAX_DIM_OPACITY, MIN_DIM_OPACITY } from "../services/focus-settings";
+import { normalizeTermFolder } from "../services/glossary-term-folder";
 import { formatDate } from "../services/today-value";
 import type { SettingsContext } from "./context";
 import { renderCommands } from "./commands";
@@ -73,4 +74,15 @@ function renderProperties(ctx: SettingsContext): void {
       dateFormat.setDesc(t().properties.dateFormatDesc(example(ctx.plugin.settings.dateFormat)));
     });
   });
+
+  new Setting(ctx.containerEl)
+    .setName(t().properties.setFolder)
+    .setDesc(t().properties.setFolderDesc)
+    .addText((text) => {
+      text.setPlaceholder(t().properties.setFolderPlaceholder);
+      text.setValue(ctx.plugin.settings.propertySetFolder);
+      text.onChange(async (value) => {
+        await ctx.update({ propertySetFolder: normalizeTermFolder(value) });
+      });
+    });
 }

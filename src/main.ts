@@ -43,6 +43,7 @@ import { PdfCommands } from "./controllers/pdf-commands";
 import { LinkModeController } from "./controllers/link-mode-controller";
 import { LlmCommands } from "./controllers/llm-commands";
 import { PropertyController } from "./controllers/property-controller";
+import { PropertySetController } from "./controllers/property-set-controller";
 import {
   convertSelectionToTable,
   insertTable,
@@ -125,6 +126,7 @@ export default class SchreibstubePlugin extends Plugin {
   private linkMode: LinkModeController | null = null;
   private llm: LlmCommands | null = null;
   private properties: PropertyController | null = null;
+  private propertySets: PropertySetController | null = null;
   private proofread: ProofreadController | null = null;
   private explorer: ExplorerController | null = null;
   private sections: PaneSectionsController | null = null;
@@ -171,8 +173,17 @@ export default class SchreibstubePlugin extends Plugin {
       },
       this.logger
     );
-    this.startProperties(this.properties);
-    this.mail = new MailCommands(this.app, () => this.settings, this.logger);
+    this.propertySets = new PropertySetController(this.app, () => this.settings, this.logger);
+    const propertySets = this.propertySets;
+    this.properties.setAddSetHandler((file) => void propertySets.pick(file));
+    this.startProperties(this.properties, propertySets);
+    this.mail = new MailCommands(
+      this.app,
+      () => this.settings,
+      this.logger,
+      (file, message) =>
+        propertySets.offerSet(file, "schreibstube:mail", message, t().properties.mailFieldsAction)
+    );
     this.publish = new PublishCommands(
       this.app,
       () => this.settings,
@@ -382,20 +393,43 @@ export default class SchreibstubePlugin extends Plugin {
    * later. Capture phase: the press has to be seen before Obsidian's own
    * handler opens the menu, whatever that handler does with the event.
    */
-  private startProperties(properties: PropertyController): void {
+  private startProperties(properties: PropertyController, sets: PropertySetController): void {
     const register = (doc: Document, type: string, handler: (event: Event) => void) => {
       this.registerDomEvent(doc, type as keyof DocumentEventMap, handler, { capture: true });
     };
     properties.attach(window, register);
+    sets.attach(window, register);
     this.registerEvent(
-      this.app.workspace.on("window-open", (_workspaceWindow, win) =>
-        properties.attach(win, register)
-      )
+      this.app.workspace.on("window-open", (_workspaceWindow, win) => {
+        properties.attach(win, register);
+        sets.attach(win, register);
+      })
     );
     this.registerEvent(
-      this.app.workspace.on("window-close", (_workspaceWindow, win) => properties.detach(win))
+      this.app.workspace.on("window-close", (_workspaceWindow, win) => {
+        properties.detach(win);
+        sets.detach(win);
+      })
     );
     properties.start();
+
+    // The Properties widget is drawn when a note opens and when a view
+    // switches between reading and editing; each is a moment to put the set
+    // control beside "Add property" again.
+    this.registerEvent(this.app.workspace.on("file-open", (file) => sets.noteOpened(file)));
+    this.registerEvent(this.app.workspace.on("layout-change", () => sets.decorateSoon()));
+    this.registerEvent(this.app.workspace.on("active-leaf-change", () => sets.decorateSoon()));
+    this.registerEvent(this.app.metadataCache.on("changed", (file) => sets.noteChanged(file)));
+    const setFolderTouched = (path: string) => sets.vaultChanged(path);
+    this.registerEvent(this.app.vault.on("modify", (file) => setFolderTouched(file.path)));
+    this.registerEvent(this.app.vault.on("create", (file) => setFolderTouched(file.path)));
+    this.registerEvent(this.app.vault.on("delete", (file) => setFolderTouched(file.path)));
+    this.registerEvent(
+      this.app.vault.on("rename", (file, oldPath) => {
+        setFolderTouched(oldPath);
+        setFolderTouched(file.path);
+      })
+    );
   }
 
   override onunload(): void {
@@ -403,6 +437,7 @@ export default class SchreibstubePlugin extends Plugin {
     uninstallIconFont();
     this.linkMode?.stop();
     this.properties?.stop();
+    this.propertySets?.stop();
     this.print?.stop();
     this.proofread?.stop();
     void this.explorer?.stop();
@@ -1185,6 +1220,10 @@ export default class SchreibstubePlugin extends Plugin {
     // Into the property field being typed in, or the note's text otherwise.
     this.addGatedCommand("insert-today", t().commands.insertToday, "insert-today", () => {
       this.properties?.insertToday();
+    });
+
+    this.addGatedCommand("add-property-set", t().commands.addPropertySet, "property-set", () => {
+      void this.propertySets?.pick(this.app.workspace.getActiveFile());
     });
 
     this.addCommand({

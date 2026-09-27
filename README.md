@@ -186,6 +186,35 @@ Two additions to Obsidian's Properties view in live preview. Both live in a prop
 
 These entries hook into a menu Obsidian builds for itself, since there is no API for it. If an Obsidian update changes that menu, the entries disappear and a warning goes to the console; the command and the icons are not affected.
 
+#### Property sets
+
+Obsidian's **Add property** adds one key. A property set adds all the keys a job needs in one step: Mail needs a recipient, a copy and a subject, and a key typed by hand is a key that can be misspelt.
+
+Schreibstube's own features come as sets, built from the keys each one reads, so a set cannot fall behind the feature:
+
+| Set                      | Keys                                                                                |
+| ------------------------ | ----------------------------------------------------------------------------------- |
+| Mail                     | `schreibstubeTo`, `schreibstubeCc`, `schreibstubeSubject`                           |
+| Document sync            | `schreibstubeSyncedFrom`, `schreibstubeSyncEvery`                                   |
+| Print                    | `schreibstubePrintTemplate`                                                         |
+| Glossary note            | `schreibstubeGlossary: true`, `schreibstubeLanguage`, `schreibstubeDefaultSeverity` |
+| Glossaries for this note | `schreibstubeGlossaries`                                                            |
+
+For everything else, set **Property set folder** in the settings. Every note in that folder is a set, named after its file: its frontmatter keys and values are added, its body is not. An existing template folder works as it is.
+
+**Templater templates** are supported. A value such as `created: <% tp.date.now() %>` is rendered by Templater for the note it goes into, so the note gets the date, not the code. Only the template's frontmatter is run, never its body. Without Templater, or if it fails, the key is still added, left empty, and the notice says which keys that happened to.
+
+A set is offered four ways:
+
+- **Add property set…** in a property's own menu, and **Add set** beside Obsidian's **Add property** at the foot of the Properties view
+- **Insert: property set** in the command palette
+- **When Mail finds its keys missing**: the notice that says a recipient or subject is needed offers **Add mail fields**
+- **When you add a key by hand** that belongs to a set, a notice offers the rest of that set, once per note and set
+
+A set never overwrites. A key the note already has, empty or not and in any letter case, stays exactly as it is; only missing keys are added, and the notice says how many of each. A set adds text, numbers, yes/no and lists; a nested value in a set note is left out and named.
+
+The **Add set** control is placed beside a control Obsidian draws for itself, so it depends on Obsidian's markup. If an update changes it, the control is simply missing; the menu entry, the command and the offers keep working.
+
 ### Rename file from content
 
 Assigns a filename to the active note or image based on its content, with one command that follows the file that is open:

@@ -7,6 +7,7 @@
  * source and refreshing it belong next to the note, not only in the command
  * palette, and a folder can refresh everything under it in one go.
  */
+import { showActionNotice } from "../ui/action-notice";
 import {
   getAllTags,
   Menu,
@@ -252,7 +253,8 @@ export class ExplorerController {
       hooks.confirm ??
       ((options, onConfirm) => new ConfirmModal(this.app, options, onConfirm).open());
     this.toast =
-      hooks.toast ?? ((message, label, onUndo) => showUndoNotice(message, label, onUndo));
+      hooks.toast ??
+      ((message, label, onUndo) => showActionNotice(message, label, onUndo, UNDO_NOTICE_MS));
     this.pickFolder =
       hooks.pickFolder ??
       ((folders, title, onPick) => new FolderPickerModal(this.app, folders, title, onPick).open());
@@ -1812,36 +1814,6 @@ function importReason(reason: ImportRefusal): string {
     default:
       return messages.reasonTooMany;
   }
-}
-
-/**
- * A notice with the undo in it.
- *
- * A word at the end of the line rather than a button: the notice is already
- * a box, and Obsidian's own notices put their actions the same way. It stays
- * as long as the undo is offered, and goes the moment it is taken.
- */
-function showUndoNotice(message: string, label: string, onUndo: () => void): void {
-  const fragment = document.createDocumentFragment();
-  fragment.appendChild(document.createTextNode(message));
-  const action = fragment.appendChild(document.createElement("span"));
-  action.className = "schreibstube-undo-action";
-  action.setAttribute("role", "button");
-  action.setAttribute("tabindex", "0");
-  action.textContent = label;
-
-  const notice = new Notice(fragment, UNDO_NOTICE_MS);
-  const take = (): void => {
-    notice.hide();
-    onUndo();
-  };
-  action.addEventListener("click", take);
-  action.addEventListener("keydown", (event) => {
-    if (event.key === "Enter" || event.key === " ") {
-      event.preventDefault();
-      take();
-    }
-  });
 }
 
 function countChildren(folder: TFolder): number {
