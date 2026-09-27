@@ -8,6 +8,7 @@
 import { Setting } from "obsidian";
 import { t } from "../i18n";
 import { BOOKMARK_FILE_DEFAULT } from "../services/bookmark-file";
+import { MAX_RECOMMENDED, MIN_RECOMMENDED } from "../services/plugin-settings";
 import { ICON_FONT_VERSION, allIconNames } from "../ui/icon-font";
 import type { ExplorerForeignMenu } from "../types";
 import type { SettingsContext } from "./context";
@@ -87,6 +88,21 @@ export function renderExplorer(ctx: SettingsContext): void {
         .onChange(async (value) => {
           await ctx.update({ recommendedPlacement: value === "footer" ? "footer" : "sidebar" });
         });
+    });
+
+  new Setting(ctx.containerEl)
+    .setName(t().settings.recommendedCount)
+    .setDesc(t().settings.recommendedCountDesc(MIN_RECOMMENDED, MAX_RECOMMENDED))
+    .addText((text) => {
+      text.setValue(String(ctx.plugin.settings.recommendedCount));
+      text.inputEl.type = "number";
+      text.inputEl.min = String(MIN_RECOMMENDED);
+      text.inputEl.max = String(MAX_RECOMMENDED);
+      text.inputEl.style.width = "60px";
+      text.inputEl.addEventListener("blur", async () => {
+        await ctx.update({ recommendedCount: Number(text.inputEl.value) });
+        text.setValue(String(ctx.plugin.settings.recommendedCount));
+      });
     });
 
   new Setting(ctx.containerEl)

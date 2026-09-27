@@ -79,6 +79,11 @@ const ALLOWED_PROVIDERS = new Set<LlmProvider>(LLM_PROVIDER_IDS);
 
 /** Bounds on the semantic index's note cap: below it the index is not worth a
  *  model; above it the index outgrows what a phone holds in memory. */
+/** The Recommended panel's length: one at least, and no more than a sidebar
+ *  can hold before the last card is a scroll away from the note it belongs to. */
+export const MIN_RECOMMENDED = 1;
+export const MAX_RECOMMENDED = 30;
+
 export const MIN_SEMANTIC_NOTES = 100;
 export const MAX_SEMANTIC_NOTES = 20000;
 
@@ -100,6 +105,7 @@ export const DEFAULT_SETTINGS: SchreibstubeSettings = {
   imageDescriptionKeywordsAsTags: false,
   explorerDescriptionNotes: "hide",
   recommendedPlacement: "sidebar",
+  recommendedCount: 7,
   semanticSearchEnabled: false,
   semanticMaxNotes: 5000,
   summarizePrompt: DEFAULT_SUMMARIZE_PROMPT,
@@ -235,6 +241,12 @@ export function normalizeSettings(loaded: LoadedSettings): SchreibstubeSettings 
     imageDescriptionKeywordsAsTags: loaded?.imageDescriptionKeywordsAsTags === true,
     explorerDescriptionNotes: loaded?.explorerDescriptionNotes === "show" ? "show" : "hide",
     recommendedPlacement: loaded?.recommendedPlacement === "footer" ? "footer" : "sidebar",
+    recommendedCount: clampIntOrDefault(
+      loaded?.recommendedCount,
+      MIN_RECOMMENDED,
+      MAX_RECOMMENDED,
+      DEFAULT_SETTINGS.recommendedCount
+    ),
     semanticSearchEnabled: loaded?.semanticSearchEnabled === true,
     semanticMaxNotes: clampIntOrDefault(
       loaded?.semanticMaxNotes,

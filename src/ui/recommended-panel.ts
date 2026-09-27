@@ -1,6 +1,6 @@
 /**
- * What belongs with the open note: notes, pictures and conversations, each
- * card saying why it is there.
+ * What belongs with the open note: notes, pictures and conversations in one
+ * list, most relevant first, each card saying why it is there.
  *
  * Drawn in two steps. The link graph answers at once, from what Obsidian has
  * already resolved, so the panel is never empty while it waits. Search by
@@ -41,10 +41,15 @@ export interface ConversationCard {
   title: string;
 }
 
+/** One entry of the list, of whichever kind: ranked together, not by kind. */
+export type RecommendedItem =
+  | { kind: "note"; card: RelatedCard }
+  | { kind: "picture"; picture: PictureCard }
+  | { kind: "conversation"; conversation: ConversationCard };
+
 export interface Recommendation {
-  notes: RelatedCard[];
-  pictures: PictureCard[];
-  conversations: ConversationCard[];
+  /** Most relevant first. */
+  items: RecommendedItem[];
 }
 
 export interface RecommendedHost {
@@ -55,14 +60,11 @@ export interface RecommendedHost {
   /** The title to put at the top: what the list is related *to*. */
   titleOf(path: string): string | null;
   open(path: string, where: PaneTarget): Promise<void>;
+  /** How many entries the list shows: the person's setting. */
+  count(): number;
   openConversation(id: string): void;
   showMenu(path: string, event: MouseEvent): void;
 }
-
-/** Pictures drawn at most: a row of thumbnails, not a gallery. */
-const MAX_PICTURES = 8;
-/** Conversations drawn at most. */
-const MAX_CONVERSATIONS = 5;
 
 /**
  * How long an answer for the same note stands before a vault change asks again.
@@ -124,11 +126,12 @@ export class RecommendedPanel {
       return;
     }
 
-    const value =
+    const items = (
       this.answer?.path === path
-        ? this.answer.value
-        : { notes: this.host.cards(path), pictures: [], conversations: [] };
-    const total = value.notes.length + value.pictures.length + value.conversations.length;
+        ? this.answer.value.items
+        : this.host.cards(path).map((card): RecommendedItem => ({ kind: "note", card }))
+    ).slice(0, this.host.count());
+    const total = items.length;
 
     if (this.opts.heading) {
       const header = root.createDiv({ cls: "schreibstube-related-header" });
@@ -143,29 +146,12 @@ export class RecommendedPanel {
       return;
     }
 
-    if (value.pictures.length > 0) {
-      this.sectionTitle(labels.pictures);
-      const strip = root.createDiv({ cls: "schreibstube-related-pictures" });
-      for (const picture of value.pictures.slice(0, MAX_PICTURES))
-        this.renderPicture(strip, picture);
+    const list = root.createDiv({ cls: "schreibstube-related-list" });
+    for (const item of items) {
+      if (item.kind === "note") this.renderCard(list, item.card);
+      else if (item.kind === "picture") this.renderPicture(list, item.picture);
+      else this.renderConversation(list, item.conversation);
     }
-    if (value.notes.length > 0) {
-      if (value.pictures.length > 0 || value.conversations.length > 0)
-        this.sectionTitle(labels.notes);
-      const list = root.createDiv({ cls: "schreibstube-related-list" });
-      for (const card of value.notes) this.renderCard(list, card);
-    }
-    if (value.conversations.length > 0) {
-      this.sectionTitle(labels.conversations);
-      const list = root.createDiv({ cls: "schreibstube-related-list" });
-      for (const conversation of value.conversations.slice(0, MAX_CONVERSATIONS)) {
-        this.renderConversation(list, conversation);
-      }
-    }
-  }
-
-  private sectionTitle(text: string): void {
-    this.root.createDiv({ cls: "schreibstube-related-section", text });
   }
 
   /** Press, Enter or Space opens; a modifier opens beside, as a link does. */
@@ -202,16 +188,23 @@ export class RecommendedPanel {
     });
   }
 
-  private renderPicture(strip: HTMLElement, picture: PictureCard): void {
-    const el = strip.createDiv({
-      cls: "schreibstube-related-picture",
-      attr: {
-        role: "link",
-        tabindex: "0",
-        title: `${picture.title} · ${t().explorer.related.reasons.meaning}`
-      }
+  /** A picture as a card like the rest, its thumbnail beside its name. */
+  private renderPicture(list: HTMLElement, picture: PictureCard): void {
+    const el = list.createDiv({
+      cls: "schreibstube-related-card is-picture",
+      attr: { role: "link", tabindex: "0", title: picture.path }
     });
-    el.createEl("img", { attr: { src: picture.src, alt: picture.title, loading: "lazy" } });
+    el.createEl("img", {
+      cls: "schreibstube-related-card-thumb",
+      attr: { src: picture.src, alt: "", loading: "lazy" }
+    });
+    const text = el.createDiv({ cls: "schreibstube-related-card-text" });
+    text.createDiv({ cls: "schreibstube-related-card-title", text: picture.title });
+    const why = text.createDiv({ cls: "schreibstube-related-card-why" });
+    why.createSpan({
+      cls: "schreibstube-related-chip",
+      text: t().explorer.related.reasons.meaning
+    });
     this.pressable(el, (event) => {
       void this.host.open(picture.path, openTargetOf(Keymap.isModEvent(event)));
     });

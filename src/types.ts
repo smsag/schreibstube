@@ -63,6 +63,8 @@ export interface SchreibstubeSettings {
   explorerDescriptionNotes: "hide" | "show";
   /** Where the Recommended panel follows the open note: the right sidebar, or under the note. */
   recommendedPlacement: "sidebar" | "footer";
+  /** How many recommendations the panel shows, of every kind together. */
+  recommendedCount: number;
   /** Search by meaning: the on-device semantic index of the vault's notes. */
   semanticSearchEnabled: boolean;
   /** How many notes the semantic index holds at most, newest first. */

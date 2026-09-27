@@ -1972,8 +1972,7 @@
   user-select: none;
 }
 
-/* The rows of the Recommended panel: pictures, notes and documents, and
-   conversations, each under a small heading once there is more than one. */
+/* The footer's heading over the Recommended list. */
 .schreibstube-related-section {
   margin: 12px 2px 6px;
   color: var(--text-muted);
@@ -1981,30 +1980,28 @@
   font-weight: var(--font-semibold);
 }
 
-.schreibstube-related-pictures {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
-  gap: 6px;
+/* A picture is a card like the rest, its thumbnail beside its name: ranked
+   among the notes, it sits where its relevance puts it rather than in a strip
+   of its own. */
+.schreibstube-related-card.is-picture {
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
 }
 
-.schreibstube-related-picture {
-  aspect-ratio: 1;
-  overflow: hidden;
-  border: 1px solid var(--background-modifier-border);
-  border-radius: var(--schreibstube-border-radius);
-  cursor: pointer;
-}
-
-.schreibstube-related-picture img {
-  display: block;
-  width: 100%;
-  height: 100%;
+.schreibstube-related-card-thumb {
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
   object-fit: cover;
+  border-radius: var(--schreibstube-border-radius);
 }
 
-.schreibstube-related-picture:focus-visible {
-  outline: 2px solid var(--background-modifier-border-focus);
-  outline-offset: 1px;
+.schreibstube-related-card-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
 }
 
 .schreibstube-related-card.is-conversation .schreibstube-related-card-title {

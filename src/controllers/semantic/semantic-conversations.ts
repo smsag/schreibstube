@@ -80,8 +80,10 @@ export class SemanticConversations {
     return this.index?.isSyncing() ?? false;
   }
 
-  titleOf(id: string): string {
-    return this.titles.get(id) ?? id;
+  /** The title the source gave, or null while it has not been listed or
+   *  when the source gave none. */
+  titleOf(id: string): string | null {
+    return this.titles.get(id)?.trim() || null;
   }
 
   /** Forget the index: the model changed, or search by meaning was switched off. */
@@ -159,10 +161,32 @@ export class SemanticConversations {
     return embeddingModelConfig(this.host.modelId()).relatedFloors[DEFAULT_SIMILARITY_PRESET];
   }
 
+  /**
+   * The titles, listed from the source without touching the index.
+   *
+   * The Recommended panel reads the stored index and never syncs it — that
+   * would load the model — and titles used to arrive only with a sync, so its
+   * conversation cards read as their ids. Listing is the source's own cheap
+   * answer; it leaves the index to the next search.
+   */
+  private async loadTitles(): Promise<void> {
+    const source = this.source;
+    if (!source || (this.titles.size > 0 && !this.dirty)) return;
+    const listed = await withTimeout(
+      Promise.resolve(source.list()),
+      LIST_DEADLINE_MS,
+      (s) => `the conversation source did not answer within ${s} s`
+    );
+    this.titles = new Map(normalizeConversations(listed).map((item) => [item.id, item.title]));
+  }
+
   /** Conversations like a note, from its stored vectors. */
   async relatedToVectors(chunks: readonly Int8Array[], limit: number): Promise<ScoredId[]> {
     const index = await this.ready(false);
     if (!index) return [];
+    await this.loadTitles().catch((e: unknown) => {
+      this.host.logger.warn("semantic engine: conversation titles could not be listed", e);
+    });
     // Chunk against chunk, the comparison the related floors were measured on.
     return index.relatedToVectors(chunks, { minScore: this.relatedFloor(), limit });
   }
@@ -195,7 +219,10 @@ export class SemanticConversations {
     const known = [...this.titles].map(([id, title]) => ({ id, title }));
     return mergeConversationResults(
       matchConversationTitles(text, known),
-      byMeaning.map((hit) => ({ id: hit.id, title: this.titleOf(hit.id) })),
+      byMeaning.flatMap((hit) => {
+        const title = this.titleOf(hit.id);
+        return title === null ? [] : [{ id: hit.id, title }];
+      }),
       limit
     );
   }
