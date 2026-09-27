@@ -24,7 +24,7 @@ export const RUNTIME_VERSION = "0.7.0";
  * they spend it, and "about 28 MB" is what that sentence needs. The exact size
  * is whatever the pinned bytes weigh.
  */
-export const RUNTIME_MEGABYTES = 34;
+export const RUNTIME_MEGABYTES = 35;
 
 /** Of that, the compiler alone, for the sentence said while it arrives. */
 export const COMPILER_MEGABYTES = 28;

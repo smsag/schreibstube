@@ -397,7 +397,7 @@ The preview is the document itself, set again after each change and drawn by the
 
 #### Switching it on
 
-Printing is off until you turn it on, under **Einstellungen → Drucken**. That switch is what fetches the typesetter and its fonts, about 34 MB, so nothing is downloaded for a feature you have not asked for. Running the print command while it is off explains this and offers to turn it on.
+Printing is off until you turn it on, under **Einstellungen → Drucken**. That switch is what fetches the typesetter and its fonts, about 35 MB, so nothing is downloaded for a feature you have not asked for. Running the print command while it is off explains this and offers to turn it on.
 
 Once on, the settings show whether the typesetter is on this device, with a button to fetch it now or to remove it again. Fetching it in advance means your first print is not also a download. It comes from this plugin's own GitHub release and is checked against a hash committed in the source, on download and on every later start; a mismatch is refused and reported rather than repaired quietly. After that, printing never touches the network.
 
@@ -811,7 +811,7 @@ The token is deliberately separate from the mail token, so a leaked publish toke
 
 | Setting          | What it does                                                                                |
 | ---------------- | ------------------------------------------------------------------------------------------- |
-| Enable printing  | Off until you switch it on. Switching it on is what fetches the ~34 MB typesetter.          |
+| Enable printing  | Off until you switch it on. Switching it on is what fetches the ~35 MB typesetter.          |
 | Default template | What a note that names none is printed with: Standard (built in), a vault template, or ask. |
 | Templates folder | Where a new template is suggested. Templates are found anywhere. Default `Vorlagen/Druck`.  |
 | Output folder    | Where a PDF is written. Empty means beside the note it came from.                           |

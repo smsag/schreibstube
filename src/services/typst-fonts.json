@@ -88,6 +88,21 @@
           "sha256": "4039d5ce0ed225bf9c8b2c8c6436290ae2f356b7e90d70fa666227238324aa3b"
         }
       ]
+    },
+    {
+      "family": "Fira Sans Condensed",
+      "version": "4.203",
+      "source": "https://raw.githubusercontent.com/google/fonts/23e54b51ddffbc7713c583748e3bd86f62b1fa4a/ofl/firasanscondensed/",
+      "files": [
+        {
+          "file": "FiraSansCondensed-SemiBold.ttf",
+          "sha256": "5a9586bc549d557c415a6a3dc88658b1453d1df661edf811954ebd55776c01cd"
+        },
+        {
+          "file": "FiraSansCondensed-Bold.ttf",
+          "sha256": "b9371052e58ec5b709153dd0fffc60b5205b4d3435cf957c2522705b31b0dbcc"
+        }
+      ]
     }
   ]
 }

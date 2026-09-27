@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Changed
+
+- **The Lebenslauf template sets a CV the way iA Writer does.** Its spacing is measured against the same CV exported from iA Writer and matches it: lines in a list 12.8 pt apart and items 13.6 pt, running text 14.4 pt, fixed steps around every heading. A role's employer line no longer runs into its title, and a page no longer ends on a title whose bullets start the next one. The photo sits beside the name at 77 pt with rounded corners, the contact entries are spaced around their dots, and the PDF carries the name as title and author.
+- **Adding a template into a folder that already has it says how to update it.** The copy is still left alone, and the notice now says to replace its `template.typ`, or to rename the folder and add the template again.
+- **Fira Sans Condensed comes with the typesetter.** The Lebenslauf headings are set in its semibold and bold, so they no longer fall back to the normal width. The first print on a device downloads about 35 MB rather than 34.
+
 ## 1.55.0 - 2026-09-27
 
 Printing looks like the Klartext theme. The built-in Standard template sets the

@@ -33,8 +33,7 @@ template's `fonts/` folder and the template will set in them.
 Both examples ask for **Fira Sans**, which the plugin fetches with the
 typesetter (regular, italic, semibold and bold), so they print in it without a
 `fonts/` folder. The CV also uses its condensed cut for headings, so a long
-German job title stays on one line; that cut is not fetched, so put it in the
-CV's `fonts/` folder, or the headings are set at Fira's normal width. Fira registers that cut as a _width_ on the same
+German job title stays on one line; its semibold and bold are fetched too. Fira registers that cut as a _width_ on the same
 family rather than as a family of its own, which is why the layout asks for it
 with `stretch: 75%` rather than by name — a font that names its condensed cut
 separately would be asked for by name instead.
