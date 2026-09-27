@@ -34,7 +34,8 @@ export const MAX_VOCABULARY = 400_000;
  * Words whose answers are kept between draws. The pane draws again on every
  * vault event while a filter is set — every autosave — and each draw asked the
  * same few words again, a walk over the whole vocabulary and every note each
- * time. The answers are kept until the index changes.
+ * time. The answers are kept, and patched per note as notes change; they hold
+ * paths rather than word numbers, so a compaction leaves them right.
  */
 const CACHED_WORDS = 32;
 
@@ -46,12 +47,16 @@ export class BodyIndex implements BodyMatcher {
    *  live size after each one, so a vault whose own words are near the bound
    *  does not rebuild on every note it reads. */
   private compactAt = MAX_VOCABULARY;
-  /** Answers to recent words; emptied by anything that changes the index. */
-  private readonly answers = new Map<string, ReadonlyMap<string, number>>();
+  /**
+   * Answers to recent words. A change to one note patches that note's entry
+   * in each of them rather than emptying them all: every autosave re-reads the
+   * note being written, and emptying here sent the next draw back over the
+   * whole vocabulary — the very walk the answers are kept to spare.
+   */
+  private readonly answers = new Map<string, Map<string, number>>();
 
   /** Read one note's text into the index, replacing what it held before. */
   set(path: string, markdown: unknown): void {
-    this.answers.clear();
     const tokens = tokenize(plainNoteText(markdown, MAX_NOTE_CHARS)).slice(0, MAX_BODY_TOKENS);
     if (this.words.length + tokens.length > this.compactAt) {
       this.notes.delete(path);
@@ -69,6 +74,17 @@ export class BodyIndex implements BodyMatcher {
       ids[i] = id;
     });
     this.notes.set(path, ids);
+    for (const [word, answer] of this.answers) {
+      let best = 0;
+      for (const id of ids) best = Math.max(best, forwardMatchStrength(this.words[id] ?? "", word));
+      if (best > 0) answer.set(path, best);
+      else answer.delete(path);
+    }
+  }
+
+  /** Every note held, for pruning the ones the vault no longer has. */
+  paths(): string[] {
+    return [...this.notes.keys()];
   }
 
   has(path: string): boolean {
@@ -76,7 +92,8 @@ export class BodyIndex implements BodyMatcher {
   }
 
   delete(path: string): void {
-    if (this.notes.delete(path)) this.answers.clear();
+    if (!this.notes.delete(path)) return;
+    for (const answer of this.answers.values()) answer.delete(path);
   }
 
   /** Everything under a folder: a folder deleted or moved arrives as one event. */
@@ -170,6 +187,8 @@ export interface BodySource {
   /** Every note whose text the filter should know. */
   paths(): readonly string[];
   read(path: string): Promise<string>;
+  /** Whether the note is there at all; absent means "assume it is". */
+  exists?(path: string): boolean;
 }
 
 /** Notes read between two yields, so filling the index never holds the pane. */
@@ -188,6 +207,10 @@ const READ_YIELD_EVERY = 16;
  */
 export class BodyLoader {
   private running: Promise<boolean> | null = null;
+  /** Asked for while a pass ran: it began from an older list of notes. */
+  private again = false;
+  /** Stopped for good: the pane closed. */
+  private cancelled = false;
   /** The stamp of the read in flight for each path; absent when none is. */
   private readonly stamps = new Map<string, number>();
   private stamp = 0;
@@ -199,12 +222,37 @@ export class BodyLoader {
       new Promise((resolve) => setTimeout(resolve, 0))
   ) {}
 
-  /** Read every note the index lacks. Resolves true when it read any. */
+  /**
+   * Read every note the index lacks. Resolves true when it read any.
+   *
+   * Asked while a pass runs, it asks for another once that one ends: a pass
+   * reads the list of notes when it starts, so a note renamed or created
+   * during it — the rename handler asks precisely to read the new path — was
+   * otherwise left out until the next keystroke.
+   */
   ensure(): Promise<boolean> {
-    this.running ??= this.fill().finally(() => {
+    if (this.running) {
+      this.again = true;
+      return this.running;
+    }
+    const run = async (): Promise<boolean> => {
+      let read = false;
+      do {
+        this.again = false;
+        if (await this.fill()) read = true;
+      } while (this.again && !this.cancelled);
+      return read;
+    };
+    this.running = run().finally(() => {
       this.running = null;
     });
     return this.running;
+  }
+
+  /** Stop, and read nothing more: the pane that owned the index is closed. */
+  cancel(): void {
+    this.cancelled = true;
+    this.stamps.clear();
   }
 
   /** Re-read one note, if the index held it or a pass is under way. */
@@ -228,8 +276,15 @@ export class BodyLoader {
   }
 
   private async fill(): Promise<boolean> {
+    if (this.cancelled) return false;
+    const paths = this.source.paths();
+    // Notes held under a path the vault no longer has — a rename or delete the
+    // pane heard only as a folder, a read that landed after its note went.
+    const live = new Set(paths);
+    for (const held of this.index.paths()) if (!live.has(held)) this.index.delete(held);
     let read = 0;
-    for (const path of this.source.paths()) {
+    for (const path of paths) {
+      if (this.cancelled) break;
       if (this.index.has(path)) continue;
       await this.read(path);
       if (++read % READ_YIELD_EVERY === 0) await this.pause();
@@ -244,11 +299,16 @@ export class BodyLoader {
     try {
       text = await this.source.read(path);
     } catch {
-      // Unreadable now (deleted mid-pass, evicted by a sync): an empty entry,
-      // so the pass does not ask again on every keystroke.
+      // Gone since the pass listed it: nothing to hold. Still there but
+      // unreadable (evicted by a sync): an empty entry, so the pass does not
+      // ask again on every keystroke.
+      if (this.source.exists?.(path) === false) {
+        this.stamps.delete(path);
+        return;
+      }
       text = "";
     }
-    if (this.stamps.get(path) !== mine) return;
+    if (this.cancelled || this.stamps.get(path) !== mine) return;
     this.stamps.delete(path);
     this.index.set(path, text);
   }

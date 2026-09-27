@@ -12,7 +12,11 @@
 // the iframe one, because no unit test can reach it — it needs a real Obsidian
 // window. A bug fixed here is fixed in both.
 
-import type { EmbeddingProvider } from "../../../services/semantic/embedding-provider";
+import {
+  BackendGoneError,
+  isBackendGone,
+  type EmbeddingProvider
+} from "../../../services/semantic/embedding-provider";
 import { visibleClock } from "../../../services/semantic/visible-clock";
 import {
   embeddingModelConfig,
@@ -107,7 +111,7 @@ export abstract class PostMessageEmbeddingProvider implements EmbeddingProvider 
       // Unloaded while the backend was starting (#363). Nothing else holds this
       // channel, so it is closed here or it is a leak with a model inside it.
       channel.close();
-      throw new Error(`${this.label} was unloaded while it was starting`);
+      throw new BackendGoneError(`${this.label} was unloaded while it was starting`);
     }
     this.channel = channel;
 
@@ -120,7 +124,8 @@ export abstract class PostMessageEmbeddingProvider implements EmbeddingProvider 
         // Unloaded while loading: stop. Without this the poll kept retrying
         // against a torn-down backend every 1.5 s for the whole five-minute
         // deadline, and the promise nobody held rejected at the end of it.
-        if (gen !== this.generation) return reject(new Error(`${this.label} was unloaded`));
+        if (gen !== this.generation)
+          return reject(new BackendGoneError(`${this.label} was unloaded`));
         if (this.loadError) return reject(this.loadError);
         if (visibleClock.elapsed() - started > READY_TIMEOUT_MS) {
           return reject(new Error(`${this.label} load timed out`));
@@ -146,7 +151,7 @@ export abstract class PostMessageEmbeddingProvider implements EmbeddingProvider 
 
   private request(payload: Record<string, unknown>, timeoutMs: number): Promise<number[][]> {
     const channel = this.channel;
-    if (!channel) return Promise.reject(new Error(`${this.label} is not available`));
+    if (!channel) return Promise.reject(new BackendGoneError(`${this.label} is not available`));
     if (this.loadError) return Promise.reject(this.loadError);
     const requestId = this.reqId++;
     return new Promise<number[][]>((resolve, reject) => {
@@ -195,8 +200,11 @@ export abstract class PostMessageEmbeddingProvider implements EmbeddingProvider 
   /** The backend failed as a whole — a Worker `error` event, or the model saying
    *  it could not load. Everything waiting on it fails with the same reason. */
   protected failLoad(err: Error): void {
-    this.loadError = err;
-    this.failPending(err);
+    // The backend as a whole: whatever it was doing, it is not the text's fault.
+    // The message is kept, which is what out-of-memory is recognised by.
+    const gone = isBackendGone(err) ? err : new BackendGoneError(err.message);
+    this.loadError = gone;
+    this.failPending(gone);
   }
 
   private failPending(err: Error): void {
@@ -207,11 +215,17 @@ export abstract class PostMessageEmbeddingProvider implements EmbeddingProvider 
     }
   }
 
+  /** Loaded, and nothing has failed it since. A Worker that errors after it was
+   *  ready stays failed until it is unloaded; the owner asks this to replace it. */
+  isAlive(): boolean {
+    return this.channel !== null && this.loadError === null;
+  }
+
   unload(): void {
     // Ahead of everything else, so a load in flight sees a generation it does
     // not belong to and closes its own channel (#363).
     this.generation++;
-    this.failPending(new Error("Embedding provider unloaded"));
+    this.failPending(new BackendGoneError("Embedding provider unloaded"));
     // `readyPromise = null` below invites a later `ready()`; a load error kept
     // from the backend that has just been torn down would reject it instantly.
     this.loadError = null;

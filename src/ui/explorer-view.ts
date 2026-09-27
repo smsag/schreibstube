@@ -37,7 +37,7 @@ import type { ExplorerController } from "../controllers/explorer-controller";
 import type { PaneSectionsController } from "../controllers/pane-sections";
 import { syncBadgeIcon, type SyncBadge } from "../services/explorer-badge";
 import type { PublishMark } from "../services/publish-mark";
-import { matchesText, type SearchHit } from "../services/file-search";
+import { matchesText, parseSearchScope, type SearchHit } from "../services/file-search";
 import { FileSearchIndex } from "../services/search-index";
 import { BodyIndex, BodyLoader } from "../services/body-index";
 import { fuseRankings, meaningQuery, meaningRows } from "../services/semantic/search-fusion";
@@ -239,7 +239,8 @@ export class ExplorerPaneView extends ItemView {
       const file = this.app.vault.getAbstractFileByPath(path);
       if (!(file instanceof TFile)) throw new Error(`not a file: ${path}`);
       return this.app.vault.cachedRead(file);
-    }
+    },
+    exists: (path) => this.app.vault.getAbstractFileByPath(path) instanceof TFile
   });
   private readonly index = new FileSearchIndex(
     {
@@ -354,7 +355,11 @@ export class ExplorerPaneView extends ItemView {
     applyIcon(loupe, "search");
 
     search.addEventListener("input", () => {
-      const value = search.value.trim().toLowerCase();
+      // A scope with nothing after it — `tag:` on the way to `tag:foo` — is not
+      // a filter yet: it showed "nothing matches" beside every bookmark, and
+      // `text:` alone started reading the whole vault's text.
+      const typed = search.value.trim().toLowerCase();
+      const value = parseSearchScope(typed).query.length === 0 ? "" : typed;
       this.cancelFilter();
       this.rawQuery = search.value;
       this.askByMeaning(search.value, value);
@@ -498,6 +503,8 @@ export class ExplorerPaneView extends ItemView {
 
   protected override async onClose(): Promise<void> {
     this.cancelFilter();
+    // The text read is this pane's; closed, it would read on into nothing.
+    this.bodyLoader.cancel();
     if (this.groundFrame !== null) this.containerEl.win.cancelAnimationFrame(this.groundFrame);
     this.groundFrame = null;
     this.contentEl.empty();
@@ -1297,8 +1304,9 @@ export class ExplorerPaneView extends ItemView {
     }
 
     // A list that stopped has to say so, or the file you are looking for is
-    // simply missing and nothing explains why.
-    const held = this.matchCount - drawn;
+    // simply missing and nothing explains why. Held back means past the cap —
+    // not a hit skipped above for being deleted, which is nowhere to be shown.
+    const held = this.matchCount - (this.ranked?.length ?? 0);
     if (held > 0) {
       results.createEl("p", {
         cls: "schreibstube-explorer-empty",
@@ -1391,14 +1399,24 @@ export class ExplorerPaneView extends ItemView {
     this.meaningOnly.clear();
 
     const controller = this.host?.explorer;
-    const found = this.meaning?.query === this.query ? this.meaning.hits : [];
+    // Asked again with what the words find now: meaning asked for one word
+    // while the notes' text was still being read is noise once the text has
+    // been read and the words found the notes themselves.
+    const found =
+      this.meaning?.query === this.query && meaningQuery(this.rawQuery, hits.length) !== null
+        ? this.meaning.hits
+        : [];
     if (found.length === 0 || !controller) {
       return { all: new Set(hits.map((hit) => hit.path)), ranked: shown };
     }
     // A folded-in description note is shown as its picture, here as everywhere.
-    const rows = meaningRows(found, (path) =>
-      controller.hidesDescription(path) ? controller.imageDescribedBy(path) : path
-    );
+    // A note the index still holds but the vault no longer has is not a row.
+    const rows = meaningRows(found, (path) => {
+      const shown = controller.hidesDescription(path) ? controller.imageDescribedBy(path) : path;
+      return shown !== null && this.app.vault.getAbstractFileByPath(shown) instanceof TFile
+        ? shown
+        : null;
+    });
     const fused = fuseRankings(hits, rows);
     for (const hit of fused)
       if (hit.by.length === 1 && hit.by[0] === "meaning") this.meaningOnly.add(hit.path);

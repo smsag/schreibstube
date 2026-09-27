@@ -106,6 +106,16 @@ export class IndexJournal {
     return this.upserts.size + this.removed.size;
   }
 
+  /** The edits held, to lay over another base. */
+  content(): { upserts: IndexedConversation[]; removed: string[] } {
+    return { upserts: [...this.upserts.values()], removed: [...this.removed] };
+  }
+
+  /** Whether this journal holds an entry for `id`. */
+  has(id: string): boolean {
+    return this.upserts.has(id) || this.removed.has(id);
+  }
+
   /** Whether there is a base this journal can be written against. */
   get extendsBase(): boolean {
     return this.base !== undefined;

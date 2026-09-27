@@ -293,12 +293,13 @@ describe("EmbeddingResidency — the model on a phone (Pythia ADR-202)", () => {
     }
   });
 
-  it("the desktop never releases, but still feeds the clock and the guard", async () => {
+  it("the desktop never releases or pauses deadlines, but still feeds the guard", async () => {
     const { inner, provider, residency, background, advance, clock } = setup({ mobile: false });
     await provider.ready();
     residency.onVisibility(true);
     advance(5_000);
-    expect(clock.elapsed()).toBe(0);
+    // A desktop's Worker runs on behind a hidden window, so its deadlines do too.
+    expect(clock.elapsed()).toBe(5_000);
     residency.onVisibility(false);
     advance(IDLE_RELEASE_MS);
     residency.tick(false);

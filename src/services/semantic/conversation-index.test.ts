@@ -130,3 +130,37 @@ describe("ConversationIndex — conversations like a note", () => {
     expect(provider.embedded).toEqual([]);
   });
 });
+
+describe("ConversationIndex — long and failing conversations", () => {
+  it("sends a long conversation a batch at a time", async () => {
+    const sizes: number[] = [];
+    class Counting extends FakeProvider {
+      override async embed(texts: string[]): Promise<Float32Array[]> {
+        sizes.push(texts.length);
+        return super.embed(texts);
+      }
+    }
+    const long = conv("long", Array.from({ length: 400 }, (_, i) => `küche ${i}`).join(" "));
+    const index = new ConversationIndex(new Counting(), new MemStore(), POLICY);
+    await index.sync([long]);
+    expect(Math.max(...sizes)).toBeLessThanOrEqual(16);
+  });
+
+  it("keeps the others when one conversation fails, and tries it again later", async () => {
+    class FailOnce extends FakeProvider {
+      failing = true;
+      override async embed(texts: string[]): Promise<Float32Array[]> {
+        if (this.failing && texts.some((t) => t.includes("garten"))) throw new Error("bad");
+        return super.embed(texts);
+      }
+    }
+    const provider = new FailOnce();
+    const store = new MemStore();
+    const index = new ConversationIndex(provider, store, POLICY);
+    await index.sync([conv("a", "die küche"), conv("b", "der garten")]);
+    expect(index.size()).toBe(1);
+    provider.failing = false;
+    await index.sync([conv("a", "die küche"), conv("b", "der garten")]);
+    expect(index.size()).toBe(2);
+  });
+});

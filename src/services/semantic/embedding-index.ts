@@ -229,6 +229,25 @@ export function deserializeIndex(buf: ArrayBuffer): {
   const meta = head?.rows as { id: string; h: string; c: number }[];
   if (!Array.isArray(meta) || meta.length < count)
     throw new Error("deserializeIndex: meta/count mismatch");
+  // Every row checked before a vector is read: a count that is negative or
+  // fractional passed the length check below and then read short vectors,
+  // which made every later query throw; a duplicate id was updated in one
+  // place and removed in all.
+  const ids = new Set<string>();
+  for (let i = 0; i < count; i++) {
+    const m = meta[i] as unknown as { id?: unknown; h?: unknown; c?: unknown } | undefined;
+    if (
+      !m ||
+      typeof m.id !== "string" ||
+      typeof m.h !== "string" ||
+      typeof m.c !== "number" ||
+      !Number.isInteger(m.c) ||
+      m.c < 0 ||
+      ids.has(m.id)
+    )
+      throw new Error(`deserializeIndex: invalid row ${i}`);
+    ids.add(m.id);
+  }
   // Validated at the boundary, not trusted: a hand-edited or truncated header
   // must read as "not complete, no scope", which makes the next build redo the
   // work rather than serve a file nobody can vouch for (principle 1).
@@ -243,7 +262,7 @@ export function deserializeIndex(buf: ArrayBuffer): {
   // into short vectors, and every later cosine() threw "length mismatch" — the
   // index was unusable until a manual rebuild. Refuse it here; the caller
   // treats a throw as "no index" and rebuilds.
-  const totalChunks = meta.slice(0, count).reduce((n, m) => n + (m.c | 0), 0);
+  const totalChunks = meta.slice(0, count).reduce((n, m) => n + m.c, 0);
   if (blobStart + totalChunks * dim > buf.byteLength)
     throw new Error("deserializeIndex: truncated vectors");
   const items: IndexedConversation[] = [];

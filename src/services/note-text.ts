@@ -30,7 +30,12 @@ export const MAX_NOTE_CHARS = 200_000;
 const MAX_WORD_CHARS = 80;
 
 const FRONTMATTER = /^---[^\S\n]*\n[\s\S]*?\n(?:---|\.\.\.)[^\S\n]*(?:\n|$)/;
-const FENCE = /^\s{0,3}(`{3,}|~{3,})(.*)$/;
+// Any indentation: a fence inside a list item is indented with it, and one
+// closed four spaces in used to leave the rest of the note inside the block.
+const FENCE = /^\s*(`{3,}|~{3,})(.*)$/;
+// A code span, so what is inside it is not read as markup: `printf("%%d")`
+// opened an Obsidian comment that ran to the end of the note.
+const CODE_SPAN = /`[^`\n]*`/g;
 const OBSIDIAN_COMMENT = /%%[\s\S]*?(?:%%|$)/g;
 const HTML_COMMENT = /<!--[\s\S]*?(?:-->|$)/g;
 const EMBED = /!\[\[[^\]\n]*\]\]/g;
@@ -79,6 +84,7 @@ export function plainNoteText(markdown: unknown, maxChars = MAX_NOTE_CHARS): str
   text = text.replace(FRONTMATTER, "");
   text = withoutFences(text);
   return text
+    .replace(CODE_SPAN, (span) => span.replace(/%%/g, "% %").replace(/<!--/g, "< !--"))
     .replace(OBSIDIAN_COMMENT, " ")
     .replace(HTML_COMMENT, " ")
     .replace(EMBED, " ")

@@ -24,7 +24,7 @@ import { decideBuild, shouldCatchUp } from "../../services/semantic/build-decisi
 import { BuildGuard, vaultBuildGuard } from "../../services/semantic/build-guard";
 import { isOutOfMemoryError } from "../../services/semantic/memory-error";
 import { selectIndexPaths, scopeSignature } from "../../services/semantic/index-scope";
-import { isIndexingOptedOut, type RetrievedNote } from "../../services/semantic/vault-retrieval";
+import { optedOut, type RetrievedNote } from "../../services/semantic/vault-retrieval";
 import { catchUpIndex, CATCH_UP_DELAY_MS } from "../../services/semantic/vault-catch-up";
 import { applyMeaningFloor, meaningFloor } from "../../services/semantic/search-fusion";
 import { peekIndexMeta, type IndexKeeper } from "../../services/semantic/embedding-index";
@@ -47,13 +47,17 @@ import { registerVaultWatcher } from "./vault-watcher";
  */
 export const MOBILE_BUILD_BUDGET = 50;
 
+/**
+ * The most notes one batch of edits embeds on a phone. A person writing edits
+ * a note or two at a time; a sync landing a hundred changed notes at launch is
+ * the desktop's to embed, not the phone's UI thread's.
+ */
+export const MOBILE_EDIT_BUDGET = 10;
+
 /** How often a phone holding an unfinished index looks for the desktop's newer
  *  copy while it is being searched. Reading the file is cheap; reading it on
  *  every keystroke is not. */
 const PHONE_LOOK_EVERY_MS = 60_000;
-
-/** Frontmatter a note carries to stay out of the index. */
-const OPT_OUT_KEY = "schreibstubeIndex";
 
 type Phase =
   | { kind: "idle" }
@@ -84,6 +88,8 @@ export class SemanticEngine {
   private imported = false;
   private backend: string | null = null;
   private deferred: { changed: Map<string, TFile>; deleted: Set<string> } | null = null;
+  /** Set at unload: every build still running stops at its next note. */
+  private readonly stop = { aborted: false };
   /** The phone has said once this session that the desktop builds the index. */
   private toldDesktopBuilds = false;
   /** The build running now, or the last one this session. */
@@ -255,8 +261,7 @@ export class SemanticEngine {
     const all = app.vault.getMarkdownFiles();
     const files = all
       .filter((file) => {
-        const frontmatter = app.metadataCache.getFileCache(file)?.frontmatter;
-        return !isIndexingOptedOut(frontmatter) && frontmatter?.[OPT_OUT_KEY] !== false;
+        return !optedOut(app.metadataCache.getFileCache(file)?.frontmatter);
       })
       .sort((a, b) => b.stat.mtime - a.stat.mtime);
     const byPath = new Map(files.map((file) => [file.path, file]));
@@ -331,10 +336,14 @@ export class SemanticEngine {
     });
     if (!decision.run) return;
     if (opts.manual) this.guard.end();
+    // A model that failed to load anywhere — a catch-up, a query, an edit —
+    // is loaded afresh by a press, not only one whose failure a build saw.
+    const reload =
+      decision.reloadProvider || (Boolean(opts.manual) && (this.provider?.loadFailed() ?? false));
     this.syncing = true;
     this.guard.start(this.modelId());
     this.setPhase({ kind: "loading" });
-    void this.build(opts, decision.reloadProvider);
+    void this.build(opts, reload);
   }
 
   /**
@@ -357,9 +366,8 @@ export class SemanticEngine {
         if (svc.baseDiffersFrom(buf ? peekIndexMeta(buf)?.writtenAt : undefined))
           await svc.reload();
       }
-      // Edits made before the index was read waited for it; a phone applies
-      // them in memory, so its answers see them this session.
-      await this.flushDeferred();
+      // Reading worked: a failure that was not the model's is behind it.
+      if (this.phase.kind === "failed" && !this.phase.loadFailed) this.phase = { kind: "idle" };
       if (!svc.isComplete(this.scope()) && !this.toldDesktopBuilds) {
         this.toldDesktopBuilds = true;
         new Notice(
@@ -374,6 +382,9 @@ export class SemanticEngine {
       this.fileCount = undefined;
       this.emit();
     }
+    // Edits made before the index was read waited for it. Applied once the
+    // phone is no longer "busy", so Build now is not refused meanwhile.
+    await this.flushDeferred();
   }
 
   private async build(
@@ -397,7 +408,6 @@ export class SemanticEngine {
         if (svc.isComplete(scope) && !opts.force) {
           this.guard.end();
           this.setPhase({ kind: "idle" });
-          await this.flushDeferred();
           return;
         }
       }
@@ -415,13 +425,14 @@ export class SemanticEngine {
         offThread ? {} : { yieldEveryNotes: 1, breatherMs: 12 },
         scope,
         // A phone embeds a budget and merges what a desktop wrote meanwhile.
-        Platform.isMobile ? { maxEmbeds: MOBILE_BUILD_BUDGET, mergeFromStore: true } : {}
+        Platform.isMobile
+          ? { maxEmbeds: MOBILE_BUILD_BUDGET, mergeFromStore: true, signal: this.stop }
+          : { signal: this.stop }
       );
       this.guard.end();
       this.endRecord({ stopped: result.stopped });
       this.setPhase({ kind: "idle" });
       if (result.stopped) new Notice(t().semantic.phoneBudget(result.embedded), 8_000);
-      await this.flushDeferred();
     } catch (e) {
       const outOfMemory = isOutOfMemoryError(e);
       if (!outOfMemory) this.guard.end();
@@ -437,8 +448,19 @@ export class SemanticEngine {
       notice?.hide();
       this.syncing = false;
       this.fileCount = undefined;
+      this.afterWork();
       this.emit();
     }
+    // Outside the build's try: an edit that fails to apply is the edit's, and
+    // must not report the build that just succeeded as failed.
+    await this.flushDeferred();
+  }
+
+  /** What a build or catch-up leaves to do once it is over. */
+  private afterWork(): void {
+    // Switched off while it ran: the model is given back now, as it would
+    // have been at the switch had nothing been running.
+    if (!this.enabled()) this.teardown();
   }
 
   /** Once per session on a desktop: catch up with what changed while closed. */
@@ -456,16 +478,19 @@ export class SemanticEngine {
       return;
     }
     this.caughtUp = true;
-    await this.importOnce();
-    if (!(await this.files().exists())) return;
+    // Busy from here, not after the awaits below: a search in between would
+    // otherwise start a build beside the catch-up.
     this.syncing = true;
     try {
+      await this.importOnce();
+      if (!(await this.files().exists())) return;
       const result = await catchUpIndex({
         service: () => this.ensure(),
         scope: () => this.scope(),
         notes: () => this.collectNotes(),
         modelId: () => this.modelId(),
         guard: this.guard,
+        signal: this.stop,
         onProgress: (done, total, detail) => {
           // Recorded from its first note on: a catch-up that finds the index
           // incomplete never calls this, and leaves the last build's record.
@@ -477,22 +502,23 @@ export class SemanticEngine {
       });
       this.endRecord();
       this.setPhase({ kind: "idle" });
-      await this.flushDeferred();
       this.logger.debug("semantic engine: catch-up", result);
     } catch (e) {
       this.setPhase({
         kind: "failed",
         error: e instanceof Error ? e.message : String(e),
         outOfMemory: isOutOfMemoryError(e),
-        loadFailed: false
+        loadFailed: this.provider?.loadFailed() ?? false
       });
       this.endRecord({ error: e instanceof Error ? e.message : String(e) });
       this.logger.warn("semantic engine: catch-up failed", e);
     } finally {
       this.syncing = false;
       this.fileCount = undefined;
+      this.afterWork();
       this.emit();
     }
+    await this.flushDeferred();
   }
 
   /** Targeted updates from the vault watcher; held while the index is not ready. */
@@ -519,14 +545,25 @@ export class SemanticEngine {
     const removes = [...deleted];
     const updates: IndexableNote[] = [];
     for (const file of changed) {
-      const frontmatter = app.metadataCache.getFileCache(file)?.frontmatter;
-      if (isIndexingOptedOut(frontmatter) || frontmatter?.[OPT_OUT_KEY] === false) {
+      if (optedOut(app.metadataCache.getFileCache(file)?.frontmatter)) {
         removes.push(file.path);
       } else {
         updates.push({ path: file.path, load: () => app.vault.cachedRead(file) });
       }
     }
-    await svc.applyBatch({ updates, removes }, { cap: this.getSettings().semanticMaxNotes });
+    try {
+      await svc.applyBatch(
+        { updates, removes },
+        {
+          cap: this.getSettings().semanticMaxNotes,
+          // A phone embeds a few edits of its own; a sync landing a hundred
+          // changed notes is the desktop's to embed, not the phone's UI thread.
+          ...(Platform.isMobile ? { maxEmbeds: MOBILE_EDIT_BUDGET } : {})
+        }
+      );
+    } catch (e) {
+      this.logger.warn("semantic engine: edits could not be applied to the index", e);
+    }
     this.fileCount = undefined;
     // Edits held while the index was being read, if they arrived after it
     // had already applied the ones it held.
@@ -566,8 +603,15 @@ export class SemanticEngine {
     if (!this.enabled()) return [];
     const svc = this.service;
     if (!svc?.isQueryable()) {
-      this.refresh();
-      return [];
+      // Read but not made queryable — the Recommended panel or the settings
+      // read it first. A finished index answers at once; asking for a build
+      // instead was refused as "complete", and nothing ever answered.
+      if (!svc?.isComplete(this.scope())) {
+        this.refresh();
+        return [];
+      }
+      await svc.hydrateForQuery();
+      void this.flushDeferred();
     }
     // A build left unfinished by an earlier session is resumed; a partial
     // index answers meanwhile. A phone instead looks, now and then, whether
@@ -742,24 +786,40 @@ export class SemanticEngine {
    *  back now rather than at the next restart; a build in flight finishes. */
   settingsChanged(): void {
     this.fileCount = undefined;
-    if (!this.enabled() && !this.syncing) {
-      this.provider?.unload();
-      this.provider = null;
-      this.providerModel = null;
-      this.service = null;
-      this.deferred = null;
-      this.conversations.reset();
-    }
+    // A deliberate change is a fresh start for automatic builds: a failure
+    // otherwise kept them off for the session, whatever was changed. Not out
+    // of memory, which a changed switch does not make any less likely.
+    if (!this.syncing && this.phase.kind === "failed" && !this.phase.outOfMemory)
+      this.phase = { kind: "idle" };
+    // A conversation sync in flight holds the provider too; unloading under it
+    // is what the build's own guard avoids. It finishes, and the next change
+    // or restart gives the memory back.
+    if (!this.enabled() && !this.syncing && !this.conversations.isSyncing()) this.teardown();
     this.emit();
+  }
+
+  /** Give the model and the index back: search by meaning is off. */
+  private teardown(): void {
+    this.provider?.unload();
+    this.provider = null;
+    this.providerModel = null;
+    this.service = null;
+    this.deferred = null;
+    this.conversations.reset();
   }
 
   /** Plugin unload: a build cut short by unload is not a crash; held edits are written. */
   dispose(): void {
     if (this.syncing) this.guard.end();
     this.listeners.clear();
+    // A build running now stops at its next note instead of running through
+    // the vault after the plugin is gone, and the provider refuses to load the
+    // model again for it: an unload alone made the next embed load a model
+    // nobody held any more.
+    this.stop.aborted = true;
     void this.service?.flushPendingWrites().catch((e: unknown) => {
       this.logger.warn("semantic engine: held edits could not be written at unload", e);
     });
-    this.provider?.unload();
+    this.provider?.dispose();
   }
 }

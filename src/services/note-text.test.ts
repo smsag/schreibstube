@@ -74,3 +74,16 @@ describe("plainNoteText — what is not data", () => {
     expect(plainNoteText("Data: collected in 2024")).toBe("Data: collected in 2024");
   });
 });
+
+describe("plainNoteText — code that looks like markup", () => {
+  it("does not open a comment inside inline code", () => {
+    expect(plainNoteText('Use `printf("%%d")` to print.\n\nJahresabrechnung Miete')).toContain(
+      "Jahresabrechnung Miete"
+    );
+  });
+
+  it("closes a fence indented deeper, as in a list item", () => {
+    const note = "1. Schritt\n   ```bash\n   rm -rf\n    ```\n2. Weiter Jahresabrechnung";
+    expect(plainNoteText(note)).toBe("1. Schritt\n2. Weiter Jahresabrechnung");
+  });
+});

@@ -211,3 +211,60 @@ describe("BodyLoader — a folder going away", () => {
     expect(index.size).toBe(0);
   });
 });
+
+describe("BodyIndex — answers patched, not thrown away", () => {
+  it("keeps a word's answer across a save and updates the saved note in it", () => {
+    const index = new BodyIndex();
+    index.set("a.md", "jahresabrechnung");
+    index.set("b.md", "nichts");
+    const answer = index.strengths("jahres");
+    index.set("b.md", "die jahresabrechnung auch hier");
+    expect(index.strengths("jahres")).toBe(answer); // the same answer, patched
+    expect([...answer.keys()].sort()).toEqual(["a.md", "b.md"]);
+    index.set("a.md", "anderes");
+    expect([...index.strengths("jahres").keys()]).toEqual(["b.md"]);
+  });
+});
+
+describe("BodyLoader — the vault changing under a pass", () => {
+  it("reads a note that appears while a pass runs, and drops what is gone", async () => {
+    const files: Record<string, string> = { "a.md": "eins", "old.md": "zwei" };
+    let release: () => void = () => undefined;
+    const source = {
+      paths: () => Object.keys(files),
+      read: async (path: string) => {
+        if (path === "a.md") await new Promise<void>((r) => (release = r));
+        const text = files[path];
+        if (text === undefined) throw new Error("gone");
+        return text;
+      },
+      exists: (path: string) => path in files
+    };
+    const index = new BodyIndex();
+    const loader = new BodyLoader(index, source, () => Promise.resolve());
+    const first = loader.ensure();
+    // A rename while the first read is still out.
+    delete files["old.md"];
+    files["new.md"] = "zwei";
+    const second = loader.ensure();
+    release();
+    await Promise.all([first, second]);
+    expect(index.has("new.md")).toBe(true);
+    expect(index.has("old.md")).toBe(false);
+  });
+
+  it("stops reading once cancelled", async () => {
+    const reads: string[] = [];
+    const source = {
+      paths: () => ["a.md", "b.md", "c.md"],
+      read: async (path: string) => {
+        reads.push(path);
+        return "x";
+      }
+    };
+    const loader = new BodyLoader(new BodyIndex(), source, () => Promise.resolve());
+    loader.cancel();
+    expect(await loader.ensure()).toBe(false);
+    expect(reads).toEqual([]);
+  });
+});
