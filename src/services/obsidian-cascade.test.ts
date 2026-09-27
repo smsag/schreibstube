@@ -19,7 +19,10 @@ import { OBSIDIAN_BUTTON_RULES, SENTINEL } from "../testing/obsidian-button-rule
  * happy-dom cannot hover, so `:hover` becomes a class of the same specificity;
  * `(hover: hover)` counts as a mouse and `(pointer: coarse)` as not a phone.
  * A var() whose fallback is another var() is flattened, because happy-dom
- * resolves only one level.
+ * resolves only one level. And an `:is()` list is put on one line: the role
+ * scope outgrew the print width, the formatter breaks it after the `(`, and
+ * happy-dom matches nothing with a line break there (measured: `:is(\n .a)`
+ * computes no style, `:is( .a )` does). Chromium reads both.
  */
 const HOVER = ".is-hovered";
 const prep = (text: string): string =>
@@ -30,7 +33,8 @@ const prep = (text: string): string =>
     )
     .replace(/@media \(pointer: coarse\) \{/g, "@media (max-width: 1px) {")
     .replace(/:hover/g, HOVER)
-    .replace(/var\(--btn-[\w-]+, (var\(--[\w-]+\))\)/g, "$1");
+    .replace(/var\(--btn-[\w-]+, (var\(--[\w-]+\))\)/g, "$1")
+    .replace(/:is\(([^)]*)\)/g, (_, list: string) => `:is(${list.replace(/\s+/g, " ").trim()})`);
 
 const PLUGIN = prep(readFileSync(resolve(process.cwd(), "styles.css"), "utf8"));
 const OBSIDIAN = prep(OBSIDIAN_BUTTON_RULES);
@@ -146,6 +150,27 @@ describe("Obsidian's button rules never reach a Schreibstube button", () => {
     const cs = getComputedStyle(button);
     expect(cs.fontFamily).toContain("schreibstube-icons");
     expect(cs.fontSize).toBe("14px");
+  });
+
+  it("Recommended's row actions keep the icon role's box under a note and in the sidebar", () => {
+    // Recommended sat outside the role scope, and its first buttons drew as
+    // Obsidian's: a 42 × 30 filled box with a border, measured in Obsidian.
+    for (const chain of [
+      [
+        "markdown-reading-view",
+        "markdown-rendered",
+        "mod-footer",
+        "schreibstube-recommended-footer"
+      ],
+      ["workspace-leaf-content", "view-content schreibstube-related-notes"]
+    ]) {
+      const host = mount(
+        "is-desktop",
+        chain,
+        `<div class="schreibstube-related-actions"><button class="sb sb-icon schreibstube-related-action"><span></span></button></div>`
+      );
+      expectNoLeak(host.querySelector<HTMLElement>("button")!, chain.at(-1)!);
+    }
   });
 
   it("phone picker: the Setting control neither stretches nor re-pads a segment", () => {

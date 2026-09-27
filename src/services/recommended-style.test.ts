@@ -15,10 +15,28 @@ const css = readFileSync(new URL("../../styles.css", import.meta.url), "utf8").r
   ""
 );
 
+/** A selector list's arms: split at its own commas, not at those inside an
+ *  `:is(…)`, whose members are not selectors of the rule on their own. */
+function arms(list: string): string[] {
+  const out: string[] = [];
+  let depth = 0;
+  let arm = "";
+  for (const ch of list) {
+    if (ch === "(") depth++;
+    if (ch === ")") depth--;
+    if (ch === "," && depth === 0) {
+      out.push(arm.trim());
+      arm = "";
+    } else arm += ch;
+  }
+  out.push(arm.trim());
+  return out;
+}
+
 /** Every rule whose selector list contains `selector` exactly, as its body. */
 function bodies(selector: string): string[] {
   return [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
-    .filter(([, sel]) => (sel ?? "").split(",").some((s) => s.trim() === selector))
+    .filter(([, sel]) => arms(sel ?? "").some((s) => s === selector))
     .map(([, , body]) => body ?? "");
 }
 
@@ -28,7 +46,7 @@ describe("Recommended as a register", () => {
     expect(row.length).toBeGreaterThan(0);
     for (const body of row) {
       expect(body).toMatch(
-        /grid-template-columns:\s*var\(--schreibstube-related-rank\) minmax\(0, 1fr\) auto;/
+        /grid-template-columns:\s*var\(--schreibstube-related-rank\) minmax\(0, 1fr\) auto auto;/
       );
       expect(body).not.toMatch(/(^|[\s;])(column-)?gap\s*:/);
     }
@@ -71,6 +89,31 @@ describe("Recommended as a register", () => {
     // Obsidian's `.markdown-rendered ol > li` indents 3ch; the footer is inside it.
     const [item] = bodies(".schreibstube-recommended-footer .schreibstube-related-list > li");
     expect(item).toMatch(/margin-inline-start:\s*0;/);
+  });
+
+  it("hides an entry's actions only where there is a pointer to bring them back", () => {
+    // On a phone there is no hover: hidden there, they could never be pressed.
+    const hover = css.match(/@media \(hover: hover\) \{([\s\S]*?)\n\}/g) ?? [];
+    const hiding = hover.filter((block) =>
+      /schreibstube-related-actions[^{]*\{[^}]*visibility:\s*hidden/.test(block)
+    );
+    expect(hiding.length).toBe(1);
+    expect(hiding[0]).toMatch(/:not\(:hover\):not\(:focus-within\)/);
+    const [actions] = bodies(".schreibstube-related-actions");
+    expect(actions).not.toMatch(/visibility|display:\s*none|opacity/);
+  });
+
+  it("draws no number of a theme's in front of an entry", () => {
+    // Klartext numbers every `.markdown-rendered ol > li` with a ::before.
+    for (const where of [".schreibstube-recommended-footer", ".schreibstube-related-notes"]) {
+      const [body] = bodies(`${where} .schreibstube-related-list > li::before`);
+      expect(body, where).toMatch(/content:\s*none;/);
+    }
+  });
+
+  it("sets the list under a note at the sidebar's size, not the note's", () => {
+    const [footer] = bodies(".schreibstube-recommended-footer");
+    expect(footer).toMatch(/font-size:\s*var\(--font-ui-small\);/);
   });
 
   it("draws the reasons as words on the line, never as chips", () => {

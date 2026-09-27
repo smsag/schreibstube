@@ -828,6 +828,12 @@ export const de: Messages = {
       untitled: "Unbenanntes Gespräch",
       picture: "Bild",
       conversation: "Gespräch in Pythia",
+      copyLink: "Obsidian-URL kopieren",
+      copied: "Obsidian-URL kopiert.",
+      copyFailed: "Die URL konnte nicht in die Zwischenablage kopiert werden.",
+      openBeside: "Rechts daneben öffnen",
+      collapse: "Empfohlen einklappen",
+      expand: "Empfohlen ausklappen",
       reasons: {
         link: "verlinkt",
         meaning: "ähnlich im Inhalt",

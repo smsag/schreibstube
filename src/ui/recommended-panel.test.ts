@@ -3,6 +3,8 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { installObsidianDom } from "../testing/obsidian-dom";
 import { setLanguage } from "../i18n";
 import { RecommendedPanel, type Recommendation, type RecommendedHost } from "./recommended-panel";
+import { iconGlyph } from "./icon-font";
+import { TASK_PILL_CLASS } from "./task-count-label";
 
 beforeAll(() => installObsidianDom());
 beforeEach(() => setLanguage("en"));
@@ -28,7 +30,9 @@ function setup(recommend?: (path: string) => Promise<Recommendation | null>, cou
     titleOf: (path) => path,
     open: vi.fn(async () => undefined),
     openConversation: vi.fn(),
-    showMenu: vi.fn()
+    showMenu: vi.fn(),
+    glyphOf: (path) => (path.endsWith(".png") ? "photo" : "file-text"),
+    copyLink: vi.fn()
   };
   return { root, host, panel: new RecommendedPanel(root, host) };
 }
@@ -72,7 +76,7 @@ describe("RecommendedPanel", () => {
     expect(host.openConversation).toHaveBeenCalledWith("c1");
   });
 
-  it("draws each entry as a register row: its rank, its title, what it is and why", async () => {
+  it("draws each entry as a register row: what it is, its title, and why", async () => {
     const { root, panel } = setup(async () => ({
       items: [
         {
@@ -94,10 +98,16 @@ describe("RecommendedPanel", () => {
     await settle();
 
     expect(root.querySelector("ol.schreibstube-related-list")).not.toBeNull();
-    const ranks = Array.from(root.querySelectorAll(".schreibstube-related-rank"));
-    expect(ranks.map((el) => el.textContent)).toEqual(["1", "2", "3"]);
-    // The <ol> tells the order; the number is for the eye.
-    expect(ranks.every((el) => el.getAttribute("aria-hidden") === "true")).toBe(true);
+    // What each entry is, as the Explorer draws it; Pythia's mark for a
+    // conversation. No number: the order is the ranking, and the <ol> says so.
+    const glyphs = Array.from(root.querySelectorAll(".schreibstube-related-glyph"));
+    expect(glyphs.map((el) => el.textContent)).toEqual([
+      iconGlyph("file-text"),
+      iconGlyph("pythia"),
+      iconGlyph("photo")
+    ]);
+    expect(glyphs.every((el) => el.getAttribute("aria-hidden") === "true")).toBe(true);
+    expect(root.querySelector(".schreibstube-related-rank")).toBeNull();
 
     const meta = Array.from(root.querySelectorAll(".schreibstube-related-card-meta")).map((el) =>
       Array.from(el.children).map((part) => part.textContent)
@@ -121,17 +131,19 @@ describe("RecommendedPanel", () => {
     panel.show("x.md");
     await settle();
 
-    // The same three places in the same order for every kind: rank, text, and
-    // for a picture its thumbnail after the text, never in front of it.
-    const shape = (el: Element) => Array.from(el.children).map((child) => child.className);
+    // The same places in the same order for every kind: icon, text, actions,
+    // and for a picture its thumbnail last, never in front of the text.
+    const shape = (el: Element) => Array.from(el.children).map((child) => child.classList[0]);
     const [noteRow, pictureRow] = Array.from(root.querySelectorAll(".schreibstube-related-card"));
     expect(shape(noteRow!)).toEqual([
-      "schreibstube-related-rank",
-      "schreibstube-related-card-text"
+      "schreibstube-related-glyph",
+      "schreibstube-related-card-text",
+      "schreibstube-related-actions"
     ]);
     expect(shape(pictureRow!)).toEqual([
-      "schreibstube-related-rank",
+      "schreibstube-related-glyph",
       "schreibstube-related-card-text",
+      "schreibstube-related-actions",
       "schreibstube-related-card-thumb"
     ]);
   });
@@ -145,7 +157,10 @@ describe("RecommendedPanel", () => {
     expect(under.root.querySelector(".schreibstube-related-section-label")?.textContent).toBe(
       "Recommended"
     );
-    expect(under.root.querySelector(".schreibstube-related-section-count")?.textContent).toBe("2");
+    const count = under.root.querySelector(".schreibstube-related-section-count");
+    expect(count?.textContent).toBe("2");
+    // The Explorer's task pill, the one way a count is drawn beside a name.
+    expect(count?.classList.contains(TASK_PILL_CLASS)).toBe(true);
     expect(under.root.querySelector(".schreibstube-related-header")).toBeNull();
 
     const side = setup(recommend);
@@ -155,6 +170,63 @@ describe("RecommendedPanel", () => {
     expect(side.root.querySelector(".schreibstube-related-summary")?.textContent).toBe(
       "2 recommendations"
     );
+  });
+
+  it("folds under a note at a press on its heading, and opens again for the next note", async () => {
+    const recommend = async () => ({ items: [note("a.md"), note("b.md")] });
+    const under = setup(recommend);
+    const footer = new RecommendedPanel(under.root, under.host, { heading: false });
+    footer.show("x.md");
+    await settle();
+    const heading = () => under.root.querySelector<HTMLElement>(".schreibstube-related-section")!;
+    expect(heading().getAttribute("aria-expanded")).toBe("true");
+
+    heading().click();
+    expect(under.root.querySelector(".schreibstube-related-list")).toBeNull();
+    expect(heading().getAttribute("aria-expanded")).toBe("false");
+    // Still counted while folded, so the heading says what it holds.
+    expect(under.root.querySelector(".schreibstube-related-section-count")?.textContent).toBe("2");
+
+    heading().dispatchEvent(new KeyboardEvent("keydown", { key: "Enter" }));
+    expect(titles(under.root)).toEqual(["a", "b"]);
+
+    heading().click();
+    footer.show("y.md");
+    await settle();
+    expect(heading().getAttribute("aria-expanded")).toBe("true");
+    expect(titles(under.root)).toEqual(["a", "b"]);
+  });
+
+  it("offers a file's Obsidian URL and a pane to the right, without opening the entry as well", async () => {
+    const { root, panel, host } = setup(async () => ({
+      items: [
+        note("Docs/readme.md"),
+        { kind: "conversation", conversation: { id: "c1", title: "Chat" } }
+      ]
+    }));
+    panel.show("x.md");
+    await settle();
+    const [fileRow, chatRow] = Array.from(root.querySelectorAll(".schreibstube-related-card"));
+    const buttons = (row: Element) =>
+      Array.from(row.querySelectorAll<HTMLButtonElement>(".schreibstube-related-action"));
+    expect(buttons(fileRow!).map((b) => b.getAttribute("aria-label"))).toEqual([
+      "Copy Obsidian URL",
+      "Open to the right"
+    ]);
+
+    buttons(fileRow!)[0]!.click();
+    expect(host.copyLink).toHaveBeenCalledWith({ kind: "file", path: "Docs/readme.md" });
+    buttons(fileRow!)[1]!.click();
+    expect(host.open).toHaveBeenCalledTimes(1);
+    expect(host.open).toHaveBeenCalledWith("Docs/readme.md", "split");
+
+    // A conversation has a link but no pane of its own: Pythia opens it.
+    expect(buttons(chatRow!).map((b) => b.getAttribute("aria-label"))).toEqual([
+      "Copy Obsidian URL"
+    ]);
+    buttons(chatRow!)[0]!.click();
+    expect(host.copyLink).toHaveBeenLastCalledWith({ kind: "conversation", id: "c1" });
+    expect(host.openConversation).not.toHaveBeenCalled();
   });
 
   it("shows as many entries as the setting says", async () => {

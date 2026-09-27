@@ -17,10 +17,13 @@ import { describe, expect, it } from "vitest";
 /** Whitespace folded, so a selector reads the same whether or not the
  *  formatter wrapped it: the scope grew past the print width and every rule
  *  that names it now breaks across lines. */
-const css = readFileSync(new URL("../../styles.css", import.meta.url), "utf8").replace(/\s+/g, " ");
+const css = readFileSync(new URL("../../styles.css", import.meta.url), "utf8")
+  .replace(/\s+/g, " ")
+  .replace(/\( /g, "(")
+  .replace(/ \)/g, ")");
 
 const SCOPE =
-  ":is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker, .schreibstube-prompt)";
+  ":is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker, .schreibstube-prompt, .schreibstube-recommended-footer, .schreibstube-related-notes)";
 const ROLES = [
   "primary",
   "secondary",
