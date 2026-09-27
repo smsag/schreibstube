@@ -27,6 +27,11 @@ export interface BuiltinContext {
   noteName: string;
   now: Date;
   locale: Locale;
+  /**
+   * The dialog's text-face choice. It started from the note's own
+   * `schreibstubePrint.monospace`, so it is set after the note's data.
+   */
+  monospace: boolean;
 }
 
 /**
@@ -45,7 +50,8 @@ export function resolvePrintData(
   return {
     ...builtins(context),
     ...template.data,
-    ...noteData(noteFrontmatter)
+    ...noteData(noteFrontmatter),
+    monospace: context.monospace ? "true" : "false"
   };
 }
 

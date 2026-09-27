@@ -1,11 +1,12 @@
 /**
  * What the print dialog lets a person change, and what each choice means.
  *
- * Five choices, and nothing about them is remembered: each print starts from
- * the template, because the template is where a page's design lives and a
- * dialog that carried yesterday's margins into today's letter would be a
+ * Six choices, and nothing about them is remembered: each print starts from
+ * the template and the note, because that is where a page's design lives and
+ * a dialog that carried yesterday's margins into today's letter would be a
  * second, invisible template.
  */
+import { NOTE_DATA_KEY } from "./print-data";
 import { printableText } from "./typst-value";
 import type { PrintTemplate } from "./print-template";
 import type { SlideshowPrintMode } from "./print-slideshow";
@@ -29,17 +30,56 @@ export interface PrintOptions {
   frontmatter: boolean;
   /** Slideshows as they stand on screen, or every picture stacked. */
   slideshows: SlideshowPrintMode;
+  /**
+   * The text in the monospaced face, or in the sans. Reaches the layout as
+   * `data.monospace`; a template that does not read it is unaffected, and the
+   * dialog offers the choice only for one that does.
+   */
+  monospace: boolean;
 }
 
-/** Where a print starts: the template as it is, and no properties on paper. */
-export function initialOptions(template: PrintTemplate): PrintOptions {
+/**
+ * Where a print starts: the template as it is, no properties on paper, and the
+ * text in the face the note asks for — monospaced unless it says otherwise.
+ */
+export function initialOptions(
+  template: PrintTemplate,
+  frontmatter?: Readonly<Record<string, unknown>> | null
+): PrintOptions {
   return {
     template,
     margin: "standard",
     hrIsPageBreak: template.hrIsPageBreak,
     frontmatter: false,
-    slideshows: "layout"
+    slideshows: "layout",
+    monospace: noteMonospace(frontmatter) ?? true
   };
+}
+
+/**
+ * What a note says about its text face in `schreibstubePrint.monospace`, or
+ * null when it says nothing readable. `false`, `no` and `off` turn it off;
+ * `true`, `yes` and `on` keep it; anything else is not an answer.
+ */
+export function noteMonospace(
+  frontmatter: Readonly<Record<string, unknown>> | null | undefined
+): boolean | null {
+  const data = frontmatter?.[NOTE_DATA_KEY];
+  if (typeof data !== "object" || data === null || Array.isArray(data)) return null;
+  const text = printableText((data as Record<string, unknown>).monospace)
+    ?.trim()
+    .toLowerCase();
+  if (text === "false" || text === "no" || text === "off") return false;
+  if (text === "true" || text === "yes" || text === "on") return true;
+  return null;
+}
+
+/**
+ * Whether a layout reads the text-face choice, so the dialog should offer it.
+ * Read from the source, like the margins below; comments do not count.
+ */
+export function layoutReadsMonospace(layout: string): boolean {
+  return /\bdata\.monospace\b/.test(layout.replace(/\/\/.*$/gm, ""));
 }
 
 /** The same choices for another template, whose own page-break habit then applies. */

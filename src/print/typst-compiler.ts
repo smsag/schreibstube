@@ -136,7 +136,7 @@ export class TypstCompiler {
   /**
    * Take the typesetter off the device.
    *
-   * Somebody switching printing off has 30 MB sitting in their vault folder
+   * Somebody switching printing off has 34 MB sitting in their vault folder
    * for a feature they stopped using, and no way to see it from inside the app.
    * Removing it is safe: the next print fetches and checks it again.
    */

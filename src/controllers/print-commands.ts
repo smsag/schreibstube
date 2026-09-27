@@ -84,11 +84,12 @@ import {
   frontmatterRows,
   initialOptions,
   layoutFixesMargin,
+  layoutReadsMonospace,
   type PrintOptions
 } from "../services/print-options";
 import { ConfirmModal, FolderPickerModal } from "../ui/explorer-modals";
-import { EXAMPLE_TEMPLATES, type ExampleTemplate } from "../services/print-examples";
-import { builtinTemplate } from "../services/print-builtin";
+import type { ExampleTemplate } from "../services/print-examples";
+import { builtinTemplate, copyableExamples } from "../services/print-builtin";
 import { pictureEdge } from "../services/print-slideshow";
 import { printAssetName, printImageFormat } from "../services/print-images";
 import { linkpathCandidates } from "../services/slideshow";
@@ -235,10 +236,12 @@ export class PrintCommands {
 
     new PrintDialog(this.app, {
       templates,
-      initial: initialOptions(preselected),
+      initial: initialOptions(preselected, this.frontmatterOf(file)),
       hasSlideshows: session.slideshows > 0,
       fixesMargin: async (template) =>
         layoutFixesMargin((await this.templateFiles(session, template)).layout),
+      readsMonospace: async (template) =>
+        layoutReadsMonospace((await this.templateFiles(session, template)).layout),
       preview: async (options, progress) => {
         const { job, warnings } = await this.prepareJob(session, options);
         return { pdf: await this.compileJob(job, progress), warnings };
@@ -266,7 +269,7 @@ export class PrintCommands {
       return;
     }
 
-    const options = initialOptions(choice.template);
+    const options = initialOptions(choice.template, this.frontmatterOf(file));
     await this.withNotice(t().print.working(choice.template.name), async (progress) => {
       const session = await this.openSession(file, progress);
       await this.printWith(session, options, null, progress);
@@ -326,6 +329,10 @@ export class PrintCommands {
   private allTemplates(): PrintTemplate[] {
     const builtIn = builtinTemplate();
     return [...this.templates(), ...(builtIn ? [builtIn.template] : [])];
+  }
+
+  private frontmatterOf(file: TFile): Record<string, unknown> | undefined {
+    return this.app.metadataCache.getFileCache(file)?.frontmatter;
   }
 
   /** The template the note or the settings ask for, with anything amiss said aloud. */
@@ -550,7 +557,8 @@ export class PrintCommands {
       title: noteTitle(source, file.basename),
       noteName: file.basename,
       now: new Date(),
-      locale: activeLocale()
+      locale: activeLocale(),
+      monospace: options.monospace
     });
 
     const input = {
@@ -1003,7 +1011,7 @@ export class PrintCommands {
 
   private askExample(): Promise<ExampleTemplate | null> {
     return new Promise((resolve) => {
-      new PrintExampleModal(this.app, EXAMPLE_TEMPLATES, resolve).open();
+      new PrintExampleModal(this.app, copyableExamples(), resolve).open();
     });
   }
 

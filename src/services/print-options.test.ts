@@ -4,7 +4,9 @@ import {
   frontmatterRows,
   initialOptions,
   layoutFixesMargin,
+  layoutReadsMonospace,
   MARGIN_PRESETS,
+  noteMonospace,
   withTemplate
 } from "./print-options";
 import { parseTemplate } from "./print-template";
@@ -20,8 +22,17 @@ describe("initialOptions", () => {
       margin: "standard",
       hrIsPageBreak: true,
       frontmatter: false,
-      slideshows: "layout"
+      slideshows: "layout",
+      monospace: true
     });
+  });
+
+  it("starts the text face where the note asks for it", () => {
+    const off = { schreibstubePrint: { monospace: false } };
+    expect(initialOptions(template(), off).monospace).toBe(false);
+    expect(initialOptions(template(), { schreibstubePrint: { monospace: "nein" } }).monospace).toBe(
+      true
+    );
   });
 
   it("offers the three presets, smallest first", () => {
@@ -38,7 +49,8 @@ describe("withTemplate", () => {
       margin: "wide",
       hrIsPageBreak: true,
       frontmatter: true,
-      slideshows: "layout"
+      slideshows: "layout",
+      monospace: true
     });
   });
 });
@@ -127,5 +139,30 @@ describe("frontmatterRows", () => {
   it("has nothing to show for a note without properties", () => {
     expect(frontmatterRows(undefined)).toEqual([]);
     expect(frontmatterRows(null)).toEqual([]);
+  });
+});
+
+describe("noteMonospace", () => {
+  it("reads the note's word, and nothing else", () => {
+    const say = (value: unknown) => noteMonospace({ schreibstubePrint: { monospace: value } });
+    expect(say(false)).toBe(false);
+    expect(say("off")).toBe(false);
+    expect(say(" No ")).toBe(false);
+    expect(say(true)).toBe(true);
+    expect(say("yes")).toBe(true);
+    expect(say("vielleicht")).toBeNull();
+    expect(noteMonospace({ schreibstubePrint: "monospace" })).toBeNull();
+    expect(noteMonospace(null)).toBeNull();
+  });
+});
+
+describe("layoutReadsMonospace", () => {
+  it("offers the choice only to a layout that reads it, not one that mentions it", () => {
+    expect(layoutReadsMonospace('#let s(body, data) = if data.monospace == "true" { body }')).toBe(
+      true
+    );
+    expect(
+      layoutReadsMonospace("// data.monospace is not read here\n#let s(body, data) = body")
+    ).toBe(false);
   });
 });

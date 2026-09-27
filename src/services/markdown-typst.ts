@@ -531,20 +531,31 @@ class Converter {
       const start = ordered ? Number(ordered[2]) : 1;
       const marker = bullet ? "-" : first && start !== 1 ? `${start}.` : "+";
       first = false;
-      const parts = [this.item(match[3] ?? "")];
+      // A bulleted task's box stands where the bullet would, as on screen. A
+      // Typst list gives every item the same marker, so the item becomes a
+      // list of its own whose marker is the box; a numbered task keeps its
+      // number and draws the box beside it.
+      const task = bullet ? TASK.exec(match[3] ?? "") : null;
+      const parts = [
+        task ? this.inline((match[3] ?? "").slice(task[0].length)) : this.item(match[3] ?? "")
+      ];
 
       // Everything indented past the marker belongs to this item: a nested
       // list, a second paragraph, a fenced block.
       parts.push(...this.blocks(indent + 2));
 
-      const text = parts.join("\n").trimEnd();
-      out.push(`${" ".repeat(indent)}${marker} ${indentContinuation(text, indent + 2)}`);
+      const text = indentContinuation(parts.join("\n").trimEnd(), indent + 2);
+      out.push(
+        task
+          ? `${" ".repeat(indent)}#schreibstube-task-item(schreibstube-task(${task[1] !== " "}))[${text}]`
+          : `${" ".repeat(indent)}${marker} ${text}`
+      );
     }
 
     return `${out.join("\n")}\n`;
   }
 
-  /** An item's first line, with a task's box drawn rather than typed. */
+  /** A numbered item's first line, with a task's box drawn rather than typed. */
   private item(text: string): string {
     const task = TASK.exec(text);
     if (!task) return this.inline(text);

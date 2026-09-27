@@ -12,7 +12,7 @@ import {
   DEVICE_ASSETS,
   FONT_ASSETS,
   fontFaceOf,
-  FONTS_VERSION,
+  FONT_SETS,
   staleRuntimeFiles,
   toHex,
   WASM_ASSET
@@ -129,20 +129,34 @@ describe("staleRuntimeFiles", () => {
   });
 });
 
-describe("the standard fonts", () => {
-  it("pins every face by hash, under the release's runtime glob", () => {
-    expect(FONT_ASSETS.length).toBeGreaterThanOrEqual(8);
-    for (const asset of FONT_ASSETS) {
-      expect(asset.sha256).toMatch(/^[0-9a-f]{64}$/);
-      expect(asset.name).toMatch(
-        new RegExp(`^typst-runtime-fonts-${FONTS_VERSION}-[\\w-]+\\.(otf|ttf)$`)
+describe("the fonts", () => {
+  it("pins every face by hash, under the release's runtime glob and its set's version", () => {
+    expect(FONT_ASSETS.length).toBe(FONT_SETS.reduce((n, set) => n + set.files.length, 0));
+    for (const set of FONT_SETS) {
+      expect(set.source).toMatch(
+        /^https:\/\/raw\.githubusercontent\.com\/[\w-]+\/[\w-]+\/[\w.]+\//
       );
+      // A branch name is not a pin: the bytes behind it can change.
+      expect(set.source).not.toMatch(/\/(main|master)\//);
+      for (const { file, sha256 } of set.files) {
+        expect(sha256).toMatch(/^[0-9a-f]{64}$/);
+        expect(file).toMatch(/^[\w-]+\.(otf|ttf)$/);
+      }
+    }
+    for (const asset of FONT_ASSETS) {
+      expect(asset.name).toMatch(/^typst-runtime-fonts-[\d.]+-[\w-]+\.(otf|ttf)$/);
       expect(asset.label).toBe("font");
     }
     expect(new Set(FONT_ASSETS.map((asset) => asset.name)).size).toBe(FONT_ASSETS.length);
   });
 
-  it("carries a text face and a code face in all four styles", () => {
+  it("keeps the names the Typst defaults were fetched under, so a device does not fetch them again", () => {
+    expect(FONT_ASSETS.map((asset) => asset.name)).toContain(
+      "typst-runtime-fonts-0.14.2-LibertinusSerif-Regular.otf"
+    );
+  });
+
+  it("carries Typst's own defaults in all four styles, for a template that names no font", () => {
     const faces = FONT_ASSETS.map(fontFaceOf);
     for (const style of ["Regular", "Italic", "Bold", "BoldItalic"]) {
       expect(faces).toContain(`LibertinusSerif-${style}`);
@@ -153,6 +167,23 @@ describe("the standard fonts", () => {
         "DejaVuSansMono-Oblique",
         "DejaVuSansMono-Bold",
         "DejaVuSansMono-BoldOblique"
+      ])
+    );
+  });
+
+  it("carries every face the Standard template sets text in", () => {
+    const faces = FONT_ASSETS.map(fontFaceOf);
+    expect(faces).toEqual(
+      expect.arrayContaining([
+        "FiraSans-Regular",
+        "FiraSans-Italic",
+        "FiraSans-SemiBold",
+        "FiraSans-Bold",
+        "FiraSans-BoldItalic",
+        "JetBrainsMono-Regular",
+        "JetBrainsMono-Italic",
+        "JetBrainsMono-Bold",
+        "JetBrainsMono-BoldItalic"
       ])
     );
   });

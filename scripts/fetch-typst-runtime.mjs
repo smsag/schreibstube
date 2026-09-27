@@ -8,9 +8,9 @@
  * them. A mismatch fails the release rather than publishing something the
  * plugin would then refuse to load.
  *
- * The standard fonts go the same way. The typesetter has no typeface of its
- * own, so the faces Typst defaults to are fetched from typst-assets at the
- * pinned tag, checked, and attached beside the compiler.
+ * The fonts go the same way. The typesetter has no typeface of its own, so
+ * each set in `src/services/typst-fonts.json` is fetched from its upstream at
+ * the pinned tag or commit, checked, and attached beside the compiler.
  *
  *   node scripts/fetch-typst-runtime.mjs           # verify and write to dist/
  *   node scripts/fetch-typst-runtime.mjs --print   # print the hashes, for a bump
@@ -26,29 +26,17 @@ const root = fileURLToPath(new URL("..", import.meta.url));
 const manifest = readFileSync(join(root, "src/services/typst-runtime.ts"), "utf8");
 
 const version = read(/RUNTIME_VERSION = "([^"]+)"/, "RUNTIME_VERSION");
-const fontsVersion = read(/FONTS_VERSION = "([^"]+)"/, "FONTS_VERSION");
-const fontSource = read(/FONT_SOURCE = `([^`]+)`/, "FONT_SOURCE").replace(
-  "${FONTS_VERSION}",
-  fontsVersion
+// The fonts are read from the JSON the plugin imports, so there is one copy of
+// every hash and nothing to parse out of TypeScript.
+const fontSets = JSON.parse(readFileSync(join(root, "src/services/typst-fonts.json"), "utf8")).sets;
+const fonts = fontSets.flatMap((set) =>
+  set.files.map(({ file, sha256 }) => ({
+    file,
+    sha256,
+    url: `${set.source}${file}`,
+    name: `typst-runtime-fonts-${set.version}-${file}`
+  }))
 );
-// Whitespace-tolerant, because Prettier wraps a long entry over three lines —
-// which this once did not allow for, and it found three fonts of eight.
-const fonts = [
-  ...manifest.matchAll(/\[\s*"([\w.-]+\.(?:otf|ttf))",\s*"([0-9a-f]{64})"\s*,?\s*\]/g)
-].map(([, file, sha256]) => ({
-  file,
-  sha256,
-  name: `typst-runtime-fonts-${fontsVersion}-${file}`
-}));
-// Every font file the manifest names must have been read with its hash; one
-// the pattern missed would be left out of the release, and a device would
-// then fail to fetch it on its first print.
-const named = manifest.match(/"[\w.-]+\.(?:otf|ttf)"/g) ?? [];
-if (named.length !== fonts.length) {
-  fail(
-    `typst-runtime.ts names ${named.length} font files, but ${fonts.length} were read with a hash`
-  );
-}
 const packageName = read(/RUNTIME_PACKAGE = "([^"]+)"/, "RUNTIME_PACKAGE");
 const assets = [...manifest.matchAll(/name: `([^`]+)`,\s*\n\s*sha256: "([0-9a-f]{64})"/g)].map(
   ([, name, sha256]) => ({ name: name.replace("${RUNTIME_VERSION}", version), sha256 })
@@ -103,10 +91,10 @@ try {
     console.log(`${asset.name} verified (${(bytes.length / 1024 / 1024).toFixed(1)} MB)`);
   }
 
-  if (fonts.length === 0) fail("no pinned fonts found in typst-runtime.ts");
+  if (fonts.length === 0) fail("no pinned fonts found in typst-fonts.json");
   for (const font of fonts) {
-    const response = await fetch(`${fontSource}${font.file}`);
-    if (!response.ok) fail(`${font.file}: HTTP ${response.status} from typst-assets`);
+    const response = await fetch(font.url);
+    if (!response.ok) fail(`${font.file}: HTTP ${response.status} from ${font.url}`);
     const bytes = Buffer.from(await response.arrayBuffer());
     const actual = createHash("sha256").update(bytes).digest("hex");
 

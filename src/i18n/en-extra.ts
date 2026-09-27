@@ -173,9 +173,9 @@ export const enExtra = {
     printAddTemplate: "Add a template",
     printAddTemplateButton: "Add",
     printAddTemplateDesc:
-      "Writes one of the two example templates into a folder you choose. Neither carries a " +
-      "typeface, since fonts are licensed; a template with none is set in the standard fonts " +
-      "fetched with the typesetter.",
+      "Writes one of the example templates into a folder you choose. None carries a font " +
+      "file: Fira Sans, JetBrains Mono and Typst's own faces are fetched with the typesetter, " +
+      "and a template that names no font is set in those.",
     printTemplateRoot: "Templates folder",
     printTemplateRootDesc:
       "Where a new template goes by default. A template is any folder with a template.md marked " +
@@ -802,6 +802,9 @@ export const enExtra = {
       margin: { small: "Small", standard: "Standard", wide: "Wide" },
       marginFixed: "This template sets its own margins.",
       pageBreaks: "Horizontal rules as page breaks",
+      textFace: "Text font",
+      textFaceMono: "JetBrains Mono",
+      textFaceSans: "Fira Sans",
       frontmatter: "Print properties",
       slideshows: "Slideshows",
       slideshow: { layout: "As in the note", stacked: "Every picture, one under another" },

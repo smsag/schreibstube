@@ -43,6 +43,9 @@ const answers = vi.hoisted(() => ({
   afterPreview: true,
   /** What the dialog was told about each template's margins. */
   fixesMargin: [] as boolean[],
+  /** What the dialog was told about each template's text face, and where it started. */
+  readsMonospace: [] as boolean[],
+  initialMonospace: [] as boolean[],
   /** The dialog's run, which a test waits for: it prints after the command returned. */
   finished: Promise.resolve()
 }));
@@ -108,6 +111,8 @@ vi.mock("../ui/print-dialog", () => ({
           ? answers.change(host.initial, host.templates)
           : host.initial;
         answers.fixesMargin.push(await host.fixesMargin(options.template));
+        answers.readsMonospace.push(await host.readsMonospace(options.template));
+        answers.initialMonospace.push(host.initial.monospace);
         const ready = answers.afterPreview ? await host.preview(options, () => {}) : null;
         await host.print(options, ready);
       })();
@@ -281,6 +286,8 @@ beforeEach(() => {
   answers.change = null;
   answers.afterPreview = true;
   answers.fixesMargin = [];
+  answers.readsMonospace = [];
+  answers.initialMonospace = [];
   answers.finished = Promise.resolve();
   vi.stubGlobal("window", {
     WebAssembly,
@@ -461,11 +468,19 @@ describe("the default template", () => {
     expect(answers.offered).toHaveLength(1);
   });
 
-  it("prints with a vault copy called Standard rather than the built-in one", async () => {
+  it("prints with the built-in one even beside a vault template called Standard", async () => {
     const { commands } = vault({ templates: ["Vorlagen/Druck/Standard"] });
     await quick(commands);
+    expect(entryOf()).toBe("standard");
+  });
 
-    // The copy's layout is the test's own, whose entry is `template`.
+  it("reaches a vault template called Standard by its folder", async () => {
+    const { commands } = vault({
+      templates: ["Vorlagen/Druck/Standard"],
+      named: "Vorlagen/Druck/Standard"
+    });
+    await quick(commands);
+    // Its layout is the test's own, whose entry is `template`.
     expect(entryOf()).toBe("template");
   });
 
@@ -570,6 +585,30 @@ describe("the print dialog", () => {
     const builtIn = vault({ layout: own });
     await viaDialog(builtIn.commands);
     expect(answers.fixesMargin).toEqual([false]);
+  });
+
+  it("offers the text face for the built-in template, which reads it, and not for one that does not", async () => {
+    const { commands } = vault();
+    await viaDialog(commands);
+    expect(answers.readsMonospace).toEqual([true]);
+
+    answers.readsMonospace = [];
+    answers.change = (options, templates) => ({
+      ...options,
+      template: templates.find((template) => !template.builtIn) ?? options.template
+    });
+    await viaDialog(vault().commands);
+    expect(answers.readsMonospace).toEqual([false]);
+  });
+
+  it("starts the text face from the note, and prints the one chosen in the dialog", async () => {
+    await viaDialog(vault({ properties: { schreibstubePrint: { monospace: false } } }).commands);
+    expect(answers.initialMonospace).toEqual([false]);
+    expect(main()).toContain('monospace: "false"');
+
+    answers.change = (options) => ({ ...options, monospace: true });
+    await viaDialog(vault({ properties: { schreibstubePrint: { monospace: false } } }).commands);
+    expect(main()).toContain('monospace: "true"');
   });
 
   it("says what went wrong and writes nothing when a template does not compile", async () => {

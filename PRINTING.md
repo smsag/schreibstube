@@ -98,17 +98,26 @@ fonts for it to find, and a page set without a face is a blank page — which is
 what every template without a `fonts/` folder printed, both examples included,
 until these were added. So the faces Typst itself defaults to travel with the
 compiler: Libertinus Serif for text and DejaVu Sans Mono for code, regular,
-italic, bold and bold italic, about 2 MB in all.
+italic, bold and bold italic, about 2 MB in all. Beside them travel the faces
+the built-in Standard is set in, the Klartext theme's: Fira Sans (regular,
+italic, semibold, bold, bold italic) and JetBrains Mono (regular, italic, bold,
+bold italic), about 3.4 MB. They are the full upstream files, not the Latin
+subsets the theme embeds, so a subscript digit or an arrow in a note has a
+glyph.
 
-They are pinned exactly like the compiler: taken from `typst/typst-assets` at
-`FONTS_VERSION`, checked against the hashes in `FONT_FILES`, attached to the
-release as `typst-runtime-fonts-…`, fetched once per device and hashed again
-from the cache. The worker receives them once, at start, and adds them to every
+They are pinned exactly like the compiler. `services/typst-fonts.json` lists
+three sets, each with its upstream at a tag or commit (`typst/typst-assets`,
+`google/fonts`, `JetBrains/JetBrainsMono`) and a hash per file; the release
+script reads the same file, fetches, checks, and attaches each font as
+`typst-runtime-fonts-<set version>-<file>`, and a device fetches it once and
+hashes it again from the cache. Static cuts, not the variable fonts upstream
+also ships: Typst sets a variable font in its default instance whatever weight
+is asked for. The worker receives them once, at start, and adds them to every
 job beside the template's own. Typst picks by family, so a template that names
 its font gets it; one that names none, or names one it did not bring, is set in
-the standard face. Both licences (OFL, and the Bitstream Vera licence for
-DejaVu) allow redistribution with the notice each font carries in its own
-metadata.
+the standard face. The licences (OFL for Libertinus, Fira and JetBrains Mono,
+and the Bitstream Vera licence for DejaVu) allow redistribution with the notice
+each font carries in its own metadata.
 
 Measured on this hardware: 226 ms to instantiate, 171 ms to set the letter,
 433 ms to set the four-page CV with its photo and four font faces.
@@ -222,24 +231,39 @@ them; a vault template that wants the presets does the same.
 ## The built-in template
 
 A note prints before the vault holds any template. The plugin carries one,
-**Standard**: A4, 25 mm margins, Libertinus Serif at 11 pt, justified and
-hyphenated in the plugin's language, the note's own headings, footnotes at the
-foot of the page, and the page number once there is more than one page. A note
-without a first heading gets its file name as a title.
+**Standard**, which is the Klartext theme on paper: A4, 25 mm margins, the text
+in JetBrains Mono at 9 pt and ragged right, headings, table headers and callout
+labels in Fira Sans, marks (dashes, bare numbers, quote bars, task boxes) in a
+faint grey, one hairline colour for every rule, code between two hairlines
+under a `</> language` header, links in the text's colour with a dotted rule,
+footnotes at the foot of the page, and the note's title and page number once
+there is more than one page. A note without a first heading gets its file name
+as a title.
+
+The print dialog's **Text font** (JetBrains Mono or Fira Sans) reaches the
+layout as `data.monospace` (`"true"` or `"false"`). With Fira Sans the text and
+the page foot are set in it at 10 pt; headings, tables and code do not change.
+Like every choice in the dialog it holds for one print. It starts where the
+note's `schreibstubePrint.monospace` says (`noteMonospace` in
+`services/print-options.ts`), and is set after the note's data, so what the
+dialog shows is what prints. The row is offered only for a layout that reads
+`data.monospace` (`layoutReadsMonospace`), which in practice is Standard.
 
 It is `examples/print/standard/`, carried like the other examples: the
 generator writes its files and its parsed frontmatter into
 `services/print-examples.ts`, and `services/print-builtin.ts` builds the
-template from them, so the plugin needs no YAML parser and the built-in and
-the copy "Vorlage anlegen" lays down cannot drift. Its folder is
+template from them, so the plugin needs no YAML parser. Its folder is
 `:builtin/Standard`, a path no vault can hold, and it reads no file from the
-vault.
+vault. It belongs to the plugin, not the vault: always offered, never deleted
+with a folder, and not among the examples "Vorlage anlegen" lays down
+(`copyableExamples`), because a copy by the same name would only raise the
+question which one prints.
 
 Which template a note gets (`chooseTemplate` in `services/print-template.ts`):
 
-1. The one it names in `schreibstubePrintTemplate`, by folder path or name. A
-   vault template shadows the built-in one of the same name, so a copy of
-   Standard in the vault is the Standard that prints.
+1. The one it names in `schreibstubePrintTemplate`, by folder path or name.
+   `Standard` always means the built-in one; a vault template of that name —
+   a copy made when that was still possible — is reached by its folder path.
 2. Otherwise the default from the setting `printDefaultTemplate`: empty for
    Standard (the default), a vault template's folder, or `:ask` for the picker.
    A default whose folder has gone is reported, and the picker is shown.
@@ -320,7 +344,8 @@ after it.
 | `schreibstube-code`       | `(source, language)`          | a fence that is not a diagram, or one that could not be drawn                                                                                     |
 | `schreibstube-table`      | `(columns:, align:, ..cells)` | a pipe table; the first argument among `cells` may be a `table.header`                                                                            |
 | `schreibstube-callout`    | `(kind, title, body)`         | an Obsidian callout, `kind` one of `note`, `tip`, `warning`, `danger`                                                                             |
-| `schreibstube-task`       | `(done)`                      | the box in front of a task-list item                                                                                                              |
+| `schreibstube-task`       | `(done)`                      | a task's box: the marker of a bulleted task, beside the number of a numbered one                                                                  |
+| `schreibstube-task-item`  | `(marker, body)`              | a bulleted task, `marker` its box as `schreibstube-task` drew it; a list of one item, so the box stands where the bullet would                    |
 | `schreibstube-properties` | `(rows)`                      | the note's properties, when the dialog prints them: an array of `(key, value)`                                                                    |
 | `schreibstube-slideshow`  | `(kind, images, columns: 1)`  | a slideshow: `kind` one of `single`, `filmstrip`, `feature`, `strip`, `masonry`, `compare`, `stacked`; `images` an array of `(path, description)` |
 

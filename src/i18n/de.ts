@@ -418,9 +418,9 @@ export const de: Messages = {
     printAddTemplate: "Vorlage anlegen",
     printAddTemplateButton: "Anlegen",
     printAddTemplateDesc:
-      "Legt eine der beiden Beispielvorlagen in einem Ordner deiner Wahl an. Keine bringt eine " +
-      "Schrift mit, denn Schriften sind lizenziert; eine Vorlage ohne wird in der Standardschrift " +
-      "gesetzt, die mit dem Satzteil geladen wird.",
+      "Legt eine der Beispielvorlagen in einem Ordner deiner Wahl an. Keine bringt eine " +
+      "Schriftdatei mit: Fira Sans, JetBrains Mono und Typsts eigene Schriften werden mit dem " +
+      "Satzteil geladen, und eine Vorlage ohne eigene Schrift wird darin gesetzt.",
     printTemplateRoot: "Vorlagenordner",
     printTemplateRootDesc:
       "Wohin eine neue Vorlage standardmäßig kommt. Eine Vorlage ist jeder Ordner mit einer " +
@@ -1072,6 +1072,9 @@ export const de: Messages = {
       margin: { small: "Klein", standard: "Standard", wide: "Breit" },
       marginFixed: "Diese Vorlage legt ihre Ränder selbst fest.",
       pageBreaks: "Trennlinien als Seitenumbruch",
+      textFace: "Schrift des Textes",
+      textFaceMono: "JetBrains Mono",
+      textFaceSans: "Fira Sans",
       frontmatter: "Eigenschaften drucken",
       slideshows: "Diashows",
       slideshow: { layout: "Wie in der Notiz", stacked: "Alle Bilder untereinander" },
