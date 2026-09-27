@@ -69,7 +69,14 @@ export interface SendResult {
   messageId: string;
   sentAt: string;
   filedInSent: boolean;
+  /** Recipients the mail server turned down; the rest were accepted. Empty
+   *  from a bridge before protocol 4, which did not report them. */
+  rejected: string[];
 }
+
+/** More refused recipients than a note can address is not an answer to trust. */
+const MAX_REJECTED = 100;
+const MAX_ADDRESS_CHARS = 320;
 
 /** True when at least one criterion is set. An empty search would return the
  *  whole mailbox, which is never what the user meant. */
@@ -96,7 +103,13 @@ export function parseSendResult(json: unknown): SendResult {
   return {
     messageId,
     sentAt: str(root.sentAt) || new Date().toISOString(),
-    filedInSent: root.filedInSent === true
+    filedInSent: root.filedInSent === true,
+    rejected: Array.isArray(root.rejected)
+      ? root.rejected
+          .slice(0, MAX_REJECTED)
+          .map(str)
+          .filter((address) => address.length > 0 && address.length <= MAX_ADDRESS_CHARS)
+      : []
   };
 }
 

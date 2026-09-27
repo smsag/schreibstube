@@ -215,6 +215,8 @@ export const de: Messages = {
     searchPlaceholderSubject: "enthält …",
     searchPlaceholderText: "irgendwo in der Nachricht",
     confirmTitle: "E-Mail senden",
+    confirmFrom: "Von",
+    confirmFromDefault: "Absender aus den Einstellungen bzw. der Bridge",
     confirmTo: "An",
     confirmCc: "Cc",
     confirmBcc: "Bcc",
@@ -764,9 +766,13 @@ export const de: Messages = {
     needsEditor: "eine Notiz im Bearbeitungsmodus öffnen, um die Nachricht einzufügen.",
     needsRecipient: (key: string) => `zuerst „${key}:“ mit einem Empfänger ins Frontmatter setzen.`,
     invalidRecipient: (addresses: string) => `keine gültige E-Mail-Adresse: ${addresses}`,
+    invalidSender: (key: string, value: string) =>
+      `„${key}“ muss eine Adresse sein, allein oder als „Name <Adresse>“: ${value}`,
     needsSubject: (key: string) => `zuerst eine Zeile „${key}:“ ins Frontmatter setzen.`,
     sent: "E-Mail gesendet.",
     sentNoCopy: "E-Mail gesendet (keine Kopie in „Gesendet“).",
+    sentRefused: (addresses: string) =>
+      `E-Mail gesendet, aber der Mailserver hat diese Empfänger abgelehnt; sie erhalten sie nicht: ${addresses}`,
     failSend: "Schreibstube: Senden fehlgeschlagen",
     failSearch: "Schreibstube: Postfachsuche fehlgeschlagen",
     failMerge: "Schreibstube: Übernehmen der Antworten fehlgeschlagen"

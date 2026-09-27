@@ -308,6 +308,7 @@ The note's frontmatter is the contract:
 ---
 schreibstubeTo: kunde@example.com
 schreibstubeCc: [innendienst@example.com]
+schreibstubeFrom: Büro <buero@your-domain.de> # optional: this note's sender
 schreibstubeSubject: Angebot Objekt 4711
 schreibstubeMessageId: <7f3a…@your-domain.de> # written on send
 schreibstubeSentAt: 2026-09-07T10:12:00.000Z # written on send
@@ -316,6 +317,10 @@ schreibstubeMergedIds: ["<reply-1@mail.kunde.de>"] # written on merge; keeps mer
 ```
 
 `schreibstubeMessageId` is what ties replies back to the note, so **Fetch replies** only works on notes that were sent from Obsidian.
+
+`schreibstubeFrom` sends one note under another address, such as an alias of your mailbox. Without it the note goes out under **Settings → Schreibstube → From**, and without that under the bridge's `MAIL_FROM`; the confirmation dialog names the sender either way. The alias sets only the `From` line: the mail is still sent through, and bounces return to, the bridge's mailbox. Replies go to the alias, so **Fetch replies** finds them only if the alias delivers into that mailbox. An address on a domain your mail provider does not send for, a freemail address for instance, is likely to be filed as spam or refused by the recipient's server.
+
+If the mail server turns down some of the recipients, the send still succeeds for the others, and a notice that stays until dismissed names the ones that will not receive it.
 
 #### The bridge
 

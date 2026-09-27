@@ -69,8 +69,26 @@ describe("parseSendResult", () => {
     expect(result).toEqual({
       messageId: "<x@b.de>",
       sentAt: "2026-09-07T10:00:00.000Z",
-      filedInSent: true
+      filedInSent: true,
+      rejected: []
     });
+  });
+
+  it("reads the recipients the server refused", () => {
+    const result = parseSendResult({ messageId: "<x@b.de>", rejected: ["weg@b.de"] });
+    expect(result.rejected).toEqual(["weg@b.de"]);
+  });
+
+  it("keeps only plausible entries from a refusal list", () => {
+    const result = parseSendResult({
+      messageId: "<x@b.de>",
+      rejected: ["weg@b.de", 7, "", "x".repeat(400)]
+    });
+    expect(result.rejected).toEqual(["weg@b.de"]);
+  });
+
+  it("reads no refusals from a bridge that does not report them", () => {
+    expect(parseSendResult({ messageId: "<x@b.de>" }).rejected).toEqual([]);
   });
 
   it("throws when the Message-ID is missing, since replies could never be found", () => {

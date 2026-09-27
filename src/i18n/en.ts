@@ -226,6 +226,8 @@ export const en = {
     searchPlaceholderSubject: "contains…",
     searchPlaceholderText: "anywhere in the message",
     confirmTitle: "Send email",
+    confirmFrom: "From",
+    confirmFromDefault: "the sender from the settings or the bridge",
     confirmTo: "To",
     confirmCc: "Cc",
     confirmBcc: "Bcc",

@@ -19,7 +19,7 @@ import {
  * its own number on /health, so a mismatch can be named — "redeploy the bridge"
  * — instead of surfacing later as a 404 on a route that does not exist yet.
  */
-export const PROTOCOL_VERSION = 3;
+export const PROTOCOL_VERSION = 4;
 
 /** Plan, targets, diagnostics: a manifest read and a listing. */
 export const PUBLISH_REQUEST_TIMEOUT_MS = 120_000;
