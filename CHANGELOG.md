@@ -2,7 +2,39 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## 1.53.0 - 2026-09-27
+
+A mail sends what the note says. The recipients are read from the note when
+Send is pressed, not from what Obsidian had indexed a moment before — a To
+typed just before sending had been left out, and the mail went to the Cc
+alone. The body is plain text as the rendered note reads, without Markdown
+marks and without the comments Obsidian hides. A note can name its own
+sender, the dialog says who the mail is from and warns when there is no To,
+a recipient the server refused is named, and a send whose outcome never came
+back is called unconfirmed rather than failed, so it is not sent twice.
+
+Recommended is one list, most relevant first — notes, pictures and Pythia's
+conversations together, as many as you set, 7 by default — drawn as a
+register, with conversations named by their titles, and it stays under the
+note in Reading view. The Explorer filter finds Pythia's conversations too,
+opens "Updated externally" and Bookmarks while it is set, and "Updated
+externally" lists every waiting update instead of fifty. "Show passage" marks
+where it landed in the note. The icon picker shows its icons twice as large
+and gains the Schreibstube and Pythia logos.
+
+Mobile checklist: not run, and nothing in this release was tried in the
+Obsidian app on desktop either. The test suite and the build checked it. What
+a phone would answer differently: the send dialog with its preview at phone
+width, a property typed right before sending reaching the mail, the mark
+"Show passage" leaves, Recommended under a note in Reading view scrolled to
+its end, and the conversation block in the Explorer filter.
+
+The bridge moves to 2.9.0 and its protocol to 4, and runs on Node 24 again.
+Check `MAIL_FROM` before deploying it: a value with a name but no address now
+stops the bridge from starting, where it used to send mail without a From
+line. Bridge 2.8.0 still sends and publishes for this release, but reports no
+refused recipients, calls a send its own deadline cut short failed, lets a
+note's sender replace the envelope sender, and the plugin says it is behind.
 
 ### Added
 
