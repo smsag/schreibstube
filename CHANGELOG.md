@@ -2,7 +2,27 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## 1.55.0 - 2026-09-27
+
+Printing looks like the Klartext theme. The built-in Standard template sets the
+text in JetBrains Mono and the headings in Fira Sans, with the theme's faint
+marks, thin rules and frameless code; the print dialog can set the text in Fira
+Sans instead. Both faces come with the typesetter, pinned like the compiler,
+so the first print on a device downloads about 34 MB rather than 30. Standard is
+always the built-in template and is no longer copied into the vault. The
+converter keeps more of what a note wrote: hard line breaks, setext headings,
+indented code, reference links, footnotes over several lines, sub- and
+superscript, and math, printed as written. Adding a template works again: a
+pick in the template or folder list used to be lost. Recommended entries carry
+an icon and two actions and fold under their heading, and Pythia's
+conversations in the Explorer's results are a section of their own.
+
+Mobile checklist: not run. Printing, the dialog's text font and adding a
+template were checked in the Obsidian app on Linux desktop. What to try first on
+a phone: the first print after the update (it fetches nine new font files),
+Standard in both text fonts, and adding the Lebenslauf template.
+
+The bridge is unchanged at 2.9.0.
 
 ### Changed
 
@@ -23,7 +43,6 @@ All notable changes to this project will be documented in this file.
 - **The print dialog keeps its buttons on screen.** Its page preview was sized on its own, and with the page count and a few warnings around it the dialog grew taller than the window allows and put Print below its bottom edge. The preview now takes the room that is left and scrolls its pages; a long list of warnings scrolls in its own box.
 - **Printing keeps what the note wrote.** A line ending in two spaces or a backslash keeps its break. A heading underlined with `===` or `---` prints as a heading, not as the text and a row of signs. A third list level stays at its own depth. Code indented four spaces prints as code. Reference-style links (`[text][label]`) are links, and their definition lines are not printed. A footnote written over indented lines carries its text, which used to land in the body. H<sub>2</sub>O and mc<sup>2</sup> keep their sub- and superscript.
 - **Math prints as it was written.** A formula used to lose its backslashes (`\int` printed as "int"). It now prints as its source in the code face, and the dialog says so: the note's TeX cannot be typeset on a device without a network.
-
 - **Recommended under a note is as wide as the note.** It shrank to the length of its longest title, and with "Readable line length" off it stayed narrow and centred under text running the full width of the pane. It now takes the width of the text column in both views, whatever that setting says. In Reading view its entries also no longer sit a list indent further right than while editing.
 
 ## 1.54.0 - 2026-09-27
