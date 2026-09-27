@@ -311,6 +311,24 @@ render server-side without a headless browser, so a `mermaid` fence becomes a
 that the bridge writes from its own dependencies. No content delivery network,
 and only pages that contain a diagram load the script.
 
+**Vizardry canvases** cannot be drawn anywhere but inside Obsidian, by the
+plugin that owns them, so the plugin draws them before the upload
+(`services/publish-diagrams.ts`, `controllers/diagram-capture.ts`). The copy of
+the note that is uploaded says `![title](schreibstube-diagram-….png)` where the
+fence was, one picture per panel, and each picture travels as one more asset.
+The bridge renders that as it renders any picture and needs to know nothing
+about canvases, so no protocol version changed for it. The note in the vault
+is never rewritten.
+
+- A picture is named after the canvas's text, not its bytes, so an unchanged
+  canvas keeps its address and its page is not written again. Within a session
+  a drawn canvas is kept, up to a fixed number of bytes, and not drawn twice.
+- A canvas that could not be drawn, or lost one of its panels, stays its source,
+  and the publish says how many did. A canvas inside `%%…%%` is never drawn:
+  drawing it would publish what the comment hides.
+- Mermaid stays with the site's script: drawn in the reader's browser it stays
+  text and follows the page's colours.
+
 Frontmatter never reaches the output. It is metadata, and `published: false` on
 a page that leaks its own frontmatter would be an unpleasant surprise.
 

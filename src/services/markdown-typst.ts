@@ -1029,15 +1029,32 @@ function stripFrontmatter(source: string): string {
  * several lines, and a line that is all comment leaves no blank behind.
  */
 export function stripComments(source: string): string {
+  return scanComments(source).out;
+}
+
+/**
+ * Whether each line of a note begins inside a comment.
+ *
+ * A fence that opens inside `%%…%%` is hidden with the rest of the comment, so
+ * nothing drawn from it may leave the vault: the comment is the one part of a
+ * note a person never meant anyone to see.
+ */
+export function linesInComment(source: string): boolean[] {
+  return scanComments(source).openAt;
+}
+
+function scanComments(source: string): { out: string; openAt: boolean[] } {
   const lines = source.split("\n");
   const fenced = fencedLines(lines);
   const closer: Record<string, string> = { "%%": "%%", "<!--": "-->" };
 
   let out = "";
   let open: string | null = null;
+  const openAt: boolean[] = [];
 
   for (const [index, line] of lines.entries()) {
     const suffix = index === lines.length - 1 ? "" : "\n";
+    openAt.push(open !== null);
 
     if (fenced[index] && open === null) {
       out += line + suffix;
@@ -1073,7 +1090,7 @@ export function stripComments(source: string): string {
     out += kept + suffix;
   }
 
-  return out;
+  return { out, openAt };
 }
 
 /**

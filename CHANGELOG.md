@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+A published site now shows a Vizardry canvas as the picture it is in the note,
+where it used to show the canvas's source text. The canvas is drawn in Obsidian
+before the upload and travels as a picture; a canvas with several panels shows
+each of them. One that cannot be drawn — Vizardry is not installed, say — is
+published as its source as before, and the publish says how many were. The
+bridge needs no update for this.
+
 ## 1.56.0 - 2026-09-27
 
 The Lebenslauf template now sets a CV the way iA Writer does, measured line for

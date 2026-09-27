@@ -173,6 +173,13 @@ export const de: Messages = {
     missingSource: (path: string) => `die Quelle zu ${path} fehlt — bitte erneut versuchen.`,
     changedDuringPublish: (path: string) =>
       `${path} wurde während der Veröffentlichung geändert — erneut veröffentlichen, um die neue Fassung zu senden.`,
+    drawingDiagrams: (index: number, total: number) =>
+      `zeichne Visualisierung ${index} von ${total} für die Website …`,
+    diagramsNotDrawn: (count: number) =>
+      count === 1
+        ? "1 Visualisierung konnte nicht gezeichnet werden und erscheint als Quelltext."
+        : `${count} Visualisierungen konnten nicht gezeichnet werden und erscheinen als Quelltext.`,
+    diagramAlt: "Visualisierung",
     writeBackFailed: (path: string) =>
       `veröffentlicht, aber ${path} konnte nicht aktualisiert werden.`,
     unknownTarget: (target: string) => `die Bridge kennt kein Ziel namens ${target}.`,

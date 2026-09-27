@@ -185,6 +185,14 @@ export const en = {
     missingSource: (path: string) => `the source for ${path} is missing — please try again.`,
     changedDuringPublish: (path: string) =>
       `${path} changed while publishing — publish again to send the new version.`,
+    drawingDiagrams: (index: number, total: number) =>
+      `drawing visualisation ${index} of ${total} for the website…`,
+    diagramsNotDrawn: (count: number) =>
+      count === 1
+        ? "1 visualisation could not be drawn and is published as its source."
+        : `${count} visualisations could not be drawn and are published as their source.`,
+    /** A published picture's description when the canvas gives it no title. */
+    diagramAlt: "Visualisation",
     writeBackFailed: (path: string) => `published, but ${path} could not be updated.`,
     unknownTarget: (target: string) => `the bridge has no target named ${target}.`,
     connectionOk: (target: string, entries: number) =>
