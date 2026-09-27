@@ -2,24 +2,33 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## 1.57.0 - 2026-09-27
 
-A published site now shows a Vizardry canvas as the picture it is in the note,
-where it used to show the canvas's source text. The canvas is drawn in Obsidian
-before the upload and travels as a picture; a canvas with several panels shows
-each of them. One that cannot be drawn — Vizardry is not installed, say — is
-published as its source as before, and the publish says how many were. The
-bridge needs no update for this.
+A note's diagrams now leave the vault as the pictures they are in it. A
+published site shows a Vizardry canvas as the picture Obsidian draws, where it
+used to show the canvas's source text, and a mail carries its Vizardry canvases
+and Mermaid charts as attached pictures, each named in the text where it stood.
+Whatever cannot be drawn goes as its source as before, and the publish says how
+many did — the mail dialog says so before Send, since a mail cannot be taken
+back. Printed notes already carried Vizardry canvases; with Vizardry 0.71.2
+they are no longer cut off at the left, and their size no longer depends on
+the window's.
 
-A note sent as an email now carries its diagrams — Vizardry canvases and
-Mermaid charts — as attached pictures, since no mail client can draw them. The
-text names each one where it stood, "[Figure 1: SWOT — attached: figure-1.png]",
-and the dialogue lists the attachments before Send. A diagram that cannot be
-drawn, or would pass the bridge's limits (10 pictures, 4 MB each, 10 MB
-together), goes as its source, and the dialogue says so before the mail leaves.
-This needs the bridge at protocol 5; an older bridge gets the diagrams as
-source text, again said in the dialogue, never a mail pointing at pictures it
-does not carry.
+Mobile checklist: not run, and nothing in this release was tried in the
+Obsidian app either. The test suite and the build checked it, and the capture
+was checked in Chrome against all 29 of Vizardry's example canvases. What to try
+first on a phone: publishing a note with a canvas twice in a row (the second
+should not draw again), and a mail with two diagrams.
+
+The bridge moves to 2.10.0 and its protocol to 5: a send may carry pictures.
+Publishing needs nothing new from it, and bridge 2.9.0 still sends and
+publishes for this release — its mails carry diagrams as source text, which the
+dialog says, and the plugin says the bridge is behind.
+
+### Added
+
+- **A published page shows a Vizardry canvas as a picture.** The canvas is drawn in Obsidian before the upload and travels as one more picture; a canvas with several panels shows each of them, described by the canvas's title. The note in the vault is not changed. A canvas that cannot be drawn — Vizardry is not installed, say — or that loses a panel is published as its source, and a notice says how many were. A canvas inside `%%…%%` is never drawn, because that would publish what the comment hides. An unchanged canvas keeps its picture's address, so its page is not written again, and within a session it is drawn only once.
+- **A mail carries its diagrams as attached pictures.** Vizardry canvases and Mermaid charts are drawn before the send dialog opens and attached as PNG files. The text names each one where it stood, "[Figure 1: SWOT — attached: figure-1.png]", and the dialog lists the attachments. A diagram that cannot be drawn, or would pass the bridge's limits of 10 pictures, 4 MB each and 10 MB together, goes as its source text, and the dialog says so before Send. This needs bridge 2.10.0; an older bridge gets the diagrams as source text, never a mail pointing at pictures it does not carry.
 
 ## 1.56.0 - 2026-09-27
 
