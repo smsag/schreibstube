@@ -2350,22 +2350,9 @@
   visibility: hidden;
 }
 
-/* Pythia's conversations under the files a filter found: a heading of their
-   own, set like the Recommended panel's, because a row that looks like a note
-   and opens a chat must say so before it is pressed. */
-.schreibstube-explorer-conversations {
-  display: flex;
-  flex-direction: column;
-  margin-top: 8px;
-}
-
-.schreibstube-explorer-conversations-heading {
-  padding: 4px 8px 4px var(--schreibstube-row-inset);
-  color: var(--text-muted);
-  font-size: var(--font-ui-smaller);
-  font-weight: var(--font-semibold);
-}
-
+/* Pythia's conversations under the files a filter found sit in a section of
+   their own, whose header is every other section's: a row that looks like a
+   note and opens a chat must say so before it is pressed. */
 .schreibstube-explorer-row.is-conversation {
   cursor: pointer;
 }

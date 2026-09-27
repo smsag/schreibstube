@@ -12,7 +12,7 @@ import { t } from "../i18n";
 import { folderCountLabel } from "../services/folder-count";
 import { applyIcon } from "./icon-font";
 
-export type SectionId = "pinned" | "bookmarks" | "latest" | "files";
+export type SectionId = "pinned" | "bookmarks" | "latest" | "files" | "conversations";
 
 /** A control a header carries at its far end, past the rule. */
 export interface SectionAction {

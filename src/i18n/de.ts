@@ -810,7 +810,6 @@ export const de: Messages = {
     filterEmpty: "Darauf antwortet hier nichts.",
     filterMore: (count: number) => `${count} weitere Treffer. Filter eingrenzen, um sie zu sehen.`,
     foundByMeaning: "Nach Bedeutung gefunden: andere Wörter, gleiches Thema.",
-    conversationsFound: "Pythia-Unterhaltungen",
     searchingByMeaning: "Suche nach Bedeutung …",
     collapseAll: "Alle zuklappen",
     expandAll: "Alle aufklappen",
@@ -894,7 +893,8 @@ export const de: Messages = {
       pinned: "Angeheftet",
       bookmarks: "Lesezeichen",
       latest: "Extern aktualisiert",
-      files: "Dateien und Ordner"
+      files: "Dateien und Ordner",
+      conversations: "Unterhaltungen"
     },
 
     bookmarks: {
