@@ -4,6 +4,28 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 1.51.0 - 2026-09-27
+
+A folder of Pythia's term notes can serve as a glossary: say which words to
+avoid for a term from the proofreading panel, and the term is offered in
+their place. Property sets add every key a job needs in one step, from
+Schreibstube's own features or from a folder of set notes, Templater
+templates included. A folder's pictures can be described in one run. Notes
+now leave "Extern aktualisiert" however their update was taken, and an icon
+on a property no longer covers its name.
+
+Use the term folder with Pythia 3.1.0 or later: an earlier Pythia rewrites a
+term note's properties when it looks the term up again, and drops
+`schreibstubeAvoid` with them.
+
+Mobile checklist: not run, and nothing in this release was tried in the
+Obsidian app on desktop either. The test suite and the build checked it.
+What a phone would answer differently: whether the **Add set** button finds
+its place beside **Add property** in the mobile properties view, and whether
+the folder menu's **Describe pictures** appears on a long press.
+
+The bridge stays at 2.8.0, and its protocol at 3; nothing here touches it.
+
 ### Added
 
 - **Describe every picture in a folder.** Right-click a folder, in Schreibstube Explorer or in Obsidian's file list, and choose **Describe pictures** (`Bilder beschreiben`): every picture under it without a description gets one, subfolders included. Orphaned descriptions are matched to their renamed pictures first, so those are not described twice. The run says how many pictures it will send and to which provider, and waits for your yes; it goes one picture at a time, counts along in a notice with **Stop**, and ends with what was described, what the model could not describe and what failed. At most 100 pictures a run; pictures over 10 MB are left out and counted.
