@@ -1,4 +1,5 @@
-import { MarkdownView, type Plugin } from "obsidian";
+import { MarkdownView, type Plugin, type TFile } from "obsidian";
+import { FooterHold } from "../services/footer-hold";
 import {
   keepEditorTailBelow,
   noteFooterHost,
@@ -26,6 +27,7 @@ interface Footer {
  */
 export class RecommendedFooter {
   private readonly footers = new Map<MarkdownView, Footer>();
+  private readonly hold = new FooterHold<MarkdownView, TFile>();
 
   constructor(
     private readonly plugin: Plugin,
@@ -51,6 +53,22 @@ export class RecommendedFooter {
     this.plugin.register(() => this.clear());
   }
 
+  /**
+   * Open this note without the footer, this once; call what comes back once
+   * the note is open.
+   *
+   * What comes back looks at the open views, so the note's view claims its
+   * hold even if no workspace event has run since the open, and then gives
+   * up the hold if nothing claimed it.
+   */
+  holdBack(file: TFile): () => void {
+    this.hold.hold(file);
+    return () => {
+      this.sync();
+      this.hold.release(file);
+    };
+  }
+
   /** Bring every open note's footer in line with the setting and its file. */
   sync(): void {
     const host = this.host();
@@ -67,9 +85,15 @@ export class RecommendedFooter {
         this.drop(view, footer);
       }
     }
+    this.hold.keepOnly(views);
     if (!on || !host) return;
 
     for (const view of views) {
+      if (this.hold.isHeld(view, view.file)) {
+        const footer = this.footers.get(view);
+        if (footer) this.drop(view, footer);
+        continue;
+      }
       const target = noteFooterHost(view, view.getMode() === "preview");
       if (!target) continue;
       let footer = this.footers.get(view);

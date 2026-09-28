@@ -206,7 +206,12 @@ export default class SchreibstubePlugin extends Plugin {
         await this.saveSettings();
       }
     );
-    this.notes = new NoteCommands(this.app, this.logger);
+    // The footer is made later in the load; by the time the command runs it is there.
+    this.notes = new NoteCommands(
+      this.app,
+      this.logger,
+      (file) => this.recommendedFooter?.holdBack(file) ?? (() => undefined)
+    );
     // The reader is reached for only when the command runs. Obsidian's pdf.js
     // is fetched on that first call, and every vault that never summarises a
     // PDF pays nothing for the feature but the bytes of this line.
@@ -1245,7 +1250,7 @@ export default class SchreibstubePlugin extends Plugin {
       id: "create-untitled-note",
       name: t().commands.newNote,
       callback: () => {
-        void this.notes?.createUntitled();
+        void this.notes?.createUntitled({ withoutRecommendations: true });
       }
     });
 
