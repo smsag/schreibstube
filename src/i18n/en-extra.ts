@@ -575,7 +575,7 @@ export const enExtra = {
       viewTitle: "Recommended",
       viewNoNote: "Open a note to see what belongs with it.",
       viewEmpty:
-        "Nothing links, tags or files this note beside anything else, and nothing reads alike.",
+        "Nothing links or tags this note together with anything else, and nothing reads alike.",
       summary: (count: number) => (count === 1 ? "1 recommendation" : `${count} recommendations`),
       untitled: "Untitled conversation",
       follow: "Follow the open note",
@@ -589,9 +589,16 @@ export const enExtra = {
       openBeside: "Open to the right",
       collapse: "Collapse Recommended",
       expand: "Expand Recommended",
+      relevance: {
+        high: "Highly relevant",
+        medium: "Relevant",
+        low: "Loosely related"
+      },
+      relevanceTitle: (level: string, reasons: string) => `${level}: ${reasons}`,
       reasons: {
         link: "linked",
-        meaning: "similar in meaning",
+        attached: "attached in the conversation",
+        meaning: (percent: number) => `${percent}% similar in meaning`,
         sharedLink: (count: number) => (count === 1 ? "1 shared link" : `${count} shared links`),
         coCitation: (count: number) =>
           count === 1 ? "listed together" : `listed together ${count}×`,

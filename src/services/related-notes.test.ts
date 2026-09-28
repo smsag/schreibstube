@@ -147,9 +147,8 @@ describe("rankRelated", () => {
 
     const related = rankRelated("Ordner/Quelle.md", vault);
 
-    // A shared tag beats a shared folder, wherever the two notes sit.
-    expect(related[0]?.path).toBe("Anderswo/Thema.md");
-    expect(related.map((entry) => entry.path)).toContain("Ordner/Nachbar.md");
+    // A shared tag puts a note on the list; a shared folder alone does not.
+    expect(related.map((entry) => entry.path)).toEqual(["Anderswo/Thema.md"]);
   });
 
   it("breaks a tie by what was touched most recently", () => {
@@ -304,5 +303,20 @@ describe("limit", () => {
 
     expect(rankRelated("N/0.md", vault, { limit: 10_000 })).toHaveLength(100);
     expect(rankRelated("N/0.md", vault, { limit: -3 })).toEqual([]);
+  });
+});
+
+describe("the folder as a tiebreak", () => {
+  it("orders two notes that share the same thing", () => {
+    const vault: RelatedSubject[] = [
+      note("Ordner/Quelle.md", { tags: ["thema"] }),
+      note("Anderswo/Fern.md", { tags: ["thema"] }),
+      note("Ordner/Nah.md", { tags: ["thema"] })
+    ];
+
+    const related = rankRelated("Ordner/Quelle.md", vault);
+
+    expect(related.map((entry) => entry.path)).toEqual(["Ordner/Nah.md", "Anderswo/Fern.md"]);
+    expect(related[0]?.reasons.map((reason) => reason.kind)).toEqual(["tag", "folder"]);
   });
 });

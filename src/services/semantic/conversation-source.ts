@@ -19,6 +19,10 @@ export const MAX_CONVERSATIONS = 1000;
 export const MAX_CONVERSATION_CHARS = 40_000;
 const MAX_ID_CHARS = 200;
 const MAX_TITLE_CHARS = 300;
+/** At most this many attached notes per conversation are read. */
+export const MAX_CONTEXT_NOTES = 50;
+/** Longer than any vault path a person would keep. */
+const MAX_PATH_CHARS = 1000;
 
 /** Pythia's chunk size for conversations, at which its related floors were measured. */
 export const CONVERSATION_CHUNK_CHARS = 500;
@@ -29,6 +33,14 @@ export interface ConversationItem {
   updatedAt: number;
   summary: string;
   messages: string[];
+  /**
+   * The vault paths of the notes attached to the conversation as context.
+   *
+   * Attaching a note is a person saying the conversation is about it, as
+   * deliberately as writing a link, so Recommended counts it as one. Not part
+   * of the embedded text: the chunks, and so the content hash, are unchanged.
+   */
+  notes: string[];
 }
 
 const text = (value: unknown): string => (typeof value === "string" ? value : "");
@@ -58,7 +70,19 @@ export function normalizeConversation(raw: unknown): ConversationItem | null {
     const kept = take(text(message));
     if (kept.length > 0) messages.push(kept);
   }
-  return { id, title, updatedAt, summary, messages };
+  return { id, title, updatedAt, summary, messages, notes: contextNotes(record.notes) };
+}
+
+/** Attached notes as paths: strings only, trimmed, bounded, once each. */
+function contextNotes(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  const notes = new Set<string>();
+  for (const entry of raw) {
+    if (notes.size >= MAX_CONTEXT_NOTES) break;
+    const path = text(entry).trim();
+    if (path.length > 0 && path.length <= MAX_PATH_CHARS) notes.add(path);
+  }
+  return [...notes];
 }
 
 /** The whole list: each entry checked, one per id, the newest first, capped. */

@@ -42,7 +42,8 @@ const conv = (id: string, text: string, title = ""): ConversationItem => ({
   title,
   updatedAt: 1,
   summary: "",
-  messages: [text]
+  messages: [text],
+  notes: []
 });
 const POLICY = hashPolicyFor("xenova-paraphrase-multilingual-MiniLM-L12-v2");
 const OPTS = { minScore: 0.5, limit: 10 };

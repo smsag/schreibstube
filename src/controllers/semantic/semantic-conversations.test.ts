@@ -199,3 +199,27 @@ describe("conversations beside a note, where the model may run", () => {
     expect(s.source.list).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("the notes attached to a conversation", () => {
+  it("name the conversations a note was attached to, from the listing", async () => {
+    const s = setup();
+    (s.listed[0] as Record<string, unknown>).notes = ["Projekte/Pythia/readme.md"];
+    s.conversations.register(s.source);
+    await s.conversations.relatedToVectors([new Int8Array([127, 0, 0, 0])], 5);
+
+    expect(s.conversations.attachedTo("Projekte/Pythia/readme.md")).toEqual(["c1"]);
+    expect(s.conversations.attachedTo("Anderes.md")).toEqual([]);
+  });
+});
+
+describe("the floor beside a note", () => {
+  it("is the one measured for a note against a conversation", async () => {
+    const s = setup();
+    s.conversations.register(s.source);
+    await s.conversations.search("küche", 5, []);
+    // Between the note floor (0.62) and the conversation floor (0.65).
+    const vector = new Int8Array([81, 98, 0, 0]); // cosine 0.638 against c1
+    const found = await s.conversations.relatedToVectors([vector], 5);
+    expect(found.map((hit) => hit.id)).toContain("c1");
+  });
+});

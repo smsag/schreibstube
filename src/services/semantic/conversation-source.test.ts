@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  MAX_CONTEXT_NOTES,
   MAX_CONVERSATION_CHARS,
   MAX_CONVERSATIONS,
   conversationChunks,
@@ -23,7 +24,8 @@ describe("normalizeConversation", () => {
       title: "Exposé Seestraße",
       updatedAt: 10,
       summary: "Texte für das Exposé",
-      messages: ["Schreib einen Text", "Hier ist er"]
+      messages: ["Schreib einen Text", "Hier ist er"],
+      notes: []
     });
   });
 
@@ -38,7 +40,14 @@ describe("normalizeConversation", () => {
     const item = normalizeConversation(
       conv({ title: 3, summary: null, updatedAt: "x", messages: [null, "a", 5] })
     );
-    expect(item).toEqual({ id: "c1", title: "", updatedAt: 0, summary: "", messages: ["a"] });
+    expect(item).toEqual({
+      id: "c1",
+      title: "",
+      updatedAt: 0,
+      summary: "",
+      messages: ["a"],
+      notes: []
+    });
   });
 
   it("bounds the text a conversation brings", () => {
@@ -48,6 +57,33 @@ describe("normalizeConversation", () => {
       (item?.summary.length ?? 0) +
       (item?.messages.reduce((n, m) => n + m.length, 0) ?? 0);
     expect(total).toBe(MAX_CONVERSATION_CHARS);
+  });
+});
+
+describe("the notes attached to a conversation", () => {
+  it("are read as paths, once each", () => {
+    const item = normalizeConversation(
+      conv({ notes: ["Projekte/Pythia/readme.md", " Projekte/Pythia/readme.md ", "B.md"] })
+    );
+    expect(item?.notes).toEqual(["Projekte/Pythia/readme.md", "B.md"]);
+  });
+
+  it("drop what is not a path, and a list that is not a list", () => {
+    expect(
+      normalizeConversation(conv({ notes: [7, null, "", "x".repeat(1001), "A.md"] }))?.notes
+    ).toEqual(["A.md"]);
+    expect(normalizeConversation(conv({ notes: "A.md" }))?.notes).toEqual([]);
+  });
+
+  it("are bounded", () => {
+    const notes = Array.from({ length: MAX_CONTEXT_NOTES + 5 }, (_, i) => `N${i}.md`);
+    expect(normalizeConversation(conv({ notes }))?.notes).toHaveLength(MAX_CONTEXT_NOTES);
+  });
+
+  it("leave the embedded text, and so the chunks, as they were", () => {
+    const plain = normalizeConversation(conv());
+    const attached = normalizeConversation(conv({ notes: ["A.md"] }));
+    expect(conversationChunks(attached!)).toEqual(conversationChunks(plain!));
   });
 });
 

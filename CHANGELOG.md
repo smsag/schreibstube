@@ -6,8 +6,15 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- **Recommended says how relevant each entry is.** Three bars at the end of every entry show whether it is highly relevant, relevant or loosely related, and pointing at them lists every reason in words. The level comes from what put the entry on the list, not from its place in it: a link, or a note attached to a conversation, counts as high; a shared link or being listed together is strong; a shared tag is a hint; similar content is read against the levels the language model was measured at. The line under a title now gives the similarity as a percentage, "78% similar in meaning".
+- **A conversation in Pythia that a note was attached to is recommended beside that note.** Attaching a note to a conversation says what writing a link says, so the conversation now stands with the notes the note links, marked "attached in the conversation". This needs a Pythia version that passes the attached notes along.
 - **The Explorer's filter answers the keyboard.** Escape clears it, Enter opens the best match, and the down arrow moves from the field into the list. `#objekt` searches tags, as `tag:objekt` does, and a filter narrowed with `tag:`, `path:`, `name:` or `text:` now says so above its results. Hovering the field lists the prefixes, and a screen reader hears how many files matched.
 - **Recommended can stay on one note.** A pin in the panel's header keeps the list on the note it shows, and pressing it again lets the panel follow the open note. The panel's heading opens the note it names, and a middle click on an entry opens it in a new tab.
+
+### Changed
+
+- **Recommended no longer lists notes only because they share a folder.** A shared folder still puts two related notes in order, but on its own it no longer puts a note on the list: it filled the list with a note's whole folder, ahead of notes that actually read alike.
+- **Pythia conversations are recommended as readily as notes.** A conversation had to be more alike than a note to be recommended, because its text is compared in larger pieces, which score lower. Beside a note it now has to clear a lower bar of its own, measured so that conversations pass as often as notes do.
 
 ### Fixed
 

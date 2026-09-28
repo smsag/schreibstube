@@ -5,18 +5,26 @@ import { setLanguage } from "../i18n";
 import { RecommendedPanel, type Recommendation, type RecommendedHost } from "./recommended-panel";
 import { iconGlyph } from "./icon-font";
 import { TASK_PILL_CLASS } from "./task-count-label";
+import type { RecommendReason } from "../services/semantic/recommend";
 
 beforeAll(() => installObsidianDom());
 beforeEach(() => setLanguage("en"));
 
-const card = (path: string, kinds: ("link" | "meaning" | "tag")[] = ["link"]) => ({
+type Kind = "link" | "meaning" | "tag";
+
+/** A reason as the ranking gives it; likeness at 0.7, a middling score. */
+const reason = (kind: Kind): RecommendReason =>
+  kind === "meaning" ? { kind, count: 1, similarity: 0.7 } : { kind, count: 1 };
+const ALIKE = [reason("meaning")];
+
+const card = (path: string, kinds: Kind[] = ["link"]) => ({
   path,
   title: path.replace(/\.md$/, ""),
   folder: "",
-  reasons: kinds.map((kind) => ({ kind, count: 1 }) as const)
+  reasons: kinds.map(reason)
 });
 
-const note = (path: string, kinds?: ("link" | "meaning" | "tag")[]) => ({
+const note = (path: string, kinds?: Kind[]) => ({
   kind: "note" as const,
   card: card(path, kinds)
 });
@@ -54,11 +62,14 @@ describe("RecommendedPanel", () => {
   it("draws meaning's answer as one list, in the order it was ranked, not by kind", async () => {
     const { root, panel, host } = setup(async () => ({
       items: [
-        { kind: "conversation", conversation: { id: "c1", title: "Exposé Seestraße" } },
+        {
+          kind: "conversation",
+          conversation: { id: "c1", title: "Exposé Seestraße", reasons: ALIKE }
+        },
         note("linked.md"),
         {
           kind: "picture",
-          picture: { path: "Bilder/see.jpg", title: "see", src: "app://see.jpg" }
+          picture: { path: "Bilder/see.jpg", title: "see", src: "app://see.jpg", reasons: ALIKE }
         },
         note("kitchen.md", ["meaning"])
       ]
@@ -70,7 +81,7 @@ describe("RecommendedPanel", () => {
     expect(root.querySelectorAll(".schreibstube-related-list")).toHaveLength(1);
     expect(root.querySelector(".schreibstube-related-section")).toBeNull();
     expect(root.querySelector(".is-picture img")?.getAttribute("src")).toBe("app://see.jpg");
-    expect(root.textContent).toContain("similar in meaning");
+    expect(root.textContent).toContain("70% similar in meaning");
 
     (root.querySelector(".is-conversation") as HTMLElement).click();
     expect(host.openConversation).toHaveBeenCalledWith("c1");
@@ -87,10 +98,13 @@ describe("RecommendedPanel", () => {
             title: "ELLI PIM"
           }
         },
-        { kind: "conversation", conversation: { id: "c1", title: "Left Shift Testing" } },
+        {
+          kind: "conversation",
+          conversation: { id: "c1", title: "Left Shift Testing", reasons: ALIKE }
+        },
         {
           kind: "picture",
-          picture: { path: "Bilder/plan.png", title: "plan", src: "app://plan.png" }
+          picture: { path: "Bilder/plan.png", title: "plan", src: "app://plan.png", reasons: ALIKE }
         }
       ]
     }));
@@ -113,9 +127,9 @@ describe("RecommendedPanel", () => {
       Array.from(el.children).map((part) => part.textContent)
     );
     expect(meta).toEqual([
-      ["Erfolge", "similar in meaning · 1 shared tag"],
-      ["Conversation in Pythia", "similar in meaning"],
-      ["Picture", "similar in meaning"]
+      ["Erfolge", "70% similar in meaning · 1 shared tag"],
+      ["Conversation in Pythia", "70% similar in meaning"],
+      ["Picture", "70% similar in meaning"]
     ]);
     // Reasons are words on the line now, never chips.
     expect(root.querySelector(".schreibstube-related-chip")).toBeNull();
@@ -125,7 +139,10 @@ describe("RecommendedPanel", () => {
     const { root, panel } = setup(async () => ({
       items: [
         note("a.md"),
-        { kind: "picture", picture: { path: "p.png", title: "p", src: "app://p.png" } }
+        {
+          kind: "picture",
+          picture: { path: "p.png", title: "p", src: "app://p.png", reasons: ALIKE }
+        }
       ]
     }));
     panel.show("x.md");
@@ -138,11 +155,13 @@ describe("RecommendedPanel", () => {
     expect(shape(noteRow!)).toEqual([
       "schreibstube-related-glyph",
       "schreibstube-related-card-text",
+      "schreibstube-related-relevance",
       "schreibstube-related-actions"
     ]);
     expect(shape(pictureRow!)).toEqual([
       "schreibstube-related-glyph",
       "schreibstube-related-card-text",
+      "schreibstube-related-relevance",
       "schreibstube-related-actions",
       "schreibstube-related-card-thumb"
     ]);
@@ -201,7 +220,7 @@ describe("RecommendedPanel", () => {
     const { root, panel, host } = setup(async () => ({
       items: [
         note("Docs/readme.md"),
-        { kind: "conversation", conversation: { id: "c1", title: "Chat" } }
+        { kind: "conversation", conversation: { id: "c1", title: "Chat", reasons: ALIKE } }
       ]
     }));
     panel.show("x.md");
@@ -262,5 +281,79 @@ describe("RecommendedPanel", () => {
     const { root, panel } = setup();
     panel.show(null);
     expect(root.textContent).toContain("Open a note");
+  });
+
+  it("says how relevant each entry is, and why, in words", async () => {
+    const { root, panel } = setup(async () => ({
+      items: [
+        note("linked.md", ["link"]),
+        note("alike.md", ["meaning"]),
+        note("tagged.md", ["tag"]),
+        {
+          kind: "conversation",
+          conversation: { id: "c1", title: "Chat", reasons: [{ kind: "attached", count: 1 }] }
+        }
+      ]
+    }));
+    panel.show("x.md");
+    await settle();
+
+    const meters = Array.from(root.querySelectorAll(".schreibstube-related-relevance"));
+    expect(meters.map((el) => el.getAttribute("data-level"))).toEqual([
+      "high",
+      "medium",
+      "low",
+      "high"
+    ]);
+    expect(meters.map((el) => el.querySelectorAll(".is-lit").length)).toEqual([3, 2, 1, 3]);
+    expect(meters[1]?.getAttribute("aria-label")).toBe("Relevant: 70% similar in meaning");
+    expect(meters[3]?.getAttribute("aria-label")).toBe(
+      "Highly relevant: attached in the conversation"
+    );
+    expect(meters.every((el) => el.getAttribute("role") === "img")).toBe(true);
+  });
+
+  it("reads likeness against the floors the host gives", async () => {
+    const { root, panel, host } = setup(async () => ({ items: [note("alike.md", ["meaning"])] }));
+    host.relevanceFloors = () => ({ balanced: 0.5, strict: 0.6 });
+    panel.show("x.md");
+    await settle();
+
+    expect(root.querySelector(".schreibstube-related-relevance")?.getAttribute("data-level")).toBe(
+      "high"
+    );
+  });
+
+  it("keeps the focus on an entry when the list is drawn again", async () => {
+    let items = [note("a.md"), note("b.md")];
+    const { root, panel } = setup(async () => ({ items }));
+    document.body.append(root);
+    panel.show("x.md");
+    await settle();
+    root.querySelectorAll<HTMLElement>(".schreibstube-related-card")[1]?.focus();
+
+    items = [note("c.md"), note("b.md")];
+    (panel as unknown as { lastAsk: null }).lastAsk = null;
+    panel.refresh();
+    await settle();
+
+    expect(document.activeElement?.getAttribute("data-key")).toBe("file:b.md");
+    root.remove();
+  });
+
+  it("opens the note named in the heading", async () => {
+    const { root, panel, host } = setup();
+    panel.show("x.md");
+    root.querySelector<HTMLElement>(".schreibstube-related-title")?.click();
+    expect(host.open).toHaveBeenCalledWith("x.md", false);
+  });
+
+  it("opens an entry in a new tab at a middle click", async () => {
+    const { root, panel, host } = setup();
+    panel.show("x.md");
+    root
+      .querySelector(".schreibstube-related-card")
+      ?.dispatchEvent(new MouseEvent("auxclick", { button: 1, bubbles: true }));
+    expect(host.open).toHaveBeenCalledWith("linked.md", "tab");
   });
 });

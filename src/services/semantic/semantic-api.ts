@@ -28,7 +28,8 @@ export interface Hit {
 }
 
 export interface ConversationSource {
-  /** Every conversation, as `{ id, title, updatedAt, summary, messages }`. Untrusted. */
+  /** Every conversation, as `{ id, title, updatedAt, summary, messages, notes? }`,
+   *  `notes` being the vault paths attached to it as context. Untrusted. */
   list(): unknown[] | Promise<unknown[]>;
   /** Called by the source when conversations changed. Returns the unsubscribe. */
   onChanged(cb: () => void): () => void;

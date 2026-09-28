@@ -80,7 +80,19 @@ import type { ExplorerFileStore } from "./services/explorer-store";
 import { SemanticEngine } from "./controllers/semantic/semantic-engine";
 import { createSemanticApi } from "./controllers/semantic/semantic-api";
 import { folderOf } from "./services/path-follow";
-import { conversationIdOf, meaningOrder, recommendNotes } from "./services/semantic/recommend";
+import {
+  DEFAULT_EMBEDDING_MODEL_ID,
+  DEFAULT_SIMILARITY_PRESET,
+  embeddingModelConfig
+} from "./services/semantic/embedding-models";
+import {
+  conversationIdOf,
+  conversationKey,
+  meaningOrder,
+  recommendNotes,
+  withAttached,
+  type RelevanceFloors
+} from "./services/semantic/recommend";
 import { RecommendedFooter } from "./controllers/recommended-footer";
 import type { Recommendation, RecommendedHost, RecommendedItem } from "./ui/recommended-panel";
 import { fileGlyph } from "./services/file-glyph";
@@ -630,8 +642,16 @@ export default class SchreibstubePlugin extends Plugin {
           ? fileGlyph(chosen, { kind: "file", extension: file.extension, name: file.name })
           : fileGlyph(chosen, { kind: "other" });
       },
-      copyLink: (link) => void this.copyLink(link)
+      copyLink: (link) => void this.copyLink(link),
+      relevanceFloors: (kind) => this.relevanceFloors(kind)
     };
+  }
+
+  /** The model's measured floors, as the Recommended meter reads likeness. */
+  private relevanceFloors(kind: "file" | "conversation"): RelevanceFloors {
+    const model = embeddingModelConfig(this.semantic?.modelId() ?? DEFAULT_EMBEDDING_MODEL_ID);
+    const floors = kind === "conversation" ? model.conversationFloors : model.relatedFloors;
+    return { balanced: floors[DEFAULT_SIMILARITY_PRESET], strict: floors.strict };
   }
 
   /** An entry's `obsidian://` link on the clipboard, said either way. */
@@ -690,7 +710,13 @@ export default class SchreibstubePlugin extends Plugin {
 
     const cards = new Map(graph.map((card) => [card.path, card]));
     const items: RecommendedItem[] = [];
-    const ranked = recommendNotes(graph, meaningOrder(byMeaning, found.conversations), count);
+    // A conversation this note was attached to stands with the notes it links.
+    const attached = engine.conversations.attachedTo(path).map(conversationKey);
+    const ranked = recommendNotes(
+      withAttached(graph, attached),
+      meaningOrder(byMeaning, found.conversations),
+      count
+    );
     for (const entry of ranked) {
       const conversation = conversationIdOf(entry.path);
       if (conversation !== null) {
@@ -698,7 +724,8 @@ export default class SchreibstubePlugin extends Plugin {
           kind: "conversation",
           conversation: {
             id: conversation,
-            title: engine.conversations.titleOf(conversation) ?? t().explorer.related.untitled
+            title: engine.conversations.titleOf(conversation) ?? t().explorer.related.untitled,
+            reasons: entry.reasons
           }
         });
         continue;
@@ -710,7 +737,8 @@ export default class SchreibstubePlugin extends Plugin {
           picture: {
             path: picture.path,
             title: picture.basename,
-            src: this.app.vault.getResourcePath(picture)
+            src: this.app.vault.getResourcePath(picture),
+            reasons: entry.reasons
           }
         });
         continue;

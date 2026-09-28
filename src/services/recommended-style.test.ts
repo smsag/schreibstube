@@ -46,7 +46,8 @@ describe("Recommended as a register", () => {
     expect(row.length).toBeGreaterThan(0);
     for (const body of row) {
       expect(body).toMatch(
-        /grid-template-columns:\s*var\(--schreibstube-related-rank\) minmax\(0, 1fr\) auto auto;/
+        // Marker, text, relevance meter, actions, thumbnail.
+        /grid-template-columns:\s*var\(--schreibstube-related-rank\) minmax\(0, 1fr\) auto auto auto;/
       );
       expect(body).not.toMatch(/(^|[\s;])(column-)?gap\s*:/);
     }

@@ -26,7 +26,18 @@ import { t } from "../i18n";
 import { applyIcon, applyObsidianIcon, PYTHIA_GLYPH } from "./icon-font";
 import { TASK_PILL_CLASS } from "./task-count-label";
 import { openTargetOf, type PaneTarget } from "../services/pane-target";
-import type { RecommendReason } from "../services/semantic/recommend";
+import {
+  DEFAULT_EMBEDDING_MODEL_ID,
+  DEFAULT_SIMILARITY_PRESET,
+  embeddingModelConfig
+} from "../services/semantic/embedding-models";
+import {
+  relevanceOf,
+  similarityPercent,
+  type RecommendReason,
+  type Relevance,
+  type RelevanceFloors
+} from "../services/semantic/recommend";
 
 /** One related note, as a card draws it. */
 export interface RelatedCard {
@@ -43,11 +54,13 @@ export interface PictureCard {
   title: string;
   /** What an `<img>` can load: Obsidian's resource path for the file. */
   src: string;
+  reasons: RecommendReason[];
 }
 
 export interface ConversationCard {
   id: string;
   title: string;
+  reasons: RecommendReason[];
 }
 
 /** One entry of the list, of whichever kind: ranked together, not by kind. */
@@ -77,7 +90,13 @@ export interface RecommendedHost {
   glyphOf(path: string): string;
   /** Put the entry's `obsidian://` link on the clipboard, and say so. */
   copyLink(link: { kind: "file"; path: string } | { kind: "conversation"; id: string }): void;
+  /** The similarity levels an entry's likeness is read against: the model's
+   *  measured floors, which differ for a conversation. */
+  relevanceFloors?(kind: "file" | "conversation"): RelevanceFloors;
 }
+
+/** The meter's three bars; how many are lit says the level. */
+const RELEVANCE_BARS: Record<Relevance, number> = { high: 3, medium: 2, low: 1 };
 
 /**
  * How long an answer for the same note stands before a vault change asks again.
@@ -279,12 +298,14 @@ export class RecommendedPanel {
     row: {
       title: string;
       what: string;
-      why: readonly string[];
+      reasons: readonly RecommendReason[];
       glyph: string;
       path?: string;
       kind?: string;
       /** What the entry is, to find it again after a redraw. */
       key: string;
+      /** Which floors its likeness is read against. */
+      floors: "file" | "conversation";
     }
   ): HTMLElement {
     const el = list.createEl("li").createDiv({
@@ -298,10 +319,58 @@ export class RecommendedPanel {
     text.createDiv({ cls: "schreibstube-related-card-title", text: row.title });
     const meta = text.createDiv({ cls: "schreibstube-related-card-meta" });
     meta.createSpan({ cls: "schreibstube-related-card-folder", text: row.what });
-    if (row.why.length > 0) {
-      meta.createSpan({ cls: "schreibstube-related-card-why", text: row.why.join(" · ") });
+    // Two reasons at most: the third is never what made the difference.
+    const why = row.reasons.slice(0, 2).map(reasonLabel);
+    if (why.length > 0) {
+      meta.createSpan({ cls: "schreibstube-related-card-why", text: why.join(" · ") });
     }
+    this.relevance(el, row.reasons, row.floors);
     return el;
+  }
+
+  /**
+   * How relevant the entry is, as a meter of three bars at its end.
+   *
+   * The order said only which entry was more relevant than the next, never
+   * whether any of them was relevant at all: the first of seven weak entries
+   * looked like the first of seven strong ones. The level comes from the
+   * evidence (`relevanceOf`), and pointing at the meter, or a screen reader,
+   * says the level and every reason in words — the line under the title has
+   * room for two.
+   */
+  private relevance(
+    el: HTMLElement,
+    reasons: readonly RecommendReason[],
+    kind: "file" | "conversation"
+  ): void {
+    const labels = t().explorer.related;
+    const level = relevanceOf(reasons, this.floors(kind));
+    const said = labels.relevanceTitle(
+      labels.relevance[level],
+      reasons.map(reasonLabel).join(", ")
+    );
+    const meter = el.createSpan({
+      cls: "schreibstube-related-relevance",
+      attr: { role: "img", "aria-label": said, title: said, "data-level": level }
+    });
+    for (let bar = 1; bar <= 3; bar++) {
+      meter.createSpan({
+        cls:
+          bar <= RELEVANCE_BARS[level]
+            ? "schreibstube-related-bar is-lit"
+            : "schreibstube-related-bar"
+      });
+    }
+  }
+
+  private floors(kind: "file" | "conversation"): RelevanceFloors {
+    const given = this.host.relevanceFloors?.(kind);
+    if (given) return given;
+    // Without search by meaning there is no likeness to read; the default
+    // model's floors keep the rule whole.
+    const model = embeddingModelConfig(DEFAULT_EMBEDDING_MODEL_ID);
+    const floors = kind === "conversation" ? model.conversationFloors : model.relatedFloors;
+    return { balanced: floors[DEFAULT_SIMILARITY_PRESET], strict: floors.strict };
   }
 
   /**
@@ -359,11 +428,11 @@ export class RecommendedPanel {
     const el = this.renderRow(list, {
       title: card.title,
       what: card.folder.length > 0 ? card.folder : t().explorer.rootFolder,
-      // Two reasons at most: the third is never what made the difference.
-      why: card.reasons.slice(0, 2).map(reasonLabel),
+      reasons: card.reasons,
       glyph: this.host.glyphOf(card.path),
       path: card.path,
-      key: `file:${card.path}`
+      key: `file:${card.path}`,
+      floors: "file"
     });
     this.actions(el, { kind: "file", path: card.path });
     this.pressable(el, (event) => {
@@ -381,11 +450,12 @@ export class RecommendedPanel {
     const el = this.renderRow(list, {
       title: picture.title,
       what: labels.picture,
-      why: [labels.reasons.meaning],
+      reasons: picture.reasons,
       glyph: this.host.glyphOf(picture.path),
       path: picture.path,
       kind: "is-picture",
-      key: `file:${picture.path}`
+      key: `file:${picture.path}`,
+      floors: "file"
     });
     this.actions(el, { kind: "file", path: picture.path });
     el.createEl("img", {
@@ -406,10 +476,11 @@ export class RecommendedPanel {
     const el = this.renderRow(list, {
       title: conversation.title,
       what: labels.conversation,
-      why: [labels.reasons.meaning],
+      reasons: conversation.reasons,
       glyph: PYTHIA_GLYPH,
       kind: "is-conversation",
-      key: `conversation:${conversation.id}`
+      key: `conversation:${conversation.id}`,
+      floors: "conversation"
     });
     this.actions(el, { kind: "conversation", id: conversation.id });
     this.pressable(el, () => this.host.openConversation(conversation.id));
@@ -422,8 +493,10 @@ function reasonLabel(reason: RecommendReason): string {
   switch (reason.kind) {
     case "link":
       return labels.link;
+    case "attached":
+      return labels.attached;
     case "meaning":
-      return labels.meaning;
+      return labels.meaning(similarityPercent(reason.similarity));
     case "shared-link":
       return labels.sharedLink(reason.count);
     case "co-citation":
