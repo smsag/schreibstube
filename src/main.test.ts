@@ -130,3 +130,27 @@ describe("activateReviewPanel", () => {
     expect(spy).not.toHaveBeenCalled();
   });
 });
+
+describe("New doc from a link", () => {
+  it("answers obsidian://schreibstube-new-doc with New doc, once the workspace is laid out", () => {
+    const ready: (() => void)[] = [];
+    const plugin = pluginWith({
+      workspace: { onLayoutReady: (callback: () => void) => ready.push(callback) }
+    });
+    const handlers = new Map<string, (params: Record<string, string>) => void>();
+    const createUntitled = vi.fn(async () => undefined);
+    Object.assign(plugin, {
+      registerObsidianProtocolHandler: (action: string, handler: () => void) =>
+        handlers.set(action, handler),
+      notes: { createUntitled }
+    });
+
+    (plugin as unknown as { registerNewDocLink(): void }).registerNewDocLink();
+    // What the link carries is not read: it cannot choose the folder or the text.
+    handlers.get("schreibstube-new-doc")?.({ action: "schreibstube-new-doc", file: "../x" });
+    expect(createUntitled).not.toHaveBeenCalled();
+
+    for (const callback of ready) callback();
+    expect(createUntitled).toHaveBeenCalledWith({ withoutRecommendations: true, draftWidth: true });
+  });
+});

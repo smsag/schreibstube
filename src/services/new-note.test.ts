@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fillsScreen, joinVaultPath, newNotePath, nextFreeName } from "./new-note";
+import { fillsScreen, joinVaultPath, newDocLink, newNotePath, nextFreeName } from "./new-note";
 
 const taken = (...names: string[]) => {
   const set = new Set(names);
@@ -72,5 +72,18 @@ describe("fillsScreen", () => {
     expect(
       fillsScreen({ outerWidth: 1512, outerHeight: 944 }, { availWidth: 0, availHeight: 0 })
     ).toBe(false);
+  });
+});
+
+describe("newDocLink", () => {
+  it("names the vault, encoded", () => {
+    expect(newDocLink("Schreiben")).toBe("obsidian://schreibstube-new-doc?vault=Schreiben");
+    expect(newDocLink("Mein Vault & Co")).toBe(
+      "obsidian://schreibstube-new-doc?vault=Mein%20Vault%20%26%20Co"
+    );
+  });
+
+  it("leaves the vault to Obsidian when it has no name", () => {
+    expect(newDocLink("")).toBe("obsidian://schreibstube-new-doc");
   });
 });

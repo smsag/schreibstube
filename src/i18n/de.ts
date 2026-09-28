@@ -286,6 +286,13 @@ export const de: Messages = {
     focusOpacityDesc:
       "Deckkraft der Zeilen außerhalb des Fokus (0,2 = sehr blass, 0,8 = fast voll).",
 
+    newDocLink: "Neues Doc von außerhalb von Obsidian",
+    newDocLinkDesc:
+      "Dieser Link führt „Neues Doc“ in diesem Vault von überall aus: über ein Tastenkürzel des " +
+      "Systems, die Kurzbefehle-App, Raycast, Alfred oder ein Symbol auf dem Home-Bildschirm. " +
+      "Die Einrichtung steht im README.",
+    newDocLinkCopy: "Link kopieren",
+
     explorerHeading: "Schreibstube Explorer",
     explorerIntro:
       "Die eigene Dateiliste der Schreibstube: ein Symbol je Datei und Ordner, eine " +

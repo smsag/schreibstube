@@ -47,6 +47,7 @@ import { LlmCommands } from "./controllers/llm-commands";
 import { PropertyController } from "./controllers/property-controller";
 import { PropertySetController } from "./controllers/property-set-controller";
 import { DraftWidth } from "./controllers/draft-width";
+import { NEW_DOC_ACTION } from "./services/new-note";
 import { FolderDescriber } from "./controllers/folder-describer";
 import {
   convertSelectionToTable,
@@ -405,6 +406,7 @@ export default class SchreibstubePlugin extends Plugin {
     );
 
     this.registerCommands();
+    this.registerNewDocLink();
 
     // Selected lines into a table. The plain conversion is offered only when
     // it would work, since the menu is built for this very selection; the AI
@@ -1315,13 +1317,31 @@ export default class SchreibstubePlugin extends Plugin {
     });
   }
 
+  /** New doc, from the palette or from a link outside Obsidian. */
+  private newDoc(): void {
+    void this.notes?.createUntitled({ withoutRecommendations: true, draftWidth: true });
+  }
+
+  /**
+   * `obsidian://schreibstube-new-doc`, so New doc can sit on a shortcut of the
+   * system's rather than one that works only while Obsidian is in front.
+   * Nothing the link carries is read: Obsidian takes `vault` itself, and a
+   * link that could say where the note goes or what it holds would be one
+   * any web page could write into the vault with.
+   */
+  private registerNewDocLink(): void {
+    this.registerObsidianProtocolHandler(NEW_DOC_ACTION, () => {
+      // A link that started Obsidian arrives before the workspace is laid
+      // out, and a window opened then is lost when the layout is restored.
+      this.app.workspace.onLayoutReady(() => this.newDoc());
+    });
+  }
+
   private registerCommands(): void {
     this.addCommand({
       id: "create-untitled-note",
       name: t().commands.newNote,
-      callback: () => {
-        void this.notes?.createUntitled({ withoutRecommendations: true, draftWidth: true });
-      }
+      callback: () => this.newDoc()
     });
 
     this.addCommand({

@@ -177,6 +177,45 @@ That last command makes a new empty note where Obsidian's _Default location for 
 
 While that window fills the screen, full screen or maximised, the note's lines are two thirds of the window wide, with Obsidian's _Readable line length_ on or off; make the window smaller and the usual width returns. Like the Recommended footer, which the new note opens without, this is for the first opening only: open the note again later and it looks like any other.
 
+#### New doc from outside Obsidian
+
+An Obsidian hotkey works only while Obsidian is the app in front. To start a new doc from anywhere, whether Obsidian is in front, behind other windows or not running, Schreibstube answers a link:
+
+```
+obsidian://schreibstube-new-doc?vault=Your%20Vault
+```
+
+Opening that link does exactly what the **New doc** command does. If Obsidian is closed, it starts, loads the vault and then opens the note. The link carries nothing else: it cannot choose the folder, the name or the text, so no web page can put anything into your vault with it.
+
+**1. Get the link.** In Obsidian, open **Settings → Schreibstube**. Under **Focus mode**, **New doc from outside Obsidian** has a **Copy link** button, which copies the link for the vault you are in. To write it by hand, put your vault's name after `vault=`, with a space as `%20` (`My Notes` becomes `vault=My%20Notes`). Leaving out `?vault=…` works too, but then Obsidian uses whichever vault was open last.
+
+**2. Try it.** Paste the link into a browser's address bar and press Enter, or on a Mac run it in Terminal, with the quotes:
+
+```bash
+open "obsidian://schreibstube-new-doc?vault=Your%20Vault"
+```
+
+The first time, the browser may ask whether to open Obsidian; allow it. A new window with an empty note should appear in front.
+
+**3. Put it on a shortcut.** Pick what you have:
+
+- **macOS, Shortcuts app** (built in):
+  1. Open **Shortcuts** and create a new shortcut (**+**).
+  2. Add the action **Open URLs** and paste the link into it.
+  3. Name the shortcut, for example _New doc_.
+  4. Open the shortcut's details (the **ⓘ** button) and choose **Add Keyboard Shortcut**, then press the keys you want, for example **⌃⌥⌘N**. Pick a combination no other app uses.
+  5. Press the keys once. macOS may ask whether Shortcuts may open Obsidian; allow it.
+
+  The shortcut also works from the menu bar or Spotlight, if you switch those on in the same details.
+
+- **macOS, Raycast**: run **Create Quicklink**, paste the link as the address and save it. Then assign a hotkey to it under **Raycast Settings → Extensions → Quicklinks**.
+- **macOS, Alfred** (Powerpack): create a workflow with a **Hotkey** trigger connected to an **Open URL** action that holds the link.
+- **iPhone and iPad**: in **Shortcuts**, make a shortcut with **Open URLs** and the link, as above. Then put it where it is quickest to reach: **Add to Home Screen** from the shortcut's share menu, the **Action Button** (**Settings → Action Button → Shortcut**), or **Back Tap** (**Settings → Accessibility → Touch → Back Tap**). On a phone the note opens in a new tab, since there are no windows.
+- **Windows**: right-click the desktop and choose **New → Shortcut**. Paste the link as the location and name it _New doc_. Then open the shortcut's **Properties**, click into **Shortcut key** and press the keys you want; Windows makes it **Ctrl + Alt + …**. The shortcut file must stay on the desktop or in the Start menu for the keys to work.
+- **Linux**: in your desktop's keyboard settings, add a custom shortcut whose command is `xdg-open "obsidian://schreibstube-new-doc?vault=Your%20Vault"`.
+
+**If nothing happens:** check that Schreibstube is enabled in the vault the link names, and that the name after `vault=` matches the vault's name exactly, spaces as `%20`. **Copy link** avoids both mistakes. A link to a vault Obsidian does not know opens Obsidian's vault picker instead.
+
 ### Properties
 
 Two additions to Obsidian's Properties view in live preview. Both live in a property's own menu — click its icon, or tap it on a phone:
@@ -718,9 +757,10 @@ A command that cannot do anything where you are is not offered at all: the image
 
 ### Focus mode
 
-| Setting     | Description                                                 | Default |
-| ----------- | ----------------------------------------------------------- | ------- |
-| Dim opacity | Opacity of out-of-focus lines (0.2 faint – 0.8 nearly full) | 0.4     |
+| Setting                       | Description                                                                                                                                   | Default |
+| ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| Dim opacity                   | Opacity of out-of-focus lines (0.2 faint – 0.8 nearly full)                                                                                   | 0.4     |
+| New doc from outside Obsidian | **Copy link** copies this vault's `obsidian://schreibstube-new-doc` link; see [New doc from outside Obsidian](#new-doc-from-outside-obsidian) | —       |
 
 ### Icons in the text
 

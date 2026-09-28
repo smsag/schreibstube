@@ -23,6 +23,12 @@ export const enExtra = {
     focusOpacityDesc:
       "Opacity of out-of-focus lines in focus mode (0.2 = very faint, 0.8 = nearly full).",
 
+    newDocLink: "New doc from outside Obsidian",
+    newDocLinkDesc:
+      "This link runs New doc in this vault from anywhere: a keyboard shortcut of the system's, " +
+      "the Shortcuts app, Raycast, Alfred, or a home-screen icon. The README explains the setup.",
+    newDocLinkCopy: "Copy link",
+
     explorerHeading: "Schreibstube Explorer",
     explorerIntro:
       "Schreibstube's own file list: an icon per file and folder, a sync mark on notes bound " +
