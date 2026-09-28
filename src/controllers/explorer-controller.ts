@@ -78,7 +78,13 @@ import { DescriptionFollower } from "./description-follower";
 import { OrphanRepair, type OrphanRepairResult } from "./orphan-repair";
 import { pairDescriptions, type DescriptionPairs } from "../services/description-pairs";
 import { DESCRIPTION_KEYS } from "../services/image-description";
-import { arrivedReceipt, LOCAL_TRASH, localTrashPath } from "../services/trash-receipt";
+import {
+  arrivedReceipt,
+  isTrashedEntry,
+  LOCAL_TRASH,
+  localTrashPath,
+  type TrashedShape
+} from "../services/trash-receipt";
 import { folderImages, hasFolderImages, type FolderImages } from "../services/folder-images";
 import { openSubmenu } from "../services/workspace-internals";
 import { describePollSummary, type PollSummary } from "../services/sync-summary";
@@ -115,9 +121,13 @@ export const EXTERNAL_CHECK_MS = 15_000;
  * The pane draws what the vault says it holds, and the vault says a file is
  * gone when its own watcher has noticed — which on a phone, behind a sync
  * client, is not the moment the file went. The row is taken away as soon as
- * the trash call returns, and this is the outer limit on that: if no delete
- * event ever arrives, the row comes back rather than a file being hidden by a
- * plugin that was only ever guessing.
+ * the delete is confirmed, and this, counted from the moment that file's
+ * trash call returns, is the outer limit on that: if no delete event ever
+ * arrives, the row comes back rather than a file being hidden by a plugin
+ * that was only ever guessing. Counted from the call's return, not the
+ * confirm, because the calls run one after another: a batch of thirty, or
+ * one call on a slow volume, would otherwise run the grace out while files
+ * were still on their way to the trash, and their rows would come back.
  */
 export const TRASH_GRACE_MS = 10_000;
 
@@ -502,7 +512,7 @@ export class ExplorerController {
   /**
    * Whether the pane should act as though this path were already gone.
    *
-   * True between the trash call returning and the vault reporting the
+   * True between the delete being confirmed and the vault reporting the
    * disappearance, which is not the same instant: the vault answers when its
    * own watcher has noticed, and on a phone that is after a sync client has.
    * A folder takes everything under it.
@@ -1425,6 +1435,8 @@ export class ExplorerController {
         continue;
       }
 
+      // The file is gone now, and the vault's event is what remains to wait for.
+      this.startTrashGrace(path);
       if (receipt === null) localTrash = false;
       else steps.push({ from: path, trashedTo: receipt });
     }
@@ -1463,18 +1475,22 @@ export class ExplorerController {
     return notes;
   }
 
-  /**
-   * Trash a file and find out where it went.
-   *
-   * Obsidian does not say. So the vault's trash folder is listed before and
-   * after: whatever is there afterwards and was not before is where the file
-   * landed, under whatever name the trash gave it. Nothing new there means
-   * the trash is the system's, which is answered with null — a delete that
-   * worked and cannot be undone from here.
-   */
   /** Take a row away on trust, until the vault confirms it or the grace runs out. */
   private holdTrashed(path: string): void {
     this.trashed.add(path);
+  }
+
+  /**
+   * Start the outer limit on a held row, once its trash call has returned.
+   *
+   * Not before: the row stays away for as long as the call is under way,
+   * however long that is. A delete event that arrived during the call has
+   * already let the row go, and there is nothing left to limit.
+   */
+  private startTrashGrace(path: string): void {
+    if (!this.trashed.has(path)) return;
+    const earlier = this.trashTimers.get(path);
+    if (earlier !== undefined) this.clearTimer(earlier);
     const handle = this.setTimer(() => {
       this.trashTimers.delete(path);
       if (!this.trashed.has(path)) return;
@@ -1489,21 +1505,28 @@ export class ExplorerController {
    * cannot see into.
    *
    * The vault's own trash keeps the file's name, so one look at that path
-   * after the call is the receipt. Listing the trash before and after was
-   * how it used to be found, and a trash that is never emptied made every
-   * delete wait on two listings of it; the listings are kept only for the
-   * one case they answer, a namesake already there, which the trash renames
-   * around.
+   * after the call is the receipt — once what is there has been checked to
+   * be the file, and not a namesake something else put there meanwhile.
+   * Listing the trash before and after was how it used to be found, and a
+   * trash that is never emptied made every delete wait on two listings of
+   * it; the listings are kept only for the one case they answer, a namesake
+   * already there, which the trash renames around.
    */
   private async trashWithReceipt(file: TAbstractFile): Promise<string | null> {
     const adapter = this.app.vault.adapter;
     const expected = localTrashPath(file.name);
+    const shape: TrashedShape =
+      file instanceof TFile
+        ? { type: "file", size: file.stat.size, mtime: file.stat.mtime }
+        : { type: "folder" };
     const taken = await adapter.exists(expected);
     const before = taken ? await this.listTrash(adapter) : null;
 
     await this.app.fileManager.trashFile(file);
 
-    if (before === null) return (await adapter.exists(expected)) ? expected : null;
+    if (before === null) {
+      return isTrashedEntry(shape, await adapter.stat(expected)) ? expected : null;
+    }
     return arrivedReceipt(file.name, before, await this.listTrash(adapter));
   }
 

@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+- Deleting many rows at once, or deleting on a slow volume, no longer brings
+  rows back for a moment while their files are still on the way to the trash.
+  A delete also no longer offers an undo when the note it found in the trash is
+  not the one deleted — a namesake a sync client put there during the delete —
+  so an undo can never move a stranger onto the deleted note's place.
+
 ## 1.57.0 - 2026-09-27
 
 A note's diagrams now leave the vault as the pictures they are in it. A
