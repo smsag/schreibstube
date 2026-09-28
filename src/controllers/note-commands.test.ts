@@ -246,3 +246,33 @@ describe("a new note without the Recommended footer", () => {
     expect(holdFooter).not.toHaveBeenCalled();
   });
 });
+
+describe("the new note's line width", () => {
+  afterEach(() => {
+    Platform.isDesktopApp = false;
+  });
+
+  it("sizes the lines in the new window once the note is open", async () => {
+    Platform.isDesktopApp = true;
+    const app = fakeApp();
+    const widenDraft = vi.fn();
+
+    await new NoteCommands(app, logger, undefined, widenDraft).createUntitled({ draftWidth: true });
+
+    expect(widenDraft).toHaveBeenCalledTimes(1);
+    expect(widenDraft.mock.calls[0]?.[0]).toBe(app.fake.openPopoutLeaf.mock.results[0]?.value);
+    expect((widenDraft.mock.calls[0]?.[1] as TFile).path).toBe("Untitled.md");
+  });
+
+  it("leaves the width alone unless asked, and on a phone", async () => {
+    const widenDraft = vi.fn();
+    Platform.isDesktopApp = true;
+    await new NoteCommands(fakeApp(), logger, undefined, widenDraft).createUntitled();
+    Platform.isDesktopApp = false;
+    await new NoteCommands(fakeApp(), logger, undefined, widenDraft).createUntitled({
+      draftWidth: true
+    });
+
+    expect(widenDraft).not.toHaveBeenCalled();
+  });
+});

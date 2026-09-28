@@ -46,6 +46,7 @@ import { LinkModeController } from "./controllers/link-mode-controller";
 import { LlmCommands } from "./controllers/llm-commands";
 import { PropertyController } from "./controllers/property-controller";
 import { PropertySetController } from "./controllers/property-set-controller";
+import { DraftWidth } from "./controllers/draft-width";
 import { FolderDescriber } from "./controllers/folder-describer";
 import {
   convertSelectionToTable,
@@ -144,6 +145,7 @@ export default class SchreibstubePlugin extends Plugin {
   /** Describes a folder's pictures; built on first use, from the pane and Obsidian's. */
   private folderDescriberInstance: FolderDescriber | null = null;
   private propertySets: PropertySetController | null = null;
+  private readonly draftWidth = new DraftWidth(this.app);
   private proofread: ProofreadController | null = null;
   private explorer: ExplorerController | null = null;
   private sections: PaneSectionsController | null = null;
@@ -248,7 +250,8 @@ export default class SchreibstubePlugin extends Plugin {
     this.notes = new NoteCommands(
       this.app,
       this.logger,
-      (file) => this.recommendedFooter?.holdBack(file) ?? (() => undefined)
+      (file) => this.recommendedFooter?.holdBack(file) ?? (() => undefined),
+      (leaf, file) => this.draftWidth.follow(leaf, file)
     );
     // The reader is reached for only when the command runs. Obsidian's pdf.js
     // is fetched on that first call, and every vault that never summarises a
@@ -495,6 +498,7 @@ export default class SchreibstubePlugin extends Plugin {
     this.linkMode?.stop();
     this.properties?.stop();
     this.propertySets?.stop();
+    this.draftWidth.stop();
     this.print?.stop();
     this.proofread?.stop();
     void this.explorer?.stop();
@@ -1316,7 +1320,7 @@ export default class SchreibstubePlugin extends Plugin {
       id: "create-untitled-note",
       name: t().commands.newNote,
       callback: () => {
-        void this.notes?.createUntitled({ withoutRecommendations: true });
+        void this.notes?.createUntitled({ withoutRecommendations: true, draftWidth: true });
       }
     });
 

@@ -10,10 +10,18 @@ export interface CreateUntitledOptions {
    * Only this first time: the note opened again later has its footer.
    */
   withoutRecommendations?: boolean;
+  /**
+   * Give the note's lines two thirds of its window while that window fills
+   * the screen (controllers/draft-width). Only this first time, as above.
+   */
+  draftWidth?: boolean;
 }
 
 /** Takes the footer from a note about to open; what it returns is called once it has. */
 export type FooterHolder = (file: TFile) => () => void;
+
+/** Sizes the lines of a note that has just opened in this leaf. */
+export type DraftWidener = (leaf: WorkspaceLeaf, file: TFile) => void;
 
 /**
  * A blank note in a window of its own, in front of everything.
@@ -33,7 +41,8 @@ export class NoteCommands {
   constructor(
     private readonly app: App,
     private readonly logger: Logger,
-    private readonly holdFooter: FooterHolder = () => () => undefined
+    private readonly holdFooter: FooterHolder = () => () => undefined,
+    private readonly widenDraft: DraftWidener = () => undefined
   ) {}
 
   async createUntitled(options: CreateUntitledOptions = {}): Promise<void> {
@@ -70,6 +79,10 @@ export class NoteCommands {
     } finally {
       opened?.();
     }
+
+    // A pop-out only: a phone's tab always fills the screen, and a line two
+    // thirds of a phone is narrower than the one it already has.
+    if (options.draftWidth && Platform.isDesktopApp) this.widenDraft(leaf, file);
 
     if (!Platform.isDesktopApp) {
       // After the open, so nothing about opening can reveal a drawer again.

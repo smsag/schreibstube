@@ -4,7 +4,8 @@
  * Two decisions, both pure: the next free name in Obsidian's own style —
  * "Untitled", then "Untitled 1", filling any gap — and the vault path that
  * name takes in a folder. The vault only answers "is this taken", so the
- * rules can be tested against text.
+ * rules can be tested against text. And one about the window it opens in:
+ * whether that fills the screen, which decides how wide its lines are.
  */
 
 /** The first of `base`, `base 1`, `base 2`, … that `taken` does not claim. */
@@ -37,4 +38,33 @@ export function newNotePath(
 ): string {
   const name = nextFreeName(base, (candidate) => exists(joinVaultPath(folder, `${candidate}.md`)));
   return joinVaultPath(folder, `${name}.md`);
+}
+
+/** Slack for a window manager that keeps a pixel border or a menu bar's worth. */
+const FILL_TOLERANCE_PX = 8;
+
+export interface WindowSize {
+  outerWidth: number;
+  outerHeight: number;
+}
+
+export interface ScreenSize {
+  availWidth: number;
+  availHeight: number;
+}
+
+/**
+ * Whether a window takes the whole screen: full screen, or maximised to the
+ * part of it the system leaves free. Either way the text would otherwise run
+ * the width of the screen, or sit in a narrow column in the middle of it,
+ * which is what the new note's wider line is for. A size that is missing or
+ * not a number says no: a window that cannot be measured keeps the width it has.
+ */
+export function fillsScreen(win: WindowSize, screen: ScreenSize): boolean {
+  const sizes = [win.outerWidth, win.outerHeight, screen.availWidth, screen.availHeight];
+  if (!sizes.every((size) => Number.isFinite(size) && size > 0)) return false;
+  return (
+    win.outerWidth >= screen.availWidth - FILL_TOLERANCE_PX &&
+    win.outerHeight >= screen.availHeight - FILL_TOLERANCE_PX
+  );
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { joinVaultPath, newNotePath, nextFreeName } from "./new-note";
+import { fillsScreen, joinVaultPath, newNotePath, nextFreeName } from "./new-note";
 
 const taken = (...names: string[]) => {
   const set = new Set(names);
@@ -47,5 +47,30 @@ describe("newNotePath", () => {
     const exists = taken("Notes/Untitled.md", "Notes/Untitled 1.md", "Untitled 2.md");
     expect(newNotePath("Notes", "Untitled", exists)).toBe("Notes/Untitled 2.md");
     expect(newNotePath("Other", "Untitled", exists)).toBe("Other/Untitled.md");
+  });
+});
+
+describe("fillsScreen", () => {
+  const screen = { availWidth: 1512, availHeight: 944 };
+
+  it("says yes for a full-screen window, which is larger than the free area", () => {
+    expect(fillsScreen({ outerWidth: 1512, outerHeight: 982 }, screen)).toBe(true);
+  });
+
+  it("says yes for a maximised window, a few pixels short included", () => {
+    expect(fillsScreen({ outerWidth: 1512, outerHeight: 944 }, screen)).toBe(true);
+    expect(fillsScreen({ outerWidth: 1506, outerHeight: 938 }, screen)).toBe(true);
+  });
+
+  it("says no for a window that leaves part of the screen free", () => {
+    expect(fillsScreen({ outerWidth: 800, outerHeight: 944 }, screen)).toBe(false);
+    expect(fillsScreen({ outerWidth: 1512, outerHeight: 600 }, screen)).toBe(false);
+  });
+
+  it("says no when a size cannot be read", () => {
+    expect(fillsScreen({ outerWidth: Number.NaN, outerHeight: 944 }, screen)).toBe(false);
+    expect(
+      fillsScreen({ outerWidth: 1512, outerHeight: 944 }, { availWidth: 0, availHeight: 0 })
+    ).toBe(false);
   });
 });
