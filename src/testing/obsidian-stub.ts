@@ -30,6 +30,16 @@ export function getAllTags(cache: { tags?: unknown } | null): string[] | null {
   return Array.isArray(cache?.tags) ? (cache.tags as string[]) : null;
 }
 
+/** Obsidian's reading of a press: a middle click or Cmd/Ctrl asks for a tab,
+ *  and nothing else for anything but the current pane. */
+export const Keymap = {
+  isModEvent(event?: UIEvent | null): false | "tab" {
+    const e = event as (MouseEvent & KeyboardEvent) | null | undefined;
+    if (!e) return false;
+    return e.button === 1 || e.metaKey || e.ctrlKey ? "tab" : false;
+  }
+};
+
 export class TFolder {
   name: string;
   children: (TFile | TFolder)[] = [];

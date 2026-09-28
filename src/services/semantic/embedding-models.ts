@@ -31,6 +31,18 @@ export interface EmbeddingModelConfig {
    *  throughout. One shared constant therefore meant two different features
    *  depending on which model the dropdown selected. */
   relatedFloors: Record<SimilarityPreset, number>;
+  /** Cosine floors for a conversation recommended beside a NOTE, per preset.
+   *
+   *  Not `relatedFloors`: those were measured conversation against conversation,
+   *  and a note's heading sections against a conversation's packed 500-character
+   *  chunks score lower across the board. At the note floor of 0.65, 4.95 % of
+   *  note pairs cleared it and only 2.35 % of note–conversation pairs, so the
+   *  panel recommended a conversation half as readily as a note on the same
+   *  evidence. Each value here is the one that lets conversations through at the
+   *  rate the note floor lets notes through — measured with
+   *  `scripts/measure-conversation-floors.mjs` on 2026-09-28 over 383 notes and
+   *  30 conversations. */
+  conversationFloors: Record<SimilarityPreset, number>;
   /** Approximate size of the quantized model download, in MB — shown in the
    *  settings explainer so "downloads on first use" has a number attached. */
   downloadMb: number;
@@ -85,6 +97,9 @@ export const EMBEDDING_MODELS: Record<EmbeddingModelId, EmbeddingModelConfig> = 
     pooling: "mean",
     // p75 / p90 / p95 of this model's own pair distribution (Pythia ADR-169).
     relatedFloors: { loose: 0.45, balanced: 0.57, strict: 0.67 },
+    // Not measured: no vault indexed with this model was at hand. The related
+    // floors stand until one is.
+    conversationFloors: { loose: 0.45, balanced: 0.57, strict: 0.67 },
     downloadMb: 25,
     mobile: true
   },
@@ -98,6 +113,7 @@ export const EMBEDDING_MODELS: Record<EmbeddingModelId, EmbeddingModelConfig> = 
     // The same percentiles, ~0.08 higher throughout — this model scores every
     // pair hotter, which is exactly why the floors cannot be shared (Pythia ADR-169).
     relatedFloors: { loose: 0.55, balanced: 0.65, strict: 0.75 },
+    conversationFloors: { loose: 0.54, balanced: 0.62, strict: 0.66 },
     downloadMb: 120,
     mobile: false
   },
@@ -118,6 +134,7 @@ export const EMBEDDING_MODELS: Record<EmbeddingModelId, EmbeddingModelConfig> = 
     // Not re-measured: the same vectors have the same distribution
     // (tests/embeddingModelRule.test.ts holds these equal to the family's).
     relatedFloors: { loose: 0.55, balanced: 0.65, strict: 0.75 },
+    conversationFloors: { loose: 0.54, balanced: 0.62, strict: 0.66 },
     downloadMb: 75,
     mobile: true,
     variantOf: "xenova-paraphrase-multilingual-MiniLM-L12-v2",

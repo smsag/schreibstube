@@ -161,6 +161,12 @@ untrusted: checked, bounded to 1 000 conversations of 40 000 characters, and
 given five seconds to arrive. `limit` is clamped to 50, and a failure inside is
 answered with nothing rather than thrown into the caller.
 
+Each listed conversation is `{ id, title, updatedAt, summary, messages, notes? }`.
+`notes`, optional, are the vault paths attached to the conversation as context:
+Recommended counts them as a link between the conversation and each note. They
+are not embedded, so adding them changes no content hash and re-indexes
+nothing; at most 50 per conversation are read.
+
 ## Why the file pane has its own state file
 
 Icons and the two marks are keyed by vault path, and they live in `explorer.json` beside

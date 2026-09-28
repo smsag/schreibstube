@@ -853,7 +853,7 @@ export const de: Messages = {
       viewTitle: "Empfohlen",
       viewNoNote: "Eine Notiz öffnen, um zu sehen, was zu ihr gehört.",
       viewEmpty:
-        "Nichts verlinkt, verschlagwortet oder legt diese Notiz neben eine andere, und nichts liest sich ähnlich.",
+        "Nichts verlinkt oder verschlagwortet diese Notiz mit einer anderen, und nichts liest sich ähnlich.",
       summary: (count: number) => (count === 1 ? "1 Empfehlung" : `${count} Empfehlungen`),
       untitled: "Unbenanntes Gespräch",
       follow: "Der offenen Notiz folgen",
@@ -867,9 +867,16 @@ export const de: Messages = {
       openBeside: "Rechts daneben öffnen",
       collapse: "Empfohlen einklappen",
       expand: "Empfohlen ausklappen",
+      relevance: {
+        high: "Sehr relevant",
+        medium: "Relevant",
+        low: "Entfernt verwandt"
+      },
+      relevanceTitle: (level: string, reasons: string) => `${level}: ${reasons}`,
       reasons: {
         link: "verlinkt",
-        meaning: "ähnlich im Inhalt",
+        attached: "im Gespräch angehängt",
+        meaning: (percent: number) => `${percent} % ähnlich im Inhalt`,
         sharedLink: (count: number) =>
           count === 1 ? "1 gemeinsamer Link" : `${count} gemeinsame Links`,
         coCitation: (count: number) =>

@@ -24,7 +24,8 @@
  * **Shared tags** — a deliberate label, but one describing a group rather than
  * this note.
  *
- * **The same folder** — the weakest, and only ever a tiebreak.
+ * **The same folder** — the weakest, and only ever a tiebreak: it orders notes
+ * that already share something, and never puts a note on the list alone.
  *
  * Every shared thing is weighted by how rare it is, which is the whole
  * difference between this working and not. An index note linking to four
@@ -312,13 +313,18 @@ export function rankRelated(
     const tags = sharedWeight(myTags, note.tags, frequencies.tags, total);
     if (tags.count > 0) add("tag", tags.count, WEIGHTS.tag * tags.weight);
 
+    // Sharing nothing else, a note is not related, whatever folder it is in.
+    // Let in on the folder alone, a note's whole folder filled the list, and
+    // once search by meaning is fused in by rank, a place on this list is worth
+    // as much as a place on that one — so a neighbour by filing outranked
+    // notes that read alike.
+    if (score <= 0) continue;
+
     // The folder only ever breaks a tie, and only in a folder small enough for
     // sitting in it to have meant something.
     if (note.folder === source.folder) {
       add("folder", 1, WEIGHTS.folder * idf(frequencies.folders.get(note.folder) ?? 0, total));
     }
-
-    if (score <= 0) continue;
 
     reasons.sort((a, b) => b.weight - a.weight);
     ranked.push({

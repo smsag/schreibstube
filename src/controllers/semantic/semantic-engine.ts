@@ -187,7 +187,8 @@ export class SemanticEngine {
     return this.getSettings().semanticSearchEnabled && !this.blocked();
   }
 
-  private modelId(): EmbeddingModelId {
+  /** The model this device runs, whose measured floors read its scores. */
+  modelId(): EmbeddingModelId {
     return effectiveEmbeddingModel(DEFAULT_EMBEDDING_MODEL_ID, Platform.isMobile);
   }
 

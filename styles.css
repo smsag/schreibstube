@@ -2569,7 +2569,8 @@
    other title starts on. The thumbnail keeps its distance with its own margin. */
 .schreibstube-related-card {
   display: grid;
-  grid-template-columns: var(--schreibstube-related-rank) minmax(0, 1fr) auto auto;
+  /* Marker, text, relevance, actions, and a picture's thumbnail. */
+  grid-template-columns: var(--schreibstube-related-rank) minmax(0, 1fr) auto auto auto;
   align-items: baseline;
   border-radius: var(--schreibstube-border-radius);
   cursor: pointer;
@@ -2604,6 +2605,45 @@
   .schreibstube-related-card:not(:hover):not(:focus-within) .schreibstube-related-actions {
     visibility: hidden;
   }
+}
+
+/* How relevant the entry is: three bars rising left to right, as many lit as
+   the level says. Beside the title rather than under it, so it is read with
+   the entry's name. A reading, not a control: no background, no hover. The
+   level is also in its label, so colour is never the only thing that says it. */
+.schreibstube-related-relevance {
+  display: inline-flex;
+  align-items: flex-end;
+  align-self: center;
+  gap: 2px;
+  height: 11px;
+  margin-left: var(--size-4-2);
+}
+
+.schreibstube-related-bar {
+  width: 3px;
+  border-radius: 1px;
+  background: var(--background-modifier-border);
+}
+
+.schreibstube-related-bar:nth-child(1) {
+  height: 5px;
+}
+
+.schreibstube-related-bar:nth-child(2) {
+  height: 8px;
+}
+
+.schreibstube-related-bar:nth-child(3) {
+  height: 11px;
+}
+
+.schreibstube-related-bar.is-lit {
+  background: var(--text-muted);
+}
+
+.schreibstube-related-relevance[data-level="high"] .is-lit {
+  background: var(--interactive-accent);
 }
 
 .schreibstube-related-card-text {

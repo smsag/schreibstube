@@ -1,7 +1,10 @@
 import type { Plugin } from "obsidian";
 import type { Logger } from "../../services/logger";
 import { ConversationIndex, type ScoredId } from "../../services/semantic/conversation-index";
-import { normalizeConversations } from "../../services/semantic/conversation-source";
+import {
+  normalizeConversations,
+  type ConversationItem
+} from "../../services/semantic/conversation-source";
 import {
   matchConversationTitles,
   mergeConversationResults,
@@ -59,6 +62,8 @@ export class SemanticConversations {
   private indexModel: EmbeddingModelId | null = null;
   private dirty = true;
   private titles = new Map<string, string>();
+  /** Each conversation's attached notes, from the same listing as its title. */
+  private attached = new Map<string, readonly string[]>();
   /** A background sync started by the Recommended panel is running. */
   private catchingUp = false;
 
@@ -82,6 +87,7 @@ export class SemanticConversations {
     this.unsubscribe = null;
     this.source = null;
     this.titles.clear();
+    this.attached.clear();
   }
 
   isSyncing(): boolean {
@@ -137,7 +143,7 @@ export class SemanticConversations {
           (s) => `the conversation source did not answer within ${s} s`
         );
         const items = normalizeConversations(listed);
-        this.titles = new Map(items.map((item) => [item.id, item.title]));
+        this.remember(items);
         // No explicit load: the sync loads the model only if it has something
         // to embed.
         await this.index.sync(items);
@@ -155,6 +161,13 @@ export class SemanticConversations {
     const index = await this.ready();
     if (!index) return [];
     return index.related(id, { minScore: this.relatedFloor(), limit });
+  }
+
+  /** The floor a conversation clears to be recommended beside a note: measured
+   *  note against conversation, which scores lower than conversation against
+   *  conversation (`conversationFloors`). */
+  private noteFloor(): number {
+    return embeddingModelConfig(this.host.modelId()).conversationFloors[DEFAULT_SIMILARITY_PRESET];
   }
 
   /** The model's measured floor for "alike", at the balanced preset (Pythia ADR-169). */
@@ -178,7 +191,25 @@ export class SemanticConversations {
       LIST_DEADLINE_MS,
       (s) => `the conversation source did not answer within ${s} s`
     );
-    this.titles = new Map(normalizeConversations(listed).map((item) => [item.id, item.title]));
+    this.remember(normalizeConversations(listed));
+  }
+
+  /** What a listing says besides the text: each conversation's title and notes. */
+  private remember(items: readonly ConversationItem[]): void {
+    this.titles = new Map(items.map((item) => [item.id, item.title]));
+    this.attached = new Map(
+      items.filter((item) => item.notes.length > 0).map((item) => [item.id, item.notes])
+    );
+  }
+
+  /**
+   * The conversations that had `path` attached as context, most recently
+   * listed first. From the last listing; nothing is embedded or read.
+   */
+  attachedTo(path: string): string[] {
+    const ids: string[] = [];
+    for (const [id, notes] of this.attached) if (notes.includes(path)) ids.push(id);
+    return ids;
   }
 
   /** Conversations like a note, from its stored vectors. */
@@ -188,8 +219,9 @@ export class SemanticConversations {
     await this.loadTitles().catch((e: unknown) => {
       this.host.logger.warn("semantic engine: conversation titles could not be listed", e);
     });
-    // Chunk against chunk, the comparison the related floors were measured on.
-    const found = index.relatedToVectors(chunks, { minScore: this.relatedFloor(), limit });
+    // A note's sections against a conversation's chunks, at the floor measured
+    // for that comparison.
+    const found = index.relatedToVectors(chunks, { minScore: this.noteFloor(), limit });
     this.catchUpInBackground();
     return found;
   }
