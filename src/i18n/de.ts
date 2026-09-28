@@ -21,7 +21,7 @@ export const de: Messages = {
     table: "Einfügen: Tabelle aus der Auswahl",
     tableAi: "Einfügen: KI-Tabelle aus der Auswahl",
     insertToday: "Einfügen: heutiges Datum",
-    addPropertySet: "Einfügen: Eigenschaften-Set",
+    addPropertySet: "Einfügen: Frontmatter-Eigenschaften-Set",
     openExplorer: "Explorer öffnen",
     collapseExplorer: "Explorer: Ordner zuklappen",
     explorerUndo: "Explorer: letztes Verschieben oder Löschen rückgängig machen",

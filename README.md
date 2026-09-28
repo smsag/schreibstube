@@ -207,7 +207,7 @@ For everything else, set **Property set folder** in the settings. Every note in 
 A set is offered four ways:
 
 - **Add property set…** in a property's own menu, and **Add set** beside Obsidian's **Add property** at the foot of the Properties view
-- **Insert: property set** in the command palette
+- **Insert: frontmatter property set** in the command palette, or type `/frontmatter` in a note when Obsidian's Slash commands plugin is on
 - **When Mail finds its keys missing**: the notice that says a recipient or subject is needed offers **Add mail fields**
 - **When you add a key by hand** that belongs to a set, a notice offers the rest of that set, once per note and set
 
