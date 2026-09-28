@@ -2,7 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## 1.59.0 - 2026-09-28
+
+Recommended says how relevant each entry is. Three bars at the end of an entry
+show whether it is highly relevant, relevant or loosely related, pointing at
+them gives every reason in words, and the similarity is shown as a percentage.
+A Pythia conversation you attached a note to is now recommended beside that
+note like a link (with Pythia 3.5.0), conversations are recommended as readily
+as notes, and a shared folder alone no longer puts a note on the list. The
+Explorer's filter answers Escape, Enter and the down arrow and reads `#tag` as
+a tag search, and Recommended follows a renamed note and keeps its place.
+
+Mobile checklist: not run, and nothing in this release was tried in the
+Obsidian app either; the test suite and the build checked it. What to try
+first: the relevance bars in the sidebar and under a note at phone width, the
+Explorer filter's field on a phone (no capitalisation or autocorrect), and a
+note with a conversation attached to it in Pythia.
+
+The bridge is unchanged at 2.10.0.
 
 ### Added
 
