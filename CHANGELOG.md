@@ -2,30 +2,42 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## 1.58.0 - 2026-09-28
 
-- Amounts in a note add up. Select lines with amounts and the status bar shows
-  their total; on a phone, the new **Sum selection** command and the editor's
-  menu give it. In a table, a cell holding `=sum`, `=avg`, `=median`, `=count`,
-  `=min` or `=max` shows that result of the cells above it, in Reading view and
-  in every mailed, published or printed note. `=sum(fixed)` keeps the result
-  the note had when it first left the vault, so a later print says what the
-  recipient got; **Freeze doc totals** fixes it by hand. A new
-  **Sums and formulas** section sets how an ambiguous `1.234` is read, a
-  default currency, and whether mixed currencies are converted at the European
-  Central Bank's daily rates — the one new network call, off until switched on.
-  In the editor itself a formula still shows as written.
+Amounts in a note now add up. Select lines with amounts and the status bar
+shows their total; in a table, a cell holding `=sum`, `=avg`, `=median`,
+`=count`, `=min` or `=max` shows that result of the cells above it, in Reading
+view and in every note that is mailed, published or printed. `=sum(fixed)`
+keeps the result a note had when it first left the vault, so a later print
+says what the recipient got. Totals in several currencies can be converted at
+the European Central Bank's daily rates — the one new network request, off
+until it is switched on. A note made with the new-note command opens without
+the Recommended footer, and a delete in the Explorer no longer brings rows
+back while their files are still on the way to the trash.
 
-- A note made with the new-note command opens without the Recommended footer.
-  An empty note has nothing to recommend from, and the footer sat right under
-  the cursor. The footer stays away while you write in that window, through a
-  rename and a switch to Reading view, and is back as usual when you open the
-  note again.
-- Deleting many rows at once, or deleting on a slow volume, no longer brings
-  rows back for a moment while their files are still on the way to the trash.
-  A delete also no longer offers an undo when the note it found in the trash is
-  not the one deleted — a namesake a sync client put there during the delete —
-  so an undo can never move a stranger onto the deleted note's place.
+Mobile checklist: not run, and nothing in this release was tried in the
+Obsidian app either; the test suite and the build checked it. What to try
+first: the budget table from the README in Reading view, a selection of a few
+amounts on a desktop (the status bar) and on a phone (**Sum selection**), and
+a mail of a note with `=sum(fixed)`, then the cell afterwards.
+
+The bridge is unchanged at 2.10.0.
+
+### Added
+
+- **The total of a selection.** With two or more amounts selected, the status bar shows `∑ 320 € · 2 amounts`; a click copies the total. Each line counts once, with its amount in a currency or else its last number, so `2 × Milch 1,50 €` costs 1,50 €. Selected table rows count, their header row does not, and selected prose with a year or a chapter number in it shows no total. A phone has no status bar: there the **Sum selection** command and **Copy sum** in the editor's menu give it.
+- **Formulas in a table.** `=sum`, `=avg`, `=median`, `=count`, `=min` and `=max`, alone in a cell, work on the cells above in the same column, back to the header. Reading view shows the result with the formula on hover; a mailed, published or printed note carries the result in place of the formula. Other formulas above are not counted again. A cell without an amount is left out and the result says so; an amount in quotes is left out on purpose. The editor itself still shows the formula as written.
+- **Results that stay: `=sum(fixed)`.** Once a note has been mailed, published or printed, each `(fixed)` result is written into its cell at the value that left — `=sum(fixed: 320 €)` — even when the note was edited while the upload or the PDF was being made. **Freeze doc totals** does it by hand. When the amounts change later, Reading view says what the result would be now.
+- **Sums and formulas settings.** **Number format** decides how an ambiguous number such as `1.234` is read and how results are written; Automatic follows Obsidian's language. **Default currency** is the one numbers without a currency count in. **Convert currencies** converts totals in several currencies into it at the European Central Bank's daily rates, fetched from ecb.europa.eu when a total needs them, at most twice a day; without rates a sum is given per currency, `300 € + 20 $`. **Update exchange rates** fetches them at once.
+
+### Changed
+
+- **A new note opens without the Recommended footer.** The note the new-note command makes is empty, and the footer sat right under the cursor with nothing to recommend. It stays away while you write in that window, through a rename and a switch to Reading view, and is back as usual when the note is opened again.
+
+### Fixed
+
+- **Deleted rows stay deleted while they are being trashed.** Deleting many rows at once, or deleting on a slow volume, brought rows back for a moment while their files were still on the way to the trash.
+- **Undo never brings back the wrong file.** A delete offered an undo when the entry it found in the trash was a namesake a sync client had put there during the delete; the undo would have moved that file onto the deleted note's place. The entry is now checked to be the file that was deleted.
 
 ## 1.57.0 - 2026-09-27
 
