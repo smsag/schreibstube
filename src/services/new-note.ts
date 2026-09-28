@@ -68,3 +68,18 @@ export function fillsScreen(win: WindowSize, screen: ScreenSize): boolean {
     win.outerHeight >= screen.availHeight - FILL_TOLERANCE_PX
   );
 }
+
+/** What follows `obsidian://` in the link that runs New doc from outside Obsidian. */
+export const NEW_DOC_ACTION = "schreibstube-new-doc";
+
+/**
+ * The link that runs New doc from outside Obsidian, in this vault.
+ *
+ * The vault is named so the link works with more than one vault; without it
+ * Obsidian uses whichever was open last, which is right only by luck. The name
+ * is encoded, since a space or an ampersand in it would otherwise end it.
+ */
+export function newDocLink(vaultName: string): string {
+  const base = `obsidian://${NEW_DOC_ACTION}`;
+  return vaultName.length > 0 ? `${base}?vault=${encodeURIComponent(vaultName)}` : base;
+}

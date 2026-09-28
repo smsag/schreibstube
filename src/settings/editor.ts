@@ -1,10 +1,11 @@
 /**
  * Heading stack, focus mode and properties: the settings that change how a note looks while it is being written.
  */
-import { Setting } from "obsidian";
+import { Notice, Setting } from "obsidian";
 import { activeLocale, t } from "../i18n";
 import { MAX_DIM_OPACITY, MIN_DIM_OPACITY } from "../services/focus-settings";
 import { normalizeTermFolder } from "../services/glossary-term-folder";
+import { newDocLink } from "../services/new-note";
 import { formatDate } from "../services/today-value";
 import type { SettingsContext } from "./context";
 import { renderCommands } from "./commands";
@@ -47,6 +48,16 @@ export function renderEditor(ctx: SettingsContext): void {
           await ctx.plugin.updateDimOpacity(value);
         });
     });
+
+  new Setting(ctx.containerEl)
+    .setName(t().settings.newDocLink)
+    .setDesc(t().settings.newDocLinkDesc)
+    .addButton((button) =>
+      button.setButtonText(t().settings.newDocLinkCopy).onClick(async () => {
+        await navigator.clipboard.writeText(newDocLink(ctx.plugin.app.vault.getName()));
+        new Notice(t().common.notice(t().common.copied));
+      })
+    );
 
   renderProperties(ctx);
 
