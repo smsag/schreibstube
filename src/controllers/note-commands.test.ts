@@ -182,3 +182,67 @@ describe("a blank note in a window of its own", () => {
     expect(app.fake.focus).not.toHaveBeenCalled();
   });
 });
+
+describe("a new note without the Recommended footer", () => {
+  beforeEach(() => {
+    Notice.shown = [];
+    Platform.isDesktopApp = true;
+  });
+
+  afterEach(() => {
+    Platform.isDesktopApp = false;
+  });
+
+  it("holds the footer back from the new note before opening it, and says when it is open", async () => {
+    const app = fakeApp();
+    const order: string[] = [];
+    app.fake.openFile.mockImplementation(async () => {
+      order.push("open");
+    });
+    const holdFooter = vi.fn((file: { path: string }) => {
+      order.push(`hold ${file.path}`);
+      return () => {
+        order.push("opened");
+      };
+    });
+
+    await new NoteCommands(app, logger, holdFooter).createUntitled({
+      withoutRecommendations: true
+    });
+
+    expect(order).toEqual(["hold Untitled.md", "open", "opened"]);
+  });
+
+  it("leaves the footer alone unless asked", async () => {
+    const app = fakeApp();
+    const holdFooter = vi.fn(() => () => undefined);
+
+    await new NoteCommands(app, logger, holdFooter).createUntitled();
+
+    expect(holdFooter).not.toHaveBeenCalled();
+    expect(app.fake.openFile).toHaveBeenCalledTimes(1);
+  });
+
+  it("gives the hold up when the open fails, so the note keeps its footer later", async () => {
+    const app = fakeApp();
+    app.fake.openFile.mockRejectedValue(new Error("no leaf"));
+    const release = vi.fn();
+
+    await expect(
+      new NoteCommands(app, logger, () => release).createUntitled({ withoutRecommendations: true })
+    ).rejects.toThrow("no leaf");
+
+    expect(release).toHaveBeenCalledTimes(1);
+  });
+
+  it("holds nothing when the vault refuses to create the note", async () => {
+    const app = fakeApp({ createFails: true });
+    const holdFooter = vi.fn(() => () => undefined);
+
+    await new NoteCommands(app, logger, holdFooter).createUntitled({
+      withoutRecommendations: true
+    });
+
+    expect(holdFooter).not.toHaveBeenCalled();
+  });
+});

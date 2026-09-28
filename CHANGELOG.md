@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+- A note made with the new-note command opens without the Recommended footer.
+  An empty note has nothing to recommend from, and the footer sat right under
+  the cursor. The footer stays away while you write in that window, through a
+  rename and a switch to Reading view, and is back as usual when you open the
+  note again.
 - Deleting many rows at once, or deleting on a slow volume, no longer brings
   rows back for a moment while their files are still on the way to the trash.
   A delete also no longer offers an undo when the note it found in the trash is

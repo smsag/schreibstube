@@ -1,7 +1,19 @@
-import { type App, MarkdownView, Notice, Platform, type WorkspaceLeaf } from "obsidian";
+import { type App, MarkdownView, Notice, Platform, type TFile, type WorkspaceLeaf } from "obsidian";
 import { t } from "../i18n";
 import type { Logger } from "../services/logger";
 import { newNotePath } from "../services/new-note";
+
+export interface CreateUntitledOptions {
+  /**
+   * Open the note without the Recommended footer. An empty note has nothing
+   * to recommend from, and the footer would sit right under the cursor.
+   * Only this first time: the note opened again later has its footer.
+   */
+  withoutRecommendations?: boolean;
+}
+
+/** Takes the footer from a note about to open; what it returns is called once it has. */
+export type FooterHolder = (file: TFile) => () => void;
 
 /**
  * A blank note in a window of its own, in front of everything.
@@ -20,10 +32,11 @@ import { newNotePath } from "../services/new-note";
 export class NoteCommands {
   constructor(
     private readonly app: App,
-    private readonly logger: Logger
+    private readonly logger: Logger,
+    private readonly holdFooter: FooterHolder = () => () => undefined
   ) {}
 
-  async createUntitled(): Promise<void> {
+  async createUntitled(options: CreateUntitledOptions = {}): Promise<void> {
     const base = t().notes.untitled;
     const source = this.app.workspace.getActiveFile()?.path ?? "";
     // The second argument lets Obsidian apply the preference for Markdown
@@ -50,7 +63,13 @@ export class NoteCommands {
     const leaf = Platform.isDesktopApp
       ? this.app.workspace.openPopoutLeaf()
       : this.app.workspace.getLeaf("tab");
-    await leaf.openFile(file);
+    // Before the open: the footer is drawn by the events the open sets off.
+    const opened = options.withoutRecommendations ? this.holdFooter(file) : null;
+    try {
+      await leaf.openFile(file);
+    } finally {
+      opened?.();
+    }
 
     if (!Platform.isDesktopApp) {
       // After the open, so nothing about opening can reveal a drawer again.
