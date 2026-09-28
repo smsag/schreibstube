@@ -19,6 +19,8 @@ import { DEFAULT_TEMPLATE_BUILTIN, TEMPLATE_ROOT_DEFAULT } from "./print-templat
 import { normalizePropertyIcons } from "./property-icons";
 import { DEFAULT_DATE_FORMAT, normalizeDateFormat } from "./today-value";
 import { DEFAULT_DESCRIPTION_FOLDER, normalizeDescriptionFolder } from "./image-description";
+import { normalizeCurrency, normalizeNumberStyle } from "./amounts";
+import { normalizeExchangeRates } from "./exchange-rates";
 
 export { PROVIDER_MODELS } from "./llm-providers";
 
@@ -149,6 +151,10 @@ export const DEFAULT_SETTINGS: SchreibstubeSettings = {
   propertyIcons: {},
   dateFormat: DEFAULT_DATE_FORMAT,
   propertySetFolder: "",
+  sumsNumberStyle: "auto",
+  sumsDefaultCurrency: "",
+  sumsConvert: false,
+  sumsRates: null,
   debugLogging: false
 };
 
@@ -215,6 +221,10 @@ export function normalizeSettings(loaded: LoadedSettings): SchreibstubeSettings 
     propertyIcons: normalizePropertyIcons(loaded?.propertyIcons),
     dateFormat: normalizeDateFormat(loaded?.dateFormat),
     propertySetFolder: normalizeTermFolder(loaded?.propertySetFolder),
+    sumsNumberStyle: normalizeNumberStyle(loaded?.sumsNumberStyle),
+    sumsDefaultCurrency: normalizeCurrency(loaded?.sumsDefaultCurrency),
+    sumsConvert: loaded?.sumsConvert === true,
+    sumsRates: normalizeExchangeRates(loaded?.sumsRates),
     debugLogging:
       typeof loaded?.debugLogging === "boolean"
         ? loaded.debugLogging

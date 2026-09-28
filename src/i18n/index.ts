@@ -55,6 +55,17 @@ export function obsidianLocale(): Locale {
   return localeFrom(storedLanguage(), typeof navigator === "undefined" ? "" : navigator.language);
 }
 
+/**
+ * Obsidian's language as a tag — `de`, `fr`, `pt-BR` — not narrowed to the
+ * two this plugin speaks: what reads and writes numbers follows the language
+ * itself, and a French interface writes `1 234,50` whatever language the
+ * plugin's buttons fall back to.
+ */
+export function obsidianLanguageTag(): string {
+  const tag = storedLanguage() ?? (typeof navigator === "undefined" ? "" : navigator.language);
+  return tag?.trim() || "en";
+}
+
 /** The locale for Obsidian's stored language, or the system's when none is stored. */
 export function localeFrom(stored: string | null, system: string): Locale {
   const language = (stored ?? system ?? "").trim().toLowerCase();

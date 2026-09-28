@@ -1057,5 +1057,54 @@ export const enExtra = {
       `read the first ${read} of ${total} pages; later pages were not offered.`,
     inserted: (count: number) =>
       count === 1 ? "1 passage inserted." : `${count} passages inserted.`
+  },
+  sums: {
+    heading: "Sums and formulas",
+    intro:
+      "Select lines with amounts to see their total in the status bar. In a table, write =sum, " +
+      "=avg, =median, =count, =min or =max in a cell to show that result of the cells above it. " +
+      "=sum(fixed) keeps the result the doc had when it was first mailed, published or printed.",
+    numberFormat: "Number format",
+    numberFormatDesc:
+      "How a number like 1.234 is read when it could be either, and how results are written. " +
+      "Numbers that say it on their own, like 1.234,50, are always read right.",
+    automatic: (example: string) => `Automatic (${example})`,
+    defaultCurrency: "Default currency",
+    defaultCurrencyDesc:
+      "Numbers without a currency count in it, and totals in several currencies are converted into it.",
+    noCurrency: "None",
+    convert: "Convert currencies",
+    convertDesc:
+      "Convert totals in several currencies into the default currency at the European Central " +
+      "Bank's daily rates. The rates are fetched from ecb.europa.eu when a total needs them, at " +
+      "most twice a day; nothing about your notes is sent.",
+    rates: "Exchange rates",
+    ratesOf: (date: string) => `Rates of ${date}.`,
+    noRates: "No rates fetched yet.",
+    updateRates: "Update now",
+    statusBar: (total: string, count: number) => `∑ ${total} · ${count} amounts`,
+    statusBarTitle: "Total of the selection. Click to copy it.",
+    total: (total: string, count: number) =>
+      count === 1 ? `${total} (1 amount)` : `${total} (${count} amounts)`,
+    menuItem: (total: string) => `Copy sum: ${total}`,
+    noAmounts: "no amounts in the selection.",
+    copied: (total: string) => `copied ${total}.`,
+    mixed: "mixed currencies",
+    unavailable: "–",
+    skipped: (count: number) => (count === 1 ? "1 cell skipped" : `${count} cells skipped`),
+    now: (total: string) => `now ${total}`,
+    frozen: (count: number) =>
+      count === 0
+        ? "nothing to freeze in this doc."
+        : count === 1
+          ? "1 total frozen."
+          : `${count} totals frozen.`,
+    ratesUpdated: (date: string) => `exchange rates of ${date} fetched.`,
+    ratesFailed: (message: string) => `exchange rates could not be fetched: ${message}`,
+    ratesTimeout: (seconds: number) =>
+      `the European Central Bank did not answer within ${seconds} seconds.`,
+    ratesUnreadable: "the European Central Bank's answer was not a list of rates.",
+    freezeFailed: (path: string) =>
+      `the fixed totals in ${path} could not be written; they stay live until the next send.`
   }
 };

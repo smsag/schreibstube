@@ -3621,3 +3621,20 @@
   color: var(--text-muted);
   overflow-wrap: anywhere;
 }
+
+/* Sums: the selection's total in the status bar, and a formula's result in a
+   table cell. The status item is hidden by class, not by `hidden`: the status
+   bar's own layout gives every item a display that the attribute loses to. */
+.status-bar-item.schreibstube-sum-status.is-hidden {
+  display: none;
+}
+
+.schreibstube-formula {
+  font-variant-numeric: tabular-nums;
+}
+
+.schreibstube-formula-note {
+  margin-inline-start: 0.5em;
+  color: var(--text-muted);
+  font-size: var(--font-smaller);
+}

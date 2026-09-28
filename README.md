@@ -256,6 +256,32 @@ Select several lines and turn them into a Markdown table, from the editor's cont
 
 The selection is widened to whole lines, blank lines are added around the table where it needs them to render, hex values are set as code so they are not read as tags, and one undo restores the original text. If the text changes while the AI request runs, nothing is replaced.
 
+### Sums and formulas
+
+Amounts in a note add up without leaving it.
+
+**The selection.** Select lines with amounts and the status bar shows their total, `∑ 320 € · 2 amounts`; click it to copy the total. Each line counts once, with the amount that carries a currency, or else the last number on it — so `2 × Milch 1,50 €` costs 1,50 €. Selected table rows are lines too. On a phone, which has no status bar, run **Sum selection**, or pick **Copy sum** from the editor's menu.
+
+**Formulas in a table.** Write a formula alone in a cell and it shows its result, worked out from the cells above it in the same column, back to the header:
+
+```markdown
+| Item      | Amount |
+| --------- | ------ |
+| Groceries | 300 €  |
+| Car       | 20 €   |
+| **Total** | =sum   |
+```
+
+`=sum`, `=avg`, `=median`, `=count` (cells with an amount), `=min` and `=max`. The note keeps the formula; Reading view shows the result, with the formula a hover away, and a mailed, published or printed note carries the result in place of the formula. Another formula above is not counted, so a subtotal row does not count twice. A cell whose text has no amount is left out and the result says so — `(1 cell skipped)` — and an amount in quotes, `"300 €"`, is left out on purpose and not reported.
+
+**Fixed results.** `=sum(fixed)` works like `=sum` until the note first leaves the vault — mailed, published or printed. Then the result is written into the cell, `=sum(fixed: 320 €)`, and stays: the number the recipient got, whatever the amounts or the rates are afterwards. If the amounts change later, Reading view says what it would be now beside the fixed number. **Freeze doc totals** fixes them earlier by hand. Nothing is written while a note is only being looked at. To let a fixed result move again, delete the part after `fixed`; to make it live for good, write `=sum`.
+
+**Numbers.** `300 €`, `€ 20`, `1.234,50 €`, `20,-` and `-20 €` are all read. Whether `1.234` is a thousand or a little more than one is the one thing a number cannot say about itself; the **Number format** setting decides that case, and nothing else — `1.234,50` and `20.50` read the same whatever it says. Results are written in the same format.
+
+**Currencies.** Amounts in one currency are added; a number without one joins it. Several currencies are given per currency, `300 € + 20 $`, and an average of several says the currencies are mixed. With a **Default currency** and **Convert currencies** on, they are converted instead, at the European Central Bank's daily reference rates, and the result carries the day: `≈ 316,00 € · ECB 26.09.2026`. The rates are fetched from `ecb.europa.eu` only when a total needs them, at most twice a day, and kept between sessions; nothing about your notes is sent. Offline, the last rates are used, and without any the total is given per currency.
+
+**Not yet in Live Preview.** A formula's result shows in Reading view and in what leaves the vault. In the editor the cell shows the formula.
+
 ### Slideshow
 
 Two or more images in one block, shown the way the passage needs them:
@@ -703,6 +729,17 @@ A command that cannot do anything where you are is not offered at all: the image
 | Setting     | Description                                                                                           | Default      |
 | ----------- | ----------------------------------------------------------------------------------------------------- | ------------ |
 | Date format | How today's date is written into text: `YYYY`, `MM`, `DD`, `MMMM` (month), `dddd` (weekday), `[text]` | `YYYY-MM-DD` |
+
+### Sums and formulas
+
+| Setting            | Description                                                                        | Default   |
+| ------------------ | ---------------------------------------------------------------------------------- | --------- |
+| Number format      | How an ambiguous number such as `1.234` is read, and how results are written       | Automatic |
+| Default currency   | The currency numbers without one count in, and mixed currencies are converted into | None      |
+| Convert currencies | Convert mixed currencies at the ECB's daily rates, fetched when a total needs them | Off       |
+| Exchange rates     | The day of the rates kept, and a button to fetch today's                           | —         |
+
+Automatic follows Obsidian's language — `1.234,56` for German, `1,234.56` for English, `1 234,56` for French.
 
 ### Schreibstube Explorer
 

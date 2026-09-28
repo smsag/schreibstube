@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+- Amounts in a note add up. Select lines with amounts and the status bar shows
+  their total; on a phone, the new **Sum selection** command and the editor's
+  menu give it. In a table, a cell holding `=sum`, `=avg`, `=median`, `=count`,
+  `=min` or `=max` shows that result of the cells above it, in Reading view and
+  in every mailed, published or printed note. `=sum(fixed)` keeps the result
+  the note had when it first left the vault, so a later print says what the
+  recipient got; **Freeze doc totals** fixes it by hand. A new
+  **Sums and formulas** section sets how an ambiguous `1.234` is read, a
+  default currency, and whether mixed currencies are converted at the European
+  Central Bank's daily rates — the one new network call, off until switched on.
+  In the editor itself a formula still shows as written.
+
 - A note made with the new-note command opens without the Recommended footer.
   An empty note has nothing to recommend from, and the footer sat right under
   the cursor. The footer stays away while you write in that window, through a

@@ -59,6 +59,7 @@ import { toArrayBuffer } from "../utils/array-buffer";
 import { mapLimit } from "../utils/map-limit";
 import { sha256 as hash } from "../utils/sha256";
 import { DiagramCapture } from "./diagram-capture";
+import { NO_FORMULAS, type NoteFormulas } from "./sums-controller";
 
 /**
  * The publish commands: preview a publish, run one, open the site.
@@ -79,6 +80,7 @@ export class PublishCommands {
   private readonly diagrams: DiagramCapture;
   /** Canvases drawn for an earlier publish in this session, by content. */
   private readonly drawn = new DrawnDiagrams();
+  private formulas: NoteFormulas = NO_FORMULAS;
 
   constructor(
     private readonly app: App,
@@ -87,6 +89,11 @@ export class PublishCommands {
     private readonly logger: Logger
   ) {
     this.diagrams = new DiagramCapture(app, logger, "publish", MAX_PUBLISHED_DIAGRAM_BYTES);
+  }
+
+  /** A note's formulas: resolved in what is uploaded, and `(fixed)` ones frozen once it is live. */
+  useFormulas(formulas: NoteFormulas): void {
+    this.formulas = formulas;
   }
 
   /** Show what a publish would do, and stop there. */
@@ -208,6 +215,7 @@ export class PublishCommands {
       // Separate from the publish itself: the site is live either way, and a
       // failed note write must not be reported as a failed publish.
       await this.writeBack(account, index, summary.baseUrl);
+      await this.freezePublished(index);
     } catch (error) {
       notice.hide();
       const message = error instanceof Error ? error.message : String(error);
@@ -317,7 +325,7 @@ export class PublishCommands {
     for (const file of files) {
       const cache = this.app.metadataCache.getFileCache(file);
       if (!readPublishFields(cache?.frontmatter, keys).published) continue;
-      const content = await this.app.vault.read(file);
+      const content = await this.formulas.forExport(await this.app.vault.read(file));
       published.push({ file, cache, content, fences: findDiagramFences(content) });
     }
     const drawing = new DrawingProgress(
@@ -526,6 +534,23 @@ export class PublishCommands {
       } catch (error) {
         this.logger.debug(`Could not record the publish in ${note.sourcePath}.`, error);
         new Notice(t().common.notice(t().publish.writeBackFailed(note.sourcePath)));
+      }
+    }
+  }
+
+  /**
+   * The site is live: each `(fixed)` total is written into its note at what
+   * the site now shows. In its own error boundary, as the write-back is.
+   */
+  private async freezePublished(index: PublishIndex): Promise<void> {
+    for (const note of index.notes) {
+      const file = this.app.vault.getAbstractFileByPath(note.sourcePath);
+      if (!(file instanceof TFile)) continue;
+      try {
+        await this.formulas.freeze(file);
+      } catch (error) {
+        this.logger.debug(`Could not freeze the totals in ${note.sourcePath}.`, error);
+        new Notice(t().common.notice(t().sums.freezeFailed(note.sourcePath)));
       }
     }
   }
