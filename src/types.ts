@@ -1,6 +1,8 @@
 import type { SyncRecord } from "./services/sync-document";
 import type { PublishKeyMap } from "./services/publish-index";
 import type { LanguagePreference } from "./i18n";
+import type { NumberStyle } from "./services/amounts";
+import type { ExchangeRates } from "./services/exchange-rates";
 
 export type HeadingLevel = 1 | 2 | 3 | 4 | 5 | 6;
 
@@ -155,6 +157,14 @@ export interface SchreibstubeSettings {
   dateFormat: string;
   /** Every note in this folder is a property set (services/property-sets). */
   propertySetFolder: string;
+  /** How an ambiguous number like 1.234 is read, and results written; "auto" follows Obsidian. */
+  sumsNumberStyle: NumberStyle;
+  /** ISO code bare numbers count in and mixed currencies convert into; "" for none. */
+  sumsDefaultCurrency: string;
+  /** Convert mixed currencies at the ECB's rates. Off until chosen: it is a network call. */
+  sumsConvert: boolean;
+  /** The last rates fetched, kept between sessions. Plugin-written. */
+  sumsRates: ExchangeRates | null;
   // Diagnostics.
   debugLogging: boolean;
 }

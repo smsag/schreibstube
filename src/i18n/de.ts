@@ -38,7 +38,10 @@ export const de: Messages = {
     queryMailbox: "Postfach durchsuchen",
     fetchReplies: "Antworten ins Doc holen",
     publish: "Ordner veröffentlichen",
-    linksSwitch: "Links: Seite wechseln"
+    linksSwitch: "Links: Seite wechseln",
+    sumSelection: "Auswahl summieren",
+    freezeTotals: "Doc-Summen festschreiben",
+    updateRates: "Wechselkurse aktualisieren"
   },
 
   common: {
@@ -1356,5 +1359,56 @@ export const de: Messages = {
       `die ersten ${read} von ${total} Seiten gelesen; spätere Seiten wurden nicht angeboten.`,
     inserted: (count: number) =>
       count === 1 ? "1 Textstelle eingefügt." : `${count} Textstellen eingefügt.`
+  },
+  sums: {
+    heading: "Summen und Formeln",
+    intro:
+      "Zeilen mit Beträgen markieren, um ihre Summe in der Statusleiste zu sehen. In einer Tabelle " +
+      "=sum, =avg, =median, =count, =min oder =max in eine Zelle schreiben, um dieses Ergebnis der " +
+      "Zellen darüber zu zeigen. =sum(fixed) behält das Ergebnis, das das Doc beim ersten " +
+      "Mailen, Veröffentlichen oder Drucken hatte.",
+    numberFormat: "Zahlenformat",
+    numberFormatDesc:
+      "Wie eine Zahl wie 1.234 gelesen wird, wenn sie beides sein kann, und wie Ergebnisse " +
+      "geschrieben werden. Zahlen, die es selbst sagen, wie 1.234,50, werden immer richtig gelesen.",
+    automatic: (example: string) => `Automatisch (${example})`,
+    defaultCurrency: "Standardwährung",
+    defaultCurrencyDesc:
+      "Zahlen ohne Währung zählen in ihr, und Summen in mehreren Währungen werden in sie umgerechnet.",
+    noCurrency: "Keine",
+    convert: "Währungen umrechnen",
+    convertDesc:
+      "Summen in mehreren Währungen zu den täglichen Kursen der Europäischen Zentralbank in die " +
+      "Standardwährung umrechnen. Die Kurse werden von ecb.europa.eu geholt, wenn eine Summe sie " +
+      "braucht, höchstens zweimal am Tag; von den Notizen wird nichts gesendet.",
+    rates: "Wechselkurse",
+    ratesOf: (date: string) => `Kurse vom ${date}.`,
+    noRates: "Noch keine Kurse geholt.",
+    updateRates: "Jetzt aktualisieren",
+    statusBar: (total: string, count: number) => `∑ ${total} · ${count} Beträge`,
+    statusBarTitle: "Summe der Auswahl. Klicken zum Kopieren.",
+    total: (total: string, count: number) =>
+      count === 1 ? `${total} (1 Betrag)` : `${total} (${count} Beträge)`,
+    menuItem: (total: string) => `Summe kopieren: ${total}`,
+    noAmounts: "keine Beträge in der Auswahl.",
+    copied: (total: string) => `${total} kopiert.`,
+    mixed: "gemischte Währungen",
+    unavailable: "–",
+    skipped: (count: number) =>
+      count === 1 ? "1 Zelle ausgelassen" : `${count} Zellen ausgelassen`,
+    now: (total: string) => `jetzt ${total}`,
+    frozen: (count: number) =>
+      count === 0
+        ? "in diesem Doc ist nichts festzuschreiben."
+        : count === 1
+          ? "1 Summe festgeschrieben."
+          : `${count} Summen festgeschrieben.`,
+    ratesUpdated: (date: string) => `Wechselkurse vom ${date} geholt.`,
+    ratesFailed: (message: string) => `Wechselkurse konnten nicht geholt werden: ${message}`,
+    ratesTimeout: (seconds: number) =>
+      `die Europäische Zentralbank hat nicht innerhalb von ${seconds} Sekunden geantwortet.`,
+    ratesUnreadable: "die Antwort der Europäischen Zentralbank war keine Kursliste.",
+    freezeFailed: (path: string) =>
+      `die festen Summen in ${path} konnten nicht geschrieben werden; sie bleiben bis zum nächsten Versand veränderlich.`
   }
 };

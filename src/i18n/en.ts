@@ -40,7 +40,10 @@ export const en = {
     queryMailbox: "Search mailbox",
     fetchReplies: "Fetch replies into doc",
     publish: "Publish folder",
-    linksSwitch: "Links: switch side"
+    linksSwitch: "Links: switch side",
+    sumSelection: "Sum selection",
+    freezeTotals: "Freeze doc totals",
+    updateRates: "Update exchange rates"
   },
 
   common: {

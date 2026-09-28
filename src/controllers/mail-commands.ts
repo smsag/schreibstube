@@ -32,6 +32,7 @@ import {
 } from "../services/publish-diagrams";
 import { sha256 } from "../utils/sha256";
 import { DiagramCapture } from "./diagram-capture";
+import { NO_FORMULAS, type NoteFormulas } from "./sums-controller";
 import {
   FM_MERGED_IDS,
   FM_MESSAGE_ID,
@@ -81,6 +82,7 @@ export class MailCommands {
   private readonly drawn = new DrawnDiagrams<KeptFigure>();
   /** The bridge's protocol, asked once per session when a note has a diagram. */
   private bridgeProtocol: number | null = null;
+  private formulas: NoteFormulas = NO_FORMULAS;
 
   constructor(
     private readonly app: App,
@@ -90,6 +92,11 @@ export class MailCommands {
     private readonly offerFields: ((file: TFile, message: string) => void) | null = null
   ) {
     this.diagrams = new DiagramCapture(app, logger, "mail", MAX_MAIL_ATTACHMENT_BYTES);
+  }
+
+  /** A note's formulas: resolved in the body, and `(fixed)` ones frozen once delivered. */
+  useFormulas(formulas: NoteFormulas): void {
+    this.formulas = formulas;
   }
 
   /** Send the active note. Addressing comes from frontmatter; the body is the
@@ -150,7 +157,7 @@ export class MailCommands {
       }
     }
 
-    const body = content.slice(info.contentStart);
+    const body = await this.formulas.forExport(content.slice(info.contentStart));
     const from = this.getSettings().mailFrom;
     const fences = findDiagramFences(body, MAIL_DIAGRAM_LANGUAGES);
     if (fences.length === 0) return buildMailDraft(frontmatter, body, from);
@@ -283,6 +290,7 @@ export class MailCommands {
       // be reported as a failed send: the user would send again and deliver a
       // duplicate — and with message_id unwritten, the re-send warning would
       // not even fire.
+      await this.freezeSent(file);
       try {
         await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
           frontmatter[FM_MESSAGE_ID] = result.messageId;
@@ -310,6 +318,20 @@ export class MailCommands {
         t().common.notice(result.filedInSent ? t().mailNotices.sent : t().mailNotices.sentNoCopy)
       );
     });
+  }
+
+  /**
+   * Delivered: each `(fixed)` total is written into the note at what the
+   * recipient got. A failed write leaves the totals live and says so; the
+   * mail itself went, and must not be reported otherwise.
+   */
+  private async freezeSent(file: TFile): Promise<void> {
+    try {
+      await this.formulas.freeze(file);
+    } catch (err) {
+      this.logger.error("Email sent but its fixed totals could not be written:", err);
+      new Notice(t().common.notice(t().sums.freezeFailed(file.path)));
+    }
   }
 
   /**

@@ -39,6 +39,8 @@ import { describePollSummary } from "./services/sync-summary";
 import { mergeSyncState, sameSyncState } from "./services/sync-merge";
 import type { SyncRecord } from "./services/sync-document";
 import { NoteCommands } from "./controllers/note-commands";
+import { SumsController } from "./controllers/sums-controller";
+import { registerTableFormulaPostProcessor } from "./processors/table-formulas";
 import { PdfCommands } from "./controllers/pdf-commands";
 import { LinkModeController } from "./controllers/link-mode-controller";
 import { LlmCommands } from "./controllers/llm-commands";
@@ -150,6 +152,7 @@ export default class SchreibstubePlugin extends Plugin {
   private print: PrintCommands | null = null;
   private notes: NoteCommands | null = null;
   private pdf: PdfCommands | null = null;
+  private sums: SumsController | null = null;
 
   override async onload(): Promise<void> {
     await this.loadSettings();
@@ -179,6 +182,16 @@ export default class SchreibstubePlugin extends Plugin {
     const propertySets = this.propertySets;
     this.properties.setAddSetHandler((file) => void propertySets.pick(file));
     this.startProperties(this.properties, propertySets);
+    // Before mail, publish and print: each resolves a note's formulas on the way out.
+    this.sums = new SumsController(
+      this.app,
+      () => this.settings,
+      async (rates) => {
+        this.settings = normalizeSettings({ ...this.settings, sumsRates: rates });
+        await this.saveSettings();
+      },
+      this.logger
+    );
     this.mail = new MailCommands(
       this.app,
       () => this.settings,
@@ -206,6 +219,9 @@ export default class SchreibstubePlugin extends Plugin {
         await this.saveSettings();
       }
     );
+    this.mail.useFormulas(this.sums);
+    this.publish.useFormulas(this.sums);
+    this.print.useFormulas(this.sums);
     // The footer is made later in the load; by the time the command runs it is there.
     this.notes = new NoteCommands(
       this.app,
@@ -346,6 +362,14 @@ export default class SchreibstubePlugin extends Plugin {
     });
 
     this.linkMode.start(this.addStatusBarItem());
+    // The total of the selected amounts, and a formula's result in Reading view.
+    const sums = this.sums;
+    sums.startStatusBar(this.addStatusBarItem());
+    this.registerEditorExtension(sums.editorExtension());
+    this.registerEvent(this.app.workspace.on("active-leaf-change", () => sums.clearSelection()));
+    this.register(() => sums.stop());
+    registerTableFormulaPostProcessor(this, sums);
+
     this.registerDomEvent(
       document,
       "click",
@@ -363,6 +387,7 @@ export default class SchreibstubePlugin extends Plugin {
     // key is missing.
     this.registerEvent(
       this.app.workspace.on("editor-menu", (menu, editor) => {
+        this.sums?.addMenuItem(menu, editor);
         const range = selectedLineRange(editor);
         if (!range) return;
 
@@ -1162,6 +1187,11 @@ export default class SchreibstubePlugin extends Plugin {
     this.queueRefreshForActiveView();
   }
 
+  /** Fetch the day's exchange rates now, as the command and the settings ask. */
+  async updateExchangeRates(): Promise<void> {
+    await this.sums?.updateRates(true);
+  }
+
   async updateDimOpacity(dimOpacity: number): Promise<void> {
     this.settings = normalizeSettings({
       ...this.settings,
@@ -1476,6 +1506,34 @@ export default class SchreibstubePlugin extends Plugin {
       name: t().commands.linksSwitch,
       callback: () => {
         this.linkMode?.cycleMode();
+      }
+    });
+
+    // Where there is no status bar — a phone — the total is a command away.
+    this.addCommand({
+      id: "sum-selection",
+      name: t().commands.sumSelection,
+      editorCallback: (editor) => {
+        this.sums?.sumSelection(editor);
+      }
+    });
+
+    this.addCommand({
+      id: "freeze-totals",
+      name: t().commands.freezeTotals,
+      checkCallback: (checking) => {
+        const file = this.app.workspace.getActiveFile();
+        if (!file || file.extension !== "md") return false;
+        if (!checking) void this.sums?.freezeNote(file);
+        return true;
+      }
+    });
+
+    this.addCommand({
+      id: "update-exchange-rates",
+      name: t().commands.updateRates,
+      callback: () => {
+        void this.updateExchangeRates();
       }
     });
   }

@@ -75,6 +75,45 @@ describe("normalizeSettings", () => {
     );
   });
 
+  it("starts sums automatic, without a currency, converting nothing", () => {
+    expect(normalizeSettings({})).toMatchObject({
+      sumsNumberStyle: "auto",
+      sumsDefaultCurrency: "",
+      sumsConvert: false,
+      sumsRates: null
+    });
+  });
+
+  it("keeps sums settings a person chose, and drops ones a hand edit broke", () => {
+    const rates = { date: "2026-09-26", fetchedAt: 1, rates: { USD: 1.07 } };
+    expect(
+      normalizeSettings({
+        sumsNumberStyle: "comma",
+        sumsDefaultCurrency: "eur",
+        sumsConvert: true,
+        sumsRates: rates
+      })
+    ).toMatchObject({
+      sumsNumberStyle: "comma",
+      sumsDefaultCurrency: "EUR",
+      sumsConvert: true,
+      sumsRates: rates
+    });
+    expect(
+      normalizeSettings({
+        sumsNumberStyle: "roman",
+        sumsDefaultCurrency: "DOGE",
+        sumsConvert: "yes",
+        sumsRates: { date: "today" }
+      } as never)
+    ).toMatchObject({
+      sumsNumberStyle: "auto",
+      sumsDefaultCurrency: "",
+      sumsConvert: false,
+      sumsRates: null
+    });
+  });
+
   it("defaults debugLogging to false", () => {
     expect(normalizeSettings({}).debugLogging).toBe(false);
   });

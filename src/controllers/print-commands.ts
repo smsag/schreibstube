@@ -51,6 +51,7 @@ import { missingPanels } from "../services/svg-capture";
 import { toArrayBuffer } from "../utils/array-buffer";
 import { TypstCompiler } from "../print/typst-compiler";
 import { DiagramCapture } from "./diagram-capture";
+import { NO_FORMULAS, type NoteFormulas } from "./sums-controller";
 import { activeLocale } from "../i18n";
 import { describeDiagnostics, RUNTIME_MEGABYTES } from "../services/typst-runtime";
 import { PrintExampleModal } from "../ui/print-modals";
@@ -102,6 +103,7 @@ interface TemplateFiles {
 export class PrintCommands {
   private compiler: TypstCompiler | null = null;
   private readonly diagrams: DiagramCapture;
+  private formulas: NoteFormulas = NO_FORMULAS;
 
   constructor(
     private readonly app: App,
@@ -113,6 +115,11 @@ export class PrintCommands {
     private readonly enable: () => Promise<void>
   ) {
     this.diagrams = new DiagramCapture(app, logger, "print", MAX_DIAGRAM_BYTES);
+  }
+
+  /** A note's formulas: resolved in what is typeset, and `(fixed)` ones frozen once it is written. */
+  useFormulas(formulas: NoteFormulas): void {
+    this.formulas = formulas;
   }
 
   stop(): void {
@@ -354,6 +361,7 @@ export class PrintCommands {
         return;
       }
       this.logger.debug(`print: wrote ${path}`);
+      await this.freezePrinted(session.file);
 
       const kilobytes = Math.max(1, Math.round(prepared.pdf.byteLength / 1024));
       new Notice(t().common.notice(messages.done(path, kilobytes)), 8000);
@@ -374,7 +382,7 @@ export class PrintCommands {
     progress: (message: string) => void
   ): Promise<PrintSession> {
     const messages = t().print;
-    const source = await this.app.vault.read(file);
+    const source = await this.formulas.forExport(await this.app.vault.read(file));
     const session: PrintSession = {
       file,
       source,
@@ -546,6 +554,20 @@ export class PrintCommands {
       if (file instanceof TFile) return file;
     }
     return null;
+  }
+
+  /**
+   * The PDF is written: each `(fixed)` total is written into the note at what
+   * the PDF says. A failed write leaves the totals live and says so; the PDF
+   * is there either way.
+   */
+  private async freezePrinted(file: TFile): Promise<void> {
+    try {
+      await this.formulas.freeze(file);
+    } catch (error) {
+      this.logger.debug(`print: could not freeze the totals in ${file.path}`, error);
+      new Notice(t().common.notice(t().sums.freezeFailed(file.path)));
+    }
   }
 
   private async compileJob(
