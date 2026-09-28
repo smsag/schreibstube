@@ -554,6 +554,17 @@ export const enExtra = {
     filterMore: (count: number) => `${count} more match. Narrow the filter to see them.`,
     foundByMeaning: "Found by meaning: the words differ, the subject matches.",
     searchingByMeaning: "Searching by meaning…",
+    filterHint:
+      "Finds files by name, title, alias, tag and text. Narrow it with tag:, path:, name: or text:, or type #tag.",
+    filterStatus: (count: number) => (count === 1 ? "1 match" : `${count} matches`),
+    filterScope: {
+      tags: "Tags only",
+      path: "Folders only",
+      name: "File names only",
+      body: "Text only",
+      all: "Everywhere"
+    },
+    rootFolder: "Vault root",
     collapseAll: "Collapse all",
     expandAll: "Expand all",
     pinnedMore: "Show all pinned",
@@ -566,8 +577,10 @@ export const enExtra = {
       viewEmpty:
         "Nothing links, tags or files this note beside anything else, and nothing reads alike.",
       summary: (count: number) => (count === 1 ? "1 recommendation" : `${count} recommendations`),
-      root: "Vault root",
       untitled: "Untitled conversation",
+      follow: "Follow the open note",
+      stay: "Stay on this note",
+      openSource: "Open this note",
       picture: "Picture",
       conversation: "Conversation in Pythia",
       copyLink: "Copy Obsidian URL",

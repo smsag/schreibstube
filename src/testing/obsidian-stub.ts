@@ -24,6 +24,12 @@ export class TFile {
   }
 }
 
+/** Obsidian's reading of a note's tags, `#` included; the fake keeps them as
+ *  a plain list on the cache so a test can say which tags a note carries. */
+export function getAllTags(cache: { tags?: unknown } | null): string[] | null {
+  return Array.isArray(cache?.tags) ? (cache.tags as string[]) : null;
+}
+
 export class TFolder {
   name: string;
   children: (TFile | TFolder)[] = [];

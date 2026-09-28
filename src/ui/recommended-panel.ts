@@ -95,6 +95,16 @@ export class RecommendedPanel {
   /** Under the note only: folded away by a press on its heading. Not kept:
    *  the next note opens with the list shown. */
   private collapsed = false;
+  /**
+   * What the last draw showed, as one string.
+   *
+   * A vault change rarely changes this note's list, and drawing it again
+   * anyway threw away the scroll and the keyboard focus under a person
+   * reading it — every time the note being typed in was saved.
+   */
+  private drawn: string | null = null;
+  /** The note that draw was for, to tell a redraw from another note. */
+  private drawnPath: string | null = null;
 
   constructor(
     private readonly root: HTMLElement,
@@ -128,35 +138,88 @@ export class RecommendedPanel {
     if (this.lastAsk?.path === path && now - this.lastAsk.at < REASK_MS) return;
     this.lastAsk = { path, at: now };
     const token = ++this.asked;
-    void recommend(path).then((value) => {
-      if (token !== this.asked || this.source !== path || value === null) return;
-      this.answer = { path, value };
-      this.draw();
-    });
+    recommend(path)
+      .then((value) => {
+        if (token !== this.asked || this.source !== path || value === null) return;
+        this.answer = { path, value };
+        this.draw();
+      })
+      // The graph's answer is already on screen; a meaning search that failed
+      // leaves it there, and the next change asks again.
+      .catch(() => {
+        if (this.lastAsk?.path === path) this.lastAsk = null;
+      });
   }
 
   private draw(): void {
     const root = this.root;
-    root.empty();
     const labels = t().explorer.related;
     const path = this.source;
-    if (path === null) {
+    // A note the vault no longer holds has nothing to belong with.
+    const title = path === null ? null : this.host.titleOf(path);
+
+    const items =
+      path === null || title === null
+        ? []
+        : (this.answer?.path === path
+            ? this.answer.value.items
+            : this.host.cards(path).map((card): RecommendedItem => ({ kind: "note", card }))
+          ).slice(0, this.host.count());
+
+    const signature = JSON.stringify([path, title, this.collapsed, items]);
+    if (signature === this.drawn) return;
+    const sameNote = this.drawn !== null && path !== null && this.drawnPath === path;
+    this.drawn = signature;
+    this.drawnPath = path;
+
+    // The scroller is the sidebar's own content or, under the note, the note's.
+    const scroller = root.closest<HTMLElement>(".view-content") ?? root;
+    const scrollTop = scroller.scrollTop;
+    const focused = root.ownerDocument.activeElement;
+    const focusedKey =
+      focused instanceof HTMLElement && root.contains(focused)
+        ? (focused.closest("[data-key]")?.getAttribute("data-key") ?? null)
+        : null;
+
+    root.empty();
+    this.drawInto(root, labels, path, title, items);
+
+    // The same note drawn again keeps its place; another note starts at the top.
+    if (sameNote) scroller.scrollTop = scrollTop;
+    if (focusedKey !== null) {
+      root.querySelector<HTMLElement>(`[data-key="${CSS.escape(focusedKey)}"]`)?.focus();
+    }
+  }
+
+  private drawInto(
+    root: HTMLElement,
+    labels: ReturnType<typeof t>["explorer"]["related"],
+    path: string | null,
+    title: string | null,
+    items: RecommendedItem[]
+  ): void {
+    if (path === null || title === null) {
       root.createDiv({ cls: "schreibstube-related-empty", text: labels.viewNoNote });
       return;
     }
-
-    const items = (
-      this.answer?.path === path
-        ? this.answer.value.items
-        : this.host.cards(path).map((card): RecommendedItem => ({ kind: "note", card }))
-    ).slice(0, this.host.count());
     const total = items.length;
 
     if (this.opts.heading) {
       const header = root.createDiv({ cls: "schreibstube-related-header" });
-      header.createDiv({
+      // The heading is the note the list is about, and opens it: kept on one
+      // note, the panel is otherwise the only way back to it.
+      const heading = header.createDiv({
         cls: "schreibstube-related-title",
-        text: this.host.titleOf(path) ?? path
+        text: title,
+        attr: {
+          role: "link",
+          tabindex: "0",
+          title: labels.openSource,
+          "data-key": `source:${path}`
+        }
+      });
+      this.pressable(heading, (event) => {
+        void this.host.open(path, openTargetOf(Keymap.isModEvent(event)));
       });
       header.createDiv({ cls: "schreibstube-related-summary", text: labels.summary(total) });
     } else {
@@ -165,6 +228,7 @@ export class RecommendedPanel {
       const section = root.createDiv({
         cls: "schreibstube-related-section",
         attr: {
+          "data-key": "section",
           role: "button",
           tabindex: "0",
           "aria-expanded": String(!this.collapsed),
@@ -219,11 +283,13 @@ export class RecommendedPanel {
       glyph: string;
       path?: string;
       kind?: string;
+      /** What the entry is, to find it again after a redraw. */
+      key: string;
     }
   ): HTMLElement {
     const el = list.createEl("li").createDiv({
       cls: row.kind ? `schreibstube-related-card ${row.kind}` : "schreibstube-related-card",
-      attr: { role: "link", tabindex: "0" }
+      attr: { role: "link", tabindex: "0", "data-key": row.key }
     });
     if (row.path !== undefined) el.setAttribute("title", row.path);
     // The line under the title says the same in words, for a screen reader too.
@@ -270,9 +336,18 @@ export class RecommendedPanel {
     }
   }
 
-  /** Press, Enter or Space opens; a modifier opens beside, as a link does. */
+  /**
+   * Press, Enter or Space opens; a modifier opens beside, as a link does. A
+   * middle click is a click too, which Obsidian reads as a tab; the browser
+   * reports it as `auxclick`, and it did nothing here.
+   */
   private pressable(el: HTMLElement, open: (event: MouseEvent | KeyboardEvent) => void): void {
     el.addEventListener("click", (event) => open(event));
+    el.addEventListener("auxclick", (event) => {
+      if (event.button !== 1) return;
+      event.preventDefault();
+      open(event);
+    });
     el.addEventListener("keydown", (event) => {
       if (event.key !== "Enter" && event.key !== " ") return;
       event.preventDefault();
@@ -283,11 +358,12 @@ export class RecommendedPanel {
   private renderCard(list: HTMLElement, card: RelatedCard): void {
     const el = this.renderRow(list, {
       title: card.title,
-      what: card.folder.length > 0 ? card.folder : t().explorer.related.root,
+      what: card.folder.length > 0 ? card.folder : t().explorer.rootFolder,
       // Two reasons at most: the third is never what made the difference.
       why: card.reasons.slice(0, 2).map(reasonLabel),
       glyph: this.host.glyphOf(card.path),
-      path: card.path
+      path: card.path,
+      key: `file:${card.path}`
     });
     this.actions(el, { kind: "file", path: card.path });
     this.pressable(el, (event) => {
@@ -308,7 +384,8 @@ export class RecommendedPanel {
       why: [labels.reasons.meaning],
       glyph: this.host.glyphOf(picture.path),
       path: picture.path,
-      kind: "is-picture"
+      kind: "is-picture",
+      key: `file:${picture.path}`
     });
     this.actions(el, { kind: "file", path: picture.path });
     el.createEl("img", {
@@ -331,7 +408,8 @@ export class RecommendedPanel {
       what: labels.conversation,
       why: [labels.reasons.meaning],
       glyph: PYTHIA_GLYPH,
-      kind: "is-conversation"
+      kind: "is-conversation",
+      key: `conversation:${conversation.id}`
     });
     this.actions(el, { kind: "conversation", id: conversation.id });
     this.pressable(el, () => this.host.openConversation(conversation.id));

@@ -79,6 +79,7 @@ import {
 import type { ExplorerFileStore } from "./services/explorer-store";
 import { SemanticEngine } from "./controllers/semantic/semantic-engine";
 import { createSemanticApi } from "./controllers/semantic/semantic-api";
+import { folderOf } from "./services/path-follow";
 import { conversationIdOf, meaningOrder, recommendNotes } from "./services/semantic/recommend";
 import { RecommendedFooter } from "./controllers/recommended-footer";
 import type { Recommendation, RecommendedHost, RecommendedItem } from "./ui/recommended-panel";
@@ -614,10 +615,7 @@ export default class SchreibstubePlugin extends Plugin {
     return {
       cards: (path) => explorer.relatedCards(path),
       recommend: (path) => this.recommend(path),
-      titleOf: (path) => {
-        const file = this.app.vault.getAbstractFileByPath(path);
-        return file instanceof TFile ? (explorer.titleFor(file) ?? file.basename) : null;
-      },
+      titleOf: (path) => explorer.displayTitle(path),
       open: async (path, where) => {
         const file = this.app.vault.getAbstractFileByPath(path);
         if (file) await explorer.open(file, where);
@@ -725,7 +723,7 @@ export default class SchreibstubePlugin extends Plugin {
         card: {
           path: entry.path,
           title: known?.title ?? explorer.titleFor(file) ?? file.basename,
-          folder: file.parent && !file.parent.isRoot() ? file.parent.path : "",
+          folder: folderOf(file),
           reasons: entry.reasons
         }
       });
@@ -814,7 +812,8 @@ export default class SchreibstubePlugin extends Plugin {
         openConversation: (id) => this.openConversation(id),
         warm: () => this.semantic?.warm(),
         meaningState: () => this.semantic?.searchState() ?? "none",
-        onMeaningChange: (listener) => this.semantic?.onChange(listener) ?? (() => undefined)
+        onMeaningChange: (listener) => this.semantic?.onChange(listener) ?? (() => undefined),
+        logger: this.logger
       });
     }
     return view;

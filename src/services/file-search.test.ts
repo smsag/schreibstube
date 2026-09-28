@@ -1,8 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
   forwardMatchStrength,
+  comparePaths,
+  hasSearchWords,
   matchesText,
   matchStrength,
+  MAX_DESCRIPTION_LENGTH,
+  MAX_FIELD_LENGTH,
+  MAX_QUERY_LENGTH,
   MAX_QUERY_TOKENS,
   parseSearchScope,
   queryTokens,
@@ -374,5 +379,72 @@ describe("tokenize — scripts that write vowels as marks", () => {
   it("keeps a word whole with its combining marks", () => {
     expect(tokenize("हिन्दी")).toEqual(["हिन्दी"]);
     expect(tokenize("שָׁלוֹם")).toHaveLength(1);
+  });
+});
+
+describe("a tag written as a tag", () => {
+  it("reads a leading hash as the tag scope", () => {
+    expect(parseSearchScope("#objekt")).toEqual({ scope: "tags", query: "objekt", explicit: true });
+  });
+
+  it("finds by tag and not by name", () => {
+    const hits = rankFiles("#objekt", [
+      file("Objekt 12.md"),
+      file("Villa.md", { tags: ["objekt"] })
+    ]);
+
+    expect(hits.map((hit) => hit.path)).toEqual(["Villa.md"]);
+  });
+});
+
+describe("hasSearchWords", () => {
+  it.each(["", "   ", "tag:", "#", "pfad:  ", "--- ...", "#  "])("finds no words in %j", (raw) => {
+    expect(hasSearchWords(raw)).toBe(false);
+  });
+
+  it.each(["objekt", "tag:objekt", "#objekt", "todo: Angebot"])("finds words in %j", (raw) => {
+    expect(hasSearchWords(raw)).toBe(true);
+  });
+});
+
+describe("bounds on what is read", () => {
+  it("reads no more of a query than the bound", () => {
+    const pasted = `${"a".repeat(MAX_QUERY_LENGTH)} objekt`;
+
+    expect(queryTokens(pasted)).toEqual(["a".repeat(MAX_QUERY_LENGTH)]);
+    expect(parseSearchScope(pasted).query).toHaveLength(MAX_QUERY_LENGTH);
+  });
+
+  it("tokenizes no more of a field than the bound", () => {
+    const title = `${"x".repeat(MAX_FIELD_LENGTH)} seeblick`;
+
+    expect(searchFields({ path: "a.md", name: "a.md", title }).title).not.toContain("seeblick");
+  });
+
+  it("gives a description more room than a name, and still a bound", () => {
+    const within = `${"x ".repeat(MAX_FIELD_LENGTH)}kochinsel`;
+    const beyond = `${"x".repeat(MAX_DESCRIPTION_LENGTH)} kochinsel`;
+    const fields = (description: string) =>
+      searchFields({ path: "a.jpg", name: "a.jpg", description }).description;
+
+    expect(fields(within)).toContain("kochinsel");
+    expect(fields(beyond)).not.toContain("kochinsel");
+  });
+
+  it("lets punctuation alone match every row, as an empty filter does", () => {
+    expect(matchesText("---", "Anything")).toBe(true);
+  });
+});
+
+describe("comparePaths", () => {
+  it("orders numbers as numbers", () => {
+    const paths = ["Objekt 12.md", "Objekt 2.md", "Objekt 1.md"];
+
+    expect([...paths].sort(comparePaths)).toEqual(["Objekt 1.md", "Objekt 2.md", "Objekt 12.md"]);
+  });
+
+  it("never calls two different paths equal", () => {
+    expect(comparePaths("a.md", "A.md")).not.toBe(0);
+    expect(comparePaths("a.md", "a.md")).toBe(0);
   });
 });

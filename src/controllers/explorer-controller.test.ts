@@ -88,6 +88,10 @@ interface FixtureOptions {
   settings?: Partial<typeof DEFAULT_SETTINGS>;
   /** Frontmatter by path, as the metadata cache would hand it over. */
   frontmatter?: Record<string, Record<string, unknown>>;
+  /** Obsidian's resolved-link table, for the related notes. */
+  links?: Record<string, Record<string, number>>;
+  /** Each note's tags, `#` included, as Obsidian reports them. */
+  tags?: Record<string, string[]>;
 }
 
 function fixture(options: FixtureOptions = {}): Fixture {
@@ -165,9 +169,13 @@ function fixture(options: FixtureOptions = {}): Fixture {
     metadataCache: {
       getFileCache: (file: TFile) => {
         const frontmatter = options.frontmatter?.[file.path];
-        return frontmatter ? { frontmatter } : null;
+        const tags = options.tags?.[file.path];
+        return frontmatter || tags
+          ? { ...(frontmatter ? { frontmatter } : {}), ...(tags ? { tags } : {}) }
+          : null;
       },
-      getFirstLinkpathDest: (link: string) => (present.has(link) ? node(link) : null)
+      getFirstLinkpathDest: (link: string) => (present.has(link) ? node(link) : null),
+      resolvedLinks: options.links ?? {}
     }
   } as unknown as App;
 
@@ -776,5 +784,55 @@ describe("the publication mark", () => {
     expect(f.controller.publishMarkOf(new TFile("Writings/Grembl/Bild.png") as never)).toEqual({
       state: "none"
     });
+  });
+});
+
+describe("related notes", () => {
+  it("lists a linked note with its reason, named by its file", () => {
+    const f = fixture({
+      present: ["A.md", "B.md", "C.md"],
+      links: { "A.md": { "B.md": 1 } }
+    });
+
+    const [first] = f.controller.relatedCards("A.md");
+
+    expect(first).toMatchObject({ path: "B.md", title: "B", folder: "" });
+    expect(first?.reasons[0]).toEqual({ kind: "link", count: 1 });
+  });
+
+  it("matches tags regardless of case and hash", () => {
+    const f = fixture({
+      present: ["A.md", "B.md", "C.md"],
+      tags: { "A.md": ["#Objekt"], "B.md": ["#objekt"], "C.md": ["#anderes"] }
+    });
+
+    const [first] = f.controller.relatedCards("A.md");
+
+    expect(first?.path).toBe("B.md");
+    expect(first?.reasons[0]).toEqual({ kind: "tag", count: 1 });
+  });
+
+  it("stops relating notes through a citer deleted a moment ago", async () => {
+    const f = fixture({
+      present: ["A.md", "B.md", "Liste.md"],
+      links: { "Liste.md": { "A.md": 1, "B.md": 1 } }
+    });
+    const kinds = (): string[] =>
+      f.controller
+        .relatedCards("A.md")
+        .find((card) => card.path === "B.md")
+        ?.reasons.map((reason) => reason.kind) ?? [];
+    expect(kinds()).toContain("co-citation");
+
+    await deleteViaMenu(f.controller, new TFile("Liste.md"));
+
+    expect(kinds()).not.toContain("co-citation");
+  });
+
+  it("names a note by its title, and nothing for a path the vault does not hold", () => {
+    const f = fixture({ present: ["A.md"] });
+
+    expect(f.controller.displayTitle("A.md")).toBe("A");
+    expect(f.controller.displayTitle("Nirgends.md")).toBeNull();
   });
 });

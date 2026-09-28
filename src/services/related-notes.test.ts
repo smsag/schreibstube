@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { backlinkIndex, rankRelated, RELATED_LIMIT, type RelatedSubject } from "./related-notes";
+import {
+  backlinkIndex,
+  linkDegrees,
+  rankRelated,
+  RELATED_LIMIT,
+  relatedTags,
+  type RelatedSubject
+} from "./related-notes";
 
 function note(path: string, extra: Partial<RelatedSubject> = {}): RelatedSubject {
   return {
@@ -200,5 +207,102 @@ describe("backlinkIndex", () => {
 
   it("says nothing about a note nobody links", () => {
     expect(backlinkIndex({ "A.md": {} }).get("A.md")).toBeUndefined();
+  });
+});
+
+describe("a note linking to itself", () => {
+  it("does not count its own link as one it shares", () => {
+    const vault: RelatedSubject[] = [
+      note("A/Quelle.md", { links: ["A/Quelle.md"], backlinks: ["A/Quelle.md", "B/Fan.md"] }),
+      note("B/Fan.md", { links: ["A/Quelle.md"] })
+    ];
+
+    const [fan] = rankRelated("A/Quelle.md", vault);
+
+    expect(fan?.path).toBe("B/Fan.md");
+    expect(fan?.reasons).toEqual([{ kind: "link", count: 1 }]);
+  });
+
+  it("does not make a self-linking neighbour share a link with the source", () => {
+    const vault: RelatedSubject[] = [
+      note("A/Quelle.md", { links: ["B/Selbst.md"] }),
+      note("B/Selbst.md", { links: ["B/Selbst.md"], backlinks: ["A/Quelle.md", "B/Selbst.md"] })
+    ];
+
+    const [self] = rankRelated("A/Quelle.md", vault);
+
+    expect(self?.reasons.map((reason) => reason.kind)).toEqual(["link"]);
+  });
+});
+
+describe("reasons", () => {
+  it("lead with the one that added most, not the one worth most in general", () => {
+    // Three rare tags against one link to a note everything links to.
+    const hub = "Hub.md";
+    const crowd = Array.from({ length: 30 }, (_, i) => note(`C/${i}.md`, { links: [hub] }));
+    const vault: RelatedSubject[] = [
+      note("A/Quelle.md", { links: [hub], tags: ["x", "y", "z"] }),
+      note("B/Treffer.md", { links: [hub], tags: ["x", "y", "z"] }),
+      note(hub),
+      ...crowd
+    ];
+
+    const top = rankRelated("A/Quelle.md", vault)[0];
+
+    expect(top?.path).toBe("B/Treffer.md");
+    expect(top?.reasons[0]?.kind).toBe("tag");
+  });
+});
+
+describe("linkDegrees", () => {
+  it("counts what every file sends and receives, canvases included", () => {
+    const degrees = linkDegrees({
+      "Board.canvas": { "A.md": 1, "B.md": 1, "C.md": 1 },
+      "A.md": { "B.md": 3 }
+    });
+
+    expect(degrees.outbound.get("Board.canvas")).toBe(3);
+    expect(degrees.outbound.get("A.md")).toBe(1);
+    expect(degrees.inbound.get("B.md")).toBe(2);
+  });
+
+  it("makes a large canvas a weak reason to call its cards related", () => {
+    const cards = Array.from({ length: 40 }, (_, i) => `K/${i}.md`);
+    const resolved: Record<string, Record<string, number>> = {
+      "Board.canvas": Object.fromEntries(cards.map((card) => [card, 1])),
+      "Liste.md": { "K/0.md": 1, "P/Paar.md": 1 }
+    };
+    const backlinks = backlinkIndex(resolved);
+    const vault: RelatedSubject[] = [...cards, "P/Paar.md", "Liste.md"].map((path) =>
+      note(path, {
+        links: Object.keys(resolved[path] ?? {}),
+        backlinks: backlinks.get(path) ?? []
+      })
+    );
+
+    const related = rankRelated("K/0.md", vault, { degrees: linkDegrees(resolved) });
+
+    // Listed together on a short list beats sitting together on a huge board.
+    expect(related[0]?.path).toBe("P/Paar.md");
+  });
+});
+
+describe("relatedTags", () => {
+  it("strips, lowercases, composes and dedupes", () => {
+    expect(relatedTags(["#Übung", "#Übung", "#Projekt", "projekt"])).toEqual(["übung", "projekt"]);
+  });
+
+  it("drops what is not a tag", () => {
+    expect(relatedTags(["#ok", 7, null, "#", { tag: "x" }])).toEqual(["ok"]);
+    expect(relatedTags("not a list")).toEqual([]);
+  });
+});
+
+describe("limit", () => {
+  it("is bounded however much is asked for", () => {
+    const vault = Array.from({ length: 150 }, (_, i) => note(`N/${i}.md`, { tags: ["t"] }));
+
+    expect(rankRelated("N/0.md", vault, { limit: 10_000 })).toHaveLength(100);
+    expect(rankRelated("N/0.md", vault, { limit: -3 })).toEqual([]);
   });
 });

@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Added
+
+- **The Explorer's filter answers the keyboard.** Escape clears it, Enter opens the best match, and the down arrow moves from the field into the list. `#objekt` searches tags, as `tag:objekt` does, and a filter narrowed with `tag:`, `path:`, `name:` or `text:` now says so above its results. Hovering the field lists the prefixes, and a screen reader hears how many files matched.
+- **Recommended can stay on one note.** A pin in the panel's header keeps the list on the note it shows, and pressing it again lets the panel follow the open note. The panel's heading opens the note it names, and a middle click on an entry opens it in a new tab.
+
+### Fixed
+
+- **Recommended holds conversations from Pythia that are new.** The panel read Pythia's conversations only as they were when the Explorer's filter last searched them, so anything said in Pythia since then was never recommended. On a desktop, the panel now brings them up to date in the background, and the next list holds them. A phone still reads what the desktop stored.
+- **The Explorer's filter finds notes by their title right after the vault opens.** A note searched for before Obsidian had finished reading it was remembered without its title, aliases and tags, and stayed findable only by its file name until it was edited.
+- **A filter no longer leaves hidden rows selected.** Files the filter no longer shows drop out of the selection, so a delete of "the selection" acts only on rows that are on screen. A new filter also starts its list at the top, a file deleted a moment ago is no longer counted among the held-back matches, and a phone no longer capitalises or autocorrects what is typed into the field.
+- **Recommended follows a renamed note.** Renaming or moving the note the panel showed emptied the list and left the old name in the heading. Deleting it now returns the panel to the open note, and opening a picture or a PDF leaves the list on the last note.
+- **Recommended shows a new link at once and keeps its place.** The panel redrew before Obsidian had resolved the note's links, so a link just written appeared only after the next edit. It no longer redraws when nothing changed, keeps its scroll position and keyboard focus when it does, and does no work while it is hidden.
+- **Recommended ranks linked notes more accurately.** A note that links to itself no longer counts that link as one it shares. A canvas that holds many notes no longer makes all of them close relatives. Tags that differ only in case or in how an umlaut was typed now match, a note deleted a moment ago no longer relates the notes it linked, and an entry shows first the reason that counted most for it.
+
 ## 1.58.0 - 2026-09-28
 
 Amounts in a note now add up. Select lines with amounts and the status bar
@@ -644,6 +660,11 @@ deleted row going before the vault's own event arrives, and a tap in the
 recent lists leaving the tree where it is.
 
 The bridge's protocol is unchanged; bridge 2.4.0 still pairs with this release.
+
+### Added
+
+- **The Explorer's filter answers the keyboard.** Escape clears it, Enter opens the best match, and the down arrow moves from the field into the list. `#objekt` searches tags, as `tag:objekt` does, and a filter narrowed with `tag:`, `path:` or `name:` now says so above its results. Hovering the field lists the prefixes. A screen reader hears how many files matched.
+- **The related notes can stay on one note.** A pin in the panel's header keeps the list on the note it shows, and pressing it again lets the panel follow the open note. The panel's heading opens the note it names, and a middle click on a card opens it in a new tab.
 
 ### Changed
 
