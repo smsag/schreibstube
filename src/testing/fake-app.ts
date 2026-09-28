@@ -13,6 +13,8 @@ export interface FakeNote {
   path: string;
   content: string;
   frontmatter?: Record<string, unknown>;
+  /** Every tag the note carries, as the stub's `getAllTags` reports them. */
+  tags?: string[];
   createdMs?: number;
 }
 
@@ -36,7 +38,7 @@ interface FakeApp {
     getAbstractFileByPath(path: string): TFile | null;
   };
   metadataCache: {
-    getFileCache(file: TFile): { frontmatter?: Record<string, unknown> } | null;
+    getFileCache(file: TFile): { frontmatter?: Record<string, unknown>; tags?: string[] } | null;
     getFirstLinkpathDest(linkpath: string, from: string): TFile | null;
   };
   fileManager: {
@@ -60,6 +62,7 @@ export function fakeVault({
   const files = new Map<string, TFile>();
   const contents = new Map<string, string>();
   const frontmatter = new Map<string, Record<string, unknown>>();
+  const tags = new Map<string, string[]>();
 
   for (const note of notes) {
     files.set(note.path, new TFile(note.path, note.createdMs));
@@ -68,6 +71,7 @@ export function fakeVault({
     // test that describes two notes with the same literal must not have them
     // share one object.
     frontmatter.set(note.path, { ...(note.frontmatter ?? {}) });
+    if (note.tags) tags.set(note.path, note.tags);
   }
   for (const binary of binaries) {
     files.set(binary.path, new TFile(binary.path));
@@ -101,7 +105,11 @@ export function fakeVault({
     metadataCache: {
       getFileCache: (file) => {
         const fm = frontmatter.get(file.path);
-        return fm ? { frontmatter: fm } : {};
+        const carried = tags.get(file.path);
+        return {
+          ...(fm ? { frontmatter: fm } : {}),
+          ...(carried ? { tags: carried } : {})
+        };
       },
       getFirstLinkpathDest: (linkpath) => find(linkpath)
     },

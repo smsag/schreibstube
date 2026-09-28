@@ -24,6 +24,7 @@ export const en = {
     tableAi: "Insert: AI table from the selection",
     insertToday: "Insert: today's date",
     addPropertySet: "Insert: frontmatter property set",
+    suggestTags: "Insert: suggested tags",
     openExplorer: "Open explorer",
     collapseExplorer: "Explorer: collapse folders",
     explorerUndo: "Explorer: undo the last move or delete",

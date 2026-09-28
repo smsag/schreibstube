@@ -68,6 +68,7 @@ export function renderEditor(ctx: SettingsContext): void {
     t().commands.insertTaskSummary,
     t().commands.insertSlideshow,
     t().commands.insertToday,
+    t().commands.suggestTags,
     t().commands.linksSwitch
   ]);
 }

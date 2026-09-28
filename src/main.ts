@@ -46,6 +46,8 @@ import { LinkModeController } from "./controllers/link-mode-controller";
 import { LlmCommands } from "./controllers/llm-commands";
 import { PropertyController } from "./controllers/property-controller";
 import { PropertySetController } from "./controllers/property-set-controller";
+import { PropertyWidgetControls } from "./controllers/property-widget-controls";
+import { TagSuggestController, type RelatedNeighbour } from "./controllers/tag-suggest-controller";
 import { DraftWidth } from "./controllers/draft-width";
 import { NEW_DOC_ACTION } from "./services/new-note";
 import { FolderDescriber } from "./controllers/folder-describer";
@@ -146,6 +148,8 @@ export default class SchreibstubePlugin extends Plugin {
   /** Describes a folder's pictures; built on first use, from the pane and Obsidian's. */
   private folderDescriberInstance: FolderDescriber | null = null;
   private propertySets: PropertySetController | null = null;
+  private propertyControls: PropertyWidgetControls | null = null;
+  private tagSuggest: TagSuggestController | null = null;
   private readonly draftWidth = new DraftWidth(this.app);
   private proofread: ProofreadController | null = null;
   private explorer: ExplorerController | null = null;
@@ -197,7 +201,31 @@ export default class SchreibstubePlugin extends Plugin {
     this.propertySets = new PropertySetController(this.app, () => this.settings, this.logger);
     const propertySets = this.propertySets;
     this.properties.setAddSetHandler((file) => void propertySets.pick(file));
-    this.startProperties(this.properties, propertySets);
+    const llm = this.llm;
+    this.tagSuggest = new TagSuggestController(
+      this.app,
+      (path) => this.tagNeighbours(path),
+      (content, vocabulary) => llm.suggestTags(content, vocabulary),
+      this.logger
+    );
+    const tagSuggest = this.tagSuggest;
+    this.propertyControls = new PropertyWidgetControls(this.app, [
+      {
+        className: "schreibstube-add-set",
+        icon: "list-plus",
+        label: () => t().properties.addSetButton,
+        ariaLabel: () => t().properties.addSet,
+        press: (file) => void propertySets.pick(file)
+      },
+      {
+        className: "schreibstube-suggest-tags",
+        icon: "tags",
+        label: () => t().tagSuggest.button,
+        ariaLabel: () => t().tagSuggest.buttonLabel,
+        press: (file) => void tagSuggest.open(file)
+      }
+    ]);
+    this.startProperties(this.properties, propertySets, this.propertyControls);
     // Before mail, publish and print: each resolves a note's formulas on the way out.
     this.sums = new SumsController(
       this.app,
@@ -455,32 +483,41 @@ export default class SchreibstubePlugin extends Plugin {
    * later. Capture phase: the press has to be seen before Obsidian's own
    * handler opens the menu, whatever that handler does with the event.
    */
-  private startProperties(properties: PropertyController, sets: PropertySetController): void {
+  private startProperties(
+    properties: PropertyController,
+    sets: PropertySetController,
+    controls: PropertyWidgetControls
+  ): void {
     const register = (doc: Document, type: string, handler: (event: Event) => void) => {
       this.registerDomEvent(doc, type as keyof DocumentEventMap, handler, { capture: true });
     };
     properties.attach(window, register);
-    sets.attach(window, register);
+    controls.attach(window, register);
     this.registerEvent(
       this.app.workspace.on("window-open", (_workspaceWindow, win) => {
         properties.attach(win, register);
-        sets.attach(win, register);
+        controls.attach(win, register);
       })
     );
     this.registerEvent(
       this.app.workspace.on("window-close", (_workspaceWindow, win) => {
         properties.detach(win);
-        sets.detach(win);
+        controls.detach(win);
       })
     );
     properties.start();
 
     // The Properties widget is drawn when a note opens and when a view
-    // switches between reading and editing; each is a moment to put the set
-    // control beside "Add property" again.
-    this.registerEvent(this.app.workspace.on("file-open", (file) => sets.noteOpened(file)));
-    this.registerEvent(this.app.workspace.on("layout-change", () => sets.decorateSoon()));
-    this.registerEvent(this.app.workspace.on("active-leaf-change", () => sets.decorateSoon()));
+    // switches between reading and editing; each is a moment to put the
+    // controls beside "Add property" again.
+    this.registerEvent(
+      this.app.workspace.on("file-open", (file) => {
+        sets.noteOpened(file);
+        controls.decorateSoon();
+      })
+    );
+    this.registerEvent(this.app.workspace.on("layout-change", () => controls.decorateSoon()));
+    this.registerEvent(this.app.workspace.on("active-leaf-change", () => controls.decorateSoon()));
     this.registerEvent(this.app.metadataCache.on("changed", (file) => sets.noteChanged(file)));
     const setFolderTouched = (path: string) => sets.vaultChanged(path);
     this.registerEvent(this.app.vault.on("modify", (file) => setFolderTouched(file.path)));
@@ -499,7 +536,7 @@ export default class SchreibstubePlugin extends Plugin {
     uninstallIconFont();
     this.linkMode?.stop();
     this.properties?.stop();
-    this.propertySets?.stop();
+    this.propertyControls?.stop();
     this.draftWidth.stop();
     this.print?.stop();
     this.proofread?.stop();
@@ -689,11 +726,13 @@ export default class SchreibstubePlugin extends Plugin {
    * The link graph and search by meaning together, for one note. Null when
    * search by meaning is off, so the panel keeps the graph's answer alone.
    */
-  private async recommend(path: string): Promise<Recommendation | null> {
+  private async recommend(
+    path: string,
+    count = this.settings.recommendedCount
+  ): Promise<Recommendation | null> {
     const explorer = this.explorer;
     const engine = this.semantic;
     if (!explorer || !engine?.enabled()) return null;
-    const count = this.settings.recommendedCount;
     const found = await engine.relatedToNote(path, Math.max(RECOMMEND_LIMIT, count));
     const graph = explorer.relatedCards(path);
 
@@ -763,6 +802,28 @@ export default class SchreibstubePlugin extends Plugin {
       });
     }
     return { items };
+  }
+
+  /**
+   * The notes Recommended would list beside a note, for their tags: links and
+   * meaning when search by meaning is on, the link graph alone otherwise.
+   * As many as the panel can hold, whatever length a person chose for it —
+   * a tag is agreed on by several notes, and five are too few to agree.
+   */
+  private async tagNeighbours(path: string): Promise<RelatedNeighbour[]> {
+    const explorer = this.explorer;
+    if (!explorer) return [];
+    const linked = (reasons: readonly { kind: string }[]) =>
+      reasons.some((reason) => reason.kind === "link");
+    const found = await this.recommend(path, RECOMMEND_LIMIT);
+    if (found) {
+      return found.items.flatMap((item) =>
+        item.kind === "note" ? [{ path: item.card.path, linked: linked(item.card.reasons) }] : []
+      );
+    }
+    return explorer
+      .relatedCards(path)
+      .map((card) => ({ path: card.path, linked: linked(card.reasons) }));
   }
 
   /**
@@ -1417,6 +1478,10 @@ export default class SchreibstubePlugin extends Plugin {
 
     this.addGatedCommand("add-property-set", t().commands.addPropertySet, "property-set", () => {
       void this.propertySets?.pick(this.app.workspace.getActiveFile());
+    });
+
+    this.addGatedCommand("suggest-tags", t().commands.suggestTags, "property-set", () => {
+      void this.tagSuggest?.open(this.app.workspace.getActiveFile());
     });
 
     this.addCommand({

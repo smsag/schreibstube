@@ -2,13 +2,13 @@
  * Property sets, wired to the vault and to Obsidian's Properties widget.
  *
  * Four ways in, one way to write: the property menu, a control beside
- * "Add property", a feature that finds its keys missing (Mail), and a key
+ * "Add property" (placed by `PropertyWidgetControls`), a feature that finds its keys missing (Mail), and a key
  * just added by hand that belongs to a set. Every one ends in `apply`, which
  * adds only what the note lacks and says what it did. What a set is and what
  * applying it means is decided in `services/property-sets`; this only reads
  * the folder, runs Templater when a set asks for it, and writes.
  */
-import { Notice, parseYaml, setIcon, TFile, type App } from "obsidian";
+import { Notice, parseYaml, type App, type TFile } from "obsidian";
 import { t } from "../i18n";
 import type { Logger } from "../services/logger";
 import {
@@ -27,26 +27,17 @@ import {
   type PropertyEntry,
   type PropertySet
 } from "../services/property-sets";
-import {
-  addPropertyControls,
-  fileShownAround,
-  isElementLike,
-  propertiesWidgets,
-  templaterRenderer
-} from "../services/workspace-internals";
+import { templaterRenderer } from "../services/workspace-internals";
 import type { SchreibstubeSettings } from "../types";
 import { showActionNotice } from "../ui/action-notice";
 import { PropertySetPickerModal, type SetChoice } from "../ui/property-set-picker";
 import { withTimeout } from "../utils/with-timeout";
 
-const CONTROL_CLASS = "schreibstube-add-set";
 /** Long enough to read two lines and reach for the action. */
 const OFFER_NOTICE_MS = 12_000;
 /** A Templater set may ask the person something (`tp.system.prompt`); this is
  *  the ceiling on that, not on Templater's own work. */
 const TEMPLATER_TIMEOUT_MS = 120_000;
-/** The widget draws after the note opens; a second look catches a slow one. */
-const LATE_DECORATE_MS = 300;
 
 interface FolderSet {
   set: PropertySet;
@@ -56,8 +47,6 @@ interface FolderSet {
   skipped: string[];
 }
 
-type Register = (doc: Document, type: string, handler: (event: Event) => void) => void;
-
 export class PropertySetController {
   private folderSets: { folder: string; sets: FolderSet[] } | null = null;
   private loading: Promise<FolderSet[]> | null = null;
@@ -65,10 +54,6 @@ export class PropertySetController {
   private readonly keysByPath = new Map<string, string[]>();
   /** One offer per note and set per session: a notice declined is an answer. */
   private readonly offered = new Set<string>();
-  private readonly documents = new Set<Document>();
-  /** One watch per Properties widget on screen; dropped once it is gone. */
-  private readonly watches = new Map<HTMLElement, MutationObserver>();
-  private lateTimer = 0;
 
   constructor(
     private readonly app: App,
@@ -76,47 +61,11 @@ export class PropertySetController {
     private readonly logger: Logger
   ) {}
 
-  /** Install on a window: the main one at load, each popped-out one as it opens. */
-  attach(win: Window, register: Register): void {
-    const doc = win.document;
-    this.documents.add(doc);
-    register(doc, "click", (event) => this.onControl(event));
-    register(doc, "keydown", (event) => {
-      const key = (event as KeyboardEvent).key;
-      if (key === "Enter" || key === " ") this.onControl(event);
-    });
-    this.decorate(doc);
-  }
-
-  detach(win: Window): void {
-    this.documents.delete(win.document);
-  }
-
-  stop(): void {
-    window.clearTimeout(this.lateTimer);
-    for (const observer of this.watches.values()) observer.disconnect();
-    this.watches.clear();
-    for (const doc of this.documents) {
-      for (const control of Array.from(doc.querySelectorAll(`.${CONTROL_CLASS}`))) control.remove();
-    }
-    this.documents.clear();
-  }
-
-  /** Look for Properties widgets again, now and once more when a slow one has drawn. */
-  decorateSoon(): void {
-    for (const doc of this.documents) this.decorate(doc);
-    window.clearTimeout(this.lateTimer);
-    this.lateTimer = window.setTimeout(() => {
-      for (const doc of this.documents) this.decorate(doc);
-    }, LATE_DECORATE_MS);
-  }
-
   /** A note was opened: what it has now is the baseline, not something just added. */
   noteOpened(file: TFile | null): void {
     // The note left behind is no longer watched; its keys would only go stale.
     this.keysByPath.clear();
     if (file) this.keysByPath.set(file.path, this.keysOf(file));
-    this.decorateSoon();
   }
 
   /** A note in the set folder changed, appeared, moved or went. */
@@ -387,60 +336,6 @@ export class PropertySetController {
 
   private keysOf(file: TFile): string[] {
     return Object.keys(this.app.metadataCache.getFileCache(file)?.frontmatter ?? {});
-  }
-
-  private onControl(event: Event): void {
-    const target = event.target;
-    if (!isElementLike(target)) return;
-    const control = target.closest(`.${CONTROL_CLASS}`);
-    if (!isElementLike(control)) return;
-    event.preventDefault();
-    event.stopPropagation();
-    const file = fileShownAround(this.app, control) ?? this.app.workspace.getActiveFile();
-    void this.pick(file instanceof TFile ? file : null);
-  }
-
-  /**
-   * Put a control beside every "Add property" in the document, and watch each
-   * widget, which Obsidian rebuilds on edits and may rebuild without its
-   * control. The watch is on the widget only, never the whole document: a
-   * keystroke in the note must not cost a search of the page.
-   */
-  private decorate(doc: Document): void {
-    for (const [widget, observer] of this.watches) {
-      if (widget.isConnected) continue;
-      observer.disconnect();
-      this.watches.delete(widget);
-    }
-    for (const widget of propertiesWidgets(doc)) {
-      if (!this.watches.has(widget)) {
-        const observer = new MutationObserver(() => this.placeControls(widget));
-        observer.observe(widget, { childList: true, subtree: true });
-        this.watches.set(widget, observer);
-      }
-      this.placeControls(widget);
-    }
-  }
-
-  private placeControls(root: ParentNode): void {
-    for (const add of addPropertyControls(root)) {
-      const next = add.nextElementSibling;
-      if (next?.classList.contains(CONTROL_CLASS)) continue;
-      const control = add.ownerDocument.createElement("div");
-      // Obsidian's own look for a quiet text-and-icon control, the class its
-      // "Add property" wears; the layout beside it is ours, in styles.css.
-      control.className = `${CONTROL_CLASS} text-icon-button`;
-      control.setAttribute("role", "button");
-      control.setAttribute("tabindex", "0");
-      control.setAttribute("aria-label", t().properties.addSet);
-      const icon = control.appendChild(add.ownerDocument.createElement("span"));
-      icon.className = "text-button-icon";
-      setIcon(icon, "list-plus");
-      const label = control.appendChild(add.ownerDocument.createElement("span"));
-      label.className = "text-button-label";
-      label.textContent = t().properties.addSetButton;
-      add.after(control);
-    }
   }
 }
 

@@ -256,6 +256,18 @@ A set never overwrites. A key the note already has, empty or not and in any lett
 
 The **Add set** control is placed beside a control Obsidian draws for itself, so it depends on Obsidian's markup. If an update changes it, the control is simply missing; the menu entry, the command and the offers keep working.
 
+#### Tag suggestions
+
+**Suggest tags** beside **Add set**, or **Insert: suggested tags** in the command palette, opens a list of tags the note could carry. Tick the ones you want and press **Add**: they are added to the note's `tags`, and every tag already there stays as it was. Nothing is ticked to begin with, and nothing is written until you press the button.
+
+The suggestions come from three places, each in its own section:
+
+- **From related notes** — the tags the notes in **Recommended** carry and this one does not. A tag needs two related notes agreeing on it, or one note linked with this one. A tag carried by half the vault counts for less than one only a few notes carry.
+- **Stated by the note** — the keywords a paper names itself: a `Keywords:` line under the abstract, IEEE's `Index Terms—`, a keywords heading, Springer's keywords separated by middle dots, German `Schlüsselwörter:` and `Schlagwörter:`, or a `keywords` key a reference manager wrote into the frontmatter.
+- **From the content** — press **Ask AI** and the model from the AI settings reads the beginning of the note, up to 12,000 characters, and suggests tags. The vault's tags go with it, so it answers with tags the vault already uses where one fits. This is the only section that sends anything away, and only when you press the button.
+
+Every suggestion is written in the vault's words. `Machine Learning`, `machine_learning` and `machine-learnings` all become the `machine-learning` the vault already uses. A tag nothing in the vault resembles is marked **new**, since ticking it adds a word to the vault's vocabulary. New tags are written in lower case when most of the vault's tags are. A note tagged `projekt/alpha` is not offered `projekt`, because it already is one.
+
 ### Rename file from content
 
 Assigns a filename to the active note or image based on its content, with one command that follows the file that is open:

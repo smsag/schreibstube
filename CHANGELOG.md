@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Added
+
+- **Suggest tags.** A **Suggest tags** control beside **Add set** at the foot of the Properties view, and **Insert: suggested tags** in the command palette, list tags the note could carry. Tick them and they are added to the note's `tags`, keeping every tag already there. The list has three sections. **From related notes**: the tags the notes in Recommended agree on. **Stated by the note**: the keywords a paper names itself, from a `Keywords:` line, `Index Terms`, a keywords heading or a reference manager's `keywords` key. **From the content**: tags from the AI model, asked only when you press **Ask AI**, since that sends the beginning of the note to the provider. Every suggestion uses the vault's spelling of a tag where one exists, and a tag the vault does not have yet is marked **new**.
+
 ## 1.60.0 - 2026-09-28
 
 New doc can be started from outside Obsidian: the link
