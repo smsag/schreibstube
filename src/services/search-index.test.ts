@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   FileSearchIndex,
+  MAX_ALIASES,
   type FileMetadata,
   type IndexedFile,
   type SearchSource
@@ -25,7 +26,9 @@ function fakeSource(files: FakeFile[]): SearchSource & { reads: number } {
       files.map((file) => ({ path: file.path, name: file.path.split("/").pop() ?? file.path })),
     metadata: (file: IndexedFile): FileMetadata | null => {
       source.reads += 1;
-      return files.find((entry) => entry.path === file.path)?.metadata ?? null;
+      const entry = files.find((candidate) => candidate.path === file.path);
+      if (!entry) return null;
+      return entry.metadata === undefined ? {} : entry.metadata;
     }
   };
   return source;
@@ -38,7 +41,7 @@ const VAULT: FakeFile[] = [
   },
   { path: "Objekte/Mietvertrag Seeblick.md", metadata: { tags: ["#vertrag"] } },
   { path: "Kontakte/Meier.md", metadata: { tags: ["#kontakt"] } },
-  { path: "Bilder/terrasse.png", metadata: null }
+  { path: "Bilder/terrasse.png", metadata: {} }
 ];
 
 describe("FileSearchIndex", () => {
@@ -107,8 +110,7 @@ describe("FileSearchIndex", () => {
 
   it("says how many matched beyond what may be drawn", () => {
     const many: FakeFile[] = Array.from({ length: 10 }, (_, i) => ({
-      path: `Objekt ${i}.md`,
-      metadata: null
+      path: `Objekt ${i}.md`
     }));
     const index = new FileSearchIndex(fakeSource(many));
 
@@ -189,6 +191,67 @@ describe("FileSearchIndex against frontmatter a person wrote", () => {
     // "[object Object]" tokenizes to "object" — a word that would then match
     // every note whose frontmatter is shaped wrongly, and nothing a person means.
     expect(index.search("object", 50).shown).toEqual([]);
+  });
+});
+
+describe("metadata not read yet", () => {
+  it("answers by name and reads the file again next time", () => {
+    const files: FakeFile[] = [{ path: "Objekt 12.md", metadata: null }];
+    const source = fakeSource(files);
+    const index = new FileSearchIndex(source);
+
+    expect(index.search("seeblick", 10).hits).toEqual([]);
+    expect(index.search("objekt", 10).shown[0]?.path).toBe("Objekt 12.md");
+    expect(index.size).toBe(0);
+
+    // Obsidian finishes parsing the note; nothing says so, the next search asks.
+    files[0] = { path: "Objekt 12.md", metadata: { title: "Villa Seeblick" } };
+
+    expect(index.search("seeblick", 10).shown[0]?.path).toBe("Objekt 12.md");
+    expect(index.size).toBe(1);
+  });
+});
+
+describe("hostile metadata", () => {
+  it("drops tags that are not strings", () => {
+    const index = new FileSearchIndex(
+      fakeSource([{ path: "Plan.md", metadata: { tags: [{ tag: "x" }, 7, "#objekt", ""] } }])
+    );
+
+    expect(index.fieldsFor({ path: "Plan.md", name: "Plan.md" }).tags).toEqual(["objekt"]);
+  });
+
+  it("ignores a tag list that is not a list", () => {
+    const index = new FileSearchIndex(
+      fakeSource([{ path: "Plan.md", metadata: { tags: "#objekt" } }])
+    );
+
+    expect(index.fieldsFor({ path: "Plan.md", name: "Plan.md" }).tags).toEqual([]);
+  });
+
+  it("reads no more aliases than the bound", () => {
+    const aliases = Array.from({ length: MAX_ALIASES + 10 }, (_, i) => `alias${i}`);
+    const index = new FileSearchIndex(fakeSource([{ path: "Plan.md", metadata: { aliases } }]));
+
+    const fields = index.fieldsFor({ path: "Plan.md", name: "Plan.md" });
+
+    expect(fields.aliases).toHaveLength(MAX_ALIASES);
+    expect(fields.aliases).not.toContain(`alias${MAX_ALIASES}`);
+  });
+
+  it("says how many files it searched", () => {
+    const index = new FileSearchIndex(fakeSource(VAULT));
+
+    expect(index.search("villa", 1).searched).toBe(VAULT.length);
+  });
+
+  it("treats a negative limit as none", () => {
+    const index = new FileSearchIndex(fakeSource(VAULT));
+
+    const result = index.search("objekt", -5);
+
+    expect(result.shown).toEqual([]);
+    expect(result.held).toBe(result.hits.length);
   });
 });
 

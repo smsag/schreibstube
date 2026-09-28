@@ -99,7 +99,15 @@ import {
   type TaggedNote
 } from "../services/tag-pins";
 import { tallyTasks, type TaskTally } from "../services/task-count";
-import { backlinkIndex, rankRelated, type RelatedSubject } from "../services/related-notes";
+import { folderOf } from "../services/path-follow";
+import {
+  backlinkIndex,
+  linkDegrees,
+  rankRelated,
+  relatedTags,
+  type LinkDegrees,
+  type RelatedSubject
+} from "../services/related-notes";
 import type { RelatedCard } from "../ui/related-notes-view";
 import {
   ConfirmModal,
@@ -638,7 +646,7 @@ export class ExplorerController {
       cards.push({
         path: file.path,
         title: this.titleFor(file) ?? file.basename,
-        folder: file.parent && !file.parent.isRoot() ? file.parent.path : "",
+        folder: folderOf(file),
         tally: tallyTasks(note.items),
         modifiedAt: file.stat.mtime
       });
@@ -663,8 +671,9 @@ export class ExplorerController {
    * walk either way.
    */
   relatedCards(path: string): RelatedCard[] {
-    const notes = this.linkGraph();
-    const related = rankRelated(path, notes);
+    const started = performance.now();
+    const { notes, degrees } = this.linkGraph();
+    const related = rankRelated(path, notes, { degrees });
 
     const cards: RelatedCard[] = [];
     for (const entry of related) {
@@ -674,36 +683,50 @@ export class ExplorerController {
       cards.push({
         path: file.path,
         title: this.titleFor(file) ?? file.basename,
-        folder: file.parent && !file.parent.isRoot() ? file.parent.path : "",
+        folder: folderOf(file),
         reasons: entry.reasons
       });
     }
 
+    this.logger.debug(
+      `Related notes for ${path}: ${cards.length} of ${notes.length} notes ` +
+        `in ${Math.round(performance.now() - started)} ms`
+    );
     return cards;
   }
 
+  /**
+   * What a row or a header calls a file: its frontmatter title when it has a
+   * usable one, else its name. Null for a path the vault no longer holds.
+   */
+  displayTitle(path: string): string | null {
+    const file = this.app.vault.getAbstractFileByPath(path);
+    return file instanceof TFile ? (this.titleFor(file) ?? file.basename) : null;
+  }
+
   /** The vault as the ranking wants it: every note with its links both ways. */
-  private linkGraph(): RelatedSubject[] {
+  private linkGraph(): { notes: RelatedSubject[]; degrees: LinkDegrees } {
     const resolved = this.app.metadataCache.resolvedLinks;
     const backlinks = backlinkIndex(resolved);
+    // A note deleted a moment ago is off the list and off the tree; it must not
+    // go on relating the notes it linked either, as a citer nobody can see.
+    const present = (path: string): boolean => !this.isTrashed(path);
 
     const notes: RelatedSubject[] = [];
     for (const file of this.app.vault.getMarkdownFiles()) {
-      if (this.isTrashed(file.path)) continue;
+      if (!present(file.path)) continue;
       const cache = this.app.metadataCache.getFileCache(file);
       notes.push({
         path: file.path,
-        links: Object.keys(resolved[file.path] ?? {}),
-        backlinks: backlinks.get(file.path) ?? [],
-        tags: ((cache && getAllTags(cache)) ?? []).map((tag) =>
-          tag.replace(/^#/, "").toLowerCase()
-        ),
-        folder: file.parent && !file.parent.isRoot() ? file.parent.path : "",
+        links: Object.keys(resolved[file.path] ?? {}).filter(present),
+        backlinks: (backlinks.get(file.path) ?? []).filter(present),
+        tags: relatedTags(cache ? getAllTags(cache) : null),
+        folder: folderOf(file),
         modifiedAt: file.stat.mtime
       });
     }
 
-    return notes;
+    return { notes, degrees: linkDegrees(resolved) };
   }
 
   /** List the notes related to one note in the sidebar. */

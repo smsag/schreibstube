@@ -832,6 +832,17 @@ export const de: Messages = {
     filterMore: (count: number) => `${count} weitere Treffer. Filter eingrenzen, um sie zu sehen.`,
     foundByMeaning: "Nach Bedeutung gefunden: andere Wörter, gleiches Thema.",
     searchingByMeaning: "Suche nach Bedeutung …",
+    filterHint:
+      "Findet Dateien nach Name, Titel, Alias, Tag und Text. Eingrenzen mit tag:, pfad:, name: oder inhalt:, oder #tag tippen.",
+    filterStatus: (count: number) => (count === 1 ? "1 Treffer" : `${count} Treffer`),
+    filterScope: {
+      tags: "Nur Tags",
+      path: "Nur Ordner",
+      name: "Nur Dateinamen",
+      body: "Nur Text",
+      all: "Überall"
+    },
+    rootFolder: "Vault-Wurzel",
     collapseAll: "Alle zuklappen",
     expandAll: "Alle aufklappen",
     pinnedMore: "Alle Angehefteten zeigen",
@@ -844,8 +855,10 @@ export const de: Messages = {
       viewEmpty:
         "Nichts verlinkt, verschlagwortet oder legt diese Notiz neben eine andere, und nichts liest sich ähnlich.",
       summary: (count: number) => (count === 1 ? "1 Empfehlung" : `${count} Empfehlungen`),
-      root: "Vault-Wurzel",
       untitled: "Unbenanntes Gespräch",
+      follow: "Der offenen Notiz folgen",
+      stay: "Bei dieser Notiz bleiben",
+      openSource: "Diese Notiz öffnen",
       picture: "Bild",
       conversation: "Gespräch in Pythia",
       copyLink: "Obsidian-URL kopieren",

@@ -130,7 +130,8 @@ export class SemanticEngine {
       enabled: () => this.enabled(),
       modelId: () => this.modelId(),
       provider: () => this.ensureProvider(),
-      changed: () => this.emit()
+      changed: () => this.emit(),
+      mayEmbedInBackground: () => !Platform.isMobile && !this.syncing
     });
   }
 

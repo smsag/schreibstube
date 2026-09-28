@@ -47,8 +47,9 @@ export interface FileMetadata {
   title?: unknown;
   aliases?: unknown;
   /** Tags as Obsidian reports them, `#` included; it reads frontmatter and
-   *  body alike, which is what makes a tag search agree with its own. */
-  tags?: readonly string[] | null;
+   *  body alike, which is what makes a tag search agree with its own. Checked
+   *  entry by entry all the same: the list is assembled from frontmatter. */
+  tags?: unknown;
   /** A picture's description, from the note that describes it. */
   description?: unknown;
 }
@@ -56,6 +57,16 @@ export interface FileMetadata {
 /** Where the index reads from. The view satisfies this with the vault. */
 export interface SearchSource {
   files(): readonly IndexedFile[];
+  /**
+   * What the vault knows about a file, `{}` when there is nothing to know, or
+   * null when it has not been read yet.
+   *
+   * The difference matters to the cache. Right after a vault opens, Obsidian
+   * is still parsing notes, and a note asked about then has no metadata yet;
+   * caching that answer kept the note unfindable by its title, aliases and
+   * tags until it happened to be edited, because a note parsed and found
+   * unchanged raises no event to say its fields have arrived.
+   */
   metadata(file: IndexedFile): FileMetadata | null;
 }
 
@@ -67,7 +78,18 @@ export interface SearchResult {
   shown: SearchHit[];
   /** How many matched but are not in `shown`. */
   held: number;
+  /** How many files were searched, for the debug log. */
+  searched: number;
 }
+
+/**
+ * The most aliases one note is searched by.
+ *
+ * Aliases exist to be found by and a person writes a handful; a list of
+ * hundreds is something generated, and every entry would be compared on every
+ * keystroke. The first ones are kept, since they are the ones written first.
+ */
+export const MAX_ALIASES = 32;
 
 /**
  * A title as it can be used.
@@ -93,10 +115,28 @@ function usableText(raw: unknown): string {
  */
 function aliasList(raw: unknown): string[] {
   if (Array.isArray(raw)) {
-    return raw.map(usableText).filter((alias) => alias.length > 0);
+    return raw
+      .slice(0, MAX_ALIASES)
+      .map(usableText)
+      .filter((alias) => alias.length > 0);
   }
   const single = usableText(raw);
   return single.length > 0 ? [single] : [];
+}
+
+/**
+ * Tags, without their `#`.
+ *
+ * Anything in the list that is not a string is dropped rather than turned into
+ * text: a tag is a word somebody wrote, never `[object Object]`.
+ */
+function tagList(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  const tags: string[] = [];
+  for (const tag of raw) {
+    if (typeof tag === "string" && tag.length > 0) tags.push(tag.replace(/^#/, ""));
+  }
+  return tags;
 }
 
 export class FileSearchIndex {
@@ -120,10 +160,11 @@ export class FileSearchIndex {
       name: file.name,
       title: usableText(metadata?.title),
       aliases: aliasList(metadata?.aliases),
-      tags: (metadata?.tags ?? []).map((tag) => tag.replace(/^#/, "")),
+      tags: tagList(metadata?.tags),
       description: usableText(metadata?.description)
     });
-    this.cache.set(file.path, fields);
+    // Not read yet: answered by name for now, and read again next time.
+    if (metadata !== null) this.cache.set(file.path, fields);
     return fields;
   }
 
@@ -170,7 +211,7 @@ export class FileSearchIndex {
       .map((file) => ({ path: file.path, fields: this.fieldsFor(file) }));
 
     const hits = rankFiles(query, candidates, undefined, this.body);
-    const shown = hits.slice(0, limit);
-    return { hits, shown, held: hits.length - shown.length };
+    const shown = hits.slice(0, Math.max(0, limit));
+    return { hits, shown, held: hits.length - shown.length, searched: candidates.length };
   }
 }

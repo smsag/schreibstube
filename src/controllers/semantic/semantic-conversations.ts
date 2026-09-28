@@ -36,6 +36,12 @@ export interface ConversationHost {
   provider(): EmbeddingProvider;
   /** Something changed that a caller may want to redraw for. */
   changed(): void;
+  /**
+   * Whether the model may be loaded now for work nobody is waiting on. False
+   * on a phone, which reads the desktop's index rather than building one, and
+   * while the vault index is being built.
+   */
+  mayEmbedInBackground?(): boolean;
 }
 
 /**
@@ -53,6 +59,8 @@ export class SemanticConversations {
   private indexModel: EmbeddingModelId | null = null;
   private dirty = true;
   private titles = new Map<string, string>();
+  /** A background sync started by the Recommended panel is running. */
+  private catchingUp = false;
 
   constructor(private readonly host: ConversationHost) {}
 
@@ -181,7 +189,31 @@ export class SemanticConversations {
       this.host.logger.warn("semantic engine: conversation titles could not be listed", e);
     });
     // Chunk against chunk, the comparison the related floors were measured on.
-    return index.relatedToVectors(chunks, { minScore: this.relatedFloor(), limit });
+    const found = index.relatedToVectors(chunks, { minScore: this.relatedFloor(), limit });
+    this.catchUpInBackground();
+    return found;
+  }
+
+  /**
+   * Bring the stored conversations up to date, without anyone waiting on it.
+   *
+   * The Recommended panel answers from what is stored and never syncs — a sync
+   * may load the model — so a conversation held there only once the Explorer's
+   * filter had searched conversations. Everything said in Pythia since the
+   * last such search was missing from every note's recommendations. Where the
+   * model may run, the panel's answer now also starts the sync it skipped, and
+   * the next answer holds what it added.
+   */
+  private catchUpInBackground(): void {
+    if (!this.dirty || this.catchingUp || this.host.mayEmbedInBackground?.() !== true) return;
+    this.catchingUp = true;
+    this.ready(true)
+      .catch((e: unknown) => {
+        this.host.logger.warn("semantic engine: conversations could not be brought up to date", e);
+      })
+      .finally(() => {
+        this.catchingUp = false;
+      });
   }
 
   /** Open a conversation in the plugin that listed it, if it can. */

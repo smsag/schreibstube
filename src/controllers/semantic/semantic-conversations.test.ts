@@ -40,7 +40,7 @@ function setup(files: Record<string, ArrayBuffer> = {}) {
     manifest: { id: "schreibstube", dir: ".obsidian/plugins/schreibstube" }
   } as unknown as Plugin;
   const provider = new FakeProvider();
-  const state = { enabled: true };
+  const state = { enabled: true, background: false };
   const changed = vi.fn();
   const conversations = new SemanticConversations({
     plugin,
@@ -48,7 +48,8 @@ function setup(files: Record<string, ArrayBuffer> = {}) {
     enabled: () => state.enabled,
     modelId: () => "xenova-paraphrase-multilingual-MiniLM-L12-v2",
     provider: () => provider,
-    changed
+    changed,
+    mayEmbedInBackground: () => state.background
   });
   let notify: () => void = () => undefined;
   const listed = [
@@ -162,5 +163,39 @@ describe("conversations beside a note", () => {
     expect(s.provider.embedded.length).toBe(embedded); // no model for the panel
     await s.conversations.search("küche", 5, []); // a search does bring it up to date
     expect(s.provider.embedded.length).toBeGreaterThan(embedded);
+  });
+});
+
+describe("conversations beside a note, where the model may run", () => {
+  it("brings the stored conversations up to date after answering", async () => {
+    const s = setup();
+    s.state.background = true;
+    s.conversations.register(s.source);
+    await s.conversations.search("küche", 5, []);
+    s.listed.push({ id: "c3", title: "", updatedAt: 3, summary: "", messages: ["küche neu"] });
+    s.notify();
+
+    const first = await s.conversations.relatedToVectors([new Int8Array([127, 0, 0, 0])], 5);
+    // Answered from what was stored: the new conversation is not in it yet.
+    expect(first.map((hit) => hit.id)).not.toContain("c3");
+
+    await vi.waitFor(() => expect(s.provider.embedded).toContain("küche neu"));
+    await vi.waitFor(() => expect(s.changed).toHaveBeenCalled());
+    const next = await s.conversations.relatedToVectors([new Int8Array([127, 0, 0, 0])], 5);
+    expect(next.map((hit) => hit.id)).toContain("c3");
+  });
+
+  it("starts nothing when nothing changed", async () => {
+    const s = setup();
+    s.state.background = true;
+    s.conversations.register(s.source);
+    await s.conversations.search("küche", 5, []);
+    const embedded = s.provider.embedded.length;
+
+    await s.conversations.relatedToVectors([new Int8Array([127, 0, 0, 0])], 5);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(s.provider.embedded.length).toBe(embedded);
+    expect(s.source.list).toHaveBeenCalledTimes(1);
   });
 });

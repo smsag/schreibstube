@@ -37,7 +37,15 @@ import type { ExplorerController } from "../controllers/explorer-controller";
 import type { PaneSectionsController } from "../controllers/pane-sections";
 import { syncBadgeIcon, type SyncBadge } from "../services/explorer-badge";
 import type { PublishMark } from "../services/publish-mark";
-import { matchesText, parseSearchScope, type SearchHit } from "../services/file-search";
+import {
+  hasSearchWords,
+  matchesText,
+  MAX_QUERY_LENGTH,
+  parseSearchScope,
+  type SearchHit
+} from "../services/file-search";
+import type { Logger } from "../services/logger";
+import { folderOf } from "../services/path-follow";
 import { FileSearchIndex } from "../services/search-index";
 import { BodyIndex, BodyLoader } from "../services/body-index";
 import { fuseRankings, meaningQuery, meaningRows } from "../services/semantic/search-fusion";
@@ -179,6 +187,7 @@ export interface ExplorerPaneHost {
   /** How much meaning can answer now, and a way to hear when that moves. */
   meaningState?: () => string;
   onMeaningChange?: (listener: () => void) => () => void;
+  logger: Logger;
 }
 
 export class ExplorerPaneView extends ItemView {
@@ -216,7 +225,8 @@ export class ExplorerPaneView extends ItemView {
   /** The rows a menu or a key acts on together. Not remembered across
    *  sessions: a selection is a moment's intent, not a setting. */
   private selection: SelectionState = EMPTY_SELECTION;
-  private pending = false;
+  /** The redraw waiting for the next frame. */
+  private renderFrame: number | null = null;
   /** Waiting for the typing to stop before the filter redraws. */
   private filterTimer: number | null = null;
   /** Waiting for a longer pause before asking by meaning. */
@@ -263,13 +273,22 @@ export class ExplorerPaneView extends ItemView {
         this.app.vault
           .getAllLoadedFiles()
           .filter((entry): entry is TFile => entry instanceof TFile)
+          // A file deleted a moment ago is not searched: its row is gone from
+          // the tree, and counted among the matches it made the list say more
+          // were held back than there were.
+          .filter((file) => this.host?.explorer.isTrashed(file.path) !== true)
           // A folded-in description note is found as its picture, never twice.
           .filter((file) => this.host?.explorer.hidesDescription(file.path) !== true)
           .map((file) => ({ path: file.path, name: file.name })),
       metadata: (file) => {
         const target = this.app.vault.getAbstractFileByPath(file.path);
-        if (!(target instanceof TFile)) return null;
+        // Gone: nothing more to read, which is a settled answer.
+        if (!(target instanceof TFile)) return {};
         const cache = this.app.metadataCache.getFileCache(target);
+        // A note Obsidian has not parsed yet: answered by name for now and
+        // asked again on the next search, rather than remembered without its
+        // title, aliases and tags until it happens to be edited.
+        if (target.extension === "md" && !cache) return null;
         // A described picture carries its description note's words: the title it
         // was given, its keywords as tags, and the description itself.
         const described = this.host?.explorer.descriptionFields(file.path) ?? null;
@@ -281,7 +300,7 @@ export class ExplorerPaneView extends ItemView {
           aliases: cache?.frontmatter?.aliases,
           // `getAllTags` reads the frontmatter and the body alike, the way
           // Obsidian's own tag search sees a note.
-          tags: [...(getAllTags(cache ?? {}) ?? []), ...keywords],
+          tags: [...((cache && getAllTags(cache)) ?? []), ...keywords],
           description: described?.description
         };
       }
@@ -291,6 +310,12 @@ export class ExplorerPaneView extends ItemView {
   /** How many files the filter matched, so a capped list can say what it is
    *  holding back. */
   private matchCount = 0;
+  /** The field the filter is typed into. */
+  private search: HTMLInputElement | null = null;
+  /** Where a screen reader hears how many files the filter found. */
+  private filterStatus: HTMLElement | null = null;
+  /** The next draw answers a new query, and starts at the top of its list. */
+  private queryChanged = false;
   /** Files under each folder, counted once per draw. */
   private folderCounts = new Map<string, number>();
   /** A path to scroll to once a draw has put it on screen. */
@@ -359,9 +384,20 @@ export class ExplorerPaneView extends ItemView {
       cls: "schreibstube-explorer-filter",
       attr: {
         placeholder: t().explorer.searchPlaceholder,
-        "aria-label": t().explorer.searchPlaceholder
+        "aria-label": t().explorer.searchPlaceholder,
+        // The prefixes are the one part of the filter nothing on screen shows.
+        title: t().explorer.filterHint,
+        maxlength: String(MAX_QUERY_LENGTH),
+        // A phone's keyboard otherwise capitalises the first letter and
+        // "corrects" a file name into a dictionary word before it is searched.
+        autocomplete: "off",
+        autocorrect: "off",
+        autocapitalize: "off",
+        spellcheck: "false",
+        enterkeyhint: "search"
       }
     });
+    this.search = search;
     // The loupe, before the listeners so nothing depends on draw order. The
     // field used to say "filter" only through its placeholder, which is gone
     // the moment anything is typed; the glyph stays. Decorative — the field's
@@ -377,30 +413,15 @@ export class ExplorerPaneView extends ItemView {
       this.readBodies();
     });
 
-    search.addEventListener("input", () => {
-      // A scope with nothing after it — `tag:` on the way to `tag:foo` — is not
-      // a filter yet: it showed "nothing matches" beside every bookmark, and
-      // `text:` alone started reading the whole vault's text.
-      const typed = search.value.trim().toLowerCase();
-      const value = parseSearchScope(typed).query.length === 0 ? "" : typed;
-      this.cancelFilter();
-      this.rawQuery = search.value;
-      this.askByMeaning(search.value, value);
-      this.askConversations(search.value, value);
-      if (value.length > 0) this.readBodies();
-      // Emptying the field is the one case that must not wait: it is how a
-      // person gets the tree back, and there is nothing to compute for it.
-      if (value.length === 0) {
-        this.query = "";
-        this.requestRender();
-        return;
-      }
-      this.filterTimer = window.setTimeout(() => {
-        this.filterTimer = null;
-        this.query = value;
-        this.requestRender();
-      }, FILTER_DEBOUNCE_MS);
+    search.addEventListener("input", (event) => {
+      // Mid-composition — an umlaut built from a dead key, a word from an
+      // input method — the field holds a half-made character; the filter
+      // waits for the finished one, which `compositionend` delivers.
+      if ((event as InputEvent).isComposing) return;
+      this.scheduleFilter();
     });
+    search.addEventListener("compositionend", () => this.scheduleFilter());
+    search.addEventListener("keydown", (event) => this.onFilterKey(event));
 
     // Drawn after the field so CSS can hide it while the field is empty,
     // without the view having to track that.
@@ -413,12 +434,17 @@ export class ExplorerPaneView extends ItemView {
     // a screen reader could not see — which the browser reports as an error.
     applyIcon(clear.createSpan(), "x");
     clear.addEventListener("click", () => {
-      search.value = "";
-      this.cancelFilter();
-      this.query = "";
-      this.requestRender();
+      this.clearFilter();
       // The point of clearing is to type something else.
       search.focus();
+    });
+
+    // How many files the filter found, said once the list has been drawn. A
+    // sighted person sees the list change; without this, nobody else knew it
+    // had.
+    this.filterStatus = filter.createDiv({
+      cls: "schreibstube-visually-hidden",
+      attr: { role: "status", "aria-live": "polite" }
     });
 
     this.shelf = root.createDiv({ cls: "schreibstube-explorer-shelf" });
@@ -529,17 +555,19 @@ export class ExplorerPaneView extends ItemView {
     this.cancelFilter();
     // The text read is this pane's; closed, it would read on into nothing.
     this.bodyLoader.cancel();
+    if (this.renderFrame !== null) this.containerEl.win.cancelAnimationFrame(this.renderFrame);
+    this.renderFrame = null;
     if (this.groundFrame !== null) this.containerEl.win.cancelAnimationFrame(this.groundFrame);
     this.groundFrame = null;
     this.contentEl.empty();
   }
 
   private cancelFilter(): void {
-    if (this.filterTimer !== null) window.clearTimeout(this.filterTimer);
+    if (this.filterTimer !== null) this.containerEl.win.clearTimeout(this.filterTimer);
     this.filterTimer = null;
-    if (this.meaningTimer !== null) window.clearTimeout(this.meaningTimer);
+    if (this.meaningTimer !== null) this.containerEl.win.clearTimeout(this.meaningTimer);
     this.meaningTimer = null;
-    if (this.conversationTimer !== null) window.clearTimeout(this.conversationTimer);
+    if (this.conversationTimer !== null) this.containerEl.win.clearTimeout(this.conversationTimer);
     this.conversationTimer = null;
   }
 
@@ -557,7 +585,7 @@ export class ExplorerPaneView extends ItemView {
       this.conversationHits = null;
       return;
     }
-    this.conversationTimer = window.setTimeout(() => {
+    this.conversationTimer = this.containerEl.win.setTimeout(() => {
       this.conversationTimer = null;
       void ask(raw.trim(), CONVERSATION_RESULTS)
         .then((hits) => {
@@ -579,8 +607,8 @@ export class ExplorerPaneView extends ItemView {
   private askByMeaning(raw: string, key: string): void {
     const ask = this.host?.meaning;
     if (!ask || meaningQuery(raw) === null) return;
-    if (this.meaningTimer !== null) window.clearTimeout(this.meaningTimer);
-    this.meaningTimer = window.setTimeout(() => {
+    if (this.meaningTimer !== null) this.containerEl.win.clearTimeout(this.meaningTimer);
+    this.meaningTimer = this.containerEl.win.setTimeout(() => {
       this.meaningTimer = null;
       // Asked after the pause, when the words have had their turn: one word
       // the words already answer is not asked by meaning.
@@ -639,6 +667,90 @@ export class ExplorerPaneView extends ItemView {
         this.requestRender();
       })
       .catch(() => undefined);
+  }
+
+  /** The query as the field holds it, or nothing when it asks for nothing. */
+  private fieldQuery(): string {
+    const value = (this.search?.value ?? "").trim();
+    // `tag:` on its own or a stray `#` is a filter still being typed, not one
+    // that matches nothing: the tree stays until there is a word to look for.
+    return hasSearchWords(value) ? value : "";
+  }
+
+  /** Take the field's query now, without waiting for the typing to stop. */
+  private applyFilter(): void {
+    this.cancelFilter();
+    const query = this.fieldQuery();
+    if (query === this.query) return;
+    this.query = query;
+    this.queryChanged = true;
+    this.requestRender();
+  }
+
+  private scheduleFilter(): void {
+    this.cancelFilter();
+    const raw = this.search?.value ?? "";
+    const value = this.fieldQuery();
+    this.rawQuery = raw;
+    this.askByMeaning(raw, value);
+    this.askConversations(raw, value);
+    if (value.length > 0) this.readBodies();
+    // Emptying the field is the one case that must not wait: it is how a
+    // person gets the tree back, and there is nothing to compute for it.
+    if (value.length === 0) {
+      this.applyFilter();
+      return;
+    }
+    this.filterTimer = this.containerEl.win.setTimeout(() => {
+      this.filterTimer = null;
+      this.applyFilter();
+    }, FILTER_DEBOUNCE_MS);
+  }
+
+  private clearFilter(): void {
+    if (this.search) this.search.value = "";
+    this.scheduleFilter();
+  }
+
+  /**
+   * The keys a search field is expected to answer.
+   *
+   * Escape takes the filter away, as it does in every search box; Enter opens
+   * the best match, which is the whole point of having ranked them; the down
+   * arrow walks from the field into the list, where the arrows go on walking.
+   */
+  private onFilterKey(event: KeyboardEvent): void {
+    if (event.isComposing) return;
+    switch (event.key) {
+      case "Escape":
+        // An empty field has nothing to clear; the key is left to Obsidian.
+        if (!this.search || this.search.value.length === 0) return;
+        event.preventDefault();
+        event.stopPropagation();
+        this.clearFilter();
+        return;
+      case "Enter": {
+        this.applyFilter();
+        this.flushRender();
+        const best = this.ranked?.[0]?.path;
+        const file = best === undefined ? null : this.app.vault.getAbstractFileByPath(best);
+        if (!(file instanceof TFile)) return;
+        event.preventDefault();
+        void this.host?.explorer.open(file, openTargetOf(Keymap.isModEvent(event)));
+        return;
+      }
+      case "ArrowDown": {
+        this.applyFilter();
+        this.flushRender();
+        const first = this.treeRows()[0];
+        if (!first) return;
+        event.preventDefault();
+        first.focus();
+        return;
+      }
+      default:
+        return;
+    }
   }
 
   /**
@@ -784,14 +896,27 @@ export class ExplorerPaneView extends ItemView {
 
   /** Collapse the redraws a burst of vault events would otherwise cause. */
   private requestRender(): void {
-    if (this.pending) return;
-    this.pending = true;
-    window.requestAnimationFrame(() => {
-      this.pending = false;
+    if (this.renderFrame !== null) return;
+    this.renderFrame = this.containerEl.win.requestAnimationFrame(() => {
+      this.renderFrame = null;
       // A drag in progress holds the redraw and runs it when it ends.
       if (this.drag.holdsRedraw()) return;
       this.render();
     });
+  }
+
+  /**
+   * Make a waiting redraw now rather than on the next frame.
+   *
+   * For a key that acts on what the filter found: Enter pressed in the same
+   * frame as the last letter must open the best match for the whole word, not
+   * for the word without its last letter.
+   */
+  private flushRender(): void {
+    if (this.renderFrame === null) return;
+    this.containerEl.win.cancelAnimationFrame(this.renderFrame);
+    this.renderFrame = null;
+    if (!this.drag.holdsRedraw()) this.render();
   }
 
   private render(): void {
@@ -806,17 +931,23 @@ export class ExplorerPaneView extends ItemView {
     // Likewise the focus: folding a folder from the keyboard redraws the
     // tree, and the row under the focus is thrown away with the rest.
     const focused = this.focusedPath();
-    // A selected row that is gone — deleted, moved, filtered out — is not
-    // selected any more; the next "delete the selection" must not reach for it.
-    this.selection = selectionPruned(
-      this.selection,
-      (path) => this.app.vault.getAbstractFileByPath(path) !== null
-    );
-    host.empty();
-    this.shelf?.empty();
     const filtered = this.collectMatches();
     this.matches = filtered?.all ?? null;
     this.ranked = filtered?.ranked ?? null;
+    // A selected row that is gone — deleted, moved, filtered out — is not
+    // selected any more; the next "delete the selection" must not reach for
+    // rows nobody can see. Folded folders are another matter: their rows are
+    // one press away, so outside a filter only what is gone is dropped.
+    this.selection = selectionPruned(this.selection, (path) => {
+      const file = this.app.vault.getAbstractFileByPath(path);
+      if (!file) return false;
+      if (this.matches === null) return true;
+      // A folder is on screen through the filter only as a pinned row, which
+      // is matched by its name.
+      return file instanceof TFolder ? this.matchesQuery(file.name) : this.matches.has(path);
+    });
+    host.empty();
+    this.shelf?.empty();
     this.folderCounts.clear();
     // The rows a drag was holding are about to be thrown away.
     this.drag.reset();
@@ -829,7 +960,13 @@ export class ExplorerPaneView extends ItemView {
     if (settings.syncEnabled) this.renderLatest(host);
     this.renderFiles(host);
 
-    host.scrollTop = scrollTop;
+    // A new query is a new list, read from the top; the place in the old one
+    // said nothing about where to look in this one.
+    host.scrollTop = this.queryChanged ? 0 : scrollTop;
+    this.queryChanged = false;
+    this.filterStatus?.setText(
+      this.matches === null ? "" : t().explorer.filterStatus(this.matches.size)
+    );
     // A row deleted from the keyboard has no row to give the focus back to;
     // the tree keeps it, so the next arrow still lands somewhere.
     if (focused !== null && !this.focusRow(focused)) host.focus();
@@ -1346,6 +1483,17 @@ export class ExplorerPaneView extends ItemView {
     const controller = this.host?.explorer;
     const results = body.createDiv({ cls: "schreibstube-explorer-results" });
 
+    // A prefix narrows the filter to one dimension, and says which: a list
+    // that silently left out every file matching by name looked like a
+    // search that had stopped working.
+    const { scope, explicit } = parseSearchScope(this.query);
+    if (explicit && scope !== "all") {
+      results.createDiv({
+        cls: "schreibstube-explorer-subheading",
+        text: t().explorer.filterScope[scope]
+      });
+    }
+
     let drawn = 0;
     for (const hit of this.ranked ?? []) {
       const file = this.app.vault.getAbstractFileByPath(hit.path);
@@ -1366,10 +1514,10 @@ export class ExplorerPaneView extends ItemView {
         result.addClass("is-meaning");
         result.setAttr("title", t().explorer.foundByMeaning);
       }
-      const folder = file.parent && !file.parent.isRoot() ? file.parent.path : "";
+      const folder = folderOf(file);
       const label = result.createDiv({
         cls: "schreibstube-explorer-result-folder",
-        text: folder.length > 0 ? folder : t().explorer.related.root
+        text: folder.length > 0 ? folder : t().explorer.rootFolder
       });
       // The folder is part of the result, so pressing it opens what the row
       // above it names rather than doing nothing.
@@ -1522,10 +1670,15 @@ export class ExplorerPaneView extends ItemView {
     this.matchCount = 0;
     if (this.query.length === 0) return null;
 
-    const { hits, shown } = this.index.search(this.query, FILTER_ROW_CAP);
+    const started = performance.now();
+    const { hits, shown, searched } = this.index.search(this.query, FILTER_ROW_CAP);
     this.matchCount = hits.length;
     this.wordHits = { query: this.query, count: hits.length };
     this.meaningOnly.clear();
+    this.host?.logger.debug(
+      `Filter matched ${hits.length} of ${searched} files ` +
+        `in ${Math.round(performance.now() - started)} ms (${this.index.size} cached)`
+    );
 
     const controller = this.host?.explorer;
     // Asked again with what the words find now: meaning asked for one word
