@@ -2,7 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## 1.61.0 - 2026-09-28
+
+Tags can be suggested for a note. **Suggest tags**, beside **Add set** in the
+Properties view or in the command palette, lists the tags the related notes
+agree on, the keywords a paper states about itself and, on request, what the
+AI model reads into the text. Tick the ones you want and they are added to the
+note's `tags`. Suggestions use the vault's spelling of a tag where there is one,
+and a tag the vault does not have yet is marked as new.
+
+Mobile checklist: not run, and the feature has not been tried in the Obsidian
+app on desktop either; the test suite and the build checked it. What to try
+first: the Suggest tags control under Add set, on a phone as well; the dialog
+on first use with search by meaning on, which should open at once and fill in;
+a paper with a Keywords line; and Ask AI with the provider set.
+
+The bridge is unchanged at 2.10.0.
 
 ### Added
 
