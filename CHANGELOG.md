@@ -6,6 +6,8 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- **A new doc in a full-screen window gets lines two thirds of the window wide.** Obsidian's readable line length leaves a thin 700 px column in the middle of a full-screen window, and without it a line runs the width of the screen. **New doc** now gives its note lines two thirds of the window wide while that window fills the screen, full screen or maximised, whether readable line length is on or off. As with the Recommended footer, this is for the first opening only; opened again later, the note has the usual width.
+
 - **`/frontmatter` finds the property sets.** The command is now called **Insert: frontmatter property set**, so typing `/frontmatter` in a note (with Obsidian's Slash commands plugin on) or "frontmatter" in the command palette opens the set picker. It lists Schreibstube's sets and every set in your **Property set folder**. Hotkeys assigned to the command keep working.
 
 ## 1.59.0 - 2026-09-28

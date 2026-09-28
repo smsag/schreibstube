@@ -175,6 +175,8 @@ The dim strength is configurable.
 
 That last command makes a new empty note where Obsidian's _Default location for new notes_ says, named the way Obsidian names one (**Untitled**, then **Untitled 1**, and so on; **Unbenannt** in German), opens it in a new window, brings that window to the front whatever windows and tabs are already open, and puts the cursor in the editor. A pop-out window has no sidebars, so the screen holds the note and nothing else. On a phone, which has no windows, the note opens in a new tab and both drawers close instead. Nothing about the vault differs from a note made the usual way.
 
+While that window fills the screen, full screen or maximised, the note's lines are two thirds of the window wide, with Obsidian's _Readable line length_ on or off; make the window smaller and the usual width returns. Like the Recommended footer, which the new note opens without, this is for the first opening only: open the note again later and it looks like any other.
+
 ### Properties
 
 Two additions to Obsidian's Properties view in live preview. Both live in a property's own menu — click its icon, or tap it on a phone:

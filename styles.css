@@ -3699,3 +3699,18 @@
   color: var(--text-muted);
   font-size: var(--font-smaller);
 }
+
+/* The note the new-note command opens, while its window fills the screen
+   (controllers/draft-width): lines two thirds of the window wide. With
+   readable line length on, Obsidian narrows its sizers to --file-line-width,
+   so setting that is enough; with it off, nothing narrows them, so the same
+   width is set here. 100vw is the note's own window, a pop-out included. */
+.schreibstube-draft-width {
+  --file-line-width: calc(100vw * 2 / 3);
+}
+
+.schreibstube-draft-width .markdown-source-view.mod-cm6 .cm-sizer,
+.schreibstube-draft-width .markdown-preview-view .markdown-preview-sizer {
+  max-width: var(--file-line-width);
+  margin-inline: auto;
+}
