@@ -10,28 +10,41 @@ import { fetchEcbRates } from "../services/rates-client";
 import { formatRateDate, type FormulaContext, type Outcome } from "../services/formulas";
 import { selectionTotal } from "../services/selection-total";
 import {
+  applyFreezes,
   formulaOutcomes,
-  freezeFormulas,
-  hasUnfrozenFormulas,
-  resolveFormulas
+  freezePlan,
+  resolveFormulas,
+  type FreezeEntry
 } from "../services/table-formulas";
+
+/** A note as it leaves the vault, and what to freeze once it has. */
+export interface ExportedNote {
+  /** The note's text with every formula replaced by its result. */
+  text: string;
+  /** The `(fixed)` results of exactly this copy, to be written back once it has left. */
+  freezes: FreezeEntry[];
+}
 
 /**
  * What mail, publish and print ask of the formulas in a note: its text as it
- * leaves the vault, and the `(fixed)` results written back once it has.
+ * leaves the vault, and the `(fixed)` results of that copy written back once
+ * it has — from the copy, not from the note as it is by then, so what is
+ * frozen is what the recipient got.
  */
 export interface NoteFormulas {
-  /** The note's text with every formula replaced by its result. */
-  forExport(markdown: string): Promise<string>;
-  /** Write each `(fixed)` result not yet frozen into the note; answers how many. */
-  freeze(file: TFile): Promise<number>;
+  forExport(markdown: string): Promise<ExportedNote>;
+  /** Write the frozen results into the note; answers how many. Throws when the note's formulas changed. */
+  freeze(file: TFile, freezes: readonly FreezeEntry[]): Promise<number>;
 }
 
 /** For a controller nobody gave formulas to: the note leaves as it is. */
 export const NO_FORMULAS: NoteFormulas = {
-  forExport: async (markdown) => markdown,
+  forExport: async (markdown) => ({ text: markdown, freezes: [] }),
   freeze: async () => 0
 };
+
+/** A formula anywhere in the text, so a note without one is passed through untouched. */
+const FORMULA_HINT = /=(?:sum|avg|median|count|min|max)/i;
 
 /** How long the selection is left to settle before its total is read. */
 const SELECTION_SETTLE_MS = 120;
@@ -46,7 +59,9 @@ const SELECTION_SETTLE_MS = 120;
  * switched converting on.
  */
 export class SumsController implements NoteFormulas {
-  private pending: Promise<ExchangeRates | null> | null = null;
+  private pending: Promise<{ rates: ExchangeRates | null; error: string | null }> | null = null;
+  /** Draws the notes on screen again, so rates that arrived reach their tables. */
+  private redraw: () => void = () => undefined;
   private lastAttempt = Number.NEGATIVE_INFINITY;
   private statusEl: HTMLElement | null = null;
   private statusTotal: string | null = null;
@@ -89,37 +104,54 @@ export class SumsController implements NoteFormulas {
     return this.now() - this.lastAttempt > RATES_RETRY_MS;
   }
 
-  /**
-   * Fetch the day's rates and keep them. One request at a time; asked for by
-   * a person, it says how it went, otherwise it only logs.
-   */
-  updateRates(asked: boolean): Promise<ExchangeRates | null> {
-    if (this.pending) return this.pending;
-    this.lastAttempt = this.now();
-    this.pending = fetchEcbRates(this.now())
-      .then(async (rates) => {
-        await this.saveRates(rates);
-        if (asked) {
-          const date = formatRateDate(rates.date, this.context().format);
-          new Notice(t().common.notice(t().sums.ratesUpdated(date)));
-        }
-        return rates;
-      })
-      .catch((error: unknown) => {
-        const message = error instanceof Error ? error.message : String(error);
-        this.logger.debug("Exchange rates not fetched:", error);
-        if (asked) new Notice(t().common.notice(t().sums.ratesFailed(message)));
-        return null;
-      })
-      .finally(() => {
-        this.pending = null;
-      });
-    return this.pending;
+  /** How to draw the notes on screen again once rates have arrived. */
+  useRedraw(redraw: () => void): void {
+    this.redraw = redraw;
   }
 
-  /** Results on screen: fetch rates in the background if they would change one. */
+  /**
+   * Fetch the day's rates and keep them. One request at a time, shared by
+   * everyone who asks while it runs; asked for by a person, it says how it
+   * went — also when the request was already on its way for someone else.
+   */
+  async updateRates(asked: boolean): Promise<ExchangeRates | null> {
+    if (!this.pending) {
+      this.lastAttempt = this.now();
+      this.pending = fetchEcbRates(this.now())
+        .then(async (rates) => {
+          await this.saveRates(rates);
+          return { rates, error: null };
+        })
+        .catch((error: unknown) => {
+          this.logger.debug("Exchange rates not fetched:", error);
+          return { rates: null, error: error instanceof Error ? error.message : String(error) };
+        })
+        .finally(() => {
+          this.pending = null;
+        });
+    }
+    const { rates, error } = await this.pending;
+    if (asked) {
+      new Notice(
+        t().common.notice(
+          rates
+            ? t().sums.ratesUpdated(formatRateDate(rates.date, this.context().format))
+            : t().sums.ratesFailed(error ?? "")
+        )
+      );
+    }
+    return rates;
+  }
+
+  /**
+   * Results on screen: fetch rates in the background if they would change
+   * one, and draw the notes again when they are here.
+   */
   seen(outcomes: readonly Outcome[]): void {
-    if (this.wantsRates(outcomes)) void this.updateRates(false);
+    if (!this.wantsRates(outcomes)) return;
+    void this.updateRates(false).then((rates) => {
+      if (rates) this.redraw();
+    });
   }
 
   /** A result without a number, in words. */
@@ -137,29 +169,40 @@ export class SumsController implements NoteFormulas {
     return this.context();
   }
 
-  async forExport(markdown: string): Promise<string> {
-    if (!/=(?:sum|avg|median|count|min|max)/i.test(markdown)) return markdown;
+  async forExport(markdown: string): Promise<ExportedNote> {
+    if (!FORMULA_HINT.test(markdown)) return { text: markdown, freezes: [] };
     const ctx = await this.exportContext(markdown);
-    return resolveFormulas(markdown, ctx, (outcome) => this.unavailable(outcome));
+    return {
+      text: resolveFormulas(markdown, ctx, (outcome) => this.unavailable(outcome)),
+      freezes: freezePlan(markdown, ctx)
+    };
   }
 
-  async freeze(file: TFile): Promise<number> {
-    const content = await this.app.vault.read(file);
-    if (!hasUnfrozenFormulas(content)) return 0;
-    const ctx = await this.exportContext(content);
+  async freeze(file: TFile, freezes: readonly FreezeEntry[]): Promise<number> {
+    // Nothing to write is no write: a note whose waiting formulas have no
+    // number yet, or that only mentions one in its prose, is left untouched.
+    if (!freezes.some((entry) => entry.text !== null)) return 0;
+    if (applyFreezes(await this.app.vault.read(file), freezes) === null) {
+      throw new Error(t().sums.freezeStale);
+    }
     let frozen = 0;
     await this.app.vault.process(file, (data) => {
-      const result = freezeFormulas(data, ctx);
+      const result = applyFreezes(data, freezes);
+      if (!result) return data;
       frozen = result.frozen;
       return result.text;
     });
     return frozen;
   }
 
-  /** The command: freeze now, before anything is sent. */
+  /** The command: freeze now, before anything is sent, at what the note says now. */
   async freezeNote(file: TFile): Promise<void> {
     try {
-      const frozen = await this.freeze(file);
+      const content = await this.app.vault.read(file);
+      const frozen = await this.freeze(
+        file,
+        freezePlan(content, await this.exportContext(content))
+      );
       new Notice(t().common.notice(t().sums.frozen(frozen)));
     } catch (error) {
       this.logger.error(`Could not freeze the totals in ${file.path}:`, error);
@@ -209,7 +252,7 @@ export class SumsController implements NoteFormulas {
 
   private showSelection(text: string): void {
     this.lastSelection = text;
-    const total = selectionTotal(text, this.context());
+    const total = selectionTotal(text, this.context(), 2, true);
     if (!total || total.text === null) {
       this.showTotal(null);
       return;
@@ -248,7 +291,7 @@ export class SumsController implements NoteFormulas {
 
   /** The editor's menu offers the total of what is selected, to copy. */
   addMenuItem(menu: Menu, editor: Editor): void {
-    const total = selectionTotal(editor.getSelection(), this.context(), 1);
+    const total = selectionTotal(editor.getSelection(), this.context(), 1, true);
     if (!total || total.text === null) return;
     const text = total.text;
     menu.addItem((item) =>

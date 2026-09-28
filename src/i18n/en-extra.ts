@@ -1104,6 +1104,7 @@ export const enExtra = {
     ratesTimeout: (seconds: number) =>
       `the European Central Bank did not answer within ${seconds} seconds.`,
     ratesUnreadable: "the European Central Bank's answer was not a list of rates.",
+    freezeStale: "the doc's formulas changed since it was sent, so nothing was frozen.",
     freezeFailed: (path: string) =>
       `the fixed totals in ${path} could not be written; they stay live until the next send.`
   }

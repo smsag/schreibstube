@@ -27,14 +27,16 @@ export interface SelectionTotal {
  * The total of a selection, or null when there is nothing to add: fewer than
  * `minimum` amounts, or a selection too long to read. The status bar asks for
  * two — one amount is not a sum anyone needs shown — and the command for one.
+ * `figuresOnly` leaves out numbers in running prose; see `amountsInText`.
  */
 export function selectionTotal(
   text: string,
   ctx: FormulaContext,
-  minimum = 2
+  minimum = 2,
+  figuresOnly = false
 ): SelectionTotal | null {
   if (text.length === 0 || text.length > MAX_SELECTION_CHARS) return null;
-  const amounts = amountsInText(text, ctx.format);
+  const amounts = amountsInText(text, ctx.format, figuresOnly);
   if (amounts.length < minimum) return null;
   const outcome = compute("sum", amounts, ctx);
   return { count: amounts.length, outcome, text: outcomeText(outcome, ctx.format) };

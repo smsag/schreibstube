@@ -52,6 +52,7 @@ import { toArrayBuffer } from "../utils/array-buffer";
 import { TypstCompiler } from "../print/typst-compiler";
 import { DiagramCapture } from "./diagram-capture";
 import { NO_FORMULAS, type NoteFormulas } from "./sums-controller";
+import type { FreezeEntry } from "../services/table-formulas";
 import { activeLocale } from "../i18n";
 import { describeDiagnostics, RUNTIME_MEGABYTES } from "../services/typst-runtime";
 import { PrintExampleModal } from "../ui/print-modals";
@@ -84,6 +85,8 @@ const TEMPLATE_ASSET = /\.(png|jpe?g|gif|webp|svg)$/i;
 interface PrintSession {
   file: TFile;
   source: string;
+  /** The `(fixed)` results of `source`, written back once a PDF of it exists. */
+  freezes: FreezeEntry[];
   drawings: Map<number, string[]>;
   titles: Map<number, string>;
   diagramAssets: Map<string, JobFile>;
@@ -361,7 +364,7 @@ export class PrintCommands {
         return;
       }
       this.logger.debug(`print: wrote ${path}`);
-      await this.freezePrinted(session.file);
+      await this.freezePrinted(session);
 
       const kilobytes = Math.max(1, Math.round(prepared.pdf.byteLength / 1024));
       new Notice(t().common.notice(messages.done(path, kilobytes)), 8000);
@@ -382,10 +385,12 @@ export class PrintCommands {
     progress: (message: string) => void
   ): Promise<PrintSession> {
     const messages = t().print;
-    const source = await this.formulas.forExport(await this.app.vault.read(file));
+    const exported = await this.formulas.forExport(await this.app.vault.read(file));
+    const source = exported.text;
     const session: PrintSession = {
       file,
       source,
+      freezes: exported.freezes,
       drawings: new Map(),
       titles: new Map(),
       diagramAssets: new Map(),
@@ -558,12 +563,16 @@ export class PrintCommands {
 
   /**
    * The PDF is written: each `(fixed)` total is written into the note at what
-   * the PDF says. A failed write leaves the totals live and says so; the PDF
-   * is there either way.
+   * the PDF says — the note as the dialog read it, not as it is now. The
+   * session is frozen once: a second print of it would find nothing to match.
+   * A failed write leaves the totals live and says so; the PDF is there
+   * either way.
    */
-  private async freezePrinted(file: TFile): Promise<void> {
+  private async freezePrinted(session: PrintSession): Promise<void> {
+    const { file, freezes } = session;
+    session.freezes = [];
     try {
-      await this.formulas.freeze(file);
+      await this.formulas.freeze(file, freezes);
     } catch (error) {
       this.logger.debug(`print: could not freeze the totals in ${file.path}`, error);
       new Notice(t().common.notice(t().sums.freezeFailed(file.path)));
