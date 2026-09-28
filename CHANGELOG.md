@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Changed
+
+- **`/frontmatter` finds the property sets.** The command is now called **Insert: frontmatter property set**, so typing `/frontmatter` in a note (with Obsidian's Slash commands plugin on) or "frontmatter" in the command palette opens the set picker. It lists Schreibstube's sets and every set in your **Property set folder**. Hotkeys assigned to the command keep working.
+
 ## 1.59.0 - 2026-09-28
 
 Recommended says how relevant each entry is. Three bars at the end of an entry
