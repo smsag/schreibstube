@@ -2,7 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## 1.60.0 - 2026-09-28
+
+New doc can be started from outside Obsidian: the link
+`obsidian://schreibstube-new-doc` runs it, so a new note can sit on a keyboard
+shortcut of the system's, the Shortcuts app, Raycast, Alfred or an iPhone's
+Action Button, whether Obsidian is in front, behind or closed. Settings copy
+the link for your vault, and the README walks through the setup. A new doc in
+a full-screen window now gets lines two thirds of the window wide, and typing
+`/frontmatter` finds the property sets, your own among them.
+
+Mobile checklist: not run, and nothing in this release was tried in the
+Obsidian app either; the test suite and the build checked it. What to try
+first: the link with Obsidian closed, which is the start-up case, and on a
+phone from a Shortcuts action; New doc in a full-screen window in both editing
+and reading view; `/frontmatter` in a note with the Slash commands plugin on.
+
+The bridge is unchanged at 2.10.0.
 
 ### Added
 
