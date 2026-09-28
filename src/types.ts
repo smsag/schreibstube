@@ -157,6 +157,8 @@ export interface SchreibstubeSettings {
   dateFormat: string;
   /** Every note in this folder is a property set (services/property-sets). */
   propertySetFolder: string;
+  /** Show "Suggest tags" beside "Add property"; the command works either way. */
+  tagSuggestControl: boolean;
   /** How an ambiguous number like 1.234 is read, and results written; "auto" follows Obsidian. */
   sumsNumberStyle: NumberStyle;
   /** ISO code bare numbers count in and mixed currencies convert into; "" for none. */

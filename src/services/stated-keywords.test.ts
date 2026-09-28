@@ -58,16 +58,44 @@ describe("statedKeywords", () => {
     expect(statedKeywords({}, "Keywords are what a search engine reads, mostly.")).toEqual([]);
   });
 
-  it("drops sentences, duplicates and anything past the limit", () => {
+  it("drops duplicates and anything past the limit", () => {
     const many = Array.from({ length: MAX_STATED_KEYWORDS + 5 }, (_, i) => `k${i}`).join(", ");
     expect(statedKeywords({}, `Keywords: ${many}`)).toHaveLength(MAX_STATED_KEYWORDS);
+    expect(statedKeywords({}, "Keywords: one, One, two")).toEqual(["one", "two"]);
+  });
+
+  it("drops a long entry from a frontmatter list and keeps the rest", () => {
+    const keywords = [
+      "one",
+      "this is a whole sentence and not a keyword at all",
+      "x".repeat(61),
+      "two"
+    ];
+    expect(statedKeywords({ keywords }, "")).toEqual(["one", "two"]);
+  });
+
+  it("takes nothing from a paragraph that follows a keywords heading", () => {
+    const seo =
+      "## Keywords\n\nFor SEO, pick words carefully, then test them in a tool, and repeat " +
+      "weekly until rankings improve.";
+    expect(statedKeywords({}, seo)).toEqual([]);
+    expect(statedKeywords({}, "Keywords: optics, and then some more")).toEqual([]);
+    expect(statedKeywords({}, "Keywords: one, this is a whole sentence and not a keyword")).toEqual(
+      []
+    );
+    expect(statedKeywords({}, `Keywords: one, ${"x".repeat(61)}`)).toEqual([]);
+  });
+
+  it("reads a later keyword passage when an earlier one was prose", () => {
+    const text =
+      "## Keywords\n\nThey matter, and we chose them with great care.\n\nKeywords: optics";
+    expect(statedKeywords({}, text)).toEqual(["optics"]);
+  });
+
+  it("keeps keywords of three and four words", () => {
     expect(
-      statedKeywords(
-        {},
-        "Keywords: one, One, this is a whole sentence and not a keyword at all, " +
-          `${"x".repeat(61)}, two`
-      )
-    ).toEqual(["one", "two"]);
+      statedKeywords({}, "Keywords: finite element method; boundary layer; heat transfer in solids")
+    ).toEqual(["finite element method", "boundary layer", "heat transfer in solids"]);
   });
 
   it("looks only near the top of the note", () => {

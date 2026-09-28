@@ -8,6 +8,8 @@ import {
   tagKey,
   tagVocabulary,
   voteTags,
+  votingNotes,
+  TAG_NEIGHBOUR_LIMIT,
   type TagNeighbour
 } from "./tag-suggestions";
 
@@ -201,5 +203,25 @@ describe("suggestionsFrom", () => {
       { tag: "quantum-optics", isNew: true, origin: "stated" }
     ]);
     expect(offered.has("quantum-optics")).toBe(true);
+  });
+});
+
+describe("votingNotes", () => {
+  it("lets only notes vote, in order, up to the limit", () => {
+    const entries = [
+      { path: "picture.png", isNote: false, reasons: [{ kind: "meaning" }] },
+      { path: "A.md", isNote: true, reasons: [{ kind: "meaning" }, { kind: "link" }] },
+      { path: "conversation", isNote: false, reasons: [{ kind: "attached" }] },
+      ...Array.from({ length: TAG_NEIGHBOUR_LIMIT }, (_, i) => ({
+        path: `N${i}.md`,
+        isNote: true,
+        reasons: [{ kind: "tag" }]
+      }))
+    ];
+    const notes = votingNotes(entries);
+    expect(notes).toHaveLength(TAG_NEIGHBOUR_LIMIT);
+    expect(notes[0]).toEqual({ path: "A.md", linked: true });
+    expect(notes[1]).toEqual({ path: "N0.md", linked: false });
+    expect(votingNotes(entries, 1)).toEqual([{ path: "A.md", linked: true }]);
   });
 });

@@ -23,6 +23,8 @@ export interface WidgetControl {
   label: () => string;
   ariaLabel: () => string;
   press: (file: TFile | null) => void;
+  /** Whether a person wants it; asked on every pass, so a setting takes effect at once. */
+  shown?: () => boolean;
 }
 
 type Register = (doc: Document, type: string, handler: (event: Event) => void) => void;
@@ -111,12 +113,17 @@ export class PropertyWidgetControls {
   /**
    * Each control after the one before it, starting from "Add property". A
    * control already in its place is left alone, so the watch that sees this
-   * change finds nothing more to do.
+   * change finds nothing more to do; one switched off is taken away.
    */
   private placeControls(root: ParentNode): void {
+    const shown = this.controls.filter((control) => control.shown?.() ?? true);
+    for (const control of this.controls) {
+      if (shown.includes(control)) continue;
+      for (const el of Array.from(root.querySelectorAll(`.${control.className}`))) el.remove();
+    }
     for (const add of addPropertyControls(root)) {
       let anchor: Element = add;
-      for (const control of this.controls) {
+      for (const control of shown) {
         const next = anchor.nextElementSibling;
         if (next?.classList.contains(control.className)) {
           anchor = next;

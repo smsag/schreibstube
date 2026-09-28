@@ -18,17 +18,13 @@ import {
   tagKey,
   tagVocabulary,
   voteTags,
+  votingNotes,
+  type RecommendedEntry,
   type TagNeighbour,
   type TagSuggestion,
   type TagVocabulary
 } from "../services/tag-suggestions";
 import { TagSuggestModal } from "../ui/tag-suggest-modal";
-
-/** A note Recommended lists beside another, best first. */
-export interface RelatedNeighbour {
-  path: string;
-  linked: boolean;
-}
 
 export interface TagSuggestions {
   vault: TagSuggestion[];
@@ -43,9 +39,12 @@ export interface TagSuggestions {
 }
 
 export class TagSuggestController {
+  /** One dialog at a time: a second press while it is open is the same question. */
+  private dialogOpen = false;
+
   constructor(
     private readonly app: App,
-    private readonly neighbours: (path: string) => Promise<RelatedNeighbour[]>,
+    private readonly recommended: (path: string) => Promise<RecommendedEntry[]>,
     private readonly modelTags: (
       content: string,
       vocabulary: readonly string[]
@@ -53,18 +52,37 @@ export class TagSuggestController {
     private readonly logger: Logger
   ) {}
 
-  /** Open the dialog for a note, from the control, the command or the menu. */
-  async open(file: TFile | null): Promise<void> {
+  /**
+   * Open the dialog for a note, from the control or the command.
+   *
+   * At once, with the suggestions following: asking Recommended may mean
+   * reading the search index from disk first, and a press that shows nothing
+   * for a second on a phone gets pressed again.
+   */
+  open(file: TFile | null): void {
     if (!file || file.extension !== "md") {
       new Notice(t().common.notice(t().properties.noNote));
       return;
     }
-    const found = await this.suggestions(file);
+    if (this.dialogOpen) return;
+    this.dialogOpen = true;
+
+    const loading = this.suggestions(file).catch((error: unknown) => {
+      this.logger.error(`Tag suggestions for ${file.path} failed:`, error);
+      const reason = error instanceof Error ? error.message : String(error);
+      new Notice(t().common.notice(t().tagSuggest.loadFailed(reason)));
+      return null;
+    });
     new TagSuggestModal(this.app, file.basename, {
-      vault: found.vault,
-      stated: found.stated,
-      askModel: () => this.askModel(found),
-      add: (tags) => void this.add(file, tags)
+      load: loading.then((found) => ({ vault: found?.vault ?? [], stated: found?.stated ?? [] })),
+      askModel: async () => {
+        const found = await loading;
+        return found ? this.askModel(found) : null;
+      },
+      add: (tags) => void this.add(file, tags),
+      closed: () => {
+        this.dialogOpen = false;
+      }
     }).open();
   }
 
@@ -73,16 +91,16 @@ export class TagSuggestController {
     const vocabulary = this.vocabulary();
     const carried = new Set((this.tagsOf(file) ?? []).map(tagKey));
 
-    let related: RelatedNeighbour[] = [];
+    let related: RecommendedEntry[] = [];
     try {
-      related = await this.neighbours(file.path);
+      related = await this.recommended(file.path);
     } catch (error) {
       // Search by meaning may be mid-build or failing; the tags of the notes
       // it would have added are a loss, the rest of the dialog is not.
       this.logger.warn(`Tag suggestions: no related notes for ${file.path}:`, error);
     }
     const neighbours: TagNeighbour[] = [];
-    for (const entry of related) {
+    for (const entry of votingNotes(related)) {
       const note = this.app.vault.getAbstractFileByPath(entry.path);
       if (!(note instanceof TFile)) continue;
       neighbours.push({ tags: this.tagsOf(note) ?? [], linked: entry.linked });

@@ -1137,6 +1137,11 @@ export const enExtra = {
   },
 
   tagSuggest: {
+    controlSetting: "Suggest tags beside Add property",
+    controlSettingDesc:
+      "Show the Suggest tags control at the foot of every note's properties. Insert: suggested " +
+      "tags in the command palette works either way.",
+    loading: "Looking at related notes…",
     button: "Suggest tags",
     buttonLabel: "Suggest tags for this note",
     title: (note: string) => `Tags for ${note}`,
@@ -1165,6 +1170,7 @@ export const enExtra = {
         : count === 1
           ? "1 tag added."
           : `${count} tags added.`,
-    writeFailed: (reason: string) => `the tags could not be written: ${reason}`
+    writeFailed: (reason: string) => `the tags could not be written: ${reason}`,
+    loadFailed: (reason: string) => `could not gather tag suggestions: ${reason}`
   }
 };

@@ -17,6 +17,7 @@
  * this decides what is worth offering.
  */
 import { idf } from "./idf";
+import type { RelatedReasonKind } from "./related-notes";
 
 /** Where a suggestion came from. The dialog draws one section per origin. */
 export type TagOrigin = "vault" | "stated" | "model";
@@ -185,6 +186,50 @@ export interface TagNeighbour {
   tags: readonly string[];
   /** Linked with the note either way: a person said they belong together. */
   linked: boolean;
+}
+
+/** How many related notes vote: a panel's worth, whatever length a person chose for it. */
+export const TAG_NEIGHBOUR_LIMIT = 20;
+
+/**
+ * Recommended is asked for this many entries, so that pictures and
+ * conversations among them — which carry no tags — do not leave the vote
+ * to a handful of notes.
+ */
+export const TAG_NEIGHBOUR_REQUEST = TAG_NEIGHBOUR_LIMIT * 3;
+
+/** One entry in Recommended's list, as the vote needs it. */
+export interface RecommendedEntry {
+  path: string;
+  /** Only notes carry tags; a picture or a conversation has none to give. */
+  isNote: boolean;
+  reasons: readonly { kind: string }[];
+}
+
+/** One note that votes: its place on the list is its weight. */
+export interface VotingNote {
+  path: string;
+  /** Linked with the note either way: a person said they belong together. */
+  linked: boolean;
+}
+
+/**
+ * The notes that vote, best first: Recommended's notes, up to the limit.
+ * A note is linked when a link either way is among its reasons; a
+ * conversation the note was attached to is declared too, but has no tags.
+ */
+export function votingNotes(
+  entries: readonly RecommendedEntry[],
+  limit = TAG_NEIGHBOUR_LIMIT
+): VotingNote[] {
+  const link: RelatedReasonKind = "link";
+  return entries
+    .filter((entry) => entry.isNote)
+    .slice(0, limit)
+    .map((entry) => ({
+      path: entry.path,
+      linked: entry.reasons.some((reason) => reason.kind === link)
+    }));
 }
 
 /**

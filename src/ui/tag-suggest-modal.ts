@@ -10,21 +10,23 @@
  * The model is asked only from its own button. It is the one source that sends
  * the note away and costs money, so opening the dialog never does it.
  */
-import { App, Modal, Setting, type ButtonComponent } from "obsidian";
+import { App, Modal, Notice, Setting, type ButtonComponent } from "obsidian";
 import { t } from "../i18n";
 import type { TagSuggestion } from "../services/tag-suggestions";
 
 export interface TagSuggestHost {
-  vault: readonly TagSuggestion[];
-  stated: readonly TagSuggestion[];
+  /** What the related notes and the note offer; the dialog opens before it arrives. */
+  load: Promise<{ vault: readonly TagSuggestion[]; stated: readonly TagSuggestion[] }>;
   /** Ask the model; null when it could not be asked, which has been said. */
   askModel: () => Promise<TagSuggestion[] | null>;
   add: (tags: string[]) => void;
+  closed: () => void;
 }
 
 export class TagSuggestModal extends Modal {
   private readonly chosen = new Set<string>();
   private submit: ButtonComponent | null = null;
+  private isClosed = false;
 
   constructor(
     app: App,
@@ -41,9 +43,15 @@ export class TagSuggestModal extends Modal {
     contentEl.addClass("schreibstube-tag-suggest");
     this.setTitle(labels.title(this.noteTitle));
 
-    this.section(contentEl, labels.fromVault, this.host.vault, labels.noneFromVault);
-    this.section(contentEl, labels.fromNote, this.host.stated, labels.noneFromNote);
+    const vault = this.section(contentEl, labels.fromVault);
+    const stated = this.section(contentEl, labels.fromNote);
     this.modelSection(contentEl);
+    void this.host.load.then((found) => {
+      // Closed while Recommended was still answering: nothing left to fill.
+      if (this.isClosed) return;
+      this.fill(vault, found.vault, labels.noneFromVault);
+      this.fill(stated, found.stated, labels.noneFromNote);
+    });
 
     new Setting(contentEl)
       .addButton((button) => button.setButtonText(t().common.cancel).onClick(() => this.close()))
@@ -60,23 +68,26 @@ export class TagSuggestModal extends Modal {
   }
 
   override onClose(): void {
+    this.isClosed = true;
     this.contentEl.empty();
+    this.host.closed();
   }
 
-  private section(
-    parent: HTMLElement,
-    heading: string,
-    suggestions: readonly TagSuggestion[],
-    empty: string
-  ): HTMLElement {
+  /** A section with its heading, saying it is still being worked out. */
+  private section(parent: HTMLElement, heading: string): HTMLElement {
     const section = parent.createDiv({ cls: "schreibstube-tag-suggest-section" });
     section.createDiv({ cls: "schreibstube-tag-suggest-heading", text: heading });
     const list = section.createDiv({ cls: "schreibstube-tag-suggest-list" });
+    list.createDiv({ cls: "schreibstube-tag-suggest-empty", text: t().tagSuggest.loading });
+    return list;
+  }
+
+  private fill(list: HTMLElement, suggestions: readonly TagSuggestion[], empty: string): void {
+    list.empty();
     if (suggestions.length === 0) {
       list.createDiv({ cls: "schreibstube-tag-suggest-empty", text: empty });
     }
     for (const suggestion of suggestions) this.row(list, suggestion);
-    return section;
   }
 
   private modelSection(parent: HTMLElement): void {
@@ -87,7 +98,14 @@ export class TagSuggestModal extends Modal {
     const ask = new Setting(list).setDesc(labels.modelDesc).addButton((button) =>
       button.setButtonText(labels.askModel).onClick(async () => {
         button.setDisabled(true).setButtonText(labels.asking);
-        const suggestions = await this.host.askModel();
+        let suggestions: TagSuggestion[] | null = null;
+        try {
+          suggestions = await this.host.askModel();
+        } catch (error) {
+          // The host says what went wrong where it can; this is the rest.
+          const detail = error instanceof Error ? error.message : String(error);
+          new Notice(`${t().ai.failTags} — ${detail}`);
+        }
         if (suggestions === null) {
           button.setDisabled(false).setButtonText(labels.askModel);
           return;

@@ -5,12 +5,14 @@ import { fakeVault } from "../testing/fake-app";
 import { createLogger } from "../services/logger";
 import { setLanguage } from "../i18n";
 import type { TagSuggestHost } from "../ui/tag-suggest-modal";
-import { TagSuggestController, type RelatedNeighbour } from "./tag-suggest-controller";
+import type { RecommendedEntry } from "../services/tag-suggestions";
+import { TagSuggestController } from "./tag-suggest-controller";
 
 /** What the dialog was given, and the tags the person ticks in it. */
 const dialog = vi.hoisted(() => ({
   host: null as TagSuggestHost | null,
-  tick: null as string[] | null
+  tick: null as string[] | null,
+  opened: 0
 }));
 
 vi.mock("../ui/tag-suggest-modal", () => ({
@@ -22,7 +24,9 @@ vi.mock("../ui/tag-suggest-modal", () => ({
     ) {}
     open(): void {
       dialog.host = this.host;
-      if (dialog.tick) this.host.add(dialog.tick);
+      dialog.opened += 1;
+      const tick = dialog.tick;
+      if (tick) void this.host.load.then(() => this.host.add(tick));
     }
   }
 }));
@@ -36,7 +40,7 @@ const PAPER = [
 ].join("\n");
 
 function controllerFor(
-  neighbours: (path: string) => Promise<RelatedNeighbour[]>,
+  neighbours: (path: string) => Promise<RecommendedEntry[]>,
   modelTags: (content: string, vocabulary: readonly string[]) => Promise<string[] | null> = () =>
     Promise.resolve([])
 ) {
@@ -62,7 +66,7 @@ function controllerFor(
 const related =
   (...paths: string[]) =>
   () =>
-    Promise.resolve(paths.map((path) => ({ path, linked: false })));
+    Promise.resolve(paths.map((path) => ({ path, isNote: true, reasons: [] })));
 
 /** Let the dialog's write, which runs without being awaited, finish. */
 const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
@@ -73,6 +77,7 @@ describe("TagSuggestController", () => {
     Notice.shown = [];
     dialog.host = null;
     dialog.tick = null;
+    dialog.opened = 0;
   });
 
   it("offers what related notes share and what the paper states, once each", async () => {
@@ -98,7 +103,7 @@ describe("TagSuggestController", () => {
   it("asks the model in the vault's words and shows only what is not offered yet", async () => {
     const modelTags = vi.fn(() => Promise.resolve(["Optik", "Laser Physics", "physik"]));
     const { controller, paper } = controllerFor(related("A.md", "B.md"), modelTags);
-    await controller.open(paper);
+    controller.open(paper);
 
     const answer = await dialog.host?.askModel();
     expect(answer).toEqual([{ tag: "laser-physics", isNew: true, origin: "model" }]);
@@ -110,14 +115,14 @@ describe("TagSuggestController", () => {
 
   it("passes on that the model could not be asked", async () => {
     const { controller, paper } = controllerFor(related(), () => Promise.resolve(null));
-    await controller.open(paper);
+    controller.open(paper);
     expect(await dialog.host?.askModel()).toBeNull();
   });
 
   it("adds the ticked tags to the note's tags, keeping what was there", async () => {
     const { vault, controller, paper } = controllerFor(related());
     dialog.tick = ["optik", "Physik", "quantum-computing"];
-    await controller.open(paper);
+    controller.open(paper);
     await settle();
 
     expect(vault.frontmatterOf("Paper.md").tags).toEqual(["physik", "optik", "quantum-computing"]);
@@ -138,9 +143,43 @@ describe("TagSuggestController", () => {
     expect(Notice.shown.at(-1)).toContain("locked");
   });
 
+  it("opens the dialog before the suggestions are in, and fills it after", async () => {
+    let answer: (entries: RecommendedEntry[]) => void = () => undefined;
+    const slow = () => new Promise<RecommendedEntry[]>((resolve) => (answer = resolve));
+    const { controller, paper } = controllerFor(slow);
+    controller.open(paper);
+    expect(dialog.opened).toBe(1);
+
+    answer([
+      { path: "A.md", isNote: true, reasons: [] },
+      { path: "B.md", isNote: true, reasons: [] }
+    ]);
+    const found = await dialog.host?.load;
+    expect(found?.vault.map((s) => s.tag)).toEqual(["optik"]);
+  });
+
+  it("opens one dialog at a time", () => {
+    const { controller, paper } = controllerFor(related());
+    controller.open(paper);
+    controller.open(paper);
+    expect(dialog.opened).toBe(1);
+    dialog.host?.closed();
+    controller.open(paper);
+    expect(dialog.opened).toBe(2);
+  });
+
+  it("says so and offers nothing when the note cannot be read", async () => {
+    const { vault, controller, paper } = controllerFor(related("A.md", "B.md"));
+    vault.app.vault.cachedRead = () => Promise.reject(new Error("gone"));
+    controller.open(paper);
+    expect(await dialog.host?.load).toEqual({ vault: [], stated: [] });
+    expect(await dialog.host?.askModel()).toBeNull();
+    expect(Notice.shown.at(-1)).toContain("gone");
+  });
+
   it("opens nothing without a note", async () => {
     const { controller } = controllerFor(related());
-    await controller.open(null);
+    controller.open(null);
     expect(dialog.host).toBeNull();
     expect(Notice.shown).toHaveLength(1);
   });

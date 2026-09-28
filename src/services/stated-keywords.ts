@@ -25,6 +25,32 @@ const MAX_KEYWORD_WORDS = 6;
 /** A keyword passage ends here even without a blank line, so prose never follows it in. */
 const MAX_PASSAGE_CHARS = 1_000;
 
+/**
+ * More words than this per item on average, and a passage is prose. A paper's
+ * keywords run to two words, now and then four; clauses cut at commas run
+ * longer.
+ */
+const MAX_MEAN_KEYWORD_WORDS = 3.5;
+
+/** Words that join clauses. A keyword never starts with one; a clause cut at a comma often does. */
+const JOINING_WORDS = new Set([
+  "and",
+  "or",
+  "but",
+  "then",
+  "so",
+  "which",
+  "that",
+  "while",
+  "und",
+  "oder",
+  "aber",
+  "dann",
+  "sowie",
+  "wobei",
+  "sodass"
+]);
+
 /** Frontmatter keys a reference manager or a person uses for keywords. */
 const KEYWORD_KEY =
   /^(?:keywords?|key[\s_-]?words|schlagw(?:ö|oe)rter|schlüsselw(?:ö|oe)rter|stichw(?:ö|oe)rter|schlagworte|stichworte)$/iu;
@@ -90,7 +116,13 @@ function keywordsInText(text: string): string[] {
       if (passage.join(" ").length > MAX_PASSAGE_CHARS) break;
     }
 
-    const keywords = cleanKeywords(splitKeywords(passage.join(" ").slice(0, MAX_PASSAGE_CHARS)));
+    // A frontmatter value is a list somebody made; a passage in the text may
+    // be a paragraph that happens to follow a "Keywords" heading. Cut at its
+    // commas, a paragraph leaves short clauses that each look like a keyword,
+    // so a passage is judged whole: prose gives nothing, not its fragments.
+    const items = splitKeywords(passage.join(" ").slice(0, MAX_PASSAGE_CHARS));
+    if (readsAsProse(items)) continue;
+    const keywords = cleanKeywords(items);
     if (keywords.length > 0) return keywords;
   }
   return [];
@@ -107,6 +139,25 @@ function splitKeywords(passage: string): string[] {
   return passage
     .replace(/\[\[(?:[^\]|]*\|)?([^\]]*)\]\]/g, "$1")
     .split(/\s*(?:[;,·•|]|\s[–—]\s)\s*/u);
+}
+
+function readsAsProse(items: readonly string[]): boolean {
+  const words = items
+    .map((item) =>
+      item
+        .trim()
+        .split(/\s+/)
+        .filter((word) => word.length > 0)
+    )
+    .filter((item) => item.length > 0);
+  if (words.length === 0) return false;
+  let total = 0;
+  for (const item of words) {
+    if (item.length > MAX_KEYWORD_WORDS || item.join(" ").length > MAX_KEYWORD_CHARS) return true;
+    if (JOINING_WORDS.has((item[0] ?? "").toLowerCase())) return true;
+    total += item.length;
+  }
+  return total / words.length > MAX_MEAN_KEYWORD_WORDS;
 }
 
 function cleanKeywords(items: readonly string[]): string[] {

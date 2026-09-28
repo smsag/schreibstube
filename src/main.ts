@@ -47,7 +47,8 @@ import { LlmCommands } from "./controllers/llm-commands";
 import { PropertyController } from "./controllers/property-controller";
 import { PropertySetController } from "./controllers/property-set-controller";
 import { PropertyWidgetControls } from "./controllers/property-widget-controls";
-import { TagSuggestController, type RelatedNeighbour } from "./controllers/tag-suggest-controller";
+import { TagSuggestController } from "./controllers/tag-suggest-controller";
+import { TAG_NEIGHBOUR_REQUEST, type RecommendedEntry } from "./services/tag-suggestions";
 import { DraftWidth } from "./controllers/draft-width";
 import { NEW_DOC_ACTION } from "./services/new-note";
 import { FolderDescriber } from "./controllers/folder-describer";
@@ -204,7 +205,7 @@ export default class SchreibstubePlugin extends Plugin {
     const llm = this.llm;
     this.tagSuggest = new TagSuggestController(
       this.app,
-      (path) => this.tagNeighbours(path),
+      (path) => this.recommendedEntries(path),
       (content, vocabulary) => llm.suggestTags(content, vocabulary),
       this.logger
     );
@@ -222,7 +223,8 @@ export default class SchreibstubePlugin extends Plugin {
         icon: "tags",
         label: () => t().tagSuggest.button,
         ariaLabel: () => t().tagSuggest.buttonLabel,
-        press: (file) => void tagSuggest.open(file)
+        press: (file) => void tagSuggest.open(file),
+        shown: () => this.settings.tagSuggestControl
       }
     ]);
     this.startProperties(this.properties, propertySets, this.propertyControls);
@@ -805,25 +807,29 @@ export default class SchreibstubePlugin extends Plugin {
   }
 
   /**
-   * The notes Recommended would list beside a note, for their tags: links and
-   * meaning when search by meaning is on, the link graph alone otherwise.
-   * As many as the panel can hold, whatever length a person chose for it —
-   * a tag is agreed on by several notes, and five are too few to agree.
+   * What Recommended would list beside a note, for the tags of its notes:
+   * links and meaning when search by meaning is on, the link graph alone
+   * otherwise. Which of these vote is `votingNotes`' to decide.
    */
-  private async tagNeighbours(path: string): Promise<RelatedNeighbour[]> {
+  private async recommendedEntries(path: string): Promise<RecommendedEntry[]> {
     const explorer = this.explorer;
     if (!explorer) return [];
-    const linked = (reasons: readonly { kind: string }[]) =>
-      reasons.some((reason) => reason.kind === "link");
-    const found = await this.recommend(path, RECOMMEND_LIMIT);
-    if (found) {
-      return found.items.flatMap((item) =>
-        item.kind === "note" ? [{ path: item.card.path, linked: linked(item.card.reasons) }] : []
-      );
+    const found = await this.recommend(path, TAG_NEIGHBOUR_REQUEST);
+    if (!found) {
+      return explorer
+        .relatedCards(path)
+        .map((card) => ({ path: card.path, isNote: true, reasons: card.reasons }));
     }
-    return explorer
-      .relatedCards(path)
-      .map((card) => ({ path: card.path, linked: linked(card.reasons) }));
+    return found.items.map((item): RecommendedEntry => {
+      switch (item.kind) {
+        case "note":
+          return { path: item.card.path, isNote: true, reasons: item.card.reasons };
+        case "picture":
+          return { path: item.picture.path, isNote: false, reasons: item.picture.reasons };
+        case "conversation":
+          return { path: item.conversation.id, isNote: false, reasons: item.conversation.reasons };
+      }
+    });
   }
 
   /**
@@ -1230,6 +1236,7 @@ export default class SchreibstubePlugin extends Plugin {
     void this.sections?.reloadIfPathChanged();
     this.sections?.invalidateLatest();
     this.recommendedFooter?.sync();
+    this.propertyControls?.decorateSoon();
   }
 
   /**

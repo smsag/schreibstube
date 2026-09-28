@@ -1444,6 +1444,11 @@ export const de: Messages = {
   },
 
   tagSuggest: {
+    controlSetting: "Tags vorschlagen neben Eigenschaft hinzufügen",
+    controlSettingDesc:
+      "Zeigt Tags vorschlagen am Fuß der Eigenschaften jeder Notiz. Einfügen: vorgeschlagene " +
+      "Tags in der Befehlspalette funktioniert in jedem Fall.",
+    loading: "Verwandte Notizen werden gelesen …",
     button: "Tags vorschlagen",
     buttonLabel: "Tags für diese Notiz vorschlagen",
     title: (note: string) => `Tags für ${note}`,
@@ -1477,6 +1482,7 @@ export const de: Messages = {
         : count === 1
           ? "1 Tag hinzugefügt."
           : `${count} Tags hinzugefügt.`,
-    writeFailed: (reason: string) => `die Tags konnten nicht geschrieben werden: ${reason}`
+    writeFailed: (reason: string) => `die Tags konnten nicht geschrieben werden: ${reason}`,
+    loadFailed: (reason: string) => `Tag-Vorschläge konnten nicht gesammelt werden: ${reason}`
   }
 };

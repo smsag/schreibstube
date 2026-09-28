@@ -97,4 +97,13 @@ function renderProperties(ctx: SettingsContext): void {
         await ctx.update({ propertySetFolder: normalizeTermFolder(value) });
       });
     });
+
+  new Setting(ctx.containerEl)
+    .setName(t().tagSuggest.controlSetting)
+    .setDesc(t().tagSuggest.controlSettingDesc)
+    .addToggle((toggle) =>
+      toggle.setValue(ctx.plugin.settings.tagSuggestControl).onChange(async (value) => {
+        await ctx.update({ tagSuggestControl: value });
+      })
+    );
 }
