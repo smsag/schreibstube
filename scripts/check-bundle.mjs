@@ -9,7 +9,7 @@
  * its size is paid by every user every day. The budget is a ceiling, not a
  * target; raise it deliberately, in the same change that explains why.
  */
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 /**
@@ -128,6 +128,62 @@ import { fileURLToPath } from "node:url";
  * is for the next feature, not a new normal.
  */
 const MAX_BUNDLE_KB = 1520;
+
+/**
+ * Whether the bundle was built from the tree the lockfile pins.
+ *
+ * The bundle holds whatever `node_modules` holds, and a worktree keeps the
+ * `node_modules` it was made with while the lockfile moves on. Built from such
+ * a tree, main.js measured 1527 KB against a budget it met at 1206 KB, and the
+ * overrun was taken for the code's. A size measured from another tree says
+ * nothing about this one, so it is not reported as one.
+ */
+function staleDependencies() {
+  const root = new URL("../", import.meta.url);
+  const lock = JSON.parse(readFileSync(new URL("package-lock.json", root), "utf8"));
+  const stale = [];
+  for (const [path, entry] of Object.entries(lock.packages ?? {})) {
+    if (!path.startsWith("node_modules/") || entry.link) continue;
+    const pinned = pinnedVersion(path, entry);
+    if (pinned === null) continue;
+    const manifest = new URL(`${path}/package.json`, root);
+    // Absent is not stale: an optional package for another platform, or a
+    // dev tool the bundle never sees, is left out by npm itself.
+    if (!existsSync(manifest)) continue;
+    const installed = JSON.parse(readFileSync(manifest, "utf8")).version;
+    if (installed !== pinned) {
+      const name = path.slice(path.lastIndexOf("node_modules/") + "node_modules/".length);
+      stale.push(`${name} ${installed} (pinned ${pinned})`);
+    }
+  }
+  return stale;
+}
+
+/**
+ * The version `npm ci` installs for a lockfile entry.
+ *
+ * The tarball's, not the entry's `version`: the integrity hash pins the
+ * tarball, and the two can disagree — the lockfile once carried hookified
+ * as 1.16.0 resolved to the 1.15.1 tarball, and `npm ci` installs 1.15.1.
+ */
+function pinnedVersion(path, entry) {
+  const base = path.slice(path.lastIndexOf("/") + 1);
+  const tarball = entry.resolved?.split("/").pop() ?? "";
+  const prefix = `${base}-`;
+  if (tarball.startsWith(prefix) && tarball.endsWith(".tgz")) {
+    return tarball.slice(prefix.length, -".tgz".length);
+  }
+  return entry.version ?? null;
+}
+
+const stale = staleDependencies();
+if (stale.length > 0) {
+  console.error(
+    `main.js was built from dependencies other than the pinned ones:\n  ${stale.join("\n  ")}\n` +
+      "Its size and contents would not be this code's. Run: npm ci"
+  );
+  process.exit(1);
+}
 
 const bundle = fileURLToPath(new URL("../main.js", import.meta.url));
 const source = readFileSync(bundle, "utf8");
