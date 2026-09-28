@@ -219,6 +219,15 @@ export default class SchreibstubePlugin extends Plugin {
         await this.saveSettings();
       }
     );
+    // Rates fetched for a table on screen reach it only when it is drawn again.
+    this.sums.useRedraw(() => {
+      for (const leaf of this.app.workspace.getLeavesOfType("markdown")) {
+        const view = leaf.view;
+        if (view instanceof MarkdownView && view.getMode() === "preview") {
+          view.previewMode.rerender(true);
+        }
+      }
+    });
     this.mail.useFormulas(this.sums);
     this.publish.useFormulas(this.sums);
     this.print.useFormulas(this.sums);

@@ -22,6 +22,12 @@ describe("selectionTotal", () => {
     expect(selectionTotal("", ctx, 1)).toBeNull();
   });
 
+  it("leaves prose out when only figures are asked for", () => {
+    const prose = "Im Jahr 2024 schrieb sie das Buch,\nund Kapitel 3 kam zuletzt.";
+    expect(selectionTotal(prose, ctx)).toMatchObject({ count: 2 });
+    expect(selectionTotal(prose, ctx, 2, true)).toBeNull();
+  });
+
   it("does not read a selection too long to be figures", () => {
     const long = "1\n".repeat(MAX_SELECTION_CHARS);
     expect(selectionTotal(long, ctx)).toBeNull();

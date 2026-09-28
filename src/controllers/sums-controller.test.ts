@@ -26,6 +26,8 @@ interface Fixture {
   files: Map<string, string>;
   saved: ExchangeRates[];
   clock: { now: number };
+  /** How often the vault was read or written, for the cases that must do neither. */
+  touched: { count: number };
 }
 
 function fixture(patch: Partial<SchreibstubeSettings> = {}): Fixture {
@@ -37,10 +39,15 @@ function fixture(patch: Partial<SchreibstubeSettings> = {}): Fixture {
   const files = new Map<string, string>();
   const saved: ExchangeRates[] = [];
   const clock = { now: 1_000_000 };
+  const touched = { count: 0 };
   const app = {
     vault: {
-      read: async (file: TFile) => files.get(file.path) ?? "",
+      read: async (file: TFile) => {
+        touched.count++;
+        return files.get(file.path) ?? "";
+      },
       process: async (file: TFile, change: (data: string) => string) => {
+        touched.count++;
         files.set(file.path, change(files.get(file.path) ?? ""));
       }
     }
@@ -55,7 +62,7 @@ function fixture(patch: Partial<SchreibstubeSettings> = {}): Fixture {
     logger,
     () => clock.now
   );
-  return { controller, settings, files, saved, clock };
+  return { controller, settings, files, saved, clock, touched };
 }
 
 beforeEach(() => {
@@ -67,33 +74,58 @@ beforeEach(() => {
 describe("a note on its way out", () => {
   it("leaves with each formula's result in its cell", async () => {
     const { controller } = fixture();
-    expect(plain(await controller.forExport(TABLE))).toContain("| 320 € |");
+    expect(plain((await controller.forExport(TABLE)).text)).toContain("| 320 € |");
   });
 
   it("leaves a note without formulas exactly as it is", async () => {
     const { controller } = fixture();
-    expect(await controller.forExport("Just prose, 300 €.")).toBe("Just prose, 300 €.");
+    expect(await controller.forExport("Just prose, 300 €.")).toEqual({
+      text: "Just prose, 300 €.",
+      freezes: []
+    });
   });
 
   it("puts a result without a number into words", async () => {
     const { controller } = fixture();
     const note = "| A |\n|---|\n| 1 € |\n| 2 $ |\n| =avg |";
-    expect(await controller.forExport(note)).toContain("| mixed currencies |");
+    expect((await controller.forExport(note)).text).toContain("| mixed currencies |");
   });
 
-  it("freezes a fixed total into the note once it has left, and only once", async () => {
+  it("freezes a fixed total at what the copy that left said, not at the note's later state", async () => {
     const { controller, files } = fixture();
-    files.set("a.md", TABLE);
     const file = new TFile("a.md") as never;
+    const sent = await controller.forExport(TABLE);
+    // Changed while the upload or the typesetting ran.
+    files.set("a.md", TABLE.replace("20 €", "80 €"));
 
-    expect(await controller.freeze(file)).toBe(1);
+    expect(await controller.freeze(file, sent.freezes)).toBe(1);
     expect(plain(files.get("a.md") ?? "")).toContain("| =sum(fixed: 320 €) |");
-    expect(await controller.freeze(file)).toBe(0);
+  });
+
+  it("freezes nothing, and says why, when the note's formulas changed since", async () => {
+    const { controller, files } = fixture();
+    const sent = await controller.forExport(TABLE);
+    files.set("a.md", TABLE.replace("=sum(fixed)", "=avg(fixed)"));
+
+    await expect(controller.freeze(new TFile("a.md") as never, sent.freezes)).rejects.toThrow(
+      "changed since it was sent"
+    );
+    expect(files.get("a.md")).toContain("=avg(fixed)");
+  });
+
+  it("does not touch a note with nothing to freeze", async () => {
+    const { controller, files, touched } = fixture();
+    const note = "Write =sum(fixed) in a table cell.";
+    files.set("a.md", note);
+
+    const sent = await controller.forExport(note);
+    expect(await controller.freeze(new TFile("a.md") as never, sent.freezes)).toBe(0);
+    expect(touched.count).toBe(0);
   });
 
   it("offers nothing to freeze when nobody gave it formulas", async () => {
-    expect(await NO_FORMULAS.forExport(TABLE)).toBe(TABLE);
-    expect(await NO_FORMULAS.freeze(new TFile("a.md") as never)).toBe(0);
+    expect(await NO_FORMULAS.forExport(TABLE)).toEqual({ text: TABLE, freezes: [] });
+    expect(await NO_FORMULAS.freeze(new TFile("a.md") as never, [])).toBe(0);
   });
 
   it("says how many totals the command froze", async () => {
@@ -111,7 +143,7 @@ describe("exchange rates", () => {
     const f = fixture(converting);
     fetchEcbRates.mockResolvedValue({ ...RATES, fetchedAt: f.clock.now });
 
-    const resolved = plain(await f.controller.forExport(MIXED));
+    const resolved = plain((await f.controller.forExport(MIXED)).text);
 
     expect(fetchEcbRates).toHaveBeenCalledTimes(1);
     expect(f.saved).toHaveLength(1);
@@ -135,7 +167,7 @@ describe("exchange rates", () => {
     const f = fixture(converting);
     fetchEcbRates.mockRejectedValue(new Error("offline"));
 
-    expect(plain(await f.controller.forExport(MIXED))).toContain("| 300 € + 25 $ |");
+    expect(plain((await f.controller.forExport(MIXED)).text)).toContain("| 300 € + 25 $ |");
     await f.controller.forExport(MIXED);
     expect(fetchEcbRates).toHaveBeenCalledTimes(1);
 
@@ -154,11 +186,30 @@ describe("exchange rates", () => {
     expect(Notice.shown.pop()).toContain("could not be fetched: offline");
   });
 
+  it("answer a person who asks while a fetch is already running", async () => {
+    // The bug: "Update now" pressed during a background fetch said nothing.
+    const f = fixture();
+    let release: (rates: ExchangeRates) => void = () => undefined;
+    fetchEcbRates.mockReturnValueOnce(new Promise((resolve) => (release = resolve)));
+
+    const background = f.controller.updateRates(false);
+    const asked = f.controller.updateRates(true);
+    release(RATES);
+    await Promise.all([background, asked]);
+
+    expect(fetchEcbRates).toHaveBeenCalledTimes(1);
+    expect(Notice.shown).toHaveLength(1);
+    expect(Notice.shown[0]).toContain("fetched");
+  });
+
   it("are asked for by a table on screen that needs them, without waiting", async () => {
     const f = fixture(converting);
     fetchEcbRates.mockResolvedValue(RATES);
+    const redraw = vi.fn();
+    f.controller.useRedraw(redraw);
     f.controller.seen([{ kind: "mixed" }]);
-    await vi.waitFor(() => expect(f.saved).toHaveLength(1));
+    await vi.waitFor(() => expect(redraw).toHaveBeenCalledTimes(1));
+    expect(f.saved).toHaveLength(1);
   });
 });
 
@@ -234,6 +285,21 @@ describe("the selection", () => {
       expect(classes.has("is-hidden")).toBe(false);
 
       controller.clearSelection();
+      expect(classes.has("is-hidden")).toBe(true);
+
+      // Prose with numbers in it is no list of figures.
+      const prose = "Im Jahr 2024 schrieb sie das Buch,\nund Kapitel 3 kam zuletzt.";
+      extension.value({
+        selectionSet: true,
+        docChanged: false,
+        view: {
+          state: {
+            selection: { ranges: [{ empty: false, from: 0, to: prose.length }] },
+            sliceDoc: (from: number, to: number) => prose.slice(from, to)
+          }
+        }
+      });
+      vi.runAllTimers();
       expect(classes.has("is-hidden")).toBe(true);
     } finally {
       controller.stop();

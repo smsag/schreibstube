@@ -33,6 +33,7 @@ import {
 import { sha256 } from "../utils/sha256";
 import { DiagramCapture } from "./diagram-capture";
 import { NO_FORMULAS, type NoteFormulas } from "./sums-controller";
+import type { FreezeEntry } from "../services/table-formulas";
 import {
   FM_MERGED_IDS,
   FM_MESSAGE_ID,
@@ -83,6 +84,8 @@ export class MailCommands {
   /** The bridge's protocol, asked once per session when a note has a diagram. */
   private bridgeProtocol: number | null = null;
   private formulas: NoteFormulas = NO_FORMULAS;
+  /** The `(fixed)` results of the body last read for each note: the one Send delivers. */
+  private readonly freezes = new Map<string, FreezeEntry[]>();
 
   constructor(
     private readonly app: App,
@@ -157,7 +160,9 @@ export class MailCommands {
       }
     }
 
-    const body = await this.formulas.forExport(content.slice(info.contentStart));
+    const exported = await this.formulas.forExport(content.slice(info.contentStart));
+    const body = exported.text;
+    this.freezes.set(file.path, exported.freezes);
     const from = this.getSettings().mailFrom;
     const fences = findDiagramFences(body, MAIL_DIAGRAM_LANGUAGES);
     if (fences.length === 0) return buildMailDraft(frontmatter, body, from);
@@ -326,8 +331,10 @@ export class MailCommands {
    * mail itself went, and must not be reported otherwise.
    */
   private async freezeSent(file: TFile): Promise<void> {
+    const freezes = this.freezes.get(file.path) ?? [];
+    this.freezes.delete(file.path);
     try {
-      await this.formulas.freeze(file);
+      await this.formulas.freeze(file, freezes);
     } catch (err) {
       this.logger.error("Email sent but its fixed totals could not be written:", err);
       new Notice(t().common.notice(t().sums.freezeFailed(file.path)));

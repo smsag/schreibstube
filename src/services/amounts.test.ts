@@ -149,6 +149,19 @@ describe("amountsInText", () => {
     expect(amountsInText(text, de).map((a) => a.value)).toEqual([300, 20]);
   });
 
+  it("does not read a table's header row, whatever its labels say", () => {
+    const table = "| Posten | Betrag 2024 |\n|---|---|\n| Miete | 850 € |\n| Auto | 20 € |";
+    expect(amountsInText(table, de).map((a) => a.value)).toEqual([850, 20]);
+  });
+
+  it("takes only figures from prose when asked to", () => {
+    const prose = "Im Jahr 2024 schrieb sie das Buch,\nund Kapitel 3 kam zuletzt.";
+    expect(amountsInText(prose, de)).toHaveLength(2);
+    expect(amountsInText(prose, de, true)).toEqual([]);
+    const figures = "Groceries 300\nCar 20.\n| Bike | 10 |\nFee 5 € extra";
+    expect(amountsInText(figures, de, true).map((a) => a.value)).toEqual([300, 20, 10, 5]);
+  });
+
   it("reads table rows as lines, without their formula cells", () => {
     const text = "| Groceries | 300 € |\n| Car | 20 € |\n| Total | =sum(fixed: 320 €) |";
     expect(amountsInText(text, de).map((a) => a.value)).toEqual([300, 20]);

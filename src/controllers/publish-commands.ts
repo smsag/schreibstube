@@ -60,6 +60,7 @@ import { mapLimit } from "../utils/map-limit";
 import { sha256 as hash } from "../utils/sha256";
 import { DiagramCapture } from "./diagram-capture";
 import { NO_FORMULAS, type NoteFormulas } from "./sums-controller";
+import type { FreezeEntry } from "../services/table-formulas";
 
 /**
  * The publish commands: preview a publish, run one, open the site.
@@ -81,6 +82,8 @@ export class PublishCommands {
   /** Canvases drawn for an earlier publish in this session, by content. */
   private readonly drawn = new DrawnDiagrams();
   private formulas: NoteFormulas = NO_FORMULAS;
+  /** The `(fixed)` results of each note as this publish read it, by path. */
+  private freezes = new Map<string, FreezeEntry[]>();
 
   constructor(
     private readonly app: App,
@@ -322,10 +325,13 @@ export class PublishCommands {
     // Read first, so that the canvases of every note can be counted before
     // the first is drawn: drawing takes long enough to want a count.
     const published = [];
+    this.freezes = new Map();
     for (const file of files) {
       const cache = this.app.metadataCache.getFileCache(file);
       if (!readPublishFields(cache?.frontmatter, keys).published) continue;
-      const content = await this.formulas.forExport(await this.app.vault.read(file));
+      const exported = await this.formulas.forExport(await this.app.vault.read(file));
+      if (exported.freezes.length > 0) this.freezes.set(file.path, exported.freezes);
+      const content = exported.text;
       published.push({ file, cache, content, fences: findDiagramFences(content) });
     }
     const drawing = new DrawingProgress(
@@ -540,14 +546,18 @@ export class PublishCommands {
 
   /**
    * The site is live: each `(fixed)` total is written into its note at what
-   * the site now shows. In its own error boundary, as the write-back is.
+   * the site now shows — the value read for the upload, not the note as it is
+   * after it. In its own error boundary, as the write-back is.
    */
   private async freezePublished(index: PublishIndex): Promise<void> {
     for (const note of index.notes) {
+      // Only the notes that had a waiting `(fixed)` formula when they were read.
+      const freezes = this.freezes.get(note.sourcePath);
+      if (!freezes) continue;
       const file = this.app.vault.getAbstractFileByPath(note.sourcePath);
       if (!(file instanceof TFile)) continue;
       try {
-        await this.formulas.freeze(file);
+        await this.formulas.freeze(file, freezes);
       } catch (error) {
         this.logger.debug(`Could not freeze the totals in ${note.sourcePath}.`, error);
         new Notice(t().common.notice(t().sums.freezeFailed(note.sourcePath)));

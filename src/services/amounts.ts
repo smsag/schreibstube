@@ -257,7 +257,11 @@ export const FORMULA_TEXT = /=(?:sum|avg|median|count|min|max)(?:\([^)\n]*\))?/g
 interface Found {
   amount: Amount;
   quoted: boolean;
+  /** Nothing after it on the line but punctuation or a cell's closing pipe. */
+  last: boolean;
 }
+
+const LINE_END = /^[\s|.,;:!?)\]}*_~]*$/;
 
 /** Every amount in a piece of text, in order, with whether it stands in quotes. */
 function findAmounts(text: string, format: NumberFormat): Found[] {
@@ -277,7 +281,8 @@ function findAmounts(text: string, format: NumberFormat): Found[] {
         currency,
         decimals: number.decimals
       },
-      quoted: quoted.some(([from, to]) => match.index >= from && match.index < to)
+      quoted: quoted.some(([from, to]) => match.index >= from && match.index < to),
+      last: LINE_END.test(plain.slice(match.index + match[0].length))
     });
   }
   return found;
@@ -290,8 +295,11 @@ function findAmounts(text: string, format: NumberFormat): Found[] {
  * a currency is the amount, and of several of those the last — prices are
  * written after what they price.
  */
-function pick(found: Found[]): Amount | null {
-  const counted = found.filter((entry) => !entry.quoted).map((entry) => entry.amount);
+function pick(found: Found[], figuresOnly = false): Amount | null {
+  const counted = found
+    .filter((entry) => !entry.quoted)
+    .filter((entry) => !figuresOnly || entry.amount.currency !== null || entry.last)
+    .map((entry) => entry.amount);
   const priced = counted.filter((amount) => amount.currency !== null);
   return priced[priced.length - 1] ?? counted[counted.length - 1] ?? null;
 }
@@ -314,12 +322,28 @@ export function readCell(text: string, format: NumberFormat): CellReading {
   return found.length > 0 ? { kind: "quoted" } : { kind: "unreadable" };
 }
 
-/** One amount per line that has one, for the total of a selection. */
-export function amountsInText(text: string, format: NumberFormat): Amount[] {
+/** The row under a table's header: `|---|:--:|`. */
+export const TABLE_DELIMITER = /^\s*\|?\s*:?-+:?\s*(?:\|\s*:?-+:?\s*)*\|?\s*$/;
+
+/**
+ * One amount per line that has one, for the total of a selection.
+ *
+ * A table's header row is a line of labels, not of amounts, even when a label
+ * is `Betrag 2024`: a row followed by the delimiter row is passed over.
+ *
+ * `figuresOnly` is for a total nobody asked for — the status bar, the menu.
+ * Selected prose has numbers too, `Im Jahr 2024` and `Kapitel 3`, and a total
+ * of those is noise. So there a number without a currency counts only where a
+ * figure stands: at the end of its line or its cell, as in `Groceries 300`.
+ */
+export function amountsInText(text: string, format: NumberFormat, figuresOnly = false): Amount[] {
   const amounts: Amount[] = [];
-  for (const line of text.split("\n")) {
-    const amount = pick(findAmounts(line, format));
+  const lines = text.split("\n");
+  lines.forEach((line, at) => {
+    const next = lines[at + 1];
+    if (line.includes("|") && next !== undefined && TABLE_DELIMITER.test(next)) return;
+    const amount = pick(findAmounts(line, format), figuresOnly);
     if (amount) amounts.push(amount);
-  }
+  });
   return amounts;
 }

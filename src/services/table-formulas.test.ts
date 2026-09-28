@@ -4,9 +4,10 @@ import type { FormulaContext } from "./formulas";
 import {
   evaluateGrid,
   findTables,
+  applyFreezes,
   formulaOutcomes,
   freezeFormulas,
-  hasUnfrozenFormulas,
+  freezePlan,
   parseFormula,
   resolveFormulas,
   splitRow
@@ -119,6 +120,21 @@ describe("evaluateGrid", () => {
     expect(changed).toMatchObject({ text: "5", now: "7" });
   });
 
+  it("reads a hand-typed space as the space the plugin writes", () => {
+    // The bug: `320 €` typed with a plain space showed "now 320 €" beside itself.
+    const [typed] = evaluateGrid([["A"], ["300 €"], ["20 €"], ["=sum(fixed: 320 €)"]], ctx);
+    expect(typed?.now).toBeNull();
+  });
+
+  it("does not call a converted value changed when only the rates' day moved, or converting was switched", () => {
+    const rates = { date: "2026-09-29", fetchedAt: 0, rates: { USD: 1.25 } };
+    const grid = [["A"], ["300 €"], ["25 $"], ["=sum(fixed: ≈ 320,00 € · ECB 26.09.2026)"]];
+    expect(evaluateGrid(grid, { ...ctx, defaultCurrency: "EUR", rates })[0]?.now).toBeNull();
+    expect(evaluateGrid(grid, ctx)[0]?.now).toBeNull();
+    const moved = [["A"], ["300 €"], ["50 $"], ["=sum(fixed: ≈ 320,00 € · ECB 26.09.2026)"]];
+    expect(evaluateGrid(moved, { ...ctx, defaultCurrency: "EUR", rates })[0]?.now).toContain("340");
+  });
+
   it("offers a fixed formula not frozen yet its value to freeze at", () => {
     const [result] = evaluateGrid([["A"], ["5"], ["=sum(fixed)"]], ctx);
     expect(result).toMatchObject({ text: "5", freezeAt: "5" });
@@ -176,11 +192,41 @@ describe("freezeFormulas", () => {
   });
 });
 
-describe("hasUnfrozenFormulas", () => {
-  it("finds a fixed formula waiting to be frozen, and nothing else", () => {
-    expect(hasUnfrozenFormulas("| =sum(fixed) |")).toBe(true);
-    expect(hasUnfrozenFormulas("| =sum(fixed: 5) |")).toBe(false);
-    expect(hasUnfrozenFormulas("| =sum |")).toBe(false);
+describe("freezePlan and applyFreezes", () => {
+  const note = "| A | B |\n|---|---|\n| 5 € | x |\n| =sum(fixed) | =avg(fixed) |";
+
+  it("plans each waiting fixed formula in order, with no number for one that has none", () => {
+    expect(freezePlan(note, ctx).map((e) => ({ ...e, text: e.text && plain(e.text) }))).toEqual([
+      { op: "sum", text: "5 €" },
+      { op: "avg", text: null }
+    ]);
+  });
+
+  it("plans nothing for a formula in prose or code, or one already frozen", () => {
+    const prose = "Write =sum(fixed) in a cell.\n\n```\n| =sum(fixed) |\n```";
+    expect(freezePlan(prose, ctx)).toEqual([]);
+    expect(freezePlan("| A |\n|---|\n| =sum(fixed: 5) |", ctx)).toEqual([]);
+  });
+
+  it("writes the plan's values, not what the note says by then", () => {
+    // The bug: freezing read the note again after the send, so an amount
+    // changed while the PDF was made was frozen although it was never sent.
+    const plan = freezePlan("| A |\n|---|\n| 5 € |\n| =sum(fixed) |", ctx);
+    const edited = "| A |\n|---|\n| 7 € |\n| =sum(fixed) |";
+    expect(plain(applyFreezes(edited, plan)?.text ?? "")).toContain("| =sum(fixed: 5 €) |");
+  });
+
+  it("refuses a note whose waiting formulas no longer match the plan", () => {
+    const plan = freezePlan("| A |\n|---|\n| 5 |\n| =sum(fixed) |", ctx);
+    expect(applyFreezes("| A |\n|---|\n| 5 |\n| =avg(fixed) |", plan)).toBeNull();
+    expect(applyFreezes("| A |\n|---|\n| 5 |\n| =sum |", plan)).toBeNull();
+  });
+
+  it("freezes two in one row, each in its own cell", () => {
+    const two = "| A | B |\n|---|---|\n| 1 | 2 |\n| =sum(fixed) | =max(fixed) |";
+    expect(applyFreezes(two, freezePlan(two, ctx))?.text).toContain(
+      "| =sum(fixed: 1) | =max(fixed: 2) |"
+    );
   });
 });
 

@@ -17,7 +17,7 @@
  * The grid is plain strings, so the same rules serve the Markdown of a note
  * and the cells of a rendered table.
  */
-import { readCell, type Amount } from "./amounts";
+import { readCell, TABLE_DELIMITER, type Amount } from "./amounts";
 import {
   compute,
   outcomeText,
@@ -109,7 +109,7 @@ export function evaluateGrid(
           outcome,
           skipped,
           text: formula.frozen,
-          now: current !== null && current !== formula.frozen ? current : null,
+          now: changedSince(formula.frozen, outcome, current),
           freezeAt: null
         });
       } else {
@@ -129,6 +129,34 @@ export function evaluateGrid(
   return results;
 }
 
+const RATE_DAY = /\s*·\s*ECB\s+\S+\s*$/;
+
+/** A result as a person reads it: a space is a space, whichever the file holds. */
+function asRead(text: string): string {
+  return text
+    .replace(/[\s\u00a0\u202f]+/g, " ")
+    .replace(RATE_DAY, "")
+    .trim();
+}
+
+/**
+ * What a frozen result would be now, or null when it has not changed.
+ *
+ * Compared as read, not as stored: a value typed with a plain space is the
+ * value the plugin writes with one that cannot break. The rates' day is not
+ * part of the value — rates fetched again without the amounts changing leave
+ * the result where it was. And a result converted then is only compared with
+ * one converted now: switching converting off, or on, is no change in what
+ * the table holds.
+ */
+function changedSince(frozen: string, outcome: Outcome, current: string | null): string | null {
+  if (current === null) return null;
+  const convertedThen = RATE_DAY.test(frozen);
+  const convertedNow = outcome.kind === "value" && outcome.rateDate !== null;
+  if (convertedThen !== convertedNow) return null;
+  return asRead(current) === asRead(frozen) ? null : current;
+}
+
 /** A cell of a Markdown table row, and where its text sits in the line. */
 interface MarkdownCell {
   from: number;
@@ -145,8 +173,6 @@ interface MarkdownRow {
 export interface MarkdownTable {
   rows: MarkdownRow[];
 }
-
-const DELIMITER = /^\s*\|?\s*:?-+:?\s*(?:\|\s*:?-+:?\s*)*\|?\s*$/;
 
 /**
  * The cells of a table row, split at the pipes that are not escaped and not
@@ -195,7 +221,7 @@ export function findTables(markdown: string): MarkdownTable[] {
     const header = lines[at] ?? "";
     const delimiter = lines[at + 1] ?? "";
     if (fenced[at] || fenced[at + 1] || !header.includes("|") || !delimiter.includes("|")) continue;
-    if (!DELIMITER.test(delimiter)) continue;
+    if (!TABLE_DELIMITER.test(delimiter)) continue;
     const headerCells = splitRow(header);
     if (headerCells.length !== splitRow(delimiter).length) continue;
 
@@ -237,14 +263,19 @@ function rewriteCells(
       const row = table.rows[result.row];
       const cell = row?.cells[result.col];
       if (!row || !cell) continue;
-      const line = lines[row.line] ?? "";
-      const lead = /^\s*/.exec(cell.text)?.[0] ?? "";
-      const trail = /\s*$/.exec(cell.text)?.[0] ?? "";
-      lines[row.line] = line.slice(0, cell.from) + lead + content + trail + line.slice(cell.to);
+      writeCell(lines, row.line, cell, content);
       changed++;
     }
   }
   return { text: lines.join("\n"), changed };
+}
+
+/** Put new content into a cell, keeping the cell's own padding. */
+function writeCell(lines: string[], at: number, cell: MarkdownCell, content: string): void {
+  const line = lines[at] ?? "";
+  const lead = /^\s*/.exec(cell.text)?.[0] ?? "";
+  const trail = /\s*$/.exec(cell.text)?.[0] ?? "";
+  lines[at] = line.slice(0, cell.from) + lead + content + trail + line.slice(cell.to);
 }
 
 /** A pipe in a result would split the cell it is written into. */
@@ -270,22 +301,82 @@ export function resolveFormulas(
   }).text;
 }
 
+/** One `(fixed)` formula waiting to be frozen, in the order it stands in the note. */
+export interface FreezeEntry {
+  op: FormulaOp;
+  /** What it freezes at, or null for a result without a number, which waits. */
+  text: string | null;
+}
+
 /**
- * The note with every `(fixed)` formula not yet frozen frozen at its result.
+ * What each `(fixed)` formula not yet frozen would be frozen at.
  *
- * One that has no number to freeze at — mixed currencies, an average of
- * nothing — is left waiting for the next send rather than frozen at words.
+ * Taken from the copy that leaves the vault, at the moment it leaves, so what
+ * is written back later is what the recipient got — not what the note says by
+ * the time the upload or the typesetting is over.
  */
+export function freezePlan(markdown: string, ctx: FormulaContext): FreezeEntry[] {
+  return findTables(markdown).flatMap((table) =>
+    evaluateGrid(
+      table.rows.map((row) => row.cells.map((cell) => cell.text)),
+      ctx
+    )
+      .filter((result) => result.formula.fixed && result.formula.frozen === null)
+      .map((result) => ({ op: result.formula.op, text: result.freezeAt }))
+  );
+}
+
+/**
+ * The note with a freeze plan written into it, or null when the note no
+ * longer has the formulas the plan was made for.
+ *
+ * The plan is matched to the note's waiting `(fixed)` formulas by order and
+ * operation. A note whose tables changed in between — a formula added,
+ * removed or changed — cannot be matched safely, and is not written at all:
+ * a value frozen into the wrong cell would be worse than one left live.
+ */
+export function applyFreezes(
+  markdown: string,
+  plan: readonly FreezeEntry[]
+): { text: string; frozen: number } | null {
+  const waiting: { line: number; cell: MarkdownCell; formula: Formula }[] = [];
+  for (const table of findTables(markdown)) {
+    for (const row of table.rows.slice(1)) {
+      for (const cell of row.cells) {
+        const formula = parseFormula(cell.text);
+        if (formula?.fixed && formula.frozen === null)
+          waiting.push({ line: row.line, cell, formula });
+      }
+    }
+  }
+  if (waiting.length !== plan.length) return null;
+  if (waiting.some((entry, at) => entry.formula.op !== plan[at]?.op)) return null;
+
+  const lines = markdown.split("\n");
+  let frozen = 0;
+  // Right to left, so a cell's offsets still hold after the one after it changed.
+  for (let at = waiting.length - 1; at >= 0; at--) {
+    const entry = waiting[at];
+    const text = plan[at]?.text ?? null;
+    if (!entry || text === null) continue;
+    const { op, wrap } = entry.formula;
+    writeCell(
+      lines,
+      entry.line,
+      entry.cell,
+      `${wrap}=${op}(fixed: ${cellSafe(text).replace(/\)/g, "")})${wrap}`
+    );
+    frozen++;
+  }
+  return { text: lines.join("\n"), frozen };
+}
+
+/** The note with every `(fixed)` formula not yet frozen frozen at its result now. */
 export function freezeFormulas(
   markdown: string,
   ctx: FormulaContext
 ): { text: string; frozen: number } {
-  const { text, changed } = rewriteCells(markdown, ctx, (result) => {
-    if (result.freezeAt === null) return null;
-    const { op, wrap } = result.formula;
-    return `${wrap}=${op}(fixed: ${cellSafe(result.freezeAt).replace(/\)/g, "")})${wrap}`;
-  });
-  return { text, frozen: changed };
+  return applyFreezes(markdown, freezePlan(markdown, ctx)) ?? { text: markdown, frozen: 0 };
 }
 
 /** What every formula in a note comes to, to know whether any of it needs rates. */
@@ -296,9 +387,4 @@ export function formulaOutcomes(markdown: string, ctx: FormulaContext): Outcome[
       ctx
     ).map((result) => result.outcome)
   );
-}
-
-/** Whether a note has a `(fixed)` formula still waiting to be frozen. */
-export function hasUnfrozenFormulas(markdown: string): boolean {
-  return /=(?:sum|avg|median|count|min|max)\(\s*fixed\s*\)/i.test(markdown);
 }
