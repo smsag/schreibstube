@@ -68,6 +68,7 @@ export function renderEditor(ctx: SettingsContext): void {
     t().commands.insertTaskSummary,
     t().commands.insertSlideshow,
     t().commands.insertToday,
+    t().commands.suggestTags,
     t().commands.linksSwitch
   ]);
 }
@@ -96,4 +97,13 @@ function renderProperties(ctx: SettingsContext): void {
         await ctx.update({ propertySetFolder: normalizeTermFolder(value) });
       });
     });
+
+  new Setting(ctx.containerEl)
+    .setName(t().tagSuggest.controlSetting)
+    .setDesc(t().tagSuggest.controlSettingDesc)
+    .addToggle((toggle) =>
+      toggle.setValue(ctx.plugin.settings.tagSuggestControl).onChange(async (value) => {
+        await ctx.update({ tagSuggestControl: value });
+      })
+    );
 }

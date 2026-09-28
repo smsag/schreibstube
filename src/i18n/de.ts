@@ -22,6 +22,7 @@ export const de: Messages = {
     tableAi: "Einfügen: KI-Tabelle aus der Auswahl",
     insertToday: "Einfügen: heutiges Datum",
     addPropertySet: "Einfügen: Frontmatter-Eigenschaften-Set",
+    suggestTags: "Einfügen: vorgeschlagene Tags",
     openExplorer: "Explorer öffnen",
     collapseExplorer: "Explorer: Ordner zuklappen",
     explorerUndo: "Explorer: letztes Verschieben oder Löschen rückgängig machen",
@@ -515,6 +516,7 @@ export const de: Messages = {
     failRename: "Schreibstube: Umbenennen fehlgeschlagen",
     failImage: "Schreibstube: Bild konnte nicht verarbeitet werden",
     failSummarize: "Schreibstube: Zusammenfassen fehlgeschlagen",
+    failTags: "Schreibstube: Tag-Vorschläge fehlgeschlagen",
     tableMenu: "In Tabelle umwandeln",
     tableMenuAi: "Mit KI in Tabelle umwandeln",
     tableSelectLines: "mindestens zwei Zeilen markieren, die zur Tabelle werden sollen.",
@@ -1439,5 +1441,48 @@ export const de: Messages = {
       "die Formeln des Docs haben sich seit dem Versand geändert, darum wurde nichts festgeschrieben.",
     freezeFailed: (path: string) =>
       `die festen Summen in ${path} konnten nicht geschrieben werden; sie bleiben bis zum nächsten Versand veränderlich.`
+  },
+
+  tagSuggest: {
+    controlSetting: "Tags vorschlagen neben Eigenschaft hinzufügen",
+    controlSettingDesc:
+      "Zeigt Tags vorschlagen am Fuß der Eigenschaften jeder Notiz. Einfügen: vorgeschlagene " +
+      "Tags in der Befehlspalette funktioniert in jedem Fall.",
+    loading: "Verwandte Notizen werden gelesen …",
+    button: "Tags vorschlagen",
+    buttonLabel: "Tags für diese Notiz vorschlagen",
+    title: (note: string) => `Tags für ${note}`,
+    fromVault: "Aus verwandten Notizen",
+    noneFromVault:
+      "Keine Gruppe verwandter Notizen teilt einen Tag, den diese Notiz nicht schon hat.",
+    fromNote: "Von der Notiz selbst genannt",
+    noneFromNote: "Die Notiz nennt keine Schlüsselwörter.",
+    fromModel: "Aus dem Inhalt",
+    modelDesc:
+      "Schickt den Anfang der Notiz und die Tags des Vaults an den eingestellten KI-Anbieter.",
+    askModel: "KI fragen",
+    asking: "Frage …",
+    noneFromModel: "Die KI hat keinen weiteren Tag vorgeschlagen.",
+    isNew: "neu",
+    carriers: (count: number, linked: boolean) =>
+      linked
+        ? count === 1
+          ? "bei einer verlinkten Notiz"
+          : `bei ${count} verwandten Notizen, auch einer verlinkten`
+        : `bei ${count} verwandten Notizen`,
+    add: (count: number) =>
+      count === 0
+        ? "Tags hinzufügen"
+        : count === 1
+          ? "1 Tag hinzufügen"
+          : `${count} Tags hinzufügen`,
+    added: (count: number) =>
+      count === 0
+        ? "die Notiz hatte diese Tags schon."
+        : count === 1
+          ? "1 Tag hinzugefügt."
+          : `${count} Tags hinzugefügt.`,
+    writeFailed: (reason: string) => `die Tags konnten nicht geschrieben werden: ${reason}`,
+    loadFailed: (reason: string) => `Tag-Vorschläge konnten nicht gesammelt werden: ${reason}`
   }
 };

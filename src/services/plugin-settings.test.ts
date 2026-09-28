@@ -43,6 +43,12 @@ describe("normalizeSettings", () => {
     expect(normalizeSettings({ explorerTaskCounts: true }).explorerTaskCounts).toBe(true);
   });
 
+  it("shows the Suggest tags control unless it was switched off", () => {
+    expect(normalizeSettings({}).tagSuggestControl).toBe(true);
+    expect(normalizeSettings({ tagSuggestControl: "no" as never }).tagSuggestControl).toBe(true);
+    expect(normalizeSettings({ tagSuggestControl: false }).tagSuggestControl).toBe(false);
+  });
+
   it("defaults llmModelCustom to an empty string", () => {
     expect(normalizeSettings({}).llmModelCustom).toBe("");
   });

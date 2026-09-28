@@ -3665,10 +3665,10 @@
   padding-top: 0.75rem;
 }
 
-/* Property sets: the control beside Obsidian's "Add property" wears that
-   control's own class for its look; only the spacing between the two is ours,
+/* "Add set" and "Suggest tags" beside Obsidian's "Add property" wear that
+   control's own class for their look; only the spacing between them is ours,
    matching the inset Obsidian gives its own. */
-.metadata-container .schreibstube-add-set {
+.metadata-container .schreibstube-property-control {
   margin-top: 0.5em;
   margin-inline-start: var(--size-4-2);
   padding-inline-start: var(--size-2-3);
@@ -3681,6 +3681,57 @@
   display: block;
   color: var(--text-muted);
   overflow-wrap: anywhere;
+}
+
+/* Suggest tags: one section per source, a checkbox per tag. A new tag is
+   marked, since ticking it adds a word to the vault's vocabulary. */
+.schreibstube-tag-suggest-section {
+  margin-bottom: var(--size-4-4);
+}
+
+.schreibstube-tag-suggest-heading {
+  margin-bottom: var(--size-4-1);
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  font-weight: var(--font-semibold);
+}
+
+.schreibstube-tag-suggest-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--size-4-2);
+  padding: var(--size-4-1) 0;
+  cursor: var(--cursor);
+}
+
+.schreibstube-tag-suggest-row input {
+  align-self: center;
+  margin: 0;
+}
+
+.schreibstube-tag-suggest-tag {
+  color: var(--tag-color);
+  overflow-wrap: anywhere;
+}
+
+.schreibstube-tag-suggest-new {
+  padding: 0 var(--size-4-1);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  color: var(--text-accent);
+  font-size: var(--font-ui-smaller);
+}
+
+.schreibstube-tag-suggest-detail,
+.schreibstube-tag-suggest-empty {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+}
+
+.schreibstube-tag-suggest-list .setting-item {
+  padding-top: 0;
+  border-top: none;
 }
 
 /* Sums: the selection's total in the status bar, and a formula's result in a

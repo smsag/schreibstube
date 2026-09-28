@@ -250,6 +250,7 @@ export const enExtra = {
     failRename: "Schreibstube: rename failed",
     failImage: "Schreibstube: could not process image",
     failSummarize: "Schreibstube: summarize failed",
+    failTags: "Schreibstube: tag suggestions failed",
     tableMenu: "Convert to table",
     tableMenuAi: "Convert to table with AI",
     tableSelectLines: "select at least two lines to turn into a table.",
@@ -1133,5 +1134,43 @@ export const enExtra = {
     freezeStale: "the doc's formulas changed since it was sent, so nothing was frozen.",
     freezeFailed: (path: string) =>
       `the fixed totals in ${path} could not be written; they stay live until the next send.`
+  },
+
+  tagSuggest: {
+    controlSetting: "Suggest tags beside Add property",
+    controlSettingDesc:
+      "Show the Suggest tags control at the foot of every note's properties. Insert: suggested " +
+      "tags in the command palette works either way.",
+    loading: "Looking at related notes…",
+    button: "Suggest tags",
+    buttonLabel: "Suggest tags for this note",
+    title: (note: string) => `Tags for ${note}`,
+    fromVault: "From related notes",
+    noneFromVault: "No group of related notes shares a tag this note does not already have.",
+    fromNote: "Stated by the note",
+    noneFromNote: "The note states no keywords.",
+    fromModel: "From the content",
+    modelDesc:
+      "Sends the beginning of the note and the vault's tags to the AI provider in the settings.",
+    askModel: "Ask AI",
+    asking: "Asking…",
+    noneFromModel: "The AI suggested no further tag.",
+    isNew: "new",
+    carriers: (count: number, linked: boolean) =>
+      linked
+        ? count === 1
+          ? "on a linked note"
+          : `on ${count} related notes, a linked one among them`
+        : `on ${count} related notes`,
+    add: (count: number) =>
+      count === 0 ? "Add tags" : count === 1 ? "Add 1 tag" : `Add ${count} tags`,
+    added: (count: number) =>
+      count === 0
+        ? "the note already had these tags."
+        : count === 1
+          ? "1 tag added."
+          : `${count} tags added.`,
+    writeFailed: (reason: string) => `the tags could not be written: ${reason}`,
+    loadFailed: (reason: string) => `could not gather tag suggestions: ${reason}`
   }
 };

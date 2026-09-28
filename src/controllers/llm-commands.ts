@@ -27,6 +27,12 @@ import {
   parseTableResponse
 } from "../services/llm-table";
 import type { MarkdownTable } from "../services/text-to-table";
+import {
+  TAGS_MAX_TOKENS,
+  parseTagsResponse,
+  tagsSystemPrompt,
+  tagsUserMessage
+} from "../services/llm-tags";
 
 type DescribeOutcome =
   | { kind: "described"; title: string }
@@ -466,6 +472,40 @@ export class LlmCommands {
         return;
       }
       insertTable(editor, range, table);
+    });
+  }
+
+  /**
+   * Tags for a note from the model, asked in the vault's words.
+   *
+   * Only ever on a person's press in the tag dialog: this is the one source of
+   * suggestions that sends the note's text away. Null when nothing was asked
+   * — no key, another AI command running, the request failed — each of which
+   * has said so; an empty list when the model answered with nothing usable.
+   */
+  async suggestTags(content: string, vocabulary: readonly string[]): Promise<string[] | null> {
+    const apiKey = this.requireApiKey();
+    if (!apiKey) return null;
+
+    return this.withBusy("tag suggestions", async () => {
+      const settings = this.getSettings();
+      try {
+        const request = buildSummaryRequest(
+          settings.llmProvider,
+          effectiveModel(settings),
+          apiKey,
+          tagsSystemPrompt(vocabulary),
+          tagsUserMessage(content),
+          TAGS_MAX_TOKENS
+        );
+        const raw = await sendRequest(settings.llmProvider, request);
+        const tags = parseTagsResponse(raw);
+        if (tags.length === 0) this.logger.warn("Tag suggestions returned no usable tags:", raw);
+        return tags;
+      } catch (err) {
+        this.fail("tag suggestions", t().ai.failTags, err);
+        return null;
+      }
     });
   }
 
