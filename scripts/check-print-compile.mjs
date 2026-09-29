@@ -182,9 +182,10 @@ function exampleTemplates() {
 }
 
 /**
- * Two templates no folder holds: one with no opinions, so the prelude's
- * defaults are what is compiled, and one that replaces every helper, so a
- * template's own definitions are shown to be the ones that are called.
+ * Three templates no folder holds: one with no opinions, so the prelude's
+ * defaults are what is compiled; one that replaces every helper, so a
+ * template's own definitions are shown to be the ones that are called; and a
+ * deck with no opinions, so the prelude's own slide is compiled for every case.
  */
 function madeHere() {
   const entry = "#let template(body, data) = body\n";
@@ -198,7 +199,12 @@ function madeHere() {
   ].join("\n");
   return [
     { folder: "Vorlagen/Druck/Ohne Meinung", frontmatter: {}, layout: entry },
-    { folder: "Vorlagen/Druck/Eigene Helfer", frontmatter: {}, layout: `${own}\n${entry}` }
+    { folder: "Vorlagen/Druck/Eigene Helfer", frontmatter: {}, layout: `${own}\n${entry}` },
+    {
+      folder: "Vorlagen/Druck/Folien ohne Meinung",
+      frontmatter: { schreibstubeSlides: true },
+      layout: entry
+    }
   ];
 }
 

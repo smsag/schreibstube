@@ -20,9 +20,11 @@ import { t } from "../i18n";
 import { drawPdfPages, MAX_PREVIEW_PAGES } from "../pdf/pdf-preview";
 import {
   MARGIN_PRESETS,
+  SLIDE_FORMATS,
   withTemplate,
   type MarginPreset,
-  type PrintOptions
+  type PrintOptions,
+  type SlideFormat
 } from "../services/print-options";
 import { SLIDESHOW_PRINT_MODES, type SlideshowPrintMode } from "../services/print-slideshow";
 import type { PrintTemplate } from "../services/print-template";
@@ -83,6 +85,8 @@ export class PrintDialog extends Modal {
   private marginSetting: Setting | null = null;
   private marginDropdown: DropdownComponent | null = null;
   private breakToggle: ToggleComponent | null = null;
+  private breakSetting: Setting | null = null;
+  private formatSetting: Setting | null = null;
   private faceSetting: Setting | null = null;
   private pythiaSetting: Setting | null = null;
   /** Ends a refresh still running when the dialog closes: nobody is waiting for it. */
@@ -129,6 +133,7 @@ export class PrintDialog extends Modal {
           })
       );
 
+    this.showForTemplate();
     void this.refreshMargin();
     void this.refreshFace();
     this.changed();
@@ -156,6 +161,7 @@ export class PrintDialog extends Modal {
         this.options = withTemplate(this.options, template);
         // Each template has its own habit about rules; the toggle follows it.
         this.breakToggle?.setValue(this.options.hrIsPageBreak);
+        this.showForTemplate();
         void this.refreshMargin();
         void this.refreshFace();
         this.changed();
@@ -183,7 +189,15 @@ export class PrintDialog extends Modal {
     });
     this.faceSetting.settingEl.toggle(false);
 
-    new Setting(el).setName(words.pageBreaks).addToggle((toggle) => {
+    this.formatSetting = new Setting(el).setName(words.format).addDropdown((dropdown) => {
+      for (const format of SLIDE_FORMATS) dropdown.addOption(format, words.formats[format]);
+      dropdown.setValue(this.options.format).onChange((value) => {
+        this.options = { ...this.options, format: value as SlideFormat };
+        this.changed();
+      });
+    });
+
+    this.breakSetting = new Setting(el).setName(words.pageBreaks).addToggle((toggle) => {
       this.breakToggle = toggle;
       toggle.setValue(this.options.hrIsPageBreak).onChange((value) => {
         if (value === this.options.hrIsPageBreak) return;
@@ -209,6 +223,17 @@ export class PrintDialog extends Modal {
         this.changed();
       });
     });
+  }
+
+  /**
+   * A deck has a format and no page breaks — a rule starts a slide — so the
+   * dialog offers the one and not the other for a slide template, and the
+   * reverse for every other.
+   */
+  private showForTemplate(): void {
+    const slides = this.options.template.slides;
+    this.formatSetting?.settingEl.toggle(slides);
+    this.breakSetting?.settingEl.toggle(!slides);
   }
 
   /**

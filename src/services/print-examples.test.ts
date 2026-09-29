@@ -13,6 +13,7 @@ describe("the templates the plugin carries", () => {
   it("carries the examples, the built-in Standard among them", () => {
     expect(EXAMPLE_TEMPLATES.map((template) => template.name)).toEqual([
       "Brief",
+      "Folien",
       "Lebenslauf",
       "Standard"
     ]);

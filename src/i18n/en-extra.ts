@@ -863,6 +863,8 @@ export const enExtra = {
       margin: { small: "Small", standard: "Standard", wide: "Wide" },
       marginFixed: "This template sets its own margins.",
       pageBreaks: "Horizontal rules as page breaks",
+      format: "Format",
+      formats: { "16:9": "16:9 (widescreen)", "4:3": "4:3" },
       textFace: "Text font",
       textFaceMono: "JetBrains Mono",
       textFaceSans: "Fira Sans",

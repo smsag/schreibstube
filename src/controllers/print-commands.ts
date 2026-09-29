@@ -599,6 +599,7 @@ export class PrintCommands {
         hrIsPageBreak: template.hrIsPageBreak,
         properties,
         slideshows: options.slideshows,
+        slides: template.slides,
         diagramImage: (block) => session.drawings.get(block.index) ?? null,
         diagramTitle: (block) => session.titles.get(block.index) ?? null,
         image: ({ source: link, width }) => {

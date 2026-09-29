@@ -89,6 +89,11 @@ export interface PrintTemplate {
   folder: string;
   page: PageSetup;
   hrIsPageBreak: boolean;
+  /**
+   * The note is a deck: one slide to a page, grouped by its headings
+   * (`print-slides.ts`), in the format the print dialog chooses.
+   */
+  slides: boolean;
   images: ImageLimits;
   /** Defaults for the data a layout reads, overridden by the note. */
   data: Record<string, string>;
@@ -183,6 +188,7 @@ export function parseTemplate(
       folder,
       page,
       hrIsPageBreak: record.schreibstubeHrIsPageBreak === true,
+      slides: record.schreibstubeSlides === true,
       images,
       data,
       entry

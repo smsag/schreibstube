@@ -1185,6 +1185,8 @@ export const de: Messages = {
         `Die Zusammenfassungen wurden nicht aktualisiert — ${detail}`,
       frontmatter: "Eigenschaften drucken",
       slideshows: "Diaschauen",
+      format: "Format",
+      formats: { "16:9": "16:9 (Breitbild)", "4:3": "4:3" },
       slideshow: { layout: "Wie in der Notiz", stacked: "Alle Bilder untereinander" },
       print: "Drucken",
       working: "Vorschau wird gesetzt …",

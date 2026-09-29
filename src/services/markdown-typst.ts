@@ -8,6 +8,7 @@ import { isTableDelimiter, rowCells } from "./markdown-table";
 import { typstArray, typstString } from "./typst-value";
 import { parseSlideshow, SLIDESHOW_LANGUAGE } from "./slideshow";
 import { slideshowForPrint, type SlideshowPrintMode } from "./print-slideshow";
+import { groupSlides, slidesMarkup, type SlidePart } from "./print-slides";
 
 /** What a tab is worth when a list's nesting is measured, as in the editor. */
 const TAB_COLUMNS = 4;
@@ -57,6 +58,12 @@ export interface ConvertOptions {
   properties?: readonly (readonly [string, string])[];
   /** How a slideshow is printed: as it stands on screen, or every picture stacked. */
   slideshows?: SlideshowPrintMode;
+  /**
+   * The note as a deck, one `#schreibstube-slide` per slide, grouped by its
+   * headings as `print-slides.ts` decides. A horizontal rule then starts a
+   * slide rather than a page, whatever `hrIsPageBreak` says.
+   */
+  slides?: boolean;
 }
 
 /**
@@ -202,6 +209,8 @@ class Converter {
   /** Lines that belong to a definition — a footnote with its indented
    *  continuation, a link reference — and print nowhere of their own. */
   private readonly consumed = new Set<number>();
+  /** What the block just converted was to a deck: a slide's heading, or a rule. */
+  private marker: SlidePart | null = null;
 
   constructor(
     source: string,
@@ -214,13 +223,16 @@ class Converter {
   }
 
   run(): Conversion {
-    const blocks = this.blocks(0);
+    const parts: SlidePart[] = [];
+    const blocks = this.blocks(0, parts);
     const rows = this.options.properties ?? [];
     if (rows.length > 0) {
       const table = `#schreibstube-properties((${rows.map(([key, value]) => `(${typstString(key)}, ${typstString(value)}),`).join(" ")}))\n`;
+      const first = parts[0]?.kind === "heading" ? 1 : 0;
       blocks.splice(/^= /.test(blocks[0] ?? "") ? 1 : 0, 0, table);
+      parts.splice(first, 0, { kind: "block", markup: table });
     }
-    const body = blocks.join("\n");
+    const body = this.options.slides ? slidesMarkup(groupSlides(parts)) : blocks.join("\n");
     return {
       body: `${body.replace(/\n{3,}/g, "\n\n").trim()}\n`,
       diagrams: this.shared.diagrams,
@@ -289,13 +301,17 @@ class Converter {
 
   /** A quote's inside, converted as part of this note rather than beside it. */
   private nested(source: string): string {
-    // The properties belong to the document, not to every quote inside it.
-    const options = { ...this.options, properties: [] };
+    // The properties belong to the document, not to every quote inside it, and
+    // so do the slides: a heading inside a callout is the callout's.
+    const options = { ...this.options, properties: [], slides: false };
     return new Converter(source, options, this.shared, this.heading).run().body;
   }
 
-  /** Every block at this indent, until the indent drops or the source ends. */
-  private blocks(indent: number): string[] {
+  /**
+   * Every block at this indent, until the indent drops or the source ends.
+   * `parts`, when given, receives the same blocks as a deck reads them.
+   */
+  private blocks(indent: number, parts?: SlidePart[]): string[] {
     const out: string[] = [];
 
     while (this.at < this.lines.length) {
@@ -312,11 +328,24 @@ class Converter {
         continue;
       }
 
+      this.marker = null;
       const block = this.block(indent);
       if (block !== null) out.push(block);
+      const part = this.takeMarker() ?? (block === null ? null : { kind: "block", markup: block });
+      if (part) parts?.push(part);
     }
+    // A list item's own blocks are the list's, not the deck's: a rule inside
+    // one must not make the whole list read as a slide break.
+    if (!parts) this.marker = null;
 
     return out;
+  }
+
+  /** What the block just converted was to a deck, if anything; read once. */
+  private takeMarker(): SlidePart | null {
+    const marker = this.marker;
+    this.marker = null;
+    return marker;
   }
 
   private block(indent: number): string | null {
@@ -343,6 +372,7 @@ class Converter {
 
     if (HR.test(line)) {
       this.at += 1;
+      this.marker = { kind: "break" };
       return this.options.hrIsPageBreak ? "#pagebreak(weak: true)\n" : "#line(length: 100%)\n";
     }
 
@@ -355,7 +385,9 @@ class Converter {
 
   private headingBlock(level: number, text: string): string {
     this.heading = text.trim();
-    return `${"=".repeat(level)} ${this.inline(this.heading)}\n`;
+    const markup = this.inline(this.heading);
+    this.marker = { kind: "heading", level, markup };
+    return `${"=".repeat(level)} ${markup}\n`;
   }
 
   /** Code written by indenting it four spaces, set as a fence without a language. */

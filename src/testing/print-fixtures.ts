@@ -42,6 +42,22 @@ export const PRINT_CASES: readonly PrintCase[] = [
   { name: "paragraph", markdown: "Ein Absatz mit Umlauten: äöü ß.\n\nUnd ein zweiter." },
   { name: "headings", markdown: "# Eins\n\n## Zwei\n\n### Drei\n\nText." },
   {
+    // Every way a deck is grouped: title slide, divider, both column levels
+    // with the other level inside a column, a rule, and a slide that only
+    // fits once it is made smaller. On a template that is no deck it is an
+    // ordinary note.
+    name: "slides",
+    markdown: [
+      "# Deck",
+      "# Teil",
+      "## Zwei Spalten\n\nÜber beiden.\n\n### Links\n\n- a\n\n#### Unter\n\n![Bild](bild.png)\n\n### Rechts\n\nText[^1]",
+      "## Drei Spalten\n\n#### A\n\n1\n\n#### B\n\n2\n\n#### C\n\n3\n\n#### D\n\n4",
+      `## Zu voll\n\n${"Ein langer Absatz, der die Folie füllt. ".repeat(80)}\n\n| a | b |\n| - | - |\n| 1 | 2 |`,
+      "---\n\nWeiter ohne Titel.\n\n> [!note] Innen\n> ## Kein Folientitel",
+      "[^1]: Eine Fußnote auf einer Folie."
+    ].join("\n\n")
+  },
+  {
     name: "inline",
     markdown:
       "**fett**, *kursiv*, ***beides***, ~~weg~~, ==markiert==, `code` und [Link](https://example.de)."
@@ -197,6 +213,7 @@ export function fixtureJobs(templates: readonly FixtureTemplate[]): FixtureJob[]
         hrIsPageBreak: template.hrIsPageBreak,
         properties: printCase.properties ?? [],
         slideshows: printCase.slideshows ?? "layout",
+        slides: template.slides,
         diagramImage: (block) => [place(`assets/diagram-${block.index}-0.png`)],
         // As the print command names and draws pictures: by what they become.
         image: ({ source }) => {

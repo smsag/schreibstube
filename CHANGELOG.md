@@ -12,6 +12,8 @@ an older Pythia is no longer found.
 
 ### Added
 
+- **A note prints as slides.** The new **Folien** template, under "Add a template", prints a note as a presentation, one slide to a page, in 16:9 or 4:3 as the print dialog chooses. The note's own headings make the deck: `#` and `##` each start a slide and title it, a `#` with nothing under it divides the deck (and opens it, as the title slide, when it comes first), `###` headings lay a slide out in two columns and `####` in three, and a horizontal rule starts an untitled slide. A slide that holds more than fits is made smaller as a whole until it does — never cut off, never carried onto a second page. The title slide shows `subtitle` and `author` from the note or the template, and the date. Any template can become a deck with `schreibstubeSlides: true` in its descriptor.
+
 - **Other plugins' sources, with your consent.** A plugin that registers a source is announced with a notice that stays until answered, with **Allow** and **Not now**, and listed under **Settings → Search by meaning → Other plugins' sources** with a switch and the number of items indexed ("not read yet" before its first listing). **Not now** asks again at the next launch; nothing is asked while search by meaning is off. Until it is allowed, nothing it lists is read or embedded; switched off, its items leave search and Recommended at once, and a refusal also deletes its index file. **Forget** clears the answer for a plugin no longer installed. Each source keeps its own index file, its items carry its own name and icon in the Explorer and in Recommended, and its own link for **Copy link**.
 
 ### Changed

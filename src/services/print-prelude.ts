@@ -206,6 +206,70 @@ export const PRELUDE_SOURCE = `// Defaults the converted note calls. A template 
   }
 }
 
+// A slide's body, made smaller until it fits the space it is given, and never
+// larger. It is set wider and the whole scaled down, so lines stay as long as
+// the space and every size on the slide keeps its proportion to the others;
+// the widest that still fits is searched for in a few steps. A body that does
+// not get shorter when it is set wider — a picture at the full width grows with
+// it — is scaled as it stands instead, which always fits.
+#let schreibstube-fit(body) = layout(size => {
+  let natural = measure(block(width: size.width, body)).height
+  if natural <= size.height { return block(width: size.width, body) }
+  let fits(factor) = measure(block(width: size.width / factor, body)).height * factor <= size.height
+  let low = size.height / natural
+  if not fits(low) {
+    return scale(low * 100%, origin: top + left, reflow: true, block(width: size.width, body))
+  }
+  let high = 1.0
+  for _ in range(6) {
+    let middle = (low + high) / 2
+    if fits(middle) { low = middle } else { high = middle }
+  }
+  scale(low * 100%, origin: top + left, reflow: true, block(width: size.width / low, body))
+})
+
+// One slide to a page, as the converter groups a note for a slide template.
+// kind: "title" opens the deck, "section" divides it, "content" is the rest;
+// level is the heading that opened the slide, 0 for none. The title stands on
+// top; the intro and then the column cells, each (title, body), share the
+// rest of the page and shrink together when they do not fit it. The prelude
+// is imported into a layout like any file, so a template that draws its own
+// slide still reaches schreibstube-fit with
+// #import "schreibstube.typ": schreibstube-fit
+#let schreibstube-slide(
+  kind: "content",
+  level: 2,
+  title: none,
+  columns: 1,
+  intro: [],
+  cells: (),
+) = {
+  pagebreak(weak: true)
+  if kind != "content" {
+    block(height: 100%, width: 100%, align(horizon, heading(level: 1, title)))
+    return
+  }
+  let body = {
+    intro
+    if cells.len() > 0 {
+      grid(
+        columns: (1fr,) * columns,
+        column-gutter: 1.5em,
+        row-gutter: 1em,
+        ..cells.map(((head, main)) => block(width: 100%, {
+          strong(head)
+          parbreak()
+          main
+        })),
+      )
+    }
+  }
+  if title != none { heading(level: calc.max(level, 1), title) }
+  // The rest of the page, less what its footnotes need: a fraction of the
+  // flow is measured after them, where a grid row claimed the whole page.
+  block(height: 1fr, width: 100%, schreibstube-fit(body))
+}
+
 // A task's box, drawn rather than typed so that no font has to carry the glyph.
 #let schreibstube-task(done) = box(
   width: 0.75em,
