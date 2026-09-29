@@ -2,13 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## 1.65.0 - 2026-09-29
 
 Search by meaning is open to other plugins. Any plugin can hand its own items
 to Schreibstube — conversations, highlights, references — to be found in the
 Explorer search and in Recommended beside the vault's notes. Each asks once and
 nothing of it is read until you allow it. Pythia 3.9 uses the new interface;
 an older Pythia is no longer found.
+
+Mobile checklist: not run; the test suite and the build checked it. What to
+try first on a phone: a Pythia conversation in the Explorer search, the consent
+notice with **Not now** and its return at the next launch, **Forget** in the
+settings, and a note beside a described picture in Recommended, which should
+show the picture once and no description note.
+
+The bridge is unchanged at 2.11.0, protocol 6.
 
 ### Added
 
@@ -32,7 +40,6 @@ an older Pythia is no longer found.
 - **A source's items are found at the same floor as notes.** A one-word search read items against a phrase's floor, so a conversation lost to a note that matched the same word less well.
 - **Related conversations alone do not read the vault index.** A caller asking only for a source's items had the vault index loaded and ranked all the same.
 - **A source's listing counts as indexing**, so switching search by meaning off mid-listing no longer unloads the model under it.
-
 - **Relevance ranks alike across kinds.** Search and Recommended merged notes and conversations by their raw similarity, although the two are measured at different floors: a note barely past its own could stand above a conversation well past its own. Each is now read against its own floor before the two are merged, in the API and in the panel.
 - **The API says the index changed only when it did.** `onIndexChanged` fired on every status change, a build's progress included, about once a second; a caller that searched again each time searched constantly. It now fires when what a search can find has changed, at most once a second.
 
