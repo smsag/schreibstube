@@ -1,7 +1,7 @@
 /**
  * What the print dialog lets a person change, and what each choice means.
  *
- * Six choices, and nothing about them is remembered: each print starts from
+ * Seven choices, and nothing about them is remembered: each print starts from
  * the template and the note, because that is where a page's design lives and
  * a dialog that carried yesterday's margins into today's letter would be a
  * second, invisible template.
@@ -36,15 +36,24 @@ export interface PrintOptions {
    * dialog offers the choice only for one that does.
    */
   monospace: boolean;
+  /**
+   * Pythia's summaries as footnotes: each passage the note links to one of
+   * Pythia's conversations prints with that conversation's summary under it.
+   * Offered only when Pythia is there and the note has such a link.
+   */
+  pythiaFootnotes: boolean;
 }
 
 /**
- * Where a print starts: the template as it is, no properties on paper, and the
- * text in the face the note asks for — monospaced unless it says otherwise.
+ * Where a print starts: the template as it is, no properties on paper, the
+ * text in the face the note asks for — monospaced unless it says otherwise —
+ * and Pythia's footnotes whenever the note links to Pythia at all: a link
+ * whose meaning is left off the paper is the thing the footnotes exist for.
  */
 export function initialOptions(
   template: PrintTemplate,
-  frontmatter?: Readonly<Record<string, unknown>> | null
+  frontmatter?: Readonly<Record<string, unknown>> | null,
+  pythiaLinks = 0
 ): PrintOptions {
   return {
     template,
@@ -52,7 +61,8 @@ export function initialOptions(
     hrIsPageBreak: template.hrIsPageBreak,
     frontmatter: false,
     slideshows: "layout",
-    monospace: noteMonospace(frontmatter) ?? true
+    monospace: noteMonospace(frontmatter) ?? true,
+    pythiaFootnotes: pythiaLinks > 0
   };
 }
 

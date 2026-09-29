@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Added
+
+- **Pythia's summaries as footnotes when printing.** With Pythia 3.8 or later switched on, a note that links passages to Pythia conversations offers "Pythia-Zusammenfassungen als Fußnoten" in the print dialog, on by default: each linked passage prints highlighted, with its conversation's summary as a footnote. The quick print does the same. A button beside it updates outdated or missing summaries on request (each is a model call in Pythia), shows its progress, and stops when the dialog closes. The note itself is never changed; if Pythia does not hand over a usable copy, the note prints without the footnotes and says so.
+
 ## 1.62.1 - 2026-09-29
 
 Corrections to 1.62.0's search. `sync:` typed on its own now lists every synced

@@ -23,8 +23,14 @@ describe("initialOptions", () => {
       hrIsPageBreak: true,
       frontmatter: false,
       slideshows: "layout",
-      monospace: true
+      monospace: true,
+      pythiaFootnotes: false
     });
+  });
+
+  it("puts Pythia's footnotes on whenever the note links to Pythia", () => {
+    expect(initialOptions(template(), null, 3).pythiaFootnotes).toBe(true);
+    expect(initialOptions(template(), null, 0).pythiaFootnotes).toBe(false);
   });
 
   it("starts the text face where the note asks for it", () => {
@@ -50,7 +56,8 @@ describe("withTemplate", () => {
       hrIsPageBreak: true,
       frontmatter: true,
       slideshows: "layout",
-      monospace: true
+      monospace: true,
+      pythiaFootnotes: false
     });
   });
 });

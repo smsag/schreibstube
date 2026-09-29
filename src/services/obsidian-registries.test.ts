@@ -3,6 +3,7 @@ import type { App } from "obsidian";
 import {
   isCommunityPluginEnabled,
   pluginRunsOwnModel,
+  readPythiaPrintApi,
   registeredCommands,
   registeredRibbonItems,
   registrySignature
@@ -165,5 +166,44 @@ describe("pluginRunsOwnModel", () => {
       }
     } as unknown as App;
     expect(pluginRunsOwnModel(broken, "pythia")).toBe(true);
+  });
+});
+
+describe("readPythiaPrintApi", () => {
+  const api = {
+    version: 1,
+    inspectForExport: () => ({ links: 0, outdated: 0, missing: 0 }),
+    refreshSummaries: async () => ({ refreshed: 0, failed: [] }),
+    withExportFootnotes: (markdown: string) => markdown
+  };
+  const app = (enabled: string[], plugin: unknown) =>
+    ({
+      plugins: { enabledPlugins: new Set(enabled), getPlugin: () => plugin }
+    }) as unknown as App;
+
+  it("finds version 1 with the three calls printing uses", () => {
+    expect(readPythiaPrintApi(app(["pythia"], { api }))).toBe(api);
+  });
+
+  it("is not there for a disabled Pythia, another version, or a call missing", () => {
+    expect(readPythiaPrintApi(app([], { api }))).toBeNull();
+    expect(readPythiaPrintApi(app(["pythia"], { api: { ...api, version: 2 } }))).toBeNull();
+    expect(
+      readPythiaPrintApi(app(["pythia"], { api: { ...api, withExportFootnotes: "no" } }))
+    ).toBeNull();
+    expect(readPythiaPrintApi(app(["pythia"], {}))).toBeNull();
+    expect(readPythiaPrintApi(app(["pythia"], null))).toBeNull();
+  });
+
+  it("is not there when the registry cannot be read", () => {
+    const broken = {
+      plugins: {
+        enabledPlugins: new Set(["pythia"]),
+        getPlugin: () => {
+          throw new Error("x");
+        }
+      }
+    } as unknown as App;
+    expect(readPythiaPrintApi(broken)).toBeNull();
   });
 });

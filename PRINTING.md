@@ -200,6 +200,31 @@ What each choice means is `services/print-options.ts`:
 | Trennlinien als Seitenumbruch | The converter's `hrIsPageBreak`                                                                                                                                                                                                     |
 | Eigenschaften drucken         | `frontmatterRows`: the note's properties without the `schreibstube…` keys, lists on one line, links as their names; placed after a leading `=` heading as `#schreibstube-properties(rows)`                                          |
 | Diashows                      | Offered when the note holds one. `layout` (the default, and what the quick print uses) or `stacked`; see below                                                                                                                      |
+| Pythia-Fußnoten               | Offered when Pythia is on and the note links to a conversation. On by default then; see below                                                                                                                                       |
+
+### Pythia's footnotes
+
+Pythia links a passage of a note to a conversation or one of its chapters.
+When Pythia is switched on and publishes its print API (version 1), the dialog
+asks it how many such links the note holds, and offers two things when there
+are any:
+
+- **Pythia-Zusammenfassungen als Fußnoten**, on by default. The print converts
+  Pythia's copy of the note, where each link is a highlighted passage with its
+  conversation's summary as a footnote, numbered with the note's own. The quick
+  print does the same whenever the note has links. The note is never changed.
+- **Zusammenfassungen aktualisieren (n veraltet, m fehlen)**, shown only when
+  a summary is outdated or missing. It asks Pythia once, on the press, because
+  each summary is a model call; progress runs in the dialog's status line, the
+  request is cancelled when the dialog closes and given three minutes, and the
+  preview is rebuilt afterwards so it matches what prints.
+
+Another plugin's answers are untrusted like any input
+(`services/pythia-print.ts`): counts must be whole numbers under 100 000, the
+copy must be text no more than a million characters longer than the note, and
+a refresh answer must name what it refreshed and what failed. Anything else,
+or Pythia throwing, prints the note as it is with a warning that the footnotes
+were left out — never a failed print.
 
 ### Slideshows on paper
 

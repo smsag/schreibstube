@@ -1123,6 +1123,21 @@ export const de: Messages = {
       textFace: "Schrift des Textes",
       textFaceMono: "JetBrains Mono",
       textFaceSans: "Fira Sans",
+      pythiaFootnotes: "Pythia-Zusammenfassungen als Fußnoten",
+      pythiaLinks: (links: number) =>
+        links === 1
+          ? "Eine Stelle verweist auf eine Pythia-Unterhaltung."
+          : `${links} Stellen verweisen auf Pythia-Unterhaltungen.`,
+      pythiaUpdate: (outdated: number, missing: number) =>
+        `Zusammenfassungen aktualisieren (${outdated} veraltet, ${missing} fehlen)`,
+      pythiaUpdating: (done: number, total: number) =>
+        `Zusammenfassungen werden aktualisiert: ${done} von ${total} …`,
+      pythiaUpdated: (refreshed: number, failed: number) =>
+        failed === 0
+          ? `${refreshed} Zusammenfassungen aktualisiert.`
+          : `${refreshed} Zusammenfassungen aktualisiert; ${failed} konnten nicht geschrieben werden – Pythias Hinweise sagen, warum.`,
+      pythiaUpdateFailed: (detail: string) =>
+        `Die Zusammenfassungen wurden nicht aktualisiert – ${detail}`,
       frontmatter: "Eigenschaften drucken",
       slideshows: "Diashows",
       slideshow: { layout: "Wie in der Notiz", stacked: "Alle Bilder untereinander" },
@@ -1136,6 +1151,10 @@ export const de: Messages = {
           : `die ersten ${shown} von ${total} Seiten`,
       failed: (detail: string) => `Keine Vorschau — ${detail}`
     },
+    pythiaUnavailable:
+      "Pythia hat seine Fußnoten nicht übergeben, deshalb wird die Notiz ohne sie gedruckt.",
+    pythiaTimeout: (seconds: number) =>
+      `Pythia ist nicht innerhalb von ${seconds} Sekunden fertig geworden.`,
     unknownTemplate: (name: string) =>
       `diese Notiz verlangt die Vorlage „${name}“, und kein Ordner in diesem Vault ist eine.`,
     noLayout: (name: string) => `${name} hat keine template.typ — damit lässt sich nichts drucken.`,

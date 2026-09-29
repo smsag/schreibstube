@@ -46,6 +46,11 @@ const answers = vi.hoisted(() => ({
   /** What the dialog was told about each template's text face, and where it started. */
   readsMonospace: [] as boolean[],
   initialMonospace: [] as boolean[],
+  /** What each dialog was told about Pythia, and where its footnotes started. */
+  pythia: [] as (PrintDialogHost["pythia"] | undefined)[],
+  initialPythia: [] as boolean[],
+  /** The warnings under each preview. */
+  previewWarnings: [] as string[][],
   /** The dialog's run, which a test waits for: it prints after the command returned. */
   finished: Promise.resolve()
 }));
@@ -113,7 +118,10 @@ vi.mock("../ui/print-dialog", () => ({
         answers.fixesMargin.push(await host.fixesMargin(options.template));
         answers.readsMonospace.push(await host.readsMonospace(options.template));
         answers.initialMonospace.push(host.initial.monospace);
+        answers.pythia.push(host.pythia);
+        answers.initialPythia.push(host.initial.pythiaFootnotes);
         const ready = answers.afterPreview ? await host.preview(options, () => {}) : null;
+        if (ready) answers.previewWarnings.push(ready.warnings);
         await host.print(options, ready);
       })();
     }
@@ -158,6 +166,8 @@ interface VaultOptions {
   properties?: Record<string, unknown>;
   /** The vault templates' layout. */
   layout?: string;
+  /** Pythia's plugin object, as the registry hands it out; absent: Pythia is not enabled. */
+  pythia?: unknown;
 }
 
 function vault(options: VaultOptions = {}) {
@@ -209,6 +219,10 @@ function vault(options: VaultOptions = {}) {
   for (const [path, content] of Object.entries(options.existing ?? {})) addFile(path, content);
 
   const app = {
+    plugins: {
+      enabledPlugins: new Set(options.pythia === undefined ? [] : ["pythia"]),
+      getPlugin: (id: string) => (id === "pythia" ? options.pythia : null)
+    },
     workspace: { getActiveFile: () => note },
     metadataCache: {
       getFileCache: (file: TFile) => ({ frontmatter: frontmatter.get(file.path) }),
@@ -288,6 +302,9 @@ beforeEach(() => {
   answers.fixesMargin = [];
   answers.readsMonospace = [];
   answers.initialMonospace = [];
+  answers.pythia = [];
+  answers.initialPythia = [];
+  answers.previewWarnings = [];
   answers.finished = Promise.resolve();
   vi.stubGlobal("window", {
     WebAssembly,
@@ -361,6 +378,110 @@ describe("printing a note", () => {
 
     const main = compiler.jobs[0]?.main ?? "";
     expect(main.indexOf('"template.typ": *')).toBeGreaterThan(main.indexOf('"schreibstube.typ"'));
+  });
+});
+
+describe("Pythia's footnotes", () => {
+  const linked =
+    "# Anfrage\n\nThe index is ==[capped](obsidian://pythia?cmd=resume&id=c&msg=m)== for now.";
+  const copy =
+    "# Anfrage\n\nThe index is ==capped==[^1] for now.\n\n[^1]: Rent cap (Pythia) — Die Kappung gilt nur für neue Verträge.\n";
+
+  function pythia(over: Record<string, unknown> = {}) {
+    const calls = { inspected: [] as (string | undefined)[], copies: 0, refreshes: 0 };
+    const api = {
+      version: 1,
+      inspectForExport: (_markdown: string, path?: string) => {
+        calls.inspected.push(path);
+        return { links: 1, outdated: 1, missing: 0 };
+      },
+      refreshSummaries: async (
+        _markdown: string,
+        options?: { onProgress?: (d: number, t: number) => void }
+      ) => {
+        calls.refreshes += 1;
+        options?.onProgress?.(1, 1);
+        return { refreshed: 1, failed: [] };
+      },
+      withExportFootnotes: () => {
+        calls.copies += 1;
+        return copy;
+      },
+      ...over
+    };
+    return { plugin: { api }, calls };
+  }
+
+  it("offers the footnotes, on, for a note that links to Pythia — and prints Pythia's copy", async () => {
+    const { plugin, calls } = pythia();
+    const { commands } = vault({ note: linked, pythia: plugin });
+    await viaDialog(commands);
+
+    expect(answers.pythia[0]?.inspection).toEqual({ links: 1, outdated: 1, missing: 0 });
+    expect(answers.initialPythia).toEqual([true]);
+    // Pythia is told which note it is, so it can keep its own record.
+    expect(calls.inspected).toEqual(["Briefe/Anfrage.md"]);
+    expect(compiler.jobs.at(-1)?.main).toContain("Die Kappung gilt nur für neue Verträge");
+    expect(compiler.jobs.at(-1)?.main).not.toContain("obsidian://");
+  });
+
+  it("prints the note as it is when the footnotes are switched off", async () => {
+    const { plugin, calls } = pythia();
+    const { commands } = vault({ note: linked, pythia: plugin });
+    answers.change = (options) => ({ ...options, pythiaFootnotes: false });
+    await viaDialog(commands);
+
+    expect(calls.copies).toBe(0);
+    expect(compiler.jobs.at(-1)?.main).not.toContain("Die Kappung");
+  });
+
+  it("uses the same default when printing without the dialog", async () => {
+    const { plugin } = pythia();
+    const { commands } = vault({ note: linked, pythia: plugin });
+    await quick(commands);
+
+    expect(compiler.jobs.at(-1)?.main).toContain("Die Kappung gilt nur für neue Verträge");
+  });
+
+  it("offers nothing when Pythia is not there, or the note links to nothing of Pythia's", async () => {
+    await viaDialog(vault({ note: linked }).commands);
+    const { plugin } = pythia({ inspectForExport: () => ({ links: 0, outdated: 0, missing: 0 }) });
+    await viaDialog(vault({ note: linked, pythia: plugin }).commands);
+
+    expect(answers.pythia).toEqual([undefined, undefined]);
+    expect(answers.initialPythia).toEqual([false, false]);
+  });
+
+  it("prints the note unchanged, and says why, when Pythia's copy is unusable", async () => {
+    const { plugin } = pythia({ withExportFootnotes: () => 42 });
+    const { commands, written } = vault({ note: linked, pythia: plugin });
+    await viaDialog(commands);
+
+    expect(written).toEqual([{ path: "Briefe/Anfrage.pdf", how: "create" }]);
+    expect(answers.previewWarnings[0]).toContain(
+      "Pythia did not hand over its footnotes, so the note is printed without them."
+    );
+  });
+
+  it("refreshes the summaries only when asked, and reports what Pythia did", async () => {
+    const { plugin, calls } = pythia();
+    await viaDialog(vault({ note: linked, pythia: plugin }).commands);
+    expect(calls.refreshes).toBe(0);
+
+    const progress: [number, number][] = [];
+    const result = await answers.pythia[0]!.refresh(new AbortController().signal, (d, t) =>
+      progress.push([d, t])
+    );
+    expect(result).toEqual({ refreshed: 1, failed: 0 });
+    expect(progress).toEqual([[1, 1]]);
+  });
+
+  it("refuses a refresh answer in a shape it does not know", async () => {
+    const { plugin } = pythia({ refreshSummaries: async () => "done" });
+    await viaDialog(vault({ note: linked, pythia: plugin }).commands);
+    await expect(
+      answers.pythia[0]!.refresh(new AbortController().signal, () => {})
+    ).rejects.toThrow("Pythia did not hand over its footnotes");
   });
 });
 
