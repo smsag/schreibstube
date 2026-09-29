@@ -43,6 +43,8 @@ export class ExplorerStore {
   /** Writes failed in a row, which sets the pause before the next try. */
   private failures = 0;
   private timer: unknown = null;
+  /** A write that fails after the plugin unloaded must not arm another. */
+  private disposed = false;
   private queue: Promise<void> = Promise.resolve();
   private readonly listeners = new Set<() => void>();
 
@@ -138,7 +140,7 @@ export class ExplorerStore {
         this.dirty = true;
         this.failures += 1;
         this.logger.warn("Could not write the explorer state file.", error);
-        this.scheduleFlush(this.retryDelay());
+        if (!this.disposed) this.scheduleFlush(this.retryDelay());
       }
     });
   }
@@ -181,6 +183,7 @@ export class ExplorerStore {
   }
 
   dispose(): void {
+    this.disposed = true;
     this.cancelTimer();
     this.listeners.clear();
   }

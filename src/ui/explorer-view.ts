@@ -1227,7 +1227,7 @@ export class ExplorerPaneView extends ItemView {
     // own, as no row in the pane is; the list is the stop.
     const row = host.createDiv({
       cls: "schreibstube-explorer-row is-pinned-entry",
-      attr: { role: "link", tabindex: "-1" }
+      attr: { role: "link", tabindex: "0" }
     });
     indent(row, 0);
     row.setAttribute("title", file.path);
@@ -1292,7 +1292,7 @@ export class ExplorerPaneView extends ItemView {
 
     const row = host.createDiv({
       cls: "schreibstube-explorer-row is-pinned-entry is-tag",
-      attr: { role: "link", tabindex: "-1" }
+      attr: { role: "link", tabindex: "0" }
     });
     indent(row, 0);
     row.setAttribute("title", t().explorer.tags.rowLabel(item.tag));
@@ -1430,7 +1430,7 @@ export class ExplorerPaneView extends ItemView {
     for (const file of files) {
       const row = host.createDiv({
         cls: "schreibstube-explorer-row is-latest",
-        attr: { role: "link", tabindex: "-1" }
+        attr: { role: "link", tabindex: "0" }
       });
       indent(row, 0);
       row.setAttribute("title", file.path);

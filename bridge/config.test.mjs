@@ -294,7 +294,7 @@ describe("loadConfig, the publish target's own values", () => {
     expect(() => loadConfig(keyed("ssh-ed25519 AAAAC3 web@host"))).toThrow(/PUBLISH_BLOG_KEY/);
     expect(() =>
       loadConfig(publishEnv({ PUBLISH_BLOG_PASSWORD: "", PUBLISH_BLOG_KEY: pem }))
-    ).toThrow(/base64 of a PEM or OpenSSH private key/);
+    ).toThrow(/base64 of a PEM, OpenSSH or PuTTY private key/);
   });
 
   it("names the target's variable when its port or flag is unreadable", () => {

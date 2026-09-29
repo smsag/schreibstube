@@ -196,17 +196,22 @@ export class TypstCompiler {
 
   /** One acquisition at a time, however many prints ask for it at once. */
   private load(progress: ProgressReport): Promise<void> {
-    this.listeners.add(progress);
-    this.ready ??= this.acquire((message) => {
-      for (const listener of this.listeners) listener(message);
-    })
-      .catch((error: unknown) => {
-        // A failed load must not be remembered as done: the next print tries again.
-        this.ready = null;
-        throw error;
+    if (this.ready === null) {
+      this.ready = this.acquire((message) => {
+        for (const listener of this.listeners) listener(message);
       })
-      .finally(() => this.listeners.clear());
-    return this.ready;
+        .catch((error: unknown) => {
+          // A failed load must not be remembered as done: the next print tries again.
+          this.ready = null;
+          throw error;
+        })
+        .finally(() => this.listeners.clear());
+    }
+    // Each caller hears the acquisition it waited on and nothing later: a
+    // listener kept past that would carry a closed dialog's status line into
+    // the next download after a reset.
+    this.listeners.add(progress);
+    return this.ready.finally(() => this.listeners.delete(progress));
   }
 
   private async acquire(progress: ProgressReport): Promise<void> {

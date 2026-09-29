@@ -126,7 +126,7 @@ vi.mock("../ui/print-dialog", () => ({
         answers.initialPythia.push(host.initial.pythiaFootnotes);
         const ready = answers.afterPreview ? await host.preview(options, () => {}) : null;
         if (ready) answers.previewWarnings.push(ready.warnings);
-        await host.print(options, ready);
+        await host.print(options, ready).done;
       })();
     }
   }

@@ -113,12 +113,13 @@ const MAX_ADDRESS_CHARS = 320;
 
 /**
  * What a search answer may carry before it stops being one. A default bridge
- * returns fifty messages and cuts a body at forty thousand characters; the
- * plugin allows a little more than the defaults and no more than a note can
- * hold, so a bridge that is not ours cannot hand the renderer a gigabyte.
+ * returns fifty messages and cuts a body at forty thousand characters, and an
+ * operator may raise both; the plugin allows well above the defaults and no
+ * more than a note can hold, so a bridge that is not ours cannot hand the
+ * renderer a gigabyte.
  */
 export const MAX_MAIL_RESULTS = 200;
-export const MAX_MESSAGE_TEXT_CHARS = 40_000;
+export const MAX_MESSAGE_TEXT_CHARS = 400_000;
 const MAX_HEADER_CHARS = 500;
 const MAX_REFERENCES = 50;
 

@@ -122,6 +122,11 @@ export async function connect(target) {
  * the server never answers would otherwise hold the per-target publish lock
  * for as long as the socket stays open, which with a dead peer is forever.
  */
+/** A line slower than this is not one a publish can be expected to finish on. */
+const MIN_TRANSFER_BYTES_PER_SECOND = 128 * 1024;
+/** The largest file read back from the host, for the read deadline. */
+const MAX_READ_BYTES = 32 * 1024 * 1024;
+
 export class Remote {
   constructor(client, target) {
     this.client = client;
@@ -160,8 +165,20 @@ export class Remote {
   }
 
   /** One library call under the deadline, named for the log. */
-  bounded(operation, promise) {
-    return withDeadline(promise, this.target.timeoutMs, `SFTP ${operation}`);
+  bounded(operation, promise, extraMs = 0) {
+    return withDeadline(promise, this.target.timeoutMs + extraMs, `SFTP ${operation}`);
+  }
+
+  /**
+   * How much longer than a round trip a transfer of `bytes` may take.
+   *
+   * The operation deadline is sized for a listing or a rename. A put is one
+   * promise for the whole file, and a video over a shared host's line is
+   * minutes, not seconds; cutting it at the round-trip budget made the
+   * upload budget the README promises unreachable.
+   */
+  transferAllowanceMs(bytes) {
+    return Math.ceil((bytes / MIN_TRANSFER_BYTES_PER_SECOND) * 1000);
   }
 
   absolute(relative) {
@@ -198,7 +215,12 @@ export class Remote {
     await this.ensureDirectory(parentOf(path));
 
     const temporary = `${path}.schreibstube-${randomBytes(6).toString("hex")}`;
-    await this.bounded("put", this.client.put(Buffer.from(content), temporary));
+    const bytes = Buffer.from(content);
+    await this.bounded(
+      "put",
+      this.client.put(bytes, temporary),
+      this.transferAllowanceMs(bytes.length)
+    );
     try {
       await this.rename(temporary, path);
     } catch (err) {
@@ -250,7 +272,13 @@ export class Remote {
   }
 
   async readFile(path) {
-    const buffer = await this.bounded("get", this.client.get(path));
+    // A read's size is unknown until it arrives; a page or a manifest is small,
+    // and the largest thing read back is a source at its own upload limit.
+    const buffer = await this.bounded(
+      "get",
+      this.client.get(path),
+      this.transferAllowanceMs(MAX_READ_BYTES)
+    );
     return Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer);
   }
 

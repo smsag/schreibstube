@@ -267,8 +267,8 @@ function present(value) {
  */
 function privateKey(encoded, name) {
   const decoded = Buffer.from(encoded, "base64").toString("utf8").trim();
-  if (!/^-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----/.test(decoded)) {
-    throw new Error(`${name} must be the base64 of a PEM or OpenSSH private key.`);
+  if (!/^(-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----|PuTTY-User-Key-File-\d)/.test(decoded)) {
+    throw new Error(`${name} must be the base64 of a PEM, OpenSSH or PuTTY private key.`);
   }
   return decoded;
 }

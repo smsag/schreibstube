@@ -567,7 +567,8 @@ export class PublishCommands {
       try {
         await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
           frontmatter[keys.publishedAt] = at;
-          frontmatter[keys.publishedUrl] = `${baseUrl}/${note.slug}/`;
+          // A bridge that named no usable site address leaves the last one.
+          if (baseUrl) frontmatter[keys.publishedUrl] = `${baseUrl}/${note.slug}/`;
         });
       } catch (error) {
         this.logger.debug(`Could not record the publish in ${note.sourcePath}.`, error);

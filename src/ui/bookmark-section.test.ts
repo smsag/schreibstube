@@ -113,7 +113,7 @@ describe("the bookmark rows", () => {
     expect(rows[1]?.getAttribute("role")).toBe("button");
     expect(rows[1]?.getAttribute("aria-expanded")).toBe("false");
     expect(rows[2]?.getAttribute("aria-expanded")).toBe("true");
-    expect(rows.every((row) => row.getAttribute("tabindex") === "-1")).toBe(true);
+    expect(rows.every((row) => row.getAttribute("tabindex") === "0")).toBe(true);
   });
 });
 

@@ -370,9 +370,10 @@ describe("sendMessage, a send whose outcome is unknown", () => {
     );
     const silent = Object.assign(new Error("Timeout"), { code: "ETIMEDOUT", command: "CONN" });
     expect(isUnconfirmed(silent)).toBe(true);
-    expect(
-      isUnconfirmed(Object.assign(new Error("Connection closed unexpectedly"), { code: "ESOCKET" }))
-    ).toBe(true);
+    expect(isUnconfirmed(Object.assign(new Error("read ECONNRESET"), { code: "ESOCKET" }))).toBe(
+      true
+    );
+    expect(isUnconfirmed(Object.assign(new Error("write EPIPE"), { code: "ESOCKET" }))).toBe(true);
   });
 
   it("reports a refusal the server answered as the failure it is", async () => {

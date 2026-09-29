@@ -45,19 +45,22 @@ describe("exclusive", () => {
   it("refuses a second publish while one runs, and frees the target when the first ends", async () => {
     const busy = new Set();
     let finish;
-    const first = exclusive(busy, "blog", 1000, () => new Promise((resolve) => (finish = resolve)));
-    await expect(exclusive(busy, "blog", 1000, async () => {})).rejects.toMatchObject({
+    const first = exclusive(busy, "blog", () => new Promise((resolve) => (finish = resolve)));
+    await expect(exclusive(busy, "blog", async () => {})).rejects.toMatchObject({
       status: 409,
       code: "publish_in_progress"
     });
     finish("done");
     await expect(first).resolves.toBe("done");
-    await expect(exclusive(busy, "blog", 1000, async () => "again")).resolves.toBe("again");
+    await expect(exclusive(busy, "blog", async () => "again")).resolves.toBe("again");
   });
 
-  it("frees the target when the budget runs out, however long the work hangs", async () => {
+  it("holds the target for as long as the work runs: only its connection can end it", async () => {
     const busy = new Set();
-    await expect(exclusive(busy, "blog", 10, never)).rejects.toBeInstanceOf(TimeoutError);
+    const { pool, remotes } = fakePool();
+    const hung = exclusive(busy, "blog", () => withRemote(pool, target, 10, never));
+    await expect(hung).rejects.toBeInstanceOf(TimeoutError);
+    expect(remotes[0].ended).toBe(true);
     expect(busy.has("blog")).toBe(false);
   });
 });

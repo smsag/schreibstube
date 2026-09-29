@@ -192,7 +192,7 @@ function healthRoute() {
 async function shutdown(signal) {
   if (draining) return;
   draining = true;
-  log("info", `${signal} received, draining ${inFlight.size} request(s)`);
+  log("info", `${signal} received, draining ${inFlight.size} task(s)`);
 
   server.close();
   server.closeIdleConnections?.();

@@ -488,7 +488,7 @@ export class ExplorerController {
     // The pairing is by path, so a move changes it before the metadata cache
     // says a word: the pane used to keep folding a note into a picture that
     // was no longer where the pairing had it.
-    if (this.touchesDescriptions(oldPath) || this.touchesDescriptions(file.path)) {
+    if (this.pairs && (this.touchesDescriptions(oldPath) || this.touchesDescriptions(file.path))) {
       this.descriptionsChanged();
     }
     this.follower.pictureRenamed(file, oldPath);
@@ -498,7 +498,7 @@ export class ExplorerController {
     // The vault has caught up with what the pane already drew.
     this.forgetTrashed(file.path);
     this.store.mutate((data, now) => markMissing(data, file.path, now));
-    if (this.touchesDescriptions(file.path)) this.descriptionsChanged();
+    if (this.pairs && this.touchesDescriptions(file.path)) this.descriptionsChanged();
     this.follower.pictureDeleted(file);
     // Not every delete changes the state file — a note with no icon and no
     // mark changes nothing — and the pane still has a row to take away.
@@ -514,9 +514,10 @@ export class ExplorerController {
     this.store.mutate((data, now) => reattachOrphans(data, [file.path], now));
     // A picture arriving where an orphaned note's link points makes a pair;
     // which picture that would be, the pairing does not say, so any arrival
-    // while a note is orphaned is asked again. Rebuilt lazily, a burst of
-    // arrivals costs one rebuild at the next draw.
-    if (this.touchesDescriptions(file.path) || this.descriptionPairs().orphans.length > 0) {
+    // while a note is orphaned is asked again. Rebuilt lazily, and never
+    // rebuilt only to be asked: a pairing already dropped stays dropped, so a
+    // burst of arrivals costs one rebuild at the next draw.
+    if (this.pairs && (this.touchesDescriptions(file.path) || this.pairs.orphans.length > 0)) {
       this.descriptionsChanged();
     }
   }

@@ -62,7 +62,11 @@ export interface PrintDialogHost {
   /** Pythia's footnotes, when the note links to Pythia. */
   pythia?: PythiaPrintHost;
   /** `ready` is the preview's document when it was set with exactly these options. */
-  print: (options: PrintOptions, ready: PreparedPrint | null) => Promise<void>;
+  /** Starts the print. Not accepted when one is already running, and the dialog stays. */
+  print: (
+    options: PrintOptions,
+    ready: PreparedPrint | null
+  ) => { accepted: boolean; done: Promise<void> };
 }
 
 /** How long typing into the dialog may pause before the preview is set again. */
@@ -347,8 +351,8 @@ export class PrintDialog extends Modal {
 
   private submit(): void {
     const ready = this.ready?.generation === this.generation ? this.ready.prepared : null;
-    const options = this.options;
-    this.close();
-    void this.host.print(options, ready);
+    // Closed only once the print is taken: a refusal with the dialog gone
+    // would take the options a person had just chosen with it.
+    if (this.host.print(this.options, ready).accepted) this.close();
   }
 }

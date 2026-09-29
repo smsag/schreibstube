@@ -258,7 +258,7 @@ export function createPublishRoutes(config, { version }) {
         const target = targetOf(publish, body?.target);
         const index = validateIndex(body?.index, publish);
 
-        return exclusive(busy, target.name, commitTimeoutMs, () =>
+        return exclusive(busy, target.name, () =>
           withRemote(pool, target, commitTimeoutMs, async (remote) => {
             await guard(remote, target);
             const stored = await storedSourceHashes(remote);
@@ -317,7 +317,7 @@ export function createPublishRoutes(config, { version }) {
       async ({ body, log }) => {
         const target = targetOf(publish, body?.target);
 
-        return exclusive(busy, target.name, commitTimeoutMs, () =>
+        return exclusive(busy, target.name, () =>
           withRemote(pool, target, commitTimeoutMs, async (remote) => {
             const stored = await remote.readJson(remote.stateAbsolute(INDEX_FILE));
             if (!stored) {
@@ -639,7 +639,7 @@ function verifyHash(body, claimed) {
  * there is a signature to check.
  */
 export function isAssetContent(bytes, extension) {
-  if (extension === "svg") return isSafeSvg(bytes.toString("utf8"));
+  if (extension === "svg") return isSafeSvg(bytes.toString("utf8"), { embedded: true });
   const raster = RASTER_SIGNATURES.get(extension);
   return raster ? isThumbnailFormat(bytes, raster) : true;
 }
@@ -674,14 +674,21 @@ export async function withRemote(pool, target, timeoutMs, work) {
   }
 }
 
-/** One publish at a time per target, and none for longer than its budget. */
-export async function exclusive(busy, name, timeoutMs, work) {
+/**
+ * One publish at a time per target.
+ *
+ * No deadline of its own: a deadline here cannot stop the work, only stop
+ * waiting for it, and a lock released while the writes go on lets a second
+ * publish share the connection with the first. The work is bounded inside
+ * `withRemote`, where running out closes the connection and so ends it.
+ */
+export async function exclusive(busy, name, work) {
   if (busy.has(name)) {
     throw httpError(409, "publish_in_progress", `A publish to ${name} is already running.`);
   }
   busy.add(name);
   try {
-    return await withDeadline(work(), timeoutMs, `Publish to ${name}`);
+    return await work();
   } finally {
     busy.delete(name);
   }

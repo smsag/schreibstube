@@ -57,7 +57,7 @@ export interface SchreibstubeSemanticApi {
 /** The text to search for: a string, trimmed and bounded; anything else is "". */
 export function readQuery(text: unknown): string {
   if (typeof text !== "string") return "";
-  return text.slice(0, MAX_QUERY_CHARS).trim();
+  return text.trim().slice(0, MAX_QUERY_CHARS);
 }
 
 /** A requested limit as a whole number between 1 and `MAX_HITS`. */

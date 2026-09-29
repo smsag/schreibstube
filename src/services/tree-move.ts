@@ -42,6 +42,9 @@ export function planMove(
   }
 
   const destination = targetFolder.length > 0 ? `${targetFolder}/${name}` : name;
+  // Case-insensitive because macOS and Windows keep both spellings in one
+  // slot; a Linux vault loses a move it could have made, which is the cheaper
+  // mistake next to a move the adapter refuses after the plan said yes.
   if (takenIgnoringCase(context.taken).has(destination.toLowerCase())) return "name-taken";
 
   return { destination };

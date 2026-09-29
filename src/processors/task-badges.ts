@@ -46,7 +46,12 @@ export function createTaskBadgeExtension(): Extension {
         // Whether there is a block is asked again only when an edit touched a
         // fence line: reading the whole note for the answer on every
         // keystroke was the one cost every note paid for a feature few use.
-        if (update.transactions.some(touchesFence)) this.active = hasBlock(update.state);
+        const crossedLimit =
+          update.startState.doc.length > MAX_LIVE_CHARS !==
+          update.state.doc.length > MAX_LIVE_CHARS;
+        if (crossedLimit || update.transactions.some(touchesFence)) {
+          this.active = hasBlock(update.state);
+        }
         this.decorations = this.active ? buildTaskBadges(update.state) : Decoration.none;
       }
     },

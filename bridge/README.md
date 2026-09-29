@@ -202,8 +202,9 @@ out.
 The requests of one publish share one SFTP connection per target, closed after
 fifteen seconds without use, so a first publish of many files logs in once
 rather than once per file; a connection that failed in a way that may have
-broken it is never reused. Every SFTP operation is under `UPSTREAM_TIMEOUT_MS`
-and every publish request under its own budget; when a request runs out, its
+broken it is never reused. Every SFTP operation is under `UPSTREAM_TIMEOUT_MS`,
+a transfer under that plus a minute per 7.5 MB of the file, and every publish
+request under its own budget; when a request runs out, its
 connection is closed, which is what fails the operation the server never
 answered and frees the target for the next publish. The connection pings the
 server every ten seconds and gives up after three unanswered pings, so a line
@@ -212,6 +213,8 @@ that died without a word is noticed within the minute.
 An uploaded asset has to be what its name says: a PNG or JPEG begins like one,
 and an SVG passes the tab icon's check below — no script, no event handler,
 nothing loaded from elsewhere — since it is served from the site's own domain.
+A drawing's own fonts and pictures embedded as `data:` URIs are allowed there,
+since an Excalidraw or draw.io export carries them.
 One that fails is refused with `400 asset_rejected`.
 
 Every write goes to a temporary name and is renamed over its target, so a reader
@@ -321,7 +324,7 @@ values fail at startup with a precise message rather than on the first
 request. So does a variable that is set and unreadable: a `MAIL_FROM` with no
 address in it, a numeric one that is not a positive integer written in
 decimal digits, a port above 65535, a `PUBLISH_<TARGET>_KEY` that does not
-decode to a PEM or OpenSSH private key, or a flag spelled as neither true nor
+decode to a PEM, OpenSSH or PuTTY private key, or a flag spelled as neither true nor
 false. Leave a variable out to take its default; do not leave it half-written.
 
 **Where a target keeps its state.** `PUBLISH_<TARGET>_STATE_ROOT` is an

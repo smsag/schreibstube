@@ -188,8 +188,12 @@ const CONNECTION_CODES = new Set(["ECONNECTION", "ETIMEDOUT", "ESOCKET"]);
 export function isUnconfirmed(err) {
   if (err instanceof TimeoutError) return true;
   if (err?.responseCode) return false;
+  // nodemailer reports a socket error as ESOCKET with the socket's own words
+  // (read ECONNRESET, write EPIPE), a hang-up as ECONNECTION "closed
+  // unexpectedly", and its own silence as ETIMEDOUT "Timeout".
   return (
-    CONNECTION_CODES.has(err?.code) && /closed unexpectedly|^Timeout/i.test(err?.message ?? "")
+    CONNECTION_CODES.has(err?.code) &&
+    /closed unexpectedly|^Timeout|ECONNRESET|EPIPE|ECONNABORTED/i.test(err?.message ?? "")
   );
 }
 

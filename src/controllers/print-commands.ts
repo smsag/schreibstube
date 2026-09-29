@@ -228,7 +228,7 @@ export class PrintCommands {
         return { pdf: await this.compileJob(job, progress), warnings };
       },
       // The dialog prints after this has returned, and takes the guard again.
-      print: (options, ready) => this.withBusy(() => this.printWith(session, options, ready))
+      print: (options, ready) => this.startBusy(() => this.printWith(session, options, ready))
     }).open();
   }
 
@@ -274,6 +274,19 @@ export class PrintCommands {
     } finally {
       this.busy = false;
     }
+  }
+
+  /** Takes the guard and starts the work, or says why not, at once. */
+  private startBusy(work: () => Promise<void>): { accepted: boolean; done: Promise<void> } {
+    if (this.busy) {
+      new Notice(t().common.notice(t().print.busy));
+      return { accepted: false, done: Promise.resolve() };
+    }
+    this.busy = true;
+    const done = work().finally(() => {
+      this.busy = false;
+    });
+    return { accepted: true, done };
   }
 
   /**
@@ -991,8 +1004,7 @@ export class PrintCommands {
       this.pluginDir,
       this.pluginVersion,
       {
-        downloading: (label, megabytes) =>
-          messages.downloading(messages.assetLabel(label), megabytes),
+        downloading: (label, megabytes) => messages.downloading(label, megabytes),
 
         downloadingFont: (face) => messages.downloadingFont(face),
         verifying: messages.verifying,

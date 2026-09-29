@@ -60,15 +60,21 @@ export function decodeDataUri(uri) {
  * holds no script, no event handler, no `javascript:` and no reference to
  * anything outside itself. Stricter than a drawing needs, which is the point.
  */
-export function isSafeSvg(text) {
-  const body = text.replace(/^\s*(<\?xml[^>]*\?>\s*)?/, "");
+export function isSafeSvg(text, { embedded = false } = {}) {
+  const body = text.replace(/^\s*(?:(?:<\?xml[^>]*\?>|<!--[\s\S]*?-->|<!DOCTYPE[^>]*>)\s*)*/i, "");
   if (!/^<svg[\s>]/i.test(body)) return false;
   if (/<script[\s>]/i.test(body)) return false;
   if (/<foreignObject[\s>]/i.test(body)) return false;
   if (/\son[a-z]+\s*=/i.test(body)) return false;
   if (/javascript:/i.test(body)) return false;
-  if (/(?:xlink:)?href\s*=\s*["']?\s*(?!#)[^"'\s>]/i.test(body)) return false;
-  if (/@import|url\(\s*["']?(?!#)/i.test(body)) return false;
+  // A drawing exported by Excalidraw or draw.io carries its fonts and its
+  // pictures inside itself as data URIs; those load nothing from elsewhere,
+  // so an uploaded asset may keep them. A tab icon has no business with them.
+  const inside = embedded ? "#|data:" : "#";
+  if (new RegExp(`(?:xlink:)?href\\s*=\\s*["']?\\s*(?!${inside})[^"'\\s>]`, "i").test(body)) {
+    return false;
+  }
+  if (new RegExp(`@import|url\\(\\s*["']?(?!${inside})`, "i").test(body)) return false;
   return true;
 }
 

@@ -51,7 +51,7 @@ function renderFolder(
   // are not: the list is the stop, and a press or an arrow lands on a row.
   const row = host.createDiv({
     cls: "schreibstube-explorer-row is-folder",
-    attr: { role: "button", tabindex: "-1", "aria-expanded": String(!folded) }
+    attr: { role: "button", tabindex: "0", "aria-expanded": String(!folded) }
   });
   indent(row, depth);
   row.setAttribute("data-bookmark-folder", folder.key);
@@ -82,7 +82,7 @@ function renderRow(
 
   const row = host.createDiv({
     cls: "schreibstube-explorer-row is-bookmark",
-    attr: { role: "link", tabindex: "-1" }
+    attr: { role: "link", tabindex: "0" }
   });
   indent(row, depth);
   row.setAttribute("data-kind", bookmark.kind);

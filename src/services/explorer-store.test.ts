@@ -333,4 +333,19 @@ describe("dispose", () => {
     expect(file.writes).toBe(0);
     expect(listener).toHaveBeenCalledTimes(1);
   });
+
+  it("does not arm a retry for a write that failed after it was disposed", async () => {
+    const timers = manualTimers();
+    const store = makeStore(file, timers);
+    await store.load();
+    store.mutate((data, now) => setIcon(data, "a.md", "home", now));
+    file.failWrites = true;
+    const pending = store.flush();
+    store.dispose();
+    await pending;
+    // A retry, had one been armed, would write now that the disk is back.
+    file.failWrites = false;
+    timers.run();
+    expect(file.writes).toBe(0);
+  });
 });

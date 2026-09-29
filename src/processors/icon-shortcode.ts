@@ -69,13 +69,15 @@ export function createIconShortcodeExtension(enabled: () => boolean): Extension 
       decorations: DecorationSet = Decoration.none;
       /** What the last scan found on screen, in document positions. */
       private hits: ShortcodeHit[] = [];
+      /** Whether the setting was on at the last scan; a toggle is a reason to scan again. */
+      private on = false;
 
       constructor(view: EditorView) {
         this.scan(view);
       }
 
       update(update: ViewUpdate): void {
-        if (update.docChanged || update.viewportChanged) {
+        if (update.docChanged || update.viewportChanged || enabled() !== this.on) {
           this.scan(update.view);
         } else if (update.selectionSet) {
           this.draw(update.view);
@@ -84,7 +86,8 @@ export function createIconShortcodeExtension(enabled: () => boolean): Extension 
 
       private scan(view: EditorView): void {
         this.hits = [];
-        if (!enabled() || view.state.doc.length > MAX_LIVE_CHARS) {
+        this.on = enabled();
+        if (!this.on || view.state.doc.length > MAX_LIVE_CHARS) {
           this.decorations = Decoration.none;
           return;
         }

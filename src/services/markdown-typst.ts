@@ -346,7 +346,7 @@ class Converter {
       return this.options.hrIsPageBreak ? "#pagebreak(weak: true)\n" : "#line(length: 100%)\n";
     }
 
-    if (BLOCKQUOTE.test(line)) return this.blocktypstString();
+    if (BLOCKQUOTE.test(line)) return this.blockquote();
     if (BULLET.test(line) || ORDERED.test(line)) return this.list(indentOf(line));
     if (this.isTableStart()) return this.table();
 
@@ -482,7 +482,7 @@ class Converter {
   }
 
   /** A blockquote, or the callout Obsidian writes in the shape of one. */
-  private blocktypstString(): string {
+  private blockquote(): string {
     const inner: string[] = [];
     while (this.at < this.lines.length) {
       const match = BLOCKQUOTE.exec(this.lines[this.at] ?? "");
@@ -570,11 +570,19 @@ class Converter {
     return `#schreibstube-task(${done ? "true" : "false"}) ${this.inline(text.slice(task[0].length))}`;
   }
 
-  /** A row with a pipe over a delimiter row: the outer pipes are optional, as on screen. */
+  /**
+   * A row with a pipe over a delimiter row of as many cells: the outer pipes
+   * are optional, as on screen, and the cell count is what keeps a line with
+   * a pipe in it over a `---` underline the heading it reads as.
+   */
   private isTableStart(): boolean {
     const line = this.lines[this.at] ?? "";
     const next = this.lines[this.at + 1] ?? "";
-    return line.includes("|") && isTableDelimiter(next);
+    return (
+      line.includes("|") &&
+      isTableDelimiter(next) &&
+      rowCells(line).length === rowCells(next).length
+    );
   }
 
   /**
@@ -999,7 +1007,19 @@ function findCloser(rest: string, marker: string): number {
       at = close === -1 ? at + run.length : close + run.length;
       continue;
     }
-    if (rest.startsWith(marker, at) && !/\s/.test(rest[at - 1] ?? "")) return at;
+    if (rest[at] === marker[0]) {
+      const run = new RegExp(`^\\${marker[0]}+`).exec(rest.slice(at))?.[0] ?? marker;
+      if (run.length > marker.length) {
+        // A longer run opens a span of its own inside this one: `*a **b** c*`.
+        // Its closer is found the same way, and skipped over.
+        const inner = findCloser(rest.slice(at), run);
+        at += inner === -1 ? run.length : inner + run.length;
+        continue;
+      }
+      if (run.length === marker.length && !/\s/.test(rest[at - 1] ?? "")) return at;
+      at += run.length;
+      continue;
+    }
     at += 1;
   }
   return -1;

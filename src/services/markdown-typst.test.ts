@@ -125,6 +125,16 @@ describe("inline", () => {
     expect(convert("*a * b*")).toBe("#emph[a \\* b]");
   });
 
+  it("keeps strong nested inside emphasis, and the other way round", () => {
+    expect(convert("*a **b** c*")).toBe("#emph[a #strong[b] c]");
+    expect(convert("**a *b* c**")).toBe("#strong[a #emph[b] c]");
+  });
+
+  it("reads a pipe over an underline as the heading it is, not a table", () => {
+    expect(convert("Zeile mit | drin\n---")).toBe("== Zeile mit | drin");
+    expect(convert("| a |\n---\n| 1 |")).toContain("#schreibstube-table(");
+  });
+
   it("does not close emphasis on a star inside a later code span", () => {
     expect(convert("*x `a*b` y*")).toBe('#emph[x #raw("a*b") y]');
     expect(convert("*offen `a*b`")).toBe('\\*offen #raw("a*b")');
