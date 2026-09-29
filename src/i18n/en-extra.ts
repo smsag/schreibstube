@@ -49,6 +49,9 @@ export const enExtra = {
     explorerBookmarksFileDesc:
       "Vault path of the Markdown file the bookmarks are read from. A heading is a folder, a " +
       "list item is a link.",
+    explorerShowExtensions: "Show file extensions",
+    explorerShowExtensionsDesc:
+      "Off, a row shows only the name and its icon says what the file is: Plan.md, Plan.png and Plan.excalidraw.md all read Plan. On, rows show the whole name. Renaming edits the name without its extension either way.",
     explorerDescriptionNotes: "Show picture descriptions as notes",
     explorerDescriptionNotesDesc:
       "Off: a described picture is one row, found by its description too, and its description note stays " +

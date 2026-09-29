@@ -67,6 +67,15 @@ export function renderExplorer(ctx: SettingsContext): void {
     });
 
   new Setting(ctx.containerEl)
+    .setName(t().settings.explorerShowExtensions)
+    .setDesc(t().settings.explorerShowExtensionsDesc)
+    .addToggle((toggle) => {
+      toggle.setValue(ctx.plugin.settings.explorerShowExtensions).onChange(async (value) => {
+        await ctx.update({ explorerShowExtensions: value });
+      });
+    });
+
+  new Setting(ctx.containerEl)
     .setName(t().settings.explorerDescriptionNotes)
     .setDesc(t().settings.explorerDescriptionNotesDesc)
     .addToggle((toggle) => {

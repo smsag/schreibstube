@@ -314,6 +314,9 @@ export const de: Messages = {
     explorerBookmarksFileDesc:
       "Vault-Pfad der Markdown-Datei, aus der die Lesezeichen gelesen werden. Eine Überschrift " +
       "ist ein Ordner, ein Listenpunkt ein Link.",
+    explorerShowExtensions: "Dateiendungen anzeigen",
+    explorerShowExtensionsDesc:
+      "Aus zeigt eine Zeile nur den Namen, und das Symbol sagt, was die Datei ist: Plan.md, Plan.png und Plan.excalidraw.md heißen alle Plan. An zeigt den ganzen Namen. Umbenennen bearbeitet den Namen ohne Endung, so oder so.",
     explorerDescriptionNotes: "Bildbeschreibungen als Notizen zeigen",
     explorerDescriptionNotesDesc:
       "Aus: Ein beschriebenes Bild ist eine Zeile, auch über seine Beschreibung auffindbar, und die " +

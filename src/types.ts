@@ -63,6 +63,8 @@ export interface SchreibstubeSettings {
   imageDescriptionKeywordsAsTags: boolean;
   /** Whether the Explorer shows description notes, or folds them into their pictures. */
   explorerDescriptionNotes: "hide" | "show";
+  /** Whether explorer rows show a file's extension. Off: the icon says what a file is. */
+  explorerShowExtensions: boolean;
   /** Where the Recommended panel follows the open note: the right sidebar, or under the note. */
   recommendedPlacement: "sidebar" | "footer";
   /** How many recommendations the panel shows, of every kind together. */

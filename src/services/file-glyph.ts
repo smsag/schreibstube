@@ -70,13 +70,10 @@ export function isDrawing(name: string, extension: string): boolean {
   return ext === "md" && stemOf(name, ext).toLowerCase().endsWith(DRAWING_MARK);
 }
 
-/** The extensions whose rows show only the stem; the icon says what they are. */
-const HIDDEN_EXTENSIONS = new Set(["md", "svg", "excalidraw", "base"]);
-
 export interface FileNameParts {
   /** What the row shows, and what a rename edits. */
   stem: string;
-  /** What the row leaves out, and a rename puts back: `.md`, `.excalidraw.md`, `.svg`. */
+  /** What the row leaves out, and a rename puts back: `.md`, `.excalidraw.md`, `.png`. */
   suffix: string;
   /** Whether the row shows the stem alone rather than the whole name. */
   hidden: boolean;
@@ -85,26 +82,30 @@ export interface FileNameParts {
 /**
  * A file's name split into what the pane shows and what it keeps back.
  *
- * Notes, SVG pictures, Excalidraw drawings and bases show their stem:
- * `Plan.md`, `Plan.svg`, `Plan.excalidraw.md`, `Plan.excalidraw.svg` and
- * `Plan.base` all read `Plan`, and the icon tells them apart. Every other attachment keeps its extension
- * on screen, since `photo.png` beside `photo.jpg` needs it. A rename edits the
- * stem and keeps the suffix either way, so a drawing cannot be renamed out of
- * being one by accident.
+ * One rule for every kind of file: the row shows the stem and the icon says
+ * what the file is, unless the person asked for extensions, when it shows the
+ * whole name. `Plan.md`, `Plan.svg`, `Plan.excalidraw.md` and `Plan.png` all
+ * read `Plan` by default. An Excalidraw mark before the extension is part of
+ * the suffix whatever the extension is, so a drawing and its exported picture
+ * are told apart by their icon and neither can be renamed out of being one by
+ * accident.
+ *
+ * A rename edits the stem and keeps the suffix whether or not extensions are
+ * shown, so the setting changes what a row says and never what a rename does.
  */
-export function fileNameParts(name: string, extension: string): FileNameParts {
+export function fileNameParts(
+  name: string,
+  extension: string,
+  showExtension = false
+): FileNameParts {
   const ext = extension.toLowerCase();
   if (ext === "") return { stem: name, suffix: "", hidden: false };
 
   const base = stemOf(name, ext);
-  const hidden = HIDDEN_EXTENSIONS.has(ext);
-  const marked =
-    (ext === "md" || ext === "svg") &&
-    base.toLowerCase().endsWith(DRAWING_MARK) &&
-    base.length > DRAWING_MARK.length;
+  const marked = base.toLowerCase().endsWith(DRAWING_MARK) && base.length > DRAWING_MARK.length;
   const stem = marked ? base.slice(0, -DRAWING_MARK.length) : base;
 
-  return { stem, suffix: name.slice(stem.length), hidden };
+  return { stem, suffix: name.slice(stem.length), hidden: !showExtension };
 }
 
 /** The name without `.extension`, as Obsidian's `basename` has it. */

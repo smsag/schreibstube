@@ -1177,6 +1177,10 @@ export class ExplorerPaneView extends ItemView {
     return Number.isFinite(height) && height > 0 ? height : FALLBACK_ROW_HEIGHT_PX;
   }
 
+  private showExtensions(): boolean {
+    return this.host?.settings().explorerShowExtensions === true;
+  }
+
   private renderPinnedRow(host: HTMLElement, file: TAbstractFile, order: string[]): void {
     const controller = this.host?.explorer;
     if (!controller) return;
@@ -1196,7 +1200,7 @@ export class ExplorerPaneView extends ItemView {
     // below keeps filenames: that is where a file is looked for by name.
     row.createSpan({
       cls: "schreibstube-explorer-name",
-      text: controller.titleFor(file) ?? displayName(file)
+      text: controller.titleFor(file) ?? displayName(file, this.showExtensions())
     });
     if (file instanceof TFile) {
       this.renderBadge(row, file);
@@ -1389,7 +1393,7 @@ export class ExplorerPaneView extends ItemView {
       applyIcon(row.createSpan({ cls: "schreibstube-explorer-glyph" }), glyph);
       row.createSpan({
         cls: "schreibstube-explorer-name",
-        text: fileNameParts(fileName, "md").stem
+        text: this.showExtensions() ? fileName : fileNameParts(fileName, "md").stem
       });
       // The same mark the tree carries, so a row here says whether the change
       // is waiting to be looked at or already in the note.
@@ -1781,7 +1785,10 @@ export class ExplorerPaneView extends ItemView {
     const glyph = row.createSpan({ cls: "schreibstube-explorer-glyph-box" });
     applyIcon(glyph.createSpan({ cls: "schreibstube-explorer-glyph" }), this.glyphFor(file));
     if (isFolder && !open) this.renderFolderCount(glyph, file);
-    row.createSpan({ cls: "schreibstube-explorer-name", text: displayName(file) });
+    row.createSpan({
+      cls: "schreibstube-explorer-name",
+      text: displayName(file, this.showExtensions())
+    });
 
     if (controller.isKept(file.path)) {
       applyIcon(row.createSpan({ cls: "schreibstube-explorer-pin" }), "pinned");
@@ -2361,9 +2368,9 @@ function basenameOf(path: string): string {
   return cut === -1 ? path : path.slice(cut + 1);
 }
 
-function displayName(file: TAbstractFile): string {
+function displayName(file: TAbstractFile, showExtension: boolean): string {
   if (!(file instanceof TFile)) return file.name;
-  const parts = fileNameParts(file.name, file.extension);
+  const parts = fileNameParts(file.name, file.extension, showExtension);
   return parts.hidden ? parts.stem : file.name;
 }
 
