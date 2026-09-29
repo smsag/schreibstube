@@ -20,7 +20,7 @@ Ein deutscher Geschäftsbrief nach DIN 5008: Absender klein über dem Anschrifte
 
 Trage deinen Absender einmal hier oben in `schreibstubeData` ein. Er gilt dann für jeden Brief, der diese Vorlage benutzt.
 
-Der Brief ist in Fira Sans gesetzt, die das Plugin mit dem Satzteil lädt. Eine andere Schrift legst du als `.ttf` oder `.otf` in `fonts/` ab und nennst sie in der `template.typ` bei `set text(font: …)`.
+Der Brief ist in Fira Sans gesetzt, die das Plugin mit dem Typesetter lädt. Eine andere Schrift legst du als `.ttf` oder `.otf` in `fonts/` ab und nennst sie in der `template.typ` bei `set text(font: …)`.
 
 ## Benutzen
 

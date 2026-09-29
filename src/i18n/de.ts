@@ -449,22 +449,22 @@ export const de: Messages = {
       "Plattform, auf der Obsidian läuft.",
     printEnabled: "Drucken einschalten",
     printEnabledDesc: (megabytes: number) =>
-      `Aus, bis du es einschaltest — denn das Einschalten lädt den Satzteil: ${megabytes} MB, ` +
+      `Aus, bis du es einschaltest — denn das Einschalten lädt den Typesetter: ${megabytes} MB, ` +
       "einmal pro Gerät. Vorher wird nichts geladen.",
     printRuntimeInstalled: (megabytes: number) =>
-      `Der Satzteil liegt auf diesem Gerät (${megabytes} MB). Drucken geht offline.`,
+      `Der Typesetter liegt auf diesem Gerät (${megabytes} MB). Drucken geht offline.`,
     printRuntimeMissing: (megabytes: number) =>
-      `Der Satzteil liegt noch nicht auf diesem Gerät. Er ist ${megabytes} MB groß und wird einmal ` +
+      `Der Typesetter liegt noch nicht auf diesem Gerät. Er ist ${megabytes} MB groß und wird einmal ` +
       "geladen — jetzt oder beim ersten Drucken.",
-    printRuntimeHeading: "Der Satzteil",
+    printRuntimeHeading: "Der Typesetter",
     printDownloadNow: "Jetzt laden",
-    printRemoveRuntime: "Satzteil entfernen",
+    printRemoveRuntime: "Typesetter entfernen",
     printAddTemplate: "Vorlage anlegen",
     printAddTemplateButton: "Anlegen",
     printAddTemplateDesc:
       "Legt eine der Beispielvorlagen in einem Ordner deiner Wahl an. Keine bringt eine " +
       "Schriftdatei mit: Fira Sans, JetBrains Mono und Typsts eigene Schriften werden mit dem " +
-      "Satzteil geladen, und eine Vorlage ohne eigene Schrift wird darin gesetzt.",
+      "Typesetter geladen, und eine Vorlage ohne eigene Schrift wird darin gesetzt.",
     printTemplateRoot: "Vorlagenordner",
     printTemplateRootDesc:
       "Wohin eine neue Vorlage standardmäßig kommt. Eine Vorlage ist jeder Ordner mit einer " +
@@ -1206,10 +1206,10 @@ export const de: Messages = {
     working: (name: string) => `drucke mit ${name} …`,
     drawing: (index: number, total: number) => `zeichne Visualisierung ${index} von ${total} …`,
     downloading: (label: string, megabytes: number) =>
-      `lade den Satzteil „${label}“ (${megabytes} MB, einmal pro Gerät) …`,
+      `lade ${label} (${megabytes} MB, einmal pro Gerät) …`,
     downloadingFont: (face: string) => `lade die Schrift ${face} (einmal pro Gerät) …`,
     assetLabel: (label: string) =>
-      ({ compiler: "Satzteil", loader: "Lader", font: "Schrift" })[label] ?? label,
+      ({ compiler: "den Typesetter", loader: "den Lader", font: "die Schrift" })[label] ?? label,
     busy: "ein Druck läuft bereits — bitte warten.",
 
     verifying: "prüfe das Geladene …",
@@ -1220,10 +1220,10 @@ export const de: Messages = {
     compileTimeout: (seconds: number) =>
       `das Dokument brauchte länger als ${seconds} s und wurde abgebrochen. Versuch es in zwei Teilen.`,
     mismatch: (detail: string) =>
-      `der geladene Satzteil ist nicht der erwartete und wurde nicht benutzt (${detail}).`,
+      `der geladene Typesetter ist nicht der erwartete und wurde nicht benutzt (${detail}).`,
     timeout: (seconds: number) => `keine Antwort innerhalb von ${seconds}s`,
     unreachable: (detail: string) =>
-      `der Satzteil ließ sich nicht laden (${detail}). Er wird einmal pro Gerät gebraucht; mit Netz erneut versuchen.`,
+      `der Typesetter ließ sich nicht laden (${detail}). Er wird einmal pro Gerät gebraucht; mit Netz erneut versuchen.`,
     compilerRefused: (detail: string) => `die Vorlage ließ sich nicht setzen — ${detail}`,
     pictureFailed: (name: string) => `${name} ließ sich nicht lesen und fehlt`,
     panelsLost: (index: number, missing: number, total: number) =>
@@ -1233,15 +1233,15 @@ export const de: Messages = {
     failed: (detail: string) => `Drucken fehlgeschlagen — ${detail}`,
     offTitle: "Drucken ist aus",
     offMessage: (megabytes: number) =>
-      `Gesetzt wird auf diesem Gerät statt auf einem Server — dafür braucht es einen Satzteil: ` +
+      `Gesetzt wird auf diesem Gerät statt auf einem Server — dafür braucht es einen Typesetter: ` +
       `${megabytes} MB, einmal geladen und dann behalten. Zum Laden das Drucken einschalten.`,
     offSubmit: "Drucken einschalten",
     unsupported:
-      "dieses Gerät kann den Satzteil nicht ausführen, hier lässt sich also nicht drucken. " +
+      "dieses Gerät kann den Typesetter nicht ausführen, hier lässt sich also nicht drucken. " +
       "Drucken braucht WebAssembly, einen Worker und eine Prüfsumme — was jede Plattform, auf " +
       "der Obsidian läuft, normalerweise hat.",
-    runtimeReady: "der Satzteil liegt auf diesem Gerät. Ab jetzt geht Drucken offline.",
-    runtimeRemoved: "der Satzteil wurde entfernt. Der nächste Druck lädt ihn erneut.",
+    runtimeReady: "der Typesetter liegt auf diesem Gerät. Ab jetzt geht Drucken offline.",
+    runtimeRemoved: "der Typesetter wurde entfernt. Der nächste Druck lädt ihn erneut.",
     chooseExample: "Welche Vorlage soll ich anlegen?",
     chooseFolder: "In welchen Ordner soll die Vorlage?",
     templateExists: (path: string) =>
@@ -1264,7 +1264,7 @@ export const de: Messages = {
     replaceMessage: (path: string) =>
       `${path} gibt es schon, und sie stammt nicht aus einem Druck. Durch die gedruckte Notiz ersetzen?`,
     replaceSubmit: "Ersetzen",
-    compilerSilent: "der Satzteil hat nicht geantwortet",
+    compilerSilent: "der Typesetter hat nicht geantwortet",
     limits: {
       fontFiles: (count: number, max: number) =>
         `${count} Schriftdateien, höchstens ${max} werden benutzt`,

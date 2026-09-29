@@ -30,7 +30,7 @@ Trage Name, Adresse und Kontakt hier oben in `schreibstubeData` ein. Mehrere Kon
 
 Für ein Foto legst du die Bilddatei (PNG, JPG, WebP, GIF oder SVG) direkt in diesen Ordner, nicht in einen Unterordner, und setzt `photo` auf ihren Dateinamen, etwa `photo: foto.jpg`. Es wird quadratisch zugeschnitten und mit runden Ecken gesetzt; ohne Foto rückt der Kopf nach links und nichts bleibt leer stehen.
 
-Gesetzt ist sie in Fira Sans, die Überschriften in Fira Sans Condensed; beide lädt das Plugin mit dem Satzteil. Die Abstände sind an einem Export aus iA Writer gemessen: Listen enger als Absätze, feste Stufen um die Überschriften. Trennlinien (`---`) beginnen eine neue Seite.
+Gesetzt ist sie in Fira Sans, die Überschriften in Fira Sans Condensed; beide lädt das Plugin mit dem Typesetter. Die Abstände sind an einem Export aus iA Writer gemessen: Listen enger als Absätze, feste Stufen um die Überschriften. Trennlinien (`---`) beginnen eine neue Seite.
 
 ## Benutzen
 

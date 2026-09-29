@@ -12,7 +12,7 @@ Die Vorlage, mit der gedruckt wird, wenn nichts anderes verlangt ist: das Klarte
 
 Standard ist Teil von Schreibstube, nicht des Vaults: Sie steht immer zur Wahl, lässt sich nicht löschen und liegt in keinem Vorlagenordner. **Vorlage anlegen** bietet sie deshalb nicht zum Kopieren an. Eine Vorlage im Vault, die ebenfalls `Standard` heißt, tritt nicht an ihre Stelle; sie ist über ihren Ordnerpfad erreichbar.
 
-Fira Sans und JetBrains Mono lädt das Plugin mit dem Satzteil.
+Fira Sans und JetBrains Mono lädt das Plugin mit dem Typesetter.
 
 Im Druckdialog wählt **Schrift des Textes** zwischen JetBrains Mono und Fira Sans; der Seitenfuß folgt der Wahl, Überschriften, Tabellen und Code bleiben, wie sie sind. Die Wahl gilt für diesen einen Druck. Eine Notiz, die immer in Fira Sans gedruckt werden soll, sagt es selbst, und der Dialog beginnt dann dort:
 
