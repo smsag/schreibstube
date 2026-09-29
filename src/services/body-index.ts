@@ -244,6 +244,7 @@ export class BodyLoader {
       do {
         this.again = false;
         if (await this.fill()) read = true;
+        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- ensure() sets it meanwhile
       } while (this.again && !this.cancelled);
       if (read) this.lastReadMs = this.clock() - started;
       return read;
@@ -289,6 +290,7 @@ export class BodyLoader {
     for (const held of this.index.paths()) if (!live.has(held)) this.index.delete(held);
     let read = 0;
     for (const path of paths) {
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- another call may set it while this one awaited
       if (this.cancelled) break;
       if (this.index.has(path)) continue;
       await this.read(path);

@@ -28,12 +28,12 @@ describe("readPlatformFeatures", () => {
       WebAssembly: { compile: () => undefined },
       Worker: function Worker() {},
       crypto: { subtle: { digest: () => undefined } }
-    } as unknown as typeof globalThis;
+    };
     expect(readPlatformFeatures(scope)).toEqual(complete);
   });
 
   it("reports a bare platform rather than throwing on it", () => {
-    expect(readPlatformFeatures({} as typeof globalThis)).toEqual({
+    expect(readPlatformFeatures({})).toEqual({
       webAssembly: false,
       worker: false,
       digest: false
@@ -45,7 +45,7 @@ describe("readPlatformFeatures", () => {
       WebAssembly: { compile: "yes" },
       Worker: {},
       crypto: { subtle: {} }
-    } as unknown as typeof globalThis;
+    };
     expect(readPlatformFeatures(scope)).toEqual({
       webAssembly: false,
       worker: false,

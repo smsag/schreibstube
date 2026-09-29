@@ -35,7 +35,7 @@ export interface Size {
  * is the only one that knows how wide it actually became.
  */
 export function svgSize(svg: string, measured?: Partial<Size>): Size | null {
-  if (isUsable(measured?.width) && isUsable(measured?.height)) {
+  if (isUsable(measured?.width) && isUsable(measured.height)) {
     return { width: measured.width, height: measured.height };
   }
 

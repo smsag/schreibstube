@@ -14,7 +14,7 @@ export type UrlResult = { ok: true; url: string } | { ok: false; message: string
  * testing.
  */
 export function normalizeBaseUrl(raw: string): UrlResult {
-  const trimmed = (raw ?? "").trim();
+  const trimmed = raw.trim();
   if (!trimmed) {
     return { ok: false, message: "no bridge URL configured — open Settings to add one." };
   }

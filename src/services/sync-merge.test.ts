@@ -85,7 +85,7 @@ describe("mergeSyncState", () => {
     mergeSyncState({ local, disk });
 
     expect(Object.keys(local)).toEqual(["A.md"]);
-    expect(local["A.md"]?.checkedAt).toBe(1);
+    expect(local["A.md"].checkedAt).toBe(1);
   });
 });
 

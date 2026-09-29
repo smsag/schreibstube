@@ -100,7 +100,8 @@ const ANTHROPIC: ProviderAdapter = {
       }
     ]
   }),
-  parse: (json) => (json as { content?: { text?: string }[] })?.content?.[0]?.text ?? ""
+  parse: (json) =>
+    (json as { content?: { text?: string }[] } | null | undefined)?.content?.[0]?.text ?? ""
 };
 
 const OPENAI: ProviderAdapter = {
@@ -140,8 +141,8 @@ const OPENAI: ProviderAdapter = {
     ]
   }),
   parse: (json) =>
-    (json as { choices?: { message?: { content?: string } }[] })?.choices?.[0]?.message?.content ??
-    ""
+    (json as { choices?: { message?: { content?: string } }[] } | null | undefined)?.choices?.[0]
+      ?.message?.content ?? ""
 };
 
 /** The single source of truth for provider integration. Add or remove a
@@ -260,7 +261,7 @@ export function parseResponse(provider: LlmProvider, json: unknown): string {
 export function effectiveModel(
   settings: Pick<SchreibstubeSettings, "llmModel" | "llmModelCustom">
 ): string {
-  const custom = settings.llmModelCustom?.trim();
+  const custom = settings.llmModelCustom.trim();
   return custom ? custom : settings.llmModel;
 }
 
@@ -313,7 +314,7 @@ const IMAGE_EXTENSIONS = new Set(["jpg", "jpeg", "png", "gif", "webp", "avif"]);
  *  code fence, quotes, or a "Filename:" label. Recover the bare candidate
  *  before it is sanitized. */
 export function extractModelFilename(raw: string): string {
-  let text = (raw ?? "").trim();
+  let text = raw.trim();
 
   if (text.startsWith("```")) {
     text = text

@@ -1,7 +1,6 @@
 import {
   PostMessageEmbeddingProvider,
   type BackendChannel,
-  type BackendMessage,
   type ModelLoadProgress
 } from "./post-message-backend";
 import type { EmbeddingModelId } from "../../../services/semantic/embedding-models";
@@ -63,7 +62,7 @@ export class WorkerEmbeddingProvider extends PostMessageEmbeddingProvider {
       }
       throw e;
     }
-    const onMessage = (event: MessageEvent): void => this.receive(event.data as BackendMessage);
+    const onMessage = (event: MessageEvent): void => this.receive(event.data);
     const onError = (event: ErrorEvent): void =>
       this.failLoad(new Error(event.message || "Embedding worker error"));
     worker.addEventListener("message", onMessage);

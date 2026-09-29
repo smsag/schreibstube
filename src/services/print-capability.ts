@@ -40,8 +40,15 @@ export function missingCapability(features: PlatformFeatures): MissingCapability
   return null;
 }
 
+/** The globals a print needs, each possibly missing whatever the DOM types say. */
+export interface PlatformScope {
+  WebAssembly?: { compile?: unknown };
+  Worker?: unknown;
+  crypto?: { subtle?: { digest?: unknown } };
+}
+
 /** What the running platform actually offers, read once where the globals are. */
-export function readPlatformFeatures(scope: typeof globalThis): PlatformFeatures {
+export function readPlatformFeatures(scope: PlatformScope): PlatformFeatures {
   return {
     webAssembly: typeof scope.WebAssembly?.compile === "function",
     worker: typeof scope.Worker === "function",

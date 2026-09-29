@@ -45,6 +45,14 @@ export default tseslint.config(
       // A value the model or a user wrote reaches a note through `String(...)`;
       // an object there is "[object Object]" in the text.
       "@typescript-eslint/no-base-to-string": "error",
+      // A check the types say cannot matter is dead code, or a type that
+      // lies about what arrives: the second is fixed by typing the input
+      // `unknown` and narrowing it, never by deleting the check. `while (true)`
+      // is how a loop that ends by `return` or `break` says so.
+      "@typescript-eslint/no-unnecessary-condition": [
+        "error",
+        { allowConstantLoopConditions: "only-allowed-literals" }
+      ],
       "no-console": ["error", { allow: ["error"] }],
       eqeqeq: ["error", "smart"],
       "prefer-const": "error"

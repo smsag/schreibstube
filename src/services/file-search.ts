@@ -334,7 +334,7 @@ const SCOPE_PREFIXES: Record<string, SearchScope> = {
  * every file whose name happens to hold the word.
  */
 export function parseSearchScope(raw: string): ParsedQuery {
-  const text = (raw ?? "").slice(0, MAX_QUERY_LENGTH).trim();
+  const text = raw.slice(0, MAX_QUERY_LENGTH).trim();
   if (text.startsWith("#")) {
     return { scope: "tags", query: text.slice(1).trim(), explicit: true };
   }

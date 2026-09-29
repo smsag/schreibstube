@@ -214,6 +214,7 @@ export async function runProofread(
         continue;
       }
 
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- cancelled while the model answered
       if (token.cancelled) return;
 
       const produced: Suggestion[] = [];

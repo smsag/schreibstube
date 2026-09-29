@@ -17,7 +17,6 @@ import {
   splitItemKey,
   wants,
   type Hit,
-  type RelatedRef,
   type SchreibstubeSemanticApi,
   type SearchStatus
 } from "../../services/semantic/semantic-api";
@@ -174,7 +173,8 @@ export function createSemanticApi(deps: SemanticApiDeps): SchreibstubeSemanticAp
       }
     },
 
-    async related(ref: RelatedRef, opts) {
+    // Typed wider than the contract: another plugin's JavaScript calls this.
+    async related(ref: unknown, opts) {
       if (typeof ref !== "object" || ref === null) return [];
       const limit = clampLimit(opts?.limit);
       const s = scope(opts);
@@ -183,7 +183,7 @@ export function createSemanticApi(deps: SemanticApiDeps): SchreibstubeSemanticAp
           const found = await engine.relatedToNote(ref.path, limit, relatedScope(s));
           return merged(found, s, limit, new Set([ref.path]));
         }
-        if ("source" in ref && typeof ref.id === "string") {
+        if ("source" in ref && "id" in ref && typeof ref.id === "string") {
           const source = readSourceId(ref.source);
           if (!source) return [];
           const found = await engine.relatedToItem(itemKey(source, ref.id), limit, relatedScope(s));

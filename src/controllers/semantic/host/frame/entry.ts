@@ -46,12 +46,12 @@ function makeModel(config: EmbeddingModelConfig, reply: (m: unknown) => void): v
   );
 }
 
-async function handle(
-  data: { requestId?: number; texts?: string[]; ping?: boolean; priority?: boolean },
-  reply: (m: unknown) => void
-): Promise<void> {
-  const { requestId, texts, ping } = data ?? {};
-  const priority = data?.priority === true;
+async function handle(raw: unknown, reply: (m: unknown) => void): Promise<void> {
+  // A message from another context: nothing about its shape is promised.
+  const data: { requestId?: unknown; texts?: unknown; ping?: unknown; priority?: unknown } =
+    typeof raw === "object" && raw !== null ? raw : {};
+  const { requestId, texts, ping } = data;
+  const priority = data.priority === true;
   if (typeof requestId !== "number") return;
   try {
     if (!model) throw new Error("embedding backend not initialized");
@@ -60,7 +60,9 @@ async function handle(
       reply({ requestId, vectors: [], ready: true });
       return;
     }
-    const all = texts ?? [];
+    const all = Array.isArray(texts)
+      ? texts.filter((text): text is string => typeof text === "string")
+      : [];
     const vectors: number[][] = [];
     for (let i = 0; i < all.length; i += EMBED_BATCH_SIZE) {
       const batch = await model.embedBatch(all.slice(i, i + EMBED_BATCH_SIZE), priority);
@@ -109,6 +111,6 @@ if (typeof window === "undefined") {
     // check in the other direction, so another frame in the window cannot ask
     // this one to embed text for it.
     if (!source || source !== window.parent) return;
-    void handle(event.data ?? {}, (m) => source.postMessage(m, window.origin));
+    void handle(event.data, (m) => source.postMessage(m, window.origin));
   });
 }

@@ -208,6 +208,21 @@ prove the invariant: six of those, all loop indices in the diff algorithms
 bounded by the loop's own condition. No `any` was added, and the suite is
 unchanged at 1,262 tests.
 
+### A check the types say cannot matter
+
+`@typescript-eslint/no-unnecessary-condition` is on, at 55 findings. The rule
+for fixing them was the same question each time: can the value really not be
+absent at run time? Where it can — a `postMessage` from the embedding worker,
+a provider's JSON body, an index file's header, `JSON.stringify` of a
+function, a platform global, a model id read from disk, another plugin's
+argument to `related` — the check stayed and the type became honest: `unknown`
+narrowed, or a cast that admits `null`. Two of those were one refactor away
+from a crash: the provider parsers asserted a non-null body, and the index
+header did not admit `null`. Both now have a test. Where it cannot — a
+normalised setting, a regex match's index, an element's `textContent` — the
+check went. Seven remain behind a disable with its reason: a flag another call
+sets while this one awaits, which the rule cannot see.
+
 ## What was not changed, and why
 
 - **`main.ts` at 876 lines.** Command registration and lifecycle wiring; it

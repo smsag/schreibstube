@@ -126,7 +126,7 @@ function text(value: unknown): string {
  * because a slug that loses its vowels reads as a mistake rather than a name.
  */
 export function slugify(value: string): string {
-  const transliterated = (value ?? "")
+  const transliterated = value
     .toLowerCase()
     .replace(/ä/g, "ae")
     .replace(/ö/g, "oe")
@@ -153,7 +153,7 @@ export function firstHeading(content: string): string {
 }
 
 export function stripFrontmatter(content: string): string {
-  return splitFrontmatter(content ?? "").body;
+  return splitFrontmatter(content).body;
 }
 
 /** `2026-09-12`, in local time, because a publication date is a calendar date. */
@@ -256,7 +256,7 @@ export function slideshowReferences(content: string, layout?: SlideshowLayout): 
 
   for (const open of body.matchAll(fence)) {
     const marker = open[1] ?? "```";
-    const start = (open.index ?? 0) + open[0].length + 1;
+    const start = open.index + open[0].length + 1;
     const close = new RegExp("^ {0,3}" + marker[0] + "{" + marker.length + ",}[ \\t]*$", "m");
     const rest = body.slice(start);
     const end = close.exec(rest);
