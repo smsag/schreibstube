@@ -2,7 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## 1.62.0 - 2026-09-29
+
+The Explorer's box is now a search, and it says so. **Explorer: search** puts
+the cursor in it from anywhere, opening the pane first if it is shut, and
+`sync:` in the box lists every note bound to a source, however old, folder by
+folder. A picture or PDF with a description shows a small sparkle that opens
+the description note. Rows now show no file extension by default, for every
+kind of file; **Show file extensions** in the settings brings whole names back,
+which is worth doing in a folder that holds `photo.png` beside `photo.jpg`.
+Dragging something from the tree onto a folder in the Pinned section moves it
+there.
+
+Mobile checklist: not run. None of this has been tried in the Obsidian app on
+desktop or on a phone; the test suite and the build checked it. What to try
+first: drag a file from the tree onto a pinned folder, with a finger as well as
+a mouse; type `sync:` alone and then with a word after it; the sparkle on a described
+picture, pressed and long-pressed; the extension setting on and off, including a
+rename; and the new command from the palette with the pane closed.
+
+The bridge is unchanged at 2.10.0.
 
 ### Added
 
