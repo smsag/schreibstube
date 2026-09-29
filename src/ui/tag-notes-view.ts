@@ -12,22 +12,26 @@
 import { ItemView, Keymap, type ViewStateResult, type WorkspaceLeaf } from "obsidian";
 import { t } from "../i18n";
 import { openTargetOf, type PaneTarget } from "../services/pane-target";
-import { normalizeTag, summarizeTagCards, type TagCard } from "../services/tag-pins";
+import { checkTag, summarizeTagCards, type TagCard } from "../services/tag-pins";
 import { drawTaskCount } from "./task-count-label";
+import { wirePress } from "./explorer-gestures";
 import { applyIcon, installIconFont } from "./icon-font";
+import { pressKeys } from "./pressable";
 
 export const TAG_NOTES_VIEW_TYPE = "schreibstube-tag-notes";
 
 export interface TagNotesHost {
   cards(tag: string): TagCard[];
   open(path: string, where: PaneTarget): Promise<void>;
-  showMenu(path: string, event: MouseEvent): void;
+  /** Open the note's menu, at the pointer or at a finger. */
+  showMenu(path: string, at: MouseEvent | { x: number; y: number }): void;
 }
 
 export class TagNotesView extends ItemView {
   private host: TagNotesHost | null = null;
   private tag: string | null = null;
-  private pending = false;
+  /** The redraw waiting for the next frame. */
+  private frame: number | null = null;
 
   constructor(leaf: WorkspaceLeaf) {
     super(leaf);
@@ -61,7 +65,7 @@ export class TagNotesView extends ItemView {
    */
   override async setState(state: unknown, result: ViewStateResult): Promise<void> {
     const raw = (state as { tag?: unknown } | null)?.tag;
-    this.tag = typeof raw === "string" ? normalizeTag(raw) : null;
+    this.tag = typeof raw === "string" ? checkTag(raw) : null;
     await super.setState(state, result);
     this.requestRender();
   }
@@ -85,15 +89,17 @@ export class TagNotesView extends ItemView {
   }
 
   protected override async onClose(): Promise<void> {
+    if (this.frame !== null) this.containerEl.win.cancelAnimationFrame(this.frame);
+    this.frame = null;
     this.contentEl.empty();
   }
 
   /** One redraw per frame, however many vault events arrived in it. */
   private requestRender(): void {
-    if (this.pending) return;
-    this.pending = true;
-    window.requestAnimationFrame(() => {
-      this.pending = false;
+    if (this.frame !== null) return;
+    // The view's own window: a leaf popped out has one of its own.
+    this.frame = this.containerEl.win.requestAnimationFrame(() => {
+      this.frame = null;
       this.render();
     });
   }
@@ -153,19 +159,16 @@ export class TagNotesView extends ItemView {
       text: card.folder.length > 0 ? card.folder : t().explorer.tags.root
     });
 
-    // A modifier opens a tab, a split or a window, the way a link in the editor does, so a card can
-    // be kept open beside the note already in front of the person.
-    el.addEventListener("click", (event) => {
-      void host.open(card.path, openTargetOf(Keymap.isModEvent(event)));
+    // The same press a row in the pane answers: a click opens, a right click
+    // or a held finger asks for the menu, so a phone reaches it at all. A
+    // modifier opens a tab, a split or a window, the way a link in the editor
+    // does, so a card can be kept open beside the note already in front of
+    // the person.
+    wirePress(el, {
+      isDragging: () => false,
+      activate: (event) => void host.open(card.path, openTargetOf(Keymap.isModEvent(event))),
+      showMenu: (at) => host.showMenu(card.path, at)
     });
-    el.addEventListener("keydown", (event) => {
-      if (event.key !== "Enter" && event.key !== " ") return;
-      event.preventDefault();
-      void host.open(card.path, openTargetOf(Keymap.isModEvent(event)));
-    });
-    el.addEventListener("contextmenu", (event) => {
-      event.preventDefault();
-      host.showMenu(card.path, event);
-    });
+    pressKeys(el, (event) => void host.open(card.path, openTargetOf(Keymap.isModEvent(event))));
   }
 }

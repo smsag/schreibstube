@@ -11,6 +11,7 @@ import { setIcon } from "obsidian";
 import { t } from "../i18n";
 import { folderCountLabel } from "../services/folder-count";
 import { applyIcon } from "./icon-font";
+import { pressable } from "./pressable";
 
 export type SectionId = "pinned" | "bookmarks" | "latest" | "files" | "conversations";
 
@@ -174,18 +175,9 @@ function wireSectionToggle(
   // control, and a control nothing can read is worse than one nobody can see.
   twisty.removeAttribute("aria-hidden");
 
-  const run = (event: Event): void => {
-    // The band under it would otherwise toggle the section a second time,
-    // which is the section not moving at all.
-    event.preventDefault();
-    event.stopPropagation();
-    toggle();
-  };
-
-  twisty.addEventListener("click", run);
-  twisty.addEventListener("keydown", (event) => {
-    if (event.key === "Enter" || event.key === " ") run(event);
-  });
+  // Stopped at the chevron: the band under it would otherwise toggle the
+  // section a second time, which is the section not moving at all.
+  pressable(twisty, () => toggle(), { stop: true });
 }
 
 /**
@@ -223,16 +215,7 @@ function renderSectionAction(header: HTMLElement, action: SectionAction): void {
     setIcon(glyph, action.fallbackIcon);
   }
 
-  const run = (event: Event): void => {
-    event.preventDefault();
-    event.stopPropagation();
-    action.run();
-  };
-
-  control.addEventListener("click", run);
-  control.addEventListener("keydown", (event) => {
-    if (event.key === "Enter" || event.key === " ") run(event);
-  });
+  pressable(control, () => action.run(), { stop: true });
 }
 
 /**
@@ -263,14 +246,5 @@ function renderSectionAlert(
     attr: { role: "button", tabindex: "0", "aria-label": alert.label, title: alert.label }
   });
 
-  const run = (event: Event): void => {
-    event.preventDefault();
-    event.stopPropagation();
-    acknowledge(alert);
-  };
-
-  mark.addEventListener("click", run);
-  mark.addEventListener("keydown", (event) => {
-    if (event.key === "Enter" || event.key === " ") run(event);
-  });
+  pressable(mark, () => acknowledge(alert), { stop: true });
 }

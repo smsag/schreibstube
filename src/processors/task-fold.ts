@@ -3,12 +3,14 @@ import {
   EditorState,
   type Extension,
   type StateEffect,
+  type Text,
   type Transaction,
   type TransactionSpec
 } from "@codemirror/state";
 import { type EditorView, ViewPlugin } from "@codemirror/view";
 import { foldTransitions, taskBodyRange } from "../services/task-fold";
 import { listTasks } from "../services/task-summary";
+import { MAX_LIVE_CHARS } from "./live-limits";
 
 interface FoldRange {
   from: number;
@@ -34,7 +36,11 @@ export function createTaskFoldExtension(): Extension {
 }
 
 function extendWithTaskFolds(tr: Transaction): Pick<TransactionSpec, "effects"> | null {
-  if (!tr.docChanged) return null;
+  if (!tr.docChanged || tr.state.doc.length > MAX_LIVE_CHARS) return null;
+  // Reading the whole note twice is the price of following every task through
+  // an edit, and it is only worth paying when a task line was edited at all:
+  // a letter typed into a paragraph cannot tick or untick anything.
+  if (!touchesTaskLine(tr)) return null;
 
   // Old tasks, keyed by the line they occupy after the change, so that a task
   // is followed through an edit above it rather than matched by position.
@@ -62,8 +68,29 @@ function extendWithTaskFolds(tr: Transaction): Pick<TransactionSpec, "effects"> 
   return effects.length > 0 ? { effects } : null;
 }
 
+/**
+ * Whether any changed range lies on a line that reads as a task, before or
+ * after the change. Judged by the same reader that lists tasks, over the
+ * lines concerned rather than the note.
+ */
+function touchesTaskLine(tr: Transaction): boolean {
+  let touched = false;
+  tr.changes.iterChangedRanges((fromA, toA, fromB, toB) => {
+    if (touched) return;
+    touched = hasTaskLine(tr.startState.doc, fromA, toA) || hasTaskLine(tr.state.doc, fromB, toB);
+  });
+  return touched;
+}
+
+function hasTaskLine(doc: Text, from: number, to: number): boolean {
+  const start = doc.lineAt(from).from;
+  const end = doc.lineAt(to).to;
+  return listTasks(doc.sliceString(start, end)).length > 0;
+}
+
 /** Every done task's body, for a note that has just been opened. */
 function initialFolds(state: EditorState): StateEffect<unknown>[] {
+  if (state.doc.length > MAX_LIVE_CHARS) return [];
   const content = state.doc.toString();
   const lines = content.split(/\r?\n/);
   const effects: StateEffect<unknown>[] = [];

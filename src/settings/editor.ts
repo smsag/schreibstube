@@ -5,6 +5,7 @@ import { Notice, Setting } from "obsidian";
 import { activeLocale, t } from "../i18n";
 import { MAX_DIM_OPACITY, MIN_DIM_OPACITY } from "../services/focus-settings";
 import { normalizeTermFolder } from "../services/glossary-term-folder";
+import { createLogger } from "../services/logger";
 import { newDocLink } from "../services/new-note";
 import { formatDate } from "../services/today-value";
 import type { SettingsContext } from "./context";
@@ -54,8 +55,19 @@ export function renderEditor(ctx: SettingsContext): void {
     .setDesc(t().settings.newDocLinkDesc)
     .addButton((button) =>
       button.setButtonText(t().settings.newDocLinkCopy).onClick(async () => {
-        await navigator.clipboard.writeText(newDocLink(ctx.plugin.app.vault.getName()));
-        new Notice(t().common.notice(t().common.copied));
+        const link = newDocLink(ctx.plugin.app.vault.getName());
+        try {
+          await navigator.clipboard.writeText(link);
+          new Notice(t().common.notice(t().common.copied));
+        } catch (error) {
+          // A page without clipboard access, or one that refused it: the
+          // console keeps the cause and the notice says that nothing was copied.
+          createLogger(() => ctx.plugin.settings.debugLogging).warn(
+            `Could not copy ${link} to the clipboard:`,
+            error
+          );
+          new Notice(t().common.notice(t().explorer.bookmarks.copyFailed));
+        }
       })
     );
 

@@ -14,6 +14,7 @@
 import { toArrayBuffer } from "../utils/array-buffer";
 import { withTimeout } from "../utils/with-timeout";
 import { requestUrl, type App } from "obsidian";
+import { t } from "../i18n";
 import { WORKER_SOURCE } from "./typst-worker";
 import type { Logger } from "../services/logger";
 import type { PrintJob } from "../services/print-job";
@@ -78,6 +79,12 @@ export class TypstCompiler {
   private worker: Worker | null = null;
   private workerUrl: string | null = null;
   private ready: Promise<void> | null = null;
+  /**
+   * Everyone waiting on the acquisition in flight. A second print asked for
+   * while the first was still downloading joined the same promise and heard
+   * nothing until it settled; now each is told what the first is told.
+   */
+  private readonly listeners = new Set<ProgressReport>();
   private nextId = 1;
   private readonly pending = new Map<number, Pending>();
 
@@ -189,11 +196,16 @@ export class TypstCompiler {
 
   /** One acquisition at a time, however many prints ask for it at once. */
   private load(progress: ProgressReport): Promise<void> {
-    this.ready ??= this.acquire(progress).catch((error: unknown) => {
-      // A failed load must not be remembered as done: the next print tries again.
-      this.ready = null;
-      throw error;
-    });
+    this.listeners.add(progress);
+    this.ready ??= this.acquire((message) => {
+      for (const listener of this.listeners) listener(message);
+    })
+      .catch((error: unknown) => {
+        // A failed load must not be remembered as done: the next print tries again.
+        this.ready = null;
+        throw error;
+      })
+      .finally(() => this.listeners.clear());
     return this.ready;
   }
 
@@ -254,10 +266,12 @@ export class TypstCompiler {
 
   private async download(asset: RuntimeAsset, progress: ProgressReport): Promise<Uint8Array> {
     const url = runtimeAssetUrl(this.pluginVersion, asset);
+    // Named as a person would name it, not by the role the runtime gives it.
+    const label = t().print.assetLabel(asset.label);
     progress(
       asset.label === "font"
         ? this.strings.downloadingFont(fontFaceOf(asset))
-        : this.strings.downloading(asset.label, megabytesOf(asset))
+        : this.strings.downloading(label, megabytesOf(asset))
     );
     this.logger.debug(`print: fetching ${url}`);
 
@@ -288,11 +302,17 @@ export class TypstCompiler {
     this.workerUrl = URL.createObjectURL(blob);
     const worker = new Worker(this.workerUrl, { type: "module" });
 
-    worker.onmessage = (event: MessageEvent<WorkerReply & { id: number }>) => {
-      const { id, ...reply } = event.data;
-      const pending = this.pending.get(id);
+    worker.onmessage = (event: MessageEvent<unknown>) => {
+      // The thread runs code fetched from a release; its answers are read
+      // as carefully as a response from anywhere else.
+      const reply = readWorkerReply(event.data);
+      if (reply === null) {
+        this.fail(new Error("the compiler answered in a form that could not be read"));
+        return;
+      }
+      const pending = this.pending.get(reply.id);
       if (!pending) return;
-      this.pending.delete(id);
+      this.pending.delete(reply.id);
       window.clearTimeout(pending.timer);
       if (reply.ok) pending.resolve(reply);
       else pending.reject(new Error(reply.error ?? "the compiler failed"));
@@ -343,6 +363,21 @@ export class TypstCompiler {
       worker.postMessage({ id, kind, payload });
     });
   }
+}
+
+/** The reply if it has the shape the worker promises; null for anything else. */
+function readWorkerReply(data: unknown): (WorkerReply & { id: number }) | null {
+  if (typeof data !== "object" || data === null) return null;
+  const { id, ok, pdf, diagnostics, error } = data as Record<string, unknown>;
+  if (typeof id !== "number" || !Number.isInteger(id) || typeof ok !== "boolean") return null;
+  if (error !== undefined && typeof error !== "string") return null;
+  if (pdf !== undefined && !(pdf instanceof Uint8Array)) return null;
+  if (diagnostics !== undefined && !Array.isArray(diagnostics)) return null;
+  const reply: WorkerReply & { id: number } = { id, ok };
+  if (pdf !== undefined) reply.pdf = pdf;
+  if (diagnostics !== undefined) reply.diagnostics = diagnostics;
+  if (error !== undefined) reply.error = error;
+  return reply;
 }
 
 async function sha256(bytes: Uint8Array): Promise<string> {

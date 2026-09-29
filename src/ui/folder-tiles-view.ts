@@ -21,8 +21,10 @@ import { t } from "../i18n";
 import type { FolderImages } from "../services/folder-images";
 import { pressTarget } from "../services/open-target";
 import { refreshLeafHeader } from "../services/workspace-internals";
+import { basename as basenameOf } from "../services/file-name";
 import { wirePress } from "./explorer-gestures";
 import { applyIcon, installIconFont } from "./icon-font";
+import { pressKeys } from "./pressable";
 
 export const FOLDER_TILES_VIEW_TYPE = "schreibstube-folder-tiles";
 
@@ -41,7 +43,8 @@ export interface FolderTilesHost {
 export class FolderTilesView extends ItemView {
   private host: FolderTilesHost | null = null;
   private folder: string | null = null;
-  private pending = false;
+  /** The redraw waiting for the next frame. */
+  private frame: number | null = null;
   /**
    * Whether the grid keeps up with the folder pressed in the pane.
    *
@@ -128,6 +131,8 @@ export class FolderTilesView extends ItemView {
   }
 
   protected override async onClose(): Promise<void> {
+    if (this.frame !== null) this.containerEl.win.cancelAnimationFrame(this.frame);
+    this.frame = null;
     this.contentEl.empty();
   }
 
@@ -147,10 +152,10 @@ export class FolderTilesView extends ItemView {
 
   /** One redraw per frame, however many vault events arrived in it. */
   private requestRender(): void {
-    if (this.pending) return;
-    this.pending = true;
-    window.requestAnimationFrame(() => {
-      this.pending = false;
+    if (this.frame !== null) return;
+    // The view's own window: a tab popped out has one of its own.
+    this.frame = this.containerEl.win.requestAnimationFrame(() => {
+      this.frame = null;
       this.render();
     });
   }
@@ -227,11 +232,7 @@ export class FolderTilesView extends ItemView {
       activate: (event) => void host.open(path, this.openInto(event)),
       showMenu: (at) => host.showMenu(path, at)
     });
-    tile.addEventListener("keydown", (event) => {
-      if (event.key !== "Enter" && event.key !== " ") return;
-      event.preventDefault();
-      void host.open(path, this.leaf);
-    });
+    pressKeys(tile, () => void host.open(path, this.leaf));
   }
 
   /** This leaf for a plain press, a new tab for a modifier press. */
@@ -243,9 +244,4 @@ export class FolderTilesView extends ItemView {
 /** The vault calls its root "/", and an empty path is the same place. */
 function isRoot(path: string): boolean {
   return path === "/" || path.length === 0;
-}
-
-function basenameOf(path: string): string {
-  const cut = path.lastIndexOf("/");
-  return cut === -1 ? path : path.slice(cut + 1);
 }

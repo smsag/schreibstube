@@ -66,7 +66,7 @@ export function writePaneMemory(storage: PaneStorage, state: PaneState): void {
       expandedFolders: [...state.expandedFolders]
     } satisfies PaneMemory);
   } catch {
-    // See above.
+    return;
   }
 }
 
@@ -94,7 +94,7 @@ export function stateFromMemory(memory: PaneMemory | null): {
   return { state, defaultsApplied: true };
 }
 
-export function toSet(value: unknown): Set<string> {
+function toSet(value: unknown): Set<string> {
   return new Set(
     Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === "string") : []
   );

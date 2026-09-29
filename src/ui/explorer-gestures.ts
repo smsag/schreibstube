@@ -169,6 +169,9 @@ export class DragGesture {
 
       if (event.pointerType === "touch") {
         holdTimer = window.setTimeout(() => {
+          // A redraw in the meantime threw the row away; a drag of a row
+          // that is not there would never be released.
+          if (!row.isConnected) return;
           armed = true;
           row.addClass("is-dragging");
         }, LONG_PRESS_MS);
@@ -375,6 +378,10 @@ export function wirePress(row: HTMLElement, handlers: PressHandlers): void {
       startY = touch.clientY;
       timer = window.setTimeout(() => {
         timer = null;
+        // A redraw in the meantime threw the row away: the finger is on a
+        // row drawn since, and a menu for the old one would be for a file
+        // nobody is pressing.
+        if (!row.isConnected) return;
         answeredAt = Date.now();
         answered = true;
         handlers.showMenu({ x: touch.clientX, y: touch.clientY });

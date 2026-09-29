@@ -18,6 +18,7 @@ import {
 } from "../services/slideshow";
 import { claimsHorizontal, classifyTouch } from "../services/slideshow-gesture";
 import { applyIcon, installIconFont } from "../ui/icon-font";
+import { pressable } from "../ui/pressable";
 
 /**
  * Things in a block that answer a press of their own: a control, a tile, the
@@ -452,7 +453,7 @@ class Slideshow extends MarkdownRenderChild {
       attr: { role: "button", tabindex: "0", "aria-label": label, title: label }
     });
     drawGlyph(control.createSpan(), icon, fallbackIcon);
-    wirePress(control, run);
+    pressable(control, run, { stop: true });
     return control;
   }
 
@@ -462,14 +463,20 @@ class Slideshow extends MarkdownRenderChild {
       cls: `schreibstube-slideshow-tile ${cls}`,
       attr: { role: "button", tabindex: "0" }
     });
-    wirePress(tile, run);
+    pressable(tile, run, { stop: true });
     return tile;
   }
 
   private openFullscreen(images: ResolvedImage[], startAt: number): void {
     let fsCurrent = startAt;
     const doc = this.containerEl.ownerDocument;
-    const overlay = doc.body.createEl("div", { cls: "schreibstube-slideshow-fs" });
+    // Where the focus was, to be put back when the overlay goes: a reader who
+    // opened it from the keyboard should land on the control they pressed.
+    const opener = doc.activeElement instanceof HTMLElement ? doc.activeElement : null;
+    const overlay = doc.body.createEl("div", {
+      cls: "schreibstube-slideshow-fs",
+      attr: { role: "dialog", "aria-modal": "true", "aria-label": t().slideshow.fullscreen }
+    });
 
     const fsImg = overlay.createEl("img", { cls: "schreibstube-slideshow-fs-img" });
     fsImg.draggable = false;
@@ -516,12 +523,15 @@ class Slideshow extends MarkdownRenderChild {
       doc.removeEventListener("keydown", onKey);
       const idx = this.teardown.indexOf(dismiss);
       if (idx >= 0) this.teardown.splice(idx, 1);
+      if (opener?.isConnected) opener.focus();
     };
 
     fsGoTo(fsCurrent);
-    wirePress(fsPrev, () => fsGoTo(fsCurrent - 1));
-    wirePress(fsNext, () => fsGoTo(fsCurrent + 1));
-    wirePress(fsClose, dismiss);
+    pressable(fsPrev, () => fsGoTo(fsCurrent - 1), { stop: true });
+    pressable(fsNext, () => fsGoTo(fsCurrent + 1), { stop: true });
+    pressable(fsClose, dismiss, { stop: true });
+    // The focus goes with the dialog, or the keys still drive the note behind it.
+    fsClose.focus();
     overlay.addEventListener("click", (e) => {
       if (e.target === overlay) dismiss();
     });
@@ -610,22 +620,6 @@ function sideLabel(
     cls: `schreibstube-slideshow-compare-label schreibstube-slideshow-compare-label--${side}`,
     text: image.alt,
     attr: { "aria-hidden": "true" }
-  });
-}
-
-/** Click, Enter and Space all press the control. */
-function wirePress(el: HTMLElement, run: () => void): void {
-  el.addEventListener("click", (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    run();
-  });
-  el.addEventListener("keydown", (event) => {
-    if (event.key === "Enter" || event.key === " ") {
-      event.preventDefault();
-      event.stopPropagation();
-      run();
-    }
   });
 }
 

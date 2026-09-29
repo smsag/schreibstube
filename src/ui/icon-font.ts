@@ -53,7 +53,7 @@ export interface IconGroup {
   icons: string[];
 }
 
-export const iconGroups: IconGroup[] = ICON_GROUPS;
+const iconGroups: IconGroup[] = ICON_GROUPS;
 
 /** Every icon a user can choose, in picker order. */
 export function allIconNames(): string[] {

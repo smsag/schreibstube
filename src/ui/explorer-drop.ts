@@ -17,7 +17,7 @@ const PINNED_ROWS = ".schreibstube-explorer-row.is-pinned-entry";
 const SECTION_HEADER = "schreibstube-explorer-section-header";
 
 /** Whether a point on screen is inside an element's box. */
-export function containsPoint(element: HTMLElement, clientX: number, clientY: number): boolean {
+function containsPoint(element: HTMLElement, clientX: number, clientY: number): boolean {
   const box = element.getBoundingClientRect();
   return clientY >= box.top && clientY <= box.bottom && clientX >= box.left && clientX <= box.right;
 }

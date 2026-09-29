@@ -101,7 +101,10 @@ import {
 } from "./explorer-section";
 import { PendingReveal } from "../services/pending-reveal";
 import { renderBookmarkRows } from "./bookmark-section";
+import { basename as basenameOf } from "../services/file-name";
+import { indent } from "./explorer-row";
 import { applyIcon, installIconFont, PYTHIA_GLYPH } from "./icon-font";
+import { pressable, pressKeys } from "./pressable";
 import { drawTaskCount } from "./task-count-label";
 import { SCHREIBSTUBE_ICON } from "./schreibstube-icon";
 
@@ -252,10 +255,6 @@ export class ExplorerPaneView extends ItemView {
    * not it was among the two hundred there was room to draw.
    */
   private ranked: SearchHit[] | null = null;
-  /**
-   * The vault as the filter reads it: names, titles, aliases and tags, read
-   * once per file and kept until the vault says that file changed.
-   */
   /** The words of every note's text, read once when the filter is first used. */
   private readonly bodies = new BodyIndex();
   private readonly bodyLoader = new BodyLoader(this.bodies, {
@@ -267,6 +266,10 @@ export class ExplorerPaneView extends ItemView {
     },
     exists: (path) => this.app.vault.getAbstractFileByPath(path) instanceof TFile
   });
+  /**
+   * The vault as the filter reads it: names, titles, aliases and tags, read
+   * once per file and kept until the vault says that file changed.
+   */
   private readonly index = new FileSearchIndex(
     {
       files: () =>
@@ -330,6 +333,8 @@ export class ExplorerPaneView extends ItemView {
   private panePress: PanePress | null = null;
   /** A pending ground measurement, so several signals in one frame cost one read. */
   private groundFrame: number | null = null;
+  /** The shelf's rule and stuck headers waiting for the next frame. */
+  private shelfFrame: number | null = null;
 
   constructor(leaf: WorkspaceLeaf) {
     super(leaf);
@@ -454,7 +459,7 @@ export class ExplorerPaneView extends ItemView {
 
     this.shelf = root.createDiv({ cls: "schreibstube-explorer-shelf" });
     this.body = root.createDiv({ cls: "schreibstube-explorer-body", attr: { tabindex: "0" } });
-    this.body.addEventListener("scroll", () => this.syncShelfRule(), { passive: true });
+    this.body.addEventListener("scroll", () => this.scheduleShelfSync(), { passive: true });
     // Tab reaches the list here and is handed to the open note's row, where a
     // person is, or the first; a press keeps the focus it brought.
     this.register(
@@ -560,11 +565,24 @@ export class ExplorerPaneView extends ItemView {
     this.cancelFilter();
     // The text read is this pane's; closed, it would read on into nothing.
     this.bodyLoader.cancel();
-    if (this.renderFrame !== null) this.containerEl.win.cancelAnimationFrame(this.renderFrame);
+    const win = this.containerEl.win;
+    if (this.renderFrame !== null) win.cancelAnimationFrame(this.renderFrame);
     this.renderFrame = null;
-    if (this.groundFrame !== null) this.containerEl.win.cancelAnimationFrame(this.groundFrame);
+    if (this.groundFrame !== null) win.cancelAnimationFrame(this.groundFrame);
     this.groundFrame = null;
+    if (this.shelfFrame !== null) win.cancelAnimationFrame(this.shelfFrame);
+    this.shelfFrame = null;
     this.contentEl.empty();
+    // A search by meaning or a read of the notes' text still running answers
+    // into a pane that is gone. With nothing to draw into, a redraw asked for
+    // afterwards is not scheduled, and what it would have drawn is dropped.
+    this.body = null;
+    this.shelf = null;
+    this.search = null;
+    this.filterStatus = null;
+    this.meaningPending = null;
+    this.meaning = null;
+    this.conversationHits = null;
   }
 
   private cancelFilter(): void {
@@ -911,7 +929,7 @@ export class ExplorerPaneView extends ItemView {
 
   /** Collapse the redraws a burst of vault events would otherwise cause. */
   private requestRender(): void {
-    if (this.renderFrame !== null) return;
+    if (!this.body || this.renderFrame !== null) return;
     this.renderFrame = this.containerEl.win.requestAnimationFrame(() => {
       this.renderFrame = null;
       // A drag in progress holds the redraw and runs it when it ends.
@@ -989,37 +1007,45 @@ export class ExplorerPaneView extends ItemView {
     this.syncShelfRule();
   }
 
-  /**
-   * Show the strip's rule only while something is scrolled under it.
-   *
-   * At rest the strip is part of the pane and needs no line around it. The
-   * moment a fourth pinned row, or the section below, has gone past, the line
-   * says the strip is holding rows back rather than simply being first.
-   */
-  private syncShelfRule(): void {
-    if (!this.shelf || !this.body) return;
-    this.shelf.toggleClass("is-scrolled", this.body.scrollTop > 0);
-    this.syncStuckHeaders();
+  /** One pass per frame, however many scroll events arrived in it. */
+  private scheduleShelfSync(): void {
+    if (this.shelfFrame !== null) return;
+    this.shelfFrame = this.containerEl.win.requestAnimationFrame(() => {
+      this.shelfFrame = null;
+      this.syncShelfRule();
+    });
   }
 
   /**
-   * Mark whichever header is currently holding the top of the list.
+   * Show the strip's rule only while something is scrolled under it, and mark
+   * whichever header is holding the top of the list.
    *
-   * CSS can hold an element there but cannot say that it is doing so, and the
-   * fade below a header belongs only to the one that has rows sliding under it.
-   * A header sitting in its natural place in the list must not cast it.
+   * At rest the strip is part of the pane and needs no line around it. The
+   * moment a fourth pinned row, or the section below, has gone past, the line
+   * says the strip is holding rows back rather than simply being first. CSS
+   * can hold a header there but cannot say that it is doing so, and the fade
+   * below a header belongs only to the one that has rows sliding under it.
+   *
+   * Every measurement is taken before any class changes: a read after a write
+   * makes the browser lay the pane out again, once per header, on every frame
+   * of a scroll.
    */
-  private syncStuckHeaders(): void {
+  private syncShelfRule(): void {
     const body = this.body;
-    if (!body) return;
+    const shelf = this.shelf;
+    if (!shelf || !body) return;
 
+    const scrolled = body.scrollTop > 0;
     const top = body.getBoundingClientRect().top;
-    for (const header of Array.from(
+    const headers = Array.from(
       body.querySelectorAll<HTMLElement>(".schreibstube-explorer-section-header")
-    )) {
-      const held = Math.abs(header.getBoundingClientRect().top - top) < STUCK_TOLERANCE_PX;
-      header.toggleClass("is-stuck", held);
-    }
+    );
+    const held = headers.map(
+      (header) => Math.abs(header.getBoundingClientRect().top - top) < STUCK_TOLERANCE_PX
+    );
+
+    shelf.toggleClass("is-scrolled", scrolled);
+    headers.forEach((header, index) => header.toggleClass("is-stuck", held[index] === true));
   }
 
   // --- sections -----------------------------------------------------------
@@ -1196,7 +1222,13 @@ export class ExplorerPaneView extends ItemView {
     if (!controller) return;
 
     const isFolder = file instanceof TFolder;
-    const row = host.createDiv({ cls: "schreibstube-explorer-row is-pinned-entry" });
+    // A link rather than a tree item: the row stands for a place, and the
+    // tree's own arrows and states do not apply to it. Not a Tab stop of its
+    // own, as no row in the pane is; the list is the stop.
+    const row = host.createDiv({
+      cls: "schreibstube-explorer-row is-pinned-entry",
+      attr: { role: "link", tabindex: "-1" }
+    });
     indent(row, 0);
     row.setAttribute("title", file.path);
     row.setAttribute("data-path", file.path);
@@ -1223,21 +1255,23 @@ export class ExplorerPaneView extends ItemView {
     // right click had no way to its menu on a phone, where a long press is the
     // only right click there is. A pinned folder shows where it is rather
     // than opening a second copy of the tree inside the section.
+    const activate = (event?: MouseEvent): void => {
+      if (isFolder) {
+        this.revealFolder(file.path);
+        return;
+      }
+      const where = event ? openTargetOf(Keymap.isModEvent(event)) : false;
+      // Only a note opened in place is in front of the person; one opened
+      // beside it or in another window leaves the tree free to follow.
+      if (where === false) this.notePanePress(file.path);
+      void controller.open(file, where);
+    };
     wirePress(row, {
       isDragging: () => this.drag.active !== null,
-      activate: (event) => {
-        if (isFolder) {
-          this.revealFolder(file.path);
-          return;
-        }
-        const where = event ? openTargetOf(Keymap.isModEvent(event)) : false;
-        // Only a note opened in place is in front of the person; one opened
-        // beside it or in another window leaves the tree free to follow.
-        if (where === false) this.notePanePress(file.path);
-        void controller.open(file, where);
-      },
+      activate,
       showMenu: (at) => controller.showMenu(file, at)
     });
+    pressKeys(row, () => activate());
   }
 
   /**
@@ -1256,7 +1290,10 @@ export class ExplorerPaneView extends ItemView {
     const controller = this.host?.explorer;
     if (!controller) return;
 
-    const row = host.createDiv({ cls: "schreibstube-explorer-row is-pinned-entry is-tag" });
+    const row = host.createDiv({
+      cls: "schreibstube-explorer-row is-pinned-entry is-tag",
+      attr: { role: "link", tabindex: "-1" }
+    });
     indent(row, 0);
     row.setAttribute("title", t().explorer.tags.rowLabel(item.tag));
     row.setAttribute("data-path", item.key);
@@ -1274,6 +1311,7 @@ export class ExplorerPaneView extends ItemView {
       activate: () => void controller.openTag(item.tag),
       showMenu: (at) => controller.showTagMenu(item, at)
     });
+    pressKeys(row, () => void controller.openTag(item.tag));
   }
 
   private renderBookmarks(host: HTMLElement): void {
@@ -1390,7 +1428,10 @@ export class ExplorerPaneView extends ItemView {
   private renderLatestRows(host: HTMLElement, files: readonly LatestCandidate[]): number {
     const controller = this.host?.explorer;
     for (const file of files) {
-      const row = host.createDiv({ cls: "schreibstube-explorer-row is-latest" });
+      const row = host.createDiv({
+        cls: "schreibstube-explorer-row is-latest",
+        attr: { role: "link", tabindex: "-1" }
+      });
       indent(row, 0);
       row.setAttribute("title", file.path);
       this.markOpenState(row, file.path);
@@ -1415,18 +1456,20 @@ export class ExplorerPaneView extends ItemView {
 
       // The same press the tree answers, so a note met here can be deleted,
       // renamed or moved without first finding it in the tree below.
+      const activate = (event?: MouseEvent): void => {
+        const where = event ? openTargetOf(Keymap.isModEvent(event)) : false;
+        if (where === false) this.notePanePress(file.path);
+        void this.host?.sections.openLatest(file.path, where);
+      };
       wirePress(row, {
         isDragging: () => this.drag.active !== null,
-        activate: (event) => {
-          const where = event ? openTargetOf(Keymap.isModEvent(event)) : false;
-          if (where === false) this.notePanePress(file.path);
-          void this.host?.sections.openLatest(file.path, where);
-        },
+        activate,
         showMenu: (at) => {
           const current = this.app.vault.getAbstractFileByPath(file.path);
           if (current instanceof TFile) controller?.showMenu(current, at);
         }
       });
+      pressKeys(row, () => activate());
     }
 
     return files.length;
@@ -1591,12 +1634,7 @@ export class ExplorerPaneView extends ItemView {
       row.createSpan({ cls: "schreibstube-explorer-twisty" });
       applyIcon(row.createSpan({ cls: "schreibstube-explorer-glyph" }), PYTHIA_GLYPH);
       row.createSpan({ cls: "schreibstube-explorer-name", text: hit.title });
-      row.addEventListener("click", () => open(hit.id));
-      row.addEventListener("keydown", (event) => {
-        if (event.key !== "Enter" && event.key !== " ") return;
-        event.preventDefault();
-        open(hit.id);
-      });
+      pressable(row, () => open(hit.id));
     }
   }
 
@@ -1917,12 +1955,6 @@ export class ExplorerPaneView extends ItemView {
     }
 
     return { taken, folders };
-  }
-
-  /** Planned against the vault as it is now — at the drop, never from a cache,
-   *  because a sync may have delivered something since the drag began. */
-  private planFor(source: string, targetFolder: string): ReturnType<typeof planMove> {
-    return planMove(source, targetFolder, this.moveContext());
   }
 
   private async dropInto(source: string, targetFolder: string | null): Promise<void> {
@@ -2358,19 +2390,6 @@ export class ExplorerPaneView extends ItemView {
   }
 }
 
-/**
- * Put a row at its depth.
- *
- * Depth is handed to CSS rather than resolved to pixels here, so the base
- * padding and the step per level are stated once in the stylesheet and every
- * section — pinned, bookmarks, latest, the tree — sits on the same grid. A row
- * at depth 0 in one section lines up with a row at depth 0 in another, which is
- * what makes the icon column read as a column.
- */
-function indent(row: HTMLElement, depth: number): void {
-  row.style.setProperty("--schreibstube-depth", String(depth));
-}
-
 /** Whether a row is wholly inside the part of its scrolling list on screen. */
 function isInView(row: HTMLElement): boolean {
   let scroller = row.parentElement;
@@ -2381,11 +2400,6 @@ function isInView(row: HTMLElement): boolean {
   const box = scroller.getBoundingClientRect();
   const own = row.getBoundingClientRect();
   return own.top >= box.top && own.bottom <= box.bottom;
-}
-
-function basenameOf(path: string): string {
-  const cut = path.lastIndexOf("/");
-  return cut === -1 ? path : path.slice(cut + 1);
 }
 
 function displayName(file: TAbstractFile, showExtension: boolean): string {
@@ -2401,14 +2415,20 @@ function displayName(file: TAbstractFile, showExtension: boolean): string {
  */
 function publishMarkLines(mark: Exclude<PublishMark, { state: "none" }>): [string, string] {
   const labels = t().explorer.badge;
-  const when = (iso: string): string => new Date(iso).toLocaleString();
+  // A stamp the frontmatter or a record cannot be read as a date is left out
+  // rather than shown as the browser's "Invalid Date".
+  const when = (iso: string): string => {
+    const ms = Date.parse(iso);
+    return Number.isNaN(ms) ? "" : new Date(ms).toLocaleString();
+  };
   if (mark.state === "published") {
     return [labels.published(siteOf(mark.url) || mark.account, when(mark.at)), mark.url];
   }
+  const lastRun = mark.lastRun ? when(mark.lastRun) : "";
   const detail = mark.recorded
     ? labels.notYetPublished
-    : mark.lastRun
-      ? labels.siteLastPublished(when(mark.lastRun))
+    : lastRun
+      ? labels.siteLastPublished(lastRun)
       : labels.siteNeverPublished;
   return [labels.marked(mark.account), detail];
 }
