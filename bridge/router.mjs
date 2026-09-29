@@ -29,14 +29,8 @@ export function authenticate(authorizationHeader, tokens) {
   return null;
 }
 
-/**
- * Resolve a request against the table.
- *
- * `capability` is the one the caller authenticated as, or null. The outcomes
- * are deliberately few: an unauthenticated caller and a caller reaching for
- * another capability both get `unauthorized`, and neither learns whether the
- * path exists.
- */
+/** Resolve a request against the table; `capability` is the one the caller
+ *  authenticated as, or null. */
 export function resolve(routes, { method, pathname, capability }) {
   const byPath = routes.filter((route) => route.path === pathname);
 

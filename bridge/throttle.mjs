@@ -1,12 +1,5 @@
 /**
- * Authentication failure throttle.
- *
- * The bridge is a public URL guarded by a bearer token. A token of the required
- * length is not realistically brute-forceable, but "not realistic" is a weaker
- * guarantee than "not allowed to try", and the cost of saying so is a map.
- *
- * State is per address and in memory: the bridge runs as a single instance, and
- * a throttle that forgets on restart is still a throttle.
+ * Authentication failure throttle, per address and in memory.
  *
  * What it must not do is remember forever. An address was only forgotten when
  * it was asked about again, so every address that ever failed stayed in the
@@ -19,6 +12,7 @@ const SWEEP_ABOVE = 1000;
 
 export function createThrottle({ limit = 5, windowMs = 60_000, now = () => Date.now() } = {}) {
   const failures = new Map();
+  let sweptAt = -Infinity;
 
   function recent(key) {
     const at = failures.get(key) ?? [];
@@ -33,14 +27,14 @@ export function createThrottle({ limit = 5, windowMs = 60_000, now = () => Date.
   }
 
   /**
-   * Drop the addresses whose failures have all aged out.
-   *
-   * Only when the map has grown past a size a real deployment reaches, so the
-   * ordinary case stays two map operations and the pathological one stays
-   * bounded.
+   * Drop the addresses whose failures have all aged out: only past a size a
+   * real deployment reaches, and at most once per window, since a scanner
+   * that keeps the map large would otherwise have every failure walk it.
    */
   function sweep() {
     if (failures.size <= SWEEP_ABOVE) return;
+    if (now() - sweptAt < windowMs) return;
+    sweptAt = now();
     const cutoff = now() - windowMs;
     for (const [key, at] of failures) {
       if (at.every((time) => time <= cutoff)) failures.delete(key);

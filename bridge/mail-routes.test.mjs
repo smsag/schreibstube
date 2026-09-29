@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createMailRoutes } from "./mail-routes.mjs";
+import { createMailRoutes, validateSearch, validateSend } from "./mail-routes.mjs";
 import { TimeoutError } from "./timeout.mjs";
 
 /**
@@ -74,5 +74,59 @@ describe("POST /send", () => {
     const limit = (path) => routes.find((route) => route.path === path).maxBytes;
     expect(limit("/send")).toBeGreaterThan(10_000_000);
     expect(limit("/search")).toBe(1_000_000);
+  });
+});
+
+describe("validateSend", () => {
+  const ok = { to: ["kunde@example.com"], subject: "Angebot", text: "Guten Tag" };
+  const check = (body) => validateSend(body, 40_000);
+
+  it("reads recipients as the envelope will, so a name with a comma stays one address", () => {
+    expect(check({ ...ok, to: ['"Seitz, Steffen" <s@example.com>'] })).toBeNull();
+    expect(check({ ...ok, to: "a@example.com, b@example.com" })).toBeNull();
+  });
+
+  it("refuses a recipient with no address in it, rather than sending to nobody", () => {
+    expect(check({ ...ok, to: ["Steffen Seitz"] })).toMatch(/must be an address/);
+    expect(check({ ...ok, to: ["kunde@example.com", "niemand"] })).toMatch(/must be an address/);
+    expect(check({ ...ok, to: [], cc: '"Nur ein Name"' })).toMatch(/must be an address|required/);
+  });
+
+  it("refuses a recipient field of the wrong type or length", () => {
+    expect(check({ ...ok, to: 5 })).toMatch(/to must be a string/);
+    expect(check({ ...ok, to: ["kunde@example.com", 7] })).toMatch(/to must be a string/);
+    expect(check({ ...ok, cc: { address: "x@y.de" } })).toMatch(/cc must be a string/);
+    expect(check({ ...ok, bcc: ["x".repeat(999)] })).toMatch(/bcc exceeds/);
+  });
+
+  it("bounds the subject to one header line", () => {
+    expect(check({ ...ok, subject: "x".repeat(998) })).toBeNull();
+    expect(check({ ...ok, subject: "x".repeat(999) })).toMatch(/Subject exceeds the 998/);
+  });
+
+  it("type-checks and bounds the thread headers", () => {
+    expect(check({ ...ok, inReplyTo: "<a@b.de>", references: ["<a@b.de>"] })).toBeNull();
+    expect(check({ ...ok, inReplyTo: ["<a@b.de>"] })).toMatch(/inReplyTo must be a string/);
+    expect(check({ ...ok, inReplyTo: "x".repeat(999) })).toMatch(/inReplyTo must be a string/);
+    expect(check({ ...ok, references: "<a@b.de>" })).toMatch(/references must be a list/);
+    expect(check({ ...ok, references: [1] })).toMatch(/Every reference must be a string/);
+    expect(check({ ...ok, references: ["x".repeat(999)] })).toMatch(/Every reference/);
+    expect(check({ ...ok, references: Array(101).fill("<a@b.de>") })).toMatch(/at most 100/);
+    expect(check({ ...ok, inReplyTo: null, references: null })).toBeNull();
+  });
+});
+
+describe("validateSearch", () => {
+  it("type-checks the thread lookup like every other criterion", () => {
+    expect(validateSearch({ criteria: { references: ["<a@b.de>"] } })).toMatch(
+      /criteria.references must be a string/
+    );
+    expect(validateSearch({ criteria: { references: "<a@b.de>" } })).toBeNull();
+  });
+
+  it("bounds the mailbox name", () => {
+    expect(validateSearch({ mailbox: "x".repeat(255) })).toBeNull();
+    expect(validateSearch({ mailbox: "x".repeat(256) })).toMatch(/mailbox exceeds the 255/);
+    expect(validateSearch({ mailbox: 5 })).toMatch(/mailbox must be a string/);
   });
 });

@@ -1,18 +1,7 @@
 /**
- * The site's icon, the small picture a browser shows in its tab, named by the
- * site's own stylesheet.
- *
- * A theme is where a site's look lives, and the logo already stands in it, so
- * the icon is named there too: `--site-icon: url("data:image/svg+xml,…")`. The
- * bridge reads it out of the theme it was sent and writes it as a file of its
- * own, because a browser asks for an icon by address and never looks inside a
- * stylesheet for one. No new field in the index: a theme was always sent.
- *
- * The icon is served from the site's own domain, where an SVG opened on its
- * own would run whatever it carries, so it is checked like any other input:
- * an SVG or a PNG, no larger than a small picture needs, and an SVG with no
- * script, no event handler and nothing it loads from elsewhere. An icon that
- * fails is left out — the site loses its tab icon, not its publish.
+ * The site's tab icon, read out of the theme's `--site-icon` and written as
+ * a file of its own. Served from the site's domain, where an SVG opened on
+ * its own would run whatever it carries, so it is checked first.
  */
 
 /** Far more than an icon needs; a drawing of a pile is under one kilobyte. */

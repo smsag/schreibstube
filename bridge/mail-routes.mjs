@@ -14,8 +14,17 @@ import {
   sendMessage,
   SendUnconfirmedError
 } from "./mail.mjs";
-import { parseSender } from "./mail-address.mjs";
+import { parseSender, recipientAddresses } from "./mail-address.mjs";
 import { checkAttachments, maxSendBodyBytes } from "./mail-attachments.mjs";
+
+/** RFC 5322's line limit; a header longer than that is folded or refused. */
+export const MAX_HEADER_CHARS = 998;
+
+/** A thread deeper than this is not a thread a note is part of. */
+export const MAX_REFERENCES = 100;
+
+/** A mailbox name; IMAP servers cap them far lower. */
+export const MAX_MAILBOX_CHARS = 255;
 
 export function createMailRoutes(
   config,
@@ -32,9 +41,7 @@ export function createMailRoutes(
     timeoutMs
   });
 
-  // A send is two upstream legs with a deadline each, delivery and filing in
-  // Sent. The request has to outlast both, or the server's own deadline would
-  // report a delivered message as a failure all the same.
+  // Two upstream legs with a deadline each, and the request outlasts both.
   const sendTimeoutMs = Math.max(config.requestTimeoutMs, 2 * config.upstreamTimeoutMs + 5_000);
 
   return [
@@ -47,9 +54,7 @@ export function createMailRoutes(
         if (checked.problem) throw httpError(400, "invalid_request", checked.problem);
         const request = { ...body, attachments: checked.attachments };
 
-        // sendMessage keeps a deadline per leg itself; one around the whole of
-        // it would cut the filing short and fail a send that was delivered.
-        const result = await upstream(() => sendMessage(mail, transport, request), "Send");
+        const result = await upstream(() => sendMessage(mail, transport, request, { log }), "Send");
         // Recipients are intentionally absent from the log line.
         log(
           result.rejected.length > 0 ? "warn" : "info",
@@ -60,8 +65,6 @@ export function createMailRoutes(
         return result;
       },
       sendTimeoutMs,
-      // The one route whose body may carry pictures; every other keeps the
-      // small limit.
       maxSendBodyBytes(mail.maxBodyBytes)
     ),
 
@@ -97,8 +100,6 @@ async function upstream(work, label) {
   try {
     return await work();
   } catch (err) {
-    // Not a 502: that says the server refused, and a refused send is safe to
-    // repeat. This one may have been delivered, and the plugin must say so.
     if (err instanceof SendUnconfirmedError) {
       throw httpError(504, "send_unconfirmed", err.message);
     }
@@ -106,12 +107,33 @@ async function upstream(work, label) {
   }
 }
 
-function validateSend(body, maxTextChars) {
-  if (!hasRecipient(body.to) && !hasRecipient(body.cc) && !hasRecipient(body.bcc)) {
+/**
+ * The send body, checked before anything is compiled from it. Recipients are
+ * read with the parser that builds the envelope, so what passes here is what
+ * the server is asked to deliver to, and a "recipient" with no address in it
+ * is refused rather than sent to nobody.
+ */
+export function validateSend(body, maxTextChars) {
+  for (const field of ["to", "cc", "bcc"]) {
+    const problem = checkRecipientField(body[field], field);
+    if (problem) return problem;
+  }
+  const recipients = [
+    ...recipientAddresses(body.to),
+    ...recipientAddresses(body.cc),
+    ...recipientAddresses(body.bcc)
+  ];
+  if (recipients.length === 0) {
     return "At least one recipient (to, cc or bcc) is required.";
+  }
+  if (recipients.some((address) => !address.includes("@"))) {
+    return "Every recipient must be an address.";
   }
   if (typeof body.subject !== "string" || !body.subject.trim()) {
     return "A non-empty subject is required.";
+  }
+  if (body.subject.length > MAX_HEADER_CHARS) {
+    return `Subject exceeds the ${MAX_HEADER_CHARS} character limit.`;
   }
   if (typeof body.text !== "string" || !body.text.trim()) {
     return "A non-empty text body is required.";
@@ -119,29 +141,55 @@ function validateSend(body, maxTextChars) {
   if (body.text.length > maxTextChars) {
     return `Body exceeds the ${maxTextChars} character limit.`;
   }
-  // A blank `from` means "the bridge's own"; anything else has to be one
-  // address, since falling back quietly would send under another name than
-  // the note asked for.
   if (body.from !== undefined && body.from !== null) {
     if (typeof body.from !== "string") return "from must be a string.";
     if (body.from.trim() && !parseSender(body.from)) {
       return 'from must be one address, alone or after a name: "Name <you@example.de>".';
     }
   }
+  if (body.inReplyTo !== undefined && body.inReplyTo !== null) {
+    if (typeof body.inReplyTo !== "string" || body.inReplyTo.length > MAX_HEADER_CHARS) {
+      return `inReplyTo must be a string of at most ${MAX_HEADER_CHARS} characters.`;
+    }
+  }
+  if (body.references !== undefined && body.references !== null) {
+    if (!Array.isArray(body.references) || body.references.length > MAX_REFERENCES) {
+      return `references must be a list of at most ${MAX_REFERENCES} Message-IDs.`;
+    }
+    if (
+      body.references.some((item) => typeof item !== "string" || item.length > MAX_HEADER_CHARS)
+    ) {
+      return `Every reference must be a string of at most ${MAX_HEADER_CHARS} characters.`;
+    }
+  }
   return null;
 }
 
-/**
- * The search body, checked before anything reads it.
- *
- * Every field here was used with `?.trim()` on whatever arrived, so
- * `{"mailbox": 5}` threw a TypeError deep in the IMAP call and came back as a
- * 502 quoting the bridge's own source. A wrongly typed field is the caller's
- * mistake and is answered as one.
- */
-function validateSearch(body) {
-  if (body.mailbox !== undefined && typeof body.mailbox !== "string") {
-    return "mailbox must be a string.";
+/** A recipient field is a string or a list of strings, or absent. */
+function checkRecipientField(value, field) {
+  if (value === undefined || value === null) return null;
+  const items = Array.isArray(value) ? value : [value];
+  if (items.some((item) => typeof item !== "string")) {
+    return `${field} must be a string or a list of strings.`;
+  }
+  if (items.some((item) => item.length > MAX_HEADER_CHARS)) {
+    return `${field} exceeds the ${MAX_HEADER_CHARS} character limit.`;
+  }
+  // A name alone parses to no address at all, which is not "no recipient".
+  if (items.some((item) => item.trim() && recipientAddresses(item).length === 0)) {
+    return "Every recipient must be an address.";
+  }
+  return null;
+}
+
+/** The search body, checked before anything reads it: a wrongly typed field
+ *  is the caller's mistake and is answered as one, not as a 502. */
+export function validateSearch(body) {
+  if (body.mailbox !== undefined) {
+    if (typeof body.mailbox !== "string") return "mailbox must be a string.";
+    if (body.mailbox.length > MAX_MAILBOX_CHARS) {
+      return `mailbox exceeds the ${MAX_MAILBOX_CHARS} character limit.`;
+    }
   }
   if (
     body.limit !== undefined &&
@@ -155,7 +203,7 @@ function validateSearch(body) {
     return "criteria must be an object.";
   }
 
-  for (const field of ["from", "to", "subject", "text"]) {
+  for (const field of ["from", "to", "subject", "text", "references"]) {
     if (body.criteria[field] !== undefined && typeof body.criteria[field] !== "string") {
       return `criteria.${field} must be a string.`;
     }
@@ -166,11 +214,4 @@ function validateSearch(body) {
   }
 
   return null;
-}
-
-function hasRecipient(value) {
-  if (Array.isArray(value)) {
-    return value.some((item) => String(item).trim().length > 0);
-  }
-  return typeof value === "string" && value.trim().length > 0;
 }

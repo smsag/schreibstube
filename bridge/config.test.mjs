@@ -263,3 +263,66 @@ describe("isWithin", () => {
     expect(isWithin("/anything", "/")).toBe(true);
   });
 });
+
+describe("loadConfig, the publish target's own values", () => {
+  const publishEnv = (overrides = {}) => ({
+    PUBLISH_TOKEN: TOKEN,
+    PUBLISH_TARGETS: "blog",
+    PUBLISH_BLOG_HOST: "sftp.example.com",
+    PUBLISH_BLOG_USER: "web",
+    PUBLISH_BLOG_PASSWORD: "geheim",
+    PUBLISH_BLOG_HOST_FINGERPRINT: "SHA256:abc",
+    PUBLISH_BLOG_ROOT: "/var/www/blog/",
+    PUBLISH_BLOG_BASE_URL: "https://blog.example.com",
+    ...overrides
+  });
+  const pem =
+    "-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEA\n-----END OPENSSH PRIVATE KEY-----\n";
+  const keyed = (key) =>
+    publishEnv({
+      PUBLISH_BLOG_PASSWORD: "",
+      PUBLISH_BLOG_KEY: Buffer.from(key).toString("base64")
+    });
+
+  it("accepts a key that reads as a private key, PEM or OpenSSH", () => {
+    expect(loadConfig(keyed(pem)).publish.targets.blog.key).toBe(pem.trim());
+    const rsa = "-----BEGIN RSA PRIVATE KEY-----\nMIIE\n-----END RSA PRIVATE KEY-----";
+    expect(loadConfig(keyed(rsa)).publish.targets.blog.key).toBe(rsa);
+  });
+
+  it("refuses a key that is not one at boot, not on the first publish", () => {
+    expect(() => loadConfig(keyed("ssh-ed25519 AAAAC3 web@host"))).toThrow(/PUBLISH_BLOG_KEY/);
+    expect(() =>
+      loadConfig(publishEnv({ PUBLISH_BLOG_PASSWORD: "", PUBLISH_BLOG_KEY: pem }))
+    ).toThrow(/base64 of a PEM or OpenSSH private key/);
+  });
+
+  it("names the target's variable when its port or flag is unreadable", () => {
+    expect(() => loadConfig(publishEnv({ PUBLISH_BLOG_PORT: "zwei" }))).toThrow(
+      /PUBLISH_BLOG_PORT must be a positive integer/
+    );
+    expect(() => loadConfig(publishEnv({ PUBLISH_BLOG_ALLOW_HTML: "jein" }))).toThrow(
+      /PUBLISH_BLOG_ALLOW_HTML must be true or false/
+    );
+    expect(() => loadConfig(publishEnv({ PUBLISH_BLOG_ALLOW_DIAGRAMS: "jein" }))).toThrow(
+      /PUBLISH_BLOG_ALLOW_DIAGRAMS/
+    );
+  });
+});
+
+describe("loadConfig, numbers", () => {
+  it("reads decimal digits only", () => {
+    for (const value of ["1e3", "0x10", "1_000", "+5", "5.0", " 5 5"]) {
+      expect(() => loadConfig(env({ MAX_RESULTS: value }))).toThrow(/MAX_RESULTS/);
+    }
+    expect(loadConfig(env({ MAX_RESULTS: " 12 " })).mail.maxResults).toBe(12);
+  });
+
+  it("bounds every port to what a port can be", () => {
+    for (const key of ["PORT", "IMAP_PORT", "SMTP_PORT"]) {
+      expect(() => loadConfig(env({ [key]: "65536" }))).toThrow(new RegExp(`${key} .*up to 65535`));
+      expect(() => loadConfig(env({ [key]: "0" }))).toThrow(new RegExp(key));
+    }
+    expect(loadConfig(env({ PORT: "65535" })).port).toBe(65535);
+  });
+});

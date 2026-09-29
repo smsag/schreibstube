@@ -27,7 +27,9 @@ const OPEN_MODE = ssh2.utils.sftp.OPEN_MODE;
  * rather than in milliseconds, which a busy machine would make flaky.
  */
 export async function startSftpServer({ user = "web", password = "geheim", latencyMs = 0 } = {}) {
-  const stats = { requests: {}, reads: [] };
+  // Paths the server refuses to remove, answering "permission denied", so a
+  // test can see what a publish does with a deletion the host would not do.
+  const stats = { requests: {}, reads: [], refusedRemovals: new Set() };
   const root = await mkdtemp(join(tmpdir(), "schreibstube-sftp-"));
   const { privateKey } = generateKeyPairSync("rsa", {
     modulusLength: 2048,
@@ -243,6 +245,7 @@ function serve(channel, root, { latencyMs, stats }) {
   });
 
   sftp.on("REMOVE", async (id, path) => {
+    if (stats.refusedRemovals.has(path)) return sftp.status(id, STATUS.PERMISSION_DENIED);
     try {
       await unlink(real(path));
       sftp.status(id, STATUS.OK);

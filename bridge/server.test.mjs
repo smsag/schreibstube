@@ -338,6 +338,41 @@ describe("upstream failures", () => {
   });
 });
 
+describe("deadlines", () => {
+  it("counts the body's arrival against the route's budget, so a trickling client gets a 504", async () => {
+    const slow = await start({ REQUEST_TIMEOUT_MS: "300" });
+    const url = new URL(`${slow}/search`);
+    const answered = new Promise((resolve, reject) => {
+      const req = httpRequest(
+        {
+          hostname: url.hostname,
+          port: url.port,
+          path: url.pathname,
+          method: "POST",
+          headers: {
+            authorization: `Bearer ${TOKEN}`,
+            "content-type": "application/json",
+            "content-length": "20"
+          }
+        },
+        (res) => {
+          let text = "";
+          res.on("data", (chunk) => {
+            text += chunk;
+          });
+          res.on("end", () => resolve({ status: res.statusCode, json: JSON.parse(text) }));
+        }
+      );
+      req.on("error", reject);
+      // Half the body, and then nothing.
+      req.write('{"criteria":');
+    });
+    const response = await answered;
+    expect(response.status).toBe(504);
+    expect(response.json.code).toBe("timeout");
+  }, 10_000);
+});
+
 describe("diagnostics", () => {
   it("reports each protocol separately rather than failing the request", async () => {
     const response = await call("/diagnostics", { body: {} });

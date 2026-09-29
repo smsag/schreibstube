@@ -263,3 +263,25 @@ describe("planUploads and thumbnails", () => {
     expect(plan.willDelete).toEqual([thumbnail]);
   });
 });
+
+describe("buildManifest and a deletion that failed", () => {
+  it("carries the entry of a file that should have gone, so the next publish tries again", () => {
+    const stale = { sha256: "hash:alt", bytes: 3 };
+    const manifest = buildManifest({
+      target: "blog",
+      files: new Map([["a/index.html", content("a")]]),
+      hash: fakeHash,
+      renderVersion: 1,
+      generator: "test",
+      carried: new Map([
+        ["alt/index.html", stale],
+        ["a/index.html", { sha256: "never", bytes: 0 }],
+        ["weg/index.html", undefined]
+      ])
+    });
+    expect(manifest.files["alt/index.html"]).toEqual(stale);
+    // A file this build wrote is recorded as written, whatever it was before.
+    expect(manifest.files["a/index.html"]).toEqual({ sha256: "hash:a", bytes: 1 });
+    expect(manifest.files).not.toHaveProperty("weg/index.html");
+  });
+});

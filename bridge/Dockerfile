@@ -5,9 +5,11 @@ WORKDIR /app
 
 # `npm ci` only: a lockfile that no longer matches package.json fails the build
 # here, which is where it should fail, rather than silently resolving to
-# whatever the registry had that day.
+# whatever the registry had that day. No install scripts: nothing in this tree
+# needs one to work (ssh2 falls back to its pure JavaScript cipher code), and a
+# script is the one place a dependency runs code at build time.
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev
+RUN npm ci --omit=dev --ignore-scripts
 
 # Mermaid is one prebuilt file the bridge copies into a published site; the
 # bridge never runs it. The package brings 167 MB of parser dependencies for

@@ -115,3 +115,28 @@ describe("what the throttle keeps", () => {
     expect(throttle.size).toBe(1201);
   });
 });
+
+describe("how often the throttle sweeps", () => {
+  it("walks the map at most once per window, however many failures arrive", () => {
+    let clock = 0;
+    const throttle = createThrottle({ limit: 5, windowMs: 1000, now: () => clock });
+    for (let i = 0; i < 1200; i += 1) throttle.recordFailure(`10.0.0.${i}`);
+    clock = 500;
+    throttle.recordFailure("10.0.5.5");
+
+    // A window since the last sweep: the first batch has aged out and goes.
+    clock = 1100;
+    for (let i = 0; i < 1200; i += 1) throttle.recordFailure(`10.1.0.${i}`);
+    expect(throttle.size).toBe(1201);
+
+    // The straggler has aged out too, but the last sweep is inside the window,
+    // so this failure does not walk the map to find it.
+    clock = 1600;
+    throttle.recordFailure("10.9.9.9");
+    expect(throttle.size).toBe(1202);
+
+    clock = 2100;
+    throttle.recordFailure("10.9.9.10");
+    expect(throttle.size).toBe(2);
+  });
+});

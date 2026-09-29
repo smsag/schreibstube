@@ -1,20 +1,7 @@
 /**
- * One SFTP connection per target, shared, and kept open for a moment.
- *
- * Every request used to log in afresh: a key exchange and an authentication,
- * a few hundred milliseconds on a real line, before any work. A publish is a
- * plan, an upload per new file and a commit, so a first publish of three
- * hundred notes paid three hundred logins. Requests that arrive while a
- * connection is open, or shortly after, now share it; SFTP answers requests
- * out of order by design, so parallel uploads can travel over one line.
- *
- * A connection is closed once nobody has used it for `idleMs`, so the bridge
- * holds nothing open between publishes. One that failed in a way that may
- * have broken it — any error that is not the caller's own refusal — or that
- * the server closed is never handed out again; the next request logs in anew.
- *
- * No I/O of its own: `connect` and the timers come in, which is what lets the
- * tests drive it without a server.
+ * One SFTP connection per target, shared by the requests of one publish and
+ * closed once idle. No I/O of its own: `connect` and the timers come in,
+ * which is what lets the tests drive it without a server.
  */
 
 /** Long enough to span the requests of one publish, short enough to hold nothing between. */

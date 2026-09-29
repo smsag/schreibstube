@@ -58,10 +58,11 @@ describe("sendMessage, the Message-ID", () => {
     expect(first.result.messageId).not.toBe(second.result.messageId);
   });
 
-  it("honours an id supplied by the caller, trimmed", async () => {
-    const { result, raw } = await send({ ...minimal, messageId: " <fest@example.com> " });
-    expect(result.messageId).toBe("<fest@example.com>");
-    expect(raw).toContain("Message-ID: <fest@example.com>");
+  it("ignores an id the caller tries to supply: the bridge's own is the one it returns", async () => {
+    const { result, raw } = await send({ ...minimal, messageId: "<fest@example.com>" });
+    expect(result.messageId).not.toBe("<fest@example.com>");
+    expect(raw).not.toContain("<fest@example.com>");
+    expect(raw).toContain(`Message-ID: ${result.messageId}`);
   });
 
   it("takes its domain from the From the message carries", async () => {
@@ -357,11 +358,21 @@ describe("sendMessage, a send whose outcome is unknown", () => {
     ).rejects.toBeInstanceOf(SendUnconfirmedError);
   });
 
-  it("says so when the connection dropped after the message was handed over", async () => {
-    const dropped = Object.assign(new Error("Connection closed"), { command: "DATA" });
+  it("says so when the connection dropped or fell silent while the server held the message", async () => {
+    // nodemailer's own shapes: a socket closed by the far end, and its socket
+    // timeout. Neither names the command that was in flight.
+    const dropped = Object.assign(new Error("Connection closed unexpectedly"), {
+      code: "ECONNECTION",
+      command: "CONN"
+    });
     await expect(sendMessage(config(), failing(dropped), minimal)).rejects.toBeInstanceOf(
       SendUnconfirmedError
     );
+    const silent = Object.assign(new Error("Timeout"), { code: "ETIMEDOUT", command: "CONN" });
+    expect(isUnconfirmed(silent)).toBe(true);
+    expect(
+      isUnconfirmed(Object.assign(new Error("Connection closed unexpectedly"), { code: "ESOCKET" }))
+    ).toBe(true);
   });
 
   it("reports a refusal the server answered as the failure it is", async () => {
@@ -375,6 +386,64 @@ describe("sendMessage, a send whose outcome is unknown", () => {
       responseCode: 535
     });
     expect(isUnconfirmed(login)).toBe(false);
+    // A server that hangs up with a word is a server that answered.
+    const terminated = Object.assign(new Error("Server terminates connection. response=421 busy"), {
+      code: "ECONNECTION",
+      command: "EHLO",
+      responseCode: 421
+    });
+    expect(isUnconfirmed(terminated)).toBe(false);
+  });
+
+  it("does not mistake a line that never opened for one that dropped", async () => {
+    const refused = Object.assign(new Error("connect ECONNREFUSED 127.0.0.1:465"), {
+      code: "ECONNECTION",
+      command: "CONN"
+    });
+    expect(isUnconfirmed(refused)).toBe(false);
+    expect(
+      isUnconfirmed(Object.assign(new Error("Greeting never received"), { code: "ETIMEDOUT" }))
+    ).toBe(false);
+    expect(isUnconfirmed(new Error("Connection closed unexpectedly"))).toBe(false);
+  });
+});
+
+describe("sendMessage, the copy in Sent", () => {
+  const filedLater = (result) => ({ fileInSent: async () => result });
+
+  it("says in the log why the copy was not filed, and still reports the send", async () => {
+    const lines = [];
+    const log = (level, message) => lines.push(`${level}: ${message}`);
+    const result = await sendMessage(config(), recorder(), minimal, {
+      fileInSent: async () => {
+        throw new Error("APPEND refused: no such mailbox");
+      },
+      log
+    });
+    expect(result.filedInSent).toBe(false);
+    expect(lines).toEqual([
+      expect.stringMatching(/^warn: sent copy of <.*> not filed: APPEND refused/)
+    ]);
+  });
+
+  it("names the deadline when the Sent folder did not answer in time", async () => {
+    const lines = [];
+    const result = await sendMessage(config({ upstreamTimeoutMs: 10 }), recorder(), minimal, {
+      fileInSent: () => new Promise(() => {}),
+      log: (level, message) => lines.push(`${level}: ${message}`)
+    });
+    expect(result.filedInSent).toBe(false);
+    expect(lines[0]).toMatch(/^warn: .*Filing in Sent timed out/);
+  });
+
+  it("reports a filed copy without a word in the log", async () => {
+    const lines = [];
+    const result = await sendMessage(config(), recorder(), minimal, {
+      ...filedLater(true),
+      log: (...args) => lines.push(args)
+    });
+    expect(result.filedInSent).toBe(true);
+    expect(lines).toEqual([]);
   });
 });
 

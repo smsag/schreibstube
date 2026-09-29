@@ -34,24 +34,41 @@ export function sha256(content) {
 }
 
 /**
- * Check an index before anything is uploaded on the strength of it.
+ * Check an index before anything is uploaded on the strength of it, and
+ * return a copy holding only the fields the bridge knows.
  *
  * Slug collisions are the important one: two notes claiming the same address
- * would publish as one page, and the loser would vanish with no signal.
+ * would publish as one page, and the loser would vanish with no signal. The
+ * copy is what `index.json` stores and what a render reads back, so a field
+ * nobody checked never reaches the host or a template.
  */
 export function checkIndex(index) {
   if (!index || typeof index !== "object") throw new IndexError("An index is required.");
   if (!Array.isArray(index.notes)) throw new IndexError("The index needs a notes array.");
   if (!Array.isArray(index.assets)) throw new IndexError("The index needs an assets array.");
+  if (index.siteTitle !== undefined && typeof index.siteTitle !== "string") {
+    throw new IndexError("siteTitle must be a string.");
+  }
+  if (index.themeCss !== undefined && typeof index.themeCss !== "string") {
+    throw new IndexError("themeCss must be a string.");
+  }
 
   const headerTags = checkHeaderTags(index.headerTags);
 
   const seen = new Map();
+  const notes = [];
   for (const note of index.notes) {
-    if (!note?.sourcePath) throw new IndexError("A note is missing its sourcePath.");
+    if (!note?.sourcePath || typeof note.sourcePath !== "string") {
+      throw new IndexError("A note is missing its sourcePath.");
+    }
     if (!isHash(note.sha256)) throw new IndexError(`${note.sourcePath}: missing content hash.`);
     if (!isValidSlug(note.slug)) {
       throw new IndexError(`${note.sourcePath}: unusable slug ${JSON.stringify(note.slug)}.`);
+    }
+    for (const field of ["title", "date", "description"]) {
+      if (note[field] !== undefined && typeof note[field] !== "string") {
+        throw new IndexError(`${note.sourcePath}: ${field} must be a string.`);
+      }
     }
     const previous = seen.get(note.slug);
     if (previous) {
@@ -65,17 +82,57 @@ export function checkIndex(index) {
         throw new IndexError(`${note.sourcePath}: tags must be among the header tags.`);
       }
     }
+    notes.push(
+      known({
+        sourcePath: note.sourcePath,
+        sha256: note.sha256,
+        slug: note.slug,
+        title: note.title,
+        date: note.date,
+        description: note.description,
+        tags: note.tags
+      })
+    );
   }
 
+  const assets = [];
   for (const asset of index.assets) {
-    if (!asset?.sourcePath) throw new IndexError("An asset is missing its sourcePath.");
+    if (!asset?.sourcePath || typeof asset.sourcePath !== "string") {
+      throw new IndexError("An asset is missing its sourcePath.");
+    }
     if (!isHash(asset.sha256)) throw new IndexError(`${asset.sourcePath}: missing content hash.`);
+    if (asset.name !== undefined && typeof asset.name !== "string") {
+      throw new IndexError(`${asset.sourcePath}: name must be a string.`);
+    }
+    if (asset.bytes !== undefined && (!Number.isInteger(asset.bytes) || asset.bytes < 0)) {
+      throw new IndexError(`${asset.sourcePath}: bytes must be a whole number.`);
+    }
     if (asset.thumbnail !== undefined && typeof asset.thumbnail !== "boolean") {
       throw new IndexError(`${asset.sourcePath}: thumbnail must be true or false.`);
     }
+    assets.push(
+      known({
+        sourcePath: asset.sourcePath,
+        sha256: asset.sha256,
+        name: asset.name,
+        bytes: asset.bytes,
+        thumbnail: asset.thumbnail
+      })
+    );
   }
 
-  return index;
+  return known({
+    siteTitle: index.siteTitle,
+    themeCss: index.themeCss,
+    headerTags: index.headerTags,
+    notes,
+    assets
+  });
+}
+
+/** The object without the fields that were not sent. */
+function known(record) {
+  return Object.fromEntries(Object.entries(record).filter(([, value]) => value !== undefined));
 }
 
 /**
