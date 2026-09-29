@@ -7,9 +7,11 @@
  * behind a dialog.
  *
  * It is also code, compiled on the device that prints. Everything a descriptor
- * says is therefore validated rather than trusted, and the layout is checked
- * for the two things it must not do: reach outside its folder, and reach for
- * the network. Both refusals name the template and the reason.
+ * says is therefore validated rather than trusted, and the layout is read for
+ * the two things it cannot do — reach outside its folder, and reach for the
+ * network — so the author hears it with a line number rather than from the
+ * compiler. What keeps either from happening is the job's file system, which
+ * holds the template's files and nothing else.
  */
 
 import { t } from "../i18n";
@@ -190,13 +192,17 @@ export function parseTemplate(
 }
 
 /**
- * What a layout is not allowed to contain.
+ * What a layout relies on that a print cannot give it, as far as reading the
+ * source can tell.
  *
- * A package import would need the network at print time, and there is none: the
- * compiler runs on the device with the job's own files and nothing else. A path
- * that climbs out of the folder would read a file the person never offered to
- * the template. Both are refused before anything compiles, with the line named,
- * because a template author needs to know which line to fix.
+ * A package import needs the network, and a path that climbs out of the
+ * folder or starts at the root names a file the job does not hold; the
+ * compiler, given the template's files and nothing else, refuses both on its
+ * own. This is the earlier and friendlier word: the line is named before
+ * anything compiles, so the author fixes it rather than reads a compiler
+ * error. It is a lint over string literals — a path built from pieces passes
+ * here and fails in the compiler — not the guarantee, which is the file
+ * system's.
  */
 export function checkLayout(source: string): string[] {
   const problems: string[] = [];
@@ -211,8 +217,9 @@ export function checkLayout(source: string): string[] {
     const at = index + 1;
     const code = line.replace(/\/\/.*$/, "");
 
-    // Only a string that names a file is a path. Every string used to be read
-    // as one, so a layout that printed "../" as text was refused for it.
+    // Only a string literal that names a file is read as a path. Every string
+    // used to be read as one, so a layout that printed "../" as text was
+    // refused for it.
     for (const match of code.matchAll(PATH_ARGUMENT)) {
       const value = match[1] ?? "";
       if (/^@(preview|local)\//.test(value)) {

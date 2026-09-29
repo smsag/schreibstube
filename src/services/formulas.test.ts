@@ -24,6 +24,15 @@ function eur(value: number, decimals = 0): Amount {
 const text = (outcome: ReturnType<typeof compute>, format = de) =>
   outcomeText(outcome, format)?.replace(/\u00a0|\u202f/g, " ");
 
+describe("compute over a very long column", () => {
+  it("takes more amounts than a call may carry as arguments", () => {
+    const amounts = Array.from({ length: 200_000 }, (_, i) => eur(i % 1000, i % 3));
+    expect(compute("max", amounts, ctx())).toMatchObject({ value: 999, decimals: 2 });
+    expect(compute("min", amounts, ctx())).toMatchObject({ value: 0 });
+    expect(compute("sum", amounts, ctx()).kind).toBe("value");
+  });
+});
+
 describe("compute in one currency", () => {
   const amounts = [eur(300), eur(20), eur(10)];
 

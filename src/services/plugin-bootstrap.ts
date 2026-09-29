@@ -36,6 +36,9 @@ export function bootstrapSchreibstubeRuntime(plugin: Plugin, handlers: Bootstrap
   });
   plugin.registerMarkdownPostProcessor(reading.processor);
   plugin.register(reading.dispose);
+  // A closed leaf is removed with an ancestor, which no observer on the view's
+  // own parent sees; the layout event is where a detached view is let go.
+  plugin.registerEvent(plugin.app.workspace.on("layout-change", reading.sweep));
 
   plugin.registerEvent(
     plugin.app.workspace.on("active-leaf-change", () => {

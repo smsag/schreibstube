@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { t } from "../i18n";
 import {
   checkRuntimeBytes,
   describeDiagnostics,
@@ -89,7 +90,7 @@ describe("readCompileResult", () => {
   it("says something rather than nothing when the answer is empty", () => {
     expect(readCompileResult(null)).toEqual({
       ok: false,
-      diagnostics: ["the compiler gave no answer"]
+      diagnostics: [t().print.compilerSilent]
     });
     expect(readCompileResult({ diagnostics: [] }).ok).toBe(false);
   });

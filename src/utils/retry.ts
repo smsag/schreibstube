@@ -32,12 +32,15 @@ export async function withRetry<T>(
 ): Promise<T> {
   let lastError: unknown;
 
-  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+  // A caller passing 0 would otherwise skip the loop and throw undefined.
+  const tries = Math.max(1, attempts);
+
+  for (let attempt = 1; attempt <= tries; attempt += 1) {
     try {
       return await work();
     } catch (error) {
       lastError = error;
-      if (attempt === attempts || !isWorthRetrying(error)) throw error;
+      if (attempt === tries || !isWorthRetrying(error)) throw error;
 
       onRetry?.(attempt, error);
       await wait(backoffMs(attempt, baseMs, random));
@@ -66,7 +69,8 @@ const PASSING_STATUSES = new Set([502, 503, 504]);
  * depend on how the message is worded. A hash mismatch is the one refusal
  * repeated: it means the bytes arrived truncated, and the next attempt carries
  * them whole. Everything without a status — a timeout, a dropped connection —
- * is judged by what it says.
+ * is judged by what it says. On the desktop that wording is Chromium's
+ * `net::ERR_…` code, so the connection, DNS and offline ones are listed too.
  */
 export function isWorthRetrying(error: unknown): boolean {
   const answer = error as { status?: unknown; code?: unknown } | null;
@@ -78,7 +82,7 @@ export function isWorthRetrying(error: unknown): boolean {
   if (/\b(401|403|400|404|409|413)\b/.test(message)) return false;
   if (/token|unauthorized|not allowed|refused the/i.test(message)) return false;
 
-  return /timed out|timeout|did not respond|did not accept|network|socket|ECONN|EPIPE|ETIMEDOUT|fetch failed|502|503|504|restarting|busy/i.test(
+  return /timed out|timeout|did not respond|did not accept|network|socket|ECONN|EPIPE|ETIMEDOUT|fetch failed|502|503|504|restarting|busy|net::ERR_(CONNECTION|TIMED_OUT|NAME_NOT_RESOLVED|INTERNET|NETWORK)/i.test(
     message
   );
 }

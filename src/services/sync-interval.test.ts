@@ -40,6 +40,24 @@ describe("what a note may say about how often it is checked", () => {
     expect(schedule("every 15 minutes").cron).toBe("*/15 * * * *");
   });
 
+  it("says no cron at all for a count cron would misstate", () => {
+    expect(schedule("every 90 minutes")).toMatchObject({ minutes: 90, cron: null });
+    expect(schedule("every 36 hours")).toMatchObject({ minutes: 36 * 60, cron: null });
+    expect(schedule("every 120 minutes").cron).toBe("0 */2 * * *");
+    expect(schedule("every 48 hours").cron).toBe("0 0 */2 * *");
+  });
+
+  it("refuses a count that is not a whole number rather than rounding it down", () => {
+    expect(parseSyncEvery("alle 1,5 Stunden")).toMatchObject({ ok: false });
+    expect(parseSyncEvery("every 2.5 days")).toMatchObject({ ok: false });
+    expect(parseSyncEvery(1.5)).toMatchObject({ ok: false });
+    const refused = parseSyncEvery("alle 1,5 Stunden");
+    const tooSmall = parseSyncEvery("every 0 days");
+    expect(refused && !refused.ok && tooSmall && !tooSmall.ok && refused.reason).not.toBe(
+      tooSmall && !tooSmall.ok && tooSmall.reason
+    );
+  });
+
   it("says a fortnight in days, which is the nearest cron can come", () => {
     // Cron cannot count weeks, and counting fourteen days is what a person
     // writing this by hand would have done.

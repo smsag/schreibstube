@@ -6,9 +6,7 @@
  * that reorders or loses one is detectable instead of being silently misaligned
  * with the document. The model is asked for clean prose only. It is never asked
  * for offsets, line numbers, or a diff, because those are the parts it would
- * get wrong and the parts the local diff derives reliably.
- *
- * Kept free of Obsidian imports so it can be tested directly; the request side
+ * get wrong and the parts the local diff derives reliably. The request side
  * lives in llm-proofread.
  */
 

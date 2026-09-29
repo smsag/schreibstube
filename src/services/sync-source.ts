@@ -7,6 +7,7 @@
  * page URLs rewritten to the raw form rather than fetched as HTML.
  */
 
+import { splitFrontmatter } from "./frontmatter-block";
 import { t } from "../i18n";
 
 export const SYNC_FRONTMATTER_KEY = "schreibstubeSyncedFrom";
@@ -162,10 +163,10 @@ export function sourceUrlFromNote(text: string): string | null {
  * ago, where the whole of the question is what a single key says.
  */
 export function frontmatterLine(text: string, key: string): string | null {
-  const block = /^---\r?\n([\s\S]*?)\r?\n---/.exec(text);
+  const { block } = splitFrontmatter(text);
   if (!block) return null;
 
-  for (const line of (block[1] ?? "").split(/\r?\n/)) {
+  for (const line of block.trimEnd().split(/\r?\n/).slice(1, -1)) {
     const raw = new RegExp(`^${key}\\s*:\\s*(.+)$`).exec(line)?.[1];
     if (raw === undefined) continue;
 

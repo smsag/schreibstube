@@ -303,6 +303,18 @@ describe("normalizeSettings", () => {
     expect(normalizeSettings({}).syncState).toEqual({});
   });
 
+  it("skips a record keyed like the object's own machinery", () => {
+    const record = { hash: "abcd1234", etag: "", checkedAt: 1, pendingChanges: 0 };
+    const raw = JSON.parse(
+      `{"syncState": {"__proto__": ${JSON.stringify(record)}, "constructor": ${JSON.stringify(record)}},` +
+        ` "publishLastRun": {"__proto__": {"at": "2026-09-01"}, "prototype": {"at": "2026-09-01"}}}`
+    ) as Record<string, unknown>;
+    const settings = normalizeSettings(raw as never);
+    expect(Object.keys(settings.syncState)).toEqual([]);
+    expect(Object.getPrototypeOf(settings.syncState)).toBe(Object.prototype);
+    expect(Object.keys(settings.publishLastRun)).toEqual([]);
+  });
+
   it("keeps a well-formed sync record", () => {
     const record = { hash: "abcd1234", etag: 'W/"x"', checkedAt: 42, pendingChanges: 2 };
     expect(normalizeSettings({ syncState: { "a.md": record } }).syncState["a.md"]).toEqual(record);

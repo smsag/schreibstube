@@ -7,11 +7,11 @@
  * ordinary Markdown note beside the others, so every search in Obsidian can find
  * it and it survives the plugin.
  *
- * Everything here decides and nothing fetches: the prompt, what an answer must
- * look like before a word of it is written, the note, its path and the
- * fingerprint that says whether a picture changed since it was described. The
- * controller sends the picture and writes the file.
+ * Decided here: the prompt, what an answer must look like before a word of it
+ * is written, the note, its path and the fingerprint that says whether a
+ * picture changed since it was described.
  */
+import { normalizeTag, tagKey } from "./tag-suggestions";
 
 /** Bounds on what a description may carry into the vault. A model's answer is
  *  untrusted input, and a runaway one must not become a runaway note. */
@@ -247,12 +247,7 @@ export function renderDescriptionNote(
     `${DESCRIPTION_KEYS.describedAt}: ${yaml(image.describedAt)}`,
     ...list(DESCRIPTION_KEYS.keywords, desc.keywords),
     `${DESCRIPTION_KEYS.description}: ${yaml(desc.description)}`,
-    ...(opts.keywordsAsTags
-      ? list(
-          "tags",
-          desc.keywords.map((k) => k.replace(/\s+/g, "-"))
-        )
-      : []),
+    ...(opts.keywordsAsTags ? list("tags", keywordTags(desc.keywords)) : []),
     `title: ${yaml(desc.title)}`,
     "---"
   ];
@@ -268,4 +263,22 @@ export function renderDescriptionNote(
   ];
 
   return `${[...frontmatter, "", ...body].join("\n")}\n`;
+}
+
+/**
+ * Keywords as tags Obsidian accepts. A keyword is a phrase with punctuation
+ * in it, which a tag cannot hold, and two keywords that differ only in case
+ * or a stray character are one tag; what is left of a keyword that was only
+ * punctuation or digits is nothing, and it is left out.
+ */
+function keywordTags(keywords: readonly string[]): string[] {
+  const seen = new Set<string>();
+  const tags: string[] = [];
+  for (const keyword of keywords) {
+    const tag = normalizeTag(keyword);
+    if (tag === null || seen.has(tagKey(tag))) continue;
+    seen.add(tagKey(tag));
+    tags.push(tag);
+  }
+  return tags;
 }

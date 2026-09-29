@@ -1,6 +1,12 @@
 import { requestUrl } from "obsidian";
 import { withTimeout } from "../utils/with-timeout";
-import { BridgeError, authHeaders, buildEndpoint, extractCode } from "./bridge-protocol";
+import {
+  BridgeError,
+  authHeaders,
+  buildEndpoint,
+  extractCode,
+  parseJsonBody
+} from "./bridge-protocol";
 import {
   MAIL_REQUEST_TIMEOUT_MS,
   describeBridgeError,
@@ -16,10 +22,8 @@ import {
 /**
  * Transport for the mail bridge.
  *
- * Uses Obsidian's `requestUrl`, which runs outside the renderer's CORS sandbox
- * and behaves identically on desktop and mobile. That is the whole reason the
- * bridge exists: mobile has no Node runtime and no raw sockets, so IMAP and
- * SMTP have to be reached over HTTPS.
+ * The bridge exists because mobile has no Node runtime and no raw sockets, so
+ * IMAP and SMTP have to be reached over HTTPS.
  */
 
 export async function sendMail(
@@ -57,5 +61,5 @@ async function postJson(config: MailBridgeConfig, path: string, body: unknown): 
     );
   }
 
-  return response.json;
+  return parseJsonBody(response);
 }

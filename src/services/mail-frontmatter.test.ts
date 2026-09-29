@@ -128,6 +128,21 @@ describe("validateSendable", () => {
     }
   });
 
+  it("refuses a subject that carries a line break, which would be a second header", () => {
+    const result = validateSendable({ ...base, subject: "Hi\nBcc: spy@x.de" });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.message).toMatch(/single line/);
+      expect(result.missing).toBe(false);
+    }
+  });
+
+  it("refuses a control character anywhere in an address, the display name included", () => {
+    expect(validateSendable({ ...base, to: ["Name\r\nBcc: spy@x.de <a@x.de>"] }).ok).toBe(false);
+    expect(validateSendable({ ...base, to: ["a@x.de\u0000"] }).ok).toBe(false);
+    expect(validateSendable({ ...base, from: "Ich\n <me@x.de>" }).ok).toBe(false);
+  });
+
   it("catches a malformed address before it reaches the bridge", () => {
     const result = validateSendable({ ...base, to: ["not-an-address"] });
     expect(result.ok).toBe(false);

@@ -69,6 +69,16 @@ describe("mergeSyncState", () => {
     expect(merged["A.md"]).toEqual(theirs);
   });
 
+  it("never takes a key that would reach the object's prototype", () => {
+    const disk = JSON.parse('{"__proto__": {"hash": "x", "checkedAt": 9}}') as Record<
+      string,
+      SyncRecord
+    >;
+    const merged = mergeSyncState({ local: {}, disk });
+    expect(Object.keys(merged)).toEqual([]);
+    expect(Object.getPrototypeOf(merged)).toBe(Object.prototype);
+  });
+
   it("leaves both inputs as they were", () => {
     const local = { "A.md": record(1) };
     const disk = { "A.md": record(2), "B.md": record(3) };

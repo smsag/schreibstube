@@ -1,3 +1,4 @@
+import { t } from "../i18n";
 import { formatIsoMinutes } from "../utils/format-date";
 import { fencedLines } from "./markdown-fence";
 import type { MailMessage } from "./mail-protocol";
@@ -27,7 +28,6 @@ export function selectUnmerged(messages: MailMessage[], mergedIds: string[]): Ma
     if (seen.has(key)) {
       continue;
     }
-    // Guard against the same message appearing twice in one response.
     seen.add(key);
     fresh.push(message);
   }
@@ -51,10 +51,16 @@ export function selectUnmerged(messages: MailMessage[], mergedIds: string[]): Ma
  *
  * A wikilink embed was escaped and a Markdown one was not, though they do the
  * same thing: `![](Privat/Gehalt.png)` renders the vault file it names, and a
- * remote one is a tracking pixel that reports when the note is read.
+ * remote one is a tracking pixel that reports when the note is read. So is an
+ * `<img>`: Obsidian renders raw HTML, so a tag opener is written as `&lt;`,
+ * which shows the same and loads nothing. An address in angle brackets is not
+ * a tag — a tag name ends at a space, a slash or the closing bracket — and
+ * stays as written.
  */
 function escapeMailMarkdown(text: string): string {
-  return text.replace(/!?\[\[|!\[/g, (match) => match.replace(/\[/g, "\\["));
+  return text
+    .replace(/!?\[\[|!\[/g, (match) => match.replace(/\[/g, "\\["))
+    .replace(/<(?=\/?[a-z][a-z0-9-]*(?:[\s/>]|$))/gi, "&lt;");
 }
 
 /**
@@ -77,22 +83,23 @@ function oneLine(text: string): string {
  * plugin renders.
  */
 export function formatMessage(message: MailMessage): string {
-  const heading = oneLine(message.subject) || "(no subject)";
+  const words = t().mail;
+  const heading = oneLine(message.subject) || words.noSubject;
   const from = oneLine(message.from);
   const meta = [
-    from ? `**From:** ${from}` : "",
-    message.date ? `**Date:** ${formatIsoMinutes(message.date)}` : ""
+    from ? words.mergedFrom(from) : "",
+    message.date ? words.mergedDate(formatIsoMinutes(message.date)) : ""
   ]
     .filter(Boolean)
     .join(" · ");
 
-  const body = message.text.trim() || "_(no text content)_";
+  const body = message.text.trim() || words.mergedNoText;
   const quoted = escapeMailMarkdown(body)
     .split(/\r?\n/)
     .map((line) => (line.trim() ? `> ${line}` : ">"))
     .join("\n");
 
-  const truncationNote = message.truncated ? "\n>\n> _[message truncated by the bridge]_" : "";
+  const truncationNote = message.truncated ? `\n>\n> ${words.mergedTruncated}` : "";
 
   return [`### ${heading}`, meta, "", quoted + truncationNote].filter(Boolean).join("\n");
 }
@@ -108,7 +115,7 @@ export function formatMessages(messages: MailMessage[]): string {
  * the section, not the end of the file.
  */
 export function appendToSection(body: string, heading: string, addition: string): string {
-  const trimmedBody = body.replace(/\s+$/, "");
+  const trimmedBody = body.trimEnd();
   // The heading is trimmed on both sides of the comparison: a configured value
   // with stray whitespace would otherwise never match the heading it wrote
   // last time, and every run would append another section.
@@ -134,11 +141,11 @@ export function appendToSection(body: string, heading: string, addition: string)
     }
   }
 
-  const section = lines.slice(start, end).join("\n").replace(/\s+$/, "");
+  const section = lines.slice(start, end).join("\n").trimEnd();
   const rest = lines.slice(end);
   const merged = [`${section}\n\n${addition}`, ...(rest.length > 0 ? ["", ...rest] : [])].join(
     "\n"
   );
 
-  return `${[...lines.slice(0, start), merged].join("\n").replace(/\s+$/, "")}\n`;
+  return `${[...lines.slice(0, start), merged].join("\n").trimEnd()}\n`;
 }

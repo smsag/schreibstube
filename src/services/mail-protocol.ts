@@ -1,9 +1,6 @@
 /**
- * Pure request/response handling for the mail bridge.
- *
- * Kept free of `obsidian` imports so it stays unit-testable — the same split as
- * `llm-providers.ts` (pure) and `llm-client.ts` (transport). Everything the
- * bridge returns is remote JSON, so each field is validated rather than
+ * Request and response handling for the mail bridge. Everything the bridge
+ * returns is remote JSON, so each field is validated and bounded rather than
  * trusted.
  */
 import { asRecord, describeBridgeError as describeError, str } from "./bridge-protocol";
@@ -70,7 +67,6 @@ export interface SendRequest {
 export interface MailAttachment {
   filename: string;
   contentType: "image/png";
-  /** Base64, as JSON carries bytes. */
   content: string;
 }
 
@@ -115,6 +111,21 @@ export interface SendResult {
 const MAX_REJECTED = 100;
 const MAX_ADDRESS_CHARS = 320;
 
+/**
+ * What a search answer may carry before it stops being one. A default bridge
+ * returns fifty messages and cuts a body at forty thousand characters; the
+ * plugin allows a little more than the defaults and no more than a note can
+ * hold, so a bridge that is not ours cannot hand the renderer a gigabyte.
+ */
+export const MAX_MAIL_RESULTS = 200;
+export const MAX_MESSAGE_TEXT_CHARS = 40_000;
+const MAX_HEADER_CHARS = 500;
+const MAX_REFERENCES = 50;
+
+/** RFC 5322: angle brackets around a token with no whitespace or brackets,
+ *  and no line longer than 998 characters. */
+const MESSAGE_ID = /^<[^\s<>]{1,998}>$/;
+
 /** True when at least one criterion is set. An empty search would return the
  *  whole mailbox, which is never what the user meant. */
 export function hasCriteria(criteria: SearchCriteria): boolean {
@@ -125,7 +136,7 @@ export function parseSearchResult(json: unknown): SearchResult {
   const root = asRecord(json);
   const rawMessages = Array.isArray(root.messages) ? root.messages : [];
   return {
-    messages: rawMessages.map(parseMessage),
+    messages: rawMessages.slice(0, MAX_MAIL_RESULTS).map(parseMessage),
     mailbox: str(root.mailbox) || "INBOX",
     truncated: root.truncated === true
   };
@@ -137,9 +148,16 @@ export function parseSendResult(json: unknown): SendResult {
   if (!messageId) {
     throw new Error("the bridge did not return a Message-ID.");
   }
+  if (!MESSAGE_ID.test(messageId)) {
+    throw new Error("the bridge returned a malformed Message-ID.");
+  }
+  const sentAt = str(root.sentAt);
+  if (sentAt && Number.isNaN(Date.parse(sentAt))) {
+    throw new Error("the bridge returned a send time that is not a date.");
+  }
   return {
     messageId,
-    sentAt: str(root.sentAt) || new Date().toISOString(),
+    sentAt: sentAt || new Date().toISOString(),
     filedInSent: root.filedInSent === true,
     rejected: Array.isArray(root.rejected)
       ? root.rejected
@@ -150,24 +168,39 @@ export function parseSendResult(json: unknown): SendResult {
   };
 }
 
+/**
+ * One message as the note will see it. A field that is not what it claims to
+ * be — an identifier without brackets, a date that is not one — is dropped
+ * rather than the whole answer, since it came from whoever wrote the mail.
+ */
 function parseMessage(raw: unknown): MailMessage {
   const record = asRecord(raw);
   const references = Array.isArray(record.references)
-    ? record.references.map(str).filter((value): value is string => value.length > 0)
+    ? record.references.map(str).filter(isMessageId).slice(0, MAX_REFERENCES)
     : [];
+  const date = str(record.date);
 
   return {
     uid: typeof record.uid === "number" ? record.uid : 0,
-    messageId: str(record.messageId) || null,
-    inReplyTo: str(record.inReplyTo) || null,
+    messageId: messageIdOrNull(record.messageId),
+    inReplyTo: messageIdOrNull(record.inReplyTo),
     references,
-    from: str(record.from),
-    to: str(record.to),
-    subject: str(record.subject),
-    date: str(record.date) || null,
-    text: str(record.text),
-    truncated: record.truncated === true
+    from: str(record.from).slice(0, MAX_HEADER_CHARS),
+    to: str(record.to).slice(0, MAX_HEADER_CHARS),
+    subject: str(record.subject).slice(0, MAX_HEADER_CHARS),
+    date: date && !Number.isNaN(Date.parse(date)) ? date : null,
+    text: str(record.text).slice(0, MAX_MESSAGE_TEXT_CHARS),
+    truncated: record.truncated === true || str(record.text).length > MAX_MESSAGE_TEXT_CHARS
   };
+}
+
+function isMessageId(value: string): boolean {
+  return MESSAGE_ID.test(value);
+}
+
+function messageIdOrNull(value: unknown): string | null {
+  const id = str(value);
+  return isMessageId(id) ? id : null;
 }
 
 /** Mail's wording for a bridge failure; the shape of the answer is shared. */

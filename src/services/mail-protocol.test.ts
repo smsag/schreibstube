@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   MAIL_REQUEST_TIMEOUT_MS,
+  MAX_MAIL_RESULTS,
+  MAX_MESSAGE_TEXT_CHARS,
   describeBridgeError,
   hasCriteria,
   parseSearchResult,
@@ -57,6 +59,55 @@ describe("parseSearchResult", () => {
     expect(parseSearchResult({}).messages).toEqual([]);
     expect(parseSearchResult(null).messages).toEqual([]);
   });
+
+  it("keeps no more messages than a search may answer with", () => {
+    const messages = Array.from({ length: MAX_MAIL_RESULTS + 10 }, (_, uid) => ({ uid }));
+    expect(parseSearchResult({ messages }).messages).toHaveLength(MAX_MAIL_RESULTS);
+  });
+
+  it("cuts a body the bridge should already have cut, and says so", () => {
+    const [message] = parseSearchResult({
+      messages: [{ text: "x".repeat(MAX_MESSAGE_TEXT_CHARS + 1) }]
+    }).messages;
+    expect(message?.text).toHaveLength(MAX_MESSAGE_TEXT_CHARS);
+    expect(message?.truncated).toBe(true);
+  });
+
+  it("bounds the headers and the reference list", () => {
+    const [message] = parseSearchResult({
+      messages: [
+        {
+          subject: "s".repeat(600),
+          from: "f".repeat(600),
+          to: "t".repeat(600),
+          references: Array.from({ length: 80 }, (_, i) => `<r${i}@b.de>`)
+        }
+      ]
+    }).messages;
+    expect(message?.subject).toHaveLength(500);
+    expect(message?.from).toHaveLength(500);
+    expect(message?.to).toHaveLength(500);
+    expect(message?.references).toHaveLength(50);
+  });
+
+  it("drops an identifier or a date that is not one, keeping the message", () => {
+    const [message] = parseSearchResult({
+      messages: [
+        {
+          messageId: "no brackets",
+          inReplyTo: "<has space@b.de>",
+          references: ["<ok@b.de>", "<bad", "<>"],
+          date: "gestern"
+        }
+      ]
+    }).messages;
+    expect(message).toMatchObject({
+      messageId: null,
+      inReplyTo: null,
+      references: ["<ok@b.de>"],
+      date: null
+    });
+  });
 });
 
 describe("parseSendResult", () => {
@@ -92,7 +143,19 @@ describe("parseSendResult", () => {
   });
 
   it("throws when the Message-ID is missing, since replies could never be found", () => {
-    expect(() => parseSendResult({ sentAt: "now" })).toThrow(/Message-ID/i);
+    expect(() => parseSendResult({ sentAt: "2026-09-07T10:00:00.000Z" })).toThrow(/Message-ID/i);
+  });
+
+  it("throws on a Message-ID that no reply could cite", () => {
+    expect(() => parseSendResult({ messageId: "x@b.de" })).toThrow(/malformed Message-ID/);
+    expect(() => parseSendResult({ messageId: "<a b@b.de>" })).toThrow(/malformed Message-ID/);
+    expect(() => parseSendResult({ messageId: `<${"x".repeat(999)}>` })).toThrow(
+      /malformed Message-ID/
+    );
+  });
+
+  it("throws on a send time that is not a date", () => {
+    expect(() => parseSendResult({ messageId: "<x@b.de>", sentAt: "now" })).toThrow(/not a date/);
   });
 });
 

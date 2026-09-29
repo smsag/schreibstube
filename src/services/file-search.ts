@@ -421,7 +421,6 @@ export function rankFiles(
 
   const fields = fieldsForScope(scope);
   const total = candidates.length;
-  // One lookup per word for the whole vault's text, not one per file.
   const bodies =
     body && (scope === "all" || scope === "body")
       ? words.map((word) => body.strengths(word))

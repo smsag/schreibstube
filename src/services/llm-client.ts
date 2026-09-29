@@ -1,6 +1,7 @@
 import { requestUrl } from "obsidian";
 import { withTimeout } from "../utils/with-timeout";
 import type { LlmProvider } from "../types";
+import { parseJsonBody } from "./bridge-protocol";
 import {
   REQUEST_TIMEOUT_MS,
   describeApiError,
@@ -12,8 +13,6 @@ import {
 /** Send a prepared provider request and return the parsed text completion.
  *  Shared by every LLM-backed command (rename, summarize). */
 export async function sendRequest(provider: LlmProvider, request: BuiltRequest): Promise<string> {
-  // Obsidian's requestUrl runs in the main process, so it bypasses the
-  // renderer CORS restrictions that block direct fetch() to these APIs.
   const response = await withTimeout(
     requestUrl({
       url: request.url,
@@ -30,5 +29,5 @@ export async function sendRequest(provider: LlmProvider, request: BuiltRequest):
     throw new Error(describeApiError(providerLabel(provider), response.status, response.text));
   }
 
-  return parseResponse(provider, response.json);
+  return parseResponse(provider, parseJsonBody(response));
 }

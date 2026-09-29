@@ -47,6 +47,14 @@ describe("typstKey", () => {
     expect(typstKey("trailing-")).toBe('"trailing-"');
     expect(typstKey("")).toBe('""');
   });
+
+  it("quotes a keyword, which a bare key cannot be", () => {
+    for (const word of ["none", "auto", "in", "let", "if", "for", "true", "context", "as"]) {
+      expect(typstKey(word)).toBe(`"${word}"`);
+    }
+    expect(typstKey("inside")).toBe("inside");
+    expect(typstKey("None")).toBe("None");
+  });
 });
 
 describe("typstDictionary", () => {

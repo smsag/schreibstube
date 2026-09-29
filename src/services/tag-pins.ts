@@ -34,14 +34,14 @@ export const TAG_PIN_PREFIX = "tag:";
 
 /** The key a tag is pinned under, or null when it is not a tag at all. */
 export function tagPinKey(raw: string): string | null {
-  const tag = normalizeTag(raw);
+  const tag = checkTag(raw);
   return tag === null ? null : `${TAG_PIN_PREFIX}${tag}`;
 }
 
 /** The tag a pinned key stands for, or null when the key is a path. */
 export function tagFromPinKey(key: string): string | null {
   if (!key.startsWith(TAG_PIN_PREFIX)) return null;
-  return normalizeTag(key.slice(TAG_PIN_PREFIX.length));
+  return checkTag(key.slice(TAG_PIN_PREFIX.length));
 }
 
 /**
@@ -51,7 +51,7 @@ export function tagFromPinKey(key: string): string | null {
  * no empty segment between slashes, and at least one character that is not a
  * digit — `#2026` is a heading of sorts in plenty of notes, never a tag.
  */
-export function normalizeTag(raw: string): string | null {
+export function checkTag(raw: string): string | null {
   const tag = raw.trim().replace(/^#/, "");
   if (tag.length === 0) return null;
   if (/[\s#,;:!?"'()[\]{}<>|\\^`*=+&%$@~.]/.test(tag)) return null;
@@ -131,7 +131,7 @@ export function vaultTags(notes: Iterable<Pick<TaggedNote, "tags">>): VaultTag[]
   for (const note of notes) {
     const seen = new Set<string>();
     for (const carried of note.tags) {
-      const tag = normalizeTag(carried);
+      const tag = checkTag(carried);
       if (tag === null) continue;
 
       const segments = tag.split("/");

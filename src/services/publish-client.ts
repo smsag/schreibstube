@@ -1,7 +1,14 @@
 import { requestUrl } from "obsidian";
 import { withTimeout } from "../utils/with-timeout";
 import { withRetry } from "../utils/retry";
-import { BridgeError, buildEndpoint, authHeaders, extractCode } from "./bridge-protocol";
+import {
+  BridgeError,
+  asRecord,
+  authHeaders,
+  buildEndpoint,
+  extractCode,
+  parseJsonBody
+} from "./bridge-protocol";
 import {
   COMMIT_REQUEST_TIMEOUT_MS,
   PUBLISH_REQUEST_TIMEOUT_MS,
@@ -22,10 +29,8 @@ import {
 /**
  * Transport for the publish capability.
  *
- * Uses Obsidian's `requestUrl`, which runs outside the renderer's CORS sandbox
- * and behaves identically on desktop and mobile. That is the whole reason the
- * bridge exists: mobile has no Node runtime and no raw sockets, so SFTP has to
- * be reached over HTTPS.
+ * `requestUrl` runs outside the renderer's CORS sandbox, which is what lets
+ * the plugin reach the bridge from a phone at all.
  *
  * Uploads send raw bytes rather than base64 in JSON. A video would otherwise
  * grow by a third on the way through both processes.
@@ -51,7 +56,7 @@ export async function bridgeHealth(config: PublishBridgeConfig): Promise<BridgeH
   if (response.status < 200 || response.status >= 300) {
     throw failure(response.status, response.text);
   }
-  return parseHealth(response.json);
+  return parseHealth(parseJsonBody(response));
 }
 
 export async function listTargets(config: PublishBridgeConfig): Promise<PublishTarget[]> {
@@ -80,8 +85,7 @@ export async function checkTarget(
   config: PublishBridgeConfig,
   target: string
 ): Promise<{ ok: boolean; error?: string; entries?: number }> {
-  const json = await send(config, "POST", "/publish/diagnostics", { target });
-  const record = (json ?? {}) as Record<string, unknown>;
+  const record = asRecord(await send(config, "POST", "/publish/diagnostics", { target }));
   return {
     ok: record.ok === true,
     ...(typeof record.error === "string" ? { error: record.error } : {}),
@@ -159,17 +163,10 @@ async function send(
   if (response.status < 200 || response.status >= 300) {
     throw failure(response.status, response.text);
   }
-  return response.json;
+  return parseJsonBody(response);
 }
 
-/**
- * Uploads are the one request worth repeating.
- *
- * They are addressed by the hash of their content, so a repeat is either a
- * no-op or the same write again. Without this, one dropped connection during a
- * fifty-file publish reported failure even though the next run would have
- * resumed for free.
- */
+/** Uploads are the one request worth repeating; `withRetry` says why. */
 async function upload(
   config: PublishBridgeConfig,
   path: string,

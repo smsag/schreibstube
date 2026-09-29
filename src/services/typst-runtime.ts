@@ -1,28 +1,21 @@
 /**
- * Which typesetter the plugin runs, and how it knows it got the right one.
- *
- * Typst is compiled to WebAssembly, which is what lets a note become a PDF on
- * a phone with no server in the middle. The module is 28 MB: far too much for
- * a plugin bundle that is parsed on every start, so it is fetched once per
- * device from this plugin's own GitHub release and kept beside the plugin.
- *
- * A binary downloaded at runtime and then executed is the one thing in this
- * plugin that could quietly become something else, so the bytes are pinned.
- * The hashes below are committed; the release workflow verifies them before
- * attaching the files, and the plugin verifies them again before loading. A
- * mismatch is refused and reported — never loaded and never repaired silently.
+ * Which typesetter the plugin runs, and how it knows it got the right one:
+ * the pinned bytes of the compiler and the fonts. PRINTING.md says why they
+ * are fetched once per device and hashed on every start.
  */
+import { t } from "../i18n";
 import FONT_MANIFEST from "./typst-fonts.json";
 
 /** The typst.ts release these hashes belong to. Bumped deliberately. */
 export const RUNTIME_VERSION = "0.7.0";
 
 /**
- * Roughly what a device downloads, in megabytes, for a sentence a person reads.
+ * Roughly what a device downloads, in megabytes, for a sentence a person
+ * reads: the compiler and the standard fonts together.
  *
  * Rounded and stated rather than measured: it is used to warn somebody before
- * they spend it, and "about 28 MB" is what that sentence needs. The exact size
- * is whatever the pinned bytes weigh.
+ * they spend it, and a round figure is what that sentence needs. The exact
+ * size is whatever the pinned bytes weigh.
  */
 export const RUNTIME_MEGABYTES = 35;
 
@@ -66,21 +59,10 @@ export const WASM_ASSET = RUNTIME_ASSETS[0] as RuntimeAsset;
 export const LOADER_ASSET = RUNTIME_ASSETS[1] as RuntimeAsset;
 
 /**
- * The faces a device keeps beside the compiler, pinned in `typst-fonts.json`.
- *
- * The typesetter has no typeface of its own: in a browser there are no system
- * fonts to find, and a page set without a face is a blank page. Three sets:
- *
- * - Libertinus Serif and DejaVu Sans Mono, the faces Typst itself defaults
- *   to, so a person's own template that names no font still prints.
- * - Fira Sans and JetBrains Mono, which the built-in Standard template is set
- *   in: the Klartext theme's faces, so a printed note looks like the note.
- *
- * Each set is fetched by the release workflow from its own upstream at a
- * pinned tag or commit, checked, and attached beside the compiler. The list
- * lives in JSON because that script reads it too, and a second copy of a hash
- * is how the two would come apart. All are under licences that allow
- * redistribution with the notice each font carries in its own metadata.
+ * One set of the faces a device keeps beside the compiler, pinned in
+ * `typst-fonts.json` because the release script reads the same file, and a
+ * second copy of a hash is how the two would come apart. PRINTING.md says
+ * which sets and why.
  */
 export interface FontSet {
   /** What is in the set, for a person reading the manifest. */
@@ -208,7 +190,7 @@ export function readCompileResult(value: unknown): CompileOutcome {
     : [];
   return {
     ok: false,
-    diagnostics: diagnostics.length > 0 ? diagnostics : ["the compiler gave no answer"]
+    diagnostics: diagnostics.length > 0 ? diagnostics : [t().print.compilerSilent]
   };
 }
 

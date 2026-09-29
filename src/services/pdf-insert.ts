@@ -53,8 +53,25 @@ export function composePassageInsert(
   return [...passages]
     .sort(inDocumentOrder)
     .map((passage) => {
-      const line = `${passage.text} ${renderMark(passage)}`.trim();
+      const line = `${escapePassageText(passage.text.trim())} ${renderMark(passage)}`.trim();
       return options.quote ? `> ${line}` : line;
     })
     .join("\n\n");
+}
+
+/**
+ * The passage as text and nothing more.
+ *
+ * It is copied out of a PDF, and a line of one that begins `- ` or `1. `
+ * became a list item, a `#` a heading, and `[[`, `%%` or `<!--` in it opened
+ * a link or hid the rest of the note. Each is escaped so it reads as written,
+ * and no longer holds the pair Obsidian looks for.
+ */
+export function escapePassageText(text: string): string {
+  return text
+    .replace(/^([#>|+*-])(?=\s)/, "\\$1")
+    .replace(/^(\d+)([.)])(?=\s)/, "$1\\$2")
+    .replace(/\[\[/g, "\\[\\[")
+    .replace(/%%/g, "\\%\\%")
+    .replace(/<!--/g, "<!\\--");
 }

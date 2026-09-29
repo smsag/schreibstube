@@ -12,9 +12,6 @@
  * uses rather than a second spelling of it, and only a tag nothing in the vault
  * resembles is offered as new — and marked so, because a new tag is a word
  * added to the vault's language, not just to one note.
- *
- * Pure: the controller reads the metadata cache, the note and the model, and
- * this decides what is worth offering.
  */
 import { idf } from "./idf";
 import type { RelatedReasonKind } from "./related-notes";

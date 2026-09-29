@@ -1,20 +1,10 @@
 /**
  * Markdown as the vault writes it, turned into Typst as a template compiles it.
- *
- * Hand-written rather than borrowed. The bridge's site renderer uses
- * markdown-it, but the bridge is a server with room for a dependency tree and
- * this runs inside the plugin, whose whole bundle has a 400 KB budget and is
- * parsed on every start on every phone. What is needed here is also narrower:
- * one output format, no plugin ecosystem, and the Obsidian syntax that matters
- * on paper.
- *
- * Everything is a pure function of the source and the options. Nothing here
- * knows about Obsidian, a vault, or a file; images and diagrams are resolved
- * by callbacks the caller supplies, which is what keeps the whole conversion
- * testable in a few milliseconds.
+ * PRINTING.md says why it is hand-written and what it carries over.
  */
 import { t } from "../i18n";
 import { fencedLines, fenceMarker } from "./markdown-fence";
+import { isTableDelimiter, rowCells } from "./markdown-table";
 import { typstArray, typstString } from "./typst-value";
 import { parseSlideshow, SLIDESHOW_LANGUAGE } from "./slideshow";
 import { slideshowForPrint, type SlideshowPrintMode } from "./print-slideshow";
@@ -125,19 +115,37 @@ const DIAGRAM_LANGUAGES = new Set(["mermaid", "vizardry"]);
 const HEADING = /^ {0,3}(#{1,6})\s+(.*?)\s*#*\s*$/;
 const HR = /^ {0,3}([-*_])(?:\s*\1){2,}\s*$/;
 const BLOCKQUOTE = /^ {0,3}>\s?(.*)$/;
-const CALLOUT = /^\[!([A-Za-z]+)\]([+-]?)\s*(.*)$/;
+/** `[!kind]`, where a kind may be a plugin's own, with dashes and digits in it. */
+const CALLOUT = /^\[!([\w-]+)\]([+-]?)\s*(.*)$/;
 const BULLET = /^(\s*)([-*+])\s+(.*)$/;
 const ORDERED = /^(\s*)(\d{1,9})[.)]\s+(.*)$/;
-const TABLE_DELIMITER = /^ {0,3}\|?\s*:?-{1,}:?\s*(\|\s*:?-{1,}:?\s*)*\|?\s*$/;
 const FOOTNOTE_DEFINITION = /^ {0,3}\[\^([^\]\s]+)\]:\s*(.*)$/;
 /** `[label]: target "title"` — where a reference-style link points. */
 const REFERENCE_DEFINITION =
   /^ {0,3}\[([^\]^][^\]]*)\]:\s*<?([^\s>]+)>?(?:\s+(?:"[^"]*"|'[^']*'|\([^)]*\)))?\s*$/;
-const TASK = /^\[([ xX])\]\s+/;
+/** A task's box. Any single character but a space is done, as the ribbon counts it. */
+const TASK = /^\[(.)\](?:\s+|$)/;
 /** The line under a setext heading: `===` makes the text above it level 1, `---` level 2. */
 const SETEXT = /^ {0,3}(=+|-+)[ \t]*$/;
 /** A line that opens a block of math. */
 const MATH_BLOCK = /^ {0,3}\$\$/;
+/**
+ * The `(target "title")` of a link or an image. A target with a space in it is
+ * written `<my photo.png>`, as CommonMark allows and Obsidian writes when it
+ * does not encode the space; both used to print as the text of the link.
+ */
+const LINK_DESTINATION = /\(\s*(?:<([^<>\n]*)>|([^)\s]+))(?:\s+"[^"]*")?\s*\)/;
+const INLINE_LINK = new RegExp(`^\\[([^\\]]*)\\]${LINK_DESTINATION.source}`);
+const INLINE_IMAGE = new RegExp(`^!${INLINE_LINK.source.slice(1)}`);
+
+/** The target a `LINK_DESTINATION` match names, whichever way it was written. */
+function linkTarget(match: RegExpExecArray | null): string | null {
+  if (!match) return null;
+  const angled = match[match.length - 2];
+  const bare = match[match.length - 1];
+  const target = angled ?? bare ?? "";
+  return target === "" ? null : target;
+}
 
 /**
  * The elements a note writes as raw HTML. Anything else between angle
@@ -209,7 +217,7 @@ class Converter {
     const blocks = this.blocks(0);
     const rows = this.options.properties ?? [];
     if (rows.length > 0) {
-      const table = `#schreibstube-properties((${rows.map(([key, value]) => `(${quote(key)}, ${quote(value)}),`).join(" ")}))\n`;
+      const table = `#schreibstube-properties((${rows.map(([key, value]) => `(${typstString(key)}, ${typstString(value)}),`).join(" ")}))\n`;
       blocks.splice(/^= /.test(blocks[0] ?? "") ? 1 : 0, 0, table);
     }
     const body = blocks.join("\n");
@@ -338,7 +346,7 @@ class Converter {
       return this.options.hrIsPageBreak ? "#pagebreak(weak: true)\n" : "#line(length: 100%)\n";
     }
 
-    if (BLOCKQUOTE.test(line)) return this.blockquote();
+    if (BLOCKQUOTE.test(line)) return this.blocktypstString();
     if (BULLET.test(line) || ORDERED.test(line)) return this.list(indentOf(line));
     if (this.isTableStart()) return this.table();
 
@@ -360,7 +368,7 @@ class Converter {
       this.at += 1;
     }
     while (content.length > 0 && (content[content.length - 1] ?? "").trim() === "") content.pop();
-    return `#schreibstube-code(${quote(content.join("\n"))}, "")\n`;
+    return `#schreibstube-code(${typstString(content.join("\n"))}, "")\n`;
   }
 
   /**
@@ -392,7 +400,7 @@ class Converter {
       }
     }
     this.warn(t().print.mathAsSource);
-    return `#schreibstube-code(${quote(content.join("\n").trim())}, "latex")\n`;
+    return `#schreibstube-code(${typstString(content.join("\n").trim())}, "latex")\n`;
   }
 
   /**
@@ -438,12 +446,12 @@ class Converter {
       const paths = this.options.diagramImage?.(block) ?? null;
       if (paths !== null && paths.length > 0) {
         const caption = diagramCaption(block.caption, this.options.diagramTitle?.(block) ?? "");
-        return `#schreibstube-diagram(${typstArray(paths)}, ${quote(caption)})\n`;
+        return `#schreibstube-diagram(${typstArray(paths)}, ${typstString(caption)})\n`;
       }
       this.shared.warnings.push(t().print.diagramAsSource(language));
     }
 
-    return `#schreibstube-code(${quote(source)}, ${quote(language)})\n`;
+    return `#schreibstube-code(${typstString(source)}, ${typstString(language)})\n`;
   }
 
   /**
@@ -467,14 +475,14 @@ class Converter {
     for (const image of plan.images) {
       const request = { source: image.src, alt: image.alt, width: image.width };
       const path = this.resolveImage(request);
-      if (path !== null) placed.push(`(${quote(path)}, ${quote(image.alt)}),`);
+      if (path !== null) placed.push(`(${typstString(path)}, ${typstString(image.alt)}),`);
     }
     if (placed.length === 0) return "";
-    return `#schreibstube-slideshow(${quote(plan.arrangement)}, (${placed.join(" ")}), columns: ${plan.columns})\n`;
+    return `#schreibstube-slideshow(${typstString(plan.arrangement)}, (${placed.join(" ")}), columns: ${plan.columns})\n`;
   }
 
   /** A blockquote, or the callout Obsidian writes in the shape of one. */
-  private blockquote(): string {
+  private blocktypstString(): string {
     const inner: string[] = [];
     while (this.at < this.lines.length) {
       const match = BLOCKQUOTE.exec(this.lines[this.at] ?? "");
@@ -489,7 +497,7 @@ class Converter {
       const kind = CALLOUT_KINDS[callout[1].toLowerCase()] ?? "note";
       const title = (callout[3] ?? "").trim() || titleCase(callout[1]);
       const body = this.nested(inner.slice(1).join("\n"));
-      return `#schreibstube-callout(${quote(kind)}, [${this.inline(title)}])[\n${body}]\n`;
+      return `#schreibstube-callout(${typstString(kind)}, [${this.inline(title)}])[\n${body}]\n`;
     }
 
     return `#quote(block: true)[\n${this.nested(inner.join("\n"))}]\n`;
@@ -510,7 +518,6 @@ class Converter {
     while (this.at < this.lines.length) {
       const line = this.lines[this.at];
       if (line === undefined || line.trim() === "") {
-        // A blank line ends the list only if the next content is not part of it.
         const next = this.lines[this.at + 1];
         if (next === undefined || next.trim() === "") break;
         if (indentOf(next) < indent) break;
@@ -563,10 +570,11 @@ class Converter {
     return `#schreibstube-task(${done ? "true" : "false"}) ${this.inline(text.slice(task[0].length))}`;
   }
 
+  /** A row with a pipe over a delimiter row: the outer pipes are optional, as on screen. */
   private isTableStart(): boolean {
     const line = this.lines[this.at] ?? "";
     const next = this.lines[this.at + 1] ?? "";
-    return line.trim().startsWith("|") && TABLE_DELIMITER.test(next) && next.includes("-");
+    return line.includes("|") && isTableDelimiter(next);
   }
 
   /**
@@ -578,15 +586,15 @@ class Converter {
    * lost that would read as a mistake.
    */
   private table(): string {
-    const header = splitRow(this.lines[this.at] ?? "");
-    const aligns = splitRow(this.lines[this.at + 1] ?? "").map(alignmentOf);
+    const header = rowCells(this.lines[this.at] ?? "");
+    const aligns = rowCells(this.lines[this.at + 1] ?? "").map(alignmentOf);
     this.at += 2;
 
     const rows: string[][] = [];
     while (this.at < this.lines.length) {
       const line = this.lines[this.at] ?? "";
-      if (!line.trim().startsWith("|")) break;
-      rows.push(splitRow(line));
+      if (line.trim() === "" || !line.includes("|")) break;
+      rows.push(rowCells(line));
       this.at += 1;
     }
 
@@ -692,7 +700,6 @@ class Converter {
       const rest = text.slice(i);
       const char = text[i] ?? "";
 
-      // A backslash escape in Markdown makes the next character literal.
       if (char === "\\" && i + 1 < text.length) {
         plain += text[i + 1];
         i += 2;
@@ -710,7 +717,7 @@ class Converter {
         if (math && formula !== undefined) {
           flush();
           this.warn(t().print.mathAsSource);
-          append(`#raw(${quote(formula.trim())})`, true);
+          append(`#raw(${typstString(formula.trim())})`, true);
           i += math[0].length;
           continue;
         }
@@ -720,7 +727,7 @@ class Converter {
         const code = /^(`+)([\s\S]*?)\1(?!`)/.exec(rest);
         if (code?.[2] !== undefined) {
           flush();
-          append(`#raw(${quote(code[2].trim())})`, true);
+          append(`#raw(${typstString(code[2].trim())})`, true);
           i += code[0].length;
           continue;
         }
@@ -744,7 +751,7 @@ class Converter {
         const autolink = /^<(https?:\/\/[^>\s]+|mailto:[^>\s]+)>/.exec(rest);
         if (autolink?.[1] !== undefined) {
           flush();
-          append(`#link(${quote(autolink[1])})`, true);
+          append(`#link(${typstString(autolink[1])})`, true);
           i += autolink[0].length;
           continue;
         }
@@ -797,10 +804,11 @@ class Converter {
       }
 
       if (char === "!") {
-        const image = /^!\[([^\]]*)\]\(([^)\s]+)(?:\s+"[^"]*")?\)/.exec(rest);
-        if (image?.[2] !== undefined) {
+        const image = INLINE_IMAGE.exec(rest);
+        const target = linkTarget(image);
+        if (image && target !== null) {
           flush();
-          append(...this.image(image[2], image[1] ?? ""));
+          append(...this.image(target, image[1] ?? ""));
           i += image[0].length;
           continue;
         }
@@ -815,12 +823,13 @@ class Converter {
           continue;
         }
 
-        const link = /^\[([^\]]*)\]\(([^)\s]+)(?:\s+"[^"]*")?\)/.exec(rest);
-        if (link?.[2] !== undefined) {
+        const link = INLINE_LINK.exec(rest);
+        const target = linkTarget(link);
+        if (link && target !== null) {
           flush();
           const label = this.inline(link[1] ?? "");
           const labelOpen = this.endsOpen;
-          this.appendLink(append, label, labelOpen, link[2]);
+          this.appendLink(append, label, labelOpen, target);
           i += link[0].length;
           continue;
         }
@@ -869,7 +878,8 @@ class Converter {
     labelOpen: boolean,
     target: string
   ): void {
-    if (/^[a-z][a-z0-9+.-]*:/i.test(target)) append(`#link(${quote(target)})[${label}]`, true);
+    if (/^[a-z][a-z0-9+.-]*:/i.test(target))
+      append(`#link(${typstString(target)})[${label}]`, true);
     else append(label, labelOpen);
   }
 
@@ -887,7 +897,7 @@ class Converter {
   private image(source: string, alt: string): [string, boolean] {
     const path = this.resolveImage({ source, alt });
     if (path === null) return [escapeText(alt), false];
-    return [`#schreibstube-image(${quote(path)}, ${quote(alt)})`, true];
+    return [`#schreibstube-image(${typstString(path)}, ${typstString(alt)})`, true];
   }
 
   /** A picture's path in the job, or null after saying why there is none. */
@@ -936,10 +946,14 @@ interface Emphasis {
 /**
  * Emphasis, strong, strikethrough and highlight, longest marker first.
  *
- * `before` is the character the text had just before the marker, which is the
- * whole of the intra-word rule: an underscore between two word characters is
- * part of the word. Only the closing side was checked, so `my_var` opened
- * emphasis on its own underscore and swallowed the rest of the sentence.
+ * A marker opens only when text follows it at once, and closes only when text
+ * stands right before it: `2 * 3 * 4` is arithmetic, and it used to print
+ * with a 3 in italics. `before` is the character the text had just before the
+ * marker, which is the whole of the intra-word rule: an underscore between two
+ * word characters is part of the word. Only the closing side was checked, so
+ * `my_var` opened emphasis on its own underscore and swallowed the rest of
+ * the sentence. A code span is skipped whole on the way to the closer, because
+ * the `*` inside one is a `*` and nothing else.
  */
 function matchEmphasis(rest: string, before: string): Emphasis | null {
   const markers: [string, string, string][] = [
@@ -957,7 +971,8 @@ function matchEmphasis(rest: string, before: string): Emphasis | null {
 
   for (const [marker, open, close] of markers) {
     if (!rest.startsWith(marker)) continue;
-    const end = rest.indexOf(marker, marker.length);
+    if (/^\s/.test(rest.slice(marker.length))) continue;
+    const end = findCloser(rest, marker);
     if (end === -1) continue;
     const content = rest.slice(marker.length, end);
     if (content.trim() === "") continue;
@@ -972,6 +987,22 @@ function matchEmphasis(rest: string, before: string): Emphasis | null {
   }
 
   return null;
+}
+
+/** Where `marker` closes what it opened at the start of `rest`, or -1. */
+function findCloser(rest: string, marker: string): number {
+  let at = marker.length;
+  while (at < rest.length) {
+    if (rest[at] === "`") {
+      const run = /^`+/.exec(rest.slice(at))?.[0] ?? "`";
+      const close = rest.indexOf(run, at + run.length);
+      at = close === -1 ? at + run.length : close + run.length;
+      continue;
+    }
+    if (rest.startsWith(marker, at) && !/\s/.test(rest[at - 1] ?? "")) return at;
+    at += 1;
+  }
+  return -1;
 }
 
 /**
@@ -1010,12 +1041,9 @@ export function diagramCaption(fromNote: string, fromDrawing: string): string {
   return fromDrawing.trim();
 }
 
-function quote(value: string): string {
-  return typstString(value);
-}
-
+/** The note without its properties, which print through `options.properties`, not as text. */
 function stripFrontmatter(source: string): string {
-  const match = /^---\r?\n[\s\S]*?\r?\n---[ \t]*(?:\r?\n|$)/.exec(source);
+  const match = /^---\r?\n(?:[\s\S]*?\r?\n)?---[ \t]*(?:\r?\n|$)/.exec(source);
   return match ? source.slice(match[0].length) : source;
 }
 
@@ -1167,28 +1195,6 @@ function dropColumns(line: string, columns: number): string {
     index += 1;
   }
   return line.slice(index);
-}
-
-function splitRow(line: string): string[] {
-  const trimmed = line.trim().replace(/^\|/, "").replace(/\|$/, "");
-  const cells: string[] = [];
-  let current = "";
-  for (let i = 0; i < trimmed.length; i += 1) {
-    const char = trimmed[i];
-    if (char === "\\" && trimmed[i + 1] === "|") {
-      current += "|";
-      i += 1;
-      continue;
-    }
-    if (char === "|") {
-      cells.push(current.trim());
-      current = "";
-      continue;
-    }
-    current += char;
-  }
-  cells.push(current.trim());
-  return cells;
 }
 
 function alignmentOf(cell: string): string {

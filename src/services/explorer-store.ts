@@ -1,21 +1,6 @@
 /**
- * Where the explorer's icons and pins live, and how two devices share them.
- *
- * The state sits in its own file next to the plugin's `data.json` rather than
- * inside it, for one reason: `data.json` is written by overwriting the whole
- * settings object, so a device holding a stale copy in memory would clobber
- * everything another device wrote, including mailbox and publishing state. A
- * separate file limits the blast radius of a bad merge to icons, and lets every
- * write take the cheap read-modify-merge path below.
- *
- * Three habits make the file survive iCloud, Obsidian Sync and Git:
- *
- * - **Read before write.** Every flush re-reads the file and merges per entry,
- *   so a change made elsewhere between two writes is not overwritten.
- * - **Poll for foreign writes.** A sync client drops a new file in without
- *   telling anyone; `refreshFromDisk` notices by modification time.
- * - **Debounce.** Pinning three notes in a row is one write, not three, which
- *   is what keeps a sync client from seeing a conflict at all.
+ * Where the explorer's icons and pins live, and how two devices share them:
+ * ARCHITECTURE.md has the file, the read-before-write merge and the polling.
  */
 import type { Logger } from "./logger";
 import {
@@ -47,12 +32,16 @@ export interface ExplorerStoreOptions {
 }
 
 const DEFAULT_WRITE_DELAY_MS = 400;
+/** A write that keeps failing is retried more slowly, up to this pause. */
+const MAX_RETRY_DELAY_MS = 60_000;
 
 export class ExplorerStore {
   private current: ExplorerData = emptyExplorerData();
   private lastWritten = "";
   private lastMtime: number | null = null;
   private dirty = false;
+  /** Writes failed in a row, which sets the pause before the next try. */
+  private failures = 0;
   private timer: unknown = null;
   private queue: Promise<void> = Promise.resolve();
   private readonly listeners = new Set<() => void>();
@@ -141,10 +130,15 @@ export class ExplorerStore {
         await this.file.write(text);
         this.lastWritten = text;
         this.lastMtime = await this.file.mtime();
+        this.failures = 0;
       } catch (error) {
-        // Left dirty on purpose: the next change, or the next flush, retries.
+        // Left dirty, and tried again on a timer that backs off: a change
+        // used to wait for the next change to reach the disk, and the last
+        // pin before a vault was closed was the one that never did.
         this.dirty = true;
+        this.failures += 1;
         this.logger.warn("Could not write the explorer state file.", error);
+        this.scheduleFlush(this.retryDelay());
       }
     });
   }
@@ -227,12 +221,16 @@ export class ExplorerStore {
     }
   }
 
-  private scheduleFlush(): void {
+  private scheduleFlush(delay = this.writeDelayMs): void {
     this.cancelTimer();
     this.timer = this.setTimer(() => {
       this.timer = null;
       void this.flush();
-    }, this.writeDelayMs);
+    }, delay);
+  }
+
+  private retryDelay(): number {
+    return Math.min(MAX_RETRY_DELAY_MS, this.writeDelayMs * 2 ** this.failures);
   }
 
   private cancelTimer(): void {

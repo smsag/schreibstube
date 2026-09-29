@@ -146,7 +146,7 @@ export function removeAvoid(current: unknown, word: string): string[] {
  * capped. Pythia writes the definition first, but a hand-edited note may not.
  */
 export function definitionExcerpt(markdown: string): string {
-  const body = markdown.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, "");
+  const body = markdown.replace(/^---\r?\n(?:[\s\S]*?\r?\n)?---\r?\n?/, "");
   for (const paragraph of body.split(/\r?\n\s*\r?\n/)) {
     const text = paragraph.trim();
     if (!text || text.startsWith(">") || text.startsWith("#") || text.startsWith("```")) continue;

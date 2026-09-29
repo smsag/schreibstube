@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { t } from "../i18n";
 import { isGlossaryNote, parseGlossary, preferredTerm } from "./glossary-parser";
 
 const NOTE = `---
@@ -183,12 +184,37 @@ describe("parseGlossary", () => {
   it("reports a note with no table", () => {
     const { glossary, errors } = parseGlossary("G.md", "# Empty\n\nNothing here.");
     expect(glossary.concepts).toEqual([]);
-    expect(errors).toEqual(["No term table found."]);
+    expect(errors).toEqual([t().proofread.glossary.noTable]);
   });
 
   it("reports missing required columns", () => {
     const { errors } = parseGlossary("G.md", "| Term | Note |\n|---|---|\n| X | y |");
-    expect(errors[0]).toContain("Missing required column");
+    expect(errors).toEqual([t().proofread.glossary.missingColumns("concept, status")]);
+  });
+
+  it("names the line a skipped row was written on", () => {
+    const { errors } = parseGlossary(
+      "G.md",
+      "| Concept | Term | Status |\n|---|---|---|\n| a | B | preferred |\n| a | | preferred |"
+    );
+    expect(errors).toEqual([t().proofread.glossary.skippedRequired(4)]);
+  });
+
+  it("takes a delimiter row of single dashes, as the editor does", () => {
+    const { glossary, errors } = parseGlossary(
+      "G.md",
+      "| Concept | Term | Status |\n|-|-|-|\n| a | B | preferred |"
+    );
+    expect(errors).toEqual([]);
+    expect(glossary.concepts[0]?.terms[0]?.text).toBe("B");
+  });
+
+  it("keeps a pipe inside code in its cell", () => {
+    const { glossary } = parseGlossary(
+      "G.md",
+      "| Concept | Term | Status |\n|---|---|---|\n| a | `x|y` | preferred |"
+    );
+    expect(glossary.concepts[0]?.terms[0]?.text).toBe("`x|y`");
   });
 });
 

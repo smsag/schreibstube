@@ -19,6 +19,7 @@
  * already-parsed frontmatter object from the metadata cache.
  */
 
+import { splitFrontmatter } from "./frontmatter-block";
 import { t } from "../i18n";
 
 /* Every key is `schreibstube`-prefixed camelCase, the rule the rest of the
@@ -172,36 +173,34 @@ export function validateSendable(fields: MailFields): SendableResult {
     };
   }
 
+  // A line break in a header is a second header: a subject that carried one
+  // would let a note write its own `Bcc:`.
+  if (CONTROL_CHARS.test(fields.subject)) {
+    return {
+      ok: false,
+      message: t().mailNotices.invalidSubject(FM_SUBJECT),
+      missing: false
+    };
+  }
+
   return { ok: true };
 }
 
+/** Every control character, line breaks included; the class spares a list the linter refuses. */
+const CONTROL_CHARS = /\p{Cc}/u;
+
 /** A deliberately loose check — it catches typos and missing domains without
- *  trying to reimplement RFC 5322. The mail server is the real authority. */
+ *  trying to reimplement RFC 5322. The mail server is the real authority. A
+ *  control character anywhere in the value, name included, is refused: it is
+ *  never part of an address and is how a header is smuggled into another. */
 export function looksLikeAddress(value: string): boolean {
+  if (CONTROL_CHARS.test(value)) return false;
   const address = /<([^>]+)>/.exec(value)?.[1] ?? value;
   return /^[^\s@]+@[^\s@.]+\.[^\s@]+$/.test(address.trim());
 }
 
-/**
- * Return the note without its frontmatter block — the part that becomes the
- * email body. Handles both `---` and `...` terminators, and CRLF line endings.
- */
+/** The note without its frontmatter block: the part that becomes the mail body. */
 export function stripFrontmatter(content: string): string {
-  if (!/^---\r?\n/.test(content)) {
-    return content;
-  }
-
-  const lines = content.split(/\r?\n/);
-  for (let i = 1; i < lines.length; i++) {
-    if (lines[i] === "---" || lines[i] === "...") {
-      return lines
-        .slice(i + 1)
-        .join("\n")
-        .replace(/^\n+/, "");
-    }
-  }
-
-  // Unterminated frontmatter: treat the whole note as body rather than sending
-  // an empty message.
-  return content;
+  const { block, body } = splitFrontmatter(content);
+  return block ? body.replace(/\r\n/g, "\n").replace(/^\n+/, "") : content;
 }

@@ -8,13 +8,9 @@ export interface LogSink {
 }
 
 export interface Logger {
-  /** Verbose tracing — only emitted when debug logging is enabled. */
   debug(message: string, ...args: unknown[]): void;
-  /** Notable but non-error events — only emitted when debug logging is enabled. */
   info(message: string, ...args: unknown[]): void;
-  /** Always emitted. Use for recoverable problems worth surfacing in the console. */
   warn(message: string, ...args: unknown[]): void;
-  /** Always emitted. Use alongside a user-facing Notice so the real cause is recoverable. */
   error(message: string, ...args: unknown[]): void;
 }
 

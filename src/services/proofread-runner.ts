@@ -11,6 +11,7 @@
  * are still in flight.
  */
 
+import { t } from "../i18n";
 import type { GlossaryHit, GlossaryMatcher } from "./glossary-matcher";
 import {
   placeholdersIntact,
@@ -53,6 +54,14 @@ export interface ProofreadResult {
   /** Blocks whose rewrite was rejected because a protected span went missing. */
   rejectedBlocks: number;
   failedChunks: number;
+  totalChunks: number;
+  /**
+   * What the first failed request said. One message stands for all of them:
+   * a run where every chunk failed nearly always failed for one reason, and
+   * that reason (a refused key, an unreachable host) is what the person needs
+   * to read to fix it.
+   */
+  firstFailure?: string | undefined;
   cancelled: boolean;
 }
 
@@ -94,15 +103,16 @@ function suggestionFromHit(block: ProseBlock, hit: GlossaryHit): Suggestion {
 
 function buildHitNote(hit: GlossaryHit): string {
   if (hit.note) return hit.note;
+  const words = t().proofread;
   switch (hit.kind) {
     case "substitution":
-      return `"${hit.matchedText}" ist nicht mehr die bevorzugte Benennung.`;
+      return words.hitSubstitution(hit.matchedText);
     case "capitalization":
-      return `Schreibweise laut Glossar: "${hit.replacement}".`;
+      return words.hitCapitalization(hit.replacement ?? "");
     default:
       return hit.status === "superseded"
-        ? `"${hit.matchedText}" ist überholt — bitte selbst entscheiden.`
-        : `"${hit.matchedText}" sollte vermieden werden.`;
+        ? words.hitSuperseded(hit.matchedText)
+        : words.hitAvoid(hit.matchedText);
   }
 }
 
@@ -172,6 +182,7 @@ export async function runProofread(
   const suggestions: Suggestion[] = [];
   let rejectedBlocks = 0;
   let failedChunks = 0;
+  let firstFailure: string | undefined;
   let completedChunks = 0;
   let nextChunk = 0;
 
@@ -191,12 +202,13 @@ export async function runProofread(
       let rewrites: Map<string, string>;
       try {
         rewrites = await send(chunk, token);
-      } catch {
+      } catch (error) {
         // One chunk failing must not lose the chunks that succeeded, so the
         // failure is counted and reported rather than thrown. It still counts
         // as progress: a run whose last chunk failed would otherwise leave the
         // panel showing the chunk before it, as though it had never finished.
         failedChunks += 1;
+        firstFailure ??= error instanceof Error ? error.message : String(error);
         completedChunks += 1;
         report();
         continue;
@@ -233,6 +245,8 @@ export async function runProofread(
     suggestions: suggestions.sort((a, b) => a.from - b.from),
     rejectedBlocks,
     failedChunks,
+    totalChunks: chunks.length,
+    firstFailure,
     cancelled: token.cancelled
   };
 }

@@ -20,6 +20,11 @@ describe("blocks", () => {
     expect(convert("---\ntitle: x\n---\n\nText %%nicht gedruckt%% hier")).toBe("Text  hier");
   });
 
+  it("drops an empty frontmatter block too, rather than printing its fences as rules", () => {
+    expect(convert("---\n---\nText")).toBe("Text");
+    expect(convert("---\r\n---\r\n\r\nText")).toBe("Text");
+  });
+
   it("joins the lines of a paragraph and separates paragraphs", () => {
     expect(convert("eine\nZeile\n\nzweiter Absatz")).toBe("eine\nZeile\n\nzweiter Absatz");
   });
@@ -43,6 +48,11 @@ describe("blocks", () => {
 
   it("names a callout after its kind when the author gave no title", () => {
     expect(convert("> [!tip]\n> x")).toContain('#schreibstube-callout("tip", [Tip])[');
+  });
+
+  it("takes a callout kind a plugin made up, with a dash or a digit in it", () => {
+    expect(convert("> [!my-note] Titel\n> x")).toContain('#schreibstube-callout("note", [Titel])[');
+    expect(convert("> [!step2]\n> x")).toContain('#schreibstube-callout("note", [Step2])[');
   });
 });
 
@@ -85,6 +95,18 @@ describe("tables", () => {
     const out = convert("| a | b | c |\n|---|---|---|\n| 1 |\n");
     expect(out).toContain("[1], [], [],");
   });
+
+  it("reads a table written without its outer pipes, as the editor does", () => {
+    const out = convert("a | b\n--- | ---\n1 | 2\n\nText");
+    expect(out).toContain("table.header([a], [b])");
+    expect(out).toContain("[1], [2],");
+    expect(out).toContain("\nText");
+  });
+
+  it("keeps an escaped pipe and a pipe inside code in their cell", () => {
+    const out = convert("| a | b |\n|---|---|\n| x \\| y | `p|q` |");
+    expect(out).toContain('[x | y], [#raw("p|q")],');
+  });
 });
 
 describe("inline", () => {
@@ -95,6 +117,17 @@ describe("inline", () => {
 
   it("leaves an underscore inside a word alone", () => {
     expect(convert("snake_case_name")).toBe("snake\\_case\\_name");
+  });
+
+  it("leaves a star with space on both sides as the arithmetic it is", () => {
+    expect(convert("2 * 3 * 4")).toBe("2 \\* 3 \\* 4");
+    expect(convert("a ** b ** c")).toBe("a \\*\\* b \\*\\* c");
+    expect(convert("*a * b*")).toBe("#emph[a \\* b]");
+  });
+
+  it("does not close emphasis on a star inside a later code span", () => {
+    expect(convert("*x `a*b` y*")).toBe('#emph[x #raw("a*b") y]');
+    expect(convert("*offen `a*b`")).toBe('\\*offen #raw("a*b")');
   });
 
   it("keeps a code span verbatim", () => {
@@ -198,6 +231,18 @@ describe("images", () => {
   it("places an image the caller resolved and keeps its description", () => {
     expect(convert("![Ein Foto](foto.jpg)", resolved)).toBe(
       '#schreibstube-image("assets/foto.jpg", "Ein Foto")'
+    );
+  });
+
+  it("takes a target with a space in angle brackets, and an encoded one as written", () => {
+    expect(convert("![Foto](<mein foto.jpg>)", resolved)).toBe(
+      '#schreibstube-image("assets/mein foto.jpg", "Foto")'
+    );
+    expect(convert("![](mein%20foto.jpg)", resolved)).toBe(
+      '#schreibstube-image("assets/mein%20foto.jpg", "")'
+    );
+    expect(convert("[Seite](<https://example.de/a b>)")).toBe(
+      '#link("https://example.de/a b")[Seite]'
     );
   });
 
@@ -443,6 +488,14 @@ describe("lists, as the note numbered and ticked them", () => {
   it("keeps a numbered task's number and draws the box beside it", () => {
     expect(convert("1. [x] erst\n2. [ ] dann")).toBe(
       "+ #schreibstube-task(true) erst\n+ #schreibstube-task(false) dann"
+    );
+  });
+
+  it("draws any other single character in the box as done, as the ribbon counts it", () => {
+    expect(convert("- [-] gestrichen\n- [/] halb\n- [x]")).toBe(
+      "#schreibstube-task-item(schreibstube-task(true))[gestrichen]\n" +
+        "#schreibstube-task-item(schreibstube-task(true))[halb]\n" +
+        "#schreibstube-task-item(schreibstube-task(true))[]"
     );
   });
 });

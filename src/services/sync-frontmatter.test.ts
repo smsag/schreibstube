@@ -151,6 +151,11 @@ describe("properties written into an open note", () => {
       kind: "nothing"
     });
     expect(edit("---\ntitle:\n---\n", { title: "Pythia" })).toBe("---\ntitle: Pythia\n---\n");
+    expect(edit('---\ntitle: ""\n---\n', { title: "Pythia" })).toBe("---\ntitle: Pythia\n---\n");
+    expect(edit("---\ntitle: ''\n---\n", { title: "Pythia" })).toBe("---\ntitle: Pythia\n---\n");
+    expect(planFrontmatterEdit('---\ntitle: "Meiner"\n---\n', { title: "Pythia" })).toEqual({
+      kind: "nothing"
+    });
   });
 
   it("quote a title YAML would read as something else", () => {
@@ -158,6 +163,12 @@ describe("properties written into an open note", () => {
       'title: "Pythia: KI im Vault"\n'
     );
     expect(edit(BOUND, { title: "2026" })).toContain('title: "2026"\n');
+    expect(edit(BOUND, { title: "2026-09-17 Protokoll" })).toContain(
+      'title: "2026-09-17 Protokoll"\n'
+    );
+    expect(edit(BOUND, { title: "0x1F" })).toContain('title: "0x1F"\n');
+    expect(edit(BOUND, { title: "0o17" })).toContain('title: "0o17"\n');
+    expect(edit(BOUND, { title: "0b101" })).toContain('title: "0b101"\n');
     expect(edit(BOUND, { title: "Exposé Musterstraße 4" })).toContain(
       "title: Exposé Musterstraße 4\n"
     );

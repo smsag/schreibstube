@@ -16,6 +16,8 @@ describe("propertyIconKey", () => {
     expect(propertyIconKey("   ")).toBeNull();
     expect(propertyIconKey("x".repeat(101))).toBeNull();
     expect(propertyIconKey("a\nb")).toBeNull();
+    expect(propertyIconKey("a\u0000b")).toBeNull();
+    expect(propertyIconKey("a\u007fb")).toBeNull();
   });
 });
 

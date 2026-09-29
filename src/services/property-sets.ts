@@ -20,6 +20,7 @@
  */
 
 import { FM_CC, FM_SUBJECT, FM_TO } from "./mail-frontmatter";
+import { CONTROL_CHARS } from "./file-name";
 import { NOTE_TEMPLATE_KEY } from "./print-data";
 import { SYNC_EVERY_KEY } from "./sync-interval";
 import { SYNC_FRONTMATTER_KEY } from "./sync-source";
@@ -56,8 +57,6 @@ export const MAX_SET_NOTES = 200;
 const MAX_KEY_LENGTH = 100;
 const MAX_STRING_VALUE = 2000;
 const MAX_LIST_ITEMS = 50;
-// eslint-disable-next-line no-control-regex -- control characters are exactly what is refused
-const CONTROL_CHARS = /[\u0000-\u001f\u007f]/;
 
 /** Templater's tag, in any of its forms: `<% %>`, `<%* %>`, `<%+ %>`, trimmed. */
 const TEMPLATER_TAG = /<%[\s\S]*?%>/;

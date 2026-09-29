@@ -17,6 +17,7 @@
  * Pure, and bounded by `maxChars` on the way in, so a note of any size costs at
  * most that much to clean.
  */
+import { splitFrontmatter } from "./frontmatter-block";
 
 /** How much of one note is read at most. A note longer than this is a book or
  *  an export, and its first two hundred thousand characters already say what
@@ -29,7 +30,6 @@ export const MAX_NOTE_CHARS = 200_000;
  *  data. */
 const MAX_WORD_CHARS = 80;
 
-const FRONTMATTER = /^---[^\S\n]*\n[\s\S]*?\n(?:---|\.\.\.)[^\S\n]*(?:\n|$)/;
 // Any indentation: a fence inside a list item is indented with it, and one
 // closed four spaces in used to leave the rest of the note inside the block.
 const FENCE = /^\s*(`{3,}|~{3,})(.*)$/;
@@ -81,7 +81,7 @@ function wikilinkText(_match: string, target: string, alias: string | undefined)
 export function plainNoteText(markdown: unknown, maxChars = MAX_NOTE_CHARS): string {
   if (typeof markdown !== "string") return "";
   let text = markdown.slice(0, Math.max(0, maxChars)).replace(/\r\n?/g, "\n");
-  text = text.replace(FRONTMATTER, "");
+  text = splitFrontmatter(text).body;
   text = withoutFences(text);
   return text
     .replace(CODE_SPAN, (span) => span.replace(/%%/g, "% %").replace(/<!--/g, "< !--"))

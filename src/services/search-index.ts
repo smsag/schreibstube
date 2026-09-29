@@ -143,7 +143,6 @@ function tagList(raw: unknown): string[] {
 }
 
 export class FileSearchIndex {
-  /** One entry per file, dropped when the vault says that file changed. */
   private readonly cache = new Map<string, SearchFields>();
 
   constructor(

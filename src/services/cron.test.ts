@@ -35,6 +35,40 @@ function at(iso: string): Date {
   return new Date(y, m - 1, d, hh, mm, 0, 0);
 }
 
+/**
+ * The schedules the jumping search is checked against a plain walk for. The
+ * walk is bounded to a few days so the suite stays quick; every case here
+ * comes round within that.
+ */
+const WALK_CASES = ["* * * * *", "30 * * * *", "0 8 * * *", "15,45 9-17 * * 1-5", "0 0 1 * 1"];
+const WALK_STARTS = [
+  "2026-09-11 13:20",
+  "2026-09-12 23:59",
+  "2026-09-30 08:00",
+  "2026-10-31 00:00"
+];
+const WALK_MINUTES = 8 * 24 * 60;
+
+function walkForward(cron: CronSchedule, from: Date): Date | null {
+  const candidate = new Date(from.getTime());
+  candidate.setSeconds(0, 0);
+  for (let i = 0; i < WALK_MINUTES; i += 1) {
+    candidate.setMinutes(candidate.getMinutes() + 1);
+    if (matchesCron(cron, candidate)) return candidate;
+  }
+  return null;
+}
+
+function walkBackward(cron: CronSchedule, from: Date): Date | null {
+  const candidate = new Date(from.getTime());
+  candidate.setSeconds(0, 0);
+  for (let i = 0; i < WALK_MINUTES; i += 1) {
+    if (matchesCron(cron, candidate)) return candidate;
+    candidate.setMinutes(candidate.getMinutes() - 1);
+  }
+  return null;
+}
+
 describe("parseCron", () => {
   it("accepts every wildcard", () => {
     expect(schedule("* * * * *").minute.size).toBe(60);
@@ -178,6 +212,22 @@ describe("nextRun", () => {
   it("returns null for a schedule that never comes round", () => {
     expect(nextRun(schedule("0 0 30 2 *"), at("2026-09-11 09:00"))).toBe(null);
   });
+
+  it("reaches a leap day that lies within the lookahead, and not one beyond it", () => {
+    const leapDay = schedule("0 0 29 2 *");
+    expect(nextRun(leapDay, at("2027-06-01 09:00"))).toEqual(at("2028-02-29 00:00"));
+    expect(nextRun(leapDay, at("2025-03-01 09:00"))).toBe(null);
+  });
+
+  it("lands where a minute-by-minute walk would have", () => {
+    for (const expression of WALK_CASES) {
+      for (const from of WALK_STARTS) {
+        expect(nextRun(schedule(expression), at(from)), `${expression} from ${from}`).toEqual(
+          walkForward(schedule(expression), at(from))
+        );
+      }
+    }
+  });
 });
 
 describe("previousRun", () => {
@@ -205,6 +255,22 @@ describe("previousRun", () => {
 
   it("returns null for a schedule that never comes round", () => {
     expect(previousRun(schedule("0 0 30 2 *"), at("2026-09-11 09:00"))).toBe(null);
+  });
+
+  it("reaches back to a leap day within the lookahead", () => {
+    const leapDay = schedule("0 0 29 2 *");
+    expect(previousRun(leapDay, at("2024-06-01 09:00"))).toEqual(at("2024-02-29 00:00"));
+    expect(previousRun(leapDay, at("2026-09-11 09:00"))).toBe(null);
+  });
+
+  it("lands where a minute-by-minute walk would have", () => {
+    for (const expression of WALK_CASES) {
+      for (const from of WALK_STARTS) {
+        expect(previousRun(schedule(expression), at(from)), `${expression} from ${from}`).toEqual(
+          walkBackward(schedule(expression), at(from))
+        );
+      }
+    }
   });
 });
 

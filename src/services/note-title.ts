@@ -7,9 +7,8 @@
  * pinned block, which is a shortlist a person built by hand — the note's own
  * title is the better line to draw, and nothing about the file changes.
  *
- * Pure, because what YAML hands over is not always a string: `title: 2026` is a
- * number, `title: true` a boolean, a folded block a run of lines. Deciding what
- * of that is a title belongs in a function with tests rather than in a view.
+ * What YAML hands over is not always a string: `title: 2026` is a number,
+ * `title: true` a boolean, a folded block a run of lines.
  */
 
 /**

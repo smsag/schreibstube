@@ -181,6 +181,12 @@ describe("firstHeading", () => {
   it("returns nothing when the note has no heading", () => {
     expect(firstHeading("Nur Text")).toBe("");
   });
+
+  it("keeps a hash that is part of the text and drops one set off as a closer", () => {
+    expect(firstHeading("# C#")).toBe("C#");
+    expect(firstHeading("# C# #")).toBe("C#");
+    expect(firstHeading("## Titel ##")).toBe("Titel");
+  });
 });
 
 describe("stripFrontmatter", () => {

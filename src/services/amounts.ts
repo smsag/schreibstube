@@ -13,6 +13,8 @@
  * quotation, not a price — and is passed over on purpose.
  */
 
+import { isTableDelimiter } from "./markdown-table";
+
 /** The number formats a person can choose; `auto` follows Obsidian's language. */
 export type NumberStyle = "auto" | "comma" | "point" | "space" | "apostrophe";
 
@@ -156,7 +158,8 @@ const CURRENCY_PATTERN = [...Object.keys(CURRENCY_SIGNS), ...CURRENCY_CODES]
  * Group separators are three-digit runs after a dot, comma, apostrophe or a
  * space that cannot break a line; a plain space is tried separately, only for
  * a format that groups with it. The lookarounds keep a number glued to a word
- * (`A4`), a time (`12:30`), a path or a percentage out.
+ * (`A4`), a time (`12:30`), a path, a percentage or a date (`2026-09-29`,
+ * which used to be read as 2026) out.
  */
 function amountPattern(spaceGroups: boolean): RegExp {
   const group = spaceGroups ? "[.,'’\\u00a0\\u202f ]" : "[.,'’\\u00a0\\u202f]";
@@ -168,7 +171,7 @@ function amountPattern(spaceGroups: boolean): RegExp {
       `(?<pre2>${CURRENCY_PATTERN})?\\s?` +
       `(?<number>${number})(?<dash>[.,]-)?` +
       `(?:\\s?(?<post>${CURRENCY_PATTERN}))?` +
-      `(?![\\p{L}\\p{N}:/_%])(?!\\s[%‰])(?![.,]\\d)`,
+      `(?![\\p{L}\\p{N}:/_%])(?!\\s[%‰])(?![.,]\\d)(?![-−]\\d)`,
     "gu"
   );
 }
@@ -203,8 +206,6 @@ export function readNumber(
   const fraction = decimalAt === -1 ? "" : written.slice(decimalAt + 1);
   if (decimalAt !== -1 && !/^\d+$/.test(fraction)) return null;
 
-  // Every separator left is a group separator: one kind of them, and three
-  // digits after each.
   const groups = whole.split(/[^\d]/);
   const separators = new Set(whole.replace(/\d/g, ""));
   if (separators.size > 1) return null;
@@ -322,9 +323,6 @@ export function readCell(text: string, format: NumberFormat): CellReading {
   return found.length > 0 ? { kind: "quoted" } : { kind: "unreadable" };
 }
 
-/** The row under a table's header: `|---|:--:|`. */
-export const TABLE_DELIMITER = /^\s*\|?\s*:?-+:?\s*(?:\|\s*:?-+:?\s*)*\|?\s*$/;
-
 /**
  * One amount per line that has one, for the total of a selection.
  *
@@ -341,7 +339,7 @@ export function amountsInText(text: string, format: NumberFormat, figuresOnly = 
   const lines = text.split("\n");
   lines.forEach((line, at) => {
     const next = lines[at + 1];
-    if (line.includes("|") && next !== undefined && TABLE_DELIMITER.test(next)) return;
+    if (line.includes("|") && next !== undefined && isTableDelimiter(next)) return;
     const amount = pick(findAmounts(line, format), figuresOnly);
     if (amount) amounts.push(amount);
   });

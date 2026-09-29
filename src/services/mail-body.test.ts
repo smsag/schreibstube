@@ -44,6 +44,11 @@ describe("markdownToPlainText, emphasis and structure", () => {
     expect(markdownToPlainText("## Offene Punkte ##")).toBe("Offene Punkte");
   });
 
+  it("keeps a hash that is part of the heading's text", () => {
+    expect(markdownToPlainText("# C#")).toBe("C#");
+    expect(markdownToPlainText("# C# #")).toBe("C#");
+  });
+
   it("writes tasks as boxes and every bullet as a dash", () => {
     expect(markdownToPlainText("- [ ] offen\n- [x] erledigt\n* Stern\n+ Plus")).toBe(
       "☐ offen\n☑ erledigt\n- Stern\n- Plus"
@@ -131,5 +136,11 @@ describe("markdownToPlainText, code", () => {
     expect(markdownToPlainText("```js\nconst a = **b**; // %% bleibt %%\n```")).toBe(
       "const a = **b**; // %% bleibt %%"
     );
+  });
+
+  it("keeps a fence-looking line inside a block, dropping only the block's own", () => {
+    const note = "```md\nBeispiel:\n~~~\ncode\n~~~\n```\nDanach";
+    expect(markdownToPlainText(note)).toBe("Beispiel:\n~~~\ncode\n~~~\nDanach");
+    expect(markdownToPlainText("````\n```\ninner\n```\n````")).toBe("```\ninner\n```");
   });
 });

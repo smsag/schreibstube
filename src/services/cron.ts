@@ -79,7 +79,6 @@ export function parseCron(expression: string): CronParseResult {
 
   const sets = {} as Record<FieldSpec["key"], Set<number>>;
   for (const [i, spec] of FIELDS.entries()) {
-    // One part per field: the lengths were compared above.
     const raw = parts[i]!;
     const parsed = parseField(raw, spec);
     if (!parsed) {
@@ -113,8 +112,14 @@ export function parseCron(expression: string): CronParseResult {
 
 /** True when `date` falls in a minute the schedule names. */
 export function matchesCron(schedule: CronSchedule, date: Date): boolean {
-  if (!schedule.minute.has(date.getMinutes())) return false;
-  if (!schedule.hour.has(date.getHours())) return false;
+  return (
+    schedule.minute.has(date.getMinutes()) &&
+    schedule.hour.has(date.getHours()) &&
+    matchesDay(schedule, date)
+  );
+}
+
+function matchesDay(schedule: CronSchedule, date: Date): boolean {
   if (!schedule.month.has(date.getMonth() + 1)) return false;
 
   const domMatch = schedule.dayOfMonth.has(date.getDate());
@@ -132,15 +137,38 @@ export function matchesCron(schedule: CronSchedule, date: Date): boolean {
  *  such as the 30th of February. */
 const MAX_LOOKAHEAD_MINUTES = 366 * 24 * 60;
 
-/** The next minute at or after `from` that the schedule names, or null. */
-export function nextRun(schedule: CronSchedule, from: Date): Date | null {
-  const candidate = new Date(from.getTime());
-  candidate.setSeconds(0, 0);
-  candidate.setMinutes(candidate.getMinutes() + 1);
+const MINUTE_MS = 60_000;
 
-  for (let i = 0; i < MAX_LOOKAHEAD_MINUTES; i += 1) {
-    if (matchesCron(schedule, candidate)) return candidate;
-    candidate.setMinutes(candidate.getMinutes() + 1);
+/**
+ * The next minute at or after `from` that the schedule names, or null.
+ *
+ * The search skips a whole day or hour the schedule does not name rather than
+ * visiting each of its minutes: a yearly date would otherwise be half a
+ * million matches on every tick. A jump lands on the first minute of the next
+ * day or hour, which is where a minute-by-minute walk would have arrived too,
+ * so the answer is the same. Wall-clock arithmetic can stand still across a
+ * clock change, so every step is checked to have moved.
+ */
+export function nextRun(schedule: CronSchedule, from: Date): Date | null {
+  const start = new Date(from.getTime());
+  start.setSeconds(0, 0);
+  const candidate = new Date(start.getTime());
+  candidate.setMinutes(candidate.getMinutes() + 1);
+  const deadline = start.getTime() + MAX_LOOKAHEAD_MINUTES * MINUTE_MS;
+
+  while (candidate.getTime() <= deadline) {
+    const before = candidate.getTime();
+    if (!matchesDay(schedule, candidate)) {
+      candidate.setDate(candidate.getDate() + 1);
+      candidate.setHours(0, 0, 0, 0);
+    } else if (!schedule.hour.has(candidate.getHours())) {
+      candidate.setHours(candidate.getHours() + 1, 0, 0, 0);
+    } else if (schedule.minute.has(candidate.getMinutes())) {
+      return candidate;
+    } else {
+      candidate.setMinutes(candidate.getMinutes() + 1);
+    }
+    if (candidate.getTime() <= before) candidate.setTime(before + MINUTE_MS);
   }
 
   return null;
@@ -152,14 +180,27 @@ export function nextRun(schedule: CronSchedule, from: Date): Date | null {
  * A desktop app is closed most of the time, so a daily schedule would never run
  * for someone who opens Obsidian after it passed. Comparing this against when
  * the poll last ran is what lets a missed schedule be caught up once on load.
+ * The search jumps backwards the way `nextRun` jumps forwards, landing on the
+ * last minute of the previous day or hour.
  */
 export function previousRun(schedule: CronSchedule, from: Date): Date | null {
   const candidate = new Date(from.getTime());
   candidate.setSeconds(0, 0);
+  const deadline = candidate.getTime() - (MAX_LOOKAHEAD_MINUTES - 1) * MINUTE_MS;
 
-  for (let i = 0; i < MAX_LOOKAHEAD_MINUTES; i += 1) {
-    if (matchesCron(schedule, candidate)) return candidate;
-    candidate.setMinutes(candidate.getMinutes() - 1);
+  while (candidate.getTime() >= deadline) {
+    const before = candidate.getTime();
+    if (!matchesDay(schedule, candidate)) {
+      candidate.setDate(candidate.getDate() - 1);
+      candidate.setHours(23, 59, 0, 0);
+    } else if (!schedule.hour.has(candidate.getHours())) {
+      candidate.setHours(candidate.getHours() - 1, 59, 0, 0);
+    } else if (schedule.minute.has(candidate.getMinutes())) {
+      return candidate;
+    } else {
+      candidate.setMinutes(candidate.getMinutes() - 1);
+    }
+    if (candidate.getTime() >= before) candidate.setTime(before - MINUTE_MS);
   }
 
   return null;
