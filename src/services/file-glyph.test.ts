@@ -104,16 +104,31 @@ describe("fileNameParts", () => {
     });
   });
 
-  it("keeps the extension on screen for every other attachment", () => {
+  it("treats every other attachment the same way", () => {
     expect(fileNameParts("photo.png", "png")).toEqual({
       stem: "photo",
       suffix: ".png",
-      hidden: false
+      hidden: true
     });
-    expect(fileNameParts("Plan.excalidraw.png", "png")).toMatchObject({
-      stem: "Plan.excalidraw",
-      hidden: false
+    expect(fileNameParts("Plan.excalidraw.png", "png")).toEqual({
+      stem: "Plan",
+      suffix: ".excalidraw.png",
+      hidden: true
     });
+  });
+
+  it("shows the whole name when extensions are asked for, and renames the same", () => {
+    for (const [name, extension] of [
+      ["Plan.md", "md"],
+      ["photo.png", "png"],
+      ["Plan.excalidraw.md", "md"]
+    ] as const) {
+      const shown = fileNameParts(name, extension, true);
+      const hidden = fileNameParts(name, extension);
+      expect(shown.hidden).toBe(false);
+      expect(shown.stem).toBe(hidden.stem);
+      expect(shown.suffix).toBe(hidden.suffix);
+    }
   });
 
   it("keeps the suffix's own case", () => {

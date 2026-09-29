@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Changed
+
+- **One rule for file extensions, and a setting for it.** The explorer hid the extension of notes, SVG pictures, Excalidraw drawings and bases but showed it on every other file, so a `.png` read differently from a drawing for no reason a person could see. Every file now shows its name without the extension, and the icon says what it is. **Show file extensions** in the settings, off by default, brings the whole name back. Renaming edits the name without its extension either way. If you keep `photo.png` beside `photo.jpg`, switch the setting on: the two now read alike otherwise.
+
 ## 1.61.0 - 2026-09-28
 
 Tags can be suggested for a note. **Suggest tags**, beside **Add set** in the
