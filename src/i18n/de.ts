@@ -842,13 +842,14 @@ export const de: Messages = {
     foundByMeaning: "Nach Bedeutung gefunden: andere Wörter, gleiches Thema.",
     searchingByMeaning: "Suche nach Bedeutung …",
     filterHint:
-      "Findet Dateien nach Name, Titel, Alias, Tag und Text. Eingrenzen mit tag:, pfad:, name: oder inhalt:, oder #tag tippen.",
+      "Findet Dateien nach Name, Titel, Alias, Tag und Text. Eingrenzen mit tag:, pfad:, name:, inhalt: oder sync:, oder #tag tippen.",
     filterStatus: (count: number) => (count === 1 ? "1 Treffer" : `${count} Treffer`),
     filterScope: {
       tags: "Nur Tags",
       path: "Nur Ordner",
       name: "Nur Dateinamen",
       body: "Nur Text",
+      sync: "Nur synchronisierte Notizen",
       all: "Überall"
     },
     rootFolder: "Vault-Wurzel",
