@@ -14,8 +14,8 @@ const mocks = vi.hoisted(() => ({
   shown: [] as Record<string, unknown>[]
 }));
 
-vi.mock("../services/mail-client", () => ({ sendMail: mocks.sendMail, searchMail: vi.fn() }));
-vi.mock("../services/publish-client", () => ({ bridgeHealth: mocks.health }));
+vi.mock("../platform/mail-client", () => ({ sendMail: mocks.sendMail, searchMail: vi.fn() }));
+vi.mock("../platform/publish-client", () => ({ bridgeHealth: mocks.health }));
 vi.mock("./diagram-capture", () => ({
   DiagramCapture: class {
     capture = mocks.capture;

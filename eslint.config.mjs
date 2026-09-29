@@ -72,6 +72,30 @@ export default tseslint.config(
     languageOptions: { globals: { ...globals.browser } }
   },
 
+  // A decision module that reaches for the platform is a controller in the
+  // wrong folder: it needs a fake app to test and slows the suite. The one
+  // exception holds the undocumented internals, feature-detected.
+  {
+    files: ["src/services/**/*.ts"],
+    ignores: ["src/services/workspace-internals.ts", "src/services/**/*.test.ts"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            { name: "obsidian", message: "Platform wiring lives in src/platform or a controller." }
+          ],
+          patterns: [
+            {
+              group: ["**/ui/*", "**/controllers/*", "**/platform/*"],
+              message: "A service decides; it does not wire."
+            }
+          ]
+        }
+      ]
+    }
+  },
+
   // Tests may reach for shapes the source never would.
   {
     files: ["**/*.test.ts", "**/*.test.mjs", "**/sftp-fixture.mjs", "src/testing/**/*.ts"],

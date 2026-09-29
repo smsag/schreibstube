@@ -1,5 +1,5 @@
 import type { SchreibstubeSettings } from "../types";
-import { buildSummaryRequest, effectiveModel } from "./llm-providers";
+import { buildSummaryRequest, effectiveModel } from "../services/llm-providers";
 import { sendRequest } from "./llm-client";
 
 type SummarizeSettings = Pick<

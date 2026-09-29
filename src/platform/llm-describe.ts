@@ -1,5 +1,5 @@
 import type { SchreibstubeSettings } from "../types";
-import { buildImageDescriptionRequest, effectiveModel } from "./llm-providers";
+import { buildImageDescriptionRequest, effectiveModel } from "../services/llm-providers";
 import { sendRequest } from "./llm-client";
 import {
   DESCRIPTION_MAX_TOKENS,
@@ -8,7 +8,7 @@ import {
   normalizeImageDescription,
   type DescriptionLanguage,
   type ImageDescription
-} from "./image-description";
+} from "../services/image-description";
 
 type DescribeSettings = Pick<SchreibstubeSettings, "llmProvider" | "llmModel" | "llmModelCustom">;
 

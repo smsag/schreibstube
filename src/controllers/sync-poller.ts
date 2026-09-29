@@ -7,7 +7,7 @@ import { MarkdownView, TFile, type App } from "obsidian";
 import type { SchreibstubeSettings } from "../types";
 import type { Logger } from "../services/logger";
 import { resolveApiKey } from "../services/secret";
-import { fetchSource } from "../services/sync-fetcher";
+import { fetchSource } from "../platform/sync-fetcher";
 import {
   frontmatterLine,
   hasSourceBinding,

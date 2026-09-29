@@ -20,7 +20,7 @@ import {
   resolveGlossarySelection,
   type GlossarySelection
 } from "../services/glossary-resolver";
-import { GlossaryRegistry } from "../services/glossary-registry";
+import { GlossaryRegistry } from "../platform/glossary-registry";
 import {
   addAvoid,
   findTermOverlaps,
@@ -31,7 +31,7 @@ import {
   TERM_AVOID_KEY,
   translationSuggestions
 } from "../services/glossary-term-folder";
-import { createChunkSender } from "../services/llm-proofread";
+import { createChunkSender } from "../platform/llm-proofread";
 import {
   createCancelToken,
   isFlagOnly,
@@ -40,7 +40,7 @@ import {
   type CancelToken
 } from "../services/proofread-runner";
 import { resolveApiKey } from "../services/secret";
-import { fetchSource } from "../services/sync-fetcher";
+import { fetchSource } from "../platform/sync-fetcher";
 import {
   buildSyncSuggestions,
   hashText,

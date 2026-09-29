@@ -6,9 +6,10 @@ import { defineConfig } from "vitest/config";
  * change to a shared rule is checked on both sides in one run.
  *
  * Coverage is measured over the modules that hold decisions. Files that only
- * wire Obsidian's API to those decisions are excluded rather than pretended
- * about: they are covered by the controller tests through a fake app, and
- * counting their glue would only dilute the number.
+ * wire Obsidian's API to those decisions (`controllers/`, `platform/`, `ui/`)
+ * are excluded rather than pretended about: they are covered by the controller
+ * tests through a fake app, and counting their glue would only dilute the
+ * number.
  */
 export default defineConfig({
   resolve: {
@@ -43,7 +44,7 @@ export default defineConfig({
       // the AST, so it counts arrow functions and short-circuit branches that
       // the old remapping never saw. The suite did not change; the instrument
       // did. Raised again after the quality review that added tests to every
-      // decision module it touched: measured 92 / 91 / 92 / 88 on the day,
+      // decision module it touched: measured 93 / 92 / 92 / 88 on the day,
       // and the floors sit a couple of points under that. The ratchet rule is
       // in CONTRIBUTING.md.
       thresholds: {

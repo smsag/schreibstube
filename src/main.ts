@@ -14,10 +14,10 @@ import { reduceOverlayRowEvent, type OverlayRowEvent } from "./services/overlay-
 import {
   resolveViewportLineForReadingView,
   scrollReadingHeadingIntoView
-} from "./services/reading-navigator";
+} from "./platform/reading-navigator";
 import { RefreshScheduler, type RefreshOptions } from "./services/refresh-scheduler";
-import { OverlayCoordinator } from "./services/overlay-coordinator";
-import { bootstrapSchreibstubeRuntime } from "./services/plugin-bootstrap";
+import { OverlayCoordinator } from "./platform/overlay-coordinator";
+import { bootstrapSchreibstubeRuntime } from "./platform/plugin-bootstrap";
 import {
   DEFAULT_SETTINGS,
   holdsRetiredSettings,

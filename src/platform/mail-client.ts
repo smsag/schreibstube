@@ -6,7 +6,7 @@ import {
   buildEndpoint,
   extractCode,
   parseJsonBody
-} from "./bridge-protocol";
+} from "../services/bridge-protocol";
 import {
   MAIL_REQUEST_TIMEOUT_MS,
   describeBridgeError,
@@ -17,7 +17,7 @@ import {
   type SearchResult,
   type SendRequest,
   type SendResult
-} from "./mail-protocol";
+} from "../services/mail-protocol";
 
 /**
  * Transport for the mail bridge.

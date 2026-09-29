@@ -9,7 +9,7 @@ import type { SchreibstubeSettings } from "../types";
 import { NO_FORMULAS, SumsController } from "./sums-controller";
 
 const fetchEcbRates = vi.fn<(now: number) => Promise<ExchangeRates>>();
-vi.mock("../services/rates-client", () => ({
+vi.mock("../platform/rates-client", () => ({
   fetchEcbRates: (now: number) => fetchEcbRates(now)
 }));
 

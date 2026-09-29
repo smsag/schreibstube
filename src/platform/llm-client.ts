@@ -1,14 +1,14 @@
 import { requestUrl } from "obsidian";
 import { withTimeout } from "../utils/with-timeout";
 import type { LlmProvider } from "../types";
-import { parseJsonBody } from "./bridge-protocol";
+import { parseJsonBody } from "../services/bridge-protocol";
 import {
   REQUEST_TIMEOUT_MS,
   describeApiError,
   parseResponse,
   providerLabel,
   type BuiltRequest
-} from "./llm-providers";
+} from "../services/llm-providers";
 
 /** Send a prepared provider request and return the parsed text completion.
  *  Shared by every LLM-backed command (rename, summarize). */

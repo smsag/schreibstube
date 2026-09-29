@@ -14,7 +14,7 @@ import {
   uploadAsset,
   uploadSource,
   uploadThumbnail
-} from "../services/publish-client";
+} from "../platform/publish-client";
 import {
   PROTOCOL_VERSION,
   isEmptyPlan,

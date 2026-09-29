@@ -8,7 +8,12 @@
 import { requestUrl } from "obsidian";
 import { t } from "../i18n";
 import { withTimeout } from "../utils/with-timeout";
-import { parseEcbRates, RATES_TIMEOUT_MS, RATES_URL, type ExchangeRates } from "./exchange-rates";
+import {
+  parseEcbRates,
+  RATES_TIMEOUT_MS,
+  RATES_URL,
+  type ExchangeRates
+} from "../services/exchange-rates";
 
 export async function fetchEcbRates(now: number): Promise<ExchangeRates> {
   const response = await withTimeout(

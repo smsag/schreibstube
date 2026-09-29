@@ -15,14 +15,14 @@ import {
   parseGlossary,
   type Glossary,
   type GlossaryParseResult
-} from "./glossary-parser";
+} from "../services/glossary-parser";
 import {
   buildTermFolderGlossaries,
   definitionExcerpt,
   isInTermFolder,
   readTermRule,
   type TermRule
-} from "./glossary-term-folder";
+} from "../services/glossary-term-folder";
 
 export interface GlossaryCandidate {
   path: string;

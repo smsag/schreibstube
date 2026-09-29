@@ -9,9 +9,9 @@ import {
   generateRenameFilename,
   sanitizeFilename,
   stripFilenameExtension
-} from "../services/llm-rename";
-import { generateSummary } from "../services/llm-summarize";
-import { generateImageDescription } from "../services/llm-describe";
+} from "../platform/llm-rename";
+import { generateSummary } from "../platform/llm-summarize";
+import { generateImageDescription } from "../platform/llm-describe";
 import {
   descriptionNotePath,
   hashImageBytes,
@@ -19,7 +19,7 @@ import {
   type DescriptionLanguage
 } from "../services/image-description";
 import { buildSummaryRequest, effectiveModel } from "../services/llm-providers";
-import { sendRequest } from "../services/llm-client";
+import { sendRequest } from "../platform/llm-client";
 import {
   TABLE_MAX_INPUT_CHARS,
   TABLE_MAX_TOKENS,

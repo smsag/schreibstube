@@ -19,9 +19,9 @@ import {
   REQUEST_TIMEOUT_MS,
   type FetchOptions,
   type FetchOutcome
-} from "./sync-request";
+} from "../services/sync-request";
 
-export { MAX_SOURCE_BYTES, type FetchOptions, type FetchOutcome } from "./sync-request";
+export { MAX_SOURCE_BYTES, type FetchOptions, type FetchOutcome } from "../services/sync-request";
 
 export async function fetchSource(options: FetchOptions): Promise<FetchOutcome> {
   const request = planSourceRequest(options);

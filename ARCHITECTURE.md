@@ -41,6 +41,7 @@ controllers/         one per feature; they own flow and talk to Obsidian
   property-set-controller  property sets: the folder, Templater, and the four ways a set is offered
   semantic/            search by meaning: the model, the vault index, conversations, the API
 services/            pure decisions, no Obsidian imports, heavily tested
+platform/            the network clients and the bootstrap: what talks to Obsidian or the wire, and no decisions
 processors/          editor extensions and reading-view post-processors
 print/               the Typst compiler and the worker it runs in
 pdf/                 the PDF reader borrowed from Obsidian, and the preview it draws

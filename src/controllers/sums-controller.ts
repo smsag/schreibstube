@@ -6,7 +6,7 @@ import type { Logger } from "../services/logger";
 import type { SchreibstubeSettings } from "../types";
 import { numberFormatFor } from "../services/amounts";
 import { RATES_RETRY_MS, ratesStale, type ExchangeRates } from "../services/exchange-rates";
-import { fetchEcbRates } from "../services/rates-client";
+import { fetchEcbRates } from "../platform/rates-client";
 import { formatRateDate, type FormulaContext, type Outcome } from "../services/formulas";
 import { selectionTotal } from "../services/selection-total";
 import { copyText } from "../ui/copy-text";

@@ -8,7 +8,7 @@ import {
   buildEndpoint,
   extractCode,
   parseJsonBody
-} from "./bridge-protocol";
+} from "../services/bridge-protocol";
 import {
   COMMIT_REQUEST_TIMEOUT_MS,
   PUBLISH_REQUEST_TIMEOUT_MS,
@@ -24,7 +24,7 @@ import {
   type PublishPlan,
   type PublishSummary,
   type PublishTarget
-} from "./publish-protocol";
+} from "../services/publish-protocol";
 
 /**
  * Transport for the publish capability.

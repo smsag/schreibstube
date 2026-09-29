@@ -10,8 +10,8 @@ import type { SchreibstubeSettings } from "../types";
 import type { Logger } from "../services/logger";
 import { t } from "../i18n";
 import { resolveApiKey } from "../services/secret";
-import { searchMail, sendMail } from "../services/mail-client";
-import { bridgeHealth } from "../services/publish-client";
+import { searchMail, sendMail } from "../platform/mail-client";
+import { bridgeHealth } from "../platform/publish-client";
 import { normalizeBaseUrl } from "../services/bridge-protocol";
 import {
   hasCriteria,

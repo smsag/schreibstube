@@ -20,7 +20,7 @@ import {
 } from "../services/publish-index";
 import { normalizeBaseUrl } from "../services/bridge-protocol";
 import { createLogger } from "../services/logger";
-import { checkTarget, listTargets } from "../services/publish-client";
+import { checkTarget, listTargets } from "../platform/publish-client";
 import type { PublishBridgeConfig, PublishTarget } from "../services/publish-protocol";
 import { resolveApiKey } from "../services/secret";
 import type { SettingsContext } from "./context";

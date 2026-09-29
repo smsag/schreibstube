@@ -32,7 +32,8 @@ bridge on 5; a commit's `deleteFailed` is then read as zero.
 - **The settings report of search by meaning is redrawn at most every five seconds while a build runs**; the status line still moves every second.
 - **The layout check of a print template says what a print cannot read** rather than forbidding it, and names the line; the job's own file system, which holds only the template's files, is what keeps a path inside it.
 - **Wording.** The icon group of houses and buildings is "Real estate", not "Property"; the review card badge for capitalisation is "Groß-/Kleinschreibung", not "Schreibweise"; the same drawn fence is a "diagram" in every English string and a "Visualisierung" in every German one; a Pythia conversation is a "Gespräch" throughout; a slideshow is a "Diaschau" throughout; the AI settings name every command the shared model serves; the custom model field no longer suggests a retired identifier.
-- **The coverage floors rose** to 90 / 88 / 89 / 85 (lines, functions, statements, branches), measured 92 / 91 / 92 / 88 after this review; `noImplicitReturns`, `isolatedModules` and `noUnusedLocals` are on, and `no-base-to-string` is a lint error.
+- **`src/services/` holds decisions only, and a lint rule keeps it so.** The five network clients, the bootstrap, the glossary registry, the reading navigator, the overlay wiring and the four LLM request runners took an `App`, a view or `requestUrl` while living among the pure modules; they moved to `src/platform/`, and an import of `obsidian`, `ui/`, `controllers/` or `platform/` under `src/services/` is now a lint error.
+- **The coverage floors rose** to 90 / 88 / 89 / 85 (lines, functions, statements, branches), measured 93 / 92 / 92 / 88 after this review; `noImplicitReturns`, `isolatedModules` and `noUnusedLocals` are on, and `no-base-to-string` is a lint error.
 
 ### Fixed
 

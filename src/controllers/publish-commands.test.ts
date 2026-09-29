@@ -47,7 +47,7 @@ const client = vi.hoisted(() => ({
   resize: vi.fn()
 }));
 
-vi.mock("../services/publish-client", () => ({
+vi.mock("../platform/publish-client", () => ({
   // The real client always answers with a thumbnail list, empty from a
   // protocol-1 bridge; a test's plan names one only when it asks for some.
   planPublish: async (...args: unknown[]) => ({
@@ -81,7 +81,7 @@ vi.mock("../services/image-resize", async (original) => ({
 const { Notice } = await import("../testing/obsidian-stub");
 const { fakeVault } = await import("../testing/fake-app");
 const { PublishCommands } = await import("./publish-commands");
-const { listTargets } = await import("../services/publish-client");
+const { listTargets } = await import("../platform/publish-client");
 
 const { DEFAULT_SETTINGS, normalizeSettings } = await import("../services/plugin-settings");
 const { setLanguage } = await import("../i18n");
