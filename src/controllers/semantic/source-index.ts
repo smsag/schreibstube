@@ -202,6 +202,7 @@ export class SourceIndex {
       else if (delta) this.applyFull(delta.changed, delta.cursor);
       else {
         const items = normalizeConversations(await this.ask(() => this.source.list(), "list()"));
+        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- another call may set it while this one awaited
         if (this.released) return;
         this.applyFull(items, null);
       }
@@ -303,6 +304,7 @@ export class SourceIndex {
     const changed = [...this.pending.values()];
     const keep = [...this.meta].sort((a, b) => b[1].updatedAt - a[1].updatedAt).map(([id]) => id);
     await index.update(changed, keep);
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- another call may set it while this one awaited
     if (this.released || this.index !== index) return;
     for (const item of changed)
       if (this.pending.get(item.id) === item) this.pending.delete(item.id);

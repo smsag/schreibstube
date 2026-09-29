@@ -27,7 +27,7 @@ export function registerTableFormulaPostProcessor(plugin: Plugin, host: TableFor
     const outcomes: Outcome[] = [];
     for (const table of Array.from(tables)) {
       const rows = Array.from(table.rows);
-      const grid = rows.map((row) => Array.from(row.cells).map((cell) => cell.textContent ?? ""));
+      const grid = rows.map((row) => Array.from(row.cells).map((cell) => cell.textContent));
       for (const result of evaluateGrid(grid, ctx)) {
         const cell = rows[result.row]?.cells[result.col];
         if (cell) show(cell, result, host);
@@ -39,12 +39,12 @@ export function registerTableFormulaPostProcessor(plugin: Plugin, host: TableFor
 }
 
 function show(cell: HTMLTableCellElement, result: CellResult, host: TableFormulaHost): void {
-  const formula = (cell.textContent ?? "").trim();
+  const formula = cell.textContent.trim();
   // `**=sum**` renders as a <strong> holding the formula: the result goes
   // inside it, so the total stays as bold as the formula was. Compared by
   // text, not by class: a note in a pop-out window has its own HTMLElement.
   const only = cell.children.length === 1 ? (cell.firstElementChild as HTMLElement | null) : null;
-  const target = only && only.textContent?.trim() === formula ? only : cell;
+  const target = only && only.textContent.trim() === formula ? only : cell;
   cell.setAttr("title", formula);
   target.empty();
   target.createSpan({

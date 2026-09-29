@@ -614,7 +614,7 @@ class Converter {
       return padded.slice(0, columns);
     };
 
-    const alignList = pad(aligns.map((a) => a ?? "left")).map((a) => a || "left");
+    const alignList = pad(aligns).map((a) => a || "left");
     const headerCells = header.some((text) => text.trim() !== "")
       ? `  table.header(${pad(header).map(cell).join(", ")}),\n`
       : "";

@@ -101,7 +101,7 @@ function parseKeyValue(lines: string[], labels: TableLabels): MarkdownTable | nu
   }
 
   const colors = pairs.map(([, value]) => parseColors(value));
-  if (colors.every((c) => c !== null) && colors.some((c) => c && (c.rgb.length || c.hex.length))) {
+  if (colors.every((c) => c !== null) && colors.some((c) => c.rgb.length || c.hex.length)) {
     return {
       header: [labels.name, "RGB", "Hex"],
       rows: pairs.map(([key], i) => {

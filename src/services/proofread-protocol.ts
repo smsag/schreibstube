@@ -83,7 +83,7 @@ export function parseChunkResponse(response: string, blocks: ProseBlock[]): Map<
 
   for (const match of response.matchAll(pattern)) {
     const id = match[1];
-    if (match.index === undefined || id === undefined) continue;
+    if (id === undefined) continue;
     markers.push({
       id,
       from: match.index,

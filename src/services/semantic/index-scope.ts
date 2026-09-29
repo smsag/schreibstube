@@ -72,7 +72,7 @@ export function scopeSignature(
   family: string,
   generation: number = EMBEDDING_RUNTIME.generation
 ): string {
-  const norm = (f: string) => (f ?? "").replace(/\/+$/, "");
+  const norm = (f: string) => f.replace(/\/+$/, "");
   const folders = [...s.vaultContextFolders].map(norm).filter(Boolean).sort();
   const skip = [s.conversationsFolder, s.scratchFolder].map(norm).filter(Boolean).sort();
   const signature: unknown[] = [folders, skip, s.vaultContextMaxIndexedNotes, family];

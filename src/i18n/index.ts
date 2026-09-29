@@ -63,12 +63,12 @@ export function obsidianLocale(): Locale {
  */
 export function obsidianLanguageTag(): string {
   const tag = storedLanguage() ?? (typeof navigator === "undefined" ? "" : navigator.language);
-  return tag?.trim() || "en";
+  return tag.trim() || "en";
 }
 
 /** The locale for Obsidian's stored language, or the system's when none is stored. */
 export function localeFrom(stored: string | null, system: string): Locale {
-  const language = (stored ?? system ?? "").trim().toLowerCase();
+  const language = (stored ?? system).trim().toLowerCase();
   return language.split(/[-_]/)[0] === "de" ? "de" : "en";
 }
 

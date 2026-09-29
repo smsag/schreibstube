@@ -171,9 +171,11 @@ export abstract class PostMessageEmbeddingProvider implements EmbeddingProvider 
     });
   }
 
-  /** Every message from the backend goes through here. */
-  protected receive(msg: BackendMessage): void {
-    if (msg?.type === "model-load-progress") {
+  /** Every message from the backend goes through here, unchecked until here. */
+  protected receive(raw: unknown): void {
+    if (typeof raw !== "object" || raw === null) return;
+    const msg = raw as BackendMessage;
+    if (msg.type === "model-load-progress") {
       this.onProgress?.({
         progress: msg.progress ?? 0,
         file: msg.file ?? "",
@@ -182,11 +184,11 @@ export abstract class PostMessageEmbeddingProvider implements EmbeddingProvider 
       });
       return;
     }
-    if (msg?.type === "model-load-error") {
+    if (msg.type === "model-load-error") {
       this.failLoad(new Error(msg.message ?? "Embedding model failed to load"));
       return;
     }
-    if (typeof msg?.requestId !== "number") return;
+    if (typeof msg.requestId !== "number") return;
     const pending = this.pending.get(msg.requestId);
     if (!pending) return;
     this.pending.delete(msg.requestId);

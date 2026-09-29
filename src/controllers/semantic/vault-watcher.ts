@@ -165,6 +165,7 @@ export function registerVaultWatcher(
         drain(deps.activePath?.() ?? null);
         // A note that arrived edited (a sync) and is now the one open is held from
         // here, on the same quiet clock as one being typed in.
+        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- drain() empties it
         if (batch.empty) release.cancel();
         else release();
       })

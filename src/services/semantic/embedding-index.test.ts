@@ -110,6 +110,20 @@ describe("deserializeIndex — truncated files", () => {
     expect(() => deserializeIndex(cut)).toThrow(/truncated vectors/);
   });
 
+  it("reads a header that is JSON null as an index nobody can vouch for", () => {
+    const meta = new TextEncoder().encode("null");
+    const buf = new ArrayBuffer(15 + meta.length);
+    const dv = new DataView(buf);
+    dv.setUint32(0, 0x50594549);
+    dv.setUint8(4, 2);
+    dv.setUint16(5, 4);
+    dv.setUint32(7, 0);
+    dv.setUint32(11, meta.length);
+    new Uint8Array(buf, 15).set(meta);
+    expect(peekIndexMeta(buf)).toMatchObject({ count: 0, complete: false, scope: "" });
+    expect(() => deserializeIndex(buf)).toThrow(/meta\/count mismatch/);
+  });
+
   it("refuses a buffer cut short inside the meta block", () => {
     const buf = serializeIndex([{ id: "a", contentHash: "h", chunks: [new Int8Array([1, 2])] }], 2);
     const cut = buf.slice(0, 20);

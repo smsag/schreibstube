@@ -2274,7 +2274,10 @@ export class ExplorerPaneView extends ItemView {
       const items = Array.from(event.dataTransfer?.items ?? []);
       const sources: ImportSource[] = Array.from(event.dataTransfer?.files ?? []).map(
         (file, index) => {
-          const entry = items[index]?.webkitGetAsEntry?.() ?? null;
+          // Not every browser has entries, whatever the DOM types say.
+          const item = items[index] as
+            { webkitGetAsEntry?: () => FileSystemEntry | null } | undefined;
+          const entry = item?.webkitGetAsEntry?.() ?? null;
           return {
             name: file.name,
             size: file.size,

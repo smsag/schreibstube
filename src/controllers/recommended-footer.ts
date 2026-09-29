@@ -86,7 +86,7 @@ export class RecommendedFooter {
       }
     }
     this.hold.keepOnly(views);
-    if (!on || !host) return;
+    if (!on) return;
 
     for (const view of views) {
       if (this.hold.isHeld(view, view.file)) {

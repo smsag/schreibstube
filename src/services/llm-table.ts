@@ -72,7 +72,9 @@ function cellText(value: unknown): string {
     return String(value);
   }
   try {
-    return JSON.stringify(value) ?? "";
+    // Undefined for a function or a symbol, whatever its declared type says.
+    const json = JSON.stringify(value) as string | undefined;
+    return json ?? "";
   } catch {
     return "";
   }

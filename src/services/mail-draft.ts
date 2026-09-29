@@ -80,7 +80,7 @@ function sameAttachments(
     a.every(
       (attachment, index) =>
         attachment.filename === b[index]?.filename &&
-        attachment.bytes.byteLength === b[index]?.bytes.byteLength
+        attachment.bytes.byteLength === b[index].bytes.byteLength
     )
   );
 }

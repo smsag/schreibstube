@@ -249,14 +249,13 @@ function collectMaskRanges(text: string): TextRange[] {
 
   for (const pattern of MASK_PATTERNS) {
     for (const match of text.matchAll(pattern)) {
-      if (match.index === undefined) continue;
       ranges.push({ from: match.index, to: match.index + match[0].length });
     }
   }
 
   for (const pattern of MASK_GROUP_PATTERNS) {
     for (const match of text.matchAll(pattern)) {
-      if (match.index === undefined || match[1] === undefined) continue;
+      if (match[1] === undefined) continue;
       const offset = match[0].indexOf(match[1]);
       if (offset === -1) continue;
       const from = match.index + offset;

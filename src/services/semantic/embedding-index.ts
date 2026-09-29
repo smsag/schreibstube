@@ -175,12 +175,13 @@ export function peekIndexMeta(buf: ArrayBuffer): (IndexMeta & { count: number })
     const count = dv.getUint32(7);
     const metaLen = dv.getUint32(11);
     if (HEADER_LEN + metaLen > buf.byteLength) return null;
+    // `null` is valid JSON, and a header written by hand may be exactly that.
     const head = JSON.parse(new TextDecoder().decode(new Uint8Array(buf, HEADER_LEN, metaLen))) as {
       complete?: unknown;
       scope?: unknown;
       keeper?: unknown;
       writtenAt?: unknown;
-    };
+    } | null;
     return {
       count,
       complete: head?.complete === true,
@@ -220,7 +221,7 @@ export function deserializeIndex(buf: ArrayBuffer): {
     keeper?: unknown;
     writtenAt?: unknown;
     rows?: unknown;
-  };
+  } | null;
   o += metaLen;
   const meta = head?.rows as { id: string; h: string; c: number }[];
   if (!Array.isArray(meta) || meta.length < count)

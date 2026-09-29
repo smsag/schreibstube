@@ -218,6 +218,11 @@ describe("parseResponse", () => {
   it("returns empty string for a malformed response", () => {
     expect(parseResponse("openai", {})).toBe("");
   });
+
+  it("returns empty string for a body that is null, not an object", () => {
+    expect(parseResponse("openai", null)).toBe("");
+    expect(parseResponse("anthropic", null)).toBe("");
+  });
 });
 
 describe("an extension the model volunteered", () => {

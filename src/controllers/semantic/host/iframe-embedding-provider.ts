@@ -1,7 +1,6 @@
 import {
   PostMessageEmbeddingProvider,
   type BackendChannel,
-  type BackendMessage,
   type ModelLoadProgress
 } from "./post-message-backend";
 import { getEmbeddingBundle } from "./embedding-bundle";
@@ -42,7 +41,7 @@ export class IframeEmbeddingProvider extends PostMessageEmbeddingProvider {
     const onMessage = (event: MessageEvent): void => {
       if (event.origin !== window.location.origin) return;
       if (event.source !== iframe.contentWindow) return;
-      this.receive(event.data as BackendMessage);
+      this.receive(event.data);
     };
     window.addEventListener("message", onMessage);
 

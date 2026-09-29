@@ -122,7 +122,7 @@ describe("the three icons", () => {
     const glyph = glyphOf(host().rows[0]!);
 
     expect(glyph.querySelector("svg")).toBeNull();
-    expect(glyph.textContent?.length).toBeGreaterThan(0);
+    expect(glyph.textContent.length).toBeGreaterThan(0);
   });
 
   it("draws a note with Obsidian's library icon", () => {
@@ -151,6 +151,6 @@ describe("the three icons", () => {
     const glyph = glyphOf(host().rows[2]!);
 
     expect(glyph.querySelector("svg")).toBeNull();
-    expect(glyph.textContent?.length).toBeGreaterThan(0);
+    expect(glyph.textContent.length).toBeGreaterThan(0);
   });
 });

@@ -172,7 +172,9 @@ export function vectorFamily(id: EmbeddingModelId): EmbeddingModelId {
 }
 
 export function embeddingModelConfig(id: EmbeddingModelId): EmbeddingModelConfig {
-  return EMBEDDING_MODELS[id] ?? EMBEDDING_MODELS[DEFAULT_EMBEDDING_MODEL_ID];
+  // An id can arrive from a file another version wrote, whatever its type says.
+  const known = (EMBEDDING_MODELS as Partial<Record<string, EmbeddingModelConfig>>)[id];
+  return known ?? EMBEDDING_MODELS[DEFAULT_EMBEDDING_MODEL_ID];
 }
 
 /** The model a phone or tablet runs when the chosen one is not `mobile` (Pythia ADR-199). */

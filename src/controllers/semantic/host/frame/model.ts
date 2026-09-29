@@ -19,8 +19,12 @@ env.allowLocalModels = false;
 // single WASM heap. Applies to both the iframe and the Web Worker backend, since
 // both import this module. Optional-chained: the onnx backend is initialized at
 // transformers import time, so `env.backends.onnx.wasm` already exists here.
-if (env.backends?.onnx?.wasm) {
-  env.backends.onnx.wasm.numThreads = 1;
+// Typed as optional against transformers' own types, which promise the shape
+// this guard exists to doubt.
+const wasm = (env.backends as { onnx?: { wasm?: { numThreads?: number } } } | undefined)?.onnx
+  ?.wasm;
+if (wasm) {
+  wasm.numThreads = 1;
 } else {
   // NEVER silent (principle 2). This `if` guards the fix for a known HARD CRASH —
   // multi-threaded WASM + SharedArrayBuffer reloads the whole Electron renderer

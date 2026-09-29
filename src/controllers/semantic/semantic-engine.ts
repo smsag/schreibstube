@@ -487,7 +487,7 @@ export class SemanticEngine {
         this.setPhase({ kind: "idle" });
         return;
       }
-      const offThread = provider.isOffThread?.() ?? false;
+      const offThread = provider.isOffThread();
       const notes = this.collectNotes();
       notice = new Notice(t().semantic.building, 0);
       this.setPhase({ kind: "building", done: 0, total: notes.length });
