@@ -108,10 +108,10 @@ before it can become a row on a screen.
 ## Search by meaning, and the API
 
 One language model runs on the device, and only Schreibstube loads it. It keeps
-two indexes in the plugin folder: the vault's notes (a description note stands
-for its picture), and the conversations a chat plugin hands over. Pythia keeps
-its chats in its own data file, outside the vault, so it lists them through the
-API rather than the index finding them. The decisions came from Pythia after it
+an index in the plugin folder for the vault's notes (a description note stands
+for its picture), and one for each source another plugin registers — Pythia's
+conversations, say, which live in its own data file, outside the vault, and so
+are listed through the API rather than found by the index. The decisions came from Pythia after it
 was hardened for the phone, and live in `services/semantic/`; the wiring is in
 `controllers/semantic/`.
 
@@ -151,23 +151,37 @@ Other plugins reach it as `app.plugins.getPlugin("schreibstube").api`, version 2
 
 ```ts
 api.status(); // "off" | "loading" | "partial" | "ready"
-api.kinds(); // [{ kind, label, source }]: the vault's two and every allowed source's
+api.kinds(); // [{ kind, label, plural, source }]: the vault's two and every allowed source's
 api.search(text, { kinds?, sources?, limit?, exclude? });
 api.related({ path } | { source, id }, { kinds?, sources?, limit? }); // stored vectors, no model
 api.registerSource(pluginId, { kind, label, plural, icon?, list, onChanged,
-  open?, link?, ids?, changedSince? }); // → { release(), consent() }
+  open?, link?, changes? }); // → { release(), consent() }
 api.onIndexChanged(cb); // what a search can find changed; at most once a second
 ```
 
 Any plugin may register a source; each is one index file of its own
 (`semantic-source-<id>-…bin`), so sources never share rows or ids. Plugins are
 not isolated from each other and a name cannot be proved, so the gate is the
-person: a source is read only once allowed, from a notice when it first
-registers or in the settings, where the answer is also taken back. The name
-must be an enabled plugin's where the registry can say so. Everything a source
-hands over is untrusted: checked, bounded to 1 000 items of 40 000 characters
-and eight sources, and given five seconds to answer. A source with `ids()` and
-`changedSince()` is asked only for what changed after its first listing.
+person. A source is read only once allowed. While search by meaning is on, a
+source nobody has answered for is asked about in a notice that stays until it
+is answered; **Not now** leaves it waiting, to be asked at the next launch or
+when search by meaning is switched on. The settings list every source, take the
+answer back, and **Forget** one no longer registered. A refusal stops a listing
+or embed in flight before it writes, and removes the source's items from memory
+and its file from disk. The name must be an enabled plugin's where the registry
+can say so. Everything a source hands over is untrusted: checked, bounded to
+1 000 items of 40 000 characters and eight sources, and given five seconds to
+answer.
+
+A source with `changes(cursor)` is asked for what changed rather than for the
+whole list: first with `null`, then with the cursor it last gave, answering
+`{ changed, removed, cursor }` — the items that changed, the ids that went, and
+an opaque string of at most 256 KB to pass next time. The cursor is the
+source's, not a clock, so an item synced in from another device or dated in the
+future is still reported. An answer that does not fit is logged, the cursor
+forgotten, and the whole list read once instead. Only an item's title, updated
+time and attached notes stay in memory; its text is held until it is embedded,
+and a phone, which reads the desktop's file and embeds no source, never holds it.
 
 Each item is `{ id, title, updatedAt, summary?, messages? | text?, notes? }`.
 `notes`, optional, are vault paths attached to the item as context: Recommended

@@ -70,12 +70,19 @@ export interface ItemSource extends SourceDescriptor {
   open?(id: string): void;
   /** A link to one item, for "copy link": `obsidian://` or `https://` only. */
   link?(id: string): string;
-  /** The ids of every item, cheaply. With `changedSince`, a sync reads only what
-   *  changed instead of the whole list. */
-  ids?(): unknown[] | Promise<unknown[]>;
-  /** The items whose `updatedAt` is later than `since`, in `list()`'s shape. */
-  changedSince?(since: number): unknown[] | Promise<unknown[]>;
+  /**
+   * What changed since the cursor this source handed back last time, so a sync
+   * after the first reads only that: `{ changed, removed, cursor }`, `changed`
+   * in `list()`'s shape and `removed` as ids. Called with null for the whole
+   * list. The cursor is the source's own and never read here; anything the
+   * source can compare — a revision, a hash of each item — works, and nothing
+   * rests on two clocks agreeing.
+   */
+  changes?(cursor: string | null): unknown;
 }
+
+/** The longest cursor a source may hand back: one entry per item is room enough. */
+export const MAX_CURSOR_CHARS = 256 * 1024;
 
 /** Where a source stands with the person who runs this vault. */
 export type SourceConsent = "pending" | "allowed" | "denied";
@@ -100,12 +107,20 @@ export interface QueryOptions {
   exclude?: string[];
 }
 
+/** A kind a search can answer with, and how one and several of it are called. */
+export interface KindInfo {
+  kind: string;
+  label: string;
+  plural: string;
+  source: string | null;
+}
+
 export interface SchreibstubeSemanticApi {
   readonly version: 2;
   /** Whether search by meaning can answer here, and how much of it. */
   status(): SearchStatus;
   /** The kinds a search can answer with now: the vault's and every allowed source's. */
-  kinds(): { kind: string; label: string; source: string | null }[];
+  kinds(): KindInfo[];
   search(text: string, opts?: QueryOptions): Promise<Hit[]>;
   related(ref: RelatedRef, opts?: Omit<QueryOptions, "exclude">): Promise<Hit[]>;
   registerSource(sourceId: string, source: ItemSource): SourceRegistration;
@@ -172,7 +187,6 @@ export function readSource(
   const many = label(s.plural);
   if (!one || !many) return { problem: "a source needs a label and a plural" };
   const icon = typeof s.icon === "string" && isIcon(s.icon) ? s.icon : undefined;
-  const incremental = typeof s.ids === "function" && typeof s.changedSince === "function";
   // Only the functions it declared, bound to it: what the source object holds
   // besides is never read again.
   const bound = <K extends keyof ItemSource>(key: K) =>
@@ -188,12 +202,7 @@ export function readSource(
     onChanged: bound("onChanged") as ItemSource["onChanged"],
     ...(bound("open") ? { open: bound("open") as NonNullable<ItemSource["open"]> } : {}),
     ...(bound("link") ? { link: bound("link") as NonNullable<ItemSource["link"]> } : {}),
-    ...(incremental
-      ? {
-          ids: bound("ids") as NonNullable<ItemSource["ids"]>,
-          changedSince: bound("changedSince") as NonNullable<ItemSource["changedSince"]>
-        }
-      : {})
+    ...(bound("changes") ? { changes: bound("changes") as NonNullable<ItemSource["changes"]> } : {})
   };
   return {
     source: checked,

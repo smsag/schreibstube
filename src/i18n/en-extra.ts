@@ -986,8 +986,13 @@ export const enExtra = {
   semantic: {
     sources: {
       asks: (plugin: string, plural: string) =>
-        `${plugin} asks to add its ${plural} to search by meaning and Recommended. Nothing of it is read until you allow it.`,
+        `${plugin} asks to add its ${plural} to search by meaning and Recommended. Nothing of it is read until you allow it; Settings → Search by meaning → Other plugins' sources has the switch.`,
       allow: "Allow",
+      notNow: "Not now",
+      notRead: (plural: string) => `${plural}: not read yet — the first search reads them`,
+      forget: "Forget",
+      forgetDesc:
+        "Removes the answer and every file this source left; its plugin is asked again when it next registers.",
       heading: "Other plugins' sources",
       intro:
         "Plugins that hand their own items to search by meaning, to be found beside your notes. A source is read only once you allow it; switched off, its items leave search and Recommended at once.",
@@ -996,7 +1001,9 @@ export const enExtra = {
         count === 1 ? `${plural}: 1 item indexed` : `${plural}: ${count} items indexed`,
       pending: "Waiting for your answer",
       noteKind: "Note",
-      imageKind: "Picture"
+      noteKinds: "Notes",
+      imageKind: "Picture",
+      imageKinds: "Pictures"
     },
     building: "Search by meaning: reading the vault…",
     progress: (done: number, total: number) => `Search by meaning: ${done} of ${total} notes read`,

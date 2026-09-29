@@ -82,6 +82,21 @@ export async function removeRetiredIndexFiles(plugin: Plugin): Promise<void> {
   }
 }
 
+/**
+ * Remove every index file a source left, for every model: a source the
+ * person refused, or one they forgot, keeps nothing on this device.
+ */
+export async function removeSourceFiles(plugin: Plugin, sourceId: string): Promise<void> {
+  const adapter = plugin.app.vault.adapter;
+  const dir = pluginDir(plugin);
+  if (!(await adapter.exists(dir))) return;
+  const prefix = `semantic-source-${sourceId}-`;
+  for (const path of (await adapter.list(dir)).files) {
+    const name = path.slice(path.lastIndexOf("/") + 1);
+    if (name.startsWith(prefix)) await adapter.remove(path);
+  }
+}
+
 function pluginDir(plugin: Plugin): string {
   return normalizePath(
     plugin.manifest.dir ?? `${plugin.app.vault.configDir}/plugins/${plugin.manifest.id}`

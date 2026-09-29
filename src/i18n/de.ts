@@ -1291,8 +1291,13 @@ export const de: Messages = {
   semantic: {
     sources: {
       asks: (plugin: string, plural: string) =>
-        `${plugin} möchte seine ${plural} der Suche nach Bedeutung und den Empfehlungen hinzufügen. Gelesen wird davon nichts, bevor du es erlaubst.`,
+        `${plugin} möchte seine ${plural} der Suche nach Bedeutung und den Empfehlungen hinzufügen. Gelesen wird davon nichts, bevor du es erlaubst; der Schalter ist unter Einstellungen → Suche nach Bedeutung → Quellen anderer Plugins.`,
       allow: "Erlauben",
+      notNow: "Nicht jetzt",
+      notRead: (plural: string) => `${plural}: noch nicht gelesen — die erste Suche liest sie`,
+      forget: "Vergessen",
+      forgetDesc:
+        "Entfernt die Antwort und jede Datei dieser Quelle; ihr Plugin wird beim nächsten Anmelden erneut gefragt.",
       heading: "Quellen anderer Plugins",
       intro:
         "Plugins, die eigene Einträge der Suche nach Bedeutung übergeben, damit sie neben deinen Notizen gefunden werden. Eine Quelle wird erst gelesen, wenn du sie erlaubst; ausgeschaltet verschwinden ihre Einträge sofort aus Suche und Empfehlungen.",
@@ -1301,7 +1306,9 @@ export const de: Messages = {
         count === 1 ? `${plural}: 1 Eintrag im Index` : `${plural}: ${count} Einträge im Index`,
       pending: "Wartet auf deine Antwort",
       noteKind: "Notiz",
-      imageKind: "Bild"
+      noteKinds: "Notizen",
+      imageKind: "Bild",
+      imageKinds: "Bilder"
     },
     building: "Suche nach Bedeutung: Vault wird gelesen…",
     progress: (done: number, total: number) =>

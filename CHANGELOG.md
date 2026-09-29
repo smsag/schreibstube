@@ -12,14 +12,21 @@ an older Pythia is no longer found.
 
 ### Added
 
-- **Other plugins' sources, with your consent.** A plugin that registers a source is announced with a notice and an **Allow** button, and listed under **Settings → Search by meaning → Other plugins' sources** with a switch and the number of items indexed. Until it is allowed, nothing it lists is read or embedded; switched off, its items leave search and Recommended at once. Each source keeps its own index file, its items carry its own name and icon in the Explorer and in Recommended, and its own link for **Copy link**.
+- **Other plugins' sources, with your consent.** A plugin that registers a source is announced with a notice that stays until answered, with **Allow** and **Not now**, and listed under **Settings → Search by meaning → Other plugins' sources** with a switch and the number of items indexed ("not read yet" before its first listing). **Not now** asks again at the next launch; nothing is asked while search by meaning is off. Until it is allowed, nothing it lists is read or embedded; switched off, its items leave search and Recommended at once, and a refusal also deletes its index file. **Forget** clears the answer for a plugin no longer installed. Each source keeps its own index file, its items carry its own name and icon in the Explorer and in Recommended, and its own link for **Copy link**.
 
 ### Changed
 
-- **The API for other plugins is version 2.** Several sources at once, each with its own index, instead of one conversation source for Pythia alone; items named `<source>:<id>`; a source declares what its items are, how they are called and which icon they wear; `status()` says whether a search can answer fully, partly or not yet, instead of only whether it is switched on; `related` also takes one of a source's items and answers notes as well; a source that can say what changed since a moment is asked for that alone. `ARCHITECTURE.md` has the contract.
+- **The API for other plugins is version 2.** Several sources at once, each with its own index, instead of one conversation source for Pythia alone; items named `<source>:<id>`; a source declares what its items are, how they are called and which icon they wear; `status()` says whether a search can answer fully, partly or not yet, instead of only whether it is switched on; `related` also takes one of a source's items and answers notes as well; a source with `changes(cursor)` is asked only for what changed since the cursor it gave last, with no reliance on clocks; `kinds()` names each kind in the singular and the plural. `ARCHITECTURE.md` has the contract.
+- **The Explorer shows up to ten items from each source**, instead of ten in all, so one source whose titles match cannot push another off the list.
+- **Sources take less memory.** Only an item's title, date and attached notes are kept once it is embedded, and a phone never holds a source's texts at all.
 - **The conversation index moves to a file per source.** Pythia's conversations are embedded once more, on the desktop, into their new file; the old one is removed.
 
 ### Fixed
+
+- **A source's items reach the Explorer on a phone.** The phone reads the desktop's file for a source but never listed it, so it had no titles and showed none of its items; it now reads the titles without embedding anything.
+- **A source's items are found at the same floor as notes.** A one-word search read items against a phrase's floor, so a conversation lost to a note that matched the same word less well.
+- **Related conversations alone do not read the vault index.** A caller asking only for a source's items had the vault index loaded and ranked all the same.
+- **A source's listing counts as indexing**, so switching search by meaning off mid-listing no longer unloads the model under it.
 
 - **Relevance ranks alike across kinds.** Search and Recommended merged notes and conversations by their raw similarity, although the two are measured at different floors: a note barely past its own could stand above a conversation well past its own. Each is now read against its own floor before the two are merged, in the API and in the panel.
 - **The API says the index changed only when it did.** `onIndexChanged` fired on every status change, a build's progress included, about once a second; a caller that searched again each time searched constantly. It now fires when what a search can find has changed, at most once a second.

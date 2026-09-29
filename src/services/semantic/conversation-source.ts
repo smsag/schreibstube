@@ -50,8 +50,8 @@ const text = (value: unknown): string => (typeof value === "string" ? value : ""
 export function normalizeConversation(raw: unknown): ConversationItem | null {
   if (typeof raw !== "object" || raw === null) return null;
   const record = raw as Record<string, unknown>;
-  const id = text(record.id).trim();
-  if (id.length === 0 || id.length > MAX_ID_CHARS) return null;
+  const id = normalizeItemId(record.id);
+  if (id === null) return null;
   const title = text(record.title).trim().slice(0, MAX_TITLE_CHARS);
   const updatedAt =
     typeof record.updatedAt === "number" && Number.isFinite(record.updatedAt)
@@ -91,6 +91,39 @@ function contextNotes(raw: unknown): string[] {
     if (path.length > 0 && path.length <= MAX_PATH_CHARS) notes.add(path);
   }
   return [...notes];
+}
+
+/** An item id as a source writes it, checked the way an item's own id is. */
+export function normalizeItemId(raw: unknown): string | null {
+  const id = text(raw).trim();
+  return id.length > 0 && id.length <= MAX_ID_CHARS ? id : null;
+}
+
+/** What a source says changed since its cursor, checked. */
+export interface ItemChanges {
+  changed: ConversationItem[];
+  removed: string[];
+  cursor: string;
+}
+
+/**
+ * A source's answer to `changes(cursor)`, or null when it is not one: no
+ * cursor, a cursor longer than `maxCursorChars`, or lists that are not lists.
+ * Null is not an error to report; the caller lists the whole source instead.
+ */
+export function normalizeChanges(raw: unknown, maxCursorChars: number): ItemChanges | null {
+  if (typeof raw !== "object" || raw === null) return null;
+  const record = raw as Record<string, unknown>;
+  const cursor = record.cursor;
+  if (typeof cursor !== "string" || cursor.length === 0 || cursor.length > maxCursorChars)
+    return null;
+  if (!Array.isArray(record.changed) || !Array.isArray(record.removed)) return null;
+  const removed = new Set<string>();
+  for (const entry of record.removed.slice(0, MAX_CONVERSATIONS * 4)) {
+    const id = normalizeItemId(entry);
+    if (id) removed.add(id);
+  }
+  return { changed: normalizeConversations(record.changed), removed: [...removed], cursor };
 }
 
 /** The whole list: each entry checked, one per id, the newest first, capped. */

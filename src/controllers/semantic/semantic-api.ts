@@ -87,9 +87,16 @@ export function createSemanticApi(deps: SemanticApiDeps): SchreibstubeSemanticAp
     const sources = readNames(opts?.sources);
     const vault = wants(kinds, "note") || wants(kinds, "image");
     const items =
-      kinds === null || engine.sources.kinds().some((k) => kinds.has(k.descriptor.kind));
+      (sources === null || sources.size > 0) &&
+      (kinds === null || engine.sources.kinds().some((k) => kinds.has(k.descriptor.kind)));
     return { kinds, sources, vault, items };
   };
+
+  const relatedScope = (s: ReturnType<typeof scope>) => ({
+    notes: s.vault,
+    items: s.items,
+    sources: s.sources
+  });
 
   const merged = (
     found: RelatedFound,
@@ -117,11 +124,22 @@ export function createSemanticApi(deps: SemanticApiDeps): SchreibstubeSemanticAp
     kinds() {
       if (!engine.enabled()) return [];
       return [
-        { kind: "note", label: t().semantic.sources.noteKind, source: null },
-        { kind: "image", label: t().semantic.sources.imageKind, source: null },
+        {
+          kind: "note",
+          label: t().semantic.sources.noteKind,
+          plural: t().semantic.sources.noteKinds,
+          source: null
+        },
+        {
+          kind: "image",
+          label: t().semantic.sources.imageKind,
+          plural: t().semantic.sources.imageKinds,
+          source: null
+        },
         ...engine.sources.kinds().map(({ source, descriptor }) => ({
           kind: descriptor.kind,
-          label: descriptor.plural,
+          label: descriptor.label,
+          plural: descriptor.plural,
           source
         }))
       ];
@@ -161,13 +179,13 @@ export function createSemanticApi(deps: SemanticApiDeps): SchreibstubeSemanticAp
       const s = scope(opts);
       try {
         if ("path" in ref && typeof ref.path === "string") {
-          const found = await engine.relatedToNote(ref.path, limit, s.sources);
+          const found = await engine.relatedToNote(ref.path, limit, relatedScope(s));
           return merged(found, s, limit, new Set([ref.path]));
         }
         if ("source" in ref && typeof ref.id === "string") {
           const source = readSourceId(ref.source);
           if (!source) return [];
-          const found = await engine.relatedToItem(itemKey(source, ref.id), limit, s.sources);
+          const found = await engine.relatedToItem(itemKey(source, ref.id), limit, relatedScope(s));
           return merged(found, s, limit, new Set());
         }
         return [];

@@ -90,11 +90,11 @@ describe("a source registering", () => {
     expect(readSource(null, isIcon)).toHaveProperty("problem");
   });
 
-  it("reads incremental listing only when both halves are there", () => {
-    const both = readSource(source({ ids: () => [], changedSince: () => [] }), isIcon);
-    const half = readSource(source({ ids: () => [] }), isIcon);
-    expect("source" in both && typeof both.source.changedSince).toBe("function");
-    expect("source" in half && half.source.ids).toBeUndefined();
+  it("takes a source's changes() when it gives one", () => {
+    const read = readSource(source({ changes: () => ({}) }), isIcon);
+    const plain = readSource(source(), isIcon);
+    expect("source" in read && typeof read.source.changes).toBe("function");
+    expect("source" in plain && plain.source.changes).toBeUndefined();
   });
 
   it("keeps the source's own `this` for the functions it declared", () => {

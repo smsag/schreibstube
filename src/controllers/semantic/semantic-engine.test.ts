@@ -442,6 +442,60 @@ describe("a source's item", () => {
     expect(found.itemsFloor).toBe(floors.relatedFloors.balanced);
   });
 
+  it("leaves the vault index unread when only related items are wanted", async () => {
+    const w = world();
+    (w.settings as { semanticSources: Record<string, boolean> }).semanticSources = { pythia: true };
+    const e = w.engine();
+    const { readSource, itemKey } = await import("../../services/semantic/semantic-api");
+    const read = readSource(
+      source([
+        { id: "c1", text: "alpha one" },
+        { id: "c2", text: "gamma two" }
+      ]),
+      () => true
+    );
+    if (!("source" in read)) throw new Error(read.problem);
+    e.sources.register("pythia", read.source, read.descriptor);
+    await e.findItems("alpha one", 5);
+    w.reads.length = 0;
+    const found = await e.relatedToItem(itemKey("pythia", "c1"), 5, {
+      notes: false,
+      items: true,
+      sources: null
+    });
+    expect(found.notes).toEqual([]);
+    expect(found.items.map((i) => i.key)).toContain(itemKey("pythia", "c2"));
+    expect(w.reads.filter((p) => !p.includes("semantic-source-"))).toEqual([]);
+  });
+
+  it("reads items against the floor the query's own length decides, as notes are", async () => {
+    const w = world();
+    const e = w.engine();
+    const { meaningFloor } = await import("../../services/semantic/search-fusion");
+    const opts = { notes: 0, items: 5, exclude: new Set<string>(), sources: null };
+    const word = await e.searchAll("alpha", opts);
+    const phrase = await e.searchAll("alpha one and beta two", opts);
+    expect(word.itemsFloor).toBe(meaningFloor("alpha").minScore);
+    expect(word.itemsFloor).toBe(word.notesFloor);
+    expect(phrase.itemsFloor).toBe(meaningFloor("alpha one and beta two").minScore);
+  });
+
+  it("asks about a source only once search by meaning is on", async () => {
+    const w = world();
+    w.settings.semanticSearchEnabled = false;
+    const e = w.engine();
+    const asked = vi.fn();
+    e.onConsentNeeded(asked);
+    const { readSource } = await import("../../services/semantic/semantic-api");
+    const read = readSource(source([]), () => true);
+    if (!("source" in read)) throw new Error(read.problem);
+    e.sources.register("stranger", read.source, read.descriptor);
+    expect(asked).not.toHaveBeenCalled();
+    w.settings.semanticSearchEnabled = true;
+    e.settingsChanged();
+    expect(asked).toHaveBeenCalledWith("stranger", read.descriptor);
+  });
+
   it("is never asked about while the person has not allowed its source", async () => {
     const w = world();
     const e = w.engine();

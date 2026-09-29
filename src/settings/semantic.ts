@@ -136,8 +136,9 @@ export function renderSemantic(ctx: SettingsContext): void {
 /**
  * Every plugin that registered a source this session, and every one answered
  * for before, each with its switch: what is allowed here is read, what is not
- * is never touched. A source switched off leaves search at once; its index
- * file stays, so switching it on again reads only what changed.
+ * is never touched. Switched off, a source's items leave search and memory at
+ * once and its files are removed; Forget also removes the answer, so its
+ * plugin is asked again.
  */
 function renderSources(ctx: SettingsContext): void {
   const engine = ctx.plugin.semantic;
@@ -155,12 +156,14 @@ function renderSources(ctx: SettingsContext): void {
   for (const id of [...ids].sort()) {
     const entry = live.get(id);
     const answer = consentOf(ctx.plugin.settings.semanticSources, id);
-    const desc = entry
-      ? answer === "pending"
+    const desc = !entry
+      ? ""
+      : answer === "pending"
         ? words.pending
-        : words.item(entry.descriptor.plural, entry.size)
-      : "";
-    new Setting(ctx.containerEl)
+        : answer === "allowed" && !entry.listed
+          ? words.notRead(entry.descriptor.plural)
+          : words.item(entry.descriptor.plural, entry.size);
+    const row = new Setting(ctx.containerEl)
       .setName(communityPluginName(ctx.app, id) ?? id)
       .setDesc(desc)
       .addToggle((toggle) => {
@@ -169,5 +172,16 @@ function renderSources(ctx: SettingsContext): void {
           ctx.refresh();
         });
       });
+    if (answer !== "pending") {
+      row.addExtraButton((button) => {
+        button
+          .setIcon("trash-2")
+          .setTooltip(`${words.forget}: ${words.forgetDesc}`)
+          .onClick(async () => {
+            await ctx.plugin.forgetSource(id);
+            ctx.refresh();
+          });
+      });
+    }
   }
 }

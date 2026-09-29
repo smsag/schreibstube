@@ -49,7 +49,7 @@ import { folderOf } from "../services/path-follow";
 import { FileSearchIndex } from "../services/search-index";
 import { BodyIndex, BodyLoader } from "../services/body-index";
 import { fuseRankings, meaningQuery, meaningRows } from "../services/semantic/search-fusion";
-import { CONVERSATION_RESULTS } from "../services/semantic/conversation-search";
+import { ITEM_RESULTS_PER_SOURCE } from "../services/semantic/conversation-search";
 import { sortSiblings, type ExplorerNode } from "../services/explorer-state";
 import { bookmarkNoteTarget, isBookmarkTreeEmpty, type Bookmark } from "../services/bookmark-file";
 import { rowKeyAction } from "../services/explorer-keys";
@@ -620,7 +620,7 @@ export class ExplorerPaneView extends ItemView {
     }
     this.itemTimer = this.containerEl.win.setTimeout(() => {
       this.itemTimer = null;
-      void ask(raw.trim(), CONVERSATION_RESULTS)
+      void ask(raw.trim(), ITEM_RESULTS_PER_SOURCE)
         .then((hits) => {
           if (this.query !== key) return;
           this.itemHits = { query: key, hits };

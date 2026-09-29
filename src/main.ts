@@ -108,7 +108,7 @@ import { obsidianFileUrl } from "./services/obsidian-url";
 import { splitItemKey, type SchreibstubeSemanticApi } from "./services/semantic/semantic-api";
 import { communityPluginName, communityPluginPresence } from "./services/workspace-internals";
 import { iconGlyph } from "./ui/icon-font";
-import { showActionNotice } from "./ui/action-notice";
+import { showChoiceNotice } from "./ui/action-notice";
 import { PaneSectionsController } from "./controllers/pane-sections";
 import { BookmarkQuickOpenModal } from "./ui/bookmark-quick-open";
 import { OrphanListModal } from "./ui/explorer-modals";
@@ -740,18 +740,23 @@ export default class SchreibstubePlugin extends Plugin {
 
   /**
    * A plugin registered a source nobody has answered for: ask, once a
-   * session. Nothing it lists is read until the answer is yes, here or in the
-   * settings, which are also where a yes is taken back.
+   * session. The notice stays until answered; pressed away it is "not now",
+   * and the next launch asks again. Nothing the source lists is read until
+   * the answer is yes, here or in the settings, which are also where a yes is
+   * taken back.
    */
   private askSourceConsent(id: string, plural: string): void {
     if (this.askedSources.has(id)) return;
     this.askedSources.add(id);
     const name = communityPluginName(this.app, id) ?? id;
-    showActionNotice(
-      t().common.notice(t().semantic.sources.asks(name, plural)),
-      t().semantic.sources.allow,
-      () => void this.answerSource(id, true),
-      20_000
+    const words = t().semantic.sources;
+    showChoiceNotice(
+      t().common.notice(words.asks(name, plural)),
+      [
+        { label: words.allow, run: () => void this.answerSource(id, true) },
+        { label: words.notNow, run: () => undefined }
+      ],
+      0
     );
   }
 
@@ -759,7 +764,22 @@ export default class SchreibstubePlugin extends Plugin {
   async answerSource(id: string, allowed: boolean): Promise<void> {
     this.settings.semanticSources = { ...this.settings.semanticSources, [id]: allowed };
     await this.saveSettings();
-    this.semantic?.sources.consentChanged();
+    await this.semantic?.sources.consentChanged(id);
+  }
+
+  /**
+   * Forget a source the person answered for, whether or not its plugin is
+   * still here: the answer goes, and so do its files. A plugin that registers
+   * again is asked afresh.
+   */
+  async forgetSource(id: string): Promise<void> {
+    const answers = { ...this.settings.semanticSources };
+    delete answers[id];
+    this.settings.semanticSources = answers;
+    await this.saveSettings();
+    this.askedSources.delete(id);
+    await this.semantic?.sources.consentChanged(id);
+    await this.semantic?.sources.removeFiles(id);
   }
 
   /**

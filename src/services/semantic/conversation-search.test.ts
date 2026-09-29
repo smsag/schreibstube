@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  CONVERSATION_RESULTS,
+  ITEM_RESULTS_PER_SOURCE,
   matchConversationTitles,
   mergeConversationResults
 } from "./conversation-search";
@@ -38,6 +38,6 @@ describe("mergeConversationResults", () => {
 
   it("stops at the limit", () => {
     const many = Array.from({ length: 30 }, (_, i) => ({ id: String(i), title: `Chat ${i}` }));
-    expect(mergeConversationResults(many, [])).toHaveLength(CONVERSATION_RESULTS);
+    expect(mergeConversationResults(many, [])).toHaveLength(ITEM_RESULTS_PER_SOURCE);
   });
 });
