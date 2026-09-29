@@ -867,6 +867,16 @@ export class ExplorerPaneView extends ItemView {
     });
   }
 
+  /** Put the cursor in the filter field, with any words in it selected. */
+  focusFilter(): void {
+    const field = this.search;
+    if (!field) return;
+    field.focus();
+    // Words left from the last search are replaced by the first key typed,
+    // which is what someone coming back to the pane to search again wants.
+    field.select();
+  }
+
   /**
    * Close every folder in the tree.
    *

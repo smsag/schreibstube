@@ -4,9 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Added
+
+- **A command that puts the cursor in the explorer's search.** **Explorer: search** opens the pane if it is closed, moves the cursor into the box and selects what was typed before, so it works from a hotkey anywhere in the vault.
+- **`sync:` in the explorer search lists the synced notes.** Type `sync:` (or `synced:`, `synchron:`) and the search shows every note bound to a source, not only the recent ones, sorted folder by folder with each note's folder beneath its name. Words after it narrow the list, as in `sync: angebot`.
+- **A picture with a description says so, and leads to it.** A picture or PDF whose description note exists shows a small sparkle after its name, in the tree, in the pinned block and in search results. Hovering it shows the title the description gave the file, and pressing it opens the description note (a modifier press opens it in a new tab). The note itself stays folded into its picture in the tree as before.
+
 ### Changed
 
+- **The explorer's box is called a search.** It was labelled a filter, from when it matched file names only. It reads a note's text, finds notes by meaning, lists synced notes and takes prefixes, so its placeholder now reads "Search the vault…", the clear button says "Clear the search", and the settings and the README use the same word. Its results still replace the tree while it has text.
 - **One rule for file extensions, and a setting for it.** The explorer hid the extension of notes, SVG pictures, Excalidraw drawings and bases but showed it on every other file, so a `.png` read differently from a drawing for no reason a person could see. Every file now shows its name without the extension, and the icon says what it is. **Show file extensions** in the settings, off by default, brings the whole name back. Renaming edits the name without its extension either way. If you keep `photo.png` beside `photo.jpg`, switch the setting on: the two now read alike otherwise.
+
+### Fixed
+
+- **A pinned folder takes a drop.** Dragging a file or a folder from the tree onto a folder in the Pinned section now moves it into that folder. The pinned block sits above the tree, outside the area the drag looked at, so only folders in the tree itself could be aimed at.
 
 ## 1.61.0 - 2026-09-28
 
@@ -50,10 +61,6 @@ The bridge is unchanged at 2.10.0.
 ### Added
 
 - **New doc from outside Obsidian.** The link `obsidian://schreibstube-new-doc` runs **New doc**, so a new note can sit on a keyboard shortcut of the system's, which works whether Obsidian is in front, behind or closed. **Settings → Schreibstube → Focus mode** copies the link for your vault, and the README walks through putting it on a shortcut with the Shortcuts app, Raycast, Alfred, an iPhone's Action Button or Back Tap, Windows and Linux. The link carries nothing but the vault, so no web page can choose what goes into the note.
-
-### Added
-
-- **A picture with a description says so, and leads to it.** A picture or PDF whose description note exists shows a small sparkle after its name, in the tree, in the pinned block and in filter results. Hovering it shows the title the description gave the file, and pressing it opens the description note (a modifier press opens it in a new tab). The note itself stays folded into its picture in the tree as before.
 
 ### Changed
 
@@ -748,14 +755,6 @@ The bridge's protocol is unchanged; bridge 2.4.0 still pairs with this release.
 
 - **The Explorer's filter answers the keyboard.** Escape clears it, Enter opens the best match, and the down arrow moves from the field into the list. `#objekt` searches tags, as `tag:objekt` does, and a filter narrowed with `tag:`, `path:` or `name:` now says so above its results. Hovering the field lists the prefixes. A screen reader hears how many files matched.
 - **The related notes can stay on one note.** A pin in the panel's header keeps the list on the note it shows, and pressing it again lets the panel follow the open note. The panel's heading opens the note it names, and a middle click on a card opens it in a new tab.
-
-### Fixed
-
-- **A pinned folder takes a drop.** Dragging a file or a folder from the tree onto a folder in the Pinned section now moves it into that folder. The pinned block sits above the tree, outside the area the drag looked at, so only folders in the tree itself could be aimed at.
-
-### Added
-
-- **`sync:` in the explorer filter lists the synced notes.** Type `sync:` (or `synced:`, `synchron:`) and the filter shows every note bound to a source, not only the recent ones, sorted folder by folder with each note's folder beneath its name. Words after it narrow the list, as in `sync: angebot`.
 
 ### Changed
 
