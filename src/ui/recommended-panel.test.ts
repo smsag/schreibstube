@@ -37,7 +37,7 @@ function setup(recommend?: (path: string) => Promise<Recommendation | null>, cou
     ...(recommend ? { recommend } : {}),
     titleOf: (path) => path,
     open: vi.fn(async () => undefined),
-    openConversation: vi.fn(),
+    openItem: vi.fn(),
     showMenu: vi.fn(),
     glyphOf: (path) => (path.endsWith(".png") ? "photo" : "file-text"),
     copyLink: vi.fn()
@@ -45,7 +45,7 @@ function setup(recommend?: (path: string) => Promise<Recommendation | null>, cou
   return { root, host, panel: new RecommendedPanel(root, host) };
 }
 
-/** The card titles, without an icon's glyph in front of a conversation's. */
+/** The card titles, without an icon's glyph in front of an item's. */
 const titles = (root: HTMLElement) =>
   Array.from(root.querySelectorAll(".schreibstube-related-card-title")).map(
     (el) => el.lastChild?.textContent ?? ""
@@ -74,8 +74,15 @@ describe("RecommendedPanel", () => {
     const { root, panel, host } = setup(async () => ({
       items: [
         {
-          kind: "conversation",
-          conversation: { id: "c1", title: "Exposé Seestraße", reasons: ALIKE }
+          kind: "item",
+          item: {
+            key: "source:pythia:c1",
+            title: "Exposé Seestraße",
+            label: "Conversation in Pythia",
+            icon: "pythia",
+            linkable: true,
+            reasons: ALIKE
+          }
         },
         note("linked.md"),
         {
@@ -94,8 +101,8 @@ describe("RecommendedPanel", () => {
     expect(root.querySelector(".is-picture img")?.getAttribute("src")).toBe("app://see.jpg");
     expect(root.textContent).toContain("70% similar in meaning");
 
-    (root.querySelector(".is-conversation") as HTMLElement).click();
-    expect(host.openConversation).toHaveBeenCalledWith("c1");
+    (root.querySelector(".is-item") as HTMLElement).click();
+    expect(host.openItem).toHaveBeenCalledWith("source:pythia:c1");
   });
 
   it("draws each entry as a register row: what it is, its title, and why", async () => {
@@ -110,8 +117,15 @@ describe("RecommendedPanel", () => {
           }
         },
         {
-          kind: "conversation",
-          conversation: { id: "c1", title: "Left Shift Testing", reasons: ALIKE }
+          kind: "item",
+          item: {
+            key: "source:pythia:c1",
+            title: "Left Shift Testing",
+            label: "Conversation in Pythia",
+            icon: "pythia",
+            linkable: true,
+            reasons: ALIKE
+          }
         },
         {
           kind: "picture",
@@ -231,7 +245,17 @@ describe("RecommendedPanel", () => {
     const { root, panel, host } = setup(async () => ({
       items: [
         note("Docs/readme.md"),
-        { kind: "conversation", conversation: { id: "c1", title: "Chat", reasons: ALIKE } }
+        {
+          kind: "item",
+          item: {
+            key: "source:pythia:c1",
+            title: "Chat",
+            label: "Conversation in Pythia",
+            icon: "pythia",
+            linkable: true,
+            reasons: ALIKE
+          }
+        }
       ]
     }));
     panel.show("x.md");
@@ -250,13 +274,13 @@ describe("RecommendedPanel", () => {
     expect(host.open).toHaveBeenCalledTimes(1);
     expect(host.open).toHaveBeenCalledWith("Docs/readme.md", "split");
 
-    // A conversation has a link but no pane of its own: Pythia opens it.
+    // An item has a link but no pane of its own: its source opens it.
     expect(buttons(chatRow!).map((b) => b.getAttribute("aria-label"))).toEqual([
       "Copy Obsidian URL"
     ]);
     buttons(chatRow!)[0]!.click();
-    expect(host.copyLink).toHaveBeenLastCalledWith({ kind: "conversation", id: "c1" });
-    expect(host.openConversation).not.toHaveBeenCalled();
+    expect(host.copyLink).toHaveBeenLastCalledWith({ kind: "item", key: "source:pythia:c1" });
+    expect(host.openItem).not.toHaveBeenCalled();
   });
 
   it("shows as many entries as the setting says", async () => {
@@ -301,8 +325,15 @@ describe("RecommendedPanel", () => {
         note("alike.md", ["meaning"]),
         note("tagged.md", ["tag"]),
         {
-          kind: "conversation",
-          conversation: { id: "c1", title: "Chat", reasons: [{ kind: "attached", count: 1 }] }
+          kind: "item",
+          item: {
+            key: "source:pythia:c1",
+            title: "Chat",
+            label: "Conversation in Pythia",
+            icon: "pythia",
+            linkable: true,
+            reasons: [{ kind: "attached", count: 1 }]
+          }
         }
       ]
     }));

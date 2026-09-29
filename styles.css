@@ -2259,14 +2259,14 @@
 /* The twisty is a tree affordance and there is no tree here; the space it
    holds stays, so the icons of the results line up as the tree's do. */
 .schreibstube-explorer-result .schreibstube-explorer-twisty,
-.schreibstube-explorer-row.is-conversation .schreibstube-explorer-twisty {
+.schreibstube-explorer-row.is-item .schreibstube-explorer-twisty {
   visibility: hidden;
 }
 
 /* Pythia's conversations under the files a filter found sit in a section of
    their own, whose header is every other section's: a row that looks like a
    note and opens a chat must say so before it is pressed. */
-.schreibstube-explorer-row.is-conversation {
+.schreibstube-explorer-row.is-item {
   cursor: pointer;
 }
 

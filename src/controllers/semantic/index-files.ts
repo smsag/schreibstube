@@ -15,7 +15,7 @@ export class SemanticIndexFiles implements IndexStore {
     private readonly modelId: EmbeddingModelId,
     suffix = ".bin",
     /** Which index: the vault's notes, or the conversations a source hands over. */
-    private readonly prefix: "semantic-notes" | "semantic-conversations" = "semantic-notes"
+    private readonly prefix: "semantic-notes" | `semantic-source-${string}` = "semantic-notes"
   ) {
     this.path = normalizePath(`${pluginDir(plugin)}/${prefix}-${vectorFamily(modelId)}${suffix}`);
   }
@@ -61,6 +61,24 @@ export class SemanticIndexFiles implements IndexStore {
   async size(): Promise<number | null> {
     const stat = await this.plugin.app.vault.adapter.stat(this.path);
     return stat?.size ?? null;
+  }
+}
+
+/**
+ * Remove the conversation index API version 1 kept in one file for its one
+ * source. Each source now has a file of its own, so that one is read by
+ * nothing; Pythia's items are embedded again once, into their new file.
+ */
+export async function removeRetiredIndexFiles(plugin: Plugin): Promise<void> {
+  const adapter = plugin.app.vault.adapter;
+  const dir = pluginDir(plugin);
+  if (!(await adapter.exists(dir))) return;
+  const listed = await adapter.list(dir);
+  for (const path of listed.files) {
+    const name = path.slice(path.lastIndexOf("/") + 1);
+    if (name.startsWith("semantic-conversations-") && name.endsWith(".bin")) {
+      await adapter.remove(path);
+    }
   }
 }
 

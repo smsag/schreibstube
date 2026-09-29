@@ -1,16 +1,13 @@
 /**
- * Conversations another plugin hands over to be found by meaning.
+ * Items another plugin hands over to be found by meaning: Pythia's
+ * conversations, or any other source a person allowed.
  *
- * Pythia keeps its chats in its own data file, out of the vault, so the vault
- * index never sees them. It lists them through the API instead, and what it
- * lists is input from outside this plugin: untrusted until checked here. Every
- * field is coerced, every text is bounded, and the list is capped, so a broken
- * or hostile source can cost at most a known amount of memory and embedding.
- *
- * The chunking is Pythia's own (its `conversationChunks`), unchanged: a lead
- * chunk of title and summary, then the messages packed to the chunk size. The
- * same text gives the same chunks and so the same content hash, which is what
- * lets an index Pythia built be taken over without embedding anything again.
+ * What a source lists is input from outside this plugin: untrusted until
+ * checked here. Every field is coerced, every text is bounded, and the list is
+ * capped, so a broken or hostile source can cost at most a known amount of
+ * memory and embedding. The chunking is Pythia's own: a lead chunk of title
+ * and summary, then the messages packed to the chunk size. An item with one
+ * body of text gives it as `text`, read as a single message.
  */
 
 /** At most this many conversations are indexed, the newest first. */
@@ -69,7 +66,11 @@ export function normalizeConversation(raw: unknown): ConversationItem | null {
   };
   const summary = take(text(record.summary));
   const messages: string[] = [];
-  const listed = Array.isArray(record.messages) ? record.messages.slice(0, MAX_MESSAGES) : [];
+  const listed = Array.isArray(record.messages)
+    ? record.messages.slice(0, MAX_MESSAGES)
+    : typeof record.text === "string"
+      ? [record.text]
+      : [];
   for (const message of listed) {
     if (budget <= 0) break;
     const kept = take(text(message));

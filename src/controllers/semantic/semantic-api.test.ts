@@ -1,44 +1,68 @@
 import { describe, expect, it, vi } from "vitest";
-import { createSemanticApi } from "./semantic-api";
-import type { SemanticEngine } from "./semantic-engine";
+import { createSemanticApi, type SemanticApiDeps } from "./semantic-api";
+import type { RelatedFound, SemanticEngine } from "./semantic-engine";
 import { NULL_LOGGER } from "../../services/logger";
-import { MAX_QUERY_CHARS } from "../../services/semantic/semantic-api";
+import {
+  MAX_QUERY_CHARS,
+  itemKey,
+  relevance,
+  type SourceDescriptor
+} from "../../services/semantic/semantic-api";
 
-type Scored = { id: string; score: number };
+const CONVERSATION: SourceDescriptor = {
+  kind: "conversation",
+  label: "Conversation in Pythia",
+  plural: "Pythia conversations"
+};
+const HIGHLIGHT: SourceDescriptor = { kind: "highlight", label: "Highlight", plural: "Highlights" };
 
 function fakeEngine(over: Partial<Record<string, unknown>> = {}) {
-  const conversations = {
-    search: vi.fn<(text: string, limit: number, exclude: Iterable<string>) => Promise<Scored[]>>(
-      async () => [{ id: "c1", score: 0.6 }]
-    ),
-    related: vi.fn(async () => [{ id: "c2", score: 0.8 }]),
-    register: vi.fn(() => () => undefined),
-    titleOf: (id: string) => `Titel ${id}`
+  const descriptors: Record<string, SourceDescriptor> = { pythia: CONVERSATION, reader: HIGHLIGHT };
+  const sources = {
+    descriptorOf: (id: string) => descriptors[id] ?? null,
+    titleOf: (key: string) => `Titel ${key.split(":").pop()}`,
+    kinds: () =>
+      Object.entries(descriptors).map(([source, descriptor]) => ({ source, descriptor })),
+    register: vi.fn(() => ({ release: () => undefined, consent: () => "pending" as const }))
   };
-  const search = vi.fn<(text: string, limit: number) => Promise<Scored[]>>(async () => [
-    { id: "Notizen/küche.md", score: 0.7 },
-    { id: "Bildbeschreibungen/see.md", score: 0.5 },
-    { id: "gone.md", score: 0.4 }
-  ]);
+  const searchAll = vi.fn(async (text: string, opts: { notes: number; items: number }) => ({
+    notes:
+      opts.notes > 0
+        ? [
+            { id: "Notizen/küche.md", score: 0.7 },
+            { id: "Bildbeschreibungen/see.md", score: 0.5 },
+            { id: "gone.md", score: 0.4 }
+          ]
+        : [],
+    notesFloor: 0.35,
+    items: opts.items > 0 ? [{ key: itemKey("pythia", "c1"), score: 0.6 }] : [],
+    itemsFloor: 0.35,
+    text
+  }));
+  const related: RelatedFound = {
+    notes: [
+      { id: "Notizen/küche.md", score: 0.66 },
+      { id: "Bildbeschreibungen/see.md", score: 0.9 },
+      { id: "gone.md", score: 0.8 }
+    ],
+    notesFloor: 0.65,
+    items: [
+      { key: itemKey("pythia", "c1"), score: 0.64 },
+      { key: itemKey("reader", "h1"), score: 0.6 }
+    ],
+    itemsFloor: 0.57
+  };
   const engine = {
     enabled: () => true,
-    search,
-    onChange: vi.fn(() => () => undefined),
-    conversations,
+    searchState: () => "ready",
+    searchAll,
+    relatedToNote: vi.fn(async () => related),
+    relatedToItem: vi.fn(async () => related),
+    onContentChange: vi.fn(() => () => undefined),
+    sources,
     ...over
   } as unknown as SemanticEngine;
-  // The real engine's `searchAll` is the two searches sharing one vector.
-  (engine as { searchAll: unknown }).searchAll = async (
-    text: string,
-    opts: { notes: number; conversations: number; exclude: Iterable<string> }
-  ) => ({
-    notes: opts.notes > 0 ? await engine.search(text, opts.notes) : [],
-    conversations:
-      opts.conversations > 0
-        ? await engine.conversations.search(text, opts.conversations, opts.exclude)
-        : []
-  });
-  return { engine, conversations, search };
+  return { engine, sources, searchAll };
 }
 
 const vaultHit = (path: string) =>
@@ -48,109 +72,163 @@ const vaultHit = (path: string) =>
       ? { kind: "image" as const, id: "Bilder/see.jpg", title: "see" }
       : { kind: "note" as const, id: path, title: "Küche" };
 
-describe("the semantic API", () => {
-  it("answers notes, pictures and conversations in one list, best first", async () => {
+function api(engine: SemanticEngine, over: Partial<SemanticApiDeps> = {}) {
+  return createSemanticApi({
+    engine,
+    logger: NULL_LOGGER,
+    vaultHit,
+    isIcon: () => true,
+    pluginPresent: () => true,
+    ...over
+  });
+}
+
+describe("a search", () => {
+  it("answers notes, pictures and items in one list, most relevant first", async () => {
     const { engine } = fakeEngine();
-    const api = createSemanticApi({ engine, logger: NULL_LOGGER, vaultHit });
-
-    const hits = await api.search("küche", { kinds: ["note", "image", "conversation"], limit: 10 });
-
+    const hits = await api(engine).search("küche");
     expect(hits.map((h) => [h.kind, h.id])).toEqual([
       ["note", "Notizen/küche.md"],
-      ["conversation", "c1"],
+      ["conversation", "pythia:c1"],
       ["image", "Bilder/see.jpg"]
     ]);
-    expect(hits[1]?.title).toBe("Titel c1");
+    expect(hits[1]).toMatchObject({
+      source: "pythia",
+      item: "c1",
+      title: "Titel c1",
+      similarity: 0.6
+    });
   });
 
-  it("gives only the kinds asked for, and leaves out excluded ids", async () => {
-    const { engine, conversations } = fakeEngine();
-    const api = createSemanticApi({ engine, logger: NULL_LOGGER, vaultHit });
-
-    const hits = await api.search("küche", { kinds: ["image"], limit: 10, exclude: ["x"] });
-
+  it("gives only the kinds asked for, and asks no source when none is wanted", async () => {
+    const { engine, searchAll } = fakeEngine();
+    const hits = await api(engine).search("küche", { kinds: ["image"], limit: 10 });
     expect(hits.map((h) => h.id)).toEqual(["Bilder/see.jpg"]);
-    expect(conversations.search).not.toHaveBeenCalled();
+    expect(searchAll.mock.calls[0]?.[1]).toMatchObject({ items: 0 });
   });
 
-  it("answers nothing for an empty text", async () => {
-    const { engine } = fakeEngine();
-    const api = createSemanticApi({ engine, logger: NULL_LOGGER, vaultHit });
-    expect(await api.search("  ", { kinds: ["note"], limit: 5 })).toEqual([]);
+  it("passes the sources asked for, and excluded items as keys", async () => {
+    const { engine, searchAll } = fakeEngine();
+    await api(engine).search("küche", { sources: ["reader"], exclude: ["pythia:c9", "a.md"] });
+    const opts = searchAll.mock.calls[0]?.[1] as unknown as {
+      sources: Set<string>;
+      exclude: Set<string>;
+    };
+    expect([...opts.sources]).toEqual(["reader"]);
+    expect([...opts.exclude]).toEqual([itemKey("pythia", "c9")]);
   });
 
-  it("embeds at most the first thousand characters of a query", async () => {
-    const { engine, search, conversations } = fakeEngine();
-    const api = createSemanticApi({ engine, logger: NULL_LOGGER, vaultHit });
-    await api.search(`${"k".repeat(2000)}  `, { kinds: ["note", "conversation"], limit: 5 });
-    expect(search.mock.calls[0]?.[0]).toHaveLength(MAX_QUERY_CHARS);
-    expect(conversations.search.mock.calls[0]?.[0]).toHaveLength(MAX_QUERY_CHARS);
+  it("answers nothing for an empty text, and embeds at most a thousand characters", async () => {
+    const { engine, searchAll } = fakeEngine();
+    expect(await api(engine).search("  ")).toEqual([]);
+    await api(engine).search(`${"k".repeat(2000)}  `);
+    expect(searchAll.mock.calls[0]?.[0]).toHaveLength(MAX_QUERY_CHARS);
   });
 
-  it("answers nothing, rather than throwing, when a search fails", async () => {
+  it("answers nothing, rather than throwing, when it fails", async () => {
     const { engine } = fakeEngine({
-      search: vi.fn(async () => {
+      searchAll: vi.fn(async () => {
         throw new Error("model gone");
       })
     });
-    const api = createSemanticApi({ engine, logger: NULL_LOGGER, vaultHit });
-    expect(await api.search("küche", { kinds: ["note"], limit: 5 })).toEqual([]);
+    expect(await api(engine).search("küche")).toEqual([]);
+  });
+});
+
+describe("what is related", () => {
+  it("ranks each kind against its own floor, not by raw similarity", async () => {
+    const { engine } = fakeEngine();
+    const hits = await api(engine).related({ path: "a.md" });
+    // The picture clears its floor by far; the conversation at 0.64 clears
+    // 0.57 by more than the note at 0.66 clears 0.65.
+    expect(hits.map((h) => h.id)).toEqual([
+      "Bilder/see.jpg",
+      "pythia:c1",
+      "reader:h1",
+      "Notizen/küche.md"
+    ]);
+    expect(hits[1]?.score).toBeCloseTo(relevance(0.64, 0.57));
   });
 
-  it("finds conversations like a conversation", async () => {
-    const { engine, conversations } = fakeEngine();
-    const api = createSemanticApi({ engine, logger: NULL_LOGGER, vaultHit });
-
-    const hits = await api.related(
+  it("finds what is like one of a source's items, by its key", async () => {
+    const { engine } = fakeEngine();
+    const hits = await api(engine).related(
       { source: "pythia", id: "c1" },
-      { kinds: ["conversation"], limit: 5 }
+      { kinds: ["highlight"], limit: 5 }
     );
-
-    expect(hits).toEqual([{ kind: "conversation", id: "c2", title: "Titel c2", score: 0.8 }]);
-    expect(conversations.related).toHaveBeenCalledWith("c1", 5);
+    expect(engine.relatedToItem).toHaveBeenCalledWith(itemKey("pythia", "c1"), 5, null);
+    expect(hits.map((h) => h.id)).toEqual(["reader:h1"]);
   });
 
-  it("answers what is like a note: notes, pictures and conversations", async () => {
-    const { engine } = fakeEngine({
-      relatedToNote: vi.fn(async () => ({
-        notes: [
-          { id: "Notizen/küche.md", score: 0.8 },
-          { id: "Bildbeschreibungen/see.md", score: 0.7 },
-          { id: "gone.md", score: 0.6 }
-        ],
-        conversations: [{ id: "c1", score: 0.75 }]
-      }))
-    });
-    const api = createSemanticApi({ engine, logger: NULL_LOGGER, vaultHit });
+  it("answers nothing for a source that could not be a plugin", async () => {
+    const { engine } = fakeEngine();
+    expect(await api(engine).related({ source: "Not A Plugin", id: "x" })).toEqual([]);
+  });
+});
 
-    const hits = await api.related(
-      { path: "a.md" },
-      { kinds: ["note", "image", "conversation"], limit: 5 }
+describe("a source registering", () => {
+  const source = {
+    kind: "conversation",
+    label: "Conversation in Pythia",
+    plural: "Pythia conversations",
+    list: () => [],
+    onChanged: () => () => undefined
+  };
+
+  it("is taken from any enabled plugin, checked", () => {
+    const { engine, sources } = fakeEngine();
+    const registration = api(engine).registerSource("pythia", source);
+    expect(sources.register).toHaveBeenCalledWith(
+      "pythia",
+      expect.objectContaining({ kind: "conversation" }),
+      { kind: "conversation", label: "Conversation in Pythia", plural: "Pythia conversations" }
     );
+    expect(registration.consent()).toBe("pending");
+  });
 
-    expect(hits.map((h) => [h.kind, h.id])).toEqual([
-      ["note", "Notizen/küche.md"],
-      ["conversation", "c1"],
-      ["image", "Bilder/see.jpg"]
+  it("is refused under a name no enabled plugin has, or that is not a plugin id", () => {
+    const { engine } = fakeEngine();
+    expect(() =>
+      api(engine, { pluginPresent: () => false }).registerSource("ghost", source)
+    ).toThrow(/no enabled plugin/);
+    expect(() => api(engine).registerSource("Not Valid", source)).toThrow(/not a plugin id/);
+  });
+
+  it("is taken when the registry cannot say who is enabled: the person decides", () => {
+    const { engine, sources } = fakeEngine();
+    api(engine, { pluginPresent: () => null }).registerSource("reader", source);
+    expect(sources.register).toHaveBeenCalled();
+  });
+
+  it("is refused without what a source needs", () => {
+    const { engine } = fakeEngine();
+    expect(() => api(engine).registerSource("pythia", { ...source, kind: "note" })).toThrow(/kind/);
+    expect(() => api(engine).registerSource("pythia", { list: [] } as never)).toThrow(/needs list/);
+  });
+});
+
+describe("its state", () => {
+  it("says how much it can answer", () => {
+    expect(api(fakeEngine({ enabled: () => false }).engine).status()).toBe("off");
+    expect(api(fakeEngine({ searchState: () => "none" }).engine).status()).toBe("loading");
+    expect(api(fakeEngine({ searchState: () => "partial" }).engine).status()).toBe("partial");
+    expect(api(fakeEngine().engine).version).toBe(2);
+  });
+
+  it("names the kinds a search can answer with", () => {
+    const kinds = api(fakeEngine().engine).kinds();
+    expect(kinds.map((k) => [k.kind, k.source])).toEqual([
+      ["note", null],
+      ["image", null],
+      ["conversation", "pythia"],
+      ["highlight", "reader"]
     ]);
   });
 
-  it("lets Pythia register a source and nobody else", () => {
-    const { engine, conversations } = fakeEngine();
-    const api = createSemanticApi({ engine, logger: NULL_LOGGER, vaultHit });
-    const source = { list: () => [], onChanged: () => () => undefined };
-
-    api.registerSource("pythia", source);
-
-    expect(conversations.register).toHaveBeenCalledWith(source);
-    expect(() => api.registerSource("someone-else", source)).toThrow(/may not register/);
-    expect(() => api.registerSource("pythia", { list: [] } as never)).toThrow(/needs list/);
-  });
-
-  it("says whether it can answer", () => {
-    const { engine } = fakeEngine({ enabled: () => false });
-    const api = createSemanticApi({ engine, logger: NULL_LOGGER, vaultHit });
-    expect(api.version).toBe(1);
-    expect(api.ready()).toBe(false);
+  it("tells of content changes through the engine's own event", () => {
+    const { engine } = fakeEngine();
+    const cb = vi.fn();
+    api(engine).onIndexChanged(cb);
+    expect(engine.onContentChange).toHaveBeenCalled();
   });
 });

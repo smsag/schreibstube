@@ -1,10 +1,10 @@
 /**
- * What belongs with the open note: notes, pictures and conversations in one
+ * What belongs with the open note: notes, pictures and other plugins' items in one
  * list, most relevant first, each entry saying what it is and why it is there.
  *
  * Drawn as the note's own register rather than as boxes: what the entry is as
- * an icon in a marker column (the icon the Explorer gives it, Pythia's for a
- * conversation), the title as a link, and one line under it. Every title
+ * an icon in a marker column (the icon the Explorer gives it, its source's for
+ * an item), the title as a link, and one line under it. Every title
  * starts on the same edge, a picture's too; its thumbnail sits apart at the far
  * end. The order is the ranking, so it needs no number of its own. Under the
  * pointer an entry offers its Obsidian URL and, for a file, a pane of its own
@@ -15,7 +15,7 @@
  * meaning answers a moment later from vectors already stored — no model is
  * loaded for it — and the list is drawn again with what it found: notes
  * nobody linked, the pictures whose descriptions read alike, and the
- * conversations about the same thing. An answer for a note that is no longer
+ * items about the same thing. An answer for a note that is no longer
  * the one shown is dropped.
  *
  * The same panel is the sidebar view and the footer under a note, so the two
@@ -23,7 +23,7 @@
  */
 import { Keymap } from "obsidian";
 import { t } from "../i18n";
-import { applyIcon, applyObsidianIcon, PYTHIA_GLYPH } from "./icon-font";
+import { applyIcon, applyObsidianIcon } from "./icon-font";
 import { TASK_PILL_CLASS } from "./task-count-label";
 import { openTargetOf, type PaneTarget } from "../services/pane-target";
 import {
@@ -57,17 +57,29 @@ export interface PictureCard {
   reasons: RecommendReason[];
 }
 
-export interface ConversationCard {
-  id: string;
+/** One of another plugin's items, as its source names and draws it. */
+export interface ItemCard {
+  key: string;
   title: string;
+  /** What one of them is: "Conversation in Pythia". */
+  label: string;
+  icon?: string;
+  /** Whether the item has a link its source will give. */
+  linkable: boolean;
   reasons: RecommendReason[];
 }
+
+/** What "copy link" is asked for: a vault file, or a source's item by key. */
+export type EntryLink = { kind: "file"; path: string } | { kind: "item"; key: string };
+
+/** A source that named no icon of the set. */
+const ITEM_FALLBACK_ICON = "stack-2";
 
 /** One entry of the list, of whichever kind: ranked together, not by kind. */
 export type RecommendedItem =
   | { kind: "note"; card: RelatedCard }
   | { kind: "picture"; picture: PictureCard }
-  | { kind: "conversation"; conversation: ConversationCard };
+  | { kind: "item"; item: ItemCard };
 
 export interface Recommendation {
   /** Most relevant first. */
@@ -84,15 +96,15 @@ export interface RecommendedHost {
   open(path: string, where: PaneTarget): Promise<void>;
   /** How many entries the list shows: the person's setting. */
   count(): number;
-  openConversation(id: string): void;
+  openItem(key: string): void;
   showMenu(path: string, event: MouseEvent): void;
   /** The icon a file wears in the Explorer: the one chosen for it, or its kind's. */
   glyphOf(path: string): string;
   /** Put the entry's `obsidian://` link on the clipboard, and say so. */
-  copyLink(link: { kind: "file"; path: string } | { kind: "conversation"; id: string }): void;
+  copyLink(link: EntryLink): void;
   /** The similarity levels an entry's likeness is read against: the model's
-   *  measured floors, which differ for a conversation. */
-  relevanceFloors?(kind: "file" | "conversation"): RelevanceFloors;
+   *  measured floors, which differ for an item. */
+  relevanceFloors?(kind: "file" | "item"): RelevanceFloors;
   /** Where a failed answer is reported; without it, only the next ask tells. */
   warn?(message: string, error: unknown): void;
 }
@@ -287,7 +299,7 @@ export class RecommendedPanel {
     for (const item of items) {
       if (item.kind === "note") this.renderCard(list, item.card);
       else if (item.kind === "picture") this.renderPicture(list, item.picture);
-      else this.renderConversation(list, item.conversation);
+      else this.renderItem(list, item.item);
     }
   }
 
@@ -308,7 +320,7 @@ export class RecommendedPanel {
       /** What the entry is, to find it again after a redraw. */
       key: string;
       /** Which floors its likeness is read against. */
-      floors: "file" | "conversation";
+      floors: "file" | "item";
     }
   ): HTMLElement {
     const el = list.createEl("li").createDiv({
@@ -344,7 +356,7 @@ export class RecommendedPanel {
   private relevance(
     el: HTMLElement,
     reasons: readonly RecommendReason[],
-    kind: "file" | "conversation"
+    kind: "file" | "item"
   ): void {
     const labels = t().explorer.related;
     const level = relevanceOf(reasons, this.floors(kind));
@@ -366,13 +378,13 @@ export class RecommendedPanel {
     }
   }
 
-  private floors(kind: "file" | "conversation"): RelevanceFloors {
+  private floors(kind: "file" | "item"): RelevanceFloors {
     const given = this.host.relevanceFloors?.(kind);
     if (given) return given;
     // Without search by meaning there is no likeness to read; the default
     // model's floors keep the rule whole.
     const model = embeddingModelConfig(DEFAULT_EMBEDDING_MODEL_ID);
-    const floors = kind === "conversation" ? model.conversationFloors : model.relatedFloors;
+    const floors = kind === "item" ? model.conversationFloors : model.relatedFloors;
     return { balanced: floors[DEFAULT_SIMILARITY_PRESET], strict: floors.strict };
   }
 
@@ -381,10 +393,7 @@ export class RecommendedPanel {
    * URL, and for a file a pane of its own to the right. A press on either is
    * the button's alone and never also opens the entry.
    */
-  private actions(
-    el: HTMLElement,
-    link: { kind: "file"; path: string } | { kind: "conversation"; id: string }
-  ): void {
+  private actions(el: HTMLElement, link: EntryLink | null): void {
     const labels = t().explorer.related;
     const bar = el.createDiv({ cls: "schreibstube-related-actions" });
     const action = (label: string, icons: string[], fallback: string, run: () => void) => {
@@ -399,8 +408,8 @@ export class RecommendedPanel {
       });
       button.addEventListener("keydown", (event) => event.stopPropagation());
     };
-    action(labels.copyLink, ["lucide-link"], "link", () => this.host.copyLink(link));
-    if (link.kind === "file") {
+    if (link) action(labels.copyLink, ["lucide-link"], "link", () => this.host.copyLink(link));
+    if (link?.kind === "file") {
       // Obsidian's own icon for its own "Open to the right".
       action(labels.openBeside, ["lucide-separator-vertical"], "external-link", () => {
         void this.host.open(link.path, "split");
@@ -474,19 +483,18 @@ export class RecommendedPanel {
     });
   }
 
-  private renderConversation(list: HTMLElement, conversation: ConversationCard): void {
-    const labels = t().explorer.related;
+  private renderItem(list: HTMLElement, item: ItemCard): void {
     const el = this.renderRow(list, {
-      title: conversation.title,
-      what: labels.conversation,
-      reasons: conversation.reasons,
-      glyph: PYTHIA_GLYPH,
-      kind: "is-conversation",
-      key: `conversation:${conversation.id}`,
-      floors: "conversation"
+      title: item.title,
+      what: item.label,
+      reasons: item.reasons,
+      glyph: item.icon ?? ITEM_FALLBACK_ICON,
+      kind: "is-item",
+      key: item.key,
+      floors: "item"
     });
-    this.actions(el, { kind: "conversation", id: conversation.id });
-    this.pressable(el, () => this.host.openConversation(conversation.id));
+    this.actions(el, item.linkable ? { kind: "item", key: item.key } : null);
+    this.pressable(el, () => this.host.openItem(item.key));
   }
 }
 

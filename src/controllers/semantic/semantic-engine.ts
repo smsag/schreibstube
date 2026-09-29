@@ -16,7 +16,6 @@ import {
   type FailureCause,
   type SemanticStatus
 } from "../../services/semantic/status-text";
-import type { ScoredId } from "../../services/semantic/conversation-index";
 import type {
   BuildProgress,
   BuildRecord,
@@ -43,10 +42,11 @@ import { catchUpIndex, CATCH_UP_DELAY_MS } from "../../services/semantic/vault-c
 import { applyMeaningFloor, meaningFloor } from "../../services/semantic/search-fusion";
 import type { IndexKeeper } from "../../services/semantic/embedding-index";
 import { pluginRunsOwnModel } from "../../services/workspace-internals";
+import { consentOf, type SourceDescriptor } from "../../services/semantic/semantic-api";
 import { createEmbeddingProvider } from "./host/embedding-provider-factory";
 import { embeddingWorkerUrl } from "./host/worker-bundle-url";
-import { SemanticConversations } from "./semantic-conversations";
-import { SemanticIndexFiles } from "./index-files";
+import { SemanticSources, type ScoredKey } from "./semantic-sources";
+import { SemanticIndexFiles, removeRetiredIndexFiles } from "./index-files";
 import { registerVaultWatcher } from "./vault-watcher";
 
 /** Milliseconds for timing a search: steps with no clock change. */
@@ -70,6 +70,28 @@ export const MOBILE_EDIT_BUDGET = 10;
  *  copy while it is being searched. Reading the file is cheap; reading it on
  *  every keystroke is not. */
 const PHONE_LOOK_EVERY_MS = 60_000;
+
+/** The floor a source's item must clear to answer a typed text: the vault's
+ *  phrase floor, since it is the same comparison, a query against chunks. */
+const ITEM_QUERY_FLOOR = 0.35;
+
+/** How long a content event waits for more of the same. */
+const CONTENT_EVENT_MS = 1000;
+
+/** What is related to something, with the floors each list was read at. */
+export interface RelatedFound {
+  notes: RetrievedNote[];
+  notesFloor: number;
+  items: ScoredKey[];
+  itemsFloor: number;
+}
+
+function floorsOf(floors: { notes: number; items: number }): {
+  notesFloor: number;
+  itemsFloor: number;
+} {
+  return { notesFloor: floors.notes, itemsFloor: floors.items };
+}
 
 type Phase =
   | { kind: "idle" }
@@ -117,16 +139,23 @@ export class SemanticEngine {
   /** When the phone last looked for a newer index from the desktop. */
   private lastPhoneLook = Number.NEGATIVE_INFINITY;
   private readonly listeners = new Set<() => void>();
-  /** Conversations a chat plugin hands over through the API. */
-  readonly conversations: SemanticConversations;
+  /** Sources other plugins hand over through the API, each allowed by the person. */
+  readonly sources: SemanticSources;
+  private readonly consentAsked = new Set<(id: string, descriptor: SourceDescriptor) => void>();
+  /** What a search could find at the last content event, and the pending event. */
+  private contentSeen = "";
+  private contentTimer: ReturnType<typeof setTimeout> | null = null;
+  private readonly contentListeners = new Set<() => void>();
 
   constructor(
     private readonly plugin: Plugin,
     private readonly getSettings: () => SchreibstubeSettings,
-    private readonly logger: Logger
+    private readonly logger: Logger,
+    /** How long a content event waits for more of the same; shorter in tests. */
+    private readonly contentEventMs = CONTENT_EVENT_MS
   ) {
     this.guard = vaultBuildGuard(plugin.app);
-    this.conversations = new SemanticConversations({
+    this.sources = new SemanticSources({
       plugin,
       logger,
       enabled: () => this.enabled(),
@@ -134,7 +163,11 @@ export class SemanticEngine {
       provider: () => this.ensureProvider(),
       changed: () => this.emit(),
       mayEmbedInBackground: () => !Platform.isMobile && !this.syncing,
-      queryVector: (text) => this.queryVector(text)
+      queryVector: (text) => this.queryVector(text),
+      consent: (id) => consentOf(this.getSettings().semanticSources, id),
+      askConsent: (id, descriptor) => {
+        for (const listener of this.consentAsked) listener(id, descriptor);
+      }
     });
   }
 
@@ -147,7 +180,7 @@ export class SemanticEngine {
     });
     this.residency = installEmbeddingResidency(this.plugin, {
       provider: () => this.provider,
-      building: () => this.syncing || this.conversations.isSyncing(),
+      building: () => this.syncing || this.sources.isSyncing(),
       mobile: Platform.isMobile,
       onBackground: (hidden) => {
         if (this.syncing) this.guard.markBackground(hidden);
@@ -157,6 +190,9 @@ export class SemanticEngine {
     this.plugin.app.workspace.onLayoutReady(() => {
       const id = window.setTimeout(() => void this.catchUp(), CATCH_UP_DELAY_MS);
       this.plugin.register(() => window.clearTimeout(id));
+      removeRetiredIndexFiles(this.plugin).catch((e: unknown) => {
+        this.logger.debug("semantic engine: a retired index file could not be removed", e);
+      });
     });
   }
 
@@ -174,6 +210,42 @@ export class SemanticEngine {
         this.logger.warn("semantic engine: status listener failed", e);
       }
     }
+    this.noticeContent();
+  }
+
+  /**
+   * Called when what a search can find has changed: rows of the vault index
+   * added, changed or dropped, a source synced, joined, left or allowed. Not
+   * on every status change — a build reports progress once a second, and an
+   * API caller told "changed" each time searched again each time — and at
+   * most once a second.
+   */
+  onContentChange(listener: () => void): () => void {
+    this.contentListeners.add(listener);
+    return () => this.contentListeners.delete(listener);
+  }
+
+  private noticeContent(): void {
+    const seen = `${this.enabled()}:${this.service?.revision() ?? 0}:${this.sources.revision()}`;
+    if (seen === this.contentSeen) return;
+    this.contentSeen = seen;
+    if (this.contentTimer !== null || this.contentListeners.size === 0) return;
+    this.contentTimer = setTimeout(() => {
+      this.contentTimer = null;
+      for (const listener of this.contentListeners) {
+        try {
+          listener();
+        } catch (e) {
+          this.logger.warn("semantic engine: content listener failed", e);
+        }
+      }
+    }, this.contentEventMs);
+  }
+
+  /** A source registered and the person has not answered for it. */
+  onConsentNeeded(listener: (id: string, descriptor: SourceDescriptor) => void): () => void {
+    this.consentAsked.add(listener);
+    return () => this.consentAsked.delete(listener);
   }
 
   private setPhase(phase: Phase): void {
@@ -675,14 +747,48 @@ export class SemanticEngine {
    */
   async searchAll(
     text: string,
-    opts: { notes: number; conversations: number; exclude: Iterable<string> }
-  ): Promise<{ notes: RetrievedNote[]; conversations: ScoredId[] }> {
+    opts: { notes: number; items: number; exclude: Set<string>; sources: Set<string> | null }
+  ): Promise<{
+    notes: RetrievedNote[];
+    notesFloor: number;
+    items: ScoredKey[];
+    itemsFloor: number;
+  }> {
     const notes = opts.notes > 0 ? await this.search(text, opts.notes) : [];
-    const conversations =
-      opts.conversations > 0
-        ? await this.conversations.search(text, opts.conversations, opts.exclude)
+    const items =
+      opts.items > 0
+        ? await this.sources.search(text, {
+            minScore: ITEM_QUERY_FLOOR,
+            limit: opts.items,
+            exclude: opts.exclude,
+            only: opts.sources
+          })
         : [];
-    return { notes, conversations };
+    return { notes, notesFloor: meaningFloor(text).minScore, items, itemsFloor: ITEM_QUERY_FLOOR };
+  }
+
+  /** Items for the Explorer's search: by title, then by meaning. */
+  findItems(
+    text: string,
+    limit: number
+  ): Promise<{ key: string; title: string; source: string }[]> {
+    return this.sources.find(text, limit, () =>
+      this.sources.search(text, {
+        minScore: ITEM_QUERY_FLOOR,
+        limit,
+        exclude: new Set()
+      })
+    );
+  }
+
+  /** The measured floors a relation is read against: note to note, and
+   *  note to item, which scores lower (`conversationFloors`). */
+  relatedFloors(): { notes: number; items: number } {
+    const model = embeddingModelConfig(this.modelId());
+    return {
+      notes: model.relatedFloors[DEFAULT_SIMILARITY_PRESET],
+      items: model.conversationFloors[DEFAULT_SIMILARITY_PRESET]
+    };
   }
 
   /** The vector the vault index holds for `text`; null while it cannot answer. */
@@ -699,26 +805,71 @@ export class SemanticEngine {
    */
   async relatedToNote(
     path: string,
-    limit: number
-  ): Promise<{ notes: RetrievedNote[]; conversations: { id: string; score: number }[] }> {
-    const none = { notes: [], conversations: [] };
+    limit: number,
+    only: Set<string> | null = null
+  ): Promise<RelatedFound> {
+    const floors = this.relatedFloors();
+    const none: RelatedFound = { notes: [], items: [], ...floorsOf(floors) };
     if (!this.enabled()) return none;
     try {
       const svc = this.ensure();
       if (!svc.isReady()) await svc.loadPersisted();
       const vectors = svc.vectorsOf(path);
       if (!vectors) return none;
-      const floor = embeddingModelConfig(this.modelId()).relatedFloors[DEFAULT_SIMILARITY_PRESET];
-      const notes = await svc.rankByVectors(vectors, { minScore: floor, limit, exclude: [path] });
-      const conversations = await this.conversations
-        .relatedToVectors(vectors, limit)
+      const notes = await svc.rankByVectors(vectors, {
+        minScore: floors.notes,
+        limit,
+        exclude: [path]
+      });
+      const items = await this.sources
+        .relatedToVectors(vectors, { minScore: floors.items, limit, only })
         .catch((e: unknown) => {
-          this.logger.warn("semantic engine: related conversations failed", e);
+          this.logger.warn("semantic engine: related items failed", e);
           return [];
         });
-      return { notes, conversations };
+      return { notes, items, ...floorsOf(floors) };
     } catch (e) {
       this.logger.warn("semantic engine: related failed", e);
+      return none;
+    }
+  }
+
+  /**
+   * What is like one of a source's items, from its stored vectors: notes, at
+   * the floor measured note against item, and items, at the one measured item
+   * against item. No model call.
+   */
+  async relatedToItem(
+    key: string,
+    limit: number,
+    only: Set<string> | null = null
+  ): Promise<RelatedFound> {
+    const model = embeddingModelConfig(this.modelId());
+    const floors = {
+      notes: model.conversationFloors[DEFAULT_SIMILARITY_PRESET],
+      items: model.relatedFloors[DEFAULT_SIMILARITY_PRESET]
+    };
+    const none: RelatedFound = { notes: [], items: [], ...floorsOf(floors) };
+    if (!this.enabled()) return none;
+    try {
+      const vectors = await this.sources.vectorsOf(key);
+      if (!vectors) return none;
+      const svc = this.ensure();
+      if (!svc.isReady()) await svc.loadPersisted();
+      const notes = await svc.rankByVectors(vectors, {
+        minScore: floors.notes,
+        limit,
+        exclude: []
+      });
+      const items = await this.sources.relatedToVectors(vectors, {
+        minScore: floors.items,
+        limit,
+        excludeKey: key,
+        only
+      });
+      return { notes, items, ...floorsOf(floors) };
+    } catch (e) {
+      this.logger.warn("semantic engine: related to an item failed", e);
       return none;
     }
   }
@@ -889,7 +1040,7 @@ export class SemanticEngine {
     // A conversation sync in flight holds the provider too; unloading under it
     // is what the build's own guard avoids. It finishes, and the next change
     // or restart gives the memory back.
-    if (!this.enabled() && !this.syncing && !this.conversations.isSyncing()) this.teardown();
+    if (!this.enabled() && !this.syncing && !this.sources.isSyncing()) this.teardown();
     this.emit();
   }
 
@@ -899,13 +1050,17 @@ export class SemanticEngine {
     this.provider = null;
     this.service = null;
     this.deferred = null;
-    this.conversations.reset();
+    this.sources.reset();
   }
 
   /** Plugin unload: a build cut short by unload is not a crash; held edits are written. */
   dispose(): void {
     if (this.syncing) this.guard.end();
     this.listeners.clear();
+    this.contentListeners.clear();
+    this.consentAsked.clear();
+    if (this.contentTimer !== null) clearTimeout(this.contentTimer);
+    this.sources.dispose();
     // A build running now stops at its next note instead of running through
     // the vault after the plugin is gone, and the provider refuses to load the
     // model again for it: an unload alone made the next embed load a model

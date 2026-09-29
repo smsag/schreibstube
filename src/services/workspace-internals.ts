@@ -556,6 +556,38 @@ export function isCommunityPluginEnabled(app: App, id: string): boolean {
 }
 
 /**
+ * Whether a community plugin with this id is enabled: true or false when the
+ * registry can be read, null when it cannot. A plugin that registers a source
+ * names itself, and a name no enabled plugin has is refused; an Obsidian whose
+ * registry has another shape says nothing either way, and the person's
+ * consent is what stands.
+ */
+export function communityPluginPresence(app: App, id: string): boolean | null {
+  try {
+    const enabled = (app as unknown as { plugins?: { enabledPlugins?: unknown } }).plugins
+      ?.enabledPlugins;
+    return enabled instanceof Set ? enabled.has(id) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** The name a community plugin gives itself in its manifest, or null. */
+export function communityPluginName(app: App, id: string): string | null {
+  try {
+    const manifests = (app as unknown as { plugins?: { manifests?: unknown } }).plugins?.manifests;
+    if (typeof manifests !== "object" || manifests === null) return null;
+    const manifest = (manifests as Record<string, unknown>)[id];
+    const name = (manifest as { name?: unknown } | undefined)?.name;
+    return Object.prototype.hasOwnProperty.call(manifests, id) && typeof name === "string"
+      ? name.slice(0, 80)
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Whether a community plugin is enabled and still loads a language model of
  * its own. Pythia says it does not by `ownsEmbeddingModel === false`, once it
  * asks Schreibstube instead; a Pythia without the flag is an older one that

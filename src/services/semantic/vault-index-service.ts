@@ -170,6 +170,9 @@ const FALLBACK_LOGGER = createLogger(() => false);
 export class VaultIndexService {
   /** The rows, and the same rows by id; both move together through `items`. */
   private rows: IndexedConversation[] = [];
+  /** Counts every change to the rows, so "what a search can find changed" is
+   *  a comparison rather than a guess from status events. */
+  private changes = 0;
   private byId = new Map<string, IndexedConversation>();
   private loaded = false;
   /** What the persisted index says about ITSELF (Pythia ADR-184) — whether the build
@@ -235,6 +238,11 @@ export class VaultIndexService {
     await this.rememberBaseMtime();
   }
 
+  /** A number that moves whenever a row was added, changed or removed. */
+  revision(): number {
+    return this.changes;
+  }
+
   private get items(): IndexedConversation[] {
     return this.rows;
   }
@@ -242,6 +250,7 @@ export class VaultIndexService {
   private set items(rows: IndexedConversation[]) {
     this.rows = rows;
     this.byId = new Map(rows.map((row) => [row.id, row]));
+    this.changes++;
   }
 
   private get logger(): Pick<Logger, "warn"> {
@@ -641,6 +650,7 @@ export class VaultIndexService {
       this.rows.push(item);
       this.byId.set(note.path, item);
     }
+    this.changes++;
     return "embedded";
   }
 

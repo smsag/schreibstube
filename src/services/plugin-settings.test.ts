@@ -643,3 +643,14 @@ describe("description notes in the Explorer", () => {
     ).toBe("hide");
   });
 });
+
+describe("the answers given for other plugins' sources", () => {
+  it("keep only a yes or no per plugin id, and start with none", () => {
+    expect(normalizeSettings({}).semanticSources).toEqual({});
+    expect({
+      ...normalizeSettings({
+        semanticSources: { pythia: true, reader: false, "No Id": true, other: "yes" } as never
+      }).semanticSources
+    }).toEqual({ pythia: true, reader: false });
+  });
+});

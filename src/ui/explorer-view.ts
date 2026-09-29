@@ -49,10 +49,7 @@ import { folderOf } from "../services/path-follow";
 import { FileSearchIndex } from "../services/search-index";
 import { BodyIndex, BodyLoader } from "../services/body-index";
 import { fuseRankings, meaningQuery, meaningRows } from "../services/semantic/search-fusion";
-import {
-  CONVERSATION_RESULTS,
-  type ConversationResult
-} from "../services/semantic/conversation-search";
+import { CONVERSATION_RESULTS } from "../services/semantic/conversation-search";
 import { sortSiblings, type ExplorerNode } from "../services/explorer-state";
 import { bookmarkNoteTarget, isBookmarkTreeEmpty, type Bookmark } from "../services/bookmark-file";
 import { rowKeyAction } from "../services/explorer-keys";
@@ -103,7 +100,7 @@ import { PendingReveal } from "../services/pending-reveal";
 import { renderBookmarkRows } from "./bookmark-section";
 import { basename as basenameOf } from "../services/file-name";
 import { indent } from "./explorer-row";
-import { applyIcon, installIconFont, PYTHIA_GLYPH } from "./icon-font";
+import { applyIcon, installIconFont } from "./icon-font";
 import { pressable, pressKeys } from "./pressable";
 import { drawTaskCount } from "./task-count-label";
 import { SCHREIBSTUBE_ICON } from "./schreibstube-icon";
@@ -174,6 +171,19 @@ const FALLBACK_ROW_HEIGHT_PX = 27;
 /** How close to the top a held header lands, allowing for sub-pixel layout. */
 const STUCK_TOLERANCE_PX = 1.5;
 
+/** One source's item found by a search, with what its source says it is. */
+export interface ItemResult {
+  key: string;
+  title: string;
+  source: string;
+  /** The source's name for its items, as a section header says it. */
+  plural: string;
+  icon?: string;
+}
+
+/** A source that named no icon of the set: a stack, which says "items of a kind". */
+const ITEM_FALLBACK_ICON = "stack-2";
+
 export interface ExplorerPaneHost {
   explorer: ExplorerController;
   sections: PaneSectionsController;
@@ -181,10 +191,10 @@ export interface ExplorerPaneHost {
   /** Notes whose meaning answers the text, best first; empty when search by
    *  meaning is off or not ready. */
   meaning?: (text: string, limit: number) => Promise<{ id: string }[]>;
-  /** Pythia's conversations that answer the text: they are not files, so the
-   *  filter's own index never holds them. */
-  conversations?: (text: string, limit: number) => Promise<ConversationResult[]>;
-  openConversation?: (id: string) => void;
+  /** Items of other plugins' sources that answer the text: they are not files,
+   *  so the filter's own index never holds them. */
+  items?: (text: string, limit: number) => Promise<ItemResult[]>;
+  openItem?: (key: string) => void;
   /** Get ready for a search about to be typed: the filter field got focus. */
   warm?: () => void;
   /** How much meaning can answer now, and a way to hear when that moves. */
@@ -234,9 +244,9 @@ export class ExplorerPaneView extends ItemView {
   private filterTimer: number | null = null;
   /** Waiting for a longer pause before asking by meaning. */
   private meaningTimer: number | null = null;
-  private conversationTimer: number | null = null;
-  /** The conversations found for a query, kept against it. */
-  private conversationHits: { query: string; hits: ConversationResult[] } | null = null;
+  private itemTimer: number | null = null;
+  /** The sources' items found for a query, kept against it. */
+  private itemHits: { query: string; hits: ItemResult[] } | null = null;
   /** What meaning found, and for which query; ignored once the query moved on. */
   private meaning: { query: string; hits: { path: string }[] } | null = null;
   /** The query a search by meaning is running for, so the list can say so. */
@@ -582,7 +592,7 @@ export class ExplorerPaneView extends ItemView {
     this.filterStatus = null;
     this.meaningPending = null;
     this.meaning = null;
-    this.conversationHits = null;
+    this.itemHits = null;
   }
 
   private cancelFilter(): void {
@@ -590,30 +600,30 @@ export class ExplorerPaneView extends ItemView {
     this.filterTimer = null;
     if (this.meaningTimer !== null) this.containerEl.win.clearTimeout(this.meaningTimer);
     this.meaningTimer = null;
-    if (this.conversationTimer !== null) this.containerEl.win.clearTimeout(this.conversationTimer);
-    this.conversationTimer = null;
+    if (this.itemTimer !== null) this.containerEl.win.clearTimeout(this.itemTimer);
+    this.itemTimer = null;
   }
 
   /**
-   * Ask for Pythia's conversations once the typing has paused.
+   * Ask the sources for their items once the typing has paused.
    *
-   * A plain search only: a `tag:` or `path:` scope asks about files, and a
-   * conversation has neither. Asked whatever the words found — a note called
-   * what was typed does not make the conversation about it any less wanted.
+   * A plain search only: a `tag:` or `path:` scope asks about files, and an
+   * item has neither. Asked whatever the words found — a note called what was
+   * typed does not make the item about it any less wanted.
    */
-  private askConversations(raw: string, key: string): void {
-    const ask = this.host?.conversations;
+  private askItems(raw: string, key: string): void {
+    const ask = this.host?.items;
     const scoped = parseSearchScope(key);
     if (!ask || key.length === 0 || scoped.explicit) {
-      this.conversationHits = null;
+      this.itemHits = null;
       return;
     }
-    this.conversationTimer = this.containerEl.win.setTimeout(() => {
-      this.conversationTimer = null;
+    this.itemTimer = this.containerEl.win.setTimeout(() => {
+      this.itemTimer = null;
       void ask(raw.trim(), CONVERSATION_RESULTS)
         .then((hits) => {
           if (this.query !== key) return;
-          this.conversationHits = { query: key, hits };
+          this.itemHits = { query: key, hits };
           this.requestRender();
         })
         .catch(() => undefined);
@@ -716,7 +726,7 @@ export class ExplorerPaneView extends ItemView {
     const value = this.fieldQuery();
     this.rawQuery = raw;
     this.askByMeaning(raw, value);
-    this.askConversations(raw, value);
+    this.askItems(raw, value);
     if (value.length > 0) this.readBodies();
     // Emptying the field is the one case that must not wait: it is how a
     // person gets the tree back, and there is nothing to compute for it.
@@ -1578,12 +1588,11 @@ export class ExplorerPaneView extends ItemView {
       drawn += 1;
     }
 
-    const conversations =
-      this.conversationHits?.query === this.query ? this.conversationHits.hits : [];
-    this.renderConversationResults(host, conversations);
+    const items = this.itemHits?.query === this.query ? this.itemHits.hits : [];
+    this.renderItemResults(host, items);
 
     const searching = this.meaningPending !== null && this.meaningPending === this.query;
-    if (drawn === 0 && conversations.length > 0) return;
+    if (drawn === 0 && items.length > 0) return;
     if (drawn === 0) {
       results.createEl("p", {
         cls: "schreibstube-explorer-empty",
@@ -1611,30 +1620,37 @@ export class ExplorerPaneView extends ItemView {
   }
 
   /**
-   * Pythia's conversations under the files a filter found, in a section of
-   * their own: a row that looks like a note but opens a chat would be a trap.
-   * Its header is every other section's — chevron, two speech bubbles, the
-   * label and the rule — and each row carries Pythia's mark, as it does in
-   * Recommended, so where a row leads is said on the row itself.
+   * The sources' items under the files a search found, a section per source:
+   * a row that looks like a note but opens a chat would be a trap. Each
+   * header is every other section's — chevron, the source's icon, its name
+   * and the rule — and each row carries the icon too, so where a row leads is
+   * said on the row itself.
    */
-  private renderConversationResults(host: HTMLElement, hits: readonly ConversationResult[]): void {
-    const open = this.host?.openConversation;
+  private renderItemResults(host: HTMLElement, hits: readonly ItemResult[]): void {
+    const open = this.host?.openItem;
     if (hits.length === 0 || !open) return;
+    const bySource = new Map<string, ItemResult[]>();
+    for (const hit of hits) bySource.set(hit.source, [...(bySource.get(hit.source) ?? []), hit]);
 
-    const block = this.renderSection(host, "conversations", "messages", {
-      total: hits.length
-    });
-    if (!block) return;
-    for (const hit of hits) {
-      const row = block.createDiv({
-        cls: "schreibstube-explorer-row is-conversation",
-        attr: { role: "link", tabindex: "0", title: hit.title }
+    for (const [source, found] of bySource) {
+      const first = found[0]!;
+      const icon = first.icon ?? ITEM_FALLBACK_ICON;
+      const block = this.renderSection(host, `source-${source}`, icon, {
+        total: found.length,
+        title: first.plural
       });
-      indent(row, 0);
-      row.createSpan({ cls: "schreibstube-explorer-twisty" });
-      applyIcon(row.createSpan({ cls: "schreibstube-explorer-glyph" }), PYTHIA_GLYPH);
-      row.createSpan({ cls: "schreibstube-explorer-name", text: hit.title });
-      pressable(row, () => open(hit.id));
+      if (!block) continue;
+      for (const hit of found) {
+        const row = block.createDiv({
+          cls: "schreibstube-explorer-row is-item",
+          attr: { role: "link", tabindex: "0", title: hit.title }
+        });
+        indent(row, 0);
+        row.createSpan({ cls: "schreibstube-explorer-twisty" });
+        applyIcon(row.createSpan({ cls: "schreibstube-explorer-glyph" }), icon);
+        row.createSpan({ cls: "schreibstube-explorer-name", text: hit.title });
+        pressable(row, () => open(hit.key));
+      }
     }
   }
 

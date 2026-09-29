@@ -91,18 +91,24 @@ import {
   embeddingModelConfig
 } from "./services/semantic/embedding-models";
 import {
-  conversationIdOf,
-  conversationKey,
   meaningOrder,
   recommendNotes,
   withAttached,
   type RelevanceFloors
 } from "./services/semantic/recommend";
 import { RecommendedFooter } from "./controllers/recommended-footer";
-import type { Recommendation, RecommendedHost, RecommendedItem } from "./ui/recommended-panel";
+import type {
+  EntryLink,
+  Recommendation,
+  RecommendedHost,
+  RecommendedItem
+} from "./ui/recommended-panel";
 import { fileGlyph } from "./services/file-glyph";
-import { obsidianFileUrl, pythiaConversationUrl } from "./services/obsidian-url";
-import type { SchreibstubeSemanticApi } from "./services/semantic/semantic-api";
+import { obsidianFileUrl } from "./services/obsidian-url";
+import { splitItemKey, type SchreibstubeSemanticApi } from "./services/semantic/semantic-api";
+import { communityPluginName, communityPluginPresence } from "./services/workspace-internals";
+import { iconGlyph } from "./ui/icon-font";
+import { showActionNotice } from "./ui/action-notice";
 import { PaneSectionsController } from "./controllers/pane-sections";
 import { BookmarkQuickOpenModal } from "./ui/bookmark-quick-open";
 import { OrphanListModal } from "./ui/explorer-modals";
@@ -158,6 +164,8 @@ export default class SchreibstubePlugin extends Plugin {
   private recommendedFooter: RecommendedFooter | null = null;
   semantic: SemanticEngine | null = null;
   api: SchreibstubeSemanticApi | null = null;
+  /** Sources asked about this session, so a plugin re-registering is not asked twice. */
+  private readonly askedSources = new Set<string>();
 
   /** Guards against firing twice inside one scheduled minute. */
   private lastPollMinute = -1;
@@ -331,8 +339,11 @@ export default class SchreibstubePlugin extends Plugin {
     this.api = createSemanticApi({
       engine: this.semantic,
       logger: this.logger,
-      vaultHit: (path) => this.vaultHit(path)
+      vaultHit: (path) => this.vaultHit(path),
+      isIcon: (name) => iconGlyph(name) !== undefined,
+      pluginPresent: (id) => communityPluginPresence(this.app, id)
     });
+    this.semantic.onConsentNeeded((id, source) => this.askSourceConsent(id, source.plural));
 
     this.explorer = new ExplorerController(
       this.app,
@@ -684,7 +695,7 @@ export default class SchreibstubePlugin extends Plugin {
         const file = this.app.vault.getAbstractFileByPath(path);
         if (file) await explorer.open(file, where);
       },
-      openConversation: (id) => this.openConversation(id),
+      openItem: (key) => this.openItem(key),
       count: () => this.settings.recommendedCount,
       showMenu: (path, event) => explorer.showMenuForPath(path, event),
       glyphOf: (path) => {
@@ -701,29 +712,54 @@ export default class SchreibstubePlugin extends Plugin {
   }
 
   /** The model's measured floors, as the Recommended meter reads likeness. */
-  private relevanceFloors(kind: "file" | "conversation"): RelevanceFloors {
+  private relevanceFloors(kind: "file" | "item"): RelevanceFloors {
     const model = embeddingModelConfig(this.semantic?.modelId() ?? DEFAULT_EMBEDDING_MODEL_ID);
-    const floors = kind === "conversation" ? model.conversationFloors : model.relatedFloors;
+    const floors = kind === "item" ? model.conversationFloors : model.relatedFloors;
     return { balanced: floors[DEFAULT_SIMILARITY_PRESET], strict: floors.strict };
   }
 
-  /** An entry's `obsidian://` link on the clipboard, said either way. */
-  private async copyLink(
-    link: { kind: "file"; path: string } | { kind: "conversation"; id: string }
-  ): Promise<void> {
-    const vault = this.app.vault.getName();
+  /** An entry's link on the clipboard, said either way: a file's `obsidian://`
+   *  link, or the one an item's source gives. */
+  private async copyLink(link: EntryLink): Promise<void> {
     const url =
       link.kind === "file"
-        ? obsidianFileUrl(vault, link.path)
-        : pythiaConversationUrl(vault, link.id);
+        ? obsidianFileUrl(this.app.vault.getName(), link.path)
+        : this.semantic?.sources.link(link.key);
+    if (!url) return;
     const labels = t().explorer.related;
     await copyText(url, { copied: labels.copied, failed: labels.copyFailed }, this.logger);
   }
 
-  /** Pythia opens a conversation itself when it can; otherwise its deep link does. */
-  private openConversation(id: string): void {
-    if (this.semantic?.conversations.open(id)) return;
-    window.open(pythiaConversationUrl(this.app.vault.getName(), id));
+  /** A source opens its item itself when it can; otherwise its link does. */
+  private openItem(key: string): void {
+    const sources = this.semantic?.sources;
+    if (!sources || sources.open(key)) return;
+    const link = sources.link(key);
+    if (link) window.open(link);
+  }
+
+  /**
+   * A plugin registered a source nobody has answered for: ask, once a
+   * session. Nothing it lists is read until the answer is yes, here or in the
+   * settings, which are also where a yes is taken back.
+   */
+  private askSourceConsent(id: string, plural: string): void {
+    if (this.askedSources.has(id)) return;
+    this.askedSources.add(id);
+    const name = communityPluginName(this.app, id) ?? id;
+    showActionNotice(
+      t().common.notice(t().semantic.sources.asks(name, plural)),
+      t().semantic.sources.allow,
+      () => void this.answerSource(id, true),
+      20_000
+    );
+  }
+
+  /** The person's answer for a source, kept, and the index told. */
+  async answerSource(id: string, allowed: boolean): Promise<void> {
+    this.settings.semanticSources = { ...this.settings.semanticSources, [id]: allowed };
+    await this.saveSettings();
+    this.semantic?.sources.consentChanged();
   }
 
   /**
@@ -759,21 +795,29 @@ export default class SchreibstubePlugin extends Plugin {
 
     const cards = new Map(graph.map((card) => [card.path, card]));
     const items: RecommendedItem[] = [];
-    // A conversation this note was attached to stands with the notes it links.
-    const attached = engine.conversations.attachedTo(path).map(conversationKey);
+    // An item this note was attached to stands with the notes it links.
+    const attached = engine.sources.attachedTo(path);
     const ranked = recommendNotes(
       withAttached(graph, attached),
-      meaningOrder(byMeaning, found.conversations),
+      meaningOrder(
+        { hits: byMeaning, floor: found.notesFloor },
+        { hits: found.items, floor: found.itemsFloor }
+      ),
       count
     );
     for (const entry of ranked) {
-      const conversation = conversationIdOf(entry.path);
-      if (conversation !== null) {
+      const parts = splitItemKey(entry.path);
+      if (parts !== null) {
+        const source = engine.sources.descriptorOf(parts.source);
+        if (!source) continue;
         items.push({
-          kind: "conversation",
-          conversation: {
-            id: conversation,
-            title: engine.conversations.titleOf(conversation) ?? t().explorer.related.untitled,
+          kind: "item",
+          item: {
+            key: entry.path,
+            title: engine.sources.titleOf(entry.path) ?? t().explorer.related.untitled,
+            label: source.label,
+            ...(source.icon ? { icon: source.icon } : {}),
+            linkable: engine.sources.link(entry.path) !== null,
             reasons: entry.reasons
           }
         });
@@ -828,8 +872,8 @@ export default class SchreibstubePlugin extends Plugin {
           return { path: item.card.path, isNote: true, reasons: item.card.reasons };
         case "picture":
           return { path: item.picture.path, isNote: false, reasons: item.picture.reasons };
-        case "conversation":
-          return { path: item.conversation.id, isNote: false, reasons: item.conversation.reasons };
+        case "item":
+          return { path: item.item.key, isNote: false, reasons: item.item.reasons };
       }
     });
   }
@@ -910,9 +954,17 @@ export default class SchreibstubePlugin extends Plugin {
         sections: this.sections,
         settings: () => this.settings,
         meaning: async (text, limit) => (await this.semantic?.search(text, limit)) ?? [],
-        conversations: async (text, limit) =>
-          (await this.semantic?.conversations.find(text, limit)) ?? [],
-        openConversation: (id) => this.openConversation(id),
+        items: async (text, limit) => {
+          const engine = this.semantic;
+          if (!engine) return [];
+          return (await engine.findItems(text, limit)).flatMap((hit) => {
+            const source = engine.sources.descriptorOf(hit.source);
+            return source
+              ? [{ ...hit, plural: source.plural, ...(source.icon ? { icon: source.icon } : {}) }]
+              : [];
+          });
+        },
+        openItem: (key) => this.openItem(key),
         warm: () => this.semantic?.warm(),
         meaningState: () => this.semantic?.searchState() ?? "none",
         onMeaningChange: (listener) => this.semantic?.onChange(listener) ?? (() => undefined),

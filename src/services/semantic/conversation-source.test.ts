@@ -30,6 +30,11 @@ describe("normalizeConversation", () => {
     });
   });
 
+  it("reads an item with one body of text as a single message", () => {
+    const item = normalizeConversation(conv({ messages: undefined, text: "Markierte Stelle" }));
+    expect(item?.messages).toEqual(["Markierte Stelle"]);
+  });
+
   it("refuses an entry without a usable id", () => {
     expect(normalizeConversation(conv({ id: "" }))).toBeNull();
     expect(normalizeConversation(conv({ id: 7 }))).toBeNull();

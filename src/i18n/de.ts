@@ -985,8 +985,7 @@ export const de: Messages = {
       pinned: "Angeheftet",
       bookmarks: "Lesezeichen",
       latest: "Extern aktualisiert",
-      files: "Dateien und Ordner",
-      conversations: "Gespräche"
+      files: "Dateien und Ordner"
     },
 
     bookmarks: {
@@ -1290,6 +1289,20 @@ export const de: Messages = {
   },
 
   semantic: {
+    sources: {
+      asks: (plugin: string, plural: string) =>
+        `${plugin} möchte seine ${plural} der Suche nach Bedeutung und den Empfehlungen hinzufügen. Gelesen wird davon nichts, bevor du es erlaubst.`,
+      allow: "Erlauben",
+      heading: "Quellen anderer Plugins",
+      intro:
+        "Plugins, die eigene Einträge der Suche nach Bedeutung übergeben, damit sie neben deinen Notizen gefunden werden. Eine Quelle wird erst gelesen, wenn du sie erlaubst; ausgeschaltet verschwinden ihre Einträge sofort aus Suche und Empfehlungen.",
+      none: "Kein Plugin hat eine Quelle angemeldet.",
+      item: (plural: string, count: number) =>
+        count === 1 ? `${plural}: 1 Eintrag im Index` : `${plural}: ${count} Einträge im Index`,
+      pending: "Wartet auf deine Antwort",
+      noteKind: "Notiz",
+      imageKind: "Bild"
+    },
     building: "Suche nach Bedeutung: Vault wird gelesen…",
     progress: (done: number, total: number) =>
       `Suche nach Bedeutung: ${done} von ${total} Notizen gelesen`,

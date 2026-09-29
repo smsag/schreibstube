@@ -8,6 +8,7 @@ import type {
 import type { LanguagePreference } from "../i18n";
 import type { SyncRecord } from "./sync-document";
 import { UNSAFE_KEYS } from "./sync-merge";
+import { normalizeSourceConsent } from "./semantic/semantic-api";
 import {
   DEFAULT_SETTINGS as DEFAULT_FOCUS_SETTINGS,
   normalizeFocusSettings
@@ -112,6 +113,7 @@ export const DEFAULT_SETTINGS: SchreibstubeSettings = {
   recommendedCount: 7,
   semanticSearchEnabled: false,
   semanticMaxNotes: 5000,
+  semanticSources: {},
   summarizePrompt: DEFAULT_SUMMARIZE_PROMPT,
   summarizeMaxTokens: 512,
   proofreadPrompt: DEFAULT_PROOFREAD_PROMPT,
@@ -269,6 +271,7 @@ export function normalizeSettings(loaded: LoadedSettings): SchreibstubeSettings 
       MAX_SEMANTIC_NOTES,
       DEFAULT_SETTINGS.semanticMaxNotes
     ),
+    semanticSources: normalizeSourceConsent(loaded?.semanticSources),
     summarizePrompt: nonEmptyStringOrDefault(
       loaded?.summarizePrompt,
       DEFAULT_SETTINGS.summarizePrompt

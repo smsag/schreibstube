@@ -134,6 +134,13 @@ export class ConversationIndex {
     return out;
   }
 
+  /** The stored vectors of one item, or null when it has none: what "related
+   *  to this item" is asked with, of every index. */
+  vectorsOf(id: string): Int8Array[] | null {
+    const item = this.items.find((i) => i.id === id);
+    return item && item.chunks.length > 0 ? item.chunks : null;
+  }
+
   /** Read the stored index without embedding anything. */
   async loadStored(): Promise<void> {
     await this.load();

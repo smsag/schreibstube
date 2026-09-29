@@ -2,7 +2,7 @@
 // cut short never leaves a torn file where a whole one was.
 import { describe, expect, it } from "vitest";
 import type { Plugin } from "obsidian";
-import { SemanticIndexFiles } from "./index-files";
+import { SemanticIndexFiles, removeRetiredIndexFiles } from "./index-files";
 
 function fakeAdapter(existing: string[] = []) {
   const disk = new Map<string, ArrayBuffer>(existing.map((p) => [p, new ArrayBuffer(1)]));
@@ -24,6 +24,10 @@ function fakeAdapter(existing: string[] = []) {
       disk.delete(p);
     },
     mkdir: async () => undefined,
+    list: async (dir: string) => ({
+      files: [...disk.keys()].filter((p) => p.startsWith(`${dir}/`)),
+      folders: []
+    }),
     stat: async (p: string) => (disk.has(p) ? { size: disk.get(p)!.byteLength, mtime: 1 } : null)
   };
   const plugin = {
@@ -66,5 +70,25 @@ describe("SemanticIndexFiles", () => {
     expect(await files.journal().size()).toBe(2);
     expect(await files.phoneJournal().size()).toBe(3);
     expect(await files.exists()).toBe(false);
+  });
+});
+
+describe("the index API version 1 kept", () => {
+  it("is removed, and nothing else in the folder is", async () => {
+    const dir = ".obsidian/plugins/schreibstube";
+    const { disk, plugin } = fakeAdapter([
+      `${dir}/semantic-conversations-xenova-paraphrase-multilingual-MiniLM-L12-v2.bin`,
+      `${dir}/semantic-source-pythia-xenova-paraphrase-multilingual-MiniLM-L12-v2.bin`,
+      PATH,
+      `${dir}/data.json`
+    ]);
+    await removeRetiredIndexFiles(plugin);
+    expect([...disk.keys()].sort()).toEqual(
+      [
+        `${dir}/data.json`,
+        PATH,
+        `${dir}/semantic-source-pythia-xenova-paraphrase-multilingual-MiniLM-L12-v2.bin`
+      ].sort()
+    );
   });
 });
