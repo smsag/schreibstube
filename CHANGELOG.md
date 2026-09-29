@@ -2,7 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## 1.63.0 - 2026-09-29
+
+Printing works with Pythia. A note whose passages link to Pythia conversations
+can print each linked passage highlighted, with the conversation's summary as a
+footnote, and the print dialog can update outdated or missing summaries first.
+It needs Pythia 3.8 or later, switched on; without it nothing in the dialog
+changes.
+
+Mobile checklist: not run, and the feature has not been tried in the Obsidian
+app on desktop either; the test suite and the build checked it. What to try
+first: a note with Pythia links, the footnotes toggle in the preview, Update
+with the dialog closed while it runs, and the quick print.
+
+The bridge is unchanged at 2.10.0.
 
 ### Added
 
