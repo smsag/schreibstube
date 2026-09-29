@@ -281,6 +281,12 @@ describe("matchesText", () => {
     expect(matchesText("tag:objekt", "Objekt 12")).toBe(false);
     expect(matchesText("tag:objekt", "objekt", ["all", "tags"])).toBe(true);
   });
+
+  it("hides every text row under sync:, with or without words", () => {
+    // A bookmark or a pinned tag is not a note and is bound to no source.
+    expect(matchesText("sync:", "Seeblick")).toBe(false);
+    expect(matchesText("sync: seeblick", "Seeblick", ["all", "name", "tags"])).toBe(false);
+  });
 });
 
 describe("a picture found by its description", () => {
@@ -403,6 +409,11 @@ describe("hasSearchWords", () => {
   });
 
   it.each(["objekt", "tag:objekt", "#objekt", "todo: Angebot"])("finds words in %j", (raw) => {
+    expect(hasSearchWords(raw)).toBe(true);
+  });
+
+  it.each(["sync:", "synced:", "synchron:  ", "sync: angebot"])("asks something in %j", (raw) => {
+    // Alone, `sync:` is a question of its own: list the synced notes.
     expect(hasSearchWords(raw)).toBe(true);
   });
 });

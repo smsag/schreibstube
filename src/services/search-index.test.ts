@@ -320,6 +320,18 @@ describe("the sync: prefix", () => {
     expect(index.search("sync: vertrag", 10).hits).toEqual([]);
   });
 
+  it("takes a second prefix after it, among synced notes only", () => {
+    const index = new FileSearchIndex(source);
+    expect(index.search("sync: pfad:objekte", 10).hits.map((hit) => hit.path)).toEqual([
+      "Objekte/Objekt 12.md"
+    ]);
+    expect(index.search("sync: #kontakt", 10).hits.map((hit) => hit.path)).toEqual([
+      "Kontakte/Meier.md"
+    ]);
+    // Still typing the second prefix: the synced notes stay listed.
+    expect(index.search("sync: tag:", 10).hits).toHaveLength(2);
+  });
+
   it("finds nothing when the source cannot say what is synced", () => {
     const index = new FileSearchIndex(fakeSource(VAULT));
     expect(index.search("sync:", 10).hits).toEqual([]);

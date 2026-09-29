@@ -1502,17 +1502,6 @@ export class ExplorerPaneView extends ItemView {
     const controller = this.host?.explorer;
     const results = body.createDiv({ cls: "schreibstube-explorer-results" });
 
-    // A prefix narrows the filter to one dimension, and says which: a list
-    // that silently left out every file matching by name looked like a
-    // search that had stopped working.
-    const { scope, explicit } = parseSearchScope(this.query);
-    if (explicit && scope !== "all") {
-      results.createDiv({
-        cls: "schreibstube-explorer-subheading",
-        text: t().explorer.filterScope[scope]
-      });
-    }
-
     let drawn = 0;
     for (const hit of this.ranked ?? []) {
       const file = this.app.vault.getAbstractFileByPath(hit.path);

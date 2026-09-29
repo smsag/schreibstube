@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Changed
+
+- **No label above results narrowed by a prefix.** A search starting with `tag:`, `text:`, `sync:` or another prefix put a small line such as "Text only" above its results. The prefix is already in the box, so the line said it twice and is gone.
+
+### Fixed
+
+- **`sync:` on its own lists the synced notes.** Typing `sync:` with nothing after it kept the tree on screen, because the search took a prefix without a word for one still being typed; it now lists every synced note, as it was meant to, and bookmarks and pinned tags leave the list. A second prefix after it works too: `sync: pfad:Kunden` lists the synced notes in that folder, `sync: #offen` those with the tag, and while that second prefix is still being typed the synced notes stay listed.
+
 ## 1.62.0 - 2026-09-29
 
 The Explorer's box is now a search, and it says so. **Explorer: search** puts

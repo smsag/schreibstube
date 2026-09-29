@@ -354,9 +354,13 @@ export function parseSearchScope(raw: string): ParsedQuery {
  * look for. The file ranking answers that with nothing and a text match with
  * everything, so treating it as a filter emptied the tree and left every
  * bookmark standing — two answers to one question. It is no filter yet.
+ *
+ * `sync:` is the exception: alone it is a whole question, "which notes are
+ * synced", and answered by listing them.
  */
 export function hasSearchWords(raw: string): boolean {
-  return queryTokens(parseSearchScope(raw).query).length > 0;
+  const { scope, query } = parseSearchScope(raw);
+  return scope === "sync" || queryTokens(query).length > 0;
 }
 
 /** The fields a scope searches, in the order they are weighted. */
@@ -402,7 +406,10 @@ export function rankFiles(
   // folder, which is the one place an empty query answers with files.
   if (scope === "sync") {
     const synced = candidates.filter((candidate) => candidate.synced === true);
-    if (words.length > 0) return rankFiles(query, synced, limit, body);
+    // What follows is a query of its own, prefix and all — `sync: pfad:Kunden`.
+    // A second prefix with no word yet is still being typed, and the synced
+    // notes stay listed until it has one.
+    if (hasSearchWords(query)) return rankFiles(query, synced, limit, body);
 
     const listed = synced
       .map((candidate) => ({ path: candidate.path, score: 1 }))
@@ -500,7 +507,9 @@ export function matchesText(
   allowed: readonly SearchScope[] = ["all", "name"]
 ): boolean {
   const { scope, query } = parseSearchScope(raw);
-  if (query.length === 0) return true;
+  // A bare `tag:` is still being typed and keeps every row. A bare `sync:` is
+  // already a question, and a row that cannot be synced has no place in it.
+  if (query.length === 0) return scope !== "sync" || allowed.includes(scope);
   if (!allowed.includes(scope)) return false;
 
   const words = queryTokens(query);
