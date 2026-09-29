@@ -43,6 +43,7 @@ controllers/         one per feature; they own flow and talk to Obsidian
 services/            pure decisions, no Obsidian imports, heavily tested
 processors/          editor extensions and reading-view post-processors
 print/               the Typst compiler and the worker it runs in
+pdf/                 the PDF reader borrowed from Obsidian, and the preview it draws
 ui/                  panels and modals
 settings/            one module per settings area
 i18n/                German and English catalogues

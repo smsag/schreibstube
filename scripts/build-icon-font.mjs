@@ -116,6 +116,8 @@ try {
 
   subset = readFileSync(target);
 } catch (error) {
+  // `fail` exits, and an exit skips the `finally` below.
+  rmSync(work, { recursive: true, force: true });
   fail(
     `Subsetting failed: ${error instanceof Error ? error.message : String(error)}\n` +
       "This script needs fonttools with woff2 support, and picosvg to outline our own\n" +

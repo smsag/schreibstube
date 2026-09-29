@@ -67,6 +67,11 @@ export function createMapper(map) {
           column: column + 1,
           name: fields.length >= 5 ? map.names[name] : undefined
         });
+      } else {
+        // A one-field segment ends the previous mapping: the code from here
+        // to the next segment came from nowhere in the sources, and a lookup
+        // inside it must not answer with the mapping before it.
+        segments.push({ generatedColumn, source: null });
       }
     }
     lines.push(segments);
@@ -91,7 +96,7 @@ export function createMapper(map) {
           high = mid - 1;
         }
       }
-      return found
+      return found && found.source !== null
         ? { source: found.source, line: found.line, column: found.column, name: found.name }
         : null;
     }

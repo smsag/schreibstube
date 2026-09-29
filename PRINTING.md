@@ -97,7 +97,7 @@ moved — and whose every byte is parsed on every start. It is fetched once per 
 
 The typesetter has no typeface of its own. In a browser there are no system
 fonts for it to find, and a page set without a face is a blank page — which is
-what every template without a `fonts/` folder printed, both examples included,
+what every template without a `fonts/` folder printed, every example included,
 until these were added. So the faces Typst itself defaults to travel with the
 compiler: Libertinus Serif for text and DejaVu Sans Mono for code, regular,
 italic, bold and bold italic, about 2 MB in all. Beside them travel the faces

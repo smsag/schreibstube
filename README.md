@@ -593,7 +593,7 @@ Beside the note, with the note's name, overwritten on reprint, then revealed in 
 
 ### Schreibstube Explorer
 
-A file list of Schreibstube's own, opened from the ribbon icon in the left margin or with **Open Schreibstube Explorer**. It exists because three things cannot be done to Obsidian's explorer from a plugin without fighting it: an icon per item, a mark for sync state, and an order you can lift a file to the top of.
+A file list of Schreibstube's own, opened from the ribbon icon in the left margin or with **Open explorer**. It exists because three things cannot be done to Obsidian's explorer from a plugin without fighting it: an icon per item, a mark for sync state, and an order you can lift a file to the top of.
 
 The pane has four sections, each one collapsible, each remembering whether it was open on that device: **Pinned**, **Bookmarks**, **Updated externally**, and **Files and folders**. Updated externally is drawn only while Document sync is turned on. Pinned is drawn only when something is pinned and opens closed. Closed, it keeps three rows on the sticky strip and its icon carries the number of pins there are, the badge a closed folder carries; open, the strip holds as many as fit in half the pane and the rest continue in the scrolling list. A search opens it for as long as it is set, and so it opens Bookmarks and Updated externally, showing the rows that match; a section with no match stays out of the results.
 

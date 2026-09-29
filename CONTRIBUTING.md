@@ -24,11 +24,12 @@ a module resolution error.
 | `npm run test:coverage`          | The same, against the coverage floor                                                       |
 | `npm run build`                  | Type check, bundle, prove it has no Node built-ins and fits the budget                     |
 | `npm run build:icons`            | Regenerate the bundled icon font, only when the set changes                                |
+| `npm run build:print-examples`   | Regenerate the carried print templates from `examples/print/` after editing one            |
 | `npm run check:obsidian-cascade` | Re-read the button rules out of the installed Obsidian, and fail on drift from the fixture |
 | `npm run check:print`            | Compile every print fixture with the pinned typesetter and fonts; see `PRINTING.md`        |
 
 `check:print` needs the runtime in `dist/`, which `node scripts/fetch-typst-runtime.mjs`
-downloads once (about 30 MB); CI runs both as their own job.
+downloads once (about 35 MB); CI runs both as their own job.
 
 `check:obsidian-cascade` needs a local Obsidian and is not part of CI. Run it
 after an Obsidian update: `src/testing/obsidian-button-rules.ts` is what
@@ -115,7 +116,7 @@ half is worth ten minutes on a phone, once per release:
    load), a long press opens the menu, and "More actions" opens as a drill-down
    rather than doing nothing.
 8. Print a note with the letter example. The first print downloads the
-   typesetter and its fonts, about 30 MB and the one step that needs the
+   typesetter and its fonts, about 35 MB and the one step that needs the
    network; the second should be a second or two with nothing fetched. The
    letter's text must be there: a template without fonts is set in the
    standard fonts, and a blank page means they were not loaded.

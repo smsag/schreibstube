@@ -75,12 +75,13 @@ export const enExtra = {
       `${count} icons from Tabler Icons ${version} (MIT), bundled with the plugin so they work offline and on mobile.`,
 
     aiHeading: "AI models",
-    aiIntro: "Provider, model, and API key shared by every AI command (rename and summarize).",
+    aiIntro:
+      "Provider, model, and API key shared by every AI command: rename, summarize, AI table, tag suggestions and picture descriptions.",
     provider: "LLM provider",
     model: "Model",
     customModel: "Custom model ID",
     customModelDesc: "Optional. Overrides the model above — use for a newer or unlisted model.",
-    customModelPlaceholder: "e.g. claude-3-7-sonnet-latest",
+    customModelPlaceholder: "the provider's model ID",
     apiKey: "API key",
     apiKeyDesc: "Select a secret from Obsidian's secret storage, or create a new one.",
 
@@ -231,9 +232,7 @@ export const enExtra = {
     syncScheduleDesc: (examples: string) =>
       "Five cron fields: minute, hour, day of month, month, day of week. Evaluated in local " +
       `time. A schedule that came due while Obsidian was closed runs once on the next start. ` +
-      `Examples: ${examples}.`,
-    syncNextRun: (when: string) => `Next check: ${when}`,
-    syncNeverRuns: "Valid, but this moment never comes."
+      `Examples: ${examples}.`
   },
 
   ai: {
@@ -288,7 +287,7 @@ export const enExtra = {
         `${count} request(s), one after another. Every description becomes a note.`,
       confirmAction: "Describe",
       progress: (done: number, total: number, name: string) =>
-        `Describing pictures in ${name}: ${done} of ${total}. `,
+        `Describing pictures in ${name}: ${done} of ${total}.`,
       stop: "Stop",
       stopping: "Stopping after this picture…",
       done: (count: number, name: string) => `${count} picture(s) in ${name} described.`,
@@ -419,6 +418,12 @@ export const enExtra = {
     blocksRejected: (count: number) =>
       `${count} section(s) discarded (protected content was altered).`,
     chunksFailed: (count: number) => `${count} request(s) failed.`,
+    allChunksFailed: (detail: string) => `Proofreading failed for every request: ${detail}`,
+    /** What a glossary card says when the glossary entry itself says nothing. */
+    hitSubstitution: (term: string) => `"${term}" is no longer the preferred term.`,
+    hitCapitalization: (spelling: string) => `Spelling per the glossary: "${spelling}".`,
+    hitSuperseded: (term: string) => `"${term}" is superseded — decide for yourself.`,
+    hitAvoid: (term: string) => `"${term}" should be avoided.`,
     cardDiverged: "Edited locally — accepting restores what the source says.",
     cardFirstSync: "First comparison with the source.",
     sourceMatches: "The note matches its source.",
@@ -491,7 +496,23 @@ export const enExtra = {
     termWriteFailed: (reason: string) => `could not update the term note — ${reason}`,
     termOverlap: (word: string, term: string, glossary: string) =>
       `"${word}" is defined in ${glossary} and on the term note ${term}. Keep it in one place.`,
-    termOverlapMore: (count: number) => `…and ${count} more word(s) defined in both places.`
+    termOverlapMore: (count: number) => `…and ${count} more word(s) defined in both places.`,
+    /** What reading a glossary note's term table reports, one line per problem. */
+    glossary: {
+      noTable: "No term table found.",
+      unknownSeverity: (key: string, value: string, fallback: string) =>
+        `Unknown ${key} "${value}", using ${fallback}.`,
+      missingColumns: (names: string) => `Missing required column(s): ${names}.`,
+      skippedRequired: (line: number) => `Skipped line ${line}: concept and term are required.`,
+      skippedStatus: (line: number, status: string) =>
+        `Skipped line ${line}: unknown status "${status}".`,
+      unknownMatch: (line: number, mode: string) =>
+        `Line ${line}: unknown match mode "${mode}", using word.`,
+      skippedDuplicate: (line: number, term: string, concept: string) =>
+        `Skipped line ${line}: "${term}" is already defined in concept "${concept}".`,
+      tooManyPreferred: (concept: string, count: number) =>
+        `Concept "${concept}" has ${count} preferred terms; only the first is used.`
+    }
   },
 
   sync: {
@@ -509,7 +530,10 @@ export const enExtra = {
         'this note\'s check interval could not be read. Write it as "every 2 days", ' +
         '"weekly", or a five-field cron expression.',
       tooSmall: "a check interval has to be at least one minute.",
-      panel: (words: string, cron: string) => `Checked at most ${words} (${cron})`,
+      notWhole: "a check interval has to be a whole number of minutes, hours or days.",
+      /** Without a cron when the phrase has none cron could say honestly. */
+      panel: (words: string, cron: string | null) =>
+        cron === null ? `Checked at most ${words}` : `Checked at most ${words} (${cron})`,
       panelCron: (cron: string) => `Checked on the note's own schedule (${cron})`
     }
   },
@@ -531,6 +555,7 @@ export const enExtra = {
     invalidSender: (key: string, value: string) =>
       `"${key}" must be one address, alone or as "Name <address>": ${value}`,
     needsSubject: (key: string) => `add a "${key}:" line to the note's frontmatter first.`,
+    invalidSubject: (key: string) => `"${key}" must be a single line of text.`,
     sent: "email sent.",
     sentNoCopy: "email sent (no copy filed in Sent).",
     sendUnconfirmed: (detail: string) =>
@@ -540,7 +565,15 @@ export const enExtra = {
       `email sent, but the mail server refused these recipients, who will not receive it: ${addresses}`,
     failSend: "Schreibstube: send failed",
     failSearch: "Schreibstube: mailbox search failed",
-    failMerge: "Schreibstube: merging replies failed"
+    failMerge: "Schreibstube: merging replies failed",
+    /** Stay until dismissed: the mail went, and the note is the only place
+     *  that would have remembered it. */
+    sentButIdUnwritten: (key: string, id: string) =>
+      `email sent, but ${key} could not be written to the note. Add it by hand to enable reply fetching: ${id}`,
+    mergedButIdsUnwritten: (key: string) =>
+      `replies merged, but ${key} could not be updated — running the command again may duplicate them.`,
+    bridgeUnreachable:
+      "the bridge could not be asked whether it takes pictures, so the diagrams go as their source text."
   },
 
   explorer: {
@@ -561,7 +594,10 @@ export const enExtra = {
     clearFilter: "Clear the search",
     taskCount: (done: number, total: number) => `${done} of ${total} tasks done`,
     filterEmpty: "Nothing here answers that.",
-    filterMore: (count: number) => `${count} more match. Narrow the search to see them.`,
+    filterMore: (count: number) =>
+      count === 1
+        ? "1 more match. Narrow the search to see it."
+        : `${count} more matches. Narrow the search to see them.`,
     foundByMeaning: "Found by meaning: the words differ, the subject matches.",
     searchingByMeaning: "Searching by meaning…",
     filterHint:
@@ -572,7 +608,7 @@ export const enExtra = {
     expandAll: "Expand all",
     pinnedMore: "Show all pinned",
     pinnedFewer: "Show three again",
-    folderCount: (count: string) => `${count} files`,
+    folderCount: (count: string) => (count === "1" ? "1 file" : `${count} files`),
 
     related: {
       viewTitle: "Recommended",
@@ -715,7 +751,8 @@ export const enExtra = {
       delete: "Delete",
       more: "More actions",
       moveSelected: (count: number) => `Move ${count} items to…`,
-      deleteSelected: (count: number) => `Delete ${count} items`
+      deleteSelected: (count: number) => `Delete ${count} items`,
+      actionFailed: (detail: string) => `that could not be done — ${detail}`
     },
 
     icons: {
@@ -726,7 +763,7 @@ export const enExtra = {
       groups: {
         documents: "Documents",
         folders: "Folders",
-        property: "Property",
+        property: "Real estate",
         business: "Business",
         status: "Status",
         logos: "Logos",
@@ -867,6 +904,12 @@ export const enExtra = {
     downloading: (label: string, megabytes: number) =>
       `fetching the ${label} (${megabytes} MB, once per device)…`,
     downloadingFont: (face: string) => `fetching the font ${face} (once per device)…`,
+    /** What each part of the typesetter is called in a notice; the runtime
+     *  names them by role, which is not a word for a person. */
+    assetLabel: (label: string) =>
+      ({ compiler: "typesetter", loader: "loader", font: "font" })[label] ?? label,
+    busy: "a print is already running — please wait.",
+
     verifying: "checking what was downloaded…",
     starting: "starting the typesetter…",
     compiling: "typesetting…",
@@ -918,6 +961,7 @@ export const enExtra = {
     replaceMessage: (path: string) =>
       `${path} already exists and was not made by printing. Replace it with the printed note?`,
     replaceSubmit: "Replace",
+    compilerSilent: "the compiler gave no answer",
     limits: {
       fontFiles: (count: number, max: number) => `${count} font files, at most ${max} are used`,
       fontBytes: (megabytes: number, max: number) =>
@@ -928,11 +972,15 @@ export const enExtra = {
       pdfBytes: (megabytes: number, max: number) =>
         `the document came to ${megabytes} MB, at most ${max} MB are written`
     },
+    /** Read off the layout's source before it compiles; the job's file system is what enforces it. */
     layout: {
       tooLarge: (kilobytes: number) => `layout is larger than ${kilobytes} KB`,
-      package: (line: number) => `line ${line}: packages cannot be used, printing works offline`,
-      leavesFolder: (line: number) => `line ${line}: a path may not leave the template folder`,
-      absolute: (line: number) => `line ${line}: a path must be relative to the template folder`
+      package: (line: number) =>
+        `line ${line}: a package needs the network, which a print does not have`,
+      leavesFolder: (line: number) =>
+        `line ${line}: a path outside the template folder names nothing a print can read`,
+      absolute: (line: number) =>
+        `line ${line}: a path from the root names nothing a print can read; it starts at the template folder`
     }
   },
 
@@ -1066,6 +1114,10 @@ export const enExtra = {
         `${count} notes, but the notes to index have changed. Build now to catch up.`,
       failed: (error: string) => `Failed: ${error}`,
       outOfMemory: "The device ran out of memory. Lower the number of notes and build again.",
+      offline:
+        "The model is not downloaded yet and this device is offline. Connect to the " +
+        "internet and build again.",
+      timedOut: "The model did not answer in time. Build now to try again.",
       paused: "Paused after a build did not finish twice in a row. Build now to try again.",
       desktopBuilds: (count: number, budget: number) =>
         `${count} notes ready. A phone does not build the index on its own: the desktop ` +
@@ -1096,8 +1148,10 @@ export const enExtra = {
     truncated: (read: number, total: number) =>
       `read the first ${read} of ${total} pages; later pages were not offered.`,
     inserted: (count: number) =>
-      count === 1 ? "1 passage inserted." : `${count} passages inserted.`
+      count === 1 ? "1 passage inserted." : `${count} passages inserted.`,
+    noteChanged: "another note is in front now, so the passages were not inserted."
   },
+
   sums: {
     heading: "Sums and formulas",
     intro:
@@ -1129,6 +1183,8 @@ export const enExtra = {
     menuItem: (total: string) => `Copy sum: ${total}`,
     noAmounts: "no amounts in the selection.",
     copied: (total: string) => `copied ${total}.`,
+    copyFailed: "the total could not be copied to the clipboard.",
+
     mixed: "mixed currencies",
     unavailable: "–",
     skipped: (count: number) => (count === 1 ? "1 cell skipped" : `${count} cells skipped`),

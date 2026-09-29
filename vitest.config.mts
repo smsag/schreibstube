@@ -39,19 +39,18 @@ export default defineConfig({
         "src/testing/**"
       ],
       reporter: ["text-summary"],
-      // A floor, not a target: it fails the build when a change takes the suite
-      // backwards. Raise it when the number rises, never lower it to pass.
-      //
       // Re-based once, with Vitest 5: its coverage maps the V8 profile through
       // the AST, so it counts arrow functions and short-circuit branches that
       // the old remapping never saw. The suite did not change; the instrument
-      // did, and these are the same margin under the new one (measured 79 / 74
-      // / 78 / 76 on the day).
+      // did. Raised again after the quality review that added tests to every
+      // decision module it touched: measured 92 / 91 / 92 / 88 on the day,
+      // and the floors sit a couple of points under that. The ratchet rule is
+      // in CONTRIBUTING.md.
       thresholds: {
-        lines: 80,
-        functions: 75,
-        statements: 79,
-        branches: 75
+        lines: 90,
+        functions: 88,
+        statements: 89,
+        branches: 85
       }
     }
   }

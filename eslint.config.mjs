@@ -42,15 +42,18 @@ export default tseslint.config(
       "@typescript-eslint/no-floating-promises": "error",
       "@typescript-eslint/no-misused-promises": ["error", { checksVoidReturn: false }],
       "@typescript-eslint/await-thenable": "error",
+      // A value the model or a user wrote reaches a note through `String(...)`;
+      // an object there is "[object Object]" in the text.
+      "@typescript-eslint/no-base-to-string": "error",
       "no-console": ["error", { allow: ["error"] }],
       eqeqeq: ["error", "smart"],
       "prefer-const": "error"
     }
   },
 
-  // The bridge and the repository's scripts: Node, plain modules, no build step.
+  // The bridge, the repository's scripts and its configs: Node, no build step.
   {
-    files: ["bridge/**/*.mjs", "scripts/**/*.mjs"],
+    files: ["bridge/**/*.mjs", "scripts/**/*.mjs", "*.mjs", "*.mts"],
     extends: [js.configs.recommended],
     languageOptions: {
       globals: { ...globals.node },

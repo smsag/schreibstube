@@ -107,11 +107,12 @@ function rules(css) {
       if (sel.startsWith("@")) {
         let d = 1,
           k = j + 1;
-        while (d) {
+        while (d && k < block.length) {
           if (block[k] === "{") d++;
           else if (block[k] === "}") d--;
           k++;
         }
+        if (d) throw new Error(`unbalanced braces in ${sel}: is app.css truncated?`);
         if (/^@(media|supports|layer|container)/.test(sel)) walk(block.slice(j + 1, k - 1), sel);
         i = k;
       } else {

@@ -13,10 +13,13 @@
 import { readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { parse } from "yaml";
 
 const ROOT = "examples/print";
 const OUT = "src/services/print-examples.ts";
+/** Resolved from this file, so the script runs from any directory. */
+const at = (...parts) => join(fileURLToPath(new URL("..", import.meta.url)), ...parts);
 
 /** What a template must have, whatever else it carries. */
 const REQUIRED = ["template.md", "template.typ"];
@@ -24,7 +27,7 @@ const REQUIRED = ["template.md", "template.typ"];
 /** What can be carried as text. A font or a logo is neither, and is skipped. */
 const TEXT = /\.(md|typ|txt|json|ya?ml|csv)$/i;
 
-const folders = readdirSync(ROOT, { withFileTypes: true })
+const folders = readdirSync(at(ROOT), { withFileTypes: true })
   .filter((entry) => entry.isDirectory())
   .map((entry) => entry.name)
   .sort();
@@ -34,7 +37,7 @@ const entries = folders.map((folder) => {
   // grows a third file should arrive by being added, not by somebody
   // remembering to edit this script, and the test that compares the two would
   // not notice a file that was never read in the first place.
-  const present = readdirSync(join(ROOT, folder), { withFileTypes: true })
+  const present = readdirSync(at(ROOT, folder), { withFileTypes: true })
     .filter((entry) => entry.isFile())
     .map((entry) => entry.name)
     .sort();
@@ -54,7 +57,7 @@ const entries = folders.map((folder) => {
   const ordered = [...REQUIRED, ...present.filter((name) => !REQUIRED.includes(name))];
   const files = ordered
     .filter((name) => TEXT.test(name))
-    .map((name) => ({ name, text: readFileSync(join(ROOT, folder, name), "utf8") }));
+    .map((name) => ({ name, text: readFileSync(at(ROOT, folder, name), "utf8") }));
 
   const name = folder.charAt(0).toUpperCase() + folder.slice(1);
 
@@ -119,10 +122,10 @@ ${body}
 ];
 `;
 
-writeFileSync(OUT, module);
+writeFileSync(at(OUT), module);
 
 // Formatted here rather than left for somebody to notice: the check runs
 // prettier over everything, and a generator whose output fails it turns every
 // regeneration into a second step nobody remembers.
-execFileSync("npx", ["prettier", "--write", OUT], { stdio: "ignore" });
+execFileSync("npx", ["prettier", "--write", at(OUT)], { stdio: "ignore", shell: true });
 console.log(`${OUT}: ${entries.length} templates, ${module.length} bytes`);
