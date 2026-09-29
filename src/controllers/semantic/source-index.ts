@@ -82,7 +82,9 @@ export class SourceIndex {
     /** Whether this device embeds a source at all: a phone reads the desktop's file. */
     private readonly embedsHere: boolean,
     /** Whether the person allows the source now: asked again before any write. */
-    private readonly allowed: () => boolean
+    private readonly allowed: () => boolean,
+    /** The work of the index this one replaces: its file is read only after. */
+    private readonly after: Promise<void> = Promise.resolve()
   ) {
     let unsubscribe: unknown;
     try {
@@ -261,6 +263,9 @@ export class SourceIndex {
    * megabytes it had just released.
    */
   private async ready(embed: boolean): Promise<ConversationIndex | null> {
+    // A plugin that registered again replaces an index that may be mid-embed;
+    // it writes when it ends, and this one must read that, not write beside it.
+    await this.after;
     if (this.released) return null;
     const modelId = this.host.modelId();
     if (!this.index || this.indexModel !== modelId) {

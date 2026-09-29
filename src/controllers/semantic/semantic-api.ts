@@ -32,7 +32,7 @@ export interface SemanticApiDeps {
   vaultHit(path: string): { kind: "note" | "image"; id: string; title: string } | null;
   /** Whether a name is in Schreibstube's icon set. */
   isIcon(name: string): boolean;
-  /** Whether an enabled plugin has this id: null when that cannot be told. */
+  /** Whether an installed plugin has this id: null when that cannot be told. */
   pluginPresent(id: string): boolean | null;
 }
 
@@ -118,7 +118,8 @@ export function createSemanticApi(deps: SemanticApiDeps): SchreibstubeSemanticAp
     status(): SearchStatus {
       if (!engine.enabled()) return "off";
       const state = engine.searchState();
-      return state === "none" ? "loading" : state;
+      if (state !== "none") return state;
+      return engine.waitsOnPerson() ? "unavailable" : "loading";
     },
 
     kinds() {
@@ -199,7 +200,7 @@ export function createSemanticApi(deps: SemanticApiDeps): SchreibstubeSemanticAp
       const id = readSourceId(sourceId);
       if (!id) throw new Error(`Schreibstube: "${String(sourceId)}" is not a plugin id`);
       if (deps.pluginPresent(id) === false) {
-        throw new Error(`Schreibstube: no enabled plugin is called "${id}"`);
+        throw new Error(`Schreibstube: no installed plugin is called "${id}"`);
       }
       const read = readSource(source, deps.isIcon);
       if ("problem" in read) throw new Error(`Schreibstube: ${read.problem}`);

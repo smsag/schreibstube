@@ -556,17 +556,19 @@ export function isCommunityPluginEnabled(app: App, id: string): boolean {
 }
 
 /**
- * Whether a community plugin with this id is enabled: true or false when the
+ * Whether a community plugin with this id is installed: true or false when the
  * registry can be read, null when it cannot. A plugin that registers a source
- * names itself, and a name no enabled plugin has is refused; an Obsidian whose
- * registry has another shape says nothing either way, and the person's
- * consent is what stands.
+ * names itself, and a name no installed plugin has is refused. Installed, not
+ * enabled: the manifests are read before any plugin loads, while a plugin
+ * switched on mid-session may run its `onload` before it joins the enabled
+ * set, and would be refused for registering there. A name cannot be proved
+ * either way; the person's consent is what stands.
  */
-export function communityPluginPresence(app: App, id: string): boolean | null {
+export function communityPluginInstalled(app: App, id: string): boolean | null {
   try {
-    const enabled = (app as unknown as { plugins?: { enabledPlugins?: unknown } }).plugins
-      ?.enabledPlugins;
-    return enabled instanceof Set ? enabled.has(id) : null;
+    const manifests = (app as unknown as { plugins?: { manifests?: unknown } }).plugins?.manifests;
+    if (typeof manifests !== "object" || manifests === null) return null;
+    return Object.prototype.hasOwnProperty.call(manifests, id);
   } catch {
     return null;
   }

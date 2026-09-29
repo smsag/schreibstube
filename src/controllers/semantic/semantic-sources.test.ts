@@ -3,7 +3,7 @@ import type { Plugin } from "obsidian";
 import { SemanticSources } from "./semantic-sources";
 import type { EmbeddingProvider } from "../../services/semantic/embedding-provider";
 import { NULL_LOGGER } from "../../services/logger";
-import { serializeIndex } from "../../services/semantic/embedding-index";
+import { deserializeIndex, serializeIndex } from "../../services/semantic/embedding-index";
 import {
   MAX_SOURCES,
   itemKey,
@@ -14,8 +14,11 @@ import {
 class FakeProvider implements EmbeddingProvider {
   readonly dim = 4;
   embedded: string[] = [];
+  /** While set, a batch with a text containing "garten" waits for it. */
+  gate: Promise<void> | null = null;
   async ready(): Promise<void> {}
   async embed(texts: string[]): Promise<Float32Array[]> {
+    if (this.gate && texts.some((t) => t.includes("garten"))) await this.gate;
     this.embedded.push(...texts);
     return texts.map((t) => Float32Array.from(t.includes("küche") ? [1, 0, 0, 0] : [0, 1, 0, 0]));
   }
@@ -359,6 +362,24 @@ describe("a source that stops or is refused", () => {
     await searching;
     expect(s.provider.embedded.filter((t) => t !== "küche")).toEqual([]);
     expect(s.disk.has(FILE("pythia"))).toBe(false);
+  });
+
+  it("registered again mid-embed, writes only after the old index has", async () => {
+    const s = setup();
+    let open: () => void = () => undefined;
+    s.provider.gate = new Promise<void>((resolve) => (open = resolve));
+    s.register();
+    const first = s.sources.search("küche", QUERY);
+    await vi.waitFor(() => expect(s.sources.isSyncing()).toBe(true));
+    s.register("pythia", s.makeSource(one("c3", "küche neu")));
+    const second = s.sources.search("küche", QUERY);
+    await new Promise((r) => setTimeout(r, 10));
+    expect(s.provider.embedded).not.toContain("küche neu");
+    open();
+    await first;
+    expect(ids(await second)).toEqual([key("c3")]);
+    const stored = deserializeIndex(s.disk.get(FILE("pythia"))!);
+    expect(stored.items.map((item) => item.id)).toEqual(["c3"]);
   });
 
   it("embeds nothing when refused while its list was on the way", async () => {

@@ -93,7 +93,13 @@ export interface SourceRegistration {
   consent(): SourceConsent;
 }
 
-export type SearchStatus = "off" | "loading" | "partial" | "ready";
+/**
+ * How much a search can answer. "loading": the index is being read or built,
+ * or will be on the first search. "unavailable": it cannot answer until the
+ * person acts — the build failed, automatic builds are paused, or a phone
+ * waits for the desktop's index — so a caller stops waiting.
+ */
+export type SearchStatus = "off" | "loading" | "unavailable" | "partial" | "ready";
 
 export type RelatedRef = { path: string } | { source: string; id: string };
 
