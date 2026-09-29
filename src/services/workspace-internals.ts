@@ -1,5 +1,6 @@
 import type { App, Editor, Menu, MenuItem, TFile, Workspace, WorkspaceLeaf } from "obsidian";
 import type { Logger } from "./logger";
+import type { PythiaPrintApi } from "./pythia-print";
 
 /**
  * This module is the single place the plugin touches undocumented Obsidian
@@ -571,6 +572,27 @@ export function pluginRunsOwnModel(app: App, id: string): boolean {
     return plugin?.ownsEmbeddingModel !== false;
   } catch {
     return true;
+  }
+}
+
+/**
+ * Pythia's print API, when Pythia is enabled and publishes version 1 with the
+ * three calls printing uses; null otherwise. Read through the undocumented
+ * plugin registry, and anything unexpected reads as "not there": a print
+ * without footnotes is the fallback, never a print that fails.
+ */
+export function readPythiaPrintApi(app: App): PythiaPrintApi | null {
+  if (!isCommunityPluginEnabled(app, "pythia")) return null;
+  try {
+    const registry = (app as unknown as { plugins?: { getPlugin?: (id: string) => unknown } })
+      .plugins;
+    const plugin = registry?.getPlugin?.("pythia") as { api?: unknown } | null | undefined;
+    const api = plugin?.api as Partial<Record<keyof PythiaPrintApi, unknown>> | null | undefined;
+    if (!api || api.version !== 1) return null;
+    const calls = ["inspectForExport", "refreshSummaries", "withExportFootnotes"] as const;
+    return calls.every((name) => typeof api[name] === "function") ? (api as PythiaPrintApi) : null;
+  } catch {
+    return null;
   }
 }
 

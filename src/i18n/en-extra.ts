@@ -830,6 +830,19 @@ export const enExtra = {
       textFace: "Text font",
       textFaceMono: "JetBrains Mono",
       textFaceSans: "Fira Sans",
+      pythiaFootnotes: "Pythia summaries as footnotes",
+      pythiaLinks: (links: number) =>
+        links === 1
+          ? "One passage links to a Pythia conversation."
+          : `${links} passages link to Pythia conversations.`,
+      pythiaUpdate: (outdated: number, missing: number) =>
+        `Update summaries (${outdated} outdated, ${missing} missing)`,
+      pythiaUpdating: (done: number, total: number) => `Updating summaries: ${done} of ${total}…`,
+      pythiaUpdated: (refreshed: number, failed: number) =>
+        failed === 0
+          ? `${refreshed} summaries updated.`
+          : `${refreshed} summaries updated; ${failed} could not be written — Pythia's notices say why.`,
+      pythiaUpdateFailed: (detail: string) => `The summaries were not updated — ${detail}`,
       frontmatter: "Print properties",
       slideshows: "Slideshows",
       slideshow: { layout: "As in the note", stacked: "Every picture, one under another" },
@@ -843,6 +856,9 @@ export const enExtra = {
           : `the first ${shown} of ${total} pages`,
       failed: (detail: string) => `No preview — ${detail}`
     },
+    pythiaUnavailable:
+      "Pythia did not hand over its footnotes, so the note is printed without them.",
+    pythiaTimeout: (seconds: number) => `Pythia did not finish within ${seconds} seconds.`,
     unknownTemplate: (name: string) =>
       `this note asks for the template "${name}", and no folder in this vault is one.`,
     noLayout: (name: string) => `${name} has no template.typ, so there is nothing to print with.`,

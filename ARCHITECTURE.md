@@ -167,6 +167,13 @@ Recommended counts them as a link between the conversation and each note. They
 are not embedded, so adding them changes no content hash and re-indexes
 nothing; at most 50 per conversation are read.
 
+The other direction is printing. Pythia publishes an API of its own
+(`app.plugins.getPlugin("pythia").api`, version 1) that hands a print a copy of
+a note with each linked conversation's summary as a footnote, and refreshes
+those summaries when asked. `readPythiaPrintApi` in
+`services/workspace-internals.ts` finds it; `services/pythia-print.ts` checks
+every answer before the print uses it. See PRINTING.md, "Pythia's footnotes".
+
 ## Why the file pane has its own state file
 
 Icons and the two marks are keyed by vault path, and they live in `explorer.json` beside

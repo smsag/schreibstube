@@ -56,7 +56,17 @@ import type { FreezeEntry } from "../services/table-formulas";
 import { activeLocale } from "../i18n";
 import { describeDiagnostics, RUNTIME_MEGABYTES } from "../services/typst-runtime";
 import { PrintExampleModal } from "../ui/print-modals";
-import { PrintDialog, type PreparedPrint } from "../ui/print-dialog";
+import { PrintDialog, type PreparedPrint, type PythiaPrintHost } from "../ui/print-dialog";
+import { readPythiaPrintApi } from "../services/workspace-internals";
+import {
+  checkInspection,
+  checkRefresh,
+  offersPythia,
+  printedSource,
+  PYTHIA_REFRESH_DEADLINE_MS,
+  type PythiaInspection
+} from "../services/pythia-print";
+import { withTimeout } from "../utils/with-timeout";
 import {
   applyOptions,
   frontmatterRows,
@@ -189,9 +199,11 @@ export class PrintCommands {
     );
     if (!session) return;
 
+    const pythia = this.inspectPythia(session);
     new PrintDialog(this.app, {
       templates,
-      initial: initialOptions(preselected, this.frontmatterOf(file)),
+      initial: initialOptions(preselected, this.frontmatterOf(file), pythia?.links ?? 0),
+      ...(offersPythia(pythia) ? { pythia: this.pythiaHost(session, pythia) } : {}),
       hasSlideshows: session.slideshows > 0,
       fixesMargin: async (template) =>
         layoutFixesMargin((await this.templateFiles(session, template)).layout),
@@ -224,9 +236,12 @@ export class PrintCommands {
       return;
     }
 
-    const options = initialOptions(choice.template, this.frontmatterOf(file));
     await this.withNotice(t().print.working(choice.template.name), async (progress) => {
       const session = await this.openSession(file, progress);
+      // Asked without a dialog, the answer is the dialog's default: Pythia's
+      // footnotes whenever the note links to Pythia.
+      const links = this.inspectPythia(session)?.links ?? 0;
+      const options = initialOptions(choice.template, this.frontmatterOf(file), links);
       await this.printWith(session, options, null, progress);
     });
   }
@@ -377,6 +392,61 @@ export class PrintCommands {
   }
 
   /**
+   * What Pythia says about the note: how many passages link to its
+   * conversations, and how many of their summaries a refresh could write.
+   * Null when Pythia is not there or answers in a shape this does not know —
+   * the dialog then looks as it always has. Naming the note lets Pythia keep
+   * its own record of which notes link where.
+   */
+  private inspectPythia(session: PrintSession): PythiaInspection | null {
+    const api = readPythiaPrintApi(this.app);
+    if (!api) return null;
+    try {
+      const inspection = checkInspection(api.inspectForExport(session.source, session.file.path));
+      if (!inspection) this.logger.warn("print: Pythia answered in a shape this does not know");
+      return inspection;
+    } catch (error) {
+      this.logger.warn("print: Pythia could not read the note", error);
+      return null;
+    }
+  }
+
+  /**
+   * The dialog's side of Pythia. The refresh is the one call here that asks a
+   * model and so costs money and time: it runs only when the button is
+   * pressed, stops when the dialog closes, and gives up after a deadline,
+   * telling Pythia to stop starting new work.
+   */
+  private pythiaHost(session: PrintSession, inspection: PythiaInspection): PythiaPrintHost {
+    return {
+      inspection,
+      inspect: () => this.inspectPythia(session),
+      refresh: async (signal, progress) => {
+        const api = readPythiaPrintApi(this.app);
+        if (!api) throw new Error(t().print.pythiaUnavailable);
+        const stop = new AbortController();
+        const onAbort = (): void => stop.abort();
+        signal.addEventListener("abort", onAbort, { once: true });
+        try {
+          const raw = await withTimeout(
+            api.refreshSummaries(session.source, { signal: stop.signal, onProgress: progress }),
+            PYTHIA_REFRESH_DEADLINE_MS,
+            t().print.pythiaTimeout
+          );
+          const result = checkRefresh(raw);
+          if (!result) throw new Error(t().print.pythiaUnavailable);
+          return result;
+        } catch (error) {
+          stop.abort();
+          throw error;
+        } finally {
+          signal.removeEventListener("abort", onAbort);
+        }
+      }
+    };
+  }
+
+  /**
    * Everything about the note that does not depend on how it is printed:
    * its text, and its diagrams, drawn and captured once.
    */
@@ -464,8 +534,15 @@ export class PrintCommands {
   ): Promise<{ job: PrintJob; warnings: string[] }> {
     const messages = t().print;
     const template = applyOptions(options);
-    const { file, source } = session;
+    const { file } = session;
     const files = await this.templateFiles(session, template);
+    // Pythia's copy of the note, with each linked passage's summary as a
+    // footnote; the note itself is never changed. Without a usable copy the
+    // note prints as it is, and the warnings say the footnotes are missing.
+    const printed = printedSource(session.source, options.pythiaFootnotes, () =>
+      readPythiaPrintApi(this.app)?.withExportFootnotes(session.source)
+    );
+    const source = printed.text;
     const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter;
 
     // The converter is synchronous, so an embedded picture is named here and
@@ -498,6 +575,7 @@ export class PrintCommands {
 
     let conversion = pass(() => true);
     const warnings = [...session.captureWarnings, ...conversion.warnings];
+    if (printed.unavailable) warnings.push(messages.pythiaUnavailable);
     const assets = new Map(session.diagramAssets);
     for (const [path, { target, edge }] of wanted) {
       const bytes = await this.cachedPicture(session, target, template, edge);
@@ -512,7 +590,7 @@ export class PrintCommands {
     }
 
     const data = resolvePrintData(template, frontmatter, {
-      title: noteTitle(source, file.basename),
+      title: noteTitle(session.source, file.basename),
       noteName: file.basename,
       now: new Date(),
       locale: activeLocale(),

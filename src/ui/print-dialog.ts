@@ -8,7 +8,14 @@
  * about what a choice means live in `services/print-options.ts`; this is the
  * wiring between them, the typesetter and the page.
  */
-import { Modal, Setting, type App, type DropdownComponent, type ToggleComponent } from "obsidian";
+import {
+  Modal,
+  Notice,
+  Setting,
+  type App,
+  type DropdownComponent,
+  type ToggleComponent
+} from "obsidian";
 import { t } from "../i18n";
 import { drawPdfPages, MAX_PREVIEW_PAGES } from "../pdf/pdf-preview";
 import {
@@ -19,6 +26,22 @@ import {
 } from "../services/print-options";
 import { SLIDESHOW_PRINT_MODES, type SlideshowPrintMode } from "../services/print-slideshow";
 import type { PrintTemplate } from "../services/print-template";
+import type { PythiaInspection, PythiaRefresh } from "../services/pythia-print";
+
+/**
+ * Pythia, as the dialog sees it: what the note links to, and the one action
+ * that costs something — writing the summaries again. Absent when Pythia is
+ * not there or the note links to nothing of Pythia's.
+ */
+export interface PythiaPrintHost {
+  inspection: PythiaInspection;
+  /** The counts again, after a refresh changed them; null when Pythia stopped answering. */
+  inspect: () => PythiaInspection | null;
+  refresh: (
+    signal: AbortSignal,
+    progress: (done: number, total: number) => void
+  ) => Promise<PythiaRefresh>;
+}
 
 /** A document set for the dialog, with what it could not carry over. */
 export interface PreparedPrint {
@@ -36,6 +59,8 @@ export interface PrintDialogHost {
   /** Whether the template's layout reads the text-face choice, so it is offered. */
   readsMonospace: (template: PrintTemplate) => Promise<boolean>;
   preview: (options: PrintOptions, progress: (message: string) => void) => Promise<PreparedPrint>;
+  /** Pythia's footnotes, when the note links to Pythia. */
+  pythia?: PythiaPrintHost;
   /** `ready` is the preview's document when it was set with exactly these options. */
   print: (options: PrintOptions, ready: PreparedPrint | null) => Promise<void>;
 }
@@ -55,6 +80,9 @@ export class PrintDialog extends Modal {
   private marginDropdown: DropdownComponent | null = null;
   private breakToggle: ToggleComponent | null = null;
   private faceSetting: Setting | null = null;
+  private pythiaSetting: Setting | null = null;
+  /** Ends a refresh still running when the dialog closes: nobody is waiting for it. */
+  private readonly refreshing = new AbortController();
   private statusEl!: HTMLElement;
   private pagesEl!: HTMLElement;
   private warningsEl!: HTMLElement;
@@ -104,6 +132,7 @@ export class PrintDialog extends Modal {
 
   override onClose(): void {
     this.closed = true;
+    this.refreshing.abort();
     window.clearTimeout(this.timer);
     this.contentEl.empty();
   }
@@ -166,6 +195,8 @@ export class PrintDialog extends Modal {
       });
     });
 
+    this.renderPythia(el);
+
     if (!this.host.hasSlideshows) return;
     new Setting(el).setName(words.slideshows).addDropdown((dropdown) => {
       for (const mode of SLIDESHOW_PRINT_MODES) dropdown.addOption(mode, words.slideshow[mode]);
@@ -174,6 +205,70 @@ export class PrintDialog extends Modal {
         this.changed();
       });
     });
+  }
+
+  /**
+   * Pythia's two controls: the footnotes, a choice like any other, and the
+   * refresh, which is a button rather than a choice. It asks a model for new
+   * summaries, which costs money and takes seconds, so it runs once, when it
+   * is pressed — a toggle would run it again with every preview, or print
+   * something other than what the preview showed.
+   */
+  private renderPythia(el: HTMLElement): void {
+    const pythia = this.host.pythia;
+    if (!pythia) return;
+    const words = t().print.dialog;
+    new Setting(el)
+      .setName(words.pythiaFootnotes)
+      .setDesc(words.pythiaLinks(pythia.inspection.links))
+      .addToggle((toggle) => {
+        toggle.setValue(this.options.pythiaFootnotes).onChange((value) => {
+          this.options = { ...this.options, pythiaFootnotes: value };
+          this.changed();
+        });
+      });
+    this.pythiaSetting = new Setting(el);
+    this.showPythiaCounts(pythia.inspection);
+  }
+
+  /** The refresh button for these counts, or nothing when there is nothing to write. */
+  private showPythiaCounts(counts: PythiaInspection): void {
+    const setting = this.pythiaSetting;
+    const pythia = this.host.pythia;
+    if (!setting || !pythia) return;
+    setting.controlEl.empty();
+    const todo = counts.outdated + counts.missing;
+    setting.settingEl.toggle(todo > 0);
+    if (todo === 0) return;
+    setting.addButton((button) =>
+      button
+        .setButtonText(t().print.dialog.pythiaUpdate(counts.outdated, counts.missing))
+        .onClick(() => {
+          button.setDisabled(true);
+          void this.refreshPythia(pythia);
+        })
+    );
+  }
+
+  private async refreshPythia(pythia: PythiaPrintHost): Promise<void> {
+    const words = t().print.dialog;
+    const signal = this.refreshing.signal;
+    try {
+      const result = await pythia.refresh(signal, (done, total) => {
+        if (!this.closed) this.statusEl.setText(words.pythiaUpdating(done, total));
+      });
+      if (this.closed) return;
+      new Notice(words.pythiaUpdated(result.refreshed, result.failed));
+    } catch (error) {
+      if (this.closed) return;
+      new Notice(words.pythiaUpdateFailed(error instanceof Error ? error.message : String(error)));
+    }
+    // What Pythia holds now, whatever the refresh managed: the button follows
+    // it, and the preview is set again with the new summaries.
+    const counts = pythia.inspect();
+    if (counts) this.showPythiaCounts(counts);
+    else this.pythiaSetting?.settingEl.toggle(false);
+    this.changed();
   }
 
   /**
