@@ -188,15 +188,15 @@ describe("EmbeddingResidency — the model on a phone (Pythia ADR-202)", () => {
     expect(provider.loaded).toBe(false);
   });
 
-  it("preloads it again when Obsidian comes back", async () => {
+  it("does not load it again merely because Obsidian came back", async () => {
     const { inner, provider, residency } = setup();
     await provider.ready();
     residency.onVisibility(true);
     residency.onVisibility(false);
     await Promise.resolve();
     await Promise.resolve();
-    expect(inner.loads).toBe(2);
-    expect(provider.loaded).toBe(true);
+    expect(inner.loads).toBe(1);
+    expect(provider.loaded).toBe(false);
   });
 
   it("never releases under a running build or an in-flight embed", async () => {
@@ -249,21 +249,6 @@ describe("EmbeddingResidency — the model on a phone (Pythia ADR-202)", () => {
     advance(20);
     residency.tick(false);
     expect(inner.unloads).toBe(0);
-  });
-
-  it("the chat input preloads only a model this rule released — never a first download", async () => {
-    const fresh = setup();
-    fresh.residency.prewarm();
-    expect(fresh.inner.loads).toBe(0);
-
-    const { inner, provider, residency, advance } = setup();
-    await provider.ready();
-    advance(IDLE_RELEASE_MS);
-    residency.tick(false);
-    residency.prewarm();
-    await Promise.resolve();
-    await Promise.resolve();
-    expect(inner.loads).toBe(2);
   });
 
   it("arms the idle timer on a phone only — a desktop's tick has nothing to do", () => {
