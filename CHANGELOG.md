@@ -16,6 +16,7 @@ an older Pythia is no longer found.
 
 ### Changed
 
+- **The printing runtime is the "Typesetter" in German.** "Satzteil" is the grammar term for a part of a sentence, which made settings and notices about printing read as if they were about grammar. The download notice now names each part with its own article ("lade den Lader …") instead of the typesetter twice.
 - **The API for other plugins is version 2.** Several sources at once, each with its own index, instead of one conversation source for Pythia alone; items named `<source>:<id>`; a source declares what its items are, how they are called and which icon they wear; `status()` says whether a search can answer fully, partly or not yet, instead of only whether it is switched on; `related` also takes one of a source's items and answers notes as well; a source with `changes(cursor)` is asked only for what changed since the cursor it gave last, with no reliance on clocks; `kinds()` names each kind in the singular and the plural. `ARCHITECTURE.md` has the contract.
 - **The Explorer shows up to ten items from each source**, instead of ten in all, so one source whose titles match cannot push another off the list.
 - **Sources take less memory.** Only an item's title, date and attached notes are kept once it is embedded, and a phone never holds a source's texts at all.
