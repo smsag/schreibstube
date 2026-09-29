@@ -59,6 +59,17 @@ describe("RecommendedPanel", () => {
     expect(titles(root)).toEqual(["linked"]);
   });
 
+  it("keeps the graph's answer when meaning fails, and tells the host why", async () => {
+    const { root, panel, host } = setup(async () => {
+      throw new Error("model gone");
+    });
+    host.warn = vi.fn();
+    panel.show("a.md");
+    await settle();
+    expect(titles(root)).toEqual(["linked"]);
+    expect(host.warn).toHaveBeenCalledWith(expect.any(String), expect.any(Error));
+  });
+
   it("draws meaning's answer as one list, in the order it was ranked, not by kind", async () => {
     const { root, panel, host } = setup(async () => ({
       items: [

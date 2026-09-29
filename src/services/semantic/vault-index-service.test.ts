@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { VaultIndexService, type IndexableNote } from "./vault-index-service";
+import { MAX_SOURCE_CHUNKS, quantize } from "./vector-math";
 import { deserializeIndex, serializeIndex } from "./embedding-index";
 import type { IndexStore } from "./index-store";
 import type { EmbeddingProvider } from "./embedding-provider";
@@ -559,5 +560,50 @@ describe("VaultIndexService — related from stored vectors", () => {
     await svc.sync([alpha]);
     expect(svc.vectorsOf("Notes/none.md")).toBeNull();
     expect(await svc.rankByVectors([], { minScore: 0, limit: 5 })).toEqual([]);
+  });
+
+  it("ranks a long note by its first passages, and yields to the UI meanwhile", async () => {
+    const svc = new VaultIndexService(new FakeProvider(), new MemStore());
+    await svc.sync(
+      Array.from({ length: 300 }, (_, i) => note(`n${i}.md`, i === 0 ? "alpha" : "gamma"))
+    );
+    // The passage that would match comes after the cap: it must not count.
+    const source = Array.from({ length: MAX_SOURCE_CHUNKS + 1 }, (_, i) =>
+      quantize(Float32Array.from(i === MAX_SOURCE_CHUNKS ? [1, 0, 0, 0] : [0, 0, 1, 0]))
+    );
+    let yielded = 0;
+    const timers = vi.spyOn(globalThis, "setTimeout");
+    timers.mockImplementation(((fn: () => void) => {
+      yielded++;
+      fn();
+      return 0;
+    }) as never);
+    try {
+      const found = await svc.rankByVectors(source, { minScore: 0.5, limit: 5 });
+      expect(found.map((hit) => hit.id)).not.toContain("n0.md");
+      expect(found).toHaveLength(5);
+      // 300 notes at 2000 / 8 = 250 per yield: the scan yielded once.
+      expect(yielded).toBe(1);
+    } finally {
+      timers.mockRestore();
+    }
+  });
+});
+
+describe("VaultIndexService — one vector for both indexes", () => {
+  it("hands out the query's vector, from memory the second time", async () => {
+    const p = new FakeProvider();
+    const svc = new VaultIndexService(p, new MemStore());
+    expect(await svc.queryVector("alpha")).toBeNull(); // not queryable yet
+    await svc.sync([alpha, beta]);
+    p.embedded = [];
+    const vec = await svc.queryVector("alpha topics");
+    expect(vec).not.toBeNull();
+    expect(p.embedded).toEqual(["alpha topics"]);
+    expect(svc.hasQueryVector(" alpha topics ")).toBe(true);
+    expect(await svc.queryVector(" alpha topics ")).toBe(vec);
+    expect(await svc.query("alpha topics", { minScore: 0.5 })).toHaveLength(1);
+    expect(p.embedded).toEqual(["alpha topics"]); // once, for all three
+    expect((await svc.rankByQuery(vec!, { minScore: 0.5 })).hits[0]?.id).toBe(alpha.path);
   });
 });

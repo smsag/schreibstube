@@ -6,18 +6,6 @@
 // next to a loaded model reloaded (Pythia ADR-220), and why each edit was a 19 MB sync
 // event on every device.
 //
-// The journal is the rows that changed since the index file (the "base") was
-// written: re-embedded or added rows, and the ids dropped. It uses the index's own
-// format, and is tied to its base by the base's `writtenAt`. An edit rewrites the
-// journal (kilobytes). The base is rewritten only by a full sync, a takeover, or
-// once the journal has grown past `shouldCompact`, which folds it back in.
-//
-// A journal whose base is not the one on disk is ignored. That happens after a
-// compaction (the old journal lingers until the next edit overwrites it) or when a
-// sync delivers the two files out of order. Its notes then answer from the base's
-// older vectors until the content hash re-embeds them at the next sync or edit: a
-// stale answer, never a wrong row.
-//
 // Rewritten whole rather than appended: `appendBinary` needs Obsidian 1.12.3, the
 // manifest promises 1.4.0, and a file this small costs nothing to rewrite.
 

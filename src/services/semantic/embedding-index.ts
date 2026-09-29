@@ -55,20 +55,16 @@ export function diffIndex(
 // meta = { complete, scope, rows: [{ id, h: contentHash, c: chunkCount }, …] };
 // the blob is every item's chunks concatenated in row order.
 //
-// v2 (Pythia ADR-184) added `complete` and `scope`, because an index has to record two
-// things about ITSELF that outlive the session that wrote it:
+// v2 (Pythia ADR-184) added two things an index has to record about ITSELF that
+// outlive the session that wrote it:
 //
-//   • `complete` — whether the build that wrote this file finished. Pythia ADR-182 made
-//     a build persist every 25 embeds so an interruption is resumable; that also
-//     means "the file has rows in it" stopped meaning "the vault is indexed".
-//     Anything reading size() to decide whether to build was, from that moment,
-//     able to call a fifth of a vault done.
+//   • `complete` — whether the build that wrote this file finished. A build
+//     persists every 25 embeds so an interruption is resumable, so "the file
+//     has rows in it" does not mean "the vault is indexed".
 //   • `scope` — the folders and cap the rows were selected under. Narrowing the
 //     scope has to drop what is now out of it, and nothing else can tell.
 //
-// A v1 file is refused, which the caller already treats as "no index" and
-// rebuilds. That migration is free this release: Pythia ADR-182's chunk-size change
-// invalidates every content hash anyway.
+// A v1 file is refused, which the caller treats as "no index" and rebuilds.
 //
 // `keeper` (Pythia ADR-221) is optional and needs no version: which kind of device last
 // wrote the file. A phone does not rewrite an index a desktop keeps. A file
@@ -230,9 +226,7 @@ export function deserializeIndex(buf: ArrayBuffer): {
   if (!Array.isArray(meta) || meta.length < count)
     throw new Error("deserializeIndex: meta/count mismatch");
   // Every row checked before a vector is read: a count that is negative or
-  // fractional passed the length check below and then read short vectors,
-  // which made every later query throw; a duplicate id was updated in one
-  // place and removed in all.
+  // fractional passed the length check below and then read short vectors.
   const ids = new Set<string>();
   for (let i = 0; i < count; i++) {
     const m = meta[i] as unknown as { id?: unknown; h?: unknown; c?: unknown } | undefined;
@@ -271,9 +265,11 @@ export function deserializeIndex(buf: ArrayBuffer): {
     const m = meta[i];
     if (!m) throw new Error("deserializeIndex: meta/count mismatch");
     const chunks: Int8Array[] = [];
+    // Views into the file's buffer, not copies: a slice per vector doubled the
+    // index's memory for the length of every read, and `serializeIndex` takes
+    // a view as it takes any typed array.
     for (let c = 0; c < m.c; c++) {
-      const start = blobStart + row * dim;
-      chunks.push(new Int8Array(buf.slice(start, start + dim)));
+      chunks.push(new Int8Array(buf, blobStart + row * dim, dim));
       row++;
     }
     items.push({ id: m.id, contentHash: m.h, chunks });

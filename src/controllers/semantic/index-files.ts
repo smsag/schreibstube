@@ -13,7 +13,7 @@ export class SemanticIndexFiles implements IndexStore {
   constructor(
     private readonly plugin: Plugin,
     private readonly modelId: EmbeddingModelId,
-    private readonly suffix = ".bin",
+    suffix = ".bin",
     /** Which index: the vault's notes, or the conversations a source hands over. */
     private readonly prefix: "semantic-notes" | "semantic-conversations" = "semantic-notes"
   ) {
@@ -30,11 +30,17 @@ export class SemanticIndexFiles implements IndexStore {
     return adapter.readBinary(this.path);
   }
 
+  /** Written beside the file and renamed over it, so a write cut short — the
+   *  app ended mid-build, a full disk — leaves the last whole index in place
+   *  rather than a truncated one that reads as "no index" and rebuilds. */
   async write(buf: ArrayBuffer): Promise<void> {
     const adapter = this.plugin.app.vault.adapter;
     const dir = pluginDir(this.plugin);
     if (!(await adapter.exists(dir))) await adapter.mkdir(dir);
-    await adapter.writeBinary(this.path, buf);
+    const tmp = `${this.path}.tmp`;
+    if (await adapter.exists(tmp)) await adapter.remove(tmp);
+    await adapter.writeBinary(tmp, buf);
+    await adapter.rename(tmp, this.path);
   }
 
   journal(): SemanticIndexFiles {

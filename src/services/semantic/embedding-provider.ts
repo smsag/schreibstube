@@ -1,6 +1,5 @@
-// The seam between the pure similarity/index logic and the actual embedding
-// runtime. M1 defines the interface and tests everything against fakes; the real
-// transformers.js implementation (M2) plugs in here without touching the callers.
+// The seam between the index logic and the embedding runtime: the services
+// are tested against fakes of this, and the host's backends implement it.
 
 /** How one embed request is to be treated. */
 export interface EmbedOptions {
@@ -24,16 +23,6 @@ export interface EmbeddingProvider {
    *  on some desktop builds). Meaningful only after `ready()` resolves; callers that
    *  can't await treat `undefined`/absent as "not off-thread" and throttle. */
   isOffThread?(): boolean;
-  /** Which backend actually started, once `ready()` has resolved (Pythia ADR-182).
-   *
-   *  `isOffThread()` answers yes/no; this answers WHICH, because "no" has two very
-   *  different causes (blob refused vs. the Worker runtime rejecting `wasm`) and a
-   *  silent fallback is what hid Pythia ADR-182's bug for three ADRs. `null` before the
-   *  chain has resolved. */
-  backend?(): EmbeddingBackend | null;
-  /** Why the backends ahead of the active one did not start (Pythia ADR-185) — the
-   *  reason, not just the fact. Empty when the first choice won. */
-  backendFailures?(): string[];
   /** False once a backend that was ready has failed; absent means "assume alive". */
   isAlive?(): boolean;
   /** Whether the last load failed and no load has started since. A manual

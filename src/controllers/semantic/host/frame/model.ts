@@ -60,7 +60,6 @@ type CreatePipeline = (
 ) => Promise<FeaturePipeline>;
 const createPipeline = pipeline as unknown as CreatePipeline;
 
-export type Device = "wasm" | "webgpu";
 export type ModelLoadProgress = { progress: number; file: string; loaded: number; total: number };
 export type ModelLoadProgressCallback = (p: ModelLoadProgress) => void;
 
@@ -80,7 +79,6 @@ async function isModelCached(repoId: string): Promise<boolean> {
 
 export class EmbeddingModel {
   #pipeline: FeaturePipeline | null = null;
-  #device: Device = "wasm";
   /** Inference calls, one at a time; a search goes ahead of waiting batches. */
   readonly #queue = new TaskQueue();
   readonly config: EmbeddingModelConfig;
@@ -92,12 +90,6 @@ export class EmbeddingModel {
   }
 
   async #initialize(onProgress?: ModelLoadProgressCallback): Promise<void> {
-    // Always use the WASM backend. WebGPU compute is unstable in Obsidian's
-    // Electron renderer — requesting a WebGPU device could hard-crash the GPU
-    // process and reload the whole app. WASM is portable and stable (a bit
-    // slower). Revisit WebGPU behind an opt-in once it's verified safe here.
-    this.#device = "wasm";
-
     if (!navigator.onLine && !(await isModelCached(this.config.repoId))) {
       throw new Error(
         `The ${this.config.label} model has not been downloaded yet and you appear to be offline. ` +
@@ -105,6 +97,10 @@ export class EmbeddingModel {
       );
     }
 
+    // Always the WASM backend. WebGPU compute is unstable in Obsidian's
+    // Electron renderer — requesting a WebGPU device could hard-crash the GPU
+    // process and reload the whole app. WASM is portable and stable (a bit
+    // slower). Revisit WebGPU behind an opt-in once it's verified safe here.
     this.#pipeline = await createPipeline("feature-extraction", this.config.repoId, {
       device: "wasm",
       dtype: "q8",
@@ -121,10 +117,6 @@ export class EmbeddingModel {
           }
         : undefined
     });
-  }
-
-  getDevice(): Device {
-    return this.#device;
   }
 
   /**

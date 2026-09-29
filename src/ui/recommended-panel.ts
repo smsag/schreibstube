@@ -93,6 +93,8 @@ export interface RecommendedHost {
   /** The similarity levels an entry's likeness is read against: the model's
    *  measured floors, which differ for a conversation. */
   relevanceFloors?(kind: "file" | "conversation"): RelevanceFloors;
+  /** Where a failed answer is reported; without it, only the next ask tells. */
+  warn?(message: string, error: unknown): void;
 }
 
 /** The meter's three bars; how many are lit says the level. */
@@ -165,7 +167,8 @@ export class RecommendedPanel {
       })
       // The graph's answer is already on screen; a meaning search that failed
       // leaves it there, and the next change asks again.
-      .catch(() => {
+      .catch((e: unknown) => {
+        this.host.warn?.("recommended: the answer for the open note failed", e);
         if (this.lastAsk?.path === path) this.lastAsk = null;
       });
   }

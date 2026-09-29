@@ -1,9 +1,6 @@
-// Embedding model registry (no Obsidian dependency — pure data, lives in models/
-// so both settings and the services/embedding layer can import it).
-//
-// Mirrors the Xenova ONNX MiniLM family obsidian-similarity uses. Both models are
-// 384-dim; the multilingual one is the default because the vault is DE + EN. The
-// model files download from HuggingFace on first use and are cached by the browser.
+// The embedding models this plugin can run: pure data, imported by the settings
+// and the services alike. The Xenova ONNX MiniLM family, all 384-dim; the model
+// files download from HuggingFace on first use and are cached by the browser.
 
 export type EmbeddingModelId =
   | "xenova-all-MiniLM-L6-v2"
@@ -64,23 +61,8 @@ export interface EmbeddingModelConfig {
   variantNote?: "latinScript";
 }
 
-/** How strict the "related conversations" similarity floor is. A named preset so
- *  the user never has to reason about raw cosine scores; each model maps it to a
- *  number in its own `relatedFloors`. */
-/**
- * The three strictness labels a similarity floor can be set to (Pythia ADR-176).
- *
- * Named for what it is — a label — and NOT for either of the two questions it
- * labels, because those two are not the same question and do not share numbers:
- *
- * - **Related conversations** resolves it through `relatedMinScore(preset, modelId)`,
- *   against floors **measured** per embedding model (Pythia ADR-169).
- * - **Vault retrieval** resolves it through `vaultRetrievalMinScore(preset)`,
- *   against three constants that have never been measured (engineering-review #273).
- *
- * It was called `RelatedSimilarity` and used for both, which read as though the
- * measured floors also governed vault retrieval. They never did.
- */
+/** How strict a similarity floor is: a label, so nobody reasons about raw
+ *  cosines, which each model maps to a number in its own measured floors. */
 export type SimilarityPreset = "strict" | "balanced" | "loose";
 
 /** Where the pruned variant is published (Pythia ADR-200). A fork of the upstream model,

@@ -15,7 +15,7 @@
 // This module also owns the ONE `visibilitychange` reaction Pythia has: the
 // visible clock (timeouts), the build guard (background deaths) and the release.
 
-import type { EmbedOptions, EmbeddingBackend, EmbeddingProvider } from "./embedding-provider";
+import type { EmbedOptions, EmbeddingProvider } from "./embedding-provider";
 import { visibleClock, type VisibleClock } from "./visible-clock";
 
 /** Idle time after which a phone releases the model. Long enough that a
@@ -77,14 +77,6 @@ export class ResidentProvider implements EmbeddingProvider {
 
   isOffThread(): boolean {
     return this.inner.isOffThread?.() ?? false;
-  }
-
-  backend(): EmbeddingBackend | null {
-    return this.inner.backend?.() ?? null;
-  }
-
-  backendFailures(): string[] {
-    return this.inner.backendFailures?.() ?? [];
   }
 
   loadFailed(): boolean {

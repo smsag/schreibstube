@@ -3,6 +3,7 @@ import {
   MAX_CONTEXT_NOTES,
   MAX_CONVERSATION_CHARS,
   MAX_CONVERSATIONS,
+  MAX_MESSAGES,
   conversationChunks,
   normalizeConversation,
   normalizeConversations
@@ -50,6 +51,13 @@ describe("normalizeConversation", () => {
     });
   });
 
+  it("looks at a bounded number of messages, whatever their text", () => {
+    const messages = Array.from({ length: MAX_MESSAGES + 10 }, () => "");
+    messages[MAX_MESSAGES + 5] = "seen too late";
+    messages[MAX_MESSAGES - 1] = "seen";
+    expect(normalizeConversation(conv({ messages }))?.messages).toEqual(["seen"]);
+  });
+
   it("bounds the text a conversation brings", () => {
     const item = normalizeConversation(conv({ messages: Array(10).fill("y".repeat(10_000)) }));
     const total =
@@ -78,6 +86,14 @@ describe("the notes attached to a conversation", () => {
   it("are bounded", () => {
     const notes = Array.from({ length: MAX_CONTEXT_NOTES + 5 }, (_, i) => `N${i}.md`);
     expect(normalizeConversation(conv({ notes }))?.notes).toHaveLength(MAX_CONTEXT_NOTES);
+  });
+
+  it("are not read to the end of a list that is mostly not paths", () => {
+    const junk = Array.from({ length: MAX_CONTEXT_NOTES * 4 }, () => 7);
+    expect(normalizeConversation(conv({ notes: [...junk, "A.md"] }))?.notes).toEqual([]);
+    expect(normalizeConversation(conv({ notes: [...junk.slice(1), "A.md"] }))?.notes).toEqual([
+      "A.md"
+    ]);
   });
 
   it("leave the embedded text, and so the chunks, as they were", () => {

@@ -10,7 +10,14 @@ import {
 } from "./embedding-index";
 import { hashPolicyFor, resolveRowHash, type HashPolicy } from "./row-provenance";
 import { DEFAULT_EMBEDDING_MODEL_ID } from "./embedding-models";
-import { quantize, cosine, maxPairwiseCosine } from "./vector-math";
+import {
+  quantize,
+  cosine,
+  maxPairwiseCosine,
+  rankYieldEvery,
+  MAX_SOURCE_CHUNKS,
+  RANK_YIELD_EVERY
+} from "./vector-math";
 import { vaultNoteChunks, type RetrievedNote } from "./vault-retrieval";
 import { IndexJournal, applyJournal, deserializeJournal } from "./index-journal";
 import { isOutOfMemoryError } from "./memory-error";
@@ -20,8 +27,6 @@ import type { BuildProgress } from "./index-report";
 
 /** Notes processed between cooperative yields during a build (keeps the UI alive). */
 const YIELD_EVERY_NOTES = 8;
-/** Items scored between cooperative yields during a query rank (Pythia ADR-120). */
-const RANK_YIELD_EVERY = 2000;
 /**
  * Notes EMBEDDED between persists during a build (Pythia ADR-182).
  *
@@ -49,16 +54,6 @@ const PERSIST_EVERY_EMBEDS = 25;
  * the journal instead (Pythia ADR-222, `indexJournal.ts`).
  */
 const MIN_PERSIST_INTERVAL_MS = 30_000;
-// The same floor holds for the watcher's edit batches (Pythia ADR-220). Pythia ADR-122 made a
-// batch cost one write instead of one per note, but a batch arrived every couple
-// of seconds while someone typed, and each one serialized the whole index again —
-// ~19 MB allocated and written per flush, on a phone next to a loaded model, is
-// what reloaded Obsidian mid-sentence. The first batch after a quiet spell still
-// writes at once; batches inside the window stay in memory and one trailing write
-// carries them all. What an app killed inside the window loses is those notes'
-// new vectors: their old rows stay, their content hash no longer matches, and the
-// next edit of each re-embeds it. Since Pythia ADR-222 an edit writes the journal —
-// kilobytes — so the window now mostly saves sync events, not memory.
 /**
  * Consecutive embed failures that mean the BACKEND is gone, not that one note is
  * bad (Pythia ADR-182).
@@ -107,7 +102,6 @@ export interface SyncResult {
   stopped: boolean;
 }
 
-/** What a build may do beyond the defaults. */
 /** Recent query vectors kept, so a query typed again is not embedded again. */
 const QUERY_VECTORS_KEPT = 32;
 
@@ -141,6 +135,7 @@ function monotonic(): number {
   return typeof performance !== "undefined" ? performance.now() : Date.now();
 }
 
+/** What a build may do beyond the defaults. */
 export interface SyncOptions {
   /** Checked before each note; set, the pass stops and keeps what it has. */
   signal?: { readonly aborted: boolean };
@@ -160,25 +155,22 @@ export interface IndexableNote {
   load: () => Promise<string>;
 }
 
-/**
- * Keeps a vector index of the vault's notes in sync and answers semantic
- * retrieval queries for vault-wide RAG (Pythia ADR-116/118/119/120).
- *
- * STREAMED build (Pythia ADR-120): notes are read + chunked + embedded ONE AT A TIME
- * and their text released before the next, so a 30k-note vault does not hold
- * ~all its content in memory at once. Only new / content-changed notes are
- * re-embedded (per-note content-hash compare), removed notes drop out, and the
- * packed index is persisted through the injected store.
- *
- * Both the embedding provider and the store are interfaces, so the whole
- * orchestration is unit-tested with fakes. The note index is stored under a
- * separate key from the conversation index (VaultIndexStore's `prefix`).
- */
 /** Warnings still reach the console when no logger was handed in. */
 const FALLBACK_LOGGER = createLogger(() => false);
 
+/**
+ * The vault's vector index: kept in step with the notes, and asked what is
+ * like a text or another note (Pythia ADR-116/118/119/120).
+ *
+ * A build reads, chunks and embeds one note at a time and lets its text go
+ * before the next, so peak memory does not grow with the vault. Only a note
+ * whose content hash moved is embedded again. Provider and store are
+ * interfaces, so all of it is tested with fakes.
+ */
 export class VaultIndexService {
-  private items: IndexedConversation[] = [];
+  /** The rows, and the same rows by id; both move together through `items`. */
+  private rows: IndexedConversation[] = [];
+  private byId = new Map<string, IndexedConversation>();
   private loaded = false;
   /** What the persisted index says about ITSELF (Pythia ADR-184) — whether the build
    *  that wrote it finished, and the scope its rows were selected under. */
@@ -228,19 +220,8 @@ export class VaultIndexService {
     this.phoneJournal = opts.phoneJournal ? new IndexJournal(opts.phoneJournal, this.logger) : null;
   }
 
-  /**
-   * A phone's own edits, when the index is a desktop's (Pythia ADR-221 left
-   * them in memory only).
-   *
-   * A note written on the phone was embedded there and forgotten at the next
-   * launch, so until the desktop had seen the edit, the phone searched its
-   * own note by its old text — or not at all, if the note was new. The phone
-   * cannot write the shared files without the two devices overwriting each
-   * other, so it writes a journal of its own that only it reads. It is tied to
-   * the desktop's base like the shared one: once the desktop writes a new base
-   * — having seen the edits by then — the phone's journal is stale and
-   * ignored.
-   */
+  /** A phone's own edits to an index a desktop keeps, in a file only the phone
+   *  reads; tied to the desktop's base like the shared journal. */
   private readonly phoneJournal: IndexJournal | null;
 
   /** Where edits go instead of a base rewrite, when the store has one (Pythia ADR-222). */
@@ -252,21 +233,15 @@ export class VaultIndexService {
     this.journal?.reset(meta.writtenAt);
     this.phoneJournal?.reset(meta.writtenAt);
     await this.rememberBaseMtime();
-    this.baseStamp = meta.writtenAt;
   }
 
-  /** The `writtenAt` of the base file this instance last read or wrote — the
-   *  base's own, never the journal's, so it compares with `peekIndexMeta`. */
-  private baseStamp: number | undefined;
+  private get items(): IndexedConversation[] {
+    return this.rows;
+  }
 
-  /**
-   * Whether the base file on disk, as `peekIndexMeta` read it, is another one
-   * than the base this instance holds. Compared for identity, not order: the
-   * stamps come from two devices' clocks, and a desktop whose clock runs behind
-   * the phone's still wrote the newer file.
-   */
-  baseDiffersFrom(writtenAt: number | undefined): boolean {
-    return writtenAt !== undefined && writtenAt !== this.baseStamp;
+  private set items(rows: IndexedConversation[]) {
+    this.rows = rows;
+    this.byId = new Map(rows.map((row) => [row.id, row]));
   }
 
   private get logger(): Pick<Logger, "warn"> {
@@ -322,6 +297,12 @@ export class VaultIndexService {
    *  is not counted. */
   size(): number {
     return this.items.reduce((n, item) => n + (item.chunks.length > 0 ? 1 : 0), 0);
+  }
+
+  /** Whether the build that wrote the index ran to its end, under whatever
+   *  scope; `isComplete` also asks whether that scope is today's. */
+  isFinished(): boolean {
+    return this.meta.complete;
   }
 
   /**
@@ -383,7 +364,6 @@ export class VaultIndexService {
     if (buf) {
       try {
         const { items, dim, meta } = deserializeIndex(buf);
-        this.baseStamp = meta.writtenAt;
         // A dim mismatch means a different model built the index — drop it and
         // let the next sync rebuild from scratch.
         if (dim === this.provider.dim) {
@@ -391,15 +371,14 @@ export class VaultIndexService {
             ? await this.journal.load(meta.writtenAt, items, dim)
             : { items };
           // The phone's own edits over the desktop's rows, never its meta: the
-          // index is still the desktop's. Where the desktop's journal is the
-          // newer of the two, its rows win again for the notes it touched — a
-          // note edited on the phone, then on the desktop, is the desktop's.
+          // index is still the desktop's. For a note both journals hold, the
+          // desktop's row wins whichever was written later — the two stamps
+          // come from two clocks, and the desktop re-embeds the phone's edit
+          // as soon as the sync delivers it, so its row is the one that lasts.
           let rows = merged.items;
           if (this.phoneJournal) {
-            const mine = await this.phoneJournal.load(meta.writtenAt, rows, dim);
-            rows = mine.items;
-            if (this.journal && (merged.writtenAt ?? 0) > (mine.writtenAt ?? 0))
-              rows = applyJournal(rows, this.journal.content());
+            rows = (await this.phoneJournal.load(meta.writtenAt, rows, dim)).items;
+            if (this.journal) rows = applyJournal(rows, this.journal.content());
           }
           this.items = rows;
           this.meta = {
@@ -526,11 +505,7 @@ export class VaultIndexService {
     // Each row that moves is recorded for the journal (Pythia ADR-222): its new state, or
     // its removal when an update dropped it.
     const journal = this.writesEdits() ? this.journal : this.phoneJournal;
-    const note = (path: string): void =>
-      journal?.record(
-        path,
-        this.items.find((i) => i.id === path)
-      );
+    const note = (path: string): void => journal?.record(path, this.byId.get(path));
     for (const path of changes.removes)
       if (this.removeInMemory(path)) {
         dirty = true;
@@ -650,21 +625,22 @@ export class VaultIndexService {
     }
     if (chunks.length === 0) return drop(); // emptied → drop
 
-    const idx = this.items.findIndex((i) => i.id === note.path);
-    const { hash, reuse } = resolveRowHash(
-      this.policy,
-      idx >= 0 ? this.items[idx]?.contentHash : undefined,
-      chunks
-    );
+    const prev = this.byId.get(note.path);
+    const { hash, reuse } = resolveRowHash(this.policy, prev?.contentHash, chunks);
     if (reuse) return "unchanged"; // or a row this device accepts — Pythia ADR-201
     const cap = opts.cap ?? 0;
-    if (idx < 0 && cap > 0 && this.size() >= cap) return "unchanged"; // cap new adds
+    if (!prev && cap > 0 && this.size() >= cap) return "unchanged"; // cap new adds
     if (!opts.mayEmbed) return "unchanged";
 
     const raw = await this.embedAll(chunks);
     const item = { id: note.path, contentHash: hash, chunks: raw.map(quantize) };
-    if (idx >= 0) this.items[idx] = item;
-    else this.items.push(item);
+    // A known row is changed in place: it keeps its place in the list without
+    // a scan for it, and nothing holds a row across two batches.
+    if (prev) Object.assign(prev, item);
+    else {
+      this.rows.push(item);
+      this.byId.set(note.path, item);
+    }
     return "embedded";
   }
 
@@ -735,8 +711,9 @@ export class VaultIndexService {
   }
 
   /** Whether the base on disk is no longer the one this instance read or
-   *  wrote. Only a store that can tell (a real file) is asked. */
-  private async baseReplacedOnDisk(): Promise<boolean> {
+   *  wrote — another device's write, delivered by sync. Only a store that can
+   *  tell (a real file) is asked; the rest read as unchanged. */
+  async baseReplacedOnDisk(): Promise<boolean> {
     if (!this.store.mtime || this.baseMtime === null) return false;
     try {
       const now = await this.store.mtime();
@@ -764,9 +741,9 @@ export class VaultIndexService {
 
   /** Drop a note from the in-memory index (no persist). Returns whether it changed. */
   private removeInMemory(path: string): boolean {
-    const before = this.items.length;
+    if (!this.byId.has(path)) return false;
     this.items = this.items.filter((i) => i.id !== path);
-    return this.items.length !== before;
+    return true;
   }
 
   private async doSync(
@@ -782,9 +759,6 @@ export class VaultIndexService {
     const breatherMs = Math.max(0, throttle.breatherMs ?? 0);
     const maxEmbeds = Math.max(0, options.maxEmbeds ?? 0);
 
-    // Reuse unchanged vectors by (path → item); rebuild the survivor list in
-    // note order. `kept` holds only Int8 vectors (the index we need anyway);
-    // note text and chunk strings are held only for the note being processed.
     const existing = new Map(this.items.map((i) => [i.id, i]));
     const kept: IndexedConversation[] = [];
     /** Every note this pass has finished with, INCLUDING ones it dropped: a
@@ -795,8 +769,12 @@ export class VaultIndexService {
     let embedded = 0;
     let reused = 0;
     let passages = 0;
-    /** Notes held as failed (a row without vectors) in `kept` right now. */
+    /** Notes this pass gave up on and holds as failed (a row without vectors)
+     *  in `kept` right now. */
     let failed = 0;
+    /** Notes an earlier pass gave up on, reused unchanged: still not in the
+     *  index, so reported as failed, not as reused. */
+    let stillFailed = 0;
     let processed = 0;
     /** `embedded + failed` as of the last write: whether there is anything new
      *  to write is a question about both. */
@@ -807,7 +785,7 @@ export class VaultIndexService {
       total,
       embedded,
       reused,
-      failed,
+      failed: failed + stillFailed,
       passages
     });
     let failedInARow = 0;
@@ -905,7 +883,8 @@ export class VaultIndexService {
         const { hash, reuse } = resolveRowHash(this.policy, prev?.contentHash, chunks);
         if (prev && reuse) {
           kept.push(prev); // unchanged (or failed before, unchanged) — no re-embed
-          reused++;
+          if (prev.chunks.length > 0) reused++;
+          else stillFailed++;
           // Resets the failure streak too. Not resetting here would let five
           // bad notes SCATTERED through a mostly-unchanged vault abort the
           // build — reinstating the very bug this guard sits next to. A dead
@@ -1076,7 +1055,8 @@ export class VaultIndexService {
     // which of its notes are alike, and asking does not mark it ready.
     if (chunks.length === 0) return [];
     const excluded = new Set(opts.exclude ?? []);
-    const source = [...chunks];
+    const source = chunks.slice(0, MAX_SOURCE_CHUNKS);
+    const yieldEvery = rankYieldEvery(source.length);
     const scored: RetrievedNote[] = [];
     let scanned = 0;
     for (const item of this.items) {
@@ -1084,56 +1064,56 @@ export class VaultIndexService {
         const score = maxPairwiseCosine(source, item.chunks);
         if (Number.isFinite(score) && score >= opts.minScore) scored.push({ id: item.id, score });
       }
-      if (++scanned % RANK_YIELD_EVERY === 0) await new Promise((r) => setTimeout(r, 0));
+      if (++scanned % yieldEvery === 0) await new Promise((r) => setTimeout(r, 0));
     }
     scored.sort((a, b) => b.score - a.score);
     return scored.slice(0, opts.limit);
   }
 
   /**
-   * Rank the ALREADY-INDEXED notes against `query`, most-relevant first. Embeds
-   * only the query (fast — the model is loaded once the index is ready), never
-   * the vault, so it is safe to await inside a chat turn. Ranking scans the index
-   * COOPERATIVELY (yielding every few thousand notes) so a large corpus never
-   * blocks the UI thread in one burst (Pythia ADR-120). Returns [] when the index isn't
-   * ready or nothing clears the floor; `exclude` paths are dropped before `limit`.
+   * The vector of `text`, from memory when it was embedded lately, else from
+   * the model. Null for an empty text or before the index can answer, since
+   * the vector is only ever wanted to rank against it.
    */
-  async query(
-    text: string,
-    opts: {
-      minScore?: number;
-      limit?: number;
-      exclude?: Iterable<string>;
-      /** Filled in with where the time went, for the settings and the log. */
-      timing?: QueryTiming;
-    } = {}
-  ): Promise<RetrievedNote[]> {
+  async queryVector(text: string): Promise<Int8Array | null> {
     const q = text.trim();
-    if (!q || !this.isQueryable()) return [];
-    // During a build, the rows it has so far; they are what a write would keep.
-    const rows = this.synced && !this.live ? this.items : (this.live?.() ?? this.items);
-    if (rows.length === 0) return [];
-    const started = monotonic();
-    let queryVec = this.queryVectors.get(q);
-    const cached = queryVec !== undefined;
-    if (queryVec) {
+    if (!q || !this.isQueryable()) return null;
+    const known = this.queryVectors.get(q);
+    if (known) {
       // Used again: moved to the back, so the oldest is the one let go.
       this.queryVectors.delete(q);
-      this.queryVectors.set(q, queryVec);
-    } else {
-      const [raw] = await this.provider.embed([q], { priority: true });
-      if (!raw) return [];
-      queryVec = quantize(raw);
-      if (this.queryVectors.size >= QUERY_VECTORS_KEPT) {
-        const oldest = this.queryVectors.keys().next().value;
-        if (oldest !== undefined) this.queryVectors.delete(oldest);
-      }
-      this.queryVectors.set(q, queryVec);
+      this.queryVectors.set(q, known);
+      return known;
     }
-    const embedded = monotonic();
+    const [raw] = await this.provider.embed([q], { priority: true });
+    if (!raw) return null;
+    const vec = quantize(raw);
+    if (this.queryVectors.size >= QUERY_VECTORS_KEPT) {
+      const oldest = this.queryVectors.keys().next().value;
+      if (oldest !== undefined) this.queryVectors.delete(oldest);
+    }
+    this.queryVectors.set(q, vec);
+    return vec;
+  }
+
+  /** Whether `text` was embedded lately, so `queryVector` needs no model. */
+  hasQueryVector(text: string): boolean {
+    return this.queryVectors.has(text.trim());
+  }
+
+  /**
+   * The indexed notes ranked against one query vector, best first, scanned
+   * cooperatively so a large index never blocks the UI thread in one burst
+   * (Pythia ADR-120). During a build, the rows it has so far.
+   */
+  async rankByQuery(
+    queryVec: Int8Array,
+    opts: { minScore?: number; limit?: number; exclude?: Iterable<string> } = {}
+  ): Promise<{ hits: RetrievedNote[]; notes: number }> {
+    if (!this.isQueryable()) return { hits: [], notes: 0 };
+    const rows = this.currentRows();
     const minScore = opts.minScore ?? 0.35;
     const excluded = new Set(opts.exclude ?? []);
-
     const scored: RetrievedNote[] = [];
     let scanned = 0;
     for (const item of rows) {
@@ -1148,12 +1128,46 @@ export class VaultIndexService {
       if (++scanned % RANK_YIELD_EVERY === 0) await new Promise((r) => setTimeout(r, 0));
     }
     scored.sort((a, b) => b.score - a.score);
+    return {
+      hits: typeof opts.limit === "number" ? scored.slice(0, opts.limit) : scored,
+      notes: rows.length
+    };
+  }
+
+  /** The rows a query ranks now: during a build, the ones it has so far. */
+  private currentRows(): IndexedConversation[] {
+    return this.synced && !this.live ? this.items : (this.live?.() ?? this.items);
+  }
+
+  /**
+   * Rank the ALREADY-INDEXED notes against `text`, most-relevant first. Embeds
+   * only the query (fast — the model is loaded once the index is ready), never
+   * the vault. Returns [] when the index isn't ready or nothing clears the
+   * floor; `exclude` paths are dropped before `limit`.
+   */
+  async query(
+    text: string,
+    opts: {
+      minScore?: number;
+      limit?: number;
+      exclude?: Iterable<string>;
+      /** Filled in with where the time went, for the settings and the log. */
+      timing?: QueryTiming;
+    } = {}
+  ): Promise<RetrievedNote[]> {
+    if (!this.isQueryable() || this.currentRows().length === 0) return [];
+    const started = monotonic();
+    const cached = this.hasQueryVector(text);
+    const queryVec = await this.queryVector(text);
+    if (!queryVec) return [];
+    const embedded = monotonic();
+    const { hits, notes } = await this.rankByQuery(queryVec, opts);
     if (opts.timing) {
       opts.timing.cached = cached;
       opts.timing.embedMs = embedded - started;
       opts.timing.rankMs = monotonic() - embedded;
-      opts.timing.notes = rows.length;
+      opts.timing.notes = notes;
     }
-    return typeof opts.limit === "number" ? scored.slice(0, opts.limit) : scored;
+    return hits;
   }
 }

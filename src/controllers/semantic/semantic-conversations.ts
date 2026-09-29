@@ -45,6 +45,11 @@ export interface ConversationHost {
    * while the vault index is being built.
    */
   mayEmbedInBackground?(): boolean;
+  /**
+   * The vector the vault index holds for `text`, when it has one: a search
+   * asks both indexes about the same text, and the model should read it once.
+   */
+  queryVector?(text: string): Promise<Int8Array | null>;
 }
 
 /**
@@ -66,6 +71,9 @@ export class SemanticConversations {
   private attached = new Map<string, readonly string[]>();
   /** A background sync started by the Recommended panel is running. */
   private catchingUp = false;
+  /** The sync under way, so a second caller waits for it instead of asking an
+   *  index that is half-way through taking the source's new rows. */
+  private syncing: Promise<void> | null = null;
 
   constructor(private readonly host: ConversationHost) {}
 
@@ -134,26 +142,38 @@ export class SemanticConversations {
       await this.index.loadStored();
       return this.index;
     }
+    if (this.syncing) {
+      await this.syncing;
+      return this.index;
+    }
     if (this.dirty) {
       this.dirty = false;
-      try {
-        const listed = await withTimeout(
-          Promise.resolve(source.list()),
-          LIST_DEADLINE_MS,
-          (s) => `the conversation source did not answer within ${s} s`
-        );
-        const items = normalizeConversations(listed);
-        this.remember(items);
-        // No explicit load: the sync loads the model only if it has something
-        // to embed.
-        await this.index.sync(items);
-        this.host.changed();
-      } catch (e) {
-        this.dirty = true;
-        throw e;
-      }
+      this.syncing = this.syncWith(source, this.index).finally(() => {
+        this.syncing = null;
+      });
+      await this.syncing;
     }
     return this.index;
+  }
+
+  /** List the source and bring `index` in line with it. */
+  private async syncWith(source: ConversationSource, index: ConversationIndex): Promise<void> {
+    try {
+      const listed = await withTimeout(
+        Promise.resolve(source.list()),
+        LIST_DEADLINE_MS,
+        (s) => `the conversation source did not answer within ${s} s`
+      );
+      const items = normalizeConversations(listed);
+      this.remember(items);
+      // No explicit load: the sync loads the model only if it has something
+      // to embed.
+      await index.sync(items);
+      this.host.changed();
+    } catch (e) {
+      this.dirty = true;
+      throw e;
+    }
   }
 
   /** Conversations like `id`, most alike first. */
@@ -221,7 +241,7 @@ export class SemanticConversations {
     });
     // A note's sections against a conversation's chunks, at the floor measured
     // for that comparison.
-    const found = index.relatedToVectors(chunks, { minScore: this.noteFloor(), limit });
+    const found = await index.relatedToVectors(chunks, { minScore: this.noteFloor(), limit });
     this.catchUpInBackground();
     return found;
   }
@@ -284,10 +304,20 @@ export class SemanticConversations {
     );
   }
 
-  /** Conversations that answer `text`, best first. */
+  /**
+   * Conversations that answer `text`, best first.
+   *
+   * Brought up to date first only where the model may run in the background:
+   * a phone embedded every conversation changed since the last search on its
+   * UI thread before it could answer, while the desktop's index arrives by
+   * sync. The vault search's vector for the same text is ranked rather than
+   * embedding the text a second time.
+   */
   async search(text: string, limit: number, exclude: Iterable<string>): Promise<ScoredId[]> {
-    const index = await this.ready();
+    const index = await this.ready(this.host.mayEmbedInBackground?.() ?? true);
     if (!index) return [];
-    return index.query(text, { minScore: QUERY_MIN_SCORE, limit, exclude });
+    const opts = { minScore: QUERY_MIN_SCORE, limit, exclude };
+    const known = await this.host.queryVector?.(text);
+    return known ? index.queryByVector(known, opts) : index.query(text, opts);
   }
 }

@@ -321,14 +321,24 @@ describe("VaultIndexService — reading without waiting", () => {
     await build;
   });
 
-  it("tells whether the base on disk is another one than it holds", async () => {
-    const store = new MemStore();
+  it("tells whether the base on disk is another one than it holds, by its modification time", async () => {
+    let mtime = 1;
+    const store = new (class extends MemStore {
+      async mtime(): Promise<number | null> {
+        return this.buf ? mtime : null;
+      }
+    })();
     const svc = new VaultIndexService(new FakeProvider(), store);
     await svc.sync([note("a.md", "alpha")]);
-    const own = peekIndexMeta(store.buf!)?.writtenAt;
-    expect(svc.baseDiffersFrom(own)).toBe(false);
-    expect(svc.baseDiffersFrom((own ?? 0) - 1000)).toBe(true); // an older clock, a newer file
-    expect(svc.baseDiffersFrom(undefined)).toBe(false);
+    expect(await svc.baseReplacedOnDisk()).toBe(false);
+    mtime = 2; // another device's write, delivered by sync
+    expect(await svc.baseReplacedOnDisk()).toBe(true);
+    await svc.reload();
+    expect(await svc.baseReplacedOnDisk()).toBe(false);
+    // A store that cannot tell reads as unchanged.
+    const plain = new VaultIndexService(new FakeProvider(), new MemStore());
+    await plain.sync([note("a.md", "alpha")]);
+    expect(await plain.baseReplacedOnDisk()).toBe(false);
   });
 });
 

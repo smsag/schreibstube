@@ -13,6 +13,10 @@ export const SEMANTIC_API_VERSION = 1;
 /** At most this many hits per call, whatever is asked for. */
 export const MAX_HITS = 50;
 
+/** The most of a query that is embedded: the model reads a sentence or two,
+ *  and a whole document pasted as the query cost a full inference for nothing. */
+export const MAX_QUERY_CHARS = 1000;
+
 /** The plugins allowed to register conversations. */
 export const ALLOWED_SOURCES: readonly string[] = ["pythia"];
 
@@ -48,6 +52,12 @@ export interface SchreibstubeSemanticApi {
   related(ref: RelatedRef, opts: { kinds: Kind[]; limit: number }): Promise<Hit[]>;
   registerSource(pluginId: string, source: ConversationSource): () => void;
   onIndexChanged(cb: () => void): () => void;
+}
+
+/** The text to search for: a string, trimmed and bounded; anything else is "". */
+export function readQuery(text: unknown): string {
+  if (typeof text !== "string") return "";
+  return text.slice(0, MAX_QUERY_CHARS).trim();
 }
 
 /** A requested limit as a whole number between 1 and `MAX_HITS`. */

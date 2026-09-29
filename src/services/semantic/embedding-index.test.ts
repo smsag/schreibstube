@@ -70,6 +70,16 @@ describe("serializeIndex / deserializeIndex", () => {
     expect(Array.from(back[1]!.chunks[0]!)).toEqual([127, 0, -127, 1]);
   });
 
+  it("reads vectors as views into the file, and writes such views again", () => {
+    const buf = serializeIndex([mk("alpha", "h1", [[1, 2, 3, 4]])], dim);
+    const { items } = deserializeIndex(buf);
+    const chunk = items[0]!.chunks[0]!;
+    expect(chunk.buffer).toBe(buf); // no copy of the vector
+    expect(chunk.length).toBe(dim);
+    const again = deserializeIndex(serializeIndex(items, dim));
+    expect(Array.from(again.items[0]!.chunks[0]!)).toEqual([1, 2, 3, 4]);
+  });
+
   it("round-trips an empty index", () => {
     const { items, dim: d } = deserializeIndex(serializeIndex([], dim));
     expect(items).toEqual([]);

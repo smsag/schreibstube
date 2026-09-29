@@ -19,6 +19,10 @@ export const MAX_CONVERSATIONS = 1000;
 export const MAX_CONVERSATION_CHARS = 40_000;
 const MAX_ID_CHARS = 200;
 const MAX_TITLE_CHARS = 300;
+/** At most this many messages of a conversation are looked at: a list of a
+ *  million empty ones must not cost a million steps before the text budget
+ *  can say stop. */
+export const MAX_MESSAGES = 10_000;
 /** At most this many attached notes per conversation are read. */
 export const MAX_CONTEXT_NOTES = 50;
 /** Longer than any vault path a person would keep. */
@@ -65,7 +69,8 @@ export function normalizeConversation(raw: unknown): ConversationItem | null {
   };
   const summary = take(text(record.summary));
   const messages: string[] = [];
-  for (const message of Array.isArray(record.messages) ? record.messages : []) {
+  const listed = Array.isArray(record.messages) ? record.messages.slice(0, MAX_MESSAGES) : [];
+  for (const message of listed) {
     if (budget <= 0) break;
     const kept = take(text(message));
     if (kept.length > 0) messages.push(kept);
@@ -73,11 +78,13 @@ export function normalizeConversation(raw: unknown): ConversationItem | null {
   return { id, title, updatedAt, summary, messages, notes: contextNotes(record.notes) };
 }
 
-/** Attached notes as paths: strings only, trimmed, bounded, once each. */
+/** Attached notes as paths: strings only, trimmed, bounded, once each. A few
+ *  entries that are not paths are stepped over; a list of nothing but those
+ *  is not read to its end. */
 function contextNotes(raw: unknown): string[] {
   if (!Array.isArray(raw)) return [];
   const notes = new Set<string>();
-  for (const entry of raw) {
+  for (const entry of raw.slice(0, MAX_CONTEXT_NOTES * 4)) {
     if (notes.size >= MAX_CONTEXT_NOTES) break;
     const path = text(entry).trim();
     if (path.length > 0 && path.length <= MAX_PATH_CHARS) notes.add(path);
@@ -96,11 +103,8 @@ export function normalizeConversations(raw: unknown): ConversationItem[] {
   return [...byId.values()].sort((a, b) => b.updatedAt - a.updatedAt).slice(0, MAX_CONVERSATIONS);
 }
 
-/**
- * The text chunks a conversation is embedded as. Pythia's rule exactly: title
- * and summary lead, as a dense fingerprint of the topic; then the messages,
- * packed to `maxChars`, with one too long for a chunk split hard.
- */
+/** The text chunks a conversation is embedded as: title and summary lead, then
+ *  the messages packed to `maxChars`, one too long for a chunk split hard. */
 export function conversationChunks(
   item: ConversationItem,
   maxChars = CONVERSATION_CHUNK_CHARS

@@ -105,7 +105,6 @@ describe("FallbackEmbeddingProvider — which backend started (Pythia ADR-182)",
     const { provider, seen } = make();
     await provider.ready();
     expect(seen).toEqual(["worker (blob)"]);
-    expect(provider.backend?.()).toBe("worker (blob)");
     expect(built).toEqual(["blobWorker"]);
   });
 
@@ -124,7 +123,6 @@ describe("FallbackEmbeddingProvider — which backend started (Pythia ADR-182)",
     const { provider, seen } = make();
     await provider.ready();
     expect(seen).toEqual(["iframe (UI thread)"]);
-    expect(provider.backend?.()).toBe("iframe (UI thread)");
     expect(provider.isOffThread?.()).toBe(false);
   });
 
@@ -138,7 +136,7 @@ describe("FallbackEmbeddingProvider — which backend started (Pythia ADR-182)",
 
   it("reports nothing before ready() has resolved", () => {
     const { provider, seen } = make();
-    expect(provider.backend?.()).toBeNull();
+    expect(provider.isOffThread?.()).toBe(false);
     expect(seen).toEqual([]);
   });
 
@@ -150,33 +148,22 @@ describe("FallbackEmbeddingProvider — which backend started (Pythia ADR-182)",
     expect(seen).toEqual(["worker (blob)"]);
   });
 
-  it("forgets the backend on unload, so a stale one cannot be reported", async () => {
-    const { provider } = make();
+  it("forgets the backend on unload, and reports the next load afresh", async () => {
+    const { provider, seen } = make();
     await provider.ready();
     provider.unload();
-    expect(provider.backend?.()).toBeNull();
+    expect(provider.isOffThread?.()).toBe(false);
+    await provider.ready();
+    expect(seen).toEqual(["worker (blob)", "worker (blob)"]);
   });
 });
 
 describe("FallbackEmbeddingProvider — why the others failed (Pythia ADR-185)", () => {
-  it("reports each failure REASON, not just that it fell back", async () => {
-    // "Unsupported device: wasm" and "Not allowed to load local resource: blob:"
-    // are different bugs with different fixes. The chain knew which and threw it
-    // into console.warn, where nobody looks until asked.
-    fail.blobWorker = true;
-    fail.resourceWorker = true;
-    const { provider, seen } = make();
-    await provider.ready();
-    expect(seen).toEqual(["iframe (UI thread)"]);
-    const failures = provider.backendFailures?.() ?? [];
-    expect(failures).toHaveLength(2);
-    expect(failures[0]).toContain("worker (blob)");
-    expect(failures[0]).toContain("blobWorker unavailable");
-    expect(failures[1]).toContain("worker (resource)");
-  });
-
-  it("hands the reasons to the callback alongside the winner", async () => {
-    fail.blobWorker = true;
+  /** The callback's report of each load: the winner and why the others lost. */
+  const reporting = (): {
+    provider: ReturnType<typeof createEmbeddingProvider>;
+    seen: { backend: string; failures: string[] }[];
+  } => {
     const seen: { backend: string; failures: string[] }[] = [];
     const provider = createEmbeddingProvider(
       DEFAULT_EMBEDDING_MODEL_ID,
@@ -184,24 +171,39 @@ describe("FallbackEmbeddingProvider — why the others failed (Pythia ADR-185)",
       async () => "app://resource/worker.mjs",
       (backend, failures) => seen.push({ backend, failures })
     );
+    return { provider, seen };
+  };
+
+  it("reports each failure REASON alongside the winner, not just that it fell back", async () => {
+    // "Unsupported device: wasm" and "Not allowed to load local resource: blob:"
+    // are different bugs with different fixes. The chain knew which and threw it
+    // into console.warn, where nobody looks until asked.
+    fail.blobWorker = true;
+    fail.resourceWorker = true;
+    const { provider, seen } = reporting();
     await provider.ready();
-    expect(seen[0]!.backend).toBe("worker (resource)");
-    expect(seen[0]!.failures).toHaveLength(1);
+    expect(seen[0]!.backend).toBe("iframe (UI thread)");
+    const failures = seen[0]!.failures;
+    expect(failures).toHaveLength(2);
+    expect(failures[0]).toContain("worker (blob)");
+    expect(failures[0]).toContain("blobWorker unavailable");
+    expect(failures[1]).toContain("worker (resource)");
   });
 
   it("reports nothing when the first choice won", async () => {
-    const { provider } = make();
+    const { provider, seen } = reporting();
     await provider.ready();
-    expect(provider.backendFailures?.()).toEqual([]);
+    expect(seen).toEqual([{ backend: "worker (blob)", failures: [] }]);
   });
 
   it("forgets the reasons on unload, so a retry cannot inherit stale ones", async () => {
     fail.blobWorker = true;
-    const { provider } = make();
+    const { provider, seen } = reporting();
     await provider.ready();
-    expect(provider.backendFailures?.()).toHaveLength(1);
+    expect(seen[0]!.failures).toHaveLength(1);
     provider.unload();
-    expect(provider.backendFailures?.()).toEqual([]);
+    await provider.ready();
+    expect(seen[1]!.failures).toHaveLength(1);
   });
 });
 
@@ -243,7 +245,7 @@ describe("FallbackEmbeddingProvider — unloaded while the model is still loadin
     hold.release?.(); // the download finishes regardless
     await expect(loading).resolves.toBe("rejected");
     expect(unloaded).toContain("blobWorker");
-    expect(provider.backend?.()).toBeNull();
+    expect(provider.isOffThread?.()).toBe(false);
   });
 
   it("unloads the backend the load is waiting on, right away", async () => {
@@ -267,7 +269,7 @@ describe("FallbackEmbeddingProvider — unloaded while the model is still loadin
 
     hold.on = null;
     await provider.ready();
-    expect(provider.backend?.()).toBe("worker (blob)");
+    expect(provider.isOffThread?.()).toBe(true);
     expect(seen).toEqual(["worker (blob)"]);
   });
 });

@@ -1,4 +1,3 @@
-import { createLogger, type Logger } from "../logger";
 // The crash-loop breaker for the vault index build (Pythia ADR-199).
 //
 // When the OS kills the process mid-build (iOS: `jetsam per-process-limit`), no
@@ -12,6 +11,8 @@ import { createLogger, type Logger } from "../logger";
 // Stored per device (Obsidian's vault-scoped localStorage), never in data.json:
 // the marker describes THIS device's crash, and a synced copy would pause the
 // build on a desktop that never crashed.
+
+import { createLogger, type Logger } from "../logger";
 
 /** How many builds in a row may die before the next one waits for the user. Two,
  *  not one: iOS also ends backgrounded apps and the user swipes Obsidian away,
