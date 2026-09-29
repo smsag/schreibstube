@@ -18,8 +18,3 @@ export function obsidianFileUrl(vault: string, path: string): string {
   const file = /\.md$/i.test(path) ? path.slice(0, -3) : path;
   return `obsidian://open?vault=${encodeURIComponent(vault)}&file=${encodeURIComponent(file)}`;
 }
-
-/** A conversation, as Pythia writes its resume link. */
-export function pythiaConversationUrl(vault: string, id: string): string {
-  return `obsidian://pythia?vault=${encodeURIComponent(vault)}&cmd=resume&id=${encodeURIComponent(id)}`;
-}

@@ -150,7 +150,7 @@ filter is first used. Both it and the model read a note through
 Other plugins reach it as `app.plugins.getPlugin("schreibstube").api`, version 2:
 
 ```ts
-api.status(); // "off" | "loading" | "partial" | "ready"
+api.status(); // "off" | "loading" | "unavailable" | "partial" | "ready"
 api.kinds(); // [{ kind, label, plural, source }]: the vault's two and every allowed source's
 api.search(text, { kinds?, sources?, limit?, exclude? });
 api.related({ path } | { source, id }, { kinds?, sources?, limit? }); // stored vectors, no model
@@ -168,7 +168,7 @@ is answered; **Not now** leaves it waiting, to be asked at the next launch or
 when search by meaning is switched on. The settings list every source, take the
 answer back, and **Forget** one no longer registered. A refusal stops a listing
 or embed in flight before it writes, and removes the source's items from memory
-and its file from disk. The name must be an enabled plugin's where the registry
+and its file from disk. The name must be an installed plugin's where the registry
 can say so. Everything a source hands over is untrusted: checked, bounded to
 1 000 items of 40 000 characters and eight sources, and given five seconds to
 answer.
@@ -187,6 +187,10 @@ Each item is `{ id, title, updatedAt, summary?, messages? | text?, notes? }`.
 `notes`, optional, are vault paths attached to the item as context: Recommended
 counts them as a link between the item and each note, and they are not
 embedded. A hit names an item `<source>:<id>` and carries both halves.
+
+`"unavailable"` means nothing changes until the person acts: the build failed,
+automatic builds are paused, or a phone waits for the desktop's index. A caller
+stops waiting then, where `"loading"` says an answer is on its way.
 
 A hit's `score` is its relevance, 0 to 1, read against the floor measured for
 what was compared — note to note, note to item, a query to either — so kinds

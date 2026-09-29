@@ -324,6 +324,11 @@ export class VaultIndexService {
     return this.synced || this.live !== null;
   }
 
+  /** Whether the persisted index has been read this session. */
+  isLoaded(): boolean {
+    return this.loaded;
+  }
+
   /** Wipe the index (in-memory + persisted) and mark it not-ready, so the next
    *  sync re-embeds every note from scratch. Backs the "reindex" action (Pythia ADR-119). */
   clear(): Promise<void> {

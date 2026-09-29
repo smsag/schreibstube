@@ -682,6 +682,19 @@ export class SemanticEngine {
   }
 
   /**
+   * Whether a search cannot answer until the person acts: the build failed,
+   * automatic builds are paused, or a phone waits for the desktop's index.
+   * Nothing changes on its own then, so a caller should stop waiting.
+   */
+  waitsOnPerson(): boolean {
+    const svc = this.service;
+    if (!this.enabled() || this.syncing || svc?.isQueryable()) return false;
+    if (this.phase.kind === "failed") return true;
+    if (!svc?.isLoaded() || svc.isComplete(this.scope())) return false;
+    return Platform.isMobile || !this.guard.mayAutoBuild();
+  }
+
+  /**
    * Notes whose meaning answers `text`, best first. Starts a build and answers
    * nothing while the index is not ready; the keyword results stand alone then.
    */

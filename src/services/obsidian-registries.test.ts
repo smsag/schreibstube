@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { App } from "obsidian";
 import {
+  communityPluginInstalled,
   isCommunityPluginEnabled,
   pluginRunsOwnModel,
   readPythiaPrintApi,
@@ -132,6 +133,30 @@ describe("isCommunityPluginEnabled", () => {
   it("reads any other shape as not enabled", () => {
     expect(isCommunityPluginEnabled(app(["pythia"]), "pythia")).toBe(false);
     expect(isCommunityPluginEnabled({} as App, "pythia")).toBe(false);
+  });
+});
+
+describe("communityPluginInstalled", () => {
+  const app = (manifests: unknown) => ({ plugins: { manifests } }) as unknown as App;
+
+  it("reads Obsidian's manifests, enabled or not", () => {
+    expect(communityPluginInstalled(app({ pythia: { name: "Pythia" } }), "pythia")).toBe(true);
+    expect(communityPluginInstalled(app({ other: {} }), "pythia")).toBe(false);
+  });
+
+  it("does not take an inherited key for a plugin", () => {
+    expect(communityPluginInstalled(app({}), "constructor")).toBe(false);
+  });
+
+  it("says nothing when the registry has another shape", () => {
+    expect(communityPluginInstalled(app(null), "pythia")).toBeNull();
+    expect(communityPluginInstalled({} as App, "pythia")).toBeNull();
+    const broken = {
+      get plugins(): never {
+        throw new Error("moved");
+      }
+    } as unknown as App;
+    expect(communityPluginInstalled(broken, "pythia")).toBeNull();
   });
 });
 

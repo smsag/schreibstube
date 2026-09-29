@@ -23,6 +23,9 @@ an older Pythia is no longer found.
 
 ### Fixed
 
+- **The API says when search by meaning cannot answer.** `status()` said "loading" for a failed build, paused automatic builds and a phone still waiting for the desktop's index, so another plugin's spinner never stopped. It now says `"unavailable"` for those.
+- **A plugin switched on mid-session can register a source from its `onload`.** The name was checked against Obsidian's enabled plugins, which a plugin may join only after its `onload` has run, so registering there could be refused. The check now asks whether a plugin by that name is installed.
+- **A source registered again while its index was being written no longer races it.** The new index waits for the old one to finish before it reads or writes their shared file.
 - **A source's items reach the Explorer on a phone.** The phone reads the desktop's file for a source but never listed it, so it had no titles and showed none of its items; it now reads the titles without embedding anything.
 - **A source's items are found at the same floor as notes.** A one-word search read items against a phrase's floor, so a conversation lost to a note that matched the same word less well.
 - **Related conversations alone do not read the vault index.** A caller asking only for a source's items had the vault index loaded and ranked all the same.

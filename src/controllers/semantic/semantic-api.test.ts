@@ -55,6 +55,7 @@ function fakeEngine(over: Partial<Record<string, unknown>> = {}) {
   const engine = {
     enabled: () => true,
     searchState: () => "ready",
+    waitsOnPerson: () => false,
     searchAll,
     relatedToNote: vi.fn(async () => related),
     relatedToItem: vi.fn(async () => related),
@@ -198,7 +199,7 @@ describe("a source registering", () => {
     onChanged: () => () => undefined
   };
 
-  it("is taken from any enabled plugin, checked", () => {
+  it("is taken from any installed plugin, checked", () => {
     const { engine, sources } = fakeEngine();
     const registration = api(engine).registerSource("pythia", source);
     expect(sources.register).toHaveBeenCalledWith(
@@ -209,11 +210,11 @@ describe("a source registering", () => {
     expect(registration.consent()).toBe("pending");
   });
 
-  it("is refused under a name no enabled plugin has, or that is not a plugin id", () => {
+  it("is refused under a name no installed plugin has, or that is not a plugin id", () => {
     const { engine } = fakeEngine();
     expect(() =>
       api(engine, { pluginPresent: () => false }).registerSource("ghost", source)
-    ).toThrow(/no enabled plugin/);
+    ).toThrow(/no installed plugin/);
     expect(() => api(engine).registerSource("Not Valid", source)).toThrow(/not a plugin id/);
   });
 
@@ -234,6 +235,9 @@ describe("its state", () => {
   it("says how much it can answer", () => {
     expect(api(fakeEngine({ enabled: () => false }).engine).status()).toBe("off");
     expect(api(fakeEngine({ searchState: () => "none" }).engine).status()).toBe("loading");
+    expect(
+      api(fakeEngine({ searchState: () => "none", waitsOnPerson: () => true }).engine).status()
+    ).toBe("unavailable");
     expect(api(fakeEngine({ searchState: () => "partial" }).engine).status()).toBe("partial");
     expect(api(fakeEngine().engine).version).toBe(2);
   });

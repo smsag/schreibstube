@@ -65,15 +65,17 @@ export class SemanticSources {
     if (!this.entries.has(id) && this.entries.size >= MAX_SOURCES) {
       throw new Error(`Schreibstube: at most ${MAX_SOURCES} sources may be registered`);
     }
-    // A plugin reloaded registers again: the old index stops before the new
-    // one starts, so the two never write one file together.
-    this.entries.get(id)?.index.release();
+    // A plugin reloaded registers again: the old index stops, and the new one
+    // waits for what it had under way, so the two never write one file together.
+    const previous = this.entries.get(id)?.index;
+    previous?.release();
     const index = new SourceIndex(
       { ...this.host, changed: () => this.touched() },
       id,
       source,
       this.host.embedsHere(),
-      () => this.host.consent(id) === "allowed"
+      () => this.host.consent(id) === "allowed",
+      previous?.settled()
     );
     const entry: Entry = { index, descriptor };
     this.entries.set(id, entry);

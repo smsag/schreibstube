@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { obsidianFileUrl, pythiaConversationUrl } from "./obsidian-url";
+import { obsidianFileUrl } from "./obsidian-url";
 
 describe("obsidianFileUrl", () => {
   it("leaves a note's .md off, as Obsidian's own Copy Obsidian URL does", () => {
@@ -25,13 +25,5 @@ describe("obsidianFileUrl", () => {
 
   it("does not take .md from the middle of a name", () => {
     expect(obsidianFileUrl("v", "notes.md.bak")).toBe("obsidian://open?vault=v&file=notes.md.bak");
-  });
-});
-
-describe("pythiaConversationUrl", () => {
-  it("is Pythia's own resume link", () => {
-    expect(pythiaConversationUrl("Mein Vault", "c 1&2")).toBe(
-      "obsidian://pythia?vault=Mein%20Vault&cmd=resume&id=c%201%262"
-    );
   });
 });

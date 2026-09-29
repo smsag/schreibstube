@@ -225,6 +225,34 @@ describe("SemanticEngine", () => {
     expect(inside(e).phase.kind).toBe("idle");
   });
 
+  it("says a search waits on the person once a build failed, and not while one runs", async () => {
+    const w = world();
+    const e = w.engine();
+    expect(e.waitsOnPerson()).toBe(false);
+    model.failLoad = true;
+    await e.search("alpha", 5);
+    await until(() => inside(e).phase.kind === "failed");
+    expect(e.waitsOnPerson()).toBe(true);
+    model.failLoad = false;
+    e.buildNow();
+    expect(e.waitsOnPerson()).toBe(false);
+    await until(() => !inside(e).syncing);
+    expect(e.waitsOnPerson()).toBe(false);
+  });
+
+  it("says a search waits on the person while automatic builds are paused", async () => {
+    const w = world();
+    w.plugin.app.saveLocalStorage("schreibstube-semantic-index-build", {
+      attempts: 2,
+      startedAt: 1,
+      modelId: "x"
+    });
+    const e = w.engine();
+    expect(e.waitsOnPerson()).toBe(false); // not read yet: the first search reads it
+    await e.status();
+    expect(e.waitsOnPerson()).toBe(true);
+  });
+
   it("gives the model back when switched off during a build", async () => {
     const w = world();
     const e = w.engine();
@@ -349,6 +377,14 @@ describe("a phone holding the desktop's index", () => {
     delete platform.isMobile;
   });
 
+  it("says a search waits on the person until the desktop has written an index", async () => {
+    const w = world();
+    platform.isMobile = true;
+    const phone = w.engine();
+    await phone.status();
+    expect(phone.waitsOnPerson()).toBe(true);
+  });
+
   it("reads the file again only when the desktop has written a new one", async () => {
     const w = world();
     await built(w.engine());
@@ -361,6 +397,7 @@ describe("a phone holding the desktop's index", () => {
     };
     await look();
     expect(phone.searchState()).toBe("ready");
+    expect(phone.waitsOnPerson()).toBe(false);
     let reads = w.reads.length;
 
     await look(); // the same file: not read again

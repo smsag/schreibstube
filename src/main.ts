@@ -106,7 +106,7 @@ import type {
 import { fileGlyph } from "./services/file-glyph";
 import { obsidianFileUrl } from "./services/obsidian-url";
 import { splitItemKey, type SchreibstubeSemanticApi } from "./services/semantic/semantic-api";
-import { communityPluginName, communityPluginPresence } from "./services/workspace-internals";
+import { communityPluginInstalled, communityPluginName } from "./services/workspace-internals";
 import { iconGlyph } from "./ui/icon-font";
 import { showChoiceNotice } from "./ui/action-notice";
 import { PaneSectionsController } from "./controllers/pane-sections";
@@ -341,7 +341,7 @@ export default class SchreibstubePlugin extends Plugin {
       logger: this.logger,
       vaultHit: (path) => this.vaultHit(path),
       isIcon: (name) => iconGlyph(name) !== undefined,
-      pluginPresent: (id) => communityPluginPresence(this.app, id)
+      pluginPresent: (id) => communityPluginInstalled(this.app, id)
     });
     this.semantic.onConsentNeeded((id, source) => this.askSourceConsent(id, source.plural));
 
