@@ -12,7 +12,7 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
-- **The explorer's box is called a search.** It was labelled a filter, from when it matched file names only. It reads a note's text, finds notes by meaning, lists synced notes and takes prefixes, so its placeholder now reads "Search all sections…", the clear button says "Clear the search", and the settings and the README use the same word. Its results still replace the tree while it has text.
+- **The explorer's box is called a search.** It was labelled a filter, from when it matched file names only. It reads a note's text, finds notes by meaning, lists synced notes and takes prefixes, so its placeholder now reads "Search the vault…", the clear button says "Clear the search", and the settings and the README use the same word. Its results still replace the tree while it has text.
 - **One rule for file extensions, and a setting for it.** The explorer hid the extension of notes, SVG pictures, Excalidraw drawings and bases but showed it on every other file, so a `.png` read differently from a drawing for no reason a person could see. Every file now shows its name without the extension, and the icon says what it is. **Show file extensions** in the settings, off by default, brings the whole name back. Renaming edits the name without its extension either way. If you keep `photo.png` beside `photo.jpg`, switch the setting on: the two now read alike otherwise.
 
 ### Fixed

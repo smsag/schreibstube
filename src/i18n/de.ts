@@ -838,7 +838,7 @@ export const de: Messages = {
     },
     title: "Schreibstube Explorer",
     empty: "In diesem Vault liegt noch keine Datei.",
-    searchPlaceholder: "Alle Sektionen durchsuchen …",
+    searchPlaceholder: "Vault durchsuchen …",
     clearFilter: "Suche leeren",
     taskCount: (done: number, total: number) => `${done} von ${total} Aufgaben erledigt`,
     filterEmpty: "Darauf antwortet hier nichts.",

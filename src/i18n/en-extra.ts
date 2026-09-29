@@ -557,7 +557,7 @@ export const enExtra = {
     },
     title: "Schreibstube Explorer",
     empty: "This vault has no files yet.",
-    searchPlaceholder: "Search all sections…",
+    searchPlaceholder: "Search the vault…",
     clearFilter: "Clear the search",
     taskCount: (done: number, total: number) => `${done} of ${total} tasks done`,
     filterEmpty: "Nothing here answers that.",
