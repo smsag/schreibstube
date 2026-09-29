@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## 1.64.0 - 2026-09-29
 
 A quality review of the whole codebase: about 180 defects and improvements,
 found by reading every module against the three principles and fixed with a
