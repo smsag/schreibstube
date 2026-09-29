@@ -25,6 +25,7 @@ export const de: Messages = {
     suggestTags: "Einfügen: vorgeschlagene Tags",
     openExplorer: "Explorer öffnen",
     collapseExplorer: "Explorer: Ordner zuklappen",
+    focusExplorerFilter: "Explorer: suchen",
     explorerUndo: "Explorer: letztes Verschieben oder Löschen rückgängig machen",
     folderTiles: "Explorer: Ordner dieser Notiz als Kacheln",
     orphanedDescriptions: "Explorer: verwaiste Bildbeschreibungen",
@@ -837,11 +838,11 @@ export const de: Messages = {
     },
     title: "Schreibstube Explorer",
     empty: "In diesem Vault liegt noch keine Datei.",
-    searchPlaceholder: "Alle Sektionen filtern …",
-    clearFilter: "Filter leeren",
+    searchPlaceholder: "Alle Sektionen durchsuchen …",
+    clearFilter: "Suche leeren",
     taskCount: (done: number, total: number) => `${done} von ${total} Aufgaben erledigt`,
     filterEmpty: "Darauf antwortet hier nichts.",
-    filterMore: (count: number) => `${count} weitere Treffer. Filter eingrenzen, um sie zu sehen.`,
+    filterMore: (count: number) => `${count} weitere Treffer. Suche eingrenzen, um sie zu sehen.`,
     foundByMeaning: "Nach Bedeutung gefunden: andere Wörter, gleiches Thema.",
     searchingByMeaning: "Suche nach Bedeutung …",
     filterHint:
@@ -1242,7 +1243,7 @@ export const de: Messages = {
       "Notiz einmal, das dauert auf dem Desktop einige Minuten.",
     enabled: "Suche nach Bedeutung",
     enabledDesc: (megabytes: number) =>
-      "Ergänzt den Explorer-Filter nach einer kurzen Tipppause um Notizen, die dem Gesuchten " +
+      "Ergänzt die Explorer-Suche nach einer kurzen Tipppause um Notizen, die dem Gesuchten " +
       `inhaltlich entsprechen. Lädt beim ersten Mal das Modell (etwa ${megabytes} MB).`,
     maxNotes: "Höchstens so viele Notizen",
     maxNotesDesc: (min: number, max: number) =>
@@ -1337,7 +1338,7 @@ export const de: Messages = {
         (readIn ? ` in ${readIn}` : "") +
         `, ${words} verschiedene Wörter`,
       textSearchUnread:
-        "Noch nicht gelesen. Der Explorer-Filter liest den Text der Notizen bei seiner ersten Nutzung.",
+        "Noch nicht gelesen. Die Explorer-Suche liest den Text der Notizen bei seiner ersten Nutzung.",
       seconds: (n: number) => `${n} s`,
       minutes: (n: number) => `${n} min`,
       hours: (h: number, m: number) => (m > 0 ? `${h} h ${m} min` : `${h} h`),
@@ -1349,7 +1350,7 @@ export const de: Messages = {
         "Auf diesem Telefon pausiert, solange Pythia ein eigenes Sprachmodell lädt: Zwei sind " +
         "mehr, als das Telefon einer App erlaubt. Ein Pythia, das diese Suche nutzt, hebt die Pause auf.",
       notBuilt:
-        "Noch nicht aufgebaut. Das geschieht bei der ersten Nutzung des Explorer-Filters oder mit „Jetzt aufbauen“.",
+        "Noch nicht aufgebaut. Das geschieht bei der ersten Nutzung der Explorer-Suche oder mit „Jetzt aufbauen“.",
       loading: "Modell wird geladen…",
       building: (done: number, total: number) => `Notizen werden gelesen: ${done} von ${total}.`,
       ready: (count: number) => (count === 1 ? "Bereit: 1 Notiz." : `Bereit: ${count} Notizen.`),

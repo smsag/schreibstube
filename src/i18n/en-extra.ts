@@ -557,11 +557,11 @@ export const enExtra = {
     },
     title: "Schreibstube Explorer",
     empty: "This vault has no files yet.",
-    searchPlaceholder: "Filter all sections…",
-    clearFilter: "Clear the filter",
+    searchPlaceholder: "Search all sections…",
+    clearFilter: "Clear the search",
     taskCount: (done: number, total: number) => `${done} of ${total} tasks done`,
     filterEmpty: "Nothing here answers that.",
-    filterMore: (count: number) => `${count} more match. Narrow the filter to see them.`,
+    filterMore: (count: number) => `${count} more match. Narrow the search to see them.`,
     foundByMeaning: "Found by meaning: the words differ, the subject matches.",
     searchingByMeaning: "Searching by meaning…",
     filterHint:
@@ -945,7 +945,7 @@ export const enExtra = {
       "note once, which takes a few minutes on a desktop.",
     enabled: "Search by meaning",
     enabledDesc: (megabytes: number) =>
-      "Adds notes that match what was typed in meaning to the Explorer filter, after a short " +
+      "Adds notes that match what was typed in meaning to the Explorer search, after a short " +
       `pause in typing. Downloads the model (about ${megabytes} MB) the first time.`,
     maxNotes: "Most notes to index",
     maxNotesDesc: (min: number, max: number) =>
@@ -1037,7 +1037,7 @@ export const enExtra = {
       textSearchValue: (notes: number, words: number, readIn: string | null) =>
         `${notes} notes read` + (readIn ? ` in ${readIn}` : "") + `, ${words} different words`,
       textSearchUnread:
-        "Not read yet. The Explorer filter reads the notes' text the first time it is used.",
+        "Not read yet. The Explorer search reads the notes' text the first time it is used.",
       seconds: (n: number) => `${n} s`,
       minutes: (n: number) => `${n} min`,
       hours: (h: number, m: number) => (m > 0 ? `${h} h ${m} min` : `${h} h`),
@@ -1049,7 +1049,7 @@ export const enExtra = {
         "Paused on this phone while Pythia runs a language model of its own: two are more " +
         "than the phone lets one app hold. A Pythia that uses this search lifts the pause.",
       notBuilt:
-        "Not built yet. It builds when the Explorer filter is first used, or with Build now.",
+        "Not built yet. It builds when the Explorer search is first used, or with Build now.",
       loading: "Loading the model…",
       building: (done: number, total: number) => `Reading notes: ${done} of ${total}.`,
       ready: (count: number) => (count === 1 ? "Ready: 1 note." : `Ready: ${count} notes.`),

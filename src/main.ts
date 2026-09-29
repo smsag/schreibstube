@@ -1513,6 +1513,24 @@ export default class SchreibstubePlugin extends Plugin {
       }
     );
 
+    // Opens the pane when it is shut, so a hotkey is the whole route from
+    // anywhere in the vault to typing a search.
+    this.addCommand({
+      id: "explorer-focus-filter",
+      name: t().commands.focusExplorerFilter,
+      callback: () => {
+        void (async () => {
+          await this.activateExplorerPane();
+          for (const leaf of this.app.workspace.getLeavesOfType(EXPLORER_VIEW_TYPE)) {
+            if (leaf.view instanceof ExplorerPaneView) {
+              leaf.view.focusFilter();
+              return;
+            }
+          }
+        })();
+      }
+    });
+
     // ⌘Z inside the pane does the same; this is for a hotkey of one's own,
     // and for the palette after the notice offering it has gone.
     this.addGatedCommand(

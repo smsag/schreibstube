@@ -27,6 +27,7 @@ export const en = {
     suggestTags: "Insert: suggested tags",
     openExplorer: "Open explorer",
     collapseExplorer: "Explorer: collapse folders",
+    focusExplorerFilter: "Explorer: search",
     explorerUndo: "Explorer: undo the last move or delete",
     folderTiles: "Explorer: this note's folder as tiles",
     orphanedDescriptions: "Explorer: orphaned picture descriptions",
