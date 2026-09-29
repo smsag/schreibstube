@@ -567,14 +567,6 @@ export const enExtra = {
     filterHint:
       "Finds files by name, title, alias, tag and text. Narrow it with tag:, path:, name:, text: or sync:, or type #tag.",
     filterStatus: (count: number) => (count === 1 ? "1 match" : `${count} matches`),
-    filterScope: {
-      tags: "Tags only",
-      path: "Folders only",
-      name: "File names only",
-      body: "Text only",
-      sync: "Synced notes only",
-      all: "Everywhere"
-    },
     rootFolder: "Vault root",
     collapseAll: "Collapse all",
     expandAll: "Expand all",
