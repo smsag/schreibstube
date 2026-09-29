@@ -723,6 +723,8 @@ Five signals, in the order they are worth anything:
 | A shared tag      | A deliberate label, but about a group rather than this note |
 | The same folder   | The weakest, and only ever a tiebreak                       |
 
+A picture's [description note](#picture-descriptions) counts as the picture here: its links and tags relate the picture, and the list shows the picture's card, never the note beside it.
+
 With [Search by meaning](#search-by-meaning) switched on, a moment later the list gains what reads alike: notes nobody linked, marked **similar in meaning**, pictures whose descriptions are about the same thing, and conversations from Pythia about it. They come from vectors already stored, so no model is loaded to draw them, and the two answers are merged by rank, with a note you linked keeping its place above one that merely sounds similar. A note not yet in the index has only its links to offer. Pressing a conversation opens it in Pythia.
 
 Notes, pictures and conversations are one list, most relevant first, without a heading per kind: a conversation that is the best answer comes first, and a picture sits where its relevance puts it, as a card with its thumbnail. **Number of recommendations** in the Explorer settings sets how long the list is, 7 unless you choose between 1 and 30.

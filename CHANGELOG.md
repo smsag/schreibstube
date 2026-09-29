@@ -24,6 +24,7 @@ an older Pythia is no longer found.
 
 ### Fixed
 
+- **Recommended shows a described picture, not its description note.** Search by meaning already read a description note as its picture, but the links did not: a note sharing links or tags with a description listed the description as a note, often right beside the picture it describes, and with search by meaning off it listed only the note. The links now count the description for its picture and show the picture's card.
 - **The API says when search by meaning cannot answer.** `status()` said "loading" for a failed build, paused automatic builds and a phone still waiting for the desktop's index, so another plugin's spinner never stopped. It now says `"unavailable"` for those.
 - **A plugin switched on mid-session can register a source from its `onload`.** The name was checked against Obsidian's enabled plugins, which a plugin may join only after its `onload` has run, so registering there could be refused. The check now asks whether a plugin by that name is installed.
 - **A source registered again while its index was being written no longer races it.** The new index waits for the old one to finish before it reads or writes their shared file.

@@ -88,7 +88,7 @@ export interface Recommendation {
 
 export interface RecommendedHost {
   /** The link graph's answer, at once. */
-  cards(path: string): RelatedCard[];
+  links(path: string): RecommendedItem[];
   /** The full answer with meaning in it, or null when search by meaning is off. */
   recommend?(path: string): Promise<Recommendation | null>;
   /** The title to put at the top: what the list is related *to*. */
@@ -195,10 +195,10 @@ export class RecommendedPanel {
     const items =
       path === null || title === null
         ? []
-        : (this.answer?.path === path
-            ? this.answer.value.items
-            : this.host.cards(path).map((card): RecommendedItem => ({ kind: "note", card }))
-          ).slice(0, this.host.count());
+        : (this.answer?.path === path ? this.answer.value.items : this.host.links(path)).slice(
+            0,
+            this.host.count()
+          );
 
     const signature = JSON.stringify([path, title, this.collapsed, items]);
     if (signature === this.drawn) return;
