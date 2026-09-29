@@ -10,6 +10,8 @@ import { t } from "../i18n";
 import { MAX_SEMANTIC_NOTES, MIN_SEMANTIC_NOTES } from "../services/plugin-settings";
 import { semanticStatusText } from "../services/semantic/status-text";
 import { reportRows } from "../services/semantic/index-report";
+import { consentOf } from "../services/semantic/semantic-api";
+import { communityPluginName } from "../services/workspace-internals";
 import type { SettingsContext } from "./context";
 
 /** How often the status line is redrawn while a build runs. */
@@ -127,4 +129,45 @@ export function renderSemantic(ctx: SettingsContext): void {
         .setWarning()
         .onClick(() => engine.rebuild());
     });
+
+  renderSources(ctx);
+}
+
+/**
+ * Every plugin that registered a source this session, and every one answered
+ * for before, each with its switch: what is allowed here is read, what is not
+ * is never touched. A source switched off leaves search at once; its index
+ * file stays, so switching it on again reads only what changed.
+ */
+function renderSources(ctx: SettingsContext): void {
+  const engine = ctx.plugin.semantic;
+  if (!engine) return;
+  const words = t().semantic.sources;
+  new Setting(ctx.containerEl).setName(words.heading).setHeading();
+  ctx.containerEl.createEl("p", { text: words.intro, cls: "setting-item-description" });
+
+  const live = new Map(engine.sources.registered().map((entry) => [entry.id, entry]));
+  const ids = new Set([...live.keys(), ...Object.keys(ctx.plugin.settings.semanticSources)]);
+  if (ids.size === 0) {
+    ctx.containerEl.createEl("p", { text: words.none, cls: "setting-item-description" });
+    return;
+  }
+  for (const id of [...ids].sort()) {
+    const entry = live.get(id);
+    const answer = consentOf(ctx.plugin.settings.semanticSources, id);
+    const desc = entry
+      ? answer === "pending"
+        ? words.pending
+        : words.item(entry.descriptor.plural, entry.size)
+      : "";
+    new Setting(ctx.containerEl)
+      .setName(communityPluginName(ctx.app, id) ?? id)
+      .setDesc(desc)
+      .addToggle((toggle) => {
+        toggle.setValue(answer === "allowed").onChange(async (value) => {
+          await ctx.plugin.answerSource(id, value);
+          ctx.refresh();
+        });
+      });
+  }
 }

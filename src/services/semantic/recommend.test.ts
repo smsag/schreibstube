@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { itemKey } from "./semantic-api";
 import {
-  conversationIdOf,
-  conversationKey,
   meaningOrder,
   recommendNotes,
   relevanceOf,
@@ -44,47 +43,65 @@ describe("recommendNotes", () => {
   });
 });
 
+const key = (id: string) => itemKey("pythia", id);
+const vault = (hits: { key: string; score: number }[], floor = 0.5) => ({ hits, floor });
+const items = (hits: { id: string; score: number }[], floor = 0.5) => ({
+  hits: hits.map((hit) => ({ key: key(hit.id), score: hit.score })),
+  floor
+});
+
 describe("meaningOrder", () => {
-  it("ranks notes, pictures and conversations together by score", () => {
+  it("ranks notes, pictures and items together", () => {
     const order = meaningOrder(
-      [
+      vault([
         { key: "a.md", score: 0.8 },
-        { key: "bild.jpg", score: 0.5 }
-      ],
-      [{ id: "c1", score: 0.7 }]
+        { key: "bild.jpg", score: 0.6 }
+      ]),
+      items([{ id: "c1", score: 0.7 }])
     );
-    expect(order.map((hit) => hit.path)).toEqual(["a.md", conversationKey("c1"), "bild.jpg"]);
+    expect(order.map((hit) => hit.path)).toEqual(["a.md", key("c1"), "bild.jpg"]);
+  });
+
+  it("reads each kind against its own floor, and keeps the raw similarity", () => {
+    // A note barely past its floor below an item well past its own.
+    const order = meaningOrder(
+      vault([{ key: "a.md", score: 0.66 }], 0.65),
+      items([{ id: "c1", score: 0.64 }], 0.57)
+    );
+    expect(order).toEqual([
+      { path: key("c1"), score: 0.64 },
+      { path: "a.md", score: 0.66 }
+    ]);
   });
 
   it("keeps the vault first on a tie", () => {
-    const order = meaningOrder([{ key: "a.md", score: 0.6 }], [{ id: "c1", score: 0.6 }]);
+    const order = meaningOrder(
+      vault([{ key: "a.md", score: 0.6 }]),
+      items([{ id: "c1", score: 0.6 }])
+    );
     expect(order[0]?.path).toBe("a.md");
   });
 
   it("lists a picture found through two description notes once", () => {
     const order = meaningOrder(
-      [
+      vault([
         { key: "bild.jpg", score: 0.9 },
-        { key: "bild.jpg", score: 0.4 }
-      ],
-      []
+        { key: "bild.jpg", score: 0.6 }
+      ]),
+      items([])
     );
     expect(order).toEqual([{ path: "bild.jpg", score: 0.9 }]);
   });
 });
 
-describe("conversation keys", () => {
-  it("round-trip, and a vault path is never one", () => {
-    expect(conversationIdOf(conversationKey("9d66b8f5"))).toBe("9d66b8f5");
-    expect(conversationIdOf("Docs/Notiz.md")).toBeNull();
-  });
-});
-
 describe("one list across kinds", () => {
   it("fuses a conversation with the link graph and stops at the count", () => {
-    const meaning = meaningOrder([{ key: "prose.md", score: 0.5 }], [{ id: "c1", score: 0.9 }]);
+    const meaning = meaningOrder(
+      vault([{ key: "prose.md", score: 0.55 }]),
+      items([{ id: "c1", score: 0.9 }])
+    );
     const out = recommendNotes([g("linked.md", link), g("tagged.md", tag)], meaning, 2);
-    expect(out.map((r) => r.path)).toEqual(["linked.md", conversationKey("c1")]);
+    expect(out.map((r) => r.path)).toEqual(["linked.md", key("c1")]);
   });
 });
 
@@ -92,26 +109,22 @@ describe("withAttached", () => {
   const attached = (path: string) => ({ path, reasons: [{ kind: "attached", count: 1 }] });
 
   it("places an attached conversation after the last linked note", () => {
-    const out = withAttached([g("linked.md", link), g("tagged.md", tag)], [conversationKey("c1")]);
-    expect(out).toEqual([
-      g("linked.md", link),
-      attached(conversationKey("c1")),
-      g("tagged.md", tag)
-    ]);
+    const out = withAttached([g("linked.md", link), g("tagged.md", tag)], [key("c1")]);
+    expect(out).toEqual([g("linked.md", link), attached(key("c1")), g("tagged.md", tag)]);
   });
 
   it("puts it first when nothing is linked", () => {
-    const out = withAttached([g("tagged.md", tag)], [conversationKey("c1")]);
-    expect(out[0]?.path).toBe(conversationKey("c1"));
+    const out = withAttached([g("tagged.md", tag)], [key("c1")]);
+    expect(out[0]?.path).toBe(key("c1"));
   });
 
   it("lets an attached conversation outrank one only found by meaning", () => {
     const ranked = recommendNotes(
-      withAttached([g("tagged.md", tag)], [conversationKey("attached")]),
-      [{ path: conversationKey("alike"), score: 0.9 }],
+      withAttached([g("tagged.md", tag)], [key("attached")]),
+      [{ path: key("alike"), score: 0.9 }],
       10
     );
-    expect(ranked[0]?.path).toBe(conversationKey("attached"));
+    expect(ranked[0]?.path).toBe(key("attached"));
     expect(ranked[0]?.reasons[0]?.kind).toBe("attached");
   });
 });

@@ -147,29 +147,38 @@ vocabulary of every note's words (`services/body-index.ts`), read once when the
 filter is first used. Both it and the model read a note through
 `services/note-text.ts`, which drops frontmatter, code, URLs and encoded data.
 
-Other plugins reach it as `app.plugins.getPlugin("schreibstube").api`:
+Other plugins reach it as `app.plugins.getPlugin("schreibstube").api`, version 2:
 
 ```ts
-api.version; // 1
-api.ready(); // switched on, and allowed to run on this device
-api.search(text, { kinds, limit, exclude }); // "note" | "image" | "conversation"
-api.related({ path } | { source: "pythia", id }, { kinds, limit }); // from stored vectors, no model
-api.registerSource("pythia", { list, onChanged }); // conversations to index
-api.onIndexChanged(cb);
+api.status(); // "off" | "loading" | "partial" | "ready"
+api.kinds(); // [{ kind, label, source }]: the vault's two and every allowed source's
+api.search(text, { kinds?, sources?, limit?, exclude? });
+api.related({ path } | { source, id }, { kinds?, sources?, limit? }); // stored vectors, no model
+api.registerSource(pluginId, { kind, label, plural, icon?, list, onChanged,
+  open?, link?, ids?, changedSince? }); // → { release(), consent() }
+api.onIndexChanged(cb); // what a search can find changed; at most once a second
 ```
 
-It is supported for Pythia only. Plugins are not isolated from each other, so
-nothing can be closed; what is enforced is who may register a source, since a
-source is text that costs memory and embedding time. What a source lists is
-untrusted: checked, bounded to 1 000 conversations of 40 000 characters, and
-given five seconds to arrive. `limit` is clamped to 50, and a failure inside is
-answered with nothing rather than thrown into the caller.
+Any plugin may register a source; each is one index file of its own
+(`semantic-source-<id>-…bin`), so sources never share rows or ids. Plugins are
+not isolated from each other and a name cannot be proved, so the gate is the
+person: a source is read only once allowed, from a notice when it first
+registers or in the settings, where the answer is also taken back. The name
+must be an enabled plugin's where the registry can say so. Everything a source
+hands over is untrusted: checked, bounded to 1 000 items of 40 000 characters
+and eight sources, and given five seconds to answer. A source with `ids()` and
+`changedSince()` is asked only for what changed after its first listing.
 
-Each listed conversation is `{ id, title, updatedAt, summary, messages, notes? }`.
-`notes`, optional, are the vault paths attached to the conversation as context:
-Recommended counts them as a link between the conversation and each note. They
-are not embedded, so adding them changes no content hash and re-indexes
-nothing; at most 50 per conversation are read.
+Each item is `{ id, title, updatedAt, summary?, messages? | text?, notes? }`.
+`notes`, optional, are vault paths attached to the item as context: Recommended
+counts them as a link between the item and each note, and they are not
+embedded. A hit names an item `<source>:<id>` and carries both halves.
+
+A hit's `score` is its relevance, 0 to 1, read against the floor measured for
+what was compared — note to note, note to item, a query to either — so kinds
+rank alike in one list; its raw cosine is `similarity`. `limit` is clamped to
+50, and a failure inside a question is answered with nothing rather than
+thrown into the caller; a registration that cannot be taken throws.
 
 The other direction is printing. Pythia publishes an API of its own
 (`app.plugins.getPlugin("pythia").api`, version 1) that hands a print a copy of

@@ -2,6 +2,28 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+Search by meaning is open to other plugins. Any plugin can hand its own items
+to Schreibstube — conversations, highlights, references — to be found in the
+Explorer search and in Recommended beside the vault's notes. Each asks once and
+nothing of it is read until you allow it. Pythia 3.9 uses the new interface;
+an older Pythia is no longer found.
+
+### Added
+
+- **Other plugins' sources, with your consent.** A plugin that registers a source is announced with a notice and an **Allow** button, and listed under **Settings → Search by meaning → Other plugins' sources** with a switch and the number of items indexed. Until it is allowed, nothing it lists is read or embedded; switched off, its items leave search and Recommended at once. Each source keeps its own index file, its items carry its own name and icon in the Explorer and in Recommended, and its own link for **Copy link**.
+
+### Changed
+
+- **The API for other plugins is version 2.** Several sources at once, each with its own index, instead of one conversation source for Pythia alone; items named `<source>:<id>`; a source declares what its items are, how they are called and which icon they wear; `status()` says whether a search can answer fully, partly or not yet, instead of only whether it is switched on; `related` also takes one of a source's items and answers notes as well; a source that can say what changed since a moment is asked for that alone. `ARCHITECTURE.md` has the contract.
+- **The conversation index moves to a file per source.** Pythia's conversations are embedded once more, on the desktop, into their new file; the old one is removed.
+
+### Fixed
+
+- **Relevance ranks alike across kinds.** Search and Recommended merged notes and conversations by their raw similarity, although the two are measured at different floors: a note barely past its own could stand above a conversation well past its own. Each is now read against its own floor before the two are merged, in the API and in the panel.
+- **The API says the index changed only when it did.** `onIndexChanged` fired on every status change, a build's progress included, about once a second; a caller that searched again each time searched constantly. It now fires when what a search can find has changed, at most once a second.
+
 ## 1.64.0 - 2026-09-29
 
 A quality review of the whole codebase: about 180 defects and improvements,

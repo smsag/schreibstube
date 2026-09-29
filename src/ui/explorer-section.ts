@@ -13,7 +13,10 @@ import { folderCountLabel } from "../services/folder-count";
 import { applyIcon } from "./icon-font";
 import { pressable } from "./pressable";
 
-export type SectionId = "pinned" | "bookmarks" | "latest" | "files" | "conversations";
+/** The pane's own sections, and one per source of items found by a search. */
+export type SectionId = "pinned" | "bookmarks" | "latest" | "files" | `source-${string}`;
+
+type OwnSectionId = Exclude<SectionId, `source-${string}`>;
 
 /** A control a header carries at its far end, past the rule. */
 export interface SectionAction {
@@ -61,6 +64,8 @@ export interface SectionOptions {
    * header that dropped it would sit a chevron's width left of its own rows.
    */
   twisty?: boolean;
+  /** The header's words, for a section the catalogue cannot name: a source's own. */
+  title?: string;
 }
 
 export interface SectionSpec {
@@ -78,6 +83,8 @@ export interface SectionSpec {
 /** Returns the body to draw into, or null when the section is closed. */
 export function renderSection(host: HTMLElement, spec: SectionSpec): HTMLElement | null {
   const { id, icon, collapsed, options } = spec;
+  const title =
+    options.title ?? (id.startsWith("source-") ? "" : t().explorer.sections[id as OwnSectionId]);
   const section = host.createDiv({ cls: "schreibstube-explorer-section" });
   // Nothing behind the chevron is nothing to click: a section that hides
   // nothing while closed must not offer to open.
@@ -108,7 +115,7 @@ export function renderSection(host: HTMLElement, spec: SectionSpec): HTMLElement
   const twisty = header.createSpan({ cls: "schreibstube-explorer-twisty" });
   if (closable && options.twisty !== false) {
     applyIcon(twisty, collapsed ? "chevron-right" : "chevron-down");
-    wireSectionToggle(twisty, collapsed, t().explorer.sections[id], spec.toggle);
+    wireSectionToggle(twisty, collapsed, title, spec.toggle);
   }
 
   // How many there are in all, on the section's own icon: a closed section
@@ -130,7 +137,7 @@ export function renderSection(host: HTMLElement, spec: SectionSpec): HTMLElement
 
   header.createSpan({
     cls: "schreibstube-explorer-section-title",
-    text: t().explorer.sections[id]
+    text: title
   });
 
   if (options.action) renderSectionAction(header, options.action);

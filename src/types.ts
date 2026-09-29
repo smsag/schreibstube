@@ -70,6 +70,9 @@ export interface SchreibstubeSettings {
   semanticSearchEnabled: boolean;
   /** How many notes the semantic index holds at most, newest first. */
   semanticMaxNotes: number;
+  /** Each source another plugin registered, allowed (true) or refused (false);
+   *  absent is not yet answered, and such a source is never read. */
+  semanticSources: Record<string, boolean>;
   summarizePrompt: string;
   summarizeMaxTokens: number;
   proofreadPrompt: string;

@@ -122,8 +122,12 @@ function world(notes: Record<string, string> = { "a.md": "alpha one", "b.md": "b
     registerDomEvent: () => undefined,
     registerInterval: () => 0
   } as unknown as Plugin;
-  const settings = { semanticSearchEnabled: true, semanticMaxNotes: 1000 } as SchreibstubeSettings;
-  const engine = (): SemanticEngine => new SemanticEngine(plugin, () => settings, NULL_LOGGER);
+  const settings = {
+    semanticSearchEnabled: true,
+    semanticMaxNotes: 1000,
+    semanticSources: {}
+  } as unknown as SchreibstubeSettings;
+  const engine = (): SemanticEngine => new SemanticEngine(plugin, () => settings, NULL_LOGGER, 5);
   return { plugin, settings, contents, unlisted, disk, reads, file, engine };
 }
 
@@ -373,5 +377,83 @@ describe("a phone holding the desktop's index", () => {
     await look();
     expect(w.reads.length).toBeGreaterThan(reads);
     expect((await phone.report())?.indexed).toBe(3);
+  });
+});
+
+describe("what a search can find", () => {
+  it("is announced when it changed, once for a burst, and not for a status change alone", async () => {
+    const w = world();
+    const e = w.engine();
+    const changed = vi.fn();
+    e.onContentChange(changed);
+    await built(e);
+    await until(() => changed.mock.calls.length > 0);
+    await new Promise((r) => setTimeout(r, 20));
+    expect(changed).toHaveBeenCalledTimes(1);
+
+    // A settings change emits, and moves nothing a search can find.
+    e.settingsChanged();
+    await new Promise((r) => setTimeout(r, 20));
+    expect(changed).toHaveBeenCalledTimes(1);
+
+    w.contents.set("a.md", "alpha one, changed");
+    await e.applyChanges([w.file("a.md")], []);
+    await until(() => changed.mock.calls.length > 1);
+    expect(changed).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("a source's item", () => {
+  // The source's list deadline sets a timer on `window`, which a node test lacks.
+  beforeEach(() => vi.stubGlobal("window", globalThis));
+  afterEach(() => vi.unstubAllGlobals());
+
+  const source = (items: { id: string; text: string }[]) => ({
+    kind: "conversation",
+    label: "Conversation",
+    plural: "Conversations",
+    list: () => items.map((i) => ({ id: i.id, title: "", updatedAt: 1, messages: [i.text] })),
+    onChanged: () => () => undefined
+  });
+
+  it("finds the notes and items like it, itself left out, at the floors measured for each", async () => {
+    const w = world();
+    (w.settings as { semanticSources: Record<string, boolean> }).semanticSources = { pythia: true };
+    const e = w.engine();
+    await built(e);
+    const { readSource, itemKey } = await import("../../services/semantic/semantic-api");
+    const read = readSource(
+      source([
+        { id: "c1", text: "alpha one" },
+        { id: "c2", text: "gamma two" }
+      ]),
+      () => true
+    );
+    if (!("source" in read)) throw new Error(read.problem);
+    e.sources.register("pythia", read.source, read.descriptor);
+    await e.findItems("alpha one", 5); // the source is listed and embedded
+
+    const found = await e.relatedToItem(itemKey("pythia", "c1"), 5);
+    expect(found.notes.map((n) => n.id)).toContain("a.md");
+    expect(found.items.map((i) => i.key)).not.toContain(itemKey("pythia", "c1"));
+    const { embeddingModelConfig } = await import("../../services/semantic/embedding-models");
+    const floors = embeddingModelConfig(e.modelId());
+    expect(found.notesFloor).toBe(floors.conversationFloors.balanced);
+    expect(found.itemsFloor).toBe(floors.relatedFloors.balanced);
+  });
+
+  it("is never asked about while the person has not allowed its source", async () => {
+    const w = world();
+    const e = w.engine();
+    const asked = vi.fn();
+    e.onConsentNeeded(asked);
+    const list = vi.fn(() => []);
+    const { readSource } = await import("../../services/semantic/semantic-api");
+    const read = readSource({ ...source([]), list }, () => true);
+    if (!("source" in read)) throw new Error(read.problem);
+    e.sources.register("stranger", read.source, read.descriptor);
+    expect(asked).toHaveBeenCalledWith("stranger", read.descriptor);
+    await e.findItems("alpha", 5);
+    expect(list).not.toHaveBeenCalled();
   });
 });
