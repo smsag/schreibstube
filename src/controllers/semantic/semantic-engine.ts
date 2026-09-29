@@ -142,7 +142,8 @@ export class SemanticEngine {
   start(): void {
     registerVaultWatcher(this.plugin, {
       applyChanges: (changed, deleted) => void this.applyChanges(changed, deleted),
-      activePath: () => this.plugin.app.workspace.getActiveFile()?.path ?? null
+      activePath: () => this.plugin.app.workspace.getActiveFile()?.path ?? null,
+      holdUntilLeft: Platform.isMobile
     });
     this.residency = installEmbeddingResidency(this.plugin, {
       provider: () => this.provider,

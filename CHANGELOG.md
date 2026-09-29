@@ -22,6 +22,7 @@ bridge on 5; a commit's `deleteFailed` is then read as zero.
 ### Changed
 
 - **One search reads the model once.** A meaning search embeds its text once for notes and conversations, and the public API cuts a query at 1 000 characters before embedding it. A phone answers a conversation search from what it holds instead of embedding every changed conversation first.
+- **A phone indexes a note when you leave it, not while you pause.** The note being written used to reach the index after thirty seconds of quiet as well, which on a phone meant loading the model of several hundred megabytes beside the editor at every pause to think, and a long writing session loaded and dropped it every few minutes until iOS ended the process. A phone now embeds the note once, when another note is opened; the desktop keeps the quiet clock, where the model lives in a worker.
 - **The Recommended panel no longer freezes the app for a long note.** A note ranks the index by its first passages, and the ranking yields to the interface as it goes, for notes and conversations alike.
 - **Typing in a long note is lighter.** Task folding, task badges, icon glyphs, the glossary underline and focus mode now do work only when something they draw could have changed, and none of them reads a note above the live limit.
 - **Frontmatter closed with `...` is recognised everywhere.** Sync, publish, mail, keyword and plain-text readers each had their own frontmatter rule; one shared reader accepts `---` or `...`, trailing blanks on the fence lines and an empty block.

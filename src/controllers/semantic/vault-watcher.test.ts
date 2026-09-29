@@ -111,7 +111,7 @@ describe("VaultChangeBatch — a path is on exactly one side (Pythia ADR-121)", 
 
 type Handler = (f: unknown, oldPath?: string) => void;
 
-function watcher(opts: { active?: { path: string | null } } = {}) {
+function watcher(opts: { active?: { path: string | null }; holdUntilLeft?: boolean } = {}) {
   debouncers.length = 0;
   const handlers: Record<string, Handler> = {};
   const workspaceHandlers: Record<string, Handler> = {};
@@ -139,7 +139,8 @@ function watcher(opts: { active?: { path: string | null } } = {}) {
   registerVaultWatcher(host as never, {
     applyChanges: (changed, deleted) =>
       applied.push({ changed: changed.map((f) => f.path), deleted }),
-    ...(active ? { activePath: () => active.path } : {})
+    ...(active ? { activePath: () => active.path } : {}),
+    ...(opts.holdUntilLeft ? { holdUntilLeft: true } : {})
   });
   const file = (path: string, extension = "md"): TFile =>
     // The test stub's TFile takes its path; Obsidian's own type says it takes none.
@@ -354,5 +355,19 @@ describe("registerVaultWatcher — the note being written (Pythia ADR-220)", () 
 
   it("waits thirty seconds of quiet before a note left open is embedded", () => {
     expect(VAULT_HOLD_IDLE_MS).toBe(30_000);
+  });
+
+  it("where leaving is the only release, a pause of any length sends nothing", () => {
+    const active = { path: "a.md" as string | null };
+    const w = watcher({ active, holdUntilLeft: true });
+    w.handlers.modify(w.file("a.md"));
+    w.handlers.modify(w.file("b.md"));
+    w.flush(); // b.md goes; a.md is held with no clock behind it
+    expect(w.holdTimer.calls).toBe(0);
+    w.idle();
+    expect(w.applied).toEqual([{ changed: ["b.md"], deleted: [] }]);
+    active.path = "c.md";
+    w.workspaceHandlers["file-open"](w.file("c.md"));
+    expect(w.applied.at(-1)).toEqual({ changed: ["a.md"], deleted: [] });
   });
 });
