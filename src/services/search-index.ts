@@ -20,6 +20,7 @@
  * vault-sized cost per edit.
  */
 import {
+  parseSearchScope,
   rankFiles,
   type BodyMatcher,
   searchFields,
@@ -68,6 +69,8 @@ export interface SearchSource {
    * unchanged raises no event to say its fields have arrived.
    */
   metadata(file: IndexedFile): FileMetadata | null;
+  /** Whether a note is bound to a source; asked only when a query needs it. */
+  synced?(file: IndexedFile): boolean;
 }
 
 /** What one draw of the filter needs to know. */
@@ -206,9 +209,12 @@ export class FileSearchIndex {
    * filter is guessing.
    */
   search(query: string, limit: number): SearchResult {
-    const candidates: SearchCandidate[] = this.source
-      .files()
-      .map((file) => ({ path: file.path, fields: this.fieldsFor(file) }));
+    const wantsSync = parseSearchScope(query).scope === "sync";
+    const candidates: SearchCandidate[] = this.source.files().map((file) => ({
+      path: file.path,
+      fields: this.fieldsFor(file),
+      ...(wantsSync ? { synced: this.source.synced?.(file) === true } : {})
+    }));
 
     const hits = rankFiles(query, candidates, undefined, this.body);
     const shown = hits.slice(0, Math.max(0, limit));

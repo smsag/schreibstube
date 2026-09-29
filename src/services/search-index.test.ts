@@ -294,3 +294,47 @@ describe("a described picture's words", () => {
     expect(index.fieldsFor({ path: "Fotos/IMG_2.jpg", name: "IMG_2.jpg" }).description).toEqual([]);
   });
 });
+
+describe("the sync: prefix", () => {
+  const synced = new Set(["Objekte/Objekt 12.md", "Kontakte/Meier.md"]);
+  const source: SearchSource = {
+    ...fakeSource(VAULT),
+    synced: (file) => synced.has(file.path)
+  };
+
+  it("lists every synced note, folder by folder, with no words", () => {
+    const index = new FileSearchIndex(source);
+    expect(index.search("sync:", 10).hits.map((hit) => hit.path)).toEqual([
+      "Kontakte/Meier.md",
+      "Objekte/Objekt 12.md"
+    ]);
+    expect(index.search("synchron:", 10).hits).toHaveLength(2);
+  });
+
+  it("narrows by the words after it, among synced notes only", () => {
+    const index = new FileSearchIndex(source);
+    expect(index.search("sync: objekt", 10).hits.map((hit) => hit.path)).toEqual([
+      "Objekte/Objekt 12.md"
+    ]);
+    // Mietvertrag matches the word but is not bound to a source.
+    expect(index.search("sync: vertrag", 10).hits).toEqual([]);
+  });
+
+  it("finds nothing when the source cannot say what is synced", () => {
+    const index = new FileSearchIndex(fakeSource(VAULT));
+    expect(index.search("sync:", 10).hits).toEqual([]);
+  });
+
+  it("does not ask the source unless the query needs it", () => {
+    let asked = 0;
+    const index = new FileSearchIndex({
+      ...fakeSource(VAULT),
+      synced: () => {
+        asked += 1;
+        return true;
+      }
+    });
+    index.search("objekt", 10);
+    expect(asked).toBe(0);
+  });
+});

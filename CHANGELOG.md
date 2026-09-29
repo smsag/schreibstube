@@ -739,6 +739,14 @@ The bridge's protocol is unchanged; bridge 2.4.0 still pairs with this release.
 - **The Explorer's filter answers the keyboard.** Escape clears it, Enter opens the best match, and the down arrow moves from the field into the list. `#objekt` searches tags, as `tag:objekt` does, and a filter narrowed with `tag:`, `path:` or `name:` now says so above its results. Hovering the field lists the prefixes. A screen reader hears how many files matched.
 - **The related notes can stay on one note.** A pin in the panel's header keeps the list on the note it shows, and pressing it again lets the panel follow the open note. The panel's heading opens the note it names, and a middle click on a card opens it in a new tab.
 
+### Fixed
+
+- **A pinned folder takes a drop.** Dragging a file or a folder from the tree onto a folder in the Pinned section now moves it into that folder. The pinned block sits above the tree, outside the area the drag looked at, so only folders in the tree itself could be aimed at.
+
+### Added
+
+- **`sync:` in the explorer filter lists the synced notes.** Type `sync:` (or `synced:`, `synchron:`) and the filter shows every note bound to a source, not only the recent ones, sorted folder by folder with each note's folder beneath its name. Words after it narrow the list, as in `sync: angebot`.
+
 ### Changed
 
 - **A slideshow's header stays out of the way.** The alt text and the controls in the row above a slideshow now appear only while the pointer is over the block or a control has the keyboard focus. On a phone, which has no pointer, a tap on a picture or on the row shows them and the next tap, or a swipe, hides them again. The row keeps its height, so nothing below the block moves when they come and go. This is the same in every layout, from the stage to the before-and-after.

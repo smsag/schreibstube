@@ -215,6 +215,9 @@ export interface SearchFields {
 export interface SearchCandidate {
   path: string;
   fields: SearchFields;
+  /** Whether the note is bound to a source. Not part of the cached fields:
+   *  the record behind it changes without the file changing. */
+  synced?: boolean;
 }
 
 /**
@@ -283,7 +286,7 @@ export interface SearchHit {
  * note carries the word "Objekt" in its name cannot be narrowed by typing more
  * of it, only by saying which dimension was meant.
  */
-export type SearchScope = "all" | "tags" | "path" | "name" | "body";
+export type SearchScope = "all" | "tags" | "path" | "name" | "body" | "sync";
 
 export interface ParsedQuery {
   scope: SearchScope;
@@ -316,6 +319,9 @@ const SCOPE_PREFIXES: Record<string, SearchScope> = {
   text: "body",
   inhalt: "body",
   body: "body",
+  sync: "sync",
+  synced: "sync",
+  synchron: "sync",
   all: "all",
   alle: "all"
 };
@@ -389,6 +395,21 @@ export function rankFiles(
 ): SearchHit[] {
   const { scope, query } = parseSearchScope(raw);
   const words = queryTokens(query);
+
+  // `sync:` narrows to the notes bound to a source before anything is scored,
+  // so a word's rarity is measured among the synced notes a person is looking
+  // at. Alone it is a listing, not a search: every synced note, folder by
+  // folder, which is the one place an empty query answers with files.
+  if (scope === "sync") {
+    const synced = candidates.filter((candidate) => candidate.synced === true);
+    if (words.length > 0) return rankFiles(query, synced, limit, body);
+
+    const listed = synced
+      .map((candidate) => ({ path: candidate.path, score: 1 }))
+      .sort((a, b) => comparePaths(a.path, b.path));
+    return typeof limit === "number" ? listed.slice(0, limit) : listed;
+  }
+
   if (words.length === 0 || candidates.length === 0) return [];
 
   const fields = fieldsForScope(scope);

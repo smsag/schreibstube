@@ -303,6 +303,11 @@ export class ExplorerPaneView extends ItemView {
           tags: [...((cache && getAllTags(cache)) ?? []), ...keywords],
           description: described?.description
         };
+      },
+      synced: (file) => {
+        const target = this.app.vault.getAbstractFileByPath(file.path);
+        const controller = this.host?.explorer;
+        return target instanceof TFile && !!controller && controller.badgeFor(target) !== "none";
       }
     },
     this.bodies
@@ -1828,7 +1833,9 @@ export class ExplorerPaneView extends ItemView {
    * why rather than doing nothing.
    */
   private wireTreeDrag(row: HTMLElement, path: string): void {
-    const list = (): HTMLElement | null => this.body;
+    // The pinned block lives in the shelf, beside the body rather than in it;
+    // a pinned folder is a place to drop as much as a folder in the tree.
+    const list = (): HTMLElement | null => this.shelf?.parentElement ?? this.body;
     // The vault's paths, read once when the drag begins. Every pointer move
     // asks whether the folder under it would take the row, and walking the
     // whole vault to answer each one was the one cost in the pane that grew
