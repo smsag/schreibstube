@@ -1,10 +1,5 @@
 import type { EmbeddingProvider } from "./embedding-provider";
-import {
-  deserializeIndex,
-  diffIndex,
-  serializeIndex,
-  type IndexedConversation
-} from "./embedding-index";
+import { deserializeIndex, serializeIndex, type IndexedConversation } from "./embedding-index";
 import type { IndexStore } from "./index-store";
 import {
   cosine,
@@ -71,10 +66,24 @@ export class ConversationIndex {
     this.loaded = true;
   }
 
-  /** Bring the index in line with `conversations`; concurrent calls coalesce. */
+  /** Bring the index in line with `conversations`, the whole list. */
   async sync(conversations: readonly ConversationItem[]): Promise<void> {
+    await this.update(
+      conversations,
+      conversations.map((c) => c.id)
+    );
+  }
+
+  /**
+   * Apply a change set: embed what `changed` holds anew, keep exactly the ids
+   * in `keep`, in that order, and drop the rest. The whole list is the case
+   * where every item is in `changed`; an incremental sync hands over only
+   * what moved, so the full texts of everything else need not be held.
+   * Concurrent calls run one after another.
+   */
+  async update(changed: readonly ConversationItem[], keep: readonly string[]): Promise<void> {
     while (this.syncing) await this.syncing.catch(() => undefined);
-    this.syncing = this.doSync(conversations);
+    this.syncing = this.doUpdate(changed, keep);
     try {
       await this.syncing;
     } finally {
@@ -82,42 +91,39 @@ export class ConversationIndex {
     }
   }
 
-  private async doSync(conversations: readonly ConversationItem[]): Promise<void> {
+  private async doUpdate(
+    changed: readonly ConversationItem[],
+    keep: readonly string[]
+  ): Promise<void> {
     await this.load();
-    const existing = new Map(this.items.map((i) => [i.id, i.contentHash]));
-    const desired = conversations.map((c) => {
-      const chunks = conversationChunks(c);
-      return {
-        id: c.id,
-        contentHash: resolveRowHash(this.policy, existing.get(c.id), chunks).hash,
-        chunks
-      };
-    });
-    const { toEmbed, toDrop } = diffIndex(
-      existing,
-      desired.map((d) => ({ id: d.id, contentHash: d.contentHash }))
-    );
-    if (toEmbed.length === 0 && toDrop.length === 0) return;
-
     const byId = new Map(this.items.map((i) => [i.id, i]));
-    for (const id of toDrop) byId.delete(id);
-    const embed = new Set(toEmbed);
+    const wanted = new Set(keep);
+    const embed: { id: string; contentHash: string; chunks: string[] }[] = [];
+    for (const c of changed) {
+      if (!wanted.has(c.id)) continue;
+      const chunks = conversationChunks(c);
+      const { hash, reuse } = resolveRowHash(this.policy, byId.get(c.id)?.contentHash, chunks);
+      if (!reuse) embed.push({ id: c.id, contentHash: hash, chunks });
+    }
+    const dropped = [...byId.keys()].some((id) => !wanted.has(id));
+    const reordered = !sameOrder(this.items, keep, byId);
+    if (embed.length === 0 && !dropped && !reordered) return;
+
     let failures = 0;
-    for (const d of desired) {
-      if (!embed.has(d.id)) continue;
+    for (const d of embed) {
       try {
         const raw = await this.embedAll(d.chunks);
         byId.set(d.id, { id: d.id, contentHash: d.contentHash, chunks: raw.map(quantize) });
       } catch (e) {
-        // A backend that is gone ends the sync; one conversation that fails
-        // keeps its old row, if it had one, and is tried at the next sync.
+        // A backend that is gone ends the sync; one item that fails keeps its
+        // old row, if it had one, and is tried at the next sync.
         if (isBackendGone(e) || isOutOfMemoryError(e)) throw e;
         failures++;
       }
     }
-    if (failures > 0 && failures === embed.size && toDrop.length === 0) return; // nothing new
-    this.items = desired
-      .map((d) => byId.get(d.id))
+    if (embed.length > 0 && failures === embed.length && !dropped) return; // nothing new
+    this.items = keep
+      .map((id) => byId.get(id))
       .filter((i): i is IndexedConversation => i !== undefined);
     await this.store.write(serializeIndex(this.items, this.provider.dim));
   }
@@ -230,4 +236,14 @@ export function rankByQuery(
     if (Number.isFinite(best) && best >= opts.minScore) scored.push({ id: item.id, score: best });
   }
   return scored.sort((a, b) => b.score - a.score).slice(0, opts.limit);
+}
+
+/** Whether the rows already stand in `keep`'s order, the ones it names. */
+function sameOrder(
+  rows: readonly IndexedConversation[],
+  keep: readonly string[],
+  byId: ReadonlyMap<string, IndexedConversation>
+): boolean {
+  const present = keep.filter((id) => byId.has(id));
+  return present.length === rows.length && present.every((id, i) => rows[i]?.id === id);
 }

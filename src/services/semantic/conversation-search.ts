@@ -1,12 +1,10 @@
 /**
- * Pythia's conversations as answers to what is typed into the Explorer filter.
+ * Other plugins' items as answers to what is typed into the Explorer search.
  *
- * A conversation is not a file, so the filter's own index never held one: a
- * chat about the Karussell naming was found by the Recommended panel beside a
- * note and by nothing a person typed. It is found here two ways — by the words
- * of its title, which needs nothing but the list, and by meaning, which needs
- * the model — and the title comes first, because a conversation called what
- * was typed is the one being looked for.
+ * An item is not a file, so the search's own index never holds one. It is
+ * found here two ways — by the words of its title, which needs nothing but the
+ * listing, and by meaning, which needs the model — and the title comes first,
+ * because an item called what was typed is the one being looked for.
  */
 
 import { queryTokens, tokenize } from "../file-search";
@@ -16,9 +14,10 @@ export interface ConversationResult {
   title: string;
 }
 
-/** The most conversations one query shows: they sit under the files, and a
- *  list longer than the files above it would bury them. */
-export const CONVERSATION_RESULTS = 10;
+/** The most items one query shows from each source: they sit under the files,
+ *  and a list longer than the files above it would bury them. Per source, so
+ *  one whose titles happen to match cannot push every other one off. */
+export const ITEM_RESULTS_PER_SOURCE = 10;
 
 /**
  * Conversations whose title holds every word typed.
@@ -43,7 +42,7 @@ export function matchConversationTitles(
 export function mergeConversationResults(
   byTitle: readonly ConversationResult[],
   byMeaning: readonly ConversationResult[],
-  limit = CONVERSATION_RESULTS
+  limit = ITEM_RESULTS_PER_SOURCE
 ): ConversationResult[] {
   const seen = new Set<string>();
   const out: ConversationResult[] = [];

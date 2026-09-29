@@ -78,6 +78,34 @@ describe("ConversationIndex", () => {
     expect(store.writes).toBe(2);
   });
 
+  it("applies a change set: embeds what changed, keeps the rest without their text", async () => {
+    const provider = new FakeProvider();
+    const store = new MemStore();
+    const index = new ConversationIndex(provider, store, POLICY);
+    await index.sync([conv("a", "küche"), conv("b", "garten"), conv("c", "keller")]);
+    provider.embedded = [];
+
+    // b changed, c went, d came; a is only named.
+    await index.update([conv("b", "garten neu"), conv("d", "dach")], ["d", "b", "a"]);
+
+    expect(provider.embedded.sort()).toEqual(["dach", "garten neu"]);
+    expect(index.size()).toBe(3);
+    expect(index.vectorsOf("c")).toBeNull();
+    expect(index.vectorsOf("a")).not.toBeNull();
+  });
+
+  it("drops what is no longer kept, embedding nothing", async () => {
+    const provider = new FakeProvider();
+    const store = new MemStore();
+    const index = new ConversationIndex(provider, store, POLICY);
+    await index.sync([conv("a", "küche"), conv("b", "garten")]);
+    provider.embedded = [];
+    await index.update([], ["a"]);
+    expect(provider.embedded).toEqual([]);
+    expect(index.size()).toBe(1);
+    expect(store.writes).toBe(2);
+  });
+
   it("writes nothing when nothing changed", async () => {
     const store = new MemStore();
     const index = new ConversationIndex(new FakeProvider(), store, POLICY);

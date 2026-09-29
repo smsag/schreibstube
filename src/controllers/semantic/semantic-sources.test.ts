@@ -45,7 +45,11 @@ function setup(files: Record<string, ArrayBuffer> = {}) {
             disk.delete(from);
           },
           remove: async (p: string) => void disk.delete(p),
-          mkdir: async () => undefined
+          mkdir: async () => undefined,
+          list: async (dir: string) => ({
+            files: [...disk.keys()].filter((p) => p.startsWith(`${dir}/`)),
+            folders: []
+          })
         }
       }
     },
@@ -53,7 +57,12 @@ function setup(files: Record<string, ArrayBuffer> = {}) {
   } as unknown as Plugin;
   const provider = new FakeProvider();
   /** `background`: a desktop with nothing else running; false is a phone. */
-  const state = { enabled: true, background: true, vector: null as Int8Array | null };
+  const state = {
+    enabled: true,
+    background: true,
+    phone: false,
+    vector: null as Int8Array | null
+  };
   const answers: Record<string, SourceConsent> = { pythia: "allowed", reader: "allowed" };
   const asked: string[] = [];
   const sources = new SemanticSources({
@@ -64,6 +73,7 @@ function setup(files: Record<string, ArrayBuffer> = {}) {
     provider: () => provider,
     changed: () => undefined,
     mayEmbedInBackground: () => state.background,
+    embedsHere: () => !state.phone,
     queryVector: async () => state.vector,
     consent: (id) => answers[id] ?? "pending",
     askConsent: (id) => void asked.push(id)
@@ -131,6 +141,7 @@ describe("a registered source", () => {
   it("names an item by the title its source gave, without the model", async () => {
     const s = setup();
     s.listed[0]!.title = "Exposé";
+    s.state.background = false;
     s.register();
     await s.sources.relatedToVectors(KITCHEN, BESIDE);
     expect(s.sources.titleOf(key("c1"))).toBe("Exposé");
@@ -173,7 +184,7 @@ describe("the person's answer", () => {
     const s = setup();
     s.register("stranger", s.makeSource(one("h1")));
     s.answers.stranger = "allowed";
-    s.sources.consentChanged();
+    await s.sources.consentChanged("stranger");
     expect(ids(await s.sources.search("küche", QUERY))).toEqual([key("h1", "stranger")]);
     s.answers.stranger = "denied";
     expect(await s.sources.search("küche", QUERY)).toEqual([]);
@@ -212,28 +223,220 @@ describe("two sources", () => {
   });
 });
 
-describe("a source that says what changed", () => {
-  it("is asked for the changed items alone after the first listing", async () => {
-    const s = setup();
-    const items: Item[] = [
-      { id: "a", title: "", updatedAt: 1, summary: "", messages: ["küche"] },
-      { id: "b", title: "", updatedAt: 2, summary: "", messages: ["garten"] }
-    ];
-    const current = new Set(["a", "b"]);
-    const changedSince = vi.fn((since: number) => items.filter((i) => i.updatedAt > since));
-    const incremental = s.makeSource(items, { ids: () => [...current], changedSince });
-    s.register("pythia", incremental);
-    await s.sources.search("küche", QUERY);
-    expect(incremental.raw.list).toHaveBeenCalledTimes(1);
+/**
+ * A source with a cursor, as Pythia keeps one: each item's revision, so what
+ * changed and what went is a comparison, never a clock.
+ */
+function cursorSource(
+  s: ReturnType<typeof setup>,
+  items: Item[],
+  answer?: (c: string | null) => unknown
+) {
+  const revision = (item: Item) => `${item.updatedAt}|${item.messages.join("")}|${item.title}`;
+  const changes = vi.fn((cursor: string | null) => {
+    if (answer) return answer(cursor);
+    const seen: Record<string, string> = cursor ? JSON.parse(cursor) : {};
+    const now = Object.fromEntries(items.map((item) => [item.id, revision(item)]));
+    return {
+      changed: items.filter((item) => seen[item.id] !== now[item.id]),
+      removed: Object.keys(seen).filter((id) => !(id in now)),
+      cursor: JSON.stringify(now)
+    };
+  });
+  return { ...s.makeSource(items, { changes }), changes };
+}
 
-    items.push({ id: "c", title: "", updatedAt: 3, summary: "", messages: ["küche neu"] });
-    current.add("c");
-    current.delete("a");
-    incremental.notify();
-    const found = ids(await s.sources.search("küche", QUERY));
-    expect(changedSince).toHaveBeenCalledWith(2);
-    expect(incremental.raw.list).toHaveBeenCalledTimes(1);
-    expect(found).toEqual([key("c")]);
+describe("a source with a cursor", () => {
+  const item = (id: string, text: string, updatedAt = 1): Item => ({
+    id,
+    title: "",
+    updatedAt,
+    summary: "",
+    messages: [text]
+  });
+
+  it("is asked for what changed since its cursor, and never for the whole list", async () => {
+    const s = setup();
+    const items = [item("a", "küche"), item("b", "garten")];
+    const src = cursorSource(s, items);
+    s.register("pythia", src);
+    await s.sources.search("küche", QUERY);
+    expect(src.changes).toHaveBeenCalledWith(null);
+
+    items.push(item("c", "küche neu"));
+    items.splice(0, 1);
+    src.notify();
+    s.provider.embedded = [];
+    expect(ids(await s.sources.search("küche", QUERY))).toEqual([key("c")]);
+    expect(src.changes.mock.calls[1]?.[0]).not.toBeNull();
+    expect(src.raw.list).not.toHaveBeenCalled();
+    expect(s.provider.embedded).toContain("küche neu");
+    expect(s.provider.embedded).not.toContain("garten");
+  });
+
+  it("finds an item older than every one it read before, which a clock would miss", async () => {
+    const s = setup();
+    const items = [item("a", "garten", 50)];
+    const src = cursorSource(s, items);
+    s.register("pythia", src);
+    await s.sources.search("küche", QUERY);
+    // Synced in from another device, dated before anything read so far.
+    items.push(item("old", "küche", 1));
+    src.notify();
+    expect(ids(await s.sources.search("küche", QUERY))).toEqual([key("old")]);
+  });
+
+  it("is not blinded by an item dated in the future", async () => {
+    const s = setup();
+    const items = [item("a", "garten", Date.now() + 10 ** 12)];
+    const src = cursorSource(s, items);
+    s.register("pythia", src);
+    await s.sources.search("küche", QUERY);
+    items.push(item("b", "küche", 5));
+    src.notify();
+    expect(ids(await s.sources.search("küche", QUERY))).toEqual([key("b")]);
+  });
+
+  it("is read whole when its answer is not one, and keeps answering meanwhile", async () => {
+    const s = setup();
+    const items = [item("a", "küche")];
+    let broken = false;
+    const src = cursorSource(s, items, (cursor) =>
+      broken ? "no" : { changed: cursor ? [] : items, removed: [], cursor: "1" }
+    );
+    s.register("pythia", src);
+    expect(ids(await s.sources.search("küche", QUERY))).toEqual([key("a")]);
+    broken = true;
+    items.push(item("b", "küche neu"));
+    src.notify();
+    const found = ids(await s.sources.search("küche", QUERY)).sort();
+    expect(found).toEqual([key("a"), key("b")]);
+    expect(src.raw.list).toHaveBeenCalledTimes(1);
+  });
+
+  it("holds titles, not texts, once an item is embedded", async () => {
+    const s = setup();
+    const items = [item("a", "küche")];
+    items[0]!.title = "Küche";
+    const src = cursorSource(s, items);
+    s.register("pythia", src);
+    await s.sources.search("küche", QUERY);
+    const index = (
+      s.sources as unknown as { entries: Map<string, { index: unknown }> }
+    ).entries.get("pythia")!.index as { pending: Map<string, unknown>; meta: Map<string, object> };
+    expect(index.pending.size).toBe(0);
+    expect(Object.keys(index.meta.get("a")!)).toEqual(["title", "notes", "updatedAt"]);
+    expect(s.sources.titleOf(key("a"))).toBe("Küche");
+  });
+});
+
+describe("a source that stops or is refused", () => {
+  it("counts its listing as syncing, so the model is not taken from under it", async () => {
+    const s = setup();
+    let answer: (items: Item[]) => void = () => undefined;
+    const slow = s.makeSource(s.listed, {
+      list: () => new Promise<Item[]>((resolve) => (answer = resolve))
+    });
+    s.register("pythia", slow);
+    const searching = s.sources.search("küche", QUERY);
+    await vi.waitFor(() => expect(s.sources.isSyncing()).toBe(true));
+    answer(s.listed);
+    await searching;
+    expect(s.sources.isSyncing()).toBe(false);
+  });
+
+  it("embeds and writes nothing once released, even mid-listing", async () => {
+    const s = setup();
+    let answer: (items: Item[]) => void = () => undefined;
+    const slow = s.makeSource(s.listed, {
+      list: () => new Promise<Item[]>((resolve) => (answer = resolve))
+    });
+    const registration = s.register("pythia", slow);
+    const searching = s.sources.search("küche", QUERY);
+    await vi.waitFor(() => expect(s.sources.isSyncing()).toBe(true));
+    registration.release();
+    answer(s.listed);
+    await searching;
+    expect(s.provider.embedded.filter((t) => t !== "küche")).toEqual([]);
+    expect(s.disk.has(FILE("pythia"))).toBe(false);
+  });
+
+  it("embeds nothing when refused while its list was on the way", async () => {
+    const s = setup();
+    let answer: (items: Item[]) => void = () => undefined;
+    const slow = s.makeSource(s.listed, {
+      list: () => new Promise<Item[]>((resolve) => (answer = resolve))
+    });
+    s.register("pythia", slow);
+    const searching = s.sources.search("küche", QUERY);
+    await vi.waitFor(() => expect(s.sources.isSyncing()).toBe(true));
+    s.answers.pythia = "denied";
+    answer(s.listed);
+    await searching;
+    expect(s.disk.has(FILE("pythia"))).toBe(false);
+  });
+
+  it("leaves nothing behind when refused: no titles in memory, no file on disk", async () => {
+    const s = setup();
+    s.register();
+    await s.sources.search("küche", QUERY);
+    expect(s.disk.has(FILE("pythia"))).toBe(true);
+    s.answers.pythia = "denied";
+    await s.sources.consentChanged("pythia");
+    expect(s.disk.has(FILE("pythia"))).toBe(false);
+    expect(s.sources.registered()[0]).toMatchObject({ size: 0, listed: false });
+  });
+
+  it("is refused a registration after the plugin unloaded", () => {
+    const s = setup();
+    s.sources.dispose();
+    expect(() => s.register()).toThrow(/unloaded/);
+  });
+});
+
+describe("being asked", () => {
+  it("waits while search by meaning is off, and asks once it is switched on", () => {
+    const s = setup();
+    s.state.enabled = false;
+    s.register("stranger", s.makeSource([]));
+    expect(s.asked).toEqual([]);
+    s.state.enabled = true;
+    s.sources.askPending();
+    expect(s.asked).toEqual(["stranger"]);
+  });
+});
+
+describe("on a phone", () => {
+  it("shows a source's items in a search, titled, from the stored index", async () => {
+    const s = setup({
+      [FILE("pythia")]: serializeIndex([{ id: "c1", contentHash: "x", chunks: KITCHEN }], 4)
+    });
+    s.state.phone = true;
+    s.state.background = false;
+    s.listed[0]!.title = "Küche";
+    s.register();
+    const found = await s.sources.find("küche", 5, 0.35);
+    expect(found.map((r) => [r.key, r.title])).toEqual([[key("c1"), "Küche"]]);
+    expect(s.provider.embedded).toEqual(["küche"]);
+  });
+});
+
+describe("the Explorer's items", () => {
+  it("are capped per source, so one source cannot push the others off", async () => {
+    const s = setup();
+    const many = Array.from({ length: 6 }, (_, i) => ({
+      id: `k${i}`,
+      title: `Küche ${i}`,
+      updatedAt: i,
+      summary: "",
+      messages: ["küche"]
+    }));
+    s.register("pythia", s.makeSource(many));
+    s.register("reader", s.makeSource([{ ...one("r1")[0]!, title: "Küche Leser" }]));
+    (s.listed as unknown[]).length = 0;
+    const found = await s.sources.find("küche", 3, 0.35);
+    expect(found.filter((r) => r.source === "pythia")).toHaveLength(3);
+    expect(found.filter((r) => r.source === "reader")).toHaveLength(1);
   });
 });
 
@@ -289,6 +492,7 @@ describe("the model", () => {
       [FILE("pythia")]: serializeIndex([{ id: "c1", contentHash: "x", chunks: KITCHEN }], 4)
     });
     s.state.background = false;
+    s.state.phone = true;
     s.register();
     s.listed.push({ id: "c3", title: "", updatedAt: 3, summary: "", messages: ["küche neu"] });
     expect(ids(await s.sources.search("küche", QUERY))).toEqual([key("c1")]);

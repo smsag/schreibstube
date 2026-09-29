@@ -5,8 +5,10 @@ import {
   MAX_CONVERSATIONS,
   MAX_MESSAGES,
   conversationChunks,
+  normalizeChanges,
   normalizeConversation,
-  normalizeConversations
+  normalizeConversations,
+  normalizeItemId
 } from "./conversation-source";
 
 const conv = (over: Record<string, unknown> = {}) => ({
@@ -146,5 +148,31 @@ describe("conversationChunks", () => {
   it("always yields a chunk", () => {
     const item = normalizeConversation(conv({ title: "", summary: "", messages: [] }));
     expect(item && conversationChunks(item)).toEqual(["c1"]);
+  });
+});
+
+describe("a source's changes since its cursor", () => {
+  it("reads what changed, what went and the new cursor", () => {
+    const answer = normalizeChanges(
+      { changed: [conv({ id: "c2" })], removed: [" c1 ", 7, "", "c1"], cursor: "r:2" },
+      100
+    );
+    expect(answer?.changed.map((c) => c.id)).toEqual(["c2"]);
+    expect(answer?.removed).toEqual(["c1"]);
+    expect(answer?.cursor).toBe("r:2");
+  });
+
+  it("is not an answer without a cursor, with one too long, or without lists", () => {
+    expect(normalizeChanges({ changed: [], removed: [] }, 100)).toBeNull();
+    expect(normalizeChanges({ changed: [], removed: [], cursor: "x".repeat(101) }, 100)).toBeNull();
+    expect(normalizeChanges({ changed: {}, removed: [], cursor: "x" }, 100)).toBeNull();
+    expect(normalizeChanges([], 100)).toBeNull();
+    expect(normalizeChanges(null, 100)).toBeNull();
+  });
+
+  it("reads an id the way an item's own id is read", () => {
+    expect(normalizeItemId("  c1 ")).toBe("c1");
+    expect(normalizeItemId("x".repeat(201))).toBeNull();
+    expect(normalizeItemId(3)).toBeNull();
   });
 });

@@ -12,11 +12,14 @@ import {
   type SourceDescriptor,
   type SourceRegistration
 } from "../../services/semantic/semantic-api";
+import { removeSourceFiles } from "./index-files";
 import { SourceIndex, type SourceIndexHost } from "./source-index";
 
 export interface SemanticSourcesHost extends SourceIndexHost {
   /** Whether search by meaning may run here now. */
   enabled(): boolean;
+  /** Whether this device embeds sources at all: a phone reads the desktop's files. */
+  embedsHere(): boolean;
   /** What the person said about this source. */
   consent(id: string): SourceConsent;
   /** A source asked and the person has not answered yet. */
@@ -53,18 +56,28 @@ export class SemanticSources {
   private readonly entries = new Map<string, Entry>();
   /** Moves when a source joins, leaves or is allowed, and after a sync. */
   private changes = 0;
+  private disposed = false;
 
   constructor(private readonly host: SemanticSourcesHost) {}
 
   register(id: string, source: ItemSource, descriptor: SourceDescriptor): SourceRegistration {
+    if (this.disposed) throw new Error("Schreibstube: search by meaning has been unloaded");
     if (!this.entries.has(id) && this.entries.size >= MAX_SOURCES) {
       throw new Error(`Schreibstube: at most ${MAX_SOURCES} sources may be registered`);
     }
+    // A plugin reloaded registers again: the old index stops before the new
+    // one starts, so the two never write one file together.
     this.entries.get(id)?.index.release();
-    const index = new SourceIndex({ ...this.host, changed: () => this.touched() }, id, source);
+    const index = new SourceIndex(
+      { ...this.host, changed: () => this.touched() },
+      id,
+      source,
+      this.host.embedsHere(),
+      () => this.host.consent(id) === "allowed"
+    );
     const entry: Entry = { index, descriptor };
     this.entries.set(id, entry);
-    if (this.host.consent(id) === "pending") this.host.askConsent(id, descriptor);
+    this.askIfPending(id, descriptor);
     this.touched();
     return {
       release: () => {
@@ -77,14 +90,43 @@ export class SemanticSources {
     };
   }
 
+  /** Ask about a source nobody answered for — only while search by meaning
+   *  is on, since an Allow that changes nothing visible is a question wasted. */
+  private askIfPending(id: string, descriptor: SourceDescriptor): void {
+    if (this.host.enabled() && this.host.consent(id) === "pending") {
+      this.host.askConsent(id, descriptor);
+    }
+  }
+
+  /** Search by meaning was switched on: ask about every source still waiting. */
+  askPending(): void {
+    for (const [id, entry] of this.entries) this.askIfPending(id, entry.descriptor);
+  }
+
   private touched(): void {
     this.changes++;
     this.host.changed();
   }
 
-  /** The person answered for a source: what a search can find has changed. */
-  consentChanged(): void {
+  /**
+   * The person answered for a source. A refusal takes everything of it back:
+   * what it listed leaves memory, and its index files leave the disk, since
+   * a source the person said no to has no business keeping text here.
+   */
+  async consentChanged(id: string): Promise<void> {
+    const consent = this.host.consent(id);
+    if (consent !== "allowed") {
+      this.entries.get(id)?.index.reset();
+      this.entries.get(id)?.index.dropListing();
+      if (consent === "denied") await this.removeFiles(id);
+    }
     this.touched();
+  }
+
+  /** The files a source left, removed: for a refusal, or a source forgotten. */
+  async removeFiles(id: string): Promise<void> {
+    await this.entries.get(id)?.index.settled();
+    await removeSourceFiles(this.host.plugin, id);
   }
 
   revision(): number {
@@ -97,12 +139,14 @@ export class SemanticSources {
     descriptor: SourceDescriptor;
     consent: SourceConsent;
     size: number;
+    listed: boolean;
   }[] {
     return [...this.entries].map(([id, entry]) => ({
       id,
       descriptor: entry.descriptor,
       consent: this.host.consent(id),
-      size: entry.index.size()
+      size: entry.index.size(),
+      listed: entry.index.isListed()
     }));
   }
 
@@ -161,31 +205,49 @@ export class SemanticSources {
     for (const entry of this.entries.values()) entry.index.reset();
   }
 
-  /** Let every source go, at unload. */
+  /** Let every source go, at unload; a registration after this is refused. */
   dispose(): void {
+    this.disposed = true;
     for (const entry of this.entries.values()) entry.index.release();
     this.entries.clear();
   }
 
+  private async perSource(
+    only: Set<string> | null,
+    ask: (index: SourceIndex, source: string) => Promise<ScoredId[]>
+  ): Promise<{ source: string; entry: Entry; hits: ScoredKey[] }[]> {
+    return Promise.all(
+      this.active(only).map(async ([source, entry]) => {
+        try {
+          const hits = (await ask(entry.index, source)).map((hit) => ({
+            key: itemKey(source, hit.id),
+            score: hit.score
+          }));
+          return { source, entry, hits };
+        } catch (e) {
+          this.host.logger.warn(`semantic sources: ${source} could not be asked`, e);
+          return { source, entry, hits: [] };
+        }
+      })
+    );
+  }
+
+  /** One list across sources: one comparison, one model, one floor, so
+   *  similarities of two sources rank alike. */
   private async each(
     only: Set<string> | null,
     ask: (index: SourceIndex, source: string) => Promise<ScoredId[]>
   ): Promise<ScoredKey[]> {
-    const lists = await Promise.all(
-      this.active(only).map(async ([source, entry]) => {
-        try {
-          return (await ask(entry.index, source)).map((hit) => ({
-            key: itemKey(source, hit.id),
-            score: hit.score
-          }));
-        } catch (e) {
-          this.host.logger.warn(`semantic sources: ${source} could not be asked`, e);
-          return [];
-        }
-      })
-    );
-    // One comparison, one model, one floor: similarities of two sources rank alike.
-    return lists.flat().sort((a, b) => b.score - a.score);
+    return (await this.perSource(only, ask))
+      .flatMap((answer) => answer.hits)
+      .sort((a, b) => b.score - a.score);
+  }
+
+  private static excluding(exclude: Set<string>, source: string): string[] {
+    return [...exclude].flatMap((key) => {
+      const parts = splitItemKey(key);
+      return parts?.source === source ? [parts.item] : [];
+    });
   }
 
   /** Items that answer `text`, best first, across the allowed sources. */
@@ -197,10 +259,7 @@ export class SemanticSources {
       index.search(text, {
         minScore: opts.minScore,
         limit: opts.limit,
-        exclude: [...opts.exclude].flatMap((key) => {
-          const parts = splitItemKey(key);
-          return parts?.source === source ? [parts.item] : [];
-        })
+        exclude: SemanticSources.excluding(opts.exclude, source)
       })
     );
     return found.slice(0, opts.limit);
@@ -231,35 +290,29 @@ export class SemanticSources {
   }
 
   /**
-   * Items for what was typed into the Explorer's search: by the words of
-   * their title, then by meaning. A meaning search that fails still leaves
-   * the titles.
+   * Items for what was typed into the Explorer's search, up to `perSource`
+   * from each source: by the words of their title, then by meaning. Capped
+   * per source rather than in all, so one source whose titles happen to match
+   * cannot push every other one off the list. A meaning search that fails
+   * still leaves the titles.
    */
-  async find(
-    text: string,
-    limit: number,
-    byMeaning: () => Promise<ScoredKey[]>
-  ): Promise<SourceResult[]> {
-    let meaning: ScoredKey[] = [];
-    try {
-      meaning = await byMeaning();
-    } catch (e) {
-      this.host.logger.warn("semantic sources: items could not be searched by meaning", e);
-    }
-    const known = this.active().flatMap(([source, entry]) =>
-      entry.index.titles().map((item) => ({ id: itemKey(source, item.id), title: item.title }))
+  async find(text: string, perSource: number, minScore: number): Promise<SourceResult[]> {
+    const answers = await this.perSource(null, (index) =>
+      index.search(text, { minScore, limit: perSource, exclude: [] })
     );
-    return mergeConversationResults(
-      matchConversationTitles(text, known),
-      meaning.flatMap((hit) => {
+    return answers.flatMap(({ source, entry, hits }) => {
+      const known = entry.index
+        .titles()
+        .map((item) => ({ id: itemKey(source, item.id), title: item.title }));
+      const byMeaning = hits.flatMap((hit) => {
         const title = this.titleOf(hit.key);
         return title === null ? [] : [{ id: hit.key, title }];
-      }),
-      limit
-    ).map((result) => ({
-      key: result.id,
-      title: result.title,
-      source: splitItemKey(result.id)?.source ?? ""
-    }));
+      });
+      return mergeConversationResults(
+        matchConversationTitles(text, known),
+        byMeaning,
+        perSource
+      ).map((result) => ({ key: result.id, title: result.title, source }));
+    });
   }
 }

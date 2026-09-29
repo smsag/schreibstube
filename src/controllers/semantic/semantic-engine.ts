@@ -71,9 +71,13 @@ export const MOBILE_EDIT_BUDGET = 10;
  *  every keystroke is not. */
 const PHONE_LOOK_EVERY_MS = 60_000;
 
-/** The floor a source's item must clear to answer a typed text: the vault's
- *  phrase floor, since it is the same comparison, a query against chunks. */
-const ITEM_QUERY_FLOOR = 0.35;
+/** What a related question wants: notes, sources' items, and which sources. */
+export interface RelatedScope {
+  notes: boolean;
+  items: boolean;
+  sources: Set<string> | null;
+}
+const ALL: RelatedScope = { notes: true, items: true, sources: null };
 
 /** How long a content event waits for more of the same. */
 const CONTENT_EVENT_MS = 1000;
@@ -164,6 +168,7 @@ export class SemanticEngine {
       changed: () => this.emit(),
       mayEmbedInBackground: () => !Platform.isMobile && !this.syncing,
       queryVector: (text) => this.queryVector(text),
+      embedsHere: () => !Platform.isMobile,
       consent: (id) => consentOf(this.getSettings().semanticSources, id),
       askConsent: (id, descriptor) => {
         for (const listener of this.consentAsked) listener(id, descriptor);
@@ -754,31 +759,30 @@ export class SemanticEngine {
     items: ScoredKey[];
     itemsFloor: number;
   }> {
+    // One floor for both: the same comparison, a query against chunks, and
+    // the one the query's own length decides — a lone word scores lower
+    // against everything, and read against a phrase's floor an item lost to
+    // a note that cleared the same word's lower one.
+    const floor = meaningFloor(text).minScore;
     const notes = opts.notes > 0 ? await this.search(text, opts.notes) : [];
     const items =
       opts.items > 0
         ? await this.sources.search(text, {
-            minScore: ITEM_QUERY_FLOOR,
+            minScore: floor,
             limit: opts.items,
             exclude: opts.exclude,
             only: opts.sources
           })
         : [];
-    return { notes, notesFloor: meaningFloor(text).minScore, items, itemsFloor: ITEM_QUERY_FLOOR };
+    return { notes, notesFloor: floor, items, itemsFloor: floor };
   }
 
-  /** Items for the Explorer's search: by title, then by meaning. */
+  /** Items for the Explorer's search, up to `perSource` from each source. */
   findItems(
     text: string,
-    limit: number
+    perSource: number
   ): Promise<{ key: string; title: string; source: string }[]> {
-    return this.sources.find(text, limit, () =>
-      this.sources.search(text, {
-        minScore: ITEM_QUERY_FLOOR,
-        limit,
-        exclude: new Set()
-      })
-    );
+    return this.sources.find(text, perSource, meaningFloor(text).minScore);
   }
 
   /** The measured floors a relation is read against: note to note, and
@@ -806,7 +810,7 @@ export class SemanticEngine {
   async relatedToNote(
     path: string,
     limit: number,
-    only: Set<string> | null = null
+    scope: RelatedScope = ALL
   ): Promise<RelatedFound> {
     const floors = this.relatedFloors();
     const none: RelatedFound = { notes: [], items: [], ...floorsOf(floors) };
@@ -816,17 +820,17 @@ export class SemanticEngine {
       if (!svc.isReady()) await svc.loadPersisted();
       const vectors = svc.vectorsOf(path);
       if (!vectors) return none;
-      const notes = await svc.rankByVectors(vectors, {
-        minScore: floors.notes,
-        limit,
-        exclude: [path]
-      });
-      const items = await this.sources
-        .relatedToVectors(vectors, { minScore: floors.items, limit, only })
-        .catch((e: unknown) => {
-          this.logger.warn("semantic engine: related items failed", e);
-          return [];
-        });
+      const notes = scope.notes
+        ? await svc.rankByVectors(vectors, { minScore: floors.notes, limit, exclude: [path] })
+        : [];
+      const items = !scope.items
+        ? []
+        : await this.sources
+            .relatedToVectors(vectors, { minScore: floors.items, limit, only: scope.sources })
+            .catch((e: unknown) => {
+              this.logger.warn("semantic engine: related items failed", e);
+              return [];
+            });
       return { notes, items, ...floorsOf(floors) };
     } catch (e) {
       this.logger.warn("semantic engine: related failed", e);
@@ -842,7 +846,7 @@ export class SemanticEngine {
   async relatedToItem(
     key: string,
     limit: number,
-    only: Set<string> | null = null
+    scope: RelatedScope = ALL
   ): Promise<RelatedFound> {
     const model = embeddingModelConfig(this.modelId());
     const floors = {
@@ -854,19 +858,22 @@ export class SemanticEngine {
     try {
       const vectors = await this.sources.vectorsOf(key);
       if (!vectors) return none;
-      const svc = this.ensure();
-      if (!svc.isReady()) await svc.loadPersisted();
-      const notes = await svc.rankByVectors(vectors, {
-        minScore: floors.notes,
-        limit,
-        exclude: []
-      });
-      const items = await this.sources.relatedToVectors(vectors, {
-        minScore: floors.items,
-        limit,
-        excludeKey: key,
-        only
-      });
+      // The vault index is read, and ranked, only for a caller that wants
+      // notes: related conversations alone never touch its file.
+      let notes: RetrievedNote[] = [];
+      if (scope.notes) {
+        const svc = this.ensure();
+        if (!svc.isReady()) await svc.loadPersisted();
+        notes = await svc.rankByVectors(vectors, { minScore: floors.notes, limit, exclude: [] });
+      }
+      const items = scope.items
+        ? await this.sources.relatedToVectors(vectors, {
+            minScore: floors.items,
+            limit,
+            excludeKey: key,
+            only: scope.sources
+          })
+        : [];
       return { notes, items, ...floorsOf(floors) };
     } catch (e) {
       this.logger.warn("semantic engine: related to an item failed", e);
@@ -1041,6 +1048,8 @@ export class SemanticEngine {
     // is what the build's own guard avoids. It finishes, and the next change
     // or restart gives the memory back.
     if (!this.enabled() && !this.syncing && !this.sources.isSyncing()) this.teardown();
+    // Switched on: a source that registered while it was off is asked about now.
+    if (this.enabled()) this.sources.askPending();
     this.emit();
   }
 

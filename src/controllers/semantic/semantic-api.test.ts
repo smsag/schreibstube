@@ -107,6 +107,12 @@ describe("a search", () => {
     expect(searchAll.mock.calls[0]?.[1]).toMatchObject({ items: 0 });
   });
 
+  it("asks no source when an empty list of sources is given", async () => {
+    const { engine, searchAll } = fakeEngine();
+    await api(engine).search("küche", { sources: [] });
+    expect(searchAll.mock.calls[0]?.[1]).toMatchObject({ items: 0 });
+  });
+
   it("passes the sources asked for, and excluded items as keys", async () => {
     const { engine, searchAll } = fakeEngine();
     await api(engine).search("küche", { sources: ["reader"], exclude: ["pythia:c9", "a.md"] });
@@ -156,8 +162,25 @@ describe("what is related", () => {
       { source: "pythia", id: "c1" },
       { kinds: ["highlight"], limit: 5 }
     );
-    expect(engine.relatedToItem).toHaveBeenCalledWith(itemKey("pythia", "c1"), 5, null);
+    expect(engine.relatedToItem).toHaveBeenCalledWith(itemKey("pythia", "c1"), 5, {
+      notes: false,
+      items: true,
+      sources: null
+    });
     expect(hits.map((h) => h.id)).toEqual(["reader:h1"]);
+  });
+
+  it("does not rank the vault when only a source's items are wanted", async () => {
+    const { engine } = fakeEngine();
+    await api(engine).related({ path: "a.md" }, { kinds: ["conversation"], sources: ["pythia"] });
+    const scope = (engine.relatedToNote as ReturnType<typeof vi.fn>).mock.calls[0]?.[2] as {
+      notes: boolean;
+      items: boolean;
+      sources: Set<string>;
+    };
+    expect(scope.notes).toBe(false);
+    expect(scope.items).toBe(true);
+    expect([...scope.sources]).toEqual(["pythia"]);
   });
 
   it("answers nothing for a source that could not be a plugin", async () => {
@@ -223,6 +246,11 @@ describe("its state", () => {
       ["conversation", "pythia"],
       ["highlight", "reader"]
     ]);
+    expect(kinds[2]).toMatchObject({
+      label: "Conversation in Pythia",
+      plural: "Pythia conversations"
+    });
+    expect(kinds.every((k) => k.label.length > 0 && k.plural.length > 0)).toBe(true);
   });
 
   it("tells of content changes through the engine's own event", () => {
