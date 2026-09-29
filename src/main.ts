@@ -91,6 +91,7 @@ import {
   embeddingModelConfig
 } from "./services/semantic/embedding-models";
 import {
+  foldDescriptions,
   meaningOrder,
   recommendNotes,
   withAttached,
@@ -573,13 +574,18 @@ export default class SchreibstubePlugin extends Plugin {
     this.clearOverlay();
   }
 
+  /** The picture a description note describes, when the vault still has it. */
+  private describedPicture(notePath: string): TFile | null {
+    const image = this.explorer?.imageDescribedBy(notePath) ?? null;
+    const picture = image === null ? null : this.app.vault.getAbstractFileByPath(image);
+    return picture instanceof TFile ? picture : null;
+  }
+
   private vaultHit(path: string): { kind: "note" | "image"; id: string; title: string } | null {
     const file = this.app.vault.getAbstractFileByPath(path);
     if (!(file instanceof TFile)) return null;
-    const image = this.explorer?.imageDescribedBy(path) ?? null;
-    const picture = image === null ? null : this.app.vault.getAbstractFileByPath(image);
-    if (picture instanceof TFile)
-      return { kind: "image", id: picture.path, title: picture.basename };
+    const picture = this.describedPicture(path);
+    if (picture) return { kind: "image", id: picture.path, title: picture.basename };
     const title = this.app.metadataCache.getFileCache(file)?.frontmatter?.title;
     return { kind: "note", id: path, title: typeof title === "string" ? title : file.basename };
   }
@@ -688,7 +694,7 @@ export default class SchreibstubePlugin extends Plugin {
     const explorer = this.explorer;
     if (!explorer) return null;
     return {
-      cards: (path) => explorer.relatedCards(path),
+      links: (path) => this.linkItems(explorer, path),
       recommend: (path) => this.recommend(path),
       titleOf: (path) => explorer.displayTitle(path),
       open: async (path, where) => {
@@ -782,6 +788,29 @@ export default class SchreibstubePlugin extends Plugin {
     await this.semantic?.sources.removeFiles(id);
   }
 
+  /** The link graph's answer alone, a description note shown as its picture. */
+  private linkItems(explorer: ExplorerController, path: string): RecommendedItem[] {
+    return foldDescriptions(
+      explorer.relatedCards(path),
+      (note) => this.describedPicture(note)?.path ?? null
+    ).flatMap((entry): RecommendedItem[] => {
+      const file = this.app.vault.getAbstractFileByPath(entry.path);
+      if (!(file instanceof TFile)) return [];
+      if (entry.picture) {
+        const src = this.app.vault.getResourcePath(file);
+        return [
+          {
+            kind: "picture",
+            picture: { path: file.path, title: file.basename, src, reasons: entry.reasons }
+          }
+        ];
+      }
+      const title = explorer.titleFor(file) ?? file.basename;
+      const card = { path: file.path, title, folder: folderOf(file), reasons: entry.reasons };
+      return [{ kind: "note", card }];
+    });
+  }
+
   /**
    * The link graph and search by meaning together, for one note. Null when
    * search by meaning is off, so the panel keeps the graph's answer alone.
@@ -794,16 +823,21 @@ export default class SchreibstubePlugin extends Plugin {
     const engine = this.semantic;
     if (!explorer || !engine?.enabled()) return null;
     const found = await engine.relatedToNote(path, Math.max(RECOMMEND_LIMIT, count));
-    const graph = explorer.relatedCards(path);
+    const cards = explorer.relatedCards(path);
+    const graph = foldDescriptions(cards, (note) => this.describedPicture(note)?.path ?? null);
 
     // One meaning ranking over the vault: a description note stands for its
-    // picture, here as in the Explorer, and keeps the score it earned.
+    // picture, here as in the Explorer and in the graph, and keeps the score
+    // it earned.
     const pictures = new Map<string, TFile>();
+    for (const entry of graph) {
+      const picture = entry.picture ? this.app.vault.getAbstractFileByPath(entry.path) : null;
+      if (picture instanceof TFile) pictures.set(picture.path, picture);
+    }
     const byMeaning: { key: string; score: number }[] = [];
     for (const hit of found.notes) {
-      const image = explorer.imageDescribedBy(hit.id);
-      const picture = image === null ? null : this.app.vault.getAbstractFileByPath(image);
-      if (picture instanceof TFile) {
+      const picture = this.describedPicture(hit.id);
+      if (picture) {
         pictures.set(picture.path, picture);
         byMeaning.push({ key: picture.path, score: hit.score });
         continue;
@@ -813,7 +847,7 @@ export default class SchreibstubePlugin extends Plugin {
         byMeaning.push({ key: note.path, score: hit.score });
     }
 
-    const cards = new Map(graph.map((card) => [card.path, card]));
+    const known = new Map(cards.map((card) => [card.path, card]));
     const items: RecommendedItem[] = [];
     // An item this note was attached to stands with the notes it links.
     const attached = engine.sources.attachedTo(path);
@@ -856,14 +890,14 @@ export default class SchreibstubePlugin extends Plugin {
         });
         continue;
       }
-      const known = cards.get(entry.path);
+      const card = known.get(entry.path);
       const file = this.app.vault.getAbstractFileByPath(entry.path);
       if (!(file instanceof TFile)) continue;
       items.push({
         kind: "note",
         card: {
           path: entry.path,
-          title: known?.title ?? explorer.titleFor(file) ?? file.basename,
+          title: card?.title ?? explorer.titleFor(file) ?? file.basename,
           folder: folderOf(file),
           reasons: entry.reasons
         }
@@ -881,12 +915,8 @@ export default class SchreibstubePlugin extends Plugin {
     const explorer = this.explorer;
     if (!explorer) return [];
     const found = await this.recommend(path, TAG_NEIGHBOUR_REQUEST);
-    if (!found) {
-      return explorer
-        .relatedCards(path)
-        .map((card) => ({ path: card.path, isNote: true, reasons: card.reasons }));
-    }
-    return found.items.map((item): RecommendedEntry => {
+    const items = found?.items ?? this.linkItems(explorer, path);
+    return items.map((item): RecommendedEntry => {
       switch (item.kind) {
         case "note":
           return { path: item.card.path, isNote: true, reasons: item.card.reasons };

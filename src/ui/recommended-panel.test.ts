@@ -32,7 +32,7 @@ const note = (path: string, kinds?: Kind[]) => ({
 function setup(recommend?: (path: string) => Promise<Recommendation | null>, count = 7) {
   const root = document.createElement("div");
   const host: RecommendedHost = {
-    cards: () => [card("linked.md")],
+    links: () => [{ kind: "note", card: card("linked.md") }],
     count: () => count,
     ...(recommend ? { recommend } : {}),
     titleOf: (path) => path,

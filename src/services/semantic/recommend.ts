@@ -50,6 +50,37 @@ const ORDER: Record<RecommendReason["kind"], number> = {
   folder: 5
 };
 
+/**
+ * The link graph with each description note standing for its picture, as it
+ * does in the meaning ranking and in the Explorer. The note's links and tags
+ * are what relate the picture, but what belongs beside a note is the picture,
+ * not the words written about it; listed as a note, it stood beside the very
+ * picture it describes. Two notes describing one picture make one entry, where
+ * the first stood, each kind of reason counted at the larger of the two.
+ */
+export function foldDescriptions<R extends { kind: string; count: number }>(
+  graph: readonly { path: string; reasons: readonly R[] }[],
+  pictureOf: (path: string) => string | null
+): { path: string; reasons: R[]; picture: boolean }[] {
+  const folded = new Map<string, { path: string; reasons: R[]; picture: boolean }>();
+  for (const entry of graph) {
+    const picture = pictureOf(entry.path);
+    const path = picture ?? entry.path;
+    const known = folded.get(path);
+    if (!known) {
+      const reasons = entry.reasons.map((reason) => ({ ...reason }));
+      folded.set(path, { path, reasons, picture: picture !== null });
+      continue;
+    }
+    for (const reason of entry.reasons) {
+      const same = known.reasons.find((r) => r.kind === reason.kind);
+      if (!same) known.reasons.push({ ...reason });
+      else if (reason.count > same.count) same.count = reason.count;
+    }
+  }
+  return [...folded.values()];
+}
+
 /** Said by a person rather than inferred: a link, or a note attached. */
 function isDeclared(reason: RecommendReason): boolean {
   return reason.kind === "link" || reason.kind === "attached";

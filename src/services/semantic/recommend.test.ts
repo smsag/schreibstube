@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { itemKey } from "./semantic-api";
 import {
+  foldDescriptions,
   meaningOrder,
   recommendNotes,
   relevanceOf,
@@ -164,5 +165,45 @@ describe("similarityPercent", () => {
     expect(similarityPercent(0.784)).toBe(78);
     expect(similarityPercent(1.2)).toBe(100);
     expect(similarityPercent(-0.1)).toBe(0);
+  });
+});
+
+describe("foldDescriptions", () => {
+  const pictureOf = (path: string) =>
+    path === "Beschreibungen/see.md" || path === "Beschreibungen/see 2.md"
+      ? "Bilder/see.jpg"
+      : null;
+
+  it("lists a description note as its picture, with the note's reasons", () => {
+    const out = foldDescriptions(
+      [g("a.md", link), g("Beschreibungen/see.md", { kind: "shared-link", count: 2 })],
+      pictureOf
+    );
+    expect(out).toEqual([
+      { path: "a.md", reasons: [link], picture: false },
+      { path: "Bilder/see.jpg", reasons: [{ kind: "shared-link", count: 2 }], picture: true }
+    ]);
+  });
+
+  it("makes one entry of two notes describing one picture, where the first stood", () => {
+    const out = foldDescriptions(
+      [
+        g("Beschreibungen/see.md", tag),
+        g("b.md", link),
+        g("Beschreibungen/see 2.md", { kind: "tag", count: 3 }, link)
+      ],
+      pictureOf
+    );
+    expect(out.map((entry) => entry.path)).toEqual(["Bilder/see.jpg", "b.md"]);
+    expect(out[0]?.reasons).toEqual([{ kind: "tag", count: 3 }, link]);
+  });
+
+  it("does not change the reasons it was handed", () => {
+    const shared = { kind: "tag", count: 1 } as RelatedReason;
+    foldDescriptions(
+      [g("Beschreibungen/see.md", shared), g("Beschreibungen/see 2.md", { kind: "tag", count: 4 })],
+      pictureOf
+    );
+    expect(shared.count).toBe(1);
   });
 });
