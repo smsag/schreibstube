@@ -34,17 +34,18 @@ import {
   tagsUserMessage
 } from "../services/llm-tags";
 
+import { insertTable, selectedLineRange } from "./table-insert";
+import { missingAncestors, folderOfPath } from "../services/ensure-folder";
+
 type DescribeOutcome =
   | { kind: "described"; title: string }
   | { kind: "unusable" }
   | { kind: "failed"; label: string; message: string; error: unknown };
-import { insertTable, selectedLineRange } from "./table-insert";
 
 /**
- * The LLM-backed commands (rename note, rename image, summarize selection,
- * table from selection). A single in-flight guard prevents overlapping API calls, and each
- * failure logs the underlying error before showing the user a short Notice, so
- * "it didn't work" reports are diagnosable from the console.
+ * The LLM-backed commands. Each failure logs the underlying error before
+ * showing a short Notice, so "it didn't work" reports are diagnosable from
+ * the console.
  */
 export class LlmCommands {
   private busy = false;
@@ -65,7 +66,7 @@ export class LlmCommands {
     const settings = this.getSettings();
     const content = view.editor.getValue().trim();
     if (content.length < settings.renameMinContentChars) {
-      this.logger.debug("Rename skipped: content below minimum length.");
+      new Notice(t().common.notice(t().ai.renameTooShort));
       return;
     }
 
@@ -289,16 +290,17 @@ export class LlmCommands {
 
   /** Create a note, or replace it in place so a link to it keeps working. */
   private async writeNote(path: string, content: string): Promise<void> {
-    const folder = path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : "";
-    if (folder && !this.app.vault.getAbstractFileByPath(folder)) {
+    const exists = (folder: string): boolean =>
+      this.app.vault.getAbstractFileByPath(folder) !== null;
+    for (const folder of missingAncestors(folderOfPath(path), exists)) {
       await this.app.vault.createFolder(folder);
     }
     const existing = this.app.vault.getFileByPath(path);
+
     if (existing) await this.app.vault.modify(existing, content);
     else await this.app.vault.create(path, content);
   }
 
-  /** The model's name for a note's text, sanitized, or null with a notice. */
   private async nameForNote(content: string, apiKey: string): Promise<string | null> {
     const settings = this.getSettings();
 
@@ -317,7 +319,6 @@ export class LlmCommands {
     return this.usableName(proposed, "md");
   }
 
-  /** The model's name for a picture, sanitized, or null with a notice. */
   private async nameForImage(
     file: TFile,
     mimeType: string,
@@ -350,7 +351,6 @@ export class LlmCommands {
     return this.usableName(proposed, file.extension);
   }
 
-  /** What the model said, cut to a filename, or null once it has been reported. */
   private usableName(proposed: string, extension: string): string | null {
     const sanitized = stripFilenameExtension(
       sanitizeFilename(proposed, this.getSettings().renameMaxFilenameLength),
@@ -513,8 +513,9 @@ export class LlmCommands {
     const result = resolveApiKey(
       this.app.secretStorage,
       this.getSettings().llmSecretName,
-      "API key"
+      t().secrets.apiKey
     );
+
     if (!result.ok) {
       new Notice(result.message);
       return null;

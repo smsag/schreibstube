@@ -13,13 +13,17 @@ const compiler = vi.hoisted(() => ({
   pdf: new Uint8Array() as Uint8Array,
   jobs: [] as { main: string }[],
   /** Diagnostics to refuse the next compile with, as Typst would. */
-  refuse: null as string[] | null
+  refuse: null as string[] | null,
+  /** A compile that waits until a test lets it go, to see what runs meanwhile. */
+  hold: null as Promise<void> | null
 }));
 
 vi.mock("../print/typst-compiler", () => ({
   TypstCompiler: class {
     async compile(job: { main: string }) {
+      if (compiler.hold) await compiler.hold;
       compiler.jobs.push(job);
+
       if (compiler.refuse) return { ok: false, diagnostics: compiler.refuse };
       return { ok: true, pdf: compiler.pdf };
     }
@@ -290,6 +294,8 @@ beforeEach(() => {
   compiler.pdf = typeset();
   compiler.jobs = [];
   compiler.refuse = null;
+  compiler.hold = null;
+
   answers.replace = false;
   answers.asked = [];
   answers.offered = [];
@@ -361,6 +367,20 @@ describe("printing a note", () => {
     await quick(commands);
 
     expect(written).toEqual([{ path: "Briefe/Anfrage.pdf", how: "modify" }]);
+  });
+
+  it("refuses a second print while one is still compiling, and says so", async () => {
+    const { commands, written } = vault({ defaultTemplate: "Vorlagen/Druck/Brief" });
+    let release: () => void = () => {};
+    compiler.hold = new Promise((resolve) => (release = resolve));
+
+    const first = commands.printActiveNoteQuickly();
+    await commands.printActiveNoteQuickly();
+    expect(Notice.shown.join(" ")).toMatch(/already running/);
+
+    release();
+    await first;
+    expect(written).toHaveLength(1);
   });
 
   it("refuses a document over the size limit rather than writing it", async () => {

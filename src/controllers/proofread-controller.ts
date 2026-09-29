@@ -61,9 +61,8 @@ import { recordForSource } from "../services/sync-reconcile";
 import { SyncPoller, githubToken } from "./sync-poller";
 import { planSourceCheck } from "../services/sync-interval";
 import type { PollSummary } from "../services/sync-summary";
-
-export type { PollSummary } from "../services/sync-summary";
 import { parseSyncEvery, SYNC_EVERY_KEY, type SyncSchedule } from "../services/sync-interval";
+
 import {
   mergeSuggestions,
   planApply,
@@ -87,11 +86,10 @@ import { TermPickerModal } from "../ui/term-picker";
 import { flashRevealIn } from "../processors/reveal-flash";
 
 export { GLOSSARY_FRONTMATTER_KEY };
+export type { PollSummary } from "../services/sync-summary";
 
 export type ReviewStateListener = (state: ReviewState) => void;
 
-/** Persists sync bookkeeping between sessions. Implemented by the plugin, which
- *  owns the data file. */
 export interface SyncStore {
   get(path: string): SyncRecord | undefined;
   set(path: string, record: SyncRecord): Promise<void>;
@@ -173,7 +171,6 @@ export class ProofreadController {
     };
   }
 
-  /** The compiled matcher for the active note, for the live editor underline. */
   activeMatcher(): GlossaryMatcher {
     return this.matcher;
   }
@@ -221,7 +218,9 @@ export class ProofreadController {
     const text = this.activeEditorText();
     if (text === null) return;
     // Typed, undone or pasted level with the source is level with the source.
-    void this.settleIfLevel(text);
+    this.settleIfLevel(text).catch((error: unknown) => {
+      this.logger.warn("The sync record could not be settled:", error);
+    });
 
     if (this.suggestions.length === 0) return;
 
@@ -256,8 +255,15 @@ export class ProofreadController {
 
   /** Follow a bound note when it moves, so its baseline is not lost. */
   async handleNoteRenamed(oldPath: string, newPath: string): Promise<void> {
+    // The glossaries picked for the note by hand are the note's, not the path's.
+    const picks = this.sessionPicks.get(oldPath);
+    if (picks) {
+      this.sessionPicks.delete(oldPath);
+      this.sessionPicks.set(newPath, picks);
+    }
     const record = this.syncStore.get(oldPath);
     if (!record) return;
+
     await this.syncStore.set(newPath, record);
     await this.syncStore.forget(oldPath);
     if (this.filePath === oldPath) {
@@ -290,17 +296,14 @@ export class ProofreadController {
     await this.poller.reconcile(paths);
   }
 
-  /** Check every bound note, not just the open one. */
   async pollAllSources(trigger: "schedule" | "manual"): Promise<PollSummary> {
     return this.poller.pollAllSources(trigger);
   }
 
-  /** Check one note the user pointed at, open or not. */
   async checkFile(file: TFile): Promise<PollSummary> {
     return this.poller.checkFile(file);
   }
 
-  /** Check the bound notes inside one folder. */
   async checkFolder(folderPath: string): Promise<PollSummary> {
     return this.poller.pollFolder(folderPath);
   }
@@ -406,6 +409,11 @@ export class ProofreadController {
           result.rejectedBlocks,
           result.failedChunks
         );
+        // A count alone leaves the person guessing; when nothing came back,
+        // the reason is the same for every chunk and is worth a notice.
+        if (result.firstFailure !== undefined && result.failedChunks === result.totalChunks) {
+          new Notice(t().common.notice(t().proofread.allChunksFailed(result.firstFailure)));
+        }
       }
     } catch (err) {
       this.logger.error("Proofread failed:", err);
@@ -477,7 +485,9 @@ export class ProofreadController {
     this.suggestions = refreshStaleness(editor.getValue(), this.suggestions);
 
     if (fromSource) {
-      void this.settleSyncBaseline(editor.getValue());
+      this.settleSyncBaseline(editor.getValue()).catch((error: unknown) => {
+        this.logger.warn("The sync baseline could not be moved:", error);
+      });
     }
 
     const skipped = plan.stale.length + plan.conflicted.length;

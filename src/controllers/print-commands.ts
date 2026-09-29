@@ -83,6 +83,7 @@ import { pictureEdge } from "../services/print-slideshow";
 import { printAssetName, printImageFormat } from "../services/print-images";
 import { linkpathCandidates } from "../services/slideshow";
 import { missingCapability, readPlatformFeatures } from "../services/print-capability";
+import { folderOfPath, missingAncestors } from "../services/ensure-folder";
 
 /** Pictures a template folder may carry for its own layout to place. */
 const TEMPLATE_ASSET = /\.(png|jpe?g|gif|webp|svg)$/i;
@@ -117,6 +118,9 @@ export class PrintCommands {
   private compiler: TypstCompiler | null = null;
   private readonly diagrams: DiagramCapture;
   private formulas: NoteFormulas = NO_FORMULAS;
+  /** One print at a time: two would compile against one typesetter and
+   *  write over each other's document. */
+  private busy = false;
 
   constructor(
     private readonly app: App,
@@ -179,10 +183,20 @@ export class PrintCommands {
    * written, when nothing changed since it was set.
    */
   async printActiveNote(): Promise<void> {
+    await this.withBusy(() => this.openDialog());
+  }
+
+  /**
+   * Read the note, draw it, and open the dialog on it. Guarded by the caller:
+   * the quick print comes here too when the settings say to ask, and a guard
+   * of its own would refuse itself.
+   */
+  private async openDialog(): Promise<void> {
     const file = await this.preflight(() => this.printActiveNote());
     if (!file) return;
 
     const templates = this.allTemplates();
+
     const choice = this.choose(file, templates);
     // In the dialog, a template that cannot be settled is simply preselected:
     // the selector is right there, and the note's own request was reported.
@@ -213,7 +227,8 @@ export class PrintCommands {
         const { job, warnings } = await this.prepareJob(session, options);
         return { pdf: await this.compileJob(job, progress), warnings };
       },
-      print: (options, ready) => this.printWith(session, options, ready)
+      // The dialog prints after this has returned, and takes the guard again.
+      print: (options, ready) => this.withBusy(() => this.printWith(session, options, ready))
     }).open();
   }
 
@@ -226,24 +241,39 @@ export class PrintCommands {
    * because that is what the setting says.
    */
   async printActiveNoteQuickly(): Promise<void> {
-    const file = await this.preflight(() => this.printActiveNoteQuickly());
-    if (!file) return;
+    await this.withBusy(async () => {
+      const file = await this.preflight(() => this.printActiveNoteQuickly());
+      if (!file) return;
 
-    const choice = this.choose(file, this.allTemplates());
-    if (choice.kind === "unknown") return;
-    if (choice.kind === "ask") {
-      await this.printActiveNote();
+      const choice = this.choose(file, this.allTemplates());
+      if (choice.kind === "unknown") return;
+      if (choice.kind === "ask") {
+        await this.openDialog();
+        return;
+      }
+
+      await this.withNotice(t().print.working(choice.template.name), async (progress) => {
+        const session = await this.openSession(file, progress);
+        // Asked without a dialog, the answer is the dialog's default: Pythia's
+        // footnotes whenever the note links to Pythia.
+        const links = this.inspectPythia(session)?.links ?? 0;
+        const options = initialOptions(choice.template, this.frontmatterOf(file), links);
+        await this.printWith(session, options, null, progress);
+      });
+    });
+  }
+
+  private async withBusy(work: () => Promise<void>): Promise<void> {
+    if (this.busy) {
+      new Notice(t().common.notice(t().print.busy));
       return;
     }
-
-    await this.withNotice(t().print.working(choice.template.name), async (progress) => {
-      const session = await this.openSession(file, progress);
-      // Asked without a dialog, the answer is the dialog's default: Pythia's
-      // footnotes whenever the note links to Pythia.
-      const links = this.inspectPythia(session)?.links ?? 0;
-      const options = initialOptions(choice.template, this.frontmatterOf(file), links);
-      await this.printWith(session, options, null, progress);
-    });
+    this.busy = true;
+    try {
+      await work();
+    } finally {
+      this.busy = false;
+    }
   }
 
   /**
@@ -295,7 +325,6 @@ export class PrintCommands {
     return file;
   }
 
-  /** The vault's templates and the built-in one, which is always there. */
   private allTemplates(): PrintTemplate[] {
     const builtIn = builtinTemplate();
     return [...this.templates(), ...(builtIn ? [builtIn.template] : [])];
@@ -691,8 +720,7 @@ export class PrintCommands {
     }
     if (existing) throw new Error(t().print.outputIsFolder(path));
 
-    const folder = path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : "";
-    if (folder) await this.makeFolder(folder);
+    await this.makeFolder(folderOfPath(path));
     await this.app.vault.createBinary(path, toArrayBuffer(pdf));
     return true;
   }
@@ -864,13 +892,10 @@ export class PrintCommands {
    * parent is missing is not something to rely on being forgiven.
    */
   private async makeFolder(path: string): Promise<void> {
-    const parts = path.split("/").filter((part) => part.length > 0);
-    let walked = "";
-    for (const part of parts) {
-      walked = walked.length > 0 ? `${walked}/${part}` : part;
-      if (!(await this.app.vault.adapter.exists(walked))) {
-        await this.app.vault.createFolder(walked);
-      }
+    const exists = (folder: string): boolean =>
+      this.app.vault.getAbstractFileByPath(folder) !== null;
+    for (const folder of missingAncestors(path, exists)) {
+      await this.app.vault.createFolder(folder);
     }
   }
 
@@ -927,12 +952,10 @@ export class PrintCommands {
     if (file instanceof TFile) await this.app.workspace.getLeaf(true).openFile(file);
   }
 
-  /** Whether this device already has the typesetter, for the settings tab. */
   runtimeInstalled(): Promise<boolean> {
     return this.compilerFor().isInstalled();
   }
 
-  /** Fetch it now, reporting progress the way a print does. */
   async fetchRuntime(): Promise<void> {
     const messages = t().print;
     const missing = missingCapability(readPlatformFeatures(window));
@@ -955,7 +978,6 @@ export class PrintCommands {
     }
   }
 
-  /** Take it off the device again, for somebody reclaiming the space. */
   async removeRuntime(): Promise<void> {
     await this.compilerFor().remove();
     this.compiler = null;
@@ -969,7 +991,9 @@ export class PrintCommands {
       this.pluginDir,
       this.pluginVersion,
       {
-        downloading: (label, megabytes) => messages.downloading(label, megabytes),
+        downloading: (label, megabytes) =>
+          messages.downloading(messages.assetLabel(label), megabytes),
+
         downloadingFont: (face) => messages.downloadingFont(face),
         verifying: messages.verifying,
         starting: messages.starting,
@@ -996,10 +1020,17 @@ export class PrintCommands {
     return file.parent && file.parent.path !== "/" ? `${file.parent.path}/${base}` : base;
   }
 
+  /**
+   * A file's text, or null when it cannot be read. Null is an answer the
+   * callers word themselves — a layout missing, a font left out — and the
+   * cause goes to the log, where "no template.typ" and "permission denied"
+   * are two different things.
+   */
   private async readText(path: string): Promise<string | null> {
     try {
       return await this.app.vault.adapter.read(path);
-    } catch {
+    } catch (error) {
+      this.logger.debug(`print: ${path} could not be read`, error);
       return null;
     }
   }
@@ -1007,7 +1038,8 @@ export class PrintCommands {
   private async readBytes(path: string): Promise<Uint8Array | null> {
     try {
       return new Uint8Array(await this.app.vault.adapter.readBinary(path));
-    } catch {
+    } catch (error) {
+      this.logger.debug(`print: ${path} could not be read`, error);
       return null;
     }
   }

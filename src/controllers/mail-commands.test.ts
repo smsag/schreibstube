@@ -42,7 +42,9 @@ vi.mock("../ui/mail-modals", () => ({
   MailSearchModal: class {}
 }));
 
+const { Notice } = await import("../testing/obsidian-stub");
 const { fakeVault } = await import("../testing/fake-app");
+
 const { MailCommands } = await import("./mail-commands");
 const { DEFAULT_SETTINGS, normalizeSettings } = await import("../services/plugin-settings");
 const { setLanguage } = await import("../i18n");
@@ -54,6 +56,11 @@ const header = ["---", "schreibstubeTo: info@example.de", "schreibstubeSubject: 
 const canvasNote = [...header, "Hallo,", "", "```vizardry", "type: swot", "```"].join("\n");
 
 function commands(content: string) {
+  return commandsWith(content).mail;
+}
+
+/** The commands over settings a test can change between sends. */
+function commandsWith(content: string) {
   const vault = fakeVault({ notes: [{ path: "Plan.md", content }] });
   const file = vault.app.vault.getAbstractFileByPath("Plan.md");
   const app = { ...vault.app, workspace: { getActiveFile: () => file } };
@@ -62,12 +69,13 @@ function commands(content: string) {
     mailBridgeUrl: "https://bridge.example.app",
     mailTokenSecretName: "mail-token"
   });
-  return new MailCommands(app as never, () => settings, {
+  const mail = new MailCommands(app as never, () => settings, {
     debug: () => {},
     info: () => {},
     warn: () => {},
     error: () => {}
   } as never);
+  return { mail, settings };
 }
 
 async function sent(): Promise<Record<string, unknown>> {
@@ -76,7 +84,9 @@ async function sent(): Promise<Record<string, unknown>> {
 }
 
 beforeEach(() => {
+  Notice.shown = [];
   mocks.shown.length = 0;
+
   mocks.sendMail.mockReset();
   mocks.sendMail.mockResolvedValue({
     messageId: "<id@example.de>",
@@ -129,6 +139,30 @@ describe("sending a note with a diagram", () => {
 
     expect(request).not.toHaveProperty("attachments");
     expect(mocks.shown[0]).toMatchObject({ warnings: ["diagramsNotDrawn"], undrawn: 1 });
+  });
+
+  it("says the bridge could not be asked, rather than calling it old", async () => {
+    mocks.health.mockRejectedValue(new Error("connect ECONNREFUSED"));
+
+    await commands(canvasNote).sendNoteAsEmail();
+    const request = await sent();
+
+    expect(request).not.toHaveProperty("attachments");
+    expect(mocks.shown[0]).toMatchObject({ warnings: ["diagramsNotDrawn"], undrawn: 1 });
+    expect(Notice.shown.join(" ")).toMatch(/could not be asked/);
+  });
+
+  it("asks a bridge once per session, and another bridge again", async () => {
+    const { mail, settings } = commandsWith(canvasNote);
+
+    await mail.sendNoteAsEmail();
+    await sent();
+    await mail.sendNoteAsEmail();
+    expect(mocks.health).toHaveBeenCalledTimes(1);
+
+    settings.mailBridgeUrl = "https://other.example.app";
+    await mail.sendNoteAsEmail();
+    expect(mocks.health).toHaveBeenCalledTimes(2);
   });
 
   it("asks nothing of the bridge for a note without diagrams", async () => {

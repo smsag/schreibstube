@@ -4,6 +4,8 @@ import type { PublishAccount, SchreibstubeSettings } from "../types";
 import type { Logger } from "../services/logger";
 import { resolveApiKey } from "../services/secret";
 import { normalizeBaseUrl } from "../services/bridge-protocol";
+import { classifyBookmarkUrl } from "../services/bookmark-file";
+
 import {
   bridgeHealth,
   commitPublish,
@@ -16,7 +18,6 @@ import {
 import {
   PROTOCOL_VERSION,
   isEmptyPlan,
-  summarisePlan,
   type PublishAsset,
   type PublishBridgeConfig,
   type PublishIndex,
@@ -58,6 +59,8 @@ import { PublishAccountModal, PublishPlanModal } from "../ui/publish-modals";
 import { toArrayBuffer } from "../utils/array-buffer";
 import { mapLimit } from "../utils/map-limit";
 import { sha256 as hash } from "../utils/sha256";
+import { modalAnswer } from "../services/modal-answer";
+
 import { DiagramCapture } from "./diagram-capture";
 import { NO_FORMULAS, type NoteFormulas } from "./sums-controller";
 import type { FreezeEntry } from "../services/table-formulas";
@@ -65,19 +68,19 @@ import type { FreezeEntry } from "../services/table-formulas";
 /**
  * The publish commands: preview a publish, run one, open the site.
  *
- * The plugin decides what is published and what each page is called; the bridge
- * renders the Markdown and writes it over SFTP. Splitting it that way is what
- * makes publishing work on mobile, where there is no Node runtime and no raw
- * socket to speak SSH over — and it keeps the hosting credentials out of the
- * vault entirely.
- *
- * A single in-flight guard prevents overlapping publishes, matching the mail
- * and LLM commands.
+ * One in-flight guard covers every command, not only the run: a preview that
+ * reads and hashes the folder while a publish uploads it would race the same
+ * `freezes` and the same drawn canvases, and two publishes at once would
+ * commit two indexes against one site.
  */
 export class PublishCommands {
   private busy = false;
-  /** The handshake runs once per session, not once per request. */
-  private handshakeDone = false;
+  /**
+   * The bridges whose version this session has checked, by URL: once per
+   * session for each, and a bridge the settings switch to mid-session is a
+   * new one to ask.
+   */
+  private readonly handshaken = new Set<string>();
   private readonly diagrams: DiagramCapture;
   /** Canvases drawn for an earlier publish in this session, by content. */
   private readonly drawn = new DrawnDiagrams();
@@ -99,7 +102,6 @@ export class PublishCommands {
     this.formulas = formulas;
   }
 
-  /** Show what a publish would do, and stop there. */
   async preview(): Promise<void> {
     await this.withAccount(async (account) => {
       const prepared = await this.prepare(account);
@@ -109,19 +111,30 @@ export class PublishCommands {
     });
   }
 
-  /** Plan, confirm, upload, commit. */
   async publish(): Promise<void> {
     await this.withAccount(async (account) => {
       const prepared = await this.prepare(account);
       if (!prepared) return;
 
-      new PublishPlanModal(this.app, account, prepared.plan, () => {
-        void this.run(account, prepared);
-      }).open();
+      // The guard is held through the dialog: the plan on show was hashed
+      // against the vault as it was, and a publish started meanwhile would
+      // make it a plan of nothing.
+      const confirmed = await new Promise<boolean>((resolve) => {
+        const answer = modalAnswer<boolean>(resolve);
+        const modal = new PublishPlanModal(this.app, account, prepared.plan, () =>
+          answer.choose(true)
+        );
+        const close = modal.onClose.bind(modal);
+        modal.onClose = () => {
+          close();
+          answer.closed(false);
+        };
+        modal.open();
+      });
+      if (confirmed) await this.run(account, prepared);
     });
   }
 
-  /** Open the published site in a browser. */
   async openSite(): Promise<void> {
     await this.withAccount(async (account) => {
       const bridge = this.requireBridge();
@@ -135,20 +148,34 @@ export class PublishCommands {
           new Notice(t().common.notice(t().publish.unknownTarget(account.target)));
           return;
         }
+        // The address is the bridge's word, and `window.open` would run any
+        // scheme it says; only a web address is a site to open.
+        if (classifyBookmarkUrl(target.baseUrl) !== "web") {
+          new Notice(t().common.notice(t().publish.badSiteUrl(target.baseUrl)));
+          return;
+        }
         window.open(target.baseUrl, "_blank");
       } catch (error) {
-        new Notice(`Schreibstube: ${error instanceof Error ? error.message : String(error)}`);
+        new Notice(t().common.notice(error instanceof Error ? error.message : String(error)));
       }
     });
   }
 
-  private async run(account: PublishAccount, prepared: Prepared): Promise<void> {
+  /** One command at a time; a second is told so rather than queued. */
+  private async exclusive(work: () => Promise<void>): Promise<void> {
     if (this.busy) {
       new Notice(t().common.notice(t().publish.busy));
       return;
     }
     this.busy = true;
+    try {
+      await work();
+    } finally {
+      this.busy = false;
+    }
+  }
 
+  private async run(account: PublishAccount, prepared: Prepared): Promise<void> {
     const notice = new Notice(t().common.notice(t().publish.running), 0);
     try {
       const { bridge, index, plan, sources, assets } = prepared;
@@ -207,7 +234,14 @@ export class PublishCommands {
 
       notice.hide();
       new Notice(
-        t().common.notice(t().publish.done(summary.written, summary.unchanged, summary.deleted))
+        t().common.notice(
+          t().publish.done(
+            summary.written,
+            summary.unchanged,
+            summary.deleted,
+            summary.deleteFailed
+          )
+        )
       );
       this.logger.debug("Publish finished.", summary);
 
@@ -224,8 +258,6 @@ export class PublishCommands {
       const message = error instanceof Error ? error.message : String(error);
       new Notice(t().common.notice(t().publish.failed(message)));
       this.logger.debug("Publish failed.", error);
-    } finally {
-      this.busy = false;
     }
   }
 
@@ -240,7 +272,7 @@ export class PublishCommands {
       if (!collected) return null;
 
       const plan = await planPublish(bridge, account.target, collected.index);
-      this.logger.debug("Publish plan.", summarisePlan(plan));
+      this.logger.debug("Publish plan.", plan);
       if (isEmptyPlan(plan)) {
         new Notice(t().common.notice(t().publish.noNotes(account.folder)));
         return null;
@@ -248,7 +280,7 @@ export class PublishCommands {
       return { bridge, ...collected, plan };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      new Notice(`Schreibstube: ${message}`);
+      new Notice(t().common.notice(message));
       return null;
     }
   }
@@ -422,7 +454,7 @@ export class PublishCommands {
 
     const collision = findSlugCollision(resolved);
     if (collision) {
-      new Notice(`Schreibstube: ${collision}`);
+      new Notice(t().common.notice(collision));
       return null;
     }
 
@@ -573,8 +605,8 @@ export class PublishCommands {
    * reads as a wrong URL rather than as a missing redeploy.
    */
   private async checkBridgeVersion(bridge: PublishBridgeConfig): Promise<void> {
-    if (this.handshakeDone) return;
-    this.handshakeDone = true;
+    if (this.handshaken.has(bridge.baseUrl)) return;
+    this.handshaken.add(bridge.baseUrl);
 
     try {
       const health = await bridgeHealth(bridge);
@@ -590,7 +622,11 @@ export class PublishCommands {
     }
   }
 
-  /** One account needs no question; several do. */
+  /**
+   * One account needs no question; several do. The guard is taken once the
+   * account is known, not while the question is open: a dialog dismissed
+   * would otherwise hold it for the rest of the session.
+   */
   private async withAccount(work: (account: PublishAccount) => Promise<void>): Promise<void> {
     const accounts = this.getSettings().publishAccounts;
 
@@ -600,12 +636,12 @@ export class PublishCommands {
     }
     const [only] = accounts;
     if (accounts.length === 1 && only) {
-      await work(only);
+      await this.exclusive(() => work(only));
       return;
     }
 
     new PublishAccountModal(this.app, accounts, (account) => {
-      void work(account);
+      void this.exclusive(() => work(account));
     }).open();
   }
 
@@ -620,7 +656,7 @@ export class PublishCommands {
     const settings = this.getSettings();
     const url = normalizeBaseUrl(settings.publishBridgeUrl || settings.mailBridgeUrl);
     if (!url.ok) {
-      new Notice(`Schreibstube: ${url.message}`);
+      new Notice(t().common.notice(url.message));
       return null;
     }
 

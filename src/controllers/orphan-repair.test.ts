@@ -77,7 +77,9 @@ function repair(v: ReturnType<typeof vault>, orphans: string[], described: strin
   const changed = vi.fn();
   const pairs = () => ({
     byImage: new Map(described.map((p) => [p, "x.md"])),
+    byNote: new Map(described.map((p) => ["x.md", p])),
     notes: new Set<string>(),
+
     orphans,
     duplicates: []
   });

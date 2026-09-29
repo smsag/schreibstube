@@ -30,6 +30,8 @@ interface FakeOptions {
   /** Link paths the vault cannot resolve. */
   missing?: string[];
   read?: PdfTextReader;
+  /** The note in front once the passages are chosen; the same one unless a test says. */
+  shownAfter?: string;
 }
 
 function fake(options: FakeOptions = {}) {
@@ -37,7 +39,11 @@ function fake(options: FakeOptions = {}) {
   const inserted: string[] = [];
 
   const app = {
-    workspace: { getActiveFile: () => file("Notiz.md") },
+    workspace: {
+      getActiveFile: () => file("Notiz.md"),
+      getActiveViewOfType: () => ({ file: file(options.shownAfter ?? "Notiz.md") })
+    },
+
     metadataCache: {
       getFileCache: () => ({
         embeds: (options.embeds ?? []).map((link) => ({ link })),
@@ -163,6 +169,18 @@ describe("PdfCommands.insertSummary", () => {
     await commands.insertSummary(editor);
 
     expect(notices().join(" ")).toContain("of 900 pages");
+  });
+
+  it("inserts nothing when another note is in front by the time passages are chosen", async () => {
+    const { commands, editor, inserted } = fake({
+      embeds: ["Bericht.pdf"],
+      shownAfter: "Andere.md"
+    });
+
+    await commands.insertSummary(editor);
+
+    expect(inserted).toEqual([]);
+    expect(notices().join(" ")).toContain("another note is in front");
   });
 
   it("inserts nothing when nothing was chosen", async () => {

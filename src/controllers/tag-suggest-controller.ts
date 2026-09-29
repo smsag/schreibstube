@@ -65,7 +65,6 @@ export class TagSuggestController {
       return;
     }
     if (this.dialogOpen) return;
-    this.dialogOpen = true;
 
     const loading = this.suggestions(file).catch((error: unknown) => {
       this.logger.error(`Tag suggestions for ${file.path} failed:`, error);
@@ -84,9 +83,11 @@ export class TagSuggestController {
         this.dialogOpen = false;
       }
     }).open();
+    // Marked open once it is: a dialog that failed to open never closes, and
+    // the mark would have refused every later press.
+    this.dialogOpen = true;
   }
 
-  /** What the dialog offers before the model is asked. */
   async suggestions(file: TFile): Promise<TagSuggestions> {
     const vocabulary = this.vocabulary();
     const carried = new Set((this.tagsOf(file) ?? []).map(tagKey));
@@ -121,7 +122,6 @@ export class TagSuggestController {
     return { vault, stated, carried, offered, vocabulary, content };
   }
 
-  /** The model's tags, less what the dialog already shows. */
   async askModel(found: TagSuggestions): Promise<TagSuggestion[] | null> {
     const byUse = [...found.vocabulary.counts]
       .sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1))
@@ -131,7 +131,6 @@ export class TagSuggestController {
     return suggestionsFrom("model", proposals, found.carried, found.vocabulary, found.offered);
   }
 
-  /** Write the ticked tags into the note's `tags`, keeping what was there. */
   async add(file: TFile, tags: readonly string[]): Promise<void> {
     let added: string[] = [];
     try {
@@ -152,7 +151,6 @@ export class TagSuggestController {
     new Notice(t().common.notice(t().tagSuggest.added(added.length)));
   }
 
-  /** Every note's tags, frontmatter and text alike, counted once per note. */
   private vocabulary(): TagVocabulary {
     const lists: string[][] = [];
     for (const file of this.app.vault.getMarkdownFiles()) lists.push(this.tagsOf(file) ?? []);

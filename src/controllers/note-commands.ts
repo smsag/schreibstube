@@ -17,10 +17,8 @@ export interface CreateUntitledOptions {
   draftWidth?: boolean;
 }
 
-/** Takes the footer from a note about to open; what it returns is called once it has. */
 export type FooterHolder = (file: TFile) => () => void;
 
-/** Sizes the lines of a note that has just opened in this leaf. */
 export type DraftWidener = (leaf: WorkspaceLeaf, file: TFile) => void;
 
 /**

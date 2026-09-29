@@ -9,6 +9,8 @@ import { RATES_RETRY_MS, ratesStale, type ExchangeRates } from "../services/exch
 import { fetchEcbRates } from "../services/rates-client";
 import { formatRateDate, type FormulaContext, type Outcome } from "../services/formulas";
 import { selectionTotal } from "../services/selection-total";
+import { copyText } from "../ui/copy-text";
+
 import {
   applyFreezes,
   formulaOutcomes,
@@ -60,8 +62,8 @@ const SELECTION_SETTLE_MS = 120;
  */
 export class SumsController implements NoteFormulas {
   private pending: Promise<{ rates: ExchangeRates | null; error: string | null }> | null = null;
-  /** Draws the notes on screen again, so rates that arrived reach their tables. */
   private redraw: () => void = () => undefined;
+
   private lastAttempt = Number.NEGATIVE_INFINITY;
   private statusEl: HTMLElement | null = null;
   private statusTotal: string | null = null;
@@ -104,7 +106,6 @@ export class SumsController implements NoteFormulas {
     return this.now() - this.lastAttempt > RATES_RETRY_MS;
   }
 
-  /** How to draw the notes on screen again once rates have arrived. */
   useRedraw(redraw: () => void): void {
     this.redraw = redraw;
   }
@@ -213,7 +214,6 @@ export class SumsController implements NoteFormulas {
 
   // --- the selection ------------------------------------------------------
 
-  /** The status bar item, hidden until a selection has two amounts or more. */
   startStatusBar(el: HTMLElement): void {
     this.statusEl = el;
     el.addClass("mod-clickable", "schreibstube-sum-status");
@@ -224,7 +224,6 @@ export class SumsController implements NoteFormulas {
     this.showTotal(null);
   }
 
-  /** Follows the selection of every editor; the one being selected in is the one shown. */
   editorExtension(): Extension {
     return EditorView.updateListener.of((update) => {
       if (!update.selectionSet && !update.docChanged) return;
@@ -278,7 +277,6 @@ export class SumsController implements NoteFormulas {
     el.toggleClass("is-hidden", false);
   }
 
-  /** The command, for a phone, which has no status bar: the total as a notice. */
   sumSelection(editor: Editor): void {
     const total = selectionTotal(editor.getSelection(), this.context(), 1);
     if (!total) {
@@ -289,7 +287,6 @@ export class SumsController implements NoteFormulas {
     new Notice(t().common.notice(t().sums.total(text, total.count)));
   }
 
-  /** The editor's menu offers the total of what is selected, to copy. */
   addMenuItem(menu: Menu, editor: Editor): void {
     const total = selectionTotal(editor.getSelection(), this.context(), 1, true);
     if (!total || total.text === null) return;
@@ -304,11 +301,10 @@ export class SumsController implements NoteFormulas {
   }
 
   private async copy(text: string): Promise<void> {
-    try {
-      await navigator.clipboard.writeText(text);
-      new Notice(t().common.notice(t().sums.copied(text)));
-    } catch (error) {
-      this.logger.debug("Could not copy the total:", error);
-    }
+    await copyText(
+      text,
+      { copied: t().sums.copied(text), failed: t().sums.copyFailed },
+      this.logger
+    );
   }
 }

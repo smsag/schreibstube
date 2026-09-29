@@ -1,13 +1,6 @@
-/**
- * Everything the explorer pane does that touches Obsidian.
- *
- * The pane itself only draws. This is where the state file is opened, vault
- * events are followed, the context menu is assembled, and the sync actions are
- * carried out — which is the reason the pane exists at all. Binding a note to a
- * source and refreshing it belong next to the note, not only in the command
- * palette, and a folder can refresh everything under it in one go.
- */
 import { showActionNotice } from "../ui/action-notice";
+import { copyText } from "../ui/copy-text";
+
 import {
   getAllTags,
   Menu,
@@ -21,7 +14,7 @@ import {
   type MenuItem
 } from "obsidian";
 import { fileNameParts } from "../services/file-glyph";
-import { checkFileName, type FileNameProblem } from "../services/file-name";
+import { basename, checkFileName, type FileNameProblem } from "../services/file-name";
 import { t } from "../i18n";
 import type { Logger } from "../services/logger";
 import type { SchreibstubeSettings } from "../types";
@@ -62,6 +55,8 @@ import {
 } from "../services/explorer-state";
 import { ExplorerStore, type ExplorerFileStore } from "../services/explorer-store";
 import { vaultUrlFor } from "../services/bookmark-file";
+import { isAtOrUnder } from "../services/path-follow";
+
 import { frontmatterTitle } from "../services/note-title";
 import { getImageMimeType } from "../services/image-resize";
 import {
@@ -354,6 +349,11 @@ export class ExplorerController {
     const pairs = this.descriptionPairs();
     if (pairs.notes.has(path) || pairs.byImage.has(path) || pairs.orphans.includes(path))
       return true;
+    // A folder is reported once for everything under it, so it touches the
+    // pairing when any note or picture in it does; a file that is gone or was
+    // just made has no cache entry to ask, only the paths already paired.
+    const under = (paired: string): boolean => isAtOrUnder(paired, path);
+    if ([...pairs.notes, ...pairs.byImage.keys(), ...pairs.orphans].some(under)) return true;
     const file = this.app.vault.getFileByPath(path);
     const frontmatter = file ? this.app.metadataCache.getFileCache(file)?.frontmatter : undefined;
     return frontmatter !== undefined && DESCRIPTION_KEYS.image in frontmatter;
@@ -386,9 +386,7 @@ export class ExplorerController {
 
   /** The picture a note describes, if it is a description note. */
   imageDescribedBy(notePath: string): string | null {
-    for (const [image, note] of this.descriptionPairs().byImage)
-      if (note === notePath) return image;
-    return null;
+    return this.descriptionPairs().byNote.get(notePath) ?? null;
   }
 
   /**
@@ -410,32 +408,26 @@ export class ExplorerController {
     };
   }
 
-  /** Hand over the thing that can describe a picture. */
   useDescriber(describer: ImageDescriber): void {
     this.describer = describer;
   }
 
-  /** Hand over the thing that describes the pictures under a folder. */
   useFolderDescriber(describer: FolderDescriberHook): void {
     this.folderDescriber = describer;
   }
 
-  /** Hand over the thing that can name a file from its contents. */
   useNamer(namer: FileNamer): void {
     this.namer = namer;
   }
 
-  /** Hand over the thing that lists a tag's notes in the sidebar. */
   useTagOpener(opener: TagOpener): void {
     this.tagOpener = opener;
   }
 
-  /** Hand over the thing that lists a note's related notes in the sidebar. */
   useRelatedOpener(opener: RelatedOpener): void {
     this.relatedOpener = opener;
   }
 
-  /** Hand over the thing that lays a folder's pictures out as tiles. */
   useFolderTilesOpener(opener: FolderTilesOpener): void {
     this.tilesOpener = opener;
   }
@@ -460,7 +452,6 @@ export class ExplorerController {
     this.folderListeners.clear();
   }
 
-  /** Called whenever icons or pins changed, from any device. */
   onChange(listener: () => void): () => void {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
@@ -482,7 +473,6 @@ export class ExplorerController {
     return this.store.data();
   }
 
-  /** Pick up a write from another device. Cheap: a modification-time check. */
   async checkForExternalChange(): Promise<void> {
     await this.store.refreshFromDisk();
   }
@@ -495,6 +485,12 @@ export class ExplorerController {
     // from the pane's point of view.
     this.forgetTrashedAround(file.path);
     this.store.mutate((data, now) => renamePath(data, oldPath, file.path, now));
+    // The pairing is by path, so a move changes it before the metadata cache
+    // says a word: the pane used to keep folding a note into a picture that
+    // was no longer where the pairing had it.
+    if (this.touchesDescriptions(oldPath) || this.touchesDescriptions(file.path)) {
+      this.descriptionsChanged();
+    }
     this.follower.pictureRenamed(file, oldPath);
   }
 
@@ -502,6 +498,7 @@ export class ExplorerController {
     // The vault has caught up with what the pane already drew.
     this.forgetTrashed(file.path);
     this.store.mutate((data, now) => markMissing(data, file.path, now));
+    if (this.touchesDescriptions(file.path)) this.descriptionsChanged();
     this.follower.pictureDeleted(file);
     // Not every delete changes the state file — a note with no icon and no
     // mark changes nothing — and the pane still has a row to take away.
@@ -515,6 +512,13 @@ export class ExplorerController {
     // — and so does every folder above it.
     this.forgetTrashedAround(file.path);
     this.store.mutate((data, now) => reattachOrphans(data, [file.path], now));
+    // A picture arriving where an orphaned note's link points makes a pair;
+    // which picture that would be, the pairing does not say, so any arrival
+    // while a note is orphaned is asked again. Rebuilt lazily, a burst of
+    // arrivals costs one rebuild at the next draw.
+    if (this.touchesDescriptions(file.path) || this.descriptionPairs().orphans.length > 0) {
+      this.descriptionsChanged();
+    }
   }
 
   /**
@@ -978,8 +982,21 @@ export class ExplorerController {
     entry
       .setTitle(item.label)
       .setIcon(item.icon)
-      .onClick(() => void this.run(item.id, file));
+      .onClick(() => this.reported(this.run(item.id, file), `${item.id} on ${file.path}`));
     if (item.warning) entry.setWarning(true);
+  }
+
+  /**
+   * A menu action nobody awaits: a menu returns before the work does, and
+   * what fails after that used to fail in silence, as an unhandled rejection
+   * in the console and nothing on screen.
+   */
+  private reported(work: Promise<unknown>, what: string): void {
+    work.catch((error: unknown) => {
+      this.logger.warn(`Explorer action ${what} failed:`, error);
+      const detail = error instanceof Error ? error.message : String(error);
+      new Notice(t().common.notice(t().explorer.menu.actionFailed(detail)));
+    });
   }
 
   /**
@@ -1008,7 +1025,6 @@ export class ExplorerController {
     });
   }
 
-  /** Probed once: older Obsidian versions have no submenus at all. */
   private supportsSubmenus(): boolean {
     if (this.submenusSupported !== null) return this.submenusSupported;
 
@@ -1143,20 +1159,15 @@ export class ExplorerController {
    * A folder is bookmarked by pasting this into the bookmarks file, so the path
    * has to be obtainable without typing it out and without a typo.
    */
-  private copyPath(file: TAbstractFile): void {
+  private async copyPath(file: TAbstractFile): Promise<void> {
     if (!(file instanceof TFolder)) return;
 
-    const url = vaultUrlFor(file.path);
-
-    void navigator.clipboard
-      .writeText(url)
-      .then(() => {
-        new Notice(t().common.notice(t().explorer.bookmarks.copied(file.path)));
-      })
-      .catch((error: unknown) => {
-        this.logger.warn(`Could not copy ${url} to the clipboard:`, error);
-        new Notice(t().common.notice(t().explorer.bookmarks.copyFailed));
-      });
+    const words = t().explorer.bookmarks;
+    await copyText(
+      vaultUrlFor(file.path),
+      { copied: words.copied(file.path), failed: words.copyFailed },
+      this.logger
+    );
   }
 
   private chooseIcon(file: TAbstractFile): void {
@@ -1185,7 +1196,7 @@ export class ExplorerController {
           return resolved.ok ? null : resolved.reason;
         }
       },
-      (value) => void this.writeBinding(file, value)
+      (value) => this.reported(this.writeBinding(file, value), `binding ${file.path}`)
     ).open();
   }
 
@@ -1356,10 +1367,8 @@ export class ExplorerController {
       return;
     }
 
-    this.pickFolder(
-      destinations,
-      t().explorer.move.title(file.name),
-      (folder) => void this.moveAll([file], folder)
+    this.pickFolder(destinations, t().explorer.move.title(file.name), (folder) =>
+      this.reported(this.moveAll([file], folder), `moving ${file.path}`)
     );
   }
 
@@ -1395,7 +1404,7 @@ export class ExplorerController {
             : t().explorer.delete.confirm(file.name),
         submitLabel: t().explorer.delete.submit
       },
-      () => void this.trashAll([file])
+      () => this.reported(this.trashAll([file]), `deleting ${file.path}`)
     );
   }
 
@@ -1411,7 +1420,7 @@ export class ExplorerController {
         message: t().explorer.delete.manyConfirm(files.length),
         submitLabel: t().explorer.delete.submit
       },
-      () => void this.trashAll(files)
+      () => this.reported(this.trashAll(files), `deleting ${files.length} rows`)
     );
   }
 
@@ -1478,22 +1487,33 @@ export class ExplorerController {
       chosen.length === 1 && chosen[0]
         ? t().explorer.delete.done(basename(chosen[0].from))
         : t().explorer.delete.manyDone(chosen.length);
-    this.toast(
-      t().common.notice(message),
-      t().explorer.undo.action,
-      () => void this.undoAction(action)
+    this.toast(t().common.notice(message), t().explorer.undo.action, () =>
+      this.reported(this.undoAction(action), "undoing")
     );
   }
 
-  /** The description notes of the pictures among `files`, not already chosen. */
+  /**
+   * The description notes of the pictures among `files`, a folder's included,
+   * less any note already chosen or inside a chosen folder — that one goes
+   * with the folder, and trashing it twice would fail the second time.
+   */
   private descriptionsOf(files: TAbstractFile[], chosen: Set<string>): TFile[] {
     const notes: TFile[] = [];
-    for (const file of files) {
-      if (!(file instanceof TFile) || file.extension === "md") continue;
-      const path = this.descriptionNoteOf(file.path);
-      if (path === null || chosen.has(path)) continue;
+    const taken = new Set<string>();
+    const goesAnyway = (path: string): boolean =>
+      [...chosen].some((picked) => isAtOrUnder(path, picked));
+    const consider = (picture: TFile): void => {
+      if (picture.extension === "md") return;
+      const path = this.descriptionNoteOf(picture.path);
+      if (path === null || taken.has(path) || goesAnyway(path)) return;
       const note = this.app.vault.getAbstractFileByPath(path);
-      if (note instanceof TFile) notes.push(note);
+      if (!(note instanceof TFile)) return;
+      taken.add(path);
+      notes.push(note);
+    };
+    for (const file of files) {
+      if (file instanceof TFile) consider(file);
+      else if (file instanceof TFolder) for (const picture of filesUnder(file)) consider(picture);
     }
     return notes;
   }
@@ -1686,10 +1706,8 @@ export class ExplorerController {
       return;
     }
 
-    this.pickFolder(
-      destinations,
-      t().explorer.move.manyTitle(files.length),
-      (folder) => void this.moveAll(files, folder)
+    this.pickFolder(destinations, t().explorer.move.manyTitle(files.length), (folder) =>
+      this.reported(this.moveAll(files, folder), `moving ${files.length} rows`)
     );
   }
 
@@ -1749,10 +1767,8 @@ export class ExplorerController {
       files.length === 1 && steps[0]
         ? t().explorer.move.done(basename(steps[0].from), where)
         : t().explorer.move.manyDone(steps.length, where, refused);
-    this.toast(
-      t().common.notice(message),
-      t().explorer.undo.action,
-      () => void this.undoAction(action)
+    this.toast(t().common.notice(message), t().explorer.undo.action, () =>
+      this.reported(this.undoAction(action), "undoing")
     );
   }
 
@@ -1855,11 +1871,6 @@ function topLevel(files: TAbstractFile[]): TAbstractFile[] {
   return files.filter((file) => keep.has(file.path));
 }
 
-function basename(path: string): string {
-  const cut = path.lastIndexOf("/");
-  return cut === -1 ? path : path.slice(cut + 1);
-}
-
 function importReason(reason: ImportRefusal): string {
   const messages = t().explorer.import;
   switch (reason) {
@@ -1872,6 +1883,12 @@ function importReason(reason: ImportRefusal): string {
     default:
       return messages.reasonTooMany;
   }
+}
+
+function filesUnder(folder: TFolder): TFile[] {
+  return folder.children.flatMap((child) =>
+    child instanceof TFolder ? filesUnder(child) : child instanceof TFile ? [child] : []
+  );
 }
 
 function countChildren(folder: TFolder): number {

@@ -46,17 +46,14 @@ export interface SchreibstubeSettings {
   overlayEnabled: boolean;
   focusMode: FocusMode;
   focusDimOpacity: number;
-  // Shared LLM configuration, used by every AI-backed command (rename, summarize).
   llmProvider: LlmProvider;
   llmModel: string;
   llmModelCustom: string;
   llmSecretName: string;
-  // Rename-specific tuning.
   renameMinContentChars: number;
   renameMaxContentChars: number;
   renameMaxFilenameLength: number;
   renameMaxImagePx: number;
-  // Picture descriptions: a vision model's words for a picture, kept as a note.
   imageDescriptionsEnabled: boolean;
   imageDescriptionFolder: string;
   imageDescriptionLanguage: "auto" | "de" | "en";
@@ -73,10 +70,8 @@ export interface SchreibstubeSettings {
   semanticSearchEnabled: boolean;
   /** How many notes the semantic index holds at most, newest first. */
   semanticMaxNotes: number;
-  // Summarize-specific tuning.
   summarizePrompt: string;
   summarizeMaxTokens: number;
-  // Proofreading and the review sidebar.
   proofreadPrompt: string;
   proofreadMaxTokens: number;
   proofreadChunkChars: number;
@@ -119,15 +114,12 @@ export interface SchreibstubeSettings {
   githubSecretName: string;
   /** Per-note sync state, keyed by vault path. Persisted, not user-editable. */
   syncState: Record<string, SyncRecord>;
-  // Email bridge configuration, shared by every mail command.
   mailBridgeUrl: string;
   mailTokenSecretName: string;
   mailFrom: string;
   mailMailbox: string;
   mailMaxResults: number;
   mailMergeHeading: string;
-  // Publishing. The bridge holds the SFTP credentials; the plugin stores a
-  // target name and a token, so no key material enters the vault.
   publishBridgeUrl: string;
   publishTokenSecretName: string;
   publishAccounts: PublishAccount[];
@@ -169,6 +161,5 @@ export interface SchreibstubeSettings {
   sumsConvert: boolean;
   /** The last rates fetched, kept between sessions. Plugin-written. */
   sumsRates: ExchangeRates | null;
-  // Diagnostics.
   debugLogging: boolean;
 }
