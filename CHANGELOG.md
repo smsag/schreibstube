@@ -2,7 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## 1.62.1 - 2026-09-29
+
+Corrections to 1.62.0's search. `sync:` typed on its own now lists every synced
+note, as 1.62.0 said it would; it kept the tree on screen instead. A second
+prefix may follow it, `sync: pfad:Kunden` or `sync: #offen`. The small line such
+as "Text only" above results narrowed by a prefix is gone, since the box already
+says it.
+
+Mobile checklist: not run, and the fix has not been tried in the Obsidian app on
+desktop either; the test suite and the build checked it. What to try first:
+`sync:` alone, then with a word and with a second prefix, with bookmarks and a
+pinned tag in the pane.
+
+The bridge is unchanged at 2.10.0.
 
 ### Changed
 
