@@ -51,6 +51,10 @@ The bridge is unchanged at 2.10.0.
 
 - **New doc from outside Obsidian.** The link `obsidian://schreibstube-new-doc` runs **New doc**, so a new note can sit on a keyboard shortcut of the system's, which works whether Obsidian is in front, behind or closed. **Settings → Schreibstube → Focus mode** copies the link for your vault, and the README walks through putting it on a shortcut with the Shortcuts app, Raycast, Alfred, an iPhone's Action Button or Back Tap, Windows and Linux. The link carries nothing but the vault, so no web page can choose what goes into the note.
 
+### Added
+
+- **A picture with a description says so, and leads to it.** A picture or PDF whose description note exists shows a small sparkle after its name, in the tree, in the pinned block and in filter results. Hovering it shows the title the description gave the file, and pressing it opens the description note (a modifier press opens it in a new tab). The note itself stays folded into its picture in the tree as before.
+
 ### Changed
 
 - **A new doc in a full-screen window gets lines two thirds of the window wide.** Obsidian's readable line length leaves a thin 700 px column in the middle of a full-screen window, and without it a line runs the width of the screen. **New doc** now gives its note lines two thirds of the window wide while that window fills the screen, full screen or maximised, whether readable line length is on or off. As with the Recommended footer, this is for the first opening only; opened again later, the note has the usual width.

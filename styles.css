@@ -2141,6 +2141,16 @@
   color: var(--text-accent);
 }
 
+/* The one mark that is also a shortcut: to the description note. It stays
+   fill-less like every icon control and only changes colour under the pointer. */
+.schreibstube-explorer-badge[data-described] {
+  cursor: pointer;
+}
+
+.schreibstube-explorer-badge[data-described]:hover {
+  color: var(--text-accent);
+}
+
 .schreibstube-explorer-badge[data-sync="error"] {
   color: var(--text-error);
 }
