@@ -6,14 +6,10 @@
  *   asset    upload one image or video, sent as raw bytes
  *   commit   render every note, write what changed, delete what went, save state
  *   render   rebuild from stored state alone, for a template change
- *
- * Uploads are incremental and rendering is total: a title that changed in one
- * note changes the index page and every link pointing at it, and only a full
- * render gets that right. What is written is still only what differs.
  */
 import { createHash } from "node:crypto";
 import { httpError } from "../http.mjs";
-import { withDeadline } from "../timeout.mjs";
+import { TimeoutError, withDeadline } from "../timeout.mjs";
 import {
   buildManifest,
   diffOutputs,
@@ -34,6 +30,7 @@ import {
 } from "./path.mjs";
 import { RENDER_VERSION } from "./render/markdown.mjs";
 import { buildSite, checkIndex, IndexError, sha256 } from "./site.mjs";
+import { isSafeSvg } from "./site-icon.mjs";
 import { connect, SftpError } from "./sftp.mjs";
 import { createConnectionPool } from "./connection-pool.mjs";
 import { mapLimit, SFTP_CONCURRENCY } from "./pool.mjs";
@@ -48,16 +45,7 @@ const INDEX_FILE = "index.json";
 const SOURCE_DIRECTORY = "src";
 const STATE_GUARD_FILE = ".htaccess";
 
-/**
- * Written into a state directory that lies inside the web root.
- *
- * The directory holds every published note's Markdown as written — the
- * frontmatter and the `%%` comments the page leaves out — and an index naming
- * each note's place in the vault. Served, all of that is one guessable URL
- * away. Apache and its lookalikes, which is most shared hosting, read this file
- * and refuse; other servers need the deny rule the README names, and the bridge
- * says so when it starts.
- */
+/** The deny file for a state directory that lies inside the web root. */
 export const STATE_GUARD = [
   "# Written by the Schreibstube bridge. Nothing in here is part of the site.",
   "<IfModule mod_authz_core.c>",
@@ -70,24 +58,28 @@ export const STATE_GUARD = [
   ""
 ].join("\n");
 
+/** Uploaded raster formats whose first bytes are checked, by the thumbnail
+ *  helper's name for each. The other formats a target may serve have no
+ *  helper and are taken on their extension, as before. */
+const RASTER_SIGNATURES = new Map([
+  ["png", "png"],
+  ["jpg", "jpg"],
+  ["jpeg", "jpg"]
+]);
+
 export function createPublishRoutes(config, { version }) {
   const publish = config.publish;
   const generator = `schreibstube-bridge/${version}`;
-  // One publish at a time per target. The bridge runs as a single instance, so
-  // an in-memory lock is the whole story.
   const busy = new Set();
-  // Requests in quick succession share one login per target; see the pool.
   const pool = createConnectionPool({
     connect: (name) => open(publish.targets[name], config)
   });
-  // Stored notes by content hash, shared by every target: the same text is
-  // the same note wherever it is published.
   const cache = new SourceCache();
-  // Thumbnails written since the last commit, per target: the commit has to
-  // know a thumbnail is on the host before a page may point at it, and one it
-  // does not know of — the bridge restarted in between — is asked for again
-  // by the next plan, while the page shows the picture itself meanwhile.
-  const thumbnails = new ThumbnailLedger();
+  // Assets and thumbnails written since the last commit, per target: the
+  // commit has to know a file is on the host before a page may point at it or
+  // the manifest may claim it, and one it does not know of — the bridge
+  // restarted in between — is asked for again by the next plan.
+  const uploads = new UploadLedger();
   // Targets whose state directory is known to carry its deny file, so the
   // check costs one round trip per target and process rather than per upload.
   const guarded = new Set();
@@ -121,18 +113,24 @@ export function createPublishRoutes(config, { version }) {
       }))
     })),
 
-    route("POST", "/publish/diagnostics", 64_000, "json", async ({ body }) => {
+    route("POST", "/publish/diagnostics", 64_000, "json", async ({ body, log }) => {
       const target = targetOf(publish, body?.target);
       try {
         const remote = await open(target, config);
         try {
+          // Listing a directory that is not there answers "empty", which is
+          // not the answer: a site cannot be written to a root that is missing.
+          if ((await remote.exists(target.root)) !== "d") {
+            return { ok: false, target: target.name, error: "The web root does not exist." };
+          }
           const entries = await remote.listNames(target.root);
           return { ok: true, target: target.name, root: target.root, entries: entries.length };
         } finally {
           await remote.end();
         }
       } catch (err) {
-        return { ok: false, target: target.name, error: message(err) };
+        log("warn", `diagnostics ${target.name}: ${detailOf(err)}`);
+        return { ok: false, target: target.name, error: clientMessage(err) };
       }
     }),
 
@@ -140,7 +138,7 @@ export function createPublishRoutes(config, { version }) {
       const target = targetOf(publish, body?.target);
       const index = validateIndex(body?.index, publish);
 
-      return withRemote(pool, target, async (remote) => {
+      return withRemote(pool, target, config.requestTimeoutMs, async (remote) => {
         const manifest = normalizeManifest(
           await remote.readJson(remote.stateAbsolute(MANIFEST_FILE)),
           target.name
@@ -166,7 +164,7 @@ export function createPublishRoutes(config, { version }) {
         const target = targetOf(publish, query.get("target"));
         const hash = verifyHash(body, query.get("sha256"));
 
-        return withRemote(pool, target, async (remote) => {
+        return withRemote(pool, target, uploadTimeoutMs, async (remote) => {
           await guard(remote, target);
           await remote.writeAbsolute(remote.stateAbsolute(`${SOURCE_DIRECTORY}/${hash}.md`), body);
           // The commit that follows renders this note; it need not read it back.
@@ -203,13 +201,15 @@ export function createPublishRoutes(config, { version }) {
             `Not an allowed asset type: ${extension || name}.`
           );
         }
+        if (!isAssetContent(body, extension)) {
+          throw httpError(400, "asset_rejected", `Not a ${extension} the site can serve.`);
+        }
 
-        // The name from the vault never becomes a path: it is slugified and
-        // prefixed with the content hash, then checked like any other path.
         const path = safePath(assetPath(hash, name), target);
 
-        return withRemote(pool, target, async (remote) => {
+        return withRemote(pool, target, uploadTimeoutMs, async (remote) => {
           await remote.writeFile(path, body);
+          uploads.record(target.name, path, { sha256: hash, bytes: body.length });
           log("info", `asset ${path} stored for ${target.name} (${body.length} bytes)`);
           return { sha256: hash, bytes: body.length, path };
         });
@@ -239,10 +239,9 @@ export function createPublishRoutes(config, { version }) {
         }
         const path = safePath(thumbnailPath(source, name), target);
 
-        return withRemote(pool, target, async (remote) => {
-          await guard(remote, target);
+        return withRemote(pool, target, uploadTimeoutMs, async (remote) => {
           await remote.writeFile(path, body);
-          thumbnails.record(target.name, path, { sha256: hash, bytes: body.length });
+          uploads.record(target.name, path, { sha256: hash, bytes: body.length });
           log("info", `thumbnail ${path} stored for ${target.name} (${body.length} bytes)`);
           return { sha256: hash, bytes: body.length, path };
         });
@@ -260,15 +259,30 @@ export function createPublishRoutes(config, { version }) {
         const index = validateIndex(body?.index, publish);
 
         return exclusive(busy, target.name, () =>
-          withRemote(pool, target, async (remote) => {
+          withRemote(pool, target, commitTimeoutMs, async (remote) => {
             await guard(remote, target);
             const stored = await storedSourceHashes(remote);
-            const missing = index.notes.filter((note) => !stored.includes(note.sha256));
+            const storedSet = new Set(stored);
+            const missing = index.notes.filter((note) => !storedSet.has(note.sha256));
             if (missing.length > 0) {
               throw httpError(
                 409,
                 "sources_missing",
                 `${missing.length} source(s) were never uploaded; run the plan again.`
+              );
+            }
+
+            const manifest = normalizeManifest(
+              await remote.readJson(remote.stateAbsolute(MANIFEST_FILE)),
+              target.name
+            );
+            const assets = availableAssets(index, manifest, uploads.written(target.name));
+            if (assets.missing.length > 0) {
+              throw httpError(
+                409,
+                "assets_missing",
+                `${assets.missing.length} asset(s) were never uploaded; run the plan again: ` +
+                  assets.missing.join(", ")
               );
             }
 
@@ -281,11 +295,13 @@ export function createPublishRoutes(config, { version }) {
               remote,
               target,
               index,
+              manifest,
+              assets: assets.uploaded,
               generator,
               log,
               cache,
               stored,
-              thumbnails
+              uploads
             });
           })
         );
@@ -302,19 +318,37 @@ export function createPublishRoutes(config, { version }) {
         const target = targetOf(publish, body?.target);
 
         return exclusive(busy, target.name, () =>
-          withRemote(pool, target, async (remote) => {
+          withRemote(pool, target, commitTimeoutMs, async (remote) => {
             const stored = await remote.readJson(remote.stateAbsolute(INDEX_FILE));
             if (!stored) {
               throw httpError(409, "nothing_published", "This target has never been published.");
             }
+            const index = validateIndex(stored, publish);
+            const manifest = normalizeManifest(
+              await remote.readJson(remote.stateAbsolute(MANIFEST_FILE)),
+              target.name
+            );
+            // Rebuilt from what the last commit recorded: an asset it did not
+            // record was never on the host, and a page may not point at it.
+            const assets = availableAssets(index, manifest, uploads.written(target.name));
+            if (assets.missing.length > 0) {
+              throw httpError(
+                409,
+                "assets_missing",
+                `${assets.missing.length} asset(s) were never uploaded; publish again: ` +
+                  assets.missing.join(", ")
+              );
+            }
             return publishSite({
               remote,
               target,
-              index: validateIndex(stored, publish),
+              index,
+              manifest,
+              assets: assets.uploaded,
               generator,
               log,
               cache,
-              thumbnails
+              uploads
             });
           })
         );
@@ -324,19 +358,21 @@ export function createPublishRoutes(config, { version }) {
   ];
 }
 
-/**
- * Render, write what differs, delete what went, then record it.
- *
- * The order is the recovery story. Output first, so a crash leaves files that
- * the next run recognises as already correct; the manifest last, so a crash
- * before it means the next run re-does work rather than losing a file.
- */
-async function publishSite({ remote, target, index, generator, log, cache, stored, thumbnails }) {
+/** Render, write what differs, delete what went, then record it. */
+async function publishSite({
+  remote,
+  target,
+  index,
+  manifest,
+  assets,
+  generator,
+  log,
+  cache,
+  stored,
+  uploads
+}) {
   const started = Date.now();
 
-  // Only the notes the cache does not hold are read, and those several at a
-  // time. A note read here that does not hash to its name is still rendered,
-  // as before, but not cached under a name it contradicts.
   const sources = new Map();
   const missing = [];
   for (const hash of new Set(index.notes.map((note) => note.sha256))) {
@@ -350,14 +386,9 @@ async function publishSite({ remote, target, index, generator, log, cache, store
     sources.set(hash, content.toString("utf8"));
   });
 
-  const manifest = normalizeManifest(
-    await remote.readJson(remote.stateAbsolute(MANIFEST_FILE)),
-    target.name
-  );
-
   // A page points at a thumbnail only once it is on the host: already in the
   // manifest, or written by an upload since.
-  const onHost = availableThumbnails(index, manifest, thumbnails?.written(target.name));
+  const onHost = availableThumbnails(index, manifest, uploads.written(target.name));
 
   const files = await buildSite(
     { ...index, siteTitle: index.siteTitle || target.siteTitle },
@@ -373,33 +404,41 @@ async function publishSite({ remote, target, index, generator, log, cache, store
   // Assets were written to the host by their own upload, so they are not
   // rebuilt here — but they belong in the manifest, because a file the
   // manifest does not know about is a file the bridge may never remove.
-  const uploaded = new Map(
-    index.assets.map((asset) => [
-      safePath(assetPath(asset.sha256, asset.name ?? asset.sourcePath), target),
-      { sha256: asset.sha256, bytes: asset.bytes ?? 0 }
-    ])
-  );
+  const uploaded = new Map();
+  for (const [path, entry] of assets) uploaded.set(safePath(path, target), entry);
   for (const [path, entry] of onHost) uploaded.set(safePath(path, target), entry);
 
   const difference = diffOutputs(files, manifest, sha256, uploaded);
 
-  // Each phase finishes before the next starts, which is the recovery story
-  // above; within a phase the order never mattered, so it runs in parallel.
   await mapLimit(difference.write, SFTP_CONCURRENCY, (path) =>
     remote.writeFile(path, files.get(path))
   );
-  await mapLimit(difference.delete, SFTP_CONCURRENCY, (path) =>
-    remote.remove(path).catch(() => {})
-  );
-  const pruned = await remote.pruneEmptyDirectories(difference.delete);
+
+  // A deletion that failed stays in the manifest, so the next publish tries
+  // again; forgotten, the file would have stayed on the host for good.
+  const deleted = [];
+  const deleteFailed = [];
+  await mapLimit(difference.delete, SFTP_CONCURRENCY, async (path) => {
+    try {
+      await remote.remove(path);
+      deleted.push(path);
+    } catch (err) {
+      deleteFailed.push(path);
+      log("warn", `publish ${target.name}: could not delete ${path}: ${detailOf(err)}`);
+    }
+  });
+  const pruned = await remote.pruneEmptyDirectories(deleted);
 
   // A commit already listed the stored sources to check the index; a render
   // has not, and asks here.
   const collected = orphanSources(stored ?? (await storedSourceHashes(remote)), index);
   await mapLimit(collected, SFTP_CONCURRENCY, (hash) =>
-    remote.removeAbsolute(remote.stateAbsolute(`${SOURCE_DIRECTORY}/${hash}.md`)).catch(() => {})
+    remote.removeAbsolute(remote.stateAbsolute(`${SOURCE_DIRECTORY}/${hash}.md`)).catch((err) => {
+      log("warn", `publish ${target.name}: could not collect source ${hash}: ${detailOf(err)}`);
+    })
   );
 
+  const carried = new Map(deleteFailed.map((path) => [path, manifest.files[path]]));
   await remote.writeAbsolute(
     remote.stateAbsolute(MANIFEST_FILE),
     Buffer.from(
@@ -408,6 +447,7 @@ async function publishSite({ remote, target, index, generator, log, cache, store
           target: target.name,
           files,
           uploaded,
+          carried,
           hash: sha256,
           renderVersion: RENDER_VERSION,
           generator
@@ -419,7 +459,9 @@ async function publishSite({ remote, target, index, generator, log, cache, store
     )
   );
 
-  thumbnails?.forget(target.name, onHost.keys());
+  // The manifest now records every upload the site uses; what it does not
+  // use is asked for again by the next plan, should a later index need it.
+  uploads.clear(target.name);
 
   const summary = {
     at: new Date().toISOString(),
@@ -427,7 +469,8 @@ async function publishSite({ remote, target, index, generator, log, cache, store
     baseUrl: target.baseUrl,
     written: difference.write.length,
     unchanged: difference.unchanged.length,
-    deleted: difference.delete.length,
+    deleted: deleted.length,
+    deleteFailed: deleteFailed.length,
     pruned,
     collected: collected.length,
     durationMs: Date.now() - started
@@ -437,7 +480,8 @@ async function publishSite({ remote, target, index, generator, log, cache, store
   log(
     "info",
     `publish ${summary.target}: ${summary.written} written, ${summary.unchanged} unchanged, ` +
-      `${summary.deleted} deleted, ${summary.pruned} pruned in ${summary.durationMs}ms`
+      `${summary.deleted} deleted, ${summary.deleteFailed} not deleted, ` +
+      `${summary.pruned} pruned in ${summary.durationMs}ms`
   );
   return summary;
 }
@@ -459,13 +503,47 @@ export function availableThumbnails(index, manifest, written = new Map()) {
   return available;
 }
 
-/** Thumbnails written since the last commit, per target. */
-export class ThumbnailLedger {
+/**
+ * The index's assets that are on the host — recorded by the last commit, or
+ * uploaded since — and the source paths of those that are not. The commit
+ * used to record every asset the index named as published; one the plugin
+ * never managed to upload was then in the manifest, linked from its page,
+ * and never asked for again.
+ */
+export function availableAssets(index, manifest, written = new Map()) {
+  const uploaded = new Map();
+  const missing = [];
+  for (const asset of index.assets) {
+    const path = assetPath(asset.sha256, asset.name ?? asset.sourcePath);
+    const entry = written.get(path) ?? manifest.files?.[path];
+    if (entry) uploaded.set(path, entry);
+    else missing.push(asset.sourcePath);
+  }
+  return { uploaded, missing };
+}
+
+/** More uploads than a publish of the largest allowed site could make. */
+export const MAX_LEDGER_ENTRIES = 10_000;
+
+/** Uploads written since the last commit, per target. */
+export class UploadLedger {
   #targets = new Map();
+
+  constructor({ maxEntries = MAX_LEDGER_ENTRIES } = {}) {
+    this.maxEntries = maxEntries;
+  }
 
   record(target, path, entry) {
     if (!this.#targets.has(target)) this.#targets.set(target, new Map());
-    this.#targets.get(target).set(path, entry);
+    const written = this.#targets.get(target);
+    written.delete(path);
+    written.set(path, entry);
+    // Uploads that never see a commit — a plugin that gave up halfway, again
+    // and again — would otherwise accumulate for the life of the process.
+    for (const [oldest] of written) {
+      if (written.size <= this.maxEntries) break;
+      written.delete(oldest);
+    }
   }
 
   written(target) {
@@ -473,21 +551,12 @@ export class ThumbnailLedger {
   }
 
   /** Once the manifest records them, the ledger need not. */
-  forget(target, paths) {
-    const written = this.#targets.get(target);
-    if (!written) return;
-    for (const path of paths) written.delete(path);
-    if (written.size === 0) this.#targets.delete(target);
+  clear(target) {
+    this.#targets.delete(target);
   }
 }
 
-/**
- * Keep the last publishes next to the manifest.
- *
- * The manifest says what the site is now; nothing said what changed when. A
- * short history answers that without a log server, and a failure to write it
- * never fails a publish that already succeeded.
- */
+/** Failing to write the history never fails a publish that succeeded. */
 async function appendHistory(remote, summary) {
   try {
     const path = remote.stateAbsolute(HISTORY_FILE);
@@ -496,17 +565,11 @@ async function appendHistory(remote, summary) {
     const next = [summary, ...entries].slice(0, HISTORY_LENGTH);
     await remote.writeAbsolute(path, Buffer.from(JSON.stringify(next, null, 2), "utf8"));
   } catch {
-    // The site is published either way; a missing history entry is not a
-    // reason to report a failure.
+    // See above.
   }
 }
 
-/**
- * Put the deny file into the state directory, unless one is there.
- *
- * An existing file is left alone: an operator who wrote their own rules for
- * the directory knows their server better than this does.
- */
+/** Put the deny file into the state directory, unless one is there. */
 async function guardState(remote) {
   const path = remote.stateAbsolute(STATE_GUARD_FILE);
   if (await remote.exists(path)) return;
@@ -520,8 +583,10 @@ async function storedSourceHashes(remote) {
     .map((name) => name.replace(/\.md$/, ""));
 }
 
-function targetOf(publish, name) {
-  const target = publish.targets[String(name ?? "").trim()];
+export function targetOf(publish, name) {
+  const key = String(name ?? "").trim();
+  // Own keys only: "constructor" is on every object and is not a target.
+  const target = Object.hasOwn(publish.targets, key) ? publish.targets[key] : undefined;
   if (!target) {
     throw httpError(404, "unknown_target", `No such publish target: ${name ?? "(none)"}.`);
   }
@@ -567,6 +632,18 @@ function verifyHash(body, claimed) {
   return actual;
 }
 
+/**
+ * Whether uploaded bytes are what their extension says. An SVG is served
+ * from the site's own domain, where it would run whatever it carries, so it
+ * is held to the tab icon's rule; a raster file has to begin like one where
+ * there is a signature to check.
+ */
+export function isAssetContent(bytes, extension) {
+  if (extension === "svg") return isSafeSvg(bytes.toString("utf8"), { embedded: true });
+  const raster = RASTER_SIGNATURES.get(extension);
+  return raster ? isThumbnailFormat(bytes, raster) : true;
+}
+
 async function open(target, config) {
   return withDeadline(
     connect({ ...target, timeoutMs: config.upstreamTimeoutMs }),
@@ -575,22 +652,37 @@ async function open(target, config) {
   );
 }
 
-async function withRemote(pool, target, work) {
+/**
+ * Run `work` on the target's shared connection, under the request's deadline.
+ *
+ * The deadline is inside the pool's `use`, so running out of it retires the
+ * connection: closing it is what fails the operation the server never
+ * answered, and the request cannot hold the target's lock beyond its budget.
+ */
+export async function withRemote(pool, target, timeoutMs, work) {
   let started = false;
   try {
     return await pool.use(target.name, (remote) => {
       started = true;
-      return work(remote);
+      return withDeadline(work(remote), timeoutMs, `Publish to ${target.name}`);
     });
   } catch (err) {
-    if (err.status) throw err;
+    if (err.status || err instanceof TimeoutError) throw err;
     // Before the work began, the login itself failed.
-    if (!started) throw httpError(502, "sftp_unreachable", message(err), detailOf(err));
-    throw httpError(502, "sftp_error", message(err), detailOf(err));
+    if (!started) throw httpError(502, "sftp_unreachable", clientMessage(err), detailOf(err));
+    throw httpError(502, "sftp_error", clientMessage(err), detailOf(err));
   }
 }
 
-async function exclusive(busy, name, work) {
+/**
+ * One publish at a time per target.
+ *
+ * No deadline of its own: a deadline here cannot stop the work, only stop
+ * waiting for it, and a lock released while the writes go on lets a second
+ * publish share the connection with the first. The work is bounded inside
+ * `withRemote`, where running out closes the connection and so ends it.
+ */
+export async function exclusive(busy, name, work) {
   if (busy.has(name)) {
     throw httpError(409, "publish_in_progress", `A publish to ${name} is already running.`);
   }
@@ -602,19 +694,10 @@ async function exclusive(busy, name, work) {
   }
 }
 
-/**
- * What the client is told when something upstream fails.
- *
- * A host key mismatch is quoted in full, because it is the one failure a person
- * has to see word for word. Everything else is summarised: an SFTP error can
- * carry remote paths, and those are the operator's business, not the client's.
- */
-function message(err) {
-  if (err instanceof SftpError) return err.message;
-  // Summarised, as the paragraph above promises: an ssh2 error carries the
-  // absolute path it was working on, and the vault has no business learning
-  // where the web root lives. The detail is in the bridge's own log, with the
-  // request id.
+/** What the client is told when something upstream fails. */
+export function clientMessage(err) {
+  if (err instanceof SftpError) return err.clientMessage;
+  if (err instanceof TimeoutError) return err.message;
   return "SFTP failed.";
 }
 

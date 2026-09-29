@@ -1,3 +1,5 @@
+import { fenceMarker } from "./markdown-fence";
+
 type FocusMode = "off" | "sentence" | "paragraph";
 
 export interface LineDoc {
@@ -14,7 +16,6 @@ export interface FocusRange {
 
 type BlockKind = "heading" | "list" | "quote" | "paragraph";
 
-const FENCE_REGEX = /^\s*([`~]{3,})/;
 const HEADING_REGEX = /^\s{0,3}#{1,6}\s+/;
 const LIST_REGEX = /^\s*(?:[-*+]|\d+[.)])\s+/;
 const QUOTE_REGEX = /^\s*>/;
@@ -95,7 +96,7 @@ function resolveFenceRange(doc: LineDoc, cursorLine: number): FocusRange | null 
 
   for (let lineNumber = 1; lineNumber <= doc.lines; lineNumber += 1) {
     const text = doc.line(lineNumber).text;
-    const marker = getFenceMarker(text);
+    const marker = fenceMarker(text);
 
     if (!open) {
       if (marker) {
@@ -241,9 +242,5 @@ function isBlank(line: string): boolean {
 }
 
 function isFenceDelimiter(line: string): boolean {
-  return getFenceMarker(line) !== null;
-}
-
-function getFenceMarker(line: string): string | null {
-  return line.match(FENCE_REGEX)?.[1] ?? null;
+  return fenceMarker(line) !== null;
 }

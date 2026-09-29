@@ -14,6 +14,14 @@ export interface DiffRun<T> {
 }
 
 /**
+ * The widest table a caller may ask for: a cell holds a subsequence length,
+ * which is at most the shorter input, and sixteen bits hold that up to here.
+ * Halving the cell width matters because the table is quadratic — at four
+ * thousand lines it is thirty-two megabytes rather than sixty-four.
+ */
+const MAX_TABLE_ITEMS = 0xffff;
+
+/**
  * Diff `a` against `b`, returning contiguous runs.
  *
  * Above `maxItems` on either side the quadratic table is not worth building,
@@ -21,7 +29,8 @@ export interface DiffRun<T> {
  * degrades to a single delete followed by a single insert.
  */
 export function diffSequences<T>(a: T[], b: T[], maxItems: number): DiffRun<T>[] {
-  if (a.length > maxItems || b.length > maxItems) {
+  const limit = Math.min(maxItems, MAX_TABLE_ITEMS);
+  if (a.length > limit || b.length > limit) {
     const runs: DiffRun<T>[] = [];
     if (a.length > 0) runs.push({ op: "delete", items: a });
     if (b.length > 0) runs.push({ op: "insert", items: b });
@@ -31,9 +40,9 @@ export function diffSequences<T>(a: T[], b: T[], maxItems: number): DiffRun<T>[]
   return backtrack(a, b, lcsTable(a, b));
 }
 
-function lcsTable<T>(a: T[], b: T[]): Uint32Array {
+function lcsTable<T>(a: T[], b: T[]): Uint16Array {
   const width = b.length + 1;
-  const table = new Uint32Array((a.length + 1) * width);
+  const table = new Uint16Array((a.length + 1) * width);
 
   for (let i = a.length - 1; i >= 0; i -= 1) {
     for (let j = b.length - 1; j >= 0; j -= 1) {
@@ -49,7 +58,7 @@ function lcsTable<T>(a: T[], b: T[]): Uint32Array {
   return table;
 }
 
-function backtrack<T>(a: T[], b: T[], table: Uint32Array): DiffRun<T>[] {
+function backtrack<T>(a: T[], b: T[], table: Uint16Array): DiffRun<T>[] {
   const width = b.length + 1;
   const runs: DiffRun<T>[] = [];
   let i = 0;

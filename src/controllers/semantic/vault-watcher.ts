@@ -27,7 +27,11 @@ import {
  * so a note someone is typing in used to be re-embedded — and the whole index
  * rewritten — every couple of seconds, on a phone right next to the editor, and
  * that is what reloaded Obsidian mid-sentence. It now reaches the index when the
- * writer leaves it, or once they have stopped for `VAULT_HOLD_IDLE_MS`.
+ * writer leaves it, or — on a desktop — once they have stopped for
+ * `VAULT_HOLD_IDLE_MS`. A phone waits for the leaving alone: a pause to think
+ * there meant loading a model of several hundred megabytes beside the editor,
+ * and a writing session is pauses, so the model was loaded and dropped every
+ * few minutes until the process ran into the phone's memory line.
  */
 
 /** The part of `TFile` the batch needs. Keeps the rules testable without a vault. */
@@ -112,6 +116,9 @@ export interface VaultWatcherDeps {
   activePath?(): string | null;
   delayMs?: number;
   holdIdleMs?: number;
+  /** The held note goes to the index only when the writer moves on, never on a
+   *  quiet clock: a phone, where an embed is a model load. */
+  holdUntilLeft?: boolean;
 }
 
 /**
@@ -134,7 +141,9 @@ export function registerVaultWatcher(
     if (changed.length > 0 || deleted.length > 0) deps.applyChanges(changed, deleted);
   };
   // Nothing is held back any more: the writer has gone quiet for long enough.
-  const release = debounce(() => drain(null), deps.holdIdleMs ?? VAULT_HOLD_IDLE_MS, true);
+  // Where leaving is the only release, the clock is never armed.
+  const quiet = debounce(() => drain(null), deps.holdIdleMs ?? VAULT_HOLD_IDLE_MS, true);
+  const release = deps.holdUntilLeft ? Object.assign(() => {}, { cancel: () => {} }) : quiet;
   const flush = debounce(
     () => drain(deps.activePath?.() ?? null),
     deps.delayMs ?? VAULT_FLUSH_DELAY_MS,

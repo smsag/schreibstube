@@ -137,7 +137,6 @@ export class BodyIndex implements BodyMatcher {
   private score(queryToken: string): Map<string, number> {
     const out = new Map<string, number>();
     if (!queryToken || this.notes.size === 0) return out;
-    // Each distinct word scored once; a note then reads its numbers.
     const scored = new Float32Array(this.words.length);
     let any = false;
     for (let id = 0; id < this.words.length; id++) {

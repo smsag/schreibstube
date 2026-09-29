@@ -23,6 +23,10 @@ export interface DescriptionCandidate {
 export interface DescriptionPairs {
   /** Picture path → the note describing it. */
   byImage: ReadonlyMap<string, string>;
+  /** The same pairs the other way: note path → the picture it describes. A
+   *  duplicate is not here, as it is not in `byImage`. */
+  byNote: ReadonlyMap<string, string>;
+
   /** Every note that describes a picture that exists. */
   notes: ReadonlySet<string>;
   /** Notes whose link resolves to no file: the picture was renamed outside
@@ -96,7 +100,9 @@ export function pairDescriptions(
 
   return {
     byImage: new Map([...byImage].map(([image, note]) => [image, note.path])),
+    byNote: new Map([...byImage].map(([image, note]) => [note.path, image])),
     notes,
+
     orphans,
     duplicates
   };

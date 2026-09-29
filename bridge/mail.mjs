@@ -9,9 +9,8 @@ import { ImapFlow } from "imapflow";
 import { simpleParser } from "mailparser";
 import nodemailer from "nodemailer";
 import { randomUUID } from "node:crypto";
-import addressparser from "nodemailer/lib/addressparser";
 import { TimeoutError, withDeadline } from "./timeout.mjs";
-import { parseSender, senderDomain } from "./mail-address.mjs";
+import { parseSender, recipientAddresses, senderDomain } from "./mail-address.mjs";
 import { chooseSentMailbox, FALLBACK_SENT_MAILBOX } from "./sent-mailbox.mjs";
 
 /**
@@ -42,16 +41,13 @@ export function createSmtpTransport(config, timeoutMs) {
 }
 
 /**
- * Prove the mailbox is reachable with the configured credentials.
- *
- * Used by /diagnostics, which exists because a health check that only says a
- * process is alive cannot answer "is my configuration right". Each protocol is
- * reported on its own: SMTP working while IMAP does not is a real and common
+ * Prove the mailbox is reachable with the configured credentials, each
+ * protocol on its own: SMTP working while IMAP does not is a real and common
  * state, and the distinction is the whole value of the answer.
  */
 export async function diagnose(config, transport) {
   return {
-    imap: await attempt(async () => {
+    imap: await attempt(config.upstreamTimeoutMs, "IMAP", async () => {
       const client = newClient(config);
       try {
         await client.connect();
@@ -62,16 +58,21 @@ export async function diagnose(config, transport) {
         await safeLogout(client);
       }
     }),
-    smtp: await attempt(async () => {
+    smtp: await attempt(config.upstreamTimeoutMs, "SMTP", async () => {
       await transport.verify();
       return {};
     })
   };
 }
 
-async function attempt(work) {
+/**
+ * One protocol's answer, under its own deadline: a server that neither
+ * answers nor hangs up used to run the request into the bridge's deadline,
+ * and a 504 says nothing about which protocol it was.
+ */
+async function attempt(timeoutMs, label, work) {
   try {
-    return { ok: true, ...(await work()) };
+    return { ok: true, ...(await withDeadline(work(), timeoutMs, label)) };
   } catch (err) {
     return { ok: false, error: err.message };
   }
@@ -88,16 +89,16 @@ async function attempt(work) {
  * The two legs carry a deadline each. One deadline over both turned a slow
  * APPEND after a delivered message into a failed send, and a person told the
  * send failed sends again: the duplicate lands with the recipient.
- *
- * A request's `from` sets the From header only. The envelope sender stays the
- * mailbox's own address: it is what the server authenticated, what its SPF
- * record vouches for, and where a bounce is sent — so a bounce for an alias
- * lands in the mailbox the bridge can search, not at an address nobody reads.
  */
-export async function sendMessage(config, transport, request, { fileInSent = appendToSent } = {}) {
+export async function sendMessage(
+  config,
+  transport,
+  request,
+  { fileInSent = appendToSent, log = () => {} } = {}
+) {
   const account = parseSender(config.from);
   const from = parseSender(request.from) ?? account;
-  const messageId = request.messageId?.trim() || generateMessageId(from);
+  const messageId = generateMessageId(from);
 
   // Note the absence of `bcc`: the compiled bytes go out verbatim and are
   // APPENDed to Sent, so a Bcc header here would expose blind recipients to
@@ -111,8 +112,6 @@ export async function sendMessage(config, transport, request, { fileInSent = app
     messageId,
     inReplyTo: request.inReplyTo || undefined,
     references: request.references?.length ? request.references : undefined,
-    // Checked and decoded by the route; compiled into the same bytes that are
-    // delivered and filed in Sent, so the copy there shows what was sent.
     attachments: request.attachments?.length
       ? request.attachments.map(({ filename, contentType, content }) => ({
           filename,
@@ -131,7 +130,11 @@ export async function sendMessage(config, transport, request, { fileInSent = app
       transport.sendMail({
         envelope: {
           from: account.address,
-          to: [...toList(request.to), ...toList(request.cc), ...toList(request.bcc)]
+          to: [
+            ...recipientAddresses(request.to),
+            ...recipientAddresses(request.cc),
+            ...recipientAddresses(request.bcc)
+          ]
         },
         raw
       }),
@@ -144,27 +147,23 @@ export async function sendMessage(config, transport, request, { fileInSent = app
   }
 
   const sentAt = new Date().toISOString();
+  // Not filed is reported, never a failed send; but said in the log, because
+  // "check SENT_MAILBOX" is the only advice the README can give without it.
   const filed = await withDeadline(
     fileInSent(config, raw),
     config.upstreamTimeoutMs,
     "Filing in Sent"
-  ).catch(() => false);
+  ).catch((err) => {
+    log("warn", `sent copy of ${messageId} not filed: ${err.message}`);
+    return false;
+  });
 
-  // The server takes a message when it takes any recipient, and says which it
-  // turned down; a send reported as plain success hid that one address of
-  // three was never going to receive it.
   const rejected = Array.isArray(delivery?.rejected) ? delivery.rejected.map(String) : [];
 
   return { messageId, sentAt, filedInSent: filed, rejected };
 }
 
-/**
- * A send whose outcome the bridge does not know.
- *
- * The deadline stops the waiting, not the SMTP session: the server may still
- * take the message a moment later. Reported as a plain failure, it was sent
- * again and arrived twice, so it is answered as what it is.
- */
+/** A send whose outcome the bridge does not know; the route answers it as such. */
 export class SendUnconfirmedError extends Error {
   constructor(cause) {
     super(
@@ -175,19 +174,29 @@ export class SendUnconfirmedError extends Error {
   }
 }
 
+/** nodemailer's codes for a line that failed rather than a server that answered. */
+const CONNECTION_CODES = new Set(["ECONNECTION", "ETIMEDOUT", "ESOCKET"]);
+
 /**
- * Our own deadline, or a connection lost after the message was handed over
- * and before the server answered it. A reply the server did give — a refused
- * login, a refused recipient, a refused message — is a failure it reported.
+ * Our own deadline, or a connection that was lost or fell silent while the
+ * message was in the server's hands. A reply the server did give — a refused
+ * login, a refused recipient, a refused message — carries its response code
+ * and is a failure it reported. nodemailer says nothing about which command
+ * a dropped connection interrupted, so the wording is what tells a line that
+ * went away from one that was never opened.
  */
 export function isUnconfirmed(err) {
   if (err instanceof TimeoutError) return true;
-  return err?.command === "DATA" && !err?.responseCode;
+  if (err?.responseCode) return false;
+  // nodemailer reports a socket error as ESOCKET with the socket's own words
+  // (read ECONNRESET, write EPIPE), a hang-up as ECONNECTION "closed
+  // unexpectedly", and its own silence as ETIMEDOUT "Timeout".
+  return (
+    CONNECTION_CODES.has(err?.code) &&
+    /closed unexpectedly|^Timeout|ECONNRESET|EPIPE|ECONNABORTED/i.test(err?.message ?? "")
+  );
 }
 
-/** APPEND the sent copy to the Sent mailbox. A failure here is reported but not
- *  fatal: the mail is already delivered, and losing the local copy must not
- *  look like a failed send. */
 async function appendToSent(config, raw) {
   if (config.sentMailbox === "") {
     return false;
@@ -199,8 +208,6 @@ async function appendToSent(config, raw) {
     if (!mailbox) return filedByServer;
     await client.append(mailbox, raw, ["\\Seen"]);
     return true;
-  } catch {
-    return false;
   } finally {
     await safeLogout(client);
   }
@@ -215,11 +222,8 @@ async function appendToSent(config, raw) {
  */
 const detectedSent = new Map();
 
-/**
- * Where this account's sent copies go: `SENT_MAILBOX` when set, otherwise what
- * the server tags, asked once. A LIST that fails is not remembered — the next
- * send asks again — and falls back to the old default for this one.
- */
+/** A LIST that fails is not remembered — the next send asks again — and
+ *  falls back to the old default for this one. */
 export async function sentMailboxFor(config, client, cache = detectedSent) {
   const configured = config.sentMailbox ?? null;
   if (configured !== null) return chooseSentMailbox({ configured });
@@ -292,13 +296,7 @@ function clampLimit(value, maxResults) {
   return Math.min(n, maxResults);
 }
 
-/**
- * Translate the plugin's criteria into an IMAP SEARCH query.
- *
- * `references` is the thread lookup: a reply may cite the original in either
- * References or In-Reply-To depending on the sending client, so both are
- * matched. Distinct keys at the top level are ANDed by IMAP.
- */
+/** The plugin's criteria as an IMAP SEARCH query; distinct keys are ANDed. */
 function buildQuery(criteria) {
   const clauses = [];
   if (criteria.from?.trim()) clauses.push({ from: criteria.from.trim() });
@@ -320,7 +318,7 @@ function buildQuery(criteria) {
 
 async function toMessage(msg, maxTextChars) {
   const parsed = await simpleParser(msg.source);
-  const text = parsed.text?.trim() || htmlToText(parsed.html || "");
+  const text = parsed.text?.trim() || htmlToText(parsed.html || "", maxTextChars);
 
   return {
     uid: msg.uid,
@@ -342,11 +340,17 @@ function normalizeReferences(references) {
   return Array.isArray(references) ? references : [references];
 }
 
+/** How much HTML is worth reading for `maxTextChars` of text: tags and
+ *  entities take room, a message is mostly them, and beyond a few times the
+ *  limit nothing kept can come from it. */
+export const HTML_TEXT_RATIO = 4;
+
 /** Last-resort plain text for HTML-only mail. Deliberately crude: block-level
  *  tags become line breaks, everything else is dropped. Good enough to read in
  *  a note; anything richer belongs in a proper converter. */
-function htmlToText(html) {
+export function htmlToText(html, maxTextChars) {
   return html
+    .slice(0, HTML_TEXT_RATIO * maxTextChars)
     .replace(/<(script|style)[\s\S]*?<\/\1>/gi, "")
     .replace(/<br\s*\/?>/gi, "\n")
     .replace(/<\/(p|div|tr|li|h[1-6])>/gi, "\n")
@@ -369,6 +373,7 @@ function newClient(config) {
     auth: config.imap.auth,
     logger: false,
     emitLogs: false,
+    connectionTimeout: config.upstreamTimeoutMs,
     greetingTimeout: config.upstreamTimeoutMs,
     socketTimeout: config.upstreamTimeoutMs
   });
@@ -384,25 +389,6 @@ async function safeLogout(client) {
 
 function generateMessageId(from) {
   return `<${randomUUID()}@${senderDomain(from)}>`;
-}
-
-/**
- * The bare addresses in a recipient field, for the envelope.
- *
- * Read by the same parser that writes the header, so the two cannot disagree:
- * a split at every comma turned `"Seitz, Steffen" <s@x.de>` into an envelope
- * recipient `"Seitz` that no header named, and a group's members were lost.
- */
-function toList(value) {
-  if (!value) return [];
-  const items = Array.isArray(value) ? value : [value];
-  return items.flatMap((item) => flatten(addressparser(String(item))));
-}
-
-function flatten(entries) {
-  return entries.flatMap((entry) =>
-    entry.group ? flatten(entry.group) : entry.address ? [entry.address.trim()] : []
-  );
 }
 
 function joinAddresses(value) {

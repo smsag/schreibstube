@@ -33,6 +33,18 @@ describe("svgSize", () => {
   it("is null when nothing says how big it is", () => {
     expect(svgSize("<svg><g/></svg>")).toBeNull();
   });
+
+  it("reads the root tag only, not a child's size or viewBox", () => {
+    expect(svgSize('<svg><rect width="50" height="20"/></svg>')).toBeNull();
+    expect(svgSize('<svg viewBox="0 0 400 200"><svg viewBox="0 0 9 9"/></svg>')).toEqual({
+      width: 400,
+      height: 200
+    });
+    expect(svgSize('<svg width="300" height="150"><symbol viewBox="0 0 8 8"/></svg>')).toEqual({
+      width: 300,
+      height: 150
+    });
+  });
 });
 
 describe("captureSize", () => {

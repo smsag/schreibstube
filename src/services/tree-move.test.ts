@@ -72,6 +72,13 @@ describe("planMove", () => {
     expect(planMove("Berufliches/Notiz.md", "Privates", vault)).toBe("name-taken");
   });
 
+  it("refuses a name taken in another letter case, as macOS and Windows would", () => {
+    expect(planMove("Berufliches/NOTIZ.md", "Privates", vault)).toBe("name-taken");
+    expect(planMove("Wurzel.md", "Berufliches/Karriere", vault)).toEqual({
+      destination: "Berufliches/Karriere/Wurzel.md"
+    });
+  });
+
   it("does not mistake a sibling with a shared prefix for a descendant", () => {
     const tricky = context(["Beruf", "Berufliches"], ["Beruf", "Berufliches"]);
 

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { App } from "obsidian";
-import { TFile } from "../testing/obsidian-stub";
+import { TFile, TFolder } from "../testing/obsidian-stub";
+
 import {
   DescriptionFollower,
   FOLLOW_DELETE_DELAY_MS,
@@ -41,6 +42,16 @@ function vault(files: Record<string, string>) {
     Object.assign(handle, new TFile(to));
     handles.set(to, handle);
     return handle;
+  };
+  /** A folder renamed: every file under it moves, and the folder comes back
+   *  holding them at their new paths, as Obsidian's does when the event fires. */
+  const moveFolder = (from: string, to: string): TFolder => {
+    const folder = new TFolder(to);
+    for (const path of [...text.keys()]) {
+      if (!path.startsWith(`${from}/`)) continue;
+      folder.children.push(move(path, `${to}/${path.slice(from.length + 1)}`));
+    }
+    return folder;
   };
   const trashed: string[] = [];
   const writes: string[] = [];
@@ -90,10 +101,22 @@ function vault(files: Record<string, string>) {
   };
   // The stub's TFile stands in for Obsidian's, as it does across the suite.
   const follow = follower as unknown as {
-    pictureRenamed(file: TFile, oldPath: string): void;
-    pictureDeleted(file: TFile): void;
+    pictureRenamed(file: TFile | TFolder, oldPath: string): void;
+    pictureDeleted(file: TFile | TFolder): void;
   };
-  return { text, file, move, follower: follow, timers, elapse, trashed, writes, changed, app };
+  return {
+    text,
+    file,
+    move,
+    moveFolder,
+    follower: follow,
+    timers,
+    elapse,
+    trashed,
+    writes,
+    changed,
+    app
+  };
 }
 
 const noteFor = (image: string) => descriptionNotePath(FOLDER, image);
@@ -163,6 +186,32 @@ describe("a described picture that moves", () => {
   });
 });
 
+describe("a folder of described pictures that moves", () => {
+  it("follows every picture inside it, in one wait", async () => {
+    const v = vault({
+      "Bilder/see.jpg": "",
+      "Bilder/Tiefer/berg.jpg": "",
+      [noteFor("Bilder/see.jpg")]: noteText("Bilder/see.jpg"),
+      [noteFor("Bilder/Tiefer/berg.jpg")]: noteText("Bilder/Tiefer/berg.jpg")
+    });
+
+    v.follower.pictureRenamed(v.moveFolder("Bilder", "Urlaub"), "Bilder");
+    expect(v.timers).toHaveLength(1);
+    await v.elapse();
+
+    expect(v.text.get(noteFor("Urlaub/see.jpg"))).toContain("[[Urlaub/see.jpg]]");
+    expect(v.text.get(noteFor("Urlaub/Tiefer/berg.jpg"))).toContain("[[Urlaub/Tiefer/berg.jpg]]");
+    expect(v.text.has(noteFor("Bilder/see.jpg"))).toBe(false);
+  });
+
+  it("does nothing for a folder without a described picture", () => {
+    const v = vault({ "Bilder/berg.jpg": "", "Texte/a.md": "text" });
+    v.follower.pictureRenamed(v.moveFolder("Bilder", "Fotos"), "Bilder");
+    v.follower.pictureRenamed(v.moveFolder("Texte", "Notizen"), "Texte");
+    expect(v.timers).toEqual([]);
+  });
+});
+
 describe("a described picture that is deleted", () => {
   it("sends the note to the trash after the wait", async () => {
     const note = noteFor("Bilder/see.jpg");
@@ -188,6 +237,19 @@ describe("a described picture that is deleted", () => {
     await v.elapse();
 
     expect(v.trashed).toEqual([]);
+  });
+
+  it("sends the notes of every picture in a deleted folder to the trash", async () => {
+    const note = noteFor("Bilder/see.jpg");
+    const v = vault({ "Bilder/see.jpg": "", [note]: noteText("Bilder/see.jpg") });
+
+    const gone = new TFolder("Bilder");
+    gone.children.push(v.file("Bilder/see.jpg"));
+    v.text.delete("Bilder/see.jpg");
+    v.follower.pictureDeleted(gone);
+    await v.elapse();
+
+    expect(v.trashed).toEqual([note]);
   });
 
   it("leaves the note when a sync moved the picture and the note followed", async () => {

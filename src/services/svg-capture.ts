@@ -39,16 +39,21 @@ export function svgSize(svg: string, measured?: Partial<Size>): Size | null {
     return { width: measured.width, height: measured.height };
   }
 
+  // The root tag alone: a child's `width` or `viewBox` — a rect, a nested
+  // svg, a symbol — used to be read as the drawing's own.
+  const root = /<svg\b[^>]*>/.exec(svg)?.[0] ?? "";
   const viewBox =
-    /viewBox\s*=\s*["']\s*([-\d.eE]+)[\s,]+([-\d.eE]+)[\s,]+([-\d.eE]+)[\s,]+([-\d.eE]+)/.exec(svg);
+    /viewBox\s*=\s*["']\s*([-\d.eE]+)[\s,]+([-\d.eE]+)[\s,]+([-\d.eE]+)[\s,]+([-\d.eE]+)/.exec(
+      root
+    );
   if (viewBox) {
     const width = Number(viewBox[3]);
     const height = Number(viewBox[4]);
     if (isUsable(width) && isUsable(height)) return { width, height };
   }
 
-  const width = lengthAttribute(svg, "width");
-  const height = lengthAttribute(svg, "height");
+  const width = lengthAttribute(root, "width");
+  const height = lengthAttribute(root, "height");
   if (width !== null && height !== null) return { width, height };
 
   return null;

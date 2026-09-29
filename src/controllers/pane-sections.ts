@@ -6,12 +6,8 @@
  * changes, and both are drawn by the pane that draws the tree. What they are
  * not is part of the tree: a bookmark has no path, and a note in "Latest" is
  * already somewhere else in the pane.
- *
- * Bookmarks come from a Markdown file a person edits by hand. That is the whole
- * contract: this reads the file, and nothing here ever writes it. A vault that
- * syncs then has one writer per device — the person — and a bookmark list that
- * can be fixed with a text editor when something is wrong with it.
  */
+
 import { Notice, Platform, TFile, TFolder, type App } from "obsidian";
 import { t } from "../i18n";
 import { availableTarget, type PaneTarget } from "../services/pane-target";
@@ -137,7 +133,6 @@ export class PaneSectionsController {
     return path.length > 0 && !(this.app.vault.getAbstractFileByPath(path) instanceof TFile);
   }
 
-  /** Re-read the file. Cheap enough to call on any change to that one path. */
   async reload(): Promise<void> {
     const path = this.bookmarksPath();
     this.loadedPath = path;
@@ -287,9 +282,10 @@ export class PaneSectionsController {
   /**
    * The notes whose source changed.
    *
-   * Computed on demand and kept until something changes it, because the pane
-   * redraws on every vault event and a vault of a few thousand notes cannot be
-   * sorted twice per keystroke.
+   * Computed on demand and kept until something changes it: the pane redraws
+   * on every vault event, and a vault of a few thousand notes cannot be sorted
+   * per redraw. What changes it is a file appearing, going or moving, or a
+   * sync record — never a save, which touches none of what the list reads.
    */
   latestFiles(): LatestSelection {
     // The sync records are the answer, so a poll that found a source changed
@@ -303,7 +299,7 @@ export class PaneSectionsController {
     return this.latest;
   }
 
-  /** Called for any vault change: the next draw recomputes rather than this one. */
+  /** A path, a name or a sync record changed: the next draw recomputes. */
   invalidateLatest(): void {
     this.latest = null;
     this.emit();

@@ -179,9 +179,10 @@ export function planFrontmatterEdit(
     if (next !== undefined && /^\s/.test(next)) return UNWRITABLE;
 
     // The title is written once. A line the metadata cache has not caught up
-    // with yet is still the person's title if it says anything.
+    // with yet is still the person's title if it says anything; a pair of
+    // quotes around nothing, which is how a property is emptied, says nothing.
     const existing = block[at]?.replace(/^[^:]*:/, "").trim() ?? "";
-    if (key === SYNC_TITLE_KEY && existing.length > 0) continue;
+    if (key === SYNC_TITLE_KEY && unquoted(existing).length > 0) continue;
 
     block[at] = line;
   }
@@ -191,11 +192,17 @@ export function planFrontmatterEdit(
   return text === head ? NOTHING : { kind: "edit", edit: { from: 0, to: head.length, text } };
 }
 
+function unquoted(value: string): string {
+  return value.replace(/^(["'])(.*)\1$/s, "$2");
+}
+
 /**
  * A value as YAML reads it back unchanged.
  *
  * Plain where that is safe, which is how Obsidian writes a date; double-quoted
- * otherwise, and a JSON string is a valid double-quoted YAML scalar.
+ * otherwise, and a JSON string is a valid double-quoted YAML scalar. A title
+ * that starts like a date, or reads as a number in another base, would come
+ * back as a date or a number, so it is quoted too.
  */
 function yamlScalar(value: string): string {
   if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(value)) return value;
@@ -203,6 +210,8 @@ function yamlScalar(value: string): string {
   const plain =
     /^[\p{L}\p{N}][\p{L}\p{N} ._()'’,&+/-]*$/u.test(value) &&
     !/\s$/.test(value) &&
+    !/^\d{4}-\d{2}-\d{2}/.test(value) &&
+    !/^[-+]?0[xob][0-9a-f_]+$/i.test(value) &&
     !/^(true|false|yes|no|on|off|null|~|[-+]?[\d._]+(e[-+]?\d+)?)$/i.test(value);
   return plain ? value : JSON.stringify(value);
 }

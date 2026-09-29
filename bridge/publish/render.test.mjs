@@ -615,3 +615,48 @@ describe("codeRanges", () => {
     expect(codeRanges("``a ` b`` c")).toEqual([[0, 9]]);
   });
 });
+
+describe("checkIndex, the fields the bridge knows", () => {
+  const hash = (value) => `${value}`.padEnd(64, "0");
+  const base = () => ({
+    siteTitle: "S",
+    notes: [
+      { sourcePath: "Blog/a.md", sha256: hash("a"), slug: "a", title: "A", date: "2026-01-01" }
+    ],
+    assets: [{ sourcePath: "Blog/b.png", sha256: hash("b"), name: "b.png", bytes: 3 }]
+  });
+
+  it("refuses a field of the wrong type rather than rendering it", () => {
+    const wrong = (patch) => () => checkIndex(patch(base()));
+    expect(wrong((i) => ({ ...i, siteTitle: 5 }))).toThrow(/siteTitle must be a string/);
+    expect(wrong((i) => ({ ...i, themeCss: ["x"] }))).toThrow(/themeCss must be a string/);
+    expect(wrong((i) => ((i.notes[0].title = { x: 1 }), i))).toThrow(/title must be a string/);
+    expect(wrong((i) => ((i.notes[0].date = 2026), i))).toThrow(/date must be a string/);
+    expect(wrong((i) => ((i.notes[0].description = 1), i))).toThrow(/description must be a string/);
+    expect(wrong((i) => ((i.notes[0].sourcePath = 7), i))).toThrow(/missing its sourcePath/);
+    expect(wrong((i) => ((i.assets[0].name = 7), i))).toThrow(/name must be a string/);
+    expect(wrong((i) => ((i.assets[0].bytes = -1), i))).toThrow(/bytes must be a whole number/);
+    expect(wrong((i) => ((i.assets[0].bytes = "3"), i))).toThrow(/bytes must be a whole number/);
+  });
+
+  it("returns a copy holding only the known fields, so index.json records nothing else", () => {
+    const index = base();
+    index.extra = "x";
+    index.notes[0].secret = "y";
+    index.notes[0].tags = undefined;
+    index.assets[0].thumbnail = true;
+    index.assets[0].other = 1;
+    const checked = checkIndex(index);
+    expect(checked).toEqual({
+      siteTitle: "S",
+      notes: [
+        { sourcePath: "Blog/a.md", sha256: hash("a"), slug: "a", title: "A", date: "2026-01-01" }
+      ],
+      assets: [
+        { sourcePath: "Blog/b.png", sha256: hash("b"), name: "b.png", bytes: 3, thumbnail: true }
+      ]
+    });
+    expect(checked).not.toBe(index);
+    expect(checkIndex({ notes: [], assets: [] })).toEqual({ notes: [], assets: [] });
+  });
+});

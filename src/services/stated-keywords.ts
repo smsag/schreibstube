@@ -11,6 +11,7 @@
  * a paper stand under its abstract, and a "Keywords:" further down is more
  * likely a paper being quoted than this one being described.
  */
+import { splitFrontmatter } from "./frontmatter-block";
 
 /** How far into the note a keyword line is looked for. */
 export const KEYWORD_SCAN_CHARS = 20_000;
@@ -88,7 +89,7 @@ function keywordsInFrontmatter(frontmatter: unknown): string[] {
 }
 
 function keywordsInText(text: string): string[] {
-  const lines = withoutFrontmatter(text.slice(0, KEYWORD_SCAN_CHARS)).split(/\r?\n/);
+  const lines = splitFrontmatter(text.slice(0, KEYWORD_SCAN_CHARS)).body.split(/\r?\n/);
   for (let index = 0; index < lines.length; index += 1) {
     const match = KEYWORD_LINE.exec(lines[index] ?? "");
     if (!match) continue;
@@ -126,11 +127,6 @@ function keywordsInText(text: string): string[] {
     if (keywords.length > 0) return keywords;
   }
   return [];
-}
-
-function withoutFrontmatter(text: string): string {
-  const match = /^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/.exec(text);
-  return match ? text.slice(match[0].length) : text;
 }
 
 /** Keywords are separated by semicolons, commas, middle dots, bullets or bars. */

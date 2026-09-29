@@ -1,4 +1,5 @@
-import { type App, type Editor, Notice, SuggestModal, type TFile } from "obsidian";
+import { type App, type Editor, MarkdownView, Notice, SuggestModal, type TFile } from "obsidian";
+
 import { t } from "../i18n";
 import type { Logger } from "../services/logger";
 import { modalAnswer, type ModalAnswer } from "../services/modal-answer";
@@ -10,7 +11,6 @@ import { pdfSubpath } from "../services/pdf-anchor";
 import { PdfPassagesModal } from "../ui/pdf-passages-modal";
 import type { ReadResult } from "../pdf/pdf-reader";
 
-/** Injected so the flow can be tested without pdf.js, which needs a real PDF. */
 export type PdfTextReader = (data: ArrayBuffer) => Promise<ReadResult>;
 
 /**
@@ -116,6 +116,14 @@ export class PdfCommands {
   }
 
   private insert(editor: Editor, source: TFile, pdf: TFile, chosen: PdfPassage[]): void {
+    // The passages were chosen in a dialog, and the editor handed over before
+    // it opened may show another note by now; writing into it would put the
+    // summary in the wrong note.
+    const shown = this.app.workspace.getActiveViewOfType(MarkdownView)?.file?.path;
+    if (shown !== source.path) {
+      new Notice(t().common.notice(t().pdf.noteChanged));
+      return;
+    }
     const markdown = composePassageInsert(chosen, (passage) =>
       this.app.fileManager.generateMarkdownLink(
         pdf,
@@ -135,7 +143,6 @@ export class PdfCommands {
   }
 }
 
-/** Which PDF, when the note points at more than one. */
 class PdfChooser extends SuggestModal<TFile> {
   private readonly answer: ModalAnswer<TFile | null>;
 

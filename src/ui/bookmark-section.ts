@@ -9,7 +9,9 @@
  */
 import type { Bookmark, BookmarkFolder, BookmarkTree } from "../services/bookmark-file";
 import { drawBookmarkIcon } from "./bookmark-icon";
+import { indent } from "./explorer-row";
 import { applyIcon } from "./icon-font";
+import { pressable } from "./pressable";
 
 export interface BookmarkRowsHost {
   /** Whether the folder under this key is folded right now. */
@@ -45,7 +47,12 @@ function renderFolder(
   if (shownUnder(folder, pane) === 0) return 0;
 
   const folded = pane.isFolded(folder.key);
-  const row = host.createDiv({ cls: "schreibstube-explorer-row is-folder" });
+  // Reachable by keyboard, but not a Tab stop of its own, as the tree's rows
+  // are not: the list is the stop, and a press or an arrow lands on a row.
+  const row = host.createDiv({
+    cls: "schreibstube-explorer-row is-folder",
+    attr: { role: "button", tabindex: "0", "aria-expanded": String(!folded) }
+  });
   indent(row, depth);
   row.setAttribute("data-bookmark-folder", folder.key);
 
@@ -55,7 +62,7 @@ function renderFolder(
   );
   applyIcon(row.createSpan({ cls: "schreibstube-explorer-glyph" }), "folder");
   row.createSpan({ cls: "schreibstube-explorer-name", text: folder.name });
-  row.addEventListener("click", () => pane.fold(folder.key));
+  pressable(row, () => pane.fold(folder.key));
 
   if (folded) return 1;
 
@@ -73,7 +80,10 @@ function renderRow(
 ): number {
   if (!pane.isShown(bookmark)) return 0;
 
-  const row = host.createDiv({ cls: "schreibstube-explorer-row is-bookmark" });
+  const row = host.createDiv({
+    cls: "schreibstube-explorer-row is-bookmark",
+    attr: { role: "link", tabindex: "0" }
+  });
   indent(row, depth);
   row.setAttribute("data-kind", bookmark.kind);
   row.setAttribute("title", bookmark.url);
@@ -85,7 +95,7 @@ function renderRow(
     pane.pluginIconFor(bookmark)
   );
   row.createSpan({ cls: "schreibstube-explorer-name", text: bookmark.name });
-  row.addEventListener("click", () => pane.open(bookmark));
+  pressable(row, () => pane.open(bookmark));
   return 1;
 }
 
@@ -93,9 +103,4 @@ function renderRow(
 function shownUnder(folder: BookmarkFolder, pane: BookmarkRowsHost): number {
   const here = folder.bookmarks.filter((bookmark) => pane.isShown(bookmark)).length;
   return folder.subfolders.reduce((total, sub) => total + shownUnder(sub, pane), here);
-}
-
-/** The same indent the pane's other rows take. */
-function indent(row: HTMLElement, depth: number): void {
-  row.style.setProperty("--schreibstube-depth", String(depth));
 }

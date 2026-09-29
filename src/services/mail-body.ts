@@ -13,7 +13,7 @@
  * written, without its fences or backticks: inside it an asterisk is code.
  */
 
-import { fencedLines, fenceMarker } from "./markdown-fence";
+import { fenceMarker } from "./markdown-fence";
 import { stripComments } from "./markdown-typst";
 
 /** Stand-in for a piece already final, so the inline rules cannot touch it. */
@@ -22,16 +22,22 @@ const HELD = /\uE000(\d+)\uE000/g;
 
 export function markdownToPlainText(markdown: string): string {
   const source = stripComments(markdown.replace(/\r\n?/g, "\n"));
-  const lines = source.split("\n");
-  const fenced = fencedLines(lines);
 
+  // Only the block's own two fence lines are dropped. A line inside a block
+  // that merely looks like a fence — `~~~` quoted in a Markdown sample, or a
+  // shorter run of backticks — is content, and used to vanish from the mail.
   const out: string[] = [];
-  for (const [index, line] of lines.entries()) {
-    if (fenced[index]) {
-      if (!fenceMarker(line)) out.push(line);
-      continue;
+  let open: string | null = null;
+  for (const line of source.split("\n")) {
+    const marker = fenceMarker(line);
+    if (open === null) {
+      if (marker) open = marker;
+      else out.push(convertLine(line));
+    } else if (marker && marker[0] === open[0] && marker.length >= open.length) {
+      open = null;
+    } else {
+      out.push(line);
     }
-    out.push(convertLine(line));
   }
 
   return out
@@ -55,7 +61,9 @@ function convertLine(line: string): string {
     text = callout[2] || capitalise(callout[1] ?? "");
   }
 
-  text = text.replace(/^#{1,6}\s+(.*?)\s*#*\s*$/, "$1");
+  // A closing run of hashes is set off by a space; one glued to the text, as
+  // in `# C#`, is the text.
+  text = text.replace(/^#{1,6}\s+(.*?)(?:\s+#+)?\s*$/, "$1");
   text = text.replace(/^(\s*)[-*+]\s+\[(.)\]\s+/, (_, indent: string, mark: string) =>
     mark === " " ? `${indent}☐ ` : `${indent}☑ `
   );

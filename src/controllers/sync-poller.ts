@@ -1,16 +1,13 @@
 /**
- * Checking every bound note, rather than the one that is open.
- *
- * Split from the review controller because the two share nothing but the store:
- * a poll cannot show cards, since only the open note has a panel. What it does
- * instead is record how many changes are waiting, so opening that note later
- * surfaces them at once.
+ * Checking every bound note, rather than the one that is open. Split from the
+ * review controller because the two share nothing but the store.
  */
 import { MarkdownView, TFile, type App } from "obsidian";
+
 import type { SchreibstubeSettings } from "../types";
 import type { Logger } from "../services/logger";
 import { resolveApiKey } from "../services/secret";
-import { fetchSource } from "../services/sync-fetcher";
+import { fetchSource } from "../platform/sync-fetcher";
 import {
   frontmatterLine,
   hasSourceBinding,
@@ -44,7 +41,6 @@ import {
 import type { SyncStore } from "./proofread-controller";
 import type { PollSummary } from "../services/sync-summary";
 
-/** How many sources are fetched at once, so one tick is not a burst. */
 const POLL_CONCURRENCY = 4;
 
 export class SyncPoller {
@@ -58,8 +54,6 @@ export class SyncPoller {
     private readonly logger: Logger
   ) {}
 
-  /** The GitHub token, if one is configured. Absent is normal: public sources
-   *  need none, and the fetcher only ever sends it to GitHub anyway. */
   private githubToken(): string | undefined {
     return githubToken(this.app, this.getSettings());
   }

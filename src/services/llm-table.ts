@@ -54,11 +54,26 @@ export function parseTableResponse(raw: string): MarkdownTable | null {
 }
 
 function toCell(value: unknown): string {
-  if (value === null || value === undefined) {
-    return "";
-  }
   // A line break would end the table row.
-  return String(value)
+  return cellText(value)
     .replace(/\s*\r?\n\s*/g, " ")
     .trim();
+}
+
+/**
+ * A model's cell as text. The prompt asks for strings; a model that answers
+ * with a number or a flag is read as it meant, and one that answers with a
+ * list or an object gets it written as JSON rather than as `[object Object]`.
+ */
+function cellText(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean" || typeof value === "bigint") {
+    return String(value);
+  }
+  try {
+    return JSON.stringify(value) ?? "";
+  } catch {
+    return "";
+  }
 }

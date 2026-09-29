@@ -23,6 +23,9 @@ const MARKDOWN_CONTENT_TYPES = [
   "application/octet-stream"
 ];
 
+/** What the contents API labels a file body when it honours the raw media type. */
+const GITHUB_RAW_CONTENT_TYPES = ["application/vnd.github.raw+json", "application/vnd.github.raw"];
+
 export type FetchOutcome =
   | { status: "updated"; body: string; etag: string }
   | { status: "unchanged"; etag: string }
@@ -140,23 +143,37 @@ export function interpretSourceResponse(
   const contentType = header(response.headers, "content-type");
   const base = contentType?.split(";")[0]?.trim().toLowerCase() ?? "";
 
-  if (request.authenticated) {
-    // The contents API answers with the file body only when it honours the raw
-    // media type. If it fell back to its JSON representation, that JSON must
-    // never be written into a note as if it were the document.
-    if (base === "application/json") {
-      return { status: "error", message: messages.metadataNotFile };
-    }
-  } else if (contentType && !MARKDOWN_CONTENT_TYPES.includes(base)) {
+  // The contents API answers with the file body only when it honours the raw
+  // media type. If it fell back to its JSON representation, that JSON must
+  // never be written into a note as if it were the document.
+  if (request.authenticated && base === "application/json") {
+    return { status: "error", message: messages.metadataNotFile };
+  }
+
+  const accepted = request.authenticated
+    ? [...MARKDOWN_CONTENT_TYPES, ...GITHUB_RAW_CONTENT_TYPES]
+    : MARKDOWN_CONTENT_TYPES;
+  if (contentType && !accepted.includes(base)) {
     return { status: "error", message: messages.notMarkdownType(base) };
   }
 
+  // The declared length is checked first so a body that is plainly too big
+  // is refused without being encoded, and the body itself is measured in
+  // bytes: a document of umlauts is larger than its character count says.
+  const declared = Number(header(response.headers, "content-length"));
+  if (Number.isFinite(declared) && declared > MAX_SOURCE_BYTES) {
+    return { status: "error", message: messages.tooLarge };
+  }
   const body = response.text ?? "";
-  if (body.length > MAX_SOURCE_BYTES) {
+  if (body.length > MAX_SOURCE_BYTES || utf8Bytes(body) > MAX_SOURCE_BYTES) {
     return { status: "error", message: messages.tooLarge };
   }
 
   return { status: "updated", body, etag: header(response.headers, "etag") ?? "" };
+}
+
+function utf8Bytes(text: string): number {
+  return new TextEncoder().encode(text).byteLength;
 }
 
 /** Header names arrive in whatever case the server used. */

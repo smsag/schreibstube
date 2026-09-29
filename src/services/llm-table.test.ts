@@ -14,6 +14,15 @@ describe("parseTableResponse", () => {
     expect(parseTableResponse(raw)?.rows).toEqual([["1", "2"]]);
   });
 
+  it("writes a cell that is not text as what it holds, never as [object Object]", () => {
+    const raw = '{"header":["a","b"],"rows":[[1,true],[{"x":1},["p","q"]],[null,"t"]]}';
+    expect(parseTableResponse(raw)?.rows).toEqual([
+      ["1", "true"],
+      ['{"x":1}', '["p","q"]'],
+      ["–", "t"]
+    ]);
+  });
+
   it("pads short rows and trims long ones to the header width", () => {
     const raw = '{"header":["a","b"],"rows":[["1"],["1","2","3"]]}';
     expect(parseTableResponse(raw)?.rows).toEqual([

@@ -4,10 +4,10 @@ import {
   buildTextRequest,
   effectiveModel,
   extractModelFilename
-} from "./llm-providers";
+} from "../services/llm-providers";
 import { sendRequest } from "./llm-client";
 
-export { sanitizeFilename, stripFilenameExtension } from "./llm-providers";
+export { sanitizeFilename, stripFilenameExtension } from "../services/llm-providers";
 
 type RenameSettings = Pick<
   SchreibstubeSettings,

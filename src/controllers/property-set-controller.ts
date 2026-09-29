@@ -1,13 +1,9 @@
 /**
  * Property sets, wired to the vault and to Obsidian's Properties widget.
- *
- * Four ways in, one way to write: the property menu, a control beside
- * "Add property" (placed by `PropertyWidgetControls`), a feature that finds its keys missing (Mail), and a key
- * just added by hand that belongs to a set. Every one ends in `apply`, which
- * adds only what the note lacks and says what it did. What a set is and what
- * applying it means is decided in `services/property-sets`; this only reads
- * the folder, runs Templater when a set asks for it, and writes.
+ * Every way in ends in `apply`, which adds only what the note lacks and says
+ * what it did.
  */
+
 import { Notice, parseYaml, type App, type TFile } from "obsidian";
 import { t } from "../i18n";
 import type { Logger } from "../services/logger";
@@ -258,7 +254,9 @@ export class PropertySetController {
   private cachedFolderSets(): FolderSet[] {
     const folder = this.getSettings().propertySetFolder;
     if (this.folderSets?.folder === folder) return this.folderSets.sets;
-    void this.loadFolderSets();
+    this.loadFolderSets().catch((error: unknown) => {
+      this.logger.warn(`The property sets in ${folder} could not be read:`, error);
+    });
     return [];
   }
 

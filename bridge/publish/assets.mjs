@@ -16,15 +16,8 @@ import { THEME_CSS } from "./render/page.mjs";
 const require = createRequire(import.meta.url);
 const cache = new Map();
 
-/**
- * Where the Mermaid bundle may be.
- *
- * The bridge copies one prebuilt file into a published site and never runs
- * Mermaid itself, but the package brings 167 MB of parser dependencies with
- * it. The image keeps the one file under `vendor/` and drops the rest, so that
- * location is looked in first; a checkout with the package installed, which is
- * what the tests run against, falls through to the package.
- */
+/** Where the image keeps the Mermaid bundle; a checkout with the package
+ *  installed, which is what the tests run against, falls through to it. */
 const VENDORED_MERMAID = fileURLToPath(new URL("../vendor/mermaid.min.js", import.meta.url));
 
 /**

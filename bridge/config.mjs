@@ -14,9 +14,11 @@
 import { parseSender } from "./mail-address.mjs";
 
 /** Bumped when the request or response shape changes in a way the plugin can
- *  see. Reported by /health so plugin and bridge can detect drift. 4: a send
- *  reports the recipients the server refused. 5: a send may carry pictures. */
-export const PROTOCOL_VERSION = 5;
+ *  see; the table in README.md says what each number brought. */
+export const PROTOCOL_VERSION = 6;
+
+/** What a TCP port can be. */
+const MAX_PORT = 65_535;
 
 /** Minimum token length. Short tokens are brute-forceable over a public URL. */
 export const MIN_TOKEN_LENGTH = 24;
@@ -51,26 +53,16 @@ export function loadConfig(env = process.env) {
   }
 
   return {
-    port: integer(env.PORT, 8080, "PORT"),
-    // A request that has not finished by now is not going to. The budget covers
-    // the whole request, including whatever it is waiting for upstream.
+    port: integer(env.PORT, 8080, "PORT", MAX_PORT),
+    // The whole request, including whatever it is waiting for upstream.
     requestTimeoutMs: integer(env.REQUEST_TIMEOUT_MS, 30_000, "REQUEST_TIMEOUT_MS"),
-    // Every outbound protocol operation carries its own deadline, so a hung
-    // connection cannot hold a request open until the client gives up.
+    // Each outbound protocol operation.
     upstreamTimeoutMs: integer(env.UPSTREAM_TIMEOUT_MS, 20_000, "UPSTREAM_TIMEOUT_MS"),
-    // Repeated authentication failures from one address earn a delay. A long
-    // token makes brute force impractical, not impossible.
     authFailureLimit: integer(env.AUTH_FAILURE_LIMIT, 5, "AUTH_FAILURE_LIMIT"),
     authFailureWindowMs: integer(env.AUTH_FAILURE_WINDOW_MS, 60_000, "AUTH_FAILURE_WINDOW_MS"),
-    // How long a shutdown waits for in-flight work before exiting anyway.
     drainTimeoutMs: integer(env.DRAIN_TIMEOUT_MS, 10_000, "DRAIN_TIMEOUT_MS"),
-    // "json" for a hosting dashboard that can search fields; the default stays
-    // human, because most of the time a person is reading these.
     logFormat: env.LOG_FORMAT?.trim() === "json" ? "json" : "text",
-    // Whether the throttle may believe X-Forwarded-For. True behind the
-    // platform's TLS-terminating proxy, where the socket address is the proxy's
-    // and would otherwise be shared by every caller; false anywhere a client
-    // can reach the bridge directly, because then the header is the client's.
+    // Whether the throttle may believe X-Forwarded-For; see http.mjs.
     trustProxy: boolean(env.TRUST_PROXY, false, "TRUST_PROXY"),
     mail,
     publish
@@ -110,8 +102,10 @@ function loadPublish(env) {
 
   return {
     token: token(env.PUBLISH_TOKEN, "PUBLISH_TOKEN"),
-    // Markdown is text; an image is an image; a video is the reason the upload
-    // route streams instead of buffering a base64 payload.
+    // Three limits because the kinds differ by orders of magnitude: a route
+    // holds an upload to the limit of the kind its name says, and a note-sized
+    // budget for a video would refuse it while a video-sized one for a note
+    // would let one upload occupy that much memory.
     maxSourceBytes: integer(env.PUBLISH_MAX_SOURCE_BYTES, 2_000_000, "PUBLISH_MAX_SOURCE_BYTES"),
     maxImageBytes: integer(env.PUBLISH_MAX_IMAGE_BYTES, 10_000_000, "PUBLISH_MAX_IMAGE_BYTES"),
     maxVideoBytes: integer(env.PUBLISH_MAX_VIDEO_BYTES, 25_000_000, "PUBLISH_MAX_VIDEO_BYTES"),
@@ -160,28 +154,19 @@ function loadTarget(env, name) {
   return {
     name,
     host: required("HOST"),
-    port: integer(read("PORT"), 22),
+    port: integer(read("PORT"), 22, `${prefix}_PORT`, MAX_PORT),
     user: required("USER"),
-    // The key travels as base64 so a PEM survives an environment variable.
-    key: key ? Buffer.from(key, "base64").toString("utf8") : undefined,
+    key: key ? privateKey(key, `${prefix}_KEY`) : undefined,
     keyPassphrase: read("KEY_PASSPHRASE") || undefined,
     password: password || undefined,
-    // Trust on first use cannot work here: the container is stateless and would
-    // re-trust a new key after every restart.
     fingerprint: required("HOST_FINGERPRINT"),
     root: root.replace(/\/+$/, ""),
-    // Sources and the manifest belong outside the served tree where the host
-    // allows it; under it is the fallback, and then a deny rule is needed.
     stateRoot,
     stateInsideRoot: isWithin(stateRoot, root.replace(/\/+$/, "")),
     baseUrl,
     siteTitle: read("SITE_TITLE") || name,
-    // A personal site is the author's own HTML; a shared vault is not. The
-    // switch exists so that judgement belongs to whoever deploys the bridge.
-    allowHtml: boolean(read("ALLOW_HTML"), true),
-    // A page with a diagram loads a five megabyte bundle. A site that never
-    // draws one should not have to carry the possibility.
-    allowDiagrams: boolean(read("ALLOW_DIAGRAMS"), true),
+    allowHtml: boolean(read("ALLOW_HTML"), true, `${prefix}_ALLOW_HTML`),
+    allowDiagrams: boolean(read("ALLOW_DIAGRAMS"), true, `${prefix}_ALLOW_DIAGRAMS`),
     assetExtensions: new Set(
       (read("ALLOWED_EXT") || DEFAULT_ASSET_EXTENSIONS)
         .split(",")
@@ -203,29 +188,25 @@ function loadMail(env) {
 
   return {
     token: token(env.MAIL_TOKEN, "MAIL_TOKEN"),
-    // Requests are capped well below any realistic note size so a malformed or
-    // hostile client cannot exhaust memory on a small container.
     maxBodyBytes: integer(env.MAX_BODY_BYTES, 1_000_000, "MAX_BODY_BYTES"),
     maxTextChars: integer(env.MAX_TEXT_CHARS, 40_000, "MAX_TEXT_CHARS"),
     maxMessageBytes: integer(env.MAX_MESSAGE_BYTES, 10_000_000, "MAX_MESSAGE_BYTES"),
     maxResults: integer(env.MAX_RESULTS, 50, "MAX_RESULTS"),
     imap: {
       host: env.IMAP_HOST.trim(),
-      port: integer(env.IMAP_PORT, imapSecure ? 993 : 143, "IMAP_PORT"),
+      port: integer(env.IMAP_PORT, imapSecure ? 993 : 143, "IMAP_PORT", MAX_PORT),
       secure: imapSecure,
       auth
     },
     smtp: {
       host: env.SMTP_HOST.trim(),
-      port: integer(env.SMTP_PORT, smtpSecure ? 465 : 587, "SMTP_PORT"),
+      port: integer(env.SMTP_PORT, smtpSecure ? 465 : 587, "SMTP_PORT", MAX_PORT),
       secure: smtpSecure,
       auth
     },
     from: sender(env.MAIL_FROM),
     defaultMailbox: env.DEFAULT_MAILBOX?.trim() || "INBOX",
-    // SMTP does not file a copy in Sent — the bridge APPENDs it over IMAP.
-    // A name is used as written; an empty string skips the step (e.g. if the
-    // server does it); unset, null, asks the server which folder it tags Sent.
+    // A name, "" for "never file", or null for "ask the server".
     sentMailbox: env.SENT_MAILBOX === "" ? "" : env.SENT_MAILBOX?.trim() || null
   };
 }
@@ -279,20 +260,36 @@ function present(value) {
 }
 
 /**
+ * The private key a target logs in with, refused at startup unless it reads
+ * as one. It travels as base64 so a PEM survives an environment variable, and
+ * a value pasted without that step — or the public key by mistake — failed
+ * on the first publish with the library's own wording rather than here.
+ */
+function privateKey(encoded, name) {
+  const decoded = Buffer.from(encoded, "base64").toString("utf8").trim();
+  if (!/^(-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----|PuTTY-User-Key-File-\d)/.test(decoded)) {
+    throw new Error(`${name} must be the base64 of a PEM, OpenSSH or PuTTY private key.`);
+  }
+  return decoded;
+}
+
+/**
  * A positive integer from the environment, or the default when unset.
  *
  * Set and unreadable is a mistake, not a default: `PORT=808O` and
  * `PUBLISH_MAX_FILES=-1` were silently replaced by whatever the code happened
  * to prefer, in a module whose whole promise is that a misconfigured
- * deployment does not boot.
+ * deployment does not boot. Decimal digits only: `1e3` and `0x10` are numbers
+ * to `Number()` and to nobody who writes an environment file.
  */
-function integer(value, fallback, name) {
+function integer(value, fallback, name, max = Number.MAX_SAFE_INTEGER) {
   if (value === undefined || value === null || String(value).trim() === "") return fallback;
 
   const text = String(value).trim();
-  const n = Number(text);
-  if (!Number.isInteger(n) || n <= 0) {
-    throw new Error(`${name ?? "A numeric variable"} must be a positive integer, not "${text}".`);
+  const n = /^[0-9]+$/.test(text) ? Number(text) : Number.NaN;
+  if (!Number.isSafeInteger(n) || n <= 0 || n > max) {
+    const bound = max === Number.MAX_SAFE_INTEGER ? "" : ` up to ${max}`;
+    throw new Error(`${name} must be a positive integer${bound}, not "${text}".`);
   }
   return n;
 }
@@ -311,5 +308,5 @@ function boolean(value, fallback, name) {
   const text = String(value).trim().toLowerCase();
   if (["1", "true", "yes", "on"].includes(text)) return true;
   if (["0", "false", "no", "off"].includes(text)) return false;
-  throw new Error(`${name ?? "A boolean variable"} must be true or false, not "${text}".`);
+  throw new Error(`${name} must be true or false, not "${text}".`);
 }

@@ -10,9 +10,19 @@ import { App, Modal, Setting } from "obsidian";
 import { t } from "../i18n";
 import { applyIcon, installIconFont, searchIcons } from "./icon-font";
 
+/**
+ * How long the search waits after a keystroke before the grid is redrawn.
+ *
+ * The grid is a few hundred buttons, and drawing it for every letter of a
+ * word typed quickly is what a person feels as the field lagging behind the
+ * keyboard. Short enough to feel immediate on the pause between letters.
+ */
+const SEARCH_DEBOUNCE_MS = 100;
+
 export class IconPickerModal extends Modal {
   private query = "";
   private grid: HTMLElement | null = null;
+  private searchTimer: number | null = null;
 
   constructor(
     app: App,
@@ -35,10 +45,13 @@ export class IconPickerModal extends Modal {
       cls: "schreibstube-icon-search",
       attr: { placeholder: t().explorer.icons.search, "aria-label": t().explorer.icons.search }
     });
-    search.addEventListener("input", () => {
-      this.query = search.value;
-      this.renderGrid();
+    search.addEventListener("input", (event) => {
+      // Mid-composition the field holds a half-made character; the finished
+      // one arrives with `compositionend`.
+      if ((event as InputEvent).isComposing) return;
+      this.scheduleSearch(search.value);
     });
+    search.addEventListener("compositionend", () => this.scheduleSearch(search.value));
 
     this.grid = contentEl.createDiv({ cls: "schreibstube-icon-groups" });
     this.renderGrid();
@@ -56,6 +69,16 @@ export class IconPickerModal extends Modal {
       .addButton((button) => button.setButtonText(t().common.cancel).onClick(() => this.close()));
 
     window.setTimeout(() => search.focus(), 0);
+  }
+
+  private scheduleSearch(query: string): void {
+    const win = this.contentEl.win;
+    if (this.searchTimer !== null) win.clearTimeout(this.searchTimer);
+    this.searchTimer = win.setTimeout(() => {
+      this.searchTimer = null;
+      this.query = query;
+      this.renderGrid();
+    }, SEARCH_DEBOUNCE_MS);
   }
 
   private renderGrid(): void {
@@ -93,6 +116,8 @@ export class IconPickerModal extends Modal {
   }
 
   override onClose(): void {
+    if (this.searchTimer !== null) this.contentEl.win.clearTimeout(this.searchTimer);
+    this.searchTimer = null;
     this.contentEl.empty();
   }
 }

@@ -23,11 +23,9 @@ import {
   type ViewUpdate
 } from "@codemirror/view";
 import { RangeSetBuilder, type Extension } from "@codemirror/state";
-import { findShortcodes } from "../services/icon-shortcode";
+import { findShortcodes, type ShortcodeHit } from "../services/icon-shortcode";
 import { applyIcon, iconGlyph, installIconFont } from "../ui/icon-font";
-
-/** Above this the editor is left alone; a note this long is not prose. */
-const MAX_LIVE_CHARS = 200_000;
+import { MAX_LIVE_CHARS } from "./live-limits";
 
 const isIcon = (name: string): boolean => iconGlyph(name) !== undefined;
 
@@ -58,42 +56,68 @@ class IconWidget extends WidgetType {
 /**
  * Live Preview: shortcodes become glyphs, except under the cursor.
  *
- * Rebuilt on every change and every cursor move rather than on a timer:
- * the scan is a regex over prose, cheap enough that a delay would only
- * make the glyph flicker into place after the fact.
+ * Only the lines on screen are read, and only when they change or the view
+ * scrolls: a cursor move keeps the hits it found and merely decides again
+ * which of them the cursor is on, so walking the text is never the cost of
+ * a keystroke. Read per visible line rather than from the top, a fence that
+ * opened above the screen is not seen; the cap on the note's length is what
+ * keeps that trade honest, since a note within it is prose.
  */
 export function createIconShortcodeExtension(enabled: () => boolean): Extension {
   return ViewPlugin.fromClass(
     class {
       decorations: DecorationSet = Decoration.none;
+      /** What the last scan found on screen, in document positions. */
+      private hits: ShortcodeHit[] = [];
+      /** Whether the setting was on at the last scan; a toggle is a reason to scan again. */
+      private on = false;
 
       constructor(view: EditorView) {
-        this.decorations = build(view);
+        this.scan(view);
       }
 
       update(update: ViewUpdate): void {
-        if (update.docChanged || update.selectionSet || update.viewportChanged) {
-          this.decorations = build(update.view);
+        if (update.docChanged || update.viewportChanged || enabled() !== this.on) {
+          this.scan(update.view);
+        } else if (update.selectionSet) {
+          this.draw(update.view);
         }
+      }
+
+      private scan(view: EditorView): void {
+        this.hits = [];
+        this.on = enabled();
+        if (!this.on || view.state.doc.length > MAX_LIVE_CHARS) {
+          this.decorations = Decoration.none;
+          return;
+        }
+        const doc = view.state.doc;
+        for (const range of view.visibleRanges) {
+          // Whole lines, so a shortcode cut by the edge of the screen is read
+          // as the word it is rather than as its first half.
+          const from = doc.lineAt(range.from).from;
+          const to = doc.lineAt(range.to).to;
+          for (const hit of findShortcodes(doc.sliceString(from, to), isIcon)) {
+            this.hits.push({ ...hit, from: hit.from + from, to: hit.to + from });
+          }
+        }
+        this.draw(view);
+      }
+
+      private draw(view: EditorView): void {
+        const ranges = view.state.selection.ranges;
+        const builder = new RangeSetBuilder<Decoration>();
+        for (const hit of this.hits) {
+          // A cursor inside or at either edge of the shortcode is editing it.
+          const touched = ranges.some((range) => range.from <= hit.to && range.to >= hit.from);
+          if (touched) continue;
+          builder.add(hit.from, hit.to, Decoration.replace({ widget: new IconWidget(hit.name) }));
+        }
+        this.decorations = builder.finish();
       }
     },
     { decorations: (value) => value.decorations }
   );
-
-  function build(view: EditorView): DecorationSet {
-    const text = view.state.doc.toString();
-    if (!enabled() || text.length > MAX_LIVE_CHARS) return Decoration.none;
-
-    const ranges = view.state.selection.ranges;
-    const builder = new RangeSetBuilder<Decoration>();
-    for (const hit of findShortcodes(text, isIcon)) {
-      // A cursor inside or at either edge of the shortcode is editing it.
-      const touched = ranges.some((range) => range.from <= hit.to && range.to >= hit.from);
-      if (touched) continue;
-      builder.add(hit.from, hit.to, Decoration.replace({ widget: new IconWidget(hit.name) }));
-    }
-    return builder.finish();
-  }
 }
 
 /** Elements whose text is never prose, however it reads. */

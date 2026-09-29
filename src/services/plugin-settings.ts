@@ -7,6 +7,7 @@ import type {
 } from "../types";
 import type { LanguagePreference } from "../i18n";
 import type { SyncRecord } from "./sync-document";
+import { UNSAFE_KEYS } from "./sync-merge";
 import {
   DEFAULT_SETTINGS as DEFAULT_FOCUS_SETTINGS,
   normalizeFocusSettings
@@ -79,13 +80,13 @@ export const DEFAULT_PROOFREAD_PROMPT =
 
 const ALLOWED_PROVIDERS = new Set<LlmProvider>(LLM_PROVIDER_IDS);
 
-/** Bounds on the semantic index's note cap: below it the index is not worth a
- *  model; above it the index outgrows what a phone holds in memory. */
 /** The Recommended panel's length: one at least, and no more than a sidebar
  *  can hold before the last card is a scroll away from the note it belongs to. */
 export const MIN_RECOMMENDED = 1;
 export const MAX_RECOMMENDED = 30;
 
+/** Bounds on the semantic index's note cap: below it the index is not worth a
+ *  model; above it the index outgrows what a phone holds in memory. */
 export const MIN_SEMANTIC_NOTES = 100;
 export const MAX_SEMANTIC_NOTES = 20000;
 
@@ -432,7 +433,7 @@ function publishRunsOrDefault(value: unknown): Record<string, PublishRunRecord> 
 
   const runs: Record<string, PublishRunRecord> = {};
   for (const [id, record] of Object.entries(value as Record<string, unknown>)) {
-    if (!record || typeof record !== "object") continue;
+    if (UNSAFE_KEYS.has(id) || !record || typeof record !== "object") continue;
     const { at, written, deleted } = record as Partial<PublishRunRecord>;
     if (typeof at !== "string") continue;
     runs[id] = {
@@ -462,7 +463,7 @@ function syncStateOrDefault(value: unknown): Record<string, SyncRecord> {
 
   const result: Record<string, SyncRecord> = {};
   for (const [path, record] of Object.entries(value as Record<string, unknown>)) {
-    if (!record || typeof record !== "object") continue;
+    if (UNSAFE_KEYS.has(path) || !record || typeof record !== "object") continue;
     const { hash, etag, checkedAt, pendingChanges, remoteHash, changedAt, source } =
       record as Partial<SyncRecord>;
     if (typeof hash !== "string" || hash.length === 0) continue;

@@ -191,6 +191,18 @@ describe("isTypesetPdf", () => {
   it("recognises a document Typst made, by its information or its XMP", () => {
     expect(isTypesetPdf(pdf("<</Creator(Typst 0.14.2)/ModDate(D:2026)>>"))).toBe(true);
     expect(isTypesetPdf(pdf("<xmp:CreatorTool>Typst 0.14.2</xmp:CreatorTool>"))).toBe(true);
+    expect(isTypesetPdf(pdf("<</Creator (Typst)>>"))).toBe(true);
+    expect(isTypesetPdf(pdf("<</Creator\n(Typst 0.14.2)>>"))).toBe(true);
+  });
+
+  it("finds the mark wherever it sits, without reading the bytes as text", () => {
+    const head = new TextEncoder().encode("%PDF-1.7\n");
+    const mark = new TextEncoder().encode("/Creator(Typst 0.14.2)");
+    const bytes = new Uint8Array(head.length + 100_000 + mark.length).fill(0xff);
+    bytes.set(head, 0);
+    bytes.set(mark, head.length + 100_000);
+    expect(isTypesetPdf(bytes)).toBe(true);
+    expect(isTypesetPdf(bytes.subarray(0, head.length + 100_000))).toBe(false);
   });
 
   it("takes anything else for somebody's own file", () => {

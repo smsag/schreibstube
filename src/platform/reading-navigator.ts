@@ -3,7 +3,7 @@ import type { HeadingIndex } from "../types";
 import {
   getRenderedHeadingIndexForSourceLine,
   resolveViewportLineFromRenderedHeadings
-} from "./reading-headings";
+} from "../services/reading-headings";
 
 function getPreviewRoot(view: MarkdownView): HTMLElement | null {
   return view.containerEl.querySelector(".markdown-preview-view") as HTMLElement | null;

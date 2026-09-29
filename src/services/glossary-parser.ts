@@ -13,7 +13,9 @@
  * already defines.
  */
 
+import { t } from "../i18n";
 import { fencedLines } from "./markdown-fence";
+import { rowCells } from "./markdown-table";
 
 export type TermStatus = "preferred" | "admitted" | "deprecated" | "superseded";
 export type MatchMode = "word" | "exact" | "prefix";
@@ -93,6 +95,7 @@ export function isGlossaryNote(text: string): boolean {
 
 export function parseGlossary(path: string, text: string): GlossaryParseResult {
   const errors: string[] = [];
+  const words = t().proofread.glossary;
   const frontmatter = readFrontmatter(text);
 
   const language =
@@ -103,29 +106,27 @@ export function parseGlossary(path: string, text: string): GlossaryParseResult {
     : DEFAULT_GLOSSARY_SEVERITY;
   if (severityRaw && !SEVERITY_VALUES.has(severityRaw as Severity)) {
     errors.push(
-      `Unknown ${GLOSSARY_SEVERITY_KEY} "${severityRaw}", using ${DEFAULT_GLOSSARY_SEVERITY}.`
+      words.unknownSeverity(GLOSSARY_SEVERITY_KEY, severityRaw, DEFAULT_GLOSSARY_SEVERITY)
     );
   }
 
   const rows = readTableRows(text);
   const [headerRow] = rows;
   if (headerRow === undefined) {
-    errors.push("No term table found.");
+    errors.push(words.noTable);
     return { glossary: emptyGlossary(path, language, defaultSeverity), errors };
   }
 
   const columns = indexColumns(headerRow.cells);
   const missing = REQUIRED_COLUMNS.filter((name) => columns[name] === undefined);
   if (missing.length > 0) {
-    errors.push(`Missing required column(s): ${missing.join(", ")}.`);
+    errors.push(words.missingColumns(missing.join(", ")));
     return { glossary: emptyGlossary(path, language, defaultSeverity), errors };
   }
 
   const byConcept = new Map<string, GlossaryTerm[]>();
 
   rows.slice(1).forEach(({ cells, line }) => {
-    const lineLabel = `line ${line}`;
-
     if (isSeparatorRow(cells)) {
       return;
     }
@@ -138,13 +139,13 @@ export function parseGlossary(path: string, text: string): GlossaryParseResult {
       return;
     }
     if (!conceptId || !termText) {
-      errors.push(`Skipped ${lineLabel}: concept and term are required.`);
+      errors.push(words.skippedRequired(line));
       return;
     }
 
     const status = STATUS_ALIASES[statusRaw.toLowerCase()];
     if (!status || !STATUS_VALUES.has(status)) {
-      errors.push(`Skipped ${lineLabel}: unknown status "${statusRaw}".`);
+      errors.push(words.skippedStatus(line, statusRaw));
       return;
     }
 
@@ -156,7 +157,7 @@ export function parseGlossary(path: string, text: string): GlossaryParseResult {
       if (MATCH_VALUES.has(matchRaw as MatchMode)) {
         match = matchRaw as MatchMode;
       } else {
-        errors.push(`${lineLabel}: unknown match mode "${matchRaw}", using word.`);
+        errors.push(words.unknownMatch(line, matchRaw));
       }
     }
 
@@ -172,9 +173,7 @@ export function parseGlossary(path: string, text: string): GlossaryParseResult {
         : t.text.toLowerCase() === termText.toLowerCase()
     );
     if (isDuplicate) {
-      errors.push(
-        `Skipped ${lineLabel}: "${termText}" is already defined in concept "${conceptId}".`
-      );
+      errors.push(words.skippedDuplicate(line, termText, conceptId));
       return;
     }
     terms.push({ text: termText, status, match, note });
@@ -185,9 +184,7 @@ export function parseGlossary(path: string, text: string): GlossaryParseResult {
   for (const [id, terms] of byConcept) {
     const preferred = terms.filter((t) => t.status === "preferred");
     if (preferred.length > 1) {
-      errors.push(
-        `Concept "${id}" has ${preferred.length} preferred terms; only the first is used.`
-      );
+      errors.push(words.tooManyPreferred(id, preferred.length));
     }
     concepts.push({ id, terms });
   }
@@ -258,7 +255,7 @@ function readTableRows(text: string): TableRow[] {
       continue;
     }
 
-    rows.push({ cells: splitRow(trimmed), line: index + 1 });
+    rows.push({ cells: rowCells(trimmed), line: index + 1 });
   }
 
   return rows;
@@ -270,13 +267,9 @@ interface TableRow {
   line: number;
 }
 
-function splitRow(line: string): string[] {
-  const inner = line.replace(/^\|/, "").replace(/\|\s*$/, "");
-  return inner.split("|").map((cell) => cell.trim());
-}
-
+/** `|---|:-:|` in any width: a single dash is a delimiter too, as the editor reads one. */
 function isSeparatorRow(cells: string[]): boolean {
-  return cells.every((cell) => /^:?-{2,}:?$/.test(cell.replace(/\s/g, "")));
+  return cells.every((cell) => /^:?-+:?$/.test(cell.replace(/\s/g, "")));
 }
 
 type ColumnIndex = Partial<Record<"concept" | "term" | "status" | "match" | "note", number>>;

@@ -4,7 +4,8 @@ import {
   buildEndpoint,
   extractCode,
   extractError,
-  normalizeBaseUrl
+  normalizeBaseUrl,
+  parseJsonBody
 } from "./bridge-protocol";
 
 /** The URL, the credential and the error shape every capability shares. */
@@ -88,6 +89,28 @@ describe("extractCode", () => {
   it("is empty for a body that is not the bridge's", () => {
     expect(extractCode("<html>Bad Gateway</html>")).toBe("");
     expect(extractCode('{"code":5}')).toBe("");
+  });
+});
+
+describe("parseJsonBody", () => {
+  it("returns the parsed body", () => {
+    expect(parseJsonBody({ status: 200, text: '{"ok":true}' })).toEqual({ ok: true });
+  });
+
+  it("names the status and quotes the start of a body that is not JSON", () => {
+    const page = `<!doctype html><title>Login</title>${"x".repeat(500)}`;
+    expect(() => parseJsonBody({ status: 200, text: page })).toThrow(
+      /^answer 200 is not JSON: <!doctype html><title>Login<\/title>x+$/
+    );
+    try {
+      parseJsonBody({ status: 200, text: page });
+    } catch (error) {
+      expect((error as Error).message.length).toBeLessThan(160);
+    }
+  });
+
+  it("says when the body was empty", () => {
+    expect(() => parseJsonBody({ status: 204, text: "  " })).toThrow(/204.*\(empty body\)/);
   });
 });
 

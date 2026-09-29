@@ -97,7 +97,7 @@ async function manifest() {
 
 const first = "# Erste\n\nText mit [[Zweite]] und ![[bild.png]].\n";
 const second = "# Zweite\n\nNur Text.\n";
-const image = Buffer.from("89504e470d0a1a0a", "hex");
+const image = Buffer.from("89504e470d0a1a0a00", "hex");
 
 function index({ notes, assets = [], siteTitle = "Schreibstube" } = {}) {
   return { siteTitle, notes, assets };
@@ -230,10 +230,31 @@ describe("targets", () => {
     expect(response.json.code).toBe("unknown_target");
   });
 
-  it("proves the connection without writing anything", async () => {
+  it("says when the web root is not there, since listing it would answer 'empty'", async () => {
     const response = await post("/publish/diagnostics", { target: "blog" });
+    expect(response.status).toBe(200);
+    expect(response.json).toEqual({
+      ok: false,
+      target: "blog",
+      error: "The web root does not exist."
+    });
+  });
+
+  it("answers 404 for a target that is only a property of every object", async () => {
+    for (const name of ["constructor", "__proto__", "toString"]) {
+      const response = await post("/publish/plan", { target: name, index: bothNotes() });
+      expect(response.status).toBe(404);
+      expect(response.json.code).toBe("unknown_target");
+    }
+  });
+
+  it("proves the connection without writing anything", async () => {
+    await mkdir(join(sftp.root, "notizen"), { recursive: true });
+    const response = await post("/publish/diagnostics", { target: "notizen" });
     expect(response.json.ok).toBe(true);
-    expect(response.json.root).toBe(SITE);
+    expect(response.json.entries).toBe(0);
+    expect(response.json.root).toBe("/notizen");
+    await expect(readdir(join(sftp.root, "notizen"))).resolves.toEqual([]);
   });
 });
 
@@ -399,6 +420,34 @@ describe("a renamed and an unpublished note", () => {
     await (await import("node:fs/promises")).writeFile(stranger, "nicht von uns");
     await publish(bothNotes(), sources());
     expect(await readFile(stranger, "utf8")).toBe("nicht von uns");
+  });
+
+  it("keeps a page the host would not delete in the manifest, and tries again next time", async () => {
+    // Put both notes back, then unpublish one while the host refuses to
+    // remove its page.
+    expect((await publish(bothNotes(), sources())).status).toBe(200);
+    const page = `${SITE}/erste/index.html`;
+    sftp.stats.refusedRemovals.add(page);
+    const next = bothNotes();
+    next.notes = [next.notes[1]];
+    next.assets = [];
+
+    const refused = await publish(next, sources());
+    expect(refused.status).toBe(200);
+    expect(refused.json.deleted).toBe(1);
+    expect(refused.json.deleteFailed).toBe(1);
+    expect(await readFile(siteFile("erste", "index.html"), "utf8")).toContain("Erste");
+    expect(Object.keys((await manifest()).files)).toContain("erste/index.html");
+
+    sftp.stats.refusedRemovals.delete(page);
+    const retried = await publish(next, sources());
+    expect(retried.json.deleted).toBe(1);
+    expect(retried.json.deleteFailed).toBe(0);
+    await expect(readFile(siteFile("erste", "index.html"))).rejects.toThrow();
+    expect(Object.keys((await manifest()).files)).not.toContain("erste/index.html");
+
+    // Put the site back for what follows.
+    expect((await publish(bothNotes(), sources())).status).toBe(200);
   });
 
   it("takes the last pages down when no note is published any more", async () => {
@@ -597,7 +646,7 @@ describe("refusals", () => {
   });
 
   it("rejects an asset whose name tries to climb out of the site", async () => {
-    const payload = Buffer.from("x");
+    const payload = Buffer.concat([image, Buffer.from("x")]);
     const response = await put(
       `/publish/asset?target=blog&sha256=${sha256(payload)}&name=${encodeURIComponent("../../../etc/passwd.png")}`,
       payload
@@ -606,7 +655,58 @@ describe("refusals", () => {
     // other upload rather than being refused — and never outside the root.
     expect(response.status).toBe(200);
     expect(response.json.path).toBe(`assets/${sha256(payload).slice(0, 12)}-etc-passwd.png`);
-    expect(await readFile(siteFile(...response.json.path.split("/")), "utf8")).toBe("x");
+    expect(await readFile(siteFile(...response.json.path.split("/")))).toEqual(payload);
+  });
+
+  it("rejects an SVG that could run something, and a raster file that is not one", async () => {
+    const svg = Buffer.from(
+      '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>'
+    );
+    const scripted = await put(
+      `/publish/asset?target=blog&sha256=${sha256(svg)}&name=logo.svg`,
+      svg
+    );
+    expect(scripted.status).toBe(400);
+    expect(scripted.json.code).toBe("asset_rejected");
+
+    const drawing = Buffer.from(
+      '<svg xmlns="http://www.w3.org/2000/svg"><rect width="1" height="1"/></svg>'
+    );
+    expect(
+      (await put(`/publish/asset?target=blog&sha256=${sha256(drawing)}&name=logo.svg`, drawing))
+        .status
+    ).toBe(200);
+
+    const notPng = Buffer.from("GIF89a not a png at all");
+    const named = await put(
+      `/publish/asset?target=blog&sha256=${sha256(notPng)}&name=bild.png`,
+      notPng
+    );
+    expect(named.status).toBe(400);
+    expect(named.json.code).toBe("asset_rejected");
+    const jpeg = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3]);
+    expect(
+      (await put(`/publish/asset?target=blog&sha256=${sha256(jpeg)}&name=foto.JPG`, jpeg)).status
+    ).toBe(200);
+  });
+
+  it("refuses to commit an index naming an asset that was never uploaded", async () => {
+    const missing = Buffer.from([0xff, 0xd8, 0xff, 0xe1, 9]);
+    const next = bothNotes();
+    next.assets.push({
+      sourcePath: "Blog/fehlt.jpg",
+      sha256: sha256(missing),
+      name: "fehlt.jpg",
+      bytes: missing.length
+    });
+    const response = await post("/publish/commit", { target: "blog", index: next });
+    expect(response.status).toBe(409);
+    expect(response.json.code).toBe("assets_missing");
+    expect(response.json.error).toContain("Blog/fehlt.jpg");
+    // Nothing of the refused commit reached the manifest.
+    expect(Object.keys((await manifest()).files).some((path) => path.includes("fehlt"))).toBe(
+      false
+    );
   });
 
   it("rejects an index with two notes claiming one address", async () => {

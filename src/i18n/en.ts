@@ -60,7 +60,10 @@ export const en = {
     /** Obsidian returns no leaf when the sidebar that would hold the pane is
      *  gone from the workspace. Saying so beats a command that does nothing. */
     sidebarMissing: (pane: string) =>
-      `no sidebar is available for ${pane}. Show the sidebar and run the command again.`
+      `no sidebar is available for ${pane}. Show the sidebar and run the command again.`,
+    /** Work started without anyone waiting for it — a poll, a record written —
+     *  that failed: said once rather than lost. */
+    taskFailed: (detail: string) => `something failed in the background — ${detail}`
   },
 
   tasks: {
@@ -113,6 +116,8 @@ export const en = {
 
   publish: {
     heading: "Publishing",
+    slugCollision: (slug: string, first: string, second: string) =>
+      `"${slug}" is claimed by two notes: ${first} and ${second}.`,
     /** The name a freshly added account carries until it is given one. */
     newAccountName: "Website",
     openSite: "Open the website",
@@ -141,7 +146,6 @@ export const en = {
       "Up to three tags linked at the top of every page, each to a page listing the notes that carry it. Nested tags count: projekt also lists notes tagged projekt/alpha. A tag no published note carries is left out.",
     headerTagPlaceholder: "#tag",
     targetPlaceholder: "Target on the bridge",
-    targetsUnavailable: "Targets could not be loaded — type the name.",
     keysHeading: "Frontmatter fields",
     keysDesc:
       "Which frontmatter key carries which meaning. Leave a field empty to keep the default. A " +
@@ -178,8 +182,11 @@ export const en = {
     running: "publishing …",
     uploading: (done: number, total: number) => `transferring ${done}/${total} …`,
     building: "building the website …",
-    done: (written: number, unchanged: number, deleted: number) =>
-      `published — ${written} written, ${unchanged} unchanged, ${deleted} deleted.`,
+    done: (written: number, unchanged: number, deleted: number, deleteFailed: number) =>
+      `published — ${written} written, ${unchanged} unchanged, ${deleted} deleted` +
+      (deleteFailed > 0
+        ? `; ${deleteFailed} could not be deleted and will be tried again next time.`
+        : "."),
     failed: (reason: string) => `publication failed — ${reason}`,
     busy: "a publication is already running.",
     noAccount: "no publishing account configured — see Settings.",
@@ -191,15 +198,18 @@ export const en = {
     changedDuringPublish: (path: string) =>
       `${path} changed while publishing — publish again to send the new version.`,
     drawingDiagrams: (index: number, total: number) =>
-      `drawing visualisation ${index} of ${total} for the website…`,
+      `drawing diagram ${index} of ${total} for the website…`,
     diagramsNotDrawn: (count: number) =>
       count === 1
-        ? "1 visualisation could not be drawn and is published as its source."
-        : `${count} visualisations could not be drawn and are published as their source.`,
+        ? "1 diagram could not be drawn and is published as its source."
+        : `${count} diagrams could not be drawn and are published as their source.`,
     /** A published picture's description when the canvas gives it no title. */
-    diagramAlt: "Visualisation",
+    diagramAlt: "Diagram",
     writeBackFailed: (path: string) => `published, but ${path} could not be updated.`,
     unknownTarget: (target: string) => `the bridge has no target named ${target}.`,
+    badSiteUrl: (url: string) =>
+      `the bridge names ${url} as the site's address, which is not a web address, so it was not opened.`,
+
     connectionOk: (target: string, entries: number) =>
       `connection to ${target} works (${entries} entries).`,
     connectionFailed: (reason: string) => reason,
@@ -228,6 +238,11 @@ export const en = {
     noSubject: "(no subject)",
     mergeHeading: "Merge heading",
     mergeHeadingDesc: "Fetched replies are appended under this heading in the note.",
+    /** The lines a merged message is written with; Markdown, since they land in a note. */
+    mergedFrom: (from: string) => `**From:** ${from}`,
+    mergedDate: (date: string) => `**Date:** ${date}`,
+    mergedNoText: "_(no text content)_",
+    mergedTruncated: "_[message truncated by the bridge]_",
 
     searchTitle: (mailbox: string) => `Search ${mailbox}`,
     searchFrom: "From",
@@ -238,12 +253,12 @@ export const en = {
     searchPlaceholderFrom: "sender@example.com",
     searchPlaceholderSubject: "contains…",
     searchPlaceholderText: "anywhere in the message",
+    searchEmpty: "Fill in at least one field: an empty search would return the whole mailbox.",
     confirmTitle: "Send email",
     confirmFrom: "From",
     confirmFromDefault: "the sender from the settings or the bridge",
     confirmTo: "To",
     confirmCc: "Cc",
-    confirmBcc: "Bcc",
     confirmSubject: "Subject",
     send: "Send",
     resendWarning: "This note was already sent once. Sending again delivers a duplicate.",

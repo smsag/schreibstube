@@ -21,9 +21,10 @@ Controllers, views and routes only wire those decisions to the platform, and
 are tested against the stub in `src/testing/`. The rule is what keeps the suite
 at ten seconds and a phone bug reproducible on a laptop.
 
-_Enforced by:_ `src/services/` has no `obsidian` import (the tests alias it and
-would fail to load one); `vitest.config.mts` measures coverage over the decision
-modules only.
+_Enforced by:_ a lint rule forbids `obsidian`, `ui/`, `controllers/` and
+`platform/` imports under `src/services/` (the network clients and the
+Obsidian wiring live in `src/platform/`); `vitest.config.mts` measures coverage
+over the decision modules only.
 
 ### 2. Every boundary is validated and budgeted
 

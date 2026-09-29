@@ -177,6 +177,9 @@ describe("definitionExcerpt", () => {
   it("is empty for an empty body", () => {
     expect(definitionExcerpt("---\ntype: term\n---\n")).toBe("");
   });
+  it("drops an empty frontmatter block rather than reading its fences as the definition", () => {
+    expect(definitionExcerpt("---\n---\nThe text.")).toBe("The text.");
+  });
 });
 
 describe("buildTermFolderGlossaries", () => {

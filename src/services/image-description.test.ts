@@ -177,6 +177,16 @@ describe("renderDescriptionNote", () => {
     ).toContain('tags:\n  - "Offene-Küche"');
   });
 
+  it("writes keywords as tags Obsidian accepts, each idea once", () => {
+    const note = renderDescriptionNote(
+      image,
+      { ...desc, keywords: ["Küche & Bad", "küche-bad", "2026", "#Insel", "..."] },
+      { keywordsAsTags: true }
+    );
+    expect(note).toContain('tags:\n  - "Küche-Bad"\n  - "Insel"\n');
+    expect(note).not.toContain("2026\n");
+  });
+
   it("labels the body in English when the descriptions are English", () => {
     expect(renderDescriptionNote(image, desc, { language: "en" })).toContain(
       "Keywords: Küche, Kochinsel"

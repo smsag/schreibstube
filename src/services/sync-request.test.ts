@@ -153,6 +153,15 @@ describe("interpretSourceResponse", () => {
     expect(outcome.status).toBe("updated");
   });
 
+  it("refuses a non-Markdown content type even with a token", () => {
+    const outcome = interpretSourceResponse(
+      withToken,
+      planSourceRequest(withToken),
+      respond(200, "<html>", { "content-type": "text/html; charset=utf-8" })
+    );
+    expect(outcome.status === "error" && outcome.message).toContain("text/html");
+  });
+
   it("refuses a non-Markdown content type from a plain host", () => {
     const outcome = interpretSourceResponse(
       plain,
@@ -172,6 +181,36 @@ describe("interpretSourceResponse", () => {
       plain,
       planSourceRequest(plain),
       respond(200, "x".repeat(MAX_SOURCE_BYTES + 1))
+    );
+    expect(outcome.status === "error" && outcome.message).toContain("size limit");
+  });
+
+  it("measures the limit in bytes, so umlauts count for what they weigh", () => {
+    // Two bytes each in UTF-8: half the limit in characters is exactly the
+    // limit in bytes, and one more is over it.
+    const outcome = interpretSourceResponse(
+      plain,
+      planSourceRequest(plain),
+      respond(200, "ä".repeat(MAX_SOURCE_BYTES / 2 + 1))
+    );
+    expect(outcome.status === "error" && outcome.message).toContain("size limit");
+
+    const fits = interpretSourceResponse(
+      plain,
+      planSourceRequest(plain),
+      respond(200, "ä".repeat(MAX_SOURCE_BYTES / 2))
+    );
+    expect(fits.status).toBe("updated");
+  });
+
+  it("trusts a declared content length that is over the limit", () => {
+    const outcome = interpretSourceResponse(
+      plain,
+      planSourceRequest(plain),
+      respond(200, "short", {
+        "content-type": "text/plain",
+        "Content-Length": String(MAX_SOURCE_BYTES + 1)
+      })
     );
     expect(outcome.status === "error" && outcome.message).toContain("size limit");
   });

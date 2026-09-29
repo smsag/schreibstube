@@ -38,8 +38,10 @@ try {
   const failures = [];
 
   for (const { name, job, hasText } of jobs) {
-    const reply = await compile(harness.compilePayload(job));
-    if (!reply.ok) {
+    const reply = await compile(harness.compilePayload(job), harness.compileDeadline(job));
+    if (reply === null) {
+      failures.push(`${name}: the compiler gave no answer within its deadline`);
+    } else if (!reply.ok) {
       failures.push(`${name}: the worker failed — ${reply.error}`);
     } else if (!reply.pdf) {
       failures.push(
@@ -59,6 +61,9 @@ try {
   } else {
     console.log(`${total} compiled with the pinned runtime.`);
   }
+} catch (error) {
+  console.error(error instanceof Failure ? error.message : error);
+  process.exitCode = 1;
 } finally {
   rmSync(work, { recursive: true, force: true });
 }
@@ -70,7 +75,7 @@ async function load() {
     stdin: {
       contents: [
         'export { fixtureJobs } from "./src/testing/print-fixtures";',
-        'export { compilePayload } from "./src/services/print-job";',
+        'export { compileDeadline, compilePayload } from "./src/services/print-job";',
         'export { describeDiagnostics, DEVICE_ASSETS } from "./src/services/typst-runtime";',
         'export { WORKER_SOURCE } from "./src/print/typst-worker";',
         'export { setLanguage } from "./src/i18n";'
@@ -148,7 +153,13 @@ async function startWorker(source, runtime) {
   });
   if (!ready.ok) fail(`the runtime did not start: ${ready.error}`);
 
-  return (payload) => send("compile", payload);
+  // Raced rather than awaited: a layout that loops would otherwise hold the
+  // CI job for the hours a runner allows, and name no fixture.
+  return (payload, deadlineMs) =>
+    Promise.race([
+      send("compile", payload),
+      new Promise((resolve) => setTimeout(() => resolve(null), deadlineMs).unref())
+    ]);
 }
 
 /** The templates the plugin carries, read from their folders as a vault holds them. */
@@ -206,7 +217,9 @@ function embedsFont(pdf) {
   return /\/FontFile[23]?\b/.test(Buffer.from(pdf).toString("latin1"));
 }
 
+class Failure extends Error {}
+
+/** Thrown, not exited: `process.exit` would skip the `finally` that removes the work directory. */
 function fail(message) {
-  console.error(message);
-  process.exit(1);
+  throw new Failure(message);
 }

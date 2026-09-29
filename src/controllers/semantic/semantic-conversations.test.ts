@@ -33,6 +33,11 @@ function setup(files: Record<string, ArrayBuffer> = {}) {
             return disk.get(p) ?? new ArrayBuffer(0);
           },
           writeBinary: async (p: string, b: ArrayBuffer) => void disk.set(p, b),
+          rename: async (from: string, to: string) => {
+            disk.set(to, disk.get(from)!);
+            disk.delete(from);
+          },
+          remove: async (p: string) => void disk.delete(p),
           mkdir: async () => undefined
         }
       }
@@ -40,7 +45,8 @@ function setup(files: Record<string, ArrayBuffer> = {}) {
     manifest: { id: "schreibstube", dir: ".obsidian/plugins/schreibstube" }
   } as unknown as Plugin;
   const provider = new FakeProvider();
-  const state = { enabled: true, background: false };
+  /** `background`: a desktop with nothing else running; false is a phone. */
+  const state = { enabled: true, background: true, vector: null as Int8Array | null };
   const changed = vi.fn();
   const conversations = new SemanticConversations({
     plugin,
@@ -49,7 +55,8 @@ function setup(files: Record<string, ArrayBuffer> = {}) {
     modelId: () => "xenova-paraphrase-multilingual-MiniLM-L12-v2",
     provider: () => provider,
     changed,
-    mayEmbedInBackground: () => state.background
+    mayEmbedInBackground: () => state.background,
+    queryVector: async () => state.vector
   });
   let notify: () => void = () => undefined;
   const listed = [
@@ -159,17 +166,60 @@ describe("conversations beside a note", () => {
     const embedded = s.provider.embedded.length;
     s.listed.push({ id: "c3", title: "", updatedAt: 3, summary: "", messages: ["küche neu"] });
     s.notify();
+    s.state.background = false;
     await s.conversations.relatedToVectors([new Int8Array([127, 0, 0, 0])], 5);
     expect(s.provider.embedded.length).toBe(embedded); // no model for the panel
+    s.state.background = true;
     await s.conversations.search("küche", 5, []); // a search does bring it up to date
     expect(s.provider.embedded.length).toBeGreaterThan(embedded);
+  });
+});
+
+describe("a search on a phone", () => {
+  it("answers from what is stored rather than embedding every changed conversation first", async () => {
+    const s = setup();
+    s.state.background = false;
+    s.conversations.register(s.source);
+    // The desktop's index, as sync delivered it.
+    s.disk.set(
+      ".obsidian/plugins/schreibstube/semantic-conversations-xenova-paraphrase-multilingual-MiniLM-L12-v2.bin",
+      serializeIndex([{ id: "c1", contentHash: "x", chunks: [new Int8Array([127, 0, 0, 0])] }], 4)
+    );
+    s.listed.push({ id: "c3", title: "", updatedAt: 3, summary: "", messages: ["küche neu"] });
+    const found = await s.conversations.search("küche", 5, []);
+    expect(found.map((hit) => hit.id)).toEqual(["c1"]);
+    // The query was embedded; no conversation was.
+    expect(s.provider.embedded).toEqual(["küche"]);
+  });
+});
+
+describe("two searches at once", () => {
+  it("both wait for the one sync, rather than the second asking a half-filled index", async () => {
+    const s = setup();
+    s.conversations.register(s.source);
+    const [first, second] = await Promise.all([
+      s.conversations.search("küche", 5, []),
+      s.conversations.search("küche", 5, [])
+    ]);
+    expect(first.map((hit) => hit.id)).toEqual(["c1"]);
+    expect(second.map((hit) => hit.id)).toEqual(["c1"]);
+    expect(s.source.list).toHaveBeenCalledTimes(1);
+  });
+
+  it("rank the vault search's vector when the engine has one, embedding the text once", async () => {
+    const s = setup();
+    s.conversations.register(s.source);
+    await s.conversations.search("küche", 5, []);
+    s.provider.embedded = [];
+    s.state.vector = new Int8Array([127, 0, 0, 0]);
+    expect((await s.conversations.search("anything", 5, [])).map((hit) => hit.id)).toEqual(["c1"]);
+    expect(s.provider.embedded).toEqual([]);
   });
 });
 
 describe("conversations beside a note, where the model may run", () => {
   it("brings the stored conversations up to date after answering", async () => {
     const s = setup();
-    s.state.background = true;
     s.conversations.register(s.source);
     await s.conversations.search("küche", 5, []);
     s.listed.push({ id: "c3", title: "", updatedAt: 3, summary: "", messages: ["küche neu"] });
@@ -187,7 +237,6 @@ describe("conversations beside a note, where the model may run", () => {
 
   it("starts nothing when nothing changed", async () => {
     const s = setup();
-    s.state.background = true;
     s.conversations.register(s.source);
     await s.conversations.search("küche", 5, []);
     const embedded = s.provider.embedded.length;

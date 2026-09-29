@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { clientAddress, parseJson } from "./http.mjs";
+import { clientAddress, parseJson, readBody } from "./http.mjs";
 
 function request(headers = {}, remoteAddress = "192.0.2.1") {
   return { headers, socket: { remoteAddress } };
@@ -47,5 +47,13 @@ describe("parseJson", () => {
     expect(() => parseJson(Buffer.from("{"))).toThrow(
       expect.objectContaining({ status: 400, code: "invalid_json" })
     );
+  });
+});
+
+describe("readBody", () => {
+  it("refuses to read under a limit that is not a number, which is a route without one", () => {
+    for (const limit of [undefined, null, "1000", Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(() => readBody({ headers: {}, on() {} }, limit)).toThrow(TypeError);
+    }
   });
 });

@@ -56,7 +56,8 @@ export const de: Messages = {
     copied: "Kopiert",
     notice: (message: string) => `Schreibstube: ${message}`,
     sidebarMissing: (pane: string) =>
-      `keine Seitenleiste für ${pane} verfügbar. Seitenleiste einblenden und den Befehl erneut ausführen.`
+      `keine Seitenleiste für ${pane} verfügbar. Seitenleiste einblenden und den Befehl erneut ausführen.`,
+    taskFailed: (detail: string) => `im Hintergrund ist etwas fehlgeschlagen — ${detail}`
   },
 
   tasks: {
@@ -100,6 +101,8 @@ export const de: Messages = {
 
   publish: {
     heading: "Veröffentlichen",
+    slugCollision: (slug: string, first: string, second: string) =>
+      `„${slug}“ wird von zwei Notizen beansprucht: ${first} und ${second}.`,
     newAccountName: "Website",
     openSite: "Website öffnen",
     openSiteDesc: "Öffnet die veröffentlichte Website im Browser.",
@@ -128,7 +131,6 @@ export const de: Messages = {
       "Bis zu drei Schlagwörter, oben auf jeder Seite verlinkt, jedes mit einer Seite der Notizen, die es tragen. Verschachtelte zählen mit: projekt listet auch Notizen mit projekt/alpha. Ein Schlagwort, das keine veröffentlichte Notiz trägt, bleibt weg.",
     headerTagPlaceholder: "#schlagwort",
     targetPlaceholder: "Ziel auf der Bridge",
-    targetsUnavailable: "Ziele nicht abrufbar — Namen eintragen.",
     keysHeading: "Frontmatter-Felder",
     keysDesc:
       "Welcher Frontmatter-Schlüssel welche Bedeutung hat. Leer lassen, um den Standard zu " +
@@ -166,8 +168,11 @@ export const de: Messages = {
     running: "Veröffentlichung läuft …",
     uploading: (done: number, total: number) => `überträgt ${done}/${total} …`,
     building: "baut die Website …",
-    done: (written: number, unchanged: number, deleted: number) =>
-      `veröffentlicht — ${written} geschrieben, ${unchanged} unverändert, ${deleted} gelöscht.`,
+    done: (written: number, unchanged: number, deleted: number, deleteFailed: number) =>
+      `veröffentlicht — ${written} geschrieben, ${unchanged} unverändert, ${deleted} gelöscht` +
+      (deleteFailed > 0
+        ? `; ${deleteFailed} konnten nicht gelöscht werden und werden beim nächsten Mal erneut versucht.`
+        : "."),
     failed: (reason: string) => `Veröffentlichung fehlgeschlagen — ${reason}`,
     busy: "eine Veröffentlichung läuft bereits.",
     noAccount: "kein Veröffentlichungs-Konto eingerichtet — siehe Einstellungen.",
@@ -188,6 +193,9 @@ export const de: Messages = {
     writeBackFailed: (path: string) =>
       `veröffentlicht, aber ${path} konnte nicht aktualisiert werden.`,
     unknownTarget: (target: string) => `die Bridge kennt kein Ziel namens ${target}.`,
+    badSiteUrl: (url: string) =>
+      `die Bridge nennt ${url} als Adresse der Website; das ist keine Webadresse, darum wurde sie nicht geöffnet.`,
+
     connectionOk: (target: string, entries: number) =>
       `Verbindung zu ${target} steht (${entries} Einträge).`,
     connectionFailed: (reason: string) => reason,
@@ -216,6 +224,10 @@ export const de: Messages = {
     noSubject: "(kein Betreff)",
     mergeHeading: "Überschrift für Antworten",
     mergeHeadingDesc: "Abgeholte Antworten werden unter dieser Überschrift angehängt.",
+    mergedFrom: (from: string) => `**Von:** ${from}`,
+    mergedDate: (date: string) => `**Datum:** ${date}`,
+    mergedNoText: "_(kein Textinhalt)_",
+    mergedTruncated: "_[Nachricht von der Bridge gekürzt]_",
 
     searchTitle: (mailbox: string) => `${mailbox} durchsuchen`,
     searchFrom: "Von",
@@ -226,12 +238,13 @@ export const de: Messages = {
     searchPlaceholderFrom: "absender@example.com",
     searchPlaceholderSubject: "enthält …",
     searchPlaceholderText: "irgendwo in der Nachricht",
+    searchEmpty:
+      "Mindestens ein Feld ausfüllen: Eine leere Suche würde das ganze Postfach liefern.",
     confirmTitle: "E-Mail senden",
     confirmFrom: "Von",
     confirmFromDefault: "Absender aus den Einstellungen bzw. der Bridge",
     confirmTo: "An",
     confirmCc: "Cc",
-    confirmBcc: "Bcc",
     confirmSubject: "Betreff",
     send: "Senden",
     resendWarning:
@@ -342,12 +355,12 @@ export const de: Messages = {
 
     aiHeading: "KI-Modelle",
     aiIntro:
-      "Anbieter, Modell und API-Schlüssel für alle KI-Befehle (Benennen und Zusammenfassen).",
+      "Anbieter, Modell und API-Schlüssel für alle KI-Befehle: Benennen, Zusammenfassen, KI-Tabelle, Schlagwort-Vorschläge und Bildbeschreibungen.",
     provider: "LLM-Anbieter",
     model: "Modell",
     customModel: "Eigene Modell-ID",
     customModelDesc: "Optional. Überschreibt das Modell oben — für neuere oder ungelistete.",
-    customModelPlaceholder: "z. B. claude-3-7-sonnet-latest",
+    customModelPlaceholder: "die Modell-ID des Anbieters",
     apiKey: "API-Schlüssel",
     apiKeyDesc: "Ein Secret aus Obsidians Secret Storage wählen oder ein neues anlegen.",
 
@@ -365,7 +378,7 @@ export const de: Messages = {
 
     describeHeading: "Bildbeschreibungen",
     describeIntro:
-      "Ein Bild über sein Menü im Schreibstube-Explorer beschreiben: Das eingestellte Modell schreibt Titel, " +
+      "Ein Bild über sein Menü im Schreibstube Explorer beschreiben: Das eingestellte Modell schreibt Titel, " +
       "Beschreibung und Stichworte in eine eigene Notiz, damit das Bild über seinen Inhalt auffindbar wird. " +
       "Das Bild wird vorher verkleinert, wobei die Standortdaten entfallen, und dann an den oben gewählten Anbieter geschickt.",
     describeEnabled: "Bilder beschreiben",
@@ -498,9 +511,7 @@ export const de: Messages = {
     syncScheduleDesc: (examples: string) =>
       "Fünf Cron-Felder: Minute, Stunde, Tag des Monats, Monat, Wochentag. Gilt in Ortszeit. Ein " +
       "Zeitpunkt, der bei geschlossenem Obsidian fällig wurde, läuft einmal beim nächsten Start. " +
-      `Beispiele: ${examples}.`,
-    syncNextRun: (when: string) => `Nächste Prüfung: ${when}`,
-    syncNeverRuns: "Gültig, aber dieser Zeitpunkt tritt nie ein."
+      `Beispiele: ${examples}.`
   },
 
   ai: {
@@ -535,7 +546,7 @@ export const de: Messages = {
     failTable: "Schreibstube: Umwandlung in Tabelle fehlgeschlagen",
     describing: "beschreibt das Bild …",
     described: (title: string) => `beschrieben: ${title}`,
-    describeUnusable: "die Beschreibung des Modells war unbrauchbar – nichts geschrieben.",
+    describeUnusable: "die Beschreibung des Modells war unbrauchbar — nichts geschrieben.",
     failDescribe: "Schreibstube: Bild beschreiben fehlgeschlagen",
     folder: {
       off: "Bildbeschreibungen sind in den Einstellungen ausgeschaltet.",
@@ -555,7 +566,7 @@ export const de: Messages = {
         `Anfrage(n), nacheinander. Jede Beschreibung wird eine Notiz.`,
       confirmAction: "Beschreiben",
       progress: (done: number, total: number, name: string) =>
-        `Bilder in ${name} werden beschrieben: ${done} von ${total}. `,
+        `Bilder in ${name} werden beschrieben: ${done} von ${total}.`,
       stop: "Anhalten",
       stopping: "Hält nach diesem Bild an …",
       done: (count: number, name: string) => `${count} Bild(er) in ${name} beschrieben.`,
@@ -690,6 +701,12 @@ export const de: Messages = {
     blocksRejected: (count: number) =>
       `${count} Abschnitt(e) verworfen (geschützter Inhalt verändert).`,
     chunksFailed: (count: number) => `${count} Anfrage(n) fehlgeschlagen.`,
+    allChunksFailed: (detail: string) =>
+      `Korrekturlesen ist bei jeder Anfrage gescheitert: ${detail}`,
+    hitSubstitution: (term: string) => `„${term}“ ist nicht mehr die bevorzugte Benennung.`,
+    hitCapitalization: (spelling: string) => `Schreibweise laut Glossar: „${spelling}“.`,
+    hitSuperseded: (term: string) => `„${term}“ ist überholt — bitte selbst entscheiden.`,
+    hitAvoid: (term: string) => `„${term}“ sollte vermieden werden.`,
     cardDiverged: "Lokale Änderung — Übernehmen stellt den Stand der Quelle wieder her.",
     cardFirstSync: "Erster Abgleich mit der Quelle.",
     sourceMatches: "Notiz entspricht der Quelle.",
@@ -710,7 +727,7 @@ export const de: Messages = {
       punctuation: "Zeichensetzung",
       style: "Stil",
       terminology: "Terminologie",
-      capitalization: "Schreibweise",
+      capitalization: "Groß-/Kleinschreibung",
       update: "Aktualisierung"
     },
     syncStatus: {
@@ -768,7 +785,23 @@ export const de: Messages = {
     termWriteFailed: (reason: string) => `Begriffsnotiz konnte nicht geändert werden — ${reason}`,
     termOverlap: (word: string, term: string, glossary: string) =>
       `„${word}“ steht in ${glossary} und auf der Begriffsnotiz ${term}. Behalte es an einer Stelle.`,
-    termOverlapMore: (count: number) => `…und ${count} weitere(s) Wort/Wörter an beiden Stellen.`
+    termOverlapMore: (count: number) => `…und ${count} weitere(s) Wort/Wörter an beiden Stellen.`,
+    glossary: {
+      noTable: "Keine Begriffstabelle gefunden.",
+      unknownSeverity: (key: string, value: string, fallback: string) =>
+        `Unbekanntes ${key} „${value}“, es gilt ${fallback}.`,
+      missingColumns: (names: string) => `Pflichtspalte(n) fehlen: ${names}.`,
+      skippedRequired: (line: number) =>
+        `Zeile ${line} übersprungen: Konzept und Benennung sind Pflicht.`,
+      skippedStatus: (line: number, status: string) =>
+        `Zeile ${line} übersprungen: unbekannter Status „${status}“.`,
+      unknownMatch: (line: number, mode: string) =>
+        `Zeile ${line}: unbekannter Treffermodus „${mode}“, es gilt word.`,
+      skippedDuplicate: (line: number, term: string, concept: string) =>
+        `Zeile ${line} übersprungen: „${term}“ steht schon im Konzept „${concept}“.`,
+      tooManyPreferred: (concept: string, count: number) =>
+        `Konzept „${concept}“ hat ${count} bevorzugte Benennungen; nur die erste zählt.`
+    }
   },
 
   sync: {
@@ -787,7 +820,9 @@ export const de: Messages = {
         "das Prüfintervall dieser Notiz ist nicht lesbar. Schreibe es als „Alle 2 Tage“, " +
         "„wöchentlich“ oder als fünfteiligen Cron-Ausdruck.",
       tooSmall: "ein Prüfintervall muss mindestens eine Minute betragen.",
-      panel: (words: string, cron: string) => `Höchstens ${words} geprüft (${cron})`,
+      notWhole: "ein Prüfintervall muss eine ganze Zahl von Minuten, Stunden oder Tagen sein.",
+      panel: (words: string, cron: string | null) =>
+        cron === null ? `Höchstens ${words} geprüft` : `Höchstens ${words} geprüft (${cron})`,
       panelCron: (cron: string) => `Nach dem Zeitplan der Notiz geprüft (${cron})`
     }
   },
@@ -811,6 +846,7 @@ export const de: Messages = {
     invalidSender: (key: string, value: string) =>
       `„${key}“ muss eine Adresse sein, allein oder als „Name <Adresse>“: ${value}`,
     needsSubject: (key: string) => `zuerst eine Zeile „${key}:“ ins Frontmatter setzen.`,
+    invalidSubject: (key: string) => `„${key}“ muss eine einzelne Textzeile sein.`,
     sent: "E-Mail gesendet.",
     sentNoCopy: "E-Mail gesendet (keine Kopie in „Gesendet“).",
     sendUnconfirmed: (detail: string) =>
@@ -821,7 +857,13 @@ export const de: Messages = {
       `E-Mail gesendet, aber der Mailserver hat diese Empfänger abgelehnt; sie erhalten sie nicht: ${addresses}`,
     failSend: "Schreibstube: Senden fehlgeschlagen",
     failSearch: "Schreibstube: Postfachsuche fehlgeschlagen",
-    failMerge: "Schreibstube: Übernehmen der Antworten fehlgeschlagen"
+    failMerge: "Schreibstube: Übernehmen der Antworten fehlgeschlagen",
+    sentButIdUnwritten: (key: string, id: string) =>
+      `E-Mail gesendet, aber ${key} konnte nicht in die Notiz geschrieben werden. Von Hand eintragen, damit Antworten abgeholt werden können: ${id}`,
+    mergedButIdsUnwritten: (key: string) =>
+      `Antworten übernommen, aber ${key} konnte nicht aktualisiert werden — ein erneuter Aufruf übernimmt sie womöglich doppelt.`,
+    bridgeUnreachable:
+      "die Bridge konnte nicht gefragt werden, ob sie Bilder mitnimmt; die Visualisierungen gehen als Quelltext."
   },
 
   explorer: {
@@ -833,8 +875,8 @@ export const de: Messages = {
       none: "Jede Bildbeschreibung findet ihr Bild.",
       placeholder: (count: number) =>
         count === 1
-          ? "1 Beschreibung, deren Bild fehlt – öffnen"
-          : `${count} Beschreibungen, deren Bilder fehlen – eine öffnen`
+          ? "1 Beschreibung, deren Bild fehlt — öffnen"
+          : `${count} Beschreibungen, deren Bilder fehlen — eine öffnen`
     },
     title: "Schreibstube Explorer",
     empty: "In diesem Vault liegt noch keine Datei.",
@@ -842,7 +884,10 @@ export const de: Messages = {
     clearFilter: "Suche leeren",
     taskCount: (done: number, total: number) => `${done} von ${total} Aufgaben erledigt`,
     filterEmpty: "Darauf antwortet hier nichts.",
-    filterMore: (count: number) => `${count} weitere Treffer. Suche eingrenzen, um sie zu sehen.`,
+    filterMore: (count: number) =>
+      count === 1
+        ? "1 weiterer Treffer. Suche eingrenzen, um ihn zu sehen."
+        : `${count} weitere Treffer. Suche eingrenzen, um sie zu sehen.`,
     foundByMeaning: "Nach Bedeutung gefunden: andere Wörter, gleiches Thema.",
     searchingByMeaning: "Suche nach Bedeutung …",
     filterHint:
@@ -853,7 +898,7 @@ export const de: Messages = {
     expandAll: "Alle aufklappen",
     pinnedMore: "Alle Angehefteten zeigen",
     pinnedFewer: "Wieder drei zeigen",
-    folderCount: (count: string) => `${count} Dateien`,
+    folderCount: (count: string) => (count === "1" ? "1 Datei" : `${count} Dateien`),
 
     related: {
       viewTitle: "Empfohlen",
@@ -941,7 +986,7 @@ export const de: Messages = {
       bookmarks: "Lesezeichen",
       latest: "Extern aktualisiert",
       files: "Dateien und Ordner",
-      conversations: "Unterhaltungen"
+      conversations: "Gespräche"
     },
 
     bookmarks: {
@@ -997,7 +1042,8 @@ export const de: Messages = {
       delete: "Löschen",
       more: "Weitere Aktionen",
       moveSelected: (count: number) => `${count} Objekte verschieben nach …`,
-      deleteSelected: (count: number) => `${count} Objekte löschen`
+      deleteSelected: (count: number) => `${count} Objekte löschen`,
+      actionFailed: (detail: string) => `das hat nicht geklappt — ${detail}`
     },
 
     icons: {
@@ -1111,7 +1157,7 @@ export const de: Messages = {
       `die Standardvorlage ${path} gibt es in diesem Vault nicht mehr; wähle eine aus, oder stelle in den Druck-Einstellungen eine andere ein.`,
     builtIn: "eingebaut",
     slideshowUnreadable: (detail: string) =>
-      `eine Diashow wurde als Quelltext gedruckt — ${detail}`,
+      `eine Diaschau wurde als Quelltext gedruckt — ${detail}`,
     preparing: "bereite den Druck vor …",
     dialog: {
       title: "Drucken",
@@ -1126,8 +1172,8 @@ export const de: Messages = {
       pythiaFootnotes: "Pythia-Zusammenfassungen als Fußnoten",
       pythiaLinks: (links: number) =>
         links === 1
-          ? "Eine Stelle verweist auf eine Pythia-Unterhaltung."
-          : `${links} Stellen verweisen auf Pythia-Unterhaltungen.`,
+          ? "Eine Stelle verweist auf ein Pythia-Gespräch."
+          : `${links} Stellen verweisen auf Pythia-Gespräche.`,
       pythiaUpdate: (outdated: number, missing: number) =>
         `Zusammenfassungen aktualisieren (${outdated} veraltet, ${missing} fehlen)`,
       pythiaUpdating: (done: number, total: number) =>
@@ -1135,11 +1181,11 @@ export const de: Messages = {
       pythiaUpdated: (refreshed: number, failed: number) =>
         failed === 0
           ? `${refreshed} Zusammenfassungen aktualisiert.`
-          : `${refreshed} Zusammenfassungen aktualisiert; ${failed} konnten nicht geschrieben werden – Pythias Hinweise sagen, warum.`,
+          : `${refreshed} Zusammenfassungen aktualisiert; ${failed} konnten nicht geschrieben werden — Pythias Hinweise sagen, warum.`,
       pythiaUpdateFailed: (detail: string) =>
-        `Die Zusammenfassungen wurden nicht aktualisiert – ${detail}`,
+        `Die Zusammenfassungen wurden nicht aktualisiert — ${detail}`,
       frontmatter: "Eigenschaften drucken",
-      slideshows: "Diashows",
+      slideshows: "Diaschauen",
       slideshow: { layout: "Wie in der Notiz", stacked: "Alle Bilder untereinander" },
       print: "Drucken",
       working: "Vorschau wird gesetzt …",
@@ -1159,10 +1205,14 @@ export const de: Messages = {
       `diese Notiz verlangt die Vorlage „${name}“, und kein Ordner in diesem Vault ist eine.`,
     noLayout: (name: string) => `${name} hat keine template.typ — damit lässt sich nichts drucken.`,
     working: (name: string) => `drucke mit ${name} …`,
-    drawing: (index: number, total: number) => `zeichne Diagramm ${index} von ${total} …`,
+    drawing: (index: number, total: number) => `zeichne Visualisierung ${index} von ${total} …`,
     downloading: (label: string, megabytes: number) =>
       `lade den Satzteil „${label}“ (${megabytes} MB, einmal pro Gerät) …`,
     downloadingFont: (face: string) => `lade die Schrift ${face} (einmal pro Gerät) …`,
+    assetLabel: (label: string) =>
+      ({ compiler: "Satzteil", loader: "Lader", font: "Schrift" })[label] ?? label,
+    busy: "ein Druck läuft bereits — bitte warten.",
+
     verifying: "prüfe das Geladene …",
     starting: "starte den Satz …",
     compiling: "setze …",
@@ -1178,7 +1228,7 @@ export const de: Messages = {
     compilerRefused: (detail: string) => `die Vorlage ließ sich nicht setzen — ${detail}`,
     pictureFailed: (name: string) => `${name} ließ sich nicht lesen und fehlt`,
     panelsLost: (index: number, missing: number, total: number) =>
-      `Diagramm ${index}: ${missing} von ${total} Zeichnungen ließen sich nicht aufnehmen und fehlen`,
+      `Visualisierung ${index}: ${missing} von ${total} Zeichnungen ließen sich nicht aufnehmen und fehlen`,
     done: (path: string, kilobytes: number) => `${path} gedruckt (${kilobytes} KB).`,
     withWarnings: (detail: string) => `gedruckt, aber etwas fehlt — ${detail}`,
     failed: (detail: string) => `Drucken fehlgeschlagen — ${detail}`,
@@ -1215,6 +1265,7 @@ export const de: Messages = {
     replaceMessage: (path: string) =>
       `${path} gibt es schon, und sie stammt nicht aus einem Druck. Durch die gedruckte Notiz ersetzen?`,
     replaceSubmit: "Ersetzen",
+    compilerSilent: "der Satzteil hat nicht geantwortet",
     limits: {
       fontFiles: (count: number, max: number) =>
         `${count} Schriftdateien, höchstens ${max} werden benutzt`,
@@ -1229,10 +1280,12 @@ export const de: Messages = {
     },
     layout: {
       tooLarge: (kilobytes: number) => `das Layout ist größer als ${kilobytes} KB`,
-      package: (line: number) => `Zeile ${line}: Pakete gehen nicht, gedruckt wird ohne Netz`,
+      package: (line: number) =>
+        `Zeile ${line}: ein Paket braucht das Netz, das ein Druck nicht hat`,
       leavesFolder: (line: number) =>
-        `Zeile ${line}: ein Pfad darf den Vorlagenordner nicht verlassen`,
-      absolute: (line: number) => `Zeile ${line}: ein Pfad muss relativ zum Vorlagenordner sein`
+        `Zeile ${line}: ein Pfad außerhalb des Vorlagenordners nennt nichts, was ein Druck lesen kann`,
+      absolute: (line: number) =>
+        `Zeile ${line}: ein Pfad von der Wurzel nennt nichts, was ein Druck lesen kann; er beginnt im Vorlagenordner`
     }
   },
 
@@ -1371,6 +1424,11 @@ export const de: Messages = {
         `${count} Notizen, aber die zu lesenden Notizen haben sich geändert. „Jetzt aufbauen“ holt es nach.`,
       failed: (error: string) => `Fehlgeschlagen: ${error}`,
       outOfMemory: "Dem Gerät ging der Speicher aus. Weniger Notizen einstellen und neu aufbauen.",
+      offline:
+        "Das Modell ist noch nicht heruntergeladen, und das Gerät ist offline. Mit dem " +
+        "Internet verbinden und neu aufbauen.",
+      timedOut:
+        "Das Modell hat nicht rechtzeitig geantwortet. „Jetzt aufbauen“ versucht es erneut.",
       paused:
         "Pausiert, nachdem ein Aufbau zweimal nicht fertig wurde. „Jetzt aufbauen“ versucht es erneut.",
       desktopBuilds: (count: number, budget: number) =>
@@ -1404,8 +1462,11 @@ export const de: Messages = {
     truncated: (read: number, total: number) =>
       `die ersten ${read} von ${total} Seiten gelesen; spätere Seiten wurden nicht angeboten.`,
     inserted: (count: number) =>
-      count === 1 ? "1 Textstelle eingefügt." : `${count} Textstellen eingefügt.`
+      count === 1 ? "1 Textstelle eingefügt." : `${count} Textstellen eingefügt.`,
+    noteChanged:
+      "inzwischen liegt eine andere Notiz vorn, darum wurden die Textstellen nicht eingefügt."
   },
+
   sums: {
     heading: "Summen und Formeln",
     intro:
@@ -1438,6 +1499,8 @@ export const de: Messages = {
     menuItem: (total: string) => `Summe kopieren: ${total}`,
     noAmounts: "keine Beträge in der Auswahl.",
     copied: (total: string) => `${total} kopiert.`,
+    copyFailed: "die Summe konnte nicht in die Zwischenablage kopiert werden.",
+
     mixed: "gemischte Währungen",
     unavailable: "–",
     skipped: (count: number) =>

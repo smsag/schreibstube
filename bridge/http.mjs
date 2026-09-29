@@ -41,8 +41,15 @@ export function clientAddress(req, { trustProxy = false } = {}) {
  * client that declares no length at all. The second case pauses rather than
  * destroys the socket — destroying it kills the connection before the 413 can
  * be written, so the client sees an opaque reset instead of the reason.
+ *
+ * A limit that is not a number is a route without one, which is a bug here,
+ * not a large request: `size > undefined` is never true, and the body would
+ * be read whole.
  */
 export function readBody(req, maxBytes) {
+  if (typeof maxBytes !== "number" || !Number.isFinite(maxBytes)) {
+    throw new TypeError(`readBody needs a finite byte limit, not ${String(maxBytes)}.`);
+  }
   return new Promise((resolve, reject) => {
     const declared = Number.parseInt(req.headers["content-length"] ?? "", 10);
     if (Number.isInteger(declared) && declared > maxBytes) {
@@ -76,13 +83,8 @@ export function readBody(req, maxBytes) {
   });
 }
 
-/**
- * An empty body is an empty object: several endpoints take only defaults.
- *
- * Every JSON route here takes an object, so anything else — an array, a bare
- * string, null — is refused in one place rather than tripping a field check
- * further in and being reported as a missing field.
- */
+/** An empty body is an empty object; anything that is not an object is
+ *  refused in one place rather than tripping a field check further in. */
 export function parseJson(buffer) {
   const raw = buffer.toString("utf8");
   if (!raw.trim()) return {};

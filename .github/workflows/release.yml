@@ -19,6 +19,7 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     # Read into the environment once, and used as "$VERSION" from there.
     # Expanded into a shell line, the input is the workflow's own text before
     # any of the checks below run, and a dispatch is a person's typing.
@@ -85,6 +86,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release create "$VERSION" \
+            --target "$GITHUB_SHA" \
             --title "$VERSION" \
             --notes-file release_notes.md \
             main.js manifest.json styles.css main.js.map dist/typst-runtime-*

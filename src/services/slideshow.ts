@@ -114,11 +114,9 @@ export interface SlideshowBlock {
 
 export type SlideshowResult = ({ ok: true } & SlideshowBlock) | { ok: false; message: string };
 
-// A whole-line Markdown image: ![alt](path). Alt may be empty; the path may not.
 const IMAGE_PATTERN = /^!\[([^\]]*)\]\(([^)]+)\)$/;
 
-// The layout line: the key, a colon, the value. Matched without regard to
-// case, so `Layout:` is not a mistyped image.
+// Case does not count, so `Layout:` is not a mistyped image.
 const LAYOUT_PATTERN = /^layout\s*:\s*(.*)$/i;
 
 /**

@@ -2,18 +2,20 @@
  * Deciding what gets published, and what it is called.
  *
  * The bridge has no vault: it is told which notes exist, what they are named
- * and where they will be served. Everything in that telling is decided here,
- * which is why this module is pure and tested — a wrong slug is a broken link
- * on a public site, and a wrong publish flag is a note that should not be one.
+ * and where they will be served. Everything in that telling is decided here:
+ * a wrong slug is a broken link on a public site, and a wrong publish flag is
+ * a note that should not be one.
  */
 
+import { t } from "../i18n";
 import {
   linkpathCandidates,
   parseSlideshow,
   SLIDESHOW_LANGUAGE,
   type SlideshowLayout
 } from "./slideshow";
-import { normalizeTag, tagIncludes } from "./tag-pins";
+import { splitFrontmatter } from "./frontmatter-block";
+import { checkTag, tagIncludes } from "./tag-pins";
 
 /**
  * Which frontmatter key carries which meaning.
@@ -144,13 +146,14 @@ export function slugify(value: string): string {
 
 /** The first heading of a note, which is what a reader would call it. */
 export function firstHeading(content: string): string {
-  const match = /^#{1,6}[ \t]+(.+?)[ \t]*#*[ \t]*$/m.exec(stripFrontmatter(content));
+  // A closing run of hashes is set off by a space; one glued to the text, as
+  // in `# C#`, is the text.
+  const match = /^#{1,6}[ \t]+(.+?)(?:[ \t]+#+)?[ \t]*$/m.exec(stripFrontmatter(content));
   return match?.[1]?.trim() ?? "";
 }
 
 export function stripFrontmatter(content: string): string {
-  const match = /^---\r?\n[\s\S]*?\r?\n---[ \t]*(?:\r?\n|$)/.exec(content ?? "");
-  return match ? content.slice(match[0].length) : (content ?? "");
+  return splitFrontmatter(content ?? "").body;
 }
 
 /** `2026-09-12`, in local time, because a publication date is a calendar date. */
@@ -201,7 +204,7 @@ export function findSlugCollision(notes: ResolvedNote[]): string | null {
   for (const note of notes) {
     const previous = seen.get(note.slug);
     if (previous) {
-      return `"${note.slug}" wird von zwei Notizen beansprucht: ${previous} und ${note.sourcePath}.`;
+      return t().publish.slugCollision(note.slug, previous, note.sourcePath);
     }
     seen.set(note.slug, note.sourcePath);
   }
@@ -331,7 +334,7 @@ export function normalizeHeaderTags(value: unknown): string[] {
   const seen = new Set<string>();
   for (const entry of value) {
     if (typeof entry !== "string") continue;
-    const tag = normalizeTag(entry);
+    const tag = checkTag(entry);
     if (tag === null || seen.has(tag.toLowerCase())) continue;
     seen.add(tag.toLowerCase());
     tags.push(tag);
@@ -375,11 +378,11 @@ export function noteTags(
       : [];
   for (const entry of written) {
     if (typeof entry !== "string") continue;
-    const tag = normalizeTag(entry);
+    const tag = checkTag(entry);
     if (tag !== null) found.push(tag);
   }
   for (const entry of cache?.tags ?? []) {
-    const tag = normalizeTag(entry.tag);
+    const tag = checkTag(entry.tag);
     if (tag !== null) found.push(tag);
   }
   return found;

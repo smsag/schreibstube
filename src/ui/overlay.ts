@@ -35,6 +35,7 @@ export class OverlayController {
 
     this.container.addEventListener("pointerdown", this.handlePointerDown);
     this.listEl.addEventListener("click", this.handleClick);
+    this.listEl.addEventListener("keydown", this.handleKey);
   }
 
   render(input: OverlayRenderInput): void {
@@ -52,8 +53,11 @@ export class OverlayController {
     for (const [i, entry] of input.ancestorStack.entries()) {
       const isLast = i === lastIndex;
 
+      // A row is a control — pressing it goes to the heading — and says so, so
+      // a keyboard reaches it as the pointer does.
       const row = this.listEl.createEl("li", {
-        cls: `schreibstube-overlay-row schreibstube-overlay-row-ancestor ${isLast ? "is-current" : "is-ancestor"}`
+        cls: `schreibstube-overlay-row schreibstube-overlay-row-ancestor ${isLast ? "is-current" : "is-ancestor"}`,
+        attr: { role: "button", tabindex: "0" }
       });
       row.dataset.lineNumber = String(entry.lineNumber);
       row.dataset.level = String(entry.level);
@@ -69,6 +73,7 @@ export class OverlayController {
   destroy(): void {
     this.container.removeEventListener("pointerdown", this.handlePointerDown);
     this.listEl.removeEventListener("click", this.handleClick);
+    this.listEl.removeEventListener("keydown", this.handleKey);
     this.container.remove();
     this.parent.classList.remove("schreibstube-overlay-host");
   }
@@ -89,9 +94,21 @@ export class OverlayController {
   private handleClick = (event: MouseEvent): void => {
     event.preventDefault();
     event.stopPropagation();
+    this.pressRow(event.target);
+  };
 
-    const target = event.target as HTMLElement | null;
-    const row = target?.closest(".schreibstube-overlay-row") as HTMLElement | null;
+  private handleKey = (event: KeyboardEvent): void => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    event.stopPropagation();
+    this.pressRow(event.target);
+  };
+
+  private pressRow(target: EventTarget | null): void {
+    const row =
+      target instanceof HTMLElement
+        ? (target.closest(".schreibstube-overlay-row") as HTMLElement | null)
+        : null;
     if (!row) {
       return;
     }
@@ -103,5 +120,5 @@ export class OverlayController {
     }
 
     this.onRowEvent({ lineNumber, level, kind: "ancestor", source: "click" });
-  };
+  }
 }

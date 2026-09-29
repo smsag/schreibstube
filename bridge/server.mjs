@@ -1,18 +1,6 @@
 /**
- * Schreibstube bridge.
- *
- * A stateless HTTP front end for the protocols an Obsidian plugin cannot speak.
- * Obsidian on mobile runs in a WebView with no Node runtime and no raw sockets,
- * so IMAP, SMTP and SFTP are out of reach; putting HTTPS in front of them gives
- * the plugin one transport (`requestUrl`) that behaves identically on desktop
- * and mobile.
- *
- * The bridge hosts capabilities, each with its own token, credentials and
- * limits. This file is only the plumbing: configuration, the route table, and
- * the order in which a request is checked. The capabilities are elsewhere.
- *
- * Nothing is persisted here: no database, no cache, no request-body logging.
- * The only long-lived state is the credentials held in the environment.
+ * Schreibstube bridge: the plumbing only — configuration, the route table,
+ * and the order in which a request is checked. The capabilities are elsewhere.
  */
 import { createServer } from "node:http";
 import { createRequire } from "node:module";
@@ -40,22 +28,41 @@ const throttle = createThrottle({
 });
 
 let draining = false;
-let inFlight = 0;
+/** Requests being answered, and handlers still running after a 504: the
+ *  shutdown waits for both, since the second may be halfway through a write. */
+const inFlight = new Set();
+
+function track(promise) {
+  inFlight.add(promise);
+  promise.then(
+    () => inFlight.delete(promise),
+    () => inFlight.delete(promise)
+  );
+  return promise;
+}
 
 const server = createServer((req, res) => {
   const requestId = newRequestId();
-  inFlight += 1;
-  handle(req, res, requestId)
-    .catch((err) => {
+  track(
+    handle(req, res, requestId).catch((err) => {
       log("error", `unhandled ${req.method} ${req.url}: ${err.stack ?? err.message}`, requestId);
       if (!res.headersSent) {
         sendError(res, 500, "internal_error", "Internal error.", requestId);
       }
     })
-    .finally(() => {
-      inFlight -= 1;
-    });
+  );
 });
+
+// Node's own limits on receiving a request, behind the route deadlines: the
+// headers within the default request budget, the whole request within the
+// longest route's, so a client that trickles bytes is cut off by one or the
+// other rather than holding a socket for as long as it likes.
+const longestRouteMs = Math.max(
+  config.requestTimeoutMs,
+  ...routes.map((route) => route.timeoutMs ?? 0)
+);
+server.headersTimeout = config.requestTimeoutMs;
+server.requestTimeout = longestRouteMs + 5_000;
 
 server.listen(config.port, () => {
   log("info", `listening on :${config.port} — capabilities: ${capabilities.join(", ")}`);
@@ -106,9 +113,6 @@ async function handle(req, res, requestId) {
 
   switch (resolution.outcome) {
     case "unauthorized":
-      // Deliberately identical for a missing token, a wrong one, and a valid
-      // token reaching for another capability. None of them learns the path
-      // even exists.
       throttle.recordFailure(address);
       return sendError(res, 401, "unauthorized", "Unauthorized.", requestId);
     case "not-found":
@@ -126,29 +130,28 @@ async function handle(req, res, requestId) {
   // how much it will accept and whether it wants that parsed at all: base64 in
   // a JSON payload would inflate a video by a third on the way through memory.
   const bodyType = route.bodyType ?? (route.method === "GET" ? "none" : "json");
-  let body;
-  try {
-    // A route may say what it will accept from the request itself: an image
-    // upload is held to the image limit rather than to the video one it
-    // shares a route with, before the bytes are in memory rather than after.
-    const maxBytes =
-      typeof route.maxBytes === "function" ? route.maxBytes(url.searchParams) : route.maxBytes;
-    const raw = bodyType === "none" ? Buffer.alloc(0) : await readBody(req, maxBytes);
-    body = bodyType === "json" ? parseJson(raw) : raw;
-  } catch (err) {
-    return fail(res, err, requestId);
-  }
+  const maxBytes =
+    typeof route.maxBytes === "function" ? route.maxBytes(url.searchParams) : route.maxBytes;
 
-  try {
-    const payload = await withDeadline(
+  // One deadline over reading the body and answering it: a client that sends
+  // its body a byte at a time used to be outside every budget, and a handler
+  // that outlives the deadline is still counted until it settles.
+  const work = async () => {
+    const raw = bodyType === "none" ? Buffer.alloc(0) : await readBody(req, maxBytes);
+    const body = bodyType === "json" ? parseJson(raw) : raw;
+    return track(
       route.handler({
         body,
         query: url.searchParams,
         requestId,
         log: (level, message) => log(level, message, requestId)
-      }),
-      // A route may need longer than the default: uploading a video over a slow
-      // line, or rendering and writing a whole site.
+      })
+    );
+  };
+
+  try {
+    const payload = await withDeadline(
+      work(),
       route.timeoutMs ?? config.requestTimeoutMs,
       "Request"
     );
@@ -170,11 +173,6 @@ function fail(res, err, requestId) {
   throw err;
 }
 
-/**
- * The only unauthenticated route, so a platform health check can reach it. The
- * version pair is what lets the plugin notice that a bridge was not redeployed
- * alongside it, rather than failing later on an unknown route.
- */
 function healthRoute() {
   return {
     method: "GET",
@@ -194,18 +192,18 @@ function healthRoute() {
 async function shutdown(signal) {
   if (draining) return;
   draining = true;
-  log("info", `${signal} received, draining ${inFlight} request(s)`);
+  log("info", `${signal} received, draining ${inFlight.size} task(s)`);
 
   server.close();
   server.closeIdleConnections?.();
 
   const until = Date.now() + config.drainTimeoutMs;
-  while (inFlight > 0 && Date.now() < until) {
+  while (inFlight.size > 0 && Date.now() < until) {
     await new Promise((done) => setTimeout(done, 50));
   }
 
-  if (inFlight > 0) {
-    log("warn", `exiting with ${inFlight} request(s) still in flight`);
+  if (inFlight.size > 0) {
+    log("warn", `exiting with ${inFlight.size} request(s) still in flight`);
   }
   process.exit(0);
 }

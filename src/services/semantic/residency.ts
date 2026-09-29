@@ -6,16 +6,20 @@
 // opens the camera — and a thrown-out app cold-starts on return, which looks
 // exactly like the "hard reload" this work began with. On a phone the model is
 // therefore released when Obsidian goes to the background and after
-// IDLE_RELEASE_MS without use, and loaded again ahead of need: when Obsidian
-// comes back, and when the user focuses the chat input. Reloading from the cache
-// took 0.7 s on the reporter's iPhone, so typing a question hides it.
+// IDLE_RELEASE_MS without use, and loaded again only when something asks: a
+// search, an embed, or the search box taking the focus (`SemanticEngine.warm`).
+// It was once loaded again the moment Obsidian came back, ahead of need; on a
+// phone that is the most frequent gesture there is, most returns are to keep
+// reading or writing, and each load was the memory peak that got the app
+// ended. Reloading from the cache took 0.7 s on the reporter's iPhone, so a
+// search box focused first hides it.
 //
 // The desktop is untouched: nothing is released there.
 //
 // This module also owns the ONE `visibilitychange` reaction Pythia has: the
 // visible clock (timeouts), the build guard (background deaths) and the release.
 
-import type { EmbedOptions, EmbeddingBackend, EmbeddingProvider } from "./embedding-provider";
+import type { EmbedOptions, EmbeddingProvider } from "./embedding-provider";
 import { visibleClock, type VisibleClock } from "./visible-clock";
 
 /** Idle time after which a phone releases the model. Long enough that a
@@ -79,14 +83,6 @@ export class ResidentProvider implements EmbeddingProvider {
     return this.inner.isOffThread?.() ?? false;
   }
 
-  backend(): EmbeddingBackend | null {
-    return this.inner.backend?.() ?? null;
-  }
-
-  backendFailures(): string[] {
-    return this.inner.backendFailures?.() ?? [];
-  }
-
   loadFailed(): boolean {
     return this.inner.loadFailed?.() ?? false;
   }
@@ -114,9 +110,6 @@ export interface ResidencyDeps {
 
 export class EmbeddingResidency {
   private lastUse: number;
-  /** Released by THIS rule, so it is ours to load again. A model never loaded is
-   *  not preloaded — that would be a download the user did not ask for. */
-  private released = false;
   private readonly now: () => number;
   private readonly clock: VisibleClock;
 
@@ -128,7 +121,6 @@ export class EmbeddingResidency {
 
   noteUse(): void {
     this.lastUse = this.now();
-    this.released = false;
   }
 
   onVisibility(hidden: boolean): void {
@@ -138,9 +130,7 @@ export class EmbeddingResidency {
     // let a hung request wait forever.
     if (this.deps.mobile) this.clock.note(hidden);
     this.deps.onBackground(hidden);
-    if (!this.deps.mobile) return;
-    if (hidden) this.release("background");
-    else this.prewarm();
+    if (this.deps.mobile && hidden) this.release("background");
   }
 
   /** The periodic idle check. Never fires in the background (the app is frozen
@@ -150,25 +140,10 @@ export class EmbeddingResidency {
     if (this.now() - this.lastUse >= IDLE_RELEASE_MS) this.release("idle");
   }
 
-  /** Load the model again ahead of need — only if this rule released it. */
-  prewarm(): void {
-    if (!this.released) return;
-    const p = this.deps.provider();
-    if (!p) return;
-    this.released = false;
-    this.lastUse = this.now();
-    this.deps.log("embedding: preloading after release");
-    p.ready().catch((e: unknown) => {
-      // Not silent (principle 2): the next real use will retry and report.
-      this.deps.log("semantic engine: preload failed", e);
-    });
-  }
-
   private release(reason: "background" | "idle"): void {
     const p = this.deps.provider();
     if (!p || !p.loaded || p.busy || this.deps.building()) return;
     p.unload();
-    this.released = true;
     this.deps.log("embedding: model released", { reason });
   }
 }

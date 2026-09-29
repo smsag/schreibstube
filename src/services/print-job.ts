@@ -67,7 +67,7 @@ export function buildJob(input: JobInput): PrintJob {
     `#import ${JSON.stringify(LAYOUT_FILE)}: *\n` +
     `\n` +
     `#let data = ${typstDictionary(input.data)}\n` +
-    (page ? `${page}\n` : "") +
+    `${page}\n` +
     `\n` +
     `#show: body => ${template.entry}(body, data)\n` +
     `\n` +
@@ -153,7 +153,7 @@ export function compileDeadline(job: PrintJob): number {
  * Set before the layout runs, so a layout that says nothing about paper still
  * gets the size the descriptor asked for, and one that does say overrides it.
  */
-function pageRule(template: PrintTemplate): string | null {
+function pageRule(template: PrintTemplate): string {
   const parts = [`paper: ${JSON.stringify(template.page.size)}`];
   if (template.page.margin !== null) parts.push(`margin: ${marginValue(template.page.margin)}`);
   return `#set page(${parts.join(", ")})`;
@@ -256,8 +256,52 @@ export function jobAssetPath(vaultPath: string, assigned: Map<string, string>): 
  * document's information and in its XMP, both uncompressed.
  */
 export function isTypesetPdf(bytes: Uint8Array): boolean {
-  const text = new TextDecoder("latin1").decode(bytes);
-  return /\/Creator\s*\(Typst[ )]|<xmp:CreatorTool>Typst[ <]/.test(text);
+  // Searched as bytes: decoding a document of thirty megabytes into a string
+  // to find one word doubled what the print held in memory at its peak.
+  return (
+    hasMarker(bytes, "/Creator", "(Typst", [0x20, 0x29]) ||
+    hasMarker(bytes, "<xmp:CreatorTool>", "Typst", [0x20, 0x3c])
+  );
+}
+
+/**
+ * Whether `head`, then optional whitespace, then `word`, then one of `next`
+ * occurs in the bytes: the shape both of Typst's marks have.
+ */
+function hasMarker(bytes: Uint8Array, head: string, word: string, next: number[]): boolean {
+  const headBytes = new TextEncoder().encode(head);
+  const wordBytes = new TextEncoder().encode(word);
+  for (
+    let at = indexOfBytes(bytes, headBytes, 0);
+    at !== -1;
+    at = indexOfBytes(bytes, headBytes, at + 1)
+  ) {
+    let after = at + headBytes.length;
+    while (after < bytes.length && isPdfWhitespace(bytes[after] ?? 0)) after += 1;
+    if (!startsWithBytes(bytes, wordBytes, after)) continue;
+    const following = bytes[after + wordBytes.length];
+    if (following !== undefined && next.includes(following)) return true;
+  }
+  return false;
+}
+
+function isPdfWhitespace(byte: number): boolean {
+  return byte === 0x20 || byte === 0x0a || byte === 0x0d || byte === 0x09 || byte === 0x0c;
+}
+
+function startsWithBytes(bytes: Uint8Array, needle: Uint8Array, at: number): boolean {
+  if (at + needle.length > bytes.length) return false;
+  for (let i = 0; i < needle.length; i += 1) if (bytes[at + i] !== needle[i]) return false;
+  return true;
+}
+
+function indexOfBytes(bytes: Uint8Array, needle: Uint8Array, from: number): number {
+  const first = needle[0];
+  if (first === undefined) return -1;
+  for (let at = bytes.indexOf(first, from); at !== -1; at = bytes.indexOf(first, at + 1)) {
+    if (startsWithBytes(bytes, needle, at)) return at;
+  }
+  return -1;
 }
 
 function sum(values: readonly number[]): number {

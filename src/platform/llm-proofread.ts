@@ -5,16 +5,16 @@
 
 import type { SchreibstubeSettings } from "../types";
 import { sendRequest } from "./llm-client";
-import type { TermConstraint } from "./glossary-matcher";
-import { buildSummaryRequest, effectiveModel } from "./llm-providers";
-import type { ProseBlock } from "./markdown-segments";
+import type { TermConstraint } from "../services/glossary-matcher";
+import { buildSummaryRequest, effectiveModel } from "../services/llm-providers";
+import type { ProseBlock } from "../services/markdown-segments";
 import {
   buildProofreadSystemPrompt,
   encodeChunk,
   parseChunkResponse,
   tokensForChunk
-} from "./proofread-protocol";
-import type { CancelToken, ChunkSender } from "./proofread-runner";
+} from "../services/proofread-protocol";
+import type { CancelToken, ChunkSender } from "../services/proofread-runner";
 
 export type ProofreadSettings = Pick<
   SchreibstubeSettings,

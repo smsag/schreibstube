@@ -219,7 +219,36 @@ describe("runProofread", () => {
       createCancelToken()
     );
     expect(result.failedChunks).toBe(1);
+    expect(result.totalChunks).toBe(2);
+    expect(result.firstFailure).toBe("boom");
     expect(result.suggestions).toHaveLength(1);
+  });
+
+  it("keeps the first failure's message when every request fails", async () => {
+    const text = "Erster Fhler.\n\nZweiter Fhler.";
+    let call = 0;
+    const result = await runProofread(
+      text,
+      async () => {
+        call += 1;
+        throw new Error(`Anfrage ${call} abgelehnt`);
+      },
+      { chunkChars: 15, concurrency: 1 },
+      createCancelToken()
+    );
+    expect(result.failedChunks).toBe(result.totalChunks);
+    expect(result.firstFailure).toBe("Anfrage 1 abgelehnt");
+    expect(result.suggestions).toEqual([]);
+  });
+
+  it("reports no failure when every request succeeded", async () => {
+    const result = await runProofread(
+      "Alles korrekt.",
+      echoSender((b) => b.masked),
+      options,
+      createCancelToken()
+    );
+    expect(result.firstFailure).toBeUndefined();
   });
 
   it("stops sending chunks once cancelled", async () => {

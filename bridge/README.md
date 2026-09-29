@@ -29,6 +29,7 @@ route that does not exist yet.
 
 | Bridge | Protocol | Plugin          | Notes                                                            |
 | ------ | -------- | --------------- | ---------------------------------------------------------------- |
+| 2.11.x | 6        | 1.8.0 and later | A commit reports `deleteFailed`; assets and SVGs checked         |
 | 2.10.x | 5        | 1.8.0 and later | A send may carry a note's diagrams as PNG attachments            |
 | 2.9.x  | 4        | 1.8.0 and later | Alias `from`, refused and unconfirmed sends, `MAIL_FROM` checked |
 | 2.8.x  | 3        | 1.8.0 and later | The site's tab icon, named by its theme                          |
@@ -58,20 +59,20 @@ memory, and a second instance would not see it.
 All endpoints except `/health` require `Authorization: Bearer <token>`, and the
 token must belong to the capability that owns the route.
 
-| Method | Path                   | Capability | Body                                                                           | Returns                                            |
-| ------ | ---------------------- | ---------- | ------------------------------------------------------------------------------ | -------------------------------------------------- |
-| `GET`  | `/health`              | —          | —                                                                              | `{status, version, protocol, capabilities[]}`      |
-| `POST` | `/diagnostics`         | mail       | —                                                                              | per-protocol reachability                          |
-| `POST` | `/send`                | mail       | `{to, cc?, bcc?, subject, text, from?, inReplyTo?, references?, attachments?}` | `{messageId, sentAt, filedInSent, rejected[]}`     |
-| `POST` | `/search`              | mail       | `{criteria:{from?,to?,subject?,text?,since?,references?}, mailbox?, limit?}`   | `{messages[], mailbox, truncated}`                 |
-| `GET`  | `/publish/targets`     | publish    | —                                                                              | `{targets:[{name, baseUrl, siteTitle}]}`           |
-| `POST` | `/publish/diagnostics` | publish    | `{target}`                                                                     | `{ok, root, entries}` or `{ok:false, error}`       |
-| `POST` | `/publish/plan`        | publish    | `{target, index}`                                                              | what to upload, and what will be deleted           |
-| `PUT`  | `/publish/source`      | publish    | raw Markdown, `?target=&sha256=`                                               | `{sha256, bytes}`                                  |
-| `PUT`  | `/publish/asset`       | publish    | raw bytes, `?target=&sha256=&name=`                                            | `{sha256, bytes, path}`                            |
-| `PUT`  | `/publish/thumbnail`   | publish    | raw JPEG or PNG, `?target=&source=&sha256=&name=`                              | `{sha256, bytes, path}`                            |
-| `POST` | `/publish/commit`      | publish    | `{target, index}`                                                              | `{written, unchanged, deleted, pruned, collected}` |
-| `POST` | `/publish/render`      | publish    | `{target}`                                                                     | the same, rebuilt from stored state                |
+| Method | Path                   | Capability | Body                                                                           | Returns                                                                        |
+| ------ | ---------------------- | ---------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------ |
+| `GET`  | `/health`              | —          | —                                                                              | `{status, version, protocol, capabilities[]}`                                  |
+| `POST` | `/diagnostics`         | mail       | —                                                                              | per-protocol reachability                                                      |
+| `POST` | `/send`                | mail       | `{to, cc?, bcc?, subject, text, from?, inReplyTo?, references?, attachments?}` | `{messageId, sentAt, filedInSent, rejected[]}`                                 |
+| `POST` | `/search`              | mail       | `{criteria:{from?,to?,subject?,text?,since?,references?}, mailbox?, limit?}`   | `{messages[], mailbox, truncated}`                                             |
+| `GET`  | `/publish/targets`     | publish    | —                                                                              | `{targets:[{name, baseUrl, siteTitle}]}`                                       |
+| `POST` | `/publish/diagnostics` | publish    | `{target}`                                                                     | `{ok, root, entries}` or `{ok:false, error}`; a missing web root is `ok:false` |
+| `POST` | `/publish/plan`        | publish    | `{target, index}`                                                              | what to upload, and what will be deleted                                       |
+| `PUT`  | `/publish/source`      | publish    | raw Markdown, `?target=&sha256=`                                               | `{sha256, bytes}`                                                              |
+| `PUT`  | `/publish/asset`       | publish    | raw bytes, `?target=&sha256=&name=`                                            | `{sha256, bytes, path}`                                                        |
+| `PUT`  | `/publish/thumbnail`   | publish    | raw JPEG or PNG, `?target=&source=&sha256=&name=`                              | `{sha256, bytes, path}`                                                        |
+| `POST` | `/publish/commit`      | publish    | `{target, index}`                                                              | `{written, unchanged, deleted, deleteFailed, pruned, collected}`               |
+| `POST` | `/publish/render`      | publish    | `{target}`                                                                     | the same, rebuilt from stored state                                            |
 
 `/health` is the version handshake: plugin and bridge deploy separately, and
 `protocol` is what lets the plugin say "redeploy the bridge" instead of failing
@@ -119,7 +120,13 @@ Two details worth knowing:
 - **SMTP does not file a copy in Sent.** After a successful send the bridge
   `APPEND`s the same bytes to the Sent mailbox over IMAP. A failure there is
   reported in `filedInSent` but is not treated as a failed send — the mail is
-  already delivered.
+  already delivered. The reason is in the log, as a warning against the
+  Message-ID.
+- **Every field of a send is checked before anything is compiled.** Recipients
+  are read with the parser that builds the envelope, and one with no address
+  in it is refused rather than sent to nobody; `subject`, `inReplyTo` and each
+  of `references` are strings of at most 998 characters, `references` a list
+  of at most 100. The Message-ID is always the bridge's own.
 
 ## Tests
 
@@ -164,7 +171,16 @@ it. Output is hashed before it is written, so an unchanged page is left alone.
 **The manifest is what makes deletion safe.** `<state>/manifest.json` records
 every file the bridge wrote. A page whose note was unpublished is removed; a
 file the bridge has never heard of is never touched. It is written last, so a
-crash means the next publish repeats work rather than losing a file.
+crash means the next publish repeats work rather than losing a file. A
+deletion the host refuses is counted in the commit's `deleteFailed`, logged as
+a warning, and kept in the manifest, so the next publish tries it again;
+`deleted` counts only what actually went.
+
+**A commit records only what is on the host.** An asset the index names is
+one the bridge has recorded in the manifest or written since the last commit;
+one that was never uploaded — the plugin gave up halfway — refuses the commit
+with `409 assets_missing`, naming the files, as a missing source does with
+`sources_missing`. Running the plan again asks for them.
 
 **Each publish leaves a trace.** `<state>/history.json` keeps the last fifty
 summaries — when, what was written, what was deleted — so "when did that page
@@ -186,7 +202,20 @@ out.
 The requests of one publish share one SFTP connection per target, closed after
 fifteen seconds without use, so a first publish of many files logs in once
 rather than once per file; a connection that failed in a way that may have
-broken it is never reused.
+broken it is never reused. Every SFTP operation is under `UPSTREAM_TIMEOUT_MS`,
+a transfer under that plus a minute per 7.5 MB of the file, and every publish
+request under its own budget; when a request runs out, its
+connection is closed, which is what fails the operation the server never
+answered and frees the target for the next publish. The connection pings the
+server every ten seconds and gives up after three unanswered pings, so a line
+that died without a word is noticed within the minute.
+
+An uploaded asset has to be what its name says: a PNG or JPEG begins like one,
+and an SVG passes the tab icon's check below — no script, no event handler,
+nothing loaded from elsewhere — since it is served from the site's own domain.
+A drawing's own fonts and pictures embedded as `data:` URIs are allowed there,
+since an Excalidraw or draw.io export carries them.
+One that fails is refused with `400 asset_rejected`.
 
 Every write goes to a temporary name and is renamed over its target, so a reader
 never sees a half-written page. The host key is checked against a configured
@@ -209,7 +238,7 @@ the plugin would refuse is left off the page.
 
 A filmstrip's thumbnails are small copies the plugin makes, since it can
 decode a picture where the picture is and the bridge would otherwise need an
-image library to decode files from the network. Protocol 2 carries them: an
+image library to decode files from the network. Protocol 3 carries them: an
 index asset may say `thumbnail: true`, the plan answers with the
 `uploadThumbnails` the site lacks, and `PUT /publish/thumbnail` takes each one,
 addressed by the picture it shows (`source`) and checked by its own bytes
@@ -261,10 +290,13 @@ arrives on its own, since that is the one worth reading.
 
 The image does not carry Mermaid's dependency tree at all. The `Dockerfile`
 installs the package in a build stage, keeps the one prebuilt file under
-`vendor/mermaid.min.js`, and removes the rest — 205 MB of parser dependencies
+`vendor/mermaid.min.js`, and removes the rest — 167 MB of parser dependencies
 that would never run. `assets.mjs` looks in `vendor/` first and only then in
 the package, which is what a checkout with `node_modules` uses. CI boots the
-image and checks that both halves of that happened.
+image and checks that both halves of that happened. The install runs no
+package's install scripts: nothing in the tree needs one (ssh2 falls back to
+its pure JavaScript ciphers), and a script is the one place a dependency
+would run code at build time.
 
 ## Configuration
 
@@ -290,9 +322,10 @@ everything else has a sensible default. Set none of them and the bridge does not
 offer mail; set some, and it names the ones still missing. Missing or weak
 values fail at startup with a precise message rather than on the first
 request. So does a variable that is set and unreadable: a `MAIL_FROM` with no
-address in it, a numeric one that is
-not a positive integer, or a flag spelled as neither true nor false. Leave a
-variable out to take its default; do not leave it half-written.
+address in it, a numeric one that is not a positive integer written in
+decimal digits, a port above 65535, a `PUBLISH_<TARGET>_KEY` that does not
+decode to a PEM, OpenSSH or PuTTY private key, or a flag spelled as neither true nor
+false. Leave a variable out to take its default; do not leave it half-written.
 
 **Where a target keeps its state.** `PUBLISH_<TARGET>_STATE_ROOT` is an
 absolute path on the SFTP host, and it holds every published note's Markdown as
@@ -311,8 +344,9 @@ and then:
   location ^~ /.schreibstube/ { deny all; }
   ```
 
-**Budgets.** `REQUEST_TIMEOUT_MS` (30 s) bounds a request and
-`UPSTREAM_TIMEOUT_MS` (20 s) each operation against a mail or SFTP server. A
+**Budgets.** `REQUEST_TIMEOUT_MS` (30 s) bounds a request, reading its body
+included, and `UPSTREAM_TIMEOUT_MS` (20 s) each operation against a mail or
+SFTP server, the connection attempts of `/diagnostics` included. A
 send is two such operations, delivery and then filing the copy in Sent, each
 with its own deadline, and the request is allowed both plus five seconds. A
 Sent folder that does not answer in time is reported as `filedInSent: false`,

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createRenderer, renderMarkdown } from "./render/markdown.mjs";
 import { notePage } from "./render/page.mjs";
 import { parseSlideshow, regionLabel, renderSlideshow } from "./render/slideshow.mjs";
-import { availableThumbnails, ThumbnailLedger } from "./routes.mjs";
+import { availableThumbnails, UploadLedger } from "./routes.mjs";
 import { buildSite, sha256 } from "./site.mjs";
 
 const md = createRenderer();
@@ -264,14 +264,24 @@ describe("filmstrip thumbnails", () => {
     ).toBe(0);
   });
 
-  it("remembers what it wrote per target, until the manifest records it", () => {
-    const ledger = new ThumbnailLedger();
+  it("remembers what it wrote per target, until a commit records it", () => {
+    const ledger = new UploadLedger();
     ledger.record("blog", "assets/thumbs/a.png", { sha256: "x", bytes: 1 });
     ledger.record("notizen", "assets/thumbs/b.png", { sha256: "y", bytes: 1 });
     expect([...ledger.written("blog").keys()]).toEqual(["assets/thumbs/a.png"]);
-    ledger.forget("blog", ["assets/thumbs/a.png"]);
+    ledger.clear("blog");
     expect(ledger.written("blog").size).toBe(0);
     expect(ledger.written("notizen").size).toBe(1);
-    ledger.forget("archiv", ["x"]);
+    ledger.clear("archiv");
+  });
+
+  it("forgets the oldest uploads past its cap, so a publish that never commits cannot fill it", () => {
+    const ledger = new UploadLedger({ maxEntries: 2 });
+    ledger.record("blog", "a.png", { sha256: "a", bytes: 1 });
+    ledger.record("blog", "b.png", { sha256: "b", bytes: 1 });
+    ledger.record("blog", "a.png", { sha256: "a2", bytes: 1 });
+    ledger.record("blog", "c.png", { sha256: "c", bytes: 1 });
+    expect([...ledger.written("blog").keys()]).toEqual(["a.png", "c.png"]);
+    expect(ledger.written("blog").get("a.png").sha256).toBe("a2");
   });
 });

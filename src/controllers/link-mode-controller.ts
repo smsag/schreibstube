@@ -1,4 +1,5 @@
-import { MarkdownView, type App, type WorkspaceLeaf } from "obsidian";
+import { Keymap, MarkdownView, type App, type WorkspaceLeaf } from "obsidian";
+
 import { t } from "../i18n";
 import type { Logger } from "../services/logger";
 import { nextLinkMode, type LinkOpenMode } from "../services/link-mode";
@@ -12,9 +13,7 @@ export type { LinkOpenMode } from "../services/link-mode";
 
 /**
  * Owns the "open links in a side pane" feature: the current mode, its status
- * bar indicator, the `openLinkText` patch, and click interception. Extracted
- * from the plugin so the fragile Obsidian-internal interactions live behind one
- * small, cohesive surface (see workspace-internals for the guarded casts).
+ * bar indicator, the `openLinkText` patch, and click interception.
  */
 export class LinkModeController {
   private mode: LinkOpenMode = "default";
@@ -27,7 +26,6 @@ export class LinkModeController {
     private readonly logger: Logger
   ) {}
 
-  /** Install the status bar indicator and patch `openLinkText`. */
   start(statusEl: HTMLElement): void {
     this.statusEl = statusEl;
     // The indicator is shown only while links open to a side, so a click on it
@@ -55,7 +53,7 @@ export class LinkModeController {
     this.unpatch = null;
   }
 
-  setMode(mode: LinkOpenMode): void {
+  private setMode(mode: LinkOpenMode): void {
     this.mode = mode;
     this.targetLeaf = null;
     this.updateStatus();
@@ -67,10 +65,14 @@ export class LinkModeController {
     this.setMode(nextLinkMode(this.mode));
   }
 
-  /** Handle a document-level click; intercepts internal links when a side-pane
-   *  mode is active. */
+  /** Intercepts a plain left click on an internal link while a side-pane mode
+   *  is active. A middle click or one with a modifier asks Obsidian for a tab
+   *  or a window, and that request is left to it. */
   async handleDocumentClick(event: MouseEvent): Promise<void> {
     if (this.mode === "default") {
+      return;
+    }
+    if (event.button !== 0 || Keymap.isModEvent(event)) {
       return;
     }
 
@@ -86,6 +88,7 @@ export class LinkModeController {
     }
 
     event.preventDefault();
+
     event.stopPropagation();
 
     const sourceLeaf = this.findLeafContainingNode(target);
@@ -119,8 +122,8 @@ export class LinkModeController {
     const sourcePath =
       sourceLeaf.view instanceof MarkdownView ? (sourceLeaf.view.file?.path ?? "") : "";
 
-    // Separate the file path from any heading/block subpath.
     const subpathMatch = linkText.match(/^([^#^]*)([#^].*)?$/);
+
     const linkPath = subpathMatch?.[1] ?? linkText;
     const subpath = subpathMatch?.[2] ?? "";
 
@@ -130,7 +133,6 @@ export class LinkModeController {
       return;
     }
 
-    // Reuse the existing side pane if still open, otherwise create one.
     if (this.targetLeaf && !this.targetLeaf.view.containerEl.isConnected) {
       this.targetLeaf = null;
     }
@@ -149,7 +151,6 @@ export class LinkModeController {
 
     await this.targetLeaf.openFile(file, subpath ? { eState: { subpath } } : undefined);
 
-    // Return focus to the note the user was reading.
     this.app.workspace.setActiveLeaf(sourceLeaf, { focus: true });
   }
 

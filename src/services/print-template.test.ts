@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { t } from "../i18n";
 import {
   checkLayout,
   chooseTemplate,
@@ -107,20 +108,20 @@ describe("checkLayout", () => {
     expect(checkLayout('#let letter(body, data) = {\n  image("logo.png")\n  body\n}')).toEqual([]);
   });
 
-  it("refuses a package, because printing works offline", () => {
-    expect(checkLayout('#import "@preview/cetz:0.2.0": *')).toEqual([
-      "line 1: packages cannot be used, printing works offline"
-    ]);
+  it("names a package import, which a print without a network cannot resolve", () => {
+    expect(checkLayout('#import "@preview/cetz:0.2.0": *')).toEqual([t().print.layout.package(1)]);
     expect(checkLayout('#import "@local/mine:1.0.0": *')).toHaveLength(1);
   });
 
-  it("refuses a path that leaves the folder or starts at the root", () => {
+  it("names a path that leaves the folder or starts at the root", () => {
     expect(checkLayout('#image("../../../etc/passwd")')).toEqual([
-      "line 1: a path may not leave the template folder"
+      t().print.layout.leavesFolder(1)
     ]);
-    expect(checkLayout('#read("/etc/hosts")')).toEqual([
-      "line 1: a path must be relative to the template folder"
-    ]);
+    expect(checkLayout('#read("/etc/hosts")')).toEqual([t().print.layout.absolute(1)]);
+  });
+
+  it("is a lint over literals: a path built from pieces is the file system's to refuse", () => {
+    expect(checkLayout('#let up = "../"\n#image(up + "out.png")')).toEqual([]);
   });
 
   it("reads nothing into a comment, where a mention is not a use", () => {

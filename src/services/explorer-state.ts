@@ -1,28 +1,10 @@
 /**
  * What the explorer knows about a file beyond what the vault says: an icon,
  * whether it is held at the top of its folder, and whether it sits in the
- * pinned block above the tree.
- *
- * The last two are separate on purpose. A note that matters inside one project
- * folder is not a note that belongs at the top of the whole pane, and holding
- * both meanings in one flag meant marking the first always did the second.
- *
- * The state is keyed by vault path, which is the only handle Obsidian offers —
- * there is no stable file id. Paths move, so three rules keep the map honest.
- *
- * **A move is followed, not guessed.** Obsidian reports renames, including the
- * implicit rename of every file under a renamed folder, and the map follows.
- *
- * **A disappearance is remembered, not deleted.** A file moved outside Obsidian
- * arrives as a delete followed by a create, and deleting the entry on the spot
- * would lose the icon. The entry becomes a tombstone instead, and a file that
- * turns up later under the same name reclaims it.
- *
- * **Every entry carries its own timestamp.** The file behind this map is
- * synced between devices by iCloud, Obsidian Sync or Git, and two devices will
- * write it independently. Merging per entry, newest wins, turns what would be a
- * lost update into a lost keystroke at worst.
+ * pinned block above the tree. ARCHITECTURE.md says how the map, keyed by
+ * path, follows moves, keeps tombstones and merges per entry.
  */
+import { basename } from "./file-name";
 
 export const EXPLORER_DATA_VERSION = 2;
 
@@ -401,13 +383,6 @@ export function mergeExplorerData(mine: ExplorerData, theirs: ExplorerData): Exp
 }
 
 /**
- * Everything pinned, in the order it was pinned.
- *
- * This is what the pane's pinned block draws. It is the answer to "wherever I
- * am, I want this one row"; keeping a file at the top of its folder is the
- * answer to "inside this folder, this one first", and the two are set apart.
- */
-/**
  * Put the pinned block in a given order.
  *
  * `pinnedAt` doubles as the sort key, so a reorder rewrites it: consecutive
@@ -441,6 +416,13 @@ export function reorderPinned(
   return { version: EXPLORER_DATA_VERSION, entries };
 }
 
+/**
+ * Everything pinned, in the order it was pinned.
+ *
+ * This is what the pane's pinned block draws. It is the answer to "wherever I
+ * am, I want this one row"; keeping a file at the top of its folder is the
+ * answer to "inside this folder, this one first", and the two are set apart.
+ */
 export function pinnedPaths(data: ExplorerData): string[] {
   return Object.entries(data.entries)
     .filter(([, entry]) => entry.orphanedAt === undefined && entry.pinnedAt !== undefined)
@@ -460,7 +442,7 @@ export function pinnedPaths(data: ExplorerData): string[] {
  * and says nothing about where the file sits inside its folder.
  */
 export function sortSiblings<T extends ExplorerNode>(nodes: readonly T[], data: ExplorerData): T[] {
-  const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
+  const collator = siblingCollator();
 
   return [...nodes].sort((a, b) => {
     const keptA = entryFor(data, a.path)?.keptAt;
@@ -476,6 +458,9 @@ export function sortSiblings<T extends ExplorerNode>(nodes: readonly T[], data: 
   });
 }
 
-function basename(path: string): string {
-  return path.split("/").pop() ?? path;
+/** Built once: a collator costs more to make than a folder costs to sort. */
+let collator: Intl.Collator | null = null;
+function siblingCollator(): Intl.Collator {
+  collator ??= new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
+  return collator;
 }

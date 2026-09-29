@@ -237,7 +237,11 @@ function findLine(
   start: number,
   predicate: (line: SourceLine) => boolean
 ): number {
-  return lines.findIndex((line, i) => i >= start && predicate(line));
+  for (let at = Math.max(0, start); at < lines.length; at += 1) {
+    const line = lines[at];
+    if (line !== undefined && predicate(line)) return at;
+  }
+  return -1;
 }
 
 function collectMaskRanges(text: string): TextRange[] {

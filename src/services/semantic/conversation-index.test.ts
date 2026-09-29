@@ -1,11 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { ConversationIndex } from "./conversation-index";
 import { conversationChunks, type ConversationItem } from "./conversation-source";
 import { conversationContentHash, serializeIndex } from "./embedding-index";
 import type { EmbeddingProvider } from "./embedding-provider";
 import type { IndexStore } from "./index-store";
 import { hashPolicyFor } from "./row-provenance";
-import { quantize } from "./vector-math";
+import { MAX_SOURCE_CHUNKS, quantize } from "./vector-math";
 
 /** Maps text to an axis by keyword, and records what it embedded. */
 class FakeProvider implements EmbeddingProvider {
@@ -143,8 +143,46 @@ describe("ConversationIndex — conversations like a note", () => {
     provider.embedded = [];
 
     const noteVectors = [quantize(Float32Array.from([1, 0, 0, 0]))];
-    expect(index.relatedToVectors(noteVectors, OPTS).map((r) => r.id)).toEqual(["a"]);
-    expect(index.relatedToVectors([], OPTS)).toEqual([]);
+    expect((await index.relatedToVectors(noteVectors, OPTS)).map((r) => r.id)).toEqual(["a"]);
+    expect(await index.relatedToVectors([], OPTS)).toEqual([]);
+    expect(provider.embedded).toEqual([]);
+  });
+
+  it("ranks a long note by its first passages, and yields to the UI meanwhile", async () => {
+    const provider = new FakeProvider();
+    const index = new ConversationIndex(provider, new MemStore(), POLICY);
+    await index.sync(
+      Array.from({ length: 300 }, (_, i) => conv(`c${i}`, i === 0 ? "küche" : "garten"))
+    );
+    // The passage that matches comes after the cap: it must not count.
+    const noteVectors = Array.from({ length: MAX_SOURCE_CHUNKS + 1 }, (_, i) =>
+      quantize(Float32Array.from(i === MAX_SOURCE_CHUNKS ? [1, 0, 0, 0] : [0, 0, 1, 0]))
+    );
+    let yielded = 0;
+    const timers = vi.spyOn(globalThis, "setTimeout");
+    timers.mockImplementation(((fn: () => void) => {
+      yielded++;
+      fn();
+      return 0;
+    }) as never);
+    try {
+      const found = await index.relatedToVectors(noteVectors, OPTS);
+      expect(found).toEqual([]);
+      // 300 items at 2000 / 8 = 250 per yield: the scan yielded once.
+      expect(yielded).toBe(1);
+    } finally {
+      timers.mockRestore();
+    }
+  });
+
+  it("ranks a query already embedded, without the model", async () => {
+    const provider = new FakeProvider();
+    const index = new ConversationIndex(provider, new MemStore(), POLICY);
+    await index.sync([conv("a", "küche hell"), conv("b", "garten")]);
+    provider.embedded = [];
+    const query = quantize(Float32Array.from([1, 0, 0, 0]));
+    expect(index.queryByVector(query, OPTS).map((r) => r.id)).toEqual(["a"]);
+    expect(index.queryByVector(query, { ...OPTS, exclude: ["a"] })).toEqual([]);
     expect(provider.embedded).toEqual([]);
   });
 });

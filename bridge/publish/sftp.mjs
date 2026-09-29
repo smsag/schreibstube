@@ -1,26 +1,52 @@
 /**
- * The SFTP side of publishing.
- *
- * Two things here are not negotiable. The host key is verified against a
- * fingerprint configured up front, because a stateless container cannot trust
- * on first use — it would re-trust a new key after every restart. And every
- * write goes to a temporary name and is renamed over its target, so a reader
- * never sees a half-written page.
- *
- * A connection is shared by the requests of one publish and closed once it
- * has been idle for a moment; `connection-pool.mjs` decides that. Opening one
- * per request was simpler, and cost a login per uploaded file.
+ * The SFTP side of publishing: a host key checked against a configured
+ * fingerprint, and every write to a temporary name renamed over its target.
  */
 import { createHash, randomBytes } from "node:crypto";
 import Client from "ssh2-sftp-client";
+import { withDeadline } from "../timeout.mjs";
 import { joinRemote } from "./path.mjs";
 
-export class SftpError extends Error {}
+/**
+ * An SFTP failure with a wording the client may see. The full message is for
+ * the operator's log: the library quotes the absolute path it was working on,
+ * and the vault has no business learning where the web root lives.
+ */
+export class SftpError extends Error {
+  constructor(message, { client = "SFTP failed." } = {}) {
+    super(message);
+    this.clientMessage = client;
+  }
+}
+
+/** The one failure a person has to see word for word. */
+export class HostKeyMismatchError extends SftpError {
+  constructor(message) {
+    super(message, { client: message });
+  }
+}
+
+/**
+ * A server pinged every ten seconds and given up on after three unanswered
+ * pings, so a line that died without a FIN — a NAT that forgot it, a host
+ * that rebooted — fails within the minute rather than never.
+ */
+export const KEEPALIVE_INTERVAL_MS = 10_000;
+export const KEEPALIVE_COUNT_MAX = 3;
 
 /** ssh2 reports a missing file as SFTP status 2, under several names. */
 function isMissing(err) {
   const code = err?.code;
   return code === 2 || code === "ENOENT" || /no such file/i.test(err?.message ?? "");
+}
+
+/**
+ * Whether the server said it lacks the POSIX rename extension: ssh2 refuses
+ * up front when the server did not advertise it, and a server that did may
+ * still answer status 8, `OP_UNSUPPORTED`.
+ */
+function isUnsupported(err) {
+  return err?.code === 8 || /unsupported|does not support/i.test(err?.message ?? "");
 }
 
 /** OpenSSH prints `SHA256:` and drops the padding; accept it either way. */
@@ -67,6 +93,8 @@ export async function connect(target) {
       ...(target.key ? { privateKey: target.key, passphrase: target.keyPassphrase } : {}),
       ...(target.password ? { password: target.password } : {}),
       readyTimeout: target.timeoutMs,
+      keepaliveInterval: KEEPALIVE_INTERVAL_MS,
+      keepaliveCountMax: KEEPALIVE_COUNT_MAX,
       hostVerifier: (key) => {
         presented = fingerprintOf(key);
         presentedType = keyTypeOf(key);
@@ -75,19 +103,31 @@ export async function connect(target) {
     });
   } catch (err) {
     if (presented && !fingerprintsMatch(presented, target.fingerprint)) {
-      throw new SftpError(
+      throw new HostKeyMismatchError(
         `Host key mismatch for ${target.host}. Configured ${target.fingerprint}, ` +
           `server presented ${presentedType} ${presented}. Refusing to connect. ` +
           `A fingerprint read with ssh-keyscan must be the ${presentedType} one.`
       );
     }
-    throw new SftpError(`Cannot reach ${target.host}: ${err.message}`);
+    throw new SftpError(`Cannot reach ${target.host}: ${err.message}`, {
+      client: "Cannot reach the SFTP host."
+    });
   }
 
   return new Remote(client, target);
 }
 
-class Remote {
+/**
+ * One connection's operations, each under the target's deadline: a request
+ * the server never answers would otherwise hold the per-target publish lock
+ * for as long as the socket stays open, which with a dead peer is forever.
+ */
+/** A line slower than this is not one a publish can be expected to finish on. */
+const MIN_TRANSFER_BYTES_PER_SECOND = 128 * 1024;
+/** The largest file read back from the host, for the read deadline. */
+const MAX_READ_BYTES = 32 * 1024 * 1024;
+
+export class Remote {
   constructor(client, target) {
     this.client = client;
     this.target = target;
@@ -96,6 +136,9 @@ class Remote {
     // before every file was a round trip per file for nothing. Parallel writes
     // into one new directory wait for the same request instead of racing.
     this.directories = new Map();
+    // Whether the server has the POSIX rename extension: unknown until the
+    // first rename, then remembered so the fallback is not retried per file.
+    this.posixRename = null;
   }
 
   /**
@@ -121,6 +164,23 @@ class Remote {
     }
   }
 
+  /** One library call under the deadline, named for the log. */
+  bounded(operation, promise, extraMs = 0) {
+    return withDeadline(promise, this.target.timeoutMs + extraMs, `SFTP ${operation}`);
+  }
+
+  /**
+   * How much longer than a round trip a transfer of `bytes` may take.
+   *
+   * The operation deadline is sized for a listing or a rename. A put is one
+   * promise for the whole file, and a video over a shared host's line is
+   * minutes, not seconds; cutting it at the round-trip budget made the
+   * upload budget the README promises unreachable.
+   */
+  transferAllowanceMs(bytes) {
+    return Math.ceil((bytes / MIN_TRANSFER_BYTES_PER_SECOND) * 1000);
+  }
+
   absolute(relative) {
     return joinRemote(this.target.root, relative);
   }
@@ -140,22 +200,31 @@ class Remote {
   }
 
   async writeAbsolute(path, content) {
-    const kind = await this.client.exists(path);
+    const kind = await this.exists(path);
     if (kind === "l") {
-      throw new SftpError(`Refusing to write through a symlink: ${path}`);
+      throw new SftpError(`Refusing to write through a symlink: ${path}`, {
+        client: "Refusing to write through a symlink."
+      });
     }
     if (kind === "d") {
-      throw new SftpError(`A directory is in the way: ${path}`);
+      throw new SftpError(`A directory is in the way: ${path}`, {
+        client: "A directory is in the way of a file."
+      });
     }
 
     await this.ensureDirectory(parentOf(path));
 
     const temporary = `${path}.schreibstube-${randomBytes(6).toString("hex")}`;
-    await this.client.put(Buffer.from(content), temporary);
+    const bytes = Buffer.from(content);
+    await this.bounded(
+      "put",
+      this.client.put(bytes, temporary),
+      this.transferAllowanceMs(bytes.length)
+    );
     try {
       await this.rename(temporary, path);
     } catch (err) {
-      await this.client.delete(temporary, true).catch(() => {});
+      await this.removeAbsolute(temporary).catch(() => {});
       throw err;
     }
   }
@@ -166,7 +235,7 @@ class Remote {
     if (!made) {
       // A failure here is not fatal, as it never was: the directory may exist
       // already, and a write into one that does not will fail on its own.
-      made = this.client.mkdir(path, true).catch(() => {});
+      made = this.bounded("mkdir", this.client.mkdir(path, true)).catch(() => {});
       this.directories.set(path, made);
     }
     return made;
@@ -178,23 +247,38 @@ class Remote {
    * Plain SFTP rename fails when the target exists, so the POSIX extension is
    * tried first: it replaces in one step, which is what makes the write atomic.
    * Servers without it get the two-step fallback and a window of milliseconds.
+   * Only "without it" earns the fallback: any other refusal — a permission, a
+   * dropped line — used to delete the target and then fail the rename too,
+   * leaving the page gone rather than merely stale.
    */
   async rename(from, to) {
-    try {
-      await this.client.posixRename(from, to);
-    } catch {
-      await this.client.delete(to, true).catch(() => {});
-      await this.client.rename(from, to);
+    if (this.posixRename !== false) {
+      try {
+        await this.bounded("posixRename", this.client.posixRename(from, to));
+        this.posixRename = true;
+        return;
+      } catch (err) {
+        if (!isUnsupported(err)) throw err;
+        this.posixRename = false;
+      }
     }
+    await this.removeAbsolute(to).catch(() => {});
+    await this.bounded("rename", this.client.rename(from, to));
   }
 
   /** False, "d", "-" or "l", as the client reports it. */
   async exists(path) {
-    return this.client.exists(path);
+    return this.bounded("exists", this.client.exists(path));
   }
 
   async readFile(path) {
-    const buffer = await this.client.get(path);
+    // A read's size is unknown until it arrives; a page or a manifest is small,
+    // and the largest thing read back is a source at its own upload limit.
+    const buffer = await this.bounded(
+      "get",
+      this.client.get(path),
+      this.transferAllowanceMs(MAX_READ_BYTES)
+    );
     return Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer);
   }
 
@@ -226,20 +310,27 @@ class Remote {
     }
   }
 
+  /**
+   * The names in a directory; an absent directory has none. Any other
+   * failure is raised: read as "empty", a permission problem on the source
+   * directory made every commit report the sources missing, and one on the
+   * web root made diagnostics report a site that could not be written.
+   */
   async listNames(path) {
     try {
-      return (await this.client.list(path)).map((entry) => entry.name);
-    } catch {
-      return [];
+      return (await this.bounded("list", this.client.list(path))).map((entry) => entry.name);
+    } catch (err) {
+      if (isMissing(err)) return [];
+      throw err;
     }
   }
 
   async remove(relative) {
-    await this.client.delete(this.absolute(relative), true);
+    await this.removeAbsolute(this.absolute(relative));
   }
 
   async removeAbsolute(path) {
-    await this.client.delete(path, true);
+    await this.bounded("delete", this.client.delete(path, true));
   }
 
   /**
@@ -264,10 +355,17 @@ class Remote {
     let pruned = 0;
     for (const directory of deepestFirst) {
       const absolute = this.absolute(`${directory}/x.html`).replace(/\/x\.html$/, "");
-      const entries = await this.listNames(absolute);
+      let entries;
+      try {
+        entries = await this.listNames(absolute);
+      } catch {
+        // The site is written by now; a directory that cannot be listed is
+        // left as it is rather than failing the publish over it.
+        continue;
+      }
       if (entries.length > 0) continue;
       try {
-        await this.client.rmdir(absolute);
+        await this.bounded("rmdir", this.client.rmdir(absolute));
         // Gone now, so a later write on this connection has to make it again.
         this.directories.delete(absolute);
         pruned += 1;

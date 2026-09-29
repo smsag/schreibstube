@@ -9,6 +9,7 @@
  * account's last run. Nothing here asks the bridge.
  */
 import type { PublishAccount, PublishRunRecord } from "../types";
+import { asRecord } from "./bridge-protocol";
 import { isInsideFolder, readPublishFields, type PublishKeyMap } from "./publish-index";
 
 export type PublishMark =
@@ -86,8 +87,4 @@ function timestamp(value: unknown): number | null {
   if (typeof value !== "string" || !value.trim()) return null;
   const ms = Date.parse(value);
   return Number.isNaN(ms) ? null : ms;
-}
-
-function asRecord(value: unknown): Record<string, unknown> {
-  return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {};
 }

@@ -29,6 +29,13 @@ export interface SyncMergeInput {
   dropped?: ReadonlyMap<string, number>;
 }
 
+/**
+ * A key that names the object's own machinery rather than a note. Assigning
+ * `merged["__proto__"]` sets the prototype, so a data file with such a key
+ * would reach past its own record.
+ */
+export const UNSAFE_KEYS: ReadonlySet<string> = new Set(["__proto__", "constructor", "prototype"]);
+
 export function mergeSyncState({
   local,
   disk,
@@ -37,6 +44,7 @@ export function mergeSyncState({
   const merged: Record<string, SyncRecord> = { ...local };
 
   for (const [path, theirs] of Object.entries(disk)) {
+    if (UNSAFE_KEYS.has(path)) continue;
     const ours = local[path];
 
     if (ours === undefined) {

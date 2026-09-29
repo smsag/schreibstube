@@ -1,5 +1,5 @@
 /**
- * Pure request/response handling for the publish capability.
+ * Request/response handling for the publish capability.
  *
  * The plugin decides what is published and what it is called; the bridge
  * renders and writes it. This module is the contract between the two, and the
@@ -19,7 +19,7 @@ import {
  * its own number on /health, so a mismatch can be named — "redeploy the bridge"
  * — instead of surfacing later as a 404 on a route that does not exist yet.
  */
-export const PROTOCOL_VERSION = 5;
+export const PROTOCOL_VERSION = 6;
 
 /** Plan, targets, diagnostics: a manifest read and a listing. */
 export const PUBLISH_REQUEST_TIMEOUT_MS = 120_000;
@@ -101,6 +101,8 @@ export interface PublishSummary {
   written: number;
   unchanged: number;
   deleted: number;
+  /** Files the host refused to delete; the manifest keeps them for the next publish. */
+  deleteFailed: number;
   pruned: number;
   collected: number;
   durationMs: number;
@@ -112,37 +114,64 @@ export interface BridgeHealth {
   capabilities: string[];
 }
 
+/**
+ * The most entries one list in a plan is read with. A default bridge allows
+ * two thousand files per site; five times that is a plan no site has, and a
+ * bound on what a wrong bridge can make the plugin loop over.
+ */
+export const MAX_PLAN_ENTRIES = 10_000;
+
 export function parseHealth(json: unknown): BridgeHealth {
   const record = asRecord(json);
   return {
     version: str(record.version),
     protocol: typeof record.protocol === "number" ? record.protocol : 0,
-    capabilities: Array.isArray(record.capabilities) ? record.capabilities.map(str) : []
+    capabilities: Array.isArray(record.capabilities)
+      ? record.capabilities.map(str).filter(Boolean)
+      : []
   };
 }
 
 export function parseTargets(json: unknown): PublishTarget[] {
   const raw = asRecord(json).targets;
   if (!Array.isArray(raw)) return [];
-  return raw.map((entry) => {
+  return raw.slice(0, MAX_PLAN_ENTRIES).map((entry) => {
     const record = asRecord(entry);
     return {
       name: str(record.name),
-      baseUrl: str(record.baseUrl),
+      baseUrl: httpUrl(record.baseUrl),
       siteTitle: str(record.siteTitle)
     };
   });
+}
+
+/**
+ * A site address the plugin may open or write into a note, or "" when the
+ * bridge sent something else. The address is opened in a browser and written
+ * as the note's published URL, so a `javascript:` or `file:` one from a bridge
+ * that is not ours must never get that far.
+ */
+function httpUrl(value: unknown): string {
+  const raw = str(value);
+  try {
+    const protocol = new URL(raw).protocol;
+    return protocol === "https:" || protocol === "http:" ? raw : "";
+  } catch {
+    return "";
+  }
 }
 
 export function parsePlan(json: unknown): PublishPlan {
   const record = asRecord(json);
   return {
     target: str(record.target),
-    baseUrl: str(record.baseUrl),
+    baseUrl: httpUrl(record.baseUrl),
     uploadSources: parseUploads(record.uploadSources),
     uploadAssets: parseUploads(record.uploadAssets),
     uploadThumbnails: parseUploads(record.uploadThumbnails),
-    willDelete: Array.isArray(record.willDelete) ? record.willDelete.map(str).filter(Boolean) : [],
+    willDelete: Array.isArray(record.willDelete)
+      ? record.willDelete.slice(0, MAX_PLAN_ENTRIES).map(str).filter(Boolean)
+      : [],
     unchangedSources: number(record.unchangedSources),
     notes: number(record.notes)
   };
@@ -152,10 +181,11 @@ export function parseSummary(json: unknown): PublishSummary {
   const record = asRecord(json);
   return {
     target: str(record.target),
-    baseUrl: str(record.baseUrl),
+    baseUrl: httpUrl(record.baseUrl),
     written: number(record.written),
     unchanged: number(record.unchanged),
     deleted: number(record.deleted),
+    deleteFailed: number(record.deleteFailed),
     pruned: number(record.pruned),
     collected: number(record.collected),
     durationMs: number(record.durationMs)
@@ -164,7 +194,7 @@ export function parseSummary(json: unknown): PublishSummary {
 
 function parseUploads(value: unknown): UploadRequest[] {
   if (!Array.isArray(value)) return [];
-  return value.map((entry) => {
+  return value.slice(0, MAX_PLAN_ENTRIES).map((entry) => {
     const record = asRecord(entry);
     const name = str(record.name);
     const path = str(record.path);
@@ -208,23 +238,4 @@ export function isEmptyPlan(plan: PublishPlan): boolean {
     plan.uploadAssets.length === 0 &&
     plan.uploadThumbnails.length === 0
   );
-}
-
-/** What the plan means, in one line, for the confirmation dialog. */
-export function summarisePlan(plan: PublishPlan): string {
-  const parts = [`${plan.notes} Notiz(en)`];
-  if (plan.uploadSources.length > 0) parts.push(`${plan.uploadSources.length} zu übertragen`);
-  if (plan.uploadAssets.length > 0) parts.push(`${plan.uploadAssets.length} Medien`);
-  if (plan.uploadThumbnails.length > 0) {
-    parts.push(`${plan.uploadThumbnails.length} Vorschaubild(er)`);
-  }
-  if (plan.willDelete.length > 0) parts.push(`${plan.willDelete.length} zu löschen`);
-  if (
-    plan.uploadSources.length === 0 &&
-    plan.uploadAssets.length === 0 &&
-    plan.uploadThumbnails.length === 0
-  ) {
-    parts.push("nichts zu übertragen");
-  }
-  return parts.join(", ");
 }

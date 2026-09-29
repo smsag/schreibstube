@@ -17,7 +17,7 @@
  * The grid is plain strings, so the same rules serve the Markdown of a note
  * and the cells of a rendered table.
  */
-import { readCell, TABLE_DELIMITER, type Amount } from "./amounts";
+import { readCell, type Amount, type CellReading } from "./amounts";
 import {
   compute,
   outcomeText,
@@ -26,6 +26,7 @@ import {
   type Outcome
 } from "./formulas";
 import { fencedLines } from "./markdown-fence";
+import { isTableDelimiter, splitRow, type MarkdownCell } from "./markdown-table";
 
 export interface Formula {
   op: FormulaOp;
@@ -82,19 +83,27 @@ export function evaluateGrid(
   rows: readonly (readonly string[])[],
   ctx: FormulaContext
 ): CellResult[] {
+  // Every cell read once, whichever formulas below it count it: a column of
+  // totals used to parse the whole column again for each of them.
+  const formulas = rows.map((cells) => cells.map(parseFormula));
+  const readings = rows.map((cells, row) =>
+    cells.map((cell, col): CellReading | null =>
+      formulas[row]?.[col] ? null : readCell(cell, ctx.format)
+    )
+  );
+
   const results: CellResult[] = [];
   for (let row = 1; row < rows.length; row++) {
     const cells = rows[row] ?? [];
     for (let col = 0; col < cells.length; col++) {
-      const formula = parseFormula(cells[col] ?? "");
+      const formula = formulas[row]?.[col];
       if (!formula) continue;
 
       const amounts: Amount[] = [];
       let skipped = 0;
       for (let above = 1; above < row; above++) {
-        const cell = rows[above]?.[col] ?? "";
-        if (parseFormula(cell)) continue;
-        const reading = readCell(cell, ctx.format);
+        const reading = readings[above]?.[col];
+        if (!reading) continue;
         if (reading.kind === "amount") amounts.push(reading.amount);
         else if (reading.kind === "unreadable") skipped++;
       }
@@ -157,13 +166,6 @@ function changedSince(frozen: string, outcome: Outcome, current: string | null):
   return asRead(current) === asRead(frozen) ? null : current;
 }
 
-/** A cell of a Markdown table row, and where its text sits in the line. */
-interface MarkdownCell {
-  from: number;
-  to: number;
-  text: string;
-}
-
 interface MarkdownRow {
   line: number;
   cells: MarkdownCell[];
@@ -172,43 +174,6 @@ interface MarkdownRow {
 /** A table in a note: its header row first, then its body rows; no delimiter row. */
 export interface MarkdownTable {
   rows: MarkdownRow[];
-}
-
-/**
- * The cells of a table row, split at the pipes that are not escaped and not
- * inside inline code.
- */
-export function splitRow(line: string): MarkdownCell[] {
-  const bounds: number[] = [];
-  let code = 0;
-  for (let at = 0; at < line.length; at++) {
-    const char = line[at];
-    if (char === "\\") {
-      at++;
-      continue;
-    }
-    if (char === "`") {
-      let run = 1;
-      while (line[at + run] === "`") run++;
-      code = code === 0 ? run : code === run ? 0 : code;
-      at += run - 1;
-      continue;
-    }
-    if (char === "|" && code === 0) bounds.push(at);
-  }
-
-  const cells: MarkdownCell[] = [];
-  let start = 0;
-  for (const bound of [...bounds, line.length]) {
-    cells.push({ from: start, to: bound, text: line.slice(start, bound) });
-    start = bound + 1;
-  }
-  // The pipes at either end frame the row rather than separate cells.
-  if (line.trimStart().startsWith("|")) cells.shift();
-  if (bounds.length > 0 && line.trimEnd().endsWith("|") && !line.trimEnd().endsWith("\\|")) {
-    cells.pop();
-  }
-  return cells;
 }
 
 /** Every table in a note, outside code blocks. */
@@ -221,7 +186,7 @@ export function findTables(markdown: string): MarkdownTable[] {
     const header = lines[at] ?? "";
     const delimiter = lines[at + 1] ?? "";
     if (fenced[at] || fenced[at + 1] || !header.includes("|") || !delimiter.includes("|")) continue;
-    if (!TABLE_DELIMITER.test(delimiter)) continue;
+    if (!isTableDelimiter(delimiter)) continue;
     const headerCells = splitRow(header);
     if (headerCells.length !== splitRow(delimiter).length) continue;
 
@@ -354,7 +319,6 @@ export function applyFreezes(
 
   const lines = markdown.split("\n");
   let frozen = 0;
-  // Right to left, so a cell's offsets still hold after the one after it changed.
   for (let at = waiting.length - 1; at >= 0; at--) {
     const entry = waiting[at];
     const text = plan[at]?.text ?? null;

@@ -20,6 +20,18 @@ describe("buildHeadingIndex", () => {
     ]);
   });
 
+  it("passes over the frontmatter, where a # is a YAML comment", () => {
+    const content = ["---", "# not a heading", "tags: [a]", "---", "# Top", "text"].join("\n");
+    expect(buildHeadingIndex(content)).toEqual([{ level: 1, text: "Top", lineNumber: 4 }]);
+    expect(buildHeadingIndex("---\n---\n# Top")).toEqual([
+      { level: 1, text: "Top", lineNumber: 2 }
+    ]);
+  });
+
+  it("reads an unclosed frontmatter as text, as the editor does", () => {
+    expect(buildHeadingIndex("---\n# Top")).toEqual([{ level: 1, text: "Top", lineNumber: 1 }]);
+  });
+
   it("strips inline Markdown formatting from heading text", () => {
     const content = [
       "## **Bold Title**",

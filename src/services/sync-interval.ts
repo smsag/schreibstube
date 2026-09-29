@@ -25,8 +25,9 @@ import { hasWaitingUpdate, type SyncRecord } from "./sync-document";
 export const SYNC_EVERY_KEY = "schreibstubeSyncEvery";
 
 export type SyncSchedule =
-  /** Words: at most this often, counted from the last check. */
-  | { kind: "every"; minutes: number; cron: string; text: string }
+  /** Words: at most this often, counted from the last check. `cron` is how
+   *  the phrase reads back, or null when cron cannot say it. */
+  | { kind: "every"; minutes: number; cron: string | null; text: string }
   /** Cron: due once a named minute has gone by unchecked. */
   | { kind: "cron"; cron: string; schedule: CronSchedule };
 
@@ -99,7 +100,7 @@ export function parseSyncEvery(raw: unknown): SyncIntervalResult | null {
     return parsed.ok
       ? {
           ok: true,
-          schedule: { kind: "cron", cron: normalizeCron(fields), schedule: parsed.schedule }
+          schedule: { kind: "cron", cron: fields.join(" "), schedule: parsed.schedule }
         }
       : { ok: false, reason: parsed.reason };
   }
@@ -212,21 +213,25 @@ export function planSourceCheck(input: SourceCheckInput): SourceCheckPlan {
 
 /** The phrase as cron says it, for showing a person what they asked for. */
 function everySchedule(count: number, unit: Unit, text: string): SyncIntervalResult {
-  const whole = Math.floor(count);
-  // Not `whole < 1`, which lets both Infinity and NaN through: YAML reads
+  // Not `count < 1`, which lets both Infinity and NaN through: YAML reads
   // `.inf` and `.nan` as numbers, so a note can hand this either, and an
   // interval of neither-a-number is one the note is never due again on —
   // silently, while the panel reports the schedule as understood.
-  if (!Number.isFinite(whole) || whole < 1) {
+  if (!Number.isFinite(count) || count < 1) {
     return { ok: false, reason: t().sync.every.tooSmall };
+  }
+  // "1,5 Stunden" used to be read as one hour, which is not what was written
+  // and not what the panel then said back.
+  if (!Number.isInteger(count)) {
+    return { ok: false, reason: t().sync.every.notWhole };
   }
 
   return {
     ok: true,
     schedule: {
       kind: "every",
-      minutes: whole * MINUTES_PER[unit],
-      cron: cronFor(whole, unit),
+      minutes: count * MINUTES_PER[unit],
+      cron: cronFor(count, unit),
       // Shown back as it was written: the plugin's job is to say whether it
       // understood a person, not to correct their phrasing at them.
       text
@@ -235,19 +240,23 @@ function everySchedule(count: number, unit: Unit, text: string): SyncIntervalRes
 }
 
 /**
- * The cron a phrase stands for, as near as cron can say it.
+ * The cron a phrase stands for, as near as cron can say it, or null when it
+ * cannot: ninety minutes is not two hours, and a cron that said so would be
+ * read as the schedule.
  *
  * Near, and not the same: cron counts days from the first of the month, so a
  * step on the day field is one day apart across a month's end rather than two.
  * The schedule the plugin keeps is the phrase; this is how the phrase reads
  * back.
  */
-function cronFor(count: number, unit: Unit): string {
+function cronFor(count: number, unit: Unit): string | null {
   switch (unit) {
     case "minute":
-      return count < 60 ? `*/${count} * * * *` : cronFor(Math.round(count / 60), "hour");
+      if (count < 60) return `*/${count} * * * *`;
+      return count % 60 === 0 ? cronFor(count / 60, "hour") : null;
     case "hour":
-      return count < 24 ? `0 */${count} * * *` : cronFor(Math.round(count / 24), "day");
+      if (count < 24) return `0 */${count} * * *`;
+      return count % 24 === 0 ? cronFor(count / 24, "day") : null;
     case "day":
       return `0 0 */${count} * *`;
     case "week":
@@ -265,9 +274,4 @@ function unitOf(word: string): Unit | null {
   }
 
   return null;
-}
-
-/** The person's own spacing tidied, so what is shown back is one expression. */
-function normalizeCron(fields: readonly string[]): string {
-  return fields.join(" ");
 }

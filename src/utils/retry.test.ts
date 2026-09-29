@@ -33,6 +33,16 @@ describe("withRetry", () => {
     expect(work).toHaveBeenCalledTimes(1);
   });
 
+  it("still tries once when asked for zero attempts, instead of throwing undefined", async () => {
+    const work = vi.fn(async () => "fertig");
+    expect(await withRetry(work, { ...instant, attempts: 0 })).toBe("fertig");
+    expect(work).toHaveBeenCalledTimes(1);
+
+    const failing = vi.fn().mockRejectedValue(new Error("socket hang up"));
+    await expect(withRetry(failing, { ...instant, attempts: 0 })).rejects.toThrow("socket hang up");
+    expect(failing).toHaveBeenCalledTimes(1);
+  });
+
   it("reports each retry, so a slow publish explains itself in the log", async () => {
     const onRetry = vi.fn();
     const work = vi.fn().mockRejectedValueOnce(new Error("ETIMEDOUT")).mockResolvedValue(1);
@@ -43,7 +53,18 @@ describe("withRetry", () => {
 });
 
 describe("isWorthRetrying", () => {
-  for (const message of ["socket hang up", "ECONNRESET", "bridge is restarting", "504 gateway"]) {
+  for (const message of [
+    "socket hang up",
+    "ECONNRESET",
+    "bridge is restarting",
+    "504 gateway",
+    "net::ERR_CONNECTION_RESET",
+    "net::ERR_TIMED_OUT",
+    "net::ERR_CONNECTION_CLOSED",
+    "net::ERR_NAME_NOT_RESOLVED",
+    "net::ERR_INTERNET_DISCONNECTED",
+    "net::ERR_NETWORK_CHANGED"
+  ]) {
     it(`repeats: ${message}`, () => {
       expect(isWorthRetrying(new Error(message))).toBe(true);
     });
@@ -53,6 +74,7 @@ describe("isWorthRetrying", () => {
     "bridge rejected the token — check the token setting.",
     "413 too large",
     "404 not found",
+    "net::ERR_CERT_AUTHORITY_INVALID",
     "the uploaded bytes do not match the declared hash"
   ]) {
     it(`does not repeat: ${message}`, () => {

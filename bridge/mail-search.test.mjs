@@ -52,7 +52,7 @@ vi.mock("imapflow", () => ({
   }
 }));
 
-const { searchMessages } = await import("./mail.mjs");
+const { HTML_TEXT_RATIO, htmlToText, searchMessages } = await import("./mail.mjs");
 
 function config(overrides = {}) {
   return {
@@ -310,5 +310,16 @@ describe("a search body the caller got wrong", () => {
       expect(error.status).toBe(400);
       expect(error.code).toBe("invalid_request");
     }
+  });
+});
+
+describe("htmlToText", () => {
+  it("reads only a few times the text limit of a huge HTML body before the regexes", () => {
+    const limit = 10;
+    const html = `<p>${"a".repeat(5)}</p>${"<b></b>".repeat(20)}<p>zzz</p>`;
+    const text = htmlToText(html, limit);
+    expect(text).toBe("aaaaa");
+    expect(html.length).toBeGreaterThan(HTML_TEXT_RATIO * limit);
+    expect(htmlToText("<p>Hallo</p><p>Welt</p>", 40_000)).toBe("Hallo\nWelt");
   });
 });

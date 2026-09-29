@@ -1,17 +1,6 @@
-// The once-per-session catch-up of a complete vault index (Pythia ADR-221).
-//
-// The watcher only sees what changes while Pythia runs, and `decideBuild` never
-// rescans a complete index. So a note edited on a phone that no longer writes the
-// index, a sync that landed before launch, or a note deleted on another device
-// kept its old vectors here until it happened to be edited on this device. A
-// desktop on a Worker backend caught up by accident — its first send of a session
-// ran an incremental sync — but a desktop on the UI-thread fallback (Pythia D-38) served
-// the file as it was, and neither caught up before the first question.
-//
-// The catch-up reads and hashes every in-scope note and embeds only the ones whose
-// content moved; the model loads only if one did, and the file is written only if
-// something changed. Lifted out of `VaultRagService` so its order of steps is
-// tested here and the service stays under its size budget.
+// The once-per-session catch-up of a complete vault index (Pythia ADR-221): what
+// changed while the plugin was closed is re-embedded at launch. See
+// ARCHITECTURE.md, "Search by meaning".
 
 import type { IndexableNote, ProgressListener, VaultIndexService } from "./vault-index-service";
 import type { BuildGuard } from "./build-guard";
@@ -39,7 +28,8 @@ export interface CatchUpHost {
   signal?: { readonly aborted: boolean };
 }
 
-export type CatchUpResult = { ran: true; notes: number } | { ran: false; reason: "incomplete" };
+export type CatchUpResult =
+  { ran: true; notes: number } | { ran: false; reason: "incomplete" | "stopped" };
 
 /**
  * Bring a complete index up to date with the vault. An index that is not complete
@@ -66,6 +56,11 @@ export async function catchUpIndex(h: CatchUpHost): Promise<CatchUpResult> {
       h.signal ? { signal: h.signal } : {}
     );
   } catch (e) {
+    // Stopped by the plugin unloading: not a failure, whatever the sync threw.
+    if (h.signal?.aborted) {
+      h.guard?.end();
+      return { ran: false, reason: "stopped" };
+    }
     // Out of memory is one allocation short of a kill, so its marker stays.
     if (!isOutOfMemoryError(e)) h.guard?.end();
     throw e;

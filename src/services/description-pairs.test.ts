@@ -40,7 +40,16 @@ describe("pairDescriptions", () => {
   it("pairs a note with the picture its link resolves to", () => {
     const pairs = pairDescriptions([note("B/a.md", "[[Objekte/a.jpg]]")], vault("Objekte/a.jpg"));
     expect([...pairs.byImage]).toEqual([["Objekte/a.jpg", "B/a.md"]]);
+    expect([...pairs.byNote]).toEqual([["B/a.md", "Objekte/a.jpg"]]);
     expect([...pairs.notes]).toEqual(["B/a.md"]);
+  });
+
+  it("answers by note only for the note that describes the picture, never a duplicate", () => {
+    const older = note("B/old.md", "[[a.jpg]]", "2026-01-01T00:00:00Z");
+    const newer = note("B/new.md", "[[a.jpg]]", "2026-09-01T00:00:00Z");
+    const pairs = pairDescriptions([older, newer], vault("Objekte/a.jpg"));
+    expect(pairs.byNote.get("B/new.md")).toBe("Objekte/a.jpg");
+    expect(pairs.byNote.has("B/old.md")).toBe(false);
   });
 
   it("ignores a note without the key: a note written by hand in the folder is left alone", () => {

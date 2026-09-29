@@ -19,7 +19,8 @@ import {
   type PublishKeyMap
 } from "../services/publish-index";
 import { normalizeBaseUrl } from "../services/bridge-protocol";
-import { checkTarget, listTargets } from "../services/publish-client";
+import { createLogger } from "../services/logger";
+import { checkTarget, listTargets } from "../platform/publish-client";
 import type { PublishBridgeConfig, PublishTarget } from "../services/publish-protocol";
 import { resolveApiKey } from "../services/secret";
 import type { SettingsContext } from "./context";
@@ -218,8 +219,16 @@ function renderSetup(ctx: SettingsContext, account: PublishAccount): void {
     .setDesc(t().publish.setupDesc)
     .addButton((button) =>
       button.setButtonText(t().publish.setupCopy).onClick(async () => {
-        await navigator.clipboard.writeText(environmentBlock(account));
-        new Notice(t().common.notice(t().common.copied));
+        try {
+          await navigator.clipboard.writeText(environmentBlock(account));
+          new Notice(t().common.notice(t().common.copied));
+        } catch (error) {
+          createLogger(() => ctx.plugin.settings.debugLogging).warn(
+            "Could not copy the bridge setup to the clipboard:",
+            error
+          );
+          new Notice(t().common.notice(t().explorer.bookmarks.copyFailed));
+        }
       })
     );
 }
@@ -232,7 +241,10 @@ function renderSetup(ctx: SettingsContext, account: PublishAccount): void {
  * an obviously empty one.
  */
 export function environmentBlock(account: PublishAccount): string {
-  const target = account.target || "blog";
+  // One line each: a name or a target with a line break in it would end its
+  // own line early and start another the bridge reads as a variable.
+  const target = oneLine(account.target) || "blog";
+  const name = oneLine(account.name) || t().publish.newAccountName;
   const prefix = `PUBLISH_${target.toUpperCase().replace(/[^A-Z0-9]/g, "_")}`;
 
   return [
@@ -245,8 +257,12 @@ export function environmentBlock(account: PublishAccount): string {
     `${prefix}_ROOT=`,
     `${prefix}_STATE_ROOT=`,
     `${prefix}_BASE_URL=`,
-    `${prefix}_SITE_TITLE=${account.name || t().publish.newAccountName}`
+    `${prefix}_SITE_TITLE=${name}`
   ].join("\n");
+}
+
+function oneLine(value: string): string {
+  return value.replace(/[\r\n]+/g, " ").trim();
 }
 
 /**

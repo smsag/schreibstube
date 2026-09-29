@@ -213,3 +213,26 @@ describe("a Markdown embed in somebody else's mail", () => {
     expect(escaped).toContain("!\\[](Privat/Gehalt.png)");
   });
 });
+
+describe("raw HTML in somebody else's mail", () => {
+  it("neutralises a tag opener, so an <img> cannot load a tracking pixel", () => {
+    const rendered = formatMessage(
+      message({ text: 'Hallo <img src="https://tracker.example/p.gif"> und <br/>Ende</p>' })
+    );
+    expect(rendered).not.toContain("<img");
+    expect(rendered).not.toContain("<br");
+    expect(rendered).not.toContain("</p>");
+    expect(rendered).toContain('&lt;img src="https://tracker.example/p.gif">');
+  });
+
+  it("neutralises a tag in the subject, which a heading renders too", () => {
+    expect(formatMessage(message({ subject: "<script>x</script>" }))).toContain(
+      "### &lt;script>x&lt;/script>"
+    );
+  });
+
+  it("leaves an address in angle brackets alone, since a tag name has no @", () => {
+    const rendered = formatMessage(message({ text: "Schreib an <k@example.com>, 3 < 4." }));
+    expect(rendered).toContain("> Schreib an <k@example.com>, 3 < 4.");
+  });
+});

@@ -15,7 +15,7 @@ import { diffParts } from "../services/diff-marks";
 import { RenderGate } from "../services/render-gate";
 import { cardActions, isFlagOnly } from "../services/proofread-runner";
 import type { Suggestion } from "../services/suggestion";
-import { diffWords } from "../services/word-diff";
+import { diffWords, type DiffSegment } from "../services/word-diff";
 
 export const REVIEW_VIEW_TYPE = "schreibstube-review";
 
@@ -94,6 +94,17 @@ export class ReviewPanelView extends ItemView {
   private handlers: ReviewHandlers | null = null;
   private readonly gate = new RenderGate<ReviewState>();
   private heldRedraw = 0;
+  /**
+   * The word diff of each card, kept by the suggestion's id.
+   *
+   * A redraw draws every card again, and a queue of fifty is redrawn for
+   * each one accepted; the diffs are the one part of that worth keeping,
+   * since a suggestion's text never changes once it is in the queue.
+   */
+  private readonly diffs = new Map<
+    string,
+    { original: string; replacement: string; segments: DiffSegment[] }
+  >();
 
   constructor(leaf: WorkspaceLeaf) {
     super(leaf);
@@ -165,6 +176,10 @@ export class ReviewPanelView extends ItemView {
 
   private render(): void {
     const root = this.contentEl;
+    // The place in the queue is kept across the redraw: a card accepted
+    // halfway down would otherwise throw the panel back to the top, and the
+    // next card to look at with it.
+    const scrollTop = root.scrollTop;
     root.empty();
     root.addClass("schreibstube-review");
 
@@ -188,6 +203,7 @@ export class ReviewPanelView extends ItemView {
     }
 
     this.renderQueue(root);
+    root.scrollTop = scrollTop;
   }
 
   private renderHeader(root: HTMLElement): void {
@@ -464,7 +480,7 @@ export class ReviewPanelView extends ItemView {
       return;
     }
 
-    for (const segment of diffWords(suggestion.original, suggestion.replacement)) {
+    for (const segment of this.diffOf(suggestion)) {
       if (segment.op === "equal") {
         diff.createSpan({ cls: "schreibstube-diff-equal", text: segment.text });
         continue;
@@ -480,10 +496,32 @@ export class ReviewPanelView extends ItemView {
     }
   }
 
+  private diffOf(suggestion: Suggestion): DiffSegment[] {
+    const kept = this.diffs.get(suggestion.id);
+    if (
+      kept &&
+      kept.original === suggestion.original &&
+      kept.replacement === suggestion.replacement
+    ) {
+      return kept.segments;
+    }
+    const segments = diffWords(suggestion.original, suggestion.replacement);
+    this.diffs.set(suggestion.id, {
+      original: suggestion.original,
+      replacement: suggestion.replacement,
+      segments
+    });
+    return segments;
+  }
+
   private pendingSuggestions(): Suggestion[] {
-    return this.state.suggestions.filter(
+    const pending = this.state.suggestions.filter(
       (suggestion) => suggestion.status === "pending" || suggestion.status === "stale"
     );
+    // Diffs of cards that have left the queue go with them.
+    const ids = new Set(pending.map((suggestion) => suggestion.id));
+    for (const id of [...this.diffs.keys()]) if (!ids.has(id)) this.diffs.delete(id);
+    return pending;
   }
 
   private button(

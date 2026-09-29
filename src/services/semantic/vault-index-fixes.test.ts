@@ -165,6 +165,41 @@ describe("the phone's journal and the desktop's", () => {
     const [hit] = await reopened.query("beta", { minScore: 0.5 });
     expect(hit?.id).toBe("x.md");
   });
+
+  it("lets the desktop's row win even when the phone's clock runs ahead of it", async () => {
+    const store = new MemStore();
+    const phoneFile = new MemStore();
+    const desktop = new VaultIndexService(new FakeProvider(), store, {
+      device: "desktop",
+      persistIntervalMs: 0
+    });
+    await desktop.sync([note("x.md", "alpha")], undefined, {}, "s");
+
+    const clock = vi.spyOn(Date, "now");
+    try {
+      // The phone's clock says its edit came an hour after the desktop's.
+      clock.mockReturnValue(2_000_000_000_000);
+      const phone = new VaultIndexService(new FakeProvider(), store, {
+        device: "mobile",
+        phoneJournal: phoneFile,
+        persistIntervalMs: 0
+      });
+      await phone.hydrateForQuery();
+      await phone.applyBatch({ updates: [note("x.md", "gamma on the phone")], removes: [] });
+      clock.mockReturnValue(2_000_000_000_000 - 3_600_000);
+      await desktop.applyBatch({ updates: [note("x.md", "beta on the desktop")], removes: [] });
+    } finally {
+      clock.mockRestore();
+    }
+
+    const reopened = new VaultIndexService(new FakeProvider(), store, {
+      device: "mobile",
+      phoneJournal: phoneFile
+    });
+    await reopened.hydrateForQuery();
+    expect((await reopened.query("beta", { minScore: 0.5 }))[0]?.id).toBe("x.md");
+    expect(await reopened.query("gamma", { minScore: 0.5 })).toEqual([]);
+  });
 });
 
 describe("a base another device replaced", () => {

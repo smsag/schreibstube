@@ -4,6 +4,11 @@ import type {
   EmbeddingBackend
 } from "../../../services/semantic/embedding-provider";
 import {
+  BackendGoneError,
+  isBackendGone,
+  type EmbedOptions
+} from "../../../services/semantic/embedding-provider";
+import {
   embeddingModelConfig,
   type EmbeddingModelId
 } from "../../../services/semantic/embedding-models";
@@ -14,33 +19,24 @@ import {
   EmbeddingOutOfMemoryError,
   isOutOfMemoryError
 } from "../../../services/semantic/memory-error";
-import {
-  BackendGoneError,
-  isBackendGone,
-  type EmbedOptions
-} from "../../../services/semantic/embedding-provider";
 
 /**
- * The embedding provider Pythia actually uses (Pythia ADR-119): a Web Worker (off the UI
- * thread) with the same-thread iframe as an automatic fallback. On first use it
- * tries the worker; if the environment refuses a blob worker (CSP) or the worker
- * runtime fails to become ready, it transparently falls back to the iframe — so
+ * The embedding provider the engine uses (Pythia ADR-119): a Web Worker (off the
+ * UI thread) with the same-thread iframe as an automatic fallback. On first use
+ * it tries the worker; if the environment refuses a blob worker (CSP) or the
+ * worker runtime fails to become ready, it falls back to the iframe — so
  * embedding always works, just on the UI thread (kept responsive by the
- * cooperative-yield throttling in VaultIndexService) when the worker is unavailable.
+ * cooperative-yield throttling in VaultIndexService) when the worker is
+ * unavailable. Which backend started is reported once through `onBackend`,
+ * since a silent fall back to the UI thread is what hid that the Worker never
+ * ran (#306).
  *
- * Implements EmbeddingProvider itself so callers (ConversationIndexService /
- * VaultIndexService) are unaware of which backend is live.
+ * Implements EmbeddingProvider itself so callers are unaware of which backend
+ * is live.
  */
-/** Which backend is running the model. The label a report can quote (#306):
- *  a silent fall back to the UI thread is what hid that the Worker never ran.
- *  Declared on the seam (`EmbeddingProvider`) and re-exported here, so the
- *  interface does not have to import from one of its own implementations. */
-export type { EmbeddingBackend };
-
 export class FallbackEmbeddingProvider implements EmbeddingProvider {
   readonly dim: number;
   private active: EmbeddingProvider | null = null;
-  private activeBackend: EmbeddingBackend | null = null;
   /** Why each backend the chain tried did NOT start (Pythia ADR-185). #306 made the
    *  WINNER visible; the reason the others lost is the rest of the diagnosis —
    *  "Unsupported device: wasm" and "Not allowed to load local resource: blob:"
@@ -161,7 +157,6 @@ export class FallbackEmbeddingProvider implements EmbeddingProvider {
       throw new BackendGoneError("Embedding provider was unloaded while the model was loading");
     }
     this.active = provider;
-    this.activeBackend = backend;
     // Once per model load, at info level: which backend is live is the first
     // thing a performance report needs, and it used to be visible only as the
     // absence of a warning.
@@ -219,17 +214,6 @@ export class FallbackEmbeddingProvider implements EmbeddingProvider {
     return this.active?.isOffThread?.() ?? false;
   }
 
-  /** The backend that initialized, or null before `ready()` resolves (#306). */
-  backend(): EmbeddingBackend | null {
-    return this.activeBackend;
-  }
-
-  /** Why the backends ahead of the active one did not start (Pythia ADR-185). Empty
-   *  when the first choice won. */
-  backendFailures(): string[] {
-    return [...this.failures];
-  }
-
   unload(): void {
     // Ahead of everything else: a backend that becomes ready after this point
     // must see a generation it does not belong to (#363).
@@ -239,7 +223,6 @@ export class FallbackEmbeddingProvider implements EmbeddingProvider {
     for (const p of this.starting) p.unload();
     this.starting.clear();
     this.active = null;
-    this.activeBackend = null;
     this.failures.length = 0;
     this.readyPromise = null;
     this.failedLoad = false;

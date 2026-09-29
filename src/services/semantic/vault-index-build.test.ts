@@ -149,6 +149,23 @@ describe("VaultIndexService — crash-safe build (Pythia ADR-182)", () => {
     expect(p3.embedded.some((t) => t.includes("alpha"))).toBe(false);
   });
 
+  it("a remembered failure reused by the next build is reported as failed, not reused", async () => {
+    const store = new MemStore();
+    const first = new VaultIndexService(new FlakyProvider("gamma"), store, {
+      persistIntervalMs: 0
+    });
+    await first.sync([alpha, beta, gamma]);
+
+    let last: { reused: number; failed: number; embedded: number } | null = null;
+    const next = new VaultIndexService(new FakeProvider(), store, { persistIntervalMs: 0 });
+    await next.sync([alpha, beta, gamma], (_done, _total, detail) => {
+      last = detail;
+    });
+    expect(last).toMatchObject({ reused: 2, failed: 1, embedded: 0 });
+    // Still a reuse for the file: nothing new to write.
+    expect(store.writes).toBe(1);
+  });
+
   it("a dead backend is not remembered as failed notes", async () => {
     const store = new MemStore();
     await new VaultIndexService(new FakeProvider(), store, { persistIntervalMs: 0 }).sync([alpha]);

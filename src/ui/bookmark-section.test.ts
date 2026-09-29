@@ -96,6 +96,25 @@ describe("the bookmark rows", () => {
       kind: "web"
     });
   });
+
+  it("opens a bookmark on Enter, and folds a folder on Space", () => {
+    const { rows, pane } = host();
+    rows[0]?.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    rows[1]?.dispatchEvent(new KeyboardEvent("keydown", { key: " ", bubbles: true }));
+
+    expect(pane.open).toHaveBeenCalledTimes(1);
+    expect(pane.fold).toHaveBeenCalledWith("Work");
+  });
+
+  it("says what each row is, and whether a folder is open", () => {
+    const { rows } = host({ isFolded: (key) => key === "Work" });
+
+    expect(rows[0]?.getAttribute("role")).toBe("link");
+    expect(rows[1]?.getAttribute("role")).toBe("button");
+    expect(rows[1]?.getAttribute("aria-expanded")).toBe("false");
+    expect(rows[2]?.getAttribute("aria-expanded")).toBe("true");
+    expect(rows.every((row) => row.getAttribute("tabindex") === "0")).toBe(true);
+  });
 });
 
 describe("the three icons", () => {

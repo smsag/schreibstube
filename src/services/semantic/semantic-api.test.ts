@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   MAX_HITS,
+  MAX_QUERY_CHARS,
   clampLimit,
+  readQuery,
   isConversationSource,
   mergeHits,
   readExclude,
@@ -16,6 +18,14 @@ describe("the API's boundary", () => {
     expect(clampLimit(2.7)).toBe(2);
     expect(clampLimit("20")).toBe(10);
     expect(clampLimit(Number.NaN)).toBe(10);
+  });
+
+  it("reads a query as text, trimmed and bounded", () => {
+    expect(readQuery("  küche ")).toBe("küche");
+    expect(readQuery("k".repeat(MAX_QUERY_CHARS + 5))).toHaveLength(MAX_QUERY_CHARS);
+    expect(readQuery(`${"k".repeat(MAX_QUERY_CHARS - 1)}   `)).toHaveLength(MAX_QUERY_CHARS - 1);
+    expect(readQuery(42)).toBe("");
+    expect(readQuery(null)).toBe("");
   });
 
   it("keeps only kinds that exist", () => {

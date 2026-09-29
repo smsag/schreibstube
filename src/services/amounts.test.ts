@@ -120,6 +120,12 @@ describe("readCell", () => {
     expect(one("26.09.2026")).toBe("unreadable");
   });
 
+  it("leaves out an ISO date, which is not the amount of its year", () => {
+    expect(one("2026-09-29")).toBe("unreadable");
+    expect(one("2026−09−29")).toBe("unreadable");
+    expect(one("Paid 2026-09-29: 20 €")).toMatchObject({ value: 20, currency: "EUR" });
+  });
+
   it("takes the priced number, and the last of several", () => {
     expect(one("2 × Milch 1,50 €")).toMatchObject({ value: 1.5 });
     expect(one("3 items")).toMatchObject({ value: 3, currency: null });
@@ -160,6 +166,11 @@ describe("amountsInText", () => {
     expect(amountsInText(prose, de, true)).toEqual([]);
     const figures = "Groceries 300\nCar 20.\n| Bike | 10 |\nFee 5 € extra";
     expect(amountsInText(figures, de, true).map((a) => a.value)).toEqual([300, 20, 10, 5]);
+  });
+
+  it("passes over a line that holds only a date", () => {
+    const text = "Rent 2026-09-01\nGroceries 300 €";
+    expect(amountsInText(text, de).map((a) => a.value)).toEqual([300]);
   });
 
   it("reads table rows as lines, without their formula cells", () => {

@@ -11,7 +11,12 @@ import {
   vectorFamily,
   type EmbeddingModelId
 } from "../../services/semantic/embedding-models";
-import type { SemanticStatus } from "../../services/semantic/status-text";
+import {
+  failureCause,
+  type FailureCause,
+  type SemanticStatus
+} from "../../services/semantic/status-text";
+import type { ScoredId } from "../../services/semantic/conversation-index";
 import type {
   BuildProgress,
   BuildRecord,
@@ -36,7 +41,7 @@ import { selectIndexPaths, scopeSignature } from "../../services/semantic/index-
 import { optedOut, type RetrievedNote } from "../../services/semantic/vault-retrieval";
 import { catchUpIndex, CATCH_UP_DELAY_MS } from "../../services/semantic/vault-catch-up";
 import { applyMeaningFloor, meaningFloor } from "../../services/semantic/search-fusion";
-import { peekIndexMeta, type IndexKeeper } from "../../services/semantic/embedding-index";
+import type { IndexKeeper } from "../../services/semantic/embedding-index";
 import { pluginRunsOwnModel } from "../../services/workspace-internals";
 import { createEmbeddingProvider } from "./host/embedding-provider-factory";
 import { embeddingWorkerUrl } from "./host/worker-bundle-url";
@@ -49,16 +54,9 @@ function now(): number {
   return typeof performance !== "undefined" ? performance.now() : Date.now();
 }
 
-/**
- * The most notes one "Build now" embeds on a phone.
- *
- * A phone holds the index a desktop builds (Pythia ADR-221); it does not build
- * one. A first build there ran for well over an hour on a vault of a few
- * hundred notes, on the UI thread, with iOS free to end it whenever Obsidian
- * went to the background. So a phone never builds on its own, and a press adds
- * this many — newest first — for a vault that has no desktop, or a note needed
- * now.
- */
+/** The most notes one "Build now" embeds on a phone, newest first — for a
+ *  vault that has no desktop, or a note needed now. A phone never builds on
+ *  its own: see ARCHITECTURE.md, "Search by meaning". */
 export const MOBILE_BUILD_BUDGET = 50;
 
 /**
@@ -77,7 +75,13 @@ type Phase =
   | { kind: "idle" }
   | { kind: "loading" }
   | { kind: "building"; done: number; total: number }
-  | { kind: "failed"; error: string; outOfMemory: boolean; loadFailed: boolean };
+  | {
+      kind: "failed";
+      error: string;
+      cause: FailureCause;
+      outOfMemory: boolean;
+      loadFailed: boolean;
+    };
 
 /**
  * Search by meaning, on this device.
@@ -91,7 +95,6 @@ type Phase =
  */
 export class SemanticEngine {
   private provider: ResidentProvider | null = null;
-  private providerModel: EmbeddingModelId | null = null;
   private service: VaultIndexService | null = null;
   private residency: EmbeddingResidency | null = null;
   private workerUrl: Promise<string> | null = null;
@@ -113,7 +116,6 @@ export class SemanticEngine {
   private lastBuild: BuildRecord | null = null;
   /** When the phone last looked for a newer index from the desktop. */
   private lastPhoneLook = Number.NEGATIVE_INFINITY;
-  private fileCount: { scope: string; count: number; complete: boolean } | null | undefined;
   private readonly listeners = new Set<() => void>();
   /** Conversations a chat plugin hands over through the API. */
   readonly conversations: SemanticConversations;
@@ -131,7 +133,8 @@ export class SemanticEngine {
       modelId: () => this.modelId(),
       provider: () => this.ensureProvider(),
       changed: () => this.emit(),
-      mayEmbedInBackground: () => !Platform.isMobile && !this.syncing
+      mayEmbedInBackground: () => !Platform.isMobile && !this.syncing,
+      queryVector: (text) => this.queryVector(text)
     });
   }
 
@@ -139,7 +142,8 @@ export class SemanticEngine {
   start(): void {
     registerVaultWatcher(this.plugin, {
       applyChanges: (changed, deleted) => void this.applyChanges(changed, deleted),
-      activePath: () => this.plugin.app.workspace.getActiveFile()?.path ?? null
+      activePath: () => this.plugin.app.workspace.getActiveFile()?.path ?? null,
+      holdUntilLeft: Platform.isMobile
     });
     this.residency = installEmbeddingResidency(this.plugin, {
       provider: () => this.provider,
@@ -213,15 +217,13 @@ export class SemanticEngine {
     );
   }
 
+  /** The one provider; the model it runs is fixed for the device, so a
+   *  provider once made serves until `teardown`. */
   private ensureProvider(): ResidentProvider {
-    const modelId = this.modelId();
-    if (this.provider && this.providerModel === modelId) return this.provider;
-    this.provider?.unload();
-    this.service = null;
-    this.conversations.reset();
+    if (this.provider) return this.provider;
     this.provider = new ResidentProvider(
       createEmbeddingProvider(
-        modelId,
+        this.modelId(),
         (p) => this.logger.debug("semantic engine: model load", p),
         () => (this.workerUrl ??= embeddingWorkerUrl(this.plugin)),
         (backend, failures) => {
@@ -232,7 +234,6 @@ export class SemanticEngine {
       ),
       () => this.residency?.noteUse()
     );
-    this.providerModel = modelId;
     return this.provider;
   }
 
@@ -364,12 +365,9 @@ export class SemanticEngine {
       const svc = this.ensure();
       const heldBefore = svc.isReady();
       await svc.hydrateForQuery();
-      // The desktop may have written more since this session read the file.
-      if (heldBefore) {
-        const buf = await this.files().read();
-        if (svc.baseDiffersFrom(buf ? peekIndexMeta(buf)?.writtenAt : undefined))
-          await svc.reload();
-      }
+      // The desktop may have written more since this session read the file:
+      // asked of the file's modification time, not by reading it again.
+      if (heldBefore && (await svc.baseReplacedOnDisk())) await svc.reload();
       // Reading worked: a failure that was not the model's is behind it.
       if (this.phase.kind === "failed" && !this.phase.loadFailed) this.phase = { kind: "idle" };
       if (!svc.isComplete(this.scope()) && !this.toldDesktopBuilds) {
@@ -383,7 +381,6 @@ export class SemanticEngine {
       this.logger.warn("semantic engine: could not read the index on this phone", e);
     } finally {
       this.syncing = false;
-      this.fileCount = undefined;
       this.emit();
     }
     // Edits made before the index was read waited for it. Applied once the
@@ -405,15 +402,15 @@ export class SemanticEngine {
       const svc = this.ensure();
       if (opts.clear) await svc.clear();
       const scope = this.scope();
-      const offThread = provider.isOffThread?.() ?? false;
-      if (!offThread) {
-        await svc.hydrateForQuery();
-        if (svc.isComplete(scope) && !opts.force) {
-          this.guard.end();
-          this.setPhase({ kind: "idle" });
-          return;
-        }
+      // A search that lands while the index is still being read asks for a
+      // build; an index the file says is finished is taken as it is.
+      await svc.hydrateForQuery();
+      if (svc.isComplete(scope) && !opts.force) {
+        this.guard.end();
+        this.setPhase({ kind: "idle" });
+        return;
       }
+      const offThread = provider.isOffThread?.() ?? false;
       const notes = this.collectNotes();
       notice = new Notice(t().semantic.building, 0);
       this.setPhase({ kind: "building", done: 0, total: notes.length });
@@ -437,26 +434,38 @@ export class SemanticEngine {
       this.setPhase({ kind: "idle" });
       if (result.stopped) new Notice(t().semantic.phoneBudget(result.embedded), 8_000);
     } catch (e) {
+      if (this.stop.aborted) {
+        // The plugin unloaded under the build: what it reached is written, and
+        // that is not a failure to report.
+        this.guard.end();
+        this.endRecord({ stopped: true });
+        this.setPhase({ kind: "idle" });
+        return;
+      }
       const outOfMemory = isOutOfMemoryError(e);
       if (!outOfMemory) this.guard.end();
       this.endRecord({ error: e instanceof Error ? e.message : String(e) });
-      this.setPhase({
-        kind: "failed",
-        error: e instanceof Error ? e.message : String(e),
-        outOfMemory,
-        loadFailed: !loaded
-      });
+      this.setPhase(this.failed(e, { outOfMemory, loadFailed: !loaded }));
       this.logger.warn("semantic engine: build failed", e);
     } finally {
       notice?.hide();
       this.syncing = false;
-      this.fileCount = undefined;
       this.afterWork();
       this.emit();
     }
     // Outside the build's try: an edit that fails to apply is the edit's, and
     // must not report the build that just succeeded as failed.
     await this.flushDeferred();
+  }
+
+  /** The failed phase for `e`: its cause for the status line, its text for the log. */
+  private failed(e: unknown, of: { outOfMemory: boolean; loadFailed: boolean }): Phase {
+    return {
+      kind: "failed",
+      error: e instanceof Error ? e.message : String(e),
+      cause: failureCause(e),
+      ...of
+    };
   }
 
   /** What a build or catch-up leaves to do once it is over. */
@@ -502,21 +511,20 @@ export class SemanticEngine {
           this.setPhase({ kind: "building", done, total });
         }
       });
-      this.endRecord();
+      this.endRecord({ stopped: !result.ran && result.reason === "stopped" });
       this.setPhase({ kind: "idle" });
       this.logger.debug("semantic engine: catch-up", result);
     } catch (e) {
-      this.setPhase({
-        kind: "failed",
-        error: e instanceof Error ? e.message : String(e),
-        outOfMemory: isOutOfMemoryError(e),
-        loadFailed: this.provider?.loadFailed() ?? false
-      });
+      this.setPhase(
+        this.failed(e, {
+          outOfMemory: isOutOfMemoryError(e),
+          loadFailed: this.provider?.loadFailed() ?? false
+        })
+      );
       this.endRecord({ error: e instanceof Error ? e.message : String(e) });
       this.logger.warn("semantic engine: catch-up failed", e);
     } finally {
       this.syncing = false;
-      this.fileCount = undefined;
       this.afterWork();
       this.emit();
     }
@@ -566,7 +574,6 @@ export class SemanticEngine {
     } catch (e) {
       this.logger.warn("semantic engine: edits could not be applied to the index", e);
     }
-    this.fileCount = undefined;
     // Edits held while the index was being read, if they arrived after it
     // had already applied the ones it held.
     await this.flushDeferred();
@@ -604,12 +611,19 @@ export class SemanticEngine {
   async search(text: string, limit: number): Promise<RetrievedNote[]> {
     if (!this.enabled()) return [];
     const started = now();
-    const svc = this.service;
-    if (!svc?.isQueryable()) {
-      // Read but not made queryable — the Recommended panel or the settings
-      // read it first. A finished index answers at once; asking for a build
-      // instead was refused as "complete", and nothing ever answered.
-      if (!svc?.isComplete(this.scope())) {
+    const svc = this.ensure();
+    if (!svc.isQueryable()) {
+      // Read first, then asked: a finished index answers at once. Asking for a
+      // build before the file was read started one over an index that turned
+      // out complete, and a build asked for instead of reading was refused as
+      // "complete" once the panel or the settings had read it, so nothing
+      // ever answered.
+      try {
+        await svc.loadPersisted();
+      } catch (e) {
+        this.logger.warn("semantic engine: could not read the index for a search", e);
+      }
+      if (!svc.isComplete(this.scope())) {
         this.refresh();
         return [];
       }
@@ -652,6 +666,29 @@ export class SemanticEngine {
       this.logger.warn("semantic engine: search failed", e);
       return [];
     }
+  }
+
+  /**
+   * Notes and conversations whose meaning answers `text`, the model reading
+   * the text once for both: the conversation search takes the vault search's
+   * vector through `queryVector`. Zero for a kind leaves it out.
+   */
+  async searchAll(
+    text: string,
+    opts: { notes: number; conversations: number; exclude: Iterable<string> }
+  ): Promise<{ notes: RetrievedNote[]; conversations: ScoredId[] }> {
+    const notes = opts.notes > 0 ? await this.search(text, opts.notes) : [];
+    const conversations =
+      opts.conversations > 0
+        ? await this.conversations.search(text, opts.conversations, opts.exclude)
+        : [];
+    return { notes, conversations };
+  }
+
+  /** The vector the vault index holds for `text`; null while it cannot answer. */
+  private queryVector(text: string): Promise<Int8Array | null> {
+    if (!this.enabled() || !this.service?.isQueryable()) return Promise.resolve(null);
+    return this.service.queryVector(text);
   }
 
   /**
@@ -748,7 +785,8 @@ export class SemanticEngine {
     this.refresh({ force: true, manual: true, clear: true });
   }
 
-  /** Where the index stands, for the settings tab. Never loads the model. */
+  /** Where the index stands, for the settings tab. Reads the index file once
+   *  if this session has not; never loads the model. */
   async status(): Promise<SemanticStatus> {
     const base: SemanticStatus = {
       state: "notBuilt",
@@ -766,35 +804,31 @@ export class SemanticEngine {
     if (phase.kind === "building")
       return { ...base, state: "building", done: phase.done, total: phase.total };
     if (phase.kind === "failed") {
-      return { ...base, state: "failed", error: phase.error, outOfMemory: phase.outOfMemory };
-    }
-    const scope = this.scope();
-    if (this.service?.isComplete(scope))
-      return { ...base, state: "ready", count: this.service.size() };
-    if (this.fileCount === undefined) {
-      try {
-        const buf = await this.files().read();
-        const meta = buf ? peekIndexMeta(buf) : null;
-        this.fileCount = meta
-          ? { scope: meta.scope, count: meta.count, complete: meta.complete }
-          : null;
-      } catch (e) {
-        this.logger.warn("semantic engine: could not read the index for its status", e);
-        this.fileCount = null;
-      }
-    }
-    const file = this.fileCount;
-    if (!this.guard.mayAutoBuild()) return { ...base, state: "paused", count: file?.count ?? 0 };
-    if (Platform.isMobile && (!file || !file.complete))
       return {
         ...base,
-        state: "desktopBuilds",
-        count: file?.count ?? 0,
-        budget: MOBILE_BUILD_BUDGET
+        state: "failed",
+        error: phase.error,
+        cause: phase.cause,
+        outOfMemory: phase.outOfMemory
       };
-    if (!file || file.count === 0) return base;
-    if (!file.complete) return { ...base, state: "partial", count: file.count };
-    return { ...base, state: file.scope === scope ? "ready" : "outdated", count: file.count };
+    }
+    const svc = this.ensure();
+    try {
+      await svc.loadPersisted();
+    } catch (e) {
+      this.logger.warn("semantic engine: could not read the index for its status", e);
+    }
+    const count = svc.size();
+    // Finished under today's scope answers "ready" before anything else — the
+    // same order `decideBuild` asks in, so a paused guard never reports an
+    // index that needs no build as waiting for one.
+    if (svc.isComplete(this.scope())) return { ...base, state: "ready", count };
+    if (!this.guard.mayAutoBuild()) return { ...base, state: "paused", count };
+    if (Platform.isMobile && !svc.isFinished())
+      return { ...base, state: "desktopBuilds", count, budget: MOBILE_BUILD_BUDGET };
+    if (count === 0) return base;
+    if (!svc.isFinished()) return { ...base, state: "partial", count };
+    return { ...base, state: "outdated", count };
   }
 
   /**
@@ -847,7 +881,6 @@ export class SemanticEngine {
   /** The switch or the cap moved. Switched off, the model's memory is given
    *  back now rather than at the next restart; a build in flight finishes. */
   settingsChanged(): void {
-    this.fileCount = undefined;
     // A deliberate change is a fresh start for automatic builds: a failure
     // otherwise kept them off for the session, whatever was changed. Not out
     // of memory, which a changed switch does not make any less likely.
@@ -864,7 +897,6 @@ export class SemanticEngine {
   private teardown(): void {
     this.provider?.unload();
     this.provider = null;
-    this.providerModel = null;
     this.service = null;
     this.deferred = null;
     this.conversations.reset();

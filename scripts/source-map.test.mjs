@@ -70,6 +70,15 @@ describe("createMapper", () => {
     expect(createMapper(map).lookup(999, 1)).toBeNull();
   });
 
+  it("answers null inside a range the map says came from nowhere", () => {
+    // "AAAA" maps column 1 to line 1; "C" (a one-field segment) ends that
+    // mapping at column 2. Column 3 is generated code with no source.
+    const map = { version: 3, sources: ["a.ts"], names: [], mappings: "AAAA,C" };
+    const mapper = createMapper(map);
+    expect(mapper.lookup(1, 1)).toMatchObject({ source: "a.ts", line: 1 });
+    expect(mapper.lookup(1, 3)).toBeNull();
+  });
+
   it("refuses anything but a version 3 map", () => {
     expect(() => createMapper({ version: 2 })).toThrow(/version 3/);
     expect(() => createMapper(null)).toThrow(/version 3/);

@@ -1,16 +1,18 @@
 import { t } from "../i18n";
 import { App, Modal, Setting, SuggestModal } from "obsidian";
 import { formatIsoMinutes } from "../utils/format-date";
-import type { MailMessage, SearchCriteria } from "../services/mail-protocol";
+import { hasCriteria, type MailMessage, type SearchCriteria } from "../services/mail-protocol";
 import type { SendWarning } from "../services/mail-draft";
 
 /**
  * Criteria form for "Query mailbox". Every field is optional on its own, but
- * the caller rejects a completely empty search — an unfiltered IMAP query would
- * return the whole mailbox.
+ * a completely empty search is refused here, with the form still open — an
+ * unfiltered IMAP query would return the whole mailbox, and a dialogue that
+ * closed on Enter with nothing in it lost what the person was about to type.
  */
 export class MailSearchModal extends Modal {
   private criteria: SearchCriteria = {};
+  private error: HTMLElement | null = null;
 
   constructor(
     app: App,
@@ -41,6 +43,12 @@ export class MailSearchModal extends Modal {
         this.criteria.since = value;
       });
     });
+
+    this.error = contentEl.createEl("p", {
+      cls: "schreibstube-mail-warning",
+      attr: { role: "alert" }
+    });
+    this.error.hide();
 
     new Setting(contentEl).addButton((button) =>
       button
@@ -76,6 +84,11 @@ export class MailSearchModal extends Modal {
   }
 
   private submit(): void {
+    if (!hasCriteria(this.criteria)) {
+      this.error?.setText(t().mail.searchEmpty);
+      this.error?.show();
+      return;
+    }
     this.close();
     this.onSubmit(this.criteria);
   }

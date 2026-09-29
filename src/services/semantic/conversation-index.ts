@@ -6,7 +6,13 @@ import {
   type IndexedConversation
 } from "./embedding-index";
 import type { IndexStore } from "./index-store";
-import { cosine, maxPairwiseCosine, quantize } from "./vector-math";
+import {
+  cosine,
+  maxPairwiseCosine,
+  quantize,
+  rankYieldEvery,
+  MAX_SOURCE_CHUNKS
+} from "./vector-math";
 import { resolveRowHash, type HashPolicy } from "./row-provenance";
 import { conversationChunks, type ConversationItem } from "./conversation-source";
 import { isBackendGone } from "./embedding-provider";
@@ -138,19 +144,25 @@ export class ConversationIndex {
     return rankRelated(sourceId, this.items, opts);
   }
 
-  /** Conversations like a note's stored vectors, best first. No model call. */
-  relatedToVectors(
+  /** Conversations like a note's stored vectors, best first. No model call;
+   *  scanned cooperatively, since the note may bring many passages. */
+  async relatedToVectors(
     chunks: readonly Int8Array[],
     opts: { minScore: number; limit: number }
-  ): ScoredId[] {
+  ): Promise<ScoredId[]> {
     if (chunks.length === 0) return [];
-    const source = [...chunks];
-    return this.items
-      .filter((i) => i.chunks.length > 0)
-      .map((i) => ({ id: i.id, score: maxPairwiseCosine(source, i.chunks) }))
-      .filter((r) => Number.isFinite(r.score) && r.score >= opts.minScore)
-      .sort((a, b) => b.score - a.score)
-      .slice(0, opts.limit);
+    const source = chunks.slice(0, MAX_SOURCE_CHUNKS);
+    const yieldEvery = rankYieldEvery(source.length);
+    const scored: ScoredId[] = [];
+    let scanned = 0;
+    for (const item of this.items) {
+      if (item.chunks.length > 0) {
+        const score = maxPairwiseCosine(source, item.chunks);
+        if (Number.isFinite(score) && score >= opts.minScore) scored.push({ id: item.id, score });
+      }
+      if (++scanned % yieldEvery === 0) await new Promise((r) => setTimeout(r, 0));
+    }
+    return scored.sort((a, b) => b.score - a.score).slice(0, opts.limit);
   }
 
   /** Conversations that answer `text`, best first. Embeds the text once. */
@@ -163,6 +175,15 @@ export class ConversationIndex {
     const [raw] = await this.provider.embed([q], { priority: true });
     if (!raw) return [];
     return rankByQuery(quantize(raw), this.items, opts);
+  }
+
+  /** Conversations that answer a query already embedded — the vault search's
+   *  vector, so one search by meaning runs the model once for both indexes. */
+  queryByVector(
+    query: Int8Array,
+    opts: { minScore: number; limit: number; exclude?: Iterable<string> }
+  ): ScoredId[] {
+    return rankByQuery(query, this.items, opts);
   }
 }
 

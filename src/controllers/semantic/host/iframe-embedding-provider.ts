@@ -16,9 +16,8 @@ export type { ModelLoadProgress };
  * shares Obsidian's UI thread, which is why callers throttle a build on it.
  *
  * The conversation with the backend is `PostMessageEmbeddingProvider` (Pythia ADR-204);
- * what is here is how the iframe is mounted and removed. That split is the point:
- * this path is runtime-only — a unit test cannot reach it, it needs a real
- * Obsidian window — so it should hold as little of its own logic as possible.
+ * what is here is how the iframe is mounted and removed, since no unit test
+ * can reach this path.
  */
 export class IframeEmbeddingProvider extends PostMessageEmbeddingProvider {
   protected readonly label = "Embedding iframe";

@@ -19,14 +19,11 @@ import type { GlossaryMatcher } from "../services/glossary-matcher";
 import { segmentMarkdown } from "../services/markdown-segments";
 import type { SchreibstubeSettings } from "../types";
 import { GLOSSARY_CHANGED_EVENT } from "../utils/constants";
+import { MAX_LIVE_CHARS } from "./live-limits";
 
 /** Re-scanning on every keystroke is wasteful on a long note; a short idle
  *  delay keeps typing smooth without a visible lag on the underline. */
 const RESCAN_DELAY_MS = 400;
-
-/** Above this size the whole-document scan is skipped. The sidebar still checks
- *  the note on demand; only the always-on underline steps aside. */
-const MAX_LIVE_CHARS = 200_000;
 
 interface GlossaryUnderlineOptions {
   getSettings: () => SchreibstubeSettings;
@@ -48,9 +45,14 @@ export function createGlossaryUnderlineExtension(options: GlossaryUnderlineOptio
 
       update(update: ViewUpdate): void {
         this.view = update.view;
-        if (update.docChanged) {
-          this.schedule();
+        if (!update.docChanged) return;
+        // Switched off, an edit costs nothing: no timer, no scan, and the
+        // underlines a note kept from before the switch go with the edit.
+        if (this.off()) {
+          this.decorations = Decoration.none;
+          return;
         }
+        this.schedule();
       }
 
       destroy(): void {
@@ -73,16 +75,24 @@ export function createGlossaryUnderlineExtension(options: GlossaryUnderlineOptio
         }, RESCAN_DELAY_MS);
       }
 
-      private rebuild(): void {
-        const settings = options.getSettings();
-        const matcher = options.getMatcher();
-        const text = this.view.state.doc.toString();
+      /** Nothing to draw: the switch is off, no glossary is loaded, or the
+       *  note is past the size the live scan takes on. */
+      private off(): boolean {
+        return (
+          !options.getSettings().glossaryLiveUnderline ||
+          options.getMatcher().isEmpty() ||
+          this.view.state.doc.length > MAX_LIVE_CHARS
+        );
+      }
 
-        if (!settings.glossaryLiveUnderline || matcher.isEmpty() || text.length > MAX_LIVE_CHARS) {
+      private rebuild(): void {
+        if (this.off()) {
           this.decorations = Decoration.none;
           return;
         }
 
+        const matcher = options.getMatcher();
+        const text = this.view.state.doc.toString();
         const builder = new RangeSetBuilder<Decoration>();
         for (const block of segmentMarkdown(text).blocks) {
           for (const hit of matcher.findHits(block.text, block.protectedRanges)) {

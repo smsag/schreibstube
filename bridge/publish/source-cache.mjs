@@ -1,15 +1,6 @@
 /**
- * The notes a commit renders, kept in memory between publishes.
- *
- * Every commit renders the whole site, and read every stored note back from
- * the web host to do it: three hundred notes cost three hundred reads for one
- * edited sentence. A stored note is addressed by the hash of its content, so
- * a copy kept here can never be out of date — a changed note is a new hash —
- * and nothing ever has to be invalidated. Only text whose hash was checked
- * goes in, so a key always names exactly its value.
- *
- * Bounded by size, least recently used first out, because the bridge runs for
- * months on a small container. A note that falls out is read again next time;
+ * The notes a commit renders, kept in memory between publishes. Only text
+ * whose hash was checked goes in, so a key always names exactly its value;
  * the cache only ever saves work, it never decides anything.
  */
 import { createHash } from "node:crypto";

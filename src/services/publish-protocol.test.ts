@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
   COMMIT_REQUEST_TIMEOUT_MS,
+  MAX_PLAN_ENTRIES,
   describePublishError,
   isEmptyPlan,
+  parseHealth,
   parsePlan,
   parseSummary,
-  parseTargets,
-  summarisePlan
+  parseTargets
 } from "./publish-protocol";
 
 /** Everything the bridge returns is remote JSON, so each field is validated. */
@@ -25,6 +26,37 @@ describe("parseTargets", () => {
 
   it("replaces a missing field rather than carrying undefined into the UI", () => {
     expect(parseTargets({ targets: [{}] })).toEqual([{ name: "", baseUrl: "", siteTitle: "" }]);
+  });
+
+  it("keeps only a web address as the site's, since it is opened and written into notes", () => {
+    const targets = parseTargets({
+      targets: [
+        { name: "a", baseUrl: "javascript:alert(1)" },
+        { name: "b", baseUrl: "file:///etc/passwd" },
+        { name: "c", baseUrl: "blog.example.com" },
+        { name: "d", baseUrl: "http://localhost:8080/site" }
+      ]
+    });
+    expect(targets.map((target) => target.baseUrl)).toEqual([
+      "",
+      "",
+      "",
+      "http://localhost:8080/site"
+    ]);
+  });
+});
+
+describe("parseHealth", () => {
+  it("reads what the bridge says it is, dropping a capability with no name", () => {
+    expect(parseHealth({ version: "1.2", protocol: 5, capabilities: ["publish", 7, ""] })).toEqual({
+      version: "1.2",
+      protocol: 5,
+      capabilities: ["publish"]
+    });
+  });
+
+  it("reads nothing into a body that is not a health answer", () => {
+    expect(parseHealth("nope")).toEqual({ version: "", protocol: 0, capabilities: [] });
   });
 });
 
@@ -54,10 +86,35 @@ describe("parsePlan", () => {
     expect(plan.willDelete).toEqual([]);
     expect(plan.notes).toBe(0);
   });
+
+  it("reads no more entries than a site could have", () => {
+    const many = Array.from({ length: MAX_PLAN_ENTRIES + 5 }, (_, i) => `f${i}`);
+    const plan = parsePlan({
+      uploadSources: many.map((sourcePath) => ({ sourcePath, sha256: "x" })),
+      uploadAssets: many.map((sourcePath) => ({ sourcePath, sha256: "x" })),
+      uploadThumbnails: many.map((sourcePath) => ({ sourcePath, sha256: "x" })),
+      willDelete: many
+    });
+    expect(plan.uploadSources).toHaveLength(MAX_PLAN_ENTRIES);
+    expect(plan.uploadAssets).toHaveLength(MAX_PLAN_ENTRIES);
+    expect(plan.uploadThumbnails).toHaveLength(MAX_PLAN_ENTRIES);
+    expect(plan.willDelete).toHaveLength(MAX_PLAN_ENTRIES);
+  });
+
+  it("blanks a site address that is not a web one", () => {
+    expect(parsePlan({ baseUrl: "javascript:void 0" }).baseUrl).toBe("");
+    expect(parseSummary({ baseUrl: "file:///x" }).baseUrl).toBe("");
+    expect(parseSummary({ baseUrl: "https://blog.example.com" }).baseUrl).toBe(
+      "https://blog.example.com"
+    );
+  });
 });
 
 describe("parseSummary", () => {
   it("reads the counts a publish reports", () => {
+    expect(parseSummary({ written: 3, unchanged: 2, deleted: 1, deleteFailed: 0 })).toMatchObject({
+      deleteFailed: 0
+    });
     expect(parseSummary({ written: 3, unchanged: 2, deleted: 1, durationMs: 900 })).toMatchObject({
       written: 3,
       unchanged: 2,
@@ -71,26 +128,6 @@ describe("parseSummary", () => {
   });
 });
 
-describe("summarisePlan", () => {
-  const plan = parsePlan({ notes: 5, unchangedSources: 5 });
-
-  it("says plainly when there is nothing to send", () => {
-    expect(summarisePlan(plan)).toContain("nichts zu übertragen");
-  });
-
-  it("counts what will move", () => {
-    const busy = parsePlan({
-      notes: 5,
-      uploadSources: [{ sourcePath: "a.md" }],
-      uploadAssets: [{ sourcePath: "b.png" }],
-      willDelete: ["x"]
-    });
-    expect(summarisePlan(busy)).toContain("1 zu übertragen");
-    expect(summarisePlan(busy)).toContain("1 Medien");
-    expect(summarisePlan(busy)).toContain("1 zu löschen");
-  });
-});
-
 describe("thumbnails in a plan", () => {
   it("reads the thumbnails a protocol-2 bridge asks for", () => {
     const plan = parsePlan({
@@ -100,8 +137,6 @@ describe("thumbnails in a plan", () => {
     expect(plan.uploadThumbnails).toEqual([
       { sourcePath: "Blog/haus.jpg", sha256: "a".repeat(64), name: "haus.jpg" }
     ]);
-    expect(summarisePlan(plan)).toContain("1 Vorschaubild(er)");
-    expect(summarisePlan(plan)).not.toContain("nichts zu übertragen");
   });
 
   it("reads none from a protocol-1 bridge, which never sends the field", () => {

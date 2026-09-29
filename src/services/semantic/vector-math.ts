@@ -42,6 +42,26 @@ export function cosine(a: Int8Array, b: Int8Array): number {
 }
 
 /**
+ * The most passages of a source note that rank the rest of the index.
+ *
+ * A note is stored as up to 96 passages, and ranking compares each of them with
+ * every passage of every other note: a long note against a large index was
+ * tens of millions of cosines on the UI thread while the Recommended panel
+ * waited. Its first passages — the title, the opening — say what it is about;
+ * the rest mostly repeat that at a higher price.
+ */
+export const MAX_SOURCE_CHUNKS = 8;
+
+/** Items scored between cooperative yields when one vector ranks the index. */
+export const RANK_YIELD_EVERY = 2000;
+
+/** Items scored between yields when `sourceChunks` vectors rank the index: the
+ *  work per item grows with the source, so the yields come sooner. */
+export function rankYieldEvery(sourceChunks: number): number {
+  return Math.max(50, Math.floor(RANK_YIELD_EVERY / Math.max(1, sourceChunks)));
+}
+
+/**
  * Best chunk-to-chunk cosine between two conversations' chunk-vector sets — the
  * similarity of the closest pair of chunks. Returns 0 when either set is empty.
  */

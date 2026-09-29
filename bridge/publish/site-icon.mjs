@@ -1,18 +1,7 @@
 /**
- * The site's icon, the small picture a browser shows in its tab, named by the
- * site's own stylesheet.
- *
- * A theme is where a site's look lives, and the logo already stands in it, so
- * the icon is named there too: `--site-icon: url("data:image/svg+xml,…")`. The
- * bridge reads it out of the theme it was sent and writes it as a file of its
- * own, because a browser asks for an icon by address and never looks inside a
- * stylesheet for one. No new field in the index: a theme was always sent.
- *
- * The icon is served from the site's own domain, where an SVG opened on its
- * own would run whatever it carries, so it is checked like any other input:
- * an SVG or a PNG, no larger than a small picture needs, and an SVG with no
- * script, no event handler and nothing it loads from elsewhere. An icon that
- * fails is left out — the site loses its tab icon, not its publish.
+ * The site's tab icon, read out of the theme's `--site-icon` and written as
+ * a file of its own. Served from the site's domain, where an SVG opened on
+ * its own would run whatever it carries, so it is checked first.
  */
 
 /** Far more than an icon needs; a drawing of a pile is under one kilobyte. */
@@ -71,15 +60,21 @@ export function decodeDataUri(uri) {
  * holds no script, no event handler, no `javascript:` and no reference to
  * anything outside itself. Stricter than a drawing needs, which is the point.
  */
-export function isSafeSvg(text) {
-  const body = text.replace(/^\s*(<\?xml[^>]*\?>\s*)?/, "");
+export function isSafeSvg(text, { embedded = false } = {}) {
+  const body = text.replace(/^\s*(?:(?:<\?xml[^>]*\?>|<!--[\s\S]*?-->|<!DOCTYPE[^>]*>)\s*)*/i, "");
   if (!/^<svg[\s>]/i.test(body)) return false;
   if (/<script[\s>]/i.test(body)) return false;
   if (/<foreignObject[\s>]/i.test(body)) return false;
   if (/\son[a-z]+\s*=/i.test(body)) return false;
   if (/javascript:/i.test(body)) return false;
-  if (/(?:xlink:)?href\s*=\s*["']?\s*(?!#)[^"'\s>]/i.test(body)) return false;
-  if (/@import|url\(\s*["']?(?!#)/i.test(body)) return false;
+  // A drawing exported by Excalidraw or draw.io carries its fonts and its
+  // pictures inside itself as data URIs; those load nothing from elsewhere,
+  // so an uploaded asset may keep them. A tab icon has no business with them.
+  const inside = embedded ? "#|data:" : "#";
+  if (new RegExp(`(?:xlink:)?href\\s*=\\s*["']?\\s*(?!${inside})[^"'\\s>]`, "i").test(body)) {
+    return false;
+  }
+  if (new RegExp(`@import|url\\(\\s*["']?(?!${inside})`, "i").test(body)) return false;
   return true;
 }
 

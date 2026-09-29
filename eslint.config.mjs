@@ -42,15 +42,18 @@ export default tseslint.config(
       "@typescript-eslint/no-floating-promises": "error",
       "@typescript-eslint/no-misused-promises": ["error", { checksVoidReturn: false }],
       "@typescript-eslint/await-thenable": "error",
+      // A value the model or a user wrote reaches a note through `String(...)`;
+      // an object there is "[object Object]" in the text.
+      "@typescript-eslint/no-base-to-string": "error",
       "no-console": ["error", { allow: ["error"] }],
       eqeqeq: ["error", "smart"],
       "prefer-const": "error"
     }
   },
 
-  // The bridge and the repository's scripts: Node, plain modules, no build step.
+  // The bridge, the repository's scripts and its configs: Node, no build step.
   {
-    files: ["bridge/**/*.mjs", "scripts/**/*.mjs"],
+    files: ["bridge/**/*.mjs", "scripts/**/*.mjs", "*.mjs", "*.mts"],
     extends: [js.configs.recommended],
     languageOptions: {
       globals: { ...globals.node },
@@ -67,6 +70,30 @@ export default tseslint.config(
   {
     files: ["bridge/publish/client/**/*.mjs"],
     languageOptions: { globals: { ...globals.browser } }
+  },
+
+  // A decision module that reaches for the platform is a controller in the
+  // wrong folder: it needs a fake app to test and slows the suite. The one
+  // exception holds the undocumented internals, feature-detected.
+  {
+    files: ["src/services/**/*.ts"],
+    ignores: ["src/services/workspace-internals.ts", "src/services/**/*.test.ts"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            { name: "obsidian", message: "Platform wiring lives in src/platform or a controller." }
+          ],
+          patterns: [
+            {
+              group: ["**/ui/*", "**/controllers/*", "**/platform/*"],
+              message: "A service decides; it does not wire."
+            }
+          ]
+        }
+      ]
+    }
   },
 
   // Tests may reach for shapes the source never would.

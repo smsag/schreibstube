@@ -593,7 +593,7 @@ Beside the note, with the note's name, overwritten on reprint, then revealed in 
 
 ### Schreibstube Explorer
 
-A file list of Schreibstube's own, opened from the ribbon icon in the left margin or with **Open Schreibstube Explorer**. It exists because three things cannot be done to Obsidian's explorer from a plugin without fighting it: an icon per item, a mark for sync state, and an order you can lift a file to the top of.
+A file list of Schreibstube's own, opened from the ribbon icon in the left margin or with **Open explorer**. It exists because three things cannot be done to Obsidian's explorer from a plugin without fighting it: an icon per item, a mark for sync state, and an order you can lift a file to the top of.
 
 The pane has four sections, each one collapsible, each remembering whether it was open on that device: **Pinned**, **Bookmarks**, **Updated externally**, and **Files and folders**. Updated externally is drawn only while Document sync is turned on. Pinned is drawn only when something is pinned and opens closed. Closed, it keeps three rows on the sticky strip and its icon carries the number of pins there are, the badge a closed folder carries; open, the strip holds as many as fit in half the pane and the rest continue in the scrolling list. A search opens it for as long as it is set, and so it opens Bookmarks and Updated externally, showing the rows that match; a section with no match stays out of the results.
 
@@ -703,7 +703,7 @@ Icons and the two marks live in `explorer.json` inside the plugin folder, delibe
 
 A small language model (multilingual MiniLM, the same one Pythia uses) runs on the device and reads each note once into an index kept in the plugin's folder; no note and no query leaves the device, and the model itself is downloaded the first time, about 120 MB on a desktop and 75 MB on a phone, where a Latin-script cut of it is used. Switch it on under **Search by meaning** in the settings. The first build starts when the Explorer search is first used, or with **Build now**, and takes a few minutes on a desktop; the status line there says how far it is. **Most notes to index** caps it at the newest notes, 5 000 by default.
 
-After that the index follows the vault: an edited, created, moved or deleted note is read again on its own, a couple of seconds after the vault goes quiet. The note being written is held back until you leave it or stop typing for half a minute, so a phone does not re-read it on every autosave. A desktop catches up at launch with what changed while it was closed, including edits synced from a phone. A note with `schreibstubeIndex: false` in its frontmatter is left out.
+After that the index follows the vault: an edited, created, moved or deleted note is read again on its own, a couple of seconds after the vault goes quiet. The note being written is held back until you leave it — on a desktop, also once you have stopped typing for half a minute — so a phone does not re-read it on every autosave, nor load the model for every pause. A desktop catches up at launch with what changed while it was closed, including edits synced from a phone. A note with `schreibstubeIndex: false` in its frontmatter is left out.
 
 On a phone, search by meaning pauses while a Pythia that runs a language model of its own is switched on there: two models are more memory than the phone lets one app hold. A Pythia that asks Schreibstube instead, and loads no model of its own, lifts the pause.
 

@@ -9,8 +9,7 @@ import {
   freezeFormulas,
   freezePlan,
   parseFormula,
-  resolveFormulas,
-  splitRow
+  resolveFormulas
 } from "./table-formulas";
 
 const ctx: FormulaContext = {
@@ -53,20 +52,6 @@ describe("parseFormula", () => {
     expect(parseFormula("x =sum")).toBeNull();
     expect(parseFormula("**=sum*")).toBeNull();
     expect(parseFormula("=sum(later)")).toBeNull();
-  });
-});
-
-describe("splitRow", () => {
-  it("splits at pipes, not at escaped ones or ones in code", () => {
-    expect(splitRow("| a | b \\| c | `d|e` |").map((cell) => cell.text.trim())).toEqual([
-      "a",
-      "b \\| c",
-      "`d|e`"
-    ]);
-  });
-
-  it("reads a row without its outer pipes", () => {
-    expect(splitRow("a | b").map((cell) => cell.text.trim())).toEqual(["a", "b"]);
   });
 });
 

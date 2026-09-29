@@ -7,6 +7,7 @@
  * long as it is given, and goes the moment the action is taken.
  */
 import { Notice } from "obsidian";
+import { pressable } from "./pressable";
 
 export function showActionNotice(
   message: string,
@@ -27,11 +28,5 @@ export function showActionNotice(
     notice.hide();
     onAction();
   };
-  action.addEventListener("click", take);
-  action.addEventListener("keydown", (event) => {
-    if (event.key === "Enter" || event.key === " ") {
-      event.preventDefault();
-      take();
-    }
-  });
+  pressable(action, take);
 }

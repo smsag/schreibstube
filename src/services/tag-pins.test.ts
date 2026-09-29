@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  normalizeTag,
+  checkTag,
   noteHasTag,
   sortTagCards,
   summarizeTagCards,
@@ -20,21 +20,21 @@ function note(path: string, tags: string[], items: TaggedNote["items"] = []): Ta
   return { path, tags, items };
 }
 
-describe("normalizeTag", () => {
+describe("checkTag", () => {
   it("takes a tag with or without its hash", () => {
-    expect(normalizeTag("#projekt")).toBe("projekt");
-    expect(normalizeTag("  projekt/alpha ")).toBe("projekt/alpha");
-    expect(normalizeTag("#über-sicht_2")).toBe("über-sicht_2");
+    expect(checkTag("#projekt")).toBe("projekt");
+    expect(checkTag("  projekt/alpha ")).toBe("projekt/alpha");
+    expect(checkTag("#über-sicht_2")).toBe("über-sicht_2");
   });
 
   it("refuses what Obsidian would not read as a tag", () => {
-    expect(normalizeTag("")).toBeNull();
-    expect(normalizeTag("#")).toBeNull();
-    expect(normalizeTag("#2026")).toBeNull();
-    expect(normalizeTag("#two words")).toBeNull();
-    expect(normalizeTag("#a//b")).toBeNull();
-    expect(normalizeTag("#a/")).toBeNull();
-    expect(normalizeTag("#a:b")).toBeNull();
+    expect(checkTag("")).toBeNull();
+    expect(checkTag("#")).toBeNull();
+    expect(checkTag("#2026")).toBeNull();
+    expect(checkTag("#two words")).toBeNull();
+    expect(checkTag("#a//b")).toBeNull();
+    expect(checkTag("#a/")).toBeNull();
+    expect(checkTag("#a:b")).toBeNull();
   });
 });
 

@@ -17,7 +17,7 @@
  */
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -38,9 +38,15 @@ const fonts = fontSets.flatMap((set) =>
   }))
 );
 const packageName = read(/RUNTIME_PACKAGE = "([^"]+)"/, "RUNTIME_PACKAGE");
-const assets = [...manifest.matchAll(/name: `([^`]+)`,\s*\n\s*sha256: "([0-9a-f]{64})"/g)].map(
-  ([, name, sha256]) => ({ name: name.replace("${RUNTIME_VERSION}", version), sha256 })
-);
+const assets = [
+  ...manifest.matchAll(
+    /name: `([^`]+)`,\s*\n\s*sha256: "([0-9a-f]{64})",\s*\n\s*label: "(compiler|loader)"/g
+  )
+].map(([, name, sha256, label]) => ({
+  name: name.replace("${RUNTIME_VERSION}", version),
+  sha256,
+  key: label === "compiler" ? "WASM_ASSET" : "LOADER_ASSET"
+}));
 const sources = Object.fromEntries(
   [...manifest.matchAll(/\[(\w+)\.name]: "([^"]+)"/g)].map(([, key, path]) => [key, path])
 );
@@ -52,22 +58,26 @@ if (assets.length !== 2) {
 const printOnly = process.argv.includes("--print");
 const work = mkdtempSync(join(tmpdir(), "typst-runtime-"));
 
+// A font is a couple of megabytes; a download that is not one is not a font,
+// and a stalled one is not waited on for the six hours a CI runner allows.
+const FETCH_TIMEOUT_MS = 60_000;
+const MAX_FONT_BYTES = 8 * 1024 * 1024;
+
 try {
   execFileSync("npm", ["pack", `${packageName}@${version}`, "--pack-destination", work], {
     stdio: ["ignore", "ignore", "inherit"]
   });
-  const tarball = execFileSync("ls", [work], { encoding: "utf8" }).trim().split("\n")[0];
+  const tarball = readdirSync(work).find((name) => name.endsWith(".tgz"));
+  if (!tarball) fail(`npm pack left no tarball in ${work}`);
   execFileSync("tar", ["-xzf", join(work, tarball), "-C", work]);
 
   const out = join(root, "dist");
   if (!printOnly) mkdirSync(out, { recursive: true });
 
   let failed = false;
-  for (const [index, asset] of assets.entries()) {
-    // The order in the manifest is the order the keys are declared in.
-    const key = index === 0 ? "WASM_ASSET" : "LOADER_ASSET";
-    const source = sources[key];
-    if (!source) fail(`no source path for ${key}`);
+  for (const asset of assets) {
+    const source = sources[asset.key];
+    if (!source) fail(`no source path for ${asset.key}`);
 
     const bytes = readFileSync(join(work, source));
     const actual = createHash("sha256").update(bytes).digest("hex");
@@ -93,9 +103,12 @@ try {
 
   if (fonts.length === 0) fail("no pinned fonts found in typst-fonts.json");
   for (const font of fonts) {
-    const response = await fetch(font.url);
+    const response = await fetch(font.url, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
     if (!response.ok) fail(`${font.file}: HTTP ${response.status} from ${font.url}`);
+    const declared = Number(response.headers.get("content-length") ?? 0);
+    if (declared > MAX_FONT_BYTES) fail(`${font.file}: ${declared} bytes is not a font`);
     const bytes = Buffer.from(await response.arrayBuffer());
+    if (bytes.length > MAX_FONT_BYTES) fail(`${font.file}: ${bytes.length} bytes is not a font`);
     const actual = createHash("sha256").update(bytes).digest("hex");
 
     if (printOnly) {
@@ -114,7 +127,12 @@ try {
     console.log(`${font.name} verified (${(bytes.length / 1024).toFixed(0)} KB)`);
   }
 
-  if (failed) process.exit(1);
+  if (failed) process.exitCode = 1;
+} catch (error) {
+  // `process.exit` inside the `try` would skip the `finally` and leave the
+  // 30 MB work directory behind on every failure; a thrown failure does not.
+  console.error(error instanceof Failure ? error.message : error);
+  process.exitCode = 1;
 } finally {
   rmSync(work, { recursive: true, force: true });
 }
@@ -125,7 +143,8 @@ function read(pattern, what) {
   return match[1];
 }
 
+class Failure extends Error {}
+
 function fail(message) {
-  console.error(message);
-  process.exit(1);
+  throw new Failure(message);
 }

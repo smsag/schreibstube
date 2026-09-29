@@ -1,8 +1,9 @@
-import { TFile, type App, type TAbstractFile } from "obsidian";
+import { TFile, TFolder, type App, type TAbstractFile } from "obsidian";
 import { linkTarget } from "../services/description-pairs";
 import { followedNotePath, linkPointedAt, retargetLinks } from "../services/description-follow";
 import { DESCRIPTION_KEYS } from "../services/image-description";
 import type { Logger } from "../services/logger";
+import { pathAfterMove } from "../services/path-follow";
 
 /**
  * How long after a rename the note is looked at again. Obsidian rewrites links
@@ -28,6 +29,19 @@ interface Pointing {
   broken: boolean;
 }
 
+/** A description note's link, read once per vault event and asked per picture. */
+interface DescriptionLink {
+  note: TFile;
+  link: string;
+  resolved: string | null;
+}
+
+/** One picture's move, as a folder's rename is many of them. */
+interface Moved {
+  picture: TFile;
+  oldPath: string;
+}
+
 export interface DescriptionFollowerHooks {
   setTimer(callback: () => void, ms: number): unknown;
   clearTimer(handle: unknown): void;
@@ -51,22 +65,47 @@ export class DescriptionFollower {
     private readonly logger: Logger
   ) {}
 
-  /** The notes about the file that is, or was, at `path`. */
-  private notesAbout(path: string, current: string | null): Pointing[] {
-    const out: Pointing[] = [];
+  /**
+   * Every description note's link, resolved as the cache resolves it now.
+   * Read once per event: a folder of pictures is one event, and asking the
+   * vault's notes once per picture would cost pictures times notes.
+   */
+  private descriptionLinks(): DescriptionLink[] {
+    const out: DescriptionLink[] = [];
     for (const note of this.app.vault.getMarkdownFiles()) {
       const frontmatter = this.app.metadataCache.getFileCache(note)?.frontmatter;
       if (!frontmatter || !(DESCRIPTION_KEYS.image in frontmatter)) continue;
       const link = linkTarget(frontmatter[DESCRIPTION_KEYS.image]);
       if (link === null) continue;
-      const resolved = this.app.metadataCache.getFirstLinkpathDest(link, note.path);
-      if (current !== null && resolved?.path === current) {
+      const resolved = this.app.metadataCache.getFirstLinkpathDest(link, note.path)?.path ?? null;
+      out.push({ note, link, resolved });
+    }
+    return out;
+  }
+
+  /** The notes about the file that is, or was, at `path`. */
+  private notesAbout(links: DescriptionLink[], path: string, current: string | null): Pointing[] {
+    const out: Pointing[] = [];
+    for (const { note, link, resolved } of links) {
+      if (current !== null && resolved === current) {
         out.push({ note, link, broken: false });
       } else if (linkPointedAt(link, path, resolved !== null)) {
         out.push({ note, link, broken: true });
       }
     }
     return out;
+  }
+
+  /**
+   * The pictures an event is about: the file itself, or every picture under
+   * a folder. Obsidian reports a folder renamed or deleted once, for the
+   * folder, and the pictures inside it move or go without an event of their
+   * own; their notes used to be left pointing at nothing.
+   */
+  private picturesOf(file: TAbstractFile): TFile[] {
+    if (file instanceof TFile) return file.extension === "md" ? [] : [file];
+    if (!(file instanceof TFolder)) return [];
+    return file.children.flatMap((child) => this.picturesOf(child));
   }
 
   private later(ms: number, run: () => Promise<void>): void {
@@ -82,22 +121,32 @@ export class DescriptionFollower {
   }
 
   pictureRenamed(file: TAbstractFile, oldPath: string): void {
-    if (!(file instanceof TFile) || file.extension === "md") return;
-    const found = this.notesAbout(oldPath, file.path);
-    if (found.length === 0) return;
+    const pictures = this.picturesOf(file);
+    if (pictures.length === 0) return;
+    // A folder's children already carry their new paths when the event
+    // arrives; the old one is the same path under the folder's old name.
+    const moved: Moved[] = pictures.map((picture) => ({
+      picture,
+      oldPath: pathAfterMove(picture.path, file.path, oldPath)
+    }));
+    const links = this.descriptionLinks();
+    const jobs = moved.flatMap(({ picture, oldPath: was }) =>
+      this.notesAbout(links, was, picture.path).map((pointing) => ({ ...pointing, picture, was }))
+    );
+    if (jobs.length === 0) return;
     this.later(FOLLOW_RENAME_DELAY_MS, async () => {
-      for (const { note, link, broken } of found) {
+      for (const { note, link, broken, picture, was } of jobs) {
         if (!this.app.vault.getAbstractFileByPath(note.path)) continue;
         // The text, not the metadata cache, decides: the cache is reparsed a
         // moment after Obsidian's own rewrite, and writing on its stale word
         // would race that rewrite.
-        if (broken && !this.linksTo(note, file.path)) {
+        if (broken && !this.linksTo(note, picture.path)) {
           const content = await this.app.vault.cachedRead(note);
-          if (retargetLinks(content, link, file.path) !== content) {
-            await this.app.vault.process(note, (text) => retargetLinks(text, link, file.path));
+          if (retargetLinks(content, link, picture.path) !== content) {
+            await this.app.vault.process(note, (text) => retargetLinks(text, link, picture.path));
           }
         }
-        const next = followedNotePath(note.path, oldPath, file.path);
+        const next = followedNotePath(note.path, was, picture.path);
         if (next !== null && !this.app.vault.getAbstractFileByPath(next)) {
           await this.app.fileManager.renameFile(note, next);
         }
@@ -106,13 +155,16 @@ export class DescriptionFollower {
   }
 
   pictureDeleted(file: TAbstractFile): void {
-    if (!(file instanceof TFile) || file.extension === "md") return;
-    const path = file.path;
-    const found = this.notesAbout(path, null);
-    if (found.length === 0) return;
+    const pictures = this.picturesOf(file);
+    if (pictures.length === 0) return;
+    const links = this.descriptionLinks();
+    const jobs = pictures.flatMap((picture) =>
+      this.notesAbout(links, picture.path, null).map(({ note }) => ({ note, path: picture.path }))
+    );
+    if (jobs.length === 0) return;
     this.later(FOLLOW_DELETE_DELAY_MS, async () => {
-      if (this.app.vault.getAbstractFileByPath(path)) return;
-      for (const { note } of found) {
+      for (const { note, path } of jobs) {
+        if (this.app.vault.getAbstractFileByPath(path)) continue;
         if (!this.app.vault.getAbstractFileByPath(note.path)) continue;
         // Its link works again: the picture arrived elsewhere and the note
         // was rewritten, on this device or another.

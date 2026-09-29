@@ -91,14 +91,8 @@ export function checkAttachments(value) {
   return { attachments };
 }
 
-/**
- * The largest request body a send with attachments may be.
- *
- * The text's own allowance, plus every picture at its limit in base64, plus
- * room for the JSON around them. The send route alone gets it; every other
- * route keeps the small limit, so a large body is only ever read where one can
- * be meant.
- */
+/** The largest request body a send with attachments may be: the text's own
+ *  allowance, every picture at its limit in base64, and the JSON around them. */
 export function maxSendBodyBytes(maxBodyBytes) {
   return maxBodyBytes + Math.ceil((MAX_ATTACHMENTS_TOTAL_BYTES * 4) / 3) + 64_000;
 }

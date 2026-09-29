@@ -1,18 +1,6 @@
 /**
- * Where the copy of a sent message is filed.
- *
- * SMTP delivers and forgets, so the bridge APPENDs the copy over IMAP, and for
- * that it needs the folder's name on the server — which is not the name a mail
- * app shows. Strato's is `Sent Items`, displayed as "Gesendete Objekte"; the
- * fixed default of `Sent` found nothing there, and nothing said so.
- *
- * Most servers tag the folder `\Sent` (RFC 6154, or the older XLIST), which is
- * how mail apps find it, so the bridge asks the same way. Only the server's own
- * tag counts: a folder that merely looks like a Sent folder by name is a guess,
- * and a copy filed on a guess lands in someone's archive.
- *
- * Pure: the server's answers come in as data, which is what lets every branch
- * here be tested without a mailbox.
+ * Where the copy of a sent message is filed. Pure: the server's answers come
+ * in as data, which is what lets every branch here be tested without a mailbox.
  */
 
 /** What a server that tags nothing gets, as before there was any detection. */
@@ -36,9 +24,7 @@ export function chooseSentMailbox({ configured = null, mailboxes = [], capabilit
   if (configured === "") return { mailbox: null, filedByServer: false };
   if (typeof configured === "string") return { mailbox: configured, filedByServer: false };
 
-  // A second copy beside the one Gmail filed itself would be a duplicate in
-  // every thread. Before detection this never happened only because `Sent`
-  // does not exist there and the APPEND failed without a word.
+  // Gmail files its own copy; a second one would be a duplicate in every thread.
   if (hasCapability(capabilities, GMAIL_CAPABILITY)) {
     return { mailbox: null, filedByServer: true };
   }

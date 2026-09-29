@@ -38,15 +38,46 @@ export function typstDictionary(data: Readonly<Record<string, string>>): string 
 }
 
 /**
+ * The words Typst reads as syntax, which a bare dictionary key cannot be:
+ * `(none: "x")` and `(in: "x")` refuse to compile, and a note with an `in`
+ * property was a note that would not print.
+ */
+const TYPST_KEYWORDS = new Set([
+  "none",
+  "auto",
+  "true",
+  "false",
+  "let",
+  "set",
+  "show",
+  "import",
+  "include",
+  "if",
+  "else",
+  "for",
+  "in",
+  "while",
+  "break",
+  "continue",
+  "return",
+  "not",
+  "and",
+  "or",
+  "as",
+  "context"
+]);
+
+/**
  * A key a Typst dictionary will accept.
  *
  * Identifiers are written bare, which is what a template author reads in
  * `data.senderName`. Anything else — a key with a space or a dash, which
- * frontmatter allows — is quoted, and the template reaches it with
- * `data.at("…")`.
+ * frontmatter allows, or a keyword — is quoted, and the template reaches it
+ * with `data.at("…")`.
  */
 export function typstKey(key: string): string {
-  return /^[A-Za-z_][A-Za-z0-9_-]*$/.test(key) && !key.endsWith("-") ? key : typstString(key);
+  const identifier = /^[A-Za-z_][A-Za-z0-9_-]*$/.test(key) && !key.endsWith("-");
+  return identifier && !TYPST_KEYWORDS.has(key) ? key : typstString(key);
 }
 
 /** A length such as `25mm` or `1.5cm`, or null when the text is not one. */

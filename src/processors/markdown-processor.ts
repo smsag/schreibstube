@@ -14,6 +14,15 @@ export interface ReadingPostProcessor {
   processor: MarkdownPostProcessor;
   /** Take every listener off every reading view still on screen. */
   dispose: () => void;
+  /**
+   * Let go of the views that have left the document.
+   *
+   * For the plugin to run on the workspace's `layout-change`: a note closed
+   * takes its reading view out with the whole leaf, which no observer on the
+   * view's own parent ever sees, and its handler and observer would otherwise
+   * stay attached until unload.
+   */
+  sweep: () => void;
 }
 
 /**
@@ -33,7 +42,18 @@ export function createReadingPostProcessor(
     for (const view of [...attached]) cleanupByReadingView.get(view)?.();
   };
 
+  const sweep = (): void => {
+    for (const view of [...attached]) {
+      if (!view.isConnected) cleanupByReadingView.get(view)?.();
+    }
+  };
+
   const processor: MarkdownPostProcessor = (el) => {
+    // Every render is a moment the workspace has moved; the views closed
+    // since the last one are let go here as well as on the layout event, so
+    // nothing depends on which of the two arrives first.
+    sweep();
+
     const view = el.closest(".markdown-reading-view") as HTMLElement | null;
     if (!view) {
       return;
@@ -62,14 +82,13 @@ export function createReadingPostProcessor(
     };
 
     view.addEventListener("scroll", handler, { passive: true });
-
-    // Initial sync
     handler();
 
-    // Detect the reading view leaving the DOM by observing only its parent's
-    // direct children — not a document-wide subtree, which would fire this
-    // callback on every mutation anywhere in the workspace. A detached view
-    // with no live listeners is also eligible for GC via the WeakMap.
+    // The view leaving the DOM is watched on its parent's direct children
+    // only — not a document-wide subtree, which would fire on every mutation
+    // anywhere in the workspace. That misses an ancestor being removed, which
+    // is what `sweep` is for. A detached view with no live listeners is also
+    // eligible for GC via the WeakMap.
     const parent = view.parentElement;
     const observer = parent
       ? new MutationObserver(() => {
@@ -92,5 +111,5 @@ export function createReadingPostProcessor(
     attached.add(view);
   };
 
-  return { processor, dispose };
+  return { processor, dispose, sweep };
 }

@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { App } from "obsidian";
 import { fakeVault, type FakeNote } from "../testing/fake-app";
-import { compileGlossaries } from "./glossary-matcher";
+import { compileGlossaries } from "../services/glossary-matcher";
 import { GlossaryRegistry } from "./glossary-registry";
-import { TERM_AVOID_KEY } from "./glossary-term-folder";
+import { TERM_AVOID_KEY } from "../services/glossary-term-folder";
 
 const TERM = "Glossar/Terms/Kartellrecht.md";
 

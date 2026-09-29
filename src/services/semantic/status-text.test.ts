@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { en } from "../../i18n/en";
 import { enExtra } from "../../i18n/en-extra";
-import { semanticStatusText, type SemanticStatus } from "./status-text";
+import { failureCause, semanticStatusText, type SemanticStatus } from "./status-text";
 
 const strings = { ...en, ...enExtra }.semantic.state;
 const base: SemanticStatus = {
@@ -38,8 +38,31 @@ describe("semanticStatusText", () => {
 
   it("passes any other failure through", () => {
     expect(
-      semanticStatusText({ ...base, state: "failed", error: "network down" }, strings)
+      semanticStatusText(
+        { ...base, state: "failed", error: "network down", cause: "other" },
+        strings
+      )
     ).toContain("network down");
+  });
+
+  it("says being offline and a timeout in the person's language, not the runtime's", () => {
+    const offline = new Error(
+      "The Multilingual model has not been downloaded yet and you appear to be offline. " +
+        "Connect to the internet to finish setting up."
+    );
+    expect(failureCause(offline)).toBe("offline");
+    expect(failureCause(new Error("Embedding request 7 timed out"))).toBe("timeout");
+    expect(failureCause(new Error("Embedding worker load timed out"))).toBe("timeout");
+    expect(failureCause("The build was stopped")).toBe("other");
+
+    const failed = (error: Error): string =>
+      semanticStatusText(
+        { ...base, state: "failed", error: error.message, cause: failureCause(error) },
+        strings
+      );
+    expect(failed(offline)).toBe(strings.offline);
+    expect(failed(new Error("Embedding request 7 timed out"))).toBe(strings.timedOut);
+    expect(failed(offline)).not.toContain("appear");
   });
 
   it("has a sentence for every state", () => {

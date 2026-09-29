@@ -41,8 +41,10 @@ controllers/         one per feature; they own flow and talk to Obsidian
   property-set-controller  property sets: the folder, Templater, and the four ways a set is offered
   semantic/            search by meaning: the model, the vault index, conversations, the API
 services/            pure decisions, no Obsidian imports, heavily tested
+platform/            the network clients and the bootstrap: what talks to Obsidian or the wire, and no decisions
 processors/          editor extensions and reading-view post-processors
 print/               the Typst compiler and the worker it runs in
+pdf/                 the PDF reader borrowed from Obsidian, and the preview it draws
 ui/                  panels and modals
 settings/            one module per settings area
 i18n/                German and English catalogues
@@ -119,9 +121,11 @@ Obsidian goes to the background — so it reads the synced file, answers from it
 finished or not, and reads it again when the desktop has written a newer one.
 **Build now** on a phone embeds a budget of notes and merges what the desktop
 wrote meanwhile before it writes, so the two devices do not undo each other
-through the one file. The phone's own edits are embedded on the phone and go
-to a journal of its own (`…phone-journal.bin`), tied to the desktop's base like
-the shared journal and ignored once the desktop writes a new one. A build
+through the one file. The phone's own edits are embedded on the phone, each
+note when its writer moves on to another and never on a quiet clock, since an
+embed there is a model load; they go to a journal of its own
+(`…phone-journal.bin`), tied to the desktop's base like the shared journal and
+ignored once the desktop writes a new one. A build
 answers queries while it runs, and a note whose
 embed fails on the desktop — not by a deadline — is kept as a row without
 vectors, so it is not retried until its text changes.

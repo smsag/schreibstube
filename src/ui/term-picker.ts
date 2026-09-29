@@ -3,7 +3,7 @@
  * term. Reached from the review panel's "Add rule".
  */
 import { App, SuggestModal } from "obsidian";
-import type { TermNoteEntry } from "../services/glossary-registry";
+import type { TermNoteEntry } from "../platform/glossary-registry";
 
 export class TermPickerModal extends SuggestModal<TermNoteEntry> {
   constructor(

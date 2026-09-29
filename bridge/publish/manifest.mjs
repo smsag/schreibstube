@@ -1,14 +1,4 @@
-/**
- * The manifest: what the bridge has published, and what that lets it delete.
- *
- * It is the reason a publish can mirror deletions without ever endangering a
- * file the bridge did not write. Anything on the host that is not in here is
- * somebody else's, and is left alone.
- *
- * Written last, always. A crash before that leaves it describing the previous
- * state, so the next publish re-uploads and re-renders; the cost is wasted work
- * rather than a lost file.
- */
+/** The manifest: what the bridge has published, and what that lets it delete. */
 import { assetPath, pagePath, tagPagePath, thumbnailPath } from "./path.mjs";
 
 export const MANIFEST_VERSION = 1;
@@ -142,13 +132,19 @@ export function diffOutputs(files, manifest, hash, uploaded = new Map()) {
   return { write: write.sort(), unchanged: unchanged.sort(), delete: remove.sort() };
 }
 
+/**
+ * `carried` holds the entries of files that should have gone and did not: a
+ * deletion the host refused. They stay recorded, so the next publish tries
+ * again; dropped, the file would have been left on the host for good.
+ */
 export function buildManifest({
   target,
   files,
   hash,
   renderVersion,
   generator,
-  uploaded = new Map()
+  uploaded = new Map(),
+  carried = new Map()
 }) {
   const entries = {};
   for (const [path, content] of [...files].sort(([a], [b]) => a.localeCompare(b))) {
@@ -156,6 +152,9 @@ export function buildManifest({
   }
   for (const [path, entry] of [...uploaded].sort(([a], [b]) => a.localeCompare(b))) {
     entries[path] = entry;
+  }
+  for (const [path, entry] of [...carried].sort(([a], [b]) => a.localeCompare(b))) {
+    if (entry && !entries[path]) entries[path] = entry;
   }
 
   return {

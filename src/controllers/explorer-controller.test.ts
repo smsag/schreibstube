@@ -146,7 +146,12 @@ function fixture(options: FixtureOptions = {}): Fixture {
     vault: {
       getRoot: () => folder(""),
       getAbstractFileByPath: (path: string) => (present.has(path) ? node(path) : null),
+      getFileByPath: (path: string) => {
+        const found = present.has(path) ? node(path) : null;
+        return found instanceof TFile ? found : null;
+      },
       getAllLoadedFiles: () => [...present].map(node),
+
       getMarkdownFiles: () => [...present].filter((p) => p.endsWith(".md")).map(node),
       createBinary,
       adapter: {
@@ -502,6 +507,78 @@ describe("deleting a described picture", () => {
 
     expect(f.present.has("Bilder/see.jpg")).toBe(true);
     expect(f.present.has(note)).toBe(true);
+  });
+
+  it("takes the notes of the pictures inside a deleted folder along", async () => {
+    const f = described();
+
+    await deleteViaMenu(f.controller, folder("Bilder", [new TFile("Bilder/see.jpg")]));
+
+    expect(f.trash).toEqual([".trash/Bilder", ".trash/see.jpg – 1234.md"]);
+  });
+
+  it("leaves a note that sits inside the deleted folder to go with the folder", async () => {
+    const inside = "Bilder/see.jpg – 1234.md";
+    const f = fixture({
+      present: ["Bilder/see.jpg", inside],
+      frontmatter: { [inside]: { schreibstubeImage: "[[Bilder/see.jpg]]" } }
+    });
+
+    await deleteViaMenu(f.controller, folder("Bilder", [new TFile("Bilder/see.jpg")]));
+
+    expect(f.trash).toEqual([".trash/Bilder"]);
+  });
+});
+
+describe("the pairing of pictures and their notes", () => {
+  const note = "Bildbeschreibungen/see.jpg – 1234.md";
+  const described = () =>
+    fixture({
+      present: ["Bilder/see.jpg", note],
+      frontmatter: { [note]: { schreibstubeImage: "[[Bilder/see.jpg]]" } }
+    });
+
+  it("forgets a pair when the vault reports its note gone", () => {
+    const f = described();
+    expect(f.controller.descriptionNoteOf("Bilder/see.jpg")).toBe(note);
+
+    f.present.delete(note);
+    f.controller.handleDelete(new TFile(note) as never);
+
+    expect(f.controller.descriptionNoteOf("Bilder/see.jpg")).toBeNull();
+  });
+
+  it("forgets a pair when the folder holding its picture is renamed", () => {
+    const f = described();
+    expect(f.controller.imageDescribedBy(note)).toBe("Bilder/see.jpg");
+
+    f.present.delete("Bilder/see.jpg");
+    f.present.add("Urlaub/see.jpg");
+    f.controller.handleRename(folder("Urlaub", [new TFile("Urlaub/see.jpg")]) as never, "Bilder");
+
+    expect(f.controller.imageDescribedBy(note)).toBeNull();
+  });
+
+  it("makes a pair when a picture appears where an orphaned note points", () => {
+    const f = fixture({
+      present: [note],
+      frontmatter: { [note]: { schreibstubeImage: "[[Bilder/see.jpg]]" } }
+    });
+    expect(f.controller.descriptionNoteOf("Bilder/see.jpg")).toBeNull();
+
+    f.present.add("Bilder/see.jpg");
+    f.controller.handleCreate(new TFile("Bilder/see.jpg") as never);
+
+    expect(f.controller.descriptionNoteOf("Bilder/see.jpg")).toBe(note);
+  });
+
+  it("keeps the pairing through a change to an unrelated note", () => {
+    const f = described();
+    const before = f.controller.descriptionNoteOf("Bilder/see.jpg");
+
+    f.controller.handleDelete(new TFile("Notizen/andere.md") as never);
+
+    expect(f.controller.descriptionNoteOf("Bilder/see.jpg")).toBe(before);
   });
 });
 

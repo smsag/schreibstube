@@ -185,6 +185,38 @@ describe("writing", () => {
     expect(file.text).toContain("home");
   });
 
+  it("tries a failed write again on its own, and waits longer each time", async () => {
+    const delays: number[] = [];
+    const timers = manualTimers();
+    const store = new ExplorerStore({
+      file,
+      logger: NULL_LOGGER,
+      now: () => T0,
+      writeDelayMs: 100,
+      setTimer: (callback, ms) => {
+        delays.push(ms);
+        return timers.setTimer(callback);
+      },
+      clearTimer: timers.clearTimer
+    });
+    await store.load();
+    file.failWrites = true;
+    // The timer's own flush runs on microtasks; a macrotask lets it finish.
+    const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+    store.mutate((data, now) => setIcon(data, "a.md", "home", now));
+    await store.flush();
+    timers.run();
+    await settle();
+    expect(delays).toEqual([100, 200, 400]);
+
+    file.failWrites = false;
+    timers.run();
+    await settle();
+    expect(file.text).toContain("home");
+    expect(delays).toHaveLength(3);
+  });
+
   it("flushes nothing when nothing changed", async () => {
     const store = makeStore(file);
     await store.load();
@@ -300,5 +332,20 @@ describe("dispose", () => {
 
     expect(file.writes).toBe(0);
     expect(listener).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not arm a retry for a write that failed after it was disposed", async () => {
+    const timers = manualTimers();
+    const store = makeStore(file, timers);
+    await store.load();
+    store.mutate((data, now) => setIcon(data, "a.md", "home", now));
+    file.failWrites = true;
+    const pending = store.flush();
+    store.dispose();
+    await pending;
+    // A retry, had one been armed, would write now that the disk is back.
+    file.failWrites = false;
+    timers.run();
+    expect(file.writes).toBe(0);
   });
 });

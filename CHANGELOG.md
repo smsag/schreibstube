@@ -2,6 +2,93 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+A quality review of the whole codebase: about 180 defects and improvements,
+found by reading every module against the three principles and fixed with a
+test each where a decision changed. Nothing new to learn; what was there now
+holds under the conditions it did not — a dropped desktop connection, a hung
+host, a phone with a long note open, a mail with an `<img>` in it, a folder
+deleted with described pictures inside, a date in a column of sums.
+
+Mobile checklist: not run; the test suite, the coverage floors (raised) and
+the build checked it. What to try first: a long note in Recommended on a
+phone, a long press on a card in the tag list, Enter and Space on a pinned
+row, and a publish against a bridge on 2.11.0.
+
+The bridge is at 2.11.0, protocol 6. A plugin on protocol 6 works with a
+bridge on 5; a commit's `deleteFailed` is then read as zero.
+
+### Changed
+
+- **One search reads the model once.** A meaning search embeds its text once for notes and conversations, and the public API cuts a query at 1 000 characters before embedding it. A phone answers a conversation search from what it holds instead of embedding every changed conversation first.
+- **A phone indexes a note when you leave it, not while you pause.** The note being written used to reach the index after thirty seconds of quiet as well, which on a phone meant loading the model of several hundred megabytes beside the editor at every pause to think, and a long writing session loaded and dropped it every few minutes until iOS ended the process. A phone now embeds the note once, when another note is opened; the desktop keeps the quiet clock, where the model lives in a worker.
+- **A phone no longer reloads the model every time Obsidian comes back to the front.** The model released in the background was loaded again the moment the app returned, ahead of any need; most returns are to keep reading or writing, and each load was the memory peak that got the app ended. It is loaded when a search, an embed or the search box asks for it.
+- **The Recommended panel no longer freezes the app for a long note.** A note ranks the index by its first passages, and the ranking yields to the interface as it goes, for notes and conversations alike.
+- **Typing in a long note is lighter.** Task folding, task badges, icon glyphs, the glossary underline and focus mode now do work only when something they draw could have changed, and none of them reads a note above the live limit.
+- **Frontmatter closed with `...` is recognised everywhere.** Sync, publish, mail, keyword and plain-text readers each had their own frontmatter rule; one shared reader accepts `---` or `...`, trailing blanks on the fence lines and an empty block.
+- **Every row of the file pane answers the keyboard.** Bookmarks, the pinned block and the latest list take Enter and Space and carry a role; the heading stack's rows and a slideshow's fullscreen view can be used from the keyboard, and the fullscreen view announces itself as a dialogue and hands the focus back when it closes.
+- **The "Updated externally" list is no longer recomputed on every keystroke.** It changes only when a file appears, goes or moves, or a source's sync record changes.
+- **Publishing commands no longer overlap.** Preview, publish and "Open the website" wait for each other; a second command while one runs is told so, and the plan dialog holds the guard until it is answered. Two prints, or two "Describe pictures", cannot run at once either.
+- **A bridge switched in the settings mid-session is asked afresh**, for mail and for publishing, instead of being believed to be the one asked before.
+- **The settings report of search by meaning is redrawn at most every five seconds while a build runs**; the status line still moves every second.
+- **The layout check of a print template says what a print cannot read** rather than forbidding it, and names the line; the job's own file system, which holds only the template's files, is what keeps a path inside it.
+- **Wording.** The icon group of houses and buildings is "Real estate", not "Property"; the review card badge for capitalisation is "Groß-/Kleinschreibung", not "Schreibweise"; the same drawn fence is a "diagram" in every English string and a "Visualisierung" in every German one; a Pythia conversation is a "Gespräch" throughout; a slideshow is a "Diaschau" throughout; the AI settings name every command the shared model serves; the custom model field no longer suggests a retired identifier.
+- **`src/services/` holds decisions only, and a lint rule keeps it so.** The five network clients, the bootstrap, the glossary registry, the reading navigator, the overlay wiring and the four LLM request runners took an `App`, a view or `requestUrl` while living among the pure modules; they moved to `src/platform/`, and an import of `obsidian`, `ui/`, `controllers/` or `platform/` under `src/services/` is now a lint error.
+- **The coverage floors rose** to 90 / 88 / 89 / 85 (lines, functions, statements, branches), measured 93 / 92 / 92 / 88 after this review; `noImplicitReturns`, `isolatedModules` and `noUnusedLocals` are on, and `no-base-to-string` is a lint error.
+
+### Fixed
+
+- **Dropped desktop connections are retried.** A publish or mail request that failed with a Chromium `net::ERR_…` code (connection reset, timed out, DNS, offline) was given up on at once; it is now retried like any other dropped connection.
+- **A folder move or delete no longer orphans the descriptions of the pictures inside it.** Renaming or deleting a folder re-links, renames or trashes the description notes of every picture under it; deleting a folder from the pane takes those notes along, and the pane's pairing of pictures and notes is refreshed at once.
+- **A mailed `<img>` cannot act as a tracking pixel.** Raw HTML tags in a reply merged into a note are written as `&lt;`, which shows the same and loads nothing; an address in angle brackets stays as written.
+- **A mail header cannot be smuggled through an address or subject.** A line break or control character anywhere in a recipient, sender or subject is refused before the bridge sees it.
+- **Mail answers are bounded and checked.** A search is read up to 200 messages, 400 000 characters of text, 500-character headers and 50 references; a Message-ID or date that is not one is dropped, and a send answer with a malformed Message-ID or send time is refused.
+- **A private source that answers with a web page is refused.** With a GitHub token, any non-JSON content type was pasted into the note as the document; the same Markdown allowlist now applies with and without a token, and the size limit counts the bytes the server declares.
+- **A bridge cannot hand the plugin a `javascript:` or `file:` site address.** Target, plan and summary URLs must be http(s) or are blanked, and "Open the website" refuses anything that is not a web address.
+- **A search typed while the index was still being read no longer starts a full build** of an index that was already finished, on any backend.
+- **The index file is written beside itself and renamed into place**, so an app ended mid-write leaves the last whole index rather than a torn one that had to be rebuilt.
+- **A note edited on the phone and then on the desktop answers with the desktop's version** even when the phone's clock runs ahead; the two clocks are no longer compared.
+- **Closing Obsidian during a build no longer reports that build as failed**, and the status line says in your language when the model could not be downloaded offline or did not answer in time.
+- **A finished index is shown as ready while automatic builds are paused**, and a note whose reading failed is counted as failed, not reused.
+- **Sums: a date such as `2026-09-29` is no longer read as the amount 2026**, and `=min` and `=max` over very many rows no longer fail.
+- **Printing.** `2 * 3 * 4` prints as written and a `*` inside a code span no longer closes emphasis; an empty properties block no longer prints as two rules; a property named like a Typst word (`in`, `none`, `for`) no longer stops the print; image and link targets written `<with spaces>` print; a task ticked `[-]` or `[/]` draws a done box as the ribbon counts it; a callout kind such as `[!my-note]` is a callout; a table without its outer pipes is a table; a diagram's size is read from its root `<svg>` tag only; whether a PDF beside the note is an earlier print is decided without decoding the whole file.
+- **Heading stack: a `#` comment in the properties no longer appears as the note's first heading.**
+- **A plain-text mail keeps every line of a code block.** Inside a fenced block, any line that looked like a fence was dropped; only the block's own opener and closer are now removed. A heading such as `# C#` keeps its hash, in mail and as a published note's title.
+- **PDF passages are inserted as text.** A passage that begins like a list item, a heading or a quote, or holds `[[`, `%%` or `<!--`, no longer turns into markup.
+- **Picture keywords become proper tags.** "Küche & Bad" became `Küche-&-Bad`; keywords are normalised the way tag suggestions are, and each is written once.
+- **A synced title that starts like a date is quoted**, so YAML does not read `2026-09-17 Protokoll` or `0x1F` as a date or a number; an emptied `title: ""` no longer blocks the title from being written.
+- **A check interval has to be a whole number.** "Alle 1,5 Stunden" was silently read as one hour; it is refused with a reason, and a phrase cron cannot state (every 90 minutes) is shown without a misleading cron. The scheduler no longer walks a rare schedule minute by minute.
+- **A proofread that failed entirely says why**, carrying the first error, so a refused key or an unreachable host can be fixed; the glossary check's messages and the print's "the compiler gave no answer" follow the interface language.
+- **Explorer menu actions and background work that fail say so.** A move, rename, binding or delete that failed after the menu closed, a scheduled or catch-up poll, a sync record written after a rename — each used to vanish as an unhandled error; each is now logged and reported. "Copy path for Schreibstube" is offered once in the pane's folder menu, not twice.
+- **Explorer.** A file name is judged by the bytes a filesystem counts, so a long name of umlauts is refused before the vault refuses it; moving into a folder that holds the same name in another letter case is refused before the move; a failed write of icons or pins is retried on its own with growing waits; a long press whose row was redrawn under the finger no longer opens a menu; a publication mark whose date cannot be read no longer shows "Invalid Date"; the "more matches" note and the folder counts read correctly for one; a closed pane no longer renders into its detached tree.
+- **Notes in the tag list can open their menu with a long press on a phone.**
+- **The mailbox search no longer closes on Enter with an empty form**; it says that at least one field is needed.
+- **An unreachable mail bridge is no longer called too old.** When the bridge cannot be asked whether it takes pictures, the mail says so and sends diagrams as text; only a bridge that answers with an old protocol is reported as needing a redeploy.
+- **Mail, publish and the AI commands speak the interface language everywhere**, including the mail token label, a Message-ID that could not be written, replies merged without their ids, the slug-collision notice and the glossary card notes. "Rename doc with AI" on a short note says the note is too short instead of doing nothing.
+- **Side-pane link mode leaves modifier and middle clicks to Obsidian**, so Cmd/Ctrl-click and middle-click still open a tab or window.
+- **Inserting a PDF summary checks the note is still in front** rather than writing the passages into another note.
+- **A picture description's folder is created with every missing parent**, as the print output folder always was.
+- **Copying anything says when the clipboard refused**, for the new-doc link, a bridge setup block and a selection's total alike; an account name with a line break can no longer break the setup block.
+- **Manually chosen glossaries follow a renamed note** in the review sidebar, and the review panel keeps its scroll position when a suggestion is accepted.
+- **The typesetter's download notice names the part being fetched in the reader's language**, a worker reply that is not one fails the print with a clear error, and a second print started during the download hears its progress too.
+- **Text to table: a cell the model answered with a list or an object is written as JSON**, never as `[object Object]`.
+- **Reading-view scroll handlers are released when a note closes**, not at unload.
+- **Data.json keys named `__proto__`, `constructor` or `prototype` are ignored** when sync state and publish runs are read or merged.
+- **Tooling.** A release is tagged on the commit it was built from; CI audits the plugin's runtime dependency as well as the bridge's, and every job has a time limit; the typesetter fetch has a deadline and a size cap and the print-compile check a deadline per fixture; a trace inside unmapped code answers "not in map" instead of the wrong line; the example builder runs from any directory and is `npm run build:print-examples`; the coverage run gets the same dependency guard as the plain run.
+
+### Bridge 2.11.0
+
+- **A page the host would not delete is tried again.** A commit reports `deleteFailed` beside `deleted`, keeps the file in the manifest and logs why, so the next publish removes it instead of forgetting it; the plugin's notice says so.
+- **A commit records only what is on the host.** An asset the plugin never managed to upload refuses the commit with `assets_missing`, naming the file; running the plan again asks for it.
+- **Uploaded pictures are what their name says.** An SVG is checked as the tab icon is, and a PNG or JPEG has to begin like one; otherwise the upload is refused.
+- **A hung SFTP request no longer blocks the target.** Every SFTP operation and every publish request has a deadline, the connection is closed when one runs out, and the server is pinged so a dead line is noticed within the minute.
+- **A send whose connection dropped is reported as unconfirmed.** The bridge now recognises the mail library's real "connection closed unexpectedly", so the plugin says "check Sent" rather than "failed" and the mail is not sent twice.
+- **Publish diagnostics say when the web root is missing**, and quote only a host key mismatch word for word; other SFTP failures are summarised for the plugin with the detail in the bridge's log. Mail diagnostics answer each protocol under its own deadline.
+- **Stricter checks on a send and a search.** Recipients are parsed as the envelope reads them and one without an address is refused; subject, In-Reply-To and References are bounded; a search's `references` and `mailbox` are checked too; a target named `constructor` is unknown, not an object.
+- **Configuration is checked harder at start:** a publish key that is not a private key, a port outside 1–65535 or a number not written in decimal digits refuses to boot, naming the variable.
+- **Reading a request body counts against its deadline**, the bridge logs why a Sent copy was not filed, and the image installs dependencies without their install scripts.
+
 ## 1.63.0 - 2026-09-29
 
 Printing works with Pythia. A note whose passages link to Pythia conversations

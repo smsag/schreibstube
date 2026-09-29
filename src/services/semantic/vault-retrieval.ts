@@ -1,15 +1,6 @@
-// Pure retrieval logic for vault-wide semantic RAG (Pythia ADR-116).
-//
-// Two pieces, both pure and runtime-free so they are fully unit-testable:
-//   • noteEmbedChunks — split a note's markdown into the text chunks that get
-//     embedded (heading-aware, then windowed to a char budget), mirroring how
-//     conversationChunks feeds the conversation index.
-//   • retrievalQuery — the text actually embedded for a turn (Pythia ADR-183).
-//   • isIndexingOptedOut — the per-note `pythia: false` escape hatch (Pythia ADR-183).
-//
-// Scoring lives in `VaultIndexService.query`, which yields cooperatively over a
-// large index. A second, non-yielding copy (`rankByQuery`) existed here until
-// Pythia ADR-183 and had already drifted — it never learned about `exclude`.
+// What a vault note is to the index (Pythia ADR-116): the passages it is
+// embedded as, and the frontmatter that keeps it out. Pure, so both are tested
+// without a model; scoring lives in `VaultIndexService`.
 
 import { chunkByHeadings } from "./heading-chunks";
 import { plainNoteText } from "../note-text";
@@ -20,37 +11,6 @@ export interface RetrievedNote {
   id: string;
   /** Best chunk-to-query cosine, ≈ [-1, 1]. */
   score: number;
-}
-
-/**
- * Split a note's markdown into embed-source chunks. Sections are cut at headings
- * (reusing the note-chunking splitter so retrieval and attached-note excerpting
- * agree on structure), then any section longer than `maxChars` is hard-windowed
- * so a long note contributes several vectors and a topic buried deep still gets
- * its own chunk. `maxChars` should track the model's token budget (≈4 chars/token).
- *
- * Pure and deterministic: the same content always yields the same chunks, which
- * is what the content-hash incremental reuse relies on.
- */
-export function noteEmbedChunks(content: string, maxChars = 500): string[] {
-  const text = typeof content === "string" ? content : "";
-  const sections = chunkByHeadings(text)
-    .map((c) => c.text.trim())
-    .filter(Boolean);
-  // A note with no headings (chunkByHeadings still returns one block) or an empty
-  // note: fall back to the whole trimmed body as a single section.
-  const source = sections.length > 0 ? sections : [text.trim()].filter(Boolean);
-
-  const chunks: string[] = [];
-  for (const section of source) {
-    let rest = section;
-    while (rest.length > maxChars) {
-      chunks.push(rest.slice(0, maxChars));
-      rest = rest.slice(maxChars);
-    }
-    if (rest.trim()) chunks.push(rest);
-  }
-  return chunks;
 }
 
 /**
@@ -110,13 +70,12 @@ function windows(text: string, maxChars: number): string[] {
 /**
  * The passages a vault note is embedded as.
  *
- * Differs from `noteEmbedChunks` in three ways, each of which cut the time a
- * build took. The note is read as prose first (`plainNoteText`): no
- * frontmatter, code, URLs or encoded data. Sections shorter than a passage are
- * merged with their neighbours — a note of thirty short headings used to be
- * thirty embeds of a line each, where five passages carry the same text. And a
- * note stops at `MAX_CHUNKS_PER_NOTE`. Long sections are cut at spaces with an
- * overlap (`windows`).
+ * Three choices, each of which cut the time a build took. The note is read as
+ * prose first (`plainNoteText`): no frontmatter, code, URLs or encoded data.
+ * Sections shorter than a passage are merged with their neighbours — a note of
+ * thirty short headings used to be thirty embeds of a line each, where five
+ * passages carry the same text. And a note stops at `MAX_CHUNKS_PER_NOTE`.
+ * Long sections are cut at spaces with an overlap (`windows`).
  *
  * Deterministic, which the content-hash reuse relies on: the same note always
  * yields the same passages.
@@ -148,33 +107,6 @@ export function vaultNoteChunks(markdown: string, maxChars = 500): string[] {
     }
   }
   return chunks;
-}
-
-/** How much of the preceding answer joins the retrieval query (Pythia ADR-183). */
-const CARRY_OVER_CHARS = 200;
-
-/**
- * The text actually embedded to retrieve notes for a turn.
- *
- * The bare user message was the query until Pythia ADR-183, which makes a follow-up
- * ("and the second one?") a four-token query that retrieves noise or nothing —
- * the turns most in need of the conversation's context were the ones with none.
- * The head of the preceding answer is appended as carry-over: enough to keep the
- * topic in the vector, short enough that the user's actual words still dominate.
- *
- * The message always leads, and carry-over is dropped when the message is long
- * enough to stand on its own — a full question does not need help, and diluting
- * it would move the vector away from what was asked.
- *
- * Pure: takes the strings, not the conversation, so it is testable and cannot
- * reach for anything else.
- */
-export function retrievalQuery(message: string, previousAnswer = ""): string {
-  const q = message.trim();
-  if (!q) return "";
-  if (q.length >= CARRY_OVER_CHARS) return q;
-  const carry = previousAnswer.trim().slice(0, CARRY_OVER_CHARS).trim();
-  return carry ? `${q}\n\n${carry}` : q;
 }
 
 /**

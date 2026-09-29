@@ -5,9 +5,17 @@ import {
   type ViewUpdate,
   Decoration
 } from "@codemirror/view";
-import { type EditorState, type Extension, RangeSetBuilder } from "@codemirror/state";
+import {
+  type EditorState,
+  type Extension,
+  RangeSetBuilder,
+  type Text,
+  type Transaction
+} from "@codemirror/state";
 import { t } from "../i18n";
+import { fenceMarker } from "../services/markdown-fence";
 import { hasTaskSummaryBlock, summarizeTasks } from "../services/task-summary";
+import { MAX_LIVE_CHARS } from "./live-limits";
 
 export const TASK_BADGE_ATTRIBUTE = "data-schreibstube-tasks";
 
@@ -25,13 +33,26 @@ export function createTaskBadgeExtension(): Extension {
   return ViewPlugin.fromClass(
     class {
       decorations: DecorationSet;
+      /** Whether the note carries the block at all, which most notes do not. */
+      private active: boolean;
 
       constructor(view: EditorView) {
-        this.decorations = buildTaskBadges(view.state);
+        this.active = hasBlock(view.state);
+        this.decorations = this.active ? buildTaskBadges(view.state) : Decoration.none;
       }
 
       update(update: ViewUpdate): void {
-        if (update.docChanged) this.decorations = buildTaskBadges(update.state);
+        if (!update.docChanged) return;
+        // Whether there is a block is asked again only when an edit touched a
+        // fence line: reading the whole note for the answer on every
+        // keystroke was the one cost every note paid for a feature few use.
+        const crossedLimit =
+          update.startState.doc.length > MAX_LIVE_CHARS !==
+          update.state.doc.length > MAX_LIVE_CHARS;
+        if (crossedLimit || update.transactions.some(touchesFence)) {
+          this.active = hasBlock(update.state);
+        }
+        this.decorations = this.active ? buildTaskBadges(update.state) : Decoration.none;
       }
     },
     {
@@ -40,9 +61,31 @@ export function createTaskBadgeExtension(): Extension {
   );
 }
 
+function hasBlock(state: EditorState): boolean {
+  return state.doc.length <= MAX_LIVE_CHARS && hasTaskSummaryBlock(state.doc.toString());
+}
+
+/** Whether a changed range lies on a fence line, before or after the change. */
+function touchesFence(tr: Transaction): boolean {
+  let touched = false;
+  tr.changes.iterChangedRanges((fromA, toA, fromB, toB) => {
+    if (touched) return;
+    touched = hasFenceLine(tr.startState.doc, fromA, toA) || hasFenceLine(tr.state.doc, fromB, toB);
+  });
+  return touched;
+}
+
+function hasFenceLine(doc: Text, from: number, to: number): boolean {
+  const last = doc.lineAt(to).number;
+  for (let number = doc.lineAt(from).number; number <= last; number += 1) {
+    if (fenceMarker(doc.line(number).text) !== null) return true;
+  }
+  return false;
+}
+
 function buildTaskBadges(state: EditorState): DecorationSet {
+  if (state.doc.length > MAX_LIVE_CHARS) return Decoration.none;
   const content = state.doc.toString();
-  if (!hasTaskSummaryBlock(content)) return Decoration.none;
 
   const builder = new RangeSetBuilder<Decoration>();
   for (const section of summarizeTasks(content).sections) {

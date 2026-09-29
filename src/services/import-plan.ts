@@ -8,10 +8,6 @@
  * refuses, a size no phone should be handed — plus one of the drop's own:
  * a folder dropped from the desktop arrives as a name with nothing behind
  * it, and is refused rather than written as an empty file called "Photos".
- *
- * Nothing here reads a file or touches the vault. The view hands in what it
- * was given and the controller writes what comes back, so the deciding is a
- * test and the two halves that talk to the platform stay thin.
  */
 
 import { checkFileName } from "./file-name";

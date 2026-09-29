@@ -22,6 +22,9 @@ export function buildHeadingIndex(content: string): HeadingIndex {
   let fence: string | null = null;
 
   for (const [lineNumber, line] of lines.entries()) {
+    // A `# comment` in the properties is YAML, and it stood in the stack as
+    // the note's first heading.
+    if (lineNumber < frontmatterLines(lines)) continue;
     // A `#` inside a code block is a comment, a shell prompt or a CSS colour,
     // and the stack above the note claimed it as the section being read.
     const marker = fenceMarker(line);
@@ -55,4 +58,15 @@ export function buildHeadingIndex(content: string): HeadingIndex {
   }
 
   return result;
+}
+
+/**
+ * How many lines the frontmatter takes, fences included, or zero. Counted
+ * the way Obsidian does: `---` on the first line, closed by the next `---`;
+ * one that never closes is not frontmatter.
+ */
+function frontmatterLines(lines: readonly string[]): number {
+  if (lines[0] !== "---") return 0;
+  const close = lines.indexOf("---", 1);
+  return close === -1 ? 0 : close + 1;
 }

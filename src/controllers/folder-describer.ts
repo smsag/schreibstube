@@ -14,6 +14,8 @@ import { t } from "../i18n";
 import { MAX_FOLDER_DESCRIPTIONS, planFolderDescriptions } from "../services/folder-descriptions";
 import { getImageMimeType, MAX_IMAGE_BYTES } from "../services/image-resize";
 import { providerLabel } from "../services/llm-providers";
+import { modalAnswer } from "../services/modal-answer";
+
 import type { Logger } from "../services/logger";
 import type { SchreibstubeSettings } from "../types";
 import { ConfirmModal } from "../ui/explorer-modals";
@@ -42,10 +44,27 @@ export class FolderDescriber {
       new Notice(t().common.notice(t().ai.busy));
       return;
     }
+    // Taken here, before the plan and the question, not when the run starts:
+    // two menus pressed in turn used to open two dialogs, and both runs went.
+    this.running = true;
+    let handedOn = false;
+    try {
+      handedOn = await this.plan(folder);
+    } finally {
+      if (!handedOn) this.running = false;
+    }
+  }
+
+  /**
+   * Plan what to describe and ask. Answers whether the run has been handed
+   * the guard: true once the dialog owns it, false when nothing more follows.
+   */
+  private async plan(folder: TFolder): Promise<boolean> {
+    const messages = t().ai.folder;
     // The pairing of pictures and notes lives with the pane, which builds it
     // at load whether or not the pane is open.
     const explorer = this.explorer();
-    if (!explorer) return;
+    if (!explorer) return false;
 
     let relinked = 0;
     try {
@@ -75,21 +94,38 @@ export class FolderDescriber {
 
     if (plan.describe.length === 0) {
       new Notice(t().common.notice([messages.nothing(name, plan.described), ...notes].join(" ")));
-      return;
+      return false;
     }
 
-    new ConfirmModal(
-      this.app,
-      {
-        title: messages.confirmTitle(plan.describe.length, name),
-        message: [
-          messages.confirmBody(plan.describe.length, providerLabel(this.getSettings().llmProvider)),
-          ...notes
-        ].join(" "),
-        submitLabel: messages.confirmAction
-      },
-      () => void this.run(plan.describe, name)
-    ).open();
+    // Dismissed is an answer too: the guard goes back with it, or the next
+    // "Describe pictures" would be refused for the rest of the session.
+    const confirmed = await new Promise<boolean>((resolve) => {
+      const answer = modalAnswer<boolean>(resolve);
+      const modal = new ConfirmModal(
+        this.app,
+        {
+          title: messages.confirmTitle(plan.describe.length, name),
+          message: [
+            messages.confirmBody(
+              plan.describe.length,
+              providerLabel(this.getSettings().llmProvider)
+            ),
+            ...notes
+          ].join(" "),
+          submitLabel: messages.confirmAction
+        },
+        () => answer.choose(true)
+      );
+      const close = modal.onClose.bind(modal);
+      modal.onClose = () => {
+        close();
+        answer.closed(false);
+      };
+      modal.open();
+    });
+    if (!confirmed) return false;
+    void this.run(plan.describe, name);
+    return true;
   }
 
   private async run(paths: readonly string[], name: string): Promise<void> {
@@ -121,7 +157,6 @@ export class FolderDescriber {
     status.textContent = messages.progress(0, files.length, name);
     const notice = new Notice(fragment, 0);
 
-    this.running = true;
     this.stopRequested = false;
     try {
       const result = await this.llm().describeImages(
@@ -131,8 +166,8 @@ export class FolderDescriber {
         },
         () => this.stopRequested
       );
-      notice.hide();
       if (!result) return;
+
       const summary = [
         messages.done(result.described, name),
         ...(result.unusable > 0 ? [messages.unusable(result.unusable)] : []),

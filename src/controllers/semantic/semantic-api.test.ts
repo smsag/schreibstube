@@ -2,26 +2,43 @@ import { describe, expect, it, vi } from "vitest";
 import { createSemanticApi } from "./semantic-api";
 import type { SemanticEngine } from "./semantic-engine";
 import { NULL_LOGGER } from "../../services/logger";
+import { MAX_QUERY_CHARS } from "../../services/semantic/semantic-api";
+
+type Scored = { id: string; score: number };
 
 function fakeEngine(over: Partial<Record<string, unknown>> = {}) {
   const conversations = {
-    search: vi.fn(async () => [{ id: "c1", score: 0.6 }]),
+    search: vi.fn<(text: string, limit: number, exclude: Iterable<string>) => Promise<Scored[]>>(
+      async () => [{ id: "c1", score: 0.6 }]
+    ),
     related: vi.fn(async () => [{ id: "c2", score: 0.8 }]),
     register: vi.fn(() => () => undefined),
     titleOf: (id: string) => `Titel ${id}`
   };
+  const search = vi.fn<(text: string, limit: number) => Promise<Scored[]>>(async () => [
+    { id: "Notizen/küche.md", score: 0.7 },
+    { id: "Bildbeschreibungen/see.md", score: 0.5 },
+    { id: "gone.md", score: 0.4 }
+  ]);
   const engine = {
     enabled: () => true,
-    search: vi.fn(async () => [
-      { id: "Notizen/küche.md", score: 0.7 },
-      { id: "Bildbeschreibungen/see.md", score: 0.5 },
-      { id: "gone.md", score: 0.4 }
-    ]),
+    search,
     onChange: vi.fn(() => () => undefined),
     conversations,
     ...over
   } as unknown as SemanticEngine;
-  return { engine, conversations };
+  // The real engine's `searchAll` is the two searches sharing one vector.
+  (engine as { searchAll: unknown }).searchAll = async (
+    text: string,
+    opts: { notes: number; conversations: number; exclude: Iterable<string> }
+  ) => ({
+    notes: opts.notes > 0 ? await engine.search(text, opts.notes) : [],
+    conversations:
+      opts.conversations > 0
+        ? await engine.conversations.search(text, opts.conversations, opts.exclude)
+        : []
+  });
+  return { engine, conversations, search };
 }
 
 const vaultHit = (path: string) =>
@@ -60,6 +77,14 @@ describe("the semantic API", () => {
     const { engine } = fakeEngine();
     const api = createSemanticApi({ engine, logger: NULL_LOGGER, vaultHit });
     expect(await api.search("  ", { kinds: ["note"], limit: 5 })).toEqual([]);
+  });
+
+  it("embeds at most the first thousand characters of a query", async () => {
+    const { engine, search, conversations } = fakeEngine();
+    const api = createSemanticApi({ engine, logger: NULL_LOGGER, vaultHit });
+    await api.search(`${"k".repeat(2000)}  `, { kinds: ["note", "conversation"], limit: 5 });
+    expect(search.mock.calls[0]?.[0]).toHaveLength(MAX_QUERY_CHARS);
+    expect(conversations.search.mock.calls[0]?.[0]).toHaveLength(MAX_QUERY_CHARS);
   });
 
   it("answers nothing, rather than throwing, when a search fails", async () => {

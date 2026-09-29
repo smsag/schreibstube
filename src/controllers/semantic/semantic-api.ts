@@ -7,6 +7,7 @@ import {
   mergeHits,
   readExclude,
   readKinds,
+  readQuery,
   type Hit,
   type RelatedRef,
   type SchreibstubeSemanticApi
@@ -30,13 +31,11 @@ export interface SemanticApiDeps {
 export function createSemanticApi(deps: SemanticApiDeps): SchreibstubeSemanticApi {
   const { engine, logger } = deps;
 
-  const vaultHits = async (
-    text: string,
-    limit: number,
+  const vaultHits = (
+    found: { id: string; score: number }[],
     exclude: Set<string>,
     want: Set<string>
-  ): Promise<Hit[]> => {
-    const found = await engine.search(text, limit + exclude.size);
+  ): Hit[] => {
     const hits: Hit[] = [];
     const seen = new Set<string>();
     for (const note of found) {
@@ -62,19 +61,22 @@ export function createSemanticApi(deps: SemanticApiDeps): SchreibstubeSemanticAp
     ready: () => engine.enabled(),
 
     async search(text, opts) {
-      if (typeof text !== "string" || text.trim().length === 0) return [];
+      const query = readQuery(text);
+      if (query.length === 0) return [];
       const kinds = readKinds(opts?.kinds);
       const limit = clampLimit(opts?.limit);
       const exclude = readExclude(opts?.exclude);
       try {
-        const lists: Hit[][] = [];
-        if (kinds.has("note") || kinds.has("image")) {
-          lists.push(await vaultHits(text, limit, exclude, kinds));
-        }
-        if (kinds.has("conversation")) {
-          lists.push(conversationHits(await engine.conversations.search(text, limit, exclude)));
-        }
-        return mergeHits(lists, limit);
+        // One embed of the query for both indexes.
+        const found = await engine.searchAll(query, {
+          notes: kinds.has("note") || kinds.has("image") ? limit + exclude.size : 0,
+          conversations: kinds.has("conversation") ? limit : 0,
+          exclude
+        });
+        return mergeHits(
+          [vaultHits(found.notes, exclude, kinds), conversationHits(found.conversations)],
+          limit
+        );
       } catch (e) {
         logger.warn("semantic API: search failed", e);
         return [];

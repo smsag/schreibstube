@@ -50,7 +50,7 @@ export function compute(op: FormulaOp, amounts: readonly Amount[], ctx: FormulaC
   }
 
   const currencies = [...new Set(amounts.map((a) => a.currency).filter((c) => c !== null))];
-  const decimals = Math.max(...amounts.map((a) => a.decimals));
+  const decimals = amounts.reduce((most, a) => Math.max(most, a.decimals), 0);
 
   if (currencies.length <= 1) {
     const currency = currencies[0] ?? fallback;
@@ -92,10 +92,12 @@ function aggregate(op: Exclude<FormulaOp, "count">, values: number[]): number {
       return values.reduce((total, value) => total + value, 0);
     case "avg":
       return values.reduce((total, value) => total + value, 0) / values.length;
+    // Not spread into `Math.min`: a column of a hundred thousand rows is
+    // more arguments than a call may take, and the formula threw instead.
     case "min":
-      return Math.min(...values);
+      return values.reduce((least, value) => Math.min(least, value), Infinity);
     case "max":
-      return Math.max(...values);
+      return values.reduce((most, value) => Math.max(most, value), -Infinity);
     case "median": {
       const sorted = [...values].sort((a, b) => a - b);
       const middle = Math.floor(sorted.length / 2);

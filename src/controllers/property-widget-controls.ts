@@ -16,7 +16,6 @@ import {
   propertiesWidgets
 } from "../services/workspace-internals";
 
-/** One control, in the order they stand after "Add property". */
 export interface WidgetControl {
   className: string;
   icon: string;
@@ -43,7 +42,6 @@ export class PropertyWidgetControls {
     private readonly controls: readonly WidgetControl[]
   ) {}
 
-  /** Install on a window: the main one at load, each popped-out one as it opens. */
   attach(win: Window, register: Register): void {
     const doc = win.document;
     this.documents.add(doc);

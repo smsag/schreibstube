@@ -1,9 +1,6 @@
 /**
  * What every bridge capability shares: the URL, the credential, and what to say
  * when a request comes back wrong.
- *
- * Kept free of `obsidian` imports so it stays unit-testable — the same split as
- * `llm-providers.ts` (pure) and `llm-client.ts` (transport).
  */
 
 export type UrlResult = { ok: true; url: string } | { ok: false; message: string };
@@ -40,7 +37,6 @@ export function normalizeBaseUrl(raw: string): UrlResult {
     };
   }
 
-  // Strip trailing slashes so endpoint joining never produces a double slash.
   const url = `${parsed.origin}${parsed.pathname.replace(/\/+$/, "")}`;
   return { ok: true, url };
 }
@@ -112,24 +108,39 @@ export class BridgeError extends Error {
 
 /** The bridge's stable error code, or "" when the body is not the bridge's. */
 export function extractCode(body: string): string {
-  try {
-    return str(asRecord(JSON.parse(body) as unknown).code);
-  } catch {
-    return "";
-  }
+  return str(asRecord(jsonOrNull(body)).code);
 }
 
 export function extractError(body: string): string {
+  return str(asRecord(jsonOrNull(body)).error) || body.trim().slice(0, 200);
+}
+
+function jsonOrNull(body: string): unknown {
   try {
-    const parsed: unknown = JSON.parse(body);
-    const message = str(asRecord(parsed).error);
-    if (message) {
-      return message;
-    }
+    return JSON.parse(body) as unknown;
   } catch {
-    // Not JSON — fall through to the raw body.
+    return null;
   }
-  return body.trim().slice(0, 200);
+}
+
+/** How much of a body that is not JSON is worth quoting: enough to recognise a login page. */
+const MAX_QUOTED_BODY_CHARS = 120;
+
+/**
+ * The body of a successful answer as JSON, or an error that says what came
+ * instead.
+ *
+ * The platform parses a body lazily and throws a bare syntax error when a
+ * proxy, a captive portal or a misconfigured host answered a page with a 200;
+ * the status and the start of the body are what let the person tell which.
+ */
+export function parseJsonBody(response: { status: number; text: string }): unknown {
+  try {
+    return JSON.parse(response.text) as unknown;
+  } catch {
+    const quoted = response.text.trim().slice(0, MAX_QUOTED_BODY_CHARS) || "(empty body)";
+    throw new Error(`answer ${response.status} is not JSON: ${quoted}`);
+  }
 }
 
 export function asRecord(value: unknown): Record<string, unknown> {

@@ -56,7 +56,6 @@ export class PropertyController {
     private readonly logger: Logger
   ) {}
 
-  /** Install on a window: the main one at load, each popped-out one as it opens. */
   attach(
     win: Window,
     register: (el: Document, type: string, handler: (e: Event) => void) => void
@@ -83,12 +82,10 @@ export class PropertyController {
     });
   }
 
-  /** Offer "Add property set…" in every property's menu. */
   setAddSetHandler(handler: (file: TFile | null) => void): void {
     this.addSet = handler;
   }
 
-  /** Forget a popped-out window that closed. */
   detach(win: Window): void {
     this.documents.delete(win.document);
   }
@@ -107,12 +104,10 @@ export class PropertyController {
     this.documents.clear();
   }
 
-  /** Redraw the icons after the map changed, in every window. */
   refreshStyles(): void {
     for (const doc of this.documents) this.writeStyles(doc);
   }
 
-  /** Today's date where the person is typing: a property field, or the note. */
   insertToday(): void {
     const today = this.today();
     const active = propertyFieldOf(activeDocument.activeElement);
@@ -177,7 +172,11 @@ export class PropertyController {
     new IconPickerModal(this.app, current, (icon) => {
       // Read again: the picker may have stayed open while another key changed.
       const icons = withPropertyIcon(this.getSettings().propertyIcons, key, icon);
-      void this.update({ propertyIcons: icons }).then(() => this.refreshStyles());
+      this.update({ propertyIcons: icons })
+        .then(() => this.refreshStyles())
+        .catch((error: unknown) => {
+          this.logger.warn(`The icon for ${key} could not be saved:`, error);
+        });
     }).open();
   }
 

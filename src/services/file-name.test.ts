@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MAX_FILE_NAME_CHARS, checkFileName } from "./file-name";
+import { MAX_FILE_NAME_BYTES, checkFileName } from "./file-name";
 
 describe("checkFileName", () => {
   it("accepts an ordinary name, and hands it back", () => {
@@ -53,13 +53,20 @@ describe("checkFileName", () => {
   });
 
   it("refuses a name longer than any filesystem takes", () => {
-    expect(checkFileName("a".repeat(MAX_FILE_NAME_CHARS))).toEqual({
+    expect(checkFileName("a".repeat(MAX_FILE_NAME_BYTES))).toEqual({
       ok: true,
-      name: "a".repeat(MAX_FILE_NAME_CHARS)
+      name: "a".repeat(MAX_FILE_NAME_BYTES)
     });
-    expect(checkFileName("a".repeat(MAX_FILE_NAME_CHARS + 1))).toEqual({
+    expect(checkFileName("a".repeat(MAX_FILE_NAME_BYTES + 1))).toEqual({
       ok: false,
       problem: "too-long"
     });
+  });
+
+  it("counts the bytes a filesystem counts, not the characters", () => {
+    // 200 umlauts are 400 bytes of UTF-8: too long, though fewer than 255 characters.
+    expect(checkFileName("ä".repeat(200))).toEqual({ ok: false, problem: "too-long" });
+    expect(checkFileName("ä".repeat(127))).toEqual({ ok: true, name: "ä".repeat(127) });
+    expect(checkFileName("🙂".repeat(64))).toEqual({ ok: false, problem: "too-long" });
   });
 });

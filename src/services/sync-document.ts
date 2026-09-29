@@ -13,6 +13,7 @@
  * rather than quietly presenting their own words back as a remote change.
  */
 
+import { splitFrontmatter } from "./frontmatter-block";
 import { t } from "../i18n";
 import { diffHunks } from "./line-diff";
 import { createSuggestion, type Suggestion } from "./suggestion";
@@ -177,25 +178,8 @@ export interface NoteParts {
 
 /** Split a note into its frontmatter block and everything after it. */
 export function splitNote(text: string): NoteParts {
-  if (!text.startsWith("---")) {
-    return { frontmatter: "", body: text };
-  }
-
-  const lines = text.split("\n");
-  if (lines[0]?.trim() !== "---") {
-    return { frontmatter: "", body: text };
-  }
-
-  for (let i = 1; i < lines.length; i += 1) {
-    if (lines[i]?.trim() !== "---") continue;
-    // A block that ends the note has no newline after it, and counting one
-    // put every offset past the end of the text.
-    const frontmatter = `${lines.slice(0, i + 1).join("\n")}${i + 1 < lines.length ? "\n" : ""}`;
-    return { frontmatter, body: text.slice(frontmatter.length) };
-  }
-
-  // An unterminated block is not frontmatter; treat the whole note as body.
-  return { frontmatter: "", body: text };
+  const { block, body } = splitFrontmatter(text);
+  return { frontmatter: block, body };
 }
 
 /** Drop the remote file's own frontmatter, which must never reach the note. */

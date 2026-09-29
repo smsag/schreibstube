@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
  * The publish controller decides what goes into the index, and therefore what
@@ -17,10 +17,14 @@ vi.mock("../ui/publish-modals", () => ({
       _plan: unknown,
       private readonly onConfirm: (() => void) | null
     ) {}
+    onClose(): void {}
+    // As Obsidian's does: closed first, the choice reported after.
     open(): void {
+      this.onClose();
       this.onConfirm?.();
     }
   },
+
   PublishAccountModal: class {
     constructor(
       _app: unknown,
@@ -43,7 +47,7 @@ const client = vi.hoisted(() => ({
   resize: vi.fn()
 }));
 
-vi.mock("../services/publish-client", () => ({
+vi.mock("../platform/publish-client", () => ({
   // The real client always answers with a thumbnail list, empty from a
   // protocol-1 bridge; a test's plan names one only when it asks for some.
   planPublish: async (...args: unknown[]) => ({
@@ -77,6 +81,8 @@ vi.mock("../services/image-resize", async (original) => ({
 const { Notice } = await import("../testing/obsidian-stub");
 const { fakeVault } = await import("../testing/fake-app");
 const { PublishCommands } = await import("./publish-commands");
+const { listTargets } = await import("../platform/publish-client");
+
 const { DEFAULT_SETTINGS, normalizeSettings } = await import("../services/plugin-settings");
 const { setLanguage } = await import("../i18n");
 
@@ -531,6 +537,90 @@ describe("publishing", () => {
 
     expect(client.health).toHaveBeenCalledTimes(1);
   });
+
+  it("asks another bridge the settings switch to, once as well", async () => {
+    const { commands, state } = controller(vault());
+    await commands.preview();
+
+    state.settings = settings({ publishBridgeUrl: "https://other.example.app" });
+    await commands.preview();
+    await commands.preview();
+
+    expect(client.health).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("one command at a time", () => {
+  function vault() {
+    return fakeVault({
+      notes: [{ path: "Blog/Erste.md", content: "# Erste", frontmatter: published }]
+    });
+  }
+
+  it("refuses a preview while another is still reading the folder", async () => {
+    let release: (plan: unknown) => void = () => {};
+    const held = new Promise((resolve) => (release = resolve));
+    client.plan.mockImplementationOnce(() => held);
+    const { commands } = controller(vault());
+
+    const first = commands.preview();
+    await commands.preview();
+    expect(Notice.shown.join(" ")).toMatch(/already running/);
+
+    release({
+      target: "blog",
+      baseUrl: "https://blog.example.com",
+      uploadSources: [],
+      uploadAssets: [],
+      willDelete: [],
+      unchangedSources: 1,
+      notes: 1
+    });
+    await first;
+    expect(client.plan).toHaveBeenCalledTimes(1);
+  });
+
+  it("lets the next command through once the first is done", async () => {
+    const { commands } = controller(vault());
+    await commands.preview();
+    await commands.preview();
+
+    expect(client.plan).toHaveBeenCalledTimes(2);
+    expect(Notice.shown.join(" ")).not.toMatch(/already running/);
+  });
+});
+
+describe("opening the site", () => {
+  beforeEach(() => {
+    vi.stubGlobal("window", { open: vi.fn() });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("opens the web address the bridge names for the target", async () => {
+    vi.mocked(listTargets).mockResolvedValueOnce([
+      { name: "blog", baseUrl: "https://blog.example.com" }
+    ] as never);
+    const { commands } = controller(fakeVault());
+
+    await commands.openSite();
+
+    expect(vi.mocked(window.open)).toHaveBeenCalledWith("https://blog.example.com", "_blank");
+  });
+
+  it("refuses an address that is not a web address, and says so", async () => {
+    vi.mocked(listTargets).mockResolvedValueOnce([
+      { name: "blog", baseUrl: "javascript:alert(1)" }
+    ] as never);
+    const { commands } = controller(fakeVault());
+
+    await commands.openSite();
+
+    expect(vi.mocked(window.open)).not.toHaveBeenCalled();
+    expect(Notice.shown.join(" ")).toMatch(/not a web address/);
+  });
 });
 
 describe("uploading from a phone's point of view", () => {
@@ -916,7 +1006,7 @@ describe("canvases drawn for the site", () => {
     expect(plannedIndex().assets).toEqual([]);
     expect(uploadedSource()).toBe(canvasNote);
     expect(Notice.shown).toContain(
-      "Schreibstube: 1 visualisation could not be drawn and is published as its source."
+      "Schreibstube: 1 diagram could not be drawn and is published as its source."
     );
   });
 
@@ -947,7 +1037,7 @@ describe("canvases drawn for the site", () => {
     await commands.publish();
     await runEnded();
 
-    expect(uploadedSource()).toContain("![Visualisation](schreibstube-diagram-");
+    expect(uploadedSource()).toContain("![Diagram](schreibstube-diagram-");
   });
 
   it("publishes a site without canvases without drawing or saying anything about them", async () => {
@@ -958,6 +1048,6 @@ describe("canvases drawn for the site", () => {
     await controller(plain).commands.preview();
 
     expect(capture.capture).not.toHaveBeenCalled();
-    expect(Notice.shown.some((message) => /visualisation/i.test(message))).toBe(false);
+    expect(Notice.shown.some((message) => /diagram/i.test(message))).toBe(false);
   });
 });

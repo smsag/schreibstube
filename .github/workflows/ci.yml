@@ -13,6 +13,7 @@ permissions:
 jobs:
   check:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -32,8 +33,9 @@ jobs:
       # The suite covers the bridge, which keeps its own dependency tree.
       - run: npm ci --prefix bridge
 
-      # The bridge's runtime dependencies are the only ones that ship anywhere.
-      # The plugin has none: everything in the root tree is build tooling.
+      # Both runtime trees ship: the bridge's to the server, the root's
+      # `dependencies` (the model runtime) inside main.js to every vault.
+      - run: npm audit --omit=dev --audit-level=high
       - run: npm audit --prefix bridge --omit=dev --audit-level=high
 
       - run: npm run lint
@@ -52,6 +54,7 @@ jobs:
   # way a release fetches them.
   print-compile:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -71,6 +74,7 @@ jobs:
   # broken image is found by CI rather than by the next deploy.
   bridge-image:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: docker build --tag schreibstube-bridge:ci bridge

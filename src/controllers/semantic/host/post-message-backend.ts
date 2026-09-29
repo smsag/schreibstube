@@ -1,16 +1,12 @@
 // The protocol both embedding backends speak, in one place (Pythia ADR-204, #365).
 //
 // A Web Worker and a same-origin iframe are two ways to get the model off the
-// plugin's own context, and Pythia talks to both the same way: mount it, prove it
+// plugin's own context, and both are spoken to the same way: mount it, prove it
 // ready with a ping round-trip, then `texts[] → vectors[]` over postMessage, with
 // every deadline measured on the visible clock (Pythia ADR-202). Only the mounting and
-// the teardown differ — and whether inference lands off the UI thread.
-//
-// It was written twice. #363 (a model that finished loading into a provider
-// nobody owned) had to be fixed identically in both copies, which is what this
-// file is for: a protocol implemented twice drifts, and the copy that drifts is
-// the iframe one, because no unit test can reach it — it needs a real Obsidian
-// window. A bug fixed here is fixed in both.
+// the teardown differ — and whether inference lands off the UI thread. One
+// implementation, because the iframe copy of a second one drifted: no unit
+// test can reach it, it needs a real Obsidian window.
 
 import {
   BackendGoneError,

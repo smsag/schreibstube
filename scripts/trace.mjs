@@ -14,6 +14,7 @@ import { readFileSync, existsSync } from "node:fs";
 import { createMapper, rewriteTrace } from "./source-map.mjs";
 
 const REPO = "smsag/schreibstube";
+const MAX_MAP_BYTES = 32 * 1024 * 1024;
 
 const [where, ...rest] = process.argv.slice(2);
 if (!where) {
@@ -31,7 +32,7 @@ if (!trace.endsWith("\n")) process.stdout.write("\n");
 
 async function fetchReleaseMap(tag) {
   const url = `https://github.com/${REPO}/releases/download/${tag}/main.js.map`;
-  const response = await fetch(url);
+  const response = await fetch(url, { signal: AbortSignal.timeout(60_000) });
   if (!response.ok) {
     console.error(
       `No main.js.map on release ${tag} (HTTP ${response.status}).\n` +
@@ -39,5 +40,10 @@ async function fetchReleaseMap(tag) {
     );
     process.exit(1);
   }
-  return response.json();
+  const text = await response.text();
+  if (text.length > MAX_MAP_BYTES) {
+    console.error(`main.js.map on release ${tag} is ${text.length} bytes; a map is a few MB.`);
+    process.exit(1);
+  }
+  return JSON.parse(text);
 }

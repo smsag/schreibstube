@@ -103,17 +103,9 @@ export function assetPath(sha256, name) {
 }
 
 /**
- * The small copy of a picture that a filmstrip shows under its stage.
- *
- * The plugin makes it, because it can decode the picture where the picture
- * is, and names it after the picture it came from rather than after its own
- * bytes: a thumbnail the site already has is then known to be current without
- * the plugin decoding a photograph to find out. They live in a directory of
- * their own, so no thumbnail's name can ever be an uploaded file's.
- *
- * A PNG keeps its transparency and stays a PNG; a photograph becomes a JPEG.
- * Anything else — a drawing, an animation, a format a phone may not decode —
- * has no thumbnail and the filmstrip shows the picture itself.
+ * The thumbnail's format by its picture's: a PNG keeps its transparency and
+ * stays a PNG; a photograph becomes a JPEG. Anything else — a drawing, an
+ * animation, a format a phone may not decode — has no thumbnail.
  */
 export const THUMBNAIL_TYPES = new Map([
   ["png", "png"],

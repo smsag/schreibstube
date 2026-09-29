@@ -10,8 +10,8 @@ import type { SchreibstubeSettings } from "../types";
 import type { Logger } from "../services/logger";
 import { t } from "../i18n";
 import { resolveApiKey } from "../services/secret";
-import { searchMail, sendMail } from "../services/mail-client";
-import { bridgeHealth } from "../services/publish-client";
+import { searchMail, sendMail } from "../platform/mail-client";
+import { bridgeHealth } from "../platform/publish-client";
 import { normalizeBaseUrl } from "../services/bridge-protocol";
 import {
   hasCriteria,
@@ -66,12 +66,8 @@ import {
 
 /**
  * The three mail commands: send a note, query the mailbox, and merge replies
- * back into the note that started the thread.
- *
- * All traffic goes to the bridge over HTTPS (see `bridge/`), so these commands
- * work identically on desktop and mobile — the plugin never speaks IMAP or SMTP
- * itself. A single in-flight guard prevents overlapping requests, matching the
- * behaviour of the LLM commands.
+ * back into the note that started the thread. All traffic goes to the bridge
+ * over HTTPS, so the commands work identically on desktop and mobile.
  */
 export class MailCommands {
   private busy = false;
@@ -81,11 +77,13 @@ export class MailCommands {
    * note again when Send is pressed, and must not draw everything twice.
    */
   private readonly drawn = new DrawnDiagrams<KeptFigure>();
-  /** The bridge's protocol, asked once per session when a note has a diagram. */
-  private bridgeProtocol: number | null = null;
+  /**
+   * Each bridge's protocol, by its URL, asked once per session when a note has
+   * a diagram. By URL, because the settings can point at another bridge
+   * mid-session and the answer of the old one said nothing about the new.
+   */
+  private readonly bridgeProtocols = new Map<string, number>();
   private formulas: NoteFormulas = NO_FORMULAS;
-  /** The `(fixed)` results of the body last read for each note: the one Send delivers. */
-  private readonly freezes = new Map<string, FreezeEntry[]>();
 
   constructor(
     private readonly app: App,
@@ -115,23 +113,23 @@ export class MailCommands {
       return;
     }
 
-    const draft = await this.readDraft(file, bridge);
-    if (!draft || !this.checkDraft(file, draft)) {
+    const read = await this.readDraft(file, bridge);
+    if (!read || !this.checkDraft(file, read.draft)) {
       return;
     }
 
-    let shown = draft;
-    const modal = new MailConfirmModal(this.app, confirmDetails(draft), async () => {
+    let shown = read.draft;
+    const modal = new MailConfirmModal(this.app, confirmDetails(read.draft), async () => {
       // Read the note again at the press: a property typed just before the
       // command reaches the file only after the dialogue opened, and the send
       // must carry what the note says now, which must be what was shown.
       const now = await this.readDraft(file, bridge);
-      if (!now || !this.checkDraft(file, now)) {
+      if (!now || !this.checkDraft(file, now.draft)) {
         return true;
       }
-      if (!sameDraft(shown, now)) {
-        shown = now;
-        modal.update(confirmDetails(now));
+      if (!sameDraft(shown, now.draft)) {
+        shown = now.draft;
+        modal.update(confirmDetails(now.draft));
         return false;
       }
       void this.performSend(file, bridge, now);
@@ -145,7 +143,7 @@ export class MailCommands {
    * the file. The metadata cache is not asked — it trails the file, and a send
    * built from both mixed an old frontmatter with a new body.
    */
-  private async readDraft(file: TFile, bridge: MailBridgeConfig): Promise<MailDraft | null> {
+  private async readDraft(file: TFile, bridge: MailBridgeConfig): Promise<ReadDraft | null> {
     const content = await this.app.vault.read(file);
     const info = getFrontMatterInfo(content);
 
@@ -161,44 +159,51 @@ export class MailCommands {
     }
 
     const exported = await this.formulas.forExport(content.slice(info.contentStart));
+    const { freezes } = exported;
     const body = exported.text;
-    this.freezes.set(file.path, exported.freezes);
     const from = this.getSettings().mailFrom;
     const fences = findDiagramFences(body, MAIL_DIAGRAM_LANGUAGES);
-    if (fences.length === 0) return buildMailDraft(frontmatter, body, from);
+    if (fences.length === 0) return { draft: buildMailDraft(frontmatter, body, from), freezes };
 
     // Asked before anything is drawn: a bridge that cannot carry the pictures
     // would deliver the mail without them while its text points at them.
     const takesPictures = await this.bridgeTakesPictures(bridge);
-    const drawn = takesPictures ? await this.drawFigures(fences, file.path) : new Map();
+    if (takesPictures === "unknown") {
+      new Notice(t().common.notice(t().mailNotices.bridgeUnreachable));
+    }
+    const drawn = takesPictures === "yes" ? await this.drawFigures(fences, file.path) : new Map();
     const figures = mailFigures(body, fences, drawn, {
       figure: t().mail.figure,
       attached: t().mail.figureAttached
     });
-    return buildMailDraft(frontmatter, figures.markdown, from, {
+    const draft = buildMailDraft(frontmatter, figures.markdown, from, {
       attachments: figures.attachments,
       undrawn: figures.undrawn,
-      bridgeTooOld: !takesPictures
+      bridgeTooOld: takesPictures === "no"
     });
+    return { draft, freezes };
   }
 
   /**
    * Whether the bridge takes pictures on a send.
    *
-   * A bridge that cannot be asked is taken to be one that cannot: the diagrams
-   * then go as their source and the dialogue says so, which is a worse mail
-   * but an honest one. Only an answer is kept; a failed question is asked again.
+   * A bridge that cannot be asked is not thereby an old one: the diagrams go
+   * as their source either way, but "unknown" is said as a failed question,
+   * where "no" told people to redeploy a bridge that was only unreachable.
+   * Only an answer is kept; a failed question is asked again.
    */
-  private async bridgeTakesPictures(bridge: MailBridgeConfig): Promise<boolean> {
-    if (this.bridgeProtocol === null) {
+  private async bridgeTakesPictures(bridge: MailBridgeConfig): Promise<"yes" | "no" | "unknown"> {
+    let protocol = this.bridgeProtocols.get(bridge.baseUrl);
+    if (protocol === undefined) {
       try {
-        this.bridgeProtocol = (await bridgeHealth(bridge)).protocol;
+        protocol = (await bridgeHealth(bridge)).protocol;
       } catch (err) {
-        this.logger.debug("Mail bridge health check failed.", err);
-        return false;
+        this.logger.warn("Mail bridge health check failed:", err);
+        return "unknown";
       }
+      this.bridgeProtocols.set(bridge.baseUrl, protocol);
     }
-    return this.bridgeProtocol >= MAIL_ATTACHMENTS_PROTOCOL;
+    return protocol >= MAIL_ATTACHMENTS_PROTOCOL ? "yes" : "no";
   }
 
   /** Every diagram's pictures, drawn now or kept from the last reading. */
@@ -241,7 +246,8 @@ export class MailCommands {
     const sendable = validateSendable(draft.fields);
     if (!sendable.ok) {
       if (sendable.missing && this.offerFields) this.offerFields(file, sendable.message);
-      else new Notice(`Schreibstube: ${sendable.message}`);
+      else new Notice(t().common.notice(sendable.message));
+
       return false;
     }
     if (!draft.body) {
@@ -254,7 +260,7 @@ export class MailCommands {
   private async performSend(
     file: TFile,
     bridge: MailBridgeConfig,
-    draft: MailDraft
+    { draft, freezes }: ReadDraft
   ): Promise<void> {
     await this.withBusy("send", async () => {
       const progress = new Notice(t().common.notice(t().mailNotices.sending), 0);
@@ -295,7 +301,7 @@ export class MailCommands {
       // be reported as a failed send: the user would send again and deliver a
       // duplicate — and with message_id unwritten, the re-send warning would
       // not even fire.
-      await this.freezeSent(file);
+      await this.freezeSent(file, freezes);
       try {
         await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
           frontmatter[FM_MESSAGE_ID] = result.messageId;
@@ -305,8 +311,7 @@ export class MailCommands {
       } catch (err) {
         this.logger.error("Email sent but the Message-ID could not be stored:", err);
         new Notice(
-          `Schreibstube: email sent, but ${FM_MESSAGE_ID} could not be written to the note. ` +
-            `Add it by hand to enable reply fetching: ${result.messageId}`,
+          t().common.notice(t().mailNotices.sentButIdUnwritten(FM_MESSAGE_ID, result.messageId)),
           0
         );
         return;
@@ -327,12 +332,12 @@ export class MailCommands {
 
   /**
    * Delivered: each `(fixed)` total is written into the note at what the
-   * recipient got. A failed write leaves the totals live and says so; the
-   * mail itself went, and must not be reported otherwise.
+   * recipient got — the totals of the reading that was sent, carried with
+   * the draft, so a note renamed or a send cancelled leaves nothing behind.
+   * A failed write leaves the totals live and says so; the mail itself went,
+   * and must not be reported otherwise.
    */
-  private async freezeSent(file: TFile): Promise<void> {
-    const freezes = this.freezes.get(file.path) ?? [];
-    this.freezes.delete(file.path);
+  private async freezeSent(file: TFile, freezes: readonly FreezeEntry[]): Promise<void> {
     try {
       await this.formulas.freeze(file, freezes);
     } catch (err) {
@@ -348,7 +353,8 @@ export class MailCommands {
    */
   private async markUnconfirmed(file: TFile, err: unknown): Promise<void> {
     this.logger.error("send not confirmed:", err);
-    const detail = err instanceof Error ? err.message : "unknown error";
+    const detail = err instanceof Error ? err.message : t().proofread.unknownError;
+
     new Notice(t().common.notice(t().mailNotices.sendUnconfirmed(detail)), 0);
     try {
       await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
@@ -359,7 +365,6 @@ export class MailCommands {
     }
   }
 
-  /** Search the mailbox and insert the chosen message into the active note. */
   async queryMailbox(): Promise<void> {
     const bridge = this.requireBridge();
     if (!bridge) {
@@ -472,11 +477,7 @@ export class MailCommands {
         });
       } catch (err) {
         this.logger.error("Replies merged but merged_ids could not be updated:", err);
-        new Notice(
-          `Schreibstube: replies merged, but ${FM_MERGED_IDS} could not be updated — ` +
-            "running the command again may duplicate them.",
-          0
-        );
+        new Notice(t().common.notice(t().mailNotices.mergedButIdsUnwritten(FM_MERGED_IDS)), 0);
         return;
       }
 
@@ -519,21 +520,21 @@ export class MailCommands {
     return readMailFields(this.app.metadataCache.getFileCache(file)?.frontmatter);
   }
 
-  /** Resolve the bridge URL and token, reporting whichever is missing. */
   private requireBridge(): MailBridgeConfig | null {
     const settings = this.getSettings();
 
     const url = normalizeBaseUrl(settings.mailBridgeUrl);
     if (!url.ok) {
-      new Notice(`Schreibstube: ${url.message}`);
+      new Notice(t().common.notice(url.message));
       return null;
     }
 
     const token = resolveApiKey(
       this.app.secretStorage,
       settings.mailTokenSecretName,
-      "bridge token"
+      t().secrets.mailToken
     );
+
     if (!token.ok) {
       new Notice(token.message);
       return null;
@@ -558,9 +559,15 @@ export class MailCommands {
 
   private fail(label: string, userMessage: string, err: unknown): void {
     this.logger.error(`${label} failed:`, err);
-    const detail = err instanceof Error ? err.message : "unknown error";
+    const detail = err instanceof Error ? err.message : t().proofread.unknownError;
     new Notice(`${userMessage} — ${detail}`);
   }
+}
+
+/** One reading of the note: the draft, and what to freeze once it has gone. */
+interface ReadDraft {
+  draft: MailDraft;
+  freezes: FreezeEntry[];
 }
 
 function confirmDetails(draft: MailDraft): MailConfirmDetails {

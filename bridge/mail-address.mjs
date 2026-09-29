@@ -9,6 +9,7 @@
  * address, optionally with a display name, or it is refused: at startup for
  * `MAIL_FROM`, as a 400 for a request's `from`.
  */
+import addressparser from "nodemailer/lib/addressparser";
 
 /** RFC 5321 caps a path at 256 octets; a name on top is generous at 64 more. */
 export const MAX_SENDER_CHARS = 320;
@@ -45,6 +46,28 @@ export function parseSender(value) {
 /** The domain of a checked sender, for the Message-ID. */
 export function senderDomain(sender) {
   return sender.address.slice(sender.address.lastIndexOf("@") + 1);
+}
+
+/**
+ * The bare addresses in a recipient field — a string or a list of them, each
+ * holding one or more addresses as a header writes them.
+ *
+ * Read by the same parser that writes the header, so the two cannot disagree:
+ * a split at every comma turned `"Seitz, Steffen" <s@x.de>` into an envelope
+ * recipient `"Seitz` that no header named, and a group's members were lost.
+ * The route checks a request with it too, so what it refuses is what the
+ * envelope would have carried.
+ */
+export function recipientAddresses(value) {
+  if (!value) return [];
+  const items = Array.isArray(value) ? value : [value];
+  return items.flatMap((item) => flatten(addressparser(String(item))));
+}
+
+function flatten(entries) {
+  return entries.flatMap((entry) =>
+    entry.group ? flatten(entry.group) : entry.address ? [entry.address.trim()] : []
+  );
 }
 
 function unquote(name) {

@@ -1,5 +1,9 @@
 # Quality review
 
+_A dated review: its grades and numbers describe the repository as it was when
+the suite held 1,233 tests. The floors it names have been raised since — the current ones are in
+`vitest.config.mts` and `scripts/check-bundle.mjs`._
+
 A review of the repository against the software quality attributes — correctness,
 reliability, robustness, performance, usability, verifiability, reusability,
 portability, understandability, interoperability, productivity, timeliness,
@@ -96,8 +100,8 @@ The root tree carried eight findings, two critical, all in Vitest 2 and its
 Vite; the bridge carried `lodash-es` through Mermaid's parser, for which the
 README said no fix existed. A fix exists now. Vitest and esbuild are current,
 `lodash-es` is pinned by an `overrides` entry, and CI audits the bridge's runtime
-tree at the high level on every change. The root tree is build tooling only —
-the plugin bundles nothing — so it is not gated, but Dependabot keeps it moving.
+tree at the high level on every change. The root tree was build tooling only
+then; since the model runtime joined its `dependencies`, CI audits it too.
 
 Vitest 5 requires Node 22.12, which retired Node 20 from the matrix. Node 20 has
 been out of support since April 2026; testing on it spent CI minutes to prove a

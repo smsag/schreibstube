@@ -1,16 +1,6 @@
 /**
- * The plugin's ```schreibstube-slideshow``` block, on the published site.
- *
- * The block is read here a second time, after the plugin has read it in the
- * vault, and the two readings have to agree: a line the plugin shows as a
- * picture and the site drops, or the other way round, is a slideshow that
- * differs between the note and its page without anyone being told. The rules
- * are therefore the plugin's, and `contracts/slideshow-cases.json` holds the
- * examples both sides are tested against.
- *
- * What is written is plain HTML that reads without any script — a strip that
- * swipes, a grid, columns, two pictures side by side — and the site's own
- * `slideshow.js` turns it into the plugin's controls where scripts run. The
+ * The plugin's ```schreibstube-slideshow``` block, on the published site,
+ * read by the plugin's rules so the note and its page never disagree. The
  * block's text is note text, so it is bounded and every value is escaped.
  */
 import { escapeAttribute, escapeHtml } from "./html.mjs";

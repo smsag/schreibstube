@@ -64,5 +64,6 @@ weekly for both trees, the workflows and the image base.
 - The plugin sends note text to the configured LLM provider when asked to
   proof-read, rename or summarize. Which provider, and what is excluded
   (frontmatter, code, tables, math, links), is documented in `README.md`.
-- Vulnerability findings in the plugin's development tree affect the build
-  machine only: the plugin bundles no dependency at all.
+- The plugin bundles one runtime dependency, the model runtime that search by
+  meaning starts; CI audits it with the bridge's tree. Everything else in the
+  root tree is build tooling and affects the build machine only.
