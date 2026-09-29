@@ -2010,6 +2010,27 @@ export class ExplorerPaneView extends ItemView {
       el.setAttribute("title", detail ? `${label}\n${detail}` : label);
       applyIcon(el, "world-upload");
     }
+
+    // Last, and only a report: a picture or PDF whose description note exists.
+    const described = controller.descriptionFields(file.path);
+    if (described) {
+      const title = typeof described.title === "string" ? described.title.trim() : "";
+      const label = t().explorer.badge.described;
+      const el = row.createSpan({ cls: "schreibstube-explorer-badge" });
+      el.setAttribute("data-described", "true");
+      el.setAttribute("aria-label", label);
+      el.setAttribute("title", title ? `${label}\n${title}` : label);
+      applyIcon(el, "sparkles");
+      // A shortcut to the note: the click stops here, or the row would also
+      // open the picture it belongs to.
+      el.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        const path = controller.descriptionNoteOf(file.path);
+        const note = path ? this.app.vault.getFileByPath(path) : null;
+        if (note) void controller.open(note, openTargetOf(Keymap.isModEvent(event)));
+      });
+    }
   }
 
   private wireRow(row: HTMLElement, file: TAbstractFile, isFolder: boolean): void {
