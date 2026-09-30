@@ -33,5 +33,7 @@ Thumbs.db
 data.json
 Privates
 
-# Documentation kept local only
-/docs/
+# Documentation kept local only, except the cheatsheet for language models,
+# which the tests and the release script read
+/docs/*
+!/docs/CHEATSHEET.md

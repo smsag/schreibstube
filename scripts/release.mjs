@@ -36,6 +36,22 @@ if (!isNewer(version, manifest.version)) {
   process.exit(1);
 }
 
+// The cheatsheet a person hands a language model says which version it was
+// checked against. A release it was not checked for would teach a model the
+// notes of the version before, and nothing else would notice: its tests can
+// see a name go missing, not a description go wrong. So the release waits
+// until somebody has read it against this version and said so on its line.
+const cheatsheet = readFileSync("docs/CHEATSHEET.md", "utf8");
+const checked = /^Checked against Schreibstube (\d+\.\d+\.\d+)$/m.exec(cheatsheet)?.[1];
+if (checked !== version) {
+  console.error(
+    `docs/CHEATSHEET.md was checked against ${checked ?? "no version"}, not ${version}. ` +
+      `Read it against this release, fix what changed, and set its line to ` +
+      `"Checked against Schreibstube ${version}".`
+  );
+  process.exit(1);
+}
+
 if (typeof lock.packages?.[""]?.version !== "string") {
   console.error(
     'package-lock.json has no packages[""].version — its format changed.\n' +

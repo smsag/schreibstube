@@ -62,6 +62,11 @@ asks for the sentence.
   change under `## Unreleased`.
 - Undocumented Obsidian internals live in `src/services/workspace-internals.ts`,
   feature-detected, and nowhere else.
+- `docs/CHEATSHEET.md` tells a language model how to write notes the plugin
+  understands. A change to what a note can say — a key, a block, a layout, a
+  comment setting — updates it in the same change; it stays within 500 lines,
+  a test checks its names against the code, and a release refuses to run
+  until its "Checked against" line names the version being released.
 - The bridge and the plugin version independently; a request or response shape
   change bumps `PROTOCOL_VERSION` and the table in `bridge/README.md`.
 - Never put a model identifier, a session link or a tool name into code,
