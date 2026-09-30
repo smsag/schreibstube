@@ -8,6 +8,7 @@
  * at each step, and the pane owns everything else.
  */
 import { isLongPressEcho } from "../services/explorer-menu";
+import { isElementLike } from "../services/workspace-internals";
 
 /** How long a finger rests on a row before the press means "hold". */
 export const LONG_PRESS_MS = 500;
@@ -168,7 +169,7 @@ export class DragGesture {
 
     row.addEventListener("pointerdown", (event: PointerEvent) => {
       if (event.button !== 0) return;
-      if (event.target instanceof Element && event.target.closest(`[${ROW_CONTROL_ATTR}]`)) return;
+      if (isElementLike(event.target) && event.target.closest(`[${ROW_CONTROL_ATTR}]`)) return;
 
       startX = event.clientX;
       startY = event.clientY;

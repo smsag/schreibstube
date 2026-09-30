@@ -104,6 +104,7 @@ import { applyIcon, installIconFont } from "./icon-font";
 import { pressable, pressKeys } from "./pressable";
 import { drawTaskCount } from "./task-count-label";
 import { SCHREIBSTUBE_ICON } from "./schreibstube-icon";
+import { isElementLike, isNodeLike } from "../services/workspace-internals";
 
 export const EXPLORER_VIEW_TYPE = "schreibstube-explorer";
 
@@ -2278,7 +2279,7 @@ export class ExplorerPaneView extends ItemView {
       markMoveTarget(body, event.clientX, event.clientY, () => true);
     });
     body.addEventListener("dragleave", (event) => {
-      if (event.relatedTarget instanceof Node && body.contains(event.relatedTarget)) return;
+      if (isNodeLike(event.relatedTarget) && body.contains(event.relatedTarget)) return;
       body.removeClass("is-import-target");
       clearMoveMarks(body);
     });
@@ -2343,7 +2344,7 @@ export class ExplorerPaneView extends ItemView {
   /** The path of the row holding the focus, if the focus is in the tree. */
   private focusedPath(): string | null {
     const active = this.containerEl.doc.activeElement;
-    if (!(active instanceof HTMLElement) || !this.body?.contains(active)) return null;
+    if (!isElementLike(active) || !this.body?.contains(active)) return null;
     return active.closest<HTMLElement>("[data-path]")?.getAttribute("data-path") ?? null;
   }
 
@@ -2394,13 +2395,13 @@ export class ExplorerPaneView extends ItemView {
     // A pane in a collapsed sidebar has no layout to scroll. The reveal waits
     // for the draw that follows the sidebar opening, rather than opening it.
     const reveal = this.revealing.settle(
-      !(row instanceof HTMLElement)
+      !isElementLike(row)
         ? "missing"
         : row.getClientRects().length === 0
           ? "without-layout"
           : "on-screen"
     );
-    if (reveal === null || !(row instanceof HTMLElement)) return;
+    if (reveal === null || !isElementLike(row)) return;
 
     if (reveal.quietly) {
       if (!isInView(row)) row.scrollIntoView({ block: "center" });

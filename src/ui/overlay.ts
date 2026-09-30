@@ -1,4 +1,5 @@
 import type { HeadingEntry, HeadingLevel } from "../types";
+import { isElementLike, isNodeLike } from "../services/workspace-internals";
 
 export interface OverlayRenderInput {
   ancestorStack: HeadingEntry[];
@@ -79,7 +80,7 @@ export class OverlayController {
   }
 
   contains(target: EventTarget | null): boolean {
-    if (!(target instanceof Node)) {
+    if (!isNodeLike(target)) {
       return false;
     }
 
@@ -105,10 +106,9 @@ export class OverlayController {
   };
 
   private pressRow(target: EventTarget | null): void {
-    const row =
-      target instanceof HTMLElement
-        ? (target.closest(".schreibstube-overlay-row") as HTMLElement | null)
-        : null;
+    const row = isElementLike(target)
+      ? (target.closest(".schreibstube-overlay-row") as HTMLElement | null)
+      : null;
     if (!row) {
       return;
     }

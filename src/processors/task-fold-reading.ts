@@ -1,5 +1,6 @@
 import type { MarkdownPostProcessor } from "obsidian";
 import { bodyStartIndex } from "../services/task-fold";
+import { isElementLike } from "../services/workspace-internals";
 
 export const TASK_BODY_CLASS = "schreibstube-task-body";
 
@@ -50,7 +51,7 @@ function collapseTaskBody(item: HTMLElement): void {
   // A soft break typed with Shift+Enter in a loose list lands inside the
   // first paragraph rather than beside it, so that paragraph is split too.
   const head = Array.from(item.children).find((child) => child.tagName === "P");
-  if (head instanceof HTMLElement && !head.querySelector(`:scope > .${TASK_BODY_CLASS}`)) {
+  if (isElementLike(head) && !head.querySelector(`:scope > .${TASK_BODY_CLASS}`)) {
     const inner = bodyStartIndex(tagsOf(head.childNodes));
     if (inner >= 0) wrapFrom(head, inner, "span");
   }

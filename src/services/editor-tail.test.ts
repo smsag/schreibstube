@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { EDITOR_TAIL_VAR, editorTail, keepEditorTailBelow } from "./workspace-internals";
 
 /**
@@ -50,6 +50,21 @@ describe("keepEditorTailBelow", () => {
     content.style.paddingBottom = "200px";
     await settle();
     expect(block.style.getPropertyValue(EDITOR_TAIL_VAR)).toBe("");
+  });
+
+  it("hands the padding over in a pop-out window too", () => {
+    const { sizer, content, block } = editor("375px");
+    // A pop-out window's elements are of that window's classes: to the main
+    // window's code, `instanceof HTMLElement` is false for every one of them.
+    vi.stubGlobal("HTMLElement", class PopoutHasItsOwn {});
+    try {
+      expect(content instanceof HTMLElement).toBe(false);
+      const stop = keepEditorTailBelow(sizer, block);
+      expect(block.style.getPropertyValue(EDITOR_TAIL_VAR)).toBe("375px");
+      stop();
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it("does nothing where there is no editor content to read", () => {
