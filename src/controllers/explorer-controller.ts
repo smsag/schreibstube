@@ -361,10 +361,17 @@ export class ExplorerController {
 
   /** Whether this row is a description note the Explorer folds into its picture. */
   hidesDescription(path: string): boolean {
-    return (
-      this.getSettings().explorerDescriptionNotes === "hide" &&
-      this.descriptionPairs().notes.has(path)
-    );
+    return this.getSettings().explorerDescriptionNotes === "hide" && this.isDescriptionNote(path);
+  }
+
+  /**
+   * Whether this note describes a picture, whatever the tree shows. The
+   * search always finds such a note as its picture: the picture carries the
+   * note's words, and listing both put every described picture in the
+   * results twice, one row of it named like a file nobody wrote.
+   */
+  isDescriptionNote(path: string): boolean {
+    return this.descriptionPairs().notes.has(path);
   }
 
   /**

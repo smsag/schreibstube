@@ -294,8 +294,9 @@ export class ExplorerPaneView extends ItemView {
           // the tree, and counted among the matches it made the list say more
           // were held back than there were.
           .filter((file) => this.host?.explorer.isTrashed(file.path) !== true)
-          // A folded-in description note is found as its picture, never twice.
-          .filter((file) => this.host?.explorer.hidesDescription(file.path) !== true)
+          // A description note is found as its picture, never twice — also
+          // where the tree shows the notes.
+          .filter((file) => this.host?.explorer.isDescriptionNote(file.path) !== true)
           .map((file) => ({ path: file.path, name: file.name })),
       metadata: (file) => {
         const target = this.app.vault.getAbstractFileByPath(file.path);
@@ -1776,10 +1777,10 @@ export class ExplorerPaneView extends ItemView {
     if (found.length === 0 || !controller) {
       return { all: new Set(hits.map((hit) => hit.path)), ranked: shown };
     }
-    // A folded-in description note is shown as its picture, here as everywhere.
+    // A description note is shown as its picture, as the words find it.
     // A note the index still holds but the vault no longer has is not a row.
     const rows = meaningRows(found, (path) => {
-      const shown = controller.hidesDescription(path) ? controller.imageDescribedBy(path) : path;
+      const shown = controller.isDescriptionNote(path) ? controller.imageDescribedBy(path) : path;
       return shown !== null && this.app.vault.getAbstractFileByPath(shown) instanceof TFile
         ? shown
         : null;

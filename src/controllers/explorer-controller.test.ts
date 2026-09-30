@@ -538,6 +538,22 @@ describe("the pairing of pictures and their notes", () => {
       frontmatter: { [note]: { schreibstubeImage: "[[Bilder/see.jpg]]" } }
     });
 
+  it("knows a description note in the tree's setting either way, and hides it only when asked", () => {
+    const hidden = described();
+    expect(hidden.controller.isDescriptionNote(note)).toBe(true);
+    expect(hidden.controller.hidesDescription(note)).toBe(true);
+    expect(hidden.controller.isDescriptionNote("Bilder/see.jpg")).toBe(false);
+
+    const shown = fixture({
+      present: ["Bilder/see.jpg", note],
+      frontmatter: { [note]: { schreibstubeImage: "[[Bilder/see.jpg]]" } },
+      settings: { explorerDescriptionNotes: "show" }
+    });
+    // The tree shows the note; the search still finds it as its picture.
+    expect(shown.controller.hidesDescription(note)).toBe(false);
+    expect(shown.controller.isDescriptionNote(note)).toBe(true);
+  });
+
   it("forgets a pair when the vault reports its note gone", () => {
     const f = described();
     expect(f.controller.descriptionNoteOf("Bilder/see.jpg")).toBe(note);

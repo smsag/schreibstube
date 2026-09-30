@@ -54,8 +54,9 @@ export const enExtra = {
       "Off, a row shows only the name and its icon says what the file is: Plan.md, Plan.png and Plan.excalidraw.md all read Plan. On, rows show the whole name. Renaming edits the name without its extension either way.",
     explorerDescriptionNotes: "Show picture descriptions as notes",
     explorerDescriptionNotesDesc:
-      "Off: a described picture is one row, found by its description too, and its description note stays " +
-      "out of the tree. On: the description notes appear as ordinary notes.",
+      "Off: a described picture is one row, and its description note stays out of the tree. On: the " +
+      "description notes appear in the tree as ordinary notes. The search always shows the picture " +
+      "alone, found by its description too.",
     recommendedPlacement: "Recommended",
     recommendedPlacementDesc:
       "Where the notes, pictures and conversations that belong with the open note are shown. Under " +
