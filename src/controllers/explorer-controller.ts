@@ -93,7 +93,7 @@ import {
   type TagCard,
   type TaggedNote
 } from "../services/tag-pins";
-import { tallyTasks, type TaskTally } from "../services/task-count";
+import { countsTasks, tallyTasks, type TaskTally } from "../services/task-count";
 import { folderOf } from "../services/path-follow";
 import {
   backlinkIndex,
@@ -871,7 +871,10 @@ export class ExplorerController {
       if (this.isTrashed(file.path)) continue;
       const cache = this.app.metadataCache.getFileCache(file);
       if (!cache) continue;
-      yield { path: file.path, tags: getAllTags(cache) ?? [], items: cache.listItems };
+      // A note that declines its task count keeps its tasks out of a pinned
+      // tag's sum as well; it is still listed under the tag.
+      const items = countsTasks(cache.frontmatter) ? cache.listItems : undefined;
+      yield { path: file.path, tags: getAllTags(cache) ?? [], items };
     }
   }
 

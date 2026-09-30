@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { tallyTasks, taskCount } from "./task-count";
+import { countsTasks, tallyTasks, taskCount } from "./task-count";
 
 describe("tallyTasks", () => {
   it("counts tasks and the open ones among them, ignoring plain list items", () => {
@@ -38,5 +38,26 @@ describe("taskCount", () => {
   it("is complete only when nothing is open", () => {
     expect(taskCount({ open: 0, total: 1 })?.complete).toBe(true);
     expect(taskCount({ open: 1, total: 1 })?.complete).toBe(false);
+  });
+});
+
+describe("countsTasks", () => {
+  it("leaves a note out only when it says false, as a value or as the word", () => {
+    expect(countsTasks({ schreibstubeTaskCount: false })).toBe(false);
+    expect(countsTasks({ schreibstubeTaskCount: "false" })).toBe(false);
+  });
+
+  it("counts a note that says nothing, says true, or carries something unreadable", () => {
+    for (const frontmatter of [
+      undefined,
+      null,
+      {},
+      "text",
+      { schreibstubeTaskCount: true },
+      { schreibstubeTaskCount: "no" },
+      { schreibstubeTaskCount: 0 }
+    ]) {
+      expect(countsTasks(frontmatter)).toBe(true);
+    }
   });
 });

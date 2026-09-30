@@ -92,6 +92,8 @@ interface FixtureOptions {
   links?: Record<string, Record<string, number>>;
   /** Each note's tags, `#` included, as Obsidian reports them. */
   tags?: Record<string, string[]>;
+  /** Each note's list items, a task's box character in `task`. */
+  listItems?: Record<string, { task?: string }[]>;
 }
 
 function fixture(options: FixtureOptions = {}): Fixture {
@@ -175,8 +177,13 @@ function fixture(options: FixtureOptions = {}): Fixture {
       getFileCache: (file: TFile) => {
         const frontmatter = options.frontmatter?.[file.path];
         const tags = options.tags?.[file.path];
-        return frontmatter || tags
-          ? { ...(frontmatter ? { frontmatter } : {}), ...(tags ? { tags } : {}) }
+        const listItems = options.listItems?.[file.path];
+        return frontmatter || tags || listItems
+          ? {
+              ...(frontmatter ? { frontmatter } : {}),
+              ...(tags ? { tags } : {}),
+              ...(listItems ? { listItems } : {})
+            }
           : null;
       },
       getFirstLinkpathDest: (link: string) => (present.has(link) ? node(link) : null),
@@ -927,5 +934,24 @@ describe("related notes", () => {
 
     expect(f.controller.displayTitle("A.md")).toBe("A");
     expect(f.controller.displayTitle("Nirgends.md")).toBeNull();
+  });
+});
+
+describe("a note that declines its task count", () => {
+  it("keeps its tasks out of a pinned tag's sum, and is still listed under the tag", () => {
+    const f = fixture({
+      present: ["work.md", "reading.md"],
+      tags: { "work.md": ["#projekt"], "reading.md": ["#projekt"] },
+      listItems: {
+        "work.md": [{ task: " " }, { task: "x" }],
+        "reading.md": [{ task: " " }, { task: " " }, { task: " " }]
+      },
+      frontmatter: { "reading.md": { schreibstubeTaskCount: false } }
+    });
+
+    expect(f.controller.tagTallies(["projekt"]).get("projekt")).toEqual({ open: 1, total: 2 });
+    const cards = f.controller.tagCards("projekt");
+    expect(cards.map((card) => card.path).sort()).toEqual(["reading.md", "work.md"]);
+    expect(cards.find((card) => card.path === "reading.md")?.tally).toEqual({ open: 0, total: 0 });
   });
 });
