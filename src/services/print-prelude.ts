@@ -228,9 +228,63 @@ export const PRELUDE_SOURCE = `// Defaults the converted note calls. A template 
   scale(low * 100%, origin: top + left, reflow: true, block(width: size.width / low, body))
 })
 
+// A picture on a slide, with its alt text as the caption. A figure of its own
+// kind rather than a drawing, so the slide decides where the caption goes: a
+// slide sets its full-width part and its columns under different rules
+// (schreibstube-slide-pictures), and a figure is what a show rule can reach.
+#let schreibstube-slide-image(path, alt) = figure(
+  image(path, width: 100%),
+  kind: "schreibstube-slide-image",
+  supplement: none,
+  numbering: none,
+  caption: if alt == "" { none } else { alt },
+)
+
+// The pictures in body, their captions beside them — on the right, level with
+// the picture's foot — or beneath. Beside is for a slide's full width, where a
+// line under the picture would take height the slide needs; a column is too
+// narrow for it.
+#let schreibstube-slide-pictures(beside, body) = {
+  show figure.where(kind: "schreibstube-slide-image"): it => {
+    if it.caption == none { return it.body }
+    let words = text(size: 0.7em, fill: luma(90), it.caption.body)
+    if beside {
+      grid(
+        columns: (3fr, 1fr),
+        column-gutter: 1em,
+        align: (auto, left + bottom),
+        it.body,
+        words,
+      )
+    } else {
+      block(breakable: false, width: 100%, stack(spacing: 0.5em, it.body, words))
+    }
+  }
+  body
+}
+
+// A slide's content, centred across the page or at its left edge. Paragraphs
+// and headings are centred line by line; a list keeps its items flush under
+// their bullets and stands centred as a whole, and code keeps its lines flush,
+// since they only read when they share an edge. A list is placed by the
+// alignment in force where it stands, which inside another list is the left
+// edge, so a nested list stays under its item rather than being centred again.
+#let schreibstube-slide-align(horizontal, body) = {
+  let flush(it) = context align(align.alignment, box({
+    set align(left)
+    it
+  }))
+  set align(horizontal)
+  show list: flush
+  show enum: flush
+  show raw.where(block: true): set align(left)
+  body
+}
+
 // One slide to a page, as the converter groups a note for a slide template.
 // kind: "title" opens the deck, "section" divides it, "content" is the rest;
-// level is the heading that opened the slide, 0 for none. The title stands on
+// level is the heading that opened the slide, 0 for none; horizontal is
+// center or left, where the content stands across the page. The title stands on
 // top; the intro and then the column cells, each (title, body), share the
 // rest of the page and shrink together when they do not fit it. The prelude
 // is imported into a layout like any file, so a template that draws its own
@@ -239,18 +293,20 @@ export const PRELUDE_SOURCE = `// Defaults the converted note calls. A template 
 #let schreibstube-slide(
   kind: "content",
   level: 2,
+  horizontal: center,
   title: none,
   columns: 1,
   intro: [],
   cells: (),
 ) = {
   pagebreak(weak: true)
+  show: schreibstube-slide-align.with(horizontal)
   if kind != "content" {
     block(height: 100%, width: 100%, align(horizon, heading(level: 1, title)))
     return
   }
   let body = {
-    intro
+    schreibstube-slide-pictures(true, intro)
     if cells.len() > 0 {
       grid(
         columns: (1fr,) * columns,
@@ -259,7 +315,7 @@ export const PRELUDE_SOURCE = `// Defaults the converted note calls. A template 
         ..cells.map(((head, main)) => block(width: 100%, {
           strong(head)
           parbreak()
-          main
+          schreibstube-slide-pictures(false, main)
         })),
       )
     }

@@ -14,16 +14,20 @@ Eine Notiz als Präsentation: jede Folie eine Seite, im Format 16:9 oder 4:3. Di
 
 ## Die Gliederung
 
-| Im Markdown        | Auf den Folien                                               |
-| ------------------ | ------------------------------------------------------------ |
-| `#`                | neue Folie mit Titel; ohne Text darunter ein Kapiteltrenner  |
-| `#` ganz am Anfang | ohne Text darunter die Titelfolie                            |
-| `##`               | neue Folie mit Titel                                         |
-| `###`              | eine von zwei Spalten; die Überschrift steht über der Spalte |
-| `####`             | eine von drei Spalten                                        |
-| `---`              | neue Folie ohne Titel, etwa um eine volle Folie fortzusetzen |
+| Im Markdown        | Auf den Folien                                                                                  |
+| ------------------ | ----------------------------------------------------------------------------------------------- |
+| `#`                | neue Folie mit Titel; ohne Text darunter ein Kapiteltrenner                                     |
+| `#` ganz am Anfang | ohne Text darunter die Titelfolie                                                               |
+| `##`               | neue Folie mit Titel                                                                            |
+| `###`              | eine Spalte; die Überschrift steht über ihr. Zwei `###` ergeben zwei Spalten, drei ergeben drei |
+| `####`             | eine Zwischenüberschrift in ihrer Spalte                                                        |
+| `---`              | neue Folie ohne Titel, etwa um eine volle Folie fortzusetzen                                    |
 
-Welche der beiden Spaltenebenen eine Folie zuerst trifft, gilt für die ganze Folie; die andere ist dort eine gewöhnliche Zwischenüberschrift in ihrer Spalte. Was vor der ersten Spaltenüberschrift steht, läuft über die ganze Breite. Mehr Spalten, als die Ebene hat, beginnen eine zweite Reihe.
+Was vor der ersten `###` steht, läuft über die ganze Breite. Ab der vierten `###` beginnt eine zweite Reihe, statt dass die Spalten schmaler werden.
+
+Im Druckdialog wählt **Ausrichtung**, ob der Inhalt mittig steht (so beginnt er) oder links. Mittig werden Absätze und Überschriften zentriert; eine Liste steht als Ganzes in der Mitte, ihre Punkte bleiben untereinander. `align: left` in der Notiz lässt den Dialog links beginnen.
+
+Ein Bild zeigt seinen Alternativtext als Bildunterschrift: auf einer Folie ohne Spalten rechts neben dem Bild, unten bündig, in einer Spalte darunter. `![Küche nach der Renovierung](kueche.jpg)` schreibt ihn; ein Bild ohne Text steht allein.
 
 Eine Folie, auf der mehr steht, als passt, wird als Ganzes verkleinert, bis sie passt — sie wird nie abgeschnitten und nie auf eine zweite Seite umbrochen. Sehr kleine Schrift in der Vorschau heißt: diese Folie gehört geteilt.
 
@@ -39,6 +43,7 @@ schreibstubePrintTemplate: Folien
 schreibstubePrint:
   subtitle: Quartalsbericht Vertrieb
   format: "4:3"
+  align: left
 ---
 ```
 

@@ -1,8 +1,8 @@
 // A deck: one slide to a page, 16:9 or 4:3 as the print dialog chooses. The
 // plugin groups the note before this runs — a `#` or `##` heading starts a
-// slide and is its title, a `###` opens one of two columns and a `####` one of
-// three, a rule starts an untitled slide — and calls schreibstube-slide once
-// for each. Everything here is how a slide looks.
+// slide and is its title, each `###` opens a column — two make two columns,
+// three make three — and a rule starts an untitled slide — and calls
+// schreibstube-slide once for each. Everything here is how a slide looks.
 //
 // A slide that holds more than fits is made smaller as a whole until it does,
 // never cut off and never carried onto a second page; schreibstube-fit, from
@@ -12,8 +12,9 @@
 // `data.title` is the note's first heading, and stands in the foot of every
 // slide but the title slide and the section dividers.
 
-// The prelude's shrink-to-fit, which every job carries beside this file.
-#import "schreibstube.typ": schreibstube-fit
+// The prelude's shrink-to-fit, alignment and captions, which every job
+// carries beside this file.
+#import "schreibstube.typ": schreibstube-fit, schreibstube-slide-align, schreibstube-slide-pictures
 
 #let ink = rgb("#1f2328")
 #let muted = rgb("#5b6470")
@@ -35,6 +36,7 @@
 #let schreibstube-slide(
   kind: "content",
   level: 2,
+  horizontal: center,
   title: none,
   columns: 1,
   intro: [],
@@ -42,6 +44,7 @@
 ) = {
   pagebreak(weak: true)
   plain.update(kind != "content")
+  show: schreibstube-slide-align.with(horizontal)
 
   if kind == "title" {
     block(height: 100%, width: 100%, align(horizon, context {
@@ -71,7 +74,7 @@
     // A heading inside the body — in a callout, or below a column's — is
     // no slide title, and is set no larger than a column's.
     show heading: set text(size: 22pt)
-    intro
+    schreibstube-slide-pictures(true, intro)
     if cells.len() > 0 {
       grid(
         columns: (1fr,) * columns,
@@ -85,7 +88,7 @@
             width: 100%,
             text(weight: 600, fill: accent, head),
           )
-          main
+          schreibstube-slide-pictures(false, main)
         })),
       )
     }
@@ -138,8 +141,10 @@
   set page(footer: context {
     if not plain.get() {
       set text(size: 10pt, fill: faint)
+      // Set flush on both sides whatever the slides above it ask for.
       grid(
         columns: (1fr, auto),
+        align: (left, right),
         data.title,
         counter(page).display("1 / 1", both: true),
       )

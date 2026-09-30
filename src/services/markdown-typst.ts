@@ -8,7 +8,7 @@ import { isTableDelimiter, rowCells } from "./markdown-table";
 import { typstArray, typstString } from "./typst-value";
 import { parseSlideshow, SLIDESHOW_LANGUAGE } from "./slideshow";
 import { slideshowForPrint, type SlideshowPrintMode } from "./print-slideshow";
-import { groupSlides, slidesMarkup, type SlidePart } from "./print-slides";
+import { groupSlides, slidesMarkup, type SlideAlign, type SlidePart } from "./print-slides";
 
 /** What a tab is worth when a list's nesting is measured, as in the editor. */
 const TAB_COLUMNS = 4;
@@ -64,6 +64,8 @@ export interface ConvertOptions {
    * slide rather than a page, whatever `hrIsPageBreak` says.
    */
   slides?: boolean;
+  /** Where a slide's content stands across the page: centred unless it says left. */
+  slideAlign?: SlideAlign;
 }
 
 /**
@@ -188,6 +190,12 @@ interface Shared {
   /** Footnotes being expanded right now, so one that cites itself ends. */
   expanding: Set<string>;
   slideshows: number;
+  /**
+   * Whether the note is printed as slides. Held here rather than read from the
+   * options, which a callout's conversion turns off: a picture in a callout
+   * on a slide is still a picture on a slide.
+   */
+  deck: boolean;
 }
 
 export function markdownToTypst(source: string, options: ConvertOptions = {}): Conversion {
@@ -197,7 +205,8 @@ export function markdownToTypst(source: string, options: ConvertOptions = {}): C
     diagrams: [],
     warnings: [],
     expanding: new Set(),
-    slideshows: 0
+    slideshows: 0,
+    deck: options.slides === true
   }).run();
 }
 
@@ -232,7 +241,9 @@ class Converter {
       blocks.splice(/^= /.test(blocks[0] ?? "") ? 1 : 0, 0, table);
       parts.splice(first, 0, { kind: "block", markup: table });
     }
-    const body = this.options.slides ? slidesMarkup(groupSlides(parts)) : blocks.join("\n");
+    const body = this.options.slides
+      ? slidesMarkup(groupSlides(parts), this.options.slideAlign)
+      : blocks.join("\n");
     return {
       body: `${body.replace(/\n{3,}/g, "\n\n").trim()}\n`,
       diagrams: this.shared.diagrams,
@@ -937,6 +948,12 @@ class Converter {
   private image(source: string, alt: string): [string, boolean] {
     const path = this.resolveImage({ source, alt });
     if (path === null) return [escapeText(alt), false];
+    if (this.shared.deck) {
+      // On a slide the alt text is the picture's caption, and `![[a.png|300]]`
+      // is a width, which is no caption.
+      const caption = /^\d+(x\d+)?$/.test(alt.trim()) ? "" : alt;
+      return [`#schreibstube-slide-image(${typstString(path)}, ${typstString(caption)})`, true];
+    }
     return [`#schreibstube-image(${typstString(path)}, ${typstString(alt)})`, true];
   }
 

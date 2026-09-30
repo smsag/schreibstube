@@ -199,6 +199,7 @@ What each choice means is `services/print-options.ts`:
 | Ränder                        | `standard` keeps the template's margin; `small` and `wide` set 15 and 35 mm through the page rule `main.typ` sets before the layout. A layout that sets its own margin (`layoutFixesMargin`) keeps it, and the choice is greyed out |
 | Trennlinien als Seitenumbruch | The converter's `hrIsPageBreak`                                                                                                                                                                                                     |
 | Eigenschaften drucken         | `frontmatterRows`: the note's properties without the `schreibstube…` keys, lists on one line, links as their names; placed after a leading `=` heading as `#schreibstube-properties(rows)`                                          |
+| Ausrichtung                   | Offered for a slide template: the content centred (the default) or at the left edge; see "A note as slides"                                                                                                                         |
 | Format                        | Offered for a slide template: 16:9 or 4:3; see "A note as slides". The page-break toggle is not offered then                                                                                                                        |
 | Diashows                      | Offered when the note holds one. `layout` (the default, and what the quick print uses) or `stacked`; see below                                                                                                                      |
 | Pythia-Fußnoten               | Offered when Pythia is on and the note links to a conversation. On by default then; see below                                                                                                                                       |
@@ -261,19 +262,17 @@ the deck's. `services/print-slides.ts` decides the grouping from the
 converter's top-level blocks, and the prelude's `schreibstube-slide` draws each
 slide, which a template may replace.
 
-| In the note                        | On the slides                                                                                     |
-| ---------------------------------- | ------------------------------------------------------------------------------------------------- |
-| `#`, `##`                          | a new slide, titled by the heading                                                                |
-| `#` with nothing under it          | a section divider; when it opens the deck, the title slide                                        |
-| `###`                              | one of two columns, titled by the heading                                                         |
-| `####`                             | one of three columns                                                                              |
-| the other of those two, on a slide | an ordinary heading inside its column: the first column level a slide meets is the slide's        |
-| `---`                              | a new, untitled slide, whatever `hrIsPageBreak` says; a rule with nothing after it leaves nothing |
-| a heading inside a callout         | the callout's, never a slide's                                                                    |
+| In the note                | On the slides                                                                                             |
+| -------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `#`, `##`                  | a new slide, titled by the heading                                                                        |
+| `#` with nothing under it  | a section divider; when it opens the deck, the title slide                                                |
+| `###`                      | a column, titled by the heading: a slide has as many columns as `###` headings, two or three side by side |
+| `####` and deeper          | an ordinary heading inside its column                                                                     |
+| `---`                      | a new, untitled slide, whatever `hrIsPageBreak` says; a rule with nothing after it leaves nothing         |
+| a heading inside a callout | the callout's, never a slide's                                                                            |
 
 What stands above a slide's first column heading runs across the full width;
-a fifth `####` on a three-column slide starts a second row rather than a
-narrower column.
+a fourth `###` starts a second row rather than a fourth, narrower column.
 
 **A slide never overflows.** `schreibstube-fit` in the prelude makes a slide's
 body smaller until it fits the space left under the title, and never larger.
@@ -285,6 +284,22 @@ instead. Nothing is cut off and nothing runs onto a second page; very small
 type in the preview is the sign that a slide wants splitting. The space is a
 fraction of the page's flow (`block(height: 1fr)`), which is measured after
 the slide's footnotes, so a footnote has its room at the foot.
+
+**Where the content stands.** **Ausrichtung** in the dialog centres a slide's
+content across the page — the default — or sets it at the left edge; it
+starts at the note's `schreibstubePrint.align` (`center` or `left`). The choice
+reaches every slide as its `horizontal` argument. Centred, paragraphs and
+headings are centred line by line, while a list stands centred as a whole with
+its items flush under their bullets, and code keeps its lines flush
+(`schreibstube-slide-align`).
+
+**Pictures carry their alt text.** On a slide a picture is
+`#schreibstube-slide-image(path, alt)`, a figure whose caption is the alt text,
+in a callout too; an embed's alias that is a width (`![[a.png|300]]`) is no
+caption. Where the caption goes is the slide's: across the full width —
+a slide without columns, or the part above them — it stands to the right of
+the picture, level with its foot, and in a column it stands beneath
+(`schreibstube-slide-pictures`). A picture without alt text stands alone.
 
 The format is the dialog's: **Format** offers 16:9 and 4:3, which are Typst's
 `presentation-16-9` and `presentation-4-3`, and replaces the paper the
@@ -407,19 +422,20 @@ defines any of them at the top level of `template.typ`, and its definition
 wins: `main.typ` imports the prelude first and everything the layout defines
 after it.
 
-| Helper                    | Signature                                           | Given                                                                                                                                                              |
-| ------------------------- | --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `schreibstube-image`      | `(path, alt)`                                       | one embedded picture                                                                                                                                               |
-| `schreibstube-diagram`    | `(paths, caption)`                                  | **an array** of pictures, all from one fence, and one caption for the group                                                                                        |
-| `schreibstube-code`       | `(source, language)`                                | a fence that is not a diagram, or one that could not be drawn                                                                                                      |
-| `schreibstube-table`      | `(columns:, align:, ..cells)`                       | a pipe table; the first argument among `cells` may be a `table.header`                                                                                             |
-| `schreibstube-callout`    | `(kind, title, body)`                               | an Obsidian callout, `kind` one of `note`, `tip`, `warning`, `danger`                                                                                              |
-| `schreibstube-task`       | `(done)`                                            | a task's box: the marker of a bulleted task, beside the number of a numbered one                                                                                   |
-| `schreibstube-task-item`  | `(marker, body)`                                    | a bulleted task, `marker` its box as `schreibstube-task` drew it; a list of one item, so the box stands where the bullet would                                     |
-| `schreibstube-properties` | `(rows)`                                            | the note's properties, when the dialog prints them: an array of `(key, value)`                                                                                     |
-| `schreibstube-slide`      | `(kind:, level:, title:, columns:, intro:, cells:)` | a slide, for a slide template: `kind` one of `title`, `section`, `content`; `title` content or `none`; `cells` an array of `(title, body)`; see "A note as slides" |
-| `schreibstube-fit`        | `(body)`                                            | not called by the note: the prelude's shrink-to-fit, for a template that draws its own slide, imported with `#import "schreibstube.typ": schreibstube-fit`         |
-| `schreibstube-slideshow`  | `(kind, images, columns: 1)`                        | a slideshow: `kind` one of `single`, `filmstrip`, `feature`, `strip`, `masonry`, `compare`, `stacked`; `images` an array of `(path, description)`                  |
+| Helper                                                | Signature                                                        | Given                                                                                                                                                                                               |
+| ----------------------------------------------------- | ---------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `schreibstube-image`                                  | `(path, alt)`                                                    | one embedded picture                                                                                                                                                                                |
+| `schreibstube-diagram`                                | `(paths, caption)`                                               | **an array** of pictures, all from one fence, and one caption for the group                                                                                                                         |
+| `schreibstube-code`                                   | `(source, language)`                                             | a fence that is not a diagram, or one that could not be drawn                                                                                                                                       |
+| `schreibstube-table`                                  | `(columns:, align:, ..cells)`                                    | a pipe table; the first argument among `cells` may be a `table.header`                                                                                                                              |
+| `schreibstube-callout`                                | `(kind, title, body)`                                            | an Obsidian callout, `kind` one of `note`, `tip`, `warning`, `danger`                                                                                                                               |
+| `schreibstube-task`                                   | `(done)`                                                         | a task's box: the marker of a bulleted task, beside the number of a numbered one                                                                                                                    |
+| `schreibstube-task-item`                              | `(marker, body)`                                                 | a bulleted task, `marker` its box as `schreibstube-task` drew it; a list of one item, so the box stands where the bullet would                                                                      |
+| `schreibstube-properties`                             | `(rows)`                                                         | the note's properties, when the dialog prints them: an array of `(key, value)`                                                                                                                      |
+| `schreibstube-slide`                                  | `(kind:, level:, horizontal:, title:, columns:, intro:, cells:)` | a slide, for a slide template: `kind` one of `title`, `section`, `content`; `horizontal` `center` or `left`; `title` content or `none`; `cells` an array of `(title, body)`; see "A note as slides" |
+| `schreibstube-slide-image`                            | `(path, alt)`                                                    | a picture on a slide: a figure of kind `"schreibstube-slide-image"` whose caption is the alt text, or none                                                                                          |
+| `schreibstube-fit`, `-slide-align`, `-slide-pictures` | `(body)`, `(horizontal, body)`, `(beside, body)`                 | not called by the note: shrink-to-fit, the alignment, and where captions go, for a template that draws its own slide, imported with `#import "schreibstube.typ": schreibstube-fit, …`               |
+| `schreibstube-slideshow`                              | `(kind, images, columns: 1)`                                     | a slideshow: `kind` one of `single`, `filmstrip`, `feature`, `strip`, `masonry`, `compare`, `stacked`; `images` an array of `(path, description)`                                                   |
 
 Because the layout is imported whole, a top-level name in it may shadow one the
 prelude defines. That is the mechanism, so name private helpers of your own

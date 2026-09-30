@@ -1187,6 +1187,8 @@ export const de: Messages = {
       slideshows: "Diaschauen",
       format: "Format",
       formats: { "16:9": "16:9 (Breitbild)", "4:3": "4:3" },
+      align: "Ausrichtung",
+      aligns: { center: "Mittig", left: "Linksbündig" },
       slideshow: { layout: "Wie in der Notiz", stacked: "Alle Bilder untereinander" },
       print: "Drucken",
       working: "Vorschau wird gesetzt …",

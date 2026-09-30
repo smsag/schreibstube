@@ -7,6 +7,7 @@ import {
   layoutReadsMonospace,
   MARGIN_PRESETS,
   noteMonospace,
+  noteSlideAlign,
   noteSlideFormat,
   withTemplate
 } from "./print-options";
@@ -25,6 +26,7 @@ describe("initialOptions", () => {
       frontmatter: false,
       slideshows: "layout",
       format: "16:9",
+      align: "center",
       monospace: true,
       pythiaFootnotes: false
     });
@@ -59,6 +61,7 @@ describe("withTemplate", () => {
       frontmatter: true,
       slideshows: "layout",
       format: "16:9",
+      align: "center",
       monospace: true,
       pythiaFootnotes: false
     });
@@ -204,5 +207,23 @@ describe("slide formats", () => {
   it("keeps the format when the template changes", () => {
     const start = { ...initialOptions(deck()), format: "4:3" as const };
     expect(withTemplate(start, template()).format).toBe("4:3");
+  });
+});
+
+describe("slide alignment", () => {
+  it("starts centred, or where the note asks", () => {
+    expect(initialOptions(template()).align).toBe("center");
+    expect(initialOptions(template(), { schreibstubePrint: { align: "Left" } }).align).toBe("left");
+  });
+
+  it("reads only the two alignments it knows from a note", () => {
+    expect(noteSlideAlign({ schreibstubePrint: { align: "center" } })).toBe("center");
+    expect(noteSlideAlign({ schreibstubePrint: { align: "right" } })).toBeNull();
+    expect(noteSlideAlign({})).toBeNull();
+  });
+
+  it("keeps the alignment when the template changes", () => {
+    const start = { ...initialOptions(template()), align: "left" as const };
+    expect(withTemplate(start, template()).align).toBe("left");
   });
 });

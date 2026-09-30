@@ -600,6 +600,7 @@ export class PrintCommands {
         properties,
         slideshows: options.slideshows,
         slides: template.slides,
+        slideAlign: options.align,
         diagramImage: (block) => session.drawings.get(block.index) ?? null,
         diagramTitle: (block) => session.titles.get(block.index) ?? null,
         image: ({ source: link, width }) => {

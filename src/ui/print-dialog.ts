@@ -27,6 +27,7 @@ import {
   type SlideFormat
 } from "../services/print-options";
 import { SLIDESHOW_PRINT_MODES, type SlideshowPrintMode } from "../services/print-slideshow";
+import { SLIDE_ALIGNS, type SlideAlign } from "../services/print-slides";
 import type { PrintTemplate } from "../services/print-template";
 import type { PythiaInspection, PythiaRefresh } from "../services/pythia-print";
 
@@ -87,6 +88,7 @@ export class PrintDialog extends Modal {
   private breakToggle: ToggleComponent | null = null;
   private breakSetting: Setting | null = null;
   private formatSetting: Setting | null = null;
+  private alignSetting: Setting | null = null;
   private faceSetting: Setting | null = null;
   private pythiaSetting: Setting | null = null;
   /** Ends a refresh still running when the dialog closes: nobody is waiting for it. */
@@ -197,6 +199,14 @@ export class PrintDialog extends Modal {
       });
     });
 
+    this.alignSetting = new Setting(el).setName(words.align).addDropdown((dropdown) => {
+      for (const align of SLIDE_ALIGNS) dropdown.addOption(align, words.aligns[align]);
+      dropdown.setValue(this.options.align).onChange((value) => {
+        this.options = { ...this.options, align: value as SlideAlign };
+        this.changed();
+      });
+    });
+
     this.breakSetting = new Setting(el).setName(words.pageBreaks).addToggle((toggle) => {
       this.breakToggle = toggle;
       toggle.setValue(this.options.hrIsPageBreak).onChange((value) => {
@@ -226,13 +236,14 @@ export class PrintDialog extends Modal {
   }
 
   /**
-   * A deck has a format and no page breaks — a rule starts a slide — so the
-   * dialog offers the one and not the other for a slide template, and the
-   * reverse for every other.
+   * A deck has a format and an alignment and no page breaks — a rule starts
+   * a slide — so the dialog offers the first two and not the third for a
+   * slide template, and the reverse for every other.
    */
   private showForTemplate(): void {
     const slides = this.options.template.slides;
     this.formatSetting?.settingEl.toggle(slides);
+    this.alignSetting?.settingEl.toggle(slides);
     this.breakSetting?.settingEl.toggle(!slides);
   }
 

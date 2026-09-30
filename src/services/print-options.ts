@@ -1,7 +1,7 @@
 /**
  * What the print dialog lets a person change, and what each choice means.
  *
- * Eight choices, and nothing about them is remembered: each print starts from
+ * Nine choices, and nothing about them is remembered: each print starts from
  * the template and the note, because that is where a page's design lives and
  * a dialog that carried yesterday's margins into today's letter would be a
  * second, invisible template.
@@ -10,6 +10,7 @@ import { NOTE_DATA_KEY } from "./print-data";
 import { printableText } from "./typst-value";
 import type { PrintTemplate } from "./print-template";
 import type { SlideshowPrintMode } from "./print-slideshow";
+import { SLIDE_ALIGNS, type SlideAlign } from "./print-slides";
 
 /** The formats a deck is printed in, and the Typst paper each one is. */
 export type SlideFormat = "16:9" | "4:3";
@@ -42,6 +43,8 @@ export interface PrintOptions {
   slideshows: SlideshowPrintMode;
   /** The page of a deck. Only a slide template reads it. */
   format: SlideFormat;
+  /** Where a deck's content stands across the slide: centred, or at the left. */
+  align: SlideAlign;
   /**
    * The text in the monospaced face, or in the sans. Reaches the layout as
    * `data.monospace`; a template that does not read it is unaffected, and the
@@ -74,6 +77,7 @@ export function initialOptions(
     frontmatter: false,
     slideshows: "layout",
     format: noteSlideFormat(frontmatter) ?? templateSlideFormat(template),
+    align: noteSlideAlign(frontmatter) ?? "center",
     monospace: noteMonospace(frontmatter) ?? true,
     pythiaFootnotes: pythiaLinks > 0
   };
@@ -104,10 +108,29 @@ export function noteMonospace(
 export function noteSlideFormat(
   frontmatter: Readonly<Record<string, unknown>> | null | undefined
 ): SlideFormat | null {
+  const text = noteValue(frontmatter, "format");
+  return SLIDE_FORMATS.find((format) => format === text) ?? null;
+}
+
+/**
+ * Where a note asks its slides' content to stand, as
+ * `schreibstubePrint.align`: `center` or `left`, or null for anything else.
+ */
+export function noteSlideAlign(
+  frontmatter: Readonly<Record<string, unknown>> | null | undefined
+): SlideAlign | null {
+  const text = noteValue(frontmatter, "align")?.toLowerCase();
+  return SLIDE_ALIGNS.find((align) => align === text) ?? null;
+}
+
+/** One of the note's `schreibstubePrint` values as text, trimmed, or null. */
+function noteValue(
+  frontmatter: Readonly<Record<string, unknown>> | null | undefined,
+  key: string
+): string | null {
   const data = frontmatter?.[NOTE_DATA_KEY];
   if (typeof data !== "object" || data === null || Array.isArray(data)) return null;
-  const text = printableText((data as Record<string, unknown>).format)?.trim();
-  return SLIDE_FORMATS.find((format) => format === text) ?? null;
+  return printableText((data as Record<string, unknown>)[key])?.trim() ?? null;
 }
 
 /** The format a template's own paper is, 16:9 when it is neither. */
@@ -125,8 +148,8 @@ export function layoutReadsMonospace(layout: string): boolean {
 
 /**
  * The same choices for another template, whose own page-break habit then
- * applies. The format stays: it was the note's or the person's, not the
- * template's.
+ * applies. The format and the alignment stay: they were the note's or the
+ * person's, not the template's.
  */
 export function withTemplate(options: PrintOptions, template: PrintTemplate): PrintOptions {
   return { ...options, template, hrIsPageBreak: template.hrIsPageBreak };

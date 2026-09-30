@@ -34,7 +34,7 @@ describe("groupSlides", () => {
     });
   });
 
-  it("opens two columns under third-level headings, the intro above them", () => {
+  it("opens two columns under two third-level headings, the intro above them", () => {
     const [slide] = groupSlides([h(2, "S"), b("intro"), h(3, "A"), b("a"), h(3, "B"), b("b")]);
     expect(slide).toMatchObject({
       columns: 2,
@@ -46,21 +46,27 @@ describe("groupSlides", () => {
     });
   });
 
-  it("opens three columns under fourth-level headings", () => {
-    const [slide] = groupSlides([h(2, "S"), h(4, "A"), h(4, "B"), h(4, "C"), h(4, "D")]);
+  it("has as many columns as third-level headings: one, two or three", () => {
+    const count = (n: number) =>
+      groupSlides([h(2, "S"), ...Array.from({ length: n }, (_, i) => h(3, `C${i}`))])[0]?.columns;
+    expect([count(0), count(1), count(2), count(3)]).toEqual([1, 1, 2, 3]);
+  });
+
+  it("starts a second row at the fourth column rather than narrowing the first", () => {
+    const [slide] = groupSlides([h(2, "S"), h(3, "A"), h(3, "B"), h(3, "C"), h(3, "D")]);
     expect(slide?.columns).toBe(3);
     expect(slide?.cells).toHaveLength(4);
   });
 
-  it("reads the other column level as an ordinary heading inside the column", () => {
-    const [slide] = groupSlides([h(2, "S"), h(3, "A"), h(4, "Unter"), b("a")]);
+  it("reads a fourth-level heading as an ordinary heading inside its column", () => {
+    const [slide] = groupSlides([h(2, "S"), h(3, "A"), h(4, "Unter"), b("a"), h(3, "B")]);
     expect(slide?.columns).toBe(2);
-    expect(slide?.cells).toEqual([{ title: "A", body: ["==== Unter\n", "a"] }]);
+    expect(slide?.cells[0]).toEqual({ title: "A", body: ["==== Unter\n", "a"] });
   });
 
-  it("starts the column level afresh on every slide", () => {
-    const slides = groupSlides([h(2, "S"), h(3, "A"), h(2, "T"), h(4, "B")]);
-    expect(slides.map((slide) => slide.columns)).toEqual([2, 3]);
+  it("counts the columns afresh on every slide", () => {
+    const slides = groupSlides([h(2, "S"), h(3, "A"), h(3, "B"), h(2, "T"), h(3, "C")]);
+    expect(slides.map((slide) => slide.columns)).toEqual([2, 1]);
   });
 
   it("keeps fifth- and sixth-level headings as headings", () => {
@@ -85,17 +91,23 @@ describe("groupSlides", () => {
 
 describe("slidesMarkup", () => {
   it("calls the slide helper once per slide, every piece as content", () => {
-    const markup = slidesMarkup(groupSlides([h(2, "Titel"), h(3, "A"), b("a")]));
+    const markup = slidesMarkup(groupSlides([h(2, "Titel"), h(3, "A"), b("a"), h(3, "B")]));
     expect(markup).toBe(
       "#schreibstube-slide(\n" +
         '  kind: "content",\n' +
         "  level: 2,\n" +
+        "  horizontal: center,\n" +
         "  title: [\nTitel\n],\n" +
         "  columns: 2,\n" +
         "  intro: [],\n" +
-        "  cells: (([\nA\n], [\na\n]),),\n" +
+        "  cells: (([\nA\n], [\na\n]), ([\nB\n], []),),\n" +
         ")\n"
     );
+  });
+
+  it("passes the alignment to every slide", () => {
+    const markup = slidesMarkup(groupSlides([h(2, "A"), h(2, "B")]), "left");
+    expect(markup.match(/ {2}horizontal: left,\n/g)).toHaveLength(2);
   });
 
   it("gives an untitled slide no title", () => {
@@ -141,7 +153,26 @@ describe("the converter's deck", () => {
     expect(body).toMatch(/title: \[\nDeck\n\],[\s\S]*intro: \[\n#schreibstube-properties/);
   });
 
+  it("prints a picture with its alt text as the caption, in a callout too", () => {
+    const image = () => "assets/a.png";
+    const body = deck("## A\n\n![Die Küche](a.png)\n\n> [!note] N\n> ![Innen](a.png)\n", { image });
+    expect(body).toContain('#schreibstube-slide-image("assets/a.png", "Die Küche")');
+    expect(body).toContain('#schreibstube-slide-image("assets/a.png", "Innen")');
+    expect(body).not.toContain("#schreibstube-image(");
+  });
+
+  it("reads a width written as an embed's alias as no caption", () => {
+    const body = deck("## A\n\n![[a.png|300]]\n\n![[a.png|640x480]]\n", { image: () => "a.png" });
+    expect(body.match(/#schreibstube-slide-image\("a.png", ""\)/g)).toHaveLength(2);
+  });
+
+  it("sends the alignment it is given to the slides", () => {
+    expect(deck("## A\n", { slideAlign: "left" })).toContain("horizontal: left,");
+  });
+
   it("is off unless asked for", () => {
     expect(markdownToTypst("## A\n\nText\n").body).toBe("== A\n\nText\n");
+    const plain = markdownToTypst("![B](b.png)\n", { image: () => "b.png" }).body;
+    expect(plain).toContain('#schreibstube-image("b.png", "B")');
   });
 });

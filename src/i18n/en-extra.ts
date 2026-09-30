@@ -865,6 +865,8 @@ export const enExtra = {
       pageBreaks: "Horizontal rules as page breaks",
       format: "Format",
       formats: { "16:9": "16:9 (widescreen)", "4:3": "4:3" },
+      align: "Alignment",
+      aligns: { center: "Centred", left: "Left" },
       textFace: "Text font",
       textFaceMono: "JetBrains Mono",
       textFaceSans: "Fira Sans",
