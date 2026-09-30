@@ -340,10 +340,6 @@ export const de: Messages = {
     explorerShowExtensions: "Dateiendungen anzeigen",
     explorerShowExtensionsDesc:
       "Aus zeigt eine Zeile nur den Namen, und das Symbol sagt, was die Datei ist: Plan.md, Plan.png und Plan.excalidraw.md heißen alle Plan. An zeigt den ganzen Namen. Umbenennen bearbeitet den Namen ohne Endung, so oder so.",
-    explorerDescriptionNotes: "Bildbeschreibungen als Notizen zeigen",
-    explorerDescriptionNotesDesc:
-      "Aus: Ein beschriebenes Bild ist eine Zeile, auch über seine Beschreibung auffindbar, und die " +
-      "Beschreibungsnotiz bleibt aus dem Baum. An: Die Beschreibungsnotizen erscheinen als gewöhnliche Notizen.",
     recommendedPlacement: "Empfohlen",
     recommendedPlacementDesc:
       "Wo die Notizen, Bilder und Gespräche erscheinen, die zur offenen Notiz gehören. Unter der " +

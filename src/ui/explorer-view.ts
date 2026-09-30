@@ -87,7 +87,7 @@ import {
   moveTargetAt,
   orderAfterDrop
 } from "./explorer-drop";
-import { DragGesture, wireListFocus, wirePress } from "./explorer-gestures";
+import { DragGesture, ROW_CONTROL_ATTR, wireListFocus, wirePress } from "./explorer-gestures";
 import { readPaneMemory, stateFromMemory, writePaneMemory } from "./explorer-memory";
 import {
   renderSection as renderSectionHeader,
@@ -294,8 +294,9 @@ export class ExplorerPaneView extends ItemView {
           // the tree, and counted among the matches it made the list say more
           // were held back than there were.
           .filter((file) => this.host?.explorer.isTrashed(file.path) !== true)
-          // A folded-in description note is found as its picture, never twice.
-          .filter((file) => this.host?.explorer.hidesDescription(file.path) !== true)
+          // A description note is found as its picture, never twice; one whose
+          // picture is gone is not found at all.
+          .filter((file) => this.host?.explorer.isDescriptionNote(file.path) !== true)
           .map((file) => ({ path: file.path, name: file.name })),
       metadata: (file) => {
         const target = this.app.vault.getAbstractFileByPath(file.path);
@@ -1704,7 +1705,7 @@ export class ExplorerPaneView extends ItemView {
       if (
         child instanceof TFolder
           ? controller.hidesFolder(child)
-          : controller.hidesDescription(child.path)
+          : controller.foldsIntoPicture(child.path)
       ) {
         continue;
       }
@@ -1776,10 +1777,10 @@ export class ExplorerPaneView extends ItemView {
     if (found.length === 0 || !controller) {
       return { all: new Set(hits.map((hit) => hit.path)), ranked: shown };
     }
-    // A folded-in description note is shown as its picture, here as everywhere.
+    // A description note is shown as its picture, as the words find it.
     // A note the index still holds but the vault no longer has is not a row.
     const rows = meaningRows(found, (path) => {
-      const shown = controller.hidesDescription(path) ? controller.imageDescribedBy(path) : path;
+      const shown = controller.isDescriptionNote(path) ? controller.imageDescribedBy(path) : path;
       return shown !== null && this.app.vault.getAbstractFileByPath(shown) instanceof TFile
         ? shown
         : null;
@@ -1977,7 +1978,7 @@ export class ExplorerPaneView extends ItemView {
     const controller = this.host?.explorer;
     const count = countFilesUnder(
       folder,
-      (path) => controller?.isTrashed(path) === true || controller?.hidesDescription(path) === true
+      (path) => controller?.isTrashed(path) === true || controller?.foldsIntoPicture(path) === true
     );
     this.folderCounts.set(folder.path, count);
     return count;
@@ -2088,6 +2089,8 @@ export class ExplorerPaneView extends ItemView {
       const label = t().explorer.badge.described;
       const el = row.createSpan({ cls: "schreibstube-explorer-badge" });
       el.setAttribute("data-described", "true");
+      // Its own press: the row must not capture it (see ROW_CONTROL_ATTR).
+      el.setAttribute(ROW_CONTROL_ATTR, "");
       el.setAttribute("aria-label", label);
       el.setAttribute("title", title ? `${label}\n${title}` : label);
       applyIcon(el, "sparkles");

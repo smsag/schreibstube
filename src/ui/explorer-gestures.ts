@@ -13,6 +13,15 @@ import { isLongPressEcho } from "../services/explorer-menu";
 export const LONG_PRESS_MS = 500;
 
 /**
+ * Marks something on a row that acts on its own — a mark leading to a
+ * picture's description note, say. A press on it is its own: the row takes no
+ * pointer capture for it and starts no drag. Captured, the release came back
+ * to the row, the browser sent the click to the row too, and the row opened
+ * its file where the mark was meant to open something else.
+ */
+export const ROW_CONTROL_ATTR = "data-row-control";
+
+/**
  * How far a finger may wander during a long press before it is a scroll.
  * A finger never holds perfectly still.
  */
@@ -159,6 +168,7 @@ export class DragGesture {
 
     row.addEventListener("pointerdown", (event: PointerEvent) => {
       if (event.button !== 0) return;
+      if (event.target instanceof Element && event.target.closest(`[${ROW_CONTROL_ATTR}]`)) return;
 
       startX = event.clientX;
       startY = event.clientY;

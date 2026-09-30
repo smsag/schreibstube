@@ -633,14 +633,12 @@ describe("picture description settings", () => {
 });
 
 describe("description notes in the Explorer", () => {
-  it("are folded into their pictures unless shown on purpose", () => {
-    expect(normalizeSettings({}).explorerDescriptionNotes).toBe("hide");
-    expect(normalizeSettings({ explorerDescriptionNotes: "show" }).explorerDescriptionNotes).toBe(
-      "show"
+  it("leaves the retired switch for showing them behind", () => {
+    // Retired: a description note is never a row of its own. A data.json
+    // written before still carries the key, and it goes with the next save.
+    expect(normalizeSettings({ explorerDescriptionNotes: "show" } as never)).not.toHaveProperty(
+      "explorerDescriptionNotes"
     );
-    expect(
-      normalizeSettings({ explorerDescriptionNotes: "maybe" as never }).explorerDescriptionNotes
-    ).toBe("hide");
   });
 });
 
