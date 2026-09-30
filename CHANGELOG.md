@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+- **Recommended under a note sits further from it, and stays put.** The list
+  starts 5.5em below the note's last line (it was 3em), in editing and Reading
+  view alike, from one value. With the Klartext theme 2.3.1, a trailing empty
+  line no longer moves it while you type.
+
 ## 1.65.0 - 2026-09-29
 
 Search by meaning is open to other plugins. Any plugin can hand its own items
