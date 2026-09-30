@@ -359,19 +359,25 @@ export class ExplorerController {
     return frontmatter !== undefined && DESCRIPTION_KEYS.image in frontmatter;
   }
 
-  /** Whether this row is a description note the Explorer folds into its picture. */
-  hidesDescription(path: string): boolean {
-    return this.getSettings().explorerDescriptionNotes === "hide" && this.isDescriptionNote(path);
+  /**
+   * Whether this note describes a picture that is there: the tree shows the
+   * picture in its place, and the note is reached from the picture's mark.
+   */
+  foldsIntoPicture(path: string): boolean {
+    return this.descriptionPairs().notes.has(path);
   }
 
   /**
-   * Whether this note describes a picture, whatever the tree shows. The
-   * search always finds such a note as its picture: the picture carries the
-   * note's words, and listing both put every described picture in the
-   * results twice, one row of it named like a file nobody wrote.
+   * Whether this note describes a picture, there or gone. Never a row in the
+   * search or in Recommended: the picture carries the note's words and stands
+   * for it, and a note whose picture is gone describes nothing anyone looked
+   * for. Listing it put every described picture in the results twice, one row
+   * of it named like a file nobody wrote. The tree still shows an orphaned
+   * one — where else would anyone see that it has lost its picture.
    */
   isDescriptionNote(path: string): boolean {
-    return this.descriptionPairs().notes.has(path);
+    const pairs = this.descriptionPairs();
+    return pairs.notes.has(path) || pairs.orphans.includes(path);
   }
 
   /**
@@ -379,10 +385,9 @@ export class ExplorerController {
    * one, so an empty folder stays: it is somebody's, not ours.
    */
   hidesFolder(folder: TFolder): boolean {
-    if (this.getSettings().explorerDescriptionNotes !== "hide") return false;
     return (
-      someFileUnder(folder, (file) => this.hidesDescription(file.path)) &&
-      !someFileUnder(folder, (file) => !this.hidesDescription(file.path))
+      someFileUnder(folder, (file) => this.foldsIntoPicture(file.path)) &&
+      !someFileUnder(folder, (file) => !this.foldsIntoPicture(file.path))
     );
   }
 

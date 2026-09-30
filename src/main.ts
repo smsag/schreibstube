@@ -796,6 +796,8 @@ export default class SchreibstubePlugin extends Plugin {
     ).flatMap((entry): RecommendedItem[] => {
       const file = this.app.vault.getAbstractFileByPath(entry.path);
       if (!(file instanceof TFile)) return [];
+      // One whose picture is gone had nothing to fold into: it is not a note.
+      if (!entry.picture && explorer.isDescriptionNote(file.path)) return [];
       if (entry.picture) {
         const src = this.app.vault.getResourcePath(file);
         return [
@@ -824,7 +826,12 @@ export default class SchreibstubePlugin extends Plugin {
     if (!explorer || !engine?.enabled()) return null;
     const found = await engine.relatedToNote(path, Math.max(RECOMMEND_LIMIT, count));
     const cards = explorer.relatedCards(path);
-    const graph = foldDescriptions(cards, (note) => this.describedPicture(note)?.path ?? null);
+    // A description note whose picture is gone had nothing to fold into, and
+    // is left out rather than recommended as a note.
+    const graph = foldDescriptions(
+      cards,
+      (note) => this.describedPicture(note)?.path ?? null
+    ).filter((entry) => entry.picture || !explorer.isDescriptionNote(entry.path));
 
     // One meaning ranking over the vault: a description note stands for its
     // picture, here as in the Explorer and in the graph, and keeps the score
@@ -843,7 +850,11 @@ export default class SchreibstubePlugin extends Plugin {
         continue;
       }
       const note = this.app.vault.getAbstractFileByPath(hit.id);
-      if (note instanceof TFile && !explorer.isTrashed(note.path))
+      if (
+        note instanceof TFile &&
+        !explorer.isTrashed(note.path) &&
+        !explorer.isDescriptionNote(note.path)
+      )
         byMeaning.push({ key: note.path, score: hit.score });
     }
 

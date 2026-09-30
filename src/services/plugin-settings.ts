@@ -107,7 +107,6 @@ export const DEFAULT_SETTINGS: SchreibstubeSettings = {
   imageDescriptionFolder: DEFAULT_DESCRIPTION_FOLDER,
   imageDescriptionLanguage: "auto",
   imageDescriptionKeywordsAsTags: false,
-  explorerDescriptionNotes: "hide",
   explorerShowExtensions: false,
   recommendedPlacement: "sidebar",
   recommendedCount: 7,
@@ -255,7 +254,6 @@ export function normalizeSettings(loaded: LoadedSettings): SchreibstubeSettings 
         ? loaded.imageDescriptionLanguage
         : "auto",
     imageDescriptionKeywordsAsTags: loaded?.imageDescriptionKeywordsAsTags === true,
-    explorerDescriptionNotes: loaded?.explorerDescriptionNotes === "show" ? "show" : "hide",
     explorerShowExtensions: loaded?.explorerShowExtensions === true,
     recommendedPlacement: loaded?.recommendedPlacement === "footer" ? "footer" : "sidebar",
     recommendedCount: clampIntOrDefault(

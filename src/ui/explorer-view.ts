@@ -294,8 +294,8 @@ export class ExplorerPaneView extends ItemView {
           // the tree, and counted among the matches it made the list say more
           // were held back than there were.
           .filter((file) => this.host?.explorer.isTrashed(file.path) !== true)
-          // A description note is found as its picture, never twice — also
-          // where the tree shows the notes.
+          // A description note is found as its picture, never twice; one whose
+          // picture is gone is not found at all.
           .filter((file) => this.host?.explorer.isDescriptionNote(file.path) !== true)
           .map((file) => ({ path: file.path, name: file.name })),
       metadata: (file) => {
@@ -1705,7 +1705,7 @@ export class ExplorerPaneView extends ItemView {
       if (
         child instanceof TFolder
           ? controller.hidesFolder(child)
-          : controller.hidesDescription(child.path)
+          : controller.foldsIntoPicture(child.path)
       ) {
         continue;
       }
@@ -1978,7 +1978,7 @@ export class ExplorerPaneView extends ItemView {
     const controller = this.host?.explorer;
     const count = countFilesUnder(
       folder,
-      (path) => controller?.isTrashed(path) === true || controller?.hidesDescription(path) === true
+      (path) => controller?.isTrashed(path) === true || controller?.foldsIntoPicture(path) === true
     );
     this.folderCounts.set(folder.path, count);
     return count;

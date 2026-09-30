@@ -538,20 +538,20 @@ describe("the pairing of pictures and their notes", () => {
       frontmatter: { [note]: { schreibstubeImage: "[[Bilder/see.jpg]]" } }
     });
 
-  it("knows a description note in the tree's setting either way, and hides it only when asked", () => {
-    const hidden = described();
-    expect(hidden.controller.isDescriptionNote(note)).toBe(true);
-    expect(hidden.controller.hidesDescription(note)).toBe(true);
-    expect(hidden.controller.isDescriptionNote("Bilder/see.jpg")).toBe(false);
+  it("folds a description note into its picture, and knows an orphaned one as a description too", () => {
+    const paired = described();
+    expect(paired.controller.foldsIntoPicture(note)).toBe(true);
+    expect(paired.controller.isDescriptionNote(note)).toBe(true);
+    expect(paired.controller.isDescriptionNote("Bilder/see.jpg")).toBe(false);
 
-    const shown = fixture({
-      present: ["Bilder/see.jpg", note],
-      frontmatter: { [note]: { schreibstubeImage: "[[Bilder/see.jpg]]" } },
-      settings: { explorerDescriptionNotes: "show" }
+    // Its picture gone: the tree shows it, so it can be seen and repaired,
+    // but the search and Recommended leave it out.
+    const orphaned = fixture({
+      present: [note],
+      frontmatter: { [note]: { schreibstubeImage: "[[Bilder/see.jpg]]" } }
     });
-    // The tree shows the note; the search still finds it as its picture.
-    expect(shown.controller.hidesDescription(note)).toBe(false);
-    expect(shown.controller.isDescriptionNote(note)).toBe(true);
+    expect(orphaned.controller.foldsIntoPicture(note)).toBe(false);
+    expect(orphaned.controller.isDescriptionNote(note)).toBe(true);
   });
 
   it("forgets a pair when the vault reports its note gone", () => {
