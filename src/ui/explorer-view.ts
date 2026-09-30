@@ -240,6 +240,10 @@ export class ExplorerPaneView extends ItemView {
   private selection: SelectionState = EMPTY_SELECTION;
   /** The redraw waiting for the next frame. */
   private renderFrame: number | null = null;
+  /** The pinned-row capacity the tree was last drawn for; null before the first draw. */
+  private drawnShelfCapacity: number | null = null;
+  /** A resize waiting for its frame to be measured; null when none is. */
+  private resizeFrame: number | null = null;
   /** Waiting for the typing to stop before the filter redraws. */
   private filterTimer: number | null = null;
   /** Waiting for a longer pause before asking by meaning. */
@@ -551,7 +555,12 @@ export class ExplorerPaneView extends ItemView {
     this.register(() => themeWatch.disconnect());
     // How many pinned rows the strip may hold is a share of the pane, so a
     // phone turning on its side or a sidebar dragged wider changes the answer.
-    this.registerEvent(this.app.workspace.on("resize", () => this.requestRender()));
+    // A window dragged by a pixel does not, and a resize fires for every
+    // pixel: redrawn on each, the tree doubled what a resize step cost the
+    // whole window (measured, an empty note open). So the pane is measured
+    // once per frame, after the event, where reading its height costs no
+    // layout of its own, and the tree is redrawn only when the answer changed.
+    this.registerEvent(this.app.workspace.on("resize", () => this.measureShelfSoon()));
 
     // A pointer coming up anywhere ends whatever was being dragged. A row the
     // pane destroyed mid-gesture never delivers its own release, and a drag
@@ -577,6 +586,7 @@ export class ExplorerPaneView extends ItemView {
     this.bodyLoader.cancel();
     const win = this.containerEl.win;
     if (this.renderFrame !== null) win.cancelAnimationFrame(this.renderFrame);
+    if (this.resizeFrame !== null) win.cancelAnimationFrame(this.resizeFrame);
     this.renderFrame = null;
     if (this.groundFrame !== null) win.cancelAnimationFrame(this.groundFrame);
     this.groundFrame = null;
@@ -938,6 +948,17 @@ export class ExplorerPaneView extends ItemView {
   }
 
   /** Collapse the redraws a burst of vault events would otherwise cause. */
+  private measureShelfSoon(): void {
+    if (!this.body || this.resizeFrame !== null) return;
+    this.resizeFrame = this.containerEl.win.requestAnimationFrame(() => {
+      this.resizeFrame = null;
+      const capacity = this.shelfCapacity();
+      if (capacity === this.drawnShelfCapacity) return;
+      this.drawnShelfCapacity = capacity;
+      this.requestRender();
+    });
+  }
+
   private requestRender(): void {
     if (!this.body || this.renderFrame !== null) return;
     this.renderFrame = this.containerEl.win.requestAnimationFrame(() => {
@@ -1181,7 +1202,9 @@ export class ExplorerPaneView extends ItemView {
     const drawn = closed ? items.slice(0, FIXED_PINNED_ROWS) : items;
     // Open, the strip holds as many as half the pane has room for; the rest
     // continue in the scrolling list, as they always have.
-    const sticky = closed ? FIXED_PINNED_ROWS : this.shelfCapacity();
+    const capacity = this.shelfCapacity();
+    this.drawnShelfCapacity = capacity;
+    const sticky = closed ? FIXED_PINNED_ROWS : capacity;
 
     for (const [index, item] of drawn.entries()) {
       const host = index < sticky ? body : scroller;
