@@ -25,7 +25,7 @@ Eine Notiz als Präsentation: jede Folie eine Seite, im Format 16:9 oder 4:3. Di
 
 Was vor der ersten `###` steht, läuft über die ganze Breite. Ab der vierten `###` beginnt eine zweite Reihe, statt dass die Spalten schmaler werden.
 
-Im Druckdialog wählt **Ausrichtung**, ob der Inhalt mittig steht (so beginnt er) oder links. Mittig werden Absätze und Überschriften zentriert; eine Liste steht als Ganzes in der Mitte, ihre Punkte bleiben untereinander. `align: left` in der Notiz lässt den Dialog links beginnen.
+Im Druckdialog wählt **Ausrichtung**, ob der Inhalt mittig steht (so beginnt er) oder links. Die Ausrichtung verschiebt Blöcke, nicht Zeilen: mittig steht ein Absatz, eine Liste oder eine Tabelle als Ganzes in der Mitte, die Zeilen darin bleiben linksbündig. `align: left` in der Notiz lässt den Dialog links beginnen.
 
 Ein Bild zeigt seinen Alternativtext als Bildunterschrift: auf einer Folie ohne Spalten rechts neben dem Bild, unten bündig, in einer Spalte darunter. `![Küche nach der Renovierung](kueche.jpg)` schreibt ihn; ein Bild ohne Text steht allein.
 

@@ -288,10 +288,12 @@ the slide's footnotes, so a footnote has its room at the foot.
 **Where the content stands.** **Ausrichtung** in the dialog centres a slide's
 content across the page — the default — or sets it at the left edge; it
 starts at the note's `schreibstubePrint.align` (`center` or `left`). The choice
-reaches every slide as its `horizontal` argument. Centred, paragraphs and
-headings are centred line by line, while a list stands centred as a whole with
-its items flush under their bullets, and code keeps its lines flush
-(`schreibstube-slide-align`).
+reaches every slide as its `horizontal` argument. It moves blocks, not lines:
+the converter wraps every block of a slide — a paragraph, a list, a table, a
+heading — in `#schreibstube-slide-block[…]`, which places the block by the
+alignment and keeps its own lines flush left. Centred, a short paragraph or a
+list stands in the middle as a whole, as wide as its longest line, and reads
+like any text; a block as wide as the slide looks the same either way.
 
 **Pictures carry their alt text.** On a slide a picture is
 `#schreibstube-slide-image(path, alt)`, a figure whose caption is the alt text,
@@ -434,6 +436,7 @@ after it.
 | `schreibstube-properties`                             | `(rows)`                                                         | the note's properties, when the dialog prints them: an array of `(key, value)`                                                                                                                      |
 | `schreibstube-slide`                                  | `(kind:, level:, horizontal:, title:, columns:, intro:, cells:)` | a slide, for a slide template: `kind` one of `title`, `section`, `content`; `horizontal` `center` or `left`; `title` content or `none`; `cells` an array of `(title, body)`; see "A note as slides" |
 | `schreibstube-slide-image`                            | `(path, alt)`                                                    | a picture on a slide: a figure of kind `"schreibstube-slide-image"` whose caption is the alt text, or none                                                                                          |
+| `schreibstube-slide-block`                            | `(body)`                                                         | one block of a slide, placed by the alignment in force with its own lines flush left                                                                                                                |
 | `schreibstube-fit`, `-slide-align`, `-slide-pictures` | `(body)`, `(horizontal, body)`, `(beside, body)`                 | not called by the note: shrink-to-fit, the alignment, and where captions go, for a template that draws its own slide, imported with `#import "schreibstube.typ": schreibstube-fit, …`               |
 | `schreibstube-slideshow`                              | `(kind, images, columns: 1)`                                     | a slideshow: `kind` one of `single`, `filmstrip`, `feature`, `strip`, `masonry`, `compare`, `stacked`; `images` an array of `(path, description)`                                                   |
 

@@ -100,8 +100,15 @@ describe("slidesMarkup", () => {
         "  title: [\nTitel\n],\n" +
         "  columns: 2,\n" +
         "  intro: [],\n" +
-        "  cells: (([\nA\n], [\na\n]), ([\nB\n], []),),\n" +
+        "  cells: (([\nA\n], [\n#schreibstube-slide-block[\na\n]\n]), ([\nB\n], []),),\n" +
         ")\n"
+    );
+  });
+
+  it("hands every block to the slide-block helper, one call each", () => {
+    const markup = slidesMarkup(groupSlides([h(2, "T"), b("eins\n"), b("- zwei\n")]));
+    expect(markup).toContain(
+      "  intro: [\n#schreibstube-slide-block[\neins\n]\n#schreibstube-slide-block[\n- zwei\n]\n],\n"
     );
   });
 
@@ -150,7 +157,9 @@ describe("the converter's deck", () => {
 
   it("puts the properties on the first slide, under its title", () => {
     const body = deck("# Deck\n\nText\n", { properties: [["Ort", "Berlin"]] });
-    expect(body).toMatch(/title: \[\nDeck\n\],[\s\S]*intro: \[\n#schreibstube-properties/);
+    expect(body).toMatch(
+      /title: \[\nDeck\n\],[\s\S]*intro: \[\n#schreibstube-slide-block\[\n#schreibstube-properties/
+    );
   });
 
   it("prints a picture with its alt text as the caption, in a callout too", () => {

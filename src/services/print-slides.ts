@@ -13,9 +13,11 @@
  * A first-level heading with nothing under it before the next slide is a
  * section divider — and when it opens the deck, the title slide.
  *
- * Every slide stands centred across the page unless the print asks for the
- * left edge; the choice reaches the slide as its `horizontal` argument, a
- * Typst alignment, so a template's own slide receives it too.
+ * Every block of a slide stands centred across the page unless the print
+ * asks for the left edge. The choice moves blocks, not lines: a centred
+ * paragraph is placed in the middle as a whole and its lines stay flush left.
+ * It reaches the slide as its `horizontal` argument, a Typst alignment, so a
+ * template's own slide receives it too.
  *
  * Only the grouping is decided here. How a slide looks, and how it shrinks
  * when it holds more than fits, is the prelude's `schreibstube-slide`, which
@@ -124,7 +126,7 @@ export function slidesMarkup(slides: readonly Slide[], align: SlideAlign = "cent
   return slides
     .map((slide) => {
       const cells = slide.cells
-        .map((cell) => `(${content(cell.title)}, ${content(cell.body.join("\n"))}),`)
+        .map((cell) => `(${content(cell.title)}, ${content(blocks(cell.body))}),`)
         .join(" ");
       return (
         `#schreibstube-slide(\n` +
@@ -133,12 +135,21 @@ export function slidesMarkup(slides: readonly Slide[], align: SlideAlign = "cent
         `  horizontal: ${align},\n` +
         `  title: ${slide.title === null ? "none" : content(slide.title)},\n` +
         `  columns: ${slide.columns},\n` +
-        `  intro: ${content(slide.intro.join("\n"))},\n` +
+        `  intro: ${content(blocks(slide.intro))},\n` +
         `  cells: (${cells}),\n` +
         `)\n`
       );
     })
     .join("\n");
+}
+
+/**
+ * Each block of a slide handed to `#schreibstube-slide-block`, which places it
+ * by the slide's alignment and keeps its own lines flush left: centred, a
+ * paragraph stands in the middle as a whole and still reads like text.
+ */
+function blocks(markups: readonly string[]): string {
+  return markups.map((markup) => `#schreibstube-slide-block[\n${markup.trim()}\n]`).join("\n");
 }
 
 function content(markup: string): string {

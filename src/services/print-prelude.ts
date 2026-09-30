@@ -263,21 +263,19 @@ export const PRELUDE_SOURCE = `// Defaults the converted note calls. A template 
   body
 }
 
-// A slide's content, centred across the page or at its left edge. Paragraphs
-// and headings are centred line by line; a list keeps its items flush under
-// their bullets and stands centred as a whole, and code keeps its lines flush,
-// since they only read when they share an edge. A list is placed by the
-// alignment in force where it stands, which inside another list is the left
-// edge, so a nested list stays under its item rather than being centred again.
+// One block of a slide — a paragraph, a list, a table, a heading — placed by
+// the alignment in force, its own lines flush left. Centred, the block stands
+// in the middle as a whole, as wide as its longest line, and reads like any
+// text; a block as wide as the slide looks the same either way. The converter
+// wraps every block of a slide in it.
+#let schreibstube-slide-block(body) = context align(align.alignment, box({
+  set align(left)
+  body
+}))
+
+// The alignment a slide's blocks are placed by: center or left.
 #let schreibstube-slide-align(horizontal, body) = {
-  let flush(it) = context align(align.alignment, box({
-    set align(left)
-    it
-  }))
   set align(horizontal)
-  show list: flush
-  show enum: flush
-  show raw.where(block: true): set align(left)
   body
 }
 
@@ -313,14 +311,14 @@ export const PRELUDE_SOURCE = `// Defaults the converted note calls. A template 
         column-gutter: 1.5em,
         row-gutter: 1em,
         ..cells.map(((head, main)) => block(width: 100%, {
-          strong(head)
+          schreibstube-slide-block(strong(head))
           parbreak()
           schreibstube-slide-pictures(false, main)
         })),
       )
     }
   }
-  if title != none { heading(level: calc.max(level, 1), title) }
+  if title != none { schreibstube-slide-block(heading(level: calc.max(level, 1), title)) }
   // The rest of the page, less what its footnotes need: a fraction of the
   // flow is measured after them, where a grid row claimed the whole page.
   block(height: 1fr, width: 100%, schreibstube-fit(body))

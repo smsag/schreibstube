@@ -14,7 +14,12 @@
 
 // The prelude's shrink-to-fit, alignment and captions, which every job
 // carries beside this file.
-#import "schreibstube.typ": schreibstube-fit, schreibstube-slide-align, schreibstube-slide-pictures
+#import "schreibstube.typ": (
+  schreibstube-fit,
+  schreibstube-slide-align,
+  schreibstube-slide-block,
+  schreibstube-slide-pictures,
+)
 
 #let ink = rgb("#1f2328")
 #let muted = rgb("#5b6470")
@@ -86,14 +91,14 @@
             inset: (bottom: 0.3em),
             stroke: (bottom: 1pt + accent),
             width: 100%,
-            text(weight: 600, fill: accent, head),
+            schreibstube-slide-block(text(weight: 600, fill: accent, head)),
           )
           schreibstube-slide-pictures(false, main)
         })),
       )
     }
   }
-  if title != none { heading(level: calc.max(level, 1), title) }
+  if title != none { schreibstube-slide-block(heading(level: calc.max(level, 1), title)) }
   // The rest of the page, less what its footnotes need: a fraction of the
   // flow is measured after them, where a grid row claimed the whole page.
   block(height: 1fr, width: 100%, schreibstube-fit(body))
