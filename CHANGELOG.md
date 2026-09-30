@@ -2,7 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## 1.66.0 - 2026-09-30
+
+A note prints as a presentation. The new Folien template turns the note's own
+outline into slides — headings into slides and columns, a picture into a
+picture slide, `> [!notes]` into speaker notes — in 16:9 or 4:3 and in a
+company's colour, face and logo, and makes a slide that holds too much smaller
+until it fits, naming it when it gets hard to read. The print preview now shows
+every page, and `docs/CHEATSHEET.md` tells a language model how to write notes
+that print as intended.
+
+Mobile checklist: not run; the test suite, the build and the print compile
+check covered it, and the slides have not been tried inside Obsidian on any
+device. What to try first on a phone: print a deck with Folien — Format,
+Ausrichtung and Sprechernotizen in the dialog — scroll its preview from end to
+end, and time a deck of about sixty slides, which should set well inside the
+compile deadline.
+
+The bridge is unchanged at 2.11.0, protocol 6.
 
 ### Added
 
