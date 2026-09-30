@@ -60,6 +60,14 @@ import { isAtOrUnder } from "../services/path-follow";
 import { frontmatterTitle } from "../services/note-title";
 import { getImageMimeType } from "../services/image-resize";
 import {
+  MAX_CSV_BYTES,
+  MAX_CSV_COLUMNS,
+  MAX_CSV_ROWS,
+  csvToMarkdown,
+  isCsvExtension,
+  type CsvRefusal
+} from "../services/csv-table";
+import {
   isMovePlan,
   isUnder,
   moveDestinations,
@@ -1065,6 +1073,7 @@ export class ExplorerController {
       path: file.path,
       markdown: isFile && file.extension === "md",
       image: isFile && getImageMimeType(file.extension) !== null,
+      csv: isFile && isCsvExtension(file.extension),
       describable:
         this.getSettings().imageDescriptionsEnabled &&
         (isFile ? this.describer : this.folderDescriber) !== null,
@@ -1145,6 +1154,8 @@ export class ExplorerController {
         return this.create(file, "folder");
       case "copy-path":
         return this.copyPath(file);
+      case "copy-csv-table":
+        return this.copyCsvTable(file);
       case "move":
         return this.moveTo(file);
       case "rename":
@@ -1183,6 +1194,44 @@ export class ExplorerController {
       vaultUrlFor(file.path),
       { copied: words.copied(file.path), failed: words.copyFailed },
       this.logger
+    );
+  }
+
+  /**
+   * A spreadsheet export, on the clipboard as a Markdown table.
+   *
+   * The size is checked before the file is read: a file too long to paste is
+   * refused from its stat alone, without holding a megabyte in memory first.
+   */
+  private async copyCsvTable(file: TAbstractFile): Promise<void> {
+    if (!(file instanceof TFile) || !isCsvExtension(file.extension)) return;
+
+    const words = t().explorer.csv;
+    if (file.stat.size > MAX_CSV_BYTES) {
+      new Notice(t().common.notice(words.tooLarge(Math.round(MAX_CSV_BYTES / 1000))));
+      return;
+    }
+
+    let text: string;
+    try {
+      text = await this.app.vault.cachedRead(file);
+    } catch (error) {
+      this.logger.warn(`Could not read ${file.path}:`, error);
+      new Notice(t().common.notice(words.readFailed));
+      return;
+    }
+
+    const outcome = csvToMarkdown(text, words.column);
+    if (!outcome.ok) {
+      new Notice(t().common.notice(csvRefusal(outcome.reason)));
+      return;
+    }
+
+    await copyText(
+      outcome.markdown,
+      { copied: words.copied(outcome.rows, outcome.columns), failed: words.copyFailed },
+      this.logger,
+      `the table from ${file.path}`
     );
   }
 
@@ -1912,4 +1961,18 @@ function countChildren(folder: TFolder): number {
     (total, child) => total + 1 + (child instanceof TFolder ? countChildren(child) : 0),
     0
   );
+}
+
+function csvRefusal(reason: CsvRefusal): string {
+  const words = t().explorer.csv;
+  switch (reason) {
+    case "empty":
+      return words.empty;
+    case "malformed":
+      return words.malformed;
+    case "too-many-rows":
+      return words.tooManyRows(MAX_CSV_ROWS);
+    case "too-many-columns":
+      return words.tooManyColumns(MAX_CSV_COLUMNS);
+  }
 }

@@ -37,6 +37,15 @@ describe("buildExplorerMenu", () => {
     expect(ids(buildExplorerMenu(target({ kind: "folder" }), "off"))).not.toContain("related");
   });
 
+  it("offers copying a spreadsheet as a table, among the ways of reading it", () => {
+    const sections = buildExplorerMenu(target({ markdown: false, csv: true }), "off");
+    expect(sections[0]!.items.map((item) => item.id)).toContain("copy-csv-table");
+    expect(ids(buildExplorerMenu(target(), "off"))).not.toContain("copy-csv-table");
+    expect(ids(buildExplorerMenu(target({ kind: "folder" }), "off"))).not.toContain(
+      "copy-csv-table"
+    );
+  });
+
   it("leads with opening the file and ends with the other plugins", () => {
     const sections = buildExplorerMenu(target(), "submenu");
 

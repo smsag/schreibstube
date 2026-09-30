@@ -720,6 +720,21 @@ export const enExtra = {
       all: "All bookmarks"
     },
 
+    csv: {
+      copied: (rows: number, columns: number) =>
+        `table with ${rows} ${rows === 1 ? "row" : "rows"} and ${columns} ${columns === 1 ? "column" : "columns"} copied — paste it into any note.`,
+      column: (index: number) => `Column ${index}`,
+      empty: "the file holds no rows.",
+      malformed: "a quote in the file is never closed, so its columns cannot be told apart.",
+      tooLarge: (maxKb: number) =>
+        `the file is larger than ${maxKb} KB — too long to paste as a table.`,
+      tooManyRows: (max: number) =>
+        `the file has more than ${max} rows — too long to paste as a table.`,
+      tooManyColumns: (max: number) => `the file has more than ${max} columns.`,
+      readFailed: "the file could not be read.",
+      copyFailed: "the clipboard is not available here."
+    },
+
     latest: {
       alert: "A source was updated in the background",
       empty: "No source has changed."
@@ -737,6 +752,7 @@ export const enExtra = {
       pin: "Add to Pinned",
       unpin: "Remove from Pinned",
       related: "Recommended",
+      copyCsvTable: "Copy as Markdown table",
       showImages: "Images as tiles",
       pinTag: "Pin a tag of this note…",
       showTag: "Show tagged notes",

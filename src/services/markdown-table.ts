@@ -70,3 +70,16 @@ export function splitRow(line: string): MarkdownCell[] {
 export function rowCells(line: string): string[] {
   return splitRow(line).map((cell) => cell.text.trim());
 }
+
+/**
+ * A cell's text as it has to be written so that `splitRow` reads it back as
+ * one cell: every pipe escaped, and a backslash already standing before a pipe
+ * doubled, or `\\|` would read as an escaped backslash and a real separator.
+ * A line break would end the row, so it becomes the `<br>` a table renders.
+ */
+export function escapeCell(text: string): string {
+  return text
+    .replace(/(\\+)(?=\|)/g, "$1$1")
+    .replace(/\|/g, "\\|")
+    .replace(/\r\n|\r|\n/g, "<br>");
+}
