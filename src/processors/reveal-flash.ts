@@ -14,6 +14,7 @@
 
 import { StateEffect, StateField, type Extension, type Text } from "@codemirror/state";
 import { Decoration, EditorView, WidgetType, type DecorationSet } from "@codemirror/view";
+import { isElementLike } from "../services/workspace-internals";
 
 /** How long the mark stays: long enough to find it after the scroll, short
  *  enough not to read as a highlight the note now has. Matches the fade in
@@ -112,7 +113,7 @@ export function revealFlashEffects(target: RevealTarget): {
  */
 export function flashRevealIn(container: HTMLElement, target: RevealTarget): boolean {
   const dom = container.querySelector(".cm-editor");
-  if (!(dom instanceof HTMLElement) || typeof EditorView.findFromDOM !== "function") return false;
+  if (!isElementLike(dom) || typeof EditorView.findFromDOM !== "function") return false;
   const view = EditorView.findFromDOM(dom);
   if (!view || view.state.field(revealFlashField, false) === undefined) return false;
 

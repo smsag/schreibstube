@@ -55,8 +55,28 @@ export default tseslint.config(
       ],
       "no-console": ["error", { allow: ["error"] }],
       eqeqeq: ["error", "smart"],
-      "prefer-const": "error"
+      "prefer-const": "error",
+      // A note can open in a pop-out window, whose elements are of that
+      // window's classes: `instanceof HTMLElement` is false for every one, and
+      // the code behind it did nothing there without a word — Recommended's
+      // gap under the note was one. `isElementLike` and `isNodeLike` ask what
+      // a value can do instead.
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector:
+            "BinaryExpression[operator='instanceof'][right.name=/^(Node|Element|HTML[A-Za-z]*Element|SVG[A-Za-z]*Element)$/]",
+          message:
+            "False for a pop-out window's elements: use isElementLike or isNodeLike from services/workspace-internals."
+        }
+      ]
     }
+  },
+
+  // Tests stand the pop-out case up with `instanceof` itself.
+  {
+    files: ["src/**/*.test.ts"],
+    rules: { "no-restricted-syntax": "off" }
   },
 
   // The bridge, the repository's scripts and its configs: Node, no build step.

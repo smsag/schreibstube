@@ -19,6 +19,7 @@ import {
 import { claimsHorizontal, classifyTouch } from "../services/slideshow-gesture";
 import { applyIcon, installIconFont } from "../ui/icon-font";
 import { pressable } from "../ui/pressable";
+import { isElementLike, isNodeLike } from "../services/workspace-internals";
 
 /**
  * Things in a block that answer a press of their own: a control, a tile, the
@@ -397,7 +398,7 @@ class Slideshow extends MarkdownRenderChild {
     // element its focus, and the arrow keys below would then do nothing for
     // the rest of the reader's visit.
     frame.addEventListener("pointerdown", (e) => {
-      const onHandle = e.target instanceof Node && handle.contains(e.target);
+      const onHandle = isNodeLike(e.target) && handle.contains(e.target);
       if (e.pointerType === "touch" && !onHandle) return;
       // The divider is moved before the pointer is captured: capturing one the
       // browser has already let go of throws, and the press itself should land
@@ -472,7 +473,7 @@ class Slideshow extends MarkdownRenderChild {
     const doc = this.containerEl.ownerDocument;
     // Where the focus was, to be put back when the overlay goes: a reader who
     // opened it from the keyboard should land on the control they pressed.
-    const opener = doc.activeElement instanceof HTMLElement ? doc.activeElement : null;
+    const opener = isElementLike(doc.activeElement) ? doc.activeElement : null;
     const overlay = doc.body.createEl("div", {
       cls: "schreibstube-slideshow-fs",
       attr: { role: "dialog", "aria-modal": "true", "aria-label": t().slideshow.fullscreen }
@@ -723,7 +724,7 @@ function wireReveal(wrapper: HTMLElement): void {
         return;
       }
       if (gesture !== "tap") return;
-      if (e.target instanceof Element && e.target.closest(OWN_PRESS_SELECTOR)) return;
+      if (isElementLike(e.target) && e.target.closest(OWN_PRESS_SELECTOR)) return;
       wrapper.toggleClass("is-revealed", !wrapper.hasClass("is-revealed"));
     },
     { passive: true, capture: true }

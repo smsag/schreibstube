@@ -82,7 +82,7 @@ export function editorOfReadingView(el: HTMLElement): Editor | null {
 /** Whether a leaf's container element contains the given node. */
 export function leafContainerContains(leaf: WorkspaceLeaf, node: Node): boolean {
   const container = (leaf as unknown as LeafInternals).containerEl;
-  return container instanceof HTMLElement && container.contains(node);
+  return isElementLike(container) && container.contains(node);
 }
 
 /**
@@ -245,6 +245,14 @@ export function isElementLike(value: unknown): value is HTMLElement {
   if (typeof value !== "object" || value === null) return false;
   const node = value as { nodeType?: unknown; classList?: unknown };
   return node.nodeType === 1 && typeof node.classList === "object" && node.classList !== null;
+}
+
+/** Whether this is a node of any document — an event's target, say — for
+ *  the same reason as `isElementLike`: `instanceof Node` is false in a pop-out. */
+export function isNodeLike(value: unknown): value is Node {
+  if (typeof value !== "object" || value === null) return false;
+  const node = value as { nodeType?: unknown; ownerDocument?: unknown };
+  return typeof node.nodeType === "number" && "ownerDocument" in node;
 }
 
 /**
@@ -659,7 +667,8 @@ export function noteFooterHost(
   }
   const selector = reading ? ".markdown-preview-sizer > .mod-footer" : ".cm-sizer";
   const found = view.contentEl.querySelector(selector);
-  return found instanceof HTMLElement ? found : null;
+  // Not `instanceof HTMLElement`: false for every element of a pop-out window.
+  return isElementLike(found) ? found : null;
 }
 
 /**
@@ -710,7 +719,10 @@ export function editorTail(paddingBottom: string): number {
 export function keepEditorTailBelow(sizer: HTMLElement, block: HTMLElement): () => void {
   const clear = () => block.style.removeProperty(EDITOR_TAIL_VAR);
   const content = sizer.querySelector(".cm-content");
-  if (!(content instanceof HTMLElement)) return clear;
+  // Not `instanceof HTMLElement`, which is false for a pop-out window's
+  // elements: there the tail was never read, and the note's end stood half
+  // the window above Recommended.
+  if (!isElementLike(content)) return clear;
   const apply = () =>
     block.style.setProperty(EDITOR_TAIL_VAR, `${editorTail(content.style.paddingBottom)}px`);
   apply();

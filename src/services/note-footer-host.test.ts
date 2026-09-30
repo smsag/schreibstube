@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, expect, it, vi } from "vitest";
-import { noteFooterHost, watchViewMode } from "./workspace-internals";
+import { isElementLike, isNodeLike, noteFooterHost, watchViewMode } from "./workspace-internals";
 
 function view(html: string, previewMode?: unknown) {
   const contentEl = document.createElement("div");
@@ -12,6 +12,19 @@ describe("noteFooterHost", () => {
   it("puts the footer at the end of the editor's content while editing", () => {
     const v = view(`<div class="cm-sizer"></div><div class="markdown-preview-sizer"></div>`);
     expect(noteFooterHost(v, false)?.className).toBe("cm-sizer");
+  });
+
+  it("finds the editor's sizer in a pop-out window too", () => {
+    const { contentEl } = view(
+      '<div class="cm-sizer"><div class="cm-contentContainer"></div></div>'
+    );
+    // A pop-out window's elements are not of the main window's classes.
+    vi.stubGlobal("HTMLElement", class PopoutHasItsOwn {});
+    try {
+      expect(noteFooterHost({ contentEl }, false)?.className).toBe("cm-sizer");
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it("reads the renderer's footer section while reading, even while it is detached", () => {
@@ -58,5 +71,37 @@ describe("watchViewMode", () => {
     const onChange = vi.fn();
     const stop = watchViewMode(document.createElement("div"), onChange);
     expect(typeof stop).toBe("function");
+  });
+});
+
+describe("isElementLike and isNodeLike", () => {
+  it("take a pop-out window's element and node for what they are", () => {
+    const el = document.createElement("div");
+    const text = document.createTextNode("x");
+    vi.stubGlobal("HTMLElement", class PopoutHasItsOwn {});
+    vi.stubGlobal("Node", class PopoutHasItsOwn {});
+    try {
+      expect(isElementLike(el)).toBe(true);
+      expect(isNodeLike(el)).toBe(true);
+      expect(isNodeLike(text)).toBe(true);
+      expect(isElementLike(text)).toBe(false);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("refuse what is not one", () => {
+    for (const value of [
+      null,
+      undefined,
+      1,
+      "div",
+      {},
+      { nodeType: 1 },
+      { nodeType: "1", ownerDocument: null }
+    ]) {
+      expect(isElementLike(value)).toBe(false);
+      expect(isNodeLike(value)).toBe(false);
+    }
   });
 });

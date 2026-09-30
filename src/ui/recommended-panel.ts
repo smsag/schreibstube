@@ -39,6 +39,7 @@ import {
   type RelevanceFloors
 } from "../services/semantic/recommend";
 import { groundColour } from "../services/ground-colour";
+import { isElementLike } from "../services/workspace-internals";
 
 /** One related note, as a card draws it. */
 export interface RelatedCard {
@@ -212,7 +213,7 @@ export class RecommendedPanel {
     const scrollTop = scroller.scrollTop;
     const focused = root.ownerDocument.activeElement;
     const focusedKey =
-      focused instanceof HTMLElement && root.contains(focused)
+      isElementLike(focused) && root.contains(focused)
         ? (focused.closest("[data-key]")?.getAttribute("data-key") ?? null)
         : null;
 
