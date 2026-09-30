@@ -302,7 +302,8 @@ export const PRELUDE_SOURCE = `// Defaults the converted note calls. A template 
 
 // One slide to a page, as the converter groups a note for a slide template.
 // kind: "title" opens the deck, "section" divides it, "content" is the rest;
-// level is the heading that opened the slide, 0 for none; horizontal is
+// widths, when not none, the columns' shares of the width as fractions, one
+// per column; level is the heading that opened the slide, 0 for none; horizontal is
 // center or left, where the content stands across the page. The title stands on
 // top; the intro and then the column cells, each (title, body), share the
 // rest of the page and shrink together when they do not fit it. The prelude
@@ -315,6 +316,7 @@ export const PRELUDE_SOURCE = `// Defaults the converted note calls. A template 
   horizontal: center,
   title: none,
   columns: 1,
+  widths: none,
   intro: [],
   cells: (),
 ) = {
@@ -328,7 +330,7 @@ export const PRELUDE_SOURCE = `// Defaults the converted note calls. A template 
     schreibstube-slide-pictures(true, intro)
     if cells.len() > 0 {
       grid(
-        columns: (1fr,) * columns,
+        columns: if widths == none { (1fr,) * columns } else { widths },
         column-gutter: 1.5em,
         row-gutter: 1em,
         ..cells.map(((head, main)) => block(width: 100%, {

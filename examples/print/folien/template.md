@@ -28,6 +28,8 @@ Eine Notiz als Präsentation: jede Folie eine Seite, im Format 16:9 oder 4:3. Di
 
 Was vor der ersten `###` steht, läuft über die ganze Breite. Ab der vierten `###` beginnt eine zweite Reihe, statt dass die Spalten schmaler werden.
 
+Gleich breit sind die Spalten, solange die Folie nichts anderes sagt. Ein Kommentar, den jede Markdown-Ansicht verbirgt, ändert das: `## Zwei Wege <!-- columns: 1 2 -->` teilt in ein Drittel und zwei Drittel, `<!-- columns: 2 1 1 -->` bei drei Spalten die Hälfte und zwei Viertel. Der Kommentar darf auch in einer eigenen Zeile in der Folie stehen, und Obsidians `%% columns: 1 2 %%` gilt genauso. Passt die Zahl der Breiten nicht zur Zahl der Spalten, bleiben sie gleich breit, und der Druck sagt es.
+
 Im Druckdialog wählt **Ausrichtung**, ob der Inhalt mittig steht (so beginnt er) oder links. Die Ausrichtung verschiebt Blöcke, nicht Zeilen: mittig steht ein Absatz, eine Liste oder eine Tabelle als Ganzes in der Mitte, die Zeilen darin bleiben linksbündig. `align: left` in der Notiz lässt den Dialog links beginnen.
 
 Ein Bild zeigt seinen Alternativtext als Bildunterschrift: auf einer Folie ohne Spalten rechts neben dem Bild, unten bündig, in einer Spalte darunter. `![Küche nach der Renovierung](kueche.jpg)` schreibt ihn; ein Bild ohne Text steht allein.

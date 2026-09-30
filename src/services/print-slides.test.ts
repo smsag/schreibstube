@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  DIRECTIVE_MARK,
   groupSlides,
+  markSlideDirectives,
+  parseWidths,
   MAX_FIT_REPORT_CHARS,
   readSlideFits,
   slidesMarkup,
@@ -106,6 +109,7 @@ describe("slidesMarkup", () => {
         "  horizontal: center,\n" +
         "  title: [\nTitel\n],\n" +
         "  columns: 2,\n" +
+        "  widths: none,\n" +
         "  intro: [],\n" +
         "  cells: (([\nA\n], [\n#schreibstube-slide-block[\na\n]\n]), ([\nB\n], []),),\n" +
         ")\n"
@@ -240,5 +244,68 @@ describe("smallSlides", () => {
   it("says nothing when every slide stays readable", () => {
     expect(smallSlides([{ page: 1, scale: 0.75 }])).toBeNull();
     expect(smallSlides([])).toBeNull();
+  });
+});
+
+describe("column widths", () => {
+  const deck = (source: string) => markdownToTypst(source, { slides: true });
+
+  it("reads two or three shares, however they are separated", () => {
+    expect(parseWidths("1 2")).toEqual([1, 2]);
+    expect(parseWidths("1:2")).toEqual([1, 2]);
+    expect(parseWidths(" 1, 1, 2 ")).toEqual([1, 1, 2]);
+    expect(parseWidths("1.5 1")).toEqual([1.5, 1]);
+  });
+
+  it("reads nothing else", () => {
+    for (const value of ["", "2", "1 1 1 1", "1 zwei", "0 1", "1 13", "-1 2", "1/3 2/3"]) {
+      expect(parseWidths(value)).toBeNull();
+    }
+  });
+
+  it("lifts a setting out of its comment onto a line of its own", () => {
+    expect(markSlideDirectives("## A <!-- columns: 1 2 -->")).toBe(
+      `## A\n\n${DIRECTIVE_MARK}columns 1 2\n`
+    );
+    expect(markSlideDirectives("%% columns: 1 2 %%")).toBe(`\n\n${DIRECTIVE_MARK}columns 1 2\n`);
+  });
+
+  it("leaves code, other comments and unknown settings as they are", () => {
+    const source = "```md\n<!-- columns: 1 2 -->\n```\n<!-- note to self -->\n<!-- colour: red -->";
+    expect(markSlideDirectives(source)).toBe(source);
+  });
+
+  it("gives the columns their shares, from the heading's line or a line in the slide", () => {
+    const beside = deck("## A <!-- columns: 1 2 -->\n\n### L\n\nl\n\n### R\n\nr\n").body;
+    expect(beside).toContain("widths: (1fr, 2fr, ),");
+    const below = deck("## A\n\n%% columns: 2 1 1 %%\n\n### L\n\n### M\n\n### R\n").body;
+    expect(below).toContain("widths: (2fr, 1fr, 1fr, ),");
+  });
+
+  it("takes a setting written above a slide's heading for that slide", () => {
+    const body = deck("<!-- columns: 1 3 -->\n## A\n\n### L\n\n### R\n").body;
+    expect(body.match(/#schreibstube-slide\(/g)).toHaveLength(1);
+    expect(body).toContain("widths: (1fr, 3fr, ),");
+  });
+
+  it("keeps columns equal and says why when the shares do not match the columns", () => {
+    const { body, warnings } = deck("## Zwei *Wege* <!-- columns: 1 2 3 -->\n\n### L\n\n### R\n");
+    expect(body).toContain("widths: none,");
+    expect(warnings).toEqual([
+      'the slide "Zwei *Wege*": 3 column widths for 2 columns, so its columns stay equal'
+    ]);
+    expect(deck("## B <!-- columns: eins zwei -->\n\n### L\n\n### R\n").warnings[0]).toContain(
+      "could not be read"
+    );
+  });
+
+  it("strips the comment as ever when the note is not a deck", () => {
+    expect(markdownToTypst("## A <!-- columns: 1 2 -->\n").body).toBe("== A\n");
+  });
+
+  it("never prints a setting's line as text", () => {
+    const body = deck("## A\n\nText <!-- columns: 1 2 --> weiter\n").body;
+    expect(body).not.toContain("columns 1 2");
+    expect(body).not.toContain("\u0001");
   });
 });

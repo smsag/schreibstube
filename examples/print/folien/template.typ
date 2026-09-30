@@ -65,6 +65,7 @@
   horizontal: center,
   title: none,
   columns: 1,
+  widths: none,
   intro: [],
   cells: (),
 ) = {
@@ -109,7 +110,7 @@
     schreibstube-slide-pictures(true, intro)
     if cells.len() > 0 {
       grid(
-        columns: (1fr,) * columns,
+        columns: if widths == none { (1fr,) * columns } else { widths },
         column-gutter: 1.4em,
         row-gutter: 1.2em,
         ..cells.map(((head, main)) => block(width: 100%, {

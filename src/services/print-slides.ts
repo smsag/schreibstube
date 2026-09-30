@@ -23,13 +23,17 @@
  * when it holds more than fits, is the prelude's `schreibstube-slide`, which
  * a template may replace.
  */
+import { fencedLines } from "./markdown-fence";
 import { typstString } from "./typst-value";
 
 /** One top-level piece of the converted note, as the converter hands it over. */
 export type SlidePart =
   | { kind: "block"; markup: string }
-  /** `markup` is the heading's text as inline Typst, without the `=` marks. */
-  | { kind: "heading"; level: number; markup: string }
+  /** A setting written for the slide it stands in, as `<!-- columns: 1 2 -->`. */
+  | { kind: "directive"; name: SlideDirective; value: string }
+  /** `markup` is the heading's text as inline Typst, without the `=` marks;
+   *  `text` the heading as the note wrote it, for a message to name it by. */
+  | { kind: "heading"; level: number; markup: string; text?: string }
   | { kind: "break" };
 
 export type SlideKind = "title" | "section" | "content";
@@ -51,11 +55,20 @@ export interface Slide {
   level: number;
   /** The title as inline Typst, or null for a slide no heading opened. */
   title: string | null;
+  /** The title as the note wrote it, for a message; empty when there is none. */
+  name: string;
   /** What stands above the columns, or the whole body when there are none. */
   intro: string[];
   /** One per `###` heading, at least one and at most `MAX_SLIDE_COLUMNS`. */
   columns: number;
   cells: SlideColumn[];
+  /**
+   * The columns' shares of the width, one per column, when the slide asked
+   * for them and asked for as many as it has; null for equal columns.
+   */
+  widths: number[] | null;
+  /** Widths the slide asked for and could not have, to say so. */
+  refusedWidths: number[] | null;
 }
 
 /** The heading level that opens a column. */
@@ -70,9 +83,20 @@ const SLIDE_LEVELS = new Set([1, 2]);
 export function groupSlides(parts: readonly SlidePart[]): Slide[] {
   const slides: Slide[] = [];
   let current: Slide | null = null;
+  const pending: Extract<SlidePart, { kind: "directive" }>[] = [];
 
-  const open = (level: number, title: string | null): Slide => {
-    const slide: Slide = { kind: "content", level, title, intro: [], columns: 1, cells: [] };
+  const open = (level: number, title: string | null, name = ""): Slide => {
+    const slide: Slide = {
+      kind: "content",
+      level,
+      title,
+      name,
+      intro: [],
+      columns: 1,
+      cells: [],
+      widths: null,
+      refusedWidths: null
+    };
     slides.push(slide);
     return slide;
   };
@@ -92,8 +116,15 @@ export function groupSlides(parts: readonly SlidePart[]): Slide[] {
       place(part.markup);
       continue;
     }
+    if (part.kind === "directive") {
+      // Written above a slide's heading, it waits for that slide.
+      if (current) apply(current, part);
+      else pending.push(part);
+      continue;
+    }
     if (SLIDE_LEVELS.has(part.level)) {
-      current = open(part.level, part.markup);
+      current = open(part.level, part.markup, part.text ?? "");
+      for (const directive of pending.splice(0)) apply(current, directive);
       continue;
     }
     if (part.level === COLUMN_LEVEL) {
@@ -105,12 +136,100 @@ export function groupSlides(parts: readonly SlidePart[]): Slide[] {
     place(`${"=".repeat(part.level)} ${part.markup}\n`);
   }
 
+  for (const slide of slides) settleWidths(slide);
   // A rule with nothing after it before the next slide leaves nothing to show.
   const kept = slides.filter((slide) => !isEmpty(slide) || slide.title !== null);
   kept.forEach((slide, index) => {
     if (slide.level === 1 && isEmpty(slide)) slide.kind = index === 0 ? "title" : "section";
   });
   return kept;
+}
+
+/** Which settings a slide takes from a comment. */
+export type SlideDirective = "columns";
+
+export const SLIDE_DIRECTIVES: readonly SlideDirective[] = ["columns"];
+
+/** The largest share one column may be given; a width is a proportion, not a size. */
+const MAX_WIDTH_SHARE = 12;
+
+function apply(slide: Slide, directive: Extract<SlidePart, { kind: "directive" }>): void {
+  const widths = parseWidths(directive.value);
+  slide.widths = widths;
+  slide.refusedWidths = widths === null ? [] : null;
+}
+
+/**
+ * `1 2`, `1:2`, `1, 1, 2` or `1.5 1`: two or three shares of the width, each
+ * above nought and at most twelve. Null for anything else.
+ */
+export function parseWidths(value: string): number[] | null {
+  const parts = value
+    .trim()
+    .split(/[\s,:]+/)
+    .filter((part) => part !== "");
+  if (parts.length < 2 || parts.length > MAX_SLIDE_COLUMNS) return null;
+  const widths = parts.map((part) => (/^\d+(\.\d+)?$/.test(part) ? Number(part) : NaN));
+  return widths.every((width) => width > 0 && width <= MAX_WIDTH_SHARE) ? widths : null;
+}
+
+/**
+ * Widths hold only when there is one for every column the slide has; anything
+ * else leaves the columns equal and is kept to be named, since a slide that
+ * silently ignores what it was told looks like a bug in the note.
+ */
+function settleWidths(slide: Slide): void {
+  if (slide.widths === null) return;
+  if (slide.widths.length === slide.columns) return;
+  slide.refusedWidths = slide.widths;
+  slide.widths = null;
+}
+
+/** The first line a slide setting stands on, which no note can write. */
+export const DIRECTIVE_MARK = "\u0001schreibstube-slide ";
+
+const DIRECTIVE_COMMENT = /(?:<!--|%%)\s*([a-z]+)\s*:\s*(.*?)\s*(?:-->|%%)/g;
+
+/**
+ * The note with every slide setting written in a comment — `<!-- columns:
+ * 1 2 -->` or Obsidian's `%% columns: 1 2 %%`, on a line of its own or after
+ * a heading — taken out of its comment onto a line of its own, which the
+ * converter reads and comment stripping leaves alone. Plain Markdown hides a
+ * comment everywhere, so the note reads the same in any viewer; only a print
+ * as slides looks inside. A comment inside a code fence is code, and one
+ * naming no known setting is an ordinary comment.
+ */
+export function markSlideDirectives(source: string): string {
+  const lines = source.split("\n");
+  const fenced = fencedLines(lines);
+  return lines
+    .map((line, index) => {
+      if (fenced[index]) return line;
+      const marks: string[] = [];
+      const kept = line.replace(DIRECTIVE_COMMENT, (all, name: string, value: string) => {
+        if (!(SLIDE_DIRECTIVES as readonly string[]).includes(name)) return all;
+        marks.push(`${DIRECTIVE_MARK}${name} ${value}`);
+        return "";
+      });
+      if (marks.length === 0) return line;
+      // Blank lines around it, so it never reads as more of a paragraph.
+      return [kept.trimEnd(), "", ...marks, ""].join("\n");
+    })
+    .join("\n");
+}
+
+/** The setting a marked line holds, or null for any other line. */
+export function readDirective(line: string): Extract<SlidePart, { kind: "directive" }> | null {
+  if (!line.startsWith(DIRECTIVE_MARK)) return null;
+  const rest = line.slice(DIRECTIVE_MARK.length);
+  const space = rest.indexOf(" ");
+  const name = space === -1 ? rest : rest.slice(0, space);
+  if (!(SLIDE_DIRECTIVES as readonly string[]).includes(name)) return null;
+  return {
+    kind: "directive",
+    name: name as SlideDirective,
+    value: space === -1 ? "" : rest.slice(space + 1)
+  };
 }
 
 function isEmpty(slide: Slide): boolean {
@@ -135,6 +254,7 @@ export function slidesMarkup(slides: readonly Slide[], align: SlideAlign = "cent
         `  horizontal: ${align},\n` +
         `  title: ${slide.title === null ? "none" : content(slide.title)},\n` +
         `  columns: ${slide.columns},\n` +
+        `  widths: ${slide.widths === null ? "none" : `(${slide.widths.map((width) => `${width}fr, `).join("")})`},\n` +
         `  intro: ${content(blocks(slide.intro))},\n` +
         `  cells: (${cells}),\n` +
         `)\n`

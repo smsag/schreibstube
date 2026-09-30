@@ -922,6 +922,12 @@ export const enExtra = {
       `the typesetter could not be fetched (${detail}). It is needed once per device; try again when online.`,
     compilerRefused: (detail: string) => `the template did not compile — ${detail}`,
     pictureFailed: (name: string) => `${name} could not be read and was left out`,
+    slideWidths: (title: string, given: number, columns: number) =>
+      `${title === "" ? "a slide" : `the slide "${title}"`}: ${
+        given === 0
+          ? "its column widths could not be read — write them as two or three numbers, such as 1 2"
+          : `${given} column widths for ${columns} column${columns === 1 ? "" : "s"}`
+      }, so its columns stay equal`,
     slidesSmall: (pages: readonly number[], percent: number) =>
       `${pages.length === 1 ? `slide ${pages[0]} holds` : `slides ${pages.join(", ")} hold`} more than fits and ${pages.length === 1 ? "is" : "are"} set as small as ${percent} % — worth splitting`,
     templatePictureMissing: (name: string, template: string) =>

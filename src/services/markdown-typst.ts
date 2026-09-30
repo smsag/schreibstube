@@ -8,7 +8,14 @@ import { isTableDelimiter, rowCells } from "./markdown-table";
 import { typstArray, typstString } from "./typst-value";
 import { parseSlideshow, SLIDESHOW_LANGUAGE } from "./slideshow";
 import { slideshowForPrint, type SlideshowPrintMode } from "./print-slideshow";
-import { groupSlides, slidesMarkup, type SlideAlign, type SlidePart } from "./print-slides";
+import {
+  groupSlides,
+  markSlideDirectives,
+  readDirective,
+  slidesMarkup,
+  type SlideAlign,
+  type SlidePart
+} from "./print-slides";
 
 /** What a tab is worth when a list's nesting is measured, as in the editor. */
 const TAB_COLUMNS = 4;
@@ -227,7 +234,10 @@ class Converter {
     private readonly shared: Shared,
     private heading = ""
   ) {
-    this.lines = stripFrontmatter(stripComments(source)).split(/\r?\n/);
+    // A slide's settings live in comments, so they are lifted out of theirs
+    // before the comments go; only a deck reads them.
+    const text = options.slides ? markSlideDirectives(source) : source;
+    this.lines = stripFrontmatter(stripComments(text)).split(/\r?\n/);
     this.collectDefinitions();
   }
 
@@ -241,9 +251,15 @@ class Converter {
       blocks.splice(/^= /.test(blocks[0] ?? "") ? 1 : 0, 0, table);
       parts.splice(first, 0, { kind: "block", markup: table });
     }
-    const body = this.options.slides
-      ? slidesMarkup(groupSlides(parts), this.options.slideAlign)
-      : blocks.join("\n");
+    let body = blocks.join("\n");
+    if (this.options.slides) {
+      const slides = groupSlides(parts);
+      for (const slide of slides) {
+        if (slide.refusedWidths === null) continue;
+        this.warn(t().print.slideWidths(slide.name, slide.refusedWidths.length, slide.columns));
+      }
+      body = slidesMarkup(slides, this.options.slideAlign);
+    }
     return {
       body: `${body.replace(/\n{3,}/g, "\n\n").trim()}\n`,
       diagrams: this.shared.diagrams,
@@ -362,6 +378,13 @@ class Converter {
   private block(indent: number): string | null {
     const line = this.lines[this.at] ?? "";
 
+    const directive = readDirective(line);
+    if (directive) {
+      this.at += 1;
+      this.marker = directive;
+      return null;
+    }
+
     const fence = fenceMarker(line);
     if (fence) return this.fence(fence);
 
@@ -397,7 +420,7 @@ class Converter {
   private headingBlock(level: number, text: string): string {
     this.heading = text.trim();
     const markup = this.inline(this.heading);
-    this.marker = { kind: "heading", level, markup };
+    this.marker = { kind: "heading", level, markup, text: this.heading };
     return `${"=".repeat(level)} ${markup}\n`;
   }
 

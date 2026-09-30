@@ -58,6 +58,8 @@ export const PRINT_CASES: readonly PrintCase[] = [
       "## Zwei Spalten\n\nÜber beiden.\n\n### Links\n\n- a\n\n#### Unter\n\n![Bild](bild.png)\n\n### Rechts\n\nText[^1]",
       "## Vier Spalten, drei nebeneinander\n\n### A\n\n1\n\n### B\n\n2\n\n### C\n\n3\n\n### D\n\n4",
       "## Eine Spalte\n\n### Allein\n\nText",
+      "## Breiten <!-- columns: 1 2 -->\n\n### Schmal\n\na\n\n### Breit\n\nb",
+      "## Falsche Breiten\n\n%% columns: 1 2 3 %%\n\n### L\n\nl\n\n### R\n\nr",
       `## Zu voll\n\n${"Ein langer Absatz, der die Folie füllt. ".repeat(80)}\n\n| a | b |\n| - | - |\n| 1 | 2 |`,
       "---\n\nWeiter ohne Titel.\n\n> [!note] Innen\n> ## Kein Folientitel",
       "[^1]: Eine Fußnote auf einer Folie."

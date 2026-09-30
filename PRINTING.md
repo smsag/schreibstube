@@ -284,6 +284,20 @@ slide, which a template may replace.
 What stands above a slide's first column heading runs across the full width;
 a fourth `###` starts a second row rather than a fourth, narrower column.
 
+**Column widths are a comment.** Columns are equal unless the slide says
+otherwise, in a comment plain Markdown hides everywhere:
+`## Zwei Wege <!-- columns: 1 2 -->` makes a third and two thirds, and the
+comment may stand on a line of its own anywhere in the slide, or just above
+its heading; Obsidian's `%% columns: 1 2 %%` is read the same. Two or three
+shares, separated by spaces, commas or a colon, each above nought and at most
+twelve (`parseWidths`). A comment that is not one of these, or holds a share
+for a different number of columns than the slide has, leaves the columns equal
+and is named in the warnings. Only a print as slides reads the comment
+(`markSlideDirectives` lifts it out before comments are stripped, onto a line
+of its own no note can write); a comment in a code fence is code, and every
+other comment goes as it always has. It reaches the slide as `widths:`,
+fractions one per column, or `none`.
+
 **A slide never overflows.** `schreibstube-fit` in the prelude makes a slide's
 body smaller until it fits the space left under the title, and never larger.
 It sets the body wider and scales the whole down, so lines keep the width of
@@ -452,21 +466,21 @@ defines any of them at the top level of `template.typ`, and its definition
 wins: `main.typ` imports the prelude first and everything the layout defines
 after it.
 
-| Helper                                                | Signature                                                        | Given                                                                                                                                                                                               |
-| ----------------------------------------------------- | ---------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `schreibstube-image`                                  | `(path, alt)`                                                    | one embedded picture                                                                                                                                                                                |
-| `schreibstube-diagram`                                | `(paths, caption)`                                               | **an array** of pictures, all from one fence, and one caption for the group                                                                                                                         |
-| `schreibstube-code`                                   | `(source, language)`                                             | a fence that is not a diagram, or one that could not be drawn                                                                                                                                       |
-| `schreibstube-table`                                  | `(columns:, align:, ..cells)`                                    | a pipe table; the first argument among `cells` may be a `table.header`                                                                                                                              |
-| `schreibstube-callout`                                | `(kind, title, body)`                                            | an Obsidian callout, `kind` one of `note`, `tip`, `warning`, `danger`                                                                                                                               |
-| `schreibstube-task`                                   | `(done)`                                                         | a task's box: the marker of a bulleted task, beside the number of a numbered one                                                                                                                    |
-| `schreibstube-task-item`                              | `(marker, body)`                                                 | a bulleted task, `marker` its box as `schreibstube-task` drew it; a list of one item, so the box stands where the bullet would                                                                      |
-| `schreibstube-properties`                             | `(rows)`                                                         | the note's properties, when the dialog prints them: an array of `(key, value)`                                                                                                                      |
-| `schreibstube-slide`                                  | `(kind:, level:, horizontal:, title:, columns:, intro:, cells:)` | a slide, for a slide template: `kind` one of `title`, `section`, `content`; `horizontal` `center` or `left`; `title` content or `none`; `cells` an array of `(title, body)`; see "A note as slides" |
-| `schreibstube-slide-image`                            | `(path, alt)`                                                    | a picture on a slide: a figure of kind `"schreibstube-slide-image"` whose caption is the alt text, or none                                                                                          |
-| `schreibstube-slide-block`                            | `(body)`                                                         | one block of a slide, placed by the alignment in force with its own lines flush left                                                                                                                |
-| `schreibstube-fit`, `-slide-align`, `-slide-pictures` | `(body)`, `(horizontal, body)`, `(beside, body)`                 | not called by the note: shrink-to-fit, the alignment, and where captions go, for a template that draws its own slide, imported with `#import "schreibstube.typ": schreibstube-fit, …`               |
-| `schreibstube-slideshow`                              | `(kind, images, columns: 1)`                                     | a slideshow: `kind` one of `single`, `filmstrip`, `feature`, `strip`, `masonry`, `compare`, `stacked`; `images` an array of `(path, description)`                                                   |
+| Helper                                                | Signature                                                                 | Given                                                                                                                                                                                               |
+| ----------------------------------------------------- | ------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `schreibstube-image`                                  | `(path, alt)`                                                             | one embedded picture                                                                                                                                                                                |
+| `schreibstube-diagram`                                | `(paths, caption)`                                                        | **an array** of pictures, all from one fence, and one caption for the group                                                                                                                         |
+| `schreibstube-code`                                   | `(source, language)`                                                      | a fence that is not a diagram, or one that could not be drawn                                                                                                                                       |
+| `schreibstube-table`                                  | `(columns:, align:, ..cells)`                                             | a pipe table; the first argument among `cells` may be a `table.header`                                                                                                                              |
+| `schreibstube-callout`                                | `(kind, title, body)`                                                     | an Obsidian callout, `kind` one of `note`, `tip`, `warning`, `danger`                                                                                                                               |
+| `schreibstube-task`                                   | `(done)`                                                                  | a task's box: the marker of a bulleted task, beside the number of a numbered one                                                                                                                    |
+| `schreibstube-task-item`                              | `(marker, body)`                                                          | a bulleted task, `marker` its box as `schreibstube-task` drew it; a list of one item, so the box stands where the bullet would                                                                      |
+| `schreibstube-properties`                             | `(rows)`                                                                  | the note's properties, when the dialog prints them: an array of `(key, value)`                                                                                                                      |
+| `schreibstube-slide`                                  | `(kind:, level:, horizontal:, title:, columns:, widths:, intro:, cells:)` | a slide, for a slide template: `kind` one of `title`, `section`, `content`; `horizontal` `center` or `left`; `title` content or `none`; `cells` an array of `(title, body)`; see "A note as slides" |
+| `schreibstube-slide-image`                            | `(path, alt)`                                                             | a picture on a slide: a figure of kind `"schreibstube-slide-image"` whose caption is the alt text, or none                                                                                          |
+| `schreibstube-slide-block`                            | `(body)`                                                                  | one block of a slide, placed by the alignment in force with its own lines flush left                                                                                                                |
+| `schreibstube-fit`, `-slide-align`, `-slide-pictures` | `(body)`, `(horizontal, body)`, `(beside, body)`                          | not called by the note: shrink-to-fit, the alignment, and where captions go, for a template that draws its own slide, imported with `#import "schreibstube.typ": schreibstube-fit, …`               |
+| `schreibstube-slideshow`                              | `(kind, images, columns: 1)`                                              | a slideshow: `kind` one of `single`, `filmstrip`, `feature`, `strip`, `masonry`, `compare`, `stacked`; `images` an array of `(path, description)`                                                   |
 
 Because the layout is imported whole, a top-level name in it may shadow one the
 prelude defines. That is the mechanism, so name private helpers of your own
