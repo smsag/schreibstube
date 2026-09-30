@@ -276,9 +276,14 @@ a fourth `###` starts a second row rather than a fourth, narrower column.
 
 **A slide never overflows.** `schreibstube-fit` in the prelude makes a slide's
 body smaller until it fits the space left under the title, and never larger.
-It sets the body wider and scales the whole down, searching the widest that
-fits in six steps, so lines keep the width of the slide and every size keeps
-its proportion to the others. A body that does not get shorter when it is set
+It sets the body wider and scales the whole down, so lines keep the width of
+the slide and every size keeps its proportion to the others. Each measurement
+sets the slide again, so the search is short: the square root of the space
+over the natural height first, then the factor the curve through those two
+heights (height ≈ natural · f^p) says fills the space. A slide that fits is
+measured once, one that shrinks usually three times. Measured on a laptop, a
+61-slide deck with a third of its slides overfull sets in 1.5 s, where six
+halvings took 2.5 s. A body that does not get shorter when it is set
 wider — a picture at the full width grows with it — is scaled as it stands
 instead. Nothing is cut off and nothing runs onto a second page; very small
 type in the preview is the sign that a slide wants splitting. The space is a

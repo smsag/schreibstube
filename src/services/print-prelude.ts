@@ -208,24 +208,41 @@ export const PRELUDE_SOURCE = `// Defaults the converted note calls. A template 
 
 // A slide's body, made smaller until it fits the space it is given, and never
 // larger. It is set wider and the whole scaled down, so lines stay as long as
-// the space and every size on the slide keeps its proportion to the others;
-// the widest that still fits is searched for in a few steps. A body that does
-// not get shorter when it is set wider — a picture at the full width grows with
-// it — is scaled as it stands instead, which always fits.
+// the space and every size on the slide keeps its proportion to the others. A
+// body that does not get shorter when it is set wider — a picture at the full
+// width grows with it — is scaled as it stands instead, which always fits.
+//
+// Every measurement sets the whole slide again, which on a phone is the cost
+// of a long deck, so the search is short. Text set 1/f wider runs about f as
+// tall, so the square root of the space over the natural height is measured
+// first. The two heights then give the curve the slide follows, height ≈
+// natural · f^p, and the factor that curve says fills the space, a hair under,
+// is measured last. A slide that fits is measured once, one that shrinks three
+// times, and the worst case five.
+//
+// The scale it settles on is left as metadata labelled <schreibstube-fit>,
+// with the page, so the print can say which slides were set small.
 #let schreibstube-fit(body) = layout(size => {
-  let natural = measure(block(width: size.width, body)).height
+  let tall(factor) = measure(block(width: size.width / factor, body)).height * factor
+  let natural = tall(1.0)
   if natural <= size.height { return block(width: size.width, body) }
-  let fits(factor) = measure(block(width: size.width / factor, body)).height * factor <= size.height
   let low = size.height / natural
-  if not fits(low) {
+  let guess = calc.sqrt(low)
+  let at-guess = tall(guess)
+  let power = calc.ln(at-guess / natural) / calc.ln(guess)
+  let aimed = if power > 1 { calc.min(1.0, calc.exp(calc.ln(low) / power) * 0.99) } else { 0.0 }
+  let factor = if aimed > guess and tall(aimed) <= size.height { aimed } else if (
+    at-guess <= size.height
+  ) { guess } else if aimed > low and tall(aimed) <= size.height { aimed } else if (
+    tall(low) <= size.height
+  ) { low } else { none }
+  if factor == none {
+    // Nothing set wider fits: scaled as it stands, which always does.
+    [#metadata((page: here().page(), scale: low)) <schreibstube-fit>]
     return scale(low * 100%, origin: top + left, reflow: true, block(width: size.width, body))
   }
-  let high = 1.0
-  for _ in range(6) {
-    let middle = (low + high) / 2
-    if fits(middle) { low = middle } else { high = middle }
-  }
-  scale(low * 100%, origin: top + left, reflow: true, block(width: size.width / low, body))
+  [#metadata((page: here().page(), scale: factor)) <schreibstube-fit>]
+  scale(factor * 100%, origin: top + left, reflow: true, block(width: size.width / factor, body))
 })
 
 // A picture on a slide, with its alt text as the caption. A figure of its own
