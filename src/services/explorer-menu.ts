@@ -34,6 +34,7 @@ export type ExplorerAction =
   | "new-note"
   | "new-folder"
   | "copy-path"
+  | "copy-csv-table"
   | "move"
   | "rename"
   | "rename-ai"
@@ -49,6 +50,8 @@ export interface ExplorerTarget {
   markdown: boolean;
   /** A picture, which is named by being looked at rather than by being read. */
   image?: boolean;
+  /** A spreadsheet export (`.csv`, `.tsv`), which can be copied as a Markdown table. */
+  csv?: boolean;
   /** A picture that can be described: picture descriptions are switched on. */
   describable?: boolean;
   /**
@@ -132,6 +135,11 @@ export function buildExplorerMenu(
     // and no tags, and there is nothing to relate it by.
     if (target.markdown) {
       open.push({ id: "related", label: menu.related, icon: "git-fork" });
+    }
+    // Copying a spreadsheet as a table reads the file and leaves it as it is,
+    // so it sits with the ways of looking at it, not with the ones that write.
+    if (target.csv) {
+      open.push({ id: "copy-csv-table", label: menu.copyCsvTable, icon: "table" });
     }
     sections.push({ id: "open", items: open });
   }

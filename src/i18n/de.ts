@@ -1020,6 +1020,22 @@ export const de: Messages = {
       all: "Alle Lesezeichen"
     },
 
+    csv: {
+      copied: (rows: number, columns: number) =>
+        `Tabelle mit ${rows} ${rows === 1 ? "Zeile" : "Zeilen"} und ${columns} ${columns === 1 ? "Spalte" : "Spalten"} kopiert – in jede Notiz einfügbar.`,
+      column: (index: number) => `Spalte ${index}`,
+      empty: "die Datei enthält keine Zeilen.",
+      malformed:
+        "ein Anführungszeichen in der Datei wird nie geschlossen, die Spalten lassen sich nicht trennen.",
+      tooLarge: (maxKb: number) =>
+        `die Datei ist größer als ${maxKb} KB – zu lang für eine Tabelle.`,
+      tooManyRows: (max: number) =>
+        `die Datei hat mehr als ${max} Zeilen – zu lang für eine Tabelle.`,
+      tooManyColumns: (max: number) => `die Datei hat mehr als ${max} Spalten.`,
+      readFailed: "die Datei ließ sich nicht lesen.",
+      copyFailed: "die Zwischenablage ist hier nicht verfügbar."
+    },
+
     latest: {
       alert: "Eine Quelle wurde im Hintergrund aktualisiert",
       empty: "Keine Quelle hat sich geändert."
@@ -1037,6 +1053,7 @@ export const de: Messages = {
       pin: "Zu „Angeheftet“ hinzufügen",
       unpin: "Aus „Angeheftet“ entfernen",
       related: "Empfohlen",
+      copyCsvTable: "Als Markdown-Tabelle kopieren",
       showImages: "Bilder als Kacheln",
       pinTag: "Tag dieser Notiz anheften …",
       showTag: "Notizen mit diesem Tag zeigen",

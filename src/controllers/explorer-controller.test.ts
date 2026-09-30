@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { App } from "obsidian";
 import { Notice, TFile, TFolder } from "../testing/obsidian-stub";
 import { ExplorerController, TRASH_GRACE_MS } from "./explorer-controller";
@@ -94,6 +94,8 @@ interface FixtureOptions {
   tags?: Record<string, string[]>;
   /** Each note's list items, a task's box character in `task`. */
   listItems?: Record<string, { task?: string }[]>;
+  /** File contents by path, for the actions that read a file. */
+  contents?: Record<string, string>;
 }
 
 function fixture(options: FixtureOptions = {}): Fixture {
@@ -156,6 +158,11 @@ function fixture(options: FixtureOptions = {}): Fixture {
 
       getMarkdownFiles: () => [...present].filter((p) => p.endsWith(".md")).map(node),
       createBinary,
+      cachedRead: async (file: TFile) => {
+        const text = options.contents?.[file.path];
+        if (text === undefined) throw new Error(`nothing at ${file.path}`);
+        return text;
+      },
       adapter: {
         exists: async (path: string) =>
           path === ".trash" ? trash.length > 0 : trash.includes(path) || present.has(path),
@@ -953,5 +960,87 @@ describe("a note that declines its task count", () => {
     const cards = f.controller.tagCards("projekt");
     expect(cards.map((card) => card.path).sort()).toEqual(["reading.md", "work.md"]);
     expect(cards.find((card) => card.path === "reading.md")?.tally).toEqual({ open: 0, total: 0 });
+  });
+});
+
+describe("copying a spreadsheet as a table", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  function csvFile(path: string, size = 100): TFile {
+    return Object.assign(new TFile(path), { stat: { ctime: 1, mtime: 1, size } });
+  }
+
+  function clipboard(fails = false) {
+    const writeText = vi.fn(async (_text: string) => {
+      if (fails) throw new Error("denied");
+    });
+    vi.stubGlobal("navigator", { clipboard: { writeText } });
+    return writeText;
+  }
+
+  it("puts the table on the clipboard and says how large it is", async () => {
+    const writeText = clipboard();
+    const { controller } = fixture({
+      contents: { "Daten/Kosten.csv": "Posten;Betrag\nMiete;850" }
+    });
+
+    await controller.run("copy-csv-table", csvFile("Daten/Kosten.csv") as never);
+
+    expect(writeText).toHaveBeenCalledWith(
+      "| Posten | Betrag |\n| ------ | -----: |\n| Miete  |    850 |"
+    );
+    expect(Notice.shown).toEqual([
+      "Schreibstube: table with 1 row and 2 columns copied — paste it into any note."
+    ]);
+  });
+
+  it("refuses a file too large to paste without reading it", async () => {
+    const writeText = clipboard();
+    const { controller } = fixture({ contents: {} });
+
+    await controller.run("copy-csv-table", csvFile("big.csv", 2_000_000) as never);
+
+    expect(writeText).not.toHaveBeenCalled();
+    expect(Notice.shown[0]).toContain("larger than 1000 KB");
+  });
+
+  it("says why a file cannot be a table, and copies nothing", async () => {
+    const writeText = clipboard();
+    const { controller } = fixture({
+      contents: { "empty.csv": "", "open.csv": '"a,b', "rows.csv": "h\n" + "x\n".repeat(2001) }
+    });
+
+    for (const path of ["empty.csv", "open.csv", "rows.csv", "missing.csv"]) {
+      await controller.run("copy-csv-table", csvFile(path) as never);
+    }
+
+    expect(writeText).not.toHaveBeenCalled();
+    expect(Notice.shown).toEqual([
+      "Schreibstube: the file holds no rows.",
+      "Schreibstube: a quote in the file is never closed, so its columns cannot be told apart.",
+      "Schreibstube: the file has more than 2000 rows — too long to paste as a table.",
+      "Schreibstube: the file could not be read."
+    ]);
+  });
+
+  it("says so when the clipboard refuses", async () => {
+    clipboard(true);
+    const { controller } = fixture({ contents: { "a.csv": "a,b\n1,2" } });
+
+    await controller.run("copy-csv-table", csvFile("a.csv") as never);
+
+    expect(Notice.shown).toEqual(["Schreibstube: the clipboard is not available here."]);
+  });
+
+  it("leaves anything but a spreadsheet alone", async () => {
+    const writeText = clipboard();
+    const { controller } = fixture({ contents: { "a.md": "a,b\n1,2" } });
+
+    await controller.run("copy-csv-table", csvFile("a.md") as never);
+
+    expect(writeText).not.toHaveBeenCalled();
+    expect(Notice.shown).toEqual([]);
   });
 });
