@@ -15,6 +15,8 @@ function fakeAdapter(existing: string[] = []) {
       disk.set(p, b);
     },
     rename: async (from: string, to: string) => {
+      // As Obsidian's adapters do: a rename never replaces a file.
+      if (disk.has(to)) throw new Error("Destination file already exists!");
       ops.push(`rename ${from} -> ${to}`);
       disk.set(to, disk.get(from)!);
       disk.delete(from);
@@ -45,10 +47,41 @@ describe("SemanticIndexFiles", () => {
     const { disk, ops, plugin } = fakeAdapter([PATH]);
     const files = new SemanticIndexFiles(plugin, "xenova-paraphrase-multilingual-MiniLM-L12-v2");
     await files.write(new ArrayBuffer(8));
-    expect(ops).toEqual([`write ${PATH}.tmp`, `rename ${PATH}.tmp -> ${PATH}`]);
+    expect(ops).toEqual([
+      `write ${PATH}.tmp`,
+      `rename ${PATH} -> ${PATH}.old`,
+      `rename ${PATH}.tmp -> ${PATH}`,
+      `remove ${PATH}.old`
+    ]);
     expect(disk.get(PATH)?.byteLength).toBe(8);
-    expect(disk.has(`${PATH}.tmp`)).toBe(false);
+    expect([...disk.keys()]).toEqual([PATH]);
     expect(await files.size()).toBe(8);
+  });
+
+  it("writes over itself again and again", async () => {
+    const { disk, plugin } = fakeAdapter();
+    const files = new SemanticIndexFiles(plugin, "xenova-paraphrase-multilingual-MiniLM-L12-v2");
+    for (const n of [4, 8, 16]) await files.write(new ArrayBuffer(n));
+    expect([...disk.keys()]).toEqual([PATH]);
+    expect(await files.size()).toBe(16);
+  });
+
+  it("takes the old index back when a write stopped before the new one was moved in", async () => {
+    const { disk, plugin } = fakeAdapter([`${PATH}.old`, `${PATH}.tmp`]);
+    disk.set(`${PATH}.old`, new ArrayBuffer(5));
+    const files = new SemanticIndexFiles(plugin, "xenova-paraphrase-multilingual-MiniLM-L12-v2");
+    expect(await files.exists()).toBe(true);
+    expect((await files.read())?.byteLength).toBe(5);
+    await files.write(new ArrayBuffer(8));
+    expect([...disk.keys()]).toEqual([PATH]);
+    expect(await files.size()).toBe(8);
+  });
+
+  it("drops an old index left beside a whole new one", async () => {
+    const { disk, plugin } = fakeAdapter([PATH, `${PATH}.old`]);
+    const files = new SemanticIndexFiles(plugin, "xenova-paraphrase-multilingual-MiniLM-L12-v2");
+    await files.write(new ArrayBuffer(8));
+    expect([...disk.keys()]).toEqual([PATH]);
   });
 
   it("removes a stale temporary file from a write that was cut short", async () => {

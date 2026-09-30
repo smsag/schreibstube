@@ -9,6 +9,8 @@ import { vectorFamily, type EmbeddingModelId } from "../../services/semantic/emb
  */
 export class SemanticIndexFiles implements IndexStore {
   private readonly path: string;
+  /** Put back at most once per instance: only a write cut short leaves it. */
+  private restored: Promise<void> | null = null;
 
   constructor(
     private readonly plugin: Plugin,
@@ -21,26 +23,51 @@ export class SemanticIndexFiles implements IndexStore {
   }
 
   async exists(): Promise<boolean> {
+    await this.restore();
     return this.plugin.app.vault.adapter.exists(this.path);
   }
 
   async read(): Promise<ArrayBuffer | null> {
+    await this.restore();
     const adapter = this.plugin.app.vault.adapter;
     if (!(await adapter.exists(this.path))) return null;
     return adapter.readBinary(this.path);
   }
 
-  /** Written beside the file and renamed over it, so a write cut short — the
-   *  app ended mid-build, a full disk — leaves the last whole index in place
-   *  rather than a truncated one that reads as "no index" and rebuilds. */
+  /** Written beside the file and moved into its place, so a write cut short —
+   *  the app ended mid-build, a full disk — leaves the last whole index in
+   *  place rather than a truncated one that reads as "no index" and rebuilds.
+   *  Obsidian's rename refuses a destination that exists, so the old index is
+   *  moved aside first and removed only once the new one stands. */
   async write(buf: ArrayBuffer): Promise<void> {
+    await this.restore();
     const adapter = this.plugin.app.vault.adapter;
     const dir = pluginDir(this.plugin);
     if (!(await adapter.exists(dir))) await adapter.mkdir(dir);
     const tmp = `${this.path}.tmp`;
+    const old = `${this.path}.old`;
     if (await adapter.exists(tmp)) await adapter.remove(tmp);
     await adapter.writeBinary(tmp, buf);
+    const replacing = await adapter.exists(this.path);
+    if (replacing) {
+      if (await adapter.exists(old)) await adapter.remove(old);
+      await adapter.rename(this.path, old);
+    }
     await adapter.rename(tmp, this.path);
+    if (replacing) await adapter.remove(old);
+  }
+
+  /** A write cut short between moving the old index aside and moving the new
+   *  one in leaves only the old one, whole: it is the index until the next
+   *  write replaces it. */
+  private restore(): Promise<void> {
+    this.restored ??= (async () => {
+      const adapter = this.plugin.app.vault.adapter;
+      const old = `${this.path}.old`;
+      if (!(await adapter.exists(this.path)) && (await adapter.exists(old)))
+        await adapter.rename(old, this.path);
+    })();
+    return this.restored;
   }
 
   journal(): SemanticIndexFiles {
@@ -53,12 +80,14 @@ export class SemanticIndexFiles implements IndexStore {
   }
 
   async mtime(): Promise<number | null> {
+    await this.restore();
     const stat = await this.plugin.app.vault.adapter.stat(this.path);
     return stat?.mtime ?? null;
   }
 
   /** The size of this file in bytes, or null when there is none. */
   async size(): Promise<number | null> {
+    await this.restore();
     const stat = await this.plugin.app.vault.adapter.stat(this.path);
     return stat?.size ?? null;
   }

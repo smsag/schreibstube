@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- **Search by meaning keeps its index up to date again.** Since 1.65.0 the index could be written once and never again: the new safe write moved the fresh file over the old one, and Obsidian refuses to move a file onto one that exists. Every later write failed with "Destination file already exists", so the catch-up at launch ended in an error and edits to notes were embedded but never saved, to be embedded again at the next launch. The old index is now moved aside first and removed once the new one is in place; if the app ends between the two, the old index is taken back at the next launch.
 - A mail search on the date alone still came back empty after 1.66.1: Strato
   answered it with no matches, not with a refusal, so the bridge believed it.
   When the server finds nothing, the bridge now checks the newest 2000 mails
