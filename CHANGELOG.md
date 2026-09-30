@@ -2,6 +2,31 @@
 
 All notable changes to this project will be documented in this file.
 
+## 1.66.1 - 2026-09-30
+
+A mail search returns mail again when the mail server will not search. Strato
+refused the search and the bridge took the refusal for an empty mailbox, so
+"Postfach durchsuchen" said "no messages" even for a search on the date alone.
+
+Mobile checklist: not run; the change is in the bridge only, and the plugin
+is unchanged apart from its version. The test suite covers the refused search
+with a fake server; it has not yet been tried against Strato itself. What to
+try first: "Postfach durchsuchen" with only a "Seit" date, which should list
+every mail since that day.
+
+The bridge moves to 2.11.1, protocol 6 unchanged.
+
+### Fixed
+
+- "Postfach durchsuchen" returns mail again when the mail server refuses to
+  search. Until now a refused search passed for an empty mailbox: the notice
+  said "no messages" even for a search on the date alone. The bridge now
+  reads the newest 2000 mails itself and matches sender, recipient, subject,
+  date and thread there. Only a search in the body text still depends on the
+  server; when it refuses that, the notice now gives the server's reason. The
+  same goes for a server that finds mails and then hands over none of them.
+  Bridge only; the protocol is unchanged.
+
 ## 1.66.0 - 2026-09-30
 
 A note prints as a presentation. The new Folien template turns the note's own

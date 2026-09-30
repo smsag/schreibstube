@@ -73,7 +73,8 @@ export function createMailRoutes(
       if (problem) throw httpError(400, "invalid_request", problem);
 
       const result = await upstream(
-        () => withDeadline(searchMessages(mail, body ?? {}), config.upstreamTimeoutMs, "Search"),
+        () =>
+          withDeadline(searchMessages(mail, body ?? {}, log), config.upstreamTimeoutMs, "Search"),
         "Search"
       );
       log("info", `search returned ${result.messages.length} message(s) from ${result.mailbox}`);
