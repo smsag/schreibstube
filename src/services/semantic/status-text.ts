@@ -21,6 +21,8 @@ export type FailureCause = "offline" | "timeout" | "other";
 export interface SemanticStatus {
   state: SemanticState;
   count: number;
+  /** On "blocked": the plugin whose own model keeps this one off the phone. */
+  blockedBy?: string;
   /** How many notes one "Build now" adds on a phone. */
   budget?: number;
   done: number;
@@ -57,7 +59,7 @@ export function semanticStatusText(
     case "off":
       return strings.off;
     case "blocked":
-      return strings.blocked;
+      return strings.blocked(status.blockedBy ?? "");
     case "notBuilt":
       return strings.notBuilt;
     case "loading":

@@ -85,6 +85,17 @@ describe("semanticStatusText", () => {
   });
 });
 
+describe("a phone beside another plugin's model", () => {
+  it("names the plugin, and what to do about it", () => {
+    const text = semanticStatusText(
+      { ...base, state: "blocked", blockedBy: "Similarity" },
+      strings
+    );
+    expect(text).toContain("Similarity runs a language model of its own");
+    expect(text).toContain("Switch Similarity off");
+  });
+});
+
 describe("a phone holding the desktop's index", () => {
   it("says the desktop builds it, and what Build now adds", () => {
     const text = semanticStatusText(

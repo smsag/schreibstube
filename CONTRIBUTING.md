@@ -99,6 +99,30 @@ row made to wrap instead breaks at the first item that will not fit, which for a
 file name longer than a sidebar strands the icon on the line above. Both are
 invisible from a unit test and obvious here in a second.
 
+## Measuring the model's memory without a phone
+
+```bash
+scripts/model-memory/measure.sh latin 16 6
+```
+
+iOS ends Obsidian's web process at about 2 GB and says nothing: the app
+restarts, and on a phone whose cause comes back at every launch it restarts
+every fifteen seconds. The Web Inspector cannot follow — each restart cuts it
+off. This measures the same thing on a Mac, where it can be repeated: it builds
+the embedding bundle exactly as the release does, loads it in a fresh
+`WKWebView` process (the web engine of Obsidian on iOS, in a small host
+compiled from `host.swift` on first use), loads the model and embeds a few
+batches the way a phone does, and reads the process's footprint from outside
+with `footprint`. The arguments are the model (`latin` — the phone's —,
+`full`, `en`), the batch size and the number of batches.
+
+Measured on 2026-09-30 with the Latin-script model and batches of 16: about
+740 MB at the peak. Before the runtime was pinned to its plain build it was
+1 340–1 680 MB, and an iPhone with Similarity's model beside it passed the line.
+A change to the runtime, the model or the batch size is worth one run before
+and after; a peak well above a gigabyte is a phone that will not keep Obsidian
+running.
+
 ## Before a release: the mobile checklist
 
 The plugin's mobile support is architectural — no Node built-ins in the bundle,

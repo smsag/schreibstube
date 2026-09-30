@@ -121,14 +121,29 @@ Obsidian goes to the background — so it reads the synced file, answers from it
 finished or not, and reads it again when the desktop has written a newer one.
 **Build now** on a phone embeds a budget of notes and merges what the desktop
 wrote meanwhile before it writes, so the two devices do not undo each other
-through the one file. The phone's own edits are embedded on the phone, each
-note when its writer moves on to another and never on a quiet clock, since an
-embed there is a model load; they go to a journal of its own
+through the one file. The phone's own edits are embedded on the phone — only
+notes typed into there (Obsidian's `editor-change`), each when its writer moves
+on to another and never on a quiet clock, since an embed there is a model load.
+A note that changed any other way, a sync above all, is the desktop's to embed:
+at every launch a phone used to embed what had arrived while it was closed, and
+loaded the model two seconds into its start. The edits go to a journal of its own
 (`…phone-journal.bin`), tied to the desktop's base like the shared journal and
 ignored once the desktop writes a new one. A build
 answers queries while it runs, and a note whose
 embed fails on the desktop — not by a deadline — is kept as a row without
 vectors, so it is not retried until its text changes.
+
+iOS ends Obsidian's web process at about 2 GB, without a catch or a log, so
+everything on a phone is sized against that line. The runtime loads its plain
+WebAssembly build (`frame/runtime-build.ts`): transformers.js 4 picks the
+WebGPU-ready "asyncify" build on Safari 26, which takes twice the memory for the
+same vectors. Schreibstube's model does not join another plugin's on a phone
+(`services/semantic/model-plugins.ts`): Similarity's model alone left Obsidian at
+1.4 GB after its start. And every piece of model work a phone starts on its own
+is inside a crash breaker (`phoneModelGuard`), whose marker is written before
+the model loads: two foreground deaths in a row and the phone stops using the
+model until **Build now**. How to measure it without a phone — a `WKWebView`
+host and `footprint` — is in `CONTRIBUTING.md`.
 
 A vector depends on the code that runs the model as well as on the model: a
 new transformers or onnxruntime-web can move every one of them. Each row's hash

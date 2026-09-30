@@ -42,6 +42,7 @@ import { catchUpIndex, CATCH_UP_DELAY_MS } from "../../services/semantic/vault-c
 import { applyMeaningFloor, meaningFloor } from "../../services/semantic/search-fusion";
 import type { IndexKeeper } from "../../services/semantic/embedding-index";
 import { pluginRunsOwnModel } from "../../services/workspace-internals";
+import { modelPluginInTheWay } from "../../services/semantic/model-plugins";
 import { consentOf, type SourceDescriptor } from "../../services/semantic/semantic-api";
 import { createEmbeddingProvider } from "./host/embedding-provider-factory";
 import { embeddingWorkerUrl } from "./host/worker-bundle-url";
@@ -116,8 +117,9 @@ type Phase =
  * decisions come from Pythia's engine after its hardening and live in
  * `services/semantic`; this class only wires them to the vault. It does
  * nothing until the setting is switched on, and it never loads a model on a
- * phone while Pythia, which runs a model of its own, is switched on there too —
- * two are over what the OS lets one app hold.
+ * phone while a plugin that runs a model of its own is switched on there too
+ * (`services/semantic/model-plugins.ts`) — two are over what the OS lets one
+ * app hold.
  */
 export class SemanticEngine {
   private provider: ResidentProvider | null = null;
@@ -129,6 +131,14 @@ export class SemanticEngine {
   private readonly phoneGuard: BuildGuard;
   /** Model work under way on a phone: the marker stands while this is above 0. */
   private phoneWork = 0;
+  /**
+   * Notes typed into on this phone since they were last handed to the index:
+   * the only ones a phone embeds. A note that changed any other way — a sync,
+   * another plugin, the vault settling at launch — is the desktop's to embed,
+   * and reaches the phone with its row. Embedding those loaded the model two
+   * seconds into every launch, beside everything else Obsidian was loading.
+   */
+  private readonly writtenHere = new Set<string>();
   private phase: Phase = { kind: "idle" };
   private syncing = false;
   private caughtUp = false;
@@ -189,6 +199,7 @@ export class SemanticEngine {
       activePath: () => this.plugin.app.workspace.getActiveFile()?.path ?? null,
       holdUntilLeft: Platform.isMobile
     });
+    if (Platform.isMobile) this.watchTyping();
     this.residency = installEmbeddingResidency(this.plugin, {
       provider: () => this.provider,
       building: () => this.syncing || this.sources.isSyncing(),
@@ -206,6 +217,15 @@ export class SemanticEngine {
         this.logger.debug("semantic engine: a retired index file could not be removed", e);
       });
     });
+  }
+
+  /** Record the notes typed into here: on a phone, the only ones it embeds. */
+  watchTyping(): void {
+    this.plugin.registerEvent(
+      this.plugin.app.workspace.on("editor-change", (_editor, info) => {
+        if (info.file) this.writtenHere.add(info.file.path);
+      })
+    );
   }
 
   /** Called on every status change. Returns the unsubscribe. */
@@ -265,9 +285,14 @@ export class SemanticEngine {
     this.emit();
   }
 
-  /** Whether a second model would join Pythia's on a phone. */
+  /** The plugin whose own model keeps Schreibstube's off this phone, or null. */
+  private blockedBy(): string | null {
+    if (!Platform.isMobile) return null;
+    return modelPluginInTheWay((id) => pluginRunsOwnModel(this.plugin.app, id));
+  }
+
   private blocked(): boolean {
-    return Platform.isMobile && pluginRunsOwnModel(this.plugin.app, "pythia");
+    return this.blockedBy() !== null;
   }
 
   /** Whether this device may load and run the model without being asked. A
@@ -667,17 +692,21 @@ export class SemanticEngine {
         updates.push({ path: file.path, load: () => app.vault.cachedRead(file) });
       }
     }
-    // A phone whose model work ended the app twice embeds nothing more on
-    // its own: the edits reach the index when the desktop sees them.
-    const embed = this.mayUseModel();
+    // A phone embeds only what was written on it, and nothing at all once its
+    // model work ended the app twice: the rest reaches the index when the
+    // desktop sees it.
+    const mine = Platform.isMobile
+      ? new Set(updates.map((u) => u.path).filter((path) => this.writtenHere.has(path)))
+      : null;
+    for (const path of [...(mine ?? []), ...deleted]) this.writtenHere.delete(path);
+    const embed = this.mayUseModel() && (mine === null || mine.size > 0);
     const apply = (): Promise<void> =>
       svc.applyBatch(
         { updates, removes },
         {
           cap: this.getSettings().semanticMaxNotes,
-          // A phone embeds a few edits of its own; a sync landing a hundred
-          // changed notes is the desktop's to embed, not the phone's UI thread.
           ...(Platform.isMobile ? { maxEmbeds: MOBILE_EDIT_BUDGET } : {}),
+          ...(mine ? { embedOnly: mine } : {}),
           ...(embed ? {} : { embed: false })
         }
       );
@@ -1013,7 +1042,8 @@ export class SemanticEngine {
       backend: this.backend
     };
     if (!this.getSettings().semanticSearchEnabled) return { ...base, state: "off" };
-    if (this.blocked()) return { ...base, state: "blocked" };
+    const blockedBy = this.blockedBy();
+    if (blockedBy) return { ...base, state: "blocked", blockedBy };
     const phase = this.phase;
     if (phase.kind === "loading") return { ...base, state: "loading" };
     if (phase.kind === "building")

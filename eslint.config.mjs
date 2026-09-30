@@ -12,7 +12,7 @@ import tseslint from "typescript-eslint";
  */
 export default tseslint.config(
   {
-    ignores: ["main.js", "node_modules/**", "bridge/node_modules/**"]
+    ignores: ["main.js", "node_modules/**", "bridge/node_modules/**", "scripts/model-memory/out/**"]
   },
 
   // The plugin: browser-shaped, TypeScript, bundled by esbuild.

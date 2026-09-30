@@ -129,6 +129,9 @@ export interface BatchOptions {
   /** False: embed nothing — removals still apply, and a changed note keeps
    *  its row until a device that may embed reaches it. */
   embed?: boolean;
+  /** Embed only these notes: any other changed note keeps its row until a
+   *  device that embeds it reaches it. Absent: every changed note may be. */
+  embedOnly?: ReadonlySet<string>;
 }
 
 const EMPTY_EDITS = { upserts: [], removed: [] };
@@ -536,7 +539,10 @@ export class VaultIndexService {
       try {
         outcome = await this.updateInMemory(update, {
           cap: opts.cap,
-          mayEmbed: opts.embed !== false && (budget === 0 || embeds < budget)
+          mayEmbed:
+            opts.embed !== false &&
+            (opts.embedOnly?.has(update.path) ?? true) &&
+            (budget === 0 || embeds < budget)
         });
       } catch (e) {
         // One note must not cost the batch: the ones before it are applied and

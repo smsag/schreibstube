@@ -80,6 +80,10 @@ function world(notes: Record<string, string> = { "a.md": "alpha one", "b.md": "b
   };
   const files = (): TFile[] => [...contents.keys()].map(file);
   const local = new Map<string, unknown>();
+  const workspaceHandlers = new Map<string, (...args: unknown[]) => void>();
+  /** A keystroke in the editor, as Obsidian reports it. */
+  const typeIn = (path: string): void =>
+    workspaceHandlers.get("editor-change")?.(null, { file: file(path) });
   /** Every file read, by path, and each file's modification time: the count
    *  of writes that reached it. */
   const reads: string[] = [];
@@ -111,7 +115,14 @@ function world(notes: Record<string, string> = { "a.md": "alpha one", "b.md": "b
       on: () => ({})
     },
     metadataCache: { getFileCache: () => ({}) },
-    workspace: { onLayoutReady: () => undefined, getActiveFile: () => null, on: () => ({}) },
+    workspace: {
+      onLayoutReady: () => undefined,
+      getActiveFile: () => null,
+      on: (name: string, handler: (...args: unknown[]) => void) => {
+        workspaceHandlers.set(name, handler);
+        return {};
+      }
+    },
     loadLocalStorage: (k: string) => local.get(k),
     saveLocalStorage: (k: string, v: unknown) => void local.set(k, v),
     plugins: { enabledPlugins: new Set<string>() }
@@ -130,7 +141,7 @@ function world(notes: Record<string, string> = { "a.md": "alpha one", "b.md": "b
     semanticSources: {}
   } as unknown as SchreibstubeSettings;
   const engine = (): SemanticEngine => new SemanticEngine(plugin, () => settings, NULL_LOGGER, 5);
-  return { plugin, settings, contents, unlisted, disk, reads, file, engine };
+  return { plugin, settings, contents, unlisted, disk, reads, file, engine, typeIn };
 }
 
 type Internals = {
@@ -423,6 +434,7 @@ describe("a phone holding the desktop's index", () => {
     await built(w.engine());
     platform.isMobile = true;
     const phone = w.engine();
+    phone.watchTyping();
     phone.warm();
     await until(() => phone.searchState() === "ready" && !inside(phone).syncing);
     return phone;
@@ -434,6 +446,7 @@ describe("a phone holding the desktop's index", () => {
     let open!: () => void;
     model.gate = new Promise((r) => (open = r));
     w.contents.set("a.md", "alpha one, rewritten");
+    w.typeIn("a.md");
     const applying = phone.applyChanges([w.file("a.md")], []);
     await until(() => w.plugin.app.loadLocalStorage(PHONE_MARKER) != null);
     expect(w.plugin.app.loadLocalStorage(PHONE_MARKER)).toMatchObject({ attempts: 1 });
@@ -441,6 +454,44 @@ describe("a phone holding the desktop's index", () => {
     await applying;
     model.gate = null;
     expect(w.plugin.app.loadLocalStorage(PHONE_MARKER)).toBeNull();
+  });
+
+  it("keeps its model off while Similarity runs one of its own, and says so", async () => {
+    const w = world();
+    (
+      w.plugin.app as unknown as { plugins: { enabledPlugins: Set<string> } }
+    ).plugins.enabledPlugins.add("similarity");
+    const desktop = w.engine();
+    expect(desktop.enabled()).toBe(true);
+    platform.isMobile = true;
+    const phone = w.engine();
+    expect(phone.enabled()).toBe(false);
+    const loads = model.loads;
+    expect(await phone.search("alpha", 5)).toEqual([]);
+    expect(model.loads).toBe(loads);
+    expect(await phone.status()).toMatchObject({ state: "blocked", blockedBy: "Similarity" });
+  });
+
+  it("embeds a note typed into on it, and leaves one that changed by sync to the desktop", async () => {
+    const w = world();
+    const phone = await phoneReady(w);
+    const loads = model.loads;
+    const embeds = model.embeds;
+
+    // A sync lands: the note changed, nobody typed on the phone.
+    w.contents.set("b.md", "beta two, changed on the desktop");
+    await phone.applyChanges([w.file("b.md")], []);
+    expect({ loads: model.loads, embeds: model.embeds }).toEqual({ loads, embeds });
+
+    // Written here: embedded, once.
+    w.contents.set("a.md", "alpha one, written on the phone");
+    w.typeIn("a.md");
+    await phone.applyChanges([w.file("a.md")], []);
+    expect(model.embeds).toBeGreaterThan(embeds);
+    const after = model.embeds;
+    w.contents.set("a.md", "alpha one, then changed by a sync");
+    await phone.applyChanges([w.file("a.md")], []);
+    expect(model.embeds).toBe(after);
   });
 
   it("uses the model for nothing on its own after it ended the app twice, until Build now", async () => {
