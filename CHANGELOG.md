@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- **A note can decline its task count.** `schreibstubeTaskCount: false` in a note's frontmatter hides the task count on its row in the Explorer, for a note whose boxes are not work — a reading list, a packing list. Its tasks stay out of a pinned tag's sum as well; the note is still listed under the tag. Without the key, **Task counts** in the settings decides as before.
 - "Postfach durchsuchen" can bring a mail's attachments along. Tick "Anhänge
   mitnehmen", choose the mail, and its pictures, PDFs and Office files are
   saved to the attachment folder and embedded or linked under the quoted

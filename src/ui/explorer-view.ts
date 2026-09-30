@@ -64,7 +64,7 @@ import {
 import type { ImportSource } from "../controllers/explorer-controller";
 import { fileGlyph, fileNameParts } from "../services/file-glyph";
 import { groundColour } from "../services/ground-colour";
-import { tallyTasks, type TaskTally } from "../services/task-count";
+import { countsTasks, tallyTasks, type TaskTally } from "../services/task-count";
 import type { LatestCandidate } from "../services/latest-files";
 import {
   ancestorsOf,
@@ -1893,12 +1893,11 @@ export class ExplorerPaneView extends ItemView {
    */
   private renderTaskCount(row: HTMLElement, file: TFile): void {
     if (!this.host?.settings().explorerTaskCounts || file.extension !== "md") return;
+    const cache = this.app.metadataCache.getFileCache(file);
+    // A note can decline its figure: a reading list whose boxes are not work.
+    if (!countsTasks(cache?.frontmatter)) return;
 
-    drawTaskCount(
-      row,
-      tallyTasks(this.app.metadataCache.getFileCache(file)?.listItems),
-      "schreibstube-explorer-tasks"
-    );
+    drawTaskCount(row, tallyTasks(cache?.listItems), "schreibstube-explorer-tasks");
   }
 
   /**

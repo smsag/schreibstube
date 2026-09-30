@@ -19,6 +19,22 @@ export interface TaskTally {
   total: number;
 }
 
+/** Frontmatter a note carries to keep its tasks out of the Explorer's counts. */
+export const TASK_COUNT_KEY = "schreibstubeTaskCount";
+
+/**
+ * Whether a note's tasks are counted in the Explorer: on its own row, and in
+ * the sum a pinned tag shows. Only `false` says anything — or the string
+ * "false" a hand-edited or synced property often turns into, read as
+ * `schreibstubeIndex` is. Without the key the Explorer's setting decides, and
+ * `true` asks for nothing that setting does not already give.
+ */
+export function countsTasks(frontmatter: unknown): boolean {
+  if (!frontmatter || typeof frontmatter !== "object") return true;
+  const value = (frontmatter as Record<string, unknown>)[TASK_COUNT_KEY];
+  return value !== false && value !== "false";
+}
+
 export function tallyTasks(items: readonly TaskItem[] | undefined): TaskTally {
   let open = 0;
   let total = 0;
