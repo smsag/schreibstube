@@ -1,7 +1,7 @@
 /**
  * What the print dialog lets a person change, and what each choice means.
  *
- * Nine choices, and nothing about them is remembered: each print starts from
+ * Ten choices, and nothing about them is remembered: each print starts from
  * the template and the note, because that is where a page's design lives and
  * a dialog that carried yesterday's margins into today's letter would be a
  * second, invisible template.
@@ -45,6 +45,8 @@ export interface PrintOptions {
   format: SlideFormat;
   /** Where a deck's content stands across the slide: centred, or at the left. */
   align: SlideAlign;
+  /** A deck's speaker notes on pages of their own after the last slide. */
+  speakerNotes: boolean;
   /**
    * The text in the monospaced face, or in the sans. Reaches the layout as
    * `data.monospace`; a template that does not read it is unaffected, and the
@@ -78,6 +80,7 @@ export function initialOptions(
     slideshows: "layout",
     format: noteSlideFormat(frontmatter) ?? templateSlideFormat(template),
     align: noteSlideAlign(frontmatter) ?? "center",
+    speakerNotes: false,
     monospace: noteMonospace(frontmatter) ?? true,
     pythiaFootnotes: pythiaLinks > 0
   };

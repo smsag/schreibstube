@@ -36,6 +36,14 @@ Ein Bild zeigt seinen Alternativtext als Bildunterschrift: auf einer Folie ohne 
 
 Eine Folie, auf der mehr steht, als passt, wird als Ganzes verkleinert, bis sie passt — sie wird nie abgeschnitten und nie auf eine zweite Seite umbrochen. Sehr kleine Schrift in der Vorschau heißt: diese Folie gehört geteilt.
 
+## Bilder, Notizen, Agenda
+
+- **Ein Bild allein** auf einer Folie bekommt den ganzen Platz unter dem Titel, die Bildunterschrift daneben.
+- `<!-- layout: image-left -->` oder `image-right` setzt das erste Bild der Folie, in einer eigenen Zeile, auf eine Hälfte in voller Höhe; alles andere steht auf der anderen.
+- **Diagramme** (Mermaid, Vizardry) sind auf Folien Bilder wie andere auch; ihre Unterschrift ist der Name der Zeichnung.
+- `> [!notes]` sind Sprechernotizen. Keine Folie zeigt sie; **Sprechernotizen** im Druckdialog hängt sie nach der letzten Folie an, jede mit Nummer und Titel ihrer Folie.
+- `<!-- agenda -->` auf einer Folie listet dort die Kapiteltrenner des Vortrags, oder, ohne Kapitel, die Titel aller anderen Folien.
+
 ## Einrichten
 
 Unter `schreibstubeData` stehen die Angaben der Titelfolie: `author` hier für jede Präsentation, `subtitle` besser in der Notiz. Gesetzt ist sie in Fira Sans, die das Plugin mit dem Typesetter lädt.

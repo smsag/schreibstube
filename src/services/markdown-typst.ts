@@ -73,6 +73,11 @@ export interface ConvertOptions {
   slides?: boolean;
   /** Where a slide's content stands across the page: centred unless it says left. */
   slideAlign?: SlideAlign;
+  /**
+   * The speaker's notes — every `> [!notes]` callout, which a slide never
+   * shows — on pages of their own after the deck.
+   */
+  speakerNotes?: boolean;
 }
 
 /**
@@ -254,11 +259,22 @@ class Converter {
     let body = blocks.join("\n");
     if (this.options.slides) {
       const slides = groupSlides(parts);
+      const words = t().print;
       for (const slide of slides) {
-        if (slide.refusedWidths === null) continue;
-        this.warn(t().print.slideWidths(slide.name, slide.refusedWidths.length, slide.columns));
+        for (const problem of slide.problems) {
+          this.warn(
+            problem.kind === "widths"
+              ? words.slideWidths(slide.name, problem.given, problem.columns)
+              : problem.kind === "layout"
+                ? words.slideLayout(slide.name, problem.value)
+                : words.slideNoPicture(slide.name, problem.layout)
+          );
+        }
       }
       body = slidesMarkup(slides, this.options.slideAlign);
+      if (this.options.speakerNotes && slides.some((slide) => slide.notes.length > 0)) {
+        body += `\n#schreibstube-slide-notes(heading: ${typstString(words.notesHeading)}, slide: ${typstString(words.notesSlide)})\n`;
+      }
     }
     return {
       body: `${body.replace(/\n{3,}/g, "\n\n").trim()}\n`,
@@ -510,6 +526,13 @@ class Converter {
       // hides the rest, and a page has no carousel — so the helper is given
       // every picture that was captured, not the first of them.
       const paths = this.options.diagramImage?.(block) ?? null;
+      if (paths !== null && paths.length > 0 && this.shared.deck) {
+        // On a slide a drawing is a picture like any other, laid out and
+        // captioned as one. Its caption is the drawing's own name: the heading
+        // above it is the slide's title, standing right over it already.
+        const caption = this.options.diagramTitle?.(block) ?? "";
+        return `${paths.map((path) => `#schreibstube-slide-image(${typstString(path)}, ${typstString(caption)})`).join("\n")}\n`;
+      }
       if (paths !== null && paths.length > 0) {
         const caption = diagramCaption(block.caption, this.options.diagramTitle?.(block) ?? "");
         return `#schreibstube-diagram(${typstArray(paths)}, ${typstString(caption)})\n`;
@@ -548,7 +571,7 @@ class Converter {
   }
 
   /** A blockquote, or the callout Obsidian writes in the shape of one. */
-  private blockquote(): string {
+  private blockquote(): string | null {
     const inner: string[] = [];
     while (this.at < this.lines.length) {
       const match = BLOCKQUOTE.exec(this.lines[this.at] ?? "");
@@ -559,6 +582,11 @@ class Converter {
 
     const first = inner[0] ?? "";
     const callout = CALLOUT.exec(first);
+    if (callout?.[1]?.toLowerCase() === "notes" && this.shared.deck) {
+      // The speaker's, not the audience's: handed to the deck, off the slide.
+      this.marker = { kind: "notes", markup: this.nested(inner.slice(1).join("\n")) };
+      return null;
+    }
     if (callout?.[1] !== undefined) {
       const kind = CALLOUT_KINDS[callout[1].toLowerCase()] ?? "note";
       const title = (callout[3] ?? "").trim() || titleCase(callout[1]);

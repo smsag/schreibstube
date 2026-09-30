@@ -29,6 +29,8 @@ export interface PrintCase {
   margin?: MarginPreset;
   /** How the dialog prints slideshows; as they stand on screen unless named. */
   slideshows?: SlideshowPrintMode;
+  /** A deck's speaker notes after the last slide; off, as the dialog starts, unless named. */
+  speakerNotes?: boolean;
   /** Where a deck's content stands; centred, as the dialog starts, unless named. */
   slideAlign?: SlideAlign;
   /** The print setting; monospaced, as it ships, unless a case turns it off. */
@@ -64,6 +66,22 @@ export const PRINT_CASES: readonly PrintCase[] = [
       "---\n\nWeiter ohne Titel.\n\n> [!note] Innen\n> ## Kein Folientitel",
       "[^1]: Eine Fußnote auf einer Folie."
     ].join("\n\n")
+  },
+  {
+    // Picture layouts, a drawing on a slide, speaker notes and an agenda; on
+    // a template that is no deck, the notes are a callout like any other.
+    name: "slides-pictures",
+    markdown: [
+      "# Deck",
+      "## Agenda <!-- agenda -->",
+      "# Teil",
+      "## Nur ein Bild\n\n![Das Objekt](objekt.jpg)\n\n> [!notes]\n> Erst die Lage, dann der Grundriss.",
+      "## Links <!-- layout: image-left -->\n\n![Straße](bild.png)\n\n- eins\n- zwei",
+      "## Rechts\n\n%% layout: image-right %%\n\nText\n\n![](bild.png)",
+      "## Zeichnung\n\n```mermaid\ngraph LR; A-->B\n```",
+      "## Kein Bild <!-- layout: image-left -->\n\nText"
+    ].join("\n\n"),
+    speakerNotes: true
   },
   {
     name: "slides-left",
@@ -232,6 +250,7 @@ export function fixtureJobs(templates: readonly FixtureTemplate[]): FixtureJob[]
         slideshows: printCase.slideshows ?? "layout",
         slides: template.slides,
         slideAlign: printCase.slideAlign ?? "center",
+        speakerNotes: printCase.speakerNotes ?? false,
         diagramImage: (block) => [place(`assets/diagram-${block.index}-0.png`)],
         // As the print command names and draws pictures: by what they become.
         image: ({ source }) => {

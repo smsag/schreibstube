@@ -89,6 +89,7 @@ export class PrintDialog extends Modal {
   private breakSetting: Setting | null = null;
   private formatSetting: Setting | null = null;
   private alignSetting: Setting | null = null;
+  private notesSetting: Setting | null = null;
   /** The preview on the panel, which holds its document until it is replaced. */
   private shown: PdfPreview | null = null;
   private faceSetting: Setting | null = null;
@@ -211,6 +212,16 @@ export class PrintDialog extends Modal {
       });
     });
 
+    this.notesSetting = new Setting(el)
+      .setName(words.speakerNotes)
+      .setDesc(words.speakerNotesDesc)
+      .addToggle((toggle) => {
+        toggle.setValue(this.options.speakerNotes).onChange((value) => {
+          this.options = { ...this.options, speakerNotes: value };
+          this.changed();
+        });
+      });
+
     this.breakSetting = new Setting(el).setName(words.pageBreaks).addToggle((toggle) => {
       this.breakToggle = toggle;
       toggle.setValue(this.options.hrIsPageBreak).onChange((value) => {
@@ -240,14 +251,15 @@ export class PrintDialog extends Modal {
   }
 
   /**
-   * A deck has a format and an alignment and no page breaks — a rule starts
-   * a slide — so the dialog offers the first two and not the third for a
-   * slide template, and the reverse for every other.
+   * A deck has a format, an alignment and speaker notes and no page breaks —
+   * a rule starts a slide — so the dialog offers the first three and not the
+   * last for a slide template, and the reverse for every other.
    */
   private showForTemplate(): void {
     const slides = this.options.template.slides;
     this.formatSetting?.settingEl.toggle(slides);
     this.alignSetting?.settingEl.toggle(slides);
+    this.notesSetting?.settingEl.toggle(slides);
     this.breakSetting?.settingEl.toggle(!slides);
   }
 

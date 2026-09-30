@@ -300,9 +300,80 @@ export const PRELUDE_SOURCE = `// Defaults the converted note calls. A template 
   body
 }
 
+// A picture that has a space of its own — a slide that is one picture, or the
+// picture half of image-left and image-right — as large as the space allows
+// and never cropped, its caption beside it on the right, level with its foot,
+// or beneath it.
+#let schreibstube-slide-filled(beside, body) = layout(size => {
+  show figure.where(kind: "schreibstube-slide-image"): it => {
+    let picture(height) = image(it.body.source, width: 100%, height: height, fit: "contain")
+    if it.caption == none { return picture(size.height) }
+    let words = text(size: 0.7em, fill: luma(90), it.caption.body)
+    if beside {
+      grid(
+        columns: (3fr, 1fr),
+        column-gutter: 1em,
+        align: (auto, left + bottom),
+        picture(size.height),
+        words,
+      )
+    } else {
+      let below = measure(block(width: size.width, words)).height + 0.5em
+      stack(spacing: 0.5em, picture(size.height - below), words)
+    }
+  }
+  body
+})
+
+// The part of a slide under its title, laid out as the slide's layout says:
+// "text" the body made to fit; "picture" the one picture filling it;
+// "image-left" and "image-right" the picture on one half, the body fitted
+// on the other. A block of the rest of the page less what its footnotes
+// need: a fraction of the flow is measured after them, where a grid row
+// claimed the whole page.
+#let schreibstube-slide-area(layout, picture, body) = block(height: 1fr, width: 100%, {
+  if layout == "picture" {
+    schreibstube-slide-filled(true, picture)
+  } else if layout == "image-left" or layout == "image-right" {
+    let side = block(height: 100%, width: 100%, schreibstube-slide-filled(false, picture))
+    let rest = block(height: 100%, width: 100%, schreibstube-fit(body))
+    grid(
+      columns: (1fr, 1fr),
+      rows: (100%,),
+      column-gutter: 1.5em,
+      ..if layout == "image-left" { (side, rest) } else { (rest, side) },
+    )
+  } else {
+    schreibstube-fit(body)
+  }
+})
+
+// A slide's speaker notes, left on its page for the notes pages to find.
+#let schreibstube-slide-note-mark(title, notes) = if notes != none {
+  [#metadata((title: title, notes: notes)) <schreibstube-notes>]
+}
+
+// The speaker's notes after the last slide: each slide that has some, by its
+// number and title, then what the speaker says over it. heading and slide
+// are the words for "Speaker notes" and "Slide" in the plugin's language.
+#let schreibstube-slide-notes(heading: "Speaker notes", slide: "Slide") = {
+  pagebreak(weak: true)
+  std.heading(level: 1, heading)
+  context for mark in query(<schreibstube-notes>) {
+    block(breakable: true, above: 1.2em, {
+      text(weight: 600)[#slide #mark.location().page()]
+      if mark.value.title != none [ · #mark.value.title]
+      parbreak()
+      set text(size: 0.8em)
+      mark.value.notes
+    })
+  }
+}
+
 // One slide to a page, as the converter groups a note for a slide template.
 // kind: "title" opens the deck, "section" divides it, "content" is the rest;
-// widths, when not none, the columns' shares of the width as fractions, one
+// layout, picture and notes as schreibstube-slide-area and -note-mark take
+// them; widths, when not none, the columns' shares of the width as fractions, one
 // per column; level is the heading that opened the slide, 0 for none; horizontal is
 // center or left, where the content stands across the page. The title stands on
 // top; the intro and then the column cells, each (title, body), share the
@@ -317,10 +388,14 @@ export const PRELUDE_SOURCE = `// Defaults the converted note calls. A template 
   title: none,
   columns: 1,
   widths: none,
+  layout: "text",
+  picture: none,
+  notes: none,
   intro: [],
   cells: (),
 ) = {
   pagebreak(weak: true)
+  schreibstube-slide-note-mark(title, notes)
   show: schreibstube-slide-align.with(horizontal)
   if kind != "content" {
     block(height: 100%, width: 100%, align(horizon, heading(level: 1, title)))
@@ -342,9 +417,7 @@ export const PRELUDE_SOURCE = `// Defaults the converted note calls. A template 
     }
   }
   if title != none { schreibstube-slide-block(heading(level: calc.max(level, 1), title)) }
-  // The rest of the page, less what its footnotes need: a fraction of the
-  // flow is measured after them, where a grid row claimed the whole page.
-  block(height: 1fr, width: 100%, schreibstube-fit(body))
+  schreibstube-slide-area(layout, picture, body)
 }
 
 // A task's box, drawn rather than typed so that no font has to carry the glyph.

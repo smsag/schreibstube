@@ -110,6 +110,9 @@ describe("slidesMarkup", () => {
         "  title: [\nTitel\n],\n" +
         "  columns: 2,\n" +
         "  widths: none,\n" +
+        '  layout: "text",\n' +
+        "  picture: none,\n" +
+        "  notes: none,\n" +
         "  intro: [],\n" +
         "  cells: (([\nA\n], [\n#schreibstube-slide-block[\na\n]\n]), ([\nB\n], []),),\n" +
         ")\n"
@@ -307,5 +310,143 @@ describe("column widths", () => {
     const body = deck("## A\n\nText <!-- columns: 1 2 --> weiter\n").body;
     expect(body).not.toContain("columns 1 2");
     expect(body).not.toContain("\u0001");
+  });
+});
+
+describe("picture layouts", () => {
+  const picture = (alt = "") => b(`#schreibstube-slide-image("a.png", "${alt}")\n`);
+  const layout = (value: string): SlidePart => ({ kind: "directive", name: "layout", value });
+
+  it("gives a slide of one picture and nothing else all the room", () => {
+    const [slide] = groupSlides([h(2, "S"), picture("Küche")]);
+    expect(slide).toMatchObject({ layout: "picture", intro: [] });
+    expect(slide?.picture).toContain('"Küche"');
+  });
+
+  it("keeps a picture with anything beside it, or two pictures, an ordinary slide", () => {
+    expect(groupSlides([h(2, "S"), picture(), b("Text\n")])[0]?.layout).toBe("text");
+    expect(
+      groupSlides([
+        h(2, "S"),
+        b('#schreibstube-slide-image("a.png", "")\n#schreibstube-slide-image("b.png", "")\n')
+      ])[0]?.layout
+    ).toBe("text");
+    expect(groupSlides([h(2, "S"), h(3, "A"), picture()])[0]?.layout).toBe("text");
+  });
+
+  it("sets the first picture apart for image-left and image-right", () => {
+    const [left] = groupSlides([
+      h(2, "S"),
+      layout("image-left"),
+      b("Text\n"),
+      picture("A"),
+      picture("B")
+    ]);
+    expect(left).toMatchObject({
+      layout: "image-left",
+      intro: ["Text\n", expect.stringContaining('"B"')]
+    });
+    expect(left?.picture).toContain('"A"');
+    expect(groupSlides([h(2, "S"), layout(" Image-Right "), picture()])[0]?.layout).toBe(
+      "image-right"
+    );
+  });
+
+  it("names a layout it does not know, and one asked for without a picture", () => {
+    expect(groupSlides([h(2, "S"), layout("links"), picture()])[0]).toMatchObject({
+      layout: "picture",
+      problems: [{ kind: "layout", value: "links" }]
+    });
+    expect(groupSlides([h(2, "S"), layout("image-left"), b("Text\n")])[0]).toMatchObject({
+      layout: "text",
+      problems: [{ kind: "no-picture", layout: "image-left" }]
+    });
+  });
+
+  it("leaves a title slide and a divider alone", () => {
+    expect(groupSlides([h(1, "Deck"), layout("image-left")])[0]).toMatchObject({
+      kind: "title",
+      problems: []
+    });
+  });
+});
+
+describe("speaker notes", () => {
+  const notes = (markup: string): SlidePart => ({ kind: "notes", markup });
+
+  it("gives a slide its notes, never its body", () => {
+    const [slide] = groupSlides([h(2, "S"), b("Text\n"), notes("Sag das.\n")]);
+    expect(slide).toMatchObject({ intro: ["Text\n"], notes: ["Sag das.\n"] });
+  });
+
+  it("gives notes written above a heading to that slide", () => {
+    expect(groupSlides([notes("Vorab.\n"), h(2, "S")])[0]?.notes).toEqual(["Vorab.\n"]);
+  });
+
+  it("takes a notes callout off the slide, and leaves it a callout elsewhere", () => {
+    const source = "## A\n\nText\n\n> [!notes]\n> Nur für mich.\n";
+    const deck = markdownToTypst(source, { slides: true }).body;
+    expect(deck).toContain("notes: [\nNur für mich.\n]");
+    expect(deck).not.toContain("schreibstube-callout");
+    expect(markdownToTypst(source).body).toContain("#schreibstube-callout");
+  });
+
+  it("adds the notes pages only when asked and only when there are notes", () => {
+    const source = "## A\n\n> [!notes]\n> Hallo\n";
+    expect(markdownToTypst(source, { slides: true }).body).not.toContain(
+      "schreibstube-slide-notes"
+    );
+    expect(markdownToTypst(source, { slides: true, speakerNotes: true }).body).toContain(
+      '#schreibstube-slide-notes(heading: "Speaker notes", slide: "Slide")'
+    );
+    expect(markdownToTypst("## A\n", { slides: true, speakerNotes: true }).body).not.toContain(
+      "schreibstube-slide-notes"
+    );
+  });
+});
+
+describe("agenda", () => {
+  const agenda: SlidePart = { kind: "directive", name: "agenda", value: "" };
+
+  it("lists the deck's section dividers", () => {
+    const slides = groupSlides([
+      h(1, "Deck"),
+      h(2, "Agenda"),
+      agenda,
+      h(1, "Eins"),
+      h(2, "x"),
+      h(1, "Zwei")
+    ]);
+    expect(slides[1]?.intro).toEqual(["- Eins\n- Zwei\n"]);
+    expect(slides.map((slide) => slide.kind)).toEqual([
+      "title",
+      "content",
+      "section",
+      "content",
+      "section"
+    ]);
+  });
+
+  it("lists every other titled slide when the deck has no dividers", () => {
+    const slides = groupSlides([h(2, "Agenda"), agenda, h(2, "Eins"), h(2, "Zwei")]);
+    expect(slides[0]?.intro).toEqual(["- Eins\n- Zwei\n"]);
+  });
+
+  it("reads the bare comment", () => {
+    expect(markSlideDirectives("## Agenda <!-- agenda -->")).toBe(
+      `## Agenda\n\n${DIRECTIVE_MARK}agenda\n`
+    );
+  });
+});
+
+describe("a drawing on a slide", () => {
+  it("is a slide picture captioned with the drawing's own name, not the heading", () => {
+    const body = markdownToTypst("## Stufen\n\n```mermaid\ngraph LR; A-->B\n```\n", {
+      slides: true,
+      diagramImage: () => ["assets/d.png"],
+      diagramTitle: () => "Pipeline"
+    }).body;
+    expect(body).toContain('layout: "picture"');
+    expect(body).toContain('#schreibstube-slide-image("assets/d.png", "Pipeline")');
   });
 });

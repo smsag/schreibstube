@@ -34,7 +34,26 @@ export type SlidePart =
   /** `markup` is the heading's text as inline Typst, without the `=` marks;
    *  `text` the heading as the note wrote it, for a message to name it by. */
   | { kind: "heading"; level: number; markup: string; text?: string }
+  /** A `> [!notes]` callout's body: the speaker's, never the slide's. */
+  | { kind: "notes"; markup: string }
   | { kind: "break" };
+
+/**
+ * How a slide lays out its content. `text` is the ordinary slide; `picture` a
+ * slide that holds nothing but one picture, which then takes all the room;
+ * `image-left` and `image-right` the slide's first picture on one half, all
+ * the rest on the other.
+ */
+export type SlideLayout = "text" | "picture" | "image-left" | "image-right";
+
+/** The layouts a slide may ask for; `picture` it gets without asking. */
+export const REQUESTED_LAYOUTS: readonly SlideLayout[] = ["image-left", "image-right"];
+
+/** What a slide asked for and could not have, to be named in the warnings. */
+export type SlideProblem =
+  | { kind: "widths"; given: number; columns: number }
+  | { kind: "layout"; value: string }
+  | { kind: "no-picture"; layout: SlideLayout };
 
 export type SlideKind = "title" | "section" | "content";
 
@@ -67,8 +86,14 @@ export interface Slide {
    * for them and asked for as many as it has; null for equal columns.
    */
   widths: number[] | null;
-  /** Widths the slide asked for and could not have, to say so. */
-  refusedWidths: number[] | null;
+  layout: SlideLayout;
+  /** The picture a picture layout sets apart from the rest, as markup. */
+  picture: string | null;
+  /** What the speaker says over this slide, as markup; empty for nothing. */
+  notes: string[];
+  /** Whether the slide lists the deck's sections (`<!-- agenda -->`). */
+  agenda: boolean;
+  problems: SlideProblem[];
 }
 
 /** The heading level that opens a column. */
@@ -83,7 +108,7 @@ const SLIDE_LEVELS = new Set([1, 2]);
 export function groupSlides(parts: readonly SlidePart[]): Slide[] {
   const slides: Slide[] = [];
   let current: Slide | null = null;
-  const pending: Extract<SlidePart, { kind: "directive" }>[] = [];
+  const pending: Extract<SlidePart, { kind: "directive" | "notes" }>[] = [];
 
   const open = (level: number, title: string | null, name = ""): Slide => {
     const slide: Slide = {
@@ -95,7 +120,11 @@ export function groupSlides(parts: readonly SlidePart[]): Slide[] {
       columns: 1,
       cells: [],
       widths: null,
-      refusedWidths: null
+      layout: "text",
+      picture: null,
+      notes: [],
+      agenda: false,
+      problems: []
     };
     slides.push(slide);
     return slide;
@@ -116,7 +145,7 @@ export function groupSlides(parts: readonly SlidePart[]): Slide[] {
       place(part.markup);
       continue;
     }
-    if (part.kind === "directive") {
+    if (part.kind === "directive" || part.kind === "notes") {
       // Written above a slide's heading, it waits for that slide.
       if (current) apply(current, part);
       else pending.push(part);
@@ -142,21 +171,96 @@ export function groupSlides(parts: readonly SlidePart[]): Slide[] {
   kept.forEach((slide, index) => {
     if (slide.level === 1 && isEmpty(slide)) slide.kind = index === 0 ? "title" : "section";
   });
+  for (const slide of kept) {
+    if (slide.agenda) slide.intro.unshift(agendaMarkup(kept, slide));
+    settleLayout(slide);
+  }
   return kept;
 }
 
-/** Which settings a slide takes from a comment. */
-export type SlideDirective = "columns";
+/**
+ * The deck's sections as a list, for an agenda slide: the dividers when the
+ * deck has any, else every other titled slide.
+ */
+function agendaMarkup(slides: readonly Slide[], agenda: Slide): string {
+  const sections = slides.filter((slide) => slide.kind === "section");
+  const listed = (sections.length > 0 ? sections : slides).filter(
+    (slide) => slide !== agenda && slide.kind !== "title" && slide.title !== null
+  );
+  return listed.map((slide) => `- ${slide.title ?? ""}`).join("\n") + "\n";
+}
 
-export const SLIDE_DIRECTIVES: readonly SlideDirective[] = ["columns"];
+/** A block that is pictures and nothing else, as the converter writes them on a slide. */
+const PICTURE_BLOCK = /^(?:#schreibstube-slide-image\([^\n]*\)\s*)+$/;
+
+/** How many pictures a picture block holds. */
+function pictureCount(markup: string): number {
+  return markup.match(/#schreibstube-slide-image\(/g)?.length ?? 0;
+}
+
+/**
+ * The layout a slide ends up with. One it asked for takes its first picture
+ * block — a paragraph holding a picture and nothing else — out of the flow to
+ * stand on its half; asked for without a picture, the slide stays as it is
+ * and says so. One that asked for nothing, has no columns and holds exactly
+ * one picture is a picture slide.
+ */
+function settleLayout(slide: Slide): void {
+  if (slide.kind !== "content") return;
+  if (slide.layout !== "text") {
+    const at = slide.intro.findIndex((markup) => PICTURE_BLOCK.test(markup.trim()));
+    if (at === -1) {
+      slide.problems.push({ kind: "no-picture", layout: slide.layout });
+      slide.layout = "text";
+      return;
+    }
+    slide.picture = slide.intro.splice(at, 1)[0] ?? null;
+    return;
+  }
+  const only = slide.intro[0]?.trim() ?? "";
+  if (
+    slide.cells.length === 0 &&
+    slide.intro.length === 1 &&
+    PICTURE_BLOCK.test(only) &&
+    pictureCount(only) === 1
+  ) {
+    slide.layout = "picture";
+    slide.picture = only;
+    slide.intro = [];
+  }
+}
+
+/** Which settings a slide takes from a comment. */
+export type SlideDirective = "columns" | "layout" | "agenda";
+
+export const SLIDE_DIRECTIVES: readonly SlideDirective[] = ["columns", "layout", "agenda"];
 
 /** The largest share one column may be given; a width is a proportion, not a size. */
 const MAX_WIDTH_SHARE = 12;
 
-function apply(slide: Slide, directive: Extract<SlidePart, { kind: "directive" }>): void {
-  const widths = parseWidths(directive.value);
-  slide.widths = widths;
-  slide.refusedWidths = widths === null ? [] : null;
+function apply(slide: Slide, part: Extract<SlidePart, { kind: "directive" | "notes" }>): void {
+  if (part.kind === "notes") {
+    slide.notes.push(part.markup);
+    return;
+  }
+  switch (part.name) {
+    case "columns": {
+      const widths = parseWidths(part.value);
+      slide.widths = widths;
+      if (widths === null) slide.problems.push({ kind: "widths", given: 0, columns: 0 });
+      return;
+    }
+    case "layout": {
+      const value = part.value.trim().toLowerCase();
+      const layout = REQUESTED_LAYOUTS.find((known) => known === value);
+      if (layout) slide.layout = layout;
+      else slide.problems.push({ kind: "layout", value: part.value.trim() });
+      return;
+    }
+    case "agenda":
+      slide.agenda = true;
+      return;
+  }
 }
 
 /**
@@ -181,14 +285,14 @@ export function parseWidths(value: string): number[] | null {
 function settleWidths(slide: Slide): void {
   if (slide.widths === null) return;
   if (slide.widths.length === slide.columns) return;
-  slide.refusedWidths = slide.widths;
+  slide.problems.push({ kind: "widths", given: slide.widths.length, columns: slide.columns });
   slide.widths = null;
 }
 
 /** The first line a slide setting stands on, which no note can write. */
 export const DIRECTIVE_MARK = "\u0001schreibstube-slide ";
 
-const DIRECTIVE_COMMENT = /(?:<!--|%%)\s*([a-z]+)\s*:\s*(.*?)\s*(?:-->|%%)/g;
+const DIRECTIVE_COMMENT = /(?:<!--|%%)\s*([a-z]+)\s*(?::\s*(.*?))?\s*(?:-->|%%)/g;
 
 /**
  * The note with every slide setting written in a comment — `<!-- columns:
@@ -206,9 +310,9 @@ export function markSlideDirectives(source: string): string {
     .map((line, index) => {
       if (fenced[index]) return line;
       const marks: string[] = [];
-      const kept = line.replace(DIRECTIVE_COMMENT, (all, name: string, value: string) => {
+      const kept = line.replace(DIRECTIVE_COMMENT, (all, name: string, value?: string) => {
         if (!(SLIDE_DIRECTIVES as readonly string[]).includes(name)) return all;
-        marks.push(`${DIRECTIVE_MARK}${name} ${value}`);
+        marks.push(`${DIRECTIVE_MARK}${name} ${value ?? ""}`.trimEnd());
         return "";
       });
       if (marks.length === 0) return line;
@@ -233,7 +337,7 @@ export function readDirective(line: string): Extract<SlidePart, { kind: "directi
 }
 
 function isEmpty(slide: Slide): boolean {
-  return slide.intro.length === 0 && slide.cells.length === 0;
+  return slide.intro.length === 0 && slide.cells.length === 0 && !slide.agenda;
 }
 
 /**
@@ -255,6 +359,9 @@ export function slidesMarkup(slides: readonly Slide[], align: SlideAlign = "cent
         `  title: ${slide.title === null ? "none" : content(slide.title)},\n` +
         `  columns: ${slide.columns},\n` +
         `  widths: ${slide.widths === null ? "none" : `(${slide.widths.map((width) => `${width}fr, `).join("")})`},\n` +
+        `  layout: ${typstString(slide.layout)},\n` +
+        `  picture: ${slide.picture === null ? "none" : content(slide.picture)},\n` +
+        `  notes: ${slide.notes.length === 0 ? "none" : content(slide.notes.join("\n"))},\n` +
         `  intro: ${content(blocks(slide.intro))},\n` +
         `  cells: (${cells}),\n` +
         `)\n`

@@ -27,6 +27,7 @@ describe("initialOptions", () => {
       slideshows: "layout",
       format: "16:9",
       align: "center",
+      speakerNotes: false,
       monospace: true,
       pythiaFootnotes: false
     });
@@ -62,6 +63,7 @@ describe("withTemplate", () => {
       slideshows: "layout",
       format: "16:9",
       align: "center",
+      speakerNotes: false,
       monospace: true,
       pythiaFootnotes: false
     });

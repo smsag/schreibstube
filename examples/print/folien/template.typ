@@ -23,7 +23,9 @@
 #import "schreibstube.typ": (
   schreibstube-fit,
   schreibstube-slide-align,
+  schreibstube-slide-area,
   schreibstube-slide-block,
+  schreibstube-slide-note-mark,
   schreibstube-slide-pictures,
 )
 
@@ -66,10 +68,14 @@
   title: none,
   columns: 1,
   widths: none,
+  layout: "text",
+  picture: none,
+  notes: none,
   intro: [],
   cells: (),
 ) = {
   pagebreak(weak: true)
+  schreibstube-slide-note-mark(title, notes)
   [#metadata(kind) <folien-kind>]
   show: schreibstube-slide-align.with(horizontal)
 
@@ -127,9 +133,7 @@
     }
   }
   if title != none { schreibstube-slide-block(heading(level: calc.max(level, 1), title)) }
-  // The rest of the page, less what its footnotes need: a fraction of the
-  // flow is measured after them, where a grid row claimed the whole page.
-  block(height: 1fr, width: 100%, schreibstube-fit(body))
+  schreibstube-slide-area(layout, picture, body)
 }
 
 #let schreibstube-code(source, language) = block(

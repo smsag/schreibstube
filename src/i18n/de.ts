@@ -1188,6 +1188,8 @@ export const de: Messages = {
       format: "Format",
       formats: { "16:9": "16:9 (Breitbild)", "4:3": "4:3" },
       align: "Ausrichtung",
+      speakerNotes: "Sprechernotizen",
+      speakerNotesDesc: "Jedes > [!notes]-Callout, auf eigenen Seiten nach der letzten Folie.",
       aligns: { center: "Mittig", left: "Linksbündig" },
       slideshow: { layout: "Wie in der Notiz", stacked: "Alle Bilder untereinander" },
       print: "Drucken",
@@ -1231,6 +1233,12 @@ export const de: Messages = {
           ? "Die Spaltenbreiten ließen sich nicht lesen — zwei oder drei Zahlen, etwa 1 2"
           : `${given} Spaltenbreiten für ${columns} ${columns === 1 ? "Spalte" : "Spalten"}`
       }, die Spalten bleiben gleich breit`,
+    slideLayout: (title: string, value: string) =>
+      `${title === "" ? "Eine Folie" : `Die Folie „${title}“`} verlangt das Layout „${value}“, das es nicht gibt — image-left oder image-right`,
+    slideNoPicture: (title: string, layout: string) =>
+      `${title === "" ? "Eine Folie" : `Die Folie „${title}“`} verlangt ${layout}, hat aber kein Bild in einer eigenen Zeile und bleibt, wie sie ist`,
+    notesHeading: "Sprechernotizen",
+    notesSlide: "Folie",
     slidesSmall: (pages: readonly number[], percent: number) =>
       `${pages.length === 1 ? `Folie ${pages[0]} trägt` : `Folien ${pages.join(", ")} tragen`} mehr, als passt, und ${pages.length === 1 ? "steht" : "stehen"} bis auf ${percent} % verkleinert — besser teilen`,
     templatePictureMissing: (name: string, template: string) =>

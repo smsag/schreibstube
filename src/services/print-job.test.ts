@@ -222,6 +222,12 @@ describe("compileDeadline", () => {
       })
     );
 
+  it("does not charge the prelude as text to be set", () => {
+    const plain = job("Text\n");
+    const without = { ...plain, files: plain.files.filter((file) => file.path !== PRELUDE_FILE) };
+    expect(compileDeadline(plain)).toBe(compileDeadline(without));
+  });
+
   it("gives a letter the base and barely more", () => {
     const deadline = compileDeadline(job("Sehr geehrte Damen und Herren,\n"));
     expect(deadline).toBeGreaterThanOrEqual(COMPILE_BASE_MS);

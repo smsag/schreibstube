@@ -866,6 +866,8 @@ export const enExtra = {
       format: "Format",
       formats: { "16:9": "16:9 (widescreen)", "4:3": "4:3" },
       align: "Alignment",
+      speakerNotes: "Speaker notes",
+      speakerNotesDesc: "Every > [!notes] callout, on pages of their own after the last slide.",
       aligns: { center: "Centred", left: "Left" },
       textFace: "Text font",
       textFaceMono: "JetBrains Mono",
@@ -928,6 +930,12 @@ export const enExtra = {
           ? "its column widths could not be read — write them as two or three numbers, such as 1 2"
           : `${given} column widths for ${columns} column${columns === 1 ? "" : "s"}`
       }, so its columns stay equal`,
+    slideLayout: (title: string, value: string) =>
+      `${title === "" ? "a slide" : `the slide "${title}"`} asks for the layout "${value}", which is not one — image-left or image-right`,
+    slideNoPicture: (title: string, layout: string) =>
+      `${title === "" ? "a slide" : `the slide "${title}"`} asks for ${layout} and has no picture on a line of its own, so it stays as it is`,
+    notesHeading: "Speaker notes",
+    notesSlide: "Slide",
     slidesSmall: (pages: readonly number[], percent: number) =>
       `${pages.length === 1 ? `slide ${pages[0]} holds` : `slides ${pages.join(", ")} hold`} more than fits and ${pages.length === 1 ? "is" : "are"} set as small as ${percent} % — worth splitting`,
     templatePictureMissing: (name: string, template: string) =>
