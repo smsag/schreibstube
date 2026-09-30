@@ -15,7 +15,7 @@ import { parseSender } from "./mail-address.mjs";
 
 /** Bumped when the request or response shape changes in a way the plugin can
  *  see; the table in README.md says what each number brought. */
-export const PROTOCOL_VERSION = 6;
+export const PROTOCOL_VERSION = 7;
 
 /** What a TCP port can be. */
 const MAX_PORT = 65_535;

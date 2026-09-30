@@ -3,7 +3,14 @@
  * returns is remote JSON, so each field is validated and bounded rather than
  * trusted.
  */
-import { asRecord, describeBridgeError as describeError, str } from "./bridge-protocol";
+import {
+  asRecord,
+  describeBridgeError as describeError,
+  extractCode,
+  extractError,
+  str
+} from "./bridge-protocol";
+import { safeAttachmentName, type SkipReason } from "./mail-import";
 
 /** How long to wait for a bridge response before giving up. Longer than the
  *  bridge's own allowance for a send, 45 s by default for delivery and filing
@@ -206,8 +213,112 @@ function messageIdOrNull(value: unknown): string | null {
 
 /** Mail's wording for a bridge failure; the shape of the answer is shared. */
 export function describeBridgeError(status: number, body: string): string {
+  // The attachments route's own 404 and 413 say which mail, not which setting.
+  const code = extractCode(body);
+  if (code === "message_gone" || code === "message_too_large") return extractError(body);
   if (status === 413) return "the note is too large for the bridge to accept.";
   if (status === 401) return "bridge rejected the token — check the Bridge token setting.";
   if (status === 404) return "bridge endpoint not found — check the Bridge URL setting.";
   return describeError(status, body, "mail server");
+}
+
+/**
+ * The first protocol whose bridge hands over a received mail's files. An older
+ * one has no such route, and a 404 from it would read as a wrong URL.
+ */
+export const MAIL_IMPORT_PROTOCOL = 7;
+
+/**
+ * The bridge's limits on a received mail's files, mirrored so that an answer
+ * beyond them is refused here: a bridge that is not ours cannot fill a phone.
+ * The contract test on the bridge holds the two to the same numbers.
+ */
+export const MAX_IMPORT_ATTACHMENTS = 20;
+export const MAX_IMPORT_ATTACHMENT_BYTES = 15_000_000;
+export const MAX_IMPORT_TOTAL_BYTES = 25_000_000;
+
+export interface AttachmentsRequest {
+  uid: number;
+  mailbox?: string;
+}
+
+export interface ImportedAttachment {
+  filename: string;
+  bytes: Uint8Array;
+}
+
+export interface SkippedAttachment {
+  filename: string;
+  reason: SkipReason;
+}
+
+export interface AttachmentsResult {
+  attachments: ImportedAttachment[];
+  skipped: SkippedAttachment[];
+}
+
+const SKIP_REASONS = new Set<SkipReason>(["type", "size", "limit"]);
+
+/**
+ * A received mail's files. A file whose name has no kind a note may hold, or
+ * whose content is not base64, is named as left out rather than written; one
+ * past the limits is refused along with the answer, since only a bridge that
+ * is not ours would send it.
+ */
+export function parseAttachmentsResult(json: unknown): AttachmentsResult {
+  const root = asRecord(json);
+  const raw = Array.isArray(root.attachments) ? root.attachments : [];
+  if (raw.length > MAX_IMPORT_ATTACHMENTS) {
+    throw new Error(`the bridge returned more than ${MAX_IMPORT_ATTACHMENTS} attachments.`);
+  }
+
+  const attachments: ImportedAttachment[] = [];
+  const skipped: SkippedAttachment[] = [];
+  let total = 0;
+  for (const entry of raw) {
+    const record = asRecord(entry);
+    const given = str(record.filename).slice(0, MAX_HEADER_CHARS);
+    const filename = safeAttachmentName(given);
+    const content = str(record.content);
+    // Base64 is a third larger than what it carries; checked before decoding.
+    if (content.length > Math.ceil(MAX_IMPORT_ATTACHMENT_BYTES / 3) * 4) {
+      throw new Error("the bridge returned an attachment beyond its size limit.");
+    }
+    const bytes = filename ? fromBase64(content) : null;
+    if (!filename || !bytes) {
+      skipped.push({ filename: given || "?", reason: "type" });
+      continue;
+    }
+    total += bytes.length;
+    if (total > MAX_IMPORT_TOTAL_BYTES) {
+      throw new Error("the bridge returned attachments beyond their total size limit.");
+    }
+    attachments.push({ filename, bytes });
+  }
+
+  const rawSkipped = Array.isArray(root.skipped) ? root.skipped : [];
+  for (const entry of rawSkipped.slice(0, MAX_IMPORT_ATTACHMENTS * 2)) {
+    const record = asRecord(entry);
+    const reason = str(record.reason) as SkipReason;
+    const filename = str(record.filename).slice(0, MAX_HEADER_CHARS);
+    if (filename && SKIP_REASONS.has(reason)) skipped.push({ filename, reason });
+  }
+
+  return { attachments, skipped };
+}
+
+/**
+ * Standard base64 only; anything else is not a file the bridge sent. A plain
+ * character class, not groups of four: a pattern that repeats a group over
+ * megabytes can exhaust the regular-expression engine's stack.
+ */
+const BASE64 = /^[A-Za-z0-9+/]*={0,2}$/;
+
+/** Base64 as bytes, or null for text that is not base64. */
+export function fromBase64(text: string): Uint8Array | null {
+  if (text.length === 0 || text.length % 4 !== 0 || !BASE64.test(text)) return null;
+  const binary = atob(text);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+  return bytes;
 }

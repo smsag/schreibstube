@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Added
+
+- "Postfach durchsuchen" can bring a mail's attachments along. Tick "Anhänge
+  mitnehmen", choose the mail, and its pictures, PDFs and Office files are
+  saved to the attachment folder and embedded or linked under the quoted
+  text. A signature's small logos are left out. A file imported before is
+  linked again rather than copied. Anything not imported is named under the
+  mail: another kind of file, one over 15 MB, or files past 20 per mail or
+  25 MB together. Needs bridge 2.12.0 (protocol 7); an older bridge inserts
+  the mail without its files and says to redeploy.
+
 ### Fixed
 
 - A mail search on the date alone still came back empty after 1.66.1: Strato

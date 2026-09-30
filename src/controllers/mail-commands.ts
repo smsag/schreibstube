@@ -1,23 +1,19 @@
-import {
-  getFrontMatterInfo,
-  MarkdownView,
-  Notice,
-  parseYaml,
-  type App,
-  type TFile
-} from "obsidian";
+import { getFrontMatterInfo, MarkdownView, Notice, parseYaml, TFile, type App } from "obsidian";
 import type { SchreibstubeSettings } from "../types";
 import type { Logger } from "../services/logger";
 import { t } from "../i18n";
 import { resolveApiKey } from "../services/secret";
-import { searchMail, sendMail } from "../platform/mail-client";
+import { fetchAttachments, searchMail, sendMail } from "../platform/mail-client";
 import { bridgeHealth } from "../platform/publish-client";
 import { normalizeBaseUrl } from "../services/bridge-protocol";
 import {
   hasCriteria,
   MAIL_ATTACHMENTS_PROTOCOL,
+  MAIL_IMPORT_PROTOCOL,
   MAX_MAIL_ATTACHMENT_BYTES,
   toBase64,
+  type AttachmentsResult,
+  type ImportedAttachment,
   type MailBridgeConfig,
   type MailMessage,
   type SearchCriteria,
@@ -57,11 +53,13 @@ import {
   mergeKey,
   selectUnmerged
 } from "../services/mail-merge";
+import { attachmentQuoteLines, isImageAttachment } from "../services/mail-import";
 import {
   MailConfirmModal,
   MailResultModal,
   MailSearchModal,
-  type MailConfirmDetails
+  type MailConfirmDetails,
+  type SearchOptions
 } from "../ui/mail-modals";
 
 /**
@@ -193,17 +191,25 @@ export class MailCommands {
    * Only an answer is kept; a failed question is asked again.
    */
   private async bridgeTakesPictures(bridge: MailBridgeConfig): Promise<"yes" | "no" | "unknown"> {
-    let protocol = this.bridgeProtocols.get(bridge.baseUrl);
-    if (protocol === undefined) {
+    return this.bridgeSpeaks(bridge, MAIL_ATTACHMENTS_PROTOCOL);
+  }
+
+  /** Whether the bridge speaks `protocol` or later; see `bridgeTakesPictures`. */
+  private async bridgeSpeaks(
+    bridge: MailBridgeConfig,
+    protocol: number
+  ): Promise<"yes" | "no" | "unknown"> {
+    let spoken = this.bridgeProtocols.get(bridge.baseUrl);
+    if (spoken === undefined) {
       try {
-        protocol = (await bridgeHealth(bridge)).protocol;
+        spoken = (await bridgeHealth(bridge)).protocol;
       } catch (err) {
         this.logger.warn("Mail bridge health check failed:", err);
         return "unknown";
       }
-      this.bridgeProtocols.set(bridge.baseUrl, protocol);
+      this.bridgeProtocols.set(bridge.baseUrl, spoken);
     }
-    return protocol >= MAIL_ATTACHMENTS_PROTOCOL ? "yes" : "no";
+    return spoken >= protocol ? "yes" : "no";
   }
 
   /** Every diagram's pictures, drawn now or kept from the last reading. */
@@ -372,12 +378,16 @@ export class MailCommands {
     }
 
     const settings = this.getSettings();
-    new MailSearchModal(this.app, settings.mailMailbox, (criteria) => {
-      void this.performQuery(bridge, criteria);
+    new MailSearchModal(this.app, settings.mailMailbox, (criteria, options) => {
+      void this.performQuery(bridge, criteria, options);
     }).open();
   }
 
-  private async performQuery(bridge: MailBridgeConfig, criteria: SearchCriteria): Promise<void> {
+  private async performQuery(
+    bridge: MailBridgeConfig,
+    criteria: SearchCriteria,
+    options: SearchOptions = { withAttachments: false }
+  ): Promise<void> {
     if (!hasCriteria(criteria)) {
       new Notice(t().common.notice(t().mailNotices.noCriteria));
       return;
@@ -402,7 +412,11 @@ export class MailCommands {
       }
 
       new MailResultModal(this.app, messages, (message) => {
-        this.insertMessage(message);
+        if (options.withAttachments) {
+          void this.importWithAttachments(bridge, message);
+        } else {
+          this.insertMessage(message);
+        }
       }).open();
     });
   }
@@ -516,6 +530,110 @@ export class MailCommands {
     view.editor.replaceSelection(`${formatMessage(message)}\n`);
   }
 
+  /**
+   * Insert a mail with its files: saved where Obsidian puts attachments, and
+   * embedded or linked under the quoted text. The mail goes into the note that
+   * was open when it was chosen, or nowhere: files fetched for one note are
+   * not linked from whichever note is open by the time they arrive. When the
+   * files cannot come, the mail is inserted without them and that is said.
+   */
+  private async importWithAttachments(
+    bridge: MailBridgeConfig,
+    message: MailMessage
+  ): Promise<void> {
+    const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+    const note = view?.file;
+    if (!view || !note) {
+      new Notice(t().common.notice(t().mailNotices.needsEditor));
+      return;
+    }
+    const insert = (files: string): void => {
+      view.editor.replaceSelection(`${formatMessage(message)}\n${files ? `${files}\n` : ""}`);
+    };
+
+    await this.withBusy("attachments", async () => {
+      const speaks = await this.bridgeSpeaks(bridge, MAIL_IMPORT_PROTOCOL);
+      if (speaks !== "yes") {
+        insert("");
+        const notice = speaks === "no" ? "attachmentsTooOld" : "attachmentsUnknown";
+        new Notice(t().common.notice(t().mailNotices[notice]), 0);
+        return;
+      }
+
+      const progress = new Notice(t().common.notice(t().mailNotices.fetchingAttachments), 0);
+      let result: AttachmentsResult;
+      let links: { link: string; image: boolean }[];
+      try {
+        result = await fetchAttachments(bridge, {
+          uid: message.uid,
+          mailbox: this.getSettings().mailMailbox
+        });
+        links = await this.saveAttachments(result.attachments, note.path);
+      } catch (err) {
+        if (view.file?.path === note.path) insert("");
+        this.fail("attachments", t().mailNotices.failAttachments, err);
+        return;
+      } finally {
+        progress.hide();
+      }
+
+      if (view.file?.path !== note.path) {
+        new Notice(t().common.notice(t().mailNotices.attachmentsNoteChanged), 0);
+        return;
+      }
+      const words = t().mail;
+      const skipped = result.skipped.map(
+        (entry) => `${entry.filename} (${words.skipReason[entry.reason]})`
+      );
+      insert(attachmentQuoteLines(links, skipped, words.attachmentsSkipped));
+      if (links.length > 0) {
+        new Notice(t().common.notice(t().mailNotices.attachmentsSaved(links.length)));
+      }
+    });
+  }
+
+  /**
+   * Write each file where Obsidian puts a new attachment for `sourcePath`, and
+   * return the vault's own link to it. A file already there under the same
+   * name with the same bytes is the same attachment imported before, and is
+   * linked rather than copied again.
+   */
+  private async saveAttachments(
+    attachments: readonly ImportedAttachment[],
+    sourcePath: string
+  ): Promise<{ link: string; image: boolean }[]> {
+    const links: { link: string; image: boolean }[] = [];
+    for (const attachment of attachments) {
+      const available = await this.app.fileManager.getAvailablePathForAttachment(
+        attachment.filename,
+        sourcePath
+      );
+      const slash = available.lastIndexOf("/");
+      const folder = slash >= 0 ? available.slice(0, slash) : "";
+      const natural = folder ? `${folder}/${attachment.filename}` : attachment.filename;
+
+      let file = await this.sameFile(natural, attachment.bytes);
+      if (!file) {
+        if (folder && !this.app.vault.getAbstractFileByPath(folder)) {
+          await this.app.vault.createFolder(folder);
+        }
+        file = await this.app.vault.createBinary(available, toArrayBuffer(attachment.bytes));
+      }
+      links.push({
+        link: this.app.fileManager.generateMarkdownLink(file, sourcePath),
+        image: isImageAttachment(file.name)
+      });
+    }
+    return links;
+  }
+
+  private async sameFile(path: string, bytes: Uint8Array): Promise<TFile | null> {
+    const existing = this.app.vault.getAbstractFileByPath(path);
+    if (!(existing instanceof TFile) || existing.stat.size !== bytes.length) return null;
+    const stored = new Uint8Array(await this.app.vault.readBinary(existing));
+    return stored.every((byte, i) => byte === bytes[i]) ? existing : null;
+  }
+
   private readFields(file: TFile): MailFields {
     return readMailFields(this.app.metadataCache.getFileCache(file)?.frontmatter);
   }
@@ -562,6 +680,11 @@ export class MailCommands {
     const detail = err instanceof Error ? err.message : t().proofread.unknownError;
     new Notice(`${userMessage} — ${detail}`);
   }
+}
+
+/** The bytes as an ArrayBuffer of their own, which `createBinary` takes. */
+function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
 }
 
 /** One reading of the note: the draft, and what to freeze once it has gone. */

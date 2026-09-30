@@ -10,6 +10,9 @@ import { withDeadline } from "./timeout.mjs";
 import {
   createSmtpTransport,
   diagnose,
+  fetchAttachments,
+  MessageGoneError,
+  MessageTooLargeError,
   searchMessages,
   sendMessage,
   SendUnconfirmedError
@@ -40,6 +43,9 @@ export function createMailRoutes(
     handler,
     timeoutMs
   });
+
+  // A mail with its files is many times a search's download, over one leg.
+  const attachmentsTimeoutMs = 2 * config.upstreamTimeoutMs;
 
   // Two upstream legs with a deadline each, and the request outlasts both.
   const sendTimeoutMs = Math.max(config.requestTimeoutMs, 2 * config.upstreamTimeoutMs + 5_000);
@@ -80,6 +86,37 @@ export function createMailRoutes(
       log("info", `search returned ${result.messages.length} message(s) from ${result.mailbox}`);
       return result;
     }),
+
+    route(
+      "/attachments",
+      async ({ body, log }) => {
+        const problem = validateAttachmentsRequest(body ?? {});
+        if (problem) throw httpError(400, "invalid_request", problem);
+
+        let result;
+        try {
+          result = await withDeadline(
+            fetchAttachments(mail, body),
+            attachmentsTimeoutMs,
+            "Fetching attachments"
+          );
+        } catch (err) {
+          if (err instanceof MessageGoneError) throw httpError(404, "message_gone", err.message);
+          if (err instanceof MessageTooLargeError) {
+            throw httpError(413, "message_too_large", err.message);
+          }
+          throw httpError(502, "upstream_error", `Fetching attachments failed: ${err.message}`);
+        }
+        // Counts only: the names are the sender's words.
+        log(
+          "info",
+          `attachments of ${result.uid}: ${result.attachments.length} handed over, ` +
+            `${result.skipped.length} left out`
+        );
+        return result;
+      },
+      attachmentsTimeoutMs + 5_000
+    ),
 
     route("/diagnostics", async ({ log }) => {
       const result = await diagnose(mail, transport);
@@ -179,6 +216,23 @@ function checkRecipientField(value, field) {
   // A name alone parses to no address at all, which is not "no recipient".
   if (items.some((item) => item.trim() && recipientAddresses(item).length === 0)) {
     return "Every recipient must be an address.";
+  }
+  return null;
+}
+
+/** The largest UID IMAP allows: a 32-bit unsigned number. */
+const MAX_UID = 4_294_967_295;
+
+/** Which message's attachments: one UID, in the searched mailbox. */
+export function validateAttachmentsRequest(body) {
+  if (!Number.isInteger(body.uid) || body.uid < 1 || body.uid > MAX_UID) {
+    return "uid must be a message UID, a positive whole number.";
+  }
+  if (body.mailbox !== undefined) {
+    if (typeof body.mailbox !== "string") return "mailbox must be a string.";
+    if (body.mailbox.length > MAX_MAILBOX_CHARS) {
+      return `mailbox exceeds the ${MAX_MAILBOX_CHARS} character limit.`;
+    }
   }
   return null;
 }

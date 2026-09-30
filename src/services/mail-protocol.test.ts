@@ -3,10 +3,16 @@ import {
   MAIL_REQUEST_TIMEOUT_MS,
   MAX_MAIL_RESULTS,
   MAX_MESSAGE_TEXT_CHARS,
+  MAX_IMPORT_ATTACHMENT_BYTES,
+  MAX_IMPORT_ATTACHMENTS,
+  MAX_IMPORT_TOTAL_BYTES,
   describeBridgeError,
+  fromBase64,
   hasCriteria,
+  parseAttachmentsResult,
   parseSearchResult,
-  parseSendResult
+  parseSendResult,
+  toBase64
 } from "./mail-protocol";
 
 describe("hasCriteria", () => {
@@ -194,5 +200,101 @@ describe("describeBridgeError", () => {
 describe("MAIL_REQUEST_TIMEOUT_MS", () => {
   it("outlasts the 45 s a default bridge allows a send and its filing", () => {
     expect(MAIL_REQUEST_TIMEOUT_MS).toBeGreaterThan(45_000);
+  });
+});
+
+describe("parseAttachmentsResult", () => {
+  const pdf = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d]);
+
+  it("decodes the files and keeps what was left out", () => {
+    const result = parseAttachmentsResult({
+      uid: 7,
+      attachments: [
+        { filename: "Protokoll 2025.pdf", contentType: "application/pdf", content: toBase64(pdf) }
+      ],
+      skipped: [{ filename: "setup.exe", reason: "type" }]
+    });
+    expect(result.attachments).toEqual([{ filename: "Protokoll 2025.pdf", bytes: pdf }]);
+    expect(result.skipped).toEqual([{ filename: "setup.exe", reason: "type" }]);
+  });
+
+  it("writes no file of a kind a note may not hold, and says so", () => {
+    const result = parseAttachmentsResult({
+      attachments: [{ filename: "../../evil.js", content: toBase64(pdf) }]
+    });
+    expect(result.attachments).toEqual([]);
+    expect(result.skipped).toEqual([{ filename: "../../evil.js", reason: "type" }]);
+  });
+
+  it("makes a name safe again before it becomes a path", () => {
+    const result = parseAttachmentsResult({
+      attachments: [{ filename: "../.obsidian/Scan#1.pdf", content: toBase64(pdf) }]
+    });
+    expect(result.attachments[0]?.filename).toBe("Scan-1.pdf");
+  });
+
+  it("leaves out content that is not base64", () => {
+    const result = parseAttachmentsResult({
+      attachments: [{ filename: "a.pdf", content: "not base64!" }]
+    });
+    expect(result.attachments).toEqual([]);
+    expect(result.skipped).toEqual([{ filename: "a.pdf", reason: "type" }]);
+  });
+
+  it("refuses an answer beyond the limits", () => {
+    const many = Array.from({ length: MAX_IMPORT_ATTACHMENTS + 1 }, () => ({
+      filename: "a.pdf",
+      content: "QUJD"
+    }));
+    expect(() => parseAttachmentsResult({ attachments: many })).toThrow(/more than/);
+
+    const huge = "A".repeat(Math.ceil(MAX_IMPORT_ATTACHMENT_BYTES / 3) * 4 + 4);
+    expect(() =>
+      parseAttachmentsResult({ attachments: [{ filename: "a.pdf", content: huge }] })
+    ).toThrow(/size limit/);
+
+    const large = "A".repeat(Math.floor(MAX_IMPORT_ATTACHMENT_BYTES / 3) * 4);
+    const count = Math.ceil(MAX_IMPORT_TOTAL_BYTES / MAX_IMPORT_ATTACHMENT_BYTES) + 1;
+    const over = Array.from({ length: count }, (_, i) => ({
+      filename: `${i}.pdf`,
+      content: large
+    }));
+    expect(() => parseAttachmentsResult({ attachments: over })).toThrow(/total size limit/);
+  });
+
+  it("drops a skipped entry that is not one", () => {
+    const result = parseAttachmentsResult({
+      skipped: [{ filename: "a.pdf", reason: "because" }, { reason: "type" }, "x"]
+    });
+    expect(result.skipped).toEqual([]);
+  });
+
+  it("reads anything else as no files", () => {
+    expect(parseAttachmentsResult(null)).toEqual({ attachments: [], skipped: [] });
+  });
+});
+
+describe("fromBase64", () => {
+  it("is the inverse of toBase64", () => {
+    const bytes = new Uint8Array([0, 1, 2, 250, 251, 252, 253]);
+    expect(fromBase64(toBase64(bytes))).toEqual(bytes);
+  });
+
+  it("refuses what is not standard base64", () => {
+    for (const text of ["", "abc", "ab-_", "QUJD=A==", "QU JD"]) {
+      expect(fromBase64(text)).toBeNull();
+    }
+  });
+});
+
+describe("describeBridgeError, attachments", () => {
+  it("passes on which mail, not which setting, for the attachments route's own codes", () => {
+    const gone = JSON.stringify({
+      code: "message_gone",
+      error: "Message 7 is no longer in INBOX."
+    });
+    expect(describeBridgeError(404, gone)).toBe("Message 7 is no longer in INBOX.");
+    const large = JSON.stringify({ code: "message_too_large", error: "The mail is 52 MB." });
+    expect(describeBridgeError(413, large)).toBe("The mail is 52 MB.");
   });
 });

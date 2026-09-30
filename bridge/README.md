@@ -29,6 +29,7 @@ route that does not exist yet.
 
 | Bridge | Protocol | Plugin          | Notes                                                            |
 | ------ | -------- | --------------- | ---------------------------------------------------------------- |
+| 2.12.x | 7        | 1.8.0 and later | `/attachments` hands over a received mail's files                |
 | 2.11.x | 6        | 1.8.0 and later | A commit reports `deleteFailed`; assets and SVGs checked         |
 | 2.10.x | 5        | 1.8.0 and later | A send may carry a note's diagrams as PNG attachments            |
 | 2.9.x  | 4        | 1.8.0 and later | Alias `from`, refused and unconfirmed sends, `MAIL_FROM` checked |
@@ -59,20 +60,21 @@ memory, and a second instance would not see it.
 All endpoints except `/health` require `Authorization: Bearer <token>`, and the
 token must belong to the capability that owns the route.
 
-| Method | Path                   | Capability | Body                                                                           | Returns                                                                        |
-| ------ | ---------------------- | ---------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------ |
-| `GET`  | `/health`              | —          | —                                                                              | `{status, version, protocol, capabilities[]}`                                  |
-| `POST` | `/diagnostics`         | mail       | —                                                                              | per-protocol reachability                                                      |
-| `POST` | `/send`                | mail       | `{to, cc?, bcc?, subject, text, from?, inReplyTo?, references?, attachments?}` | `{messageId, sentAt, filedInSent, rejected[]}`                                 |
-| `POST` | `/search`              | mail       | `{criteria:{from?,to?,subject?,text?,since?,references?}, mailbox?, limit?}`   | `{messages[], mailbox, truncated}`                                             |
-| `GET`  | `/publish/targets`     | publish    | —                                                                              | `{targets:[{name, baseUrl, siteTitle}]}`                                       |
-| `POST` | `/publish/diagnostics` | publish    | `{target}`                                                                     | `{ok, root, entries}` or `{ok:false, error}`; a missing web root is `ok:false` |
-| `POST` | `/publish/plan`        | publish    | `{target, index}`                                                              | what to upload, and what will be deleted                                       |
-| `PUT`  | `/publish/source`      | publish    | raw Markdown, `?target=&sha256=`                                               | `{sha256, bytes}`                                                              |
-| `PUT`  | `/publish/asset`       | publish    | raw bytes, `?target=&sha256=&name=`                                            | `{sha256, bytes, path}`                                                        |
-| `PUT`  | `/publish/thumbnail`   | publish    | raw JPEG or PNG, `?target=&source=&sha256=&name=`                              | `{sha256, bytes, path}`                                                        |
-| `POST` | `/publish/commit`      | publish    | `{target, index}`                                                              | `{written, unchanged, deleted, deleteFailed, pruned, collected}`               |
-| `POST` | `/publish/render`      | publish    | `{target}`                                                                     | the same, rebuilt from stored state                                            |
+| Method | Path                   | Capability | Body                                                                           | Returns                                                                               |
+| ------ | ---------------------- | ---------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------- |
+| `GET`  | `/health`              | —          | —                                                                              | `{status, version, protocol, capabilities[]}`                                         |
+| `POST` | `/diagnostics`         | mail       | —                                                                              | per-protocol reachability                                                             |
+| `POST` | `/send`                | mail       | `{to, cc?, bcc?, subject, text, from?, inReplyTo?, references?, attachments?}` | `{messageId, sentAt, filedInSent, rejected[]}`                                        |
+| `POST` | `/search`              | mail       | `{criteria:{from?,to?,subject?,text?,since?,references?}, mailbox?, limit?}`   | `{messages[], mailbox, truncated}`                                                    |
+| `POST` | `/attachments`         | mail       | `{uid, mailbox?}`                                                              | `{uid, attachments:[{filename, contentType, content}], skipped:[{filename, reason}]}` |
+| `GET`  | `/publish/targets`     | publish    | —                                                                              | `{targets:[{name, baseUrl, siteTitle}]}`                                              |
+| `POST` | `/publish/diagnostics` | publish    | `{target}`                                                                     | `{ok, root, entries}` or `{ok:false, error}`; a missing web root is `ok:false`        |
+| `POST` | `/publish/plan`        | publish    | `{target, index}`                                                              | what to upload, and what will be deleted                                              |
+| `PUT`  | `/publish/source`      | publish    | raw Markdown, `?target=&sha256=`                                               | `{sha256, bytes}`                                                                     |
+| `PUT`  | `/publish/asset`       | publish    | raw bytes, `?target=&sha256=&name=`                                            | `{sha256, bytes, path}`                                                               |
+| `PUT`  | `/publish/thumbnail`   | publish    | raw JPEG or PNG, `?target=&source=&sha256=&name=`                              | `{sha256, bytes, path}`                                                               |
+| `POST` | `/publish/commit`      | publish    | `{target, index}`                                                              | `{written, unchanged, deleted, deleteFailed, pruned, collected}`                      |
+| `POST` | `/publish/render`      | publish    | `{target}`                                                                     | the same, rebuilt from stored state                                                   |
 
 `/health` is the version handshake: plugin and bridge deploy separately, and
 `protocol` is what lets the plugin say "redeploy the bridge" instead of failing
@@ -371,6 +373,18 @@ reads a body large enough for them, `MAX_BODY_BYTES` plus that allowance in
 base64, and every other route keeps `MAX_BODY_BYTES`. A picture that fails is
 a refused request, never a mail sent without it, because its text would point
 at an attachment that is not there. A plugin before protocol 5 sends none.
+
+A received mail's files come from `/attachments`, one message at a time by the
+UID a search returned, so a search stays as light as its text. Pictures, PDFs
+and Office files (Word, Excel, PowerPoint and their OpenDocument kin) are handed
+over in base64 under a plain name; anything else is named in `skipped` with the
+reason `type`, `size` or `limit`. A signature's logos, small pictures shown
+inside the text, and an S/MIME signature are left out without a word. At most
+20 files, 15 MB each and 25 MB together, from a mail of at most 40 MB as the
+server stores it (`mail-import.mjs`); a larger mail is answered 413
+`message_too_large`, and one that has moved since the search 404
+`message_gone`. The route has twice `UPSTREAM_TIMEOUT_MS`, since a mail with
+its files is many times a search's download.
 
 Generate the token with:
 

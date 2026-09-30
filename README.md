@@ -378,7 +378,7 @@ If another plugin already uses the colon for emoji, switch this off under **Sett
 Send notes as email and pull messages back into your vault — on desktop **and** mobile.
 
 - **Send doc as mail** — recipients and subject come from the note's frontmatter; the body is the note as plain text. A confirmation dialog shows the sender, the recipients and the text exactly as they will be sent, and warns when there is no To recipient.
-- **Search mailbox** — search by sender, subject, full text or date, then insert the chosen message into the active note.
+- **Search mailbox** — search by sender, subject, full text or date, then insert the chosen message into the active note. Tick **Include attachments** to bring its pictures, PDFs and Office files along: they are saved to your attachment folder (**Settings → Files and links**) and embedded or linked under the quoted mail. Signature logos are left out, a file imported before is linked rather than copied, and anything not imported is named under the mail. Needs bridge protocol 7.
 - **Fetch replies into doc** — find replies to a note you sent and append the new ones. Re-running the command only ever adds what is new.
 
 The note's frontmatter is the contract:

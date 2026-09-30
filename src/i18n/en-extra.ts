@@ -573,7 +573,18 @@ export const enExtra = {
     mergedButIdsUnwritten: (key: string) =>
       `replies merged, but ${key} could not be updated — running the command again may duplicate them.`,
     bridgeUnreachable:
-      "the bridge could not be asked whether it takes pictures, so the diagrams go as their source text."
+      "the bridge could not be asked whether it takes pictures, so the diagrams go as their source text.",
+    fetchingAttachments: "fetching attachments…",
+    attachmentsSaved: (count: number) =>
+      count === 1 ? "1 attachment saved." : `${count} attachments saved.`,
+    attachmentsTooOld:
+      "the mail bridge cannot hand over attachments yet — redeploy it. The mail was inserted without them.",
+    attachmentsUnknown:
+      "the mail bridge could not be asked whether it hands over attachments. The mail was inserted without them.",
+    attachmentsNoteChanged:
+      "another note was opened while the attachments were fetched, so the mail was not inserted. Its files are saved.",
+    failAttachments:
+      "Schreibstube: attachments could not be fetched; the mail was inserted without them"
   },
 
   explorer: {
