@@ -23,6 +23,7 @@ const imap = vi.hoisted(() => ({
   refuseSearch: null,
   serverFinds: null,
   capabilities: [],
+  withinAtSearch: [],
   fetchNothing: false
 }));
 
@@ -47,6 +48,7 @@ vi.mock("imapflow", () => ({
 
     async search(query) {
       imap.queries.push(query);
+      imap.withinAtSearch.push(this.capabilities.has("WITHIN"));
       if (imap.failSearch) throw new Error(imap.failSearch);
       // What imapflow does with a NO or BAD: log it, answer false.
       if (imap.refuseSearch) {
@@ -88,6 +90,7 @@ const {
   MAX_REFUSAL_CHARS,
   fetchEach,
   htmlToText,
+  ignoreWithin,
   refusalMessage,
   searchMessages
 } = await import("./mail.mjs");
@@ -150,6 +153,7 @@ beforeEach(() => {
   imap.refuseSearch = null;
   imap.serverFinds = null;
   imap.capabilities = [];
+  imap.withinAtSearch = [];
   imap.fetchNothing = false;
 });
 
@@ -447,6 +451,43 @@ describe("fetchEach", () => {
     await expect(
       fetchEach(client, [1, 2], {}, {}, () => {}, { seen: new Set(), skipped: [] })
     ).rejects.toThrow("Connection closed");
+  });
+});
+
+describe("searchMessages, a server that advertises WITHIN", () => {
+  it("is searched with SINCE all the same, and the log still says it offered WITHIN", async () => {
+    message({ uid: 1, date: "Mon, 28 Sep 2026 13:18:27 +0000" });
+    imap.capabilities = ["WITHIN", "IMAP4rev1"];
+    const notes = [];
+
+    const result = await searchMessages(
+      config(),
+      { criteria: { since: "2026-09-25" } },
+      (level, text) => notes.push(text)
+    );
+
+    expect(imap.withinAtSearch).toEqual([false]);
+    expect(imap.queries[0]).toEqual({ since: new Date("2026-09-25") });
+    expect(result.messages.map((m) => m.uid)).toEqual([1]);
+    expect(notes[0]).toMatch(/within yes\) on since: server found 1, own check found not needed$/);
+  });
+});
+
+describe("ignoreWithin", () => {
+  it("drops WITHIN and says whether it was there", () => {
+    const client = {
+      capabilities: new Map([
+        ["WITHIN", true],
+        ["IDLE", true]
+      ])
+    };
+    expect(ignoreWithin(client)).toBe(true);
+    expect([...client.capabilities.keys()]).toEqual(["IDLE"]);
+    expect(ignoreWithin(client)).toBe(false);
+  });
+
+  it("leaves a client without a capability map alone", () => {
+    expect(ignoreWithin({})).toBe(false);
   });
 });
 

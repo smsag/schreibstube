@@ -265,6 +265,7 @@ export async function searchMessages(config, request, log = () => {}) {
     const lock = await client.getMailboxLock(mailbox);
     try {
       const criteria = request.criteria ?? {};
+      const advertisedWithin = ignoreWithin(client);
       let uids = await client.search(buildQuery(criteria), { uid: true });
       const serverFound = uids === false ? "refused" : uids.length;
       let scanMissedOlder = false;
@@ -282,7 +283,7 @@ export async function searchMessages(config, request, log = () => {}) {
         ({ uids, scanMissedOlder } = await scanNewest(client, criteria, log));
         scanned = uids.length;
       }
-      log("info", searchReport(client, criteria, serverFound, scanned));
+      log("info", searchReport(client, criteria, serverFound, scanned, advertisedWithin));
       if (uids.length === 0) {
         return { messages: [], mailbox, truncated: scanMissedOlder };
       }
@@ -323,19 +324,31 @@ export async function searchMessages(config, request, log = () => {}) {
 }
 
 /**
+ * Keep imapflow on SINCE. When a server advertises WITHIN, imapflow turns a
+ * `since` date into `YOUNGER <seconds>`, and Strato, which advertises it after
+ * login, answers every YOUNGER with no matches and no error. SINCE is plain
+ * IMAP4rev1 that every server implements. The capability is dropped right
+ * before the search, after login and SELECT, which is when the server reports
+ * it. Returns whether the server had advertised it, for the log.
+ */
+export function ignoreWithin(client) {
+  if (!(client.capabilities instanceof Map)) return false;
+  return client.capabilities.delete("WITHIN");
+}
+
+/**
  * One line on how a search went, for the bridge log: enough to tell a mailbox
  * that holds nothing from a server whose search is wrong. The criteria are
  * named, never quoted, since they carry addresses and subjects.
  */
-export function searchReport(client, criteria, serverFound, scanned) {
+export function searchReport(client, criteria, serverFound, scanned, within) {
   const named = Object.keys(criteria)
     .filter((key) => typeof criteria[key] === "string" && criteria[key].trim())
     .sort();
-  const capabilities = client.capabilities instanceof Map ? client.capabilities : new Map();
   return (
     `search in ${client.mailbox?.path ?? "?"} ` +
     `(exists ${client.mailbox?.exists ?? "?"}, uidNext ${client.mailbox?.uidNext ?? "?"}, ` +
-    `within ${capabilities.has("WITHIN") ? "yes" : "no"}) ` +
+    `within ${within ? "yes" : "no"}) ` +
     `on ${named.join("+") || "nothing"}: server found ${serverFound}, own check found ${scanned}`
   );
 }

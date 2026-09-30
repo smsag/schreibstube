@@ -18,6 +18,11 @@ All notable changes to this project will be documented in this file.
   fails the whole request for a batch of mails. The bridge now splits
   a failed batch until only that mail is left, leaves it out and returns the
   rest. The bridge log names it by its number on the server.
+- A search by date goes to the mail server again, across the whole folder.
+  Strato offers a way to search by "younger than so many seconds", and the
+  bridge's mail library used it in place of the plain date search, which
+  Strato answers with nothing. The bridge now always asks for the plain date
+  search. Its own check of the newest 2000 mails stays as a safety net.
 
 ## 1.66.1 - 2026-09-30
 
