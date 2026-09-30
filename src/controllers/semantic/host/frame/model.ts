@@ -7,6 +7,7 @@
 import { env, pipeline, type ProgressInfo } from "@huggingface/transformers";
 import type { EmbeddingModelConfig } from "../../../../services/semantic/embedding-models";
 import { sliceBatch } from "./batch-slice";
+import { plainRuntimePaths } from "./runtime-build";
 import { TaskQueue } from "./task-queue";
 
 env.allowLocalModels = false;
@@ -21,10 +22,30 @@ env.allowLocalModels = false;
 // transformers import time, so `env.backends.onnx.wasm` already exists here.
 // Typed as optional against transformers' own types, which promise the shape
 // this guard exists to doubt.
-const wasm = (env.backends as { onnx?: { wasm?: { numThreads?: number } } } | undefined)?.onnx
-  ?.wasm;
+const onnx = (
+  env.backends as
+    | {
+        onnx?: {
+          versions?: { web?: unknown };
+          wasm?: { numThreads?: number; wasmPaths?: unknown };
+        };
+      }
+    | undefined
+)?.onnx;
+const wasm = onnx?.wasm;
 if (wasm) {
   wasm.numThreads = 1;
+  // The plain build, not the library's WebGPU-ready one: half the memory for
+  // the same vectors (see `plainRuntimePaths`). Set after the import, which is
+  // when the library writes its own choice.
+  const paths = plainRuntimePaths(onnx.versions?.web);
+  if (paths) wasm.wasmPaths = paths;
+  // An error, not a warning: without it an iPhone runs out of memory, and
+  // this console is the only place the worker or the frame can say so.
+  else
+    console.error(
+      "[Schreibstube] semantic engine: runtime version unreadable — its larger default build loads"
+    );
 } else {
   // NEVER silent (principle 2). This `if` guards the fix for a known HARD CRASH —
   // multi-threaded WASM + SharedArrayBuffer reloads the whole Electron renderer
