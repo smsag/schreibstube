@@ -134,6 +134,25 @@ describe("an edit batch with one bad note", () => {
     await svc.applyBatch({ updates: many(5, "beta"), removes: [] }, { maxEmbeds: 2 });
     expect(provider.embedded).toHaveLength(2);
   });
+
+  it("embeds only the notes it is told to, and still removes the rest", async () => {
+    const provider = new FakeProvider();
+    const svc = new VaultIndexService(provider, new MemStore());
+    await svc.sync([note("a.md", "alpha"), note("gone.md", "beta")]);
+    const before = svc.vectorsOf("a.md");
+    provider.embedded = [];
+    await svc.applyBatch(
+      {
+        updates: [note("a.md", "alpha changed elsewhere"), note("mine.md", "written here")],
+        removes: ["gone.md"]
+      },
+      { embedOnly: new Set(["mine.md"]) }
+    );
+    expect(provider.embedded).toEqual(["written here"]);
+    expect(svc.vectorsOf("mine.md")).not.toBeNull();
+    expect(svc.vectorsOf("a.md")).toEqual(before);
+    expect(svc.vectorsOf("gone.md")).toBeNull();
+  });
 });
 
 describe("the phone's journal and the desktop's", () => {

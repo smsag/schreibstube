@@ -129,6 +129,14 @@ export class SemanticEngine {
   private readonly phoneGuard: BuildGuard;
   /** Model work under way on a phone: the marker stands while this is above 0. */
   private phoneWork = 0;
+  /**
+   * Notes typed into on this phone since they were last handed to the index:
+   * the only ones a phone embeds. A note that changed any other way — a sync,
+   * another plugin, the vault settling at launch — is the desktop's to embed,
+   * and reaches the phone with its row. Embedding those loaded the model two
+   * seconds into every launch, beside everything else Obsidian was loading.
+   */
+  private readonly writtenHere = new Set<string>();
   private phase: Phase = { kind: "idle" };
   private syncing = false;
   private caughtUp = false;
@@ -189,6 +197,7 @@ export class SemanticEngine {
       activePath: () => this.plugin.app.workspace.getActiveFile()?.path ?? null,
       holdUntilLeft: Platform.isMobile
     });
+    if (Platform.isMobile) this.watchTyping();
     this.residency = installEmbeddingResidency(this.plugin, {
       provider: () => this.provider,
       building: () => this.syncing || this.sources.isSyncing(),
@@ -206,6 +215,15 @@ export class SemanticEngine {
         this.logger.debug("semantic engine: a retired index file could not be removed", e);
       });
     });
+  }
+
+  /** Record the notes typed into here: on a phone, the only ones it embeds. */
+  watchTyping(): void {
+    this.plugin.registerEvent(
+      this.plugin.app.workspace.on("editor-change", (_editor, info) => {
+        if (info.file) this.writtenHere.add(info.file.path);
+      })
+    );
   }
 
   /** Called on every status change. Returns the unsubscribe. */
@@ -667,17 +685,21 @@ export class SemanticEngine {
         updates.push({ path: file.path, load: () => app.vault.cachedRead(file) });
       }
     }
-    // A phone whose model work ended the app twice embeds nothing more on
-    // its own: the edits reach the index when the desktop sees them.
-    const embed = this.mayUseModel();
+    // A phone embeds only what was written on it, and nothing at all once its
+    // model work ended the app twice: the rest reaches the index when the
+    // desktop sees it.
+    const mine = Platform.isMobile
+      ? new Set(updates.map((u) => u.path).filter((path) => this.writtenHere.has(path)))
+      : null;
+    for (const path of [...(mine ?? []), ...deleted]) this.writtenHere.delete(path);
+    const embed = this.mayUseModel() && (mine === null || mine.size > 0);
     const apply = (): Promise<void> =>
       svc.applyBatch(
         { updates, removes },
         {
           cap: this.getSettings().semanticMaxNotes,
-          // A phone embeds a few edits of its own; a sync landing a hundred
-          // changed notes is the desktop's to embed, not the phone's UI thread.
           ...(Platform.isMobile ? { maxEmbeds: MOBILE_EDIT_BUDGET } : {}),
+          ...(mine ? { embedOnly: mine } : {}),
           ...(embed ? {} : { embed: false })
         }
       );
