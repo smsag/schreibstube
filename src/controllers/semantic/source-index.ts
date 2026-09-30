@@ -35,6 +35,11 @@ export interface SourceIndexHost {
   mayEmbedInBackground(): boolean;
   /** The vector the vault index holds for `text`, so the model reads a query once. */
   queryVector(text: string): Promise<Int8Array | null>;
+  /**
+   * Run `work`, which loads the model, under the engine's crash breaker; null
+   * without running it where the model is paused — a phone it ended twice.
+   */
+  modelWork<T>(work: () => Promise<T>): Promise<T | null>;
 }
 
 /** What is kept of an item between syncs: never its text, which only an
@@ -376,7 +381,8 @@ export class SourceIndex {
     if (!index) return [];
     if (!embed || !this.embedsHere) await this.loadTitles();
     const known = await this.host.queryVector(text);
-    return known ? index.queryByVector(known, opts) : index.query(text, opts);
+    if (known) return index.queryByVector(known, opts);
+    return (await this.host.modelWork(() => index.query(text, opts))) ?? [];
   }
 
   open(id: string): boolean {

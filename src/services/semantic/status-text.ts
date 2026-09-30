@@ -11,6 +11,7 @@ export type SemanticState =
   | "outdated"
   | "failed"
   | "paused"
+  | "phonePaused"
   | "desktopBuilds";
 
 /** What a failure was, as far as the status line can say what to do about it. */
@@ -76,6 +77,8 @@ export function semanticStatusText(
       return strings.failed(status.error ?? "");
     case "paused":
       return strings.paused;
+    case "phonePaused":
+      return strings.phonePaused;
     case "desktopBuilds":
       return strings.desktopBuilds(status.count, status.budget ?? 0);
   }

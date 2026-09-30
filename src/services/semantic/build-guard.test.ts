@@ -6,6 +6,7 @@ import {
   mayAutoBuild,
   parseBuildMarker,
   vaultBuildGuard,
+  phoneModelGuard,
   type BuildMarker
 } from "./build-guard";
 
@@ -136,5 +137,20 @@ describe("BuildGuard", () => {
     guard.start("m");
     expect([...saved.keys()]).toEqual(["schreibstube-semantic-index-build"]);
     expect((saved.get("schreibstube-semantic-index-build") as BuildMarker).attempts).toBe(1);
+  });
+
+  it("phoneModelGuard keeps its own marker, apart from the build's", () => {
+    const stored = new Map<string, unknown>();
+    const app = {
+      loadLocalStorage: (key: string) => stored.get(key) ?? null,
+      saveLocalStorage: (key: string, data: unknown) => void stored.set(key, data)
+    };
+    const phone = phoneModelGuard(app);
+    phone.start("m");
+    phone.start("m");
+    expect(phone.mayAutoBuild()).toBe(false);
+    expect(vaultBuildGuard(app).mayAutoBuild()).toBe(true);
+    phone.end();
+    expect(phone.mayAutoBuild()).toBe(true);
   });
 });

@@ -76,7 +76,8 @@ describe("semanticStatusText", () => {
       "partial",
       "outdated",
       "failed",
-      "paused"
+      "paused",
+      "phonePaused"
     ];
     for (const state of states) {
       expect(semanticStatusText({ ...base, state }, strings).length).toBeGreaterThan(0);

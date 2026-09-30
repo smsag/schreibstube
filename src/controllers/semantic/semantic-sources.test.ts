@@ -78,6 +78,7 @@ function setup(files: Record<string, ArrayBuffer> = {}) {
     mayEmbedInBackground: () => state.background,
     embedsHere: () => !state.phone,
     queryVector: async () => state.vector,
+    modelWork: (work) => work(),
     consent: (id) => answers[id] ?? "pending",
     askConsent: (id) => void asked.push(id)
   });

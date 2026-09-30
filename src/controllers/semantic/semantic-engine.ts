@@ -34,7 +34,7 @@ import {
 } from "../../services/semantic/vault-index-service";
 import { hashPolicyFor } from "../../services/semantic/row-provenance";
 import { decideBuild, shouldCatchUp } from "../../services/semantic/build-decision";
-import { BuildGuard, vaultBuildGuard } from "../../services/semantic/build-guard";
+import { BuildGuard, phoneModelGuard, vaultBuildGuard } from "../../services/semantic/build-guard";
 import { isOutOfMemoryError } from "../../services/semantic/memory-error";
 import { selectIndexPaths, scopeSignature } from "../../services/semantic/index-scope";
 import { optedOut, type RetrievedNote } from "../../services/semantic/vault-retrieval";
@@ -125,6 +125,10 @@ export class SemanticEngine {
   private residency: EmbeddingResidency | null = null;
   private workerUrl: Promise<string> | null = null;
   private readonly guard: BuildGuard;
+  /** The phone's own model work, which no build marker sees (`phoneModelGuard`). */
+  private readonly phoneGuard: BuildGuard;
+  /** Model work under way on a phone: the marker stands while this is above 0. */
+  private phoneWork = 0;
   private phase: Phase = { kind: "idle" };
   private syncing = false;
   private caughtUp = false;
@@ -159,6 +163,7 @@ export class SemanticEngine {
     private readonly contentEventMs = CONTENT_EVENT_MS
   ) {
     this.guard = vaultBuildGuard(plugin.app);
+    this.phoneGuard = phoneModelGuard(plugin.app);
     this.sources = new SemanticSources({
       plugin,
       logger,
@@ -168,6 +173,7 @@ export class SemanticEngine {
       changed: () => this.emit(),
       mayEmbedInBackground: () => !Platform.isMobile && !this.syncing,
       queryVector: (text) => this.queryVector(text),
+      modelWork: (work) => (this.mayUseModel() ? this.phoneModelWork(work) : Promise.resolve(null)),
       embedsHere: () => !Platform.isMobile,
       consent: (id) => consentOf(this.getSettings().semanticSources, id),
       askConsent: (id, descriptor) => {
@@ -189,6 +195,7 @@ export class SemanticEngine {
       mobile: Platform.isMobile,
       onBackground: (hidden) => {
         if (this.syncing) this.guard.markBackground(hidden);
+        if (this.phoneWork > 0) this.phoneGuard.markBackground(hidden);
       },
       log: (message, data) => this.logger.debug(message, data)
     });
@@ -261,6 +268,28 @@ export class SemanticEngine {
   /** Whether a second model would join Pythia's on a phone. */
   private blocked(): boolean {
     return Platform.isMobile && pluginRunsOwnModel(this.plugin.app, "pythia");
+  }
+
+  /** Whether this device may load and run the model without being asked. A
+   *  phone that died twice in a row doing so leaves it until Build now. */
+  private mayUseModel(): boolean {
+    return !Platform.isMobile || this.phoneGuard.mayAutoBuild();
+  }
+
+  /**
+   * Model work on a phone, inside the crash breaker: the marker is written
+   * before the model loads and removed when the last piece of work ends.
+   * iOS ends the process without a catch or a log when the model takes too
+   * much, so the marker left behind is the only witness at the next launch.
+   */
+  private async phoneModelWork<T>(work: () => Promise<T>): Promise<T> {
+    if (!Platform.isMobile) return work();
+    if (this.phoneWork++ === 0) this.phoneGuard.start(this.modelId());
+    try {
+      return await work();
+    } finally {
+      if (--this.phoneWork === 0) this.phoneGuard.end();
+    }
   }
 
   /** Whether search by meaning is switched on and may run on this device. */
@@ -638,16 +667,22 @@ export class SemanticEngine {
         updates.push({ path: file.path, load: () => app.vault.cachedRead(file) });
       }
     }
-    try {
-      await svc.applyBatch(
+    // A phone whose model work ended the app twice embeds nothing more on
+    // its own: the edits reach the index when the desktop sees them.
+    const embed = this.mayUseModel();
+    const apply = (): Promise<void> =>
+      svc.applyBatch(
         { updates, removes },
         {
           cap: this.getSettings().semanticMaxNotes,
           // A phone embeds a few edits of its own; a sync landing a hundred
           // changed notes is the desktop's to embed, not the phone's UI thread.
-          ...(Platform.isMobile ? { maxEmbeds: MOBILE_EDIT_BUDGET } : {})
+          ...(Platform.isMobile ? { maxEmbeds: MOBILE_EDIT_BUDGET } : {}),
+          ...(embed ? {} : { embed: false })
         }
       );
+    try {
+      await (embed && updates.length > 0 ? this.phoneModelWork(apply) : apply());
     } catch (e) {
       this.logger.warn("semantic engine: edits could not be applied to the index", e);
     }
@@ -688,7 +723,9 @@ export class SemanticEngine {
    */
   waitsOnPerson(): boolean {
     const svc = this.service;
-    if (!this.enabled() || this.syncing || svc?.isQueryable()) return false;
+    if (!this.enabled() || this.syncing) return false;
+    if (!this.mayUseModel()) return true;
+    if (svc?.isQueryable()) return false;
     if (this.phase.kind === "failed") return true;
     if (!svc?.isLoaded() || svc.isComplete(this.scope())) return false;
     return Platform.isMobile || !this.guard.mayAutoBuild();
@@ -727,22 +764,25 @@ export class SemanticEngine {
       if (!Platform.isMobile) this.refresh();
       else if (Date.now() - this.lastPhoneLook >= PHONE_LOOK_EVERY_MS) this.refresh();
     }
+    // A search runs without a press too — a filter the Explorer restored,
+    // another plugin asking — so a phone that paused its model does not search.
+    if (!this.mayUseModel()) return [];
     try {
       // The model's load timed apart from the query, since it is the cost the
       // warm-up on focus exists to take out of the first search.
       let loadMs = 0;
       const provider = this.ensureProvider();
-      if (!provider.loaded) {
-        const loadStart = now();
-        await provider.ready();
-        loadMs = now() - loadStart;
-      }
       const floor = meaningFloor(text);
       const timing: QueryTiming = { embedMs: 0, rankMs: 0, cached: false, notes: 0 };
-      const hits = applyMeaningFloor(
-        await svc.query(text, { minScore: floor.minScore, limit, timing }),
-        floor
-      );
+      const found = await this.phoneModelWork(async () => {
+        if (!provider.loaded) {
+          const loadStart = now();
+          await provider.ready();
+          loadMs = now() - loadStart;
+        }
+        return svc.query(text, { minScore: floor.minScore, limit, timing });
+      });
+      const hits = applyMeaningFloor(found, floor);
       this.lastSearch = {
         at: Date.now(),
         totalMs: now() - started,
@@ -810,8 +850,9 @@ export class SemanticEngine {
 
   /** The vector the vault index holds for `text`; null while it cannot answer. */
   private queryVector(text: string): Promise<Int8Array | null> {
-    if (!this.enabled() || !this.service?.isQueryable()) return Promise.resolve(null);
-    return this.service.queryVector(text);
+    const svc = this.service;
+    if (!this.enabled() || !svc?.isQueryable() || !this.mayUseModel()) return Promise.resolve(null);
+    return this.phoneModelWork(() => svc.queryVector(text));
   }
 
   /**
@@ -922,7 +963,8 @@ export class SemanticEngine {
             this.refresh(); // an unfinished index resumes, as a search would
           }
         }
-        await this.ensureProvider().ready();
+        if (!this.mayUseModel()) return;
+        await this.phoneModelWork(() => this.ensureProvider().ready());
         this.emit();
       } catch (e) {
         this.logger.debug("semantic engine: warm-up failed", e);
@@ -938,6 +980,8 @@ export class SemanticEngine {
       new Notice(t().semantic.busy);
       return;
     }
+    // The person asks for the model: a phone that paused it may use it again.
+    if (Platform.isMobile) this.phoneGuard.end();
     this.refresh({ force: true, manual: true });
   }
 
@@ -990,7 +1034,9 @@ export class SemanticEngine {
       this.logger.warn("semantic engine: could not read the index for its status", e);
     }
     const count = svc.size();
-    // Finished under today's scope answers "ready" before anything else — the
+    // A paused phone first: it may hold a whole index and still answers nothing.
+    if (!this.mayUseModel()) return { ...base, state: "phonePaused", count };
+    // Finished under today's scope answers "ready" before the rest — the
     // same order `decideBuild` asks in, so a paused guard never reports an
     // index that needs no build as waiting for one.
     if (svc.isComplete(this.scope())) return { ...base, state: "ready", count };

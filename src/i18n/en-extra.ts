@@ -1156,6 +1156,9 @@ export const enExtra = {
         "internet and build again.",
       timedOut: "The model did not answer in time. Build now to try again.",
       paused: "Paused after a build did not finish twice in a row. Build now to try again.",
+      phonePaused:
+        "Paused on this phone: Obsidian closed twice in a row while the model was working. " +
+        "Edits are indexed by the desktop meanwhile. Build now to try again.",
       desktopBuilds: (count: number, budget: number) =>
         `${count} notes ready. A phone does not build the index on its own: the desktop ` +
         `finishes it and it arrives by sync. Build now adds ${budget} notes here.`

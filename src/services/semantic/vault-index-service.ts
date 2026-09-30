@@ -126,6 +126,9 @@ export interface BatchOptions {
   cap?: number;
   /** Embed at most this many notes; the rest keep their rows (0 or absent: no limit). */
   maxEmbeds?: number;
+  /** False: embed nothing — removals still apply, and a changed note keeps
+   *  its row until a device that may embed reaches it. */
+  embed?: boolean;
 }
 
 const EMPTY_EDITS = { upserts: [], removed: [] };
@@ -533,7 +536,7 @@ export class VaultIndexService {
       try {
         outcome = await this.updateInMemory(update, {
           cap: opts.cap,
-          mayEmbed: budget === 0 || embeds < budget
+          mayEmbed: opts.embed !== false && (budget === 0 || embeds < budget)
         });
       } catch (e) {
         // One note must not cost the batch: the ones before it are applied and
