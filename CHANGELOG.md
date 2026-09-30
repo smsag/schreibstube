@@ -2,7 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## 1.67.0 - 2026-09-30
+
+Search by meaning stops restarting Obsidian on an iPhone. The model runtime
+now loads its plain build at half the memory, a phone embeds only what was
+typed on it and waits while Similarity runs, and an index that could be
+written only once since 1.65.0 is kept up to date again. A mail imported
+from a search can bring its attachments along, and the bridge finds mail by
+date on Strato again. A CSV file in the Explorer copies as a Markdown table,
+and a note can decline its task count with `schreibstubeTaskCount: false`.
+
+Mobile checklist: not run as a whole for this release. The test suite, the
+build and the print compile check covered it. The iPhone memory fixes were
+the reason for several changes here; what to try first on a phone is opening
+Obsidian with search by meaning on and editing a note, then the Properties
+controls, and a long press on a `.csv` file in the Explorer.
+
+The bridge moves to 2.12.0 with protocol 7: importing attachments needs it,
+and an older bridge imports the mail without its files and says to redeploy.
 
 ### Added
 
