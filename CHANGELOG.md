@@ -2,7 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## 1.66.1 - 2026-09-30
+
+A mail search returns mail again when the mail server will not search. Strato
+refused the search and the bridge took the refusal for an empty mailbox, so
+"Postfach durchsuchen" said "no messages" even for a search on the date alone.
+
+Mobile checklist: not run; the change is in the bridge only, and the plugin
+is unchanged apart from its version. The test suite covers the refused search
+with a fake server; it has not yet been tried against Strato itself. What to
+try first: "Postfach durchsuchen" with only a "Seit" date, which should list
+every mail since that day.
+
+The bridge moves to 2.11.1, protocol 6 unchanged.
 
 ### Fixed
 
