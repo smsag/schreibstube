@@ -2322,6 +2322,7 @@
   --schreibstube-row-gap: 7px;
   --schreibstube-related-rank: 22px;
   --schreibstube-related-thumb-gap: 10px;
+  --schreibstube-related-thumb-size: 44px;
   font-family: var(--font-text);
   font-size: var(--font-ui-small);
 }
@@ -2339,6 +2340,7 @@
 .schreibstube-recommended-footer {
   --schreibstube-related-rank: 28px;
   --schreibstube-related-thumb-gap: var(--size-4-4);
+  --schreibstube-related-thumb-size: 56px;
   /* The distance from the note's last line to the heading, one value for
      editing and Reading view. 5.5em of the footer's own size: far enough
      that the list reads as apart from the note, not as its last paragraph. */
@@ -2483,14 +2485,29 @@
 
 /* One entry. NO column gap: a gap would open between the rank and the text as
    well as before a thumbnail, and move that row's title off the edge every
-   other title starts on. The thumbnail keeps its distance with its own margin. */
+   other title starts on. The thumbnail keeps its distance with its own margin.
+
+   Four columns, placed by hand: marker, text, meter, thumbnail. The actions
+   share the text's cell and lie over the end of it, so they take no column:
+   every meter in the list stands at the same place, and a title is never
+   narrowed for buttons that are hidden most of the time. The thumbnail's
+   column is as wide in every row once the list holds one picture, for the
+   same reason, and absent when it holds none. */
 .schreibstube-related-card {
+  --schreibstube-related-thumb-col: 0px;
   display: grid;
-  /* Marker, text, relevance, actions, and a picture's thumbnail. */
-  grid-template-columns: var(--schreibstube-related-rank) minmax(0, 1fr) auto auto auto;
+  grid-template-columns:
+    var(--schreibstube-related-rank) minmax(0, 1fr) auto
+    var(--schreibstube-related-thumb-col);
   align-items: baseline;
   border-radius: var(--schreibstube-border-radius);
   cursor: pointer;
+}
+
+.schreibstube-related-list.has-pictures .schreibstube-related-card {
+  --schreibstube-related-thumb-col: calc(
+    var(--schreibstube-related-thumb-size) + var(--schreibstube-related-thumb-gap)
+  );
 }
 
 .schreibstube-related-card:focus-visible {
@@ -2502,20 +2519,38 @@
    file, Pythia's mark for a conversation. On the title's baseline, centred in
    the column. --text-muted, as the line under the title that says it in words. */
 .schreibstube-related-glyph {
+  grid-column: 1;
+  grid-row: 1;
   color: var(--text-muted);
   text-align: center;
 }
 
-/* Copy the Obsidian URL, open to the right: at the entry's far end, before a
-   picture's thumbnail. Hidden until the pointer is on the entry or the keyboard
-   is inside it, and only where there is a pointer to hover with; a phone shows
-   them. Hidden by visibility, so they keep their place and no title rewraps as
-   the pointer passes. */
+/* Copy the Obsidian URL, open to the right: just before the meter, lying over
+   the end of the text. Hidden until the pointer is on the entry or the
+   keyboard is inside it, and only where there is a pointer to hover with; a
+   phone always shows them. Where they cover a title, the list's own ground
+   runs out under them in a fade, so the words end softly rather than under a
+   hard edge; over empty space the fade is the ground on the ground, and
+   nothing shows. The ground is measured (`measureGround`), since which colour
+   is behind the list depends on where it sits and on the theme. */
 .schreibstube-related-actions {
+  --schreibstube-related-fade: 28px;
+  grid-column: 2;
+  grid-row: 1;
+  justify-self: end;
+  /* The full height of the text, the buttons centred in it: a strip only as
+     tall as the buttons cut a wrapped title's line in half. */
+  align-self: stretch;
+  align-items: center;
+  z-index: 1;
   display: flex;
-  align-self: center;
   gap: 2px;
-  margin-left: var(--size-4-2);
+  padding-left: var(--schreibstube-related-fade);
+  background: linear-gradient(
+    to right,
+    transparent,
+    var(--schreibstube-related-ground, var(--background-primary)) var(--schreibstube-related-fade)
+  );
 }
 
 @media (hover: hover) {
@@ -2529,6 +2564,8 @@
    the entry's name. A reading, not a control: no background, no hover. The
    level is also in its label, so colour is never the only thing that says it. */
 .schreibstube-related-relevance {
+  grid-column: 3;
+  grid-row: 1;
   display: inline-flex;
   align-items: flex-end;
   align-self: center;
@@ -2564,6 +2601,8 @@
 }
 
 .schreibstube-related-card-text {
+  grid-column: 2;
+  grid-row: 1;
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -2601,8 +2640,10 @@
 }
 
 .schreibstube-related-card-thumb {
+  grid-column: 4;
+  grid-row: 1;
   align-self: start;
-  width: 56px;
+  width: var(--schreibstube-related-thumb-size);
   height: 40px;
   margin-left: var(--schreibstube-related-thumb-gap);
   object-fit: cover;
@@ -2611,7 +2652,6 @@
 }
 
 .schreibstube-related-notes .schreibstube-related-card-thumb {
-  width: 44px;
   height: 44px;
 }
 

@@ -49,6 +49,12 @@ export class RecommendedFooter {
         }
       })
     );
+    // A theme or its colours changed: the fade behind the actions follows.
+    this.plugin.registerEvent(
+      workspace.on("css-change", () => {
+        for (const footer of this.footers.values()) footer.panel.measureGround();
+      })
+    );
     workspace.onLayoutReady(() => this.sync());
     this.plugin.register(() => this.clear());
   }
