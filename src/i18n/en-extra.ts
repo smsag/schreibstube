@@ -1149,9 +1149,10 @@ export const enExtra = {
     },
     state: {
       off: "Off.",
-      blocked:
-        "Paused on this phone while Pythia runs a language model of its own: two are more " +
-        "than the phone lets one app hold. A Pythia that uses this search lifts the pause.",
+      blocked: (name: string) =>
+        `Paused on this phone while ${name} runs a language model of its own: two need more ` +
+        `memory than iOS lets Obsidian hold, and it would restart the app. Switch ${name} off ` +
+        `on this phone to search by meaning here; on a desktop both run.`,
       notBuilt:
         "Not built yet. It builds when the Explorer search is first used, or with Build now.",
       loading: "Loading the model…",

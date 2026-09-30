@@ -705,7 +705,19 @@ A small language model (multilingual MiniLM, the same one Pythia uses) runs on t
 
 After that the index follows the vault: an edited, created, moved or deleted note is read again on its own, a couple of seconds after the vault goes quiet. The note being written is held back until you leave it — on a desktop, also once you have stopped typing for half a minute — so a phone does not re-read it on every autosave, nor load the model for every pause. A desktop catches up at launch with what changed while it was closed, including edits synced from a phone. A note with `schreibstubeIndex: false` in its frontmatter is left out.
 
-On a phone, search by meaning pauses while a Pythia that runs a language model of its own is switched on there: two models are more memory than the phone lets one app hold. A Pythia that asks Schreibstube instead, and loads no model of its own, lifts the pause.
+#### On a phone
+
+iOS ends Obsidian when it holds more than about 2 GB, and it does so without a message: the app simply restarts, and if the cause comes back at every start, it restarts every few seconds. The language model is the largest thing Schreibstube loads, so on a phone it is kept to what you ask for:
+
+- **The phone reads the desktop's index; it does not build one.** The desktop embeds the vault and the index reaches the phone by sync. **Build now** on a phone adds a limited number of notes and stops.
+- **The phone embeds only what you wrote on it.** A note you typed into is read again when you move on to another note. A note that changed any other way — synced from the desktop, changed by another plugin — is left to the desktop, whose row arrives with the next sync.
+- **Nothing loads the model at launch.** It loads when you search by meaning, focus the Explorer search, or leave a note you edited — never while Obsidian is starting.
+- **One model at a time.** While another plugin that runs a language model of its own is switched on — **Similarity**, or a Pythia older than 3.9 — search by meaning pauses on the phone, and the settings name that plugin. Two models together pass the 2 GB. Switch the other plugin off on the phone to search by meaning there; on a desktop both run side by side. A Pythia from 3.9 on asks Schreibstube instead and loads no model, so it does not count.
+- **Two restarts, then a pause.** If iOS ends Obsidian twice in a row while the model is working, the phone stops using the model on its own: searches find by words only, and edits wait for the desktop. The settings say so, and **Build now** tries again.
+
+Recommended is not affected by any of this: it compares vectors already in the index and never loads the model.
+
+If Obsidian on a phone restarts over and over, switch **Search by meaning** off in the Schreibstube settings as soon as it is up, and look for another plugin that runs a model of its own.
 
 ### Recommended
 

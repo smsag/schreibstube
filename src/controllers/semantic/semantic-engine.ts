@@ -42,6 +42,7 @@ import { catchUpIndex, CATCH_UP_DELAY_MS } from "../../services/semantic/vault-c
 import { applyMeaningFloor, meaningFloor } from "../../services/semantic/search-fusion";
 import type { IndexKeeper } from "../../services/semantic/embedding-index";
 import { pluginRunsOwnModel } from "../../services/workspace-internals";
+import { modelPluginInTheWay } from "../../services/semantic/model-plugins";
 import { consentOf, type SourceDescriptor } from "../../services/semantic/semantic-api";
 import { createEmbeddingProvider } from "./host/embedding-provider-factory";
 import { embeddingWorkerUrl } from "./host/worker-bundle-url";
@@ -283,9 +284,14 @@ export class SemanticEngine {
     this.emit();
   }
 
-  /** Whether a second model would join Pythia's on a phone. */
+  /** The plugin whose own model keeps Schreibstube's off this phone, or null. */
+  private blockedBy(): string | null {
+    if (!Platform.isMobile) return null;
+    return modelPluginInTheWay((id) => pluginRunsOwnModel(this.plugin.app, id));
+  }
+
   private blocked(): boolean {
-    return Platform.isMobile && pluginRunsOwnModel(this.plugin.app, "pythia");
+    return this.blockedBy() !== null;
   }
 
   /** Whether this device may load and run the model without being asked. A
@@ -1035,7 +1041,8 @@ export class SemanticEngine {
       backend: this.backend
     };
     if (!this.getSettings().semanticSearchEnabled) return { ...base, state: "off" };
-    if (this.blocked()) return { ...base, state: "blocked" };
+    const blockedBy = this.blockedBy();
+    if (blockedBy) return { ...base, state: "blocked", blockedBy };
     const phase = this.phase;
     if (phase.kind === "loading") return { ...base, state: "loading" };
     if (phase.kind === "building")

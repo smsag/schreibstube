@@ -1467,9 +1467,10 @@ export const de: Messages = {
     },
     state: {
       off: "Aus.",
-      blocked:
-        "Auf diesem Telefon pausiert, solange Pythia ein eigenes Sprachmodell lädt: Zwei sind " +
-        "mehr, als das Telefon einer App erlaubt. Ein Pythia, das diese Suche nutzt, hebt die Pause auf.",
+      blocked: (name: string) =>
+        `Auf diesem Telefon pausiert, solange ${name} ein eigenes Sprachmodell lädt: Zwei brauchen ` +
+        `mehr Speicher, als iOS Obsidian erlaubt, und es würde die App neu starten. Wer ${name} ` +
+        `auf dem Telefon ausschaltet, sucht hier wieder nach Bedeutung; auf dem Desktop laufen beide.`,
       notBuilt:
         "Noch nicht aufgebaut. Das geschieht bei der ersten Nutzung der Explorer-Suche oder mit „Jetzt aufbauen“.",
       loading: "Modell wird geladen…",

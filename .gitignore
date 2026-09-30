@@ -37,3 +37,6 @@ Privates
 # which the tests and the release script read
 /docs/*
 !/docs/CHEATSHEET.md
+
+# What scripts/model-memory builds and measures.
+scripts/model-memory/out/

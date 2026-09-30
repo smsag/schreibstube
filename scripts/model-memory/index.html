@@ -1,0 +1,92 @@
+<!doctype html><meta charset="utf-8" /><title>embed harness</title>
+<pre id="o"></pre>
+<script type="module">
+  const q = new URLSearchParams(location.search);
+  const models = await (await fetch("models.json")).json();
+  const key = {
+    latin: "xenova-paraphrase-multilingual-MiniLM-L12-v2-latin",
+    full: "xenova-paraphrase-multilingual-MiniLM-L12-v2",
+    en: "xenova-all-MiniLM-L6-v2"
+  }[q.get("model") ?? "latin"];
+  const config = models[key];
+  const batch = Number(q.get("batch") ?? 16),
+    rounds = Number(q.get("rounds") ?? 6),
+    mode = q.get("mode") ?? "worker";
+  const t0 = performance.now();
+  const log = (s) => {
+    const line = `${((performance.now() - t0) / 1000).toFixed(1)}s ${mode} ${key} b=${batch} ${s}`;
+    document.getElementById("o").textContent += line + "\n";
+    fetch("/log", { method: "POST", body: line });
+  };
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  log("start");
+  await sleep(4000);
+  let send, onmsg;
+  if (mode === "worker") {
+    const w = new Worker("bundle.mjs", { type: "module" });
+    w.onerror = (e) => log("worker error " + e.message);
+    w.onmessage = (e) => onmsg(e.data);
+    send = (m) => w.postMessage(m);
+    send({ type: "init", config });
+  } else {
+    const f = document.createElement("iframe");
+    f.style.display = "none";
+    f.srcdoc = `<script>window.__EMBEDDING_MODEL_CONFIG__=${JSON.stringify(config)}<\/script><script type="module" src="${location.origin}/${"bundle.mjs"}"><\/script>`;
+    window.addEventListener("message", (e) => onmsg(e.data));
+    document.body.append(f);
+    send = (m) => f.contentWindow.postMessage(m, "*");
+  }
+  const waiting = new Map();
+  let id = 0;
+  let lastPct = -10;
+  onmsg = (m) => {
+    if (m?.type === "model-load-progress") {
+      if (m.progress - lastPct >= 25) {
+        lastPct = m.progress;
+        log(`load ${m.file} ${Math.round(m.progress)}%`);
+      }
+      return;
+    }
+    if (m?.type === "model-load-error") {
+      log("LOAD ERROR " + m.message);
+      return;
+    }
+    const r = waiting.get(m?.requestId);
+    if (r) {
+      waiting.delete(m.requestId);
+      m.error ? r.reject(new Error(m.error)) : r.resolve(m.vectors);
+    }
+  };
+  const request = (p) =>
+    new Promise((resolve, reject) => {
+      const requestId = id++;
+      waiting.set(requestId, { resolve, reject });
+      send({ requestId, ...p });
+    });
+  for (;;) {
+    try {
+      await Promise.race([
+        request({ ping: true }),
+        sleep(5000).then(() => {
+          throw new Error("t");
+        })
+      ]);
+      break;
+    } catch {
+      await sleep(1500);
+    }
+  }
+  log("READY (model loaded)");
+  await sleep(8000);
+  const para =
+    "Dies ist ein Absatz über das Schreiben, die Erinnerung und ein Gespräch am Küchentisch, in dem Figuren und Orte eines Kapitels vorkommen. ";
+  const chunk = (i) =>
+    (para.repeat(8) + " Kapitel " + i).slice(0, Math.floor(config.maxTokens * 3.3));
+  for (let r = 1; r <= rounds; r++) {
+    const s = performance.now();
+    const v = await request({ texts: Array.from({ length: batch }, (_, i) => chunk(r * 100 + i)) });
+    log(`round ${r}: ${v.length} vectors ${((performance.now() - s) / 1000).toFixed(2)}s`);
+  }
+  await sleep(8000);
+  log("DONE");
+</script>

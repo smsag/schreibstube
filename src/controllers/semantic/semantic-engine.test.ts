@@ -456,6 +456,22 @@ describe("a phone holding the desktop's index", () => {
     expect(w.plugin.app.loadLocalStorage(PHONE_MARKER)).toBeNull();
   });
 
+  it("keeps its model off while Similarity runs one of its own, and says so", async () => {
+    const w = world();
+    (
+      w.plugin.app as unknown as { plugins: { enabledPlugins: Set<string> } }
+    ).plugins.enabledPlugins.add("similarity");
+    const desktop = w.engine();
+    expect(desktop.enabled()).toBe(true);
+    platform.isMobile = true;
+    const phone = w.engine();
+    expect(phone.enabled()).toBe(false);
+    const loads = model.loads;
+    expect(await phone.search("alpha", 5)).toEqual([]);
+    expect(model.loads).toBe(loads);
+    expect(await phone.status()).toMatchObject({ state: "blocked", blockedBy: "Similarity" });
+  });
+
   it("embeds a note typed into on it, and leaves one that changed by sync to the desktop", async () => {
     const w = world();
     const phone = await phoneReady(w);
