@@ -273,13 +273,13 @@ export async function searchMessages(config, request, log = () => {}) {
         const refusal = refusalMessage("The mail server refused the search", warnings);
         if (!matchableWithoutServer(criteria)) throw new Error(refusal);
         log("warn", `${refusal}; matching the newest ${MAX_FALLBACK_SCAN} messages instead`);
-        ({ uids, scanMissedOlder } = await scanNewest(client, criteria));
+        ({ uids, scanMissedOlder } = await scanNewest(client, criteria, log));
         scanned = uids.length;
       } else if (uids.length === 0 && matchableWithoutServer(criteria)) {
         // A second opinion: Strato answered a date-only search with nothing
         // while its INBOX held mail from that week, and gave no error to go on.
         // Reading the newest envelopes costs one short FETCH and settles it.
-        ({ uids, scanMissedOlder } = await scanNewest(client, criteria));
+        ({ uids, scanMissedOlder } = await scanNewest(client, criteria, log));
         scanned = uids.length;
       }
       log("info", searchReport(client, criteria, serverFound, scanned));
@@ -293,13 +293,16 @@ export async function searchMessages(config, request, log = () => {}) {
       // A bound on the download, not only on what is kept: without one, fifty
       // messages with attachments were pulled into memory in full and parsed
       // before `maxTextChars` trimmed anything.
-      for await (const msg of client.fetch(
+      const bodies = { seen: new Set(), skipped: [] };
+      await fetchEach(
+        client,
         window,
         { uid: true, source: { maxLength: config.maxMessageBytes } },
-        { uid: true }
-      )) {
-        messages.push(await toMessage(msg, config.maxTextChars));
-      }
+        { uid: true },
+        async (msg) => messages.push(await toMessage(msg, config.maxTextChars)),
+        bodies
+      );
+      reportSkipped(log, "UID", bodies.skipped);
       if (messages.length === 0) {
         throw new Error(
           refusalMessage(
@@ -342,28 +345,80 @@ export function searchReport(client, criteria, serverFound, scanned) {
  * number, read as envelopes and matched in `mail-match.mjs`. Reading needs no
  * search, so a server that refuses one still hands these over.
  */
-async function scanNewest(client, criteria) {
+async function scanNewest(client, criteria, log = () => {}) {
   const exists = client.mailbox?.exists ?? 0;
   if (exists === 0) return { uids: [], scanMissedOlder: false };
 
   const first = Math.max(1, exists - MAX_FALLBACK_SCAN + 1);
+  const sequence = Array.from({ length: exists - first + 1 }, (_, i) => first + i);
   const uids = [];
-  for await (const msg of client.fetch(`${first}:*`, {
+  const envelopes = { seen: new Set(), skipped: [] };
+  const query = {
     uid: true,
     envelope: true,
     internalDate: true,
     headers: ["references", "in-reply-to"]
-  })) {
-    const candidate = {
-      from: addressText(msg.envelope?.from),
-      to: addressText(msg.envelope?.to),
-      subject: msg.envelope?.subject ?? "",
-      date: msg.internalDate ?? msg.envelope?.date ?? null,
-      headers: msg.headers?.toString("utf8") ?? ""
-    };
-    if (matchesCriteria(candidate, criteria)) uids.push(msg.uid);
-  }
+  };
+  await fetchEach(
+    client,
+    sequence,
+    query,
+    {},
+    (msg) => {
+      const candidate = {
+        from: addressText(msg.envelope?.from),
+        to: addressText(msg.envelope?.to),
+        subject: msg.envelope?.subject ?? "",
+        date: msg.internalDate ?? msg.envelope?.date ?? null,
+        headers: msg.headers?.toString("utf8") ?? ""
+      };
+      if (matchesCriteria(candidate, criteria)) uids.push(msg.uid);
+    },
+    envelopes
+  );
+  reportSkipped(log, "sequence number", envelopes.skipped);
   return { uids: uids.sort((a, b) => a - b), scanMissedOlder: first > 1 };
+}
+
+/** How many skipped messages a log line names before it only counts them. */
+export const MAX_SKIPPED_NAMED = 10;
+
+/**
+ * FETCH `ids`, handing each message to `onRow` once, and step around a message
+ * the server will not hand over. Strato failed on one reply every client
+ * asked it for, and one refusal fails the whole command: a batch that fails
+ * is halved until the failure is a single message, which is left out and
+ * recorded in `state.skipped`. A dropped connection is not one message's
+ * fault and still fails the search.
+ */
+export async function fetchEach(client, ids, query, options, onRow, state) {
+  try {
+    for await (const msg of client.fetch(ids, query, options)) {
+      if (state.seen.has(msg.uid)) continue;
+      state.seen.add(msg.uid);
+      await onRow(msg);
+    }
+  } catch (err) {
+    if (client.usable === false) throw err;
+    if (ids.length <= 1) {
+      state.skipped.push(...ids);
+      return;
+    }
+    const half = Math.ceil(ids.length / 2);
+    await fetchEach(client, ids.slice(0, half), query, options, onRow, state);
+    await fetchEach(client, ids.slice(half), query, options, onRow, state);
+  }
+}
+
+function reportSkipped(log, kind, skipped) {
+  if (skipped.length === 0) return;
+  const named = skipped.slice(0, MAX_SKIPPED_NAMED).join(", ");
+  const more =
+    skipped.length > MAX_SKIPPED_NAMED ? ` and ${skipped.length - MAX_SKIPPED_NAMED} more` : "";
+  log(
+    "warn",
+    `skipped ${skipped.length} message(s) the server would not hand over (${kind} ${named}${more})`
+  );
 }
 
 /**

@@ -13,6 +13,11 @@ All notable changes to this project will be documented in this file.
   also gets one line per search: how many mails the folder holds, what the
   server found and what the bridge's own check found. Criteria are named in
   it, never quoted. Bridge only; the protocol is unchanged.
+- One mail the server will not hand over no longer sinks a whole search.
+  A mail client could not fetch one reply from Strato, and one failure
+  fails the whole request for a batch of mails. The bridge now splits
+  a failed batch until only that mail is left, leaves it out and returns the
+  rest. The bridge log names it by its number on the server.
 
 ## 1.66.1 - 2026-09-30
 
