@@ -1192,12 +1192,7 @@ export const de: Messages = {
       slideshow: { layout: "Wie in der Notiz", stacked: "Alle Bilder untereinander" },
       print: "Drucken",
       working: "Vorschau wird gesetzt …",
-      pages: (shown: number, total: number) =>
-        shown === total
-          ? total === 1
-            ? "1 Seite"
-            : `${total} Seiten`
-          : `die ersten ${shown} von ${total} Seiten`,
+      pages: (total: number) => (total === 1 ? "1 Seite" : `${total} Seiten`),
       failed: (detail: string) => `Keine Vorschau — ${detail}`
     },
     pythiaUnavailable:

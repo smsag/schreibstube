@@ -888,12 +888,7 @@ export const enExtra = {
       slideshow: { layout: "As in the note", stacked: "Every picture, one under another" },
       print: "Print",
       working: "Setting the preview…",
-      pages: (shown: number, total: number) =>
-        shown === total
-          ? total === 1
-            ? "1 page"
-            : `${total} pages`
-          : `the first ${shown} of ${total} pages`,
+      pages: (total: number) => (total === 1 ? "1 page" : `${total} pages`),
       failed: (detail: string) => `No preview — ${detail}`
     },
     pythiaUnavailable:

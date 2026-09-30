@@ -187,9 +187,19 @@ The note is read, and every diagram drawn and captured, once — before the
 dialog opens. A change in the dialog rebuilds the job and compiles it, which
 is the cheap part; a template's files and each picture at a template's size
 are read once per dialog too. The preview is that compile's PDF, drawn page by
-page with the pdf.js Obsidian ships (`pdf/pdf-preview.ts`, the first twelve
-pages), and "Drucken" writes the same bytes when nothing changed since it was
-set. A preview set for older choices is thrown away.
+page with the pdf.js Obsidian ships (`pdf/pdf-preview.ts`), and "Drucken"
+writes the same bytes when nothing changed since it was set. A preview set for
+older choices is thrown away.
+
+Every page is in the preview, and only the pages near the view are drawn. A
+drawn page is a canvas the panel's width at the screen's density — about 7 MB
+for a slide on a phone — so drawing every page of a sixty-slide deck up front
+would hold some 400 MB, which is why the preview used to stop at twelve. Now
+each page stands as a placeholder of its own size, the first two are drawn
+before the preview is shown, a page is drawn when it comes within a screen of
+the view, and once eight are held the ones farthest from it are let go
+(`services/preview-pages.ts`). Scrolled end to end in Chromium, a 61-page deck
+never held more than eight.
 
 What each choice means is `services/print-options.ts`:
 

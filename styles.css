@@ -2813,6 +2813,21 @@
   opacity: 0.45;
 }
 
+/* A page's place in the preview, the size of the page whether or not it is
+   drawn yet: the scroll bar is right from the start, and a page that comes
+   into view is drawn into a space that was already there. */
+.schreibstube-print-page-slot {
+  flex: none;
+  max-width: 100%;
+  background: #ffffff;
+  box-shadow: var(--shadow-s);
+}
+
+.schreibstube-print-page-slot > .schreibstube-print-page {
+  display: block;
+  box-shadow: none;
+}
+
 .schreibstube-print-page {
   max-width: 100%;
   height: auto;

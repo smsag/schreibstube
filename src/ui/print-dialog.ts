@@ -17,7 +17,7 @@ import {
   type ToggleComponent
 } from "obsidian";
 import { t } from "../i18n";
-import { drawPdfPages, MAX_PREVIEW_PAGES } from "../pdf/pdf-preview";
+import { PdfPreview } from "../pdf/pdf-preview";
 import {
   MARGIN_PRESETS,
   SLIDE_FORMATS,
@@ -89,6 +89,8 @@ export class PrintDialog extends Modal {
   private breakSetting: Setting | null = null;
   private formatSetting: Setting | null = null;
   private alignSetting: Setting | null = null;
+  /** The preview on the panel, which holds its document until it is replaced. */
+  private shown: PdfPreview | null = null;
   private faceSetting: Setting | null = null;
   private pythiaSetting: Setting | null = null;
   /** Ends a refresh still running when the dialog closes: nobody is waiting for it. */
@@ -143,6 +145,8 @@ export class PrintDialog extends Modal {
 
   override onClose(): void {
     this.closed = true;
+    void this.shown?.close();
+    this.shown = null;
     this.refreshing.abort();
     window.clearTimeout(this.timer);
     this.contentEl.empty();
@@ -367,17 +371,25 @@ export class PrintDialog extends Modal {
       if (stale()) return;
 
       const width = Math.max(200, this.pagesEl.clientWidth - 24);
-      const total = await drawPdfPages(prepared.pdf, this.pagesEl, width, stale);
-      if (stale()) return;
+      const next = await PdfPreview.open(prepared.pdf, this.pagesEl, width, stale);
+      if (!next) return;
+      if (stale()) {
+        void next.close();
+        return;
+      }
+      void this.shown?.close();
+      this.shown = next;
 
       this.ready = { generation, prepared };
       this.pagesEl.removeClass("is-stale");
-      this.statusEl.setText(words.pages(Math.min(total, MAX_PREVIEW_PAGES), total));
+      this.statusEl.setText(words.pages(next.pages));
       this.warningsEl.empty();
       for (const warning of prepared.warnings) this.warningsEl.createDiv({ text: warning });
     } catch (error) {
       if (stale()) return;
       this.ready = null;
+      void this.shown?.close();
+      this.shown = null;
       this.pagesEl.empty();
       this.warningsEl.empty();
       this.statusEl.addClass("is-error");
