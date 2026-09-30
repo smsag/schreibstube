@@ -12,6 +12,7 @@ import { randomUUID } from "node:crypto";
 import { TimeoutError, withDeadline } from "./timeout.mjs";
 import { parseSender, recipientAddresses, senderDomain } from "./mail-address.mjs";
 import { chooseSentMailbox, FALLBACK_SENT_MAILBOX } from "./sent-mailbox.mjs";
+import { chooseImportAttachments, MAX_IMPORT_MESSAGE_BYTES } from "./mail-import.mjs";
 import {
   addressText,
   matchableWithoutServer,
@@ -320,6 +321,77 @@ export async function searchMessages(config, request, log = () => {}) {
     }
   } finally {
     await safeLogout(client);
+  }
+}
+
+/**
+ * The attachments of one message, for a note that imports it.
+ *
+ * Asked for apart from the search: a search hands over up to fifty messages,
+ * and their files would make every search as heavy as all of them. The size
+ * is asked first, so a message too large to hold is refused rather than
+ * downloaded and cut, which would hand over files that end half way.
+ */
+export async function fetchAttachments(config, request) {
+  const mailbox = request.mailbox?.trim() || config.defaultMailbox;
+  const client = newClient(config, []);
+
+  try {
+    await client.connect();
+    const lock = await client.getMailboxLock(mailbox);
+    try {
+      const head = await client.fetchOne(
+        String(request.uid),
+        { uid: true, size: true },
+        { uid: true }
+      );
+      if (!head) throw new MessageGoneError(request.uid, mailbox);
+      if (head.size > MAX_IMPORT_MESSAGE_BYTES) {
+        throw new MessageTooLargeError(head.size, MAX_IMPORT_MESSAGE_BYTES);
+      }
+
+      const full = await client.fetchOne(
+        String(request.uid),
+        { uid: true, source: true },
+        { uid: true }
+      );
+      if (!full?.source) throw new MessageGoneError(request.uid, mailbox);
+      const parsed = await simpleParser(full.source);
+      const { kept, skipped } = chooseImportAttachments(parsed.attachments);
+
+      return {
+        uid: request.uid,
+        attachments: kept.map((entry) => ({
+          filename: entry.filename,
+          contentType: entry.contentType,
+          content: entry.content.toString("base64")
+        })),
+        skipped
+      };
+    } finally {
+      lock.release();
+    }
+  } finally {
+    await safeLogout(client);
+  }
+}
+
+/** The message is no longer where the search found it: moved or deleted since. */
+export class MessageGoneError extends Error {
+  constructor(uid, mailbox) {
+    super(`Message ${uid} is no longer in ${mailbox}.`);
+    this.name = "MessageGoneError";
+  }
+}
+
+/** The message is larger than the bridge will download for its attachments. */
+export class MessageTooLargeError extends Error {
+  constructor(bytes, limit) {
+    super(
+      `The mail is ${Math.ceil(bytes / 1_000_000)} MB; attachments are fetched from mails up to ` +
+        `${Math.floor(limit / 1_000_000)} MB.`
+    );
+    this.name = "MessageTooLargeError";
   }
 }
 

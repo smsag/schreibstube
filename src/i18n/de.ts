@@ -240,6 +240,15 @@ export const de: Messages = {
     searchPlaceholderText: "irgendwo in der Nachricht",
     searchEmpty:
       "Mindestens ein Feld ausfüllen: Eine leere Suche würde das ganze Postfach liefern.",
+    searchAttachments: "Anhänge mitnehmen",
+    searchAttachmentsDesc:
+      "Bilder, PDFs und Office-Dateien werden im Anhangsordner gespeichert und unter der Mail verlinkt. Logos aus der Signatur bleiben weg.",
+    attachmentsSkipped: (names: string) => `_Nicht übernommen: ${names}_`,
+    skipReason: {
+      type: "Dateityp",
+      size: "zu groß",
+      limit: "Grenze erreicht"
+    },
     confirmTitle: "E-Mail senden",
     confirmFrom: "Von",
     confirmFromDefault: "Absender aus den Einstellungen bzw. der Bridge",
@@ -863,7 +872,18 @@ export const de: Messages = {
     mergedButIdsUnwritten: (key: string) =>
       `Antworten übernommen, aber ${key} konnte nicht aktualisiert werden — ein erneuter Aufruf übernimmt sie womöglich doppelt.`,
     bridgeUnreachable:
-      "die Bridge konnte nicht gefragt werden, ob sie Bilder mitnimmt; die Visualisierungen gehen als Quelltext."
+      "die Bridge konnte nicht gefragt werden, ob sie Bilder mitnimmt; die Visualisierungen gehen als Quelltext.",
+    fetchingAttachments: "holt die Anhänge …",
+    attachmentsSaved: (count: number) =>
+      count === 1 ? "1 Anhang gespeichert." : `${count} Anhänge gespeichert.`,
+    attachmentsTooOld:
+      "die Mail-Bridge kann noch keine Anhänge übergeben — bitte neu ausrollen. Die Mail wurde ohne sie eingefügt.",
+    attachmentsUnknown:
+      "die Mail-Bridge konnte nicht gefragt werden, ob sie Anhänge übergibt. Die Mail wurde ohne sie eingefügt.",
+    attachmentsNoteChanged:
+      "während die Anhänge geholt wurden, wurde eine andere Notiz geöffnet; die Mail wurde nicht eingefügt. Ihre Dateien sind gespeichert.",
+    failAttachments:
+      "Schreibstube: Anhänge konnten nicht geholt werden; die Mail wurde ohne sie eingefügt"
   },
 
   explorer: {

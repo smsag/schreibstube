@@ -254,6 +254,16 @@ export const en = {
     searchPlaceholderSubject: "contains…",
     searchPlaceholderText: "anywhere in the message",
     searchEmpty: "Fill in at least one field: an empty search would return the whole mailbox.",
+    searchAttachments: "Include attachments",
+    searchAttachmentsDesc:
+      "Pictures, PDFs and Office files are saved to your attachment folder and linked under the mail. Signature logos are left out.",
+    /** The line under an imported mail naming the files it did not bring. */
+    attachmentsSkipped: (names: string) => `_Not imported: ${names}_`,
+    skipReason: {
+      type: "file type",
+      size: "too large",
+      limit: "limit reached"
+    },
     confirmTitle: "Send email",
     confirmFrom: "From",
     confirmFromDefault: "the sender from the settings or the bridge",

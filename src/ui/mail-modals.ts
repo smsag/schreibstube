@@ -12,12 +12,13 @@ import type { SendWarning } from "../services/mail-draft";
  */
 export class MailSearchModal extends Modal {
   private criteria: SearchCriteria = {};
+  private withAttachments = false;
   private error: HTMLElement | null = null;
 
   constructor(
     app: App,
     private readonly mailbox: string,
-    private readonly onSubmit: (criteria: SearchCriteria) => void
+    private readonly onSubmit: (criteria: SearchCriteria, options: SearchOptions) => void
   ) {
     super(app);
   }
@@ -43,6 +44,15 @@ export class MailSearchModal extends Modal {
         this.criteria.since = value;
       });
     });
+
+    new Setting(contentEl)
+      .setName(t().mail.searchAttachments)
+      .setDesc(t().mail.searchAttachmentsDesc)
+      .addToggle((toggle) =>
+        toggle.setValue(this.withAttachments).onChange((value) => {
+          this.withAttachments = value;
+        })
+      );
 
     this.error = contentEl.createEl("p", {
       cls: "schreibstube-mail-warning",
@@ -90,8 +100,14 @@ export class MailSearchModal extends Modal {
       return;
     }
     this.close();
-    this.onSubmit(this.criteria);
+    this.onSubmit(this.criteria, { withAttachments: this.withAttachments });
   }
+}
+
+/** What the search form asks beyond its criteria. */
+export interface SearchOptions {
+  /** Save the chosen mail's files to the vault and link them under it. */
+  withAttachments: boolean;
 }
 
 /** Result picker. Suggestions are already fetched, so the query box just

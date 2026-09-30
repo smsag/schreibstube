@@ -10,8 +10,11 @@ import {
 import {
   MAIL_REQUEST_TIMEOUT_MS,
   describeBridgeError,
+  parseAttachmentsResult,
   parseSearchResult,
   parseSendResult,
+  type AttachmentsRequest,
+  type AttachmentsResult,
   type MailBridgeConfig,
   type SearchRequest,
   type SearchResult,
@@ -38,6 +41,13 @@ export async function searchMail(
   request: SearchRequest
 ): Promise<SearchResult> {
   return parseSearchResult(await postJson(config, "/search", request));
+}
+
+export async function fetchAttachments(
+  config: MailBridgeConfig,
+  request: AttachmentsRequest
+): Promise<AttachmentsResult> {
+  return parseAttachmentsResult(await postJson(config, "/attachments", request));
 }
 
 async function postJson(config: MailBridgeConfig, path: string, body: unknown): Promise<unknown> {
