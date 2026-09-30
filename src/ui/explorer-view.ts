@@ -87,7 +87,7 @@ import {
   moveTargetAt,
   orderAfterDrop
 } from "./explorer-drop";
-import { DragGesture, wireListFocus, wirePress } from "./explorer-gestures";
+import { DragGesture, ROW_CONTROL_ATTR, wireListFocus, wirePress } from "./explorer-gestures";
 import { readPaneMemory, stateFromMemory, writePaneMemory } from "./explorer-memory";
 import {
   renderSection as renderSectionHeader,
@@ -2089,6 +2089,8 @@ export class ExplorerPaneView extends ItemView {
       const label = t().explorer.badge.described;
       const el = row.createSpan({ cls: "schreibstube-explorer-badge" });
       el.setAttribute("data-described", "true");
+      // Its own press: the row must not capture it (see ROW_CONTROL_ATTR).
+      el.setAttribute(ROW_CONTROL_ATTR, "");
       el.setAttribute("aria-label", label);
       el.setAttribute("title", title ? `${label}\n${title}` : label);
       applyIcon(el, "sparkles");

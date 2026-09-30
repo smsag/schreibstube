@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { installObsidianDom } from "../testing/obsidian-dom";
-import { DragGesture, LONG_PRESS_MS, wirePress } from "./explorer-gestures";
+import { DragGesture, LONG_PRESS_MS, ROW_CONTROL_ATTR, wirePress } from "./explorer-gestures";
 
 /**
  * A finger rests on a row, and before the hold has elapsed the pane redraws:
@@ -92,5 +92,38 @@ describe("a finger held on a row before a drag", () => {
     vi.advanceTimersByTime(LONG_PRESS_MS);
 
     expect(el.classList.contains("is-dragging")).toBe(false);
+  });
+});
+
+describe("a press on a control inside a row", () => {
+  it("takes no pointer capture, so the click reaches the control and not the row", () => {
+    const el = row();
+    const capture = vi.fn();
+    el.setPointerCapture = capture;
+    const mark = el.createSpan();
+    mark.setAttribute(ROW_CONTROL_ATTR, "");
+    new DragGesture(() => null, vi.fn()).wire(el, {
+      path: "a.md",
+      onStart: vi.fn(),
+      onMove: vi.fn(),
+      onDrop: vi.fn(),
+      onEnd: vi.fn()
+    });
+
+    mark.dispatchEvent(
+      new PointerEvent("pointerdown", {
+        bubbles: true,
+        pointerType: "mouse",
+        button: 0,
+        pointerId: 1
+      })
+    );
+    expect(capture).not.toHaveBeenCalled();
+
+    // The row itself still takes it: a drag starts from anywhere else on it.
+    el.dispatchEvent(
+      new PointerEvent("pointerdown", { pointerType: "mouse", button: 0, pointerId: 1 })
+    );
+    expect(capture).toHaveBeenCalledOnce();
   });
 });
