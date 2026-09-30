@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+- **Resizing the window no longer stutters with the Explorer open.** The
+  Explorer redrew its whole tree on every resize event, once per pixel of a
+  drag, to recheck how many pinned rows fit in the pane. It now measures once
+  per frame and redraws only when that number changed. Measured on an empty
+  note: a resize step cost twice what it costs without any plugin; now it
+  costs the same.
 - **Recommended under a note sits further from it, and stays put.** The list
   starts 5.5em below the note's last line (it was 3em), in editing and Reading
   view alike, from one value. With the Klartext theme 2.3.1, a trailing empty
