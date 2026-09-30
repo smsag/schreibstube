@@ -51,6 +51,7 @@ plain Obsidian Markdown plus what this file lists. Write only what is here.
 | `schreibstubeGlossaries`      | any note       | list of glossary notes that apply to it                    |
 | `schreibstubeAvoid`           | term note      | list of words to flag, the note's term offered instead     |
 | `schreibstubeIndex`           | any note       | `false` keeps it out of search by meaning                  |
+| `schreibstubeTaskCount`       | any note       | `false` hides its task count in the Explorer               |
 | `published`                   | published note | `true` puts it on the website (see 9)                      |
 
 Written by the plugin, never by you: `schreibstubeMessageId`,

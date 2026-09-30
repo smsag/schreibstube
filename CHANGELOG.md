@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- **A note can decline its task count.** `schreibstubeTaskCount: false` in a note's frontmatter hides the task count on its row in the Explorer, for a note whose boxes are not work — a reading list, a packing list. Its tasks stay out of a pinned tag's sum as well; the note is still listed under the tag. Without the key, **Task counts** in the settings decides as before.
 - "Postfach durchsuchen" can bring a mail's attachments along. Tick "Anhänge
   mitnehmen", choose the mail, and its pictures, PDFs and Office files are
   saved to the attachment folder and embedded or linked under the quoted
@@ -17,6 +18,7 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- **The Properties controls stack on an iPhone.** "Add property", "Add set" and "Suggest tags" stand one under the other, their icons on one line; side by side they wrapped wherever the width ran out, and the one pushed to a line of its own started a step in. On a desktop and an iPad they stay side by side.
 - **Recommended lines up.** The relevance bars stand in one column down the list, also beside a picture, whose thumbnail stays at the far end. The buttons to copy an entry's link and to open it to the right sit just before the bars — under the pointer on a desktop, always on a phone — and lie over the end of a long title instead of narrowing it; the title fades out beneath them in the colour behind the list, whatever the theme.
 
 ### Fixed

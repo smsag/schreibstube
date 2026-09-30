@@ -3649,6 +3649,18 @@
   cursor: var(--cursor);
 }
 
+/* On a phone the three stand one under the other, "Add property" first, each
+   as wide as its words: side by side they wrapped wherever the width ran out,
+   and the one pushed to a line of its own started a step in, by the gap meant
+   for beside. Without that gap every icon stands on the one line Obsidian's
+   inset gives them all. */
+.is-phone .metadata-container .metadata-add-button,
+.is-phone .metadata-container .schreibstube-property-control {
+  display: flex;
+  width: fit-content;
+  margin-inline-start: 0;
+}
+
 .schreibstube-set-suggestion-detail {
   display: block;
   color: var(--text-muted);
