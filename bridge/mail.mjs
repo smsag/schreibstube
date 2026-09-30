@@ -266,13 +266,23 @@ export async function searchMessages(config, request, log = () => {}) {
     try {
       const criteria = request.criteria ?? {};
       let uids = await client.search(buildQuery(criteria), { uid: true });
+      const serverFound = uids === false ? "refused" : uids.length;
       let scanMissedOlder = false;
+      let scanned = "not needed";
       if (uids === false) {
         const refusal = refusalMessage("The mail server refused the search", warnings);
         if (!matchableWithoutServer(criteria)) throw new Error(refusal);
         log("warn", `${refusal}; matching the newest ${MAX_FALLBACK_SCAN} messages instead`);
         ({ uids, scanMissedOlder } = await scanNewest(client, criteria));
+        scanned = uids.length;
+      } else if (uids.length === 0 && matchableWithoutServer(criteria)) {
+        // A second opinion: Strato answered a date-only search with nothing
+        // while its INBOX held mail from that week, and gave no error to go on.
+        // Reading the newest envelopes costs one short FETCH and settles it.
+        ({ uids, scanMissedOlder } = await scanNewest(client, criteria));
+        scanned = uids.length;
       }
+      log("info", searchReport(client, criteria, serverFound, scanned));
       if (uids.length === 0) {
         return { messages: [], mailbox, truncated: scanMissedOlder };
       }
@@ -307,6 +317,24 @@ export async function searchMessages(config, request, log = () => {}) {
   } finally {
     await safeLogout(client);
   }
+}
+
+/**
+ * One line on how a search went, for the bridge log: enough to tell a mailbox
+ * that holds nothing from a server whose search is wrong. The criteria are
+ * named, never quoted, since they carry addresses and subjects.
+ */
+export function searchReport(client, criteria, serverFound, scanned) {
+  const named = Object.keys(criteria)
+    .filter((key) => typeof criteria[key] === "string" && criteria[key].trim())
+    .sort();
+  const capabilities = client.capabilities instanceof Map ? client.capabilities : new Map();
+  return (
+    `search in ${client.mailbox?.path ?? "?"} ` +
+    `(exists ${client.mailbox?.exists ?? "?"}, uidNext ${client.mailbox?.uidNext ?? "?"}, ` +
+    `within ${capabilities.has("WITHIN") ? "yes" : "no"}) ` +
+    `on ${named.join("+") || "nothing"}: server found ${serverFound}, own check found ${scanned}`
+  );
 }
 
 /**

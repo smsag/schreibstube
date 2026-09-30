@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Fixed
+
+- A mail search on the date alone still came back empty after 1.66.1: Strato
+  answered it with no matches, not with a refusal, so the bridge believed it.
+  When the server finds nothing, the bridge now checks the newest 2000 mails
+  of the folder itself, the same way it does after a refusal. The bridge log
+  also gets one line per search: how many mails the folder holds, what the
+  server found and what the bridge's own check found. Criteria are named in
+  it, never quoted. Bridge only; the protocol is unchanged.
+
 ## 1.66.1 - 2026-09-30
 
 A mail search returns mail again when the mail server will not search. Strato

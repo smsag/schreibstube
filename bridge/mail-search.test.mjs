@@ -20,6 +20,8 @@ const imap = vi.hoisted(() => ({
   loggedOut: 0,
   failSearch: null,
   refuseSearch: null,
+  serverFinds: null,
+  capabilities: [],
   fetchNothing: false
 }));
 
@@ -33,7 +35,8 @@ vi.mock("imapflow", () => ({
 
     async getMailboxLock(mailbox) {
       imap.opened.push(mailbox);
-      this.mailbox = { path: mailbox, exists: imap.uids.length };
+      this.mailbox = { path: mailbox, exists: imap.uids.length, uidNext: imap.uids.length + 1 };
+      this.capabilities = new Map(imap.capabilities.map((name) => [name, true]));
       return {
         release: () => {
           imap.released += 1;
@@ -49,6 +52,8 @@ vi.mock("imapflow", () => ({
         this.options.logger.warn?.({ err: imap.refuseSearch, cid: "c1" });
         return false;
       }
+      // A server whose search answers with less than the mailbox holds.
+      if (imap.serverFinds) return imap.serverFinds;
       return imap.uids;
     }
 
@@ -135,6 +140,8 @@ beforeEach(() => {
   imap.loggedOut = 0;
   imap.failSearch = null;
   imap.refuseSearch = null;
+  imap.serverFinds = null;
+  imap.capabilities = [];
   imap.fetchNothing = false;
 });
 
@@ -267,6 +274,10 @@ describe("searchMessages, when the server refuses to search", () => {
       [
         "warn",
         "The mail server refused the search: NO busy; matching the newest 2000 messages instead"
+      ],
+      [
+        "info",
+        "search in INBOX (exists 3, uidNext 4, within no) on since: server found refused, own check found 2"
       ]
     ]);
   });
@@ -302,6 +313,62 @@ describe("searchMessages, when the server refuses to search", () => {
     const result = await searchMessages(config(), { criteria: { since: "2026-09-25" } });
     expect(result).toEqual({ messages: [], mailbox: "INBOX", truncated: false });
     expect(imap.scans).toEqual([]);
+  });
+});
+
+describe("searchMessages, when the server finds nothing", () => {
+  it("checks the newest messages itself and returns what it finds", async () => {
+    message({ uid: 1, date: "Mon, 21 Sep 2026 09:00:00 +0000" });
+    message({ uid: 2, subject: "AW: Fristsetzung", date: "Mon, 28 Sep 2026 13:18:27 +0000" });
+    imap.serverFinds = [];
+    const notes = [];
+
+    const result = await searchMessages(
+      config(),
+      { criteria: { since: "2026-09-25" } },
+      (level, text) => notes.push([level, text])
+    );
+
+    expect(result.messages.map((m) => m.uid)).toEqual([2]);
+    expect(notes).toEqual([
+      [
+        "info",
+        "search in INBOX (exists 2, uidNext 3, within no) on since: server found 0, own check found 1"
+      ]
+    ]);
+  });
+
+  it("takes an empty answer to a body-text search as it is", async () => {
+    message({ uid: 1 });
+    imap.serverFinds = [];
+    const result = await searchMessages(config(), { criteria: { text: "Objekt" } });
+    expect(result.messages).toEqual([]);
+    expect(imap.scans).toEqual([]);
+  });
+
+  it("does not check again when the server found something", async () => {
+    message({ uid: 1 });
+    const notes = [];
+    await searchMessages(config(), { criteria: { since: "2026-09-01" } }, (level, text) =>
+      notes.push(text)
+    );
+    expect(imap.scans).toEqual([]);
+    expect(notes[0]).toMatch(/server found 1, own check found not needed$/);
+  });
+
+  it("reports a refusal and whether the server offered WITHIN, naming criteria only", async () => {
+    message({ uid: 1, subject: "Fristsetzung" });
+    imap.capabilities = ["WITHIN"];
+    imap.refuseSearch = {};
+    const notes = [];
+    await searchMessages(
+      config(),
+      { criteria: { subject: "Fristsetzung", from: "info@nascor.de", text: " " } },
+      (level, text) => notes.push(text)
+    );
+    expect(notes[1]).toBe(
+      "search in INBOX (exists 1, uidNext 2, within yes) on from+subject: server found refused, own check found 0"
+    );
   });
 });
 
