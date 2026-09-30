@@ -11,6 +11,12 @@
 // `data.subtitle` and `data.author` are for the title slide, beside the date;
 // `data.title` is the note's first heading, and stands in the foot of every
 // slide but the title slide and the section dividers.
+//
+// The brand is three values: `data.accent`, a colour written #rrggbb, for
+// rules, column heads, bullets and links; `data.font`, the family of a face
+// in this folder's fonts/, for all text but code; and `data.logo`, the file
+// name of a picture in this folder, at the top right of every slide and
+// above the title on the title slide. Each is empty for the plain deck.
 
 // The prelude's shrink-to-fit, alignment and captions, which every job
 // carries beside this file.
@@ -26,17 +32,32 @@
 #let faint = rgb("#9aa3ad")
 #let hairline = rgb("#e3e6ea")
 #let surface = rgb("#f4f5f7")
-#let accent = rgb("#2f6fb0")
+#let plain-accent = rgb("#2f6fb0")
 #let sans = ("Fira Sans", "Libertinus Serif")
 #let mono = ("JetBrains Mono", "DejaVu Sans Mono")
 
-// Marks which slides carry the foot: a title slide and a section divider
-// stand on their own.
-#let plain = state("folien-plain", false)
+// Whether the slide on this page stands on its own — a title slide or a
+// section divider — and so carries neither logo nor foot. Each slide leaves
+// its kind on its page; a state would do for the foot, which is set after
+// the slide, but the header is set before it and would read the slide before.
+// Needs context.
+#let plain() = {
+  let page = here().page()
+  query(<folien-kind>).any(mark => mark.location().page() == page and mark.value != "content")
+}
 
 // The data the title slide reads, handed in by the entry below: a slide is
 // called from the note's body, where `data` is not in scope.
 #let folien-data = state("folien-data", (:))
+
+// The accent a value names, or the plain one when it names none: a colour
+// mistyped in a note is a slide in the usual blue, not a print that fails.
+#let accent-of(value) = if type(value) == str and value.trim().match(regex("^#[0-9a-fA-F]{6}$")) != none {
+  rgb(value.trim())
+} else { plain-accent }
+
+// The accent in force where it is asked for. Needs context.
+#let accent() = accent-of(folien-data.get().at("accent", default: ""))
 
 #let schreibstube-slide(
   kind: "content",
@@ -48,27 +69,33 @@
   cells: (),
 ) = {
   pagebreak(weak: true)
-  plain.update(kind != "content")
+  [#metadata(kind) <folien-kind>]
   show: schreibstube-slide-align.with(horizontal)
 
   if kind == "title" {
     block(height: 100%, width: 100%, align(horizon, context {
-      heading(level: 1, text(size: 40pt, title))
       let data = folien-data.get()
-      if data.subtitle != "" {
+      let logo = data.at("logo", default: "")
+      if logo != "" {
+        image(logo, height: 18mm)
+        v(0.8em)
+      }
+      heading(level: 1, text(size: 40pt, title))
+      let subtitle = data.at("subtitle", default: "")
+      if subtitle != "" {
         v(0.3em)
-        text(size: 22pt, fill: muted, data.subtitle)
+        text(size: 22pt, fill: muted, subtitle)
       }
       v(1.2em)
-      line(length: 3cm, stroke: 2pt + accent)
+      line(length: 3cm, stroke: 2pt + accent())
       v(0.6em)
-      text(size: 14pt, fill: muted, (data.author, data.date).filter(x => x != "").join(" · "))
+      text(size: 14pt, fill: muted, (data.at("author", default: ""), data.at("date", default: "")).filter(x => x != "").join(" · "))
     }))
     return
   }
   if kind == "section" {
     block(height: 100%, width: 100%, align(horizon, {
-      line(length: 2cm, stroke: 2pt + accent)
+      context line(length: 2cm, stroke: 2pt + accent())
       v(0.4em)
       heading(level: 1, text(size: 34pt, title))
     }))
@@ -86,12 +113,12 @@
         column-gutter: 1.4em,
         row-gutter: 1.2em,
         ..cells.map(((head, main)) => block(width: 100%, {
-          block(
+          context block(
             below: 0.5em,
             inset: (bottom: 0.3em),
-            stroke: (bottom: 1pt + accent),
+            stroke: (bottom: 1pt + accent()),
             width: 100%,
-            schreibstube-slide-block(text(weight: 600, fill: accent, head)),
+            schreibstube-slide-block(text(weight: 600, fill: accent(), head)),
           )
           schreibstube-slide-pictures(false, main)
         })),
@@ -131,20 +158,29 @@
 #let schreibstube-callout(kind, title, body) = {
   let color = if kind == "warning" { rgb(178, 78, 22) } else if kind == "danger" {
     rgb(176, 44, 48)
-  } else if kind == "tip" { rgb(30, 118, 70) } else { accent }
-  block(width: 100%, inset: (left: 12pt, y: 4pt), stroke: (left: 3pt + color))[
-    #text(weight: 600, fill: color, title)
-    #v(0.1em)
-    #body
-  ]
+  } else if kind == "tip" { rgb(30, 118, 70) } else { none }
+  context {
+    let color = if color == none { accent() } else { color }
+    block(width: 100%, inset: (left: 12pt, y: 4pt), stroke: (left: 3pt + color))[
+      #text(weight: 600, fill: color, title)
+      #v(0.1em)
+      #body
+    ]
+  }
 }
 
 #let slides(body, data) = {
   set document(title: data.title)
+  let accent = accent-of(data.at("accent", default: ""))
+  let logo = data.at("logo", default: "")
+  let font = data.at("font", default: "").trim()
   // The paper is the dialog's format, and the margins the descriptor's, so
-  // neither is set here.
-  set page(footer: context {
-    if not plain.get() {
+  // neither is set here. The logo stands in the top margin, clear of the
+  // title, on every slide that carries the foot.
+  set page(header: context {
+    if logo != "" and not plain() { align(right + bottom, image(logo, height: 8mm)) }
+  }, footer: context {
+    if not plain() {
       set text(size: 10pt, fill: faint)
       // Set flush on both sides whatever the slides above it ask for.
       grid(
@@ -155,7 +191,8 @@
       )
     }
   })
-  set text(font: sans, size: 20pt, fill: ink, lang: data.lang)
+  // A brand face first, with Fira Sans behind it for any glyph it lacks.
+  set text(font: (if font != "" { (font,) } else { () }) + sans, size: 20pt, fill: ink, lang: data.lang)
   set par(justify: false, leading: 0.6em, spacing: 0.9em)
 
   show heading: set text(fill: ink, weight: 700, tracking: -0.01em)

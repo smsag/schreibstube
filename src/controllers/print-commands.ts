@@ -19,7 +19,12 @@ import type { Logger } from "../services/logger";
 import type { SchreibstubeSettings } from "../types";
 import { resizeImageToBytes } from "../services/image-resize";
 import { markdownToTypst, type Conversion } from "../services/markdown-typst";
-import { noteTitle, resolvePrintData, templateNameOf } from "../services/print-data";
+import {
+  noteTitle,
+  resolvePrintData,
+  templateNameOf,
+  withoutMissingPictures
+} from "../services/print-data";
 import {
   buildJob,
   checkFontBudget,
@@ -633,13 +638,18 @@ export class PrintCommands {
       conversion = pass((path) => assets.has(path));
     }
 
-    const data = resolvePrintData(template, frontmatter, {
+    const resolved = resolvePrintData(template, frontmatter, {
       title: noteTitle(session.source, file.basename),
       noteName: file.basename,
       now: new Date(),
       locale: activeLocale(),
       monospace: options.monospace
     });
+    const { data, missing } = withoutMissingPictures(
+      resolved,
+      new Set(files.assets.map((asset) => asset.path))
+    );
+    for (const name of missing) warnings.push(messages.templatePictureMissing(name, template.name));
 
     const input = {
       template,

@@ -33,7 +33,7 @@ try {
   const runtime = readRuntime(harness.DEVICE_ASSETS);
   const compile = await startWorker(harness.WORKER_SOURCE, runtime);
 
-  const templates = [...exampleTemplates(), ...madeHere()];
+  const templates = [...exampleTemplates(), ...madeHere(harness.PIXEL_PNG)];
   const jobs = harness.fixtureJobs(templates);
   const failures = [];
 
@@ -74,7 +74,7 @@ async function load() {
   await esbuild.build({
     stdin: {
       contents: [
-        'export { fixtureJobs } from "./src/testing/print-fixtures";',
+        'export { fixtureJobs, PIXEL_PNG } from "./src/testing/print-fixtures";',
         'export { compileDeadline, compilePayload } from "./src/services/print-job";',
         'export { describeDiagnostics, DEVICE_ASSETS } from "./src/services/typst-runtime";',
         'export { WORKER_SOURCE } from "./src/print/typst-worker";',
@@ -186,8 +186,10 @@ function exampleTemplates() {
  * defaults are what is compiled; one that replaces every helper, so a
  * template's own definitions are shown to be the ones that are called; and a
  * deck with no opinions, so the prelude's own slide is compiled for every case.
+ * Beside them the Folien example with its brand filled in — a colour, a face
+ * and a logo — which its folder leaves empty.
  */
-function madeHere() {
+function madeHere(pixel) {
   const entry = "#let template(body, data) = body\n";
   const own = [
     "#let schreibstube-image(path, alt) = image(path, width: 2cm)",
@@ -197,7 +199,19 @@ function madeHere() {
     "#let schreibstube-callout(kind, title, body) = block(stroke: red)[#title #body]",
     "#let schreibstube-task(done) = if done [(x)] else [( )]"
   ].join("\n");
+  const folien = exampleTemplates().find((template) => template.folder.endsWith("/folien"));
+  if (!folien) fail("examples/print/folien is missing");
+  const branded = {
+    ...folien,
+    folder: "Vorlagen/Druck/Folien mit Marke",
+    frontmatter: {
+      ...folien.frontmatter,
+      schreibstubeData: { accent: "#8c1a33", font: "JetBrains Mono", logo: "logo.png" }
+    },
+    assets: [{ path: "logo.png", bytes: pixel }]
+  };
   return [
+    branded,
     { folder: "Vorlagen/Druck/Ohne Meinung", frontmatter: {}, layout: entry },
     { folder: "Vorlagen/Druck/Eigene Helfer", frontmatter: {}, layout: `${own}\n${entry}` },
     {

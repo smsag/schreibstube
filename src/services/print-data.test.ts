@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { formatDate, noteTitle, resolvePrintData, templateNameOf } from "./print-data";
+import {
+  formatDate,
+  noteTitle,
+  resolvePrintData,
+  templateNameOf,
+  withoutMissingPictures
+} from "./print-data";
 import { parseTemplate } from "./print-template";
 
 const template = (data: Record<string, string>) =>
@@ -118,5 +124,23 @@ describe("a note that opens with a code block", () => {
     expect(noteTitle("```bash\n# install deps\nnpm ci\n```\n\n# Echter Titel", "Datei")).toBe(
       "Echter Titel"
     );
+  });
+});
+
+describe("withoutMissingPictures", () => {
+  it("empties a value naming a picture the job does not hold, and names it", () => {
+    const result = withoutMissingPictures(
+      { logo: "logo.png", photo: " foto.JPG ", title: "Bericht" },
+      new Set(["logo.png"])
+    );
+    expect(result).toEqual({
+      data: { logo: "logo.png", photo: "", title: "Bericht" },
+      missing: ["foto.JPG"]
+    });
+  });
+
+  it("leaves every value alone that names no picture", () => {
+    const data = { accent: "#8c1a33", font: "Fira Sans", note: "siehe bild.png unten" };
+    expect(withoutMissingPictures(data, new Set())).toEqual({ data, missing: [] });
   });
 });

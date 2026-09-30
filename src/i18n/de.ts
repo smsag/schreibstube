@@ -1225,6 +1225,8 @@ export const de: Messages = {
       `der Typesetter ließ sich nicht laden (${detail}). Er wird einmal pro Gerät gebraucht; mit Netz erneut versuchen.`,
     compilerRefused: (detail: string) => `die Vorlage ließ sich nicht setzen — ${detail}`,
     pictureFailed: (name: string) => `${name} ließ sich nicht lesen und fehlt`,
+    templatePictureMissing: (name: string, template: string) =>
+      `${name} liegt nicht im Ordner der Vorlage „${template}“ und fehlt deshalb`,
     panelsLost: (index: number, missing: number, total: number) =>
       `Visualisierung ${index}: ${missing} von ${total} Zeichnungen ließen sich nicht aufnehmen und fehlen`,
     done: (path: string, kilobytes: number) => `${path} gedruckt (${kilobytes} KB).`,

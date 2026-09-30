@@ -465,6 +465,14 @@ canvases. A one-picture fence passes a one-element array, which in Typst needs
 its trailing comma: `("a.png",)`. `typstArray` in `services/typst-value.ts`
 writes it, and that comma is the reason the function exists.
 
+A value that names a picture — it ends in `.png`, `.jpg`, `.webp`, `.gif` or
+`.svg`, as a CV's `photo` or a deck's `logo` does — must name a file in the
+template's folder. One that does not is made empty before the layout reads
+it, and the print names the file (`withoutMissingPictures` in
+`services/print-data.ts`): the compiler would otherwise refuse the whole
+document over one picture, and every template already draws nothing for an
+empty value.
+
 ### Data resolution
 
 For every key the template reads, the first of these wins:

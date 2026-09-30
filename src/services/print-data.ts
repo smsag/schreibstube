@@ -84,6 +84,37 @@ function noteData(
   return data;
 }
 
+/** A value that names a picture file, as a template's `photo` or `logo` does. */
+const PICTURE_NAME = /\.(png|jpe?g|webp|gif|svg)$/i;
+
+/**
+ * The data with every value that names a picture the job does not hold made
+ * empty, and the names that were.
+ *
+ * A template reads its logo or photo by the file name its data gives, and the
+ * compiler refuses the whole document over one file it cannot find — a name
+ * mistyped in a note, or a logo not yet copied into the folder, printed
+ * nothing at all. Emptied, the value reads as "none", which every template
+ * already asks before it draws, and the print says what was missing.
+ */
+export function withoutMissingPictures(
+  data: Readonly<Record<string, string>>,
+  available: ReadonlySet<string>
+): { data: Record<string, string>; missing: string[] } {
+  const kept: Record<string, string> = {};
+  const missing: string[] = [];
+  for (const [key, value] of Object.entries(data)) {
+    const name = value.trim();
+    if (PICTURE_NAME.test(name) && !available.has(name)) {
+      missing.push(name);
+      kept[key] = "";
+    } else {
+      kept[key] = value;
+    }
+  }
+  return { data: kept, missing };
+}
+
 /** Which template a note asks for, or null when it asks for none. */
 export function templateNameOf(
   frontmatter: Readonly<Record<string, unknown>> | null | undefined

@@ -6,6 +6,9 @@ schreibstubePage: { size: presentation-16-9, margin: "16mm 20mm 14mm" }
 schreibstubeData:
   subtitle: ""
   author: ""
+  accent: ""
+  font: ""
+  logo: ""
 ---
 
 # Folien
@@ -35,6 +38,23 @@ Eine Folie, auf der mehr steht, als passt, wird als Ganzes verkleinert, bis sie 
 
 Unter `schreibstubeData` stehen die Angaben der Titelfolie: `author` hier für jede Präsentation, `subtitle` besser in der Notiz. Gesetzt ist sie in Fira Sans, die das Plugin mit dem Typesetter lädt.
 
+### Eigenes Erscheinungsbild
+
+Drei Werte machen aus den Folien die eigenen; leer bleibt es beim Blau und bei Fira Sans.
+
+```yaml
+schreibstubeData:
+  accent: "#8c1a33"
+  font: Source Sans 3
+  logo: logo.png
+```
+
+- `accent` ist die Farbe für Linien, Spaltenköpfe, Aufzählungspunkte und Links, geschrieben als `#rrggbb`. Eine Angabe in anderer Form lässt es beim Blau.
+- `font` ist der Familienname einer Schrift, deren Dateien (`.ttf` oder `.otf`) in `fonts/` in diesem Ordner liegen. Code bleibt in JetBrains Mono.
+- `logo` ist der Dateiname eines Bildes, das direkt in diesem Ordner liegt. Es steht oben rechts auf jeder Folie und groß über dem Titel der Titelfolie; Kapiteltrenner bleiben ohne. Fehlt die Datei, wird ohne Logo gedruckt und der Druck sagt, welche fehlt.
+
+Jeder der drei Werte lässt sich in einer Notiz unter `schreibstubePrint` überschreiben, etwa `accent` für die Präsentation eines Partners.
+
 ## Benutzen
 
 ```yaml
@@ -56,5 +76,8 @@ Das Format wählt der Druckdialog; `format` in der Notiz legt fest, womit er beg
 | `title`    | erste Überschrift der Notiz, sonst Name | Fußzeile jeder Folie        |
 | `subtitle` | Notiz oder Vorlage                      | Titelfolie, unter dem Titel |
 | `author`   | Vorlage oder Notiz                      | Titelfolie, vor dem Datum   |
+| `accent`   | Vorlage oder Notiz                      | Farbe der Linien und Köpfe  |
+| `font`     | Vorlage oder Notiz                      | Schrift des Textes          |
+| `logo`     | Vorlage oder Notiz                      | Logo auf jeder Folie        |
 | `date`     | automatisch, Notiz sticht               | Titelfolie                  |
 | `lang`     | Sprache des Plugins                     | Silbentrennung              |

@@ -238,8 +238,12 @@ export const PRELUDE_SOURCE = `// Defaults the converted note calls. A template 
   ) { low } else { none }
   if factor == none {
     // Nothing set wider fits: scaled as it stands, which always does.
-    [#metadata((page: here().page(), scale: low)) <schreibstube-fit>]
-    return scale(low * 100%, origin: top + left, reflow: true, block(width: size.width, body))
+    return [#metadata((page: here().page(), scale: low)) <schreibstube-fit>] + scale(
+      low * 100%,
+      origin: top + left,
+      reflow: true,
+      block(width: size.width, body),
+    )
   }
   [#metadata((page: here().page(), scale: factor)) <schreibstube-fit>]
   scale(factor * 100%, origin: top + left, reflow: true, block(width: size.width / factor, body))
