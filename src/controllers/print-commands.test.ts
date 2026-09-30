@@ -15,7 +15,9 @@ const compiler = vi.hoisted(() => ({
   /** Diagnostics to refuse the next compile with, as Typst would. */
   refuse: null as string[] | null,
   /** A compile that waits until a test lets it go, to see what runs meanwhile. */
-  hold: null as Promise<void> | null
+  hold: null as Promise<void> | null,
+  /** The slides the compile reports it made smaller. */
+  fits: [] as { page: number; scale: number }[]
 }));
 
 vi.mock("../print/typst-compiler", () => ({
@@ -25,7 +27,7 @@ vi.mock("../print/typst-compiler", () => ({
       compiler.jobs.push(job);
 
       if (compiler.refuse) return { ok: false, diagnostics: compiler.refuse };
-      return { ok: true, pdf: compiler.pdf };
+      return { ok: true, pdf: compiler.pdf, fits: compiler.fits };
     }
     dispose(): void {}
   }
@@ -294,6 +296,7 @@ beforeEach(() => {
   compiler.pdf = typeset();
   compiler.jobs = [];
   compiler.refuse = null;
+  compiler.fits = [];
   compiler.hold = null;
 
   answers.replace = false;
@@ -470,6 +473,19 @@ describe("Pythia's footnotes", () => {
 
     expect(answers.pythia).toEqual([undefined, undefined]);
     expect(answers.initialPythia).toEqual([false, false]);
+  });
+
+  it("says which slides the compile had to set too small to read", async () => {
+    compiler.fits = [
+      { page: 6, scale: 0.45 },
+      { page: 2, scale: 0.9 }
+    ];
+    const { commands } = vault({ note: linked });
+    await viaDialog(commands);
+
+    expect(answers.previewWarnings[0]).toContain(
+      "slide 6 holds more than fits and is set as small as 45 % — worth splitting"
+    );
   });
 
   it("prints the note unchanged, and says why, when Pythia's copy is unusable", async () => {

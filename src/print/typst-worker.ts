@@ -59,7 +59,17 @@ self.onmessage = async (event) => {
       const result = await compiler.compile(payload.main, undefined, "pdf", 2);
       const pdf = result instanceof Uint8Array ? result : result?.result;
       if (pdf instanceof Uint8Array) {
-        self.postMessage({ id, ok: true, pdf }, [pdf.buffer]);
+        // What the slides' fit recorded, read from the document just set:
+        // the query reuses that compile and takes milliseconds. A document
+        // with no slides answers an empty list; one that cannot be asked
+        // answers nothing, and the print goes on without the report.
+        let fits;
+        try {
+          fits = compiler.query(payload.main, undefined, "<schreibstube-fit>", "value");
+        } catch (queryError) {
+          fits = undefined;
+        }
+        self.postMessage({ id, ok: true, pdf, fits }, [pdf.buffer]);
       } else {
         self.postMessage({ id, ok: true, diagnostics: result?.diagnostics ?? [] });
       }

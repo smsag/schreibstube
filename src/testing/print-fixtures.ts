@@ -16,6 +16,7 @@ import { resolvePrintData } from "../services/print-data";
 import { parseTemplate } from "../services/print-template";
 import { applyOptions, initialOptions, type MarginPreset } from "../services/print-options";
 import type { SlideshowPrintMode } from "../services/print-slideshow";
+import type { SlideAlign } from "../services/print-slides";
 import { SLIDESHOW_LAYOUTS } from "../services/slideshow";
 import { printAssetName, printImageFormat } from "../services/print-images";
 
@@ -28,6 +29,10 @@ export interface PrintCase {
   margin?: MarginPreset;
   /** How the dialog prints slideshows; as they stand on screen unless named. */
   slideshows?: SlideshowPrintMode;
+  /** A deck's speaker notes after the last slide; off, as the dialog starts, unless named. */
+  speakerNotes?: boolean;
+  /** Where a deck's content stands; centred, as the dialog starts, unless named. */
+  slideAlign?: SlideAlign;
   /** The print setting; monospaced, as it ships, unless a case turns it off. */
   monospace?: boolean;
 }
@@ -41,6 +46,50 @@ function slideshow(layout: string, count: number): string {
 export const PRINT_CASES: readonly PrintCase[] = [
   { name: "paragraph", markdown: "Ein Absatz mit Umlauten: äöü ß.\n\nUnd ein zweiter." },
   { name: "headings", markdown: "# Eins\n\n## Zwei\n\n### Drei\n\nText." },
+  {
+    // Every way a deck is grouped: title slide, divider, one, two and three
+    // columns and a second row, a deeper heading inside a column, pictures
+    // with and without a caption, a rule, and a slide that only fits once it
+    // is made smaller. On a template that is no deck it is an
+    // ordinary note.
+    name: "slides",
+    markdown: [
+      "# Deck",
+      "# Teil",
+      "## Ein Bild\n\n![Das Objekt von der Straße](objekt.jpg)\n\n![[grundriss.png|300]]",
+      "## Zwei Spalten\n\nÜber beiden.\n\n### Links\n\n- a\n\n#### Unter\n\n![Bild](bild.png)\n\n### Rechts\n\nText[^1]",
+      "## Vier Spalten, drei nebeneinander\n\n### A\n\n1\n\n### B\n\n2\n\n### C\n\n3\n\n### D\n\n4",
+      "## Eine Spalte\n\n### Allein\n\nText",
+      "## Breiten <!-- columns: 1 2 -->\n\n### Schmal\n\na\n\n### Breit\n\nb",
+      "## Falsche Breiten\n\n%% columns: 1 2 3 %%\n\n### L\n\nl\n\n### R\n\nr",
+      `## Zu voll\n\n${"Ein langer Absatz, der die Folie füllt. ".repeat(80)}\n\n| a | b |\n| - | - |\n| 1 | 2 |`,
+      "---\n\nWeiter ohne Titel.\n\n> [!note] Innen\n> ## Kein Folientitel",
+      "[^1]: Eine Fußnote auf einer Folie."
+    ].join("\n\n")
+  },
+  {
+    // Picture layouts, a drawing on a slide, speaker notes and an agenda; on
+    // a template that is no deck, the notes are a callout like any other.
+    name: "slides-pictures",
+    markdown: [
+      "# Deck",
+      "## Agenda <!-- agenda -->",
+      "# Teil",
+      "## Nur ein Bild\n\n![Das Objekt](objekt.jpg)\n\n> [!notes]\n> Erst die Lage, dann der Grundriss.",
+      "## Links <!-- layout: image-left -->\n\n![Straße](bild.png)\n\n- eins\n- zwei",
+      "## Rechts\n\n%% layout: image-right %%\n\nText\n\n![](bild.png)",
+      "## Zeichnung\n\n```mermaid\ngraph LR; A-->B\n```",
+      "## Kein Bild <!-- layout: image-left -->\n\nText"
+    ].join("\n\n"),
+    speakerNotes: true
+  },
+  {
+    name: "slides-left",
+    markdown:
+      "## Links\n\n- eins\n  - zwei\n\n![Bild](bild.png)\n\n### A\n\n1. a\n\n### B\n\n![Unten](b.png)",
+    slideAlign: "left"
+  },
+
   {
     name: "inline",
     markdown:
@@ -148,6 +197,8 @@ export interface FixtureJob {
   job: PrintJob;
   /** Whether the note puts text on the page, which a page without a font cannot show. */
   hasText: boolean;
+  /** Whether the template prints the note as slides. */
+  deck: boolean;
 }
 
 /**
@@ -197,6 +248,9 @@ export function fixtureJobs(templates: readonly FixtureTemplate[]): FixtureJob[]
         hrIsPageBreak: template.hrIsPageBreak,
         properties: printCase.properties ?? [],
         slideshows: printCase.slideshows ?? "layout",
+        slides: template.slides,
+        slideAlign: printCase.slideAlign ?? "center",
+        speakerNotes: printCase.speakerNotes ?? false,
         diagramImage: (block) => [place(`assets/diagram-${block.index}-0.png`)],
         // As the print command names and draws pictures: by what they become.
         image: ({ source }) => {
@@ -236,7 +290,8 @@ export function fixtureJobs(templates: readonly FixtureTemplate[]): FixtureJob[]
           fonts: fixture.fonts ?? [],
           assets: [...pictures.values(), ...(fixture.assets ?? [])]
         }),
-        hasText: printCase.markdown.trim() !== ""
+        hasText: printCase.markdown.trim() !== "",
+        deck: template.slides
       });
     }
   }

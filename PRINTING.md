@@ -187,9 +187,19 @@ The note is read, and every diagram drawn and captured, once — before the
 dialog opens. A change in the dialog rebuilds the job and compiles it, which
 is the cheap part; a template's files and each picture at a template's size
 are read once per dialog too. The preview is that compile's PDF, drawn page by
-page with the pdf.js Obsidian ships (`pdf/pdf-preview.ts`, the first twelve
-pages), and "Drucken" writes the same bytes when nothing changed since it was
-set. A preview set for older choices is thrown away.
+page with the pdf.js Obsidian ships (`pdf/pdf-preview.ts`), and "Drucken"
+writes the same bytes when nothing changed since it was set. A preview set for
+older choices is thrown away.
+
+Every page is in the preview, and only the pages near the view are drawn. A
+drawn page is a canvas the panel's width at the screen's density — about 7 MB
+for a slide on a phone — so drawing every page of a sixty-slide deck up front
+would hold some 400 MB, which is why the preview used to stop at twelve. Now
+each page stands as a placeholder of its own size, the first two are drawn
+before the preview is shown, a page is drawn when it comes within a screen of
+the view, and once eight are held the ones farthest from it are let go
+(`services/preview-pages.ts`). Scrolled end to end in Chromium, a 61-page deck
+never held more than eight.
 
 What each choice means is `services/print-options.ts`:
 
@@ -199,6 +209,8 @@ What each choice means is `services/print-options.ts`:
 | Ränder                        | `standard` keeps the template's margin; `small` and `wide` set 15 and 35 mm through the page rule `main.typ` sets before the layout. A layout that sets its own margin (`layoutFixesMargin`) keeps it, and the choice is greyed out |
 | Trennlinien als Seitenumbruch | The converter's `hrIsPageBreak`                                                                                                                                                                                                     |
 | Eigenschaften drucken         | `frontmatterRows`: the note's properties without the `schreibstube…` keys, lists on one line, links as their names; placed after a leading `=` heading as `#schreibstube-properties(rows)`                                          |
+| Ausrichtung                   | Offered for a slide template: the content centred (the default) or at the left edge; see "A note as slides"                                                                                                                         |
+| Format                        | Offered for a slide template: 16:9 or 4:3; see "A note as slides". The page-break toggle is not offered then                                                                                                                        |
 | Diashows                      | Offered when the note holds one. `layout` (the default, and what the quick print uses) or `stacked`; see below                                                                                                                      |
 | Pythia-Fußnoten               | Offered when Pythia is on and the note links to a conversation. On by default then; see below                                                                                                                                       |
 
@@ -251,6 +263,127 @@ inside the job's picture budget. Picture paths are tried the way the screen
 tries them (`linkpathCandidates`), so `my%20photo.png` is found. A picture
 that is not in the vault is left out and named; the rest of the slideshow
 prints.
+
+### A note as slides
+
+A template whose descriptor says `schreibstubeSlides: true` prints the note as
+a deck, one slide to a page. The note is not rewritten for it; its outline is
+the deck's. `services/print-slides.ts` decides the grouping from the
+converter's top-level blocks, and the prelude's `schreibstube-slide` draws each
+slide, which a template may replace.
+
+| In the note                | On the slides                                                                                             |
+| -------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `#`, `##`                  | a new slide, titled by the heading                                                                        |
+| `#` with nothing under it  | a section divider; when it opens the deck, the title slide                                                |
+| `###`                      | a column, titled by the heading: a slide has as many columns as `###` headings, two or three side by side |
+| `####` and deeper          | an ordinary heading inside its column                                                                     |
+| `---`                      | a new, untitled slide, whatever `hrIsPageBreak` says; a rule with nothing after it leaves nothing         |
+| a heading inside a callout | the callout's, never a slide's                                                                            |
+
+What stands above a slide's first column heading runs across the full width;
+a fourth `###` starts a second row rather than a fourth, narrower column.
+
+**Column widths are a comment.** Columns are equal unless the slide says
+otherwise, in a comment plain Markdown hides everywhere:
+`## Zwei Wege <!-- columns: 1 2 -->` makes a third and two thirds, and the
+comment may stand on a line of its own anywhere in the slide, or just above
+its heading; Obsidian's `%% columns: 1 2 %%` is read the same. Two or three
+shares, separated by spaces, commas or a colon, each above nought and at most
+twelve (`parseWidths`). A comment that is not one of these, or holds a share
+for a different number of columns than the slide has, leaves the columns equal
+and is named in the warnings. Only a print as slides reads the comment
+(`markSlideDirectives` lifts it out before comments are stripped, onto a line
+of its own no note can write); a comment in a code fence is code, and every
+other comment goes as it always has. It reaches the slide as `widths:`,
+fractions one per column, or `none`.
+
+**Picture layouts.** A slide that holds one picture and nothing else — no
+columns, no other block — gives it all the room under its title, never
+cropped, its caption beside it. `<!-- layout: image-left -->` or
+`image-right`, written like the column widths, sets the slide's first
+picture on its own line on one half, at the full height, caption beneath,
+and fits everything else on the other half. A layout that is not one of the
+two, or one asked for on a slide with no picture on a line of its own, is
+named in the warnings and the slide stays as it is. The layout reaches the
+slide as `layout:` (`"text"`, `"picture"`, `"image-left"`, `"image-right"`)
+and the picture as `picture:`; `schreibstube-slide-area` lays out the part
+under the title accordingly, and `schreibstube-slide-filled` draws a picture
+that has a space of its own.
+
+**Drawings on slides.** A captured Mermaid or Vizardry drawing is a slide
+picture like any other, one per panel, so it takes the same captions and the
+picture layouts. Its caption is the drawing's own name, not the heading above
+it, which on a slide is the title standing right over it already. A
+slideshow block keeps the arrangement the dialog chose.
+
+**Speaker notes.** A `> [!notes]` callout is what the speaker says over the
+slide it stands in, and no slide shows it; written above a slide's heading it
+belongs to that slide. The dialog's **Sprechernotizen**, off by default, adds
+pages after the last slide: each slide with notes, by its number and title,
+then its notes. Each slide leaves its notes as metadata labelled
+`<schreibstube-notes>` (`schreibstube-slide-note-mark`), and
+`#schreibstube-slide-notes(heading:, slide:)` at the end of the body gathers
+them. On a print that is not a deck, the callout prints as a callout.
+
+**Agenda.** `<!-- agenda -->` on a slide lists the deck's section dividers
+there, or every other titled slide when the deck has none, above whatever
+else the slide holds.
+
+**A slide never overflows.** `schreibstube-fit` in the prelude makes a slide's
+body smaller until it fits the space left under the title, and never larger.
+It sets the body wider and scales the whole down, so lines keep the width of
+the slide and every size keeps its proportion to the others. Each measurement
+sets the slide again, so the search is short: the square root of the space
+over the natural height first, then the factor the curve through those two
+heights (height ≈ natural · f^p) says fills the space. A slide that fits is
+measured once, one that shrinks usually three times. Measured on a laptop, a
+61-slide deck with a third of its slides overfull sets in 1.5 s, where six
+halvings took 2.5 s. A body that does not get shorter when it is set
+wider — a picture at the full width grows with it — is scaled as it stands
+instead. Nothing is cut off and nothing runs onto a second page.
+
+**A slide set too small is named.** Each fit leaves the scale it settled on,
+with its page, as metadata labelled `<schreibstube-fit>`. After a compile
+that made a PDF, the worker asks the same compiler for those
+(`query(main, undefined, "<schreibstube-fit>", "value")`), which reuses the
+compile and takes a few milliseconds, and hands the JSON back beside the
+bytes. `readSlideFits` reads it as untrusted — at most 2 000 entries and
+256 KB, a page a whole number and a scale between nought and one — and
+`smallSlides` names every slide set below 60 %, each once at its smallest.
+The warning stands under the preview and in the notice after printing:
+"Folien 6, 9 tragen mehr, als passt, und stehen bis auf 42 % verkleinert —
+besser teilen". A template that draws its own slide and keeps
+`schreibstube-fit` keeps the report; the compile check fails when the
+overfull fixture on a slide template reports nothing. The space is a
+fraction of the page's flow (`block(height: 1fr)`), which is measured after
+the slide's footnotes, so a footnote has its room at the foot.
+
+**Where the content stands.** **Ausrichtung** in the dialog centres a slide's
+content across the page — the default — or sets it at the left edge; it
+starts at the note's `schreibstubePrint.align` (`center` or `left`). The choice
+reaches every slide as its `horizontal` argument. It moves blocks, not lines:
+the converter wraps every block of a slide — a paragraph, a list, a table, a
+heading — in `#schreibstube-slide-block[…]`, which places the block by the
+alignment and keeps its own lines flush left. Centred, a short paragraph or a
+list stands in the middle as a whole, as wide as its longest line, and reads
+like any text; a block as wide as the slide looks the same either way.
+
+**Pictures carry their alt text.** On a slide a picture is
+`#schreibstube-slide-image(path, alt)`, a figure whose caption is the alt text,
+in a callout too; an embed's alias that is a width (`![[a.png|300]]`) is no
+caption. Where the caption goes is the slide's: across the full width —
+a slide without columns, or the part above them — it stands to the right of
+the picture, level with its foot, and in a column it stands beneath
+(`schreibstube-slide-pictures`). A picture without alt text stands alone.
+
+The format is the dialog's: **Format** offers 16:9 and 4:3, which are Typst's
+`presentation-16-9` and `presentation-4-3`, and replaces the paper the
+descriptor names. It starts at the note's `schreibstubePrint.format` (`"16:9"`
+or `"4:3"`), else the descriptor's paper when it is one of the two, else 16:9,
+and it is kept when the template changes. A slide template has no page-break
+toggle, since a rule starts a slide. The **Folien** example is a slide
+template; speaker notes and a presenter view are not part of printing.
 
 Nothing is remembered between prints. The built-in Standard sets its margins
 in its descriptor rather than its layout, which is what lets the presets move
@@ -365,17 +498,23 @@ defines any of them at the top level of `template.typ`, and its definition
 wins: `main.typ` imports the prelude first and everything the layout defines
 after it.
 
-| Helper                    | Signature                     | Given                                                                                                                                             |
-| ------------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `schreibstube-image`      | `(path, alt)`                 | one embedded picture                                                                                                                              |
-| `schreibstube-diagram`    | `(paths, caption)`            | **an array** of pictures, all from one fence, and one caption for the group                                                                       |
-| `schreibstube-code`       | `(source, language)`          | a fence that is not a diagram, or one that could not be drawn                                                                                     |
-| `schreibstube-table`      | `(columns:, align:, ..cells)` | a pipe table; the first argument among `cells` may be a `table.header`                                                                            |
-| `schreibstube-callout`    | `(kind, title, body)`         | an Obsidian callout, `kind` one of `note`, `tip`, `warning`, `danger`                                                                             |
-| `schreibstube-task`       | `(done)`                      | a task's box: the marker of a bulleted task, beside the number of a numbered one                                                                  |
-| `schreibstube-task-item`  | `(marker, body)`              | a bulleted task, `marker` its box as `schreibstube-task` drew it; a list of one item, so the box stands where the bullet would                    |
-| `schreibstube-properties` | `(rows)`                      | the note's properties, when the dialog prints them: an array of `(key, value)`                                                                    |
-| `schreibstube-slideshow`  | `(kind, images, columns: 1)`  | a slideshow: `kind` one of `single`, `filmstrip`, `feature`, `strip`, `masonry`, `compare`, `stacked`; `images` an array of `(path, description)` |
+| Helper                                                         | Signature                                                                                            | Given                                                                                                                                                                                               |
+| -------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `schreibstube-image`                                           | `(path, alt)`                                                                                        | one embedded picture                                                                                                                                                                                |
+| `schreibstube-diagram`                                         | `(paths, caption)`                                                                                   | **an array** of pictures, all from one fence, and one caption for the group                                                                                                                         |
+| `schreibstube-code`                                            | `(source, language)`                                                                                 | a fence that is not a diagram, or one that could not be drawn                                                                                                                                       |
+| `schreibstube-table`                                           | `(columns:, align:, ..cells)`                                                                        | a pipe table; the first argument among `cells` may be a `table.header`                                                                                                                              |
+| `schreibstube-callout`                                         | `(kind, title, body)`                                                                                | an Obsidian callout, `kind` one of `note`, `tip`, `warning`, `danger`                                                                                                                               |
+| `schreibstube-task`                                            | `(done)`                                                                                             | a task's box: the marker of a bulleted task, beside the number of a numbered one                                                                                                                    |
+| `schreibstube-task-item`                                       | `(marker, body)`                                                                                     | a bulleted task, `marker` its box as `schreibstube-task` drew it; a list of one item, so the box stands where the bullet would                                                                      |
+| `schreibstube-properties`                                      | `(rows)`                                                                                             | the note's properties, when the dialog prints them: an array of `(key, value)`                                                                                                                      |
+| `schreibstube-slide`                                           | `(kind:, level:, horizontal:, title:, columns:, widths:, layout:, picture:, notes:, intro:, cells:)` | a slide, for a slide template: `kind` one of `title`, `section`, `content`; `horizontal` `center` or `left`; `title` content or `none`; `cells` an array of `(title, body)`; see "A note as slides" |
+| `schreibstube-slide-image`                                     | `(path, alt)`                                                                                        | a picture on a slide: a figure of kind `"schreibstube-slide-image"` whose caption is the alt text, or none                                                                                          |
+| `schreibstube-slide-block`                                     | `(body)`                                                                                             | one block of a slide, placed by the alignment in force with its own lines flush left                                                                                                                |
+| `schreibstube-fit`, `-slide-align`, `-slide-pictures`          | `(body)`, `(horizontal, body)`, `(beside, body)`                                                     | not called by the note: shrink-to-fit, the alignment, and where captions go, for a template that draws its own slide, imported with `#import "schreibstube.typ": schreibstube-fit, …`               |
+| `schreibstube-slide-area`, `-slide-filled`, `-slide-note-mark` | `(layout, picture, body)`, `(beside, body)`, `(title, notes)`                                        | not called by the note: the part under a slide's title, a picture with a space of its own, and a slide's speaker notes, for a template that draws its own slide                                     |
+| `schreibstube-slide-notes`                                     | `(heading:, slide:)`                                                                                 | the speaker notes after the last slide, when the dialog asks for them                                                                                                                               |
+| `schreibstube-slideshow`                                       | `(kind, images, columns: 1)`                                                                         | a slideshow: `kind` one of `single`, `filmstrip`, `feature`, `strip`, `masonry`, `compare`, `stacked`; `images` an array of `(path, description)`                                                   |
 
 Because the layout is imported whole, a top-level name in it may shadow one the
 prelude defines. That is the mechanism, so name private helpers of your own
@@ -386,6 +525,14 @@ may draw more than one picture — a carousel's panels are one fence and several
 canvases. A one-picture fence passes a one-element array, which in Typst needs
 its trailing comma: `("a.png",)`. `typstArray` in `services/typst-value.ts`
 writes it, and that comma is the reason the function exists.
+
+A value that names a picture — it ends in `.png`, `.jpg`, `.webp`, `.gif` or
+`.svg`, as a CV's `photo` or a deck's `logo` does — must name a file in the
+template's folder. One that does not is made empty before the layout reads
+it, and the print names the file (`withoutMissingPictures` in
+`services/print-data.ts`): the compiler would otherwise refuse the whole
+document over one picture, and every template already draws nothing for an
+empty value.
 
 ### Data resolution
 

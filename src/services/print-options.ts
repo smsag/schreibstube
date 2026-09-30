@@ -1,7 +1,7 @@
 /**
  * What the print dialog lets a person change, and what each choice means.
  *
- * Seven choices, and nothing about them is remembered: each print starts from
+ * Ten choices, and nothing about them is remembered: each print starts from
  * the template and the note, because that is where a page's design lives and
  * a dialog that carried yesterday's margins into today's letter would be a
  * second, invisible template.
@@ -10,6 +10,17 @@ import { NOTE_DATA_KEY } from "./print-data";
 import { printableText } from "./typst-value";
 import type { PrintTemplate } from "./print-template";
 import type { SlideshowPrintMode } from "./print-slideshow";
+import { SLIDE_ALIGNS, type SlideAlign } from "./print-slides";
+
+/** The formats a deck is printed in, and the Typst paper each one is. */
+export type SlideFormat = "16:9" | "4:3";
+
+export const SLIDE_FORMATS: readonly SlideFormat[] = ["16:9", "4:3"];
+
+export const SLIDE_PAPER: Readonly<Record<SlideFormat, string>> = {
+  "16:9": "presentation-16-9",
+  "4:3": "presentation-4-3"
+};
 
 /** "standard" is the template's own margin; the other two replace it. */
 export type MarginPreset = "small" | "standard" | "wide";
@@ -30,6 +41,12 @@ export interface PrintOptions {
   frontmatter: boolean;
   /** Slideshows as they stand on screen, or every picture stacked. */
   slideshows: SlideshowPrintMode;
+  /** The page of a deck. Only a slide template reads it. */
+  format: SlideFormat;
+  /** Where a deck's content stands across the slide: centred, or at the left. */
+  align: SlideAlign;
+  /** A deck's speaker notes on pages of their own after the last slide. */
+  speakerNotes: boolean;
   /**
    * The text in the monospaced face, or in the sans. Reaches the layout as
    * `data.monospace`; a template that does not read it is unaffected, and the
@@ -61,6 +78,9 @@ export function initialOptions(
     hrIsPageBreak: template.hrIsPageBreak,
     frontmatter: false,
     slideshows: "layout",
+    format: noteSlideFormat(frontmatter) ?? templateSlideFormat(template),
+    align: noteSlideAlign(frontmatter) ?? "center",
+    speakerNotes: false,
     monospace: noteMonospace(frontmatter) ?? true,
     pythiaFootnotes: pythiaLinks > 0
   };
@@ -85,6 +105,43 @@ export function noteMonospace(
 }
 
 /**
+ * The format a note asks its deck to be printed in, as
+ * `schreibstubePrint.format`: `16:9` or `4:3`, or null for anything else.
+ */
+export function noteSlideFormat(
+  frontmatter: Readonly<Record<string, unknown>> | null | undefined
+): SlideFormat | null {
+  const text = noteValue(frontmatter, "format");
+  return SLIDE_FORMATS.find((format) => format === text) ?? null;
+}
+
+/**
+ * Where a note asks its slides' content to stand, as
+ * `schreibstubePrint.align`: `center` or `left`, or null for anything else.
+ */
+export function noteSlideAlign(
+  frontmatter: Readonly<Record<string, unknown>> | null | undefined
+): SlideAlign | null {
+  const text = noteValue(frontmatter, "align")?.toLowerCase();
+  return SLIDE_ALIGNS.find((align) => align === text) ?? null;
+}
+
+/** One of the note's `schreibstubePrint` values as text, trimmed, or null. */
+function noteValue(
+  frontmatter: Readonly<Record<string, unknown>> | null | undefined,
+  key: string
+): string | null {
+  const data = frontmatter?.[NOTE_DATA_KEY];
+  if (typeof data !== "object" || data === null || Array.isArray(data)) return null;
+  return printableText((data as Record<string, unknown>)[key])?.trim() ?? null;
+}
+
+/** The format a template's own paper is, 16:9 when it is neither. */
+function templateSlideFormat(template: PrintTemplate): SlideFormat {
+  return SLIDE_FORMATS.find((format) => SLIDE_PAPER[format] === template.page.size) ?? "16:9";
+}
+
+/**
  * Whether a layout reads the text-face choice, so the dialog should offer it.
  * Read from the source, like the margins below; comments do not count.
  */
@@ -92,20 +149,26 @@ export function layoutReadsMonospace(layout: string): boolean {
   return /\bdata\.monospace\b/.test(layout.replace(/\/\/.*$/gm, ""));
 }
 
-/** The same choices for another template, whose own page-break habit then applies. */
+/**
+ * The same choices for another template, whose own page-break habit then
+ * applies. The format and the alignment stay: they were the note's or the
+ * person's, not the template's.
+ */
 export function withTemplate(options: PrintOptions, template: PrintTemplate): PrintOptions {
   return { ...options, template, hrIsPageBreak: template.hrIsPageBreak };
 }
 
 /**
- * The template as this print sets it: the margin the preset names, and the
- * page-break rule the dialog chose. The template itself is left untouched.
+ * The template as this print sets it: the margin the preset names, the
+ * page-break rule the dialog chose, and for a deck the format's paper. The
+ * template itself is left untouched.
  */
 export function applyOptions(options: PrintOptions): PrintTemplate {
   const { template } = options;
   const margin =
     options.margin === "standard" ? template.page.margin : PRESET_MARGINS[options.margin];
-  return { ...template, page: { ...template.page, margin }, hrIsPageBreak: options.hrIsPageBreak };
+  const size = template.slides ? SLIDE_PAPER[options.format] : template.page.size;
+  return { ...template, page: { size, margin }, hrIsPageBreak: options.hrIsPageBreak };
 }
 
 /**

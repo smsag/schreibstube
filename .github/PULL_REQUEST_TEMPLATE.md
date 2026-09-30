@@ -13,4 +13,5 @@
 ## Checked on
 
 - [ ] `npm run check` passes locally
+- [ ] `docs/CHEATSHEET.md` says what a note can now write, if this changes it (a new key, block, layout or setting)
 - [ ] Mobile, if the change touches the file pane, the overlay or anything that renders

@@ -7,6 +7,8 @@ import {
   layoutReadsMonospace,
   MARGIN_PRESETS,
   noteMonospace,
+  noteSlideAlign,
+  noteSlideFormat,
   withTemplate
 } from "./print-options";
 import { parseTemplate } from "./print-template";
@@ -23,6 +25,9 @@ describe("initialOptions", () => {
       hrIsPageBreak: true,
       frontmatter: false,
       slideshows: "layout",
+      format: "16:9",
+      align: "center",
+      speakerNotes: false,
       monospace: true,
       pythiaFootnotes: false
     });
@@ -56,6 +61,9 @@ describe("withTemplate", () => {
       hrIsPageBreak: true,
       frontmatter: true,
       slideshows: "layout",
+      format: "16:9",
+      align: "center",
+      speakerNotes: false,
       monospace: true,
       pythiaFootnotes: false
     });
@@ -171,5 +179,53 @@ describe("layoutReadsMonospace", () => {
     expect(
       layoutReadsMonospace("// data.monospace is not read here\n#let s(body, data) = body")
     ).toBe(false);
+  });
+});
+
+describe("slide formats", () => {
+  const deck = (size = "a4") => template({ schreibstubeSlides: true, schreibstubePage: { size } });
+
+  it("starts at the note's format, else the template's paper, else 16:9", () => {
+    expect(initialOptions(deck()).format).toBe("16:9");
+    expect(initialOptions(deck("presentation-4-3")).format).toBe("4:3");
+    const note = { schreibstubePrint: { format: "4:3" } };
+    expect(initialOptions(deck("presentation-16-9"), note).format).toBe("4:3");
+  });
+
+  it("reads only the two formats it knows from a note", () => {
+    expect(noteSlideFormat({ schreibstubePrint: { format: " 16:9 " } })).toBe("16:9");
+    expect(noteSlideFormat({ schreibstubePrint: { format: "21:9" } })).toBeNull();
+    expect(noteSlideFormat({ schreibstubePrint: "4:3" })).toBeNull();
+    expect(noteSlideFormat(null)).toBeNull();
+  });
+
+  it("sets a deck's paper from the format and leaves every other template's alone", () => {
+    const applied = applyOptions({ ...initialOptions(deck()), format: "4:3" });
+    expect(applied.page.size).toBe("presentation-4-3");
+    const paper = applyOptions({ ...initialOptions(template()), format: "4:3" });
+    expect(paper.page.size).toBe("a4");
+  });
+
+  it("keeps the format when the template changes", () => {
+    const start = { ...initialOptions(deck()), format: "4:3" as const };
+    expect(withTemplate(start, template()).format).toBe("4:3");
+  });
+});
+
+describe("slide alignment", () => {
+  it("starts centred, or where the note asks", () => {
+    expect(initialOptions(template()).align).toBe("center");
+    expect(initialOptions(template(), { schreibstubePrint: { align: "Left" } }).align).toBe("left");
+  });
+
+  it("reads only the two alignments it knows from a note", () => {
+    expect(noteSlideAlign({ schreibstubePrint: { align: "center" } })).toBe("center");
+    expect(noteSlideAlign({ schreibstubePrint: { align: "right" } })).toBeNull();
+    expect(noteSlideAlign({})).toBeNull();
+  });
+
+  it("keeps the alignment when the template changes", () => {
+    const start = { ...initialOptions(template()), align: "left" as const };
+    expect(withTemplate(start, template()).align).toBe("left");
   });
 });

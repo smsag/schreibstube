@@ -1,7 +1,7 @@
 # Print templates
 
-Two templates to copy into a vault: a German business letter and a CV. Each is
-a folder, and a folder is all a template is.
+Three templates to copy into a vault: a German business letter, a CV and a
+slide deck. Each is a folder, and a folder is all a template is.
 
 ## Installing one
 
@@ -26,11 +26,11 @@ schreibstubePrintTemplate: Brief
 
 ## Fonts
 
-Neither template ships fonts, because typefaces are licensed and a repository
+No template ships fonts, because typefaces are licensed and a repository
 is not a place to redistribute them. Put your own `.ttf` or `.otf` files in the
 template's `fonts/` folder and the template will set in them.
 
-Both examples ask for **Fira Sans**, which the plugin fetches with the
+All three ask for **Fira Sans**, which the plugin fetches with the
 typesetter (regular, italic, semibold and bold), so they print in it without a
 `fonts/` folder. The CV also uses its condensed cut for headings, so a long
 German job title stays on one line; its semibold and bold are fetched too. Fira registers that cut as a _width_ on the same

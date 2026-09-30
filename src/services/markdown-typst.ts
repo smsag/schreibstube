@@ -8,6 +8,14 @@ import { isTableDelimiter, rowCells } from "./markdown-table";
 import { typstArray, typstString } from "./typst-value";
 import { parseSlideshow, SLIDESHOW_LANGUAGE } from "./slideshow";
 import { slideshowForPrint, type SlideshowPrintMode } from "./print-slideshow";
+import {
+  groupSlides,
+  markSlideDirectives,
+  readDirective,
+  slidesMarkup,
+  type SlideAlign,
+  type SlidePart
+} from "./print-slides";
 
 /** What a tab is worth when a list's nesting is measured, as in the editor. */
 const TAB_COLUMNS = 4;
@@ -57,6 +65,19 @@ export interface ConvertOptions {
   properties?: readonly (readonly [string, string])[];
   /** How a slideshow is printed: as it stands on screen, or every picture stacked. */
   slideshows?: SlideshowPrintMode;
+  /**
+   * The note as a deck, one `#schreibstube-slide` per slide, grouped by its
+   * headings as `print-slides.ts` decides. A horizontal rule then starts a
+   * slide rather than a page, whatever `hrIsPageBreak` says.
+   */
+  slides?: boolean;
+  /** Where a slide's content stands across the page: centred unless it says left. */
+  slideAlign?: SlideAlign;
+  /**
+   * The speaker's notes — every `> [!notes]` callout, which a slide never
+   * shows — on pages of their own after the deck.
+   */
+  speakerNotes?: boolean;
 }
 
 /**
@@ -181,6 +202,12 @@ interface Shared {
   /** Footnotes being expanded right now, so one that cites itself ends. */
   expanding: Set<string>;
   slideshows: number;
+  /**
+   * Whether the note is printed as slides. Held here rather than read from the
+   * options, which a callout's conversion turns off: a picture in a callout
+   * on a slide is still a picture on a slide.
+   */
+  deck: boolean;
 }
 
 export function markdownToTypst(source: string, options: ConvertOptions = {}): Conversion {
@@ -190,7 +217,8 @@ export function markdownToTypst(source: string, options: ConvertOptions = {}): C
     diagrams: [],
     warnings: [],
     expanding: new Set(),
-    slideshows: 0
+    slideshows: 0,
+    deck: options.slides === true
   }).run();
 }
 
@@ -202,6 +230,8 @@ class Converter {
   /** Lines that belong to a definition — a footnote with its indented
    *  continuation, a link reference — and print nowhere of their own. */
   private readonly consumed = new Set<number>();
+  /** What the block just converted was to a deck: a slide's heading, or a rule. */
+  private marker: SlidePart | null = null;
 
   constructor(
     source: string,
@@ -209,18 +239,43 @@ class Converter {
     private readonly shared: Shared,
     private heading = ""
   ) {
-    this.lines = stripFrontmatter(stripComments(source)).split(/\r?\n/);
+    // A slide's settings live in comments, so they are lifted out of theirs
+    // before the comments go; only a deck reads them.
+    const text = options.slides ? markSlideDirectives(source) : source;
+    this.lines = stripFrontmatter(stripComments(text)).split(/\r?\n/);
     this.collectDefinitions();
   }
 
   run(): Conversion {
-    const blocks = this.blocks(0);
+    const parts: SlidePart[] = [];
+    const blocks = this.blocks(0, parts);
     const rows = this.options.properties ?? [];
     if (rows.length > 0) {
       const table = `#schreibstube-properties((${rows.map(([key, value]) => `(${typstString(key)}, ${typstString(value)}),`).join(" ")}))\n`;
+      const first = parts[0]?.kind === "heading" ? 1 : 0;
       blocks.splice(/^= /.test(blocks[0] ?? "") ? 1 : 0, 0, table);
+      parts.splice(first, 0, { kind: "block", markup: table });
     }
-    const body = blocks.join("\n");
+    let body = blocks.join("\n");
+    if (this.options.slides) {
+      const slides = groupSlides(parts);
+      const words = t().print;
+      for (const slide of slides) {
+        for (const problem of slide.problems) {
+          this.warn(
+            problem.kind === "widths"
+              ? words.slideWidths(slide.name, problem.given, problem.columns)
+              : problem.kind === "layout"
+                ? words.slideLayout(slide.name, problem.value)
+                : words.slideNoPicture(slide.name, problem.layout)
+          );
+        }
+      }
+      body = slidesMarkup(slides, this.options.slideAlign);
+      if (this.options.speakerNotes && slides.some((slide) => slide.notes.length > 0)) {
+        body += `\n#schreibstube-slide-notes(heading: ${typstString(words.notesHeading)}, slide: ${typstString(words.notesSlide)})\n`;
+      }
+    }
     return {
       body: `${body.replace(/\n{3,}/g, "\n\n").trim()}\n`,
       diagrams: this.shared.diagrams,
@@ -289,13 +344,17 @@ class Converter {
 
   /** A quote's inside, converted as part of this note rather than beside it. */
   private nested(source: string): string {
-    // The properties belong to the document, not to every quote inside it.
-    const options = { ...this.options, properties: [] };
+    // The properties belong to the document, not to every quote inside it, and
+    // so do the slides: a heading inside a callout is the callout's.
+    const options = { ...this.options, properties: [], slides: false };
     return new Converter(source, options, this.shared, this.heading).run().body;
   }
 
-  /** Every block at this indent, until the indent drops or the source ends. */
-  private blocks(indent: number): string[] {
+  /**
+   * Every block at this indent, until the indent drops or the source ends.
+   * `parts`, when given, receives the same blocks as a deck reads them.
+   */
+  private blocks(indent: number, parts?: SlidePart[]): string[] {
     const out: string[] = [];
 
     while (this.at < this.lines.length) {
@@ -312,15 +371,35 @@ class Converter {
         continue;
       }
 
+      this.marker = null;
       const block = this.block(indent);
       if (block !== null) out.push(block);
+      const part = this.takeMarker() ?? (block === null ? null : { kind: "block", markup: block });
+      if (part) parts?.push(part);
     }
+    // A list item's own blocks are the list's, not the deck's: a rule inside
+    // one must not make the whole list read as a slide break.
+    if (!parts) this.marker = null;
 
     return out;
   }
 
+  /** What the block just converted was to a deck, if anything; read once. */
+  private takeMarker(): SlidePart | null {
+    const marker = this.marker;
+    this.marker = null;
+    return marker;
+  }
+
   private block(indent: number): string | null {
     const line = this.lines[this.at] ?? "";
+
+    const directive = readDirective(line);
+    if (directive) {
+      this.at += 1;
+      this.marker = directive;
+      return null;
+    }
 
     const fence = fenceMarker(line);
     if (fence) return this.fence(fence);
@@ -343,6 +422,7 @@ class Converter {
 
     if (HR.test(line)) {
       this.at += 1;
+      this.marker = { kind: "break" };
       return this.options.hrIsPageBreak ? "#pagebreak(weak: true)\n" : "#line(length: 100%)\n";
     }
 
@@ -355,7 +435,9 @@ class Converter {
 
   private headingBlock(level: number, text: string): string {
     this.heading = text.trim();
-    return `${"=".repeat(level)} ${this.inline(this.heading)}\n`;
+    const markup = this.inline(this.heading);
+    this.marker = { kind: "heading", level, markup, text: this.heading };
+    return `${"=".repeat(level)} ${markup}\n`;
   }
 
   /** Code written by indenting it four spaces, set as a fence without a language. */
@@ -444,6 +526,13 @@ class Converter {
       // hides the rest, and a page has no carousel — so the helper is given
       // every picture that was captured, not the first of them.
       const paths = this.options.diagramImage?.(block) ?? null;
+      if (paths !== null && paths.length > 0 && this.shared.deck) {
+        // On a slide a drawing is a picture like any other, laid out and
+        // captioned as one. Its caption is the drawing's own name: the heading
+        // above it is the slide's title, standing right over it already.
+        const caption = this.options.diagramTitle?.(block) ?? "";
+        return `${paths.map((path) => `#schreibstube-slide-image(${typstString(path)}, ${typstString(caption)})`).join("\n")}\n`;
+      }
       if (paths !== null && paths.length > 0) {
         const caption = diagramCaption(block.caption, this.options.diagramTitle?.(block) ?? "");
         return `#schreibstube-diagram(${typstArray(paths)}, ${typstString(caption)})\n`;
@@ -482,7 +571,7 @@ class Converter {
   }
 
   /** A blockquote, or the callout Obsidian writes in the shape of one. */
-  private blockquote(): string {
+  private blockquote(): string | null {
     const inner: string[] = [];
     while (this.at < this.lines.length) {
       const match = BLOCKQUOTE.exec(this.lines[this.at] ?? "");
@@ -493,6 +582,11 @@ class Converter {
 
     const first = inner[0] ?? "";
     const callout = CALLOUT.exec(first);
+    if (callout?.[1]?.toLowerCase() === "notes" && this.shared.deck) {
+      // The speaker's, not the audience's: handed to the deck, off the slide.
+      this.marker = { kind: "notes", markup: this.nested(inner.slice(1).join("\n")) };
+      return null;
+    }
     if (callout?.[1] !== undefined) {
       const kind = CALLOUT_KINDS[callout[1].toLowerCase()] ?? "note";
       const title = (callout[3] ?? "").trim() || titleCase(callout[1]);
@@ -905,6 +999,12 @@ class Converter {
   private image(source: string, alt: string): [string, boolean] {
     const path = this.resolveImage({ source, alt });
     if (path === null) return [escapeText(alt), false];
+    if (this.shared.deck) {
+      // On a slide the alt text is the picture's caption, and `![[a.png|300]]`
+      // is a width, which is no caption.
+      const caption = /^\d+(x\d+)?$/.test(alt.trim()) ? "" : alt;
+      return [`#schreibstube-slide-image(${typstString(path)}, ${typstString(caption)})`, true];
+    }
     return [`#schreibstube-image(${typstString(path)}, ${typstString(alt)})`, true];
   }
 

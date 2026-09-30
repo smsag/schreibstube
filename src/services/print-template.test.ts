@@ -25,10 +25,16 @@ describe("parseTemplate", () => {
     expect(template).toMatchObject({
       page: { size: "a4", margin: null },
       hrIsPageBreak: false,
+      slides: false,
       entry: DEFAULT_ENTRY,
       data: {}
     });
     expect(template.images.maxPx).toBe(IMAGE_MAX_PX_DEFAULT);
+  });
+
+  it("is a slide template only when it says so in so many words", () => {
+    expect(parse({ schreibstubeSlides: true }).template.slides).toBe(true);
+    expect(parse({ schreibstubeSlides: "yes" }).template.slides).toBe(false);
   });
 
   it("reads the page it was given", () => {

@@ -206,6 +206,220 @@ export const PRELUDE_SOURCE = `// Defaults the converted note calls. A template 
   }
 }
 
+// A slide's body, made smaller until it fits the space it is given, and never
+// larger. It is set wider and the whole scaled down, so lines stay as long as
+// the space and every size on the slide keeps its proportion to the others. A
+// body that does not get shorter when it is set wider — a picture at the full
+// width grows with it — is scaled as it stands instead, which always fits.
+//
+// Every measurement sets the whole slide again, which on a phone is the cost
+// of a long deck, so the search is short. Text set 1/f wider runs about f as
+// tall, so the square root of the space over the natural height is measured
+// first. The two heights then give the curve the slide follows, height ≈
+// natural · f^p, and the factor that curve says fills the space, a hair under,
+// is measured last. A slide that fits is measured once, one that shrinks three
+// times, and the worst case five.
+//
+// The scale it settles on is left as metadata labelled <schreibstube-fit>,
+// with the page, so the print can say which slides were set small.
+#let schreibstube-fit(body) = layout(size => {
+  let tall(factor) = measure(block(width: size.width / factor, body)).height * factor
+  let natural = tall(1.0)
+  if natural <= size.height { return block(width: size.width, body) }
+  let low = size.height / natural
+  let guess = calc.sqrt(low)
+  let at-guess = tall(guess)
+  let power = calc.ln(at-guess / natural) / calc.ln(guess)
+  let aimed = if power > 1 { calc.min(1.0, calc.exp(calc.ln(low) / power) * 0.99) } else { 0.0 }
+  let factor = if aimed > guess and tall(aimed) <= size.height { aimed } else if (
+    at-guess <= size.height
+  ) { guess } else if aimed > low and tall(aimed) <= size.height { aimed } else if (
+    tall(low) <= size.height
+  ) { low } else { none }
+  if factor == none {
+    // Nothing set wider fits: scaled as it stands, which always does.
+    return [#metadata((page: here().page(), scale: low)) <schreibstube-fit>] + scale(
+      low * 100%,
+      origin: top + left,
+      reflow: true,
+      block(width: size.width, body),
+    )
+  }
+  [#metadata((page: here().page(), scale: factor)) <schreibstube-fit>]
+  scale(factor * 100%, origin: top + left, reflow: true, block(width: size.width / factor, body))
+})
+
+// A picture on a slide, with its alt text as the caption. A figure of its own
+// kind rather than a drawing, so the slide decides where the caption goes: a
+// slide sets its full-width part and its columns under different rules
+// (schreibstube-slide-pictures), and a figure is what a show rule can reach.
+#let schreibstube-slide-image(path, alt) = figure(
+  image(path, width: 100%),
+  kind: "schreibstube-slide-image",
+  supplement: none,
+  numbering: none,
+  caption: if alt == "" { none } else { alt },
+)
+
+// The pictures in body, their captions beside them — on the right, level with
+// the picture's foot — or beneath. Beside is for a slide's full width, where a
+// line under the picture would take height the slide needs; a column is too
+// narrow for it.
+#let schreibstube-slide-pictures(beside, body) = {
+  show figure.where(kind: "schreibstube-slide-image"): it => {
+    if it.caption == none { return it.body }
+    let words = text(size: 0.7em, fill: luma(90), it.caption.body)
+    if beside {
+      grid(
+        columns: (3fr, 1fr),
+        column-gutter: 1em,
+        align: (auto, left + bottom),
+        it.body,
+        words,
+      )
+    } else {
+      block(breakable: false, width: 100%, stack(spacing: 0.5em, it.body, words))
+    }
+  }
+  body
+}
+
+// One block of a slide — a paragraph, a list, a table, a heading — placed by
+// the alignment in force, its own lines flush left. Centred, the block stands
+// in the middle as a whole, as wide as its longest line, and reads like any
+// text; a block as wide as the slide looks the same either way. The converter
+// wraps every block of a slide in it.
+#let schreibstube-slide-block(body) = context align(align.alignment, box({
+  set align(left)
+  body
+}))
+
+// The alignment a slide's blocks are placed by: center or left.
+#let schreibstube-slide-align(horizontal, body) = {
+  set align(horizontal)
+  body
+}
+
+// A picture that has a space of its own — a slide that is one picture, or the
+// picture half of image-left and image-right — as large as the space allows
+// and never cropped, its caption beside it on the right, level with its foot,
+// or beneath it.
+#let schreibstube-slide-filled(beside, body) = layout(size => {
+  show figure.where(kind: "schreibstube-slide-image"): it => {
+    let picture(height) = image(it.body.source, width: 100%, height: height, fit: "contain")
+    if it.caption == none { return picture(size.height) }
+    let words = text(size: 0.7em, fill: luma(90), it.caption.body)
+    if beside {
+      grid(
+        columns: (3fr, 1fr),
+        column-gutter: 1em,
+        align: (auto, left + bottom),
+        picture(size.height),
+        words,
+      )
+    } else {
+      let below = measure(block(width: size.width, words)).height + 0.5em
+      stack(spacing: 0.5em, picture(size.height - below), words)
+    }
+  }
+  body
+})
+
+// The part of a slide under its title, laid out as the slide's layout says:
+// "text" the body made to fit; "picture" the one picture filling it;
+// "image-left" and "image-right" the picture on one half, the body fitted
+// on the other. A block of the rest of the page less what its footnotes
+// need: a fraction of the flow is measured after them, where a grid row
+// claimed the whole page.
+#let schreibstube-slide-area(layout, picture, body) = block(height: 1fr, width: 100%, {
+  if layout == "picture" {
+    schreibstube-slide-filled(true, picture)
+  } else if layout == "image-left" or layout == "image-right" {
+    let side = block(height: 100%, width: 100%, schreibstube-slide-filled(false, picture))
+    let rest = block(height: 100%, width: 100%, schreibstube-fit(body))
+    grid(
+      columns: (1fr, 1fr),
+      rows: (100%,),
+      column-gutter: 1.5em,
+      ..if layout == "image-left" { (side, rest) } else { (rest, side) },
+    )
+  } else {
+    schreibstube-fit(body)
+  }
+})
+
+// A slide's speaker notes, left on its page for the notes pages to find.
+#let schreibstube-slide-note-mark(title, notes) = if notes != none {
+  [#metadata((title: title, notes: notes)) <schreibstube-notes>]
+}
+
+// The speaker's notes after the last slide: each slide that has some, by its
+// number and title, then what the speaker says over it. heading and slide
+// are the words for "Speaker notes" and "Slide" in the plugin's language.
+#let schreibstube-slide-notes(heading: "Speaker notes", slide: "Slide") = {
+  pagebreak(weak: true)
+  std.heading(level: 1, heading)
+  context for mark in query(<schreibstube-notes>) {
+    block(breakable: true, above: 1.2em, {
+      text(weight: 600)[#slide #mark.location().page()]
+      if mark.value.title != none [ · #mark.value.title]
+      parbreak()
+      set text(size: 0.8em)
+      mark.value.notes
+    })
+  }
+}
+
+// One slide to a page, as the converter groups a note for a slide template.
+// kind: "title" opens the deck, "section" divides it, "content" is the rest;
+// layout, picture and notes as schreibstube-slide-area and -note-mark take
+// them; widths, when not none, the columns' shares of the width as fractions, one
+// per column; level is the heading that opened the slide, 0 for none; horizontal is
+// center or left, where the content stands across the page. The title stands on
+// top; the intro and then the column cells, each (title, body), share the
+// rest of the page and shrink together when they do not fit it. The prelude
+// is imported into a layout like any file, so a template that draws its own
+// slide still reaches schreibstube-fit with
+// #import "schreibstube.typ": schreibstube-fit
+#let schreibstube-slide(
+  kind: "content",
+  level: 2,
+  horizontal: center,
+  title: none,
+  columns: 1,
+  widths: none,
+  layout: "text",
+  picture: none,
+  notes: none,
+  intro: [],
+  cells: (),
+) = {
+  pagebreak(weak: true)
+  schreibstube-slide-note-mark(title, notes)
+  show: schreibstube-slide-align.with(horizontal)
+  if kind != "content" {
+    block(height: 100%, width: 100%, align(horizon, heading(level: 1, title)))
+    return
+  }
+  let body = {
+    schreibstube-slide-pictures(true, intro)
+    if cells.len() > 0 {
+      grid(
+        columns: if widths == none { (1fr,) * columns } else { widths },
+        column-gutter: 1.5em,
+        row-gutter: 1em,
+        ..cells.map(((head, main)) => block(width: 100%, {
+          schreibstube-slide-block(strong(head))
+          parbreak()
+          schreibstube-slide-pictures(false, main)
+        })),
+      )
+    }
+  }
+  if title != none { schreibstube-slide-block(heading(level: calc.max(level, 1), title)) }
+  schreibstube-slide-area(layout, picture, body)
+}
+
 // A task's box, drawn rather than typed so that no font has to carry the glyph.
 #let schreibstube-task(done) = box(
   width: 0.75em,

@@ -18,8 +18,14 @@ import { t } from "../i18n";
 import type { Logger } from "../services/logger";
 import type { SchreibstubeSettings } from "../types";
 import { resizeImageToBytes } from "../services/image-resize";
+import { smallSlides } from "../services/print-slides";
 import { markdownToTypst, type Conversion } from "../services/markdown-typst";
-import { noteTitle, resolvePrintData, templateNameOf } from "../services/print-data";
+import {
+  noteTitle,
+  resolvePrintData,
+  templateNameOf,
+  withoutMissingPictures
+} from "../services/print-data";
 import {
   buildJob,
   checkFontBudget,
@@ -225,7 +231,8 @@ export class PrintCommands {
         layoutReadsMonospace((await this.templateFiles(session, template)).layout),
       preview: async (options, progress) => {
         const { job, warnings } = await this.prepareJob(session, options);
-        return { pdf: await this.compileJob(job, progress), warnings };
+        const compiled = await this.compileJob(job, progress);
+        return { pdf: compiled.pdf, warnings: [...warnings, ...compiled.warnings] };
       },
       // The dialog prints after this has returned, and takes the guard again.
       print: (options, ready) => this.startBusy(() => this.printWith(session, options, ready))
@@ -412,7 +419,8 @@ export class PrintCommands {
       let prepared = ready;
       if (!prepared) {
         const { job, warnings } = await this.prepareJob(session, options);
-        prepared = { pdf: await this.compileJob(job, progress), warnings };
+        const compiled = await this.compileJob(job, progress);
+        prepared = { pdf: compiled.pdf, warnings: [...warnings, ...compiled.warnings] };
       }
 
       const path = this.outputPath(session.file);
@@ -599,6 +607,9 @@ export class PrintCommands {
         hrIsPageBreak: template.hrIsPageBreak,
         properties,
         slideshows: options.slideshows,
+        slides: template.slides,
+        slideAlign: options.align,
+        speakerNotes: options.speakerNotes,
         diagramImage: (block) => session.drawings.get(block.index) ?? null,
         diagramTitle: (block) => session.titles.get(block.index) ?? null,
         image: ({ source: link, width }) => {
@@ -631,13 +642,18 @@ export class PrintCommands {
       conversion = pass((path) => assets.has(path));
     }
 
-    const data = resolvePrintData(template, frontmatter, {
+    const resolved = resolvePrintData(template, frontmatter, {
       title: noteTitle(session.source, file.basename),
       noteName: file.basename,
       now: new Date(),
       locale: activeLocale(),
       monospace: options.monospace
     });
+    const { data, missing } = withoutMissingPictures(
+      resolved,
+      new Set(files.assets.map((asset) => asset.path))
+    );
+    for (const name of missing) warnings.push(messages.templatePictureMissing(name, template.name));
 
     const input = {
       template,
@@ -699,10 +715,14 @@ export class PrintCommands {
     }
   }
 
+  /**
+   * The document, with whatever the compile itself has to say about it: the
+   * slides it had to set too small to read.
+   */
   private async compileJob(
     job: PrintJob,
     progress: (message: string) => void
-  ): Promise<Uint8Array> {
+  ): Promise<{ pdf: Uint8Array; warnings: string[] }> {
     const messages = t().print;
     const outcome = await this.compilerFor().compile(job, progress);
     if (!outcome.ok) {
@@ -710,7 +730,11 @@ export class PrintCommands {
     }
     const tooLarge = checkPdfSize(outcome.pdf.byteLength);
     if (tooLarge !== null) throw new Error(tooLarge);
-    return outcome.pdf;
+    const small = smallSlides(outcome.fits ?? []);
+    const warnings = small
+      ? [messages.slidesSmall(small.pages, Math.round(small.smallest * 100))]
+      : [];
+    return { pdf: outcome.pdf, warnings };
   }
 
   /**

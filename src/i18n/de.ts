@@ -1185,15 +1185,16 @@ export const de: Messages = {
         `Die Zusammenfassungen wurden nicht aktualisiert — ${detail}`,
       frontmatter: "Eigenschaften drucken",
       slideshows: "Diaschauen",
+      format: "Format",
+      formats: { "16:9": "16:9 (Breitbild)", "4:3": "4:3" },
+      align: "Ausrichtung",
+      speakerNotes: "Sprechernotizen",
+      speakerNotesDesc: "Jedes > [!notes]-Callout, auf eigenen Seiten nach der letzten Folie.",
+      aligns: { center: "Mittig", left: "Linksbündig" },
       slideshow: { layout: "Wie in der Notiz", stacked: "Alle Bilder untereinander" },
       print: "Drucken",
       working: "Vorschau wird gesetzt …",
-      pages: (shown: number, total: number) =>
-        shown === total
-          ? total === 1
-            ? "1 Seite"
-            : `${total} Seiten`
-          : `die ersten ${shown} von ${total} Seiten`,
+      pages: (total: number) => (total === 1 ? "1 Seite" : `${total} Seiten`),
       failed: (detail: string) => `Keine Vorschau — ${detail}`
     },
     pythiaUnavailable:
@@ -1226,6 +1227,22 @@ export const de: Messages = {
       `der Typesetter ließ sich nicht laden (${detail}). Er wird einmal pro Gerät gebraucht; mit Netz erneut versuchen.`,
     compilerRefused: (detail: string) => `die Vorlage ließ sich nicht setzen — ${detail}`,
     pictureFailed: (name: string) => `${name} ließ sich nicht lesen und fehlt`,
+    slideWidths: (title: string, given: number, columns: number) =>
+      `${title === "" ? "Eine Folie" : `Die Folie „${title}“`}: ${
+        given === 0
+          ? "Die Spaltenbreiten ließen sich nicht lesen — zwei oder drei Zahlen, etwa 1 2"
+          : `${given} Spaltenbreiten für ${columns} ${columns === 1 ? "Spalte" : "Spalten"}`
+      }, die Spalten bleiben gleich breit`,
+    slideLayout: (title: string, value: string) =>
+      `${title === "" ? "Eine Folie" : `Die Folie „${title}“`} verlangt das Layout „${value}“, das es nicht gibt — image-left oder image-right`,
+    slideNoPicture: (title: string, layout: string) =>
+      `${title === "" ? "Eine Folie" : `Die Folie „${title}“`} verlangt ${layout}, hat aber kein Bild in einer eigenen Zeile und bleibt, wie sie ist`,
+    notesHeading: "Sprechernotizen",
+    notesSlide: "Folie",
+    slidesSmall: (pages: readonly number[], percent: number) =>
+      `${pages.length === 1 ? `Folie ${pages[0]} trägt` : `Folien ${pages.join(", ")} tragen`} mehr, als passt, und ${pages.length === 1 ? "steht" : "stehen"} bis auf ${percent} % verkleinert — besser teilen`,
+    templatePictureMissing: (name: string, template: string) =>
+      `${name} liegt nicht im Ordner der Vorlage „${template}“ und fehlt deshalb`,
     panelsLost: (index: number, missing: number, total: number) =>
       `Visualisierung ${index}: ${missing} von ${total} Zeichnungen ließen sich nicht aufnehmen und fehlen`,
     done: (path: string, kilobytes: number) => `${path} gedruckt (${kilobytes} KB).`,

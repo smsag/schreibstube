@@ -17,14 +17,17 @@ import {
   type ToggleComponent
 } from "obsidian";
 import { t } from "../i18n";
-import { drawPdfPages, MAX_PREVIEW_PAGES } from "../pdf/pdf-preview";
+import { PdfPreview } from "../pdf/pdf-preview";
 import {
   MARGIN_PRESETS,
+  SLIDE_FORMATS,
   withTemplate,
   type MarginPreset,
-  type PrintOptions
+  type PrintOptions,
+  type SlideFormat
 } from "../services/print-options";
 import { SLIDESHOW_PRINT_MODES, type SlideshowPrintMode } from "../services/print-slideshow";
+import { SLIDE_ALIGNS, type SlideAlign } from "../services/print-slides";
 import type { PrintTemplate } from "../services/print-template";
 import type { PythiaInspection, PythiaRefresh } from "../services/pythia-print";
 
@@ -83,6 +86,12 @@ export class PrintDialog extends Modal {
   private marginSetting: Setting | null = null;
   private marginDropdown: DropdownComponent | null = null;
   private breakToggle: ToggleComponent | null = null;
+  private breakSetting: Setting | null = null;
+  private formatSetting: Setting | null = null;
+  private alignSetting: Setting | null = null;
+  private notesSetting: Setting | null = null;
+  /** The preview on the panel, which holds its document until it is replaced. */
+  private shown: PdfPreview | null = null;
   private faceSetting: Setting | null = null;
   private pythiaSetting: Setting | null = null;
   /** Ends a refresh still running when the dialog closes: nobody is waiting for it. */
@@ -129,6 +138,7 @@ export class PrintDialog extends Modal {
           })
       );
 
+    this.showForTemplate();
     void this.refreshMargin();
     void this.refreshFace();
     this.changed();
@@ -136,6 +146,8 @@ export class PrintDialog extends Modal {
 
   override onClose(): void {
     this.closed = true;
+    void this.shown?.close();
+    this.shown = null;
     this.refreshing.abort();
     window.clearTimeout(this.timer);
     this.contentEl.empty();
@@ -156,6 +168,7 @@ export class PrintDialog extends Modal {
         this.options = withTemplate(this.options, template);
         // Each template has its own habit about rules; the toggle follows it.
         this.breakToggle?.setValue(this.options.hrIsPageBreak);
+        this.showForTemplate();
         void this.refreshMargin();
         void this.refreshFace();
         this.changed();
@@ -183,7 +196,33 @@ export class PrintDialog extends Modal {
     });
     this.faceSetting.settingEl.toggle(false);
 
-    new Setting(el).setName(words.pageBreaks).addToggle((toggle) => {
+    this.formatSetting = new Setting(el).setName(words.format).addDropdown((dropdown) => {
+      for (const format of SLIDE_FORMATS) dropdown.addOption(format, words.formats[format]);
+      dropdown.setValue(this.options.format).onChange((value) => {
+        this.options = { ...this.options, format: value as SlideFormat };
+        this.changed();
+      });
+    });
+
+    this.alignSetting = new Setting(el).setName(words.align).addDropdown((dropdown) => {
+      for (const align of SLIDE_ALIGNS) dropdown.addOption(align, words.aligns[align]);
+      dropdown.setValue(this.options.align).onChange((value) => {
+        this.options = { ...this.options, align: value as SlideAlign };
+        this.changed();
+      });
+    });
+
+    this.notesSetting = new Setting(el)
+      .setName(words.speakerNotes)
+      .setDesc(words.speakerNotesDesc)
+      .addToggle((toggle) => {
+        toggle.setValue(this.options.speakerNotes).onChange((value) => {
+          this.options = { ...this.options, speakerNotes: value };
+          this.changed();
+        });
+      });
+
+    this.breakSetting = new Setting(el).setName(words.pageBreaks).addToggle((toggle) => {
       this.breakToggle = toggle;
       toggle.setValue(this.options.hrIsPageBreak).onChange((value) => {
         if (value === this.options.hrIsPageBreak) return;
@@ -209,6 +248,19 @@ export class PrintDialog extends Modal {
         this.changed();
       });
     });
+  }
+
+  /**
+   * A deck has a format, an alignment and speaker notes and no page breaks —
+   * a rule starts a slide — so the dialog offers the first three and not the
+   * last for a slide template, and the reverse for every other.
+   */
+  private showForTemplate(): void {
+    const slides = this.options.template.slides;
+    this.formatSetting?.settingEl.toggle(slides);
+    this.alignSetting?.settingEl.toggle(slides);
+    this.notesSetting?.settingEl.toggle(slides);
+    this.breakSetting?.settingEl.toggle(!slides);
   }
 
   /**
@@ -331,17 +383,25 @@ export class PrintDialog extends Modal {
       if (stale()) return;
 
       const width = Math.max(200, this.pagesEl.clientWidth - 24);
-      const total = await drawPdfPages(prepared.pdf, this.pagesEl, width, stale);
-      if (stale()) return;
+      const next = await PdfPreview.open(prepared.pdf, this.pagesEl, width, stale);
+      if (!next) return;
+      if (stale()) {
+        void next.close();
+        return;
+      }
+      void this.shown?.close();
+      this.shown = next;
 
       this.ready = { generation, prepared };
       this.pagesEl.removeClass("is-stale");
-      this.statusEl.setText(words.pages(Math.min(total, MAX_PREVIEW_PAGES), total));
+      this.statusEl.setText(words.pages(next.pages));
       this.warningsEl.empty();
       for (const warning of prepared.warnings) this.warningsEl.createDiv({ text: warning });
     } catch (error) {
       if (stale()) return;
       this.ready = null;
+      void this.shown?.close();
+      this.shown = null;
       this.pagesEl.empty();
       this.warningsEl.empty();
       this.statusEl.addClass("is-error");

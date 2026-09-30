@@ -137,6 +137,10 @@ export function compileDeadline(job: PrintJob): number {
   let text = new TextEncoder().encode(job.main).byteLength;
   let binary = job.fonts.reduce((total, font) => total + font.byteLength, 0);
   for (const file of job.files) {
+    // The prelude is definitions, the same in every job and parsed in no
+    // time; what the rate above was measured on is text being set, and a
+    // helper that is called costs its time through the body that calls it.
+    if (file.path === PRELUDE_FILE) continue;
     if (file.path.endsWith(".typ")) text += file.bytes.byteLength;
     else binary += file.bytes.byteLength;
   }
