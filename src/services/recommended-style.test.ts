@@ -70,9 +70,19 @@ describe("Recommended as a register", () => {
     // after that padding and sat half a screen below the note (measured: 428px
     // in a 760px pane, against 48px in Reading view).
     const [editing] = bodies(".cm-sizer > .cm-contentContainer + .schreibstube-recommended-footer");
-    expect(editing).toMatch(/margin-top:\s*calc\(3em - var\(--schreibstube-editor-tail, 0px\)\);/);
+    expect(editing).toMatch(
+      /margin-top:\s*calc\(var\(--schreibstube-footer-gap\) - var\(--schreibstube-editor-tail, 0px\)\);/
+    );
     expect(editing).toMatch(/padding-bottom:\s*var\(--schreibstube-editor-tail, 0px\);/);
     expect(editing).toMatch(/position:\s*relative;/);
+  });
+
+  it("keeps the note-to-list distance in one value, used by editing and Reading view alike", () => {
+    // The user's call: 5.5em. Two numbers would drift, and the two modes would
+    // put the list at different distances from the same note.
+    const [footer] = bodies(".schreibstube-recommended-footer");
+    expect(footer).toMatch(/--schreibstube-footer-gap:\s*5\.5em;/);
+    expect(footer).toMatch(/margin:\s*var\(--schreibstube-footer-gap\) 0 2em;/);
   });
 
   it("takes the width of the text under it, not a width of its own", () => {
