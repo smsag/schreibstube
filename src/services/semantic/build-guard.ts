@@ -141,15 +141,36 @@ export class BuildGuard {
 
 /** localStorage key of the vault-index marker. */
 const VAULT_BUILD_MARKER_KEY = "schreibstube-semantic-index-build";
+/** localStorage key of the phone's model-work marker. */
+const PHONE_MODEL_MARKER_KEY = "schreibstube-semantic-phone-model";
+
+interface LocalStorageApp {
+  loadLocalStorage(key: string): unknown;
+  saveLocalStorage(key: string, data: unknown): void;
+}
+
+function localGuard(app: LocalStorageApp, key: string): BuildGuard {
+  return new BuildGuard({
+    load: () => app.loadLocalStorage(key),
+    save: (marker) => app.saveLocalStorage(key, marker)
+  });
+}
 
 /** The vault index's guard, on Obsidian's vault-scoped, per-device localStorage —
  *  never data.json, which syncs (see the header). */
-export function vaultBuildGuard(app: {
-  loadLocalStorage(key: string): unknown;
-  saveLocalStorage(key: string, data: unknown): void;
-}): BuildGuard {
-  return new BuildGuard({
-    load: () => app.loadLocalStorage(VAULT_BUILD_MARKER_KEY),
-    save: (marker) => app.saveLocalStorage(VAULT_BUILD_MARKER_KEY, marker)
-  });
+export function vaultBuildGuard(app: LocalStorageApp): BuildGuard {
+  return localGuard(app, VAULT_BUILD_MARKER_KEY);
+}
+
+/**
+ * The same breaker around everything a phone does with the model without
+ * being asked: embedding an edit, a sync that landed, a warm-up, a query.
+ * A phone never builds on its own, so the build's marker never saw these —
+ * and a model load iOS ends the process for came back at every launch, as
+ * the edits the last one did not finish were handed over again. Kept apart
+ * from the build's marker so a pause here never pauses a desktop-style build
+ * the person started, and the other way round.
+ */
+export function phoneModelGuard(app: LocalStorageApp): BuildGuard {
+  return localGuard(app, PHONE_MODEL_MARKER_KEY);
 }

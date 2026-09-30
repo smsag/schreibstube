@@ -1468,6 +1468,9 @@ export const de: Messages = {
         "Das Modell hat nicht rechtzeitig geantwortet. „Jetzt aufbauen“ versucht es erneut.",
       paused:
         "Pausiert, nachdem ein Aufbau zweimal nicht fertig wurde. „Jetzt aufbauen“ versucht es erneut.",
+      phonePaused:
+        "Auf diesem Telefon pausiert: Obsidian wurde zweimal hintereinander beendet, während das " +
+        "Modell arbeitete. Änderungen nimmt solange der Desktop auf. „Jetzt aufbauen“ versucht es erneut.",
       desktopBuilds: (count: number, budget: number) =>
         `${count} Notizen bereit. Ein Telefon baut den Index nicht selbst auf: Der Desktop ` +
         `macht ihn fertig, er kommt per Sync. „Jetzt aufbauen“ ergänzt hier ${budget} Notizen.`

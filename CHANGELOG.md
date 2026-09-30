@@ -6,6 +6,8 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- **Search by meaning keeps its index up to date again.** Since 1.65.0 the index could be written once and never again: the new safe write moved the fresh file over the old one, and Obsidian refuses to move a file onto one that exists. Every later write failed with "Destination file already exists", so the catch-up at launch ended in an error and edits to notes were embedded but never saved, to be embedded again at the next launch. The old index is now moved aside first and removed once the new one is in place; if the app ends between the two, the old index is taken back at the next launch.
+- **A phone no longer restarts Obsidian over and over when the model is too much for it.** When iOS ended Obsidian while search by meaning was loading or running its model on a phone — to embed an edit, a note that arrived by sync, or a search — nothing noticed, and the next launch did the same work again, so the app restarted before it could even be used to switch the plugin off. The phone now notes model work before it starts and clears the note when it ends. After two such endings in a row, it leaves the model alone: edits reach the index when the desktop sees them, a search on the phone finds by words only, and the settings say so. **Build now** tries again.
 - A mail search on the date alone still came back empty after 1.66.1: Strato
   answered it with no matches, not with a refusal, so the bridge believed it.
   When the server finds nothing, the bridge now checks the newest 2000 mails

@@ -97,6 +97,8 @@ function world(notes: Record<string, string> = { "a.md": "alpha one", "b.md": "b
         },
         writeBinary: async (p: string, b: ArrayBuffer) => void disk.set(p, b),
         rename: async (from: string, to: string) => {
+          // As Obsidian's adapters do: a rename never replaces a file.
+          if (disk.has(to)) throw new Error("Destination file already exists!");
           disk.set(to, disk.get(from)!);
           disk.delete(from);
           mtimes.set(to, (mtimes.get(to) ?? 0) + 1);
@@ -414,6 +416,53 @@ describe("a phone holding the desktop's index", () => {
     await look();
     expect(w.reads.length).toBeGreaterThan(reads);
     expect((await phone.report())?.indexed).toBe(3);
+  });
+
+  const PHONE_MARKER = "schreibstube-semantic-phone-model";
+  const phoneReady = async (w: ReturnType<typeof world>): Promise<SemanticEngine> => {
+    await built(w.engine());
+    platform.isMobile = true;
+    const phone = w.engine();
+    phone.warm();
+    await until(() => phone.searchState() === "ready" && !inside(phone).syncing);
+    return phone;
+  };
+
+  it("marks its model work before the model loads, and clears the mark when it ends", async () => {
+    const w = world();
+    const phone = await phoneReady(w);
+    let open!: () => void;
+    model.gate = new Promise((r) => (open = r));
+    w.contents.set("a.md", "alpha one, rewritten");
+    const applying = phone.applyChanges([w.file("a.md")], []);
+    await until(() => w.plugin.app.loadLocalStorage(PHONE_MARKER) != null);
+    expect(w.plugin.app.loadLocalStorage(PHONE_MARKER)).toMatchObject({ attempts: 1 });
+    open();
+    await applying;
+    model.gate = null;
+    expect(w.plugin.app.loadLocalStorage(PHONE_MARKER)).toBeNull();
+  });
+
+  it("uses the model for nothing on its own after it ended the app twice, until Build now", async () => {
+    const w = world();
+    const phone = await phoneReady(w);
+    // Two launches in a row that never got to clear the mark.
+    w.plugin.app.saveLocalStorage(PHONE_MARKER, { attempts: 2, startedAt: 0, modelId: "m" });
+    const before = { loads: model.loads, embeds: model.embeds };
+
+    w.contents.set("a.md", "alpha one, rewritten on the phone");
+    await phone.applyChanges([w.file("a.md")], []);
+    expect(await phone.search("alpha", 5)).toEqual([]);
+    phone.warm();
+    await until(() => !inside(phone).syncing);
+    expect({ loads: model.loads, embeds: model.embeds }).toEqual(before);
+    expect(phone.waitsOnPerson()).toBe(true);
+    expect((await phone.status()).state).toBe("phonePaused");
+
+    phone.buildNow();
+    await until(() => !inside(phone).syncing);
+    expect(w.plugin.app.loadLocalStorage(PHONE_MARKER)).toBeNull();
+    expect((await phone.status()).state).not.toBe("phonePaused");
   });
 });
 
