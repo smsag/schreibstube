@@ -19,6 +19,7 @@ const imap = vi.hoisted(() => ({
   released: 0,
   loggedOut: 0,
   failSearch: null,
+  broken: new Set(),
   refuseSearch: null,
   serverFinds: null,
   capabilities: [],
@@ -57,20 +58,20 @@ vi.mock("imapflow", () => ({
       return imap.uids;
     }
 
-    async *fetch(window, items) {
+    async *fetch(window, items, options) {
       // What imapflow does when no mailbox is selected: yield nothing.
       if (imap.fetchNothing) return;
-      // A sequence range reads envelopes, the way the fallback scan asks.
-      if (typeof window === "string") {
-        imap.scans.push({ window, items });
-        const first = Number(window.split(":")[0]);
-        for (const uid of imap.uids.slice(first - 1)) {
-          yield { uid, ...imap.envelopes.get(uid) };
-        }
-        return;
-      }
-      for (const uid of window) {
-        yield { uid, source: Buffer.from(imap.sources.get(uid) ?? "") };
+      // Without `uid: true` the ids are sequence numbers, as the scan sends.
+      const byUid = options?.uid === true;
+      if (items.envelope) imap.scans.push({ window, items, byUid });
+      for (const id of window) {
+        const uid = byUid ? id : imap.uids[id - 1];
+        // A message the server will not hand over fails the whole command,
+        // after the ones before it have already arrived.
+        if (imap.broken.has(uid)) throw new Error("NO [SERVERBUG] Internal error");
+        yield items.envelope
+          ? { uid, ...imap.envelopes.get(uid) }
+          : { uid, source: Buffer.from(imap.sources.get(uid) ?? "") };
       }
     }
 
@@ -82,8 +83,14 @@ vi.mock("imapflow", () => ({
   }
 }));
 
-const { HTML_TEXT_RATIO, MAX_REFUSAL_CHARS, htmlToText, refusalMessage, searchMessages } =
-  await import("./mail.mjs");
+const {
+  HTML_TEXT_RATIO,
+  MAX_REFUSAL_CHARS,
+  fetchEach,
+  htmlToText,
+  refusalMessage,
+  searchMessages
+} = await import("./mail.mjs");
 const { MAX_FALLBACK_SCAN } = await import("./mail-match.mjs");
 
 function config(overrides = {}) {
@@ -134,6 +141,7 @@ beforeEach(() => {
   imap.sources = new Map();
   imap.envelopes = new Map();
   imap.scans = [];
+  imap.broken = new Set();
   imap.opened = [];
   imap.queries = [];
   imap.released = 0;
@@ -303,8 +311,11 @@ describe("searchMessages, when the server refuses to search", () => {
 
     const result = await searchMessages(config(), { criteria: { subject: "Fristsetzung" } });
 
-    expect(imap.scans[0].window).toBe("6:*");
-    expect(imap.scans[0].items).toMatchObject({ uid: true, envelope: true, internalDate: true });
+    const scan = imap.scans[0];
+    expect(scan.byUid).toBe(false);
+    expect(scan.window).toHaveLength(MAX_FALLBACK_SCAN);
+    expect(scan.window[0]).toBe(6);
+    expect(scan.items).toMatchObject({ uid: true, envelope: true, internalDate: true });
     expect(result).toEqual({ messages: [], mailbox: "INBOX", truncated: true });
   });
 
@@ -369,6 +380,73 @@ describe("searchMessages, when the server finds nothing", () => {
     expect(notes[1]).toBe(
       "search in INBOX (exists 1, uidNext 2, within yes) on from+subject: server found refused, own check found 0"
     );
+  });
+});
+
+describe("searchMessages, a message the server will not hand over", () => {
+  function sinceTheTwentyFifth(count) {
+    for (let uid = 1; uid <= count; uid += 1) {
+      message({ uid, date: "Mon, 28 Sep 2026 13:18:27 +0000" });
+    }
+  }
+
+  it("is left out of the scan, and the rest still found", async () => {
+    sinceTheTwentyFifth(9);
+    imap.serverFinds = [];
+    imap.broken = new Set([4]);
+    const notes = [];
+
+    // The broken one fails the envelope scan, so it never reaches the bodies.
+    const result = await searchMessages(
+      config(),
+      { criteria: { since: "2026-09-25" } },
+      (level, text) => notes.push([level, text])
+    );
+
+    expect(result.messages.map((m) => m.uid)).toEqual([1, 2, 3, 5, 6, 7, 8, 9]);
+    expect(notes).toContainEqual([
+      "warn",
+      "skipped 1 message(s) the server would not hand over (sequence number 4)"
+    ]);
+  });
+
+  it("is left out of the bodies when the server's own search named it", async () => {
+    sinceTheTwentyFifth(5);
+    imap.broken = new Set([2]);
+    const notes = [];
+
+    const result = await searchMessages(config(), {}, (level, text) => notes.push([level, text]));
+
+    expect(result.messages.map((m) => m.uid)).toEqual([1, 3, 4, 5]);
+    expect(notes).toContainEqual([
+      "warn",
+      "skipped 1 message(s) the server would not hand over (UID 2)"
+    ]);
+  });
+
+  it("names the first few and counts the rest", async () => {
+    sinceTheTwentyFifth(30);
+    imap.broken = new Set(Array.from({ length: 12 }, (_, i) => i + 1));
+    const notes = [];
+    await searchMessages(config(), { limit: 30 }, (level, text) => notes.push(text));
+    expect(notes).toContain(
+      "skipped 12 message(s) the server would not hand over (UID 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 and 2 more)"
+    );
+  });
+});
+
+describe("fetchEach", () => {
+  it("still fails when the connection itself is gone", async () => {
+    const client = {
+      usable: false,
+      // eslint-disable-next-line require-yield
+      async *fetch() {
+        throw new Error("Connection closed");
+      }
+    };
+    await expect(
+      fetchEach(client, [1, 2], {}, {}, () => {}, { seen: new Set(), skipped: [] })
+    ).rejects.toThrow("Connection closed");
   });
 });
 
