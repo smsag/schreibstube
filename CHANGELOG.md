@@ -15,6 +15,10 @@ All notable changes to this project will be documented in this file.
   25 MB together. Needs bridge 2.12.0 (protocol 7); an older bridge inserts
   the mail without its files and says to redeploy.
 
+### Changed
+
+- **Recommended lines up.** The relevance bars stand in one column down the list, also beside a picture, whose thumbnail stays at the far end. The buttons to copy an entry's link and to open it to the right sit just before the bars — under the pointer on a desktop, always on a phone — and lie over the end of a long title instead of narrowing it; the title fades out beneath them in the colour behind the list, whatever the theme.
+
 ### Fixed
 
 - **On a phone, search by meaning waits while Similarity runs.** Similarity loads a language model of its own at every start; with Schreibstube's model beside it, Obsidian on an iPhone passed the memory iOS allows and restarted. Search by meaning now pauses on a phone while Similarity is switched on there, and the settings name the plugin and say what to do. The same pause beside a Pythia older than 3.9, which still ran a model of its own, is gone: Pythia asks Schreibstube for its model since 3.9. On a desktop both run. The README's new **On a phone** section says what a phone does with the model, and what it leaves to the desktop.

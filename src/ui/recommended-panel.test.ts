@@ -192,6 +192,41 @@ describe("RecommendedPanel", () => {
     ]);
   });
 
+  it("gives every row the thumbnail's column only when the list holds a picture", async () => {
+    const withPicture = setup(async () => ({
+      items: [
+        note("a.md"),
+        {
+          kind: "picture",
+          picture: { path: "p.png", title: "p", src: "app://p.png", reasons: ALIKE }
+        }
+      ]
+    }));
+    withPicture.panel.show("x.md");
+    const without = setup(async () => ({ items: [note("a.md"), note("b.md")] }));
+    without.panel.show("x.md");
+    await settle();
+    const list = (root: HTMLElement) => root.querySelector(".schreibstube-related-list");
+    expect(list(withPicture.root)?.classList.contains("has-pictures")).toBe(true);
+    expect(list(without.root)?.classList.contains("has-pictures")).toBe(false);
+  });
+
+  it("fades the actions into the colour painted behind the list", async () => {
+    const { root, panel } = setup(async () => ({ items: [note("a.md")] }));
+    const pane = document.createElement("div");
+    pane.style.backgroundColor = "rgb(246, 246, 246)";
+    pane.append(root);
+    document.body.append(pane);
+    panel.show("x.md");
+    await settle();
+    expect(root.style.getPropertyValue("--schreibstube-related-ground")).toBe("rgb(246, 246, 246)");
+
+    pane.style.backgroundColor = "rgb(30, 30, 30)";
+    panel.measureGround();
+    expect(root.style.getPropertyValue("--schreibstube-related-ground")).toBe("rgb(30, 30, 30)");
+    pane.remove();
+  });
+
   it("heads the list under a note with the section and its count, and the sidebar with the note", async () => {
     const recommend = async () => ({ items: [note("a.md"), note("b.md")] });
     const under = setup(recommend);

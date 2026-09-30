@@ -38,6 +38,7 @@ import {
   type Relevance,
   type RelevanceFloors
 } from "../services/semantic/recommend";
+import { groundColour } from "../services/ground-colour";
 
 /** One related note, as a card draws it. */
 export interface RelatedCard {
@@ -296,11 +297,40 @@ export class RecommendedPanel {
 
     // Still an <ol>: the order is the ranking, and a screen reader says so.
     const list = root.createEl("ol", { cls: "schreibstube-related-list" });
+    // One picture in the list gives every row the thumbnail's column, so the
+    // meters stand in one column whatever each row ends in.
+    list.toggleClass(
+      "has-pictures",
+      items.some((item) => item.kind === "picture")
+    );
     for (const item of items) {
       if (item.kind === "note") this.renderCard(list, item.card);
       else if (item.kind === "picture") this.renderPicture(list, item.picture);
       else this.renderItem(list, item.item);
     }
+    this.measureGround();
+  }
+
+  /**
+   * Find the colour painted behind the list, for the fade under an entry's
+   * actions where they lie over its title.
+   *
+   * Which variable that is depends on where the list sits — under the note,
+   * in a desktop sidebar, in a phone's drawer — and on what the theme does to
+   * each; the Explorer's sticky headers learned that a guessed one shows as a
+   * band. So it is read off the ancestors, as the Explorer reads its own (see
+   * ground-colour). A host calls it again when the theme changes.
+   */
+  measureGround(): void {
+    const layers: string[] = [];
+    let element: HTMLElement | null = this.root;
+    while (element) {
+      layers.push(getComputedStyle(element).backgroundColor);
+      element = element.parentElement;
+    }
+    const colour = groundColour(layers);
+    if (colour) this.root.style.setProperty("--schreibstube-related-ground", colour);
+    else this.root.style.removeProperty("--schreibstube-related-ground");
   }
 
   /**
@@ -389,9 +419,12 @@ export class RecommendedPanel {
   }
 
   /**
-   * The entry's actions at its far end, shown under the pointer: its Obsidian
-   * URL, and for a file a pane of its own to the right. A press on either is
-   * the button's alone and never also opens the entry.
+   * The entry's actions, just before its meter: its Obsidian URL, and for a
+   * file a pane of its own to the right. Shown under the pointer, and always
+   * where there is none to hover with. They lie over the end of the title
+   * rather than take a column of their own, so the meters stand in one column
+   * and no title is narrowed for buttons that are mostly hidden. A press on
+   * either is the button's alone and never also opens the entry.
    */
   private actions(el: HTMLElement, link: EntryLink | null): void {
     const labels = t().explorer.related;

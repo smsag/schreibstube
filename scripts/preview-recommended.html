@@ -1,0 +1,175 @@
+<!doctype html>
+<!--
+  Recommended, drawn against the real stylesheet: under a note and in a
+  sidebar, in light and dark, each row as `RecommendedPanel` builds it.
+
+  Open this file in any browser; it loads `../styles.css` directly. No build,
+  no dependency, no vault.
+
+  What to look at: every meter stands in one column, whether its row ends in a
+  thumbnail or not; the thumbnail keeps its place at the far end; and the two
+  actions lie just before the meter, over the end of a long title, which fades
+  out under them into the list's own ground. The right-hand column of each
+  pair shows the actions as a phone always shows them; on a desktop they
+  appear under the pointer. Drag the window narrow: the titles are long on
+  purpose.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Schreibstube — Recommended</title>
+    <link rel="stylesheet" href="../styles.css" />
+    <style>
+      /* The Obsidian variables the list leans on; the plugin borrows the
+         theme's. The ground is what `measureGround` would have read. */
+      .light {
+        --background-primary: #fff;
+        --background-secondary: #f6f6f6;
+        --background-modifier-border: #ddd;
+        --text-normal: #222;
+        --text-muted: #666;
+        --interactive-accent: #5b6bd6;
+      }
+      .dark {
+        --background-primary: #1e1e1e;
+        --background-secondary: #262626;
+        --background-modifier-border: #3a3a3a;
+        --text-normal: #dadada;
+        --text-muted: #9a9a9a;
+        --interactive-accent: #8a94e6;
+      }
+      :root {
+        --font-ui-smaller: 12px;
+        --font-ui-small: 13px;
+        --size-4-2: 8px;
+        --size-4-4: 16px;
+        --font-text: ui-monospace, "SF Mono", Menlo, monospace;
+      }
+      body {
+        margin: 0;
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 1px;
+        background: #999;
+        font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+      }
+      .frame {
+        padding: 16px 20px;
+        color: var(--text-normal);
+      }
+      .frame.under {
+        background: var(--background-primary);
+      }
+      .frame.side {
+        background: var(--background-secondary);
+        width: 300px;
+      }
+      .frame h1 {
+        margin: 0 0 8px;
+        font:
+          11px -apple-system,
+          sans-serif;
+        color: var(--text-muted);
+      }
+      /* A phone shows the actions always; so does this column. */
+      .frame.shown .schreibstube-related-actions {
+        visibility: visible !important;
+      }
+      .schreibstube-related-list {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: grid;
+        gap: var(--schreibstube-row-gap);
+      }
+      .schreibstube-recommended-footer {
+        display: block;
+        margin: 0;
+      }
+      .sb.sb-icon {
+        border: 0;
+        background: none;
+        padding: 2px;
+        color: var(--text-muted);
+        cursor: pointer;
+      }
+      .sb.sb-icon svg {
+        width: 16px;
+        height: 16px;
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <script>
+      const ROWS = [
+        [
+          "Beyond Tomorrow: Four Scenarios for the World of 2050",
+          "Lesestapel · 70 % ähnlich im Inhalt",
+          1
+        ],
+        [
+          "Senior Product Manager bei SafeProCon",
+          "zzzzzzzz/_archive/Berufliches/Karriere/Bewerbungen · 66 % ähnlich im Inhalt",
+          1
+        ],
+        [
+          "growth-rate-energy-consumption-population-living-standards",
+          "Bild · 65 % ähnlich im Inhalt",
+          1,
+          "picture"
+        ],
+        [
+          "Schreinerstraße 21: Beschlusssammlung der Eigentümerversammlungen seit 2019",
+          "Familiäres/Schreinerstr. 21 · Verlinkt",
+          3
+        ]
+      ];
+      const LINK =
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>';
+      const SPLIT =
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v18"/><path d="m16 16 4-4-4-4"/><path d="m8 8-4 4 4 4"/></svg>';
+      const THUMB =
+        "data:image/svg+xml," +
+        encodeURIComponent(
+          '<svg xmlns="http://www.w3.org/2000/svg" width="56" height="40"><rect width="56" height="40" fill="#fff"/><path d="M4 36 L14 30 L22 33 L30 12 L38 30 L52 26 L52 36 Z" fill="#b5534b"/></svg>'
+        );
+
+      function row([title, meta, lit, kind]) {
+        const bars = [1, 2, 3]
+          .map((n) => `<span class="schreibstube-related-bar${n <= lit ? " is-lit" : ""}"></span>`)
+          .join("");
+        return `<li><div class="schreibstube-related-card${kind === "picture" ? " is-picture" : ""}" role="link" tabindex="0">
+          <span class="schreibstube-related-glyph">▤</span>
+          <div class="schreibstube-related-card-text">
+            <div class="schreibstube-related-card-title">${title}</div>
+            <div class="schreibstube-related-card-meta"><span class="schreibstube-related-card-folder">${meta}</span></div>
+          </div>
+          <span class="schreibstube-related-relevance" data-level="${["", "low", "medium", "high"][lit]}">${bars}</span>
+          <div class="schreibstube-related-actions">
+            <button class="sb sb-icon schreibstube-related-action">${LINK}</button>
+            <button class="sb sb-icon schreibstube-related-action">${SPLIT}</button>
+          </div>
+          ${kind === "picture" ? `<img class="schreibstube-related-card-thumb" src="${THUMB}" alt="">` : ""}
+        </div></li>`;
+      }
+
+      for (const theme of ["light", "dark"]) {
+        for (const [place, rootCls, ground] of [
+          ["under a note", "schreibstube-recommended-footer", "var(--background-primary)"],
+          ["in a sidebar", "schreibstube-related-notes", "var(--background-secondary)"]
+        ]) {
+          for (const shown of [false, true]) {
+            const frame = document.createElement("div");
+            frame.className = `frame ${theme} ${place === "in a sidebar" ? "side" : "under"}${shown ? " shown" : ""}`;
+            frame.innerHTML = `<h1>${theme}, ${place}${shown ? ", actions shown (phone, or pointer)" : ""}</h1>
+              <div class="${rootCls}" style="--schreibstube-related-ground: ${ground}">
+                <ol class="schreibstube-related-list has-pictures">${ROWS.map(row).join("")}</ol>
+              </div>`;
+            document.body.append(frame);
+          }
+        }
+      }
+    </script>
+  </body>
+</html>

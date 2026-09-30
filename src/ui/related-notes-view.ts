@@ -108,6 +108,8 @@ export class RelatedNotesView extends ItemView {
     // before Obsidian has resolved the note's links, and the list drawn then
     // was one link behind until the next edit.
     this.registerEvent(this.app.metadataCache.on("resolved", () => this.requestSettledRender()));
+    // A theme or its colours changed: the fade behind the actions follows.
+    this.registerEvent(this.app.workspace.on("css-change", () => this.panel?.measureGround()));
     this.registerEvent(
       this.app.vault.on("delete", (file) => {
         // The note the list was for is gone: an answer about it would be about
