@@ -12,6 +12,12 @@ import { randomUUID } from "node:crypto";
 import { TimeoutError, withDeadline } from "./timeout.mjs";
 import { parseSender, recipientAddresses, senderDomain } from "./mail-address.mjs";
 import { chooseSentMailbox, FALLBACK_SENT_MAILBOX } from "./sent-mailbox.mjs";
+import {
+  addressText,
+  matchableWithoutServer,
+  matchesCriteria,
+  MAX_FALLBACK_SCAN
+} from "./mail-match.mjs";
 
 /**
  * Compile a message to RFC 5322 bytes without sending it. Using a stream
@@ -244,19 +250,31 @@ export async function sentMailboxFor(config, client, cache = detectedSent) {
   return choice;
 }
 
-/** Search a mailbox and return the matching messages, newest last. */
-export async function searchMessages(config, request) {
+/**
+ * Search a mailbox and return the matching messages, newest last. `log`, when
+ * given, hears why a search took the long way round.
+ */
+export async function searchMessages(config, request, log = () => {}) {
   const mailbox = request.mailbox?.trim() || config.defaultMailbox;
   const limit = clampLimit(request.limit, config.maxResults);
-  const client = newClient(config);
+  const warnings = [];
+  const client = newClient(config, warnings);
 
   try {
     await client.connect();
     const lock = await client.getMailboxLock(mailbox);
     try {
-      const uids = await client.search(buildQuery(request.criteria ?? {}), { uid: true });
-      if (!uids || uids.length === 0) {
-        return { messages: [], mailbox, truncated: false };
+      const criteria = request.criteria ?? {};
+      let uids = await client.search(buildQuery(criteria), { uid: true });
+      let scanMissedOlder = false;
+      if (uids === false) {
+        const refusal = refusalMessage("The mail server refused the search", warnings);
+        if (!matchableWithoutServer(criteria)) throw new Error(refusal);
+        log("warn", `${refusal}; matching the newest ${MAX_FALLBACK_SCAN} messages instead`);
+        ({ uids, scanMissedOlder } = await scanNewest(client, criteria));
+      }
+      if (uids.length === 0) {
+        return { messages: [], mailbox, truncated: scanMissedOlder };
       }
 
       // Newest UIDs are highest, so the tail is the most recent window.
@@ -272,15 +290,52 @@ export async function searchMessages(config, request) {
       )) {
         messages.push(await toMessage(msg, config.maxTextChars));
       }
+      if (messages.length === 0) {
+        throw new Error(
+          refusalMessage(
+            `The mail server found ${uids.length} message(s) but returned none of them`,
+            warnings
+          )
+        );
+      }
       messages.sort((a, b) => (a.date ?? "").localeCompare(b.date ?? ""));
 
-      return { messages, mailbox, truncated: uids.length > window.length };
+      return { messages, mailbox, truncated: scanMissedOlder || uids.length > window.length };
     } finally {
       lock.release();
     }
   } finally {
     await safeLogout(client);
   }
+}
+
+/**
+ * The search done without the server's SEARCH: the newest messages by sequence
+ * number, read as envelopes and matched in `mail-match.mjs`. Reading needs no
+ * search, so a server that refuses one still hands these over.
+ */
+async function scanNewest(client, criteria) {
+  const exists = client.mailbox?.exists ?? 0;
+  if (exists === 0) return { uids: [], scanMissedOlder: false };
+
+  const first = Math.max(1, exists - MAX_FALLBACK_SCAN + 1);
+  const uids = [];
+  for await (const msg of client.fetch(`${first}:*`, {
+    uid: true,
+    envelope: true,
+    internalDate: true,
+    headers: ["references", "in-reply-to"]
+  })) {
+    const candidate = {
+      from: addressText(msg.envelope?.from),
+      to: addressText(msg.envelope?.to),
+      subject: msg.envelope?.subject ?? "",
+      date: msg.internalDate ?? msg.envelope?.date ?? null,
+      headers: msg.headers?.toString("utf8") ?? ""
+    };
+    if (matchesCriteria(candidate, criteria)) uids.push(msg.uid);
+  }
+  return { uids: uids.sort((a, b) => a - b), scanMissedOlder: first > 1 };
 }
 
 /**
@@ -365,13 +420,41 @@ export function htmlToText(html, maxTextChars) {
     .trim();
 }
 
-function newClient(config) {
+/** How much of a server's own reason an error carries along. */
+export const MAX_REFUSAL_CHARS = 300;
+
+/**
+ * An error message for a command imapflow gave up on quietly. It answers a
+ * refused SEARCH with `false` and an unselected FETCH with nothing, logging the
+ * reason instead of throwing it; read as "no matches", a refusal showed up as
+ * an empty mailbox. The server's words are its own and go into a log and a
+ * notice, so they are flattened to one line and bounded.
+ */
+export function refusalMessage(what, warnings) {
+  const err = [...warnings].reverse().find((entry) => entry?.err)?.err;
+  const reason = [err?.serverResponseCode, err?.response || err?.message]
+    .filter((part) => typeof part === "string" && part.trim())
+    .join(" ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, MAX_REFUSAL_CHARS);
+  return reason ? `${what}: ${reason}` : `${what}.`;
+}
+
+/**
+ * `warnings`, when given, collects what imapflow logs at warn level and above:
+ * the only place it leaves the reason for a command it answered with `false`.
+ */
+function newClient(config, warnings) {
+  const keep = (entry) => {
+    if (warnings) warnings.push(entry);
+  };
   return new ImapFlow({
     host: config.imap.host,
     port: config.imap.port,
     secure: config.imap.secure,
     auth: config.imap.auth,
-    logger: false,
+    logger: { warn: keep, error: keep, fatal: keep },
     emitLogs: false,
     connectionTimeout: config.upstreamTimeoutMs,
     greetingTimeout: config.upstreamTimeoutMs,

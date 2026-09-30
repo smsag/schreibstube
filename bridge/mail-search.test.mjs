@@ -12,19 +12,28 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const imap = vi.hoisted(() => ({
   uids: [],
   sources: new Map(),
+  envelopes: new Map(),
+  scans: [],
   opened: [],
   queries: [],
   released: 0,
   loggedOut: 0,
-  failSearch: null
+  failSearch: null,
+  refuseSearch: null,
+  fetchNothing: false
 }));
 
 vi.mock("imapflow", () => ({
   ImapFlow: class {
+    constructor(options) {
+      this.options = options;
+    }
+
     async connect() {}
 
     async getMailboxLock(mailbox) {
       imap.opened.push(mailbox);
+      this.mailbox = { path: mailbox, exists: imap.uids.length };
       return {
         release: () => {
           imap.released += 1;
@@ -35,10 +44,26 @@ vi.mock("imapflow", () => ({
     async search(query) {
       imap.queries.push(query);
       if (imap.failSearch) throw new Error(imap.failSearch);
+      // What imapflow does with a NO or BAD: log it, answer false.
+      if (imap.refuseSearch) {
+        this.options.logger.warn?.({ err: imap.refuseSearch, cid: "c1" });
+        return false;
+      }
       return imap.uids;
     }
 
-    async *fetch(window) {
+    async *fetch(window, items) {
+      // What imapflow does when no mailbox is selected: yield nothing.
+      if (imap.fetchNothing) return;
+      // A sequence range reads envelopes, the way the fallback scan asks.
+      if (typeof window === "string") {
+        imap.scans.push({ window, items });
+        const first = Number(window.split(":")[0]);
+        for (const uid of imap.uids.slice(first - 1)) {
+          yield { uid, ...imap.envelopes.get(uid) };
+        }
+        return;
+      }
       for (const uid of window) {
         yield { uid, source: Buffer.from(imap.sources.get(uid) ?? "") };
       }
@@ -52,7 +77,9 @@ vi.mock("imapflow", () => ({
   }
 }));
 
-const { HTML_TEXT_RATIO, htmlToText, searchMessages } = await import("./mail.mjs");
+const { HTML_TEXT_RATIO, MAX_REFUSAL_CHARS, htmlToText, refusalMessage, searchMessages } =
+  await import("./mail.mjs");
+const { MAX_FALLBACK_SCAN } = await import("./mail-match.mjs");
 
 function config(overrides = {}) {
   return {
@@ -73,6 +100,15 @@ function message({
   body = "Inhalt"
 }) {
   imap.uids.push(uid);
+  imap.envelopes.set(uid, {
+    envelope: {
+      from: [{ name: "Absender", address: "absender@example.com" }],
+      to: [{ address: "post@example.com" }],
+      subject
+    },
+    internalDate: new Date(date),
+    headers: Buffer.from(headers ? `${headers}\r\n` : "")
+  });
   imap.sources.set(
     uid,
     [
@@ -91,11 +127,15 @@ function message({
 beforeEach(() => {
   imap.uids = [];
   imap.sources = new Map();
+  imap.envelopes = new Map();
+  imap.scans = [];
   imap.opened = [];
   imap.queries = [];
   imap.released = 0;
   imap.loggedOut = 0;
   imap.failSearch = null;
+  imap.refuseSearch = null;
+  imap.fetchNothing = false;
 });
 
 describe("searchMessages, the mailbox", () => {
@@ -121,6 +161,35 @@ describe("searchMessages, the mailbox", () => {
     await expect(searchMessages(config(), {})).rejects.toThrow("AUTHENTICATIONFAILED");
     expect(imap.released).toBe(1);
     expect(imap.loggedOut).toBe(1);
+  });
+
+  it("still refuses a body-text search the server refused, with its reason", async () => {
+    message({ uid: 1 });
+    imap.refuseSearch = Object.assign(new Error("Command failed"), {
+      serverResponseCode: "BADCHARSET",
+      response: "SEARCH\r\n  failed: unsupported"
+    });
+    await expect(searchMessages(config(), { criteria: { text: "Objekt" } })).rejects.toThrow(
+      "The mail server refused the search: BADCHARSET SEARCH failed: unsupported"
+    );
+    expect(imap.released).toBe(1);
+    expect(imap.loggedOut).toBe(1);
+  });
+
+  it("says so when a refusal came without a reason", async () => {
+    imap.refuseSearch = {};
+    await expect(searchMessages(config(), { criteria: { text: "Objekt" } })).rejects.toThrow(
+      /^The mail server refused the search\.$/
+    );
+  });
+
+  it("reports matches the server would not hand over", async () => {
+    message({ uid: 1 });
+    message({ uid: 2 });
+    imap.fetchNothing = true;
+    await expect(searchMessages(config(), {})).rejects.toThrow(
+      "The mail server found 2 message(s) but returned none of them."
+    );
   });
 
   it("returns an empty result without fetching when nothing matches", async () => {
@@ -171,6 +240,68 @@ describe("searchMessages, the query", () => {
         { header: { "in-reply-to": "<a@example.com>" } }
       ]
     });
+  });
+});
+
+describe("searchMessages, when the server refuses to search", () => {
+  const refused = () => {
+    imap.refuseSearch = Object.assign(new Error("Command failed"), { response: "NO busy" });
+  };
+
+  it("still returns the mail since a date, read from the newest messages", async () => {
+    message({ uid: 1, date: "Mon, 21 Sep 2026 09:00:00 +0000" });
+    message({ uid: 2, subject: "AW: Fristsetzung", date: "Mon, 28 Sep 2026 13:18:27 +0000" });
+    message({ uid: 3, date: "Tue, 29 Sep 2026 08:00:00 +0000" });
+    refused();
+    const notes = [];
+
+    const result = await searchMessages(
+      config(),
+      { criteria: { since: "2026-09-25" } },
+      (level, text) => notes.push([level, text])
+    );
+
+    expect(result.messages.map((m) => m.uid)).toEqual([2, 3]);
+    expect(result.truncated).toBe(false);
+    expect(notes).toEqual([
+      [
+        "warn",
+        "The mail server refused the search: NO busy; matching the newest 2000 messages instead"
+      ]
+    ]);
+  });
+
+  it("matches the other criteria too", async () => {
+    message({ uid: 1, subject: "Rechnung" });
+    message({ uid: 2, subject: "AW: Fristsetzung", headers: "In-Reply-To: <a@localhost>" });
+    refused();
+
+    const bySubject = await searchMessages(config(), { criteria: { subject: "fristsetzung" } });
+    expect(bySubject.messages.map((m) => m.uid)).toEqual([2]);
+
+    const byThread = await searchMessages(config(), { criteria: { references: "<a@localhost>" } });
+    expect(byThread.messages.map((m) => m.uid)).toEqual([2]);
+  });
+
+  it("reads only the newest messages, and says older ones went unread", async () => {
+    for (let uid = 1; uid <= MAX_FALLBACK_SCAN + 5; uid += 1) {
+      imap.uids.push(uid);
+      imap.envelopes.set(uid, { envelope: { subject: "Rechnung" }, internalDate: new Date() });
+    }
+    refused();
+
+    const result = await searchMessages(config(), { criteria: { subject: "Fristsetzung" } });
+
+    expect(imap.scans[0].window).toBe("6:*");
+    expect(imap.scans[0].items).toMatchObject({ uid: true, envelope: true, internalDate: true });
+    expect(result).toEqual({ messages: [], mailbox: "INBOX", truncated: true });
+  });
+
+  it("returns nothing from an empty mailbox without reading", async () => {
+    refused();
+    const result = await searchMessages(config(), { criteria: { since: "2026-09-25" } });
+    expect(result).toEqual({ messages: [], mailbox: "INBOX", truncated: false });
+    expect(imap.scans).toEqual([]);
   });
 });
 
@@ -321,5 +452,31 @@ describe("htmlToText", () => {
     expect(text).toBe("aaaaa");
     expect(html.length).toBeGreaterThan(HTML_TEXT_RATIO * limit);
     expect(htmlToText("<p>Hallo</p><p>Welt</p>", 40_000)).toBe("Hallo\nWelt");
+  });
+});
+
+describe("refusalMessage", () => {
+  it("takes the most recent logged error", () => {
+    const warnings = [
+      { err: { response: "first" } },
+      { msg: "no error" },
+      { err: { response: "last" } }
+    ];
+    expect(refusalMessage("Refused", warnings)).toBe("Refused: last");
+  });
+
+  it("falls back to the error's own message", () => {
+    expect(refusalMessage("Refused", [{ err: new Error("Connection closed") }])).toBe(
+      "Refused: Connection closed"
+    );
+  });
+
+  it("bounds what the server said", () => {
+    const message = refusalMessage("Refused", [{ err: { response: "x".repeat(5000) } }]);
+    expect(message).toHaveLength("Refused: ".length + MAX_REFUSAL_CHARS);
+  });
+
+  it("ends in a full stop when there is nothing to add", () => {
+    expect(refusalMessage("Refused", [])).toBe("Refused.");
   });
 });

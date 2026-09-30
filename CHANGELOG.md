@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Fixed
+
+- "Postfach durchsuchen" returns mail again when the mail server refuses to
+  search. Until now a refused search passed for an empty mailbox: the notice
+  said "no messages" even for a search on the date alone. The bridge now
+  reads the newest 2000 mails itself and matches sender, recipient, subject,
+  date and thread there. Only a search in the body text still depends on the
+  server; when it refuses that, the notice now gives the server's reason. The
+  same goes for a server that finds mails and then hands over none of them.
+  Bridge only; the protocol is unchanged.
+
 ## 1.66.0 - 2026-09-30
 
 A note prints as a presentation. The new Folien template turns the note's own
