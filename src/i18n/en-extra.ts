@@ -922,6 +922,8 @@ export const enExtra = {
       `the typesetter could not be fetched (${detail}). It is needed once per device; try again when online.`,
     compilerRefused: (detail: string) => `the template did not compile — ${detail}`,
     pictureFailed: (name: string) => `${name} could not be read and was left out`,
+    slidesSmall: (pages: readonly number[], percent: number) =>
+      `${pages.length === 1 ? `slide ${pages[0]} holds` : `slides ${pages.join(", ")} hold`} more than fits and ${pages.length === 1 ? "is" : "are"} set as small as ${percent} % — worth splitting`,
     templatePictureMissing: (name: string, template: string) =>
       `${name} is not in the folder of the template "${template}", so it was left out`,
     panelsLost: (index: number, missing: number, total: number) =>

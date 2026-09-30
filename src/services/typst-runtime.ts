@@ -3,6 +3,7 @@
  * the pinned bytes of the compiler and the fonts. PRINTING.md says why they
  * are fetched once per device and hashed on every start.
  */
+import type { SlideFit } from "./print-slides";
 import { t } from "../i18n";
 import FONT_MANIFEST from "./typst-fonts.json";
 
@@ -165,7 +166,14 @@ function short(hash: string): string {
 }
 
 /** What the compiler answered: a document, or the reasons it could not make one. */
-export type CompileOutcome = { ok: true; pdf: Uint8Array } | { ok: false; diagnostics: string[] };
+export type CompileOutcome =
+  | {
+      ok: true;
+      pdf: Uint8Array;
+      /** The slides the fit made smaller, when the document has any. */
+      fits?: SlideFit[];
+    }
+  | { ok: false; diagnostics: string[] };
 
 /**
  * Read the compiler's answer.

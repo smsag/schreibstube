@@ -156,3 +156,67 @@ function content(markup: string): string {
   const text = markup.trim();
   return text === "" ? "[]" : `[\n${text}\n]`;
 }
+
+/** A slide the fit made smaller: its page, and the share of its size it kept. */
+export interface SlideFit {
+  page: number;
+  scale: number;
+}
+
+/** Below this share of its size a slide's text is hard to read from a seat. */
+export const SMALL_SLIDE_SCALE = 0.6;
+
+/** The most fits read from one document: a deck, not a book of slides. */
+export const MAX_SLIDE_FITS = 2000;
+
+/** The longest report read at all, before it is parsed. */
+export const MAX_FIT_REPORT_CHARS = 256 * 1024;
+
+/**
+ * The compiler's report of the slides it made smaller, as the worker hands it
+ * over: the JSON of every `<schreibstube-fit>` metadata in the document. It
+ * crossed a thread and came out of a template, so it is read as untrusted —
+ * anything that is not a page and a share between nought and one is dropped,
+ * and a report that is not JSON at all reads as none.
+ */
+export function readSlideFits(report: unknown): SlideFit[] {
+  if (typeof report !== "string" || report.length > MAX_FIT_REPORT_CHARS) return [];
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(report);
+  } catch {
+    return [];
+  }
+  if (!Array.isArray(parsed)) return [];
+  const fits: SlideFit[] = [];
+  for (const entry of parsed.slice(0, MAX_SLIDE_FITS)) {
+    if (typeof entry !== "object" || entry === null) continue;
+    const { page, scale } = entry as Record<string, unknown>;
+    if (typeof page !== "number" || !Number.isInteger(page) || page < 1) continue;
+    if (typeof scale !== "number" || !Number.isFinite(scale) || scale <= 0 || scale > 1) continue;
+    fits.push({ page, scale });
+  }
+  return fits;
+}
+
+/**
+ * The slides set too small to read, in page order, each once at the smallest
+ * it was set, or null when there are none. A slide shrinks as a whole and
+ * never fails, so this is the only word a person gets that one wants
+ * splitting.
+ */
+export function smallSlides(
+  fits: readonly SlideFit[],
+  threshold: number = SMALL_SLIDE_SCALE
+): { pages: number[]; smallest: number } | null {
+  const byPage = new Map<number, number>();
+  for (const fit of fits) {
+    if (fit.scale >= threshold) continue;
+    byPage.set(fit.page, Math.min(fit.scale, byPage.get(fit.page) ?? 1));
+  }
+  if (byPage.size === 0) return null;
+  return {
+    pages: [...byPage.keys()].sort((a, b) => a - b),
+    smallest: Math.min(...byPage.values())
+  };
+}

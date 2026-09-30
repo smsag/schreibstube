@@ -37,7 +37,7 @@ try {
   const jobs = harness.fixtureJobs(templates);
   const failures = [];
 
-  for (const { name, job, hasText } of jobs) {
+  for (const { name, job, hasText, deck } of jobs) {
     const reply = await compile(harness.compilePayload(job), harness.compileDeadline(job));
     if (reply === null) {
       failures.push(`${name}: the compiler gave no answer within its deadline`);
@@ -51,6 +51,10 @@ try {
       failures.push(
         `${name}: the PDF has text to set and no font to set it in, so its pages are blank`
       );
+    } else if (deck && name.endsWith("/slides") && harness.readSlideFits(reply.fits).length === 0) {
+      // The case holds a slide that only fits made smaller; a deck that
+      // reports no fit means the warning about small slides can never come.
+      failures.push(`${name}: the overfull slide was not reported by the compile`);
     }
   }
 
@@ -76,6 +80,7 @@ async function load() {
       contents: [
         'export { fixtureJobs, PIXEL_PNG } from "./src/testing/print-fixtures";',
         'export { compileDeadline, compilePayload } from "./src/services/print-job";',
+        'export { readSlideFits } from "./src/services/print-slides";',
         'export { describeDiagnostics, DEVICE_ASSETS } from "./src/services/typst-runtime";',
         'export { WORKER_SOURCE } from "./src/print/typst-worker";',
         'export { setLanguage } from "./src/i18n";'

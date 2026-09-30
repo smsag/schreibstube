@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { groupSlides, slidesMarkup, type SlidePart } from "./print-slides";
+import {
+  groupSlides,
+  MAX_FIT_REPORT_CHARS,
+  readSlideFits,
+  slidesMarkup,
+  smallSlides,
+  type SlidePart
+} from "./print-slides";
 import { markdownToTypst } from "./markdown-typst";
 
 const h = (level: number, markup: string): SlidePart => ({ kind: "heading", level, markup });
@@ -183,5 +190,55 @@ describe("the converter's deck", () => {
     expect(markdownToTypst("## A\n\nText\n").body).toBe("== A\n\nText\n");
     const plain = markdownToTypst("![B](b.png)\n", { image: () => "b.png" }).body;
     expect(plain).toContain('#schreibstube-image("b.png", "B")');
+  });
+});
+
+describe("readSlideFits", () => {
+  it("reads the pages and shares the compile reported", () => {
+    const report = JSON.stringify([
+      { page: 3, scale: 0.5 },
+      { page: 7, scale: 0.92 }
+    ]);
+    expect(readSlideFits(report)).toEqual([
+      { page: 3, scale: 0.5 },
+      { page: 7, scale: 0.92 }
+    ]);
+  });
+
+  it("drops every entry that is not a page and a share between nought and one", () => {
+    const report = JSON.stringify([
+      { page: 0, scale: 0.5 },
+      { page: 2.5, scale: 0.5 },
+      { page: 4, scale: 1.5 },
+      { page: 5, scale: 0 },
+      { page: "6", scale: 0.5 },
+      null,
+      { page: 8, scale: 0.7 }
+    ]);
+    expect(readSlideFits(report)).toEqual([{ page: 8, scale: 0.7 }]);
+  });
+
+  it("reads anything that is not a JSON list, or too long to read, as no report", () => {
+    expect(readSlideFits(undefined)).toEqual([]);
+    expect(readSlideFits("not json")).toEqual([]);
+    expect(readSlideFits('{"page": 1}')).toEqual([]);
+    expect(readSlideFits(" ".repeat(MAX_FIT_REPORT_CHARS + 1))).toEqual([]);
+  });
+});
+
+describe("smallSlides", () => {
+  it("names the slides set below the threshold, each once at its smallest", () => {
+    const fits = [
+      { page: 9, scale: 0.4 },
+      { page: 2, scale: 0.55 },
+      { page: 9, scale: 0.3 },
+      { page: 5, scale: 0.8 }
+    ];
+    expect(smallSlides(fits)).toEqual({ pages: [2, 9], smallest: 0.3 });
+  });
+
+  it("says nothing when every slide stays readable", () => {
+    expect(smallSlides([{ page: 1, scale: 0.75 }])).toBeNull();
+    expect(smallSlides([])).toBeNull();
   });
 });

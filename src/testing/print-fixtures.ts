@@ -177,6 +177,8 @@ export interface FixtureJob {
   job: PrintJob;
   /** Whether the note puts text on the page, which a page without a font cannot show. */
   hasText: boolean;
+  /** Whether the template prints the note as slides. */
+  deck: boolean;
 }
 
 /**
@@ -267,7 +269,8 @@ export function fixtureJobs(templates: readonly FixtureTemplate[]): FixtureJob[]
           fonts: fixture.fonts ?? [],
           assets: [...pictures.values(), ...(fixture.assets ?? [])]
         }),
-        hasText: printCase.markdown.trim() !== ""
+        hasText: printCase.markdown.trim() !== "",
+        deck: template.slides
       });
     }
   }

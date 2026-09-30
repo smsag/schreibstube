@@ -295,8 +295,21 @@ measured once, one that shrinks usually three times. Measured on a laptop, a
 61-slide deck with a third of its slides overfull sets in 1.5 s, where six
 halvings took 2.5 s. A body that does not get shorter when it is set
 wider — a picture at the full width grows with it — is scaled as it stands
-instead. Nothing is cut off and nothing runs onto a second page; very small
-type in the preview is the sign that a slide wants splitting. The space is a
+instead. Nothing is cut off and nothing runs onto a second page.
+
+**A slide set too small is named.** Each fit leaves the scale it settled on,
+with its page, as metadata labelled `<schreibstube-fit>`. After a compile
+that made a PDF, the worker asks the same compiler for those
+(`query(main, undefined, "<schreibstube-fit>", "value")`), which reuses the
+compile and takes a few milliseconds, and hands the JSON back beside the
+bytes. `readSlideFits` reads it as untrusted — at most 2 000 entries and
+256 KB, a page a whole number and a scale between nought and one — and
+`smallSlides` names every slide set below 60 %, each once at its smallest.
+The warning stands under the preview and in the notice after printing:
+"Folien 6, 9 tragen mehr, als passt, und stehen bis auf 42 % verkleinert —
+besser teilen". A template that draws its own slide and keeps
+`schreibstube-fit` keeps the report; the compile check fails when the
+overfull fixture on a slide template reports nothing. The space is a
 fraction of the page's flow (`block(height: 1fr)`), which is measured after
 the slide's footnotes, so a footnote has its room at the foot.
 
