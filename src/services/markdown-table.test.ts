@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { isTableDelimiter, rowCells, splitRow, TABLE_DELIMITER } from "./markdown-table";
+import {
+  escapeCell,
+  isTableDelimiter,
+  rowCells,
+  splitRow,
+  TABLE_DELIMITER
+} from "./markdown-table";
 
 describe("splitRow", () => {
   it("splits at pipes, not at escaped ones or ones in code", () => {
@@ -46,5 +52,18 @@ describe("isTableDelimiter", () => {
       expect(performance.now() - started).toBeLessThan(20);
       expect(result).toBe(false);
     }
+  });
+});
+
+describe("escapeCell", () => {
+  it.each(["a|b", "a\\|b", "a\\\\|b", "ends\\", "plain"])(
+    "writes %s so that splitRow reads it back as one cell",
+    (text) => {
+      expect(rowCells(`| ${escapeCell(text)} | next |`)).toHaveLength(2);
+    }
+  );
+
+  it("turns line breaks into <br>", () => {
+    expect(escapeCell("a\r\nb\nc")).toBe("a<br>b<br>c");
   });
 });

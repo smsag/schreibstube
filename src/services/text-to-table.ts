@@ -1,3 +1,5 @@
+import { escapeCell } from "./markdown-table";
+
 export interface MarkdownTable {
   header: string[];
   rows: string[][];
@@ -135,8 +137,7 @@ function parseColors(value: string): { rgb: string[]; hex: string[] } | null {
 }
 
 export function renderMarkdownTable({ header, rows }: MarkdownTable): string {
-  const escape = (cell: string) => cell.replace(/\|/g, "\\|");
-  const line = (cells: string[]) => `| ${cells.map(escape).join(" | ")} |`;
+  const line = (cells: string[]) => `| ${cells.map(escapeCell).join(" | ")} |`;
   return [line(header), line(header.map(() => "---")), ...rows.map(line)].join("\n");
 }
 

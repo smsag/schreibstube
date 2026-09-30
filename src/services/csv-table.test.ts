@@ -43,6 +43,10 @@ describe("parseCsv", () => {
     expect(parseCsv('a, "b,c"', ",")).toEqual([["a", " b,c"]]);
   });
 
+  it("drops blank lines and stops after the limit", () => {
+    expect(parseCsv("a\n\n ,\nb\nc\nd", ",", 2)).toEqual([["a"], ["b"]]);
+  });
+
   it("refuses a quote that never closes", () => {
     expect(parseCsv('a,"b\nc,d', ",")).toBeNull();
   });
@@ -118,6 +122,51 @@ describe("csvToMarkdown", () => {
     expect(csvToMarkdown(wide)).toEqual({ ok: false, reason: "too-many-columns" });
   });
 
+  it("says a quote is open rather than guess another delimiter", () => {
+    // Under a tab or a comma the quote stands mid-field and reads as text.
+    expect(csvToMarkdown('Name;Note\nAnna;"unfinished\nBo;ok')).toEqual({
+      ok: false,
+      reason: "malformed"
+    });
+  });
+
+  it("calls a file of nothing but delimiters empty", () => {
+    expect(csvToMarkdown(";;;\n;;;\n")).toEqual({ ok: false, reason: "empty" });
+  });
+
+  it("leaves out the title line above an export's header", () => {
+    expect(markdown("Kontoauszug März 2026\nDatum;Betrag\n01.03.;-12,50\n02.03.;800")).toBe(
+      [
+        "| Datum  | Betrag |",
+        "| ------ | -----: |",
+        "| 01.03. | -12,50 |",
+        "| 02.03. |    800 |"
+      ].join("\n")
+    );
+  });
+
+  it("picks the delimiter most rows agree on, not the first row's", () => {
+    expect(markdown("a;b\n1;2;3\n4;5;6\n7;8;9")).toContain("|   a |   b |     |");
+  });
+
+  it("refuses too many rows without reading past them", () => {
+    const rows = Array.from({ length: MAX_CSV_ROWS + 2 }, (_, i) => `r${i};x`);
+    expect(csvToMarkdown(["h1;h2", ...rows, '"open'].join("\n"))).toEqual({
+      ok: false,
+      reason: "too-many-rows"
+    });
+  });
+
+  it("counts a decomposed umlaut and a flag as one character", () => {
+    expect(markdown("Ort,Land\nKo\u0308ln,🇩🇪\nBonn,DE")).toBe(
+      ["| Ort  | Land |", "| ---- | ---- |", "| Köln | 🇩🇪    |", "| Bonn | DE   |"].join("\n")
+    );
+  });
+
+  it("keeps a backslash before a pipe inside its cell", () => {
+    expect(markdown("a,b\nC:\\temp\\|x,1")).toContain("| C:\\temp\\\\\\|x |");
+  });
+
   it("takes exactly the row limit", () => {
     const rows = ["h1,h2", ...Array.from({ length: MAX_CSV_ROWS }, (_, i) => `r${i},x`)];
     expect(csvToMarkdown(rows.join("\n"))).toMatchObject({ ok: true, rows: MAX_CSV_ROWS });
@@ -139,6 +188,14 @@ describe("looksLikeData", () => {
 
   it("reads years over amounts as a header", () => {
     expect(looksLikeData(["Name", "2023", "2024"], [["Miete", "1.200", "1.250"]])).toBe(false);
+  });
+
+  it("reads a lone amount in the range of years as data", () => {
+    expect(looksLikeData(["Miete", "1950"], [["Strom", "85"]])).toBe(true);
+  });
+
+  it("reads years that do not follow one another as data", () => {
+    expect(looksLikeData(["Miete", "1950", "2000"], [["Strom", "85", "90"]])).toBe(true);
   });
 
   it("reads years over years as data", () => {

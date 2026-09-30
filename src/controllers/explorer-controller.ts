@@ -1227,14 +1227,12 @@ export class ExplorerController {
       return;
     }
 
-    // copyText logs what it failed to copy; a whole table is not worth a log line.
-    try {
-      await navigator.clipboard.writeText(outcome.markdown);
-      new Notice(t().common.notice(words.copied(outcome.rows, outcome.columns)));
-    } catch (error) {
-      this.logger.warn(`Could not copy the table from ${file.path} to the clipboard:`, error);
-      new Notice(t().common.notice(words.copyFailed));
-    }
+    await copyText(
+      outcome.markdown,
+      { copied: words.copied(outcome.rows, outcome.columns), failed: words.copyFailed },
+      this.logger,
+      `the table from ${file.path}`
+    );
   }
 
   private chooseIcon(file: TAbstractFile): void {
