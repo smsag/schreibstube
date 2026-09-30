@@ -540,8 +540,9 @@ export function refreshLeafHeader(leaf: WorkspaceLeaf): void {
  * Whether another community plugin is switched on in this vault.
  *
  * `app.plugins.enabledPlugins` is undocumented: a Set of plugin ids. The
- * semantic engine asks about Pythia, which runs a model of its own, because two
- * such models on a phone are over the memory the OS allows one app. A shape
+ * semantic engine asks about the plugins that run a model of its own
+ * (`services/semantic/model-plugins.ts`), because two models on a phone are
+ * over the memory the OS allows one app. A shape
  * that is not a Set reads as "not enabled", which lets the engine load — the
  * old behaviour, and the safe side on a desktop.
  */
@@ -591,9 +592,9 @@ export function communityPluginName(app: App, id: string): string | null {
 
 /**
  * Whether a community plugin is enabled and still loads a language model of
- * its own. Pythia says it does not by `ownsEmbeddingModel === false`, once it
- * asks Schreibstube instead; a Pythia without the flag is an older one that
- * still runs its own model. Read through the undocumented plugin registry,
+ * its own. A plugin says it does not by `ownsEmbeddingModel === false`, once it
+ * asks Schreibstube instead, as Pythia does; one without the flag is taken to
+ * run its own. Read through the undocumented plugin registry,
  * and anything unexpected reads as "it does", which keeps Schreibstube's model
  * off a phone — the side that cannot crash it.
  */

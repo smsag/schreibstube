@@ -5,11 +5,13 @@
  * Measured on an iPhone: Obsidian with Similarity's model stood at 1.4 GB
  * after its start, and Schreibstube's model on top passed the 2 GB line.
  *
- * Pythia first: it says so itself (see `pluginRunsOwnModel`), and a Pythia
- * that asks Schreibstube instead loads none.
+ * EVERY plugin that loads a model of its own belongs on this list — one that
+ * is missing is a phone that restarts every few seconds, with no message to
+ * say why. A plugin can take itself off by declaring
+ * `ownsEmbeddingModel = false` once it asks Schreibstube instead (see
+ * `pluginRunsOwnModel`); Pythia does, since 3.9, and so is not listed.
  */
 export const OWN_MODEL_PLUGINS: readonly { id: string; name: string }[] = [
-  { id: "pythia", name: "Pythia" },
   { id: "similarity", name: "Similarity" }
 ];
 

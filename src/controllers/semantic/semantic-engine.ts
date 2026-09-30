@@ -117,8 +117,9 @@ type Phase =
  * decisions come from Pythia's engine after its hardening and live in
  * `services/semantic`; this class only wires them to the vault. It does
  * nothing until the setting is switched on, and it never loads a model on a
- * phone while Pythia, which runs a model of its own, is switched on there too —
- * two are over what the OS lets one app hold.
+ * phone while a plugin that runs a model of its own is switched on there too
+ * (`services/semantic/model-plugins.ts`) — two are over what the OS lets one
+ * app hold.
  */
 export class SemanticEngine {
   private provider: ResidentProvider | null = null;
