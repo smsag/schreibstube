@@ -136,6 +136,7 @@ export const DEFAULT_SETTINGS: SchreibstubeSettings = {
   explorerBookmarksFile: BOOKMARK_FILE_DEFAULT,
   explorerTaskCounts: false,
   iconShortcodes: true,
+  basesReadingView: false,
   mailBridgeUrl: "",
   mailTokenSecretName: "",
   mailFrom: "",
@@ -348,6 +349,9 @@ export function normalizeSettings(loaded: LoadedSettings): SchreibstubeSettings 
     // On unless switched off: the shortcode is the whole point of the icons
     // being in a note at all, and a setting nobody finds is a feature nobody has.
     iconShortcodes: loaded?.iconShortcodes !== false,
+    // Off unless switched on: it changes how every base in the vault opens a
+    // note, which nobody should find changed without having asked.
+    basesReadingView: loaded?.basesReadingView === true,
     mailBridgeUrl: trimmedStringOrDefault(loaded?.mailBridgeUrl, DEFAULT_SETTINGS.mailBridgeUrl),
     mailTokenSecretName:
       typeof loaded?.mailTokenSecretName === "string"

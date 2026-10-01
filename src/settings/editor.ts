@@ -35,6 +35,17 @@ export function renderEditor(ctx: SettingsContext): void {
       });
     });
 
+  new Setting(ctx.containerEl).setName(t().settings.basesHeading).setHeading();
+
+  new Setting(ctx.containerEl)
+    .setName(t().settings.basesReadingView)
+    .setDesc(t().settings.basesReadingViewDesc)
+    .addToggle((toggle) => {
+      toggle.setValue(ctx.plugin.settings.basesReadingView).onChange(async (value) => {
+        await ctx.update({ basesReadingView: value });
+      });
+    });
+
   new Setting(ctx.containerEl).setName(t().settings.focusHeading).setHeading();
 
   new Setting(ctx.containerEl)

@@ -18,6 +18,13 @@ export const enExtra = {
       "drawn as the glyph here, and reads as the name anywhere else. Switch off if another plugin " +
       "already uses the colon for emoji.",
 
+    basesHeading: "Bases",
+    basesReadingView: "Open notes from bases in Reading view",
+    basesReadingViewDesc:
+      "A note opened from a base — a row in a table, a card, a list entry, or a link in one — opens " +
+      "for reading rather than editing, in every layout and whether the base is a file or embedded " +
+      "in a note. Back returns to the base.",
+
     focusHeading: "Focus mode",
     focusOpacity: "Dim opacity",
     focusOpacityDesc:

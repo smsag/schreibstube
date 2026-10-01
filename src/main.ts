@@ -48,6 +48,7 @@ import { PropertyController } from "./controllers/property-controller";
 import { PropertySetController } from "./controllers/property-set-controller";
 import { PropertyWidgetControls } from "./controllers/property-widget-controls";
 import { PictureArticleLinker } from "./controllers/picture-articles";
+import { BasesReadingView } from "./controllers/bases-reading";
 import { PictureEmbedActions } from "./controllers/picture-embed-actions";
 import { TagSuggestController } from "./controllers/tag-suggest-controller";
 import { TAG_NEIGHBOUR_REQUEST, type RecommendedEntry } from "./services/tag-suggestions";
@@ -376,6 +377,7 @@ export default class SchreibstubePlugin extends Plugin {
     await this.explorer.start();
     this.startPictureActions(this.explorer);
     this.startPictureArticles(this.explorer);
+    this.startBasesReadingView();
     this.recommendedFooter = new RecommendedFooter(
       this,
       () => this.recommendedHost(),
@@ -559,6 +561,28 @@ export default class SchreibstubePlugin extends Plugin {
     this.pictureArticles = linker;
     this.registerEvent(this.app.metadataCache.on("resolved", () => linker.schedule()));
     this.app.workspace.onLayoutReady(() => linker.schedule());
+  }
+
+  /**
+   * Notes opened from a base open in Reading view while the setting is on.
+   * Presses are noted in every window, in the capture phase: a base's own
+   * handlers see the press first otherwise, and may open the note before
+   * the press has been seen at all.
+   */
+  private startBasesReadingView(): void {
+    const reading = new BasesReadingView(
+      this.app,
+      () => this.settings.basesReadingView,
+      this.logger
+    );
+    const register = (doc: Document, type: string, handler: (event: Event) => void) => {
+      this.registerDomEvent(doc, type as keyof DocumentEventMap, handler, { capture: true });
+    };
+    reading.attach(window, register);
+    this.registerEvent(
+      this.app.workspace.on("window-open", (_workspaceWindow, win) => reading.attach(win, register))
+    );
+    this.registerEvent(this.app.workspace.on("file-open", (file) => void reading.opened(file)));
   }
 
   private startProperties(
