@@ -22,6 +22,16 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
+// Above the code that runs: the top level executes as the module loads, and a
+// class, unlike a function, does not exist until its line has. Declared any
+// lower, `fail` and the catch's `instanceof Failure` throw a ReferenceError in
+// place of the message.
+class Failure extends Error {}
+
+function fail(message) {
+  throw new Failure(message);
+}
+
 const root = fileURLToPath(new URL("..", import.meta.url));
 const manifest = readFileSync(join(root, "src/services/typst-runtime.ts"), "utf8");
 
@@ -141,10 +151,4 @@ function read(pattern, what) {
   const match = pattern.exec(manifest);
   if (!match) fail(`${what} not found in src/services/typst-runtime.ts`);
   return match[1];
-}
-
-class Failure extends Error {}
-
-function fail(message) {
-  throw new Failure(message);
 }

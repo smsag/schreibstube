@@ -23,6 +23,16 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import esbuild from "esbuild";
 import { parse } from "yaml";
 
+// Above the code that runs: the top level executes as the module loads, and a
+// class, unlike a function, does not exist until its line has. Declared below
+// the `try`, the catch's `instanceof Failure` throws and buries the message.
+class Failure extends Error {}
+
+/** Thrown, not exited: `process.exit` would skip the `finally` that removes the work directory. */
+function fail(message) {
+  throw new Failure(message);
+}
+
 const root = fileURLToPath(new URL("..", import.meta.url));
 const work = mkdtempSync(join(tmpdir(), "print-compile-"));
 
@@ -240,11 +250,4 @@ function readFonts(folder) {
 /** Typst embeds every face it sets text in; a PDF with none has drawn no text. */
 function embedsFont(pdf) {
   return /\/FontFile[23]?\b/.test(Buffer.from(pdf).toString("latin1"));
-}
-
-class Failure extends Error {}
-
-/** Thrown, not exited: `process.exit` would skip the `finally` that removes the work directory. */
-function fail(message) {
-  throw new Failure(message);
 }
