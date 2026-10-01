@@ -546,14 +546,15 @@ schreibstubeData:
 
 Everything Typst can do is available. What a layout may not do is reach outside its own folder or import a package, because printing happens on the device with no network — both are refused before anything compiles, along with a layout over 256 KB.
 
-The converted note does not call Typst's own primitives for the four things a template should own. It calls these, and a template that wants a different look defines its own before the body is placed:
+The converted note does not call Typst's own primitives for the things a template should own. It calls these, and a template that wants a different look defines its own before the body is placed:
 
-| Helper                                 | Given                                                         |
-| -------------------------------------- | ------------------------------------------------------------- |
-| `schreibstube-image(path, alt)`        | one embedded picture                                          |
-| `schreibstube-diagram(paths, caption)` | an **array** of pictures from one fence, and one caption      |
-| `schreibstube-code(source, language)`  | a fence that is not a diagram, or one that could not be drawn |
-| `schreibstube-callout(kind, title)`    | an Obsidian callout; returns `body => …`                      |
+| Helper                                         | Given                                                                |
+| ---------------------------------------------- | -------------------------------------------------------------------- |
+| `schreibstube-image(path, alt)`                | one embedded picture                                                 |
+| `schreibstube-placement(width:, align:)[body]` | a picture the note sized or aligned, `body` its `schreibstube-image` |
+| `schreibstube-diagram(paths, caption)`         | an **array** of pictures from one fence, and one caption             |
+| `schreibstube-code(source, language)`          | a fence that is not a diagram, or one that could not be drawn        |
+| `schreibstube-callout(kind, title)`            | an Obsidian callout; returns `body => …`                             |
 
 #### Where the words come from
 

@@ -3,6 +3,7 @@
  * PRINTING.md says why it is hand-written and what it carries over.
  */
 import { t } from "../i18n";
+import { parseImageAlt } from "./image-alt";
 import { fencedLines, fenceMarker } from "./markdown-fence";
 import { isTableDelimiter, rowCells } from "./markdown-table";
 import { typstArray, typstString } from "./typst-value";
@@ -19,6 +20,11 @@ import {
 
 /** What a tab is worth when a list's nesting is measured, as in the editor. */
 const TAB_COLUMNS = 4;
+
+/** A CSS pixel is 1/96 inch, a point 1/72: what the screen draws at 300 px prints at 225 pt. */
+function cssPixelsToPoints(pixels: number): number {
+  return Math.round(pixels * 0.75 * 100) / 100;
+}
 
 /** A fenced block a drawing plugin owns, in the order the note holds them. */
 export interface DiagramBlock {
@@ -997,15 +1003,26 @@ class Converter {
   }
 
   private image(source: string, alt: string): [string, boolean] {
+    // `![[a.png|300]]` is a width and `| center` an alignment, neither of them
+    // words a caption should carry, nor the text that stands in for a picture
+    // that could not be found.
+    const { caption, width, align } = parseImageAlt(alt);
     const path = this.resolveImage({ source, alt });
-    if (path === null) return [escapeText(alt), false];
+    if (path === null) return [escapeText(caption), false];
     if (this.shared.deck) {
-      // On a slide the alt text is the picture's caption, and `![[a.png|300]]`
-      // is a width, which is no caption.
-      const caption = /^\d+(x\d+)?$/.test(alt.trim()) ? "" : alt;
+      // A slide's layout places its pictures; the note's alignment is for a page.
       return [`#schreibstube-slide-image(${typstString(path)}, ${typstString(caption)})`, true];
     }
-    return [`#schreibstube-image(${typstString(path)}, ${typstString(alt)})`, true];
+    const picture = `#schreibstube-image(${typstString(path)}, ${typstString(caption)})`;
+    if (width === null && align === null) return [picture, true];
+    // The picture stays a call of its own inside the placement, so a template
+    // that restyles schreibstube-image restyles a sized one too: a helper that
+    // called it from the prelude would only ever see the prelude's.
+    const placement = [
+      width === null ? null : `width: ${cssPixelsToPoints(width)}pt`,
+      align === null ? null : `align: ${align}`
+    ].filter((argument) => argument !== null);
+    return [`#schreibstube-placement(${placement.join(", ")})[${picture}]`, true];
   }
 
   /** A picture's path in the job, or null after saying why there is none. */

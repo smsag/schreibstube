@@ -156,7 +156,14 @@ AVIF and HEIC become JPEG, on a white ground where they were transparent. The
 picture's name in the job ends in what the bytes now are — `IMG_2443.avif.jpg`
 — because Typst tells a format by its extension. SVG goes to Typst as it is and
 prints as lines. A picture in a format no print can carry is named as such; one
-that is not in the vault is named as not found. A diagram that could not be drawn prints as its
+that is not in the vault is named as not found. A picture sits where the note
+puts it on screen (`services/image-alt.ts`): Obsidian's width, the last `|`
+segment of the alt text, prints at 0.75 pt per pixel and never wider than the
+text, and an alignment word before it, or alone, places it left, centre or
+right — `![Map | center | 300](map.png)`, as the Klartext theme reads it. Both
+go to `schreibstube-placement(width:, align:)[…]` around the picture's own
+`schreibstube-image` call, and neither reaches the caption. A picture without
+either keeps the full text width. A diagram that could not be drawn prints as its
 own source in a code block — a missing diagram is a page that lies about what
 the note says.
 
@@ -501,6 +508,7 @@ after it.
 | Helper                                                         | Signature                                                                                            | Given                                                                                                                                                                                               |
 | -------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `schreibstube-image`                                           | `(path, alt)`                                                                                        | one embedded picture                                                                                                                                                                                |
+| `schreibstube-placement`                                       | `(width: auto, align: left, body)`                                                                   | a sized or aligned picture: `body` is its `schreibstube-image` call, `width` in points (`auto` when the note gives none), `align` one of `left`, `center`, `right`                                  |
 | `schreibstube-diagram`                                         | `(paths, caption)`                                                                                   | **an array** of pictures, all from one fence, and one caption for the group                                                                                                                         |
 | `schreibstube-code`                                            | `(source, language)`                                                                                 | a fence that is not a diagram, or one that could not be drawn                                                                                                                                       |
 | `schreibstube-table`                                           | `(columns:, align:, ..cells)`                                                                        | a pipe table; the first argument among `cells` may be a `table.header`                                                                                                                              |

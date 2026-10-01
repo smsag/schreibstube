@@ -132,6 +132,12 @@ export const PRINT_CASES: readonly PrintCase[] = [
     markdown: "Vor dem Bild.\n\n![Ein Bild](bild.png)\n\n![[bild.png|Eingebettet]]"
   },
   {
+    name: "image-placed",
+    markdown:
+      "Gesetzt.\n\n![Karte | center | 300](bild.png)\n\n![[bild.png|right|300]]\n\n" +
+      "![Karte | left](bild.png)\n\n![Zu breit | 5000](bild.png) und Text danach."
+  },
+  {
     name: "diagrams",
     markdown:
       "## Ablauf\n\n```mermaid\nA\n```\n\n> [!note]\n> ```mermaid\n> B\n> ```\n\n```mermaid\nC\n```"
