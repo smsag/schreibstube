@@ -2,7 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## 1.70.0 - 2026-10-01
+
+A starred picture names the article it came from, in Obsidian's own layouts.
+Every picture description now carries links to the notes the picture is in,
+kept current as articles change, so a base of favourites shows the article
+under each picture on a card or in a table column, with no formula. A new
+setting opens a note from any base in Reading view. The Picture cards layout
+from 1.69.0 is gone: Obsidian's Cards now does what it did.
+
+Mobile checklist: not run, and nothing in this release was tried in the
+Obsidian app; the test suite and the build covered it. What to try first on
+a phone: the first launch after the update, which fills in the descriptions'
+article links a hundred at a time and should not stall; a base of starred
+pictures in Cards, showing the article under each picture; and, with **Open
+notes from bases in Reading view** on, a tap on a card or the article link
+under it, which should open the note for reading.
+
+The bridge is unchanged at 2.12.0, protocol 7.
 
 ### Added
 
