@@ -20,6 +20,10 @@ plain Obsidian Markdown plus what this file lists. Write only what is here.
 - Pictures are files in the vault: `![Alt text](file.jpg)` or `![[file.jpg]]`.
   A web address does not print. When you do not know a file name, write a
   placeholder such as `objekt-aussen.jpg` and tell the person to replace it.
+- A picture prints at the full text width. To make it smaller, end the alt
+  text with a width in pixels, `![Grundriss | 300](grundriss.png)`; to place
+  it, put `left`, `center` or `right` before the width or alone:
+  `![Grundriss | center | 300](grundriss.png)`. Never the word after the width.
 - Ask for facts you do not have — a recipient's address, a date, figures —
   or mark them clearly as `[TODO: …]` in the body. Never invent them.
 - In the frontmatter, leave an unknown value out instead: a `[TODO: …]`

@@ -260,10 +260,46 @@ describe("images", () => {
     expect(convert("![[foto.png]]", resolved)).toBe('#schreibstube-image("assets/foto.png", "")');
   });
 
+  it("sizes and aligns a picture as the note does on screen", () => {
+    expect(convert("![Karte | center | 300](karte.png)", resolved)).toBe(
+      '#schreibstube-placement(width: 225pt, align: center)[#schreibstube-image("assets/karte.png", "Karte")]'
+    );
+    expect(convert("![[karte.png|right]]", resolved)).toBe(
+      '#schreibstube-placement(align: right)[#schreibstube-image("assets/karte.png", "")]'
+    );
+    expect(convert("![[karte.png|301]]", resolved)).toBe(
+      '#schreibstube-placement(width: 225.75pt)[#schreibstube-image("assets/karte.png", "")]'
+    );
+  });
+
+  it("keeps a picture with neither a width nor a word as it was", () => {
+    expect(convert("![Bevölkerungs center](karte.png)", resolved)).toBe(
+      '#schreibstube-image("assets/karte.png", "Bevölkerungs center")'
+    );
+  });
+
+  it("asks for the picture by its whole alt text, so a refusal can quote it", () => {
+    const requests: string[] = [];
+    markdownToTypst("![Karte | center | 300](karte.png)", {
+      image: ({ alt }) => {
+        requests.push(alt);
+        return "assets/karte.png";
+      }
+    });
+    expect(requests).toEqual(["Karte | center | 300"]);
+  });
+
   it("keeps the description and warns when the picture is missing", () => {
     const conversion = markdownToTypst("![Ein Foto](weg.jpg)", { image: () => null });
     expect(conversion.body.trim()).toBe("Ein Foto");
     expect(conversion.warnings).toContain("image not found: weg.jpg");
+  });
+
+  it("stands in for a missing sized picture with its caption alone", () => {
+    const conversion = markdownToTypst("![Ein Foto | center | 300](weg.jpg)", {
+      image: () => null
+    });
+    expect(conversion.body.trim()).toBe("Ein Foto");
   });
 
   it("says so rather than printing the name of an embedded note", () => {

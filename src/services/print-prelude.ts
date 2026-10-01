@@ -21,6 +21,14 @@ export const PRELUDE_SOURCE = `// Defaults the converted note calls. A template 
   figure(image(path, width: 100%), caption: none)
 }
 
+// A picture the note sized or aligned, ![Map | center | 300](map.png). The
+// body is the schreibstube-image call; the width arrives in points, converted
+// from Obsidian's pixels, and is never wider than the text.
+#let schreibstube-placement(width: auto, align: left, body) = std.align(align, layout(size => block(
+  width: if width == auto { 100% } else { calc.min(width, size.width) },
+  body,
+)))
+
 // The drawings of one fence: each full text width, none split over a page, and
 // scaled down rather than cropped when one is taller than the page it lands on.
 // Several arrive when a fence holds a carousel, whose panels a page shows all
