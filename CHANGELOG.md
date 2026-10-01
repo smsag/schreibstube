@@ -2,7 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## 1.68.0 - 2026-10-01
+
+Publishing fills in what a page was missing. A note going out without a
+description gets one from the AI when you publish, written into the note to
+keep or change, and the new Publish property set adds every publishing key in
+one step. A picture in the editor can be described, opened and starred from
+the bar Obsidian shows over it, and its description now names the study or
+framework a chart comes from and who made it. A printed picture takes the
+width and alignment the note gives it.
+
+Mobile checklist: not run, and nothing in this release was tried in the
+Obsidian app; the test suite, the build and the print compile check covered
+it. What to try first on a phone: the picture bar, which Obsidian shows on a
+tap and with only its `</>` there, so the two new buttons should stand before
+it; a publish with a note whose description is empty; and **Insert:
+frontmatter property set** offering Publish.
+
+The bridge is unchanged at 2.12.0, protocol 7.
 
 ### Added
 
