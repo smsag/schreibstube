@@ -20,6 +20,7 @@ import {
   type DescriptionLanguage
 } from "../services/image-description";
 import { isFavorite } from "../services/picture-embed-actions";
+import { carriedArticleLinks } from "../services/picture-articles";
 import { buildSummaryRequest, effectiveModel } from "../services/llm-providers";
 import { sendRequest } from "../platform/llm-client";
 import {
@@ -273,6 +274,7 @@ export class LlmCommands {
 
     const path = normalizePath(descriptionNotePath(settings.imageDescriptionFolder, file.path));
     const favorite = this.favoriteOf(path);
+    const articles = this.articlesOf(path);
     const note = renderDescriptionNote(
       {
         path: file.path,
@@ -284,7 +286,8 @@ export class LlmCommands {
       {
         keywordsAsTags: settings.imageDescriptionKeywordsAsTags,
         language,
-        ...(favorite !== undefined ? { favorite } : {})
+        ...(favorite !== undefined ? { favorite } : {}),
+        ...(articles !== undefined ? { articles } : {})
       }
     );
     try {
@@ -303,6 +306,15 @@ export class LlmCommands {
       : undefined;
     if (!frontmatter || !(DESCRIPTION_KEYS.favorite in frontmatter)) return undefined;
     return isFavorite(frontmatter[DESCRIPTION_KEYS.favorite]);
+  }
+
+  /** The article links on the note a new description replaces, kept until the next pass. */
+  private articlesOf(path: string): string[] | undefined {
+    const existing = this.app.vault.getFileByPath(path);
+    const frontmatter = existing
+      ? this.app.metadataCache.getFileCache(existing)?.frontmatter
+      : undefined;
+    return frontmatter ? carriedArticleLinks(frontmatter[DESCRIPTION_KEYS.articles]) : undefined;
   }
 
   /** Create a note, or replace it in place so a link to it keeps working. */

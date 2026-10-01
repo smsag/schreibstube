@@ -62,7 +62,7 @@ Written by the plugin, never by you: `schreibstubeMessageId`,
 `schreibstubeSentAt`, `schreibstubeSendUnconfirmed`, `schreibstubeMergedIds`
 (mail); `schreibstubeImage`, `schreibstubeImageHash`, `schreibstubeImageSize`,
 `schreibstubeDescription`, `schreibstubeDescribedAt`, `schreibstubeKeywords`,
-`schreibstubeSource`, `schreibstubeAuthor`, `schreibstubeFavorite` (picture
+`schreibstubeSource`, `schreibstubeAuthor`, `schreibstubeFavorite`, `schreibstubeArticles` (picture
 description notes); `publishedAt`, `publishedUrl` (publishing).
 
 ## 3. Presentations (template `Folien`)

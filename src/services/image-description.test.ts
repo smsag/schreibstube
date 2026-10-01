@@ -332,4 +332,13 @@ describe("the star", () => {
   it("is not written for a picture nobody starred", () => {
     expect(renderDescriptionNote(image, desc)).not.toContain(DESCRIPTION_KEYS.favorite);
   });
+  it("keeps the article links the replaced note held, and writes none of its own", () => {
+    expect(
+      renderDescriptionNote(image, desc, { articles: ["[[Artikel/Küche]]", "[[Exposé]]"] })
+    ).toContain(`${DESCRIPTION_KEYS.articles}:\n  - "[[Artikel/Küche]]"\n  - "[[Exposé]]"`);
+    expect(renderDescriptionNote(image, desc, { articles: [] })).toContain(
+      `${DESCRIPTION_KEYS.articles}: []`
+    );
+    expect(renderDescriptionNote(image, desc)).not.toContain(DESCRIPTION_KEYS.articles);
+  });
 });

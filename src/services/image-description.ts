@@ -215,7 +215,10 @@ export const DESCRIPTION_KEYS = {
   author: "schreibstubeAuthor",
   /** The star on the picture's bar in the editor. The person's, not the
    *  model's: kept when the picture is described again. */
-  favorite: "schreibstubeFavorite"
+  favorite: "schreibstubeFavorite",
+  /** Links to the notes the picture appears in, kept current by the plugin
+   *  so a base can show the article beside the picture. */
+  articles: "schreibstubeArticles"
 } as const;
 
 export interface DescribedImage {
@@ -257,7 +260,13 @@ function yaml(value: string): string {
 export function renderDescriptionNote(
   image: DescribedImage,
   desc: ImageDescription,
-  opts: { keywordsAsTags?: boolean; language?: DescriptionLanguage; favorite?: boolean } = {}
+  opts: {
+    keywordsAsTags?: boolean;
+    language?: DescriptionLanguage;
+    favorite?: boolean;
+    /** The article links the note held before, already checked. */
+    articles?: readonly string[];
+  } = {}
 ): string {
   const labels =
     opts.language === "en"
@@ -277,6 +286,7 @@ export function renderDescriptionNote(
     ...(desc.source ? [`${DESCRIPTION_KEYS.source}: ${yaml(desc.source)}`] : []),
     ...(desc.author ? [`${DESCRIPTION_KEYS.author}: ${yaml(desc.author)}`] : []),
     ...(opts.favorite !== undefined ? [`${DESCRIPTION_KEYS.favorite}: ${opts.favorite}`] : []),
+    ...(opts.articles !== undefined ? list(DESCRIPTION_KEYS.articles, [...opts.articles]) : []),
     ...(opts.keywordsAsTags ? list("tags", keywordTags(desc.keywords)) : []),
     `title: ${yaml(desc.title)}`,
     "---"

@@ -289,21 +289,31 @@ A photo can only be found by its file name, and `IMG_4711.jpg` says nothing abou
 
 **From the picture in a note.** In Live Preview, Obsidian shows a small bar over a picture when you point at it, with its zoom and **Edit block** buttons. Schreibstube adds two in front of them. ✨ **Open description** opens the picture's note (in a new tab with Cmd/Ctrl); a picture without one shows **Describe picture** instead, while **Describe pictures** is on. ☆ **Mark as favourite** sets `schreibstubeFavorite: true` in the description note, and pressing it again sets `false`; it appears once the picture has a description, since the star is kept there, and describing the picture again keeps it. The bar is Obsidian's own and has no API: if an update changes it, the two buttons are simply missing, and everything else works as before.
 
-**Your starred pictures, leading back to their articles.** A base can list the starred pictures, but the star is kept in the description note, so a base lists description notes, and Obsidian's own cards open those. Schreibstube adds a layout to Bases for this: choose **Picture cards** (`Bildkarten`) in the base's layout menu. Each row is drawn as its picture, named after the note the picture appears in, and a press opens that note in Reading view (in a new tab with Cmd/Ctrl). **Open articles in Reading view** (`Artikel in der Leseansicht öffnen`) in the layout's settings switches that off, and the note then opens the way Obsidian opens any other; in the `.base` file it is `readingView: false` under the view. A picture in several notes offers them to choose from; a picture in no note has no name on its card and opens itself. A long press or a right click on a card also offers the picture and its description, which is where the star is taken off again. The base still decides what is shown and in what order; a base of favourites, newest first, is
+**Your starred pictures, leading back to their articles.** The star is kept in the description note, so a base of starred pictures lists description notes, and what you want back from one is the article the picture was in. Schreibstube writes that into every description note: `schreibstubeArticles` lists links to the notes the picture appears in, and a base shows it like any other property, in any of Obsidian's layouts. Cards take the picture as their cover and the article as a line under it; a table shows the article as a column and the picture through `image()`:
 
 ```yaml
 filters:
   and:
     - schreibstubeFavorite == true
+formulas:
+  bild: image(schreibstubeImage)
 views:
-  - type: schreibstube-picture-cards
+  - type: cards
     name: Favoriten
+    image: note.schreibstubeImage
+    order:
+      - note.schreibstubeArticles
     sort:
       - property: note.schreibstubeDescribedAt
         direction: DESC
+  - type: table
+    name: Tabelle
+    order:
+      - formula.bild
+      - note.schreibstubeArticles
 ```
 
-A row that is a picture is drawn as itself, so a base of pictures works too; a row that is neither a picture nor a description is left out, and the layout says how many were. A note counts as the article when it embeds or links the picture; a canvas or an Excalidraw drawing does not, and neither does another description.
+A note counts as an article when it embeds or links the picture; the description itself does not, nor another description, a canvas or an Excalidraw drawing. The list follows the vault: a few seconds after an article starts or stops showing the picture, or is renamed or deleted, the description says so. It is sorted by path and written only when it changes, so editing an article does not rewrite its pictures' descriptions, and two devices write the same list. A picture in no article has an empty list. Describing the picture again keeps the list, and the key is the plugin's: an edit to it is corrected at the next pass.
 
 In Schreibstube Explorer a described picture stays one row. Its description note is kept out of the tree, the search and the folder counts, and the picture itself is found by the note's words: its title, its keywords and its description, a hit in the description counting for a little less than a keyword. A folder holding nothing but such notes is hidden with them. The note is reached from the picture: its mark on the picture's row opens it. Neither the search nor Recommended ever lists a description note — not even one whose picture is gone, which describes nothing anyone looked for; the tree still shows such an orphan, so it can be seen and repaired. What makes a note a description is the `schreibstubeImage` link in its frontmatter, not the folder it sits in: a note moved elsewhere keeps describing its picture, and a note you write yourself in the description folder is left alone.
 

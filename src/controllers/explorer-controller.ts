@@ -410,13 +410,9 @@ export class ExplorerController {
     return this.descriptionPairs().byNote.get(notePath) ?? null;
   }
 
-  /**
-   * The picture a note is about, a duplicate description included. The tree
-   * and the search fold a duplicate away; a base that lists it by its star
-   * still means the picture.
-   */
-  pictureOfDescription(notePath: string): string | null {
-    return this.descriptionPairs().pictureOf.get(notePath) ?? null;
+  /** Every description note with the picture it is about, duplicates included. */
+  describedPictures(): ReadonlyMap<string, string> {
+    return this.descriptionPairs().pictureOf;
   }
 
   /**
