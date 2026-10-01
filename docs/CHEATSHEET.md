@@ -57,8 +57,9 @@ plain Obsidian Markdown plus what this file lists. Write only what is here.
 Written by the plugin, never by you: `schreibstubeMessageId`,
 `schreibstubeSentAt`, `schreibstubeSendUnconfirmed`, `schreibstubeMergedIds`
 (mail); `schreibstubeImage`, `schreibstubeImageHash`, `schreibstubeImageSize`,
-`schreibstubeDescription`, `schreibstubeDescribedAt`, `schreibstubeKeywords`
-(picture description notes); `publishedAt`, `publishedUrl` (publishing).
+`schreibstubeDescription`, `schreibstubeDescribedAt`, `schreibstubeKeywords`,
+`schreibstubeSource`, `schreibstubeAuthor`, `schreibstubeFavorite` (picture
+description notes); `publishedAt`, `publishedUrl` (publishing).
 
 ## 3. Presentations (template `Folien`)
 

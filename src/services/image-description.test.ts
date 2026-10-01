@@ -4,6 +4,8 @@ import {
   MAX_DESCRIPTION_CHARS,
   MAX_DESCRIPTION_TITLE,
   MAX_KEYWORDS,
+  MAX_SOURCE_CHARS,
+  MAX_AUTHOR_CHARS,
   DEFAULT_DESCRIPTION_FOLDER,
   normalizeDescriptionFolder,
   descriptionNotePath,
@@ -35,8 +37,19 @@ describe("descriptionSystemPrompt", () => {
   });
 
   it("asks the model not to identify people or read out personal data", () => {
-    expect(descriptionSystemPrompt("de")).toMatch(/Do not name or guess who a person is/);
+    expect(descriptionSystemPrompt("de")).toMatch(
+      /Do not name or guess who a person shown in the picture is/
+    );
     expect(descriptionSystemPrompt("de")).toMatch(/licence plates/);
+  });
+
+  it("asks for the work and its author only when recognised, never from a face", () => {
+    const prompt = descriptionSystemPrompt("en");
+    expect(prompt).toContain('"source": string, "author": string');
+    expect(prompt).toMatch(/do not recognise it with confidence, an empty string/);
+    expect(prompt).toMatch(/Never a person shown in the picture, and never a guess/);
+    expect(prompt).toContain(String(MAX_SOURCE_CHARS));
+    expect(prompt).toContain(String(MAX_AUTHOR_CHARS));
   });
 });
 
@@ -46,8 +59,30 @@ describe("normalizeImageDescription — the model's answer is untrusted input", 
       title: "Offene Küche mit Kochinsel",
       description: "Offene Küche mit weißer Kochinsel und Eichenparkett.",
       keywords: ["Küche", "Kochinsel", "Eichenparkett"],
-      visibleText: ""
+      visibleText: "",
+      source: "",
+      author: ""
     });
+  });
+
+  it("reads the work and its author, bounded and on one line", () => {
+    const parsed = normalizeImageDescription(
+      JSON.stringify({
+        title: "Leinwand",
+        description: "Neun Felder.",
+        source: "Business Model\nCanvas",
+        author: "A".repeat(MAX_AUTHOR_CHARS * 2)
+      })
+    );
+    expect(parsed?.source).toBe("Business Model Canvas");
+    expect(parsed?.author).toHaveLength(MAX_AUTHOR_CHARS);
+  });
+
+  it("leaves the work and author empty when the answer has none, or not as text", () => {
+    const parsed = normalizeImageDescription(
+      JSON.stringify({ title: "T", description: "D", source: ["x"], author: 42 })
+    );
+    expect(parsed).toMatchObject({ source: "", author: "" });
   });
 
   it("finds the object inside a code fence or chatter", () => {
@@ -144,7 +179,9 @@ describe("renderDescriptionNote", () => {
     title: 'Küche "offen"',
     description: "Offene Küche.",
     keywords: ["Küche", "Kochinsel"],
-    visibleText: ""
+    visibleText: "",
+    source: "",
+    author: ""
   };
 
   it("writes the pairing link, fingerprint and keywords under Schreibstube's keys", () => {
@@ -225,8 +262,74 @@ describe("the description in the frontmatter", () => {
   it("is written there too, because the Explorer filter reads frontmatter", () => {
     const note = renderDescriptionNote(
       { path: "a.jpg", hash: "h", size: 1, describedAt: "2026-09-26T00:00:00Z" },
-      { title: "T", description: 'Eine "Küche".', keywords: [], visibleText: "" }
+      {
+        title: "T",
+        description: 'Eine "Küche".',
+        keywords: [],
+        visibleText: "",
+        source: "",
+        author: ""
+      }
     );
     expect(note).toContain(`${DESCRIPTION_KEYS.description}: "Eine \\"Küche\\"."`);
+  });
+});
+
+describe("the work a picture shows, and who made it", () => {
+  const image = { path: "a.png", hash: "h", size: 1, describedAt: "2026-10-01T00:00:00Z" };
+  const canvas: ImageDescription = {
+    title: "Leinwand",
+    description: "Neun Felder.",
+    keywords: [],
+    visibleText: "",
+    source: "Business Model Canvas",
+    author: "Alexander Osterwalder"
+  };
+
+  it("is written under its own keys and as a line in the body", () => {
+    const note = renderDescriptionNote(image, canvas);
+    expect(note).toContain(`${DESCRIPTION_KEYS.source}: "Business Model Canvas"`);
+    expect(note).toContain(`${DESCRIPTION_KEYS.author}: "Alexander Osterwalder"`);
+    expect(note).toContain("Quelle: Business Model Canvas, von Alexander Osterwalder");
+    expect(renderDescriptionNote(image, canvas, { language: "en" })).toContain(
+      "Source: Business Model Canvas, by Alexander Osterwalder"
+    );
+  });
+
+  it("leaves the keys and the line out when the model recognised nothing", () => {
+    const note = renderDescriptionNote(image, { ...canvas, source: "", author: "" });
+    expect(note).not.toContain(DESCRIPTION_KEYS.source);
+    expect(note).not.toContain(DESCRIPTION_KEYS.author);
+    expect(note).not.toContain("Quelle:");
+  });
+
+  it("names a work whose author is unknown on its own", () => {
+    const note = renderDescriptionNote(image, { ...canvas, author: "" });
+    expect(note).toContain("Quelle: Business Model Canvas\n");
+  });
+});
+
+describe("the star", () => {
+  const image = { path: "a.png", hash: "h", size: 1, describedAt: "2026-10-01T00:00:00Z" };
+  const desc: ImageDescription = {
+    title: "T",
+    description: "D",
+    keywords: [],
+    visibleText: "",
+    source: "",
+    author: ""
+  };
+
+  it("is written when the note being replaced had it, on or off", () => {
+    expect(renderDescriptionNote(image, desc, { favorite: true })).toContain(
+      `${DESCRIPTION_KEYS.favorite}: true`
+    );
+    expect(renderDescriptionNote(image, desc, { favorite: false })).toContain(
+      `${DESCRIPTION_KEYS.favorite}: false`
+    );
+  });
+
+  it("is not written for a picture nobody starred", () => {
+    expect(renderDescriptionNote(image, desc)).not.toContain(DESCRIPTION_KEYS.favorite);
   });
 });

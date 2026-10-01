@@ -1306,5 +1306,13 @@ export const enExtra = {
           : `${count} tags added.`,
     writeFailed: (reason: string) => `the tags could not be written: ${reason}`,
     loadFailed: (reason: string) => `could not gather tag suggestions: ${reason}`
+  },
+
+  /** The buttons on the bar Obsidian shows over a picture in the editor. */
+  pictureActions: {
+    open: "Open description",
+    describe: "Describe picture",
+    favorite: "Mark as favourite",
+    unfavorite: "Remove from favourites"
   }
 };

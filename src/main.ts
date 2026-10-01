@@ -47,6 +47,7 @@ import { LlmCommands } from "./controllers/llm-commands";
 import { PropertyController } from "./controllers/property-controller";
 import { PropertySetController } from "./controllers/property-set-controller";
 import { PropertyWidgetControls } from "./controllers/property-widget-controls";
+import { PictureEmbedActions } from "./controllers/picture-embed-actions";
 import { TagSuggestController } from "./controllers/tag-suggest-controller";
 import { TAG_NEIGHBOUR_REQUEST, type RecommendedEntry } from "./services/tag-suggestions";
 import { DraftWidth } from "./controllers/draft-width";
@@ -157,6 +158,7 @@ export default class SchreibstubePlugin extends Plugin {
 
   private propertySets: PropertySetController | null = null;
   private propertyControls: PropertyWidgetControls | null = null;
+  private pictureActions: PictureEmbedActions | null = null;
   private tagSuggest: TagSuggestController | null = null;
   private readonly draftWidth = new DraftWidth(this.app);
   private proofread: ProofreadController | null = null;
@@ -370,6 +372,7 @@ export default class SchreibstubePlugin extends Plugin {
       this.activateFolderTiles(folder, following)
     );
     await this.explorer.start();
+    this.startPictureActions(this.explorer);
     this.recommendedFooter = new RecommendedFooter(
       this,
       () => this.recommendedHost(),
@@ -504,6 +507,35 @@ export default class SchreibstubePlugin extends Plugin {
    * later. Capture phase: the press has to be seen before Obsidian's own
    * handler opens the menu, whatever that handler does with the event.
    */
+  /**
+   * The description and star buttons on Obsidian's bar over a picture, in
+   * every window. The description is the Explorer's to find and open, since
+   * it already keeps which note describes which picture.
+   */
+  private startPictureActions(explorer: ExplorerController): void {
+    const actions = new PictureEmbedActions(
+      this.app,
+      {
+        descriptionNoteOf: (path) => explorer.descriptionNoteOf(path),
+        describe: (picture) => this.requireLlm().describeImage(picture),
+        describingEnabled: () => this.settings.imageDescriptionsEnabled,
+        open: (note, where) => explorer.open(note, where)
+      },
+      this.logger
+    );
+    this.pictureActions = actions;
+    const register = (doc: Document, type: string, handler: (event: Event) => void) => {
+      this.registerDomEvent(doc, type as keyof DocumentEventMap, handler, { capture: true });
+    };
+    actions.attach(window, register);
+    this.registerEvent(
+      this.app.workspace.on("window-open", (_workspaceWindow, win) => actions.attach(win, register))
+    );
+    this.registerEvent(
+      this.app.workspace.on("window-close", (_workspaceWindow, win) => actions.detach(win))
+    );
+  }
+
   private startProperties(
     properties: PropertyController,
     sets: PropertySetController,
@@ -558,6 +590,7 @@ export default class SchreibstubePlugin extends Plugin {
     this.linkMode?.stop();
     this.properties?.stop();
     this.propertyControls?.stop();
+    this.pictureActions?.stop();
     this.draftWidth.stop();
     this.print?.stop();
     this.proofread?.stop();

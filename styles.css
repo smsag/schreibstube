@@ -3661,6 +3661,13 @@
   margin-inline-start: 0;
 }
 
+/* The description and star buttons on Obsidian's bar over a picture wear its
+   own button class and need nothing more; only a starred picture's star is
+   filled, so on and off read apart without a colour of their own. */
+.embed-actions .schreibstube-embed-favorite.is-favorite svg {
+  fill: currentColor;
+}
+
 .schreibstube-set-suggestion-detail {
   display: block;
   color: var(--text-muted);

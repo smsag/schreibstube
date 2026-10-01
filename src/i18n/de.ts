@@ -1653,5 +1653,12 @@ export const de: Messages = {
           : `${count} Tags hinzugefügt.`,
     writeFailed: (reason: string) => `die Tags konnten nicht geschrieben werden: ${reason}`,
     loadFailed: (reason: string) => `Tag-Vorschläge konnten nicht gesammelt werden: ${reason}`
+  },
+
+  pictureActions: {
+    open: "Beschreibung öffnen",
+    describe: "Bild beschreiben",
+    favorite: "Als Favorit markieren",
+    unfavorite: "Nicht mehr Favorit"
   }
 };
