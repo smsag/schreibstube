@@ -233,16 +233,16 @@ Obsidian's **Add property** adds one key. A property set adds all the keys a job
 
 Schreibstube's own features come as sets, built from the keys each one reads, so a set cannot fall behind the feature:
 
-| Set                      | Keys                                                                                |
-| ------------------------ | ----------------------------------------------------------------------------------- |
-| Mail                     | `schreibstubeTo`, `schreibstubeCc`, `schreibstubeSubject`                           |
-| Document sync            | `schreibstubeSyncedFrom`, `schreibstubeSyncEvery`                                   |
-| Print                    | `schreibstubePrintTemplate`                                                         |
-| Glossary note            | `schreibstubeGlossary: true`, `schreibstubeLanguage`, `schreibstubeDefaultSeverity` |
-| Glossaries for this note | `schreibstubeGlossaries`                                                            |
-| Publish                  | `published: true`, `title`, `date`, `description`, `slug`                           |
+| Set                      | Keys                                                                                      |
+| ------------------------ | ----------------------------------------------------------------------------------------- |
+| Mail                     | `schreibstubeTo`, `schreibstubeCc`, `schreibstubeSubject`                                 |
+| Document sync            | `schreibstubeSyncedFrom`, `schreibstubeSyncEvery`                                         |
+| Print                    | `schreibstubePrintTemplate`                                                               |
+| Glossary note            | `schreibstubeGlossary: true`, `schreibstubeLanguage`, `schreibstubeDefaultSeverity`       |
+| Glossaries for this note | `schreibstubeGlossaries`                                                                  |
+| Publish                  | `published: false`, `title`, `date`, `description`, `slug`, `publishedAt`, `publishedUrl` |
 
-The Publish set uses the key names mapped under **Frontmatter-Felder** in the publish settings, so it adds `veroeffentlicht` where that is what your notes carry. It leaves out `publishedAt` and `publishedUrl`, which a publish run writes back itself. The flag is set to true because choosing the set is choosing to publish; **Ordner veröffentlichen** still lists the note and asks before anything is uploaded.
+The Publish set adds every key publishing uses, under the names mapped under **Frontmatter-Felder** in the publish settings, so it adds `veroeffentlicht` where that is what your notes carry. The flag starts unticked: the set prepares the note, and ticking the flag is what puts it on the website at the next **Ordner veröffentlichen**. `publishedAt` and `publishedUrl` start empty and are filled in by the publish run.
 
 For everything else, set **Property set folder** in the settings. Every note in that folder is a set, named after its file: its frontmatter keys and values are added, its body is not. An existing template folder works as it is.
 

@@ -111,10 +111,12 @@ describe("PropertySetController.pick", () => {
 
     expect(vault.frontmatterOf("Kapitel 1.md")).toEqual({
       title: "Anfang",
-      veroeffentlicht: true,
+      veroeffentlicht: false,
       datum: "",
       description: "",
-      slug: ""
+      slug: "",
+      publishedAt: "",
+      publishedUrl: ""
     });
   });
 

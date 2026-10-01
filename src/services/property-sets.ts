@@ -34,7 +34,7 @@ import {
   DEFAULT_GLOSSARY_SEVERITY
 } from "./glossary-parser";
 import { GLOSSARY_FRONTMATTER_KEY } from "./glossary-resolver";
-import type { PublishKeyMap } from "./publish-index";
+import { PUBLISH_KEY_ROLES, type PublishKeyMap } from "./publish-index";
 
 /** What a set may put in a note: YAML scalars, and lists of them. */
 export type PropertyValue = string | number | boolean | null | (string | number | boolean)[];
@@ -88,10 +88,11 @@ export const BUILTIN_SETS: readonly PropertySet[] = [
 ];
 
 /**
- * Publishing, as a set, under the keys the person mapped. The flag is set:
- * choosing the set is choosing to publish, and the publish run still lists the
- * note and asks before anything goes out. The two keys a run writes back are
- * not part of it.
+ * Publishing, as a set: every key the publish settings map, under the names
+ * the person chose, so a role added there cannot be missing here. The flag
+ * starts false, because the set prepares a note and ticking the flag is the
+ * decision to publish it. The keys a run writes back come empty, which reads
+ * as never published until a run fills them in.
  *
  * Title, date, description and slug are names most vaults use for their own
  * ends, so a person adding one of them is no sign of publishing; only the flag
@@ -99,13 +100,14 @@ export const BUILTIN_SETS: readonly PropertySet[] = [
  */
 export function publishSet(keys: PublishKeyMap): PropertySet {
   return {
-    ...builtin("publish", "publish", [
-      { key: keys.published, value: true },
-      { key: keys.title, value: "" },
-      { key: keys.date, value: "" },
-      { key: keys.description, value: "" },
-      { key: keys.slug, value: "" }
-    ]),
+    ...builtin(
+      "publish",
+      "publish",
+      PUBLISH_KEY_ROLES.map((role) => ({
+        key: keys[role],
+        value: role === "published" ? false : ""
+      }))
+    ),
     offeredBy: [keys.published]
   };
 }

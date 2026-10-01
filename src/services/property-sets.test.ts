@@ -45,13 +45,15 @@ describe("the built-in sets", () => {
 });
 
 describe("publishSet", () => {
-  it("adds the keys a person fills in, flagged, not the ones a run writes back", () => {
+  it("adds every key publishing uses, the flag unticked and the rest empty", () => {
     expect(publish.entries).toEqual([
-      { key: "published", value: true },
+      { key: "published", value: false },
       { key: "title", value: "" },
       { key: "date", value: "" },
       { key: "description", value: "" },
-      { key: "slug", value: "" }
+      { key: "slug", value: "" },
+      { key: "publishedAt", value: "" },
+      { key: "publishedUrl", value: "" }
     ]);
   });
 
@@ -68,7 +70,9 @@ describe("publishSet", () => {
       "titel",
       "datum",
       "description",
-      "slug"
+      "slug",
+      "publishedAt",
+      "publishedUrl"
     ]);
     expect(set.offeredBy).toEqual(["veroeffentlicht"]);
   });
@@ -284,7 +288,7 @@ describe("setsToComplete", () => {
     expect(setsToComplete([publish], ["date"], { date: "2026-10-01" })).toEqual([]);
     expect(setsToComplete([publish], ["Title"], { Title: "Tagebuch" })).toEqual([]);
     expect(setsToComplete([publish], ["Published"], { Published: true, title: "Hallo" })).toEqual([
-      { set: publish, missing: ["date", "description", "slug"] }
+      { set: publish, missing: ["date", "description", "slug", "publishedAt", "publishedUrl"] }
     ]);
   });
 });
