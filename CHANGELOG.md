@@ -2,7 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## 1.69.0 - 2026-10-01
+
+Your starred pictures lead back to the articles they came from. A base can
+list the pictures you starred, but the star lives in each picture's
+description note, so Obsidian's own cards opened descriptions. The new
+**Picture cards** layout for Bases draws each row as its picture, names the
+note the picture is in, and opens that note in Reading view; a switch in the
+layout's settings opens it as any other note instead.
+
+Mobile checklist: not run, and nothing in this release was tried in the
+Obsidian app; the test suite and the build covered it. What to try first on
+a phone: a base of starred pictures with **Picture cards** as its layout,
+where a tap on a card should open the article in Reading view and a long
+press should open the card's own menu rather than Obsidian's.
+
+The bridge is unchanged at 2.12.0, protocol 7.
 
 ### Added
 
