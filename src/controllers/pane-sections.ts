@@ -8,9 +8,10 @@
  * already somewhere else in the pane.
  */
 
-import { Notice, Platform, TFile, TFolder, type App } from "obsidian";
+import { Notice, TFile, TFolder, type App } from "obsidian";
 import { t } from "../i18n";
-import { availableTarget, type PaneTarget } from "../services/pane-target";
+import type { PaneTarget } from "../services/pane-target";
+import { openInPane } from "../platform/open-in-pane";
 import type { Logger } from "../services/logger";
 import type { SchreibstubeSettings } from "../types";
 import {
@@ -413,7 +414,7 @@ export class PaneSectionsController {
   async openLatest(path: string, where: PaneTarget = false): Promise<void> {
     const file = this.app.vault.getAbstractFileByPath(path);
     if (!(file instanceof TFile)) return;
-    await this.app.workspace.getLeaf(availableTarget(where, Platform.isDesktopApp)).openFile(file);
+    await openInPane(this.app, file, where);
   }
 
   // --- internals ----------------------------------------------------------

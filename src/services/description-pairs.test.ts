@@ -52,6 +52,16 @@ describe("pairDescriptions", () => {
     expect(pairs.byNote.has("B/old.md")).toBe(false);
   });
 
+  it("still knows which picture a duplicate is about, and has nothing for an orphan", () => {
+    const older = note("B/old.md", "[[a.jpg]]", "2026-01-01T00:00:00Z");
+    const newer = note("B/new.md", "[[a.jpg]]", "2026-09-01T00:00:00Z");
+    const lost = note("B/lost.md", "[[weg.jpg]]");
+    const pairs = pairDescriptions([older, newer, lost], vault("Objekte/a.jpg"));
+    expect(pairs.pictureOf.get("B/old.md")).toBe("Objekte/a.jpg");
+    expect(pairs.pictureOf.get("B/new.md")).toBe("Objekte/a.jpg");
+    expect(pairs.pictureOf.has("B/lost.md")).toBe(false);
+  });
+
   it("ignores a note without the key: a note written by hand in the folder is left alone", () => {
     const pairs = pairDescriptions([note("B/mine.md", undefined)], vault("Objekte/a.jpg"));
     expect(pairs.notes.size).toBe(0);

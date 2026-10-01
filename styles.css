@@ -3637,6 +3637,101 @@
   padding-top: 0.75rem;
 }
 
+/* ── Picture cards, a layout for Bases ──
+   The tile's idiom with a caption under it. The picture is contained rather
+   than cropped: a starred picture is often a chart, and a chart cut at its
+   edge has lost its axis. */
+.schreibstube-picture-cards {
+  padding: 8px 12px;
+}
+
+.schreibstube-picture-cards-group {
+  padding: 12px 2px 6px;
+  font-weight: var(--font-semibold);
+  overflow-wrap: anywhere;
+}
+
+.schreibstube-picture-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 0.75rem;
+}
+
+.schreibstube-picture-card {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: var(--radius-m);
+  background: var(--background-secondary);
+  cursor: pointer;
+  user-select: none;
+}
+
+.schreibstube-picture-card:focus-visible {
+  outline: 2px solid var(--interactive-accent);
+  outline-offset: 2px;
+}
+
+.schreibstube-picture-card-image {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  background: var(--background-primary-alt);
+}
+
+.schreibstube-picture-card-image img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  transition: opacity 0.1s ease;
+}
+
+@media (hover: hover) {
+  .schreibstube-picture-card:hover img {
+    opacity: 0.85;
+  }
+}
+
+/* A picture the vault cannot serve shows its name on the plain ground. */
+.schreibstube-picture-card-image.is-missing {
+  padding: 0.5rem;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.schreibstube-picture-card-caption {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 6px 8px;
+  font-size: var(--font-ui-small);
+}
+
+.schreibstube-picture-card-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.schreibstube-picture-card-more {
+  flex: none;
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+}
+
+.schreibstube-picture-cards-note {
+  padding-top: 0.75rem;
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+}
+
 /* "Add set" and "Suggest tags" beside Obsidian's "Add property" wear that
    control's own class for their look; only the spacing between them is ours,
    matching the inset Obsidian gives its own. */

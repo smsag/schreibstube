@@ -78,6 +78,7 @@ function repair(v: ReturnType<typeof vault>, orphans: string[], described: strin
   const pairs = () => ({
     byImage: new Map(described.map((p) => [p, "x.md"])),
     byNote: new Map(described.map((p) => ["x.md", p])),
+    pictureOf: new Map(described.map((p) => ["x.md", p])),
     notes: new Set<string>(),
 
     orphans,

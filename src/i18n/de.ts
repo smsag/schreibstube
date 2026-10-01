@@ -1660,5 +1660,22 @@ export const de: Messages = {
     describe: "Bild beschreiben",
     favorite: "Als Favorit markieren",
     unfavorite: "Nicht mehr Favorit"
+  },
+
+  pictureCards: {
+    viewName: "Bildkarten",
+    readingView: "Artikel in der Leseansicht öffnen",
+    empty: "Keine Bilder. Diese Ansicht zeigt Bilder und die Notizen, die sie beschreiben.",
+    more: (count: number) =>
+      count === 1
+        ? "1 weiteres Bild wird nicht angezeigt."
+        : `${count} weitere Bilder werden nicht angezeigt.`,
+    skipped: (count: number) =>
+      count === 1
+        ? "1 Zeile ist kein Bild und wird nicht angezeigt."
+        : `${count} Zeilen sind keine Bilder und werden nicht angezeigt.`,
+    moreArticles: (count: number) => `+${count}`,
+    openPicture: "Bild öffnen",
+    openDescription: "Beschreibung öffnen"
   }
 };
