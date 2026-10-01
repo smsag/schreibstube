@@ -807,3 +807,32 @@ export function addPropertyControls(root: ParentNode): HTMLElement[] {
 export function propertiesWidgets(root: ParentNode): HTMLElement[] {
   return Array.from(root.querySelectorAll(PROPERTIES_WIDGET)).filter(isElementLike);
 }
+
+/**
+ * The bar Obsidian shows on a picture in Live Preview — zoom and "edit block"
+ * — and the embed around it. Obsidian offers no way to add to it; it builds
+ * the bar when it draws the picture and draws it again after edits. Class
+ * names, read here only: a build that renames them leaves Schreibstube's
+ * buttons out, and the bar as Obsidian made it.
+ */
+const LIVE_PREVIEW = ".markdown-source-view";
+const IMAGE_EMBED = ".image-embed";
+const EMBED_ACTIONS = ".embed-actions";
+
+/** The picture embed in Live Preview that `target` is inside, if any. */
+export function imageEmbedAround(target: EventTarget | null): HTMLElement | null {
+  if (!isElementLike(target)) return null;
+  const embed = target.closest(IMAGE_EMBED);
+  return isElementLike(embed) && embed.closest(LIVE_PREVIEW) ? embed : null;
+}
+
+/** Obsidian's bar on that embed, once it has drawn one. */
+export function embedActionsOf(embed: HTMLElement): HTMLElement | null {
+  const bar = embed.querySelector(EMBED_ACTIONS);
+  return isElementLike(bar) ? bar : null;
+}
+
+/** The link the picture was embedded with, as Obsidian keeps it on the embed. */
+export function embedSourceOf(embed: HTMLElement): string | null {
+  return embed.getAttribute("src");
+}

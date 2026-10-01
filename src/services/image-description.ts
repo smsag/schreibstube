@@ -7,6 +7,11 @@
  * ordinary Markdown note beside the others, so every search in Obsidian can find
  * it and it survives the plugin.
  *
+ * A picture is often a chart from a study or a framework someone drew, and
+ * what it is found by then is the work and who made it. The model names both
+ * from what it knows, only when it recognises them, and never a person from
+ * how they look.
+ *
  * Decided here: the prompt, what an answer must look like before a word of it
  * is written, the note, its path and the fingerprint that says whether a
  * picture changed since it was described.
@@ -20,8 +25,10 @@ export const MAX_DESCRIPTION_CHARS = 1200;
 export const MAX_KEYWORDS = 12;
 export const MAX_KEYWORD_CHARS = 40;
 export const MAX_VISIBLE_TEXT_CHARS = 600;
+export const MAX_SOURCE_CHARS = 160;
+export const MAX_AUTHOR_CHARS = 120;
 /** Enough for the JSON of the longest description the bounds allow, in German. */
-export const DESCRIPTION_MAX_TOKENS = 900;
+export const DESCRIPTION_MAX_TOKENS = 1100;
 
 export interface ImageDescription {
   title: string;
@@ -29,6 +36,10 @@ export interface ImageDescription {
   keywords: string[];
   /** Text readable in the picture — a sign, a document, a label. Empty when none. */
   visibleText: string;
+  /** The study, chart, report or framework the picture shows. Empty when unsure. */
+  source: string;
+  /** Who made that work: its author or originator. Empty when unsure. */
+  author: string;
 }
 
 /** The language a description is written in. */
@@ -39,23 +50,30 @@ const LANGUAGE_NAME: Record<DescriptionLanguage, string> = { de: "German", en: "
 /**
  * The instruction sent with every picture.
  *
- * JSON because four fields have to come back apart, and a model asked for prose
+ * JSON because the fields have to come back apart, and a model asked for prose
  * mixes them. The rules name what the description is for — being found again —
  * so the model describes what a person would search for (the room, the
  * materials, the view) rather than judging the photograph.
+ *
+ * The source and its author are asked for with a way out: an empty string is
+ * the expected answer for most pictures, and a wrong attribution in a
+ * researcher's vault is worse than none. The author is the work's, never
+ * someone in the picture.
  */
 export function descriptionSystemPrompt(language: DescriptionLanguage): string {
   const lang = LANGUAGE_NAME[language];
   return [
     "You describe a picture so that its owner can find it again by searching for what it shows.",
     `Answer in ${lang}, with one JSON object and nothing else:`,
-    '{"title": string, "description": string, "keywords": string[], "visibleText": string}',
+    '{"title": string, "description": string, "keywords": string[], "visibleText": string, "source": string, "author": string}',
     "Rules:",
     `- title: what the picture shows, at most ${MAX_DESCRIPTION_TITLE} characters, no full stop.`,
     `- description: two to four plain sentences, at most ${MAX_DESCRIPTION_CHARS} characters: the subject, the setting, materials, colours, notable details. No opinions about the photo.`,
     `- keywords: up to ${MAX_KEYWORDS} single nouns or short noun phrases a person would search for.`,
     "- visibleText: text legible in the picture, verbatim, or an empty string.",
-    "- Do not name or guess who a person is. Do not read out licence plates, house numbers or personal data; say that they are present instead."
+    `- source: if the picture shows a known piece of research, a study, a published chart or a named framework or model (for example a Business Model Canvas, the Cynefin framework, a chart from a named report), its name, at most ${MAX_SOURCE_CHARS} characters. Use what the picture shows (its title, labels, layout, visible text) and what you know of the work. If you do not recognise it with confidence, an empty string.`,
+    `- author: the person or people who created that work, its author or originator, at most ${MAX_AUTHOR_CHARS} characters, only when you know it with confidence; otherwise an empty string. Never a person shown in the picture, and never a guess.`,
+    "- Do not name or guess who a person shown in the picture is. Do not read out licence plates, house numbers or personal data; say that they are present instead."
   ].join("\n");
 }
 
@@ -132,7 +150,9 @@ export function normalizeImageDescription(raw: string): ImageDescription | null 
     title,
     description,
     keywords,
-    visibleText: boundedText(obj.visibleText, MAX_VISIBLE_TEXT_CHARS, false)
+    visibleText: boundedText(obj.visibleText, MAX_VISIBLE_TEXT_CHARS, false),
+    source: boundedText(obj.source, MAX_SOURCE_CHARS, true),
+    author: boundedText(obj.author, MAX_AUTHOR_CHARS, true)
   };
 }
 
@@ -188,7 +208,14 @@ export const DESCRIPTION_KEYS = {
   keywords: "schreibstubeKeywords",
   /** The description again, in the frontmatter: the Explorer filter reads what
    *  Obsidian's metadata cache holds, and that is frontmatter, not the body. */
-  description: "schreibstubeDescription"
+  description: "schreibstubeDescription",
+  /** The study or framework the picture shows, and who made it: written only
+   *  when the model named them, so a missing key means "not recognised". */
+  source: "schreibstubeSource",
+  author: "schreibstubeAuthor",
+  /** The star on the picture's bar in the editor. The person's, not the
+   *  model's: kept when the picture is described again. */
+  favorite: "schreibstubeFavorite"
 } as const;
 
 export interface DescribedImage {
@@ -230,12 +257,12 @@ function yaml(value: string): string {
 export function renderDescriptionNote(
   image: DescribedImage,
   desc: ImageDescription,
-  opts: { keywordsAsTags?: boolean; language?: DescriptionLanguage } = {}
+  opts: { keywordsAsTags?: boolean; language?: DescriptionLanguage; favorite?: boolean } = {}
 ): string {
   const labels =
     opts.language === "en"
-      ? { keywords: "Keywords", visible: "Visible text" }
-      : { keywords: "Stichworte", visible: "Sichtbarer Text" };
+      ? { keywords: "Keywords", visible: "Visible text", source: "Source", by: "by" }
+      : { keywords: "Stichworte", visible: "Sichtbarer Text", source: "Quelle", by: "von" };
   const list = (key: string, values: string[]): string[] =>
     values.length === 0 ? [`${key}: []`] : [`${key}:`, ...values.map((v) => `  - ${yaml(v)}`)];
 
@@ -247,6 +274,9 @@ export function renderDescriptionNote(
     `${DESCRIPTION_KEYS.describedAt}: ${yaml(image.describedAt)}`,
     ...list(DESCRIPTION_KEYS.keywords, desc.keywords),
     `${DESCRIPTION_KEYS.description}: ${yaml(desc.description)}`,
+    ...(desc.source ? [`${DESCRIPTION_KEYS.source}: ${yaml(desc.source)}`] : []),
+    ...(desc.author ? [`${DESCRIPTION_KEYS.author}: ${yaml(desc.author)}`] : []),
+    ...(opts.favorite !== undefined ? [`${DESCRIPTION_KEYS.favorite}: ${opts.favorite}`] : []),
     ...(opts.keywordsAsTags ? list("tags", keywordTags(desc.keywords)) : []),
     `title: ${yaml(desc.title)}`,
     "---"
@@ -259,10 +289,20 @@ export function renderDescriptionNote(
     "",
     `${labels.keywords}: ${desc.keywords.join(", ") || "–"}`,
     "",
-    `${labels.visible}: ${desc.visibleText || "–"}`
+    `${labels.visible}: ${desc.visibleText || "–"}`,
+    ...sourceLine(desc, labels)
   ];
 
   return `${[...frontmatter, "", ...body].join("\n")}\n`;
+}
+
+/** "Quelle: Business Model Canvas, von Alexander Osterwalder", or nothing. */
+function sourceLine(desc: ImageDescription, labels: { source: string; by: string }): string[] {
+  if (!desc.source && !desc.author) return [];
+  const work = [desc.source, desc.author ? `${labels.by} ${desc.author}` : ""]
+    .filter(Boolean)
+    .join(", ");
+  return ["", `${labels.source}: ${work}`];
 }
 
 /**

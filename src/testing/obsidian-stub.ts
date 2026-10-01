@@ -195,6 +195,11 @@ export function setIcon(el: HTMLElement, name: string): void {
   el.appendChild(svg);
 }
 
+/** Obsidian's tooltip, kept where a test can read it; Obsidian also labels the element. */
+export function setTooltip(el: HTMLElement, tooltip: string): void {
+  el.setAttribute("aria-label", tooltip);
+}
+
 /** Obsidian's frontmatter split: the YAML between the opening fences, and where the body starts. */
 export function getFrontMatterInfo(content: string): {
   exists: boolean;

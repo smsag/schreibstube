@@ -13,11 +13,13 @@ import {
 import { generateSummary } from "../platform/llm-summarize";
 import { generateImageDescription } from "../platform/llm-describe";
 import {
+  DESCRIPTION_KEYS,
   descriptionNotePath,
   hashImageBytes,
   renderDescriptionNote,
   type DescriptionLanguage
 } from "../services/image-description";
+import { isFavorite } from "../services/picture-embed-actions";
 import { buildSummaryRequest, effectiveModel } from "../services/llm-providers";
 import { sendRequest } from "../platform/llm-client";
 import {
@@ -269,6 +271,8 @@ export class LlmCommands {
     }
     if (!description) return { kind: "unusable" };
 
+    const path = normalizePath(descriptionNotePath(settings.imageDescriptionFolder, file.path));
+    const favorite = this.favoriteOf(path);
     const note = renderDescriptionNote(
       {
         path: file.path,
@@ -277,15 +281,28 @@ export class LlmCommands {
         describedAt: new Date().toISOString()
       },
       description,
-      { keywordsAsTags: settings.imageDescriptionKeywordsAsTags, language }
+      {
+        keywordsAsTags: settings.imageDescriptionKeywordsAsTags,
+        language,
+        ...(favorite !== undefined ? { favorite } : {})
+      }
     );
-    const path = normalizePath(descriptionNotePath(settings.imageDescriptionFolder, file.path));
     try {
       await this.writeNote(path, note);
     } catch (error) {
       return { kind: "failed", label: "image description", message: t().ai.failDescribe, error };
     }
     return { kind: "described", title: description.title };
+  }
+
+  /** The star on the note a new description replaces: the person's, so it stays. */
+  private favoriteOf(path: string): boolean | undefined {
+    const existing = this.app.vault.getFileByPath(path);
+    const frontmatter = existing
+      ? this.app.metadataCache.getFileCache(existing)?.frontmatter
+      : undefined;
+    if (!frontmatter || !(DESCRIPTION_KEYS.favorite in frontmatter)) return undefined;
+    return isFavorite(frontmatter[DESCRIPTION_KEYS.favorite]);
   }
 
   /** Create a note, or replace it in place so a link to it keeps working. */

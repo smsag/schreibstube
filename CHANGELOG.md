@@ -7,6 +7,8 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - **A property set for publishing.** **Insert: frontmatter property set** now offers **Publish** beside Mail, Document sync, Print and the glossary sets. It adds every key publishing uses — `published`, `title`, `date`, `description`, `slug`, `publishedAt` and `publishedUrl` — under the names mapped in the publish settings, so a vault that calls the flag `veroeffentlicht` gets `veroeffentlicht`. The flag starts unticked, so the note goes online only once you tick it; the two keys a publish run writes back start empty, and a key the note already has stays as it is. Adding the flag by hand offers the rest of the set; adding a `title` or `date` does not, since many notes carry those without being meant for the website.
+- **Describe or open a picture's description, and star it, from the picture itself.** In Live Preview, the bar Obsidian shows over a picture has two more buttons. **Open description** opens the picture's note, or, for a picture without one, **Describe picture** writes it. **Mark as favourite** sets `schreibstubeFavorite` in the description note, on and off; describing the picture again keeps it.
+- **A picture's description names the study or framework it shows, and who made it.** When the model recognises a chart from a named report or a framework such as the Business Model Canvas, the note gets `schreibstubeSource` and `schreibstubeAuthor` and a line saying so. Both are left out when the model is not sure, and the author is always the work's, never a person in the picture.
 
 ## 1.67.0 - 2026-09-30
 
