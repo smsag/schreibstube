@@ -47,9 +47,8 @@ import { LlmCommands } from "./controllers/llm-commands";
 import { PropertyController } from "./controllers/property-controller";
 import { PropertySetController } from "./controllers/property-set-controller";
 import { PropertyWidgetControls } from "./controllers/property-widget-controls";
-import { PictureCardsController } from "./controllers/picture-cards";
+import { PictureArticleLinker } from "./controllers/picture-articles";
 import { PictureEmbedActions } from "./controllers/picture-embed-actions";
-import { READING_VIEW_OPTION } from "./services/picture-cards";
 import { TagSuggestController } from "./controllers/tag-suggest-controller";
 import { TAG_NEIGHBOUR_REQUEST, type RecommendedEntry } from "./services/tag-suggestions";
 import { DraftWidth } from "./controllers/draft-width";
@@ -76,7 +75,6 @@ import { EXPLORER_RIBBON_ICON, EXPLORER_VIEW_TYPE, ExplorerPaneView } from "./ui
 import { TAG_NOTES_VIEW_TYPE, TagNotesView } from "./ui/tag-notes-view";
 import { RELATED_NOTES_VIEW_TYPE, RelatedNotesView } from "./ui/related-notes-view";
 import { FOLDER_TILES_VIEW_TYPE, FolderTilesView } from "./ui/folder-tiles-view";
-import { PICTURE_CARDS_VIEW_TYPE, PictureCardsView } from "./ui/picture-cards-view";
 import { registerSchreibstubeIcon } from "./ui/schreibstube-icon";
 import { uninstallIconFont } from "./ui/icon-font";
 import {
@@ -162,6 +160,7 @@ export default class SchreibstubePlugin extends Plugin {
   private propertySets: PropertySetController | null = null;
   private propertyControls: PropertyWidgetControls | null = null;
   private pictureActions: PictureEmbedActions | null = null;
+  private pictureArticles: PictureArticleLinker | null = null;
   private tagSuggest: TagSuggestController | null = null;
   private readonly draftWidth = new DraftWidth(this.app);
   private proofread: ProofreadController | null = null;
@@ -376,7 +375,7 @@ export default class SchreibstubePlugin extends Plugin {
     );
     await this.explorer.start();
     this.startPictureActions(this.explorer);
-    this.registerPictureCards(this.explorer);
+    this.startPictureArticles(this.explorer);
     this.recommendedFooter = new RecommendedFooter(
       this,
       () => this.recommendedHost(),
@@ -541,38 +540,25 @@ export default class SchreibstubePlugin extends Plugin {
   }
 
   /**
-   * The "Picture cards" layout for Bases. The Explorer keeps which note
-   * describes which picture, so it answers for the cards too. Bases may be
-   * switched off in a vault, and then there is no layout menu to join.
+   * Each description note names the notes its picture appears in, so a base
+   * in any of Obsidian's layouts can show the article beside the picture. A
+   * pass runs once the links have settled after a change, and once when the
+   * vault has been read, which is also how existing descriptions get theirs.
    */
-  private registerPictureCards(explorer: ExplorerController): void {
-    const cards = new PictureCardsController(this.app, {
-      pictureOfDescription: (path) => explorer.pictureOfDescription(path),
-      descriptionNoteOf: (path) => explorer.descriptionNoteOf(path),
-      isDescriptionNote: (path) => explorer.isDescriptionNote(path),
-      displayTitle: (path) => explorer.displayTitle(path)
-    });
-    // The cards keep the inverted link table between drawings; anything that
-    // can move a link drops it. A delete or rename is listed too, since the
-    // file that went sent links no resolve will report.
-    const linksChanged = (): void => cards.linksChanged();
-    this.registerEvent(this.app.metadataCache.on("resolve", linksChanged));
-    this.registerEvent(this.app.metadataCache.on("resolved", linksChanged));
-    this.registerEvent(this.app.vault.on("delete", linksChanged));
-    this.registerEvent(this.app.vault.on("rename", linksChanged));
-    this.registerBasesView(PICTURE_CARDS_VIEW_TYPE, {
-      name: t().pictureCards.viewName,
-      icon: "image",
-      factory: (controller, containerEl) => new PictureCardsView(controller, containerEl, cards),
-      options: () => [
-        {
-          type: "toggle",
-          key: READING_VIEW_OPTION,
-          displayName: t().pictureCards.readingView,
-          default: true
-        }
-      ]
-    });
+  private startPictureArticles(explorer: ExplorerController): void {
+    const linker = new PictureArticleLinker(
+      this.app,
+      {
+        describedPictures: () => explorer.describedPictures(),
+        isDescriptionNote: (path) => explorer.isDescriptionNote(path),
+        setTimer: (callback, ms) => window.setTimeout(callback, ms),
+        clearTimer: (handle) => window.clearTimeout(handle as number)
+      },
+      this.logger
+    );
+    this.pictureArticles = linker;
+    this.registerEvent(this.app.metadataCache.on("resolved", () => linker.schedule()));
+    this.app.workspace.onLayoutReady(() => linker.schedule());
   }
 
   private startProperties(
@@ -630,6 +616,7 @@ export default class SchreibstubePlugin extends Plugin {
     this.properties?.stop();
     this.propertyControls?.stop();
     this.pictureActions?.stop();
+    this.pictureArticles?.stop();
     this.draftWidth.stop();
     this.print?.stop();
     this.proofread?.stop();

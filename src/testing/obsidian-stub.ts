@@ -54,68 +54,6 @@ export class Component {
   unload(): void {}
 }
 
-/** A layout for Bases: a test sets `data` as a query would and calls `onDataUpdated`. */
-export class BasesView extends Component {
-  data: unknown = null;
-  /** The view's settings in the `.base` file; none, unless a test sets some. */
-  config: { get(key: string): unknown } = { get: () => undefined };
-
-  constructor(_controller: unknown) {
-    super();
-  }
-}
-
-export interface StubMenuItem {
-  title: string;
-  icon: string | null;
-  click: ((event: MouseEvent) => void) | null;
-}
-
-/** Every menu shown since the test began, the latest last. */
-export const shownMenus: Menu[] = [];
-
-/** A menu that remembers its items, so a test can read and press them. */
-export class Menu {
-  items: StubMenuItem[] = [];
-
-  addItem(build: (item: unknown) => unknown): this {
-    const entry: StubMenuItem = { title: "", icon: null, click: null };
-    const item = {
-      setTitle(title: string) {
-        entry.title = title;
-        return item;
-      },
-      setIcon(icon: string) {
-        entry.icon = icon;
-        return item;
-      },
-      onClick(click: (event: MouseEvent) => void) {
-        entry.click = click;
-        return item;
-      }
-    };
-    build(item);
-    this.items.push(entry);
-    return this;
-  }
-
-  addSeparator(): this {
-    return this;
-  }
-
-  onHide(): void {}
-
-  showAtMouseEvent(): this {
-    shownMenus.push(this);
-    return this;
-  }
-
-  showAtPosition(): this {
-    shownMenus.push(this);
-    return this;
-  }
-}
-
 /** Nothing renders in a test; a controller that draws is tested without drawing. */
 export const MarkdownRenderer = {
   render: async (): Promise<void> => {}

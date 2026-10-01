@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Added
+
+- **A picture's description names the articles the picture is in.** Every description note now carries `schreibstubeArticles`, links to the notes that embed or link the picture, and keeps them current as articles change, move or go. A base of starred pictures shows it in Obsidian's own layouts — as a line on a card, a column in a table — so the article is one tap away beside the picture, with no formula in the base. The description itself, other descriptions, canvases and Excalidraw drawings never count as an article. Existing descriptions get the key shortly after the update, a hundred at a time.
+
+### Removed
+
+- **The Picture cards layout from 1.69.0.** The article now shows in Obsidian's own Cards, Table and List, which also keep their own settings and look. A base set to Picture cards no longer has that layout to draw; choose Cards in its layout menu, with `schreibstubeImage` as the image property and `schreibstubeArticles` among the properties.
+
 ## 1.69.0 - 2026-10-01
 
 Your starred pictures lead back to the articles they came from. A base can
