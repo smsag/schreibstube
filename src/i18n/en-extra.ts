@@ -318,7 +318,8 @@ export const enExtra = {
       sync: "Document sync",
       print: "Print",
       glossaryNote: "Glossary note",
-      glossaries: "Glossaries for this note"
+      glossaries: "Glossaries for this note",
+      publish: "Publish"
     } as Record<string, string>,
     setAdded: (name: string, added: number, kept: number) =>
       kept > 0 ? `${name}: ${added} added, ${kept} already there.` : `${name}: ${added} added.`,

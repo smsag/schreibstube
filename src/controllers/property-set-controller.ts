@@ -9,7 +9,7 @@ import { t } from "../i18n";
 import type { Logger } from "../services/logger";
 import {
   applyPlan,
-  BUILTIN_SETS,
+  builtinSets,
   frontmatterBlock,
   hasTemplaterCode,
   isFolderSetPath,
@@ -89,7 +89,7 @@ export class PropertySetController {
     const added = newKeys(before, keys);
     if (added.length === 0) return;
 
-    const sets = [...BUILTIN_SETS, ...this.cachedFolderSets().map((entry) => entry.set)];
+    const sets = [...this.builtinSets(), ...this.cachedFolderSets().map((entry) => entry.set)];
     const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter;
     const offer = setsToComplete(sets, added, frontmatter).find(
       ({ set }) => !this.offered.has(`${file.path}|${set.id}`)
@@ -110,7 +110,7 @@ export class PropertySetController {
    * that has the keys and leaves them empty needs a value, not a set.
    */
   offerSet(file: TFile, setId: string, message: string, label: string): void {
-    const set = BUILTIN_SETS.find((entry) => entry.id === setId);
+    const set = this.builtinSets().find((entry) => entry.id === setId);
     const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter;
     if (!set || planPropertySet(frontmatter, set).add.length === 0) {
       new Notice(t().common.notice(message));
@@ -132,7 +132,7 @@ export class PropertySetController {
     }
     const folderSets = await this.loadFolderSets();
     const choices: SetChoice[] = [
-      ...BUILTIN_SETS.map((set) => this.choiceOf(set, t().properties.setFromSchreibstube)),
+      ...this.builtinSets().map((set) => this.choiceOf(set, t().properties.setFromSchreibstube)),
       ...folderSets.map((entry) => this.choiceOf(entry.set, entry.file.path))
     ];
     new PropertySetPickerModal(this.app, choices, t().properties.setPickerPlaceholder, (choice) => {
@@ -141,7 +141,7 @@ export class PropertySetController {
   }
 
   async applyById(file: TFile, id: string): Promise<void> {
-    const builtin = BUILTIN_SETS.find((set) => set.id === id);
+    const builtin = this.builtinSets().find((set) => set.id === id);
     if (builtin) {
       await this.write(file, this.nameOf(builtin), builtin.entries, []);
       return;
@@ -324,6 +324,11 @@ export class PropertySetController {
       origin,
       keys: set.entries.map((entry) => entry.key)
     };
+  }
+
+  /** Read each time: publishing's keys may have been remapped since the last. */
+  private builtinSets(): PropertySet[] {
+    return builtinSets(this.getSettings().publishFrontmatterKeys);
   }
 
   private nameOf(set: PropertySet): string {

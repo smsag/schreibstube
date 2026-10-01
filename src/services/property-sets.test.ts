@@ -3,6 +3,7 @@ import { FM_CC, FM_SUBJECT, FM_TO } from "./mail-frontmatter";
 import {
   applyPlan,
   BUILTIN_SETS,
+  builtinSets,
   frontmatterBlock,
   hasTemplaterCode,
   isFolderSetPath,
@@ -10,6 +11,7 @@ import {
   MAX_SET_KEYS,
   newKeys,
   planPropertySet,
+  publishSet,
   readValue,
   setFromFrontmatter,
   setsToComplete,
@@ -17,8 +19,10 @@ import {
   withoutTemplaterCode,
   type PropertySet
 } from "./property-sets";
+import { DEFAULT_PUBLISH_KEYS, type PublishKeyMap } from "./publish-index";
 
 const mail = BUILTIN_SETS.find((set) => set.id === "schreibstube:mail")!;
+const publish = publishSet(DEFAULT_PUBLISH_KEYS);
 
 describe("the built-in sets", () => {
   it("add the keys Mail reads, not the ones sending writes", () => {
@@ -31,6 +35,46 @@ describe("the built-in sets", () => {
     for (const set of BUILTIN_SETS) {
       for (const entry of set.entries) expect(entry.key).toMatch(/^schreibstube[A-Z]/);
     }
+  });
+
+  it("include publishing, with an id of its own", () => {
+    const ids = builtinSets(DEFAULT_PUBLISH_KEYS).map((set) => set.id);
+    expect(ids).toContain("schreibstube:publish");
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+});
+
+describe("publishSet", () => {
+  it("adds every key publishing uses, the flag unticked and the rest empty", () => {
+    expect(publish.entries).toEqual([
+      { key: "published", value: false },
+      { key: "title", value: "" },
+      { key: "date", value: "" },
+      { key: "description", value: "" },
+      { key: "slug", value: "" },
+      { key: "publishedAt", value: "" },
+      { key: "publishedUrl", value: "" }
+    ]);
+  });
+
+  it("follows the keys the person mapped", () => {
+    const keys: PublishKeyMap = {
+      ...DEFAULT_PUBLISH_KEYS,
+      published: "veroeffentlicht",
+      title: "titel",
+      date: "datum"
+    };
+    const set = publishSet(keys);
+    expect(set.entries.map((entry) => entry.key)).toEqual([
+      "veroeffentlicht",
+      "titel",
+      "datum",
+      "description",
+      "slug",
+      "publishedAt",
+      "publishedUrl"
+    ]);
+    expect(set.offeredBy).toEqual(["veroeffentlicht"]);
   });
 });
 
@@ -238,5 +282,13 @@ describe("setsToComplete", () => {
   it("never offers a one-key set: adding its key completed it", () => {
     const print = BUILTIN_SETS.find((set) => set.id === "schreibstube:print")!;
     expect(setsToComplete([print], [print.entries[0]!.key], {})).toEqual([]);
+  });
+
+  it("offers publishing for its flag, never for a title or date added for other ends", () => {
+    expect(setsToComplete([publish], ["date"], { date: "2026-10-01" })).toEqual([]);
+    expect(setsToComplete([publish], ["Title"], { Title: "Tagebuch" })).toEqual([]);
+    expect(setsToComplete([publish], ["Published"], { Published: true, title: "Hallo" })).toEqual([
+      { set: publish, missing: ["date", "description", "slug", "publishedAt", "publishedUrl"] }
+    ]);
   });
 });

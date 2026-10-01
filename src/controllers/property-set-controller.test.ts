@@ -3,6 +3,7 @@ import type { App, TFile } from "obsidian";
 import { Notice } from "../testing/obsidian-stub";
 import { fakeVault } from "../testing/fake-app";
 import { createLogger } from "../services/logger";
+import { DEFAULT_PUBLISH_KEYS, type PublishKeyMap } from "../services/publish-index";
 import { setLanguage } from "../i18n";
 import type { SetChoice } from "../ui/property-set-picker";
 import type { SchreibstubeSettings } from "../types";
@@ -32,7 +33,7 @@ vi.mock("../ui/property-set-picker", () => ({
 
 const SET_FOLDER = "Vorlagen/Sets";
 
-function controllerFor(folder: string) {
+function controllerFor(folder: string, publishKeys: PublishKeyMap = DEFAULT_PUBLISH_KEYS) {
   const vault = fakeVault({
     notes: [
       { path: "Kapitel 1.md", content: "Text", frontmatter: { title: "Anfang" } },
@@ -44,7 +45,10 @@ function controllerFor(folder: string) {
       { path: `${SET_FOLDER}/Notizen ohne Frontmatter.md`, content: "Nur Text" }
     ]
   });
-  const settings = { propertySetFolder: folder } as SchreibstubeSettings;
+  const settings = {
+    propertySetFolder: folder,
+    publishFrontmatterKeys: publishKeys
+  } as SchreibstubeSettings;
   const controller = new PropertySetController(
     vault.app as unknown as App,
     () => settings,
@@ -92,6 +96,27 @@ describe("PropertySetController.pick", () => {
       title: "Anfang",
       status: "Entwurf",
       words: 0
+    });
+  });
+
+  it("writes publishing's keys as the settings map them, keeping what the note has", async () => {
+    const { vault, controller } = controllerFor("", {
+      ...DEFAULT_PUBLISH_KEYS,
+      published: "veroeffentlicht",
+      date: "datum"
+    });
+    picker.choose = (choices) => choices.find((choice) => choice.id === "schreibstube:publish");
+    await controller.pick(vault.file("Kapitel 1.md") as unknown as TFile);
+    await settle();
+
+    expect(vault.frontmatterOf("Kapitel 1.md")).toEqual({
+      title: "Anfang",
+      veroeffentlicht: false,
+      datum: "",
+      description: "",
+      slug: "",
+      publishedAt: "",
+      publishedUrl: ""
     });
   });
 

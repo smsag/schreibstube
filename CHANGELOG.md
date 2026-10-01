@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Added
+
+- **A property set for publishing.** **Insert: frontmatter property set** now offers **Publish** beside Mail, Document sync, Print and the glossary sets. It adds every key publishing uses — `published`, `title`, `date`, `description`, `slug`, `publishedAt` and `publishedUrl` — under the names mapped in the publish settings, so a vault that calls the flag `veroeffentlicht` gets `veroeffentlicht`. The flag starts unticked, so the note goes online only once you tick it; the two keys a publish run writes back start empty, and a key the note already has stays as it is. Adding the flag by hand offers the rest of the set; adding a `title` or `date` does not, since many notes carry those without being meant for the website.
+
 ## 1.67.0 - 2026-09-30
 
 Search by meaning stops restarting Obsidian on an iPhone. The model runtime
