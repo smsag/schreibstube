@@ -836,3 +836,17 @@ export function embedActionsOf(embed: HTMLElement): HTMLElement | null {
 export function embedSourceOf(embed: HTMLElement): string | null {
   return embed.getAttribute("src");
 }
+
+/**
+ * Where a base draws its results — the rows of a table, the cards, a list —
+ * whether the base is open as a file or embedded in a note. Obsidian 1.13
+ * puts them in an element of this class, with the toolbar beside it rather
+ * than inside. Not API: a build that renames it leaves no press counted as
+ * a press in a base, and notes open as they always did.
+ */
+const BASES_RESULTS = ".bases-view";
+
+/** Whether a press landed in a base's results: a row, a card, or a link in one. */
+export function pressedInBase(target: EventTarget | null): boolean {
+  return isElementLike(target) && target.closest(BASES_RESULTS) !== null;
+}

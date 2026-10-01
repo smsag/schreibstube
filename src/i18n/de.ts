@@ -319,6 +319,13 @@ export const de: Messages = {
       "`:name:` geschrieben, hier als Glyphe gezeichnet und überall sonst als Name gelesen. " +
       "Ausschalten, wenn ein anderes Plugin den Doppelpunkt schon für Emoji nutzt.",
 
+    basesHeading: "Bases",
+    basesReadingView: "Notizen aus Bases in der Leseansicht öffnen",
+    basesReadingViewDesc:
+      "Eine Notiz, die aus einer Base geöffnet wird — eine Tabellenzeile, eine Karte, ein Listeneintrag " +
+      "oder ein Link darin —, öffnet sich zum Lesen statt zum Bearbeiten, in jedem Layout und ob die " +
+      "Base eine Datei ist oder in eine Notiz eingebettet. Zurück führt zur Base.",
+
     focusHeading: "Fokus-Modus",
     focusOpacity: "Abdunklung",
     focusOpacityDesc:

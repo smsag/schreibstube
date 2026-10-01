@@ -7,6 +7,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - **A picture's description names the articles the picture is in.** Every description note now carries `schreibstubeArticles`, links to the notes that embed or link the picture, and keeps them current as articles change, move or go. A base of starred pictures shows it in Obsidian's own layouts — as a line on a card, a column in a table — so the article is one tap away beside the picture, with no formula in the base. The description itself, other descriptions, canvases and Excalidraw drawings never count as an article. Existing descriptions get the key shortly after the update, a hundred at a time.
+- **Notes opened from a base can open in Reading view.** Switch on **Open notes from bases in Reading view** under Bases in the settings, and a note opened from any base — a table row, a card, a list entry, or a link in one, such as a picture's article — opens for reading, in Obsidian's own layouts, whether the base is a file or embedded in a note. Back returns to the base. Off unless switched on.
 
 ### Removed
 
