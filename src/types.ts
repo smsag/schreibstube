@@ -27,6 +27,8 @@ export interface PublishAccount {
   target: string;
   /** Write the published time and URL back into each note's frontmatter. */
   writeBack: boolean;
+  /** Have the model write the description of a note that has none, at publish. */
+  aiDescription: boolean;
   /** Up to three tags linked from the site's header, each to a page of its notes. */
   headerTags: string[];
 }

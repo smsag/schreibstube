@@ -41,8 +41,20 @@ import {
   noteTags,
   referencedAttachments,
   resolveNote,
-  slideshowReferences
+  slideshowReferences,
+  stripFrontmatter
 } from "../services/publish-index";
+import {
+  DESCRIPTION_CONCURRENCY,
+  DESCRIPTION_MAX_TOKENS,
+  DESCRIPTION_SYSTEM_PROMPT,
+  DESCRIPTION_TIMEOUT_MS,
+  descriptionUserMessage,
+  leavesDescriptionToModel,
+  parseDescriptionResponse
+} from "../services/publish-description";
+import { buildSummaryRequest, effectiveModel } from "../services/llm-providers";
+import { sendRequest } from "../platform/llm-client";
 import {
   diagramAlt,
   diagramAssetName,
@@ -59,6 +71,7 @@ import { PublishAccountModal, PublishPlanModal } from "../ui/publish-modals";
 import { toArrayBuffer } from "../utils/array-buffer";
 import { mapLimit } from "../utils/map-limit";
 import { sha256 as hash } from "../utils/sha256";
+import { withTimeout } from "../utils/with-timeout";
 import { modalAnswer } from "../services/modal-answer";
 
 import { DiagramCapture } from "./diagram-capture";
@@ -178,7 +191,13 @@ export class PublishCommands {
   private async run(account: PublishAccount, prepared: Prepared): Promise<void> {
     const notice = new Notice(t().common.notice(t().publish.running), 0);
     try {
-      const { bridge, index, plan, sources, assets } = prepared;
+      const { bridge, plan, sources, assets } = prepared;
+
+      // After the dialog, not before it: a publish called off asks for
+      // nothing. The descriptions travel in the index, which the bridge
+      // renders at commit, so the plan already shown is still the plan.
+      const { described, missed } = await this.describe(account, prepared.describable, notice);
+      const index = withDescriptions(prepared.index, described);
 
       let done = 0;
       const total =
@@ -244,6 +263,9 @@ export class PublishCommands {
         )
       );
       this.logger.debug("Publish finished.", summary);
+      if (missed > 0) {
+        new Notice(t().common.notice(t().publish.descriptionsMissed(missed)), 10_000);
+      }
 
       // The notice is gone in seconds; the settings pane keeps the answer to
       // "did that go through".
@@ -251,7 +273,7 @@ export class PublishCommands {
 
       // Separate from the publish itself: the site is live either way, and a
       // failed note write must not be reported as a failed publish.
-      await this.writeBack(account, index, summary.baseUrl);
+      await this.writeBack(account, index, summary.baseUrl, described);
       await this.freezePublished(index);
     } catch (error) {
       notice.hide();
@@ -259,6 +281,63 @@ export class PublishCommands {
       new Notice(t().common.notice(t().publish.failed(message)));
       this.logger.debug("Publish failed.", error);
     }
+  }
+
+  /**
+   * The model's descriptions for the notes that left theirs empty, by path.
+   *
+   * Each note has its own deadline, and one the model misses, fails or
+   * answers with nothing is published without a description; the publish
+   * never waits on it longer, and the next one asks again.
+   */
+  private async describe(
+    account: PublishAccount,
+    describable: readonly Describable[],
+    notice: Notice
+  ): Promise<{ described: Map<string, string>; missed: number }> {
+    const described = new Map<string, string>();
+    if (!account.aiDescription || describable.length === 0) return { described, missed: 0 };
+
+    // The switch is on by default; a person who never chose an AI key has
+    // not asked for this, and is not told about it on every publish.
+    const settings = this.getSettings();
+    if (!settings.llmSecretName) return { described, missed: 0 };
+    const apiKey = this.app.secretStorage.getSecret(settings.llmSecretName);
+    if (!apiKey) {
+      const reason = t().secrets.notFound(t().secrets.apiKey);
+      new Notice(t().common.notice(t().publish.descriptionsNoKey(reason)));
+      return { described, missed: 0 };
+    }
+
+    let done = 0;
+    let missed = 0;
+    notice.setMessage(t().common.notice(t().publish.describing(done, describable.length)));
+    await mapLimit(describable, DESCRIPTION_CONCURRENCY, async (entry) => {
+      try {
+        const request = buildSummaryRequest(
+          settings.llmProvider,
+          effectiveModel(settings),
+          apiKey,
+          DESCRIPTION_SYSTEM_PROMPT,
+          entry.message,
+          DESCRIPTION_MAX_TOKENS
+        );
+        const raw = await withTimeout(
+          sendRequest(settings.llmProvider, request),
+          DESCRIPTION_TIMEOUT_MS,
+          (seconds) => `no description after ${seconds} s`
+        );
+        const description = parseDescriptionResponse(raw);
+        if (description) described.set(entry.sourcePath, description);
+        else missed += 1;
+      } catch (error) {
+        missed += 1;
+        this.logger.warn(`No description for ${entry.sourcePath}:`, error);
+      }
+      done += 1;
+      notice.setMessage(t().common.notice(t().publish.describing(done, describable.length)));
+    });
+    return { described, missed };
   }
 
   /** Collect the folder, hash everything, and ask the bridge what it needs. */
@@ -349,6 +428,7 @@ export class PublishCommands {
     }
 
     const notes: PublishNote[] = [];
+    const describable: Describable[] = [];
     const sources = new Map<string, ArrayBuffer>();
     const assets = new Map<string, CollectedAsset>();
     const assetEntries: PublishAsset[] = [];
@@ -383,6 +463,20 @@ export class PublishCommands {
           keys
         );
         resolved.push(note);
+
+        // Only the message is kept, bounded, not the note: the folder's text
+        // is already held once for the upload.
+        const body = stripFrontmatter(content);
+        if (
+          account.aiDescription &&
+          body.trim().length > 0 &&
+          leavesDescriptionToModel(cache?.frontmatter, keys)
+        ) {
+          describable.push({
+            sourcePath: file.path,
+            message: descriptionUserMessage(note.title, body)
+          });
+        }
 
         // The copy that is uploaded shows each canvas as the picture drawn of it.
         const uploaded = await this.withDiagrams(content, fences, file.path, drawing);
@@ -467,7 +561,7 @@ export class PublishCommands {
       ...(account.headerTags.length > 0 ? { headerTags: account.headerTags } : {})
     };
 
-    return { index, sources, assets };
+    return { index, sources, assets, describable };
   }
 
   /**
@@ -546,7 +640,12 @@ export class PublishCommands {
   }
 
   /**
-   * Record on each note that it was published, and where.
+   * Record on each note that it was published, and where, and the description
+   * the model wrote for it: one write per note, however many of the two apply.
+   *
+   * The description is written whether or not the receipt is. It is the
+   * note's own text from now on, to be read and changed, and a note left
+   * without it would be described anew, and differently, by every publish.
    *
    * In its own error boundary: the site is live by the time this runs, so a
    * failed write is a note that lost its receipt, not a failed publish.
@@ -554,21 +653,28 @@ export class PublishCommands {
   private async writeBack(
     account: PublishAccount,
     index: PublishIndex,
-    baseUrl: string
+    baseUrl: string,
+    described: ReadonlyMap<string, string>
   ): Promise<void> {
-    if (!account.writeBack) return;
-
     const keys = this.getSettings().publishFrontmatterKeys;
     const at = new Date().toISOString();
     for (const note of index.notes) {
+      const description = described.get(note.sourcePath);
+      if (!account.writeBack && description === undefined) continue;
       const file = this.app.vault.getAbstractFileByPath(note.sourcePath);
       if (!(file instanceof TFile)) continue;
 
       try {
         await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
-          frontmatter[keys.publishedAt] = at;
-          // A bridge that named no usable site address leaves the last one.
-          if (baseUrl) frontmatter[keys.publishedUrl] = `${baseUrl}/${note.slug}/`;
+          if (account.writeBack) {
+            frontmatter[keys.publishedAt] = at;
+            // A bridge that named no usable site address leaves the last one.
+            if (baseUrl) frontmatter[keys.publishedUrl] = `${baseUrl}/${note.slug}/`;
+          }
+          // A description typed while the run was under way is the person's.
+          if (description !== undefined && leavesDescriptionToModel(frontmatter, keys)) {
+            frontmatter[keys.description] = description;
+          }
         });
       } catch (error) {
         this.logger.debug(`Could not record the publish in ${note.sourcePath}.`, error);
@@ -680,6 +786,29 @@ interface Collected {
   sources: Map<string, ArrayBuffer>;
   /** Where each attachment is, by hash — never its bytes, which can be large. */
   assets: Map<string, CollectedAsset>;
+  /** The notes that leave their description to the model. */
+  describable: Describable[];
+}
+
+interface Describable {
+  sourcePath: string;
+  /** What the model is sent: the title and the beginning of the text. */
+  message: string;
+}
+
+/** The index with each note the model described carrying its description. */
+function withDescriptions(
+  index: PublishIndex,
+  described: ReadonlyMap<string, string>
+): PublishIndex {
+  if (described.size === 0) return index;
+  return {
+    ...index,
+    notes: index.notes.map((note) => {
+      const description = described.get(note.sourcePath);
+      return description === undefined ? note : { ...note, description };
+    })
+  };
 }
 
 interface CollectedAsset {

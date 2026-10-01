@@ -19,6 +19,7 @@ import {
   type PublishKeyMap
 } from "../services/publish-index";
 import { normalizeBaseUrl } from "../services/bridge-protocol";
+import { DESCRIPTION_TIMEOUT_MS } from "../services/publish-description";
 import { createLogger } from "../services/logger";
 import { checkTarget, listTargets } from "../platform/publish-client";
 import type { PublishBridgeConfig, PublishTarget } from "../services/publish-protocol";
@@ -77,6 +78,7 @@ export function renderPublish(ctx: SettingsContext): void {
           folder: "",
           target: "",
           writeBack: true,
+          aiDescription: true,
           headerTags: []
         }
       ]);
@@ -161,6 +163,15 @@ function renderAccount(ctx: SettingsContext, position: number, account: PublishA
         })
     );
   }
+
+  new Setting(containerEl)
+    .setName(t().publish.aiDescription)
+    .setDesc(t().publish.aiDescriptionDesc(DESCRIPTION_TIMEOUT_MS / 1000))
+    .addToggle((toggle) =>
+      toggle
+        .setValue(account.aiDescription)
+        .onChange((value) => void update({ aiDescription: value }))
+    );
 
   new Setting(containerEl)
     .setName(t().publish.writeBack)

@@ -421,6 +421,7 @@ function publishAccountsOrDefault(value: unknown): PublishAccount[] {
       folder,
       target,
       writeBack: record.writeBack !== false,
+      aiDescription: record.aiDescription !== false,
       headerTags: normalizeHeaderTags(record.headerTags)
     });
   }
