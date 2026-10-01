@@ -39,7 +39,8 @@ import {
   type UndoableAction
 } from "../services/undo-stack";
 import { topLevelOnly } from "../services/explorer-selection";
-import { availableTarget, type PaneTarget } from "../services/pane-target";
+import type { PaneTarget } from "../services/pane-target";
+import { openInPane } from "../platform/open-in-pane";
 import { planImport, type DroppedFile, type ImportRefusal } from "../services/import-plan";
 import {
   entryFor,
@@ -407,6 +408,15 @@ export class ExplorerController {
   /** The picture a note describes, if it is a description note. */
   imageDescribedBy(notePath: string): string | null {
     return this.descriptionPairs().byNote.get(notePath) ?? null;
+  }
+
+  /**
+   * The picture a note is about, a duplicate description included. The tree
+   * and the search fold a duplicate away; a base that lists it by its star
+   * still means the picture.
+   */
+  pictureOfDescription(notePath: string): string | null {
+    return this.descriptionPairs().pictureOf.get(notePath) ?? null;
   }
 
   /**
@@ -1176,8 +1186,7 @@ export class ExplorerController {
   /** Open a file where a press or a menu asked: in place, a tab, a split or a window. */
   async open(file: TAbstractFile, where: PaneTarget): Promise<void> {
     if (!(file instanceof TFile)) return;
-    const leaf = this.app.workspace.getLeaf(availableTarget(where, Platform.isDesktopApp));
-    await leaf.openFile(file);
+    await openInPane(this.app, file, where);
   }
 
   /**

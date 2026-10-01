@@ -26,6 +26,10 @@ export interface DescriptionPairs {
   /** The same pairs the other way: note path → the picture it describes. A
    *  duplicate is not here, as it is not in `byImage`. */
   byNote: ReadonlyMap<string, string>;
+  /** Every note describing a picture that exists → that picture, a duplicate
+   *  included: it is no longer the picture's description, but it is still
+   *  about that picture, and may be the note somebody starred. */
+  pictureOf: ReadonlyMap<string, string>;
 
   /** Every note that describes a picture that exists. */
   notes: ReadonlySet<string>;
@@ -68,6 +72,7 @@ export function pairDescriptions(
   resolve: (link: string, fromPath: string) => string | null
 ): DescriptionPairs {
   const byImage = new Map<string, DescriptionCandidate>();
+  const pictureOf = new Map<string, string>();
   const notes = new Set<string>();
   const orphans: string[] = [];
   const duplicates: string[] = [];
@@ -81,6 +86,7 @@ export function pairDescriptions(
       continue;
     }
     notes.add(candidate.path);
+    pictureOf.set(candidate.path, image);
 
     const current = byImage.get(image);
     if (!current) {
@@ -101,6 +107,7 @@ export function pairDescriptions(
   return {
     byImage: new Map([...byImage].map(([image, note]) => [image, note.path])),
     byNote: new Map([...byImage].map(([image, note]) => [note.path, image])),
+    pictureOf,
     notes,
 
     orphans,

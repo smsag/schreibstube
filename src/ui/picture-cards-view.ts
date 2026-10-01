@@ -7,8 +7,9 @@
  * kept, so every card there led to a description nobody wanted to read.
  * Here a card shows the picture and a press opens the note the picture is
  * in, in Reading view unless the layout's settings say otherwise; a picture
- * in several notes offers them, and one in none opens itself. The base still decides what is listed and in what
- * order: its filter, sort and grouping are drawn as they come.
+ * in several notes offers them, and one in none opens itself. The base
+ * still decides what is listed and in what order: its filter, sort and
+ * grouping are drawn as they come.
  *
  * It draws and reports. What a row stands for, which notes count and what a
  * press does are decided in `services/picture-cards`; the vault is asked
@@ -16,17 +17,16 @@
  */
 import { BasesView, Keymap, Menu, type QueryController } from "obsidian";
 import { t } from "../i18n";
+import { basename } from "../services/file-name";
 import { openTargetOf, type PaneTarget } from "../services/pane-target";
 import {
   cardPress,
-  MAX_PICTURE_CARDS,
   opensInReadingView,
-  pictureCards,
+  pictureCardGroups,
   READING_VIEW_OPTION,
   type PictureCard,
   type PictureCardSources
 } from "../services/picture-cards";
-import { basename } from "../services/file-name";
 import { wirePress } from "./explorer-gestures";
 import { pressKeys } from "./pressable";
 
@@ -42,11 +42,25 @@ export interface PictureCardsHost {
 
 type MenuPlace = MouseEvent | { x: number; y: number };
 
+/** A card as drawn, and what it was drawn from. */
+interface DrawnCard {
+  el: HTMLElement;
+  /** Everything the element shows or its presses use, so an equal one can stay. */
+  signature: string;
+}
+
 export class PictureCardsView extends BasesView {
   readonly type = PICTURE_CARDS_VIEW_TYPE;
   /** Ours, inside the container Bases hands over: switching to another
    *  layout takes this away and leaves the container as it was. */
   private readonly root: HTMLElement;
+  /**
+   * Last drawing's cards, by picture. A base redraws whenever a listed row
+   * changes, a star or a word in a listed note; a card that would come out
+   * the same keeps its element, and with it a picture already decoded, so
+   * the grid does not blink and a phone does not decode it again.
+   */
+  private drawn = new Map<string, DrawnCard>();
 
   constructor(
     controller: QueryController,
@@ -58,6 +72,7 @@ export class PictureCardsView extends BasesView {
   }
 
   override onunload(): void {
+    this.drawn.clear();
     this.root.detach();
   }
 
@@ -67,25 +82,20 @@ export class PictureCardsView extends BasesView {
 
   private render(): void {
     const root = this.root;
-    root.empty();
     const labels = t().pictureCards;
-    const sources = this.host.sources();
+    const groups = this.data.groupedData;
+    const result = pictureCardGroups(
+      groups.map((group) => group.entries.map((entry) => entry.file.path)),
+      this.host.sources()
+    );
 
-    // One budget across the groups: the limit is about how many pictures a
-    // page holds, not how many each group may have.
-    let budget = MAX_PICTURE_CARDS;
-    let drawn = 0;
-    let held = 0;
-    let skipped = 0;
+    const previous = this.drawn;
+    this.drawn = new Map();
+    root.empty();
 
-    for (const group of this.data.groupedData) {
-      const rows = group.entries.map((entry) => entry.file.path);
-      const result = pictureCards(rows, sources, budget);
-      budget -= result.cards.length;
-      held += result.held;
-      skipped += result.skipped;
-      if (result.cards.length === 0) continue;
-
+    groups.forEach((group, index) => {
+      const cards = result.groups[index] ?? [];
+      if (cards.length === 0) return;
       if (group.hasKey()) {
         root.createDiv({
           cls: "schreibstube-picture-cards-group",
@@ -93,34 +103,54 @@ export class PictureCardsView extends BasesView {
         });
       }
       const grid = root.createDiv({ cls: "schreibstube-picture-cards-grid" });
-      for (const card of result.cards) this.renderCard(grid, card);
-      drawn += result.cards.length;
-    }
+      for (const card of cards) this.placeCard(grid, card, previous);
+    });
 
-    if (drawn === 0) {
+    if (this.drawn.size === 0) {
       root.createDiv({ cls: "schreibstube-picture-cards-note", text: labels.empty });
     }
-    if (held > 0) {
-      root.createDiv({ cls: "schreibstube-picture-cards-note", text: labels.more(held) });
+    if (result.held > 0) {
+      root.createDiv({ cls: "schreibstube-picture-cards-note", text: labels.more(result.held) });
     }
     // A base with no filter lists every note; saying what was left out is
     // how a person learns that this layout wants pictures.
-    if (skipped > 0) {
-      root.createDiv({ cls: "schreibstube-picture-cards-note", text: labels.skipped(skipped) });
+    if (result.skipped > 0) {
+      root.createDiv({
+        cls: "schreibstube-picture-cards-note",
+        text: labels.skipped(result.skipped)
+      });
     }
   }
 
-  private renderCard(grid: HTMLElement, card: PictureCard): void {
+  /** The card's element from last time when nothing on it changed, else a new one. */
+  private placeCard(grid: HTMLElement, card: PictureCard, previous: Map<string, DrawnCard>): void {
+    const titles = card.articles.map((path) => this.host.title(path));
+    const url = this.host.resourceUrl(card.picture);
+    const signature = JSON.stringify([card, titles, url]);
+    const kept = previous.get(card.picture);
+    if (kept && kept.signature === signature) {
+      grid.appendChild(kept.el);
+      this.drawn.set(card.picture, kept);
+      return;
+    }
+    this.drawn.set(card.picture, { el: this.renderCard(grid, card, titles, url), signature });
+  }
+
+  private renderCard(
+    grid: HTMLElement,
+    card: PictureCard,
+    titles: readonly string[],
+    url: string | null
+  ): HTMLElement {
     const labels = t().pictureCards;
-    const [first] = card.articles;
-    const name = first === undefined ? basename(card.picture) : this.host.title(first);
+    const [first] = titles;
+    const name = first ?? basename(card.picture);
     const el = grid.createDiv({
       cls: "schreibstube-picture-card",
       attr: { role: "button", tabindex: "0", "aria-label": name, title: name }
     });
 
     const frame = el.createDiv({ cls: "schreibstube-picture-card-image" });
-    const url = this.host.resourceUrl(card.picture);
     if (url === null) {
       frame.addClass("is-missing");
       frame.createSpan({ text: basename(card.picture) });
@@ -137,11 +167,11 @@ export class PictureCardsView extends BasesView {
     // link to somewhere, and there is nowhere.
     if (first !== undefined) {
       const caption = el.createDiv({ cls: "schreibstube-picture-card-caption" });
-      caption.createSpan({ cls: "schreibstube-picture-card-title", text: name });
-      if (card.articles.length > 1) {
+      caption.createSpan({ cls: "schreibstube-picture-card-title", text: first });
+      if (titles.length > 1) {
         caption.createSpan({
           cls: "schreibstube-picture-card-more",
-          text: labels.moreArticles(card.articles.length - 1)
+          text: labels.moreArticles(titles.length - 1)
         });
       }
     }
@@ -152,6 +182,7 @@ export class PictureCardsView extends BasesView {
       showMenu: (at) => this.showMenu(card, at)
     });
     pressKeys(el, (event) => this.press(card, el, event));
+    return el;
   }
 
   /** Read at the press, so a toggle changed while the base is open counts at once. */
@@ -160,7 +191,7 @@ export class PictureCardsView extends BasesView {
   }
 
   private press(card: PictureCard, el: HTMLElement, event?: MouseEvent | KeyboardEvent): void {
-    const where = openTargetOf(Keymap.isModEvent(event));
+    const where = targetOf(event);
     const action = cardPress(card);
     if (action.kind === "article") {
       void this.host.openArticle(action.path, where, this.readingView());
@@ -168,20 +199,7 @@ export class PictureCardsView extends BasesView {
       void this.host.openFile(action.path, where);
     } else {
       const menu = new Menu();
-      for (const path of action.paths) {
-        menu.addItem((item) =>
-          item
-            .setTitle(this.host.title(path))
-            .setIcon("file-text")
-            .onClick((chosen) => {
-              void this.host.openArticle(
-                path,
-                openTargetOf(Keymap.isModEvent(chosen)),
-                this.readingView()
-              );
-            })
-        );
-      }
+      for (const path of action.paths) this.addArticle(menu, path);
       show(menu, isMouseEvent(event) ? event : below(el));
     }
   }
@@ -189,36 +207,48 @@ export class PictureCardsView extends BasesView {
   /**
    * The long press and the right click: every note the picture is in, then
    * the picture and its description — the description is where the star is
-   * taken off again.
+   * taken off again, so it is offered whenever the picture has one, not only
+   * when the base listed the description rather than the picture.
    */
   private showMenu(card: PictureCard, at: MenuPlace): void {
     const labels = t().pictureCards;
     const menu = new Menu();
-    for (const path of card.articles) {
-      menu.addItem((item) =>
-        item
-          .setTitle(this.host.title(path))
-          .setIcon("file-text")
-          .onClick(() => void this.host.openArticle(path, false, this.readingView()))
-      );
-    }
+    for (const path of card.articles) this.addArticle(menu, path);
     if (card.articles.length > 0) menu.addSeparator();
     menu.addItem((item) =>
       item
         .setTitle(labels.openPicture)
         .setIcon("image")
-        .onClick(() => void this.host.openFile(card.picture, false))
+        .onClick((chosen) => void this.host.openFile(card.picture, targetOf(chosen)))
     );
-    if (card.entry !== card.picture) {
+    const description = card.description;
+    if (description !== null) {
       menu.addItem((item) =>
         item
           .setTitle(labels.openDescription)
           .setIcon("sparkles")
-          .onClick(() => void this.host.openFile(card.entry, false))
+          .onClick((chosen) => void this.host.openFile(description, targetOf(chosen)))
       );
     }
     show(menu, at);
   }
+
+  /** An article in a menu, opened where the press on the item asks. */
+  private addArticle(menu: Menu, path: string): void {
+    menu.addItem((item) =>
+      item
+        .setTitle(this.host.title(path))
+        .setIcon("file-text")
+        .onClick((chosen) => {
+          void this.host.openArticle(path, targetOf(chosen), this.readingView());
+        })
+    );
+  }
+}
+
+/** Obsidian's reading of a press: in place, or the tab, split or window its modifiers ask for. */
+function targetOf(event: MouseEvent | KeyboardEvent | undefined): PaneTarget {
+  return openTargetOf(Keymap.isModEvent(event));
 }
 
 /** Not `instanceof`: a press in a pop-out window is that window's MouseEvent. */

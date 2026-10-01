@@ -547,10 +547,19 @@ export default class SchreibstubePlugin extends Plugin {
    */
   private registerPictureCards(explorer: ExplorerController): void {
     const cards = new PictureCardsController(this.app, {
-      imageDescribedBy: (path) => explorer.imageDescribedBy(path),
+      pictureOfDescription: (path) => explorer.pictureOfDescription(path),
+      descriptionNoteOf: (path) => explorer.descriptionNoteOf(path),
       isDescriptionNote: (path) => explorer.isDescriptionNote(path),
       displayTitle: (path) => explorer.displayTitle(path)
     });
+    // The cards keep the inverted link table between drawings; anything that
+    // can move a link drops it. A delete or rename is listed too, since the
+    // file that went sent links no resolve will report.
+    const linksChanged = (): void => cards.linksChanged();
+    this.registerEvent(this.app.metadataCache.on("resolve", linksChanged));
+    this.registerEvent(this.app.metadataCache.on("resolved", linksChanged));
+    this.registerEvent(this.app.vault.on("delete", linksChanged));
+    this.registerEvent(this.app.vault.on("rename", linksChanged));
     this.registerBasesView(PICTURE_CARDS_VIEW_TYPE, {
       name: t().pictureCards.viewName,
       icon: "image",

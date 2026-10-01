@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { App } from "obsidian";
 import { Platform, TFile } from "../testing/obsidian-stub";
-import { pictureCards } from "../services/picture-cards";
+import { pictureCardGroups } from "../services/picture-cards";
 import { PictureCardsController, type PictureCardsHooks } from "./picture-cards";
 
 const PICTURE = "Anhänge/harness.png";
@@ -22,39 +22,61 @@ function setup(options: { resolvedLinks?: Record<string, Record<string, number>>
   );
   const leaf = { openFile: vi.fn(async (_file: TFile, _state?: unknown) => {}) };
   const getLeaf = vi.fn((_where?: unknown) => leaf);
+  const metadataCache = {
+    resolvedLinks: options.resolvedLinks ?? {
+      [DESCRIPTION]: { [PICTURE]: 2 },
+      [ARTICLE]: { [PICTURE]: 1 }
+    }
+  };
   const app = {
     vault: {
       getFileByPath: (path: string) => files.get(path) ?? null,
       getResourcePath: (file: TFile) => `app://local/${file.path}`
     },
-    metadataCache: {
-      resolvedLinks: options.resolvedLinks ?? {
-        [DESCRIPTION]: { [PICTURE]: 2 },
-        [ARTICLE]: { [PICTURE]: 1 }
-      }
-    },
+    metadataCache,
     workspace: { getLeaf }
   };
   const hooks: PictureCardsHooks = {
-    imageDescribedBy: (path) => (path === DESCRIPTION ? PICTURE : null),
+    pictureOfDescription: (path) => (path === DESCRIPTION ? PICTURE : null),
+    descriptionNoteOf: (path) => (path === PICTURE ? DESCRIPTION : null),
     isDescriptionNote: (path) => path === DESCRIPTION,
     displayTitle: (path) => (path === ARTICLE ? "How a Harness Works" : null)
   };
   const controller = new PictureCardsController(app as unknown as App, hooks);
-  return { controller, files, leaf, getLeaf };
+  return { controller, files, leaf, getLeaf, metadataCache };
 }
 
 describe("PictureCardsController", () => {
   it("finds the article through the link table, leaving the description out", () => {
     const { controller } = setup();
-    const { cards } = pictureCards([DESCRIPTION], controller.sources());
-    expect(cards).toEqual([{ picture: PICTURE, entry: DESCRIPTION, articles: [ARTICLE] }]);
+    const { groups } = pictureCardGroups([[DESCRIPTION]], controller.sources());
+    expect(groups).toEqual([
+      [{ picture: PICTURE, entry: DESCRIPTION, description: DESCRIPTION, articles: [ARTICLE] }]
+    ]);
+  });
+
+  it("finds a picture's description through the Explorer's pairing", () => {
+    const { controller } = setup();
+    const { groups } = pictureCardGroups([[PICTURE]], controller.sources());
+    expect(groups[0]?.[0]?.description).toBe(DESCRIPTION);
+  });
+
+  it("keeps the inverted link table until the links change", () => {
+    const { controller, metadataCache } = setup();
+    const articles = () => pictureCardGroups([[DESCRIPTION]], controller.sources()).groups[0]?.[0];
+    expect(articles()?.articles).toEqual([ARTICLE]);
+
+    metadataCache.resolvedLinks = { [DESCRIPTION]: { [PICTURE]: 2 }, "Neu.md": { [PICTURE]: 1 } };
+    expect(articles()?.articles).toEqual([ARTICLE]);
+
+    controller.linksChanged();
+    expect(articles()?.articles).toEqual(["Neu.md"]);
   });
 
   it("has no article for a picture only its description refers to", () => {
     const { controller } = setup({ resolvedLinks: { [DESCRIPTION]: { [PICTURE]: 2 } } });
-    const { cards } = pictureCards([DESCRIPTION], controller.sources());
-    expect(cards[0]?.articles).toEqual([]);
+    const { groups } = pictureCardGroups([[DESCRIPTION]], controller.sources());
+    expect(groups[0]?.[0]?.articles).toEqual([]);
   });
 
   it("takes a picture by its extension, not by a dot in a folder's name", () => {
@@ -81,13 +103,13 @@ describe("PictureCardsController", () => {
   it("opens an article as Obsidian would when the base switched Reading view off", async () => {
     const { controller, files, leaf } = setup();
     await controller.openArticle(ARTICLE, false, false);
-    expect(leaf.openFile).toHaveBeenCalledWith(files.get(ARTICLE), {});
+    expect(leaf.openFile).toHaveBeenCalledWith(files.get(ARTICLE));
   });
 
   it("opens a picture the way Obsidian would", async () => {
     const { controller, files, leaf } = setup();
     await controller.openFile(PICTURE, "tab");
-    expect(leaf.openFile).toHaveBeenCalledWith(files.get(PICTURE), {});
+    expect(leaf.openFile).toHaveBeenCalledWith(files.get(PICTURE));
   });
 
   it("asks a phone for a tab where a desktop would open a window", async () => {

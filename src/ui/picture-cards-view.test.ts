@@ -35,6 +35,8 @@ function setup(
   };
   const sources: PictureCardSources = {
     imageDescribedBy: (path) => describes[path] ?? null,
+    descriptionOf: (picture) =>
+      Object.keys(describes).find((note) => describes[note] === picture) ?? null,
     isPicture: (path) => path.endsWith(".png"),
     isDescriptionNote: (path) => path in describes,
     referrers: (path) => articles[path] ?? [],
@@ -55,7 +57,13 @@ function setup(
     config: { get: (key: string) => config[key] }
   });
   view.onDataUpdated();
-  return { root, host };
+  /** The base's rows changed, as a query reports it, and the view draws again. */
+  const update = (next: ReturnType<typeof group>[], links = articles) => {
+    Object.assign(articles, links);
+    Object.assign(view, { data: { groupedData: next } });
+    view.onDataUpdated();
+  };
+  return { root, host, update };
 }
 
 const cards = (root: HTMLElement) =>
@@ -120,6 +128,50 @@ describe("PictureCardsView", () => {
     ]);
     menu?.items[2]?.click?.(new MouseEvent("click"));
     expect(host.openFile).toHaveBeenCalledWith(DESCRIPTION, false);
+  });
+
+  it("offers the description of a picture the base listed as itself", () => {
+    const { root, host } = setup({ [PICTURE]: [ARTICLE] }, [group([PICTURE])]);
+    (cards(root)[0] as HTMLElement).dispatchEvent(
+      new MouseEvent("contextmenu", { bubbles: true, cancelable: true })
+    );
+    const menu = shownMenus.at(-1);
+    expect(menu?.items.map((item) => item.title)).toContain("Open description");
+    menu?.items.at(-1)?.click?.(new MouseEvent("click"));
+    expect(host.openFile).toHaveBeenCalledWith(DESCRIPTION, false);
+  });
+
+  it("offers no description for a picture nobody described", () => {
+    const { root } = setup({}, [group(["Anhänge/neu.png"])]);
+    (cards(root)[0] as HTMLElement).dispatchEvent(
+      new MouseEvent("contextmenu", { bubbles: true, cancelable: true })
+    );
+    expect(shownMenus.at(-1)?.items.map((item) => item.title)).toEqual(["Open picture"]);
+  });
+
+  it("opens a menu's article in a new tab on a modifier press, as the card does", () => {
+    const { root, host } = setup({ [PICTURE]: [ARTICLE] });
+    (cards(root)[0] as HTMLElement).dispatchEvent(
+      new MouseEvent("contextmenu", { bubbles: true, cancelable: true })
+    );
+    shownMenus.at(-1)?.items[0]?.click?.(new MouseEvent("click", { metaKey: true }));
+    expect(host.openArticle).toHaveBeenCalledWith(ARTICLE, "tab", true);
+  });
+
+  it("keeps a card's element through a redraw that changes nothing on it", () => {
+    const { root, update } = setup({ [PICTURE]: [ARTICLE] });
+    const [before] = cards(root);
+    update([group([DESCRIPTION])]);
+    expect(cards(root)[0]).toBe(before);
+  });
+
+  it("draws a card anew when what it shows changed", () => {
+    const { root, update } = setup({ [PICTURE]: [ARTICLE] });
+    const [before] = cards(root);
+    update([group([DESCRIPTION])], { [PICTURE]: [ARTICLE, "Artikel/Nachtrag.md"] });
+    const [after] = cards(root);
+    expect(after).not.toBe(before);
+    expect(after?.querySelector(".schreibstube-picture-card-more")?.textContent).toBe("+1");
   });
 
   it("answers Enter as a press", () => {

@@ -303,7 +303,7 @@ views:
         direction: DESC
 ```
 
-A row that is a picture is drawn as itself, so a base of pictures works too; a row that is neither a picture nor a description is left out, and the layout says how many were. A note counts as the article when it embeds or links the picture; a canvas does not, and neither does another description.
+A row that is a picture is drawn as itself, so a base of pictures works too; a row that is neither a picture nor a description is left out, and the layout says how many were. A note counts as the article when it embeds or links the picture; a canvas or an Excalidraw drawing does not, and neither does another description.
 
 In Schreibstube Explorer a described picture stays one row. Its description note is kept out of the tree, the search and the folder counts, and the picture itself is found by the note's words: its title, its keywords and its description, a hit in the description counting for a little less than a keyword. A folder holding nothing but such notes is hidden with them. The note is reached from the picture: its mark on the picture's row opens it. Neither the search nor Recommended ever lists a description note — not even one whose picture is gone, which describes nothing anyone looked for; the tree still shows such an orphan, so it can be seen and repaired. What makes a note a description is the `schreibstubeImage` link in its frontmatter, not the folder it sits in: a note moved elsewhere keeps describing its picture, and a note you write yourself in the description folder is left alone.
 

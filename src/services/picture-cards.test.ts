@@ -3,7 +3,7 @@ import {
   articlesOf,
   cardPress,
   opensInReadingView,
-  pictureCards,
+  pictureCardGroups,
   pictureOfRow,
   type PictureCard,
   type PictureCardSources
@@ -16,7 +16,8 @@ const ARTICLE = "Artikel/How a Harness Works.md";
 /**
  * A vault in a few lines: which note describes which picture, who refers to
  * whom, and when each file last changed. Pictures are the files with a
- * picture's extension, as the view decides it.
+ * picture's extension, as the view decides it; a picture's description is
+ * the first note found describing it.
  */
 function sources(
   options: {
@@ -28,12 +29,18 @@ function sources(
   const describes = options.describes ?? { [DESCRIPTION]: PICTURE };
   return {
     imageDescribedBy: (path) => describes[path] ?? null,
+    descriptionOf: (picture) =>
+      Object.keys(describes).find((note) => describes[note] === picture) ?? null,
     isPicture: (path) => /\.(png|jpe?g|gif|webp)$/i.test(path),
     isDescriptionNote: (path) => path in describes,
     referrers: (path) => options.referrers?.[path] ?? [],
     modifiedAt: (path) => options.modified?.[path] ?? 0
   };
 }
+
+/** The cards of a base without groups. */
+const cardsOf = (rows: string[], vault: PictureCardSources, max?: number) =>
+  pictureCardGroups([rows], vault, max);
 
 describe("pictureOfRow", () => {
   it("reads a description note as the picture it describes", () => {
@@ -46,6 +53,11 @@ describe("pictureOfRow", () => {
 
   it("has nothing for a note that describes no picture", () => {
     expect(pictureOfRow(ARTICLE, sources())).toBeNull();
+  });
+
+  it("has nothing for a description whose link lands on something other than a picture", () => {
+    const vault = sources({ describes: { "Fremd.md": "Irgendeine Notiz.md" } });
+    expect(pictureOfRow("Fremd.md", vault)).toBeNull();
   });
 });
 
@@ -60,10 +72,19 @@ describe("articlesOf", () => {
     expect(articlesOf(PICTURE, vault)).toEqual([]);
   });
 
-  it("leaves out a duplicate description and a canvas", () => {
+  it("leaves out a duplicate description, a canvas and an Excalidraw drawing", () => {
     const vault = sources({
       describes: { [DESCRIPTION]: PICTURE, "Alt/harness – old.md": PICTURE },
-      referrers: { [PICTURE]: [DESCRIPTION, "Alt/harness – old.md", "Board.canvas", ARTICLE] }
+      referrers: {
+        [PICTURE]: [
+          DESCRIPTION,
+          "Alt/harness – old.md",
+          "Board.canvas",
+          "Skizzen/Board.Excalidraw.md",
+          ARTICLE
+        ]
+      },
+      modified: { "Skizzen/Board.Excalidraw.md": 99 }
     });
     expect(articlesOf(PICTURE, vault)).toEqual([ARTICLE]);
   });
@@ -82,52 +103,75 @@ describe("articlesOf", () => {
   });
 });
 
-describe("pictureCards", () => {
+describe("pictureCardGroups", () => {
   it("makes one card per picture, in the base's order, with its articles", () => {
     const vault = sources({
       describes: { [DESCRIPTION]: PICTURE, "d2.md": "Anhänge/kurve.png" },
       referrers: { [PICTURE]: [DESCRIPTION, ARTICLE] }
     });
-    expect(pictureCards(["d2.md", DESCRIPTION], vault)).toEqual({
-      cards: [
-        { picture: "Anhänge/kurve.png", entry: "d2.md", articles: [] },
-        { picture: PICTURE, entry: DESCRIPTION, articles: [ARTICLE] }
+    expect(cardsOf(["d2.md", DESCRIPTION], vault)).toEqual({
+      groups: [
+        [
+          { picture: "Anhänge/kurve.png", entry: "d2.md", description: "d2.md", articles: [] },
+          { picture: PICTURE, entry: DESCRIPTION, description: DESCRIPTION, articles: [ARTICLE] }
+        ]
       ],
       held: 0,
       skipped: 0
     });
   });
 
+  it("keeps a starred duplicate as the card's description, since its star is there", () => {
+    const vault = sources({ describes: { [DESCRIPTION]: PICTURE, "Alt/alt.md": PICTURE } });
+    const [card] = cardsOf(["Alt/alt.md"], vault).groups[0] ?? [];
+    expect(card).toMatchObject({ picture: PICTURE, description: "Alt/alt.md" });
+  });
+
+  it("finds the description of a picture the base listed as itself", () => {
+    const [card] = cardsOf([PICTURE], sources()).groups[0] ?? [];
+    expect(card?.description).toBe(DESCRIPTION);
+  });
+
+  it("has no description for a picture nobody described", () => {
+    const [card] = cardsOf(["Anhänge/neu.png"], sources()).groups[0] ?? [];
+    expect(card?.description).toBeNull();
+  });
+
   it("shows a picture listed twice once, where it first appears", () => {
-    const { cards } = pictureCards([PICTURE, DESCRIPTION], sources());
-    expect(cards.map((card) => card.entry)).toEqual([PICTURE]);
+    const { groups } = cardsOf([PICTURE, DESCRIPTION], sources());
+    expect(groups[0]?.map((card) => card.entry)).toEqual([PICTURE]);
+  });
+
+  it("shows a picture once even when its two rows fall into different groups", () => {
+    const { groups } = pictureCardGroups([[DESCRIPTION], [PICTURE]], sources());
+    expect(groups.map((group) => group.map((card) => card.entry))).toEqual([[DESCRIPTION], []]);
   });
 
   it("counts the rows that are not pictures rather than drawing them", () => {
-    expect(pictureCards([ARTICLE, "Notiz.md", DESCRIPTION], sources()).skipped).toBe(2);
+    expect(cardsOf([ARTICLE, "Notiz.md", DESCRIPTION], sources()).skipped).toBe(2);
   });
 
-  it("stops at the limit and counts the pictures held back", () => {
+  it("stops at the limit across groups and counts the pictures held back", () => {
     const describes = { "d1.md": "1.png", "d2.md": "2.png", "d3.md": "3.png" };
-    const result = pictureCards(["d1.md", "d2.md", "d3.md"], sources({ describes }), 2);
-    expect(result.cards.map((card) => card.picture)).toEqual(["1.png", "2.png"]);
+    const result = pictureCardGroups([["d1.md"], ["d2.md", "d3.md"]], sources({ describes }), 2);
+    expect(result.groups.map((group) => group.map((card) => card.picture))).toEqual([
+      ["1.png"],
+      ["2.png"]
+    ]);
     expect(result.held).toBe(1);
   });
 
   it("asks for the articles of the cards it draws only", () => {
     const asked: string[] = [];
     const vault = sources({ describes: { "d1.md": "1.png", "d2.md": "2.png" } });
-    pictureCards(
-      ["d1.md", "d2.md"],
-      {
-        ...vault,
-        referrers: (path) => {
-          asked.push(path);
-          return [];
-        }
-      },
-      1
-    );
+    const counting: PictureCardSources = {
+      ...vault,
+      referrers: (path) => {
+        asked.push(path);
+        return [];
+      }
+    };
+    cardsOf(["d1.md", "d2.md"], counting, 1);
     expect(asked).toEqual(["1.png"]);
   });
 });
@@ -136,6 +180,7 @@ describe("cardPress", () => {
   const card = (articles: string[]): PictureCard => ({
     picture: PICTURE,
     entry: DESCRIPTION,
+    description: DESCRIPTION,
     articles
   });
 
