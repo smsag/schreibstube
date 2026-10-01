@@ -47,6 +47,7 @@ import { LlmCommands } from "./controllers/llm-commands";
 import { PropertyController } from "./controllers/property-controller";
 import { PropertySetController } from "./controllers/property-set-controller";
 import { PropertyWidgetControls } from "./controllers/property-widget-controls";
+import { PictureCardsController } from "./controllers/picture-cards";
 import { PictureEmbedActions } from "./controllers/picture-embed-actions";
 import { TagSuggestController } from "./controllers/tag-suggest-controller";
 import { TAG_NEIGHBOUR_REQUEST, type RecommendedEntry } from "./services/tag-suggestions";
@@ -74,6 +75,7 @@ import { EXPLORER_RIBBON_ICON, EXPLORER_VIEW_TYPE, ExplorerPaneView } from "./ui
 import { TAG_NOTES_VIEW_TYPE, TagNotesView } from "./ui/tag-notes-view";
 import { RELATED_NOTES_VIEW_TYPE, RelatedNotesView } from "./ui/related-notes-view";
 import { FOLDER_TILES_VIEW_TYPE, FolderTilesView } from "./ui/folder-tiles-view";
+import { PICTURE_CARDS_VIEW_TYPE, PictureCardsView } from "./ui/picture-cards-view";
 import { registerSchreibstubeIcon } from "./ui/schreibstube-icon";
 import { uninstallIconFont } from "./ui/icon-font";
 import {
@@ -373,6 +375,7 @@ export default class SchreibstubePlugin extends Plugin {
     );
     await this.explorer.start();
     this.startPictureActions(this.explorer);
+    this.registerPictureCards(this.explorer);
     this.recommendedFooter = new RecommendedFooter(
       this,
       () => this.recommendedHost(),
@@ -534,6 +537,24 @@ export default class SchreibstubePlugin extends Plugin {
     this.registerEvent(
       this.app.workspace.on("window-close", (_workspaceWindow, win) => actions.detach(win))
     );
+  }
+
+  /**
+   * The "Picture cards" layout for Bases. The Explorer keeps which note
+   * describes which picture, so it answers for the cards too. Bases may be
+   * switched off in a vault, and then there is no layout menu to join.
+   */
+  private registerPictureCards(explorer: ExplorerController): void {
+    const cards = new PictureCardsController(this.app, {
+      imageDescribedBy: (path) => explorer.imageDescribedBy(path),
+      isDescriptionNote: (path) => explorer.isDescriptionNote(path),
+      displayTitle: (path) => explorer.displayTitle(path)
+    });
+    this.registerBasesView(PICTURE_CARDS_VIEW_TYPE, {
+      name: t().pictureCards.viewName,
+      icon: "image",
+      factory: (controller, containerEl) => new PictureCardsView(controller, containerEl, cards)
+    });
   }
 
   private startProperties(

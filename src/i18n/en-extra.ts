@@ -1314,5 +1314,20 @@ export const enExtra = {
     describe: "Describe picture",
     favorite: "Mark as favourite",
     unfavorite: "Remove from favourites"
+  },
+
+  /** The Bases layout that shows rows as pictures and opens their articles. */
+  pictureCards: {
+    viewName: "Picture cards",
+    empty: "No pictures here. This layout shows pictures and the notes describing them.",
+    more: (count: number) =>
+      count === 1 ? "1 more picture is not shown." : `${count} more pictures are not shown.`,
+    skipped: (count: number) =>
+      count === 1
+        ? "1 row is not a picture and is not shown."
+        : `${count} rows are not pictures and are not shown.`,
+    moreArticles: (count: number) => `+${count}`,
+    openPicture: "Open picture",
+    openDescription: "Open description"
   }
 };
