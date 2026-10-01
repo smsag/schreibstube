@@ -126,6 +126,13 @@ export const de: Messages = {
     addAccount: "Konto hinzufügen",
     writeBack: "Veröffentlichung in die Notiz schreiben",
     writeBackDesc: "Trägt Zeitpunkt und Adresse nach dem Veröffentlichen ins Frontmatter ein.",
+    aiDescription: "Fehlende Beschreibungen per KI schreiben",
+    aiDescriptionDesc: (seconds: number) =>
+      "Eine Notiz ohne Beschreibung oder mit leerer bekommt beim Veröffentlichen eine vom " +
+      "KI-Anbieter aus den KI-Einstellungen, und sie wird in die Notiz geschrieben. Eine " +
+      "Beschreibung mit irgendeinem Zeichen, auch nur einem Leerzeichen, wird so " +
+      "veröffentlicht, wie sie ist. Antwortet die KI nicht binnen " +
+      `${seconds} Sekunden, geht die Notiz ohne Beschreibung online.`,
     headerTags: "Schlagwörter im Kopf",
     headerTagsDesc:
       "Bis zu drei Schlagwörter, oben auf jeder Seite verlinkt, jedes mit einer Seite der Notizen, die es tragen. Verschachtelte zählen mit: projekt listet auch Notizen mit projekt/alpha. Ein Schlagwort, das keine veröffentlichte Notiz trägt, bleibt weg.",
@@ -167,6 +174,7 @@ export const de: Messages = {
 
     running: "Veröffentlichung läuft …",
     uploading: (done: number, total: number) => `überträgt ${done}/${total} …`,
+    describing: (done: number, total: number) => `schreibt Beschreibungen ${done}/${total} …`,
     building: "baut die Website …",
     done: (written: number, unchanged: number, deleted: number, deleteFailed: number) =>
       `veröffentlicht — ${written} geschrieben, ${unchanged} unverändert, ${deleted} gelöscht` +
@@ -192,6 +200,12 @@ export const de: Messages = {
     diagramAlt: "Visualisierung",
     writeBackFailed: (path: string) =>
       `veröffentlicht, aber ${path} konnte nicht aktualisiert werden.`,
+    descriptionsMissed: (count: number) =>
+      count === 1
+        ? "1 Notiz wurde ohne Beschreibung veröffentlicht, weil die KI keine geliefert hat. Die nächste Veröffentlichung fragt erneut."
+        : `${count} Notizen wurden ohne Beschreibung veröffentlicht, weil die KI keine geliefert hat. Die nächste Veröffentlichung fragt erneut.`,
+    descriptionsNoKey: (reason: string) =>
+      `Notizen ohne Beschreibung werden ohne veröffentlicht — ${reason}`,
     unknownTarget: (target: string) => `die Bridge kennt kein Ziel namens ${target}.`,
     badSiteUrl: (url: string) =>
       `die Bridge nennt ${url} als Adresse der Website; das ist keine Webadresse, darum wurde sie nicht geöffnet.`,

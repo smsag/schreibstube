@@ -392,6 +392,9 @@ slug: hallo-welt
 
 - All but `published` are optional. Slideshows, diagrams and totals are
   carried over.
+- Leave `description` out rather than guess: an empty one may be written by
+  the AI when the note is published. Write one only when you know what the
+  note says.
 
 ## 10. Document sync
 

@@ -141,6 +141,13 @@ export const en = {
     addAccount: "Add account",
     writeBack: "Record the publication in the note",
     writeBackDesc: "Writes the time and the address into the frontmatter after publishing.",
+    aiDescription: "Write missing descriptions with AI",
+    aiDescriptionDesc: (seconds: number) =>
+      "A note published with no description, or an empty one, gets one written by the AI " +
+      "provider from the AI settings, and it is written into the note. A description with " +
+      "anything in it, a single space included, is published as it is. A note the AI does not " +
+      "answer for within " +
+      `${seconds} seconds is published without one.`,
     headerTags: "Tags in the header",
     headerTagsDesc:
       "Up to three tags linked at the top of every page, each to a page listing the notes that carry it. Nested tags count: projekt also lists notes tagged projekt/alpha. A tag no published note carries is left out.",
@@ -181,6 +188,7 @@ export const en = {
 
     running: "publishing …",
     uploading: (done: number, total: number) => `transferring ${done}/${total} …`,
+    describing: (done: number, total: number) => `writing descriptions ${done}/${total} …`,
     building: "building the website …",
     done: (written: number, unchanged: number, deleted: number, deleteFailed: number) =>
       `published — ${written} written, ${unchanged} unchanged, ${deleted} deleted` +
@@ -206,6 +214,12 @@ export const en = {
     /** A published picture's description when the canvas gives it no title. */
     diagramAlt: "Diagram",
     writeBackFailed: (path: string) => `published, but ${path} could not be updated.`,
+    descriptionsMissed: (count: number) =>
+      count === 1
+        ? "1 note was published without a description, as the AI gave none. The next publication asks again."
+        : `${count} notes were published without a description, as the AI gave none. The next publication asks again.`,
+    descriptionsNoKey: (reason: string) =>
+      `notes without a description are published without one — ${reason}`,
     unknownTarget: (target: string) => `the bridge has no target named ${target}.`,
     badSiteUrl: (url: string) =>
       `the bridge names ${url} as the site's address, which is not a web address, so it was not opened.`,

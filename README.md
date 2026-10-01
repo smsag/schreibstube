@@ -439,12 +439,14 @@ Publishing is opt-in per note. A note is published when its frontmatter says so,
 published: true
 title: Hallo Welt # default: the first heading, else the filename
 date: 2026-09-12 # default: the file's creation date
-description: Kurzfassung # optional; page head and index entry
+description: Kurzfassung # optional; page head and index entry; written by the AI when empty
 slug: hallo-welt # default: from the filename
 publishedAt: … # written back after publishing
 publishedUrl: … # written back after publishing
 ---
 ```
+
+**A missing description is written by the AI.** When a note is published with no `description`, or an empty one, the AI provider from the AI settings writes a sentence or two about it, the page goes out with it, and it is written into the note, where you can change it. A description with anything in it, a single space included, is yours: it is published as it is and the AI is never asked, so `description: " "` publishes a page without one. The descriptions are written after you confirm the plan, a few at a time; a note the AI does not answer for within 20 seconds is published without one, the notice says how many, and the next publish asks again. Each account can switch this off under **Fehlende Beschreibungen per KI schreiben**; without an AI key nothing is asked.
 
 **The key names are settings.** The defaults are the plain names most vaults already use. If yours calls these fields something else, or another plugin has claimed one of the names, map each role to the key you use under **Frontmatter-Felder** in the publish settings. A configured key replaces the default rather than adding to it, so notes still carrying the old name stop being recognised.
 
@@ -929,6 +931,7 @@ Requires a bridge with the publish capability configured — see [`bridge/README
 | Publish token      | The bridge's `PUBLISH_TOKEN`, stored in Obsidian's secret storage                                     | —               |
 | Accounts           | Site name, vault folder, and the name of a target the bridge knows                                    | —               |
 | Write-back         | Record the publish time and URL in each note's frontmatter                                            | On              |
+| AI descriptions    | Have the AI write a note's empty description at publish, into the note                                | On              |
 | Frontmatter fields | Which key carries which meaning — published, title, date, description, slug, and the two written back | the plain names |
 
 The token is deliberately separate from the mail token, so a leaked publish token cannot reach the mailbox. **Verbindung testen** proves the token, the target, the SSH login, the host key and the web root in one request, without writing anything.

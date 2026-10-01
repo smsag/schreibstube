@@ -358,6 +358,17 @@ the note carries the evidence of what happened to it. It is a per-account
 toggle because it touches every published note, and it runs in its own error
 boundary so a failed write is reported without claiming the publish failed.
 
+An empty `description` — absent, null or `""` — is written by the model after
+the plan is confirmed, so a publish called off asks for nothing. Each note has
+its own deadline (20 s); a note the model misses is published without one, and
+the next publish asks again. The answer is written into the note in the same
+frontmatter write as the receipt, but whether or not the receipt is on: a note
+left without it would be described anew, and differently, by every publish. A
+description holding any character, whitespace included, is the person's and is
+never sent for, which makes `description: " "` the way to opt a note out. The
+description travels in the index, which the bridge renders at commit, so no
+protocol change was needed.
+
 ## Output layout
 
 ```
@@ -388,8 +399,8 @@ A **Publish** section holding the bridge URL, defaulting to the mail bridge
 URL with an override for the case where the services are ever split; the
 publish token in Obsidian's secret storage, resolved through the existing
 `resolveApiKey` helper; and a list of accounts. Each account has a display
-name, a vault folder, a bridge target chosen from `/publish/targets`, and a
-write-back toggle.
+name, a vault folder, a bridge target chosen from `/publish/targets`, a
+write-back toggle, and a toggle for descriptions written by the AI.
 
 A **Verbindung testen** button per account calls `/diagnostics`, which proves
 the token, the target, the SFTP login, the fingerprint and the root path in one

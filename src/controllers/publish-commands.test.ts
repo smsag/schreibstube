@@ -72,6 +72,11 @@ vi.mock("./diagram-capture", () => ({
   }
 }));
 
+// The model's answer is the provider's; what is tested here is when it is
+// asked, how long it is waited for, and where its answer goes.
+const llm = vi.hoisted(() => ({ send: vi.fn() }));
+vi.mock("../platform/llm-client", () => ({ sendRequest: llm.send }));
+
 // A canvas is the platform's; what is tested here is what is done with it.
 vi.mock("../services/image-resize", async (original) => ({
   ...(await original<typeof import("../services/image-resize")>()),
@@ -84,6 +89,7 @@ const { PublishCommands } = await import("./publish-commands");
 const { listTargets } = await import("../platform/publish-client");
 
 const { DEFAULT_SETTINGS, normalizeSettings } = await import("../services/plugin-settings");
+const { DESCRIPTION_TIMEOUT_MS } = await import("../services/publish-description");
 const { setLanguage } = await import("../i18n");
 
 setLanguage("en");
@@ -94,6 +100,7 @@ const account = {
   folder: "Blog",
   target: "blog",
   writeBack: true,
+  aiDescription: true,
   headerTags: []
 };
 
@@ -512,7 +519,7 @@ describe("publishing", () => {
   it("leaves the note alone when write-back is off", async () => {
     const target = vault();
     const { commands, state } = controller(target, {
-      publishAccounts: [{ ...account, writeBack: false, headerTags: [] }]
+      publishAccounts: [{ ...account, writeBack: false, aiDescription: true, headerTags: [] }]
     });
     expect(state.settings.publishAccounts[0]?.writeBack).toBe(false);
     await commands.publish();
@@ -1049,5 +1056,148 @@ describe("canvases drawn for the site", () => {
 
     expect(capture.capture).not.toHaveBeenCalled();
     expect(Notice.shown.some((message) => /diagram/i.test(message))).toBe(false);
+  });
+});
+
+describe("descriptions written by the model", () => {
+  const ai = { llmSecretName: "ai-key" };
+  const vault = (frontmatter: Record<string, unknown>) =>
+    fakeVault({
+      notes: [
+        {
+          path: "Blog/Erste.md",
+          content: "# Erste\n\nÜber das Backen von Brot mit Sauerteig.",
+          frontmatter
+        }
+      ],
+      secrets: { "publish-token": "t".repeat(32), "ai-key": "k".repeat(32) }
+    });
+
+  /** The note as the bridge was told to build it. */
+  const committed = () => client.commit.mock.calls.at(-1)?.[2].notes[0];
+
+  beforeEach(() => {
+    llm.send.mockReset();
+    llm.send.mockResolvedValue("„Wie man Brot mit Sauerteig bäckt.“");
+    // The deadline is the window's timer, as it is in Obsidian.
+    vi.stubGlobal("window", globalThis);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  it("writes one for a note without, publishes it and keeps it in the note", async () => {
+    const target = vault({ published: true });
+    const { commands } = controller(target, ai);
+    await commands.publish();
+    await runEnded();
+
+    expect(llm.send).toHaveBeenCalledTimes(1);
+    expect(committed().description).toBe("Wie man Brot mit Sauerteig bäckt.");
+    await vi.waitFor(() =>
+      expect(target.frontmatterOf("Blog/Erste.md")).toMatchObject({
+        description: "Wie man Brot mit Sauerteig bäckt.",
+        publishedUrl: "https://blog.example.com/erste/"
+      })
+    );
+  });
+
+  it("fills an empty one, and writes it even when the publication is not recorded", async () => {
+    const target = vault({ published: true, description: "" });
+    const { commands } = controller(target, {
+      ...ai,
+      publishAccounts: [{ ...account, writeBack: false }]
+    });
+    await commands.publish();
+    await runEnded();
+
+    expect(committed().description).toBe("Wie man Brot mit Sauerteig bäckt.");
+    await vi.waitFor(() =>
+      expect(target.frontmatterOf("Blog/Erste.md").description).toBe(
+        "Wie man Brot mit Sauerteig bäckt."
+      )
+    );
+    expect(target.frontmatterOf("Blog/Erste.md").publishedUrl).toBeUndefined();
+  });
+
+  it("never asks for a note whose description holds anything, a single space included", async () => {
+    const target = vault({ published: true, description: " " });
+    const { commands } = controller(target, ai);
+    await commands.publish();
+    await runEnded();
+
+    expect(llm.send).not.toHaveBeenCalled();
+    expect(committed().description).toBeUndefined();
+    expect(target.frontmatterOf("Blog/Erste.md").description).toBe(" ");
+  });
+
+  it("publishes without one when the model misses its deadline", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    llm.send.mockImplementation(() => new Promise(() => {}));
+    const target = vault({ published: true });
+    const { commands } = controller(target, ai);
+
+    const running = commands.publish();
+    await vi.waitFor(() => expect(llm.send).toHaveBeenCalled());
+    expect(client.commit).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(DESCRIPTION_TIMEOUT_MS);
+    await running;
+    await runEnded();
+
+    expect(client.commit).toHaveBeenCalled();
+    expect(committed().description).toBeUndefined();
+    expect(Notice.shown.join(" ")).toMatch(/1 note was published without a description/);
+    expect(target.frontmatterOf("Blog/Erste.md").description).toBeUndefined();
+  });
+
+  it("publishes without one when the model fails", async () => {
+    llm.send.mockRejectedValue(new Error("Anthropic: 529 overloaded"));
+    const target = vault({ published: true });
+    const { commands } = controller(target, ai);
+    await commands.publish();
+    await runEnded();
+
+    expect(committed().description).toBeUndefined();
+    expect(Notice.shown.join(" ")).toMatch(/1 note was published without a description/);
+  });
+
+  it("asks nothing when the account has it switched off, or a preview is shown", async () => {
+    const off = controller(vault({ published: true }), {
+      ...ai,
+      publishAccounts: [{ ...account, aiDescription: false }]
+    });
+    await off.commands.publish();
+    await runEnded();
+
+    const preview = controller(vault({ published: true }), ai);
+    await preview.commands.preview();
+
+    expect(llm.send).not.toHaveBeenCalled();
+  });
+
+  it("asks nothing, and says nothing, when no AI key was ever chosen", async () => {
+    const { commands } = controller(vault({ published: true }));
+    await commands.publish();
+    await runEnded();
+
+    expect(llm.send).not.toHaveBeenCalled();
+    expect(Notice.shown.join(" ")).not.toMatch(/description/);
+  });
+
+  it("says so, and publishes, when the chosen AI key is missing", async () => {
+    const { commands } = controller(
+      fakeVault({
+        notes: [{ path: "Blog/Erste.md", content: "# Erste\n\nText.", frontmatter: published }]
+      }),
+      ai
+    );
+    await commands.publish();
+    await runEnded();
+
+    expect(llm.send).not.toHaveBeenCalled();
+    expect(client.commit).toHaveBeenCalled();
+    expect(Notice.shown.join(" ")).toMatch(/published without one/);
   });
 });
