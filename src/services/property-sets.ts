@@ -6,7 +6,9 @@
  * needs its marker and language — and a key typed by hand is a key that can be
  * misspelt. A set adds them all, and the sets for Schreibstube's own features
  * are built from the same constants the features read, so a key renamed in
- * code cannot leave a stale set behind.
+ * code cannot leave a stale set behind. Publishing's keys are settings rather
+ * than constants, so its set is built from the configured map, for the same
+ * reason.
  *
  * Beyond those, a person points a setting at a folder and every note in it is
  * a set: its frontmatter keys and values, nothing from its body. Those may be
@@ -32,6 +34,7 @@ import {
   DEFAULT_GLOSSARY_SEVERITY
 } from "./glossary-parser";
 import { GLOSSARY_FRONTMATTER_KEY } from "./glossary-resolver";
+import type { PublishKeyMap } from "./publish-index";
 
 /** What a set may put in a note: YAML scalars, and lists of them. */
 export type PropertyValue = string | number | boolean | null | (string | number | boolean)[];
@@ -49,6 +52,9 @@ export interface PropertySet {
   entries: PropertyEntry[];
   /** The note's frontmatter holds Templater code, rendered when applied. */
   templater: boolean;
+  /** The keys whose adding by hand offers the rest of the set; any of its
+   *  keys when absent. */
+  offeredBy?: readonly string[];
 }
 
 /** A set note is a template, not a data store; these bound a hand-edited one. */
@@ -81,8 +87,36 @@ export const BUILTIN_SETS: readonly PropertySet[] = [
   builtin("glossaries", "glossaries", [{ key: GLOSSARY_FRONTMATTER_KEY, value: [] }])
 ];
 
+/**
+ * Publishing, as a set, under the keys the person mapped. The flag is set:
+ * choosing the set is choosing to publish, and the publish run still lists the
+ * note and asks before anything goes out. The two keys a run writes back are
+ * not part of it.
+ *
+ * Title, date, description and slug are names most vaults use for their own
+ * ends, so a person adding one of them is no sign of publishing; only the flag
+ * offers the rest, or a diary entry given a date would be offered a website.
+ */
+export function publishSet(keys: PublishKeyMap): PropertySet {
+  return {
+    ...builtin("publish", "publish", [
+      { key: keys.published, value: true },
+      { key: keys.title, value: "" },
+      { key: keys.date, value: "" },
+      { key: keys.description, value: "" },
+      { key: keys.slug, value: "" }
+    ]),
+    offeredBy: [keys.published]
+  };
+}
+
+/** Every set of Schreibstube's own, publishing's under the configured keys. */
+export function builtinSets(publishKeys: PublishKeyMap): PropertySet[] {
+  return [...BUILTIN_SETS, publishSet(publishKeys)];
+}
+
 /** The name key a built-in set is shown under; the caller translates it. */
-export type BuiltinSetName = "mail" | "sync" | "print" | "glossaryNote" | "glossaries";
+export type BuiltinSetName = "mail" | "sync" | "print" | "glossaryNote" | "glossaries" | "publish";
 
 function builtin(id: string, name: BuiltinSetName, entries: PropertyEntry[]): PropertySet {
   return { id: `schreibstube:${id}`, name, source: "schreibstube", entries, templater: false };
@@ -259,7 +293,7 @@ export function newKeys(before: readonly string[], after: readonly string[]): st
 /**
  * The sets a newly added key belongs to that the note has not finished: each
  * with the keys it still lacks. A set is only offered when the key that was
- * just added is one of its own and something of it is still missing.
+ * just added is one that offers it and something of it is still missing.
  */
 export function setsToComplete(
   sets: readonly PropertySet[],
@@ -270,7 +304,8 @@ export function setsToComplete(
   const out: { set: PropertySet; missing: string[] }[] = [];
   for (const set of sets) {
     if (set.entries.length < 2) continue;
-    if (!set.entries.some((entry) => addedKeys.has(entry.key.toLowerCase()))) continue;
+    const offeredBy = set.offeredBy ?? set.entries.map((entry) => entry.key);
+    if (!offeredBy.some((key) => addedKeys.has(key.toLowerCase()))) continue;
     const missing = planPropertySet(frontmatter, set).add.map((entry) => entry.key);
     if (missing.length > 0) out.push({ set, missing });
   }

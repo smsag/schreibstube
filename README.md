@@ -240,6 +240,9 @@ Schreibstube's own features come as sets, built from the keys each one reads, so
 | Print                    | `schreibstubePrintTemplate`                                                         |
 | Glossary note            | `schreibstubeGlossary: true`, `schreibstubeLanguage`, `schreibstubeDefaultSeverity` |
 | Glossaries for this note | `schreibstubeGlossaries`                                                            |
+| Publish                  | `published: true`, `title`, `date`, `description`, `slug`                           |
+
+The Publish set uses the key names mapped under **Frontmatter-Felder** in the publish settings, so it adds `veroeffentlicht` where that is what your notes carry. It leaves out `publishedAt` and `publishedUrl`, which a publish run writes back itself. The flag is set to true because choosing the set is choosing to publish; **Ordner veröffentlichen** still lists the note and asks before anything is uploaded.
 
 For everything else, set **Property set folder** in the settings. Every note in that folder is a set, named after its file: its frontmatter keys and values are added, its body is not. An existing template folder works as it is.
 
@@ -250,7 +253,7 @@ A set is offered four ways:
 - **Add property set…** in a property's own menu, and **Add set** beside Obsidian's **Add property** at the foot of the Properties view
 - **Insert: frontmatter property set** in the command palette, or type `/frontmatter` in a note when Obsidian's Slash commands plugin is on
 - **When Mail finds its keys missing**: the notice that says a recipient or subject is needed offers **Add mail fields**
-- **When you add a key by hand** that belongs to a set, a notice offers the rest of that set, once per note and set
+- **When you add a key by hand** that belongs to a set, a notice offers the rest of that set, once per note and set. For Publish only the flag does: `title` and `date` are keys many notes carry for other reasons
 
 A set never overwrites. A key the note already has, empty or not and in any letter case, stays exactly as it is; only missing keys are added, and the notice says how many of each. A set adds text, numbers, yes/no and lists; a nested value in a set note is left out and named.
 

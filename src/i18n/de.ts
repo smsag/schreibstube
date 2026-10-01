@@ -607,7 +607,8 @@ export const de: Messages = {
       sync: "Dokument-Sync",
       print: "Drucken",
       glossaryNote: "Glossarnotiz",
-      glossaries: "Glossare dieser Notiz"
+      glossaries: "Glossare dieser Notiz",
+      publish: "Veröffentlichen"
     },
     setAdded: (name: string, added: number, kept: number) =>
       kept > 0
