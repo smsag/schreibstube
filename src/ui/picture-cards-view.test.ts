@@ -24,7 +24,11 @@ const group = (paths: string[], key?: string) => ({
   entries: paths.map((path) => ({ file: { path } }))
 });
 
-function setup(articles: Record<string, string[]>, groups = [group([DESCRIPTION])]) {
+function setup(
+  articles: Record<string, string[]>,
+  groups = [group([DESCRIPTION])],
+  config: Record<string, unknown> = {}
+) {
   const describes: Record<string, string> = {
     [DESCRIPTION]: PICTURE,
     "Bildbeschreibungen/kurve.png – 2b3c4d5e.md": "Anhänge/kurve.png"
@@ -46,7 +50,10 @@ function setup(articles: Record<string, string[]>, groups = [group([DESCRIPTION]
 
   const root = document.body.appendChild(document.createElement("div"));
   const view = new PictureCardsView({} as QueryController, root, host);
-  (view as unknown as { data: unknown }).data = { groupedData: groups };
+  Object.assign(view, {
+    data: { groupedData: groups },
+    config: { get: (key: string) => config[key] }
+  });
   view.onDataUpdated();
   return { root, host };
 }
@@ -69,14 +76,14 @@ describe("PictureCardsView", () => {
   it("opens the article, not the description note behind the card", () => {
     const { root, host } = setup({ [PICTURE]: [ARTICLE] });
     press(cards(root)[0] as HTMLElement);
-    expect(host.openArticle).toHaveBeenCalledWith(ARTICLE, false);
+    expect(host.openArticle).toHaveBeenCalledWith(ARTICLE, false, true);
     expect(host.openFile).not.toHaveBeenCalled();
   });
 
   it("opens it in a new tab on a modifier press", () => {
     const { root, host } = setup({ [PICTURE]: [ARTICLE] });
     press(cards(root)[0] as HTMLElement, { metaKey: true });
-    expect(host.openArticle).toHaveBeenCalledWith(ARTICLE, "tab");
+    expect(host.openArticle).toHaveBeenCalledWith(ARTICLE, "tab", true);
   });
 
   it("names no article for a picture in none, and opens the picture", () => {
@@ -97,7 +104,7 @@ describe("PictureCardsView", () => {
     const menu = shownMenus.at(-1);
     expect(menu?.items.map((item) => item.title)).toEqual(["How a Harness Works", "Nachtrag"]);
     menu?.items[1]?.click?.(new MouseEvent("click"));
-    expect(host.openArticle).toHaveBeenCalledWith("Artikel/Nachtrag.md", false);
+    expect(host.openArticle).toHaveBeenCalledWith("Artikel/Nachtrag.md", false, true);
   });
 
   it("offers the picture and its description from the card's menu", () => {
@@ -120,7 +127,20 @@ describe("PictureCardsView", () => {
     (cards(root)[0] as HTMLElement).dispatchEvent(
       new KeyboardEvent("keydown", { key: "Enter", bubbles: true })
     );
-    expect(host.openArticle).toHaveBeenCalledWith(ARTICLE, false);
+    expect(host.openArticle).toHaveBeenCalledWith(ARTICLE, false, true);
+  });
+
+  it("leaves Reading view out when the base's toggle is off, from the card and its menu", () => {
+    const { root, host } = setup({ [PICTURE]: [ARTICLE] }, undefined, { readingView: false });
+    const [card] = cards(root);
+    press(card as HTMLElement);
+    expect(host.openArticle).toHaveBeenLastCalledWith(ARTICLE, false, false);
+    (card as HTMLElement).dispatchEvent(
+      new MouseEvent("contextmenu", { bubbles: true, cancelable: true })
+    );
+    shownMenus.at(-1)?.items[0]?.click?.(new MouseEvent("click"));
+    expect(host.openArticle).toHaveBeenCalledTimes(2);
+    expect(host.openArticle).toHaveBeenLastCalledWith(ARTICLE, false, false);
   });
 
   it("keeps the base's groups and says what it left out", () => {

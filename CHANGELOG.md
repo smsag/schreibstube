@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
-- **Picture cards, a layout for Bases that opens the article a picture is in.** A base of starred pictures lists their description notes, since that is where the star is kept, and Obsidian's own cards opened the description. Choose **Picture cards** (`Bildkarten`) as the base's layout and each row shows its picture, named after the note it appears in; a press opens that note in Reading view. A picture in several notes offers them, and one in no note opens the picture itself, with no name on its card. A long press or a right click also offers the picture and its description, where the star is taken off again. The base's filter, sort and grouping apply as they do to any layout.
+- **Picture cards, a layout for Bases that opens the article a picture is in.** A base of starred pictures lists their description notes, since that is where the star is kept, and Obsidian's own cards opened the description. Choose **Picture cards** (`Bildkarten`) as the base's layout and each row shows its picture, named after the note it appears in; a press opens that note in Reading view, unless **Open articles in Reading view** is switched off in the layout's settings. A picture in several notes offers them, and one in no note opens the picture itself, with no name on its card. A long press or a right click also offers the picture and its description, where the star is taken off again. The base's filter, sort and grouping apply as they do to any layout.
 
 ## 1.68.0 - 2026-10-01
 

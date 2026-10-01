@@ -49,6 +49,7 @@ import { PropertySetController } from "./controllers/property-set-controller";
 import { PropertyWidgetControls } from "./controllers/property-widget-controls";
 import { PictureCardsController } from "./controllers/picture-cards";
 import { PictureEmbedActions } from "./controllers/picture-embed-actions";
+import { READING_VIEW_OPTION } from "./services/picture-cards";
 import { TagSuggestController } from "./controllers/tag-suggest-controller";
 import { TAG_NEIGHBOUR_REQUEST, type RecommendedEntry } from "./services/tag-suggestions";
 import { DraftWidth } from "./controllers/draft-width";
@@ -553,7 +554,15 @@ export default class SchreibstubePlugin extends Plugin {
     this.registerBasesView(PICTURE_CARDS_VIEW_TYPE, {
       name: t().pictureCards.viewName,
       icon: "image",
-      factory: (controller, containerEl) => new PictureCardsView(controller, containerEl, cards)
+      factory: (controller, containerEl) => new PictureCardsView(controller, containerEl, cards),
+      options: () => [
+        {
+          type: "toggle",
+          key: READING_VIEW_OPTION,
+          displayName: t().pictureCards.readingView,
+          default: true
+        }
+      ]
     });
   }
 

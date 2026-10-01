@@ -1319,6 +1319,7 @@ export const enExtra = {
   /** The Bases layout that shows rows as pictures and opens their articles. */
   pictureCards: {
     viewName: "Picture cards",
+    readingView: "Open articles in Reading view",
     empty: "No pictures here. This layout shows pictures and the notes describing them.",
     more: (count: number) =>
       count === 1 ? "1 more picture is not shown." : `${count} more pictures are not shown.`,

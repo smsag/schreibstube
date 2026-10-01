@@ -3,9 +3,10 @@
  *
  * Which picture a row stands for and which notes it appears in is decided in
  * `services/picture-cards`; this hands that module what the vault knows and
- * opens what a card asks for. An article opens in Reading view: a person
- * coming back to a picture they kept comes to read the piece it was in, and
- * an editor's cursor is one stray tap from changing it.
+ * opens what a card asks for. An article opens in Reading view unless the
+ * base switches that off: a person coming back to a picture they kept comes
+ * to read the piece it was in, and an editor's cursor is one stray tap from
+ * changing it.
  */
 import { Platform, type App } from "obsidian";
 import { basename } from "../services/file-name";
@@ -54,8 +55,9 @@ export class PictureCardsController {
     return file ? this.app.vault.getResourcePath(file) : null;
   }
 
-  async openArticle(path: string, where: PaneTarget): Promise<void> {
-    await this.open(path, where, { state: { mode: "preview" } });
+  /** In Reading view when the base asks for it, else as Obsidian would open it. */
+  async openArticle(path: string, where: PaneTarget, reading: boolean): Promise<void> {
+    await this.open(path, where, reading ? { state: { mode: "preview" } } : {});
   }
 
   /** A picture or a description note, the way Obsidian would open it. */

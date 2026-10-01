@@ -57,6 +57,8 @@ export class Component {
 /** A layout for Bases: a test sets `data` as a query would and calls `onDataUpdated`. */
 export class BasesView extends Component {
   data: unknown = null;
+  /** The view's settings in the `.base` file; none, unless a test sets some. */
+  config: { get(key: string): unknown } = { get: () => undefined };
 
   constructor(_controller: unknown) {
     super();

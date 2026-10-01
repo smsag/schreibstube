@@ -6,8 +6,8 @@
  * pictures lists their description notes, since that is where a star is
  * kept, so every card there led to a description nobody wanted to read.
  * Here a card shows the picture and a press opens the note the picture is
- * in, in Reading view; a picture in several notes offers them, and one in
- * none opens itself. The base still decides what is listed and in what
+ * in, in Reading view unless the layout's settings say otherwise; a picture
+ * in several notes offers them, and one in none opens itself. The base still decides what is listed and in what
  * order: its filter, sort and grouping are drawn as they come.
  *
  * It draws and reports. What a row stands for, which notes count and what a
@@ -20,7 +20,9 @@ import { openTargetOf, type PaneTarget } from "../services/pane-target";
 import {
   cardPress,
   MAX_PICTURE_CARDS,
+  opensInReadingView,
   pictureCards,
+  READING_VIEW_OPTION,
   type PictureCard,
   type PictureCardSources
 } from "../services/picture-cards";
@@ -34,7 +36,7 @@ export interface PictureCardsHost {
   sources(): PictureCardSources;
   title(path: string): string;
   resourceUrl(path: string): string | null;
-  openArticle(path: string, where: PaneTarget): Promise<void>;
+  openArticle(path: string, where: PaneTarget, reading: boolean): Promise<void>;
   openFile(path: string, where: PaneTarget): Promise<void>;
 }
 
@@ -152,11 +154,16 @@ export class PictureCardsView extends BasesView {
     pressKeys(el, (event) => this.press(card, el, event));
   }
 
+  /** Read at the press, so a toggle changed while the base is open counts at once. */
+  private readingView(): boolean {
+    return opensInReadingView(this.config.get(READING_VIEW_OPTION));
+  }
+
   private press(card: PictureCard, el: HTMLElement, event?: MouseEvent | KeyboardEvent): void {
     const where = openTargetOf(Keymap.isModEvent(event));
     const action = cardPress(card);
     if (action.kind === "article") {
-      void this.host.openArticle(action.path, where);
+      void this.host.openArticle(action.path, where, this.readingView());
     } else if (action.kind === "picture") {
       void this.host.openFile(action.path, where);
     } else {
@@ -167,7 +174,11 @@ export class PictureCardsView extends BasesView {
             .setTitle(this.host.title(path))
             .setIcon("file-text")
             .onClick((chosen) => {
-              void this.host.openArticle(path, openTargetOf(Keymap.isModEvent(chosen)));
+              void this.host.openArticle(
+                path,
+                openTargetOf(Keymap.isModEvent(chosen)),
+                this.readingView()
+              );
             })
         );
       }
@@ -188,7 +199,7 @@ export class PictureCardsView extends BasesView {
         item
           .setTitle(this.host.title(path))
           .setIcon("file-text")
-          .onClick(() => void this.host.openArticle(path, false))
+          .onClick(() => void this.host.openArticle(path, false, this.readingView()))
       );
     }
     if (card.articles.length > 0) menu.addSeparator();

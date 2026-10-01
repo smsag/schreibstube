@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   articlesOf,
   cardPress,
+  opensInReadingView,
   pictureCards,
   pictureOfRow,
   type PictureCard,
@@ -151,5 +152,26 @@ describe("cardPress", () => {
 
   it("opens the picture when no article uses it", () => {
     expect(cardPress(card([]))).toEqual({ kind: "picture", path: PICTURE });
+  });
+});
+
+describe("opensInReadingView", () => {
+  it("is on for a base that never set it", () => {
+    expect(opensInReadingView(undefined)).toBe(true);
+    expect(opensInReadingView(null)).toBe(true);
+  });
+
+  it("follows the toggle", () => {
+    expect(opensInReadingView(true)).toBe(true);
+    expect(opensInReadingView(false)).toBe(false);
+  });
+
+  it("reads a false written by hand as text", () => {
+    expect(opensInReadingView(" False ")).toBe(false);
+  });
+
+  it("keeps the default for anything else", () => {
+    expect(opensInReadingView("nein")).toBe(true);
+    expect(opensInReadingView(0)).toBe(true);
   });
 });

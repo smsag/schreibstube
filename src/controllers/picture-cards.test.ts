@@ -71,11 +71,17 @@ describe("PictureCardsController", () => {
 
   it("opens an article in Reading view", async () => {
     const { controller, files, leaf, getLeaf } = setup();
-    await controller.openArticle(ARTICLE, false);
+    await controller.openArticle(ARTICLE, false, true);
     expect(getLeaf).toHaveBeenCalledWith(false);
     expect(leaf.openFile).toHaveBeenCalledWith(files.get(ARTICLE), {
       state: { mode: "preview" }
     });
+  });
+
+  it("opens an article as Obsidian would when the base switched Reading view off", async () => {
+    const { controller, files, leaf } = setup();
+    await controller.openArticle(ARTICLE, false, false);
+    expect(leaf.openFile).toHaveBeenCalledWith(files.get(ARTICLE), {});
   });
 
   it("opens a picture the way Obsidian would", async () => {
@@ -89,7 +95,7 @@ describe("PictureCardsController", () => {
     const desktop = Platform.isDesktopApp;
     Platform.isDesktopApp = false;
     try {
-      await controller.openArticle(ARTICLE, "window");
+      await controller.openArticle(ARTICLE, "window", true);
     } finally {
       Platform.isDesktopApp = desktop;
     }
@@ -98,7 +104,7 @@ describe("PictureCardsController", () => {
 
   it("opens nothing for a note that is gone", async () => {
     const { controller, getLeaf } = setup();
-    await controller.openArticle("Weg.md", false);
+    await controller.openArticle("Weg.md", false, true);
     expect(getLeaf).not.toHaveBeenCalled();
   });
 

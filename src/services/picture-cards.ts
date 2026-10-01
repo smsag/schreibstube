@@ -114,6 +114,20 @@ export function pictureCards(
   return { cards, held, skipped };
 }
 
+/** The layout's setting for how an article opens, as the `.base` file keeps it. */
+export const READING_VIEW_OPTION = "readingView";
+
+/**
+ * Whether an article opens in Reading view. On unless the base says no: a
+ * base nobody has set up gets what the layout is for. The file is edited by
+ * hand as well as through the toggle, so `"false"` written as text means
+ * what it says; anything else keeps the default.
+ */
+export function opensInReadingView(value: unknown): boolean {
+  if (value === false) return false;
+  return !(typeof value === "string" && value.trim().toLowerCase() === "false");
+}
+
 /** What a press on a card does. */
 export type CardPress =
   | { kind: "article"; path: string }

@@ -1664,6 +1664,7 @@ export const de: Messages = {
 
   pictureCards: {
     viewName: "Bildkarten",
+    readingView: "Artikel in der Leseansicht öffnen",
     empty: "Keine Bilder. Diese Ansicht zeigt Bilder und die Notizen, die sie beschreiben.",
     more: (count: number) =>
       count === 1
