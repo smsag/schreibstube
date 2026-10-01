@@ -13,6 +13,7 @@ const grembl = {
   folder: "Writings/Grembl",
   target: "writings",
   writeBack: true,
+  aiDescription: true,
   headerTags: []
 };
 
@@ -102,7 +103,7 @@ describe("publishMarkFor, what its title says", () => {
   });
 
   it("says only what it knows when the account records nothing in notes", () => {
-    const quiet = { ...grembl, writeBack: false, headerTags: [] };
+    const quiet = { ...grembl, writeBack: false, aiDescription: true, headerTags: [] };
     expect(
       mark({
         accounts: [quiet],

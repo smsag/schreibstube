@@ -431,7 +431,15 @@ describe("normalizeSettings — publishing", () => {
   it("keeps a complete account", () => {
     const accounts = normalizeSettings({
       publishAccounts: [
-        { id: "a", name: "Blog", folder: "Blog", target: "blog", writeBack: true, headerTags: [] }
+        {
+          id: "a",
+          name: "Blog",
+          folder: "Blog",
+          target: "blog",
+          writeBack: true,
+          aiDescription: true,
+          headerTags: []
+        }
       ]
     }).publishAccounts;
     expect(accounts).toHaveLength(1);
@@ -447,9 +455,18 @@ describe("normalizeSettings — publishing", () => {
           folder: "",
           target: "blog",
           writeBack: true,
+          aiDescription: true,
           headerTags: []
         },
-        { id: "b", name: "Ohne Ziel", folder: "Blog", target: "", writeBack: true, headerTags: [] }
+        {
+          id: "b",
+          name: "Ohne Ziel",
+          folder: "Blog",
+          target: "",
+          writeBack: true,
+          aiDescription: true,
+          headerTags: []
+        }
       ]
     }).publishAccounts;
     expect(accounts).toEqual([]);
@@ -458,7 +475,15 @@ describe("normalizeSettings — publishing", () => {
   it("trims the slashes a folder is often typed with", () => {
     const accounts = normalizeSettings({
       publishAccounts: [
-        { id: "a", name: "Blog", folder: "/Blog/", target: "blog", writeBack: true, headerTags: [] }
+        {
+          id: "a",
+          name: "Blog",
+          folder: "/Blog/",
+          target: "blog",
+          writeBack: true,
+          aiDescription: true,
+          headerTags: []
+        }
       ]
     }).publishAccounts;
     expect(accounts[0]?.folder).toBe("Blog");
@@ -467,7 +492,15 @@ describe("normalizeSettings — publishing", () => {
   it("names an account after its folder when no name was given", () => {
     const accounts = normalizeSettings({
       publishAccounts: [
-        { id: "a", name: "", folder: "Blog", target: "blog", writeBack: true, headerTags: [] }
+        {
+          id: "a",
+          name: "",
+          folder: "Blog",
+          target: "blog",
+          writeBack: true,
+          aiDescription: true,
+          headerTags: []
+        }
       ]
     }).publishAccounts;
     expect(accounts[0]?.name).toBe("Blog");
@@ -545,6 +578,7 @@ describe("a connection's header tags", () => {
           folder: "Blog",
           target: "blog",
           writeBack: true,
+          aiDescription: true,
           headerTags: ["#essay", "essay", "reise", "projekt", "mehr"]
         },
         // Saved before connections had header tags.
