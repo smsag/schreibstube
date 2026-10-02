@@ -2,6 +2,7 @@ import type { App } from "obsidian";
 import type SchreibstubePlugin from "../main";
 import type { SchreibstubeSettings } from "../types";
 import { normalizeSettings } from "../services/plugin-settings";
+import type { SectionEntry } from "./layout";
 
 /**
  * What every settings section needs, and the one way it changes a setting.
@@ -18,6 +19,8 @@ export interface SettingsContext {
   update(patch: Partial<SchreibstubeSettings>): Promise<void>;
   /** Redraw the whole tab, for a change that adds or removes controls. */
   refresh(): void;
+  /** The sections drawn so far, in order, for the index at the top. */
+  index: SectionEntry[];
 }
 
 export function createContext(
@@ -31,6 +34,7 @@ export function createContext(
     plugin,
     containerEl,
     refresh,
+    index: [],
     async update(patch) {
       plugin.settings = normalizeSettings({ ...plugin.settings, ...patch });
       await plugin.saveSettings();

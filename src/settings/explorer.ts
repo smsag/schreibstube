@@ -12,14 +12,21 @@ import { MAX_RECOMMENDED, MIN_RECOMMENDED } from "../services/plugin-settings";
 import { ICON_FONT_VERSION, allIconNames } from "../ui/icon-font";
 import type { ExplorerForeignMenu } from "../types";
 import type { SettingsContext } from "./context";
-import { renderCommands } from "./commands";
+import { section } from "./layout";
 
 export function renderExplorer(ctx: SettingsContext): void {
-  new Setting(ctx.containerEl).setName(t().settings.explorerHeading).setHeading();
-
-  ctx.containerEl.createEl("p", {
-    text: t().settings.explorerIntro,
-    cls: "setting-item-description"
+  section(ctx, {
+    id: "explorer",
+    name: t().settings.explorerHeading,
+    desc: t().settings.explorerIntro,
+    commands: [
+      t().commands.openExplorer,
+      t().commands.collapseExplorer,
+      t().commands.focusExplorerFilter,
+      t().commands.openBookmark,
+      t().commands.pinTag
+    ],
+    indexed: true
   });
 
   new Setting(ctx.containerEl)
@@ -106,12 +113,4 @@ export function renderExplorer(ctx: SettingsContext): void {
   new Setting(ctx.containerEl)
     .setName(t().settings.explorerIcons)
     .setDesc(t().settings.explorerIconsDesc(allIconNames().length, ICON_FONT_VERSION));
-
-  renderCommands(ctx, [
-    t().commands.openExplorer,
-    t().commands.collapseExplorer,
-    t().commands.focusExplorerFilter,
-    t().commands.openBookmark,
-    t().commands.pinTag
-  ]);
 }

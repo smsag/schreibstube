@@ -5,11 +5,12 @@ import { Notice, Setting } from "obsidian";
 import { setLanguage, t } from "../i18n";
 import type { LanguagePreference } from "../i18n";
 import type { SettingsContext } from "./context";
+import { section } from "./layout";
 
 export function renderDiagnostics(ctx: SettingsContext): void {
   const { containerEl } = ctx;
 
-  new Setting(containerEl).setName(t().language.heading).setHeading();
+  section(ctx, { id: "language", name: t().language.heading });
 
   new Setting(containerEl)
     .setName(t().language.name)
@@ -28,7 +29,7 @@ export function renderDiagnostics(ctx: SettingsContext): void {
       });
     });
 
-  new Setting(containerEl).setName(t().diagnostics.heading).setHeading();
+  section(ctx, { id: "diagnostics", name: t().diagnostics.heading });
 
   new Setting(containerEl)
     .setName(t().diagnostics.debugLogging)

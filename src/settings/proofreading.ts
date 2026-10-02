@@ -15,12 +15,17 @@ import {
 import { normalizeTermFolder } from "../services/glossary-term-folder";
 import { GLOSSARY_CHANGED_EVENT } from "../utils/constants";
 import type { SettingsContext } from "./context";
-import { renderCommands } from "./commands";
+import { fold, section } from "./layout";
 
 export function renderProofreading(ctx: SettingsContext): void {
-  new Setting(ctx.containerEl).setName(t().settings.proofreadHeading).setHeading();
-
-  new Setting(ctx.containerEl).setDesc(t().settings.proofreadIntro);
+  section(ctx, {
+    id: "proofread",
+    name: t().settings.proofreadHeading,
+    desc: t().settings.proofreadIntro,
+    commands: [t().commands.openReview, t().commands.proofread],
+    ai: true,
+    indexed: true
+  });
 
   new Setting(ctx.containerEl)
     .setName(t().settings.proofreadPrompt)
@@ -34,7 +39,9 @@ export function renderProofreading(ctx: SettingsContext): void {
       });
     });
 
-  new Setting(ctx.containerEl)
+  // How the note is cut and sent: tuned once, if ever.
+  const advanced = fold(ctx, t().settings.foldAdvanced, t().settings.foldProofreadDesc);
+  new Setting(advanced.containerEl)
     .setName(t().settings.proofreadTokens)
     .setDesc(t().settings.proofreadTokensDesc)
     .addSlider((slider) => {
@@ -47,7 +54,7 @@ export function renderProofreading(ctx: SettingsContext): void {
         });
     });
 
-  new Setting(ctx.containerEl)
+  new Setting(advanced.containerEl)
     .setName(t().settings.proofreadChunk)
     .setDesc(t().settings.proofreadChunkDesc)
     .addSlider((slider) => {
@@ -60,7 +67,7 @@ export function renderProofreading(ctx: SettingsContext): void {
         });
     });
 
-  new Setting(ctx.containerEl)
+  new Setting(advanced.containerEl)
     .setName(t().settings.proofreadConcurrency)
     .setDesc(t().settings.proofreadConcurrencyDesc)
     .addSlider((slider) => {
@@ -73,9 +80,12 @@ export function renderProofreading(ctx: SettingsContext): void {
         });
     });
 
-  new Setting(ctx.containerEl).setName(t().settings.glossaryHeading).setHeading();
-
-  new Setting(ctx.containerEl).setDesc(t().settings.glossaryIntro);
+  section(ctx, {
+    id: "glossary",
+    name: t().settings.glossaryHeading,
+    desc: t().settings.glossaryIntro,
+    indexed: true
+  });
 
   new Setting(ctx.containerEl)
     .setName(t().settings.glossaryDefault)
@@ -129,6 +139,4 @@ export function renderProofreading(ctx: SettingsContext): void {
         window.dispatchEvent(new Event(GLOSSARY_CHANGED_EVENT));
       });
     });
-
-  renderCommands(ctx, [t().commands.openReview, t().commands.proofread]);
 }

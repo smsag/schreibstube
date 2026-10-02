@@ -2729,15 +2729,135 @@
   white-space: nowrap;
 }
 
-/* The command index under a settings section: a list, read at a glance, at the
-   size of the description it belongs to rather than of body text. */
-.schreibstube-command-list {
-  margin: 4px 0 0;
-  padding-left: 18px;
+/* --- Settings tab -------------------------------------------------------- */
+
+/* The line at the top that jumps to a section; blocks read stronger than the
+   features inside them. */
+.schreibstube-settings-index {
+  padding: 0 0 var(--size-4-3);
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  line-height: 1.8;
 }
 
-.schreibstube-command-list li {
-  margin: 0;
+.schreibstube-settings-index-label {
+  color: var(--text-faint);
+}
+
+.schreibstube-settings-index-link {
+  color: var(--text-muted);
+  text-decoration: none;
+  cursor: var(--cursor-link);
+}
+
+.schreibstube-settings-index-link.is-block {
+  color: var(--text-normal);
+  font-weight: var(--font-semibold);
+}
+
+.schreibstube-settings-index-link:hover {
+  color: var(--text-accent);
+}
+
+/* A block's heading stands above the features' headings, with room before it
+   so the three parts of the tab read as three. */
+.schreibstube-settings .schreibstube-settings-block {
+  margin-top: var(--size-4-8);
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.schreibstube-settings .schreibstube-settings-block .setting-item-name {
+  font-size: var(--font-ui-large);
+  font-weight: var(--font-bold);
+}
+
+.schreibstube-settings .schreibstube-settings-block:first-of-type {
+  margin-top: 0;
+}
+
+/* What a feature does and which commands it brings, one box, no gap to the
+   heading it explains. */
+.schreibstube-settings .schreibstube-settings-intro {
+  border-top: none;
+  padding-top: 0;
+}
+
+.schreibstube-command-line {
+  margin-top: var(--size-4-1);
+}
+
+.schreibstube-command-line-label {
+  color: var(--text-normal);
+}
+
+/* The AI mark: no fill, an outline in the accent; greyed while no key is
+   chosen. */
+.schreibstube-ai-pill {
+  display: inline-block;
+  margin-left: var(--size-4-2);
+  padding: 0 var(--size-4-2);
+  border: 1px solid var(--text-accent);
+  border-radius: var(--radius-l);
+  color: var(--text-accent);
+  font-size: var(--font-ui-smaller);
+  font-weight: var(--font-medium);
+  line-height: 1.6;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.schreibstube-ai-pill.is-off {
+  border-color: var(--text-faint);
+  color: var(--text-faint);
+}
+
+/* Details a feature rarely needs, one line until opened. */
+.schreibstube-settings-fold {
+  border-top: 1px solid var(--background-modifier-border);
+  padding: var(--size-4-2) 0;
+}
+
+.schreibstube-settings-fold-summary {
+  cursor: var(--cursor);
+  font-size: var(--font-ui-medium);
+}
+
+.schreibstube-settings-fold-desc {
+  margin-left: var(--size-4-2);
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+}
+
+.schreibstube-settings-fold-body {
+  padding-left: var(--size-4-4);
+}
+
+/* A field one types into gets at least half the row, so a folder path or a
+   prompt can be read without scrolling inside it; a number keeps the width it
+   was given. */
+.schreibstube-settings .setting-item-control:has(> textarea),
+.schreibstube-settings .setting-item-control:has(> input[type="text"]),
+.schreibstube-settings .setting-item-control:has(> input:not([type])) {
+  flex: 0 0 50%;
+  min-width: 50%;
+}
+
+.schreibstube-settings .setting-item-control > textarea,
+.schreibstube-settings .setting-item-control > input[type="text"],
+.schreibstube-settings .setting-item-control > input:not([type]) {
+  width: 100%;
+}
+
+/* On a phone the row is too narrow to share; the field goes under its name. */
+.is-mobile .schreibstube-settings .setting-item:has(> .setting-item-control > textarea),
+.is-mobile .schreibstube-settings .setting-item:has(> .setting-item-control > input[type="text"]) {
+  flex-wrap: wrap;
+}
+
+.is-mobile .schreibstube-settings .setting-item-control:has(> textarea),
+.is-mobile .schreibstube-settings .setting-item-control:has(> input[type="text"]) {
+  flex-basis: 100%;
+  margin-top: var(--size-4-2);
 }
 
 /* --- Printing ---------------------------------------------------------- */

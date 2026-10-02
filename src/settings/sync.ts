@@ -6,12 +6,16 @@ import { t } from "../i18n";
 import { cronPresets, nextRun, parseCron } from "../services/cron";
 import { MAX_SYNC_INTERVAL_MINUTES, MIN_SYNC_INTERVAL_MINUTES } from "../services/plugin-settings";
 import type { SettingsContext } from "./context";
-import { renderCommands } from "./commands";
+import { section } from "./layout";
 
 export function renderSync(ctx: SettingsContext): void {
-  new Setting(ctx.containerEl).setName(t().settings.syncHeading).setHeading();
-
-  new Setting(ctx.containerEl).setDesc(t().settings.syncIntro);
+  section(ctx, {
+    id: "sync",
+    name: t().settings.syncHeading,
+    desc: t().settings.syncIntro,
+    commands: [t().commands.syncAll, t().commands.syncNote],
+    indexed: true
+  });
 
   new Setting(ctx.containerEl)
     .setName(t().settings.syncEnabled)
@@ -19,8 +23,12 @@ export function renderSync(ctx: SettingsContext): void {
     .addToggle((toggle) => {
       toggle.setValue(ctx.plugin.settings.syncEnabled).onChange(async (value) => {
         await ctx.update({ syncEnabled: value });
+        // Switched off, the section is its switch; the rest follows it.
+        ctx.refresh();
       });
     });
+
+  if (!ctx.plugin.settings.syncEnabled) return;
 
   new Setting(ctx.containerEl)
     .setName(t().settings.syncOnOpen)
@@ -68,8 +76,6 @@ export function renderSync(ctx: SettingsContext): void {
   if (ctx.plugin.settings.syncPollEnabled) {
     renderPollSchedule(ctx);
   }
-
-  renderCommands(ctx, [t().commands.syncAll, t().commands.syncNote]);
 }
 
 function renderPollSchedule(ctx: SettingsContext): void {

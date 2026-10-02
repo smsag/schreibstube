@@ -13,6 +13,7 @@ import { reportRows } from "../services/semantic/index-report";
 import { consentOf } from "../services/semantic/semantic-api";
 import { communityPluginName } from "../services/workspace-internals";
 import type { SettingsContext } from "./context";
+import { section } from "./layout";
 
 /** How often the status line is redrawn while a build runs. */
 const REPORT_EVERY_MS = 1000;
@@ -23,9 +24,7 @@ const DETAILS_EVERY_MS = 5000;
 export function renderSemantic(ctx: SettingsContext): void {
   const strings = t().semantic;
   const engine = ctx.plugin.semantic;
-  new Setting(ctx.containerEl).setName(strings.heading).setHeading();
-
-  ctx.containerEl.createEl("p", { text: strings.intro, cls: "setting-item-description" });
+  section(ctx, { id: "semantic", name: strings.heading, desc: strings.intro, indexed: true });
 
   new Setting(ctx.containerEl)
     .setName(strings.enabled)
@@ -144,8 +143,7 @@ function renderSources(ctx: SettingsContext): void {
   const engine = ctx.plugin.semantic;
   if (!engine) return;
   const words = t().semantic.sources;
-  new Setting(ctx.containerEl).setName(words.heading).setHeading();
-  ctx.containerEl.createEl("p", { text: words.intro, cls: "setting-item-description" });
+  section(ctx, { id: "semantic-sources", name: words.heading, desc: words.intro });
 
   const live = new Map(engine.sources.registered().map((entry) => [entry.id, entry]));
   const ids = new Set([...live.keys(), ...Object.keys(ctx.plugin.settings.semanticSources)]);

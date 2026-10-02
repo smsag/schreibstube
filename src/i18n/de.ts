@@ -126,6 +126,8 @@ export const de: Messages = {
     accountTarget: "Ziel",
     accountDesc: "Name der Website, Ordner im Vault und Ziel auf der Bridge.",
     addAccount: "Konto hinzufügen",
+    addAccountDesc:
+      "Eine weitere Website zum Veröffentlichen: eigener Name, eigener Ordner im Vault und eigenes Ziel auf der Bridge. Eine Notiz geht an die Website, in deren Ordner sie liegt.",
     writeBack: "Veröffentlichung in die Notiz schreiben",
     writeBackDesc: "Trägt Zeitpunkt und Adresse nach dem Veröffentlichen ins Frontmatter ein.",
     aiDescription: "Fehlende Beschreibungen per KI schreiben",
@@ -141,6 +143,7 @@ export const de: Messages = {
     headerTagPlaceholder: "#schlagwort",
     targetPlaceholder: "Ziel auf der Bridge",
     keysHeading: "Frontmatter-Felder",
+    keyRoleDesc: (fallback: string) => `Standard: ${fallback}`,
     keysDesc:
       "Welcher Frontmatter-Schlüssel welche Bedeutung hat. Leer lassen, um den Standard zu " +
       "behalten. Ein geänderter Schlüssel ersetzt den Standard: Notizen mit dem alten Namen " +
@@ -351,7 +354,6 @@ export const de: Messages = {
       "Ausschalten, wenn ein anderes Plugin den Doppelpunkt schon für Emoji nutzt.",
 
     basesHeading: "Bases",
-    basesReadingView: "Notizen aus Bases in der Leseansicht öffnen",
     basesReadingViewDesc:
       "Das stellt jede Base für sich ein: Rechtsklick auf die Base-Datei oder ihren Tab → „Notizen in " +
       "Leseansicht öffnen“, oder der Befehl unten. Eine Notiz aus dieser Base — eine Tabellenzeile, " +
@@ -412,11 +414,12 @@ export const de: Messages = {
     explorerIconsDesc: (count: number, version: string) =>
       `${count} Symbole aus Tabler Icons ${version} (MIT), im Plugin enthalten — offline und mobil verfügbar.`,
 
-    aiHeading: "KI-Modelle",
     aiIntro:
       "Anbieter, Modell und API-Schlüssel für alle KI-Befehle: Benennen, Zusammenfassen, KI-Tabelle, Schlagwort-Vorschläge und Bildbeschreibungen.",
     provider: "LLM-Anbieter",
+    providerDesc: "Der Dienst, an den die Anfragen gehen. Ein Wechsel wählt dessen erstes Modell.",
     model: "Modell",
+    modelDesc: "Das Modell des Anbieters, das jede KI-Funktion nutzt.",
     customModel: "Eigene Modell-ID",
     customModelDesc: "Optional. Überschreibt das Modell oben — für neuere oder ungelistete.",
     customModelPlaceholder: "die Modell-ID des Anbieters",
@@ -424,6 +427,8 @@ export const de: Messages = {
     apiKeyDesc: "Ein Secret aus Obsidians Secret Storage wählen oder ein neues anlegen.",
 
     renameHeading: "Datei aus Inhalt benennen",
+    renameIntro:
+      "Benennt eine Notiz oder ein Bild nach dem, was darin steht: Der Anfang der Notiz oder das Bild selbst geht an das Modell, ein kurzer Dateiname kommt zurück.",
     renameImageSize: "Maximale Bildgröße",
     renameImageSizeDesc:
       "Bilder werden vor dem Senden auf diese maximale Kantenlänge (px) verkleinert. Kleiner ist " +
@@ -449,6 +454,8 @@ export const de: Messages = {
     describeFolder: "Ordner für Beschreibungen",
     describeFolderDesc: "Eine Notiz pro Bild, alle in diesem Ordner.",
     describeLanguage: "Sprache der Beschreibungen",
+    describeLanguageDesc:
+      "Die Sprache, in der Titel, Beschreibung und Schlagwörter geschrieben werden.",
     describeLanguageAuto: "Sprache der Oberfläche",
     describeTags: "Stichworte als Tags",
     describeTagsDesc:
@@ -545,6 +552,26 @@ export const de: Messages = {
     printDefaultMissing: (path: string) => `${path} (nicht gefunden)`,
     commandsHeading: "Befehle",
     commandsIntro: "In der Befehlspalette, jeweils mit „Schreibstube: “ davor.",
+    blocks: {
+      helpers: "Schreibhilfen",
+      aiModel: "KI-Modell",
+      features: "Funktionen",
+      about: "Sprache und Diagnose"
+    },
+    indexLabel: "Springen zu",
+    aiPill: "KI",
+    aiPillTitle: "Fragt das unter KI-Modell gewählte Modell.",
+    newDocHeading: "Neue Notiz von außerhalb",
+    moreCommandsHeading: "Weitere Befehle",
+    moreCommandsDesc:
+      "Befehle ohne Einstellungen: Sie fügen einen Block in die Notiz ein oder wechseln die Form eines Links.",
+    foldAdvanced: "Erweitert",
+    foldLimits: "Grenzen",
+    foldLimitsDesc: "Wie viel gesendet wird und wie lang ein Name sein darf.",
+    foldProofreadDesc:
+      "Wie lang eine Antwort sein darf, wie eine Notiz zerteilt wird und wie viel auf einmal.",
+    foldMailDesc:
+      "Welches Postfach durchsucht wird, wie viel zurückkommt und wie Antworten zusammengeführt werden.",
 
     syncHeading: "Dokument-Sync",
     syncIntro:

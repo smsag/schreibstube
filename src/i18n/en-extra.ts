@@ -48,7 +48,6 @@ export const enExtra = {
       "already uses the colon for emoji.",
 
     basesHeading: "Bases",
-    basesReadingView: "Open notes from bases in Reading view",
     basesReadingViewDesc:
       "Each base says this for itself: right-click the base's file or its tab → Open notes in Reading " +
       "view, or use the command below. A note opened from that base — a row in a table, a card, a list " +
@@ -107,11 +106,12 @@ export const enExtra = {
     explorerIconsDesc: (count: number, version: string) =>
       `${count} icons from Tabler Icons ${version} (MIT), bundled with the plugin so they work offline and on mobile.`,
 
-    aiHeading: "AI models",
     aiIntro:
       "Provider, model, and API key shared by every AI command: rename, summarize, AI table, tag suggestions and picture descriptions.",
     provider: "LLM provider",
+    providerDesc: "The service the requests go to. Changing it picks that provider's first model.",
     model: "Model",
+    modelDesc: "The provider's model every AI feature uses.",
     customModel: "Custom model ID",
     customModelDesc: "Optional. Overrides the model above — use for a newer or unlisted model.",
     customModelPlaceholder: "the provider's model ID",
@@ -119,6 +119,8 @@ export const enExtra = {
     apiKeyDesc: "Select a secret from Obsidian's secret storage, or create a new one.",
 
     renameHeading: "Rename file from content",
+    renameIntro:
+      "Names a note or a picture after what is in it: the start of the note, or the picture itself, goes to the model and a short file name comes back.",
     renameImageSize: "Max image size",
     renameImageSizeDesc:
       "Images are resized to this maximum dimension (px) before being sent. Smaller is cheaper " +
@@ -145,6 +147,7 @@ export const enExtra = {
     describeFolder: "Folder for descriptions",
     describeFolderDesc: "One note per picture, all in this folder.",
     describeLanguage: "Language of descriptions",
+    describeLanguageDesc: "The language the title, description and keywords are written in.",
     describeLanguageAuto: "Interface language",
     describeTags: "Keywords as tags",
     describeTagsDesc:
@@ -240,6 +243,24 @@ export const enExtra = {
     printDefaultMissing: (path: string) => `${path} (not found)`,
     commandsHeading: "Commands",
     commandsIntro: 'In the command palette, each one prefixed with "Schreibstube: ".',
+    blocks: {
+      helpers: "Writing helpers",
+      aiModel: "AI model",
+      features: "Features",
+      about: "Language and diagnostics"
+    },
+    indexLabel: "Jump to",
+    aiPill: "AI",
+    aiPillTitle: "Asks the AI model chosen under AI model.",
+    newDocHeading: "New note from outside",
+    moreCommandsHeading: "More commands",
+    moreCommandsDesc:
+      "Commands that need no settings: they insert a block into the note or switch a link's form.",
+    foldAdvanced: "Advanced",
+    foldLimits: "Limits",
+    foldLimitsDesc: "How much is sent and how long a name may be.",
+    foldProofreadDesc: "How long an answer may be, how a note is cut and how much at once.",
+    foldMailDesc: "Which mailbox is searched, how much comes back and how replies are merged.",
 
     syncHeading: "Document sync",
     syncIntro:
