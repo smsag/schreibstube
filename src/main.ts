@@ -50,6 +50,9 @@ import { PropertyWidgetControls } from "./controllers/property-widget-controls";
 import { PictureArticleLinker } from "./controllers/picture-articles";
 import { BaseReadingFlags, isBaseFile } from "./controllers/base-reading-flags";
 import { BasesReadingView } from "./controllers/bases-reading";
+import { PassagesController } from "./controllers/passages";
+import { PASSAGES_VIEW_TYPE, PassagesView } from "./ui/passages-view";
+import { PASSAGE_OPTION } from "./services/passages";
 import { PictureEmbedActions } from "./controllers/picture-embed-actions";
 import { TagSuggestController } from "./controllers/tag-suggest-controller";
 import { TAG_NEIGHBOUR_REQUEST, type RecommendedEntry } from "./services/tag-suggestions";
@@ -380,6 +383,7 @@ export default class SchreibstubePlugin extends Plugin {
     this.startPictureActions(this.explorer);
     this.startPictureArticles(this.explorer);
     this.startBasesReadingView();
+    this.registerPassagesView();
     this.recommendedFooter = new RecommendedFooter(
       this,
       () => this.recommendedHost(),
@@ -620,6 +624,46 @@ export default class SchreibstubePlugin extends Plugin {
       this.app.workspace.on("window-open", (_workspaceWindow, win) => reading.attach(win, register))
     );
     this.registerEvent(this.app.workspace.on("file-open", (file) => void reading.opened(file)));
+  }
+
+  /**
+   * The "Callouts & highlights" layout for Bases. Bases may be switched off
+   * in a vault, and then there is no layout menu to join.
+   */
+  private registerPassagesView(): void {
+    const passages = new PassagesController(this.app, this.logger);
+    this.registerEvent(this.app.vault.on("delete", (file) => passages.forget(file.path)));
+    this.registerEvent(this.app.vault.on("rename", (_file, oldPath) => passages.forget(oldPath)));
+    const words = t().passages;
+    this.registerBasesView(PASSAGES_VIEW_TYPE, {
+      name: words.viewName,
+      icon: "quote",
+      factory: (controller, containerEl) => new PassagesView(controller, containerEl, passages),
+      options: () => [
+        {
+          type: "multitext",
+          key: PASSAGE_OPTION.types,
+          displayName: words.calloutTypes
+        },
+        {
+          type: "dropdown",
+          key: PASSAGE_OPTION.show,
+          displayName: words.show,
+          default: "both",
+          options: {
+            both: words.showBoth,
+            callouts: words.showCallouts,
+            highlights: words.showHighlights
+          }
+        },
+        {
+          type: "toggle",
+          key: PASSAGE_OPTION.readingView,
+          displayName: words.readingView,
+          default: false
+        }
+      ]
+    });
   }
 
   /** Turn Reading view on or off for one base, and say which it is now. */

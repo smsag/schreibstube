@@ -51,7 +51,18 @@ export class TFolder {
 
 /** A lifetime to hang rendered children on; a test has nothing to release. */
 export class Component {
+  load(): void {}
   unload(): void {}
+}
+
+/** A Bases layout's base class: no data and no options until a test hands them over. */
+export class BasesView extends Component {
+  config: { get(key: string): unknown } = { get: () => undefined };
+  data: { groupedData: unknown[] } = { groupedData: [] };
+
+  constructor(_controller: unknown) {
+    super();
+  }
 }
 
 /** Nothing renders in a test; a controller that draws is tested without drawing. */

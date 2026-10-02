@@ -39,25 +39,26 @@ plain Obsidian Markdown plus what this file lists. Write only what is here.
 
 ## 2. Frontmatter keys
 
-| Key                           | Where          | Value                                                      |
-| ----------------------------- | -------------- | ---------------------------------------------------------- |
-| `schreibstubePrintTemplate`   | any note       | template name: `Standard`, `Brief`, `Lebenslauf`, `Folien` |
-| `schreibstubePrint`           | any note       | map of values the template reads (see 3–5)                 |
-| `schreibstubeTo`              | mail note      | address or list of addresses                               |
-| `schreibstubeCc`              | mail note      | list of addresses                                          |
-| `schreibstubeFrom`            | mail note      | optional sender, `Name <address>`                          |
-| `schreibstubeSubject`         | mail note      | subject line                                               |
-| `schreibstubeSyncedFrom`      | synced note    | HTTPS address of a Markdown file                           |
-| `schreibstubeSyncEvery`       | synced note    | `Alle 2 Tage`, `weekly`, `every 6 hours` or a cron line    |
-| `schreibstubeGlossary`        | glossary note  | `true`                                                     |
-| `schreibstubeLanguage`        | glossary note  | `de`, `en`, …                                              |
-| `schreibstubeDefaultSeverity` | glossary note  | `error`, `warning` or `suggestion`                         |
-| `schreibstubeGlossaries`      | any note       | list of glossary notes that apply to it                    |
-| `schreibstubeAvoid`           | term note      | list of words to flag, the note's term offered instead     |
-| `schreibstubeIndex`           | any note       | `false` keeps it out of search by meaning                  |
-| `schreibstubeTaskCount`       | any note       | `false` hides its task count in the Explorer               |
-| `schreibstubeReadingView`     | `.base` file   | `true` at the top: its notes open in Reading view          |
-| `published`                   | published note | `true` puts it on the website (see 9)                      |
+| Key                           | Where          | Value                                                          |
+| ----------------------------- | -------------- | -------------------------------------------------------------- |
+| `schreibstubePrintTemplate`   | any note       | template name: `Standard`, `Brief`, `Lebenslauf`, `Folien`     |
+| `schreibstubePrint`           | any note       | map of values the template reads (see 3–5)                     |
+| `schreibstubeTo`              | mail note      | address or list of addresses                                   |
+| `schreibstubeCc`              | mail note      | list of addresses                                              |
+| `schreibstubeFrom`            | mail note      | optional sender, `Name <address>`                              |
+| `schreibstubeSubject`         | mail note      | subject line                                                   |
+| `schreibstubeSyncedFrom`      | synced note    | HTTPS address of a Markdown file                               |
+| `schreibstubeSyncEvery`       | synced note    | `Alle 2 Tage`, `weekly`, `every 6 hours` or a cron line        |
+| `schreibstubeGlossary`        | glossary note  | `true`                                                         |
+| `schreibstubeLanguage`        | glossary note  | `de`, `en`, …                                                  |
+| `schreibstubeDefaultSeverity` | glossary note  | `error`, `warning` or `suggestion`                             |
+| `schreibstubeGlossaries`      | any note       | list of glossary notes that apply to it                        |
+| `schreibstubeAvoid`           | term note      | list of words to flag, the note's term offered instead         |
+| `schreibstubeIndex`           | any note       | `false` keeps it out of search by meaning                      |
+| `schreibstubeTaskCount`       | any note       | `false` hides its task count in the Explorer                   |
+| `schreibstubeReadingView`     | `.base` file   | `true` at the top: its notes open in Reading view              |
+| `type: schreibstube-passages` | `.base` view   | callouts and highlights; `calloutTypes`, `show`, `readingView` |
+| `published`                   | published note | `true` puts it on the website (see 9)                          |
 
 Written by the plugin, never by you: `schreibstubeMessageId`, `schreibstubeSentAt`,
 `schreibstubeSendUnconfirmed`, `schreibstubeMergedIds` (mail); `schreibstubeImage`,
@@ -126,8 +127,7 @@ above the slide's heading. `%% … %%` works the same as `<!-- … -->`.
 - `columns:` needs exactly as many numbers (2 or 3, each up to 12) as the
   slide has `###` columns; otherwise the columns stay equal and the print
   warns.
-- For `image-left` / `image-right` the picture must stand on a line of its
-  own.
+- For `image-left` / `image-right` the picture must stand on a line of its own.
 
 ### Pictures and diagrams
 

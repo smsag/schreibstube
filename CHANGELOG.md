@@ -7,6 +7,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - **Icons for economy and finance.** The icon picker has a group **Wirtschaft & Finanzen**, with 31 new icons beside the money ones it already had: currencies (euro, dollar, pound, franc, bitcoin), coins, notes and a money bag, a transfer and a card payment; an abacus, a sum, tax and refund receipts and a spreadsheet; candlestick, area and donut charts and an analytics report; a shopping cart, a till, a discount, a gift card and an insured home, world and shield. The coins, wallet, card, receipts, invoices and charts that stood under **Geschäft** moved into the new group, which leaves **Geschäft** with people, dates, contracts and law. Every icon a vault already uses keeps its name, and the new ones are drawn on the published site too (bridge 2.13.1).
+- **A Bases layout for callouts and highlights.** Choose **Callouts & Markierungen** as a base's layout and it shows what is inside the notes it lists: every callout as a card of its own and each note's `==highlights==` on one card, drawn as the note draws them, in your theme. The base's filter, sort and grouping choose the notes as for any layout; the layout's settings choose the callout types, whether to show callouts, highlights or both, and whether a note opens in Reading view. A press opens the note at the callout or the highlighted line. Callouts and highlights in code, comments and properties do not count. It reads at most 500 notes and draws at most 1,000 cards, and says when a base lists more.
 
 ### Changed
 
