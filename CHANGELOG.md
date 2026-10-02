@@ -11,6 +11,7 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- **The print dialog's narrow margin is called Schmal.** The 15 mm choice under **Ränder** read Klein, which says small rather than narrow; it now reads Schmal, beside Standard and Breit.
 - **Reading view is set for each base, not for all of them.** The switch from 1.70.0 under Bases in the settings opened the notes of every base in the vault for reading. Now each base says it for itself: right-click the base's file or its tab and tick **Notizen in Leseansicht öffnen**, or run **Base: Notizen in Leseansicht öffnen (an/aus)** while the base is open. The choice is written into the base's file as `schreibstubeReadingView: true`, so it goes wherever the base goes, and it also holds where the base is embedded in a note. A base written as a `base` code block has no file to keep it and opens its notes as before. The switch for all bases is gone: a base that should open its notes for reading is switched on by itself.
 
 ### Fixed

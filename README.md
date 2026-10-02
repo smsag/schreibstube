@@ -521,7 +521,7 @@ Mark a passage — the CV inside a long application, one chapter of a manuscript
 **Doc drucken** opens a dialog with four choices beside a preview of the pages they make:
 
 - **Vorlage** — the template, starting with the one the note or the settings choose.
-- **Ränder** — Klein (15 mm), Standard (the template's own) or Breit (35 mm). A template that sets its own margins, such as the letter, keeps them; the choice is then greyed out.
+- **Ränder** — Schmal (15 mm), Standard (the template's own) or Breit (35 mm). A template that sets its own margins, such as the letter, keeps them; the choice is then greyed out.
 - **Trennlinien als Seitenumbruch** — a horizontal rule starts a new page, starting from the template's own habit.
 - **Eigenschaften drucken** — the note's properties as a short list under its title, leaving out the plugin's own `schreibstube…` keys.
 - **Diashows** — only when the note holds a slideshow: **Wie in der Notiz** prints each one as it stands on screen before anybody steps through it (a stage its first picture, a filmstrip its first picture over the thumbnails, a feature, strip, masonry or comparison as arranged); **Alle Bilder untereinander** prints every picture of every slideshow at the text's width, each with its description.
