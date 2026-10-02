@@ -441,6 +441,7 @@ export default class SchreibstubePlugin extends Plugin {
     this.startPollTicker();
 
     bootstrapSchreibstubeRuntime(this, {
+      pictureActions: () => this.pictureActions,
       onViewportFromEditor: (viewportTopLine) => {
         this.queueRefreshForActiveView(viewportTopLine);
       },

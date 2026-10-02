@@ -5,7 +5,7 @@ import { createTaskBadgeExtension } from "../processors/task-badges";
 import { createTaskFoldExtension } from "../processors/task-fold";
 import { createTaskFoldPostProcessor } from "../processors/task-fold-reading";
 import { registerTaskRibbon } from "../processors/task-ribbon";
-import { registerSlideshow } from "../processors/slideshow";
+import { registerSlideshow, type SlideshowPictureActions } from "../processors/slideshow";
 import type { SchreibstubeSettings } from "../types";
 
 export interface BootstrapHandlers {
@@ -13,6 +13,8 @@ export interface BootstrapHandlers {
   onViewportFromReading: (payload: { viewportTopLine: number; scrollTop: number }) => void;
   getSettings: () => SchreibstubeSettings;
   onActiveLeafChange: () => void;
+  /** The picture's own buttons for a slideshow, once the plugin has made them. */
+  pictureActions: () => SlideshowPictureActions | null;
 }
 
 export function bootstrapSchreibstubeRuntime(plugin: Plugin, handlers: BootstrapHandlers): void {
@@ -29,7 +31,7 @@ export function bootstrapSchreibstubeRuntime(plugin: Plugin, handlers: Bootstrap
   plugin.registerEditorExtension(createTaskFoldExtension());
   plugin.registerMarkdownPostProcessor(createTaskFoldPostProcessor());
   registerTaskRibbon(plugin);
-  registerSlideshow(plugin);
+  registerSlideshow(plugin, handlers.pictureActions);
 
   const reading = createReadingPostProcessor(({ viewportTopLine, scrollTop }) => {
     handlers.onViewportFromReading({ viewportTopLine, scrollTop });

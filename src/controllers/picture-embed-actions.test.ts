@@ -250,6 +250,53 @@ describe("pressing them", () => {
   });
 });
 
+describe("for a surface that draws its own buttons, such as the slideshow", () => {
+  const picture = (vault: ReturnType<typeof setup>["vault"]) =>
+    vault.app.vault.getAbstractFileByPath(PICTURE) as TFile;
+
+  it("says which buttons a picture gets, as the bar would", () => {
+    const described = setup({ described: true, favorite: true });
+    actions = described.actions;
+    expect(described.actions.stateFor(picture(described.vault))).toEqual({
+      describe: "open",
+      favorite: true
+    });
+    actions.stop();
+    const bare = setup({ described: false });
+    actions = bare.actions;
+    expect(bare.actions.stateFor(picture(bare.vault))).toEqual({
+      describe: "describe",
+      favorite: null
+    });
+  });
+
+  it("opens the description, or writes one and says it did not open a note", async () => {
+    const described = setup({ described: true });
+    actions = described.actions;
+    const event = new MouseEvent("click");
+    expect(await described.actions.describeOrOpenPicture(picture(described.vault), event)).toBe(
+      true
+    );
+    expect(described.hooks.open).toHaveBeenCalledTimes(1);
+    actions.stop();
+
+    const bare = setup({ described: false });
+    actions = bare.actions;
+    expect(await bare.actions.describeOrOpenPicture(picture(bare.vault), event)).toBe(false);
+    expect(bare.hooks.describe).toHaveBeenCalledTimes(1);
+  });
+
+  it("turns the star over and answers how it stands, and nothing for a picture with no note", async () => {
+    const described = setup({ described: true });
+    actions = described.actions;
+    expect(await described.actions.toggleFavoriteOf(picture(described.vault))).toBe(true);
+    actions.stop();
+    const bare = setup({ described: false });
+    actions = bare.actions;
+    expect(await bare.actions.toggleFavoriteOf(picture(bare.vault))).toBeNull();
+  });
+});
+
 describe("stopping", () => {
   it("takes every button away again", () => {
     const setUp = setup({ described: true });
