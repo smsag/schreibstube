@@ -111,6 +111,25 @@ const MAX_RELATED_LIMIT = 100;
 export const RELATED_FLOOR = 0.2;
 
 /**
+ * The most notes a tag may carry and still be rare: a share of the vault, and
+ * never fewer than a handful, so a small vault's tags are not all common.
+ *
+ * A note that shares nothing with the source but tags is on the list only by
+ * a rare one. Two tags that a fifth of the vault carries describe a shelf, not
+ * this note: the list under a reading note was every other reading note,
+ * ordered by when each was last touched. The relative floor could not stop
+ * that, since when the best candidate is such a note too, all of them clear
+ * it.
+ */
+export const RARE_TAG_SHARE = 0.05;
+export const RARE_TAG_MIN_NOTES = 3;
+
+/** Whether a tag on `count` notes of `total` is rare enough to relate two notes alone. */
+export function isRareTag(count: number, total: number): boolean {
+  return count <= Math.max(RARE_TAG_MIN_NOTES, Math.floor(total * RARE_TAG_SHARE));
+}
+
+/**
  * Obsidian's own resolved-link table: which note links to which, already
  * resolved to the files the links land on.
  *
@@ -311,7 +330,15 @@ export function rankRelated(
     if (cited.count > 0) add("co-citation", cited.count, WEIGHTS["co-citation"] * cited.weight);
 
     const tags = sharedWeight(myTags, note.tags, frequencies.tags, total);
-    if (tags.count > 0) add("tag", tags.count, WEIGHTS.tag * tags.weight);
+    // Tags alone relate two notes only by a rare one; beside a link of any
+    // kind they add what they always did.
+    const byTagsAlone = score <= 0;
+    const rareShared = note.tags.some(
+      (tag) => myTags.has(tag) && isRareTag(frequencies.tags.get(tag) ?? 0, total)
+    );
+    if (tags.count > 0 && (!byTagsAlone || rareShared)) {
+      add("tag", tags.count, WEIGHTS.tag * tags.weight);
+    }
 
     // Sharing nothing else, a note is not related, whatever folder it is in.
     // Let in on the folder alone, a note's whole folder filled the list, and

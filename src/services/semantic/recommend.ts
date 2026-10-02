@@ -40,6 +40,25 @@ export interface RecommendedNote {
 /** A direct link's lead over a note that is merely first by meaning. */
 const LINK_BONUS = 1 / FUSION_K;
 
+/**
+ * What a place on the graph's list is worth when all the graph knows is a tag
+ * or the folder, against a place on the meaning list.
+ *
+ * Fused by rank, the graph's first place counts as much as meaning's first,
+ * however little stood behind it; two shared tags at the top of one list
+ * weighed what the note that reads most alike weighed at the top of the
+ * other, and filled the panel with a shelf of tagged notes. Such an entry
+ * counts half, and only the first few enter at all: a list of tag
+ * neighbours is a tag page, which Obsidian has already.
+ */
+export const LABEL_ONLY_WEIGHT = 0.5;
+export const MAX_LABEL_ONLY = 5;
+
+/** Whether the graph knows an entry only by what it is labelled and where it is filed. */
+function labelOnly(reasons: readonly RecommendReason[]): boolean {
+  return reasons.length > 0 && reasons.every((r) => r.kind === "tag" || r.kind === "folder");
+}
+
 const ORDER: Record<RecommendReason["kind"], number> = {
   link: 0,
   attached: 0,
@@ -142,9 +161,12 @@ export function recommendNotes(
     }
     return hit;
   };
+  let labelled = 0;
   graph.forEach((note, i) => {
+    const weak = labelOnly(note.reasons);
+    if (weak && ++labelled > MAX_LABEL_ONLY) return;
     const hit = entry(note.path);
-    hit.score += 1 / (FUSION_K + i + 1);
+    hit.score += (weak ? LABEL_ONLY_WEIGHT : 1) / (FUSION_K + i + 1);
     if (note.reasons.some(isDeclared)) hit.score += LINK_BONUS;
     hit.reasons.push(...note.reasons);
   });

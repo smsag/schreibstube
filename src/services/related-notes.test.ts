@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   backlinkIndex,
+  isRareTag,
   linkDegrees,
   rankRelated,
   RELATED_LIMIT,
@@ -172,9 +173,9 @@ describe("rankRelated", () => {
 
   it("caps a long list rather than filtering it", () => {
     const vault: RelatedSubject[] = [
-      note("Quelle.md", { tags: ["thema"] }),
+      note("Quelle.md", { links: ["Thema.md"] }),
       ...Array.from({ length: RELATED_LIMIT + 10 }, (_, index) =>
-        note(`Notiz ${index}.md`, { tags: ["thema"], modifiedAt: index })
+        note(`Notiz ${index}.md`, { links: ["Thema.md"], modifiedAt: index })
       )
     ];
 
@@ -299,7 +300,7 @@ describe("relatedTags", () => {
 
 describe("limit", () => {
   it("is bounded however much is asked for", () => {
-    const vault = Array.from({ length: 150 }, (_, i) => note(`N/${i}.md`, { tags: ["t"] }));
+    const vault = Array.from({ length: 150 }, (_, i) => note(`N/${i}.md`, { links: ["Hub.md"] }));
 
     expect(rankRelated("N/0.md", vault, { limit: 10_000 })).toHaveLength(100);
     expect(rankRelated("N/0.md", vault, { limit: -3 })).toEqual([]);
@@ -318,5 +319,41 @@ describe("the folder as a tiebreak", () => {
 
     expect(related.map((entry) => entry.path)).toEqual(["Ordner/Nah.md", "Anderswo/Fern.md"]);
     expect(related[0]?.reasons.map((reason) => reason.kind)).toEqual(["tag", "folder"]);
+  });
+});
+
+describe("notes related by tags alone", () => {
+  // A shelf of a hundred reading notes, all tagged alike, and two that share a rare tag.
+  const shelf = (): RelatedSubject[] => [
+    note("Lesestapel/Quelle.md", { tags: ["lesen", "ki", "llm"] }),
+    note("Lesestapel/Selten.md", { tags: ["lesen", "llm"] }),
+    ...Array.from({ length: 98 }, (_, i) => note(`Lesestapel/N${i}.md`, { tags: ["lesen", "ki"] })),
+    note("Projekte/Verlinkt.md", { tags: ["lesen"], backlinks: ["Lesestapel/Quelle.md"] })
+  ];
+
+  it("lists a note sharing only common tags no more, and one sharing a rare tag still", () => {
+    const vault = shelf();
+    const source = vault[0];
+    if (source) source.links = ["Projekte/Verlinkt.md"];
+    const ranked = rankRelated("Lesestapel/Quelle.md", vault).map((r) => r.path);
+    expect(ranked).toContain("Lesestapel/Selten.md");
+    expect(ranked.some((path) => /\/N\d+\.md$/.test(path))).toBe(false);
+  });
+
+  it("still counts a common tag beside a link", () => {
+    const vault = shelf();
+    const source = vault[0];
+    if (source) source.links = ["Projekte/Verlinkt.md"];
+    const linked = rankRelated("Lesestapel/Quelle.md", vault).find(
+      (r) => r.path === "Projekte/Verlinkt.md"
+    );
+    expect(linked?.reasons.map((r) => r.kind)).toEqual(["link", "tag"]);
+  });
+
+  it("calls a tag rare by its share of the vault, and never below a handful of notes", () => {
+    expect(isRareTag(50, 1000)).toBe(true);
+    expect(isRareTag(51, 1000)).toBe(false);
+    expect(isRareTag(3, 10)).toBe(true);
+    expect(isRareTag(4, 10)).toBe(false);
   });
 });
