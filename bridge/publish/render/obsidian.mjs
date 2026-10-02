@@ -11,6 +11,7 @@
  */
 
 import { escapeAttribute, escapeHtml } from "./html.mjs";
+import { textWithIcons } from "./icons.mjs";
 import { renderSlideshow, SLIDESHOW_LANGUAGE } from "./slideshow.mjs";
 
 // Kept importable from here, where the page template has always found it.
@@ -272,6 +273,9 @@ function pushAnchor(state, href, text) {
 function pushText(state, value) {
   const token = state.push("text", "", 0);
   token.content = value;
+  // A wikilink's words, even where the note is not published and no anchor
+  // is drawn: what was a link in the vault draws no icon on the site either.
+  token.meta = { fromLink: true };
 }
 
 /**
@@ -309,7 +313,7 @@ function callouts(state) {
       open.block = true;
       open.content =
         `<details class="callout callout-${escapeAttribute(type)}"${fold === "+" ? " open" : ""}>` +
-        `<summary>${escapeHtml(title)}</summary>\n`;
+        `<summary>${textWithIcons(title)}</summary>\n`;
 
       const close = findClose(tokens, i);
       if (close >= 0) {
@@ -325,7 +329,7 @@ function callouts(state) {
     tokens[i].attrJoin("class", `callout callout-${type}`);
     const heading = new state.Token("html_block", "", 0);
     heading.block = true;
-    heading.content = `<p class="callout-title">${escapeHtml(title)}</p>\n`;
+    heading.content = `<p class="callout-title">${textWithIcons(title)}</p>\n`;
     tokens.splice(i + 1, 0, heading);
   }
 }

@@ -7,42 +7,61 @@
  * the bundle, base64-encoded, which makes subsetting the difference between a
  * plugin that loads and one that ships half a megabyte of glyphs nobody picked.
  *
- * Input:  @tabler/icons-webfont, installed on demand rather than depended on,
- *         and our own artwork for what Tabler lacks (CUSTOM_ICONS)
- * Output: src/ui/icon-font.generated.ts
+ * Input:  @tabler/icons-webfont and @tabler/icons, installed on demand rather
+ *         than depended on, and our own artwork for what Tabler lacks
+ *         (CUSTOM_ICONS)
+ * Output: src/ui/icon-font.generated.ts, and for the website
+ *         bridge/publish/render/icons.generated.mjs
  *
  * Run it with `npm run build:icons` after editing `scripts/icon-set.mjs`. The
- * generated file is committed, so a normal build needs neither the font package
- * nor Python.
+ * generated files are committed, so a normal build needs neither the Tabler
+ * packages nor Python.
  *
  * Our own glyphs are outlined from their SVG sources and merged into the
  * subset by `add-icon-glyphs.py`, after Tabler's are cut, so the one font
  * carries both and nothing that draws an icon has to know which is which.
+ *
+ * The website cannot borrow the font: it is a plugin's, inside a bundle. It
+ * draws the same names as inline SVG instead, from the same release's stroke
+ * drawings and the same artwork, and one run writes both so a name the picker
+ * offers is never one the site leaves as text.
  */
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { planIconFont } from "./icon-plan.mjs";
+import { artworkNodes, inlineMarkup, planIconFont } from "./icon-plan.mjs";
 import { CUSTOM_ICONS, ICON_GROUPS, UI_ICONS } from "./icon-set.mjs";
 
 const packageDir = fileURLToPath(new URL("../node_modules/@tabler/icons-webfont", import.meta.url));
+const svgPackageDir = fileURLToPath(new URL("../node_modules/@tabler/icons", import.meta.url));
 const output = fileURLToPath(new URL("../src/ui/icon-font.generated.ts", import.meta.url));
+const bridgeOutput = fileURLToPath(
+  new URL("../bridge/publish/render/icons.generated.mjs", import.meta.url)
+);
 const root = fileURLToPath(new URL("..", import.meta.url));
 const addGlyphs = fileURLToPath(new URL("./add-icon-glyphs.py", import.meta.url));
 
-if (!existsSync(packageDir)) {
+if (!existsSync(packageDir) || !existsSync(svgPackageDir)) {
   fail(
-    "The Tabler webfont is not installed.\n" +
-      "It is not a dependency — it weighs more than the rest of the tree and the generated\n" +
-      "file is committed, so it is fetched only when the icon set actually changes:\n\n" +
-      "  npm install --no-save @tabler/icons-webfont\n" +
+    "The Tabler webfont and SVG set are not installed.\n" +
+      "They are not dependencies — they weigh more than the rest of the tree and the generated\n" +
+      "files are committed, so they are fetched only when the icon set actually changes.\n" +
+      "Both from the same release, the one named in src/ui/icon-font.generated.ts:\n\n" +
+      "  npm install --no-save @tabler/icons-webfont@<version> @tabler/icons@<version>\n" +
       "  pip install fonttools brotli picosvg"
   );
 }
 
 const version = JSON.parse(readFileSync(join(packageDir, "package.json"), "utf8")).version;
+const svgVersion = JSON.parse(readFileSync(join(svgPackageDir, "package.json"), "utf8")).version;
+if (svgVersion !== version) {
+  fail(
+    `The Tabler webfont is ${version} and the SVG set ${svgVersion}.\n` +
+      "The site would draw a different icon from the one picked; install both at one version."
+  );
+}
 const css = readFileSync(join(packageDir, "dist/tabler-icons.css"), "utf8");
 
 /** Every `.ti-name:before { content: "\eaad" }` rule, as name → codepoint. */
@@ -69,6 +88,25 @@ const codepointOf = new Map([
   ...plan.tabler.map((name) => [name, available.get(name)]),
   ...plan.custom.map((icon) => [icon.name, icon.codepoint])
 ]);
+
+/** Every shipped name to the shapes the website draws it with. */
+const strokes = JSON.parse(readFileSync(join(svgPackageDir, "tabler-nodes-outline.json"), "utf8"));
+const inlineOf = new Map();
+try {
+  for (const name of plan.tabler) {
+    // The webfont also carries names the SVG set has since renamed; a name
+    // drawn in Obsidian and left as text on the site would be the bug this
+    // file exists to prevent.
+    if (!strokes[name]) fail(`Tabler's SVG set has no "${name}", which its webfont has.`);
+    inlineOf.set(name, inlineMarkup(name, strokes[name]));
+  }
+  for (const icon of plan.custom) {
+    const source = readFileSync(join(root, icon.source), "utf8");
+    inlineOf.set(icon.name, inlineMarkup(icon.name, artworkNodes(icon.name, source)));
+  }
+} catch (error) {
+  fail(error instanceof Error ? error.message : String(error));
+}
 
 const duplicates = ICON_GROUPS.flatMap((group) => group.icons).filter(
   (name, index, all) => all.indexOf(name) !== index
@@ -170,6 +208,29 @@ ${groups}
   "utf8"
 );
 
+const drawings = wanted
+  .map((name) => `  ${JSON.stringify(name)}: ${JSON.stringify(inlineOf.get(name))}`)
+  .join(",\n");
+
+writeFileSync(
+  bridgeOutput,
+  `/* GENERATED by scripts/build-icon-font.mjs — do not edit.
+ * Source: Tabler Icons ${version} (MIT), the outline drawings of the names in
+ * scripts/icon-set.mjs, plus our own from: ${plan.custom.map((icon) => icon.source).join(", ") || "none"}.
+ * Regenerate with: npm run build:icons
+ */
+
+/** Which Tabler release the drawings came from. */
+export const ICON_VERSION = "${version}";
+
+/** Icon name to the shapes inside its 24-unit SVG: the names the plugin's font draws. */
+export const ICON_SHAPES = {
+${drawings}
+};
+`,
+  "utf8"
+);
+
 if (duplicates.length > 0) {
   console.warn(
     `Note: these icons appear in more than one group: ${[...new Set(duplicates)].join(", ")}`
@@ -178,7 +239,8 @@ if (duplicates.length > 0) {
 
 console.log(
   `Wrote ${wanted.length} icons: ${(subset.length / 1024).toFixed(1)} KB woff2, ` +
-    `${(base64.length / 1024).toFixed(1)} KB base64 (full font is ${(full / 1024).toFixed(0)} KB).`
+    `${(base64.length / 1024).toFixed(1)} KB base64 (full font is ${(full / 1024).toFixed(0)} KB); ` +
+    `the website's drawings ${(Buffer.byteLength(drawings) / 1024).toFixed(1)} KB.`
 );
 
 function fail(message) {
