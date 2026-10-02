@@ -11,6 +11,7 @@ export const de: Messages = {
     print: "Doc drucken",
     printQuick: "Doc drucken (ohne Dialog)",
     printSelection: "Auswahl drucken",
+    baseReadingView: "Base: Notizen in Leseansicht öffnen (an/aus)",
     focusSentence: "Fokus: Satz",
     focusParagraph: "Fokus: Absatz",
     newNote: "Neues Doc",
@@ -307,6 +308,15 @@ export const de: Messages = {
     changed: "Sprache geändert — Einstellungen neu öffnen, damit sie überall greift."
   },
 
+  bases: {
+    readingMenu: "Notizen in Leseansicht öffnen",
+    readingOn: (name: string) => `Die Base „${name}“ öffnet Notizen jetzt in der Leseansicht.`,
+    readingOff: (name: string) => `Die Base „${name}“ öffnet Notizen wieder wie gewohnt.`,
+    readingFailed: (name: string, detail: string) =>
+      `die Base „${name}“ ließ sich nicht ändern — ${detail}`,
+    noBase: "zuerst eine Base öffnen — die Einstellung gehört zu der Base, die vor dir liegt."
+  },
+
   settings: {
     overlayHeading: "Überschriften-Stapel",
     overlayEnabled: "Überschriften-Stapel anzeigen",
@@ -323,9 +333,11 @@ export const de: Messages = {
     basesHeading: "Bases",
     basesReadingView: "Notizen aus Bases in der Leseansicht öffnen",
     basesReadingViewDesc:
-      "Eine Notiz, die aus einer Base geöffnet wird — eine Tabellenzeile, eine Karte, ein Listeneintrag " +
-      "oder ein Link darin —, öffnet sich zum Lesen statt zum Bearbeiten, in jedem Layout und ob die " +
-      "Base eine Datei ist oder in eine Notiz eingebettet. Zurück führt zur Base.",
+      "Das stellt jede Base für sich ein: Rechtsklick auf die Base-Datei oder ihren Tab → „Notizen in " +
+      "Leseansicht öffnen“, oder der Befehl unten. Eine Notiz aus dieser Base — eine Tabellenzeile, " +
+      "eine Karte, ein Listeneintrag oder ein Link darin — öffnet sich dann zum Lesen, in jedem Layout " +
+      "und auch dort, wo die Base in eine Notiz eingebettet ist. Gespeichert wird es in der Base-Datei, " +
+      "als schreibstubeReadingView: true.",
 
     focusHeading: "Fokus-Modus",
     focusOpacity: "Abdunklung",

@@ -37,14 +37,11 @@ export function renderEditor(ctx: SettingsContext): void {
 
   new Setting(ctx.containerEl).setName(t().settings.basesHeading).setHeading();
 
+  // No switch here: which bases open their notes for reading is each base's
+  // own to say, in its file, and a switch for all of them was the wrong place.
   new Setting(ctx.containerEl)
     .setName(t().settings.basesReadingView)
-    .setDesc(t().settings.basesReadingViewDesc)
-    .addToggle((toggle) => {
-      toggle.setValue(ctx.plugin.settings.basesReadingView).onChange(async (value) => {
-        await ctx.update({ basesReadingView: value });
-      });
-    });
+    .setDesc(t().settings.basesReadingViewDesc);
 
   new Setting(ctx.containerEl).setName(t().settings.focusHeading).setHeading();
 
@@ -85,6 +82,7 @@ export function renderEditor(ctx: SettingsContext): void {
   renderProperties(ctx);
 
   renderCommands(ctx, [
+    t().commands.baseReadingView,
     t().commands.newNote,
     t().commands.focusSentence,
     t().commands.focusParagraph,

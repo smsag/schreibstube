@@ -113,8 +113,6 @@ export interface SchreibstubeSettings {
   explorerTaskCounts: boolean;
   /** Draw `:folder:` in a note as the icon, and offer the icons while one is typed. */
   iconShortcodes: boolean;
-  /** Open a note in Reading view when it is opened from a base, in any layout. */
-  basesReadingView: boolean;
   /** Secret-storage name of a GitHub token, for private repositories. */
   githubSecretName: string;
   /** Per-note sync state, keyed by vault path. Persisted, not user-editable. */

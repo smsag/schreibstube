@@ -8,6 +8,10 @@ All notable changes to this project will be documented in this file.
 
 - **Icons for economy and finance.** The icon picker has a group **Wirtschaft & Finanzen**, with 31 new icons beside the money ones it already had: currencies (euro, dollar, pound, franc, bitcoin), coins, notes and a money bag, a transfer and a card payment; an abacus, a sum, tax and refund receipts and a spreadsheet; candlestick, area and donut charts and an analytics report; a shopping cart, a till, a discount, a gift card and an insured home, world and shield. The coins, wallet, card, receipts, invoices and charts that stood under **Geschäft** moved into the new group, which leaves **Geschäft** with people, dates, contracts and law. Every icon a vault already uses keeps its name, and the new ones are drawn on the published site too (bridge 2.13.1).
 
+### Changed
+
+- **Reading view is set for each base, not for all of them.** The switch from 1.70.0 under Bases in the settings opened the notes of every base in the vault for reading. Now each base says it for itself: right-click the base's file or its tab and tick **Notizen in Leseansicht öffnen**, or run **Base: Notizen in Leseansicht öffnen (an/aus)** while the base is open. The choice is written into the base's file as `schreibstubeReadingView: true`, so it goes wherever the base goes, and it also holds where the base is embedded in a note. A base written as a `base` code block has no file to keep it and opens its notes as before. The switch for all bases is gone: a base that should open its notes for reading is switched on by itself.
+
 ## 1.71.0 - 2026-10-02
 
 Print only what is marked, with page breaks set by clicking the preview,

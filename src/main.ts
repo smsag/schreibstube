@@ -48,6 +48,7 @@ import { PropertyController } from "./controllers/property-controller";
 import { PropertySetController } from "./controllers/property-set-controller";
 import { PropertyWidgetControls } from "./controllers/property-widget-controls";
 import { PictureArticleLinker } from "./controllers/picture-articles";
+import { BaseReadingFlags, isBaseFile } from "./controllers/base-reading-flags";
 import { BasesReadingView } from "./controllers/bases-reading";
 import { PictureEmbedActions } from "./controllers/picture-embed-actions";
 import { TagSuggestController } from "./controllers/tag-suggest-controller";
@@ -162,6 +163,7 @@ export default class SchreibstubePlugin extends Plugin {
   private propertyControls: PropertyWidgetControls | null = null;
   private pictureActions: PictureEmbedActions | null = null;
   private pictureArticles: PictureArticleLinker | null = null;
+  private baseReading: BaseReadingFlags | null = null;
   private tagSuggest: TagSuggestController | null = null;
   private readonly draftWidth = new DraftWidth(this.app);
   private proofread: ProofreadController | null = null;
@@ -576,17 +578,40 @@ export default class SchreibstubePlugin extends Plugin {
   }
 
   /**
-   * Notes opened from a base open in Reading view while the setting is on.
+   * Notes opened from a base open in Reading view when that base says so.
    * Presses are noted in every window, in the capture phase: a base's own
    * handlers see the press first otherwise, and may open the note before
-   * the press has been seen at all.
+   * the press has been seen at all. Each base's answer is read from its file
+   * when the vault is ready and whenever the file changes, and set from the
+   * base's file menu — in the file list and on its tab — or the command.
    */
   private startBasesReadingView(): void {
-    const reading = new BasesReadingView(
-      this.app,
-      () => this.settings.basesReadingView,
-      this.logger
+    const flags = new BaseReadingFlags(this.app, this.logger);
+    this.baseReading = flags;
+    this.app.workspace.onLayoutReady(() => void flags.scan());
+    const reread = (file: TAbstractFile) => {
+      if (isBaseFile(file)) void flags.read(file);
+    };
+    this.registerEvent(this.app.vault.on("modify", reread));
+    this.registerEvent(this.app.vault.on("create", reread));
+    this.registerEvent(
+      this.app.vault.on("rename", (file, oldPath) => flags.renamed(file, oldPath))
     );
+    this.registerEvent(this.app.vault.on("delete", (file) => flags.deleted(file.path)));
+    this.registerEvent(
+      this.app.workspace.on("file-menu", (menu, file) => {
+        if (!isBaseFile(file)) return;
+        menu.addItem((item) =>
+          item
+            .setTitle(t().bases.readingMenu)
+            .setIcon("book-open")
+            .setChecked(flags.reads(file))
+            .onClick(() => void this.toggleBaseReading(file))
+        );
+      })
+    );
+
+    const reading = new BasesReadingView(this.app, flags, this.logger);
     const register = (doc: Document, type: string, handler: (event: Event) => void) => {
       this.registerDomEvent(doc, type as keyof DocumentEventMap, handler, { capture: true });
     };
@@ -595,6 +620,23 @@ export default class SchreibstubePlugin extends Plugin {
       this.app.workspace.on("window-open", (_workspaceWindow, win) => reading.attach(win, register))
     );
     this.registerEvent(this.app.workspace.on("file-open", (file) => void reading.opened(file)));
+  }
+
+  /** Turn Reading view on or off for one base, and say which it is now. */
+  private async toggleBaseReading(file: TFile): Promise<void> {
+    const flags = this.baseReading;
+    if (!flags) return;
+    const words = t().bases;
+    try {
+      const on = await flags.toggle(file);
+      new Notice(
+        t().common.notice(on ? words.readingOn(file.basename) : words.readingOff(file.basename))
+      );
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      this.logger.warn(`bases: could not change ${file.path}`, error);
+      new Notice(t().common.notice(words.readingFailed(file.basename, detail)), 8000);
+    }
   }
 
   private startProperties(
@@ -1587,6 +1629,7 @@ export default class SchreibstubePlugin extends Plugin {
 
     return {
       markdown: file?.extension === "md",
+      base: file?.extension === "base",
       image: file !== null && getImageMimeType(file.extension) !== null,
       selection: (view?.editor.getSelection().trim().length ?? 0) > 0,
       bound:
@@ -1864,6 +1907,13 @@ export default class SchreibstubePlugin extends Plugin {
 
     this.addGatedCommand("fetch-replies", t().commands.fetchReplies, "fetch-replies", () => {
       void this.mail?.fetchReplies();
+    });
+
+    // The base in front of the person opens its notes for reading, or stops.
+    this.addGatedCommand("base-reading-view", t().commands.baseReadingView, "base-reading", () => {
+      const file = this.app.workspace.getActiveFile();
+      if (isBaseFile(file)) void this.toggleBaseReading(file);
+      else new Notice(t().common.notice(t().bases.noBase));
     });
 
     this.addGatedCommand("print-note", t().commands.print, "print", () => {

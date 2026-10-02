@@ -9,6 +9,7 @@ import {
 function screen(overrides: Partial<CommandContext> = {}): CommandContext {
   return {
     markdown: true,
+    base: false,
     image: false,
     selection: false,
     bound: false,
@@ -69,6 +70,11 @@ describe("what the palette offers", () => {
     );
     // The whole note prints whether or not anything is marked.
     expect(commandAvailable("print", screen({ selection: true }))).toBe(true);
+  });
+
+  it("offers Reading view for a base's notes only while a base is open", () => {
+    expect(commandAvailable("base-reading", screen({ markdown: false, base: true }))).toBe(true);
+    expect(commandAvailable("base-reading", screen())).toBe(false);
   });
 
   it("offers a table only when there is something selected", () => {
