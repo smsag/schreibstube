@@ -889,6 +889,8 @@ export const enExtra = {
 
   print: {
     noNote: "open a note first — printing sets the note you are looking at.",
+    noSelection: "mark the part of the note to print first — nothing is selected.",
+    passageName: "Selection",
     defaultMissing: (path: string) =>
       `the default template ${path} is no longer in this vault; choose one, or pick another default in the print settings.`,
     builtIn: "built in",
@@ -929,7 +931,14 @@ export const enExtra = {
       print: "Print",
       working: "Setting the preview…",
       pages: (total: number) => (total === 1 ? "1 page" : `${total} pages`),
-      failed: (detail: string) => `No preview — ${detail}`
+      failed: (detail: string) => `No preview — ${detail}`,
+      titlePassage: "Print selection",
+      breakHint:
+        "Click a paragraph in the preview to start it on a new page. Clicking its line again takes the break away.",
+      breakHere: "New page from here",
+      breakSet: "Page break — click to remove",
+      breaksClear: (count: number) =>
+        count === 1 ? "Remove page break" : `Remove ${count} page breaks`
     },
     pythiaUnavailable:
       "Pythia did not hand over its footnotes, so the note is printed without them.",

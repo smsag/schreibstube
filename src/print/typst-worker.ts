@@ -69,7 +69,15 @@ self.onmessage = async (event) => {
         } catch (queryError) {
           fits = undefined;
         }
-        self.postMessage({ id, ok: true, pdf, fits }, [pdf.buffer]);
+        // Where each block of the note came to stand, when the converter
+        // marked them for the dialog; the same reuse, the same silence.
+        let blocks;
+        try {
+          blocks = compiler.query(payload.main, undefined, "<schreibstube-blocks>", "value");
+        } catch (queryError) {
+          blocks = undefined;
+        }
+        self.postMessage({ id, ok: true, pdf, fits, blocks }, [pdf.buffer]);
       } else {
         self.postMessage({ id, ok: true, diagnostics: result?.diagnostics ?? [] });
       }

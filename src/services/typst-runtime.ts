@@ -3,6 +3,7 @@
  * the pinned bytes of the compiler and the fonts. PRINTING.md says why they
  * are fetched once per device and hashed on every start.
  */
+import type { BlockPosition } from "./print-breaks";
 import type { SlideFit } from "./print-slides";
 import { t } from "../i18n";
 import FONT_MANIFEST from "./typst-fonts.json";
@@ -172,6 +173,8 @@ export type CompileOutcome =
       pdf: Uint8Array;
       /** The slides the fit made smaller, when the document has any. */
       fits?: SlideFit[];
+      /** Where each marked block starts, when the converter marked them. */
+      blocks?: BlockPosition[];
     }
   | { ok: false; diagnostics: string[] };
 

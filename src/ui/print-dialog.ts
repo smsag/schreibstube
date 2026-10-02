@@ -17,7 +17,14 @@ import {
   type ToggleComponent
 } from "obsidian";
 import { t } from "../i18n";
-import { PdfPreview } from "../pdf/pdf-preview";
+import { PdfPreview, type PreviewMark } from "../pdf/pdf-preview";
+import {
+  blockAt,
+  blockStart,
+  breakMarks,
+  toggleBreak,
+  type BlockPosition
+} from "../services/print-breaks";
 import {
   MARGIN_PRESETS,
   SLIDE_FORMATS,
@@ -50,10 +57,14 @@ export interface PythiaPrintHost {
 export interface PreparedPrint {
   pdf: Uint8Array;
   warnings: string[];
+  /** Where each top-level block of the note starts in `pdf`, for a click to find. */
+  blocks: BlockPosition[];
 }
 
 export interface PrintDialogHost {
   templates: PrintTemplate[];
+  /** Whether a marked passage is printed rather than the whole note, which the title says. */
+  passage: boolean;
   initial: PrintOptions;
   /** Whether the note holds a slideshow; the choice about them is offered only then. */
   hasSlideshows: boolean;
@@ -94,6 +105,12 @@ export class PrintDialog extends Modal {
   private shown: PdfPreview | null = null;
   private faceSetting: Setting | null = null;
   private pythiaSetting: Setting | null = null;
+  /** The hint about pointing at the preview, and the button that takes every break away. */
+  private clickBreakSetting: Setting | null = null;
+  /** Where each block starts in the preview on the panel. */
+  private blocks: BlockPosition[] = [];
+  /** The block under the pointer, whose break-to-be is drawn; null for none. */
+  private guide: number | null = null;
   /** Ends a refresh still running when the dialog closes: nobody is waiting for it. */
   private readonly refreshing = new AbortController();
   private statusEl!: HTMLElement;
@@ -111,7 +128,7 @@ export class PrintDialog extends Modal {
   override onOpen(): void {
     const words = t().print.dialog;
     this.modalEl.addClass("schreibstube-print-dialog");
-    this.setTitle(words.title);
+    this.setTitle(this.host.passage ? words.titlePassage : words.title);
 
     const body = this.contentEl.createDiv({ cls: "schreibstube-print-dialog-body" });
     const controls = body.createDiv({ cls: "schreibstube-print-dialog-controls" });
@@ -122,6 +139,15 @@ export class PrintDialog extends Modal {
     this.statusEl = preview.createDiv({ cls: "schreibstube-print-dialog-status" });
     this.pagesEl = preview.createDiv({ cls: "schreibstube-print-dialog-pages" });
     this.warningsEl = preview.createDiv({ cls: "schreibstube-print-dialog-warnings" });
+    this.pagesEl.addEventListener("click", (event) => {
+      this.pointed(event);
+    });
+    this.pagesEl.addEventListener("mousemove", (event) => {
+      this.hovered(event);
+    });
+    this.pagesEl.addEventListener("mouseleave", () => {
+      this.showGuide(null);
+    });
 
     new Setting(this.contentEl)
       .addButton((button) =>
@@ -231,6 +257,9 @@ export class PrintDialog extends Modal {
       });
     });
 
+    this.clickBreakSetting = new Setting(el).setDesc(words.breakHint);
+    this.showBreakCount();
+
     new Setting(el).setName(words.frontmatter).addToggle((toggle) => {
       toggle.setValue(this.options.frontmatter).onChange((value) => {
         this.options = { ...this.options, frontmatter: value };
@@ -261,6 +290,8 @@ export class PrintDialog extends Modal {
     this.alignSetting?.settingEl.toggle(slides);
     this.notesSetting?.settingEl.toggle(slides);
     this.breakSetting?.settingEl.toggle(!slides);
+    this.clickBreakSetting?.settingEl.toggle(!slides);
+    this.pagesEl.toggleClass("is-breakable", !slides);
   }
 
   /**
@@ -279,7 +310,10 @@ export class PrintDialog extends Modal {
       .setDesc(words.pythiaLinks(pythia.inspection.links))
       .addToggle((toggle) => {
         toggle.setValue(this.options.pythiaFootnotes).onChange((value) => {
-          this.options = { ...this.options, pythiaFootnotes: value };
+          // Pythia's copy is another text than the note's, so the breaks set
+          // on one are not known to stand where they were on the other.
+          this.options = { ...this.options, pythiaFootnotes: value, breaksBefore: [] };
+          this.showBreakCount();
           this.changed();
         });
       });
@@ -324,6 +358,9 @@ export class PrintDialog extends Modal {
     const counts = pythia.inspect();
     if (counts) this.showPythiaCounts(counts);
     else this.pythiaSetting?.settingEl.toggle(false);
+    // New summaries are new text: the breaks set on the old are let go.
+    this.options = { ...this.options, breaksBefore: [] };
+    this.showBreakCount();
     this.changed();
   }
 
@@ -391,6 +428,8 @@ export class PrintDialog extends Modal {
       }
       void this.shown?.close();
       this.shown = next;
+      this.blocks = prepared.blocks;
+      this.drawMarks();
 
       this.ready = { generation, prepared };
       this.pagesEl.removeClass("is-stale");
@@ -402,11 +441,85 @@ export class PrintDialog extends Modal {
       this.ready = null;
       void this.shown?.close();
       this.shown = null;
+      this.blocks = [];
       this.pagesEl.empty();
       this.warningsEl.empty();
       this.statusEl.addClass("is-error");
       this.statusEl.setText(words.failed(error instanceof Error ? error.message : String(error)));
     }
+  }
+
+  /**
+   * A click on a page: a break before the block it lands in, or none where
+   * there was one. A slide starts its own page, so a deck takes none.
+   */
+  private pointed(event: MouseEvent): void {
+    const block = this.blockUnder(event);
+    if (block === null) return;
+    const breaks = toggleBreak(this.options.breaksBefore, block);
+    if (breaks.join() === this.options.breaksBefore.join()) return;
+    this.options = { ...this.options, breaksBefore: breaks };
+    this.showBreakCount();
+    this.changed();
+  }
+
+  private hovered(event: MouseEvent): void {
+    const block = this.blockUnder(event);
+    // The first block starts the document's first page; there is no break to show before it.
+    this.showGuide(block !== null && block > 0 ? block : null);
+  }
+
+  /**
+   * The block under a pointer on the preview as it stands. None while the
+   * next preview is being set: the positions are the old pages', and a
+   * click answers once the new ones are there.
+   */
+  private blockUnder(event: MouseEvent): number | null {
+    if (this.options.template.slides || !this.shown || this.pagesEl.hasClass("is-stale")) {
+      return null;
+    }
+    const point = this.shown.pointAt(event.clientY, event.target);
+    return point ? blockAt(this.blocks, point.page, point.y) : null;
+  }
+
+  private showGuide(block: number | null): void {
+    if (block === this.guide) return;
+    this.guide = block;
+    this.drawMarks();
+  }
+
+  /** The breaks set, each at the top of the block it moved, and the one the pointer would set. */
+  private drawMarks(): void {
+    if (!this.shown) return;
+    const words = t().print.dialog;
+    const breaks = this.options.breaksBefore;
+    const marks: PreviewMark[] = breakMarks(this.blocks, breaks).map((position) => ({
+      page: position.page,
+      y: position.y,
+      kind: "break",
+      label: words.breakSet
+    }));
+    const start = this.guide === null ? null : blockStart(this.blocks, this.guide);
+    if (start && !breaks.includes(start.block)) {
+      marks.push({ page: start.page, y: start.y, kind: "guide", label: words.breakHere });
+    }
+    this.shown.showMarks(marks);
+  }
+
+  /** The button that takes every break away, while there are any. */
+  private showBreakCount(): void {
+    const setting = this.clickBreakSetting;
+    if (!setting) return;
+    setting.controlEl.empty();
+    const count = this.options.breaksBefore.length;
+    if (count === 0) return;
+    setting.addButton((button) =>
+      button.setButtonText(t().print.dialog.breaksClear(count)).onClick(() => {
+        this.options = { ...this.options, breaksBefore: [] };
+        this.showBreakCount();
+        this.changed();
+      })
+    );
   }
 
   private submit(): void {

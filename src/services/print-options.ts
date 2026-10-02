@@ -1,10 +1,11 @@
 /**
  * What the print dialog lets a person change, and what each choice means.
  *
- * Ten choices, and nothing about them is remembered: each print starts from
- * the template and the note, because that is where a page's design lives and
- * a dialog that carried yesterday's margins into today's letter would be a
- * second, invisible template.
+ * Eleven choices, and nothing about them is remembered: each print starts
+ * from the template and the note, because that is where a page's design lives
+ * and a dialog that carried yesterday's margins into today's letter would be a
+ * second, invisible template. The page breaks set in the preview are the same:
+ * they fit the pages of this print and are gone with it.
  */
 import { NOTE_DATA_KEY } from "./print-data";
 import { printableText } from "./typst-value";
@@ -59,6 +60,11 @@ export interface PrintOptions {
    * Offered only when Pythia is there and the note has such a link.
    */
   pythiaFootnotes: boolean;
+  /**
+   * The top-level blocks a person chose, by clicking the preview, to begin a
+   * new page; by the index the converter's marks give them.
+   */
+  breaksBefore: readonly number[];
 }
 
 /**
@@ -82,7 +88,8 @@ export function initialOptions(
     align: noteSlideAlign(frontmatter) ?? "center",
     speakerNotes: false,
     monospace: noteMonospace(frontmatter) ?? true,
-    pythiaFootnotes: pythiaLinks > 0
+    pythiaFootnotes: pythiaLinks > 0,
+    breaksBefore: []
   };
 }
 

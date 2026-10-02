@@ -23,6 +23,7 @@ export type GatedCommand =
   | "send-mail"
   | "fetch-replies"
   | "print"
+  | "print-selection"
   | "collapse-explorer"
   | "related";
 
@@ -79,6 +80,9 @@ export function commandAvailable(command: GatedCommand, context: CommandContext)
     // visible from the palette, so that refusal belongs to the command.
     case "print":
       return context.markdown;
+    // Printing a passage needs the passage marked; what is marked is the print.
+    case "print-selection":
+      return context.markdown && context.selection;
     case "collapse-explorer":
       return context.explorerOpen;
   }

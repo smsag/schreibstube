@@ -12,6 +12,12 @@
  * own, and a page set without one is blank — which is what every template
  * without a font of its own printed until the standard fonts were pinned.
  *
+ * Every page job is set a second time with its blocks marked, as the print
+ * dialog sets its preview, and fails unless that is the very same PDF, but for
+ * the moment it was made, and reports where each block starts: the dialog
+ * writes the preview's document, so a mark that moved a single line would
+ * print a page nobody chose.
+ *
  *   node scripts/fetch-typst-runtime.mjs   # once: the pinned runtime, into dist/
  *   node scripts/check-print-compile.mjs
  */
@@ -47,7 +53,7 @@ try {
   const jobs = harness.fixtureJobs(templates);
   const failures = [];
 
-  for (const { name, job, hasText, deck } of jobs) {
+  for (const { name, job, hasText, deck, marked } of jobs) {
     const reply = await compile(harness.compilePayload(job), harness.compileDeadline(job));
     if (reply === null) {
       failures.push(`${name}: the compiler gave no answer within its deadline`);
@@ -65,6 +71,15 @@ try {
       // The case holds a slide that only fits made smaller; a deck that
       // reports no fit means the warning about small slides can never come.
       failures.push(`${name}: the overfull slide was not reported by the compile`);
+    } else if (marked) {
+      const twin = await compile(harness.compilePayload(marked), harness.compileDeadline(marked));
+      if (!twin?.pdf) {
+        failures.push(`${name}: marked for the dialog, it did not compile`);
+      } else if (timeless(twin.pdf) !== timeless(reply.pdf)) {
+        failures.push(`${name}: the dialog's block marks changed the document`);
+      } else if (hasText && harness.readBlockPositions(twin.blocks).length === 0) {
+        failures.push(`${name}: marked for the dialog, it reported no block positions`);
+      }
     }
   }
 
@@ -82,6 +97,21 @@ try {
   rmSync(work, { recursive: true, force: true });
 }
 
+/**
+ * A PDF with the moment it was made taken out. Typst stamps the time into the
+ * info dictionary and the XMP and derives the document's identifier from it,
+ * so two compiles of one job either side of a second differ there and nowhere
+ * else — about one job in fifty, which is how this was found.
+ */
+function timeless(pdf) {
+  return Buffer.from(pdf)
+    .toString("latin1")
+    .replace(/D:\d{14}Z/g, "D:")
+    .replace(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?/g, "")
+    .replace(/\/ID\s*\[[^\]]*\]/g, "/ID []")
+    .replace(/(xmpMM:(?:InstanceID|DocumentID)>)[^<]*</g, "$1<");
+}
+
 /** The fixtures and the plugin's own modules, bundled once from TypeScript. */
 async function load() {
   const outfile = join(work, "harness.mjs");
@@ -91,6 +121,7 @@ async function load() {
         'export { fixtureJobs, PIXEL_PNG } from "./src/testing/print-fixtures";',
         'export { compileDeadline, compilePayload } from "./src/services/print-job";',
         'export { readSlideFits } from "./src/services/print-slides";',
+        'export { readBlockPositions } from "./src/services/print-breaks";',
         'export { describeDiagnostics, DEVICE_ASSETS } from "./src/services/typst-runtime";',
         'export { WORKER_SOURCE } from "./src/print/typst-worker";',
         'export { setLanguage } from "./src/i18n";'

@@ -57,6 +57,8 @@ const answers = vi.hoisted(() => ({
   initialPythia: [] as boolean[],
   /** The warnings under each preview. */
   previewWarnings: [] as string[][],
+  /** Whether each dialog was told it prints a passage rather than the note. */
+  passage: [] as boolean[],
   /** The dialog's run, which a test waits for: it prints after the command returned. */
   finished: Promise.resolve()
 }));
@@ -117,6 +119,7 @@ vi.mock("../ui/print-dialog", () => ({
       answers.offered.push(host.templates.map((template) => template.folder));
       answers.preselected.push(host.initial.template.folder);
       answers.slideshowChoice.push(host.hasSlideshows);
+      answers.passage.push(host.passage);
       answers.finished = (async () => {
         const options = answers.change
           ? answers.change(host.initial, host.templates)
@@ -174,6 +177,8 @@ interface VaultOptions {
   layout?: string;
   /** Pythia's plugin object, as the registry hands it out; absent: Pythia is not enabled. */
   pythia?: unknown;
+  /** What is marked in the note's editor; absent: no editor shows the note. */
+  selection?: string;
 }
 
 function vault(options: VaultOptions = {}) {
@@ -205,10 +210,8 @@ function vault(options: VaultOptions = {}) {
     return folder;
   };
 
-  const note = addFile(
-    "Briefe/Anfrage.md",
-    options.note ?? "# Anfrage\n\nSehr geehrte Damen und Herren,"
-  );
+  const noteText = options.note ?? "# Anfrage\n\nSehr geehrte Damen und Herren,";
+  const note = addFile("Briefe/Anfrage.md", noteText);
   frontmatter.set(note.path, {
     ...options.properties,
     ...(options.named ? { schreibstubePrintTemplate: options.named } : {})
@@ -229,7 +232,16 @@ function vault(options: VaultOptions = {}) {
       enabledPlugins: new Set(options.pythia === undefined ? [] : ["pythia"]),
       getPlugin: (id: string) => (id === "pythia" ? options.pythia : null)
     },
-    workspace: { getActiveFile: () => note },
+    workspace: {
+      getActiveFile: () => note,
+      getActiveViewOfType: () =>
+        options.selection === undefined
+          ? null
+          : {
+              file: note,
+              editor: { getSelection: () => options.selection, getValue: () => noteText }
+            }
+    },
     metadataCache: {
       getFileCache: (file: TFile) => ({ frontmatter: frontmatter.get(file.path) }),
       getFirstLinkpathDest: () => null
@@ -314,6 +326,7 @@ beforeEach(() => {
   answers.pythia = [];
   answers.initialPythia = [];
   answers.previewWarnings = [];
+  answers.passage = [];
   answers.finished = Promise.resolve();
   vi.stubGlobal("window", {
     WebAssembly,
@@ -884,5 +897,98 @@ describe("pictures in formats Typst does not read as they are", () => {
     await quick(commands);
 
     expect(Notice.shown.join("\n")).toContain("image not found: weg.png");
+  });
+});
+
+describe("printing a selection", () => {
+  const main = (): string => compiler.jobs[compiler.jobs.length - 1]?.main ?? "";
+  const NOTE = [
+    "# Bewerbung",
+    "",
+    "Sehr geehrte Damen und Herren,",
+    "",
+    "## Lebenslauf",
+    "",
+    "Seit 2021 Produktmanager[^1].",
+    "",
+    "## Anlagen",
+    "",
+    "[^1]: Bei der Beispiel GmbH."
+  ].join("\n");
+
+  async function printSelection(commands: Commands): Promise<void> {
+    await commands.printActiveSelection();
+    await answers.finished;
+  }
+
+  it("prints only what is marked, to a PDF of its own beside the note's", async () => {
+    const { commands, written } = vault({
+      note: NOTE,
+      selection: "## Lebenslauf\n\nSeit 2021 Produktmanager[^1].",
+      existing: { "Briefe/Anfrage.pdf": typeset() }
+    });
+    await printSelection(commands);
+
+    expect(answers.passage).toEqual([true]);
+    expect(main()).toContain("Seit 2021 Produktmanager");
+    expect(main()).not.toContain("Sehr geehrte");
+    expect(main()).not.toContain("Anlagen");
+    expect(written).toEqual([{ path: "Briefe/Anfrage – Lebenslauf.pdf", how: "create" }]);
+  });
+
+  it("brings a footnote defined further down the note along", async () => {
+    const { commands } = vault({
+      note: NOTE,
+      selection: "## Lebenslauf\n\nSeit 2021 Produktmanager[^1]."
+    });
+    await printSelection(commands);
+
+    expect(main()).toContain("#footnote[Bei der Beispiel GmbH.]");
+  });
+
+  it("says so, and prints nothing, when nothing is marked", async () => {
+    const { commands, written } = vault({ note: NOTE, selection: "  \n" });
+    await printSelection(commands);
+
+    expect(compiler.jobs).toEqual([]);
+    expect(written).toEqual([]);
+    expect(Notice.shown.join(" ")).toContain("nothing is selected");
+  });
+
+  it("leaves the note's totals waiting, which are matched by their place in the whole note", async () => {
+    const freeze = vi.fn(async () => 1);
+    const { commands } = vault({ note: NOTE, selection: "## Lebenslauf\n\nText" });
+    commands.useFormulas({
+      forExport: async (text) => ({
+        text,
+        freezes: [{ table: 0, row: 0, column: 0, value: "1" }] as never
+      }),
+      freeze
+    });
+    await printSelection(commands);
+
+    expect(freeze).toHaveBeenCalledWith(expect.anything(), []);
+  });
+
+  it("starts a page before the blocks chosen in the preview", async () => {
+    answers.change = (options) => ({ ...options, breaksBefore: [1] });
+    const { commands } = vault({ note: NOTE, selection: "## Lebenslauf\n\nErster Absatz" });
+    await printSelection(commands);
+
+    expect(main()).toMatch(
+      /#pagebreak\(weak: true\)\n\n#metadata\(1\) <schreibstube-block>\n\nErster Absatz/
+    );
+  });
+
+  it("marks the preview's blocks for a click, and a print set without a preview has no marks", async () => {
+    const { commands } = vault({ note: NOTE, selection: "## Lebenslauf\n\nText" });
+    await printSelection(commands);
+    expect(main()).toContain("<schreibstube-blocks>");
+
+    compiler.jobs = [];
+    answers.afterPreview = false;
+    const second = vault({ note: NOTE, selection: "## Lebenslauf\n\nText" });
+    await printSelection(second.commands);
+    expect(main()).not.toContain("schreibstube-block");
   });
 });

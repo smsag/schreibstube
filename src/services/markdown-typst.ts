@@ -7,6 +7,7 @@ import { parseImageAlt } from "./image-alt";
 import { fencedLines, fenceMarker } from "./markdown-fence";
 import { isTableDelimiter, rowCells } from "./markdown-table";
 import { typstArray, typstString } from "./typst-value";
+import { BLOCK_REPORT_LABEL } from "./print-breaks";
 import { parseSlideshow, SLIDESHOW_LANGUAGE } from "./slideshow";
 import { slideshowForPrint, type SlideshowPrintMode } from "./print-slideshow";
 import {
@@ -53,6 +54,29 @@ export interface ImageRequest {
 export interface ConvertOptions {
   /** A horizontal rule becomes a page break rather than a line. */
   hrIsPageBreak?: boolean;
+  /**
+   * The text is a passage of a note rather than the whole of one: a `---` at
+   * its start is a rule, not the note's properties.
+   */
+  passage?: boolean;
+  /**
+   * The whole note a passage was taken from, read for its footnotes and
+   * reference links after the passage's own: a footnote is defined anywhere
+   * in a note, and a passage that uses one defined further down would print
+   * it empty. Nothing else of it is printed.
+   */
+  definitionsFrom?: string;
+  /**
+   * Mark where each top-level block starts, and report it once the pages are
+   * set, so the print dialog can read a click on its preview as a block. The
+   * marks set nothing; see `print-breaks.ts`. Never in a deck.
+   */
+  blockMarkers?: boolean;
+  /**
+   * Top-level blocks, by the index the marks give them, that begin a new page:
+   * the breaks a person set by pointing at the preview. Never in a deck.
+   */
+  breaksBefore?: readonly number[];
   /**
    * Where the captured picture of a diagram lives inside the job, or null when
    * the capture failed. A diagram without a picture prints as its own source
@@ -238,6 +262,9 @@ class Converter {
   private readonly consumed = new Set<number>();
   /** What the block just converted was to a deck: a slide's heading, or a rule. */
   private marker: SlidePart | null = null;
+  /** How many top-level blocks have been converted: the next one's index for the marks. */
+  private topBlocks = 0;
+  private readonly breaks: ReadonlySet<number>;
 
   constructor(
     source: string,
@@ -247,9 +274,16 @@ class Converter {
   ) {
     // A slide's settings live in comments, so they are lifted out of theirs
     // before the comments go; only a deck reads them.
-    const text = options.slides ? markSlideDirectives(source) : source;
-    this.lines = stripFrontmatter(stripComments(text)).split(/\r?\n/);
-    this.collectDefinitions();
+    const text = stripComments(options.slides ? markSlideDirectives(source) : source);
+    this.lines = (options.passage ? text : stripFrontmatter(text)).split(/\r?\n/);
+    this.breaks = new Set(options.breaksBefore ?? []);
+    this.collectDefinitions(this.lines, this.consumed);
+    if (options.definitionsFrom !== undefined) {
+      // The note's lines are only read: they print nowhere, so what they
+      // consume is their own business.
+      const note = stripFrontmatter(stripComments(options.definitionsFrom)).split(/\r?\n/);
+      this.collectDefinitions(note, new Set());
+    }
   }
 
   run(): Conversion {
@@ -259,10 +293,11 @@ class Converter {
     if (rows.length > 0) {
       const table = `#schreibstube-properties((${rows.map(([key, value]) => `(${typstString(key)}, ${typstString(value)}),`).join(" ")}))\n`;
       const first = parts[0]?.kind === "heading" ? 1 : 0;
-      blocks.splice(/^= /.test(blocks[0] ?? "") ? 1 : 0, 0, table);
+      blocks.splice(/^= /.test(withoutLead(blocks[0] ?? "")) ? 1 : 0, 0, table);
       parts.splice(first, 0, { kind: "block", markup: table });
     }
     let body = blocks.join("\n");
+    if (this.marking()) body += `\n${BLOCK_REPORT}\n`;
     if (this.options.slides) {
       const slides = groupSlides(parts);
       const words = t().print;
@@ -303,28 +338,28 @@ class Converter {
    * link's target is read the same way, and its definition line, which
    * Obsidian does not show, is not printed either.
    */
-  private collectDefinitions(): void {
-    const fenced = fencedLines(this.lines);
-    for (let index = 0; index < this.lines.length; index += 1) {
+  private collectDefinitions(lines: readonly string[], consumed: Set<number>): void {
+    const fenced = fencedLines(lines);
+    for (let index = 0; index < lines.length; index += 1) {
       if (fenced[index]) continue;
-      const line = this.lines[index] ?? "";
+      const line = lines[index] ?? "";
 
       const footnote = FOOTNOTE_DEFINITION.exec(line);
       if (footnote?.[1] !== undefined) {
-        this.consumed.add(index);
+        consumed.add(index);
         const text = [footnote[2] ?? ""];
         let next = index + 1;
-        while (next < this.lines.length) {
-          const more = this.lines[next] ?? "";
-          const after = this.lines[next + 1] ?? "";
+        while (next < lines.length) {
+          const more = lines[next] ?? "";
+          const after = lines[next + 1] ?? "";
           if (more.trim() === "" && indentOf(after) >= 4 && after.trim() !== "") {
-            this.consumed.add(next);
+            consumed.add(next);
             next += 1;
             continue;
           }
           if (more.trim() === "" || indentOf(more) < 4) break;
           text.push(more.trim());
-          this.consumed.add(next);
+          consumed.add(next);
           next += 1;
         }
         if (!this.shared.footnotes.has(footnote[1])) {
@@ -336,12 +371,11 @@ class Converter {
 
       // A definition cannot interrupt a paragraph: straight under a line of
       // text it is more of that text, as it is in the editor.
-      const previous = this.lines[index - 1];
-      const opens =
-        previous === undefined || previous.trim() === "" || this.consumed.has(index - 1);
+      const previous = lines[index - 1];
+      const opens = previous === undefined || previous.trim() === "" || consumed.has(index - 1);
       const reference = opens ? REFERENCE_DEFINITION.exec(line) : null;
       if (reference?.[1] !== undefined && reference[2] !== undefined) {
-        this.consumed.add(index);
+        consumed.add(index);
         const label = referenceLabel(reference[1]);
         if (!this.shared.references.has(label)) this.shared.references.set(label, reference[2]);
       }
@@ -352,7 +386,16 @@ class Converter {
   private nested(source: string): string {
     // The properties belong to the document, not to every quote inside it, and
     // so do the slides: a heading inside a callout is the callout's.
-    const options = { ...this.options, properties: [], slides: false };
+    // Its definitions are the note's, read already; its blocks are not the
+    // page's, so they carry no marks and no breaks.
+    const options: ConvertOptions = {
+      ...this.options,
+      properties: [],
+      slides: false,
+      blockMarkers: false,
+      breaksBefore: []
+    };
+    delete options.definitionsFrom;
     return new Converter(source, options, this.shared, this.heading).run().body;
   }
 
@@ -379,7 +422,9 @@ class Converter {
 
       this.marker = null;
       const block = this.block(indent);
-      if (block !== null) out.push(block);
+      // Given `parts`, these are the document's own blocks rather than a list
+      // item's, which is where a mark and a break can stand.
+      if (block !== null) out.push(parts ? this.lead() + block : block);
       const part = this.takeMarker() ?? (block === null ? null : { kind: "block", markup: block });
       if (part) parts?.push(part);
     }
@@ -388,6 +433,25 @@ class Converter {
     if (!parts) this.marker = null;
 
     return out;
+  }
+
+  /** Whether this conversion marks and breaks its top-level blocks: a page's, never a deck's. */
+  private marking(): boolean {
+    return this.options.blockMarkers === true && this.options.slides !== true;
+  }
+
+  /**
+   * What goes before a top-level block: the page break a person set in the
+   * preview, and the mark that reports where the block starts. Both stand in
+   * a paragraph of their own, which Typst sets as nothing.
+   */
+  private lead(): string {
+    if (this.options.slides) return "";
+    const index = this.topBlocks;
+    this.topBlocks += 1;
+    const page = index > 0 && this.breaks.has(index) ? "#pagebreak(weak: true)\n\n" : "";
+    const mark = this.marking() ? `#metadata(${index}) <schreibstube-block>\n\n` : "";
+    return page + mark;
   }
 
   /** What the block just converted was to a deck, if anything; read once. */
@@ -1176,6 +1240,22 @@ export function diagramCaption(fromNote: string, fromDrawing: string): string {
   const note = fromNote.trim();
   if (note.length > 0) return note;
   return fromDrawing.trim();
+}
+
+/**
+ * The report of where every marked block came to stand, read by the worker
+ * after the compile. One query over the marks rather than a position at each,
+ * so each mark is a bare `metadata` — which sets nothing — and only this one
+ * element at the end asks the layout anything.
+ */
+const BLOCK_REPORT =
+  `#context [#metadata(query(<schreibstube-block>).map(mark => (` +
+  `block: mark.value, page: mark.location().page(), ` +
+  `y: mark.location().position().y.pt()))) <${BLOCK_REPORT_LABEL}>]`;
+
+/** A top-level block's markup without its mark, to ask what it opens with. */
+function withoutLead(markup: string): string {
+  return markup.replace(/^#metadata\(\d+\) <schreibstube-block>\n\n/, "");
 }
 
 /** The note without its properties, which print through `options.properties`, not as text. */

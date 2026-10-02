@@ -61,6 +61,16 @@ describe("what the palette offers", () => {
     expect(offered(screen({ selection: false }))).not.toContain("summarize");
   });
 
+  it("offers printing a selection only in a note with something selected", () => {
+    expect(commandAvailable("print-selection", screen({ selection: true }))).toBe(true);
+    expect(commandAvailable("print-selection", screen({ selection: false }))).toBe(false);
+    expect(commandAvailable("print-selection", screen({ markdown: false, selection: true }))).toBe(
+      false
+    );
+    // The whole note prints whether or not anything is marked.
+    expect(commandAvailable("print", screen({ selection: true }))).toBe(true);
+  });
+
   it("offers a table only when there is something selected", () => {
     expect(offered(screen({ selection: true }))).toContain("table");
     expect(offered(screen({ selection: false }))).not.toContain("table");

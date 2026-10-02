@@ -2861,10 +2861,66 @@
    drawn yet: the scroll bar is right from the start, and a page that comes
    into view is drawn into a space that was already there. */
 .schreibstube-print-page-slot {
+  position: relative;
   flex: none;
   max-width: 100%;
   background: #ffffff;
   box-shadow: var(--shadow-s);
+}
+
+/* Pointing at a document's page sets a break before the paragraph pointed
+   at; a deck's slides start their own pages, and take none. */
+.schreibstube-print-dialog-pages.is-breakable .schreibstube-print-page-slot {
+  cursor: pointer;
+}
+
+/* The marks over a page: each break set by clicking, at the top of the
+   paragraph it moved, and the one the pointer would set. Over the picture,
+   and never in the way of the click that is read beneath it. */
+.schreibstube-print-page-marks {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.schreibstube-print-break-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-top: 2px dashed var(--interactive-accent);
+}
+
+/* A set break stands at the top of a page, where the paragraph it moved
+   begins: lifted into the margin, with its label above it, so neither
+   crosses the first line of text. */
+.schreibstube-print-break-line.is-break {
+  margin-top: calc(-1 * var(--size-4-2));
+}
+
+.schreibstube-print-break-line.is-guide {
+  border-top: 1px dashed var(--text-muted);
+}
+
+.schreibstube-print-break-label {
+  position: absolute;
+  top: 2px;
+  right: var(--size-4-1);
+  padding: 0 var(--size-4-1);
+  border-radius: var(--radius-s);
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  font-size: var(--font-ui-smaller);
+  white-space: nowrap;
+}
+
+.schreibstube-print-break-line.is-break .schreibstube-print-break-label {
+  top: auto;
+  bottom: 2px;
+}
+
+.schreibstube-print-break-line.is-guide .schreibstube-print-break-label {
+  background: var(--background-primary);
+  color: var(--text-muted);
 }
 
 .schreibstube-print-page-slot > .schreibstube-print-page {

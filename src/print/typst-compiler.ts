@@ -11,6 +11,7 @@
  * compiler's answer means — is decided in `services/typst-runtime.ts` and
  * tested there.
  */
+import { readBlockPositions } from "../services/print-breaks";
 import { readSlideFits } from "../services/print-slides";
 import { toArrayBuffer } from "../utils/array-buffer";
 import { withTimeout } from "../utils/with-timeout";
@@ -71,6 +72,8 @@ interface WorkerReply {
   pdf?: Uint8Array;
   /** The JSON of the slides' fits, read after the compile; see `readSlideFits`. */
   fits?: string;
+  /** The JSON of where each marked block starts; see `readBlockPositions`. */
+  blocks?: string;
   diagnostics?: unknown[];
   error?: string;
 }
@@ -120,7 +123,13 @@ export class TypstCompiler {
 
     if (reply.pdf) {
       const outcome = readCompileResult(reply.pdf);
-      return outcome.ok ? { ...outcome, fits: readSlideFits(reply.fits) } : outcome;
+      return outcome.ok
+        ? {
+            ...outcome,
+            fits: readSlideFits(reply.fits),
+            blocks: readBlockPositions(reply.blocks)
+          }
+        : outcome;
     }
     return readCompileResult({ diagnostics: reply.diagnostics ?? [] });
   }
@@ -379,7 +388,7 @@ export class TypstCompiler {
 /** The reply if it has the shape the worker promises; null for anything else. */
 function readWorkerReply(data: unknown): (WorkerReply & { id: number }) | null {
   if (typeof data !== "object" || data === null) return null;
-  const { id, ok, pdf, fits, diagnostics, error } = data as Record<string, unknown>;
+  const { id, ok, pdf, fits, blocks, diagnostics, error } = data as Record<string, unknown>;
   if (typeof id !== "number" || !Number.isInteger(id) || typeof ok !== "boolean") return null;
   if (error !== undefined && typeof error !== "string") return null;
   if (pdf !== undefined && !(pdf instanceof Uint8Array)) return null;
@@ -388,6 +397,7 @@ function readWorkerReply(data: unknown): (WorkerReply & { id: number }) | null {
   if (pdf !== undefined) reply.pdf = pdf;
   // Only ever a report, so a wrong shape is dropped rather than failing the print.
   if (typeof fits === "string") reply.fits = fits;
+  if (typeof blocks === "string") reply.blocks = blocks;
   if (diagnostics !== undefined) reply.diagnostics = diagnostics;
   if (error !== undefined) reply.error = error;
   return reply;

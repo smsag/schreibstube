@@ -220,6 +220,49 @@ What each choice means is `services/print-options.ts`:
 | Format                        | Offered for a slide template: 16:9 or 4:3; see "A note as slides". The page-break toggle is not offered then                                                                                                                        |
 | Diashows                      | Offered when the note holds one. `layout` (the default, and what the quick print uses) or `stacked`; see below                                                                                                                      |
 | Pythia-Fußnoten               | Offered when Pythia is on and the note links to a conversation. On by default then; see below                                                                                                                                       |
+| A click on the preview        | A page break before the top-level block clicked, as the converter's `breaksBefore`; see "Breaks from the preview"                                                                                                                   |
+
+### Breaks from the preview
+
+The preview is a PDF, and a PDF knows nothing of the note it was set from. So
+the dialog's compiles are marked: the converter puts `#metadata(n)
+<schreibstube-block>` before every top-level block, and one `#context` element
+at the end of the body queries them and records each block's page and height
+under `<schreibstube-blocks>`, which the worker reads with a second `query`
+after the compile, the way it reads the slides' fits. A click is a page and a
+height on it; the block it lands in is the last one that starts at or above
+that point, and in a page's top margin the block that opens the page when one
+does, so a break is taken away by clicking where it shows
+(`services/print-breaks.ts`). The break is `#pagebreak(weak: true)` before the
+block's mark, so the mark reports the block's new page and the dashed line is
+drawn there.
+
+The marks set nothing. Metadata is a tag Typst lays out as nothing, and the
+one query sits in a context element at the end; a document with them and one
+without are the same PDF but for the moment each was made. That is checked
+rather than believed: `npm run check:print` compiles every case for every
+template both ways and compares them with the timestamps and the document
+identifier taken out, which are the only bytes two compiles of one job a
+second apart ever differ in. The quick print is never marked.
+
+Only top-level blocks take a break: a list or a callout is one block, because
+a page break inside a container is not Typst's to honour. Pythia's copy of a
+note is another text, so switching its footnotes or refreshing them lets the
+breaks go. A deck has none.
+
+### A passage of a note
+
+"Auswahl drucken" opens the same dialog on what is marked in the editor —
+the editor's text rather than the file on disk, because the marking is in
+what the editor shows. The converter reads it as a `passage`: a `---` at its
+start is a rule rather than properties, and `definitionsFrom` reads the whole
+note's footnotes and reference links after the passage's own, so one defined
+further down still prints. The template, its data and the properties come
+from the note's frontmatter as for a whole note. The PDF is named
+`<note> – <first heading>.pdf`, or `<note> – Auswahl.pdf` without one
+(`services/print-passage.ts`), so it never replaces the whole note's PDF. A
+passage's `(fixed)` totals are not frozen: the freeze plan matches waiting
+formulas by their place in the whole note, which a passage is not.
 
 ### Pythia's footnotes
 
@@ -656,7 +699,8 @@ separate them.
 ## Output
 
 The PDF is written beside the note with the note's name, through the vault so
-it is in the file pane at once. A settings option redirects output to a fixed
+it is in the file pane at once; a passage's PDF has the passage's heading
+after the note's name (see "A passage of a note"). A settings option redirects output to a fixed
 folder for vaults that keep exports apart; the folder is made if it is missing.
 
 A reprint replaces the previous print without asking. Any other PDF of that
