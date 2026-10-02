@@ -1261,7 +1261,7 @@ export const de: Messages = {
       title: "Drucken",
       template: "Vorlage",
       margins: "Ränder",
-      margin: { small: "Klein", standard: "Standard", wide: "Breit" },
+      margin: { small: "Schmal", standard: "Standard", wide: "Breit" },
       marginFixed: "Diese Vorlage legt ihre Ränder selbst fest.",
       pageBreaks: "Trennlinien als Seitenumbruch",
       textFace: "Schrift des Textes",
