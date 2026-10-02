@@ -496,6 +496,11 @@ Turns the note you are looking at into a PDF, through the built-in **Standard** 
 
 - **Doc drucken** — print the active note, through the print dialog
 - **Doc drucken (ohne Dialog)** — print it straight away, as its template sets it
+- **Auswahl drucken** — print only what is marked in the editor, through the print dialog; also in the editor's right-click menu
+
+#### Printing a selection
+
+Mark a passage — the CV inside a long application, one chapter of a manuscript — and run **Auswahl drucken**. The dialog opens on the marked text alone, with the note's template, its `schreibstubePrint` values and its properties; choose another template there if the passage wants one, such as **Lebenslauf**. Footnotes the passage uses are printed even when they are defined further down the note. The PDF gets a name of its own, the note's name and the passage's first heading — `Bewerbung – Lebenslauf.pdf` — so it never replaces the PDF of the whole note. A `=sum(fixed)` total in the passage prints its value and is not written back into the note; that happens when the whole note is printed.
 
 #### The print dialog
 
@@ -508,6 +513,8 @@ Turns the note you are looking at into a PDF, through the built-in **Standard** 
 - **Diashows** — only when the note holds a slideshow: **Wie in der Notiz** prints each one as it stands on screen before anybody steps through it (a stage its first picture, a filmstrip its first picture over the thumbnails, a feature, strip, masonry or comparison as arranged); **Alle Bilder untereinander** prints every picture of every slideshow at the text's width, each with its description.
 
 The preview is the document itself, set again after each change and drawn by the same PDF viewer Obsidian uses; **Drucken** writes those very pages. Nothing is remembered: every print starts from the template.
+
+**Page breaks from the preview.** Click a paragraph, heading, list or table in the preview and it starts on a new page; a dashed line marks where, and hovering shows where a click would put one. Click the block again to take the break away, or press **Seitenumbrüche entfernen** beside the hint. The breaks belong to this print only and are not written into the note. A deck has none: every slide starts its own page.
 
 **Vorlage anlegen** in the print settings writes an example template into a folder you choose.
 

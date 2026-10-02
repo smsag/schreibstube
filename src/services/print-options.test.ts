@@ -29,7 +29,8 @@ describe("initialOptions", () => {
       align: "center",
       speakerNotes: false,
       monospace: true,
-      pythiaFootnotes: false
+      pythiaFootnotes: false,
+      breaksBefore: []
     });
   });
 
@@ -53,7 +54,13 @@ describe("initialOptions", () => {
 
 describe("withTemplate", () => {
   it("takes the new template's page-break habit and keeps the other choices", () => {
-    const start = { ...initialOptions(template()), margin: "wide" as const, frontmatter: true };
+    // The breaks set in the preview too: they name blocks of the same text.
+    const start = {
+      ...initialOptions(template()),
+      margin: "wide" as const,
+      frontmatter: true,
+      breaksBefore: [3]
+    };
     const other = template({ schreibstubeHrIsPageBreak: true });
     expect(withTemplate(start, other)).toEqual({
       template: other,
@@ -65,7 +72,8 @@ describe("withTemplate", () => {
       align: "center",
       speakerNotes: false,
       monospace: true,
-      pythiaFootnotes: false
+      pythiaFootnotes: false,
+      breaksBefore: [3]
     });
   });
 });

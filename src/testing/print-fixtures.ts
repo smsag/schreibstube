@@ -205,6 +205,12 @@ export interface FixtureJob {
   hasText: boolean;
   /** Whether the template prints the note as slides. */
   deck: boolean;
+  /**
+   * The same job with every block marked for the print dialog's clicks, which
+   * must set exactly the same document; absent for a deck, which is never
+   * marked.
+   */
+  marked?: PrintJob;
 }
 
 /**
@@ -250,29 +256,32 @@ export function fixtureJobs(templates: readonly FixtureTemplate[]): FixtureJob[]
         return path;
       };
 
-      const conversion = markdownToTypst(printCase.markdown, {
-        hrIsPageBreak: template.hrIsPageBreak,
-        properties: printCase.properties ?? [],
-        slideshows: printCase.slideshows ?? "layout",
-        slides: template.slides,
-        slideAlign: printCase.slideAlign ?? "center",
-        speakerNotes: printCase.speakerNotes ?? false,
-        diagramImage: (block) => [place(`assets/diagram-${block.index}-0.png`)],
-        // As the print command names and draws pictures: by what they become.
-        image: ({ source }) => {
-          const format = printImageFormat(source.split(".").pop() ?? "");
-          if (!format) return { refused: `${source} cannot be printed` };
-          const bytes =
-            format.kind === "vector"
-              ? PIXEL_SVG
-              : format.outputType === "image/jpeg"
-                ? PIXEL_JPEG
-                : format.outputType === "image/webp"
-                  ? PIXEL_WEBP
-                  : PIXEL_PNG;
-          return place(jobAssetPath(printAssetName(source, format), assigned), bytes);
-        }
-      });
+      const convert = (blockMarkers: boolean) =>
+        markdownToTypst(printCase.markdown, {
+          blockMarkers,
+          hrIsPageBreak: template.hrIsPageBreak,
+          properties: printCase.properties ?? [],
+          slideshows: printCase.slideshows ?? "layout",
+          slides: template.slides,
+          slideAlign: printCase.slideAlign ?? "center",
+          speakerNotes: printCase.speakerNotes ?? false,
+          diagramImage: (block) => [place(`assets/diagram-${block.index}-0.png`)],
+          // As the print command names and draws pictures: by what they become.
+          image: ({ source }) => {
+            const format = printImageFormat(source.split(".").pop() ?? "");
+            if (!format) return { refused: `${source} cannot be printed` };
+            const bytes =
+              format.kind === "vector"
+                ? PIXEL_SVG
+                : format.outputType === "image/jpeg"
+                  ? PIXEL_JPEG
+                  : format.outputType === "image/webp"
+                    ? PIXEL_WEBP
+                    : PIXEL_PNG;
+            return place(jobAssetPath(printAssetName(source, format), assigned), bytes);
+          }
+        });
+      const conversion = convert(false);
 
       const data = resolvePrintData(
         template,
@@ -286,18 +295,22 @@ export function fixtureJobs(templates: readonly FixtureTemplate[]): FixtureJob[]
         }
       );
 
-      jobs.push({
-        name: `${template.name}/${printCase.name}`,
-        job: buildJob({
+      const job = (body: string) =>
+        buildJob({
           template,
           layout: fixture.layout,
-          body: conversion.body,
+          body,
           data,
           fonts: fixture.fonts ?? [],
           assets: [...pictures.values(), ...(fixture.assets ?? [])]
-        }),
+        });
+
+      jobs.push({
+        name: `${template.name}/${printCase.name}`,
+        job: job(conversion.body),
         hasText: printCase.markdown.trim() !== "",
-        deck: template.slides
+        deck: template.slides,
+        ...(template.slides ? {} : { marked: job(convert(true).body) })
       });
     }
   }

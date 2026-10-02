@@ -10,6 +10,7 @@ export const de: Messages = {
   commands: {
     print: "Doc drucken",
     printQuick: "Doc drucken (ohne Dialog)",
+    printSelection: "Auswahl drucken",
     focusSentence: "Fokus: Satz",
     focusParagraph: "Fokus: Absatz",
     newNote: "Neues Doc",
@@ -1214,6 +1215,9 @@ export const de: Messages = {
 
   print: {
     noNote: "zuerst eine Notiz öffnen — gedruckt wird die Notiz, die vor dir liegt.",
+    noSelection:
+      "zuerst den Teil der Notiz markieren, der gedruckt werden soll — es ist nichts ausgewählt.",
+    passageName: "Auswahl",
     defaultMissing: (path: string) =>
       `die Standardvorlage ${path} gibt es in diesem Vault nicht mehr; wähle eine aus, oder stelle in den Druck-Einstellungen eine andere ein.`,
     builtIn: "eingebaut",
@@ -1257,7 +1261,14 @@ export const de: Messages = {
       print: "Drucken",
       working: "Vorschau wird gesetzt …",
       pages: (total: number) => (total === 1 ? "1 Seite" : `${total} Seiten`),
-      failed: (detail: string) => `Keine Vorschau — ${detail}`
+      failed: (detail: string) => `Keine Vorschau — ${detail}`,
+      titlePassage: "Auswahl drucken",
+      breakHint:
+        "Klicke in der Vorschau auf einen Absatz, damit er auf einer neuen Seite beginnt. Ein Klick auf seine Linie nimmt den Umbruch wieder weg.",
+      breakHere: "Neue Seite ab hier",
+      breakSet: "Seitenumbruch — Klick entfernt ihn",
+      breaksClear: (count: number) =>
+        count === 1 ? "Seitenumbruch entfernen" : `${count} Seitenumbrüche entfernen`
     },
     pythiaUnavailable:
       "Pythia hat seine Fußnoten nicht übergeben, deshalb wird die Notiz ohne sie gedruckt.",

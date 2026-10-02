@@ -88,7 +88,7 @@ export function renderPrint(ctx: SettingsContext): void {
       })
     );
 
-  renderCommands(ctx, [t().commands.print]);
+  renderCommands(ctx, [t().commands.print, t().commands.printQuick, t().commands.printSelection]);
 }
 
 /**

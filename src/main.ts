@@ -472,6 +472,18 @@ export default class SchreibstubePlugin extends Plugin {
     this.registerEvent(
       this.app.workspace.on("editor-menu", (menu, editor) => {
         this.sums?.addMenuItem(menu, editor);
+        // Printing what is marked is where the marking is, as well as in the palette.
+        if (editor.getSelection().trim() !== "") {
+          menu.addItem((item) =>
+            item
+              .setTitle(t().commands.printSelection)
+              .setIcon("printer")
+              .setSection("selection")
+              .onClick(() => {
+                void this.print?.printActiveSelection();
+              })
+          );
+        }
         const range = selectedLineRange(editor);
         if (!range) return;
 
@@ -1862,6 +1874,12 @@ export default class SchreibstubePlugin extends Plugin {
     // again and again.
     this.addGatedCommand("print-note-quick", t().commands.printQuick, "print", () => {
       void this.print?.printActiveNoteQuickly();
+    });
+
+    // Only what is marked, with the note's template: the CV out of a long
+    // application, one chapter of a manuscript.
+    this.addGatedCommand("print-selection", t().commands.printSelection, "print-selection", () => {
+      void this.print?.printActiveSelection();
     });
 
     this.addCommand({

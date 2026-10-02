@@ -837,3 +837,78 @@ describe("the constructs the sample note printed wrong", () => {
     expect(conversion.warnings).toEqual([]);
   });
 });
+
+describe("a passage of a note", () => {
+  it("prints a leading rule as a rule, not as the note's properties", () => {
+    const passage = "---\n\nText\n\n---\n\nmehr";
+    expect(convert(passage)).toBe("mehr");
+    expect(convert(passage, { passage: true })).toBe(
+      "#line(length: 100%)\n\nText\n\n#line(length: 100%)\n\nmehr"
+    );
+  });
+
+  it("finds its footnotes and reference links where the note defines them", () => {
+    const note =
+      "---\nx: 1\n---\n\nPassage[^1] mit [Link][ziel].\n\nWeiter.\n\n[^1]: Die Fußnote.\n\n[ziel]: https://example.com";
+    const out = convert("Passage[^1] mit [Link][ziel].", { passage: true, definitionsFrom: note });
+    expect(out).toContain("#footnote[Die Fußnote.]");
+    expect(out).toContain('#link("https://example.com")[Link]');
+    expect(out).not.toContain("Weiter");
+  });
+
+  it("keeps its own definition of a footnote over the note's", () => {
+    const out = convert("Text[^a]\n\n[^a]: eigene", {
+      passage: true,
+      definitionsFrom: "[^a]: aus der Notiz"
+    });
+    expect(out).toContain("#footnote[eigene]");
+  });
+});
+
+describe("marks and breaks for the preview", () => {
+  const MARK = (index: number): string => `#metadata(${index}) <schreibstube-block>`;
+
+  it("marks every top-level block once, in order, and reports them at the end", () => {
+    const out = convert("# Titel\n\nAbsatz\n\n- eins\n- zwei\n\n> [!note] Hinweis\n> Text", {
+      blockMarkers: true
+    });
+    const marks = [...out.matchAll(/#metadata\((\d+)\) <schreibstube-block>/g)].map((m) => m[1]);
+    expect(marks).toEqual(["0", "1", "2", "3"]);
+    expect(out.startsWith(`${MARK(0)}\n\n= Titel`)).toBe(true);
+    expect(out.endsWith("<schreibstube-blocks>]")).toBe(true);
+  });
+
+  it("starts a page before each block a person chose, never before the first", () => {
+    const out = convert("A\n\nB\n\nC", { breaksBefore: [0, 2] });
+    expect(out).toBe("A\n\nB\n\n#pagebreak(weak: true)\n\nC");
+  });
+
+  it("puts the break before the mark, so the mark reports the block's new page", () => {
+    const out = convert("A\n\nB", { blockMarkers: true, breaksBefore: [1] });
+    expect(out).toContain(`#pagebreak(weak: true)\n\n${MARK(1)}\n\nB`);
+  });
+
+  it("still puts the properties after a leading heading", () => {
+    const out = convert("# Titel\n\nText", {
+      blockMarkers: true,
+      properties: [["Status", "fertig"]]
+    });
+    expect(out.indexOf("= Titel")).toBeLessThan(out.indexOf("#schreibstube-properties"));
+  });
+
+  it("marks nothing inside a callout or a list, and nothing in a deck", () => {
+    const nested = convert("> [!note] T\n> A\n>\n> B", { blockMarkers: true });
+    expect(nested.match(/#metadata\(\d+\) <schreibstube-block>/g)).toHaveLength(1);
+    const deck = convert("# Folie\n\nText\n\n# Zwei", {
+      slides: true,
+      blockMarkers: true,
+      breaksBefore: [1]
+    });
+    expect(deck).not.toContain("schreibstube-block");
+    expect(deck).not.toContain("#pagebreak(weak: true)");
+  });
+
+  it("writes nothing extra when not asked", () => {
+    expect(convert("A\n\nB")).toBe("A\n\nB");
+  });
+});

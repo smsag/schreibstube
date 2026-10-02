@@ -24,6 +24,14 @@ describe("print fixtures", () => {
     }
   });
 
+  it("pairs every page job with a marked twin, and a deck with none", () => {
+    for (const { job, marked, deck } of fixtureJobs(templates)) {
+      if (deck) expect(marked).toBeUndefined();
+      else expect(marked?.main).toContain("<schreibstube-blocks>");
+      expect(job.main).not.toContain("schreibstube-block");
+    }
+  });
+
   it("uses a picture Typst can decode: a PNG whose chunks are whole", () => {
     expect([...PIXEL_PNG.slice(1, 4)].map((code) => String.fromCharCode(code)).join("")).toBe(
       "PNG"

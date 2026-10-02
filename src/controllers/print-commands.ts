@@ -13,13 +13,15 @@
  * vault is set to. Both live in `diagram-capture.ts`, where anything else that
  * sends a note out of the app can draw its diagrams the same way.
  */
-import { Notice, TFile, TFolder, type App } from "obsidian";
+import { MarkdownView, Notice, TFile, TFolder, type App } from "obsidian";
 import { t } from "../i18n";
 import type { Logger } from "../services/logger";
 import type { SchreibstubeSettings } from "../types";
 import { resizeImageToBytes } from "../services/image-resize";
 import { smallSlides } from "../services/print-slides";
-import { markdownToTypst, type Conversion } from "../services/markdown-typst";
+import { markdownToTypst, type Conversion, type ConvertOptions } from "../services/markdown-typst";
+import type { BlockPosition } from "../services/print-breaks";
+import { passageFileName } from "../services/print-passage";
 import {
   noteTitle,
   resolvePrintData,
@@ -112,6 +114,18 @@ interface PrintSession {
   slideshows: number;
   pictures: Map<string, Uint8Array | null>;
   templates: Map<string, TemplateFiles>;
+  /**
+   * The passage printed instead of the whole note, when "Print selection"
+   * asked for one: the name its PDF gets, and the whole note, whose footnotes
+   * the passage may use. Null for a whole note.
+   */
+  passage: { name: string; note: string } | null;
+}
+
+/** Text marked in the editor, and the note it was marked in. */
+interface MarkedPassage {
+  text: string;
+  note: string;
 }
 
 interface TemplateFiles {
@@ -189,7 +203,17 @@ export class PrintCommands {
    * written, when nothing changed since it was set.
    */
   async printActiveNote(): Promise<void> {
-    await this.withBusy(() => this.openDialog());
+    await this.withBusy(() => this.openDialog(false));
+  }
+
+  /**
+   * Print only what is marked in the editor, through the same dialog: the
+   * note's template and properties, the marked text, and a PDF of its own
+   * beside the note's, so that printing the CV out of a long application
+   * leaves the application's PDF alone.
+   */
+  async printActiveSelection(): Promise<void> {
+    await this.withBusy(() => this.openDialog(true));
   }
 
   /**
@@ -197,9 +221,20 @@ export class PrintCommands {
    * the quick print comes here too when the settings say to ask, and a guard
    * of its own would refuse itself.
    */
-  private async openDialog(): Promise<void> {
-    const file = await this.preflight(() => this.printActiveNote());
+  private async openDialog(selection: boolean): Promise<void> {
+    const file = await this.preflight(() =>
+      selection ? this.printActiveSelection() : this.printActiveNote()
+    );
     if (!file) return;
+
+    let marked: MarkedPassage | null = null;
+    if (selection) {
+      marked = this.markedPassage(file);
+      if (!marked) {
+        new Notice(t().common.notice(t().print.noSelection));
+        return;
+      }
+    }
 
     const templates = this.allTemplates();
 
@@ -215,13 +250,14 @@ export class PrintCommands {
     if (!preselected) return;
 
     const session = await this.withNotice(t().print.preparing, (progress) =>
-      this.openSession(file, progress)
+      this.openSession(file, progress, marked)
     );
     if (!session) return;
 
     const pythia = this.inspectPythia(session);
     new PrintDialog(this.app, {
       templates,
+      passage: session.passage !== null,
       initial: initialOptions(preselected, this.frontmatterOf(file), pythia?.links ?? 0),
       ...(offersPythia(pythia) ? { pythia: this.pythiaHost(session, pythia) } : {}),
       hasSlideshows: session.slideshows > 0,
@@ -229,10 +265,16 @@ export class PrintCommands {
         layoutFixesMargin((await this.templateFiles(session, template)).layout),
       readsMonospace: async (template) =>
         layoutReadsMonospace((await this.templateFiles(session, template)).layout),
+      // Marked, so a click on the preview can be read as a block. The marks
+      // set nothing, so a print rebuilt without them is the same document.
       preview: async (options, progress) => {
-        const { job, warnings } = await this.prepareJob(session, options);
+        const { job, warnings } = await this.prepareJob(session, options, true);
         const compiled = await this.compileJob(job, progress);
-        return { pdf: compiled.pdf, warnings: [...warnings, ...compiled.warnings] };
+        return {
+          pdf: compiled.pdf,
+          warnings: [...warnings, ...compiled.warnings],
+          blocks: compiled.blocks
+        };
       },
       // The dialog prints after this has returned, and takes the guard again.
       print: (options, ready) => this.startBusy(() => this.printWith(session, options, ready))
@@ -255,7 +297,7 @@ export class PrintCommands {
       const choice = this.choose(file, this.allTemplates());
       if (choice.kind === "unknown") return;
       if (choice.kind === "ask") {
-        await this.openDialog();
+        await this.openDialog(false);
         return;
       }
 
@@ -345,6 +387,19 @@ export class PrintCommands {
     return file;
   }
 
+  /**
+   * What is marked in the editor showing `file`, with the editor's whole text
+   * for its footnotes: the editor rather than the file on disk, because the
+   * marking is in what the editor shows. Null when nothing is marked there.
+   */
+  private markedPassage(file: TFile): MarkedPassage | null {
+    const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+    if (!view || view.file?.path !== file.path) return null;
+    const text = view.editor.getSelection();
+    if (text.trim() === "") return null;
+    return { text, note: view.editor.getValue() };
+  }
+
   private allTemplates(): PrintTemplate[] {
     const builtIn = builtinTemplate();
     return [...this.templates(), ...(builtIn ? [builtIn.template] : [])];
@@ -420,10 +475,14 @@ export class PrintCommands {
       if (!prepared) {
         const { job, warnings } = await this.prepareJob(session, options);
         const compiled = await this.compileJob(job, progress);
-        prepared = { pdf: compiled.pdf, warnings: [...warnings, ...compiled.warnings] };
+        prepared = {
+          pdf: compiled.pdf,
+          warnings: [...warnings, ...compiled.warnings],
+          blocks: compiled.blocks
+        };
       }
 
-      const path = this.outputPath(session.file);
+      const path = this.outputPath(session);
       if (!(await this.write(path, prepared.pdf))) {
         new Notice(t().common.notice(messages.notReplaced(path)), 8000);
         return;
@@ -502,27 +561,39 @@ export class PrintCommands {
    */
   private async openSession(
     file: TFile,
-    progress: (message: string) => void
+    progress: (message: string) => void,
+    marked: MarkedPassage | null = null
   ): Promise<PrintSession> {
     const messages = t().print;
-    const exported = await this.formulas.forExport(await this.app.vault.read(file));
+    const exported = await this.formulas.forExport(
+      marked?.text ?? (await this.app.vault.read(file))
+    );
     const source = exported.text;
     const session: PrintSession = {
       file,
       source,
-      freezes: exported.freezes,
+      // A passage's totals are not written back: they are matched to the
+      // note's by their place in the whole note, which a passage is not. They
+      // print as computed, and stay waiting until the whole note prints.
+      freezes: marked ? [] : exported.freezes,
       drawings: new Map(),
       titles: new Map(),
       diagramAssets: new Map(),
       captureWarnings: [],
       slideshows: 0,
       pictures: new Map(),
-      templates: new Map()
+      templates: new Map(),
+      passage: marked
+        ? {
+            name: passageFileName(file.basename, marked.text, messages.passageName),
+            note: marked.note
+          }
+        : null
     };
 
     // The first pass only asks what diagrams are there; nothing is resolved,
     // so the answer is the list and nothing else.
-    const first = markdownToTypst(source);
+    const first = markdownToTypst(source, passageOptions(session));
     session.slideshows = first.slideshows;
     const found = first.diagrams;
     for (const block of found) {
@@ -580,7 +651,8 @@ export class PrintCommands {
    */
   private async prepareJob(
     session: PrintSession,
-    options: PrintOptions
+    options: PrintOptions,
+    marked = false
   ): Promise<{ job: PrintJob; warnings: string[] }> {
     const messages = t().print;
     const template = applyOptions(options);
@@ -604,6 +676,9 @@ export class PrintCommands {
     const properties = options.frontmatter ? frontmatterRows(frontmatter) : [];
     const pass = (usable: (path: string) => boolean): Conversion =>
       markdownToTypst(source, {
+        ...passageOptions(session),
+        blockMarkers: marked,
+        breaksBefore: options.breaksBefore,
         hrIsPageBreak: template.hrIsPageBreak,
         properties,
         slideshows: options.slideshows,
@@ -722,7 +797,7 @@ export class PrintCommands {
   private async compileJob(
     job: PrintJob,
     progress: (message: string) => void
-  ): Promise<{ pdf: Uint8Array; warnings: string[] }> {
+  ): Promise<{ pdf: Uint8Array; warnings: string[]; blocks: BlockPosition[] }> {
     const messages = t().print;
     const outcome = await this.compilerFor().compile(job, progress);
     if (!outcome.ok) {
@@ -734,7 +809,7 @@ export class PrintCommands {
     const warnings = small
       ? [messages.slidesSmall(small.pages, Math.round(small.smallest * 100))]
       : [];
-    return { pdf: outcome.pdf, warnings };
+    return { pdf: outcome.pdf, warnings, blocks: outcome.blocks ?? [] };
   }
 
   /**
@@ -1049,9 +1124,10 @@ export class PrintCommands {
     return (this.settings().printTemplateRoot || TEMPLATE_ROOT_DEFAULT).replace(/^\/+|\/+$/g, "");
   }
 
-  private outputPath(file: TFile): string {
+  private outputPath(session: PrintSession): string {
+    const { file } = session;
     const folder = this.settings().printOutputFolder.replace(/^\/+|\/+$/g, "");
-    const base = `${file.basename}.pdf`;
+    const base = `${session.passage?.name ?? file.basename}.pdf`;
     if (folder) return `${folder}/${base}`;
     return file.parent && file.parent.path !== "/" ? `${file.parent.path}/${base}` : base;
   }
@@ -1079,4 +1155,9 @@ export class PrintCommands {
       return null;
     }
   }
+}
+
+/** How the converter reads a session's source: as a passage of its note, or as the note. */
+function passageOptions(session: PrintSession): ConvertOptions {
+  return session.passage ? { passage: true, definitionsFrom: session.passage.note } : {};
 }
