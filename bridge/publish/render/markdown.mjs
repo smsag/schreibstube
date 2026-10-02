@@ -15,15 +15,17 @@ import sub from "markdown-it-sub";
 import sup from "markdown-it-sup";
 import taskLists from "markdown-it-task-lists";
 import katexModule from "@vscode/markdown-it-katex";
+import { iconShortcodes } from "./icons.mjs";
 import { obsidian } from "./obsidian.mjs";
 import { slugify } from "../path.mjs";
 
 /** Bumped when the output of a given source would change. A changed version
  *  re-renders every page on the next commit, without re-uploading anything. */
-export const RENDER_VERSION = 5;
+export const RENDER_VERSION = 6;
 
 const katex = katexModule.default ?? katexModule;
 
+// The icon rule goes last, so it sees every other rule's text, and only text.
 export function createRenderer({ allowHtml = true, allowDiagrams = true } = {}) {
   return new MarkdownIt({
     // A personal site is the author's own HTML, exactly as it is inside
@@ -42,7 +44,8 @@ export function createRenderer({ allowHtml = true, allowDiagrams = true } = {}) 
     .use(taskLists, { label: false })
     .use(anchor, { slugify, tabIndex: false })
     .use(katex, { throwOnError: false })
-    .use(obsidian, { allowDiagrams });
+    .use(obsidian, { allowDiagrams })
+    .use(iconShortcodes);
 }
 
 /**

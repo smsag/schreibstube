@@ -7,6 +7,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - **Twice as many icons to choose from.** The picker for a folder's, a file's or a property's icon, and the `:shortcode:` picker in the text, go from 216 icons to 431. Eight groups are new or wider: folders that carry their own state (done, an open question, paused, a favourite); the numbers 0–9 and the letters A–Z as one circled series, for parts, acts and appendices; plain shapes, for a mark that only has to tell two things apart; revision and editing; story and characters; moods; places, with travel, weather, the time of day and animals; research; and media and publishing. The moods, the travel icons and the media icons moved out of Status and Everything else into groups of their own. Every icon a vault already uses is still there under the same name.
+- **Icons in the text show on the published site.** A `:folder:` in a published note was printed on the website as the word between its colons, although the cheatsheet said it would be drawn. The bridge now draws it as the same icon Obsidian shows, inline and the size of the text, for every name the icon picker offers — in paragraphs, lists, tables, headings and callout titles, never in code or a link. A name the set does not have stays text. The page loads nothing extra: each icon is a few strokes inside the page itself. Pages already published get their icons the next time anything is published. Needs bridge 2.13.0.
 
 ## 1.70.0 - 2026-10-01
 

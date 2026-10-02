@@ -25,6 +25,9 @@ jobs:
     # any of the checks below run, and a dispatch is a person's typing.
     env:
       VERSION: ${{ github.event.inputs.version }}
+      # No CUDA build from nuget.org: see ci.yml. Nothing a release ships runs
+      # on the runner's GPU, and 1.68.0's release failed on that download.
+      ONNXRUNTIME_NODE_INSTALL: skip
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 

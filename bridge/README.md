@@ -29,6 +29,7 @@ route that does not exist yet.
 
 | Bridge | Protocol | Plugin          | Notes                                                            |
 | ------ | -------- | --------------- | ---------------------------------------------------------------- |
+| 2.13.x | 7        | 1.8.0 and later | `:folder:` in a note is drawn as the plugin's icon               |
 | 2.12.x | 7        | 1.8.0 and later | `/attachments` hands over a received mail's files                |
 | 2.11.x | 6        | 1.8.0 and later | A commit reports `deleteFailed`; assets and SVGs checked         |
 | 2.10.x | 5        | 1.8.0 and later | A send may carry a note's diagrams as PNG attachments            |
@@ -227,6 +228,20 @@ re-trust a new key after every restart.
 The rendered site is static. Maths is rendered to HTML by KaTeX at publish time;
 Mermaid needs JavaScript, and only on pages that contain a diagram, from a
 bundle the bridge writes itself rather than from a content delivery network.
+
+An **icon in the text** — `:folder:`, any name the plugin's icon picker offers —
+is drawn as that icon, inline, where Obsidian draws it: not in code, not in a
+link, and not for a name the set does not have, which stays the text it was.
+The drawings are Tabler's own strokes, from the release the plugin's font was
+cut from, written into `publish/render/icons.generated.mjs` by the plugin's
+`npm run build:icons`, so the site and the picker cannot know different names.
+Each icon is an `<svg class="icon-shortcode">` that carries its own size,
+stroke and colour (`currentColor`), because a vault's `theme.css` replaces the
+built-in one; a theme may move it on the line with `--icon-baseline`
+(default `-0.15em`) and style the class like any other. The page loads nothing
+for it. No field of the index changed, so the protocol stays at 7. A publish
+draws every page from its stored source, so a page published before this gets
+its icons the next time anything is published.
 
 A ` ```schreibstube-slideshow``` ` block becomes the plugin's slideshow.
 The bridge reads the block by the plugin's rules — `contracts/slideshow-cases.json`
