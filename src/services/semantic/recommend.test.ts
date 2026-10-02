@@ -40,6 +40,29 @@ describe("recommendNotes", () => {
     expect(recommendNotes([g("a.md", tag)], m("b.md", "c.md"), 2)).toHaveLength(2);
   });
 
+  it("puts the note that reads most alike above one the graph knows only by its tags", () => {
+    const out = recommendNotes([g("tagged.md", tag)], m("alike.md"), 10);
+    expect(out.map((r) => r.path)).toEqual(["alike.md", "tagged.md"]);
+  });
+
+  it("lets only the first few notes known by tags alone into the list", () => {
+    const tagged = Array.from({ length: 8 }, (_, i) => g(`t${i}.md`, tag));
+    const out = recommendNotes([...tagged, g("linked.md", link)], [], 20);
+    expect(out.map((r) => r.path)).toEqual([
+      "linked.md",
+      "t0.md",
+      "t1.md",
+      "t2.md",
+      "t3.md",
+      "t4.md"
+    ]);
+  });
+
+  it("still counts tags in full beside a link", () => {
+    const both = recommendNotes([g("both.md", link, tag), g("plain.md", tag)], [], 10);
+    expect(both[0]?.reasons.map((r) => r.kind)).toEqual(["link", "tag"]);
+  });
+
   it("is empty when neither side found anything", () => {
     expect(recommendNotes([], [], 5)).toEqual([]);
   });
