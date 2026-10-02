@@ -1,4 +1,5 @@
 import {
+  type Command,
   type Editor,
   MarkdownView,
   Notice,
@@ -51,6 +52,7 @@ import { PictureArticleLinker } from "./controllers/picture-articles";
 import { BaseReadingFlags, isBaseFile } from "./controllers/base-reading-flags";
 import { BasesReadingView } from "./controllers/bases-reading";
 import { PassagesController } from "./controllers/passages";
+import { commandIcon } from "./services/command-icons";
 import { PASSAGES_VIEW_TYPE, PassagesView } from "./ui/passages-view";
 import { PASSAGE_OPTION } from "./services/passages";
 import { PictureEmbedActions } from "./controllers/picture-embed-actions";
@@ -1689,6 +1691,16 @@ export default class SchreibstubePlugin extends Plugin {
    * and again with `checking` false to run it. The condition is the same both
    * times, so a command cannot be run from a state it was hidden in.
    */
+  /**
+   * Every command with its icon, from `services/command-icons`: the mobile
+   * toolbar draws a command without one as a question mark. A command that
+   * names its own keeps it.
+   */
+  override addCommand(command: Command): Command {
+    const icon = command.icon ?? commandIcon(command.id);
+    return super.addCommand(icon === undefined ? command : { ...command, icon });
+  }
+
   private addGatedCommand(id: string, name: string, gate: GatedCommand, run: () => void): void {
     this.addCommand({
       id,

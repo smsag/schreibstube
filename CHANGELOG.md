@@ -13,6 +13,10 @@ All notable changes to this project will be documented in this file.
 
 - **Reading view is set for each base, not for all of them.** The switch from 1.70.0 under Bases in the settings opened the notes of every base in the vault for reading. Now each base says it for itself: right-click the base's file or its tab and tick **Notizen in Leseansicht öffnen**, or run **Base: Notizen in Leseansicht öffnen (an/aus)** while the base is open. The choice is written into the base's file as `schreibstubeReadingView: true`, so it goes wherever the base goes, and it also holds where the base is embedded in a note. A base written as a `base` code block has no file to keep it and opens its notes as before. The switch for all bases is gone: a base that should open its notes for reading is switched on by itself.
 
+### Fixed
+
+- **Schreibstube's commands have icons in the mobile toolbar.** Every command now brings one — a printer for printing, a sigma for summing, a globe for publishing — where the toolbar's editor showed a question mark for each. The plugin looks the icon up as each command is registered, so a command added later cannot go without one.
+
 ## 1.71.0 - 2026-10-02
 
 Print only what is marked, with page breaks set by clicking the preview,
