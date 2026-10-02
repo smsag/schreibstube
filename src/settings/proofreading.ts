@@ -19,7 +19,6 @@ import { fold, section } from "./layout";
 
 export function renderProofreading(ctx: SettingsContext): void {
   section(ctx, {
-    id: "proofread",
     name: t().settings.proofreadHeading,
     desc: t().settings.proofreadIntro,
     commands: [t().commands.openReview, t().commands.proofread],
@@ -81,7 +80,6 @@ export function renderProofreading(ctx: SettingsContext): void {
     });
 
   section(ctx, {
-    id: "glossary",
     name: t().settings.glossaryHeading,
     desc: t().settings.glossaryIntro,
     indexed: true

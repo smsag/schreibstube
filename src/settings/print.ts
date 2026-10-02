@@ -25,7 +25,6 @@ import { section } from "./layout";
 export function renderPrint(ctx: SettingsContext): void {
   const strings = t().settings;
   section(ctx, {
-    id: "print",
     name: strings.printHeading,
     desc: strings.printIntro(TYPST_VERSION),
     commands: [t().commands.print, t().commands.printQuick, t().commands.printSelection],

@@ -13,9 +13,10 @@
  */
 import { MarkdownView, type App, type TFile } from "obsidian";
 import { opensForReading } from "../services/bases-reading";
+import { PASSAGES_ROOT_CLASS } from "../services/passages";
 import type { Logger } from "../services/logger";
 import { embedLinkpath } from "../services/picture-embed-actions";
-import { basePressed, fileShownAround } from "../services/workspace-internals";
+import { basePressed, fileShownAround, isElementLike } from "../services/workspace-internals";
 
 /** What the controller asks of the bases' files: whether one opens its notes for reading. */
 export interface BaseReadingAnswers {
@@ -55,6 +56,8 @@ export class BasesReadingView {
    * code block has no file, and opens its notes as any link does.
    */
   private baseUnder(target: EventTarget | null): TFile | null {
+    // The callouts layout opens its notes by its own option.
+    if (isElementLike(target) && target.closest(`.${PASSAGES_ROOT_CLASS}`)) return null;
     const press = basePressed(target);
     if (!press || press.kind === "block") return null;
     const shown = fileShownAround(this.app, target as Node);

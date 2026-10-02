@@ -69,6 +69,15 @@ describe("BaseReadingFlags", () => {
     expect(flags.reads(file("Favoriten.base"))).toBe(false);
   });
 
+  it("turns over what the file says, not what was last read of it", async () => {
+    // Already on in the file, never scanned: the press turns it off.
+    const { flags, texts, file } = vault({ "Lesen.base": `${BASE_READING_KEY}: true\n${SHOWN}` });
+    expect(flags.reads(file("Lesen.base"))).toBe(false);
+    expect(await flags.toggle(file("Lesen.base"))).toBe(false);
+    expect(texts.get("Lesen.base")).toBe(SHOWN);
+    expect(flags.reads(file("Lesen.base"))).toBe(false);
+  });
+
   it("writes nothing into a base whose file does not read as YAML", async () => {
     const broken = "views: [unclosed\n";
     const { flags, texts, file } = vault({ "Kaputt.base": broken });

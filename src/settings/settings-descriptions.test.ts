@@ -20,32 +20,71 @@ const DESCRIBED_LATER = new Set<string>([
   "strings.status"
 ]);
 
+/**
+ * The source with every string, template and comment blanked to spaces of
+ * the same length, so a bracket in a label or a placeholder cannot end a
+ * chain early or join it to the next.
+ */
+function code(source: string): string {
+  let out = "";
+  let at = 0;
+  while (at < source.length) {
+    const c = source[at] ?? "";
+    const next = source[at + 1];
+    let end: number;
+    if (c === "/" && next === "/") {
+      end = source.indexOf("\n", at);
+      if (end === -1) end = source.length;
+    } else if (c === "/" && next === "*") {
+      end = source.indexOf("*/", at + 2);
+      end = end === -1 ? source.length : end + 2;
+    } else if (c === '"' || c === "'" || c === "`") {
+      end = at + 1;
+      while (end < source.length && source[end] !== c) end += source[end] === "\\" ? 2 : 1;
+      end += 1;
+    } else {
+      out += c;
+      at += 1;
+      continue;
+    }
+    // Quotes kept, so a blanked string still reads as an argument.
+    const blank = " ".repeat(Math.max(0, end - at - 2));
+    out += c === "/" ? " ".repeat(end - at) : `${c}${blank}${c}`;
+    at = end;
+  }
+  return out;
+}
+
 /** The text of each `new Setting(…)…` statement, up to its closing semicolon. */
 function statements(source: string): string[] {
+  const blanked = code(source);
   const found: string[] = [];
-  let from = source.indexOf("new Setting(");
+  let from = blanked.indexOf("new Setting(");
   while (from !== -1) {
     let depth = 0;
     let end = from;
-    for (; end < source.length; end++) {
-      const c = source[end];
+    for (; end < blanked.length; end++) {
+      const c = blanked[end];
       if (c === "(" || c === "{" || c === "[") depth++;
       else if (c === ")" || c === "}" || c === "]") depth--;
       if (depth < 0 || (depth === 0 && c === ";")) break;
     }
+    // Read back from the source, so the names stay as written.
     found.push(source.slice(from, end));
-    from = source.indexOf("new Setting(", end);
+    from = blanked.indexOf("new Setting(", end);
   }
   return found;
 }
 
 /** The chain's own calls, with callback bodies left out. */
 function ownCalls(statement: string): string {
+  const blanked = code(statement);
   let depth = 0;
   let out = "";
-  for (const c of statement) {
+  for (let at = 0; at < statement.length; at++) {
+    const c = blanked[at];
     if (c === "(" || c === "{" || c === "[") depth++;
-    if (depth <= 1) out += c;
+    if (depth <= 1) out += statement[at];
     if (c === ")" || c === "}" || c === "]") depth--;
   }
   return out;
@@ -56,6 +95,18 @@ describe("settings rows", () => {
 
   it("finds the settings modules", () => {
     expect(files.length).toBeGreaterThan(5);
+  });
+
+  it("is not misled by a bracket in a string or a comment", () => {
+    const source = [
+      'new Setting(el).setName("a (b").addText(() => {}); // )',
+      'new Setting(el).setName(":)").setDesc("x");',
+      "/* new Setting(el).setName(c); */"
+    ].join("\n");
+    const chains = statements(source).map(ownCalls);
+    expect(chains).toHaveLength(2);
+    expect(chains[0]).not.toContain(".setDesc(");
+    expect(chains[1]).toContain(".setDesc(");
   });
 
   for (const file of files) {

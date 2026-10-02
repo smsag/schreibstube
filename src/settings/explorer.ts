@@ -16,7 +16,6 @@ import { section } from "./layout";
 
 export function renderExplorer(ctx: SettingsContext): void {
   section(ctx, {
-    id: "explorer",
     name: t().settings.explorerHeading,
     desc: t().settings.explorerIntro,
     commands: [

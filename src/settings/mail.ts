@@ -13,7 +13,6 @@ import { fold, section } from "./layout";
 
 export function renderMail(ctx: SettingsContext): void {
   section(ctx, {
-    id: "mail",
     name: t().mail.heading,
     desc: t().mail.intro,
     commands: [t().commands.sendMail, t().commands.queryMailbox, t().commands.fetchReplies],

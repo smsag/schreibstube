@@ -41,14 +41,14 @@ export class SchreibstubeSettingTab extends PluginSettingTab {
     const ctx = createContext(this.app, this.plugin, containerEl, () => this.display());
     const blocks = t().settings.blocks;
 
-    block(ctx, "helpers", blocks.helpers);
+    block(ctx, blocks.helpers);
     renderHelpers(ctx);
     renderSums(ctx);
 
-    block(ctx, "ai-model", blocks.aiModel);
+    block(ctx, blocks.aiModel);
     renderAiModel(ctx);
 
-    block(ctx, "features", blocks.features);
+    block(ctx, blocks.features);
     renderExplorer(ctx);
     renderSemantic(ctx);
     renderDescriptions(ctx);
@@ -60,7 +60,7 @@ export class SchreibstubeSettingTab extends PluginSettingTab {
     renderPublish(ctx);
     renderPrint(ctx);
 
-    block(ctx, "about", blocks.about);
+    block(ctx, blocks.about);
     renderDiagnostics(ctx);
 
     renderIndex(indexEl, ctx.index);

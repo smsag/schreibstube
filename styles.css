@@ -2771,7 +2771,7 @@
   font-weight: var(--font-bold);
 }
 
-.schreibstube-settings .schreibstube-settings-block:first-of-type {
+.schreibstube-settings .schreibstube-settings-index + .schreibstube-settings-block {
   margin-top: 0;
 }
 

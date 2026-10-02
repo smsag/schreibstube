@@ -133,6 +133,15 @@ describe("BasesReadingView", () => {
     expect(hostOnly.view.setState).not.toHaveBeenCalled();
   });
 
+  it("leaves a press in the callouts layout to the layout's own option", async () => {
+    const { card } = page();
+    card.classList.add("schreibstube-passages");
+    const { reading, view } = setup();
+    press(card);
+    await reading.opened(note());
+    expect(view.setState).not.toHaveBeenCalled();
+  });
+
   it("leaves a base written as a code block alone, which has no file to say it", async () => {
     const { card } = page("block");
     const { reading, view } = setup({ reading: [BASE, HOST] });

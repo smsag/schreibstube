@@ -10,7 +10,6 @@ import { section } from "./layout";
 
 export function renderSync(ctx: SettingsContext): void {
   section(ctx, {
-    id: "sync",
     name: t().settings.syncHeading,
     desc: t().settings.syncIntro,
     commands: [t().commands.syncAll, t().commands.syncNote],

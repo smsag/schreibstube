@@ -40,7 +40,6 @@ export function renderPublish(ctx: SettingsContext): void {
   const { containerEl } = ctx;
 
   section(ctx, {
-    id: "publish",
     name: t().publish.heading,
     desc: t().publish.intro,
     commands: [t().commands.publish],

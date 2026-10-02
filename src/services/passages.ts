@@ -201,6 +201,14 @@ export interface PassageOptions {
   show: PassageShow;
 }
 
+/**
+ * The class of the element the layout draws in. A press inside it opens its
+ * note by the layout's own Reading view option, which the base-wide one in
+ * `bases-reading` leaves alone: the layout says it for itself, and opens at
+ * the passage's line, which a mode switched after the opening could lose.
+ */
+export const PASSAGES_ROOT_CLASS = "schreibstube-passages";
+
 /** The option keys under the view in the `.base` file. */
 export const PASSAGE_OPTION = {
   types: "calloutTypes",

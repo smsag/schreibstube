@@ -24,7 +24,7 @@ const DETAILS_EVERY_MS = 5000;
 export function renderSemantic(ctx: SettingsContext): void {
   const strings = t().semantic;
   const engine = ctx.plugin.semantic;
-  section(ctx, { id: "semantic", name: strings.heading, desc: strings.intro, indexed: true });
+  section(ctx, { name: strings.heading, desc: strings.intro, indexed: true });
 
   new Setting(ctx.containerEl)
     .setName(strings.enabled)
@@ -143,7 +143,7 @@ function renderSources(ctx: SettingsContext): void {
   const engine = ctx.plugin.semantic;
   if (!engine) return;
   const words = t().semantic.sources;
-  section(ctx, { id: "semantic-sources", name: words.heading, desc: words.intro });
+  section(ctx, { name: words.heading, desc: words.intro });
 
   const live = new Map(engine.sources.registered().map((entry) => [entry.id, entry]));
   const ids = new Set([...live.keys(), ...Object.keys(ctx.plugin.settings.semanticSources)]);

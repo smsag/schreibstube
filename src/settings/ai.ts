@@ -85,7 +85,6 @@ export function renderAiModel(ctx: SettingsContext): void {
 /** Renaming a note or a picture from what is in it. */
 export function renderRename(ctx: SettingsContext): void {
   section(ctx, {
-    id: "rename",
     name: t().settings.renameHeading,
     desc: t().settings.renameIntro,
     commands: [t().commands.rename],
@@ -161,7 +160,6 @@ export function renderRename(ctx: SettingsContext): void {
 /** Summarizing a selection into the note. */
 export function renderSummarize(ctx: SettingsContext): void {
   section(ctx, {
-    id: "summarize",
     name: t().settings.summarizeHeading,
     desc: t().settings.summarizeIntro,
     commands: [t().commands.summarize],
@@ -205,7 +203,6 @@ export function renderSummarize(ctx: SettingsContext): void {
 export function renderDescriptions(ctx: SettingsContext): void {
   const labels = t().settings;
   section(ctx, {
-    id: "descriptions",
     name: labels.describeHeading,
     desc: labels.describeIntro,
     ai: true,

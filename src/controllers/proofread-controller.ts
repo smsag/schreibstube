@@ -154,6 +154,14 @@ export class ProofreadController {
     return () => this.listeners.delete(listener);
   }
 
+  /**
+   * The settings changed: the panel says again whether the AI can be asked, so
+   * a key chosen in the settings brings the button back without a file change.
+   */
+  settingsChanged(): void {
+    this.emit();
+  }
+
   handlers(): ReviewHandlers {
     return {
       onProofread: () => void this.runModelPass(),

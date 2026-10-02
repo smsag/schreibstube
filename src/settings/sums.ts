@@ -17,7 +17,6 @@ import { section } from "./layout";
 export function renderSums(ctx: SettingsContext): void {
   const strings = t().sums;
   section(ctx, {
-    id: "sums",
     name: strings.heading,
     desc: strings.intro,
     commands: [t().commands.sumSelection, t().commands.freezeTotals, t().commands.updateRates]

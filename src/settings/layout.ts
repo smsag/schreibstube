@@ -11,11 +11,11 @@
  */
 import { Setting } from "obsidian";
 import { t } from "../i18n";
+import { pressKeys } from "../ui/pressable";
 import type { SettingsContext } from "./context";
 
 /** A section the index at the top links to. */
 export interface SectionEntry {
-  id: string;
   name: string;
   el: HTMLElement;
   /** A block's heading rather than a feature's, which the index sets apart. */
@@ -23,8 +23,6 @@ export interface SectionEntry {
 }
 
 export interface SectionSpec {
-  /** Stable, for the index; not shown. */
-  id: string;
   name: string;
   /** What the feature does, in a sentence or two. */
   desc?: string;
@@ -37,10 +35,10 @@ export interface SectionSpec {
 }
 
 /** One of the three blocks: small helpers, the AI model, the large features. */
-export function block(ctx: SettingsContext, id: string, name: string): void {
+export function block(ctx: SettingsContext, name: string): void {
   const heading = new Setting(ctx.containerEl).setName(name).setHeading();
   heading.settingEl.addClass("schreibstube-settings-block");
-  ctx.index.push({ id, name, el: heading.settingEl, block: true });
+  ctx.index.push({ name, el: heading.settingEl, block: true });
 }
 
 /**
@@ -52,8 +50,7 @@ export function section(ctx: SettingsContext, spec: SectionSpec): void {
   const heading = new Setting(ctx.containerEl).setName(spec.name).setHeading();
   heading.settingEl.addClass("schreibstube-settings-section");
   if (spec.ai) aiPill(heading.controlEl, ctx.plugin.aiReady());
-  if (spec.indexed)
-    ctx.index.push({ id: spec.id, name: spec.name, el: heading.settingEl, block: false });
+  if (spec.indexed) ctx.index.push({ name: spec.name, el: heading.settingEl, block: false });
 
   const commands = spec.commands ?? [];
   if (!spec.desc && commands.length === 0) return;
@@ -118,11 +115,10 @@ export function renderIndex(el: HTMLElement, entries: readonly SectionEntry[]): 
     const link = el.createEl("a", {
       cls: `schreibstube-settings-index-link${entry.block ? " is-block" : ""}`,
       text: entry.name,
-      attr: { href: `#${entry.id}`, role: "button" }
+      attr: { role: "button", tabindex: "0" }
     });
-    link.addEventListener("click", (event) => {
-      event.preventDefault();
-      entry.el.scrollIntoView({ block: "start", behavior: "smooth" });
-    });
+    const jump = (): void => entry.el.scrollIntoView({ block: "start", behavior: "smooth" });
+    link.addEventListener("click", jump);
+    pressKeys(link, jump);
   });
 }
