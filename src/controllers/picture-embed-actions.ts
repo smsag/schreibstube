@@ -176,22 +176,40 @@ export class PictureEmbedActions {
   }
 
   private async describeOrOpen(picture: TFile, event: Event, embed: HTMLElement): Promise<void> {
+    const opened = await this.describeOrOpenPicture(picture, event);
+    // The note is read by the metadata cache a moment after it is written; the
+    // bar is drawn from it on the next look, and once now in case it is ready.
+    if (!opened) this.decorateAt(embed);
+  }
+
+  /**
+   * The buttons a picture gets now, for a surface that draws its own: the
+   * slideshow, which has no bar of Obsidian's to join.
+   */
+  stateFor(picture: TFile): PictureActionState {
+    return this.stateOf(picture);
+  }
+
+  /**
+   * Open the picture's description where the press asks, or write one when it
+   * has none and describing is on. Answers whether a note was opened, so a
+   * surface knows to draw its buttons again after a description was written.
+   */
+  async describeOrOpenPicture(picture: TFile, event: Event): Promise<boolean> {
     const note = this.noteOf(picture);
     if (note) {
       // Not `instanceof`: an event from a pop-out window is that window's MouseEvent.
       await this.hooks.open(note, openTargetOf(Keymap.isModEvent(event as MouseEvent)));
-      return;
+      return true;
     }
-    if (!this.hooks.describingEnabled() || this.describing.has(picture.path)) return;
+    if (!this.hooks.describingEnabled() || this.describing.has(picture.path)) return false;
     this.describing.add(picture.path);
     try {
       await this.hooks.describe(picture);
     } finally {
       this.describing.delete(picture.path);
     }
-    // The note is read by the metadata cache a moment after it is written; the
-    // bar is drawn from it on the next look, and once now in case it is ready.
-    this.decorateAt(embed);
+    return false;
   }
 
   /**
@@ -199,8 +217,20 @@ export class PictureEmbedActions {
    * state at once rather than when the metadata cache has read the write.
    */
   private async toggleFavorite(picture: TFile, button: HTMLElement): Promise<void> {
+    const now = await this.toggleFavoriteOf(picture);
+    const bar = button.parentElement;
+    if (bar && now !== null) this.draw(bar, { describe: "open", favorite: now });
+  }
+
+  /**
+   * Turn the star over in the picture's description note, and answer how it
+   * stands now: the button shows that at once rather than when the metadata
+   * cache has read the write. Null when the picture has no note or the write
+   * failed.
+   */
+  async toggleFavoriteOf(picture: TFile): Promise<boolean | null> {
     const note = this.noteOf(picture);
-    if (!note) return;
+    if (!note) return null;
     let now = false;
     try {
       await this.app.fileManager.processFrontMatter(
@@ -212,10 +242,9 @@ export class PictureEmbedActions {
       );
     } catch (error) {
       this.logger.warn(`Could not star ${note.path}:`, error);
-      return;
+      return null;
     }
-    const bar = button.parentElement;
-    if (bar) this.draw(bar, { describe: "open", favorite: now });
+    return now;
   }
 
   private stateOf(picture: TFile): PictureActionState {

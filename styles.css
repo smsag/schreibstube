@@ -3500,6 +3500,23 @@
   right: 0.5rem;
 }
 
+/* The picture's description and star in fullscreen, across from the close
+   control: one picture is in view here in every layout. */
+.schreibstube-slideshow-fs-actions {
+  position: absolute;
+  top: 1rem;
+  left: 1.25rem;
+  display: flex;
+  gap: var(--size-4-3);
+  font-size: 1.5rem;
+}
+
+/* A starred picture's star takes the accent: the glyph is a line in the
+   plugin's font, so on and off read apart by colour, not by a fill. */
+.schreibstube-slideshow-picture-action.is-favorite {
+  color: var(--interactive-accent);
+}
+
 .schreibstube-slideshow-fs-close {
   position: absolute;
   top: 1rem;

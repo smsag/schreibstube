@@ -20,6 +20,21 @@ import { claimsHorizontal, classifyTouch } from "../services/slideshow-gesture";
 import { applyIcon, installIconFont } from "../ui/icon-font";
 import { pressable } from "../ui/pressable";
 import { isElementLike, isNodeLike } from "../services/workspace-internals";
+import type { PictureActionState } from "../services/picture-embed-actions";
+
+/**
+ * The two buttons Obsidian's bar over a picture gains in a note — open or
+ * write its description, and star it — for the slideshow, which has no bar
+ * of Obsidian's to join. Asked of the plugin's picture actions, so a press
+ * here does what it does there and the two cannot disagree.
+ */
+export interface SlideshowPictureActions {
+  stateFor(picture: TFile): PictureActionState;
+  /** Answers whether a note was opened; false after a description was written. */
+  describeOrOpenPicture(picture: TFile, event: Event): Promise<boolean>;
+  /** The star as it stands now, or null when it could not be turned. */
+  toggleFavoriteOf(picture: TFile): Promise<boolean | null>;
+}
 
 /**
  * Things in a block that answer a press of their own: a control, a tile, the
@@ -41,16 +56,26 @@ const OWN_PRESS_SELECTOR =
  * asked for, which details stand beside the featured picture, where the
  * divider lands — lives in the tested `services/slideshow` module.
  */
-export function registerSlideshow(plugin: Plugin): void {
+export function registerSlideshow(
+  plugin: Plugin,
+  pictureActions: () => SlideshowPictureActions | null = () => null
+): void {
   plugin.registerMarkdownCodeBlockProcessor(SLIDESHOW_LANGUAGE, (source, el, ctx) => {
-    ctx.addChild(new Slideshow(plugin.app, el, source, ctx.sourcePath));
+    ctx.addChild(new Slideshow(plugin.app, el, source, ctx.sourcePath, pictureActions));
   });
 }
 
-/** An image and where the vault serves it from; "" when it is not there. */
+/** An image, its file and where the vault serves it from; "" and null when it is not there. */
 interface ResolvedImage extends SlideshowImage {
   url: string;
+  file: TFile | null;
 }
+
+/** How long a written description takes to reach the metadata cache, near enough. */
+const DESCRIPTION_SETTLE_MS = 1500;
+
+/** Shows the picture actions for whichever image is current, or none. */
+type PictureButtons = (image: ResolvedImage | undefined) => void;
 
 class Slideshow extends MarkdownRenderChild {
   /** Teardown for anything living outside `containerEl` — a document-level key
@@ -62,7 +87,8 @@ class Slideshow extends MarkdownRenderChild {
     private readonly app: App,
     containerEl: HTMLElement,
     private readonly source: string,
-    private readonly sourcePath: string
+    private readonly sourcePath: string,
+    private readonly pictureActions: () => SlideshowPictureActions | null = () => null
   ) {
     super(containerEl);
   }
@@ -89,21 +115,21 @@ class Slideshow extends MarkdownRenderChild {
 
   /** A vault-relative resource URL for an image path, or "" when it is not in
    *  the vault — the tile then shows its alt text with no picture. */
-  private resolvePath(src: string): string {
+  private resolvePath(src: string): TFile | null {
     for (const path of linkpathCandidates(src)) {
       const file =
         this.app.metadataCache.getFirstLinkpathDest(path, this.sourcePath) ??
         this.app.vault.getAbstractFileByPath(path);
-      if (file instanceof TFile) return this.app.vault.getResourcePath(file);
+      if (file instanceof TFile) return file;
     }
-    return "";
+    return null;
   }
 
   private render(block: SlideshowBlock): void {
-    const images: ResolvedImage[] = imagesForLayout(block.layout, block.images).map((img) => ({
-      ...img,
-      url: this.resolvePath(img.src)
-    }));
+    const images: ResolvedImage[] = imagesForLayout(block.layout, block.images).map((img) => {
+      const file = this.resolvePath(img.src);
+      return { ...img, file, url: file ? this.app.vault.getResourcePath(file) : "" };
+    });
 
     const wrapper = this.containerEl.createEl("div", {
       cls: "schreibstube-slideshow",
@@ -150,6 +176,7 @@ class Slideshow extends MarkdownRenderChild {
 
     let current = 0;
     const actions = header.createEl("div", { cls: "schreibstube-slideshow-actions" });
+    const showButtons = this.pictureButtons(actions, "schreibstube-slideshow-control");
     this.control(actions, "arrows-maximize", "expand", t().slideshow.fullscreen, () =>
       this.openFullscreen(images, current)
     );
@@ -159,6 +186,7 @@ class Slideshow extends MarkdownRenderChild {
     this.control(actions, "chevron-right", "chevron-right", t().slideshow.next, () =>
       goTo(current + 1)
     );
+    showButtons(images[0]);
 
     const track = wrapper.createEl("div", { cls: "schreibstube-slideshow-track" });
     const slideEls = images.map((img, idx) => {
@@ -218,6 +246,7 @@ class Slideshow extends MarkdownRenderChild {
       current = stepIndex(current, next - current, images.length);
       slideEls[current]?.parentElement?.addClass("schreibstube-slideshow-slide-active");
       caption.textContent = images[current]?.alt ?? "";
+      showButtons(images[current]);
 
       const thumb = thumbEls[current];
       if (thumbStrip && thumb) {
@@ -248,6 +277,7 @@ class Slideshow extends MarkdownRenderChild {
 
     let current = 0;
     const actions = header.createEl("div", { cls: "schreibstube-slideshow-actions" });
+    const showButtons = this.pictureButtons(actions, "schreibstube-slideshow-control");
     this.control(actions, "arrows-maximize", "expand", t().slideshow.fullscreen, () =>
       this.openFullscreen(images, current)
     );
@@ -280,6 +310,7 @@ class Slideshow extends MarkdownRenderChild {
         fillTile(detail.tile, images[index], t().slideshow.showImage(index + 1));
       });
       caption.textContent = images[current]?.alt ?? "";
+      showButtons(images[current]);
     };
     goTo(0);
 
@@ -468,6 +499,94 @@ class Slideshow extends MarkdownRenderChild {
     return tile;
   }
 
+  /**
+   * The description and star buttons for the image in view, at the front of
+   * `parent`. Drawn again for every image the person turns to, from the
+   * description as it is then, so a picture described or starred elsewhere is
+   * shown as it now stands. A picture outside the vault, or no picture actions
+   * at all, shows neither.
+   */
+  private pictureButtons(parent: HTMLElement, cls: string): PictureButtons {
+    const make = (): HTMLElement => {
+      const el = parent.createSpan({ cls, attr: { role: "button", tabindex: "0" } });
+      el.addClass("schreibstube-slideshow-picture-action");
+      el.toggle(false);
+      return el;
+    };
+    const describe = make();
+    const favorite = make();
+    parent.prepend(describe, favorite);
+    let shown: ResolvedImage | undefined;
+
+    const draw = (el: HTMLElement, icon: string, fallback: string, label: string): void => {
+      el.toggle(true);
+      el.setAttribute("aria-label", label);
+      el.setAttribute("title", label);
+      el.empty();
+      drawGlyph(el.createSpan(), icon, fallback);
+    };
+    const show: PictureButtons = (image) => {
+      shown = image;
+      const actions = this.pictureActions();
+      const state = actions && image?.file ? actions.stateFor(image.file) : null;
+      describe.toggle(false);
+      favorite.toggle(false);
+      if (!state) return;
+      if (state.describe === "open")
+        draw(describe, "sparkles", "sparkles", t().pictureActions.open);
+      else if (state.describe === "describe") {
+        draw(describe, "wand", "wand-sparkles", t().pictureActions.describe);
+      }
+      if (state.favorite !== null) {
+        draw(
+          favorite,
+          "star",
+          "star",
+          state.favorite ? t().pictureActions.unfavorite : t().pictureActions.favorite
+        );
+        favorite.toggleClass("is-favorite", state.favorite);
+        favorite.setAttribute("aria-pressed", String(state.favorite));
+      }
+    };
+
+    pressable(
+      describe,
+      (event) => {
+        const image = shown;
+        const actions = this.pictureActions();
+        if (!actions || !image?.file) return;
+        void actions.describeOrOpenPicture(image.file, event).then((opened) => {
+          // The new note reaches the metadata cache a moment after it is
+          // written: drawn now, and once more when it has had time to.
+          if (opened || shown !== image) return;
+          show(image);
+          window.setTimeout(() => {
+            if (shown === image) show(image);
+          }, DESCRIPTION_SETTLE_MS);
+        });
+      },
+      { stop: true }
+    );
+    pressable(
+      favorite,
+      () => {
+        const image = shown;
+        const actions = this.pictureActions();
+        if (!actions || !image?.file) return;
+        void actions.toggleFavoriteOf(image.file).then((now) => {
+          if (now === null || shown !== image) return;
+          favorite.toggleClass("is-favorite", now);
+          favorite.setAttribute("aria-pressed", String(now));
+          const label = now ? t().pictureActions.unfavorite : t().pictureActions.favorite;
+          favorite.setAttribute("aria-label", label);
+          favorite.setAttribute("title", label);
+        });
+      },
+      { stop: true }
+    );
+    return show;
+  }
+
   private openFullscreen(images: ResolvedImage[], startAt: number): void {
     let fsCurrent = startAt;
     const doc = this.containerEl.ownerDocument;
@@ -505,6 +624,10 @@ class Slideshow extends MarkdownRenderChild {
       t().slideshow.next
     );
     const fsClose = fsControl("schreibstube-slideshow-fs-close", "x", "x", t().slideshow.exit);
+    // Top left, across from the close control: one picture is in view here in
+    // every layout, which is where the gallery and the comparison get theirs.
+    const fsActions = overlay.createDiv({ cls: "schreibstube-slideshow-fs-actions" });
+    const showFsButtons = this.pictureButtons(fsActions, "schreibstube-slideshow-fs-control");
 
     const fsGoTo = (next: number): void => {
       fsCurrent = stepIndex(fsCurrent, next - fsCurrent, images.length);
@@ -512,6 +635,7 @@ class Slideshow extends MarkdownRenderChild {
       fsImg.alt = images[fsCurrent]?.alt ?? "";
       fsCaption.textContent = images[fsCurrent]?.alt ?? "";
       fsCounter.textContent = slideshowCounter(fsCurrent, images.length);
+      showFsButtons(images[fsCurrent]);
     };
 
     const onKey = (e: KeyboardEvent): void => {
