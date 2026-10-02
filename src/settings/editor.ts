@@ -1,5 +1,7 @@
 /**
- * Heading stack, focus mode and properties: the settings that change how a note looks while it is being written.
+ * The small helpers: the heading stack, focus mode, the link that opens a new
+ * doc from outside Obsidian, icons in the text, properties, Bases and the
+ * commands that need no settings — each a short section of its own.
  */
 import { Notice, Setting } from "obsidian";
 import { activeLocale, t } from "../i18n";
@@ -9,10 +11,11 @@ import { createLogger } from "../services/logger";
 import { newDocLink } from "../services/new-note";
 import { formatDate } from "../services/today-value";
 import type { SettingsContext } from "./context";
-import { renderCommands } from "./commands";
+import { section } from "./layout";
 
-export function renderEditor(ctx: SettingsContext): void {
-  new Setting(ctx.containerEl).setName(t().settings.overlayHeading).setHeading();
+export function renderHelpers(ctx: SettingsContext): void {
+  const words = t().settings;
+  section(ctx, { id: "overlay", name: words.overlayHeading });
 
   new Setting(ctx.containerEl)
     .setName(t().settings.overlayEnabled)
@@ -24,7 +27,7 @@ export function renderEditor(ctx: SettingsContext): void {
       });
     });
 
-  new Setting(ctx.containerEl).setName(t().settings.iconShortcodesHeading).setHeading();
+  section(ctx, { id: "icon-shortcodes", name: words.iconShortcodesHeading });
 
   new Setting(ctx.containerEl)
     .setName(t().settings.iconShortcodesEnabled)
@@ -35,15 +38,11 @@ export function renderEditor(ctx: SettingsContext): void {
       });
     });
 
-  new Setting(ctx.containerEl).setName(t().settings.basesHeading).setHeading();
-
-  // No switch here: which bases open their notes for reading is each base's
-  // own to say, in its file, and a switch for all of them was the wrong place.
-  new Setting(ctx.containerEl)
-    .setName(t().settings.basesReadingView)
-    .setDesc(t().settings.basesReadingViewDesc);
-
-  new Setting(ctx.containerEl).setName(t().settings.focusHeading).setHeading();
+  section(ctx, {
+    id: "focus",
+    name: words.focusHeading,
+    commands: [t().commands.focusSentence, t().commands.focusParagraph]
+  });
 
   new Setting(ctx.containerEl)
     .setName(t().settings.focusOpacity)
@@ -57,6 +56,8 @@ export function renderEditor(ctx: SettingsContext): void {
           await ctx.plugin.updateDimOpacity(value);
         });
     });
+
+  section(ctx, { id: "new-doc", name: words.newDocHeading, commands: [t().commands.newNote] });
 
   new Setting(ctx.containerEl)
     .setName(t().settings.newDocLink)
@@ -81,21 +82,34 @@ export function renderEditor(ctx: SettingsContext): void {
 
   renderProperties(ctx);
 
-  renderCommands(ctx, [
-    t().commands.baseReadingView,
-    t().commands.newNote,
-    t().commands.focusSentence,
-    t().commands.focusParagraph,
-    t().commands.insertTaskSummary,
-    t().commands.insertSlideshow,
-    t().commands.insertToday,
-    t().commands.suggestTags,
-    t().commands.linksSwitch
-  ]);
+  // No switch here: which bases open their notes for reading is each base's
+  // own to say, in its file, and a switch for all of them was the wrong place.
+  section(ctx, {
+    id: "bases",
+    name: words.basesHeading,
+    desc: words.basesReadingViewDesc,
+    commands: [t().commands.baseReadingView]
+  });
+
+  section(ctx, {
+    id: "more-commands",
+    name: words.moreCommandsHeading,
+    desc: words.moreCommandsDesc,
+    commands: [
+      t().commands.insertTaskSummary,
+      t().commands.insertSlideshow,
+      t().commands.insertPdfSummary,
+      t().commands.linksSwitch
+    ]
+  });
 }
 
 function renderProperties(ctx: SettingsContext): void {
-  new Setting(ctx.containerEl).setName(t().properties.heading).setHeading();
+  section(ctx, {
+    id: "properties",
+    name: t().properties.heading,
+    commands: [t().commands.insertToday, t().commands.suggestTags]
+  });
 
   const example = (format: string) => formatDate(new Date(), format, activeLocale());
   const dateFormat = new Setting(ctx.containerEl)

@@ -25,7 +25,7 @@ import { checkTarget, listTargets } from "../platform/publish-client";
 import type { PublishBridgeConfig, PublishTarget } from "../services/publish-protocol";
 import { resolveApiKey } from "../services/secret";
 import type { SettingsContext } from "./context";
-import { renderCommands } from "./commands";
+import { fold, markAi, section } from "./layout";
 
 /**
  * Targets the bridge offered, for as long as the settings tab stays open.
@@ -39,8 +39,13 @@ let knownTargets: PublishTarget[] | null = null;
 export function renderPublish(ctx: SettingsContext): void {
   const { containerEl } = ctx;
 
-  new Setting(containerEl).setName(t().publish.heading).setHeading();
-  new Setting(containerEl).setDesc(t().publish.intro);
+  section(ctx, {
+    id: "publish",
+    name: t().publish.heading,
+    desc: t().publish.intro,
+    commands: [t().commands.publish],
+    indexed: true
+  });
 
   new Setting(containerEl)
     .setName(t().publish.bridgeUrl)
@@ -68,22 +73,25 @@ export function renderPublish(ctx: SettingsContext): void {
     renderAccount(ctx, position, account);
   }
 
-  new Setting(containerEl).addButton((button) =>
-    button.setButtonText(t().publish.addAccount).onClick(async () => {
-      await saveAccounts(ctx, [
-        ...ctx.plugin.settings.publishAccounts,
-        {
-          id: `account-${Date.now()}`,
-          name: t().publish.newAccountName,
-          folder: "",
-          target: "",
-          writeBack: true,
-          aiDescription: true,
-          headerTags: []
-        }
-      ]);
-    })
-  );
+  new Setting(containerEl)
+    .setName(t().publish.addAccount)
+    .setDesc(t().publish.addAccountDesc)
+    .addButton((button) =>
+      button.setButtonText(t().publish.addAccount).onClick(async () => {
+        await saveAccounts(ctx, [
+          ...ctx.plugin.settings.publishAccounts,
+          {
+            id: `account-${Date.now()}`,
+            name: t().publish.newAccountName,
+            folder: "",
+            target: "",
+            writeBack: true,
+            aiDescription: true,
+            headerTags: []
+          }
+        ]);
+      })
+    );
 
   new Setting(containerEl)
     .setName(t().publish.openSite)
@@ -95,8 +103,6 @@ export function renderPublish(ctx: SettingsContext): void {
     );
 
   renderKeys(ctx);
-
-  renderCommands(ctx, [t().commands.publish]);
 }
 
 function renderAccount(ctx: SettingsContext, position: number, account: PublishAccount): void {
@@ -165,7 +171,7 @@ function renderAccount(ctx: SettingsContext, position: number, account: PublishA
   }
 
   const ai = ctx.plugin.aiReady();
-  new Setting(containerEl)
+  const describe = new Setting(containerEl)
     .setName(t().publish.aiDescription)
     .setDesc(
       ai ? t().publish.aiDescriptionDesc(DESCRIPTION_TIMEOUT_MS / 1000) : t().settings.needsAiKey
@@ -176,6 +182,7 @@ function renderAccount(ctx: SettingsContext, position: number, account: PublishA
         .setValue(account.aiDescription)
         .onChange((value) => void update({ aiDescription: value }))
     );
+  markAi(describe, ai);
 
   new Setting(containerEl)
     .setName(t().publish.writeBack)
@@ -299,21 +306,24 @@ function renderKeys(ctx: SettingsContext): void {
     publishedUrl: t().publish.keyPublishedUrl
   };
 
-  new Setting(ctx.containerEl).setName(t().publish.keysHeading).setDesc(t().publish.keysDesc);
-
+  // Most vaults never rename these; folded, they are one line rather than seven.
+  const keys = fold(ctx, t().publish.keysHeading, t().publish.keysDesc);
   for (const role of PUBLISH_KEY_ROLES) {
-    new Setting(ctx.containerEl).setName(labels[role]).addText((text) => {
-      text.setPlaceholder(DEFAULT_PUBLISH_KEYS[role]);
-      text.setValue(ctx.plugin.settings.publishFrontmatterKeys[role]);
-      text.onChange(async (value) => {
-        await ctx.update({
-          publishFrontmatterKeys: {
-            ...ctx.plugin.settings.publishFrontmatterKeys,
-            [role]: value
-          }
+    new Setting(keys.containerEl)
+      .setName(labels[role])
+      .setDesc(t().publish.keyRoleDesc(DEFAULT_PUBLISH_KEYS[role]))
+      .addText((text) => {
+        text.setPlaceholder(DEFAULT_PUBLISH_KEYS[role]);
+        text.setValue(ctx.plugin.settings.publishFrontmatterKeys[role]);
+        text.onChange(async (value) => {
+          await ctx.update({
+            publishFrontmatterKeys: {
+              ...ctx.plugin.settings.publishFrontmatterKeys,
+              [role]: value
+            }
+          });
         });
       });
-    });
   }
 }
 

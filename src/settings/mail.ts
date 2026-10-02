@@ -9,12 +9,16 @@ import {
   MIN_MAIL_RESULTS
 } from "../services/plugin-settings";
 import type { SettingsContext } from "./context";
-import { renderCommands } from "./commands";
+import { fold, section } from "./layout";
 
 export function renderMail(ctx: SettingsContext): void {
-  new Setting(ctx.containerEl).setName(t().mail.heading).setHeading();
-
-  new Setting(ctx.containerEl).setDesc(t().mail.intro);
+  section(ctx, {
+    id: "mail",
+    name: t().mail.heading,
+    desc: t().mail.intro,
+    commands: [t().commands.sendMail, t().commands.queryMailbox, t().commands.fetchReplies],
+    indexed: true
+  });
 
   new Setting(ctx.containerEl)
     .setName(t().mail.bridgeUrl)
@@ -49,7 +53,9 @@ export function renderMail(ctx: SettingsContext): void {
       });
     });
 
-  new Setting(ctx.containerEl)
+  // The mailbox to search, how many results and where replies go: set once.
+  const advanced = fold(ctx, t().settings.foldAdvanced, t().settings.foldMailDesc);
+  new Setting(advanced.containerEl)
     .setName(t().mail.mailbox)
     .setDesc(t().mail.mailboxDesc)
     .addText((text) => {
@@ -60,7 +66,7 @@ export function renderMail(ctx: SettingsContext): void {
       });
     });
 
-  new Setting(ctx.containerEl)
+  new Setting(advanced.containerEl)
     .setName(t().mail.maxResults)
     .setDesc(t().mail.maxResultsDesc)
     .addSlider((slider) => {
@@ -73,7 +79,7 @@ export function renderMail(ctx: SettingsContext): void {
         });
     });
 
-  new Setting(ctx.containerEl)
+  new Setting(advanced.containerEl)
     .setName(t().mail.mergeHeading)
     .setDesc(t().mail.mergeHeadingDesc)
     .addText((text) => {
@@ -83,10 +89,4 @@ export function renderMail(ctx: SettingsContext): void {
         await ctx.update({ mailMergeHeading: value });
       });
     });
-
-  renderCommands(ctx, [
-    t().commands.sendMail,
-    t().commands.queryMailbox,
-    t().commands.fetchReplies
-  ]);
 }

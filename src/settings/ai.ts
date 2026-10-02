@@ -1,5 +1,7 @@
 /**
- * The shared model configuration, and the two commands that use it on their own: renaming a file from its content, and summarizing a selection.
+ * The shared model, and the features that use it on their own: picture
+ * descriptions, renaming a file from its content, and summarizing a selection.
+ * The model is its own block, before every feature that needs it.
  */
 import { SecretComponent, Setting } from "obsidian";
 import { t } from "../i18n";
@@ -16,34 +18,38 @@ import {
   MIN_SUMMARY_TOKENS
 } from "../services/plugin-settings";
 import type { SettingsContext } from "./context";
-import { renderCommands } from "./commands";
+import { fold, section } from "./layout";
 
-export function renderAi(ctx: SettingsContext): void {
-  new Setting(ctx.containerEl).setName(t().settings.aiHeading).setHeading();
-
+export function renderAiModel(ctx: SettingsContext): void {
   new Setting(ctx.containerEl).setDesc(t().settings.aiIntro);
 
-  new Setting(ctx.containerEl).setName(t().settings.provider).addDropdown((dropdown) => {
-    LLM_PROVIDER_IDS.forEach((id) => dropdown.addOption(id, providerLabel(id)));
-    dropdown.setValue(ctx.plugin.settings.llmProvider).onChange(async (value) => {
-      const provider = value as LlmProvider;
-      await ctx.update({
-        llmProvider: provider,
-        llmModel: PROVIDER_MODELS[provider][0].value,
-        llmModelCustom: ""
+  new Setting(ctx.containerEl)
+    .setName(t().settings.provider)
+    .setDesc(t().settings.providerDesc)
+    .addDropdown((dropdown) => {
+      LLM_PROVIDER_IDS.forEach((id) => dropdown.addOption(id, providerLabel(id)));
+      dropdown.setValue(ctx.plugin.settings.llmProvider).onChange(async (value) => {
+        const provider = value as LlmProvider;
+        await ctx.update({
+          llmProvider: provider,
+          llmModel: PROVIDER_MODELS[provider][0].value,
+          llmModelCustom: ""
+        });
+        ctx.refresh();
       });
-      ctx.refresh();
     });
-  });
 
   const models = PROVIDER_MODELS[ctx.plugin.settings.llmProvider];
-  new Setting(ctx.containerEl).setName(t().settings.model).addDropdown((dropdown) => {
-    models.forEach((m) => dropdown.addOption(m.value, m.label));
-    dropdown.setValue(ctx.plugin.settings.llmModel).onChange(async (value) => {
-      await ctx.update({ llmModel: value, llmModelCustom: "" });
-      ctx.refresh();
+  new Setting(ctx.containerEl)
+    .setName(t().settings.model)
+    .setDesc(t().settings.modelDesc)
+    .addDropdown((dropdown) => {
+      models.forEach((m) => dropdown.addOption(m.value, m.label));
+      dropdown.setValue(ctx.plugin.settings.llmModel).onChange(async (value) => {
+        await ctx.update({ llmModel: value, llmModelCustom: "" });
+        ctx.refresh();
+      });
     });
-  });
 
   new Setting(ctx.containerEl)
     .setName(t().settings.customModel)
@@ -74,10 +80,21 @@ export function renderAi(ctx: SettingsContext): void {
   if (!ctx.plugin.aiReady()) {
     new Setting(ctx.containerEl).setDesc(t().settings.aiNoKey);
   }
+}
 
-  renderDescriptions(ctx);
-
-  new Setting(ctx.containerEl).setName(t().settings.renameHeading).setHeading();
+/** Renaming a note or a picture from what is in it. */
+export function renderRename(ctx: SettingsContext): void {
+  section(ctx, {
+    id: "rename",
+    name: t().settings.renameHeading,
+    desc: t().settings.renameIntro,
+    commands: [t().commands.rename],
+    ai: true,
+    indexed: true
+  });
+  // How much is sent and how long a name may be: chosen once, if ever.
+  const limits = fold(ctx, t().settings.foldLimits, t().settings.foldLimitsDesc);
+  ctx = limits;
 
   new Setting(ctx.containerEl)
     .setName(t().settings.renameImageSize)
@@ -139,10 +156,18 @@ export function renderAi(ctx: SettingsContext): void {
         text.setValue(String(ctx.plugin.settings.renameMaxFilenameLength));
       });
     });
+}
 
-  new Setting(ctx.containerEl).setName(t().settings.summarizeHeading).setHeading();
-
-  new Setting(ctx.containerEl).setDesc(t().settings.summarizeIntro);
+/** Summarizing a selection into the note. */
+export function renderSummarize(ctx: SettingsContext): void {
+  section(ctx, {
+    id: "summarize",
+    name: t().settings.summarizeHeading,
+    desc: t().settings.summarizeIntro,
+    commands: [t().commands.summarize],
+    ai: true,
+    indexed: true
+  });
 
   new Setting(ctx.containerEl)
     .setName(t().settings.summarizePrompt)
@@ -174,15 +199,18 @@ export function renderAi(ctx: SettingsContext): void {
         }
       });
     });
-
-  renderCommands(ctx, [t().commands.rename, t().commands.summarize]);
 }
 
 /** Picture descriptions: the switch, where the notes go, their language and tags. */
-function renderDescriptions(ctx: SettingsContext): void {
+export function renderDescriptions(ctx: SettingsContext): void {
   const labels = t().settings;
-  new Setting(ctx.containerEl).setName(labels.describeHeading).setHeading();
-  new Setting(ctx.containerEl).setDesc(labels.describeIntro);
+  section(ctx, {
+    id: "descriptions",
+    name: labels.describeHeading,
+    desc: labels.describeIntro,
+    ai: true,
+    indexed: true
+  });
 
   const ai = ctx.plugin.aiReady();
   new Setting(ctx.containerEl)
@@ -194,8 +222,12 @@ function renderDescriptions(ctx: SettingsContext): void {
         .setValue(ctx.plugin.settings.imageDescriptionsEnabled)
         .onChange(async (value) => {
           await ctx.update({ imageDescriptionsEnabled: value });
+          // Switched off, the section is its switch; the rest follows it.
+          ctx.refresh();
         })
     );
+
+  if (!ai || !ctx.plugin.settings.imageDescriptionsEnabled) return;
 
   new Setting(ctx.containerEl)
     .setName(labels.describeFolder)
@@ -208,16 +240,19 @@ function renderDescriptions(ctx: SettingsContext): void {
       });
     });
 
-  new Setting(ctx.containerEl).setName(labels.describeLanguage).addDropdown((dropdown) => {
-    dropdown
-      .addOption("auto", labels.describeLanguageAuto)
-      .addOption("de", "Deutsch")
-      .addOption("en", "English")
-      .setValue(ctx.plugin.settings.imageDescriptionLanguage)
-      .onChange(async (value) => {
-        await ctx.update({ imageDescriptionLanguage: value as "auto" | "de" | "en" });
-      });
-  });
+  new Setting(ctx.containerEl)
+    .setName(labels.describeLanguage)
+    .setDesc(labels.describeLanguageDesc)
+    .addDropdown((dropdown) => {
+      dropdown
+        .addOption("auto", labels.describeLanguageAuto)
+        .addOption("de", "Deutsch")
+        .addOption("en", "English")
+        .setValue(ctx.plugin.settings.imageDescriptionLanguage)
+        .onChange(async (value) => {
+          await ctx.update({ imageDescriptionLanguage: value as "auto" | "de" | "en" });
+        });
+    });
 
   new Setting(ctx.containerEl)
     .setName(labels.describeTags)

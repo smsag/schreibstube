@@ -12,12 +12,16 @@ import {
 } from "../services/amounts";
 import { formatAmount, formatRateDate } from "../services/formulas";
 import type { SettingsContext } from "./context";
-import { renderCommands } from "./commands";
+import { section } from "./layout";
 
 export function renderSums(ctx: SettingsContext): void {
   const strings = t().sums;
-  new Setting(ctx.containerEl).setName(strings.heading).setHeading();
-  ctx.containerEl.createEl("p", { cls: "setting-item-description", text: strings.intro });
+  section(ctx, {
+    id: "sums",
+    name: strings.heading,
+    desc: strings.intro,
+    commands: [t().commands.sumSelection, t().commands.freezeTotals, t().commands.updateRates]
+  });
 
   const language = obsidianLanguageTag();
   const example = (style: NumberStyle) =>
@@ -70,10 +74,4 @@ export function renderSums(ctx: SettingsContext): void {
         ctx.refresh();
       })
     );
-
-  renderCommands(ctx, [
-    t().commands.sumSelection,
-    t().commands.freezeTotals,
-    t().commands.updateRates
-  ]);
 }

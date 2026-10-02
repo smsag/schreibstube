@@ -20,13 +20,17 @@ import {
 } from "../services/print-template";
 import { RUNTIME_MEGABYTES, TYPST_VERSION } from "../services/typst-runtime";
 import type { SettingsContext } from "./context";
-import { renderCommands } from "./commands";
+import { section } from "./layout";
 
 export function renderPrint(ctx: SettingsContext): void {
   const strings = t().settings;
-  new Setting(ctx.containerEl).setName(strings.printHeading).setHeading();
-
-  new Setting(ctx.containerEl).setDesc(strings.printIntro(TYPST_VERSION));
+  section(ctx, {
+    id: "print",
+    name: strings.printHeading,
+    desc: strings.printIntro(TYPST_VERSION),
+    commands: [t().commands.print, t().commands.printQuick, t().commands.printSelection],
+    indexed: true
+  });
 
   new Setting(ctx.containerEl)
     .setName(strings.printEnabled)
@@ -87,8 +91,6 @@ export function renderPrint(ctx: SettingsContext): void {
         void ctx.plugin.addPrintTemplate();
       })
     );
-
-  renderCommands(ctx, [t().commands.print, t().commands.printQuick, t().commands.printSelection]);
 }
 
 /**

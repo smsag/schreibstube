@@ -141,6 +141,8 @@ export const en = {
     accountTarget: "Target",
     accountDesc: "The site's name, the folder in the vault, and the target the bridge knows.",
     addAccount: "Add account",
+    addAccountDesc:
+      "Another site to publish to: its own name, its own folder in the vault and its own target on the bridge. A note is published to the site whose folder it is in.",
     writeBack: "Record the publication in the note",
     writeBackDesc: "Writes the time and the address into the frontmatter after publishing.",
     aiDescription: "Write missing descriptions with AI",
@@ -156,6 +158,7 @@ export const en = {
     headerTagPlaceholder: "#tag",
     targetPlaceholder: "Target on the bridge",
     keysHeading: "Frontmatter fields",
+    keyRoleDesc: (fallback: string) => `Default: ${fallback}`,
     keysDesc:
       "Which frontmatter key carries which meaning. Leave a field empty to keep the default. A " +
       "changed key replaces the default: notes still using the old name are no longer " +
