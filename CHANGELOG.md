@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Added
+
+- **Twice as many icons to choose from.** The picker for a folder's, a file's or a property's icon, and the `:shortcode:` picker in the text, go from 216 icons to 431. Eight groups are new or wider: folders that carry their own state (done, an open question, paused, a favourite); the numbers 0–9 and the letters A–Z as one circled series, for parts, acts and appendices; plain shapes, for a mark that only has to tell two things apart; revision and editing; story and characters; moods; places, with travel, weather, the time of day and animals; research; and media and publishing. The moods, the travel icons and the media icons moved out of Status and Everything else into groups of their own. Every icon a vault already uses is still there under the same name.
+
 ## 1.70.0 - 2026-10-01
 
 A starred picture names the article it came from, in Obsidian's own layouts.

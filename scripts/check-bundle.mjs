@@ -126,6 +126,12 @@ import { fileURLToPath } from "node:url";
  * said nothing about where to look. The feature is small; the budget had been
  * spent down to the kilobyte by the Recommended list before it. What is left
  * is for the next feature, not a new normal.
+ *
+ * Twice the picker's icons (+38 KB on 1364) fit under that ceiling, at 1402 KB:
+ * 215 glyphs for what the set had nothing for — a chapter's number, a
+ * character, a scene's weather, a draft's mood — carried as font, which costs
+ * about 180 bytes a glyph. A set that grows again by as much spends a third of
+ * what is left.
  */
 const MAX_BUNDLE_KB = 1520;
 
