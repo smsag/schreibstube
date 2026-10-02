@@ -83,7 +83,11 @@ export const UI_ICONS = [
 
 /**
  * The picker, in the order it is shown. Group ids are translated in `i18n`; a
- * new group needs an entry in both catalogues or the build fails on the type.
+ * new group needs an entry in both catalogues, or `src/i18n/index.test.ts`
+ * fails — the picker itself would quietly show the id.
+ *
+ * The writing groups come first, after documents and folders, because the
+ * plugin is for writing; the domains it grew up beside follow.
  */
 export const ICON_GROUPS = [
   {
@@ -142,13 +146,292 @@ export const ICON_GROUPS = [
       "folder-open",
       "folder-star",
       "folder-share",
+      // A folder that says what state it is in carries one mark where a plain
+      // folder and a status icon would need two, and the tree has room for one.
+      "folder-check",
+      "folder-x",
+      "folder-plus",
+      "folder-question",
+      "folder-exclamation",
+      "folder-heart",
+      "folder-pin",
+      "folder-bolt",
+      "folder-pause",
+      "folder-cog",
+      "folder-code",
+      "folder-search",
+      "folder-root",
+      "folders",
       "archive",
       "box",
+      "box-multiple",
+      "packages",
       "briefcase",
+      "briefcase-2",
+      "backpack",
+      "basket",
       "stack-2",
+      "stack-3",
       "layout-grid",
       "inbox",
       "database"
+    ]
+  },
+  {
+    id: "revision",
+    icons: [
+      // A draft that forks into a second version and comes back together.
+      "git-branch",
+      "git-merge",
+      "git-compare",
+      "file-diff",
+      "scissors",
+      "copy",
+      "replace",
+      "arrows-shuffle",
+      // What a pass over the text found, or still has to look at.
+      "text-spellcheck",
+      "text-grammar",
+      "pencil-check",
+      "pencil-question",
+      "eye-check",
+      "list-check",
+      "message-2-question",
+      "pilcrow",
+      "section-sign",
+      "letter-case",
+      "heading",
+      "page-break"
+    ]
+  },
+  {
+    id: "markers",
+    icons: [
+      // One frame for digits and letters, so Part 2 and Appendix B read as
+      // members of the same series. A circle, because a circled figure is the
+      // typographer's own ordinal mark.
+      "circle-number-0",
+      "circle-number-1",
+      "circle-number-2",
+      "circle-number-3",
+      "circle-number-4",
+      "circle-number-5",
+      "circle-number-6",
+      "circle-number-7",
+      "circle-number-8",
+      "circle-number-9",
+      "circle-letter-a",
+      "circle-letter-b",
+      "circle-letter-c",
+      "circle-letter-d",
+      "circle-letter-e",
+      "circle-letter-f",
+      "circle-letter-g",
+      "circle-letter-h",
+      "circle-letter-i",
+      "circle-letter-j",
+      "circle-letter-k",
+      "circle-letter-l",
+      "circle-letter-m",
+      "circle-letter-n",
+      "circle-letter-o",
+      "circle-letter-p",
+      "circle-letter-q",
+      "circle-letter-r",
+      "circle-letter-s",
+      "circle-letter-t",
+      "circle-letter-u",
+      "circle-letter-v",
+      "circle-letter-w",
+      "circle-letter-x",
+      "circle-letter-y",
+      "circle-letter-z",
+      // Shapes mean nothing on their own, which is the point: a mark that only
+      // has to tell two things apart should not also claim to say what they are.
+      "circle",
+      "square",
+      "square-rounded",
+      "square-dot",
+      "triangle",
+      "triangle-inverted",
+      "diamond",
+      "pentagon",
+      "hexagon",
+      "octagon",
+      "oval",
+      "point",
+      "asterisk",
+      "spiral"
+    ]
+  },
+  {
+    id: "story",
+    icons: [
+      // Who someone is in the story, before what they are called.
+      "crown",
+      "masks-theater",
+      "chess-king",
+      "chess-queen",
+      "chess-knight",
+      "chess-rook",
+      "man",
+      "woman",
+      "old",
+      "baby-carriage",
+      "friends",
+      "user-heart",
+      "user-question",
+      "spy",
+      // What goes wrong, and what is not of this world.
+      "sword",
+      "swords",
+      "bomb",
+      "skull",
+      "fingerprint",
+      "spider",
+      "wand",
+      "crystal-ball",
+      "ghost",
+      "dragon",
+      "route"
+    ]
+  },
+  {
+    id: "moods",
+    icons: [
+      // How a draft reads on the day, or how a character stands in a scene:
+      // worth recording, and not the same as how far along either is.
+      "mood-happy",
+      "mood-smile",
+      "mood-smile-beam",
+      "mood-crazy-happy",
+      "mood-wink",
+      "mood-heart",
+      "mood-surprised",
+      "mood-neutral",
+      "mood-confused",
+      "mood-puzzled",
+      "mood-nervous",
+      "mood-unamused",
+      "mood-empty",
+      "mood-silence",
+      "mood-sad",
+      "mood-cry",
+      "mood-angry",
+      "mood-annoyed",
+      "mood-sick",
+      "mood-nerd",
+      "mood-spark",
+      "heart",
+      "hearts",
+      "heart-broken"
+    ]
+  },
+  {
+    id: "places",
+    icons: [
+      "mountain",
+      "volcano",
+      "beach",
+      "ripple",
+      "building-lighthouse",
+      "building-bridge",
+      "building-monument",
+      "pyramid",
+      "tent",
+      "campfire",
+      "world",
+      "world-pin",
+      "map-route",
+      "car",
+      "bus",
+      "train",
+      "plane",
+      "ship",
+      "sailboat",
+      "bike",
+      "walk",
+      "trekking",
+      "luggage",
+      // A scene's hour and weather, which the prose has to keep straight from
+      // one chapter to the next.
+      "sun",
+      "sunrise",
+      "sunset",
+      "moon",
+      "moon-stars",
+      "cloud-rain",
+      "cloud-snow",
+      "cloud-storm",
+      "cloud-fog",
+      "wind",
+      "snowflake",
+      "umbrella",
+      "leaf",
+      "flower",
+      "seedling",
+      "cat",
+      "dog",
+      "horse",
+      "fish",
+      "butterfly"
+    ]
+  },
+  {
+    id: "research",
+    icons: [
+      "school",
+      "chalkboard",
+      "library",
+      "book-2",
+      "microscope",
+      "flask",
+      "atom",
+      "dna",
+      "telescope",
+      "math",
+      "brain",
+      "stethoscope",
+      "heartbeat",
+      "timeline-event",
+      "globe",
+      "hierarchy",
+      // A question still open, kept apart from the answers already found.
+      "zoom-question",
+      "world-search",
+      "report-search",
+      "list-search"
+    ]
+  },
+  {
+    id: "media",
+    icons: [
+      // A text that is read aloud, filmed or put online, as against printed:
+      // the printer stays with documents.
+      "microphone",
+      "headphones",
+      "radio",
+      "device-audio-tape",
+      "speakerphone",
+      "playlist",
+      "music",
+      "photo",
+      "camera",
+      "movie",
+      "video",
+      "player-play",
+      "player-record",
+      "theater",
+      "slideshow",
+      "rss",
+      "broadcast",
+      "world-www",
+      "world-share",
+      "qrcode",
+      "book-upload",
+      "book-download",
+      "file-export",
+      "device-tablet"
     ]
   },
   {
@@ -300,11 +583,7 @@ export const ICON_GROUPS = [
       "ban",
       "help",
       "info-circle",
-      // How a draft reads on the day, which is worth recording and is not the
-      // same as how far along it is.
-      "mood-happy",
-      "mood-neutral",
-      "mood-sad",
+      // A verdict on a draft, which is not the same as how far along it is.
       "thumb-up",
       "thumb-down",
       "trending-down"
@@ -322,18 +601,10 @@ export const ICON_GROUPS = [
       "search",
       "filter",
       "link",
-      "world",
       "cloud",
-      "photo",
-      "camera",
-      "movie",
-      "music",
       "code",
       "settings",
       "tools",
-      "heart",
-      "car",
-      "plane",
       "palette",
       "sparkles",
       "certificate",
