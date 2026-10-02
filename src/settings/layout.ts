@@ -54,18 +54,29 @@ export function section(ctx: SettingsContext, spec: SectionSpec): void {
 
   const commands = spec.commands ?? [];
   if (!spec.desc && commands.length === 0) return;
-  const intro = new Setting(ctx.containerEl);
-  intro.settingEl.addClass("schreibstube-settings-intro");
-  if (spec.desc) intro.descEl.createDiv({ text: spec.desc });
+  const intro = prose(ctx, spec.desc);
   if (commands.length > 0) {
     const words = t().settings;
-    const line = intro.descEl.createDiv({
+    const line = intro.createDiv({
       cls: "schreibstube-command-line",
       attr: { title: words.commandsIntro }
     });
     line.createSpan({ cls: "schreibstube-command-line-label", text: `${words.commandsHeading}: ` });
     line.createSpan({ text: commands.join(" · ") });
   }
+}
+
+/**
+ * Text that explains, under a heading, as plain text. Not a settings row: a
+ * row with only a description is drawn as a box, which made a paragraph about
+ * the feature look like one of its settings.
+ */
+export function prose(ctx: SettingsContext, text?: string): HTMLElement {
+  const el = ctx.containerEl.createDiv({
+    cls: "setting-item-description schreibstube-settings-intro"
+  });
+  if (text) el.createDiv({ text });
+  return el;
 }
 
 /**
@@ -104,21 +115,26 @@ export function fold(ctx: SettingsContext, name: string, desc: string): Settings
 }
 
 /**
- * The line at the top that jumps to a section: the tab is long, and the
- * section somebody came for is usually not the first.
+ * The navigation at the top that jumps to a section: the tab is long, and the
+ * section somebody came for is usually not the first. The blocks are one row
+ * and the features another, each a target of its own: run together as one
+ * sentence of names, bold and plain mixed, the line read as text and was hard
+ * to aim at.
  */
 export function renderIndex(el: HTMLElement, entries: readonly SectionEntry[]): void {
   el.empty();
-  el.createSpan({ cls: "schreibstube-settings-index-label", text: `${t().settings.indexLabel}: ` });
-  entries.forEach((entry, position) => {
-    if (position > 0) el.createSpan({ text: " · " });
-    const link = el.createEl("a", {
-      cls: `schreibstube-settings-index-link${entry.block ? " is-block" : ""}`,
+  el.setAttribute("role", "navigation");
+  el.setAttribute("aria-label", t().settings.indexLabel);
+  const blocks = el.createDiv({ cls: "schreibstube-settings-index-blocks" });
+  const features = el.createDiv({ cls: "schreibstube-settings-index-features" });
+  for (const entry of entries) {
+    const link = (entry.block ? blocks : features).createEl("a", {
+      cls: entry.block ? "schreibstube-settings-index-block" : "schreibstube-settings-index-chip",
       text: entry.name,
       attr: { role: "button", tabindex: "0" }
     });
     const jump = (): void => entry.el.scrollIntoView({ block: "start", behavior: "smooth" });
     link.addEventListener("click", jump);
     pressKeys(link, jump);
-  });
+  }
 }

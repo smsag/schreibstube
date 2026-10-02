@@ -2731,32 +2731,55 @@
 
 /* --- Settings tab -------------------------------------------------------- */
 
-/* The line at the top that jumps to a section; blocks read stronger than the
-   features inside them. */
+/* The navigation at the top: the blocks as a row of quiet tabs, the features
+   under them as outlined chips, no fill, wrapping on a narrow pane. One kind
+   of target per row, so neither reads as running text. */
 .schreibstube-settings-index {
-  padding: 0 0 var(--size-4-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-4-3);
+  padding-bottom: var(--size-4-4);
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.schreibstube-settings-index-blocks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--size-4-1) var(--size-4-5);
+}
+
+.schreibstube-settings-index-block {
   color: var(--text-muted);
   font-size: var(--font-ui-small);
-  line-height: 1.8;
-}
-
-.schreibstube-settings-index-label {
-  color: var(--text-faint);
-}
-
-.schreibstube-settings-index-link {
-  color: var(--text-muted);
+  font-weight: var(--font-semibold);
   text-decoration: none;
   cursor: var(--cursor-link);
 }
 
-.schreibstube-settings-index-link.is-block {
-  color: var(--text-normal);
-  font-weight: var(--font-semibold);
+.schreibstube-settings-index-features {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--size-4-2);
 }
 
-.schreibstube-settings-index-link:hover {
+.schreibstube-settings-index-chip {
+  padding: var(--size-2-1) var(--size-4-2);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-m);
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  line-height: 1.5;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: var(--cursor-link);
+}
+
+.schreibstube-settings-index-block:hover,
+.schreibstube-settings-index-block:focus-visible,
+.schreibstube-settings-index-chip:hover,
+.schreibstube-settings-index-chip:focus-visible {
   color: var(--text-accent);
+  border-color: var(--text-accent);
 }
 
 /* A block's heading stands above the features' headings, with room before it
@@ -2772,14 +2795,14 @@
 }
 
 .schreibstube-settings .schreibstube-settings-index + .schreibstube-settings-block {
-  margin-top: 0;
+  margin-top: var(--size-4-4);
 }
 
 /* What a feature does and which commands it brings, one box, no gap to the
    heading it explains. */
 .schreibstube-settings .schreibstube-settings-intro {
-  border-top: none;
-  padding-top: 0;
+  padding: var(--size-4-1) 0 var(--size-4-3);
+  max-width: 42em;
 }
 
 .schreibstube-command-line {
