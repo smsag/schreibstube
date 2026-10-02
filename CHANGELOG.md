@@ -16,6 +16,7 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- **Recommended no longer offers the pictures an article already shows.** Since 1.70.0 every picture description links back to the articles its picture is in, so under an article each of its own pictures — or its description — stood at the top of Recommended, as if it were the most related thing in the vault. A picture the note itself embeds or links is now left out, whether the link graph or search by meaning found it; a note the article links is still offered.
 - **Schreibstube's commands have icons in the mobile toolbar.** Every command now brings one — a printer for printing, a sigma for summing, a globe for publishing — where the toolbar's editor showed a question mark for each. The plugin looks the icon up as each command is registered, so a command added later cannot go without one.
 
 ## 1.71.0 - 2026-10-02

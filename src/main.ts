@@ -102,6 +102,7 @@ import {
 import {
   foldDescriptions,
   meaningOrder,
+  withoutPicturesShown,
   recommendNotes,
   withAttached,
   type RelevanceFloors
@@ -973,27 +974,35 @@ export default class SchreibstubePlugin extends Plugin {
 
   /** The link graph's answer alone, a description note shown as its picture. */
   private linkItems(explorer: ExplorerController, path: string): RecommendedItem[] {
-    return foldDescriptions(
+    const folded = foldDescriptions(
       explorer.relatedCards(path),
       (note) => this.describedPicture(note)?.path ?? null
-    ).flatMap((entry): RecommendedItem[] => {
-      const file = this.app.vault.getAbstractFileByPath(entry.path);
-      if (!(file instanceof TFile)) return [];
-      // One whose picture is gone had nothing to fold into: it is not a note.
-      if (!entry.picture && explorer.isDescriptionNote(file.path)) return [];
-      if (entry.picture) {
-        const src = this.app.vault.getResourcePath(file);
-        return [
-          {
-            kind: "picture",
-            picture: { path: file.path, title: file.basename, src, reasons: entry.reasons }
-          }
-        ];
+    );
+    return withoutPicturesShown(folded, (entry) => entry.picture, this.shownBy(path)).flatMap(
+      (entry): RecommendedItem[] => {
+        const file = this.app.vault.getAbstractFileByPath(entry.path);
+        if (!(file instanceof TFile)) return [];
+        // One whose picture is gone had nothing to fold into: it is not a note.
+        if (!entry.picture && explorer.isDescriptionNote(file.path)) return [];
+        if (entry.picture) {
+          const src = this.app.vault.getResourcePath(file);
+          return [
+            {
+              kind: "picture",
+              picture: { path: file.path, title: file.basename, src, reasons: entry.reasons }
+            }
+          ];
+        }
+        const title = explorer.titleFor(file) ?? file.basename;
+        const card = { path: file.path, title, folder: folderOf(file), reasons: entry.reasons };
+        return [{ kind: "note", card }];
       }
-      const title = explorer.titleFor(file) ?? file.basename;
-      const card = { path: file.path, title, folder: folderOf(file), reasons: entry.reasons };
-      return [{ kind: "note", card }];
-    });
+    );
+  }
+
+  /** Every file a note links or embeds, as Obsidian resolved them. */
+  private shownBy(path: string): Set<string> {
+    return new Set(Object.keys(this.app.metadataCache.resolvedLinks[path] ?? {}));
   }
 
   /**
@@ -1011,9 +1020,11 @@ export default class SchreibstubePlugin extends Plugin {
     const cards = explorer.relatedCards(path);
     // A description note whose picture is gone had nothing to fold into, and
     // is left out rather than recommended as a note.
-    const graph = foldDescriptions(
-      cards,
-      (note) => this.describedPicture(note)?.path ?? null
+    const shown = this.shownBy(path);
+    const graph = withoutPicturesShown(
+      foldDescriptions(cards, (note) => this.describedPicture(note)?.path ?? null),
+      (entry) => entry.picture,
+      shown
     ).filter((entry) => entry.picture || !explorer.isDescriptionNote(entry.path));
 
     // One meaning ranking over the vault: a description note stands for its
@@ -1028,6 +1039,8 @@ export default class SchreibstubePlugin extends Plugin {
     for (const hit of found.notes) {
       const picture = this.describedPicture(hit.id);
       if (picture) {
+        // Read alike because it describes a picture on this very page.
+        if (shown.has(picture.path)) continue;
         pictures.set(picture.path, picture);
         byMeaning.push({ key: picture.path, score: hit.score });
         continue;
