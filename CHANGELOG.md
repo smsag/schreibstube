@@ -2,7 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## 1.72.1 - 2026-10-02
+
+Two corrections to 1.72.0's settings tab. The jump line at the top is two
+rows you can aim at rather than one sentence of names, and what a section
+says about its feature is plain text under its heading instead of a box that
+looked like one more setting.
+
+Mobile checklist: not run; the test suite and the build covered it. What to
+try first on a phone: the jump line wrapping on a narrow pane, and a
+section's description under its heading.
+
+The bridge stays at 2.13.1, protocol 7.
 
 ### Changed
 
