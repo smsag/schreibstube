@@ -131,6 +131,9 @@ export const enExtra = {
     renameMaxFilename: "Maximum filename length",
     renameMaxFilenameDesc: "Generated filename will be truncated to this many characters.",
 
+    aiNoKey:
+      "No key is chosen, so the AI features are left out everywhere: renaming from the content, summaries and tables from a selection, proofreading, describing pictures and writing a published page's missing description. Choose a key above and they are back at once.",
+    needsAiKey: "Needs an AI key, chosen above under AI.",
     describeHeading: "Picture descriptions",
     describeIntro:
       "Describe a picture from its menu in Schreibstube Explorer: the configured model writes a title, a " +
@@ -434,6 +437,8 @@ export const enExtra = {
     panelGlossary: (source: string) => `Glossary (${source})`,
     panelCheckedAt: (when: string) => `Last checked: ${when}`,
     panelProofread: "Read correction",
+    panelNeedsKey:
+      "Proofreading needs an AI key — choose one under Settings → AI. The glossary check works without one.",
     panelGlossaryCheck: "Check glossary",
     panelStop: "Cancel",
     panelCheckSource: "Check source",

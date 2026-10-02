@@ -64,8 +64,16 @@ export function renderAi(ctx: SettingsContext): void {
         .setValue(ctx.plugin.settings.llmSecretName)
         .onChange(async (value) => {
           await ctx.update({ llmSecretName: value });
+          // The note below and the switches that need a key follow it at once.
+          ctx.refresh();
         })
     );
+
+  // Without a key every AI command and menu entry is left out, so this is
+  // the one place left that says they exist and how they come back.
+  if (!ctx.plugin.aiReady()) {
+    new Setting(ctx.containerEl).setDesc(t().settings.aiNoKey);
+  }
 
   renderDescriptions(ctx);
 
@@ -176,13 +184,17 @@ function renderDescriptions(ctx: SettingsContext): void {
   new Setting(ctx.containerEl).setName(labels.describeHeading).setHeading();
   new Setting(ctx.containerEl).setDesc(labels.describeIntro);
 
+  const ai = ctx.plugin.aiReady();
   new Setting(ctx.containerEl)
     .setName(labels.describeEnabled)
-    .setDesc(labels.describeEnabledDesc)
+    .setDesc(ai ? labels.describeEnabledDesc : labels.needsAiKey)
     .addToggle((toggle) =>
-      toggle.setValue(ctx.plugin.settings.imageDescriptionsEnabled).onChange(async (value) => {
-        await ctx.update({ imageDescriptionsEnabled: value });
-      })
+      toggle
+        .setDisabled(!ai)
+        .setValue(ctx.plugin.settings.imageDescriptionsEnabled)
+        .onChange(async (value) => {
+          await ctx.update({ imageDescriptionsEnabled: value });
+        })
     );
 
   new Setting(ctx.containerEl)

@@ -32,3 +32,17 @@ export function resolveApiKey(
 
   return { ok: true, apiKey };
 }
+
+/**
+ * Whether the AI can be asked at all: a key is chosen and Obsidian's secret
+ * storage holds something under it. Not whether the key works — that is the
+ * provider's to say when it is asked — but without one nothing the AI does
+ * can happen, so every surface offering it asks this first and offers
+ * nothing rather than a refusal. One place, so the commands, the menus, the
+ * picture bar and the review panel cannot disagree about it.
+ */
+export function hasApiKey(store: SecretStore | null | undefined, secretName: string): boolean {
+  if (!store || !secretName) return false;
+  const key = store.getSecret(secretName);
+  return typeof key === "string" && key.trim() !== "";
+}

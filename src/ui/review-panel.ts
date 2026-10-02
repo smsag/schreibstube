@@ -61,6 +61,8 @@ export interface ReviewState {
   sync: SyncPanelState;
   /** A short line under the header: a result summary, or why nothing happened. */
   message: string;
+  /** Whether the AI can be asked; proofreading needs it, the glossary check does not. */
+  canProofread: boolean;
 }
 
 export interface ReviewHandlers {
@@ -86,7 +88,8 @@ export const EMPTY_REVIEW_STATE: ReviewState = {
   glossary: { selected: [], available: [], source: "none", errors: [], missing: [] },
   terms: { folder: "", rules: [] },
   sync: { bound: false, status: "none", source: "", checkedAt: 0, interval: "", message: "" },
-  message: ""
+  message: "",
+  canProofread: false
 };
 
 export class ReviewPanelView extends ItemView {
@@ -188,6 +191,10 @@ export class ReviewPanelView extends ItemView {
     this.renderGlossary(root);
     this.renderTerms(root);
 
+    // Said where the greyed button is, so the way to it is not a guess.
+    if (!this.state.canProofread && this.state.phase !== "no-file") {
+      root.createDiv({ cls: "schreibstube-review-message", text: t().proofread.panelNeedsKey });
+    }
     if (this.state.message) {
       root.createDiv({ cls: "schreibstube-review-message", text: this.state.message });
     }
@@ -225,7 +232,7 @@ export class ReviewPanelView extends ItemView {
       // on its leaf tab, and the same mark on a button inside it would mean two
       // things at once. `scan-text` is the act, not the place.
       "scan-text",
-      !hasFile || running,
+      !hasFile || running || !this.state.canProofread,
       () => this.handlers?.onProofread(),
       "primary"
     );

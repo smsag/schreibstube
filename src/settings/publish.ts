@@ -164,11 +164,15 @@ function renderAccount(ctx: SettingsContext, position: number, account: PublishA
     );
   }
 
+  const ai = ctx.plugin.aiReady();
   new Setting(containerEl)
     .setName(t().publish.aiDescription)
-    .setDesc(t().publish.aiDescriptionDesc(DESCRIPTION_TIMEOUT_MS / 1000))
+    .setDesc(
+      ai ? t().publish.aiDescriptionDesc(DESCRIPTION_TIMEOUT_MS / 1000) : t().settings.needsAiKey
+    )
     .addToggle((toggle) =>
       toggle
+        .setDisabled(!ai)
         .setValue(account.aiDescription)
         .onChange((value) => void update({ aiDescription: value }))
     );

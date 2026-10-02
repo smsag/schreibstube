@@ -53,6 +53,7 @@ import { BaseReadingFlags, isBaseFile } from "./controllers/base-reading-flags";
 import { BasesReadingView } from "./controllers/bases-reading";
 import { PassagesController } from "./controllers/passages";
 import { commandIcon } from "./services/command-icons";
+import { hasApiKey } from "./services/secret";
 import { PASSAGES_VIEW_TYPE, PassagesView } from "./ui/passages-view";
 import { PASSAGE_OPTION } from "./services/passages";
 import { PictureEmbedActions } from "./controllers/picture-embed-actions";
@@ -506,6 +507,7 @@ export default class SchreibstubePlugin extends Plugin {
               .onClick(() => insertTable(editor, range, table))
           );
         }
+        if (!this.aiReady()) return;
         menu.addItem((item) =>
           item
             .setTitle(t().ai.tableMenuAi)
@@ -544,7 +546,7 @@ export default class SchreibstubePlugin extends Plugin {
       {
         descriptionNoteOf: (path) => explorer.descriptionNoteOf(path),
         describe: (picture) => this.requireLlm().describeImage(picture),
-        describingEnabled: () => this.settings.imageDescriptionsEnabled,
+        describingEnabled: () => this.settings.imageDescriptionsEnabled && this.aiReady(),
         open: (note, where) => explorer.open(note, where)
       },
       this.logger
@@ -667,6 +669,11 @@ export default class SchreibstubePlugin extends Plugin {
         }
       ]
     });
+  }
+
+  /** Whether the AI can be asked: `services/secret`, for every surface that offers it. */
+  aiReady(): boolean {
+    return hasApiKey(this.app.secretStorage, this.settings.llmSecretName);
   }
 
   /** Turn Reading view on or off for one base, and say which it is now. */
@@ -1687,6 +1694,7 @@ export default class SchreibstubePlugin extends Plugin {
     const view = this.app.workspace.getActiveViewOfType(MarkdownView);
 
     return {
+      ai: this.aiReady(),
       markdown: file?.extension === "md",
       base: file?.extension === "base",
       image: file !== null && getImageMimeType(file.extension) !== null,
@@ -1813,7 +1821,7 @@ export default class SchreibstubePlugin extends Plugin {
       if (editor) convertSelectionToTable(editor);
     });
 
-    this.addGatedCommand("ai-table-from-selection", t().commands.tableAi, "table", () => {
+    this.addGatedCommand("ai-table-from-selection", t().commands.tableAi, "table-ai", () => {
       const editor = this.app.workspace.getActiveViewOfType(MarkdownView)?.editor;
       if (editor) void this.llm?.tableFromSelection(editor);
     });
@@ -1931,12 +1939,8 @@ export default class SchreibstubePlugin extends Plugin {
       }
     });
 
-    this.addCommand({
-      id: "proof-read-note",
-      name: t().commands.proofread,
-      editorCallback: () => {
-        void this.activateReviewPanel().then(() => this.proofread?.handlers().onProofread());
-      }
+    this.addGatedCommand("proof-read-note", t().commands.proofread, "proofread", () => {
+      void this.activateReviewPanel().then(() => this.proofread?.handlers().onProofread());
     });
 
     this.addCommand({

@@ -435,6 +435,9 @@ export const de: Messages = {
     renameMaxFilename: "Maximale Länge des Dateinamens",
     renameMaxFilenameDesc: "Der erzeugte Dateiname wird auf so viele Zeichen gekürzt.",
 
+    aiNoKey:
+      "Es ist kein Schlüssel gewählt, deshalb sind die KI-Funktionen überall ausgeblendet: Umbenennen nach dem Inhalt, Zusammenfassung und Tabelle aus der Auswahl, Korrektur lesen, Bilder beschreiben und die fehlende Beschreibung beim Veröffentlichen. Wähle oben einen Schlüssel, dann sind sie sofort wieder da.",
+    needsAiKey: "Braucht einen KI-Schlüssel, oben unter KI gewählt.",
     describeHeading: "Bildbeschreibungen",
     describeIntro:
       "Ein Bild über sein Menü im Schreibstube Explorer beschreiben: Das eingestellte Modell schreibt Titel, " +
@@ -743,6 +746,8 @@ export const de: Messages = {
     panelGlossary: (source: string) => `Glossar (${source})`,
     panelCheckedAt: (when: string) => `Zuletzt geprüft: ${when}`,
     panelProofread: "Korrektur lesen",
+    panelNeedsKey:
+      "Korrektur lesen braucht einen KI-Schlüssel — wähle einen unter Einstellungen → KI. Die Glossar-Prüfung funktioniert auch ohne.",
     panelGlossaryCheck: "Glossar prüfen",
     panelStop: "Abbrechen",
     panelCheckSource: "Quelle prüfen",

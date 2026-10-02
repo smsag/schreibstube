@@ -39,7 +39,7 @@ import {
   scanGlossary,
   type CancelToken
 } from "../services/proofread-runner";
-import { resolveApiKey } from "../services/secret";
+import { hasApiKey, resolveApiKey } from "../services/secret";
 import { fetchSource } from "../platform/sync-fetcher";
 import {
   buildSyncSuggestions,
@@ -1156,7 +1156,8 @@ export class ProofreadController {
       glossary: this.glossaryPanel,
       terms: this.terms,
       sync: this.sync,
-      message: this.message
+      message: this.message,
+      canProofread: hasApiKey(this.app.secretStorage, this.getSettings().llmSecretName)
     };
   }
 

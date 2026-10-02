@@ -904,6 +904,8 @@ Automatic follows Obsidian's language — `1.234,56` for German, `1,234.56` for 
 
 Provider, model, and API key are shared by every AI command (rename, summarize, and AI table).
 
+Without a key the AI is left out everywhere rather than refusing when asked: the AI commands are not in the palette, the right-click entries for an AI table, for renaming from the content and for describing pictures are not on the menus, the picture bar offers no description to write, and **Read correction** in the review panel is greyed out with a line saying where the key goes — the glossary check beside it works without one. The settings that need the AI stay visible but greyed, and the AI section says what comes back once a key is chosen. Choosing one brings everything back at once; a command already placed in the mobile toolbar stays there and does nothing until then.
+
 | Setting         | Description                                     | Default          |
 | --------------- | ----------------------------------------------- | ---------------- |
 | LLM provider    | Anthropic or OpenAI                             | Anthropic        |

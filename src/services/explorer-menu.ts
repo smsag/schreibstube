@@ -52,8 +52,10 @@ export interface ExplorerTarget {
   image?: boolean;
   /** A spreadsheet export (`.csv`, `.tsv`), which can be copied as a Markdown table. */
   csv?: boolean;
-  /** A picture that can be described: picture descriptions are switched on. */
+  /** A picture that can be described: picture descriptions are switched on, and the AI can be asked. */
   describable?: boolean;
+  /** Whether the AI can be asked at all; without a key it offers nothing here. */
+  ai?: boolean;
   /**
    * Whether the note names a source in its frontmatter.
    *
@@ -246,7 +248,7 @@ export function buildExplorerMenu(
 function aiRenameItem(target: ExplorerTarget): ExplorerMenuItem[] {
   const menu = t().explorer.menu;
 
-  if (target.kind !== "file") return [];
+  if (target.kind !== "file" || target.ai !== true) return [];
   if (target.image) return [{ id: "rename-ai", label: menu.renameImageAi, icon: "wand-2" }];
   if (target.markdown) return [{ id: "rename-ai", label: menu.renameNoteAi, icon: "wand-2" }];
 

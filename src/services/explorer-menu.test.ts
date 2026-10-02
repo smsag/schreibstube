@@ -17,6 +17,7 @@ function target(overrides: Partial<ExplorerTarget> = {}): ExplorerTarget {
     kind: "file",
     path: "Objekte/Haus.md",
     markdown: true,
+    ai: true,
     hasIcon: false,
     kept: false,
     pinned: false,
@@ -291,6 +292,11 @@ describe("naming a file from what is inside it", () => {
 
   it("offers nothing on a folder, which has no contents of that kind", () => {
     expect(fileItems({ kind: "folder", markdown: false, image: true })).toEqual([]);
+  });
+
+  it("offers nothing without an AI key, which naming from the content needs", () => {
+    expect(fileItems({ markdown: true, ai: false })).toEqual([]);
+    expect(fileItems({ markdown: false, image: true, ai: false })).toEqual([]);
   });
 });
 
