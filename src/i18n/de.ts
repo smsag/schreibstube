@@ -1118,6 +1118,7 @@ export const de: Messages = {
         media: "Medien & Veröffentlichung",
         property: "Immobilien",
         business: "Geschäft",
+        finance: "Wirtschaft & Finanzen",
         status: "Status",
         logos: "Logos",
         misc: "Sonstiges"
