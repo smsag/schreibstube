@@ -7,7 +7,8 @@ import {
   relevanceOf,
   similarityPercent,
   withAttached,
-  type RecommendReason
+  type RecommendReason,
+  withoutPicturesShown
 } from "./recommend";
 import type { RelatedReason } from "../related-notes";
 
@@ -205,5 +206,25 @@ describe("foldDescriptions", () => {
       pictureOf
     );
     expect(shared.count).toBe(1);
+  });
+});
+
+describe("withoutPicturesShown", () => {
+  const entries = [
+    { path: "Bilder/kueche.jpg", picture: true },
+    { path: "Bilder/bad.jpg", picture: true },
+    { path: "Notizen/Objekt 12.md", picture: false }
+  ];
+
+  it("leaves out the pictures the note shows itself, and keeps the notes it links", () => {
+    const shown = new Set(["Bilder/kueche.jpg", "Notizen/Objekt 12.md"]);
+    expect(withoutPicturesShown(entries, (entry) => entry.picture, shown)).toEqual([
+      { path: "Bilder/bad.jpg", picture: true },
+      { path: "Notizen/Objekt 12.md", picture: false }
+    ]);
+  });
+
+  it("keeps every entry for a note that shows no picture", () => {
+    expect(withoutPicturesShown(entries, (entry) => entry.picture, new Set())).toHaveLength(3);
   });
 });

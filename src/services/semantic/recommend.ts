@@ -81,6 +81,25 @@ export function foldDescriptions<R extends { kind: string; count: number }>(
   return [...folded.values()];
 }
 
+/**
+ * The entries without the pictures the open note shows itself.
+ *
+ * A picture's description links the articles it is in (`schreibstubeArticles`)
+ * and the picture it describes, so for an article every picture in it came
+ * back as a backlink and a shared link — the strongest things the graph
+ * knows — and stood at the top of its recommendations. What is already on
+ * the page is not something to be shown beside it. `shown` is every file the
+ * note links or embeds; a note it links stays, since reaching a linked note
+ * from beside the text is what a recommendation is for.
+ */
+export function withoutPicturesShown<T extends { path: string }>(
+  entries: readonly T[],
+  isPicture: (entry: T) => boolean,
+  shown: ReadonlySet<string>
+): T[] {
+  return entries.filter((entry) => !(isPicture(entry) && shown.has(entry.path)));
+}
+
 /** Said by a person rather than inferred: a link, or a note attached. */
 function isDeclared(reason: RecommendReason): boolean {
   return reason.kind === "link" || reason.kind === "attached";
