@@ -560,14 +560,6 @@ describe("printing is off until somebody says otherwise", () => {
   });
 });
 
-describe("Reading view from bases", () => {
-  it("is off unless switched on, and a stray value does not switch it on", () => {
-    expect(normalizeSettings({}).basesReadingView).toBe(false);
-    expect(normalizeSettings({ basesReadingView: "on" as never }).basesReadingView).toBe(false);
-    expect(normalizeSettings({ basesReadingView: true }).basesReadingView).toBe(true);
-  });
-});
-
 describe("icon shortcodes", () => {
   it("are on unless switched off, and a stray value does not switch them off", () => {
     expect(normalizeSettings({}).iconShortcodes).toBe(true);

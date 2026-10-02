@@ -846,7 +846,27 @@ export function embedSourceOf(embed: HTMLElement): string | null {
  */
 const BASES_RESULTS = ".bases-view";
 
-/** Whether a press landed in a base's results: a row, a card, or a link in one. */
-export function pressedInBase(target: EventTarget | null): boolean {
-  return isElementLike(target) && target.closest(BASES_RESULTS) !== null;
+/**
+ * The element a base embedded in a note is drawn in, by link (`![[X.base]]`)
+ * or as a `base` code block alike. The link's embed carries it as `src`, the
+ * way an embedded picture does; a code block has none, since it has no file.
+ */
+const BASES_EMBED = ".bases-embed";
+
+/**
+ * Which base a press landed in, as far as the markup tells: one open in its
+ * own tab, one embedded by link (with the link as written, `X.base#View`
+ * included), or a code block. Null when the press was not in a base's
+ * results — a row, a card, or a link in one — at all.
+ */
+export type BasePress = { kind: "tab" } | { kind: "embed"; link: string } | { kind: "block" };
+
+export function basePressed(target: EventTarget | null): BasePress | null {
+  if (!isElementLike(target)) return null;
+  const results = target.closest(BASES_RESULTS);
+  if (!results) return null;
+  const embed = results.closest(BASES_EMBED);
+  if (!isElementLike(embed)) return { kind: "tab" };
+  const link = embed.getAttribute("src");
+  return link ? { kind: "embed", link } : { kind: "block" };
 }

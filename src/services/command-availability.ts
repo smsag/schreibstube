@@ -24,6 +24,7 @@ export type GatedCommand =
   | "fetch-replies"
   | "print"
   | "print-selection"
+  | "base-reading"
   | "collapse-explorer"
   | "related";
 
@@ -31,6 +32,8 @@ export type GatedCommand =
 export interface CommandContext {
   /** A Markdown note is open in an editor. */
   markdown: boolean;
+  /** The open file is a base. */
+  base: boolean;
   /** The open file is a picture a vision model can be shown. */
   image: boolean;
   /** Something is selected in the editor. */
@@ -83,6 +86,9 @@ export function commandAvailable(command: GatedCommand, context: CommandContext)
     // Printing a passage needs the passage marked; what is marked is the print.
     case "print-selection":
       return context.markdown && context.selection;
+    // Whether a base opens its notes for reading is said in the base's file.
+    case "base-reading":
+      return context.base;
     case "collapse-explorer":
       return context.explorerOpen;
   }

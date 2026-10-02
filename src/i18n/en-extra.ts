@@ -5,6 +5,15 @@
  * catalogue, and German has to satisfy the merged shape.
  */
 export const enExtra = {
+  bases: {
+    readingMenu: "Open notes in Reading view",
+    readingOn: (name: string) => `The base ${name} now opens notes in Reading view.`,
+    readingOff: (name: string) => `The base ${name} opens notes as usual again.`,
+    readingFailed: (name: string, detail: string) =>
+      `could not change the base ${name} — ${detail}`,
+    noBase: "open a base first — the setting belongs to the base you are looking at."
+  },
+
   settings: {
     overlayHeading: "Heading stack",
     overlayEnabled: "Enable heading stack overlay",
@@ -21,9 +30,10 @@ export const enExtra = {
     basesHeading: "Bases",
     basesReadingView: "Open notes from bases in Reading view",
     basesReadingViewDesc:
-      "A note opened from a base — a row in a table, a card, a list entry, or a link in one — opens " +
-      "for reading rather than editing, in every layout and whether the base is a file or embedded " +
-      "in a note. Back returns to the base.",
+      "Each base says this for itself: right-click the base's file or its tab → Open notes in Reading " +
+      "view, or use the command below. A note opened from that base — a row in a table, a card, a list " +
+      "entry, or a link in one — then opens for reading, in every layout, and wherever the base is " +
+      "embedded in a note. It is kept in the base's file, as schreibstubeReadingView: true.",
 
     focusHeading: "Focus mode",
     focusOpacity: "Dim opacity",

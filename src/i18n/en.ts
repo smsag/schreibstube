@@ -13,6 +13,7 @@ export const en = {
     print: "Print doc",
     printQuick: "Print doc (without dialog)",
     printSelection: "Print selection",
+    baseReadingView: "Base: open notes in Reading view (on/off)",
     focusSentence: "Focus: sentence",
     focusParagraph: "Focus: paragraph",
     newNote: "New doc",
