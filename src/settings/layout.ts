@@ -54,18 +54,29 @@ export function section(ctx: SettingsContext, spec: SectionSpec): void {
 
   const commands = spec.commands ?? [];
   if (!spec.desc && commands.length === 0) return;
-  const intro = new Setting(ctx.containerEl);
-  intro.settingEl.addClass("schreibstube-settings-intro");
-  if (spec.desc) intro.descEl.createDiv({ text: spec.desc });
+  const intro = prose(ctx, spec.desc);
   if (commands.length > 0) {
     const words = t().settings;
-    const line = intro.descEl.createDiv({
+    const line = intro.createDiv({
       cls: "schreibstube-command-line",
       attr: { title: words.commandsIntro }
     });
     line.createSpan({ cls: "schreibstube-command-line-label", text: `${words.commandsHeading}: ` });
     line.createSpan({ text: commands.join(" · ") });
   }
+}
+
+/**
+ * Text that explains, under a heading, as plain text. Not a settings row: a
+ * row with only a description is drawn as a box, which made a paragraph about
+ * the feature look like one of its settings.
+ */
+export function prose(ctx: SettingsContext, text?: string): HTMLElement {
+  const el = ctx.containerEl.createDiv({
+    cls: "setting-item-description schreibstube-settings-intro"
+  });
+  if (text) el.createDiv({ text });
+  return el;
 }
 
 /**

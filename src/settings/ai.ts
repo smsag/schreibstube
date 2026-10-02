@@ -18,10 +18,10 @@ import {
   MIN_SUMMARY_TOKENS
 } from "../services/plugin-settings";
 import type { SettingsContext } from "./context";
-import { fold, section } from "./layout";
+import { fold, prose, section } from "./layout";
 
 export function renderAiModel(ctx: SettingsContext): void {
-  new Setting(ctx.containerEl).setDesc(t().settings.aiIntro);
+  prose(ctx, t().settings.aiIntro);
 
   new Setting(ctx.containerEl)
     .setName(t().settings.provider)
@@ -78,7 +78,7 @@ export function renderAiModel(ctx: SettingsContext): void {
   // Without a key every AI command and menu entry is left out, so this is
   // the one place left that says they exist and how they come back.
   if (!ctx.plugin.aiReady()) {
-    new Setting(ctx.containerEl).setDesc(t().settings.aiNoKey);
+    prose(ctx, t().settings.aiNoKey);
   }
 }
 

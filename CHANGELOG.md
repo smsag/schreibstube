@@ -7,6 +7,7 @@ All notable changes to this project will be documented in this file.
 ### Changed
 
 - **The settings' jump line is two rows you can aim at.** It ran the four parts and every feature together as one sentence of names, some bold, some not, and read as text. The parts are now a row of their own, and the features a row of outlined chips under it, wrapping on a narrow pane.
+- **A feature's description is text, not a box.** What a section says about its feature, and the AI model's notes, were drawn as settings rows with nothing to set, each in a box of its own like the settings under it. They are plain text under the heading now.
 
 ## 1.72.0 - 2026-10-02
 
