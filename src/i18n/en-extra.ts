@@ -5,6 +5,26 @@
  * catalogue, and German has to satisfy the merged shape.
  */
 export const enExtra = {
+  passages: {
+    viewName: "Callouts & highlights",
+    calloutTypes: "Callout types",
+    show: "Show",
+    showBoth: "Callouts and highlights",
+    showCallouts: "Callouts only",
+    showHighlights: "Highlights only",
+    readingView: "Open notes in Reading view",
+    open: (name: string) => `Open ${name} here`,
+    empty: "These notes hold no callouts or highlights that this view shows.",
+    moreCards: (count: number) =>
+      count === 1
+        ? "One more card is not shown — narrow the base's filter."
+        : `${count} more cards are not shown — narrow the base's filter.`,
+    moreNotes: (count: number) =>
+      count === 1
+        ? "One more note was not read — narrow the base's filter."
+        : `${count} more notes were not read — narrow the base's filter.`
+  },
+
   bases: {
     readingMenu: "Open notes in Reading view",
     readingOn: (name: string) => `The base ${name} now opens notes in Reading view.`,

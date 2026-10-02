@@ -308,6 +308,26 @@ export const de: Messages = {
     changed: "Sprache geändert — Einstellungen neu öffnen, damit sie überall greift."
   },
 
+  passages: {
+    viewName: "Callouts & Markierungen",
+    calloutTypes: "Callout-Typen",
+    show: "Zeigen",
+    showBoth: "Callouts und Markierungen",
+    showCallouts: "Nur Callouts",
+    showHighlights: "Nur Markierungen",
+    readingView: "Notizen in Leseansicht öffnen",
+    open: (name: string) => `${name} an dieser Stelle öffnen`,
+    empty: "Diese Notizen enthalten keine Callouts oder Markierungen, die diese Ansicht zeigt.",
+    moreCards: (count: number) =>
+      count === 1
+        ? "Eine weitere Karte wird nicht gezeigt — filtere die Base enger."
+        : `${count} weitere Karten werden nicht gezeigt — filtere die Base enger.`,
+    moreNotes: (count: number) =>
+      count === 1
+        ? "Eine weitere Notiz wurde nicht gelesen — filtere die Base enger."
+        : `${count} weitere Notizen wurden nicht gelesen — filtere die Base enger.`
+  },
+
   bases: {
     readingMenu: "Notizen in Leseansicht öffnen",
     readingOn: (name: string) => `Die Base „${name}“ öffnet Notizen jetzt in der Leseansicht.`,
