@@ -17,6 +17,8 @@ export type GatedCommand =
   | "rename"
   | "summarize"
   | "table"
+  | "table-ai"
+  | "proofread"
   | "insert-today"
   | "property-set"
   | "check-source"
@@ -38,6 +40,8 @@ export interface CommandContext {
   image: boolean;
   /** Something is selected in the editor. */
   selection: boolean;
+  /** An AI key is chosen and present, so the AI can be asked. */
+  ai: boolean;
   /** The open note names a source in its frontmatter. */
   bound: boolean;
   /** The pane is open somewhere in the workspace. */
@@ -47,18 +51,26 @@ export interface CommandContext {
 export function commandAvailable(command: GatedCommand, context: CommandContext): boolean {
   switch (command) {
     // The rename reads the file that is open, a note or a picture.
+    // Naming from the content is the AI's; without a key it cannot happen.
     case "rename":
-      return context.markdown || context.image;
+      return context.ai && (context.markdown || context.image);
     // There is nothing to summarize without a selection, and the command's own
     // refusal for that was a notice telling people to do what they had come to
     // the palette to do.
     case "summarize":
-      return context.markdown && context.selection;
+      return context.ai && context.markdown && context.selection;
     // A table is made from selected lines. Whether they have columns a plain
     // split can find is for the command to say when run, not a reason to hide
     // it: the selection looks the same either way.
     case "table":
       return context.markdown && context.selection;
+    // The same table read by the AI, offered only where the AI can be asked.
+    case "table-ai":
+      return context.ai && context.markdown && context.selection;
+    // Proofreading sends the note to the AI. The glossary check does not, and
+    // stays in the review panel either way.
+    case "proofread":
+      return context.ai && context.markdown;
     // A date goes into the note or one of its properties.
     case "insert-today":
       return context.markdown;

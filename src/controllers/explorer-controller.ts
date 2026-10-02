@@ -13,6 +13,7 @@ import {
   type DataAdapter,
   type MenuItem
 } from "obsidian";
+import { hasApiKey } from "../services/secret";
 import { fileNameParts } from "../services/file-glyph";
 import { basename, checkFileName, type FileNameProblem } from "../services/file-name";
 import { t } from "../i18n";
@@ -1073,6 +1074,7 @@ export class ExplorerController {
 
   private describe(file: TAbstractFile): ExplorerTarget {
     const isFile = file instanceof TFile;
+    const ai = hasApiKey(this.app.secretStorage, this.getSettings().llmSecretName);
 
     return {
       kind: isFile ? "file" : "folder",
@@ -1081,8 +1083,10 @@ export class ExplorerController {
       image: isFile && getImageMimeType(file.extension) !== null,
       csv: isFile && isCsvExtension(file.extension),
       describable:
+        ai &&
         this.getSettings().imageDescriptionsEnabled &&
         (isFile ? this.describer : this.folderDescriber) !== null,
+      ai,
       bound: isFile && this.isBound(file),
       hasIcon: this.iconFor(file.path) !== undefined,
       kept: this.isKept(file.path),

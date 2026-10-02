@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolveApiKey, type SecretStore } from "./secret";
+import { resolveApiKey, type SecretStore, hasApiKey } from "./secret";
 
 function store(map: Record<string, string>): SecretStore {
   return { getSecret: (name) => map[name] ?? null };
@@ -46,5 +46,17 @@ describe("resolveApiKey", () => {
     if (!notFound.ok) {
       expect(notFound.message).toBe("Schreibstube: bridge token not found — check Settings.");
     }
+  });
+});
+
+describe("hasApiKey", () => {
+  const store = { getSecret: (name: string) => ({ full: "sk-1", blank: "  " })[name] ?? null };
+
+  it("answers yes only for a chosen key the storage holds something under", () => {
+    expect(hasApiKey(store, "full")).toBe(true);
+    expect(hasApiKey(store, "blank")).toBe(false);
+    expect(hasApiKey(store, "gone")).toBe(false);
+    expect(hasApiKey(store, "")).toBe(false);
+    expect(hasApiKey(undefined, "full")).toBe(false);
   });
 });

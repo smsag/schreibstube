@@ -10,6 +10,7 @@ function screen(overrides: Partial<CommandContext> = {}): CommandContext {
   return {
     markdown: true,
     base: false,
+    ai: true,
     image: false,
     selection: false,
     bound: false,
@@ -75,6 +76,16 @@ describe("what the palette offers", () => {
   it("offers Reading view for a base's notes only while a base is open", () => {
     expect(commandAvailable("base-reading", screen({ markdown: false, base: true }))).toBe(true);
     expect(commandAvailable("base-reading", screen())).toBe(false);
+  });
+
+  it("offers nothing the AI does without a key, and everything else as before", () => {
+    const noKey = screen({ ai: false, selection: true });
+    for (const command of ["rename", "summarize", "table-ai", "proofread"] as const) {
+      expect(commandAvailable(command, noKey)).toBe(false);
+      expect(commandAvailable(command, screen({ selection: true }))).toBe(true);
+    }
+    // The plain table splits the lines itself and asks nobody.
+    expect(commandAvailable("table", noKey)).toBe(true);
   });
 
   it("offers a table only when there is something selected", () => {
