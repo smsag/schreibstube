@@ -2,7 +2,30 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## 1.72.0 - 2026-10-02
+
+A Bases layout that shows what is inside the notes, Reading view chosen per
+base, and settings you can find your way in. Choose **Callouts &
+Markierungen** as a base's layout and every callout of the notes it lists is
+a card, with each note's highlights beside them. Whether a base opens its
+notes for reading is now said in that base's own file. The settings are in
+three parts — writing helpers, the AI model, the features — with a jump line
+at the top, a **KI** pill on everything that asks the AI, and the rarely
+changed details folded away. Without an AI key the AI is no longer offered
+at all, Recommended weighs shared tags less and leaves out the pictures an
+article already shows, slideshows can describe and star their pictures, and
+every command has an icon in the mobile toolbar.
+
+Mobile checklist: not run, and nothing in this release was tried in the
+Obsidian app; the test suite and the build covered it. What to try first on
+a phone: the settings tab — the jump line, the folded sections, and text
+fields under their names; the mobile toolbar, which should show no question
+marks; a base in the callouts layout; and the description and star buttons
+on a slideshow.
+
+The bridge moves to 2.13.1, protocol 7: it draws the new economy and finance
+icons on published pages. No request or response changed, so every plugin
+from 1.8.0 on works with it.
 
 ### Added
 
