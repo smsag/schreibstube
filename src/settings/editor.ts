@@ -15,7 +15,7 @@ import { section } from "./layout";
 
 export function renderHelpers(ctx: SettingsContext): void {
   const words = t().settings;
-  section(ctx, { id: "overlay", name: words.overlayHeading });
+  section(ctx, { name: words.overlayHeading });
 
   new Setting(ctx.containerEl)
     .setName(t().settings.overlayEnabled)
@@ -27,7 +27,7 @@ export function renderHelpers(ctx: SettingsContext): void {
       });
     });
 
-  section(ctx, { id: "icon-shortcodes", name: words.iconShortcodesHeading });
+  section(ctx, { name: words.iconShortcodesHeading });
 
   new Setting(ctx.containerEl)
     .setName(t().settings.iconShortcodesEnabled)
@@ -39,7 +39,6 @@ export function renderHelpers(ctx: SettingsContext): void {
     });
 
   section(ctx, {
-    id: "focus",
     name: words.focusHeading,
     commands: [t().commands.focusSentence, t().commands.focusParagraph]
   });
@@ -57,7 +56,7 @@ export function renderHelpers(ctx: SettingsContext): void {
         });
     });
 
-  section(ctx, { id: "new-doc", name: words.newDocHeading, commands: [t().commands.newNote] });
+  section(ctx, { name: words.newDocHeading, commands: [t().commands.newNote] });
 
   new Setting(ctx.containerEl)
     .setName(t().settings.newDocLink)
@@ -85,14 +84,12 @@ export function renderHelpers(ctx: SettingsContext): void {
   // No switch here: which bases open their notes for reading is each base's
   // own to say, in its file, and a switch for all of them was the wrong place.
   section(ctx, {
-    id: "bases",
     name: words.basesHeading,
     desc: words.basesReadingViewDesc,
     commands: [t().commands.baseReadingView]
   });
 
   section(ctx, {
-    id: "more-commands",
     name: words.moreCommandsHeading,
     desc: words.moreCommandsDesc,
     commands: [
@@ -106,7 +103,6 @@ export function renderHelpers(ctx: SettingsContext): void {
 
 function renderProperties(ctx: SettingsContext): void {
   section(ctx, {
-    id: "properties",
     name: t().properties.heading,
     commands: [t().commands.insertToday, t().commands.suggestTags]
   });

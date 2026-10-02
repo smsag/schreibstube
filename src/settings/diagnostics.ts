@@ -10,7 +10,7 @@ import { section } from "./layout";
 export function renderDiagnostics(ctx: SettingsContext): void {
   const { containerEl } = ctx;
 
-  section(ctx, { id: "language", name: t().language.heading });
+  section(ctx, { name: t().language.heading });
 
   new Setting(containerEl)
     .setName(t().language.name)
@@ -29,7 +29,7 @@ export function renderDiagnostics(ctx: SettingsContext): void {
       });
     });
 
-  section(ctx, { id: "diagnostics", name: t().diagnostics.heading });
+  section(ctx, { name: t().diagnostics.heading });
 
   new Setting(containerEl)
     .setName(t().diagnostics.debugLogging)

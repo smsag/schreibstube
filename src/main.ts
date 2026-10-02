@@ -1577,6 +1577,7 @@ export default class SchreibstubePlugin extends Plugin {
     // here: it reads the sync records, and the store says when those change.
     void this.sections?.reloadIfPathChanged();
     this.recommendedFooter?.sync();
+    this.proofread?.settingsChanged();
 
     this.propertyControls?.decorateSoon();
   }
@@ -1707,13 +1708,6 @@ export default class SchreibstubePlugin extends Plugin {
   }
 
   /**
-   * A command that is only offered when it could do something.
-   *
-   * Obsidian calls the check twice: once to ask whether to list the command,
-   * and again with `checking` false to run it. The condition is the same both
-   * times, so a command cannot be run from a state it was hidden in.
-   */
-  /**
    * Every command with its icon, from `services/command-icons`: the mobile
    * toolbar draws a command without one as a question mark. A command that
    * names its own keeps it.
@@ -1723,6 +1717,13 @@ export default class SchreibstubePlugin extends Plugin {
     return super.addCommand(icon === undefined ? command : { ...command, icon });
   }
 
+  /**
+   * A command that is only offered when it could do something.
+   *
+   * Obsidian calls the check twice: once to ask whether to list the command,
+   * and again with `checking` false to run it. The condition is the same both
+   * times, so a command cannot be run from a state it was hidden in.
+   */
   private addGatedCommand(id: string, name: string, gate: GatedCommand, run: () => void): void {
     this.addCommand({
       id,

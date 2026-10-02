@@ -21,6 +21,7 @@ import {
   MAX_PASSAGE_NOTES,
   opensPassageForReading,
   PASSAGE_OPTION,
+  PASSAGES_ROOT_CLASS,
   passageCards,
   readPassageOptions,
   type NotePassages,
@@ -56,7 +57,7 @@ export class PassagesView extends BasesView {
     private readonly host: PassagesHost
   ) {
     super(controller);
-    this.root = parentEl.createDiv({ cls: "schreibstube-passages" });
+    this.root = parentEl.createDiv({ cls: PASSAGES_ROOT_CLASS });
   }
 
   override onunload(): void {

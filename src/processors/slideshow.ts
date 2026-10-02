@@ -560,9 +560,11 @@ class Slideshow extends MarkdownRenderChild {
           // written: drawn now, and once more when it has had time to.
           if (opened || shown !== image) return;
           show(image);
-          window.setTimeout(() => {
+          // Cleared with the block: a slideshow gone by then has nothing to draw.
+          const settle = window.setTimeout(() => {
             if (shown === image) show(image);
           }, DESCRIPTION_SETTLE_MS);
+          this.teardown.push(() => window.clearTimeout(settle));
         });
       },
       { stop: true }
