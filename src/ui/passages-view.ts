@@ -26,10 +26,13 @@ import {
   type NotePassages,
   type PassageCard
 } from "../services/passages";
-import { isElementLike } from "../services/workspace-internals";
+import { pressedCalloutFold } from "../services/workspace-internals";
 import { pressKeys } from "./pressable";
 
 export const PASSAGES_VIEW_TYPE = "schreibstube-passages";
+
+/** How many notes are read at once: enough to overlap the reads, few enough for a phone. */
+const READ_AT_ONCE = 16;
 
 export interface PassagesHost {
   passages(file: TFile): Promise<NotePassages | null>;
@@ -75,25 +78,37 @@ export class PassagesView extends BasesView {
       this.config.get(PASSAGE_OPTION.show)
     );
 
-    // The notes are read in the base's order, so the limit keeps the first.
-    let read = 0;
+    // The notes are taken in the base's order, so the limit keeps the first,
+    // and read a few at a time rather than one after another.
+    let taken = 0;
     let unread = 0;
-    const groups: { label: string | null; notes: { file: TFile; passages: NotePassages }[] }[] = [];
-    for (const group of this.data.groupedData) {
-      const notes: { file: TFile; passages: NotePassages }[] = [];
+    const wanted = this.data.groupedData.map((group) => {
+      const files: TFile[] = [];
       for (const entry of group.entries) {
         if (entry.file.extension !== "md") continue;
-        if (read >= MAX_PASSAGE_NOTES) {
-          unread += 1;
-          continue;
+        if (taken >= MAX_PASSAGE_NOTES) unread += 1;
+        else {
+          taken += 1;
+          files.push(entry.file);
         }
-        read += 1;
-        const passages = await this.host.passages(entry.file);
-        if (generation !== this.generation) return;
-        if (passages) notes.push({ file: entry.file, passages });
       }
-      groups.push({ label: group.hasKey() ? (group.key?.toString() ?? "") : null, notes });
+      return { label: group.hasKey() ? (group.key?.toString() ?? "") : null, files };
+    });
+    const read = new Map<string, NotePassages | null>();
+    const all = wanted.flatMap((group) => group.files);
+    for (let at = 0; at < all.length; at += READ_AT_ONCE) {
+      const batch = all.slice(at, at + READ_AT_ONCE);
+      const answers = await Promise.all(batch.map((file) => this.host.passages(file)));
+      if (generation !== this.generation) return;
+      batch.forEach((file, index) => read.set(file.path, answers[index] ?? null));
     }
+    const groups = wanted.map((group) => ({
+      label: group.label,
+      notes: group.files.flatMap((file) => {
+        const passages = read.get(file.path);
+        return passages ? [{ file, passages }] : [];
+      })
+    }));
 
     const drawing = new Component();
     drawing.load();
@@ -157,7 +172,8 @@ export class PassagesView extends BasesView {
   /** A passage drawn as the note draws it, by Obsidian's renderer, in the theme's styles. */
   private body(el: HTMLElement, markdown: string, file: TFile, owner: Component): HTMLElement {
     const body = el.createDiv({ cls: "schreibstube-passage-body markdown-rendered" });
-    void this.host.render(markdown, body, file.path, owner);
+    // A passage the renderer could not draw still shows what it says.
+    this.host.render(markdown, body, file.path, owner).catch(() => body.setText(markdown));
     return body;
   }
 
@@ -171,10 +187,7 @@ export class PassagesView extends BasesView {
     el.setAttr("tabindex", "0");
     el.setAttr("aria-label", t().passages.open(file.basename));
     el.addEventListener("click", (event) => {
-      const target = event.target;
-      if (isElementLike(target) && target.closest(".callout.is-collapsible > .callout-title")) {
-        return;
-      }
+      if (pressedCalloutFold(event.target)) return;
       event.preventDefault();
       this.open(file, line, event);
     });

@@ -25,10 +25,17 @@ export interface CalloutPassage {
   type: string;
   /** Zero-based line of the `> [!type]` line, where a press opens the note. */
   line: number;
+  /** Its last quoted line, so a highlight inside it is known to be its. */
+  endLine: number;
   markdown: string;
 }
 
-/** A line holding one or more highlights, as written. */
+/**
+ * A line holding one or more highlights. `markdown` is the line's text out of
+ * the block that holds it — without the quote marks, the list marker or the
+ * heading signs, a table row as its cells — since a line drawn on its own
+ * would otherwise come out as a stray quote or a row of pipes.
+ */
 export interface HighlightLine {
   line: number;
   markdown: string;
@@ -50,50 +57,137 @@ export const MAX_PASSAGE_CARDS = 1000;
 
 const CALLOUT_START = /^ {0,3}>[ \t]*\[!([A-Za-z0-9][\w-]*)\][+-]?/;
 const QUOTED = /^ {0,3}>/;
-const INDENTED_CODE = /^(?: {4}|\t)/;
+const QUOTE_MARKS = /^(?: {0,3}>[ \t]?)+/;
+const INDENTED = /^(?: {4}|\t)/;
+const LIST_ITEM = /^ {0,3}(?:[-*+]|\d{1,9}[.)])(?:[ \t]|$)/;
 const HIGHLIGHT = /==(?=[^\s=])[^=\n]*?[^\s=]==|==[^\s=]==/;
 
 /** Every callout and every highlighted line of a note, in the order they stand. */
 export function findPassages(source: string): NotePassages {
   const original = source.split(/\r?\n/);
   const lines = maskComments(original);
-  const fenced = fencedLines(lines);
-  const skip = frontmatterLines(lines);
+  const code = codeLines(lines);
   const callouts: CalloutPassage[] = [];
   const highlights: HighlightLine[] = [];
 
-  let previousBlank = true;
   // The last line of the callout being read: a `> [!type]` further down the
   // same quote is a line of that callout, not a callout of its own.
   let inCalloutUntil = -1;
   for (let index = 0; index < lines.length; index += 1) {
+    if (code[index]) continue;
+    const line = lines[index] ?? "";
+    const start = index > inCalloutUntil ? CALLOUT_START.exec(line) : null;
+    if (start?.[1] !== undefined) {
+      let end = index;
+      while (end + 1 < lines.length && QUOTED.test(lines[end + 1] ?? "")) end += 1;
+      inCalloutUntil = end;
+      callouts.push({
+        type: start[1].toLowerCase(),
+        line: index,
+        endLine: end,
+        markdown: original.slice(index, end + 1).join("\n")
+      });
+    }
+    if (HIGHLIGHT.test(withoutInlineCode(line))) {
+      highlights.push({ line: index, markdown: lineOutOfBlock(original[index] ?? line) });
+    }
+  }
+  return { callouts, highlights };
+}
+
+/**
+ * Which lines are not prose: the properties, fenced code — a fence inside a
+ * quote or callout too — and indented code, which Markdown starts with a
+ * line four spaces deep after a blank one and continues over indented and
+ * blank lines. Inside a list such a line is the item's next paragraph, not
+ * code, as Obsidian shows it.
+ */
+function codeLines(lines: readonly string[]): boolean[] {
+  const code = fencedLines(lines).map((fenced) => fenced === true);
+  for (let index = 0; index < frontmatterLines(lines); index += 1) code[index] = true;
+
+  // A fence inside a quote, read on the quote's text without its marks.
+  for (let index = 0; index < lines.length;) {
+    if (!QUOTED.test(lines[index] ?? "")) {
+      index += 1;
+      continue;
+    }
+    let end = index;
+    while (end + 1 < lines.length && QUOTED.test(lines[end + 1] ?? "")) end += 1;
+    const inside = lines.slice(index, end + 1).map((line) => line.replace(QUOTE_MARKS, ""));
+    fencedLines(inside).forEach((fenced, offset) => {
+      if (fenced) code[index + offset] = true;
+    });
+    index = end + 1;
+  }
+
+  let previousBlank = true;
+  let inIndentedCode = false;
+  let inList = false;
+  for (let index = 0; index < lines.length; index += 1) {
     const line = lines[index] ?? "";
     const blank = line.trim() === "";
-    // Four spaces deep after a blank line is code in Markdown, not prose.
-    const code =
-      index < skip ||
-      fenced[index] === true ||
-      (previousBlank && INDENTED_CODE.test(line) && !blank);
-
-    if (!code) {
-      const start = index > inCalloutUntil ? CALLOUT_START.exec(line) : null;
-      if (start?.[1] !== undefined) {
-        let end = index;
-        while (end + 1 < lines.length && QUOTED.test(lines[end + 1] ?? "")) end += 1;
-        inCalloutUntil = end;
-        callouts.push({
-          type: start[1].toLowerCase(),
-          line: index,
-          markdown: original.slice(index, end + 1).join("\n")
-        });
+    if (code[index]) {
+      inIndentedCode = false;
+    } else if (blank) {
+      // A blank line neither starts nor ends anything here.
+    } else if (INDENTED.test(line)) {
+      if (inIndentedCode || (previousBlank && !inList)) {
+        inIndentedCode = true;
+        code[index] = true;
       }
-      if (HIGHLIGHT.test(withoutInlineCode(line))) {
-        highlights.push({ line: index, markdown: original[index] ?? line });
-      }
+    } else {
+      inIndentedCode = false;
+      inList = LIST_ITEM.test(line);
     }
     previousBlank = blank;
   }
-  return { callouts, highlights };
+  return code;
+}
+
+/** A highlighted line's own text, out of the quote, list item, heading or table row it is in. */
+function lineOutOfBlock(line: string): string {
+  const text = line
+    .replace(QUOTE_MARKS, "")
+    .replace(/^\s*(?:[-*+]|\d{1,9}[.)])[ \t]+(?:\[.\][ \t]+)?/, "")
+    .replace(/^#{1,6}[ \t]+/, "")
+    .trim();
+  if (/^\|.*\|$/.test(text)) {
+    return text
+      .slice(1, -1)
+      .split("|")
+      .map((cell) => cell.trim())
+      .filter((cell) => cell !== "")
+      .join(" · ");
+  }
+  return text;
+}
+
+/**
+ * The callout types Obsidian draws alike, by the type each stands for: a
+ * filter for `warning` means every callout drawn as a warning.
+ */
+const CALLOUT_ALIASES: Readonly<Record<string, string>> = {
+  summary: "abstract",
+  tldr: "abstract",
+  hint: "tip",
+  important: "tip",
+  check: "success",
+  done: "success",
+  help: "question",
+  faq: "question",
+  caution: "warning",
+  attention: "warning",
+  fail: "failure",
+  missing: "failure",
+  error: "danger",
+  cite: "quote"
+};
+
+/** The type a callout is drawn as. */
+export function calloutKind(type: string): string {
+  const lower = type.toLowerCase();
+  return CALLOUT_ALIASES[lower] ?? lower;
 }
 
 /** What a view shows: callouts, highlights or both. */
@@ -131,7 +225,8 @@ export function readPassageOptions(types: unknown, show: unknown): PassageOption
         .trim()
         .toLowerCase()
     )
-    .filter((value) => value !== "");
+    .filter((value) => value !== "")
+    .map(calloutKind);
   return {
     types: new Set(names),
     show: PASSAGE_SHOW.find((value) => value === show) ?? "both"
@@ -171,16 +266,22 @@ export function passageCards(
     else held += 1;
   };
   for (const { path, passages } of notes) {
-    if (options.show !== "highlights") {
-      for (const callout of passages.callouts) {
-        if (options.types.size === 0 || options.types.has(callout.type)) {
-          add({ kind: "callout", path, callout });
-        }
-      }
-    }
-    if (options.show !== "callouts" && passages.highlights.length > 0) {
-      add({ kind: "highlights", path, lines: passages.highlights });
-    }
+    const shown =
+      options.show === "highlights"
+        ? []
+        : passages.callouts.filter(
+            (callout) => options.types.size === 0 || options.types.has(calloutKind(callout.type))
+          );
+    for (const callout of shown) add({ kind: "callout", path, callout });
+    if (options.show === "callouts") continue;
+    // A highlight in a callout on the page is on its card already.
+    const lines = passages.highlights.filter(
+      (highlight) =>
+        !shown.some(
+          (callout) => highlight.line >= callout.line && highlight.line <= callout.endLine
+        )
+    );
+    if (lines.length > 0) add({ kind: "highlights", path, lines });
   }
   return { cards, held };
 }
@@ -200,6 +301,7 @@ function maskComments(lines: readonly string[]): string[] {
   let open: "%%" | "-->" | null = null;
   return lines.map((line, index) => {
     if (fenced[index] && open === null) return line;
+    const searchable = withoutInlineCode(line);
     let out = "";
     let at = 0;
     while (at < line.length) {
@@ -215,8 +317,9 @@ function maskComments(lines: readonly string[]): string[] {
         }
         continue;
       }
-      const percent = line.indexOf("%%", at);
-      const html = line.indexOf("<!--", at);
+      // Looked for where inline code is blanked: `%%` written in code is not a comment.
+      const percent = searchable.indexOf("%%", at);
+      const html = searchable.indexOf("<!--", at);
       const next = [percent, html].filter((value) => value !== -1).sort((a, b) => a - b)[0];
       if (next === undefined) {
         out += line.slice(at);

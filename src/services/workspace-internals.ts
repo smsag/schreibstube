@@ -870,3 +870,14 @@ export function basePressed(target: EventTarget | null): BasePress | null {
   const link = embed.getAttribute("src");
   return link ? { kind: "embed", link } : { kind: "block" };
 }
+
+/**
+ * The title of a callout that folds, as Obsidian's renderer draws it: a press
+ * there folds the callout, and is not a press on the passage. Not API: a
+ * build that renames it leaves the title opening the note like the rest.
+ */
+const CALLOUT_FOLD_TITLE = ".callout.is-collapsible > .callout-title";
+
+export function pressedCalloutFold(target: EventTarget | null): boolean {
+  return isElementLike(target) && target.closest(CALLOUT_FOLD_TITLE) !== null;
+}
