@@ -802,6 +802,7 @@ export const enExtra = {
         media: "Media & publishing",
         property: "Real estate",
         business: "Business",
+        finance: "Economy & finance",
         status: "Status",
         logos: "Logos",
         misc: "Everything else"
