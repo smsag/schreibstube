@@ -2,7 +2,27 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## 1.71.0 - 2026-10-02
+
+Print only what is marked, with page breaks set by clicking the preview,
+and twice the icons, drawn on the published site too. **Auswahl drucken**
+prints a passage of a note on its own — the CV inside an application — with
+the note's template, to a PDF named after the passage. The icon picker goes
+from 216 icons to 431, in groups for the writing itself: numbers and letters
+for parts and appendices, characters, moods, places and weather, research,
+media. And a `:folder:` in a published note is now drawn on the website as
+the icon Obsidian shows, where it used to print as the word.
+
+Mobile checklist: not run, and nothing in this release was tried in the
+Obsidian app; the test suite, the build and every print fixture against the
+pinned typesetter covered it. What to try first on a phone: the icon picker
+opening on all 431 icons without a stall; **Auswahl drucken** on a marked
+passage, and a tap on a paragraph in the print preview, which should start
+it on a new page; and a published page with a `:name:` in it.
+
+The bridge moves to 2.13.0, protocol 7: it draws `:name:` icons on published
+pages. No request or response changed, so every plugin from 1.8.0 on works
+with it.
 
 ### Added
 
