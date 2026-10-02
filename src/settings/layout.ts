@@ -104,21 +104,26 @@ export function fold(ctx: SettingsContext, name: string, desc: string): Settings
 }
 
 /**
- * The line at the top that jumps to a section: the tab is long, and the
- * section somebody came for is usually not the first.
+ * The navigation at the top that jumps to a section: the tab is long, and the
+ * section somebody came for is usually not the first. The blocks are one row
+ * and the features another, each a target of its own: run together as one
+ * sentence of names, bold and plain mixed, the line read as text and was hard
+ * to aim at.
  */
 export function renderIndex(el: HTMLElement, entries: readonly SectionEntry[]): void {
   el.empty();
-  el.createSpan({ cls: "schreibstube-settings-index-label", text: `${t().settings.indexLabel}: ` });
-  entries.forEach((entry, position) => {
-    if (position > 0) el.createSpan({ text: " · " });
-    const link = el.createEl("a", {
-      cls: `schreibstube-settings-index-link${entry.block ? " is-block" : ""}`,
+  el.setAttribute("role", "navigation");
+  el.setAttribute("aria-label", t().settings.indexLabel);
+  const blocks = el.createDiv({ cls: "schreibstube-settings-index-blocks" });
+  const features = el.createDiv({ cls: "schreibstube-settings-index-features" });
+  for (const entry of entries) {
+    const link = (entry.block ? blocks : features).createEl("a", {
+      cls: entry.block ? "schreibstube-settings-index-block" : "schreibstube-settings-index-chip",
       text: entry.name,
       attr: { role: "button", tabindex: "0" }
     });
     const jump = (): void => entry.el.scrollIntoView({ block: "start", behavior: "smooth" });
     link.addEventListener("click", jump);
     pressKeys(link, jump);
-  });
+  }
 }

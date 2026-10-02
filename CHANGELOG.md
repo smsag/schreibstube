@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Changed
+
+- **The settings' jump line is two rows you can aim at.** It ran the four parts and every feature together as one sentence of names, some bold, some not, and read as text. The parts are now a row of their own, and the features a row of outlined chips under it, wrapping on a narrow pane.
+
 ## 1.72.0 - 2026-10-02
 
 A Bases layout that shows what is inside the notes, Reading view chosen per
