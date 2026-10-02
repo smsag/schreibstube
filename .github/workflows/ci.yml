@@ -10,6 +10,14 @@ on:
 permissions:
   contents: read
 
+# onnxruntime-node's install script fetches its CUDA build from nuget.org on
+# Linux, the one platform where it does; a runner has no GPU to use it, and on
+# 2026-10-02 nuget.org stayed unreachable through a rerun. The CPU runtime the
+# tests could load ships inside the package, so the download is only a way to
+# fail.
+env:
+  ONNXRUNTIME_NODE_INSTALL: skip
+
 jobs:
   check:
     runs-on: ubuntu-latest
