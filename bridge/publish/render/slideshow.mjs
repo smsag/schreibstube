@@ -34,7 +34,12 @@ const EAGER_FIRST = new Set(["slideshow", "filmstrip", "feature"]);
 /** A feature is a scene and two details; a comparison is two sides. */
 const LAYOUT_IMAGE_LIMIT = { feature: 3, compare: 2 };
 
-const IMAGE_PATTERN = /^!\[([^\]]*)\]\(([^)]+)\)$/;
+// As in the vault: the path runs to the last parenthesis (`Photo (1).jpg`),
+// a Markdown title after it is not part of it, and Obsidian's `|300` size
+// after the alt text is not part of the caption.
+const IMAGE_PATTERN = /^!\[([^\]]*)\]\((.+)\)$/;
+const TITLE_PATTERN = /\s+(?:"[^"]*"|'[^']*')$/;
+const SIZE_PATTERN = /\s*\|\s*\d+(?:\s*x\s*\d+)?$/;
 const LAYOUT_PATTERN = /^layout\s*:\s*(.*)$/i;
 
 /**
@@ -63,10 +68,11 @@ export function parseSlideshow(source) {
     const match = IMAGE_PATTERN.exec(line);
     if (!match) return { ok: false, line: i + 1, reason: "not-image" };
 
-    const src = match[2].trim();
+    const src = match[2].trim().replace(TITLE_PATTERN, "").trim();
+    if (src.includes("](")) return { ok: false, line: i + 1, reason: "not-image" };
     if (src === "") return { ok: false, line: i + 1, reason: "empty-path" };
     if (images.length >= MAX_SLIDESHOW_IMAGES) return { ok: false, reason: "too-many" };
-    images.push({ src, alt: match[1].trim() });
+    images.push({ src, alt: match[1].trim().replace(SIZE_PATTERN, "") });
   }
 
   if (images.length < MIN_SLIDESHOW_IMAGES) return { ok: false, reason: "too-few" };
