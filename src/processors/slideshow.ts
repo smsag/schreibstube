@@ -768,16 +768,20 @@ function wireArrowKeys(el: HTMLElement, onStep: (direction: 1 | -1) => void): vo
  *
  * Which travel is a swipe is decided in `slideshow-gesture`. What is wired
  * here is the claim: once a finger is clearly moving sideways, its moves are
- * prevented and stopped, and so is the lift that ends them. Prevented, so
- * the browser does not scroll the note with them; stopped, so nothing above
- * the block sees a sideways gesture — on a phone Obsidian answers one of
- * those by sliding a sidebar in over the note, which is the last thing a
- * reader turning a page wants. A drag that started sideways stays claimed
- * however it curves afterwards, or the note would jerk mid-swipe. The
- * listener that prevents cannot be passive, and is the only one here that
- * is not.
+ * prevented and stopped. Prevented, so the browser does not scroll the note
+ * with them; stopped, so nothing above the block sees a sideways gesture —
+ * on a phone Obsidian answers one of those by sliding a sidebar in over the
+ * note, which is the last thing a reader turning a page wants. A drag that
+ * started sideways stays claimed however it curves afterwards, or the note
+ * would jerk mid-swipe. The listener that prevents cannot be passive, and is
+ * the only one here that is not.
+ *
+ * The lift is never stopped. Obsidian has already heard the finger land, and
+ * a gesture it saw begin but never end stays open: it went on holding the
+ * next finger to the note, and the note would no longer scroll down after a
+ * page had been turned. Without the moves, the lift alone slides nothing in.
  */
-function wireSwipe(el: HTMLElement, onSwipe: (direction: 1 | -1) => void): void {
+export function wireSwipe(el: HTMLElement, onSwipe: (direction: 1 | -1) => void): void {
   let startX = 0;
   let startY = 0;
   let claimed = false;
@@ -805,7 +809,6 @@ function wireSwipe(el: HTMLElement, onSwipe: (direction: 1 | -1) => void): void 
   el.addEventListener(
     "touchend",
     (e) => {
-      if (claimed) e.stopPropagation();
       const dx = (e.changedTouches[0]?.clientX ?? 0) - startX;
       const dy = (e.changedTouches[0]?.clientY ?? 0) - startY;
       const gesture = classifyTouch(dx, dy);
@@ -825,8 +828,8 @@ function wireSwipe(el: HTMLElement, onSwipe: (direction: 1 | -1) => void): void 
  * without a press of its own counts: a control, a tile and the comparison's
  * frame answer their tap themselves, and answering it twice would open a
  * picture and change the header in one touch. Listened to in the capture
- * phase, because a swipe on the stage stops its own events from bubbling
- * and this has to hear it anyway.
+ * phase, so that nothing inside the block that stops a touch of its own
+ * can keep it from this.
  */
 function wireReveal(wrapper: HTMLElement): void {
   let startX = 0;

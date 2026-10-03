@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Fixed
+
+- **A note scrolls again after a slideshow's page is turned on a phone.** Swiping sideways through a slideshow's pictures left the note unable to scroll down afterwards. The block kept the end of the swipe to itself, so Obsidian, which had seen the finger land, never saw it lift and held on to the next one. The swipe's sideways moves are still kept from Obsidian, so no sidebar slides in; its end now reaches it.
+
 ## 1.72.1 - 2026-10-02
 
 Two corrections to 1.72.0's settings tab. The jump line at the top is two
