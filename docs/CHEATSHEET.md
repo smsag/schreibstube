@@ -39,26 +39,26 @@ plain Obsidian Markdown plus what this file lists. Write only what is here.
 
 ## 2. Frontmatter keys
 
-| Key                           | Where          | Value                                                                 |
-| ----------------------------- | -------------- | --------------------------------------------------------------------- |
-| `schreibstubePrintTemplate`   | any note       | template name: `Standard`, `Brief`, `Lebenslauf`, `Folien`, `Vortrag` |
-| `schreibstubePrint`           | any note       | map of values the template reads (see 3–5)                            |
-| `schreibstubeTo`              | mail note      | address or list of addresses                                          |
-| `schreibstubeCc`              | mail note      | list of addresses                                                     |
-| `schreibstubeFrom`            | mail note      | optional sender, `Name <address>`                                     |
-| `schreibstubeSubject`         | mail note      | subject line                                                          |
-| `schreibstubeSyncedFrom`      | synced note    | HTTPS address of a Markdown file                                      |
-| `schreibstubeSyncEvery`       | synced note    | `Alle 2 Tage`, `weekly`, `every 6 hours` or a cron line               |
-| `schreibstubeGlossary`        | glossary note  | `true`                                                                |
-| `schreibstubeLanguage`        | glossary note  | `de`, `en`, …                                                         |
-| `schreibstubeDefaultSeverity` | glossary note  | `error`, `warning` or `suggestion`                                    |
-| `schreibstubeGlossaries`      | any note       | list of glossary notes that apply to it                               |
-| `schreibstubeAvoid`           | term note      | list of words to flag, the note's term offered instead                |
-| `schreibstubeIndex`           | any note       | `false` keeps it out of search by meaning                             |
-| `schreibstubeTaskCount`       | any note       | `false` hides its task count in the Explorer                          |
-| `schreibstubeReadingView`     | `.base` file   | `true` at the top: its notes open in Reading view                     |
-| `type: schreibstube-passages` | `.base` view   | callouts and highlights; `calloutTypes`, `show`, `readingView`        |
-| `published`                   | published note | `true` puts it on the website (see 9)                                 |
+| Key                           | Where          | Value                                                                                    |
+| ----------------------------- | -------------- | ---------------------------------------------------------------------------------------- |
+| `schreibstubePrintTemplate`   | any note       | template name: `Standard`, `Brief`, `Lebenslauf`, `Folien`, `Klare Präsentationsvorlage` |
+| `schreibstubePrint`           | any note       | map of values the template reads (see 3–5)                                               |
+| `schreibstubeTo`              | mail note      | address or list of addresses                                                             |
+| `schreibstubeCc`              | mail note      | list of addresses                                                                        |
+| `schreibstubeFrom`            | mail note      | optional sender, `Name <address>`                                                        |
+| `schreibstubeSubject`         | mail note      | subject line                                                                             |
+| `schreibstubeSyncedFrom`      | synced note    | HTTPS address of a Markdown file                                                         |
+| `schreibstubeSyncEvery`       | synced note    | `Alle 2 Tage`, `weekly`, `every 6 hours` or a cron line                                  |
+| `schreibstubeGlossary`        | glossary note  | `true`                                                                                   |
+| `schreibstubeLanguage`        | glossary note  | `de`, `en`, …                                                                            |
+| `schreibstubeDefaultSeverity` | glossary note  | `error`, `warning` or `suggestion`                                                       |
+| `schreibstubeGlossaries`      | any note       | list of glossary notes that apply to it                                                  |
+| `schreibstubeAvoid`           | term note      | list of words to flag, the note's term offered instead                                   |
+| `schreibstubeIndex`           | any note       | `false` keeps it out of search by meaning                                                |
+| `schreibstubeTaskCount`       | any note       | `false` hides its task count in the Explorer                                             |
+| `schreibstubeReadingView`     | `.base` file   | `true` at the top: its notes open in Reading view                                        |
+| `type: schreibstube-passages` | `.base` view   | callouts and highlights; `calloutTypes`, `show`, `readingView`                           |
+| `published`                   | published note | `true` puts it on the website (see 9)                                                    |
 
 Written by the plugin, never by you: `schreibstubeMessageId`, `schreibstubeSentAt`,
 `schreibstubeSendUnconfirmed`, `schreibstubeMergedIds` (mail); `schreibstubeImage`,
@@ -66,10 +66,10 @@ Written by the plugin, never by you: `schreibstubeMessageId`, `schreibstubeSentA
 `schreibstubeKeywords`, `schreibstubeSource`, `schreibstubeAuthor`, `schreibstubeFavorite`,
 `schreibstubeArticles` (picture description notes); `publishedAt`, `publishedUrl` (publishing).
 
-## 3. Presentations (templates `Folien`, `Vortrag`)
+## 3. Presentations (templates `Folien`, `Klare Präsentationsvorlage`)
 
 Printed with **Print doc** (`Doc drucken`); one slide per page, 16:9 or 4:3.
-`Vortrag` is the same deck in the Klartext look; `scheme: dark` sets it dark.
+`Klare Präsentationsvorlage` is the same deck in the Klartext look; `scheme: dark` sets it dark.
 
 ### Skeleton
 

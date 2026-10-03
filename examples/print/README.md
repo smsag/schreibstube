@@ -1,8 +1,8 @@
 # Print templates
 
 Four templates to copy into a vault: a German business letter, a CV and two
-slide decks — **Folien**, with a colour and a logo of its own, and **Vortrag**,
-the Klartext theme as a presentation, light or dark. Each is a folder, and a folder is all a template is.
+slide decks — **Folien**, with a colour and a logo of its own, and **Klare
+Präsentationsvorlage**, the Klartext theme as a presentation, light or dark. Each is a folder, and a folder is all a template is.
 
 ## Installing one
 
@@ -31,7 +31,7 @@ No template ships fonts, because typefaces are licensed and a repository
 is not a place to redistribute them. Put your own `.ttf` or `.otf` files in the
 template's `fonts/` folder and the template will set in them.
 
-Brief, Lebenslauf and Folien ask for **Fira Sans**; Vortrag sets its text in
+Brief, Lebenslauf and Folien ask for **Fira Sans**; Klare Präsentationsvorlage sets its text in
 **JetBrains Mono** and its headings in Fira Sans. The plugin fetches both with
 the typesetter (regular, italic, semibold and bold), so they print without a
 `fonts/` folder. The CV also uses its condensed cut for headings, so a long

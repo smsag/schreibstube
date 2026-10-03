@@ -1,6 +1,6 @@
 ---
 schreibstubePrintTemplate: true
-schreibstubeEntry: vortrag
+schreibstubeEntry: praesentation
 schreibstubeSlides: true
 schreibstubePage: { size: presentation-16-9, margin: "16mm 22mm 14mm" }
 schreibstubeData:
@@ -10,7 +10,7 @@ schreibstubeData:
   logo: ""
 ---
 
-# Vortrag
+# Klare Präsentationsvorlage
 
 Eine Notiz als Präsentation im Klartext-Theme: jede Folie eine Seite, im Format 16:9 oder 4:3. Der Text steht in JetBrains Mono und im Flattersatz, Überschriften in Fira Sans, eng gesetzt. Es gibt keine Akzentfarbe. Jede Markierung ist Schrift in hellem Grau: Ein Folientitel trägt seine Ebene als kleines `#₁` oder `#₂` am Rand, ein Listenpunkt einen Strich, ein Schritt seine Ziffer ohne Punkt. Code steht zwischen zwei Haarlinien unter `</> Sprache`, Links in Textfarbe mit gepunkteter Linie, Callouts mit einem Strich in ihrer Farbe. Das helle und das dunkle Farbschema des Themes stehen beide zur Wahl.
 
@@ -52,7 +52,7 @@ Fira Sans und JetBrains Mono lädt das Plugin mit dem Typesetter; ein `fonts/`-O
 
 ```yaml
 ---
-schreibstubePrintTemplate: Vortrag
+schreibstubePrintTemplate: Klare Präsentationsvorlage
 schreibstubePrint:
   subtitle: Eigentümerversammlung 2026
   scheme: dark

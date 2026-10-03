@@ -78,10 +78,10 @@
 
 // The data the slides read, handed in by the entry below: a slide is called
 // from the note's body, where `data` is not in scope.
-#let vortrag-data = state("vortrag-data", (:))
+#let praesentation-data = state("praesentation-data", (:))
 
 // The palette in force where it is asked for. Needs context.
-#let colours() = palette-of(vortrag-data.get().at("scheme", default: ""))
+#let colours() = palette-of(praesentation-data.get().at("scheme", default: ""))
 
 // Whether the slide on this page stands on its own — a title slide or a
 // section divider — and so carries neither logo nor foot. Each slide leaves
@@ -89,7 +89,7 @@
 // a state the slide sets. Needs context.
 #let plain() = {
   let page = here().page()
-  query(<vortrag-kind>).any(mark => mark.location().page() == page and mark.value != "content")
+  query(<praesentation-kind>).any(mark => mark.location().page() == page and mark.value != "content")
 }
 
 // A heading's level as the theme marks it: #₁ … #₆, faint, in the body's
@@ -187,12 +187,12 @@
 ) = {
   pagebreak(weak: true)
   schreibstube-slide-note-mark(title, notes)
-  [#metadata(kind) <vortrag-kind>]
+  [#metadata(kind) <praesentation-kind>]
   show: schreibstube-slide-align.with(horizontal)
 
   if kind == "title" {
     block(height: 100%, width: 100%, align(horizon, context {
-      let data = vortrag-data.get()
+      let data = praesentation-data.get()
       let ink = colours()
       let logo = data.at("logo", default: "")
       if logo != "" {
@@ -332,7 +332,7 @@
   })
 }
 
-#let vortrag(body, data) = {
+#let praesentation(body, data) = {
   let ink = palette-of(data.at("scheme", default: ""))
   let monospaced = lower(data.monospace) not in ("false", "no", "off")
   let logo = data.at("logo", default: "")
@@ -399,6 +399,6 @@
   show line: set line(stroke: 0.75pt + ink.rule)
   show footnote.entry: set text(size: 10pt, fill: ink.muted)
 
-  vortrag-data.update(data)
+  praesentation-data.update(data)
   body
 }
