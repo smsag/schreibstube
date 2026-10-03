@@ -77,11 +77,29 @@ const DESCRIPTION_SETTLE_MS = 1500;
 /** Shows the picture actions for whichever image is current, or none. */
 type PictureButtons = (image: ResolvedImage | undefined) => void;
 
+/**
+ * One set of picture buttons, as the block keeps track of it: the header's,
+ * and the fullscreen view's while it is open.
+ */
+interface ButtonSet {
+  /** Draws the buttons again for the picture they show, as it now stands. */
+  redraw(): void;
+  /** Turns the star, if these buttons show `file`. */
+  showFavorite(file: TFile, favorite: boolean): void;
+}
+
 class Slideshow extends MarkdownRenderChild {
   /** Teardown for anything living outside `containerEl` — a document-level key
    *  listener and the fullscreen overlay, which are attached to `document.body`
    *  and so are not removed when Obsidian empties the block's element. */
   private readonly teardown: Array<() => void> = [];
+
+  /**
+   * Every set of picture buttons the block has on screen. A picture starred
+   * or described in fullscreen is the same picture the header shows, and the
+   * header went on showing it as it was until the reader turned away and back.
+   */
+  private readonly buttonSets = new Set<ButtonSet>();
 
   constructor(
     private readonly app: App,
@@ -176,7 +194,7 @@ class Slideshow extends MarkdownRenderChild {
 
     let current = 0;
     const actions = header.createEl("div", { cls: "schreibstube-slideshow-actions" });
-    const showButtons = this.pictureButtons(actions, "schreibstube-slideshow-control");
+    const { show: showButtons } = this.pictureButtons(actions, "schreibstube-slideshow-control");
     this.control(actions, "arrows-maximize", "expand", t().slideshow.fullscreen, () =>
       this.openFullscreen(images, current)
     );
@@ -260,7 +278,13 @@ class Slideshow extends MarkdownRenderChild {
       }
     };
 
-    track.addEventListener("dblclick", () => this.openFullscreen(images, current));
+    track.addEventListener("dblclick", () => {
+      // On a phone the two taps of a double tap have each turned the header
+      // on or off already; it is put away, so the reader comes back to the
+      // picture alone whichever of them landed.
+      wrapper.removeClass("is-revealed");
+      this.openFullscreen(images, current);
+    });
     wireArrowKeys(wrapper, (direction) => goTo(current + direction));
     // On the stage only: a sideways swipe along the thumbnails scrolls them.
     wireSwipe(track, (direction) => goTo(current + direction));
@@ -277,7 +301,7 @@ class Slideshow extends MarkdownRenderChild {
 
     let current = 0;
     const actions = header.createEl("div", { cls: "schreibstube-slideshow-actions" });
-    const showButtons = this.pictureButtons(actions, "schreibstube-slideshow-control");
+    const { show: showButtons } = this.pictureButtons(actions, "schreibstube-slideshow-control");
     this.control(actions, "arrows-maximize", "expand", t().slideshow.fullscreen, () =>
       this.openFullscreen(images, current)
     );
@@ -435,7 +459,11 @@ class Slideshow extends MarkdownRenderChild {
       // browser has already let go of throws, and the press itself should land
       // whether or not the drag that may follow it can be followed.
       splitAt(e.clientX);
-      frame.setPointerCapture(e.pointerId);
+      try {
+        frame.setPointerCapture(e.pointerId);
+      } catch {
+        // Already let go of: the press has landed, and there is no drag.
+      }
     });
     frame.addEventListener("pointermove", (e) => {
       if (frame.hasPointerCapture(e.pointerId)) splitAt(e.clientX);
@@ -506,7 +534,10 @@ class Slideshow extends MarkdownRenderChild {
    * shown as it now stands. A picture outside the vault, or no picture actions
    * at all, shows neither.
    */
-  private pictureButtons(parent: HTMLElement, cls: string): PictureButtons {
+  private pictureButtons(
+    parent: HTMLElement,
+    cls: string
+  ): { show: PictureButtons; release: () => void } {
     const make = (): HTMLElement => {
       const el = parent.createSpan({ cls, attr: { role: "button", tabindex: "0" } });
       el.addClass("schreibstube-slideshow-picture-action");
@@ -525,6 +556,13 @@ class Slideshow extends MarkdownRenderChild {
       el.empty();
       drawGlyph(el.createSpan(), icon, fallback);
     };
+    const showFavorite = (on: boolean): void => {
+      favorite.toggleClass("is-favorite", on);
+      favorite.setAttribute("aria-pressed", String(on));
+      const label = on ? t().pictureActions.unfavorite : t().pictureActions.favorite;
+      favorite.setAttribute("aria-label", label);
+      favorite.setAttribute("title", label);
+    };
     const show: PictureButtons = (image) => {
       shown = image;
       const actions = this.pictureActions();
@@ -538,16 +576,17 @@ class Slideshow extends MarkdownRenderChild {
         draw(describe, "wand", "wand-sparkles", t().pictureActions.describe);
       }
       if (state.favorite !== null) {
-        draw(
-          favorite,
-          "star",
-          "star",
-          state.favorite ? t().pictureActions.unfavorite : t().pictureActions.favorite
-        );
-        favorite.toggleClass("is-favorite", state.favorite);
-        favorite.setAttribute("aria-pressed", String(state.favorite));
+        draw(favorite, "star", "star", t().pictureActions.favorite);
+        showFavorite(state.favorite);
       }
     };
+    const set: ButtonSet = {
+      redraw: () => show(shown),
+      showFavorite: (file, now) => {
+        if (shown?.file === file) showFavorite(now);
+      }
+    };
+    this.buttonSets.add(set);
 
     pressable(
       describe,
@@ -558,13 +597,9 @@ class Slideshow extends MarkdownRenderChild {
         void actions.describeOrOpenPicture(image.file, event).then((opened) => {
           // The new note reaches the metadata cache a moment after it is
           // written: drawn now, and once more when it has had time to.
-          if (opened || shown !== image) return;
-          show(image);
-          // Cleared with the block: a slideshow gone by then has nothing to draw.
-          const settle = window.setTimeout(() => {
-            if (shown === image) show(image);
-          }, DESCRIPTION_SETTLE_MS);
-          this.teardown.push(() => window.clearTimeout(settle));
+          if (opened) return;
+          this.redrawButtons();
+          this.later(() => this.redrawButtons(), DESCRIPTION_SETTLE_MS);
         });
       },
       { stop: true }
@@ -575,18 +610,33 @@ class Slideshow extends MarkdownRenderChild {
         const image = shown;
         const actions = this.pictureActions();
         if (!actions || !image?.file) return;
-        void actions.toggleFavoriteOf(image.file).then((now) => {
-          if (now === null || shown !== image) return;
-          favorite.toggleClass("is-favorite", now);
-          favorite.setAttribute("aria-pressed", String(now));
-          const label = now ? t().pictureActions.unfavorite : t().pictureActions.favorite;
-          favorite.setAttribute("aria-label", label);
-          favorite.setAttribute("title", label);
+        const file = image.file;
+        void actions.toggleFavoriteOf(file).then((now) => {
+          if (now === null) return;
+          for (const each of this.buttonSets) each.showFavorite(file, now);
         });
       },
       { stop: true }
     );
-    return show;
+    return { show, release: () => this.buttonSets.delete(set) };
+  }
+
+  private redrawButtons(): void {
+    for (const set of this.buttonSets) set.redraw();
+  }
+
+  /**
+   * A timer cleared with the block, and let go of once it has run: a block
+   * whose pictures were described many times over kept every spent one.
+   */
+  private later(run: () => void, ms: number): void {
+    const cancel = (): void => window.clearTimeout(timer);
+    const timer = window.setTimeout(() => {
+      const index = this.teardown.indexOf(cancel);
+      if (index >= 0) this.teardown.splice(index, 1);
+      run();
+    }, ms);
+    this.teardown.push(cancel);
   }
 
   private openFullscreen(images: ResolvedImage[], startAt: number): void {
@@ -602,6 +652,9 @@ class Slideshow extends MarkdownRenderChild {
 
     const fsImg = overlay.createEl("img", { cls: "schreibstube-slideshow-fs-img" });
     fsImg.draggable = false;
+    // A picture the vault does not have shows its alt text on the dark ground,
+    // as its tile does in the note, rather than a broken image.
+    const fsMissing = overlay.createDiv({ cls: "schreibstube-slideshow-fs-missing" });
     const fsCaption = overlay.createEl("div", { cls: "schreibstube-slideshow-fs-caption" });
     const fsCounter = overlay.createEl("div", { cls: "schreibstube-slideshow-fs-counter" });
 
@@ -629,25 +682,38 @@ class Slideshow extends MarkdownRenderChild {
     // Top left, across from the close control: one picture is in view here in
     // every layout, which is where the gallery and the comparison get theirs.
     const fsActions = overlay.createDiv({ cls: "schreibstube-slideshow-fs-actions" });
-    const showFsButtons = this.pictureButtons(fsActions, "schreibstube-slideshow-fs-control");
+    const fsButtons = this.pictureButtons(fsActions, "schreibstube-slideshow-fs-control");
 
     const fsGoTo = (next: number): void => {
       fsCurrent = stepIndex(fsCurrent, next - fsCurrent, images.length);
-      fsImg.src = images[fsCurrent]?.url ?? "";
+      const url = images[fsCurrent]?.url ?? "";
+      if (url === "") fsImg.removeAttribute("src");
+      else fsImg.src = url;
       fsImg.alt = images[fsCurrent]?.alt ?? "";
+      fsImg.toggle(url !== "");
+      fsMissing.toggle(url === "");
+      fsMissing.textContent = images[fsCurrent]?.alt ?? "";
       fsCaption.textContent = images[fsCurrent]?.alt ?? "";
       fsCounter.textContent = slideshowCounter(fsCurrent, images.length);
-      showFsButtons(images[fsCurrent]);
+      fsButtons.show(images[fsCurrent]);
     };
 
+    // Heard first and kept: Escape also reached Obsidian, which put away
+    // whatever it answers Escape with, and the arrows, once Tab had carried
+    // the focus out of the view, moved the cursor in the note behind it too.
     const onKey = (e: KeyboardEvent): void => {
       if (e.key === "Escape") dismiss();
       else if (e.key === "ArrowLeft") fsGoTo(fsCurrent - 1);
       else if (e.key === "ArrowRight") fsGoTo(fsCurrent + 1);
+      else if (e.key === "Tab") keepFocusIn(overlay, e.shiftKey ? -1 : 1);
+      else return;
+      e.preventDefault();
+      e.stopPropagation();
     };
     const dismiss = (): void => {
       overlay.remove();
-      doc.removeEventListener("keydown", onKey);
+      fsButtons.release();
+      doc.removeEventListener("keydown", onKey, true);
       const idx = this.teardown.indexOf(dismiss);
       if (idx >= 0) this.teardown.splice(idx, 1);
       if (opener?.isConnected) opener.focus();
@@ -662,7 +728,7 @@ class Slideshow extends MarkdownRenderChild {
     overlay.addEventListener("click", (e) => {
       if (e.target === overlay) dismiss();
     });
-    doc.addEventListener("keydown", onKey);
+    doc.addEventListener("keydown", onKey, true);
 
     wireSwipe(overlay, (direction) => fsGoTo(fsCurrent + direction));
 
@@ -670,6 +736,20 @@ class Slideshow extends MarkdownRenderChild {
     // overlay is open; onunload runs this to tear it down.
     this.teardown.push(dismiss);
   }
+}
+
+/**
+ * Tab and Shift-Tab, held inside a dialog: from the last control round to the
+ * first and back, so the focus never reaches the note behind it.
+ */
+function keepFocusIn(dialog: HTMLElement, direction: 1 | -1): void {
+  const stops = Array.from(dialog.querySelectorAll<HTMLElement>('[tabindex="0"]')).filter(
+    (el) => el.style.display !== "none"
+  );
+  if (stops.length === 0) return;
+  const at = stops.findIndex((el) => el === dialog.ownerDocument.activeElement);
+  const next = at < 0 ? 0 : (at + direction + stops.length) % stops.length;
+  stops[next]?.focus();
 }
 
 /** The accessible name of the block, saying which shape it takes. */
@@ -727,6 +807,11 @@ function paintImage(el: HTMLElement, image: ResolvedImage | undefined): void {
     return;
   }
   const img = el.createEl("img");
+  // Fetched and decoded as it nears the screen: a filmstrip's thumbnails and a
+  // long masonry all decoded full-size at once, which a phone pays for in
+  // memory until the system closes the app.
+  img.loading = "lazy";
+  img.decoding = "async";
   img.src = image.url;
   img.alt = image.alt;
   img.draggable = false;

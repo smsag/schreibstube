@@ -114,7 +114,18 @@ export interface SlideshowBlock {
 
 export type SlideshowResult = ({ ok: true } & SlideshowBlock) | { ok: false; message: string };
 
-const IMAGE_PATTERN = /^!\[([^\]]*)\]\(([^)]+)\)$/;
+// The path runs to the line's last parenthesis, not its first: a copy made on
+// a phone or a Mac is called `Photo (1).jpg`, and stopping at the first `)`
+// refused the whole block over it.
+const IMAGE_PATTERN = /^!\[([^\]]*)\]\((.+)\)$/;
+
+// A Markdown title after the path, `![a](p.png "Title")`, is no part of the
+// file's name; read as one, it named no file and the slide stayed empty.
+const TITLE_PATTERN = /\s+(?:"[^"]*"|'[^']*')$/;
+
+// Obsidian's way of sizing a picture, `![Alt|300](p.png)`. The block draws its
+// pictures at its own size, and the number was shown as part of the caption.
+const SIZE_PATTERN = /\s*\|\s*\d+(?:\s*x\s*\d+)?$/;
 
 // Case does not count, so `Layout:` is not a mistyped image.
 const LAYOUT_PATTERN = /^layout\s*:\s*(.*)$/i;
@@ -123,9 +134,10 @@ const LAYOUT_PATTERN = /^layout\s*:\s*(.*)$/i;
  * Reads the block into images and a layout.
  *
  * One Markdown image per line. Blank lines and `//` comments are ignored so a
- * block can be annotated, and a `layout:` line may sit anywhere among them. Any other line is an error naming its number,
- * rather than being dropped silently, because a mistyped image is a mistake
- * the writer wants pointed out.
+ * block can be annotated, and a `layout:` line may sit anywhere among them.
+ * Any other line is an error naming its number, rather than being dropped
+ * silently, because a mistyped image is a mistake the writer wants pointed
+ * out.
  */
 export function parseSlideshow(source: string): SlideshowResult {
   const lines = source.split(/\r?\n/);
@@ -155,8 +167,13 @@ export function parseSlideshow(source: string): SlideshowResult {
       return { ok: false, message: t().slideshow.notImage(i + 1, line) };
     }
 
-    const alt = (match[1] ?? "").trim();
-    const src = (match[2] ?? "").trim();
+    const alt = (match[1] ?? "").trim().replace(SIZE_PATTERN, "");
+    const src = (match[2] ?? "").trim().replace(TITLE_PATTERN, "").trim();
+    // Running to the last parenthesis, two pictures on one line read as one
+    // path; that is still the mistake it always was.
+    if (src.includes("](")) {
+      return { ok: false, message: t().slideshow.notImage(i + 1, line) };
+    }
     if (src === "") {
       return { ok: false, message: t().slideshow.emptyPath(i + 1) };
     }
