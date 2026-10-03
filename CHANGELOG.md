@@ -2,7 +2,30 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## 1.73.0 - 2026-10-03
+
+Sums you write as you go, a switch between reading and editing, and
+slideshows that behave on a phone. A line that ends in `=` now shows its
+result beside it — with currencies, percentages and units — and Tab writes it
+in; a quick-note app that writes into the same vault calculates the same
+lines to the same character, because both follow one written rule. **Switch
+reading/editing** goes from Live Preview to Reading view and back without
+detours through Source mode. On a phone, a note scrolls again after a
+slideshow's page was turned; on the desktop, the fullscreen view's cross
+closes it again, and the view keeps its keys to itself. Slideshows take
+pictures named like a copy, `Foto (1).jpg`, and long ones load as they come
+into view.
+
+Mobile checklist: not run, and nothing in this release was tried in the
+Obsidian app; the test suite and the build covered it. What to try first on
+a phone: swiping through a slideshow and then scrolling the note down; a
+quick sideways swipe, which should not slide a sidebar in; a calculation
+line's result, tapped to write it in; and a long filmstrip opening.
+
+The bridge moves to 2.13.2, protocol 7: published slideshows read the same
+new picture lines as the note — a name with brackets, a title, a `|300`
+size. No request or response changed, so every plugin from 1.8.0 on works
+with it.
 
 ### Added
 
@@ -13,7 +36,7 @@ All notable changes to this project will be documented in this file.
 
 - **A note scrolls again after a slideshow's page is turned on a phone.** Swiping sideways through a slideshow's pictures left the note unable to scroll down afterwards. The block kept the end of the swipe to itself, so Obsidian, which had seen the finger land, never saw it lift and held on to the next one. The swipe's sideways moves are still kept from Obsidian, so no sidebar slides in; its end now reaches it.
 - **The cross closes a slideshow's fullscreen view.** On the desktop, the cross in the top right sat in the strip at the top of the window that drags the window, and the window took the click: pressing it moved nothing or nudged the window. The view now keeps its own clicks, as Obsidian's dialogs do, and on a phone its top controls stay clear of the notch.
-- **A slideshow takes a picture named like a copy.** `![](Foto (1).jpg)`, the name a phone or a Mac gives a duplicate, turned the whole block into an error, and `![](a.png "Title")` left its slide empty. The path now runs to the line's last parenthesis and a Markdown title after it is set aside, in the note and on the published site alike. Obsidian's `|300` size after the alt text no longer shows up in the caption; two pictures on one line are still refused.
+- **A slideshow takes a picture named like a copy.** `![](Foto (1).jpg)`, the name a phone or a Mac gives a duplicate, turned the whole block into an error, and `![](a.png "Title")` left its slide empty. The path now runs to the line's last parenthesis and a Markdown title after it is set aside, in the note and on the published site alike (bridge 2.13.2). Obsidian's `|300` size after the alt text no longer shows up in the caption; two pictures on one line are still refused.
 - **A slideshow's fullscreen view keeps to itself.** Escape and the arrow keys no longer reach Obsidian or the note behind the view, and Tab stays among the view's own controls. A picture the vault does not have shows its alt text there, as it does in the note, rather than a broken image.
 - **A star or description given in fullscreen shows in the slideshow at once.** The header went on showing the picture as it was until you turned away and back, and pressing its star then undid what you had just done.
 - **Long slideshows are lighter on a phone.** A filmstrip's thumbnails and a strip's or masonry's pictures are fetched and decoded as they near the screen, not all at once and at full size when the note opens.
