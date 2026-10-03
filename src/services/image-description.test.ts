@@ -13,6 +13,7 @@ import {
   descriptionSystemPrompt,
   descriptionUserPrompt,
   hashImageBytes,
+  keepForeignFrontmatter,
   normalizeImageDescription,
   renderDescriptionNote,
   sanitizeDescriptionText,
@@ -387,5 +388,91 @@ describe("the star", () => {
       `${DESCRIPTION_KEYS.articles}: []`
     );
     expect(renderDescriptionNote(image, desc)).not.toContain(DESCRIPTION_KEYS.articles);
+  });
+});
+
+describe("keepForeignFrontmatter — a person's own properties survive a new description", () => {
+  const image = { path: "a.png", hash: "h2", size: 2, describedAt: "2026-10-03T00:00:00Z" };
+  const desc: ImageDescription = {
+    title: "Neu",
+    summary: "",
+    description: "Neue Beschreibung.",
+    keywords: ["neu"],
+    visibleText: "",
+    source: "",
+    author: ""
+  };
+  const fresh = renderDescriptionNote(image, desc);
+  const previous = [
+    "---",
+    `${DESCRIPTION_KEYS.image}: "[[a.png]]"`,
+    `${DESCRIPTION_KEYS.hash}: "h1"`,
+    `${DESCRIPTION_KEYS.keywords}:`,
+    '  - "alt"',
+    `${DESCRIPTION_KEYS.source}: "Alte Studie"`,
+    "projekt: Buch # mein Kommentar",
+    "status:",
+    "- offen",
+    "- wichtig",
+    'title: "Alt"',
+    '"mit Leerzeichen": 3',
+    "notiz: |",
+    "  zwei",
+    "  Zeilen",
+    "---",
+    "",
+    "Alter Text."
+  ].join("\n");
+
+  const merged = keepForeignFrontmatter(previous, fresh);
+  const frontmatter = merged.split("---\n")[1]!;
+
+  it("carries the person's entries over exactly as written", () => {
+    expect(frontmatter).toContain("projekt: Buch # mein Kommentar\n");
+    expect(frontmatter).toContain("status:\n- offen\n- wichtig\n");
+    expect(frontmatter).toContain('"mit Leerzeichen": 3\n');
+    expect(frontmatter).toContain("notiz: |\n  zwei\n  Zeilen\n");
+  });
+
+  it("takes every key the description owns from the fresh note", () => {
+    expect(frontmatter).toContain(`${DESCRIPTION_KEYS.hash}: "h2"`);
+    expect(frontmatter).not.toContain('"h1"');
+    expect(frontmatter).toContain('title: "Neu"');
+    expect(frontmatter).not.toContain('"Alt"');
+    expect(frontmatter).not.toContain('"alt"');
+  });
+
+  it("drops a description key the fresh answer no longer has, rather than keep it stale", () => {
+    expect(merged).not.toContain(DESCRIPTION_KEYS.source);
+  });
+
+  it("writes the fresh body, and a frontmatter that still reads as one block", () => {
+    expect(merged.endsWith(fresh.split("---\n")[2]!)).toBe(true);
+    expect(merged).not.toContain("Alter Text.");
+    expect(merged.startsWith("---\n")).toBe(true);
+    expect(merged.match(/^---$/gm)).toHaveLength(2);
+  });
+
+  it("leaves Obsidian's tags to the person unless keywords are written as tags", () => {
+    const withTags = previous.replace("---\n", "---\ntags:\n  - eigen\n");
+    expect(keepForeignFrontmatter(withTags, fresh)).toContain("tags:\n  - eigen");
+    const asTags = renderDescriptionNote(image, desc, { keywordsAsTags: true });
+    const replaced = keepForeignFrontmatter(withTags, asTags);
+    expect(replaced).not.toContain("eigen");
+    expect(replaced).toContain('tags:\n  - "neu"');
+  });
+
+  it.each([
+    ["no frontmatter", "Nur Text."],
+    ["a frontmatter that never closes", "---\nprojekt: Buch\nText"],
+    ["a frontmatter with nothing of the person's", fresh]
+  ])("returns the fresh note unchanged for %s", (_why, old) => {
+    expect(keepForeignFrontmatter(old, fresh)).toBe(fresh);
+  });
+
+  it("reads Windows line endings", () => {
+    expect(keepForeignFrontmatter("---\r\nprojekt: Buch\r\n---\r\nText", fresh)).toContain(
+      "projekt: Buch"
+    );
   });
 });

@@ -16,6 +16,7 @@ import {
   DESCRIPTION_KEYS,
   descriptionNotePath,
   hashImageBytes,
+  keepForeignFrontmatter,
   renderDescriptionNote,
   type DescriptionLanguage
 } from "../services/image-description";
@@ -317,7 +318,11 @@ export class LlmCommands {
     return frontmatter ? carriedArticleLinks(frontmatter[DESCRIPTION_KEYS.articles]) : undefined;
   }
 
-  /** Create a note, or replace it in place so a link to it keeps working. */
+  /**
+   * Create a note, or replace it in place so a link to it keeps working. The
+   * old note is read in the same step it is replaced, so a property someone
+   * added a moment ago is kept, not overwritten by a copy read earlier.
+   */
   private async writeNote(path: string, content: string): Promise<void> {
     const exists = (folder: string): boolean =>
       this.app.vault.getAbstractFileByPath(folder) !== null;
@@ -326,7 +331,8 @@ export class LlmCommands {
     }
     const existing = this.app.vault.getFileByPath(path);
 
-    if (existing) await this.app.vault.modify(existing, content);
+    if (existing)
+      await this.app.vault.process(existing, (old) => keepForeignFrontmatter(old, content));
     else await this.app.vault.create(path, content);
   }
 

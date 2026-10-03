@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Fixed
+
+- **Describing a picture again keeps the properties you added to its note.** A new description rewrote the whole frontmatter, so a rating, a project or a status you had set on a description note — and your own `tags` — was gone. Now only Schreibstube's own keys and the title are replaced; everything else stays exactly as you wrote it.
+
 ## 1.74.0 - 2026-10-03
 
 A line for every picture's card, and descriptions in the language you chose.

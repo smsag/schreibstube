@@ -357,3 +357,73 @@ function keywordTags(keywords: readonly string[]): string[] {
   }
   return tags;
 }
+
+/** A frontmatter block at the top of a note: its lines and where the body starts. */
+function frontmatterOf(note: string): { lines: string[]; body: string } | null {
+  const match = /^---\r?\n([\s\S]*?)\r?\n---[ \t]*(?:\r?\n|$)/.exec(note);
+  if (!match) return null;
+  return { lines: (match[1] ?? "").split(/\r?\n/), body: note.slice(match[0].length) };
+}
+
+/** The key a top-level frontmatter line opens, unquoted, or null for a line that continues one. */
+function topLevelKey(line: string): string | null {
+  const match =
+    /^("(?:[^"\\]|\\.)*"|'(?:[^']|'')*'|[^\s#'"-][^:]*?|-[^\s:][^:]*?)[ \t]*:(?:[ \t]|$)/.exec(
+      line
+    );
+  if (!match) return null;
+  const raw = match[1] ?? "";
+  if (raw.startsWith('"')) {
+    try {
+      return JSON.parse(raw) as string;
+    } catch {
+      return raw.slice(1, -1);
+    }
+  }
+  if (raw.startsWith("'")) return raw.slice(1, -1).replace(/''/g, "'");
+  return raw;
+}
+
+/** A frontmatter's top-level entries, each with the lines that continue it. */
+function frontmatterEntries(lines: readonly string[]): { key: string | null; lines: string[] }[] {
+  const entries: { key: string | null; lines: string[] }[] = [];
+  for (const line of lines) {
+    const key = topLevelKey(line);
+    const last = entries[entries.length - 1];
+    if (key === null && last) last.lines.push(line);
+    else entries.push({ key, lines: [line] });
+  }
+  return entries;
+}
+
+/**
+ * A fresh description note that keeps what someone else put in the old one's
+ * frontmatter.
+ *
+ * Describing a picture again replaces the note, and a person's own properties
+ * on it — a rating, a project, a status a base filters by — are not the
+ * model's to throw away. Every top-level entry of the old frontmatter is
+ * carried over as written, unless its key is one the description owns: one
+ * of Schreibstube's description keys (a source the model no longer names must
+ * go, not linger), or one the fresh note writes itself, `title` and, when
+ * asked, `tags`. Text, not parsed YAML, so an entry comes back exactly as it
+ * was, comments and quoting included.
+ *
+ * An old note without a frontmatter block, or with one that does not close,
+ * has nothing to carry, and the fresh note is returned as it is.
+ */
+export function keepForeignFrontmatter(previous: string, fresh: string): string {
+  const old = frontmatterOf(previous);
+  const next = frontmatterOf(fresh);
+  if (!old || !next) return fresh;
+
+  const owned = new Set<string>(Object.values(DESCRIPTION_KEYS));
+  for (const entry of frontmatterEntries(next.lines)) if (entry.key) owned.add(entry.key);
+
+  const carried = frontmatterEntries(old.lines)
+    .filter((entry) => entry.key !== null && !owned.has(entry.key))
+    .flatMap((entry) => entry.lines);
+  if (carried.length === 0) return fresh;
+
+  return ["---", ...next.lines, ...carried, "---", ""].join("\n") + next.body;
+}
