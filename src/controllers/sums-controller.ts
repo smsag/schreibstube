@@ -4,7 +4,8 @@ import type { Extension } from "@codemirror/state";
 import { obsidianLanguageTag, t } from "../i18n";
 import type { Logger } from "../services/logger";
 import type { SchreibstubeSettings } from "../types";
-import { numberFormatFor } from "../services/amounts";
+import { CURRENCY_CODES, numberFormatFor } from "../services/amounts";
+import { calculationFormatFor, type CalculationContext } from "../services/line-calculator";
 import { RATES_RETRY_MS, ratesStale, type ExchangeRates } from "../services/exchange-rates";
 import { fetchEcbRates } from "../platform/rates-client";
 import { formatRateDate, type FormulaContext, type Outcome } from "../services/formulas";
@@ -85,6 +86,25 @@ export class SumsController implements NoteFormulas {
       format: numberFormatFor(settings.sumsNumberStyle, obsidianLanguageTag()),
       defaultCurrency: settings.sumsDefaultCurrency,
       rates: settings.sumsConvert ? settings.sumsRates : null
+    };
+  }
+
+  /**
+   * The context of a calculation line, or null while they are switched off:
+   * the same number format and the same rates as a table's formula, so a
+   * number means the same in both.
+   */
+  calculationContext(): CalculationContext | null {
+    const settings = this.getSettings();
+    if (!settings.calculateLines) return null;
+    const { format, defaultCurrency, rates } = this.context();
+    return {
+      format: calculationFormatFor(format),
+      currencies: CURRENCY_CODES,
+      conversion:
+        rates && defaultCurrency
+          ? { into: defaultCurrency, rates, day: formatRateDate(rates.date, format) }
+          : null
     };
   }
 

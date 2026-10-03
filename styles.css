@@ -3972,6 +3972,24 @@
   font-size: var(--font-smaller);
 }
 
+/* A calculation line's result, beside the `=` and not part of the text: in
+   the faint colour of something on offer, the accent when the pointer says
+   it can be taken. Text on the page, no fill, like the plugin's controls. */
+.schreibstube-calc-result {
+  margin-inline-start: 0.5em;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+}
+
+.markdown-source-view .schreibstube-calc-result {
+  cursor: pointer;
+}
+
+.markdown-source-view .schreibstube-calc-result:hover {
+  color: var(--text-accent);
+}
+
 /* The note the new-note command opens, while its window fills the screen
    (controllers/draft-width): lines two thirds of the window wide. With
    readable line length on, Obsidian narrows its sizers to --file-line-width,

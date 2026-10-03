@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- **Calculation lines.** A line that ends in `=` shows its result beside it, in the editor and in Reading view: `Miete 1.240 € - 15% =` shows `1.054,00 €`. Press Tab at the end of the line, or click the result, to write it in; nothing is written before that. It works with currencies (converted at the ECB's rates when **Convert currencies** is on), percentages and units, follows the **Number format** setting, leaves code, frontmatter, math and comments alone, and can be switched off under Sums and formulas. A line gives the same result here as in a quick-note app that writes into the same vault: both follow `contracts/CALCULATOR.md` and test against the same examples.
 - **Switch reading/editing.** A command that takes a note from Live Preview to Reading view and back, and from Source mode to Live Preview. Obsidian's own toggle returns to whichever editor was last in use, so a writer who wanted the page as it reads, editable in place, often had to switch twice. The passage on screen stays on screen. It has no key of its own; give it one, or put it on the phone's toolbar, in Obsidian's settings.
 
 ### Fixed

@@ -257,8 +257,7 @@ schreibstubePrintTemplate: Lebenslauf
 
 ## 5. Tables and totals
 
-A formula alone in a cell shows the result of the cells above it in the same
-column, back to the header. The note keeps the formula.
+A formula alone in a cell works on the cells above it; the note keeps it.
 
 ```markdown
 | Posten            |    Betrag |
@@ -276,6 +275,7 @@ column, back to the header. The note keeps the formula.
   quotes, `"300 €"`, is left out on purpose. Another formula above is not
   counted twice.
 - Alignment comes from the delimiter row: `:--`, `:-:`, `--:`.
+- A line ending in `=` shows its result: `Miete 1.240 € - 15% =`; Tab adds it.
 
 ## 6. Picture slideshows in a note
 
