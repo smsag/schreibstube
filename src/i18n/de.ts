@@ -14,6 +14,7 @@ export const de: Messages = {
     baseReadingView: "Base: Notizen in Leseansicht öffnen (an/aus)",
     focusSentence: "Fokus: Satz",
     focusParagraph: "Fokus: Absatz",
+    switchReadingEditing: "Lesen/Bearbeiten wechseln",
     newNote: "Neues Doc",
     insertTaskSummary: "Einfügen: Aufgaben-Zusammenfassung",
     insertSlideshow: "Einfügen: Diaschau",

@@ -16,6 +16,7 @@ export const en = {
     baseReadingView: "Base: open notes in Reading view (on/off)",
     focusSentence: "Focus: sentence",
     focusParagraph: "Focus: paragraph",
+    switchReadingEditing: "Switch reading/editing",
     newNote: "New doc",
     insertTaskSummary: "Insert: task summary",
     insertSlideshow: "Insert: slideshow",
