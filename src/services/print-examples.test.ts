@@ -15,7 +15,8 @@ describe("the templates the plugin carries", () => {
       "Brief",
       "Folien",
       "Lebenslauf",
-      "Standard"
+      "Standard",
+      "Vortrag"
     ]);
   });
 

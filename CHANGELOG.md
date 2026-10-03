@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Added
+
+- **Vortrag: a slide deck in the Klartext look.** A new print template, under "Add a template", prints a note as slides the way the Klartext theme draws a note: the text in JetBrains Mono and ragged right (Fira Sans when the print dialog's **Text font** says so), headings in Fira Sans set tight, no accent colour, and every mark in a faint grey — a slide title carries its level as a small `#₁` or `#₂` hung in the margin, a list item a dash, a step its bare number. Code stands between two hairlines under `</> language`, links keep the text's colour with a dotted rule, callouts have a bar in their colour. `scheme: dark` in the template or the note sets the deck on the theme's dark ground, for a projector in a darkened room; it is light otherwise. It reads the outline exactly as **Folien** does — columns, picture layouts, speaker notes, the agenda — and takes `subtitle`, `author` and an optional `logo`.
+
 ## 1.72.1 - 2026-10-02
 
 Two corrections to 1.72.0's settings tab. The jump line at the top is two

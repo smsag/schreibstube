@@ -542,9 +542,9 @@ Once on, the settings show whether the typesetter is on this device, with a butt
 
 You don't need one to start: a note that names no template is printed with **Standard**, which the plugin carries: the Klartext theme on paper — A4, the note's own headings in Fira Sans, the text in JetBrains Mono, the title and page number at the foot. **Standardvorlage** in the print settings chooses another default, or asks every time; a note picks its own with `schreibstubePrintTemplate` in its frontmatter. Standard is part of the plugin: it is always there, cannot be deleted and is not a folder in the vault. The print dialog's **Schrift des Textes** sets its text in JetBrains Mono or Fira Sans for that print; a note that wants Fira Sans every time says `schreibstubePrint: { monospace: false }`.
 
-To change how pages look, press **Vorlage anlegen** under **Einstellungen → Drucken**. It asks which of the two examples you want (a letter or a CV) and which folder to put it in — any folder in the vault, not only the templates folder — then writes it and opens its `template.md`. You do not need to leave the app, which on a phone you could not do anyway.
+To change how pages look, press **Vorlage anlegen** under **Einstellungen → Drucken**. It asks which of the examples you want (a letter, a CV, or one of two slide decks: **Folien**, or **Vortrag** in the Klartext look) and which folder to put it in — any folder in the vault, not only the templates folder — then writes it and opens its `template.md`. You do not need to leave the app, which on a phone you could not do anyway.
 
-The same three templates are in [`examples/print/`](examples/print/) if you would rather copy them by hand.
+The same templates are in [`examples/print/`](examples/print/) if you would rather copy them by hand.
 
 A template is found wherever you keep it. What makes a folder a template is the flag in its `template.md`, not its location, so the templates folder setting only says where a new one is suggested — a template beside the notes that use it works exactly the same.
 
