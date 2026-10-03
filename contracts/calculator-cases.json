@@ -1,0 +1,884 @@
+{
+  "comment": "The examples behind contracts/CALCULATOR.md. Schreibstube's suite and the quick-note app's run every one; a change here is a change in both apps. 'lines' are single lines and the result shown beside them, or null; 'documents' are whole notes and the results by line index; 'accept' is the line after its result was accepted, or null when there is none to accept.",
+  "formats": {
+    "comma": {
+      "group": ".",
+      "decimal": ","
+    },
+    "point": {
+      "group": ",",
+      "decimal": "."
+    },
+    "space": {
+      "group": " ",
+      "decimal": ","
+    },
+    "apostrophe": {
+      "group": "’",
+      "decimal": "."
+    }
+  },
+  "signs": {
+    "€": "EUR",
+    "$": "USD",
+    "£": "GBP",
+    "¥": "JPY",
+    "₹": "INR",
+    "₩": "KRW",
+    "₺": "TRY",
+    "₪": "ILS",
+    "R$": "BRL",
+    "zł": "PLN",
+    "Kč": "CZK"
+  },
+  "currencies": [
+    "EUR",
+    "USD",
+    "JPY",
+    "BGN",
+    "CZK",
+    "DKK",
+    "GBP",
+    "HUF",
+    "PLN",
+    "RON",
+    "SEK",
+    "CHF",
+    "ISK",
+    "NOK",
+    "TRY",
+    "AUD",
+    "BRL",
+    "CAD",
+    "CNY",
+    "HKD",
+    "IDR",
+    "ILS",
+    "INR",
+    "KRW",
+    "MXN",
+    "MYR",
+    "NZD",
+    "PHP",
+    "SGD",
+    "THB",
+    "ZAR"
+  ],
+  "units": {
+    "mm": {
+      "kind": "length",
+      "factor": 0.001,
+      "offset": 0
+    },
+    "cm": {
+      "kind": "length",
+      "factor": 0.01,
+      "offset": 0
+    },
+    "m": {
+      "kind": "length",
+      "factor": 1,
+      "offset": 0
+    },
+    "km": {
+      "kind": "length",
+      "factor": 1000,
+      "offset": 0
+    },
+    "in": {
+      "kind": "length",
+      "factor": 0.0254,
+      "offset": 0
+    },
+    "inch": {
+      "kind": "length",
+      "factor": 0.0254,
+      "offset": 0
+    },
+    "ft": {
+      "kind": "length",
+      "factor": 0.3048,
+      "offset": 0
+    },
+    "yd": {
+      "kind": "length",
+      "factor": 0.9144,
+      "offset": 0
+    },
+    "mi": {
+      "kind": "length",
+      "factor": 1609.344,
+      "offset": 0
+    },
+    "mg": {
+      "kind": "mass",
+      "factor": 1e-6,
+      "offset": 0
+    },
+    "g": {
+      "kind": "mass",
+      "factor": 0.001,
+      "offset": 0
+    },
+    "kg": {
+      "kind": "mass",
+      "factor": 1,
+      "offset": 0
+    },
+    "t": {
+      "kind": "mass",
+      "factor": 1000,
+      "offset": 0
+    },
+    "oz": {
+      "kind": "mass",
+      "factor": 0.0283495,
+      "offset": 0
+    },
+    "lb": {
+      "kind": "mass",
+      "factor": 0.453592,
+      "offset": 0
+    },
+    "lbs": {
+      "kind": "mass",
+      "factor": 0.453592,
+      "offset": 0
+    },
+    "c": {
+      "kind": "temperature",
+      "factor": 1,
+      "offset": 273.15
+    },
+    "°c": {
+      "kind": "temperature",
+      "factor": 1,
+      "offset": 273.15
+    },
+    "f": {
+      "kind": "temperature",
+      "factor": 0.55555555555556,
+      "offset": 255.37222222222428
+    },
+    "°f": {
+      "kind": "temperature",
+      "factor": 0.55555555555556,
+      "offset": 255.37222222222428
+    },
+    "k": {
+      "kind": "temperature",
+      "factor": 1,
+      "offset": 0
+    },
+    "b": {
+      "kind": "data",
+      "factor": 1,
+      "offset": 0
+    },
+    "kb": {
+      "kind": "data",
+      "factor": 1000,
+      "offset": 0
+    },
+    "mb": {
+      "kind": "data",
+      "factor": 1000000,
+      "offset": 0
+    },
+    "gb": {
+      "kind": "data",
+      "factor": 1000000000,
+      "offset": 0
+    },
+    "tb": {
+      "kind": "data",
+      "factor": 1000000000000,
+      "offset": 0
+    },
+    "kib": {
+      "kind": "data",
+      "factor": 1024,
+      "offset": 0
+    },
+    "mib": {
+      "kind": "data",
+      "factor": 1048576,
+      "offset": 0
+    },
+    "gib": {
+      "kind": "data",
+      "factor": 1073741824,
+      "offset": 0
+    },
+    "tib": {
+      "kind": "data",
+      "factor": 1099511627776,
+      "offset": 0
+    }
+  },
+  "lines": [
+    {
+      "format": "comma",
+      "line": "12,5 * 8 + 3 =",
+      "result": "103"
+    },
+    {
+      "format": "comma",
+      "line": "12.5 * 8 + 3 =",
+      "result": "103"
+    },
+    {
+      "format": "comma",
+      "line": "3 km in m =",
+      "result": "3.000"
+    },
+    {
+      "format": "comma",
+      "line": "72 F in C =",
+      "result": "22,22"
+    },
+    {
+      "format": "comma",
+      "line": "3.000 + 1,5 =",
+      "result": "3.001,5"
+    },
+    {
+      "format": "comma",
+      "line": "Äpfel kaufen =",
+      "result": null
+    },
+    {
+      "format": "comma",
+      "line": "buy apples =",
+      "result": null
+    },
+    {
+      "format": "comma",
+      "line": "Grundpreis 12,5 * 8 + 3 =",
+      "result": "103"
+    },
+    {
+      "format": "comma",
+      "line": "Pendlerpauschale 38 * 0,30 =",
+      "result": "11,4"
+    },
+    {
+      "format": "comma",
+      "line": "Leitung 3 km in m =",
+      "result": "3.000"
+    },
+    {
+      "format": "comma",
+      "line": "- [ ] Summe 2 + 2 =",
+      "result": "4"
+    },
+    {
+      "format": "comma",
+      "line": "Seite 5: 3 + 4 =",
+      "result": "7"
+    },
+    {
+      "format": "comma",
+      "line": "300 200 + 1 =",
+      "result": "201"
+    },
+    {
+      "format": "comma",
+      "line": "26.09.2026 + 1 =",
+      "result": null,
+      "name": "a tail may not start with a plus"
+    },
+    {
+      "format": "comma",
+      "line": "Temperatur -5 * 2 =",
+      "result": "-10"
+    },
+    {
+      "format": "comma",
+      "line": "-5 =",
+      "result": "-5",
+      "name": "a unary minus is an operator"
+    },
+    {
+      "format": "comma",
+      "line": "200 + 10% =",
+      "result": "220"
+    },
+    {
+      "format": "comma",
+      "line": "200 - 10% =",
+      "result": "180"
+    },
+    {
+      "format": "comma",
+      "line": "Abschlag 1240 − 15% =",
+      "result": "1.054"
+    },
+    {
+      "format": "comma",
+      "line": "200 * 10% =",
+      "result": "20"
+    },
+    {
+      "format": "comma",
+      "line": "10% von 200 =",
+      "result": "20"
+    },
+    {
+      "format": "comma",
+      "line": "10 % of 200 =",
+      "result": "20"
+    },
+    {
+      "format": "comma",
+      "line": "10% VON 200 =",
+      "result": "20"
+    },
+    {
+      "format": "comma",
+      "line": "200 + 10% + 5 =",
+      "result": "225"
+    },
+    {
+      "format": "comma",
+      "line": "10% von 200 + 5 =",
+      "result": "20,5"
+    },
+    {
+      "format": "comma",
+      "line": "5 + 10% von 200 =",
+      "result": "25"
+    },
+    {
+      "format": "comma",
+      "line": "2 + 3 * 4 =",
+      "result": "14"
+    },
+    {
+      "format": "comma",
+      "line": "(2 + 3) * 4 =",
+      "result": "20"
+    },
+    {
+      "format": "comma",
+      "line": "2 * (3 + 4) =",
+      "result": "14"
+    },
+    {
+      "format": "comma",
+      "line": "((1)) + 1 =",
+      "result": "2"
+    },
+    {
+      "format": "comma",
+      "line": "10 / 4 =",
+      "result": "2,5"
+    },
+    {
+      "format": "comma",
+      "line": "1 / 3 =",
+      "result": "0,33"
+    },
+    {
+      "format": "comma",
+      "line": "2 / 3 =",
+      "result": "0,67"
+    },
+    {
+      "format": "comma",
+      "line": "2 ++ 2 =",
+      "result": "4"
+    },
+    {
+      "format": "comma",
+      "line": "6 × 7 =",
+      "result": "42"
+    },
+    {
+      "format": "comma",
+      "line": "6 · 7 =",
+      "result": "42"
+    },
+    {
+      "format": "comma",
+      "line": "84 ÷ 2 =",
+      "result": "42"
+    },
+    {
+      "format": "comma",
+      "line": "50 – 8 =",
+      "result": "42"
+    },
+    {
+      "format": "comma",
+      "line": "0,005 * 1 =",
+      "result": "0,01"
+    },
+    {
+      "format": "comma",
+      "line": "-2,5 / 100 =",
+      "result": "-0,03"
+    },
+    {
+      "format": "comma",
+      "line": "-0,001 * 1 =",
+      "result": "0"
+    },
+    {
+      "format": "comma",
+      "line": "1234567,891 * 1 =",
+      "result": "1.234.567,89"
+    },
+    {
+      "format": "comma",
+      "line": "1000000000 * 1000000 =",
+      "result": null,
+      "name": "a quadrillion is too large"
+    },
+    {
+      "format": "comma",
+      "line": "Seite 5 =",
+      "result": null
+    },
+    {
+      "format": "comma",
+      "line": "2 + 2",
+      "result": null
+    },
+    {
+      "format": "comma",
+      "line": "==Text==",
+      "result": null
+    },
+    {
+      "format": "comma",
+      "line": "2 + 2 = 4",
+      "result": null
+    },
+    {
+      "format": "comma",
+      "line": "1 / 0 =",
+      "result": null
+    },
+    {
+      "format": "comma",
+      "line": "2 * * 2 =",
+      "result": null
+    },
+    {
+      "format": "comma",
+      "line": "2 + =",
+      "result": null
+    },
+    {
+      "format": "comma",
+      "line": "2 + 2 ==",
+      "result": null
+    },
+    {
+      "format": "comma",
+      "line": "(2 + 2 =",
+      "result": null
+    },
+    {
+      "format": "comma",
+      "line": "1 kg in g =",
+      "result": "1.000"
+    },
+    {
+      "format": "comma",
+      "line": "1 GB in MB =",
+      "result": "1.000"
+    },
+    {
+      "format": "comma",
+      "line": "1 GiB in MiB =",
+      "result": "1.024"
+    },
+    {
+      "format": "comma",
+      "line": "1 TiB in GiB =",
+      "result": "1.024"
+    },
+    {
+      "format": "comma",
+      "line": "100 C in F =",
+      "result": "212"
+    },
+    {
+      "format": "comma",
+      "line": "3 km in kg =",
+      "result": null
+    },
+    {
+      "format": "comma",
+      "line": "3 xyz in m =",
+      "result": null
+    },
+    {
+      "format": "comma",
+      "line": "1 lb in kg =",
+      "result": "0,45"
+    },
+    {
+      "format": "comma",
+      "line": "1 mi in km =",
+      "result": "1,61"
+    },
+    {
+      "format": "comma",
+      "line": "16 oz in lb =",
+      "result": "1"
+    },
+    {
+      "format": "comma",
+      "line": "3 m nach cm =",
+      "result": "300"
+    },
+    {
+      "format": "comma",
+      "line": "3 m → cm =",
+      "result": "300"
+    },
+    {
+      "format": "comma",
+      "line": "3 m -> cm =",
+      "result": "300"
+    },
+    {
+      "format": "comma",
+      "line": "3 M to CM =",
+      "result": "300"
+    },
+    {
+      "format": "comma",
+      "line": "1.234 + 0 =",
+      "result": "1.234"
+    },
+    {
+      "format": "point",
+      "line": "1.234 + 0 =",
+      "result": "1.23"
+    },
+    {
+      "format": "comma",
+      "line": "1,000 + 1 =",
+      "result": "2"
+    },
+    {
+      "format": "point",
+      "line": "1,000 + 1 =",
+      "result": "1,001"
+    },
+    {
+      "format": "comma",
+      "line": "0,125 * 8 =",
+      "result": "1"
+    },
+    {
+      "format": "point",
+      "line": "0.125 * 8 =",
+      "result": "1"
+    },
+    {
+      "format": "point",
+      "line": "1,234.5 * 2 =",
+      "result": "2,469"
+    },
+    {
+      "format": "point",
+      "line": "1.5 + 1.5 =",
+      "result": "3"
+    },
+    {
+      "format": "point",
+      "line": "10 / 4 =",
+      "result": "2.5"
+    },
+    {
+      "format": "space",
+      "line": "1 234 + 1 =",
+      "result": "1 235"
+    },
+    {
+      "format": "space",
+      "line": "1 234,5 * 2 =",
+      "result": "2 469"
+    },
+    {
+      "format": "space",
+      "line": "300 200 + 1 =",
+      "result": "300 201"
+    },
+    {
+      "format": "apostrophe",
+      "line": "1’234.5 * 2 =",
+      "result": "2’469"
+    },
+    {
+      "format": "apostrophe",
+      "line": "1'234 + 1 =",
+      "result": "1’235"
+    },
+    {
+      "format": "apostrophe",
+      "line": "10 / 4 =",
+      "result": "2.5"
+    },
+    {
+      "format": "comma",
+      "line": "12,50 € * 3 =",
+      "result": "37,50 €"
+    },
+    {
+      "format": "comma",
+      "line": "€12,50 * 3 =",
+      "result": "€37,50"
+    },
+    {
+      "format": "comma",
+      "line": "EUR 12,50 * 3 =",
+      "result": "EUR 37,50"
+    },
+    {
+      "format": "comma",
+      "line": "300 € + 20 =",
+      "result": "320,00 €"
+    },
+    {
+      "format": "comma",
+      "line": "20 + 300 € =",
+      "result": "320,00 €"
+    },
+    {
+      "format": "comma",
+      "line": "10 EUR + 5 € =",
+      "result": "15,00 EUR"
+    },
+    {
+      "format": "comma",
+      "line": "300 € + 20 $ =",
+      "result": null,
+      "name": "mixed currencies are Schreibstube's to convert, or nobody's"
+    },
+    {
+      "format": "comma",
+      "line": "12 € * 3 € =",
+      "result": null
+    },
+    {
+      "format": "comma",
+      "line": "100 € / 4 =",
+      "result": "25,00 €"
+    },
+    {
+      "format": "comma",
+      "line": "100 € / 20 € =",
+      "result": "5"
+    },
+    {
+      "format": "comma",
+      "line": "100 / 20 € =",
+      "result": null
+    },
+    {
+      "format": "comma",
+      "line": "200 € + 10% =",
+      "result": "220,00 €"
+    },
+    {
+      "format": "comma",
+      "line": "10% von 200 € =",
+      "result": "20,00 €"
+    },
+    {
+      "format": "comma",
+      "line": "Miete 1.240 € - 15% =",
+      "result": "1.054,00 €"
+    },
+    {
+      "format": "comma",
+      "line": "5 € - 10 € =",
+      "result": "-5,00 €"
+    },
+    {
+      "format": "comma",
+      "line": "12 € =",
+      "result": null
+    },
+    {
+      "format": "comma",
+      "line": "10 eur * 2 =",
+      "result": null
+    },
+    {
+      "format": "point",
+      "line": "$12 * 3 =",
+      "result": "$36.00"
+    },
+    {
+      "format": "comma",
+      "line": "R$ 10 * 2 =",
+      "result": "R$20,00"
+    },
+    {
+      "format": "comma",
+      "line": "12 zł + 3 zł =",
+      "result": "15,00 zł"
+    },
+    {
+      "format": "comma",
+      "line": "1.000 € * 1,19 =",
+      "result": "1.190,00 €"
+    },
+    {
+      "format": "comma",
+      "line": "€5 - €10 =",
+      "result": "-€5,00",
+      "name": "the minus goes before a currency sign"
+    },
+    {
+      "format": "comma",
+      "line": "3 KM IN M =",
+      "result": "3.000",
+      "name": "the connecting word in any case"
+    },
+    {
+      "format": "comma",
+      "line": "-5 C in F =",
+      "result": "23",
+      "name": "a conversion of a negative number"
+    },
+    {
+      "format": "apostrophe",
+      "line": "1'234’567 + 0 =",
+      "result": null,
+      "name": "two different apostrophes are two separators"
+    },
+    {
+      "format": "comma",
+      "line": "10 €% * 2 =",
+      "result": null,
+      "name": "a percentage of a currency fails"
+    },
+    {
+      "format": "comma",
+      "line": "200 + -10% =",
+      "result": "199,9",
+      "name": "a signed percentage is a plain share"
+    },
+    {
+      "format": "comma",
+      "line": "10% =",
+      "result": "0,1",
+      "name": "a lone percentage is its share"
+    },
+    {
+      "format": "comma",
+      "line": "70368744177664,25 * 1 =",
+      "result": "70.368.744.177.664,25",
+      "name": "digits from whole cents, near the limit"
+    },
+    {
+      "format": "comma",
+      "line": "−5 C in F =",
+      "result": "23",
+      "name": "a conversion's minus may be any of the three"
+    },
+    {
+      "format": "comma",
+      "line": "–5 C in F =",
+      "result": "23"
+    }
+  ],
+  "documents": [
+    {
+      "name": "frontmatter, fences, math, comments and inline code are not prose",
+      "format": "comma",
+      "text": "---\ntotal: 2 + 2 =\n---\n2 + 2 =\n```\n3 * 3 =\n```\n`x` 4 * 4 =\n$$\n5 * 5 =\n$$\n%%\n6 * 6 =\n%%\n7 * 7 =",
+      "results": [
+        [3, "4"],
+        [14, "49"]
+      ]
+    },
+    {
+      "name": "a fence closes only with as many of its own character",
+      "format": "comma",
+      "text": "~~~~\n1 + 1 =\n~~~\n2 + 2 =\n~~~~\n3 + 3 =",
+      "results": [[5, "6"]]
+    },
+    {
+      "name": "a rule further down is not frontmatter",
+      "format": "comma",
+      "text": "a\n---\n1 + 1 =\n---",
+      "results": [[2, "2"]]
+    },
+    {
+      "name": "a comment closed on its own line opens no block",
+      "format": "comma",
+      "text": "%% note %%\n1 + 1 =",
+      "results": [[1, "2"]]
+    },
+    {
+      "name": "headings, quotes and numbered lists",
+      "format": "comma",
+      "text": "## Kosten 3 * 4 =\n> 2 + 2 =\n1. 5 + 5 =",
+      "results": [
+        [0, "12"],
+        [1, "4"],
+        [2, "10"]
+      ]
+    },
+    {
+      "name": "frontmatter that never closes is prose",
+      "format": "comma",
+      "text": "---\n2 + 2 =",
+      "results": [[1, "4"]]
+    },
+    {
+      "name": "a frontmatter rule may carry trailing spaces",
+      "format": "comma",
+      "text": "--- \na: 1 + 1 =\n---  \n2 + 2 =",
+      "results": [[3, "4"]]
+    },
+    {
+      "name": "a fence indented by up to three spaces",
+      "format": "comma",
+      "text": "   ```\n2 + 2 =\n```\n3 + 3 =",
+      "results": [[3, "6"]]
+    },
+    {
+      "name": "an unclosed fence runs to the end",
+      "format": "comma",
+      "text": "1 + 1 =\n~~~\n2 + 2 =",
+      "results": [[0, "2"]]
+    }
+  ],
+  "accept": [
+    {
+      "format": "comma",
+      "line": "12,5 * 8 + 3 =",
+      "accepted": "12,5 * 8 + 3 = 103"
+    },
+    {
+      "format": "comma",
+      "line": "12,5 * 8 + 3 =   ",
+      "accepted": "12,5 * 8 + 3 = 103"
+    },
+    {
+      "format": "comma",
+      "line": "  - [ ] Summe 2 + 2 =",
+      "accepted": "  - [ ] Summe 2 + 2 = 4"
+    },
+    {
+      "format": "comma",
+      "line": "12,50 € * 3 =",
+      "accepted": "12,50 € * 3 = 37,50 €"
+    },
+    {
+      "format": "comma",
+      "line": "2 + 2 = 4",
+      "accepted": null
+    }
+  ]
+}

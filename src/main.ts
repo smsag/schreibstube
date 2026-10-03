@@ -42,6 +42,10 @@ import type { SyncRecord } from "./services/sync-document";
 import { NoteCommands } from "./controllers/note-commands";
 import { SumsController } from "./controllers/sums-controller";
 import { registerTableFormulaPostProcessor } from "./processors/table-formulas";
+import {
+  createCalculationExtension,
+  registerCalculationPostProcessor
+} from "./processors/calculation-lines";
 import { PdfCommands } from "./controllers/pdf-commands";
 import { LinkModeController } from "./controllers/link-mode-controller";
 import { LlmCommands } from "./controllers/llm-commands";
@@ -463,6 +467,12 @@ export default class SchreibstubePlugin extends Plugin {
     this.registerEvent(this.app.workspace.on("active-leaf-change", () => sums.clearSelection()));
     this.register(() => sums.stop());
     registerTableFormulaPostProcessor(this, sums);
+    // A line ending in `=` and its result, by a rule shared with another app.
+    const calculation = () => sums.calculationContext();
+    this.registerEditorExtension(
+      createCalculationExtension(calculation, () => t().sums.acceptResult)
+    );
+    registerCalculationPostProcessor(this, calculation);
 
     this.registerDomEvent(
       document,

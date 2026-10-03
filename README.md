@@ -384,6 +384,10 @@ Amounts in a note add up without leaving it.
 
 **Not yet in Live Preview.** A formula's result shows in Reading view and in what leaves the vault. In the editor the cell shows the formula.
 
+**Calculation lines.** A line that ends in `=` shows its result beside it, in the editor and in Reading view: `12,5 * 8 + 3 =` → `103`, `Miete 1.240 € - 15% =` → `1.054,00 €`, `10% von 200 =` → `20`, `3 km in m =` → `3.000`, `72 F in C =` → `22,22`. A label may stand before the calculation, and a list, task, heading or quote marker is fine. Press Tab at the end of the line, or click the result, to write it into the note (`= 103`); until then the note holds only what you wrote, and so does a mailed, printed or published copy. Amounts in one currency are worked out in it; a number without one joins it. Mixed currencies are converted into the default currency only when **Convert currencies** is on, and the result says whose rates: `≈ 320,00 € · ECB 26.09.2026`. Code blocks, frontmatter, math and comments are left alone, and **Calculate lines ending in =** in the settings switches it off.
+
+The same lines give the same results, to the character, in a native quick-note app that writes into the same vault (which does not convert currencies). The rule both follow is [`contracts/CALCULATOR.md`](contracts/CALCULATOR.md), and the examples both test against are [`contracts/calculator-cases.json`](contracts/calculator-cases.json): a change to either is a change to both apps.
+
 ### Slideshow
 
 Two or more images in one block, shown the way the passage needs them:

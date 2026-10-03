@@ -158,6 +158,8 @@ export interface SchreibstubeSettings {
   tagSuggestControl: boolean;
   /** How an ambiguous number like 1.234 is read, and results written; "auto" follows Obsidian. */
   sumsNumberStyle: NumberStyle;
+  /** A line ending in `=` shows its result beside it (contracts/CALCULATOR.md). */
+  calculateLines: boolean;
   /** ISO code bare numbers count in and mixed currencies convert into; "" for none. */
   sumsDefaultCurrency: string;
   /** Convert mixed currencies at the ECB's rates. Off until chosen: it is a network call. */

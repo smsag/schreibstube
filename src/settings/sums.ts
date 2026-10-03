@@ -42,6 +42,15 @@ export function renderSums(ctx: SettingsContext): void {
     });
 
   new Setting(ctx.containerEl)
+    .setName(strings.calculateLines)
+    .setDesc(strings.calculateLinesDesc)
+    .addToggle((toggle) => {
+      toggle.setValue(ctx.plugin.settings.calculateLines).onChange(async (value) => {
+        await ctx.update({ calculateLines: value });
+      });
+    });
+
+  new Setting(ctx.containerEl)
     .setName(strings.defaultCurrency)
     .setDesc(strings.defaultCurrencyDesc)
     .addDropdown((dropdown) => {

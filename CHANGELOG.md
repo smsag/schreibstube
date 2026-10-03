@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Added
+
+- **Calculation lines.** A line that ends in `=` shows its result beside it, in the editor and in Reading view: `Miete 1.240 € - 15% =` shows `1.054,00 €`. Press Tab at the end of the line, or click the result, to write it in; nothing is written before that. It works with currencies (converted at the ECB's rates when **Convert currencies** is on), percentages and units, follows the **Number format** setting, leaves code, frontmatter, math and comments alone, and can be switched off under Sums and formulas. A line gives the same result here as in a quick-note app that writes into the same vault: both follow `contracts/CALCULATOR.md` and test against the same examples.
+
 ### Fixed
 
 - **A note scrolls again after a slideshow's page is turned on a phone.** Swiping sideways through a slideshow's pictures left the note unable to scroll down afterwards. The block kept the end of the swipe to itself, so Obsidian, which had seen the finger land, never saw it lift and held on to the next one. The swipe's sideways moves are still kept from Obsidian, so no sidebar slides in; its end now reaches it.

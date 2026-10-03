@@ -1658,6 +1658,12 @@ export const de: Messages = {
       "Wie eine Zahl wie 1.234 gelesen wird, wenn sie beides sein kann, und wie Ergebnisse " +
       "geschrieben werden. Zahlen, die es selbst sagen, wie 1.234,50, werden immer richtig gelesen.",
     automatic: (example: string) => `Automatisch (${example})`,
+    calculateLines: "Zeilen mit = am Ende ausrechnen",
+    calculateLinesDesc:
+      "Eine Zeile wie 12,5 * 8 + 3 = zeigt ihr Ergebnis daneben; Tab am Zeilenende oder ein " +
+      "Klick auf das Ergebnis schreibt es in die Notiz. Rechnet mit Währungen, Prozenten und " +
+      "Einheiten.",
+    acceptResult: "Tab oder Klick schreibt das Ergebnis in die Notiz",
     defaultCurrency: "Standardwährung",
     defaultCurrencyDesc:
       "Zahlen ohne Währung zählen in ihr, und Summen in mehreren Währungen werden in sie umgerechnet.",
