@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Added
+
+- **A one-line summary for every described picture.** Besides its title and description, a picture now gets a summary of at most 100 characters that states its point like a headline — for a chart its finding with the number that matters: `Rekord bei Aktienrückkauf-Genehmigungen im Russell 3000: 1,33 Bio. $ bis Ende September 2026`. It is kept in `schreibstubeSummary` and as the first line under the picture, so a base that shows description notes as cards can put it under each picture. Pictures described earlier get one when they are described again.
+
+### Fixed
+
+- **A picture is described in the language you chose, whatever language its own text is in.** A chart with English labels was often described in English although German was chosen, under German labels. The model is now asked in the chosen language and told that the picture's text is no reason to leave it; only the visible text is copied as it stands.
+
 ## 1.73.0 - 2026-10-03
 
 Sums you write as you go, a switch between reading and editing, and

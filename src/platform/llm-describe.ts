@@ -3,8 +3,8 @@ import { buildImageDescriptionRequest, effectiveModel } from "../services/llm-pr
 import { sendRequest } from "./llm-client";
 import {
   DESCRIPTION_MAX_TOKENS,
-  DESCRIPTION_USER_PROMPT,
   descriptionSystemPrompt,
+  descriptionUserPrompt,
   normalizeImageDescription,
   type DescriptionLanguage,
   type ImageDescription
@@ -30,7 +30,7 @@ export async function generateImageDescription(
     image,
     {
       systemPrompt: descriptionSystemPrompt(language),
-      userText: DESCRIPTION_USER_PROMPT,
+      userText: descriptionUserPrompt(language),
       maxTokens: DESCRIPTION_MAX_TOKENS
     }
   );
