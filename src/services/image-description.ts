@@ -3,8 +3,8 @@
  *
  * A vault full of photos cannot be searched by what the photos show: the only
  * text a picture carries is its file name. A vision model is asked for a title,
- * a description, keywords and any visible text, and the answer is kept as an
- * ordinary Markdown note beside the others, so every search in Obsidian can find
+ * a one-line summary, a description, keywords and any visible text, and the
+ * answer is kept as an ordinary Markdown note beside the others, so every search in Obsidian can find
  * it and it survives the plugin.
  *
  * A picture is often a chart from a study or a framework someone drew, and
@@ -21,6 +21,8 @@ import { normalizeTag, tagKey } from "./tag-suggestions";
 /** Bounds on what a description may carry into the vault. A model's answer is
  *  untrusted input, and a runaway one must not become a runaway note. */
 export const MAX_DESCRIPTION_TITLE = 80;
+/** Short enough to sit on a card in a base under the picture. */
+export const MAX_SUMMARY_CHARS = 100;
 export const MAX_DESCRIPTION_CHARS = 1200;
 export const MAX_KEYWORDS = 12;
 export const MAX_KEYWORD_CHARS = 40;
@@ -28,10 +30,13 @@ export const MAX_VISIBLE_TEXT_CHARS = 600;
 export const MAX_SOURCE_CHARS = 160;
 export const MAX_AUTHOR_CHARS = 120;
 /** Enough for the JSON of the longest description the bounds allow, in German. */
-export const DESCRIPTION_MAX_TOKENS = 1100;
+export const DESCRIPTION_MAX_TOKENS = 1200;
 
 export interface ImageDescription {
   title: string;
+  /** The picture's point in one line — a chart's finding, a photo's subject.
+   *  Empty when the model gave none. */
+  summary: string;
   description: string;
   keywords: string[];
   /** Text readable in the picture — a sign, a document, a label. Empty when none. */
@@ -55,6 +60,14 @@ const LANGUAGE_NAME: Record<DescriptionLanguage, string> = { de: "German", en: "
  * so the model describes what a person would search for (the room, the
  * materials, the view) rather than judging the photograph.
  *
+ * The summary is asked for as a headline with its number, because a model
+ * asked for "a summary" narrates the picture ("a bar chart shows…"), which
+ * says nothing on a card; the finding is what the card is for.
+ *
+ * The language is said twice and the picture's own text is named as no
+ * reason to leave it: a chart full of English labels otherwise pulls the
+ * whole answer into English, whatever the first line asked for.
+ *
  * The source and its author are asked for with a way out: an empty string is
  * the expected answer for most pictures, and a wrong attribution in a
  * researcher's vault is worse than none. The author is the work's, never
@@ -65,19 +78,25 @@ export function descriptionSystemPrompt(language: DescriptionLanguage): string {
   return [
     "You describe a picture so that its owner can find it again by searching for what it shows.",
     `Answer in ${lang}, with one JSON object and nothing else:`,
-    '{"title": string, "description": string, "keywords": string[], "visibleText": string, "source": string, "author": string}',
+    '{"title": string, "summary": string, "description": string, "keywords": string[], "visibleText": string, "source": string, "author": string}',
     "Rules:",
     `- title: what the picture shows, at most ${MAX_DESCRIPTION_TITLE} characters, no full stop.`,
+    `- summary: one short sentence, at most ${MAX_SUMMARY_CHARS} characters, stating the picture's main point like a headline: for a chart or diagram its key finding with the decisive number, for a photo what it shows. Not a repetition of the title.`,
     `- description: two to four plain sentences, at most ${MAX_DESCRIPTION_CHARS} characters: the subject, the setting, materials, colours, notable details. No opinions about the photo.`,
     `- keywords: up to ${MAX_KEYWORDS} single nouns or short noun phrases a person would search for.`,
     "- visibleText: text legible in the picture, verbatim, or an empty string.",
+    `- Write title, summary, description, keywords and source in ${lang}, also when the text in the picture is in another language. Only visibleText keeps the picture's own language.`,
     `- source: if the picture shows a known piece of research, a study, a published chart or a named framework or model (for example a Business Model Canvas, the Cynefin framework, a chart from a named report), its name, at most ${MAX_SOURCE_CHARS} characters. Use what the picture shows (its title, labels, layout, visible text) and what you know of the work. If you do not recognise it with confidence, an empty string.`,
     `- author: the person or people who created that work, its author or originator, at most ${MAX_AUTHOR_CHARS} characters, only when you know it with confidence; otherwise an empty string. Never a person shown in the picture, and never a guess.`,
     "- Do not name or guess who a person shown in the picture is. Do not read out licence plates, house numbers or personal data; say that they are present instead."
   ].join("\n");
 }
 
-export const DESCRIPTION_USER_PROMPT = "Describe this picture.";
+/** The request beside the picture, in the answer's language, so the only
+ *  English the model reads is not the last thing it reads. */
+export function descriptionUserPrompt(language: DescriptionLanguage): string {
+  return language === "de" ? "Beschreibe dieses Bild." : "Describe this picture.";
+}
 
 /** The first JSON object in a reply, fences and chatter around it ignored. */
 function extractJson(raw: string): unknown {
@@ -148,6 +167,7 @@ export function normalizeImageDescription(raw: string): ImageDescription | null 
 
   return {
     title,
+    summary: boundedText(obj.summary, MAX_SUMMARY_CHARS, true),
     description,
     keywords,
     visibleText: boundedText(obj.visibleText, MAX_VISIBLE_TEXT_CHARS, false),
@@ -206,6 +226,9 @@ export const DESCRIPTION_KEYS = {
   size: "schreibstubeImageSize",
   describedAt: "schreibstubeDescribedAt",
   keywords: "schreibstubeKeywords",
+  /** The one-line summary, for a base to show on a picture's card. Written
+   *  only when the model gave one. */
+  summary: "schreibstubeSummary",
   /** The description again, in the frontmatter: the Explorer filter reads what
    *  Obsidian's metadata cache holds, and that is frontmatter, not the body. */
   description: "schreibstubeDescription",
@@ -282,6 +305,7 @@ export function renderDescriptionNote(
     `${DESCRIPTION_KEYS.size}: ${image.size}`,
     `${DESCRIPTION_KEYS.describedAt}: ${yaml(image.describedAt)}`,
     ...list(DESCRIPTION_KEYS.keywords, desc.keywords),
+    ...(desc.summary ? [`${DESCRIPTION_KEYS.summary}: ${yaml(desc.summary)}`] : []),
     `${DESCRIPTION_KEYS.description}: ${yaml(desc.description)}`,
     ...(desc.source ? [`${DESCRIPTION_KEYS.source}: ${yaml(desc.source)}`] : []),
     ...(desc.author ? [`${DESCRIPTION_KEYS.author}: ${yaml(desc.author)}`] : []),
@@ -295,6 +319,7 @@ export function renderDescriptionNote(
   const body = [
     `![[${image.path}]]`,
     "",
+    ...(desc.summary ? [desc.summary, ""] : []),
     desc.description,
     "",
     `${labels.keywords}: ${desc.keywords.join(", ") || "–"}`,

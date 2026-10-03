@@ -5,11 +5,13 @@ import {
   MAX_DESCRIPTION_TITLE,
   MAX_KEYWORDS,
   MAX_SOURCE_CHARS,
+  MAX_SUMMARY_CHARS,
   MAX_AUTHOR_CHARS,
   DEFAULT_DESCRIPTION_FOLDER,
   normalizeDescriptionFolder,
   descriptionNotePath,
   descriptionSystemPrompt,
+  descriptionUserPrompt,
   hashImageBytes,
   normalizeImageDescription,
   renderDescriptionNote,
@@ -36,6 +38,21 @@ describe("descriptionSystemPrompt", () => {
     expect(descriptionSystemPrompt("en")).toContain("English");
   });
 
+  it("asks for a one-line summary as a finding, within its bound", () => {
+    const prompt = descriptionSystemPrompt("de");
+    expect(prompt).toContain('"summary": string');
+    expect(prompt).toContain(String(MAX_SUMMARY_CHARS));
+    expect(prompt).toMatch(/key finding with the decisive number/);
+  });
+
+  it("holds the answer to its language even when the picture's text is in another", () => {
+    expect(descriptionSystemPrompt("de")).toMatch(
+      /in German, also when the text in the picture is in another language/
+    );
+    expect(descriptionUserPrompt("de")).toBe("Beschreibe dieses Bild.");
+    expect(descriptionUserPrompt("en")).toBe("Describe this picture.");
+  });
+
   it("asks the model not to identify people or read out personal data", () => {
     expect(descriptionSystemPrompt("de")).toMatch(
       /Do not name or guess who a person shown in the picture is/
@@ -57,6 +74,7 @@ describe("normalizeImageDescription — the model's answer is untrusted input", 
   it("reads a well-formed answer", () => {
     expect(normalizeImageDescription(reply())).toEqual({
       title: "Offene Küche mit Kochinsel",
+      summary: "",
       description: "Offene Küche mit weißer Kochinsel und Eichenparkett.",
       keywords: ["Küche", "Kochinsel", "Eichenparkett"],
       visibleText: "",
@@ -76,6 +94,20 @@ describe("normalizeImageDescription — the model's answer is untrusted input", 
     );
     expect(parsed?.source).toBe("Business Model Canvas");
     expect(parsed?.author).toHaveLength(MAX_AUTHOR_CHARS);
+  });
+
+  it("reads the summary on one line, held to its bound", () => {
+    expect(
+      normalizeImageDescription(reply({ summary: "Rekord bei\nRückkäufen: 1,33 Bio. $" }))?.summary
+    ).toBe("Rekord bei Rückkäufen: 1,33 Bio. $");
+    expect(
+      normalizeImageDescription(reply({ summary: "S".repeat(MAX_SUMMARY_CHARS * 2) }))?.summary
+    ).toHaveLength(MAX_SUMMARY_CHARS);
+  });
+
+  it("leaves the summary empty when the answer has none, and still reads the rest", () => {
+    expect(normalizeImageDescription(reply({ summary: ["x"] }))?.summary).toBe("");
+    expect(normalizeImageDescription(reply())?.title).toBe("Offene Küche mit Kochinsel");
   });
 
   it("leaves the work and author empty when the answer has none, or not as text", () => {
@@ -177,6 +209,7 @@ describe("renderDescriptionNote", () => {
   };
   const desc: ImageDescription = {
     title: 'Küche "offen"',
+    summary: "",
     description: "Offene Küche.",
     keywords: ["Küche", "Kochinsel"],
     visibleText: "",
@@ -230,6 +263,17 @@ describe("renderDescriptionNote", () => {
     );
   });
 
+  it("writes the summary for a base to show, and first in the body", () => {
+    const note = renderDescriptionNote(image, { ...desc, summary: "Rekord: 1,33 Bio. $" });
+    expect(note).toContain(`${DESCRIPTION_KEYS.summary}: "Rekord: 1,33 Bio. $"`);
+    const body = note.split("---\n")[2]!;
+    expect(body).toContain("]]\n\nRekord: 1,33 Bio. $\n\nOffene Küche.");
+  });
+
+  it("writes no summary key when the model gave none", () => {
+    expect(renderDescriptionNote(image, desc)).not.toContain(DESCRIPTION_KEYS.summary);
+  });
+
   it("writes an empty keyword list as a list", () => {
     expect(renderDescriptionNote(image, { ...desc, keywords: [] })).toContain(
       `${DESCRIPTION_KEYS.keywords}: []`
@@ -264,6 +308,7 @@ describe("the description in the frontmatter", () => {
       { path: "a.jpg", hash: "h", size: 1, describedAt: "2026-09-26T00:00:00Z" },
       {
         title: "T",
+        summary: "",
         description: 'Eine "Küche".',
         keywords: [],
         visibleText: "",
@@ -279,6 +324,7 @@ describe("the work a picture shows, and who made it", () => {
   const image = { path: "a.png", hash: "h", size: 1, describedAt: "2026-10-01T00:00:00Z" };
   const canvas: ImageDescription = {
     title: "Leinwand",
+    summary: "",
     description: "Neun Felder.",
     keywords: [],
     visibleText: "",
@@ -313,6 +359,7 @@ describe("the star", () => {
   const image = { path: "a.png", hash: "h", size: 1, describedAt: "2026-10-01T00:00:00Z" };
   const desc: ImageDescription = {
     title: "T",
+    summary: "",
     description: "D",
     keywords: [],
     visibleText: "",

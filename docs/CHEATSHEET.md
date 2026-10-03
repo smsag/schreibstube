@@ -62,7 +62,7 @@ plain Obsidian Markdown plus what this file lists. Write only what is here.
 
 Written by the plugin, never by you: `schreibstubeMessageId`, `schreibstubeSentAt`,
 `schreibstubeSendUnconfirmed`, `schreibstubeMergedIds` (mail); `schreibstubeImage`,
-`schreibstubeImageHash`, `schreibstubeImageSize`, `schreibstubeDescription`, `schreibstubeDescribedAt`,
+`schreibstubeImageHash`, `schreibstubeImageSize`, `schreibstubeSummary`, `schreibstubeDescription`, `schreibstubeDescribedAt`,
 `schreibstubeKeywords`, `schreibstubeSource`, `schreibstubeAuthor`, `schreibstubeFavorite`,
 `schreibstubeArticles` (picture description notes); `publishedAt`, `publishedUrl` (publishing).
 
