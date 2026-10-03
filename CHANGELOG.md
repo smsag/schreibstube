@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Changed
+
+- **Commands say "note", not "doc".** Schreibstube called the same thing a doc in its commands and a note everywhere else, so **New doc** sat beside the Explorer's **New note** as if they were two kinds of file. The commands are now **New note**, **Print note**, **Proof-read note**, **Update note**, **Update all notes**, **Send note as mail**, **Fetch replies into note**, **Rename note with AI** and **Freeze note totals** — in German **Neue Notiz**, **Notiz drucken**, **Notiz korrigieren** and so on, still sorted together under `Notiz …` — and the settings and notices say note too. Hotkeys keep working, and the link `obsidian://schreibstube-new-doc` keeps its name, so a system shortcut built on it needs no change.
+
 ### Fixed
 
 - **Describing a picture again keeps the properties you added to its note.** A new description rewrote the whole frontmatter, so a rating, a project or a status you had set on a description note — and your own `tags` — was gone. Now only Schreibstube's own keys and the title are replaced; everything else stays exactly as you wrote it.

@@ -9,7 +9,7 @@ A writing-focused Obsidian plugin: a proof-read review sidebar with glossary sup
 Opens a side pane that reviews the active note and proposes changes one at a time. Nothing is written to the note until you accept a change.
 
 - **Open review sidebar** — show the panel
-- **Proof-read doc** — send the note for correction and fill the queue; the glossary is checked first, locally
+- **Proof-read note** — send the note for correction and fill the queue; the glossary is checked first, locally
 
 The panel's **Check glossary** button runs the local glossary check on its own, without an API call.
 
@@ -129,7 +129,7 @@ schreibstubeSyncEvery: 0 9 * * 1-5
 
 Such a note is due once a minute the expression named has gone by unchecked. A value that cannot be read is reported rather than guessed at, and the note keeps the vault-wide interval until it is fixed.
 
-- **Update doc** — fetch now and queue any differences
+- **Update note** — fetch now and queue any differences
 
 With **Check when a bound note opens** on, a bound note is also checked as you open it, no more often than the configured interval. Checks use a conditional request, so an unchanged source costs one small round trip and no download.
 
@@ -150,7 +150,7 @@ Lists, ranges and steps work (`0,30`, `9-17`, `*/15`), as do month and weekday n
 
 Obsidian has no scheduler of its own, so a poll only runs while the app is open. A schedule that came due while it was closed is caught up once shortly after the next start, so a daily poll still works on a machine that is not always on.
 
-- **Update all docs** — run the poll now, regardless of schedule
+- **Update all notes** — run the poll now, regardless of schedule
 
 Two things are deliberately protected. The note's own frontmatter is never part of the diff, so accepting a card cannot touch the binding. The remote file's own frontmatter is stripped before comparison, which is what stops the first sync from overwriting the binding and orphaning the note.
 
@@ -175,23 +175,23 @@ The dim strength is configurable.
 
 Obsidian's own _Toggle reading view_ goes back to whichever editor was last in use, Source mode as often as Live Preview. This one has two ends only: from Live Preview it goes to Reading view, and from Reading view or Source mode it goes to Live Preview. The passage on screen stays on screen, and in the editor the cursor stays where it was. It has no key of its own; give it one, or put it on the phone's toolbar, in Obsidian's settings.
 
-- **New doc** — a blank note in a new window, in front of everything
+- **New note** — a blank note in a new window, in front of everything
 
 That last command makes a new empty note where Obsidian's _Default location for new notes_ says, named the way Obsidian names one (**Untitled**, then **Untitled 1**, and so on; **Unbenannt** in German), opens it in a new window, brings that window to the front whatever windows and tabs are already open, and puts the cursor in the editor. A pop-out window has no sidebars, so the screen holds the note and nothing else. On a phone, which has no windows, the note opens in a new tab and both drawers close instead. Nothing about the vault differs from a note made the usual way.
 
 While that window fills the screen, full screen or maximised, the note's lines are two thirds of the window wide, with Obsidian's _Readable line length_ on or off; make the window smaller and the usual width returns. Like the Recommended footer, which the new note opens without, this is for the first opening only: open the note again later and it looks like any other.
 
-#### New doc from outside Obsidian
+#### New note from outside Obsidian
 
-An Obsidian hotkey works only while Obsidian is the app in front. To start a new doc from anywhere, whether Obsidian is in front, behind other windows or not running, Schreibstube answers a link:
+An Obsidian hotkey works only while Obsidian is the app in front. To start a new note from anywhere, whether Obsidian is in front, behind other windows or not running, Schreibstube answers a link:
 
 ```
 obsidian://schreibstube-new-doc?vault=Your%20Vault
 ```
 
-Opening that link does exactly what the **New doc** command does. If Obsidian is closed, it starts, loads the vault and then opens the note. The link carries nothing else: it cannot choose the folder, the name or the text, so no web page can put anything into your vault with it.
+Opening that link does exactly what the **New note** command does. If Obsidian is closed, it starts, loads the vault and then opens the note. The link carries nothing else: it cannot choose the folder, the name or the text, so no web page can put anything into your vault with it.
 
-**1. Get the link.** In Obsidian, open **Settings → Schreibstube**. Under **Focus mode**, **New doc from outside Obsidian** has a **Copy link** button, which copies the link for the vault you are in. To write it by hand, put your vault's name after `vault=`, with a space as `%20` (`My Notes` becomes `vault=My%20Notes`). Leaving out `?vault=…` works too, but then Obsidian uses whichever vault was open last.
+**1. Get the link.** In Obsidian, open **Settings → Schreibstube**. Under **Focus mode**, **New note from outside Obsidian** has a **Copy link** button, which copies the link for the vault you are in. To write it by hand, put your vault's name after `vault=`, with a space as `%20` (`My Notes` becomes `vault=My%20Notes`). Leaving out `?vault=…` works too, but then Obsidian uses whichever vault was open last.
 
 **2. Try it.** Paste the link into a browser's address bar and press Enter, or on a Mac run it in Terminal, with the quotes:
 
@@ -279,7 +279,7 @@ Every suggestion is written in the vault's words. `Machine Learning`, `machine_l
 
 Assigns a filename to the active note or image based on its content, with one command that follows the file that is open:
 
-- **Rename doc with AI** — on a note, its text is sent to an LLM and the file is renamed with the result; on an image (jpg, png, gif, webp; up to 10 MB), the picture is resized and sent to a vision model, and the file is renamed.
+- **Rename note with AI** — on a note, its text is sent to an LLM and the file is renamed with the result; on an image (jpg, png, gif, webp; up to 10 MB), the picture is resized and sent to a vision model, and the file is renamed.
 
 The rename does nothing if the note is shorter than the configured minimum length, or if no API key has been set.
 
@@ -386,7 +386,7 @@ Amounts in a note add up without leaving it.
 
 `=sum`, `=avg`, `=median`, `=count` (cells with an amount), `=min` and `=max`. The note keeps the formula; Reading view shows the result, with the formula a hover away, and a mailed, published or printed note carries the result in place of the formula. Another formula above is not counted, so a subtotal row does not count twice. A cell whose text has no amount is left out and the result says so — `(1 cell skipped)` — and an amount in quotes, `"300 €"`, is left out on purpose and not reported.
 
-**Fixed results.** `=sum(fixed)` works like `=sum` until the note first leaves the vault — mailed, published or printed. Then the result is written into the cell, `=sum(fixed: 320 €)`, and stays: the number the recipient got, whatever the amounts or the rates are afterwards. The value written is the one in the copy that left, even when the note was edited while the upload or the PDF was being made; if the formulas themselves changed in between, nothing is written and a notice says so. If the amounts change later, Reading view says what it would be now beside the fixed number — not when only the rates' day moved, or converting was switched on or off. **Freeze doc totals** fixes them earlier by hand. Nothing is written while a note is only being looked at. To let a fixed result move again, delete the part after `fixed`; to make it live for good, write `=sum`.
+**Fixed results.** `=sum(fixed)` works like `=sum` until the note first leaves the vault — mailed, published or printed. Then the result is written into the cell, `=sum(fixed: 320 €)`, and stays: the number the recipient got, whatever the amounts or the rates are afterwards. The value written is the one in the copy that left, even when the note was edited while the upload or the PDF was being made; if the formulas themselves changed in between, nothing is written and a notice says so. If the amounts change later, Reading view says what it would be now beside the fixed number — not when only the rates' day moved, or converting was switched on or off. **Freeze note totals** fixes them earlier by hand. Nothing is written while a note is only being looked at. To let a fixed result move again, delete the part after `fixed`; to make it live for good, write `=sum`.
 
 **Numbers.** `300 €`, `€ 20`, `1.234,50 €`, `20,-` and `-20 €` are all read. Whether `1.234` is a thousand or a little more than one is the one thing a number cannot say about itself; the **Number format** setting decides that case, and nothing else — `1.234,50` and `20.50` read the same whatever it says. Results are written in the same format.
 
@@ -440,9 +440,9 @@ If another plugin already uses the colon for emoji, switch this off under **Sett
 
 Send notes as email and pull messages back into your vault — on desktop **and** mobile.
 
-- **Send doc as mail** — recipients and subject come from the note's frontmatter; the body is the note as plain text. A confirmation dialog shows the sender, the recipients and the text exactly as they will be sent, and warns when there is no To recipient.
+- **Send note as mail** — recipients and subject come from the note's frontmatter; the body is the note as plain text. A confirmation dialog shows the sender, the recipients and the text exactly as they will be sent, and warns when there is no To recipient.
 - **Search mailbox** — search by sender, subject, full text or date, then insert the chosen message into the active note. Tick **Include attachments** to bring its pictures, PDFs and Office files along: they are saved to your attachment folder (**Settings → Files and links**) and embedded or linked under the quoted mail. Signature logos are left out, a file imported before is linked rather than copied, and anything not imported is named under the mail. Needs bridge protocol 7.
-- **Fetch replies into doc** — find replies to a note you sent and append the new ones. Re-running the command only ever adds what is new.
+- **Fetch replies into note** — find replies to a note you sent and append the new ones. Re-running the command only ever adds what is new.
 
 The note's frontmatter is the contract:
 
@@ -522,8 +522,8 @@ What the bridge does and the plugin does not: rendering the Markdown, holding th
 
 Turns the note you are looking at into a PDF, through the built-in **Standard** template or one you keep in the vault. It works on every platform Obsidian runs on — Windows, macOS, Linux, iOS, Android — offline, with no bridge and no account: Typst is compiled to WebAssembly and typesets on the device. A letter written on a train becomes a PDF on that train.
 
-- **Doc drucken** — print the active note, through the print dialog
-- **Doc drucken (ohne Dialog)** — print it straight away, as its template sets it
+- **Notiz drucken** — print the active note, through the print dialog
+- **Notiz drucken (ohne Dialog)** — print it straight away, as its template sets it
 - **Auswahl drucken** — print only what is marked in the editor, through the print dialog; also in the editor's right-click menu
 
 #### Printing a selection
@@ -532,7 +532,7 @@ Mark a passage — the CV inside a long application, one chapter of a manuscript
 
 #### The print dialog
 
-**Doc drucken** opens a dialog with four choices beside a preview of the pages they make:
+**Notiz drucken** opens a dialog with four choices beside a preview of the pages they make:
 
 - **Vorlage** — the template, starting with the one the note or the settings choose.
 - **Ränder** — Schmal (15 mm), Standard (the template's own) or Breit (35 mm). A template that sets its own margins, such as the letter, keeps them; the choice is then greyed out.
@@ -841,7 +841,7 @@ A task can carry more than its first line: a paragraph typed with Shift+Enter, a
 
 #### Summarising an attached PDF
 
-A doc that embeds or links a PDF can be summarised from it. Run **Insert: summary from the attached PDF**: the PDF's text is read, its passages are offered in document order, and the ones you tick are written at the cursor. Each one ends with a small mark — `↗` — which opens the PDF at the page that passage came from, the way a footnote leads to its source.
+A note that embeds or links a PDF can be summarised from it. Run **Insert: summary from the attached PDF**: the PDF's text is read, its passages are offered in document order, and the ones you tick are written at the cursor. Each one ends with a small mark — `↗` — which opens the PDF at the page that passage came from, the way a footnote leads to its source.
 
 ```markdown
 Die Auswertung zeigt einen Rückgang von 12 % [[Bericht.pdf#page=12&selection=4,0,6,31|↗]]
@@ -855,9 +855,9 @@ A scanned PDF has no text layer, so there is nothing to read and the command say
 
 ### Commands
 
-Commands are named after what they act on, so related ones sort together in the palette: `Doc …` for the note in front of you (`Doc korrigieren`, `Doc drucken`, `Doc aktualisieren`), `Einfügen: …` for what goes into it, `Fokus: …`, `Explorer: …` and `Links: …` for the view. Things done once or rarely — adding a print template, opening the published site — are buttons in their settings section rather than commands. Each settings section names the commands its feature brings on the line under what it does, so switching something on and learning what to type is one page rather than two; a section whose feature asks the AI carries a **KI** pill.
+Commands are named after what they act on, so related ones sort together in the palette: `Notiz …` for the note in front of you (`Notiz korrigieren`, `Notiz drucken`, `Notiz aktualisieren`), `Einfügen: …` for what goes into it, `Fokus: …`, `Explorer: …` and `Links: …` for the view. Things done once or rarely — adding a print template, opening the published site — are buttons in their settings section rather than commands. Each settings section names the commands its feature brings on the line under what it does, so switching something on and learning what to type is one page rather than two; a section whose feature asks the AI carries a **KI** pill.
 
-A command that cannot do anything where you are is not offered at all: the image rename without a picture open, `Doc aktualisieren` on a note bound to nothing, `Einfügen: KI-Zusammenfassung der Auswahl` with nothing selected, `Explorer: Ordner zuklappen` with the pane closed. Only conditions visible on screen hide anything — a command that needs a setting filled in stays listed and says so when it is run, because a command missing for a reason three tabs away reads as a plugin that broke.
+A command that cannot do anything where you are is not offered at all: the image rename without a picture open, `Notiz aktualisieren` on a note bound to nothing, `Einfügen: KI-Zusammenfassung der Auswahl` with nothing selected, `Explorer: Ordner zuklappen` with the pane closed. Only conditions visible on screen hide anything — a command that needs a setting filled in stays listed and says so when it is run, because a command missing for a reason three tabs away reads as a plugin that broke.
 
 ## Settings
 
@@ -869,10 +869,10 @@ A command that cannot do anything where you are is not offered at all: the image
 
 ### Focus mode
 
-| Setting                       | Description                                                                                                                                   | Default |
-| ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
-| Dim opacity                   | Opacity of out-of-focus lines (0.2 faint – 0.8 nearly full)                                                                                   | 0.4     |
-| New doc from outside Obsidian | **Copy link** copies this vault's `obsidian://schreibstube-new-doc` link; see [New doc from outside Obsidian](#new-doc-from-outside-obsidian) | —       |
+| Setting                        | Description                                                                                                                                     | Default |
+| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| Dim opacity                    | Opacity of out-of-focus lines (0.2 faint – 0.8 nearly full)                                                                                     | 0.4     |
+| New note from outside Obsidian | **Copy link** copies this vault's `obsidian://schreibstube-new-doc` link; see [New note from outside Obsidian](#new-note-from-outside-obsidian) | —       |
 
 ### Icons in the text
 

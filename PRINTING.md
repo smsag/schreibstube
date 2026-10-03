@@ -186,8 +186,8 @@ npm run check:print
 
 ## The print dialog
 
-"Doc drucken" opens `ui/print-dialog.ts` once the note has been read and its
-diagrams drawn; "Doc drucken (ohne Dialog)" skips it and prints as the
+"Notiz drucken" opens `ui/print-dialog.ts` once the note has been read and its
+diagrams drawn; "Notiz drucken (ohne Dialog)" skips it and prints as the
 template sets the page, unless the default-template setting says to ask.
 
 The note is read, and every diagram drawn and captured, once — before the
