@@ -8,18 +8,18 @@ import type { Messages } from "./en";
 
 export const de: Messages = {
   commands: {
-    print: "Doc drucken",
-    printQuick: "Doc drucken (ohne Dialog)",
+    print: "Notiz drucken",
+    printQuick: "Notiz drucken (ohne Dialog)",
     printSelection: "Auswahl drucken",
     baseReadingView: "Base: Notizen in Leseansicht öffnen (an/aus)",
     focusSentence: "Fokus: Satz",
     focusParagraph: "Fokus: Absatz",
     switchReadingEditing: "Lesen/Bearbeiten wechseln",
-    newNote: "Neues Doc",
+    newNote: "Neue Notiz",
     insertTaskSummary: "Einfügen: Aufgaben-Zusammenfassung",
     insertSlideshow: "Einfügen: Diaschau",
     insertPdfSummary: "Einfügen: Zusammenfassung aus dem angehängten PDF",
-    rename: "Doc mit KI umbenennen",
+    rename: "Notiz mit KI umbenennen",
     summarize: "Einfügen: KI-Zusammenfassung der Auswahl",
     table: "Einfügen: Tabelle aus der Auswahl",
     tableAi: "Einfügen: KI-Tabelle aus der Auswahl",
@@ -36,16 +36,16 @@ export const de: Messages = {
     openBookmark: "Lesezeichen öffnen",
     pinTag: "Tag anheften",
     openReview: "Korrektur-Seitenleiste öffnen",
-    proofread: "Doc korrigieren",
-    syncAll: "Alle Docs aktualisieren",
-    syncNote: "Doc aktualisieren",
-    sendMail: "Doc als Mail senden",
+    proofread: "Notiz korrigieren",
+    syncAll: "Alle Notizen aktualisieren",
+    syncNote: "Notiz aktualisieren",
+    sendMail: "Notiz als Mail senden",
     queryMailbox: "Postfach durchsuchen",
-    fetchReplies: "Antworten ins Doc holen",
+    fetchReplies: "Antworten in die Notiz holen",
     publish: "Ordner veröffentlichen",
     linksSwitch: "Links: Seite wechseln",
     sumSelection: "Auswahl summieren",
-    freezeTotals: "Doc-Summen festschreiben",
+    freezeTotals: "Notiz-Summen festschreiben",
     updateRates: "Wechselkurse aktualisieren"
   },
 
@@ -367,9 +367,9 @@ export const de: Messages = {
     focusOpacityDesc:
       "Deckkraft der Zeilen außerhalb des Fokus (0,2 = sehr blass, 0,8 = fast voll).",
 
-    newDocLink: "Neues Doc von außerhalb von Obsidian",
+    newDocLink: "Neue Notiz von außerhalb von Obsidian",
     newDocLinkDesc:
-      "Dieser Link führt „Neues Doc“ in diesem Vault von überall aus: über ein Tastenkürzel des " +
+      "Dieser Link führt „Neue Notiz“ in diesem Vault von überall aus: über ein Tastenkürzel des " +
       "Systems, die Kurzbefehle-App, Raycast, Alfred oder ein Symbol auf dem Home-Bildschirm. " +
       "Die Einrichtung steht im README.",
     newDocLinkCopy: "Link kopieren",
@@ -1652,7 +1652,7 @@ export const de: Messages = {
     intro:
       "Zeilen mit Beträgen markieren, um ihre Summe in der Statusleiste zu sehen. In einer Tabelle " +
       "=sum, =avg, =median, =count, =min oder =max in eine Zelle schreiben, um dieses Ergebnis der " +
-      "Zellen darüber zu zeigen. =sum(fixed) behält das Ergebnis, das das Doc beim ersten " +
+      "Zellen darüber zu zeigen. =sum(fixed) behält das Ergebnis, das die Notiz beim ersten " +
       "Mailen, Veröffentlichen oder Drucken hatte.",
     numberFormat: "Zahlenformat",
     numberFormatDesc:
@@ -1694,7 +1694,7 @@ export const de: Messages = {
     now: (total: string) => `jetzt ${total}`,
     frozen: (count: number) =>
       count === 0
-        ? "in diesem Doc ist nichts festzuschreiben."
+        ? "in dieser Notiz ist nichts festzuschreiben."
         : count === 1
           ? "1 Summe festgeschrieben."
           : `${count} Summen festgeschrieben.`,
@@ -1704,7 +1704,7 @@ export const de: Messages = {
       `die Europäische Zentralbank hat nicht innerhalb von ${seconds} Sekunden geantwortet.`,
     ratesUnreadable: "die Antwort der Europäischen Zentralbank war keine Kursliste.",
     freezeStale:
-      "die Formeln des Docs haben sich seit dem Versand geändert, darum wurde nichts festgeschrieben.",
+      "die Formeln der Notiz haben sich seit dem Versand geändert, darum wurde nichts festgeschrieben.",
     freezeFailed: (path: string) =>
       `die festen Summen in ${path} konnten nicht geschrieben werden; sie bleiben bis zum nächsten Versand veränderlich.`
   },

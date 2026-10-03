@@ -68,7 +68,7 @@ Written by the plugin, never by you: `schreibstubeMessageId`, `schreibstubeSentA
 
 ## 3. Presentations (template `Folien`)
 
-Printed with **Print doc** (`Doc drucken`); one slide per page, 16:9 or 4:3.
+Printed with **Print note** (`Notiz drucken`); one slide per page, 16:9 or 4:3.
 
 ### Skeleton
 
@@ -200,7 +200,7 @@ column heads, bullets), `font:` (a font in the template's `fonts/` folder),
 
 ## 4. Printed documents
 
-**Print doc** (`Doc drucken`) makes a PDF beside the note. The print dialog
+**Print note** (`Notiz drucken`) makes a PDF beside the note. The print dialog
 chooses template, margins, whether properties print, and, for decks, format,
 alignment and speaker notes.
 
@@ -358,8 +358,8 @@ drawn prints as its source.
 
 ## 8. Mail
 
-**Send doc as mail** (`Doc als Mail senden`) sends the note as plain text
-after a confirmation; **Fetch replies into doc** (`Antworten ins Doc holen`)
+**Send note as mail** (`Notiz als Mail senden`) sends the note as plain text
+after a confirmation; **Fetch replies into note** (`Antworten ins Doc holen`)
 appends answers.
 
 ```markdown
@@ -403,7 +403,7 @@ slug: hallo-welt
 ## 10. Document sync
 
 A note bound to a remote Markdown file; changes arrive as cards to accept
-(**Update doc**, `Doc aktualisieren`).
+(**Update note**, `Notiz aktualisieren`).
 
 ```markdown
 ---
@@ -418,8 +418,8 @@ schreibstubeSyncEvery: Alle 2 Tage
 
 ## 11. Glossary
 
-A note of preferred and forbidden terms, checked by **Proof-read doc**
-(`Doc korrigieren`).
+A note of preferred and forbidden terms, checked by **Proof-read note**
+(`Notiz korrigieren`).
 
 ```markdown
 ---

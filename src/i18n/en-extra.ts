@@ -59,9 +59,9 @@ export const enExtra = {
     focusOpacityDesc:
       "Opacity of out-of-focus lines in focus mode (0.2 = very faint, 0.8 = nearly full).",
 
-    newDocLink: "New doc from outside Obsidian",
+    newDocLink: "New note from outside Obsidian",
     newDocLinkDesc:
-      "This link runs New doc in this vault from anywhere: a keyboard shortcut of the system's, " +
+      "This link runs New note in this vault from anywhere: a keyboard shortcut of the system's, " +
       "the Shortcuts app, Raycast, Alfred, or a home-screen icon. The README explains the setup.",
     newDocLinkCopy: "Copy link",
 
@@ -1286,7 +1286,7 @@ export const enExtra = {
     insert: "Insert",
     markLabel: "↗",
     choosePdf: "Which PDF?",
-    noneAttached: "this doc points at no PDF. Embed or link one and run the command again.",
+    noneAttached: "this note points at no PDF. Embed or link one and run the command again.",
     noTextLayer: (name: string) =>
       `${name} has no text layer — a scan is a picture to anything that reads text.`,
     unreadable: (name: string) => `${name} could not be read.`,
@@ -1302,7 +1302,7 @@ export const enExtra = {
     intro:
       "Select lines with amounts to see their total in the status bar. In a table, write =sum, " +
       "=avg, =median, =count, =min or =max in a cell to show that result of the cells above it. " +
-      "=sum(fixed) keeps the result the doc had when it was first mailed, published or printed.",
+      "=sum(fixed) keeps the result the note had when it was first mailed, published or printed.",
     numberFormat: "Number format",
     numberFormatDesc:
       "How a number like 1.234 is read when it could be either, and how results are written. " +
@@ -1342,7 +1342,7 @@ export const enExtra = {
     now: (total: string) => `now ${total}`,
     frozen: (count: number) =>
       count === 0
-        ? "nothing to freeze in this doc."
+        ? "nothing to freeze in this note."
         : count === 1
           ? "1 total frozen."
           : `${count} totals frozen.`,
@@ -1351,7 +1351,7 @@ export const enExtra = {
     ratesTimeout: (seconds: number) =>
       `the European Central Bank did not answer within ${seconds} seconds.`,
     ratesUnreadable: "the European Central Bank's answer was not a list of rates.",
-    freezeStale: "the doc's formulas changed since it was sent, so nothing was frozen.",
+    freezeStale: "the note's formulas changed since it was sent, so nothing was frozen.",
     freezeFailed: (path: string) =>
       `the fixed totals in ${path} could not be written; they stay live until the next send.`
   },
