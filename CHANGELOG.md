@@ -2,7 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## 1.75.0 - 2026-10-03
+
+One word for one thing, and properties that stay where you put them.
+Schreibstube's commands called a note a doc, so **New doc** and the
+Explorer's **New note** looked like two kinds of file; every command,
+setting and notice now says note — in German, Notiz — and hotkeys and the
+outside link keep working. And describing a picture again no longer throws
+away the properties you added to its note: only Schreibstube's own keys and
+the title are replaced.
+
+Mobile checklist: not run, and nothing in this release was tried in the
+Obsidian app; the test suite and the build covered it. What to try first on
+a phone: the command palette, to see the new names; describing a picture
+whose note carries a property of your own.
+
+The bridge is unchanged at 2.13.2, protocol 7.
 
 ### Changed
 
