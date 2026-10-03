@@ -2,7 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## 1.74.0 - 2026-10-03
+
+A line for every picture's card, and descriptions in the language you chose.
+A described picture now carries a summary of at most 100 characters that says
+its point like a headline — for a chart, the finding and the number that
+matters — so a base that shows pictures as cards can put it under each one.
+And a chart with English labels is described in German when German is
+chosen, rather than drifting into the language of its own text.
+
+Mobile checklist: not run, and nothing in this release was tried in the
+Obsidian app; the test suite and the build covered it. Nothing that renders
+changed. What to try first on a phone: describing a picture and opening its
+note.
+
+The bridge is unchanged at 2.13.2, protocol 7.
 
 ### Added
 
