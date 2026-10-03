@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Added
+
+- **Switch reading/editing.** A command that takes a note from Live Preview to Reading view and back, and from Source mode to Live Preview. Obsidian's own toggle returns to whichever editor was last in use, so a writer who wanted the page as it reads, editable in place, often had to switch twice. The passage on screen stays on screen. It has no key of its own; give it one, or put it on the phone's toolbar, in Obsidian's settings.
+
 ### Fixed
 
 - **A note scrolls again after a slideshow's page is turned on a phone.** Swiping sideways through a slideshow's pictures left the note unable to scroll down afterwards. The block kept the end of the swipe to itself, so Obsidian, which had seen the finger land, never saw it lift and held on to the next one. The swipe's sideways moves are still kept from Obsidian, so no sidebar slides in; its end now reaches it.
