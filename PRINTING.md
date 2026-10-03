@@ -432,8 +432,8 @@ The format is the dialog's: **Format** offers 16:9 and 4:3, which are Typst's
 descriptor names. It starts at the note's `schreibstubePrint.format` (`"16:9"`
 or `"4:3"`), else the descriptor's paper when it is one of the two, else 16:9,
 and it is kept when the template changes. A slide template has no page-break
-toggle, since a rule starts a slide. The **Folien** and **Klare
-Präsentationsvorlage** examples are slide templates; speaker notes and a presenter view are not part of printing.
+toggle, since a rule starts a slide. The **Folien** example is a slide
+template; speaker notes and a presenter view are not part of printing.
 
 Nothing is remembered between prints. The built-in Standard sets its margins
 in its descriptor rather than its layout, which is what lets the presets move

@@ -14,7 +14,6 @@ describe("the templates the plugin carries", () => {
     expect(EXAMPLE_TEMPLATES.map((template) => template.name)).toEqual([
       "Brief",
       "Folien",
-      "Klare Präsentationsvorlage",
       "Lebenslauf",
       "Standard"
     ]);
