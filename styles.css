@@ -3543,8 +3543,15 @@
   }
 }
 
-/* ── Fullscreen overlay ── */
+/* ── Fullscreen overlay ──
+   On the desktop the strip of tab headers at the top of the window is a
+   window-drag area, and the window takes every click inside one whatever is
+   drawn over it: the close control sat in that strip, and pressing it only
+   nudged the window. Obsidian's own dialogs opt out the same way. The top
+   offset clears the notch on a phone, where the strip is the status bar. */
 .schreibstube-slideshow-fs {
+  --schreibstube-fs-top: max(1rem, env(safe-area-inset-top, 0px));
+  -webkit-app-region: no-drag;
   position: fixed;
   inset: 0;
   z-index: 9999;
@@ -3566,6 +3573,13 @@
   user-select: none;
 }
 
+.schreibstube-slideshow-fs-missing {
+  max-width: 60vw;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: var(--font-ui-medium);
+  text-align: center;
+}
+
 .schreibstube-slideshow-fs-caption {
   position: absolute;
   bottom: 2rem;
@@ -3583,7 +3597,7 @@
 
 .schreibstube-slideshow-fs-counter {
   position: absolute;
-  top: 1.25rem;
+  top: calc(var(--schreibstube-fs-top) + 0.25rem);
   left: 50%;
   transform: translateX(-50%);
   color: rgba(255, 255, 255, 0.55);
@@ -3647,7 +3661,7 @@
    control: one picture is in view here in every layout. */
 .schreibstube-slideshow-fs-actions {
   position: absolute;
-  top: 1rem;
+  top: var(--schreibstube-fs-top);
   left: 1.25rem;
   display: flex;
   gap: var(--size-4-3);
@@ -3662,7 +3676,7 @@
 
 .schreibstube-slideshow-fs-close {
   position: absolute;
-  top: 1rem;
+  top: var(--schreibstube-fs-top);
   right: 1.25rem;
   font-size: 1.75rem;
 }

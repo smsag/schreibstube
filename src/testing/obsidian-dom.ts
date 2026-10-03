@@ -47,6 +47,12 @@ export function installObsidianDom(): void {
     toggleClass(this: HTMLElement, cls: string, on: boolean) {
       this.classList.toggle(cls, on);
     },
+    hasClass(this: HTMLElement, cls: string) {
+      return this.classList.contains(cls);
+    },
+    toggle(this: HTMLElement, show: boolean) {
+      this.style.display = show ? "" : "none";
+    },
     setText(this: HTMLElement, text: string) {
       this.textContent = text;
     },
@@ -59,4 +65,11 @@ export function installObsidianDom(): void {
   } as unknown as Helpers;
 
   Object.assign(proto, helpers);
+  // The document an element lives in, which a popped-out window has its own of.
+  Object.defineProperty(proto, "doc", {
+    configurable: true,
+    get(this: HTMLElement) {
+      return this.ownerDocument;
+    }
+  });
 }

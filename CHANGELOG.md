@@ -11,6 +11,11 @@ All notable changes to this project will be documented in this file.
 ### Fixed
 
 - **A note scrolls again after a slideshow's page is turned on a phone.** Swiping sideways through a slideshow's pictures left the note unable to scroll down afterwards. The block kept the end of the swipe to itself, so Obsidian, which had seen the finger land, never saw it lift and held on to the next one. The swipe's sideways moves are still kept from Obsidian, so no sidebar slides in; its end now reaches it.
+- **The cross closes a slideshow's fullscreen view.** On the desktop, the cross in the top right sat in the strip at the top of the window that drags the window, and the window took the click: pressing it moved nothing or nudged the window. The view now keeps its own clicks, as Obsidian's dialogs do, and on a phone its top controls stay clear of the notch.
+- **A slideshow takes a picture named like a copy.** `![](Foto (1).jpg)`, the name a phone or a Mac gives a duplicate, turned the whole block into an error, and `![](a.png "Title")` left its slide empty. The path now runs to the line's last parenthesis and a Markdown title after it is set aside, in the note and on the published site alike. Obsidian's `|300` size after the alt text no longer shows up in the caption; two pictures on one line are still refused.
+- **A slideshow's fullscreen view keeps to itself.** Escape and the arrow keys no longer reach Obsidian or the note behind the view, and Tab stays among the view's own controls. A picture the vault does not have shows its alt text there, as it does in the note, rather than a broken image.
+- **A star or description given in fullscreen shows in the slideshow at once.** The header went on showing the picture as it was until you turned away and back, and pressing its star then undid what you had just done.
+- **Long slideshows are lighter on a phone.** A filmstrip's thumbnails and a strip's or masonry's pictures are fetched and decoded as they near the screen, not all at once and at full size when the note opens.
 
 ## 1.72.1 - 2026-10-02
 

@@ -299,8 +299,8 @@ layout: compare
 | `masonry`   | all pictures at their own proportions, like a mood board           |
 | `compare`   | before and after under a divider (first two pictures)              |
 
-- One Markdown picture per line, `![Alt](file)`, at least two. `![[…]]`
-  embeds are not accepted inside the block. `//` starts a comment line.
+- One `![Alt](file)` per line, at least two; `![[…]]` is refused, `//` is a
+  comment. `Foto (1).jpg` names work; a `"Title"` or `|300` size is ignored.
 
 ## 7. Other blocks and inline syntax
 

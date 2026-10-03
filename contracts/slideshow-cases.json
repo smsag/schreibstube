@@ -142,6 +142,73 @@
       }
     },
     {
+      "name": "a path may hold parentheses, as a copy's name does",
+      "source": "![a](Foto (1).jpg)\n![b](Foto (2).jpg)",
+      "expect": {
+        "ok": true,
+        "layout": "slideshow",
+        "images": [
+          {
+            "src": "Foto (1).jpg",
+            "alt": "a"
+          },
+          {
+            "src": "Foto (2).jpg",
+            "alt": "b"
+          }
+        ],
+        "shown": 2,
+        "files": ["Foto (1).jpg", "Foto (2).jpg"]
+      }
+    },
+    {
+      "name": "a Markdown title is not part of the path",
+      "source": "![a](a.png \"Das Haus\")\n![b](<my photo.png> 'Garten')",
+      "expect": {
+        "ok": true,
+        "layout": "slideshow",
+        "images": [
+          {
+            "src": "a.png",
+            "alt": "a"
+          },
+          {
+            "src": "<my photo.png>",
+            "alt": "b"
+          }
+        ],
+        "shown": 2,
+        "files": ["a.png", "my photo.png"]
+      }
+    },
+    {
+      "name": "an Obsidian size is not part of the alt text",
+      "source": "![Das Haus|300](a.png)\n![Garten | 640x480](b.png)",
+      "expect": {
+        "ok": true,
+        "layout": "slideshow",
+        "images": [
+          {
+            "src": "a.png",
+            "alt": "Das Haus"
+          },
+          {
+            "src": "b.png",
+            "alt": "Garten"
+          }
+        ],
+        "shown": 2,
+        "files": ["a.png", "b.png"]
+      }
+    },
+    {
+      "name": "two pictures on one line are refused",
+      "source": "![a](a.png) ![b](b.png)\n![c](c.png)",
+      "expect": {
+        "ok": false
+      }
+    },
+    {
       "name": "a feature shows its first three",
       "source": "layout: feature\n![](1.png)\n![](2.png)\n![](3.png)\n![](4.png)",
       "expect": {
