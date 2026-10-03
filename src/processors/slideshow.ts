@@ -785,12 +785,21 @@ export function wireSwipe(el: HTMLElement, onSwipe: (direction: 1 | -1) => void)
   let startX = 0;
   let startY = 0;
   let claimed = false;
+  // A second finger makes it a pinch, not a swipe. Measuring from where the
+  // second one landed restarted a claimed swipe halfway, and the lift of
+  // either finger could turn the page under the pinch.
+  let crowded = false;
   el.addEventListener(
     "touchstart",
     (e) => {
+      if (e.touches.length > 1) {
+        crowded = true;
+        return;
+      }
       startX = e.touches[0]?.clientX ?? 0;
       startY = e.touches[0]?.clientY ?? 0;
       claimed = false;
+      crowded = false;
     },
     { passive: true }
   );
@@ -799,8 +808,10 @@ export function wireSwipe(el: HTMLElement, onSwipe: (direction: 1 | -1) => void)
     (e) => {
       const touch = e.touches[0];
       if (!touch) return;
-      if (!claimed && !claimsHorizontal(touch.clientX - startX, touch.clientY - startY)) return;
-      claimed = true;
+      if (!claimed) {
+        if (crowded || !claimsHorizontal(touch.clientX - startX, touch.clientY - startY)) return;
+        claimed = true;
+      }
       e.preventDefault();
       e.stopPropagation();
     },
@@ -809,6 +820,7 @@ export function wireSwipe(el: HTMLElement, onSwipe: (direction: 1 | -1) => void)
   el.addEventListener(
     "touchend",
     (e) => {
+      if (crowded || e.touches.length > 0) return;
       const dx = (e.changedTouches[0]?.clientX ?? 0) - startX;
       const dy = (e.changedTouches[0]?.clientY ?? 0) - startY;
       const gesture = classifyTouch(dx, dy);
@@ -828,8 +840,9 @@ export function wireSwipe(el: HTMLElement, onSwipe: (direction: 1 | -1) => void)
  * without a press of its own counts: a control, a tile and the comparison's
  * frame answer their tap themselves, and answering it twice would open a
  * picture and change the header in one touch. Listened to in the capture
- * phase, so that nothing inside the block that stops a touch of its own
- * can keep it from this.
+ * phase so that it hears every touch first: nothing in the block stops a
+ * landing or a lift today, and a control that came to would otherwise
+ * silently take the header's tap away.
  */
 function wireReveal(wrapper: HTMLElement): void {
   let startX = 0;
