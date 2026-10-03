@@ -48,6 +48,7 @@ import {
 } from "./processors/calculation-lines";
 import { PdfCommands } from "./controllers/pdf-commands";
 import { LinkModeController } from "./controllers/link-mode-controller";
+import { switchReadingEditing } from "./controllers/view-mode-switch";
 import { LlmCommands } from "./controllers/llm-commands";
 import { PropertyController } from "./controllers/property-controller";
 import { PropertySetController } from "./controllers/property-set-controller";
@@ -1785,6 +1786,19 @@ export default class SchreibstubePlugin extends Plugin {
       name: t().commands.focusParagraph,
       callback: () => {
         void this.setFocusMode(toggledFocusMode(this.settings.focusMode, "paragraph"));
+      }
+    });
+
+    // Offered only where there is a note view to switch: the palette would
+    // otherwise list it over a canvas or a picture, where it can do nothing.
+    this.addCommand({
+      id: "switch-reading-editing",
+      name: t().commands.switchReadingEditing,
+      checkCallback: (checking) => {
+        const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+        if (!view) return false;
+        if (!checking) void switchReadingEditing(view, this.logger);
+        return true;
       }
     });
 

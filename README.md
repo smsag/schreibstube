@@ -171,6 +171,10 @@ Dims everything except the passage you are working on. Available as two commands
 
 The dim strength is configurable.
 
+- **Switch reading/editing** — from Live Preview to Reading view and back
+
+Obsidian's own _Toggle reading view_ goes back to whichever editor was last in use, Source mode as often as Live Preview. This one has two ends only: from Live Preview it goes to Reading view, and from Reading view or Source mode it goes to Live Preview. The passage on screen stays on screen, and in the editor the cursor stays where it was. It has no key of its own; give it one, or put it on the phone's toolbar, in Obsidian's settings.
+
 - **New doc** — a blank note in a new window, in front of everything
 
 That last command makes a new empty note where Obsidian's _Default location for new notes_ says, named the way Obsidian names one (**Untitled**, then **Untitled 1**, and so on; **Unbenannt** in German), opens it in a new window, brings that window to the front whatever windows and tabs are already open, and puts the cursor in the editor. A pop-out window has no sidebars, so the screen holds the note and nothing else. On a phone, which has no windows, the note opens in a new tab and both drawers close instead. Nothing about the vault differs from a note made the usual way.
