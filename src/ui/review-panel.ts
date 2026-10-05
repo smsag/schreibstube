@@ -13,7 +13,7 @@ import { ItemView, setIcon, type WorkspaceLeaf } from "obsidian";
 import type { GlossarySelectionSource } from "../services/glossary-resolver";
 import { diffParts } from "../services/diff-marks";
 import { RenderGate } from "../services/render-gate";
-import { cardActions, isFlagOnly } from "../services/proofread-runner";
+import { cardActions, inAcceptAll, isFlagOnly } from "../services/proofread-runner";
 import type { Suggestion } from "../services/suggestion";
 import { diffWords, type DiffSegment } from "../services/word-diff";
 
@@ -257,7 +257,7 @@ export class ReviewPanelView extends ItemView {
     }
 
     const pending = this.pendingSuggestions();
-    const applicable = pending.filter((suggestion) => !isFlagOnly(suggestion));
+    const applicable = pending.filter(inAcceptAll);
     if (applicable.length > 0) {
       this.button(
         actions,
@@ -443,6 +443,9 @@ export class ReviewPanelView extends ItemView {
     }
     if (suggestion.needsReview) {
       meta.createSpan({ cls: "schreibstube-review-badge", text: t().proofread.badgeInflection });
+    }
+    if (suggestion.runsCode?.length) {
+      meta.createSpan({ cls: "schreibstube-review-badge", text: t().proofread.badgeRunsCode });
     }
 
     this.renderDiff(card, suggestion);

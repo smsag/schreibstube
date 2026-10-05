@@ -34,6 +34,7 @@ import {
 import { createChunkSender } from "../platform/llm-proofread";
 import {
   createCancelToken,
+  inAcceptAll,
   isFlagOnly,
   runProofread,
   scanGlossary,
@@ -444,9 +445,7 @@ export class ProofreadController {
   }
 
   private acceptAll(): void {
-    const pending = this.suggestions.filter(
-      (suggestion) => suggestion.status === "pending" && !isFlagOnly(suggestion)
-    );
+    const pending = this.suggestions.filter(inAcceptAll);
     if (pending.length === 0) return;
     this.applyBatch(pending);
   }
