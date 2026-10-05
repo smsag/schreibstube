@@ -6,11 +6,13 @@ import {
   asRecord,
   authHeaders,
   buildEndpoint,
+  checkResponseSize,
   extractCode,
   parseJsonBody
 } from "../services/bridge-protocol";
 import {
   COMMIT_REQUEST_TIMEOUT_MS,
+  MAX_PUBLISH_RESPONSE_BYTES,
   PUBLISH_REQUEST_TIMEOUT_MS,
   UPLOAD_REQUEST_TIMEOUT_MS,
   describePublishError,
@@ -53,6 +55,7 @@ export async function bridgeHealth(config: PublishBridgeConfig): Promise<BridgeH
     (seconds) => `bridge did not respond within ${seconds}s.`
   );
 
+  checkResponseSize(response, MAX_PUBLISH_RESPONSE_BYTES);
   if (response.status < 200 || response.status >= 300) {
     throw failure(response.status, response.text);
   }
@@ -160,6 +163,7 @@ async function send(
     (seconds) => `bridge did not respond within ${seconds}s.`
   );
 
+  checkResponseSize(response, MAX_PUBLISH_RESPONSE_BYTES);
   if (response.status < 200 || response.status >= 300) {
     throw failure(response.status, response.text);
   }
@@ -195,6 +199,7 @@ async function sendUpload(
     (seconds) => `bridge did not accept the upload within ${seconds}s.`
   );
 
+  checkResponseSize(response, MAX_PUBLISH_RESPONSE_BYTES);
   if (response.status < 200 || response.status >= 300) {
     throw failure(response.status, response.text);
   }

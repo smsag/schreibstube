@@ -132,6 +132,15 @@ export interface BridgeHealth {
  */
 export const MAX_PLAN_ENTRIES = 10_000;
 
+/**
+ * The largest answer the publish bridge gives, in bytes. The plan is the
+ * large one: for two thousand notes with a picture and a thumbnail each,
+ * every entry carrying a long vault path, its lists come to about five
+ * megabytes. Three times that is room for paths longer still, and a bound on
+ * what a bridge that is not ours can hand the plugin to parse.
+ */
+export const MAX_PUBLISH_RESPONSE_BYTES = 16_000_000;
+
 export function parseHealth(json: unknown): BridgeHealth {
   const record = asRecord(json);
   return {

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   COMMIT_REQUEST_TIMEOUT_MS,
   MAX_PLAN_ENTRIES,
+  MAX_PUBLISH_RESPONSE_BYTES,
   describePublishError,
   isEmptyPlan,
   parseHealth,
@@ -225,5 +226,31 @@ describe("isEmptyPlan", () => {
 
   it("is not empty with a note to publish, even an unchanged one", () => {
     expect(isEmptyPlan(plan({ notes: 1 }))).toBe(false);
+  });
+});
+
+describe("MAX_PUBLISH_RESPONSE_BYTES", () => {
+  it("holds the plan for two thousand notes with a picture and a thumbnail each", () => {
+    const path = `Blog/${"Unterordner/".repeat(8)}Eine recht lange Überschrift einer Notiz`;
+    const hash = "a".repeat(64);
+    const entries = (suffix: string) =>
+      Array.from({ length: 2000 }, (_, i) => ({
+        sourcePath: `${path} ${i}.${suffix}`,
+        sha256: hash,
+        name: `Bild ${i}.${suffix}`,
+        path: `assets/${hash.slice(0, 12)}-bild-${i}.${suffix}`
+      }));
+    const plan = JSON.stringify({
+      target: "blog",
+      baseUrl: "https://blog.example.com",
+      uploadSources: entries("md"),
+      uploadAssets: entries("png"),
+      uploadThumbnails: entries("jpg"),
+      willDelete: entries("html").map((entry) => entry.path),
+      conflicts: entries("html").map((entry) => entry.path),
+      unchangedSources: 0,
+      notes: 2000
+    });
+    expect(new TextEncoder().encode(plan).byteLength * 2).toBeLessThan(MAX_PUBLISH_RESPONSE_BYTES);
   });
 });

@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   MAIL_REQUEST_TIMEOUT_MS,
+  MAX_ATTACHMENTS_RESPONSE_BYTES,
+  MAX_MAIL_RESPONSE_BYTES,
   MAX_MAIL_RESULTS,
   MAX_MESSAGE_TEXT_CHARS,
   MAX_IMPORT_ATTACHMENT_BYTES,
@@ -11,6 +13,7 @@ import {
   excludeFromMerged,
   fromBase64,
   hasCriteria,
+  mailResponseLimit,
   parseAttachmentsResult,
   parseSearchResult,
   parseSendResult,
@@ -333,5 +336,35 @@ describe("describeBridgeError, attachments", () => {
     expect(describeBridgeError(404, gone)).toBe("Message 7 is no longer in INBOX.");
     const large = JSON.stringify({ code: "message_too_large", error: "The mail is 52 MB." });
     expect(describeBridgeError(413, large)).toBe("The mail is 52 MB.");
+  });
+});
+
+describe("mailResponseLimit", () => {
+  it("holds a search of two hundred full messages of the bridge's default length", () => {
+    const message = {
+      uid: 1,
+      messageId: "<a@example.de>",
+      from: "Absender <a@example.de>",
+      subject: "Betreff",
+      date: "2026-09-27T12:00:00Z",
+      references: [],
+      // Three bytes a character: the most a body of German or CJK text weighs.
+      text: "€".repeat(40_000)
+    };
+    const search = JSON.stringify({ messages: Array(200).fill(message), mailbox: "INBOX" });
+    expect(new TextEncoder().encode(search).byteLength).toBeLessThan(mailResponseLimit("/search"));
+    expect(mailResponseLimit("/search")).toBe(MAX_MAIL_RESPONSE_BYTES);
+  });
+
+  it("holds a mail's files at their total limit, in base64", () => {
+    const content = "A".repeat(Math.ceil(MAX_IMPORT_TOTAL_BYTES / 3) * 4);
+    const answer = JSON.stringify({
+      uid: 1,
+      attachments: [{ filename: "a.pdf", contentType: "application/pdf", content }],
+      skipped: Array(40).fill({ filename: "x".repeat(200), reason: "size" })
+    });
+    expect(answer.length).toBeLessThan(mailResponseLimit("/attachments"));
+    expect(mailResponseLimit("/attachments")).toBe(MAX_ATTACHMENTS_RESPONSE_BYTES);
+    expect(MAX_ATTACHMENTS_RESPONSE_BYTES).toBeGreaterThan(MAX_MAIL_RESPONSE_BYTES);
   });
 });

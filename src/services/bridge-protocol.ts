@@ -123,6 +123,40 @@ function jsonOrNull(body: string): unknown {
   }
 }
 
+/**
+ * Refuse a bridge's answer that is larger than any it gives, before anything
+ * reads it: the declared length first, which costs nothing, and the body as
+ * UTF-8 bytes, for an answer that declared none or declared less. The
+ * platform has already received the body by then, but the JSON parse, the
+ * error quoting and every list built from it are spared a body a hostile or
+ * broken server made as large as it liked.
+ */
+export function checkResponseSize(
+  response: { headers?: Record<string, string>; text?: string },
+  maxBytes: number
+): void {
+  const tooLarge = (): Error =>
+    new Error(`the bridge's answer is larger than ${Math.round(maxBytes / 1_000_000)} MB.`);
+
+  const declared = Number(headerOf(response.headers, "content-length"));
+  if (Number.isFinite(declared) && declared > maxBytes) throw tooLarge();
+
+  const text = response.text ?? "";
+  // A character is one to four bytes, so only a text between a quarter of
+  // the limit and the limit needs counting.
+  if (text.length > maxBytes) throw tooLarge();
+  if (text.length * 4 > maxBytes && new TextEncoder().encode(text).byteLength > maxBytes) {
+    throw tooLarge();
+  }
+}
+
+/** Header names arrive in whatever case the server used. */
+function headerOf(headers: Record<string, string> | undefined, name: string): string | undefined {
+  if (!headers) return undefined;
+  const match = Object.keys(headers).find((key) => key.toLowerCase() === name);
+  return match === undefined ? undefined : headers[match];
+}
+
 /** How much of a body that is not JSON is worth quoting: enough to recognise a login page. */
 const MAX_QUOTED_BODY_CHARS = 120;
 
