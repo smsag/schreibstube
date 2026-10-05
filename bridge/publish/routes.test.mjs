@@ -5,6 +5,7 @@ import {
   clientMessage,
   exclusive,
   isAssetContent,
+  targetFor,
   targetOf,
   withRemote
 } from "./routes.mjs";
@@ -71,6 +72,36 @@ describe("withRemote", () => {
     await expect(withRemote(pool, target, 10, never)).rejects.toBeInstanceOf(TimeoutError);
     expect(remotes[0].ended).toBe(true);
     expect(pool.size).toBe(0);
+  });
+
+  it("aborts the work it gave up on and closes the line at once, not politely", async () => {
+    let seen;
+    const remote = {
+      destroyed: false,
+      onClose() {},
+      async end() {},
+      destroy() {
+        remote.destroyed = true;
+      },
+      withSignal(signal) {
+        return { scoped: true, signal };
+      }
+    };
+    const pool = createConnectionPool({
+      connect: async () => remote,
+      setTimer: () => 0,
+      clearTimer: () => {}
+    });
+    await expect(
+      withRemote(pool, target, 10, (view, signal) => {
+        seen = { view, signal };
+        return never();
+      })
+    ).rejects.toBeInstanceOf(TimeoutError);
+    expect(seen.view.scoped).toBe(true);
+    expect(seen.signal.aborted).toBe(true);
+    expect(seen.view.signal).toBe(seen.signal);
+    expect(remote.destroyed).toBe(true);
   });
 
   it("answers a login that failed as unreachable, with the short wording", async () => {
@@ -141,6 +172,28 @@ describe("targetOf", () => {
   });
 });
 
+describe("targetFor", () => {
+  const shared = "s".repeat(32);
+  const own = "o".repeat(32);
+  const publish = {
+    token: shared,
+    targets: { blog: { name: "blog" }, eigen: { name: "eigen", token: own } }
+  };
+
+  it("answers a target the token does not open as one that does not exist", () => {
+    expect(targetFor(publish, "blog", `Bearer ${shared}`)).toBe(publish.targets.blog);
+    expect(targetFor(publish, "eigen", `Bearer ${own}`)).toBe(publish.targets.eigen);
+    for (const [name, token] of [
+      ["eigen", shared],
+      ["blog", own]
+    ]) {
+      expect(() => targetFor(publish, name, `Bearer ${token}`)).toThrow(
+        expect.objectContaining({ status: 404, code: "unknown_target" })
+      );
+    }
+  });
+});
+
 describe("availableAssets", () => {
   const hash = (value) => `${value}`.padEnd(64, "0");
   const assets = [
@@ -179,8 +232,14 @@ describe("isAssetContent", () => {
     expect(isAssetContent(Buffer.from("x"), "png")).toBe(false);
   });
 
+  it("holds every picture and video a target serves by default to its signature", () => {
+    for (const extension of ["gif", "webp", "avif", "mp4", "webm", "ogv", "mov", "m4v"]) {
+      expect(isAssetContent(Buffer.from("<html><script>alert(1)</script>"), extension)).toBe(false);
+    }
+    expect(isAssetContent(Buffer.from("GIF89a\u0001\u0000"), "gif")).toBe(true);
+  });
+
   it("takes a format it has no signature for on its extension alone", () => {
-    expect(isAssetContent(Buffer.from("anything"), "webp")).toBe(true);
-    expect(isAssetContent(Buffer.from("anything"), "mp4")).toBe(true);
+    expect(isAssetContent(Buffer.from("anything"), "ico")).toBe(true);
   });
 });

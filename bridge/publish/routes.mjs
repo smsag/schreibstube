@@ -15,6 +15,7 @@ import {
   diffOutputs,
   normalizeManifest,
   orphanSources,
+  plannedOutputs,
   planUploads
 } from "./manifest.mjs";
 import {
@@ -30,20 +31,49 @@ import {
 } from "./path.mjs";
 import { RENDER_VERSION } from "./render/markdown.mjs";
 import { buildSite, checkIndex, IndexError, sha256 } from "./site.mjs";
-import { isSafeSvg } from "./site-icon.mjs";
-import { connect, SftpError } from "./sftp.mjs";
+import { isSafeSvg } from "./svg-guard.mjs";
+import { hasSignature } from "./signatures.mjs";
+import { HTACCESS_FILES, htaccessFiles } from "./site-headers.mjs";
+import {
+  matches,
+  normalizePending,
+  orphanUploads,
+  serializePending,
+  UploadQuota
+} from "./pending.mjs";
+import { opensTarget, presentedToken } from "./target-access.mjs";
+import { AbandonedError, connect, SftpError } from "./sftp.mjs";
 import { createConnectionPool } from "./connection-pool.mjs";
 import { mapLimit, SFTP_CONCURRENCY } from "./pool.mjs";
 import { SourceCache } from "./source-cache.mjs";
 
 const MANIFEST_FILE = "manifest.json";
 const HISTORY_FILE = "history.json";
+const PENDING_FILE = "pending.json";
 /** How many publishes the history keeps. Enough to answer "when did that page
  *  change", small enough that the file stays a file. */
 const HISTORY_LENGTH = 50;
 const INDEX_FILE = "index.json";
 const SOURCE_DIRECTORY = "src";
 const STATE_GUARD_FILE = ".htaccess";
+
+/**
+ * The most note text a commit holds at once. Every source is in memory while
+ * the site renders; a site of two thousand long notes is a few dozen
+ * megabytes, and a commit asked to hold more is refused rather than allowed
+ * to take the process down.
+ */
+export const MAX_COMMIT_SOURCE_BYTES = 200_000_000;
+
+/**
+ * How long a connection test's answer stands. Each one is a login, and a
+ * host that counts failed logins bans the address that makes them; a token
+ * holder clicking "test" in a loop must not be the one who gets it banned.
+ */
+export const DIAGNOSTICS_INTERVAL_MS = 30_000;
+
+/** How many paths a refusal names before it counts the rest. */
+const NAMED_PATHS = 20;
 
 /** The deny file for a state directory that lies inside the web root. */
 export const STATE_GUARD = [
@@ -58,19 +88,14 @@ export const STATE_GUARD = [
   ""
 ].join("\n");
 
-/** Uploaded raster formats whose first bytes are checked, by the thumbnail
- *  helper's name for each. The other formats a target may serve have no
- *  helper and are taken on their extension, as before. */
-const RASTER_SIGNATURES = new Map([
-  ["png", "png"],
-  ["jpg", "jpg"],
-  ["jpeg", "jpg"]
-]);
-
-export function createPublishRoutes(config, { version }) {
+export function createPublishRoutes(config, { version, now = () => Date.now() }) {
   const publish = config.publish;
   const generator = `schreibstube-bridge/${version}`;
   const busy = new Set();
+  // Uploads running per target. A commit waits for none of them: it refuses,
+  // as an upload refuses while a commit runs, so a file is never written
+  // between the moment a commit decides what the site is and its manifest.
+  const uploading = new Map();
   const pool = createConnectionPool({
     connect: (name) => open(publish.targets[name], config)
   });
@@ -80,6 +105,12 @@ export function createPublishRoutes(config, { version }) {
   // the manifest may claim it, and one it does not know of — the bridge
   // restarted in between — is asked for again by the next plan.
   const uploads = new UploadLedger();
+  const quota = new UploadQuota({
+    maxBytes: publish.maxPublishBytes ?? Number.MAX_SAFE_INTEGER,
+    maxUploads: publish.maxUploads ?? Number.MAX_SAFE_INTEGER
+  });
+  const pending = new PendingRecord();
+  const diagnosed = new Map();
   // Targets whose state directory is known to carry its deny file, so the
   // check costs one round trip per target and process rather than per upload.
   const guarded = new Set();
@@ -104,77 +135,139 @@ export function createPublishRoutes(config, { version }) {
   const uploadTimeoutMs = Math.max(config.requestTimeoutMs, 180_000);
   const commitTimeoutMs = Math.max(config.requestTimeoutMs, 300_000);
 
-  return [
-    route("GET", "/publish/targets", 0, "none", async () => ({
-      targets: Object.values(publish.targets).map((target) => ({
-        name: target.name,
-        baseUrl: target.baseUrl,
-        siteTitle: target.siteTitle
-      }))
-    })),
+  /** An upload: never during a commit, and counted against the target's quota. */
+  const asUpload = async (target, bytes, work) => {
+    if (busy.has(target.name)) {
+      throw httpError(409, "publish_in_progress", `A publish to ${target.name} is running.`);
+    }
+    quota.admit(target.name, bytes);
+    uploading.set(target.name, (uploading.get(target.name) ?? 0) + 1);
+    try {
+      return await work();
+    } finally {
+      const left = uploading.get(target.name) - 1;
+      if (left > 0) uploading.set(target.name, left);
+      else uploading.delete(target.name);
+    }
+  };
 
-    route("POST", "/publish/diagnostics", 64_000, "json", async ({ body, log }) => {
-      const target = targetOf(publish, body?.target);
+  /**
+   * Whether an upload may land on `path`. A file the bridge never wrote is
+   * not overwritten: neither the manifest nor the record of pending uploads
+   * names it, so it is someone else's, and once overwritten the manifest
+   * would claim it and a later publish delete it. One holding exactly the
+   * bytes about to be written is the same file whoever wrote it.
+   */
+  const claim = async (remote, target, path, entry) => {
+    const owned = (await pending.of(remote, target)).has(path);
+    if (!owned && !uploads.written(target.name).has(path) && !target.adoptExisting) {
+      const absolute = remote.absolute(path);
+      const kind = await remote.exists(absolute);
+      if (kind && !(kind === "-" && (await sameContent(remote, absolute, entry)))) {
+        const manifest = await readManifest(remote, target);
+        if (!manifest.files[path]) throw conflictError(target, [path]);
+      }
+    }
+    // Recorded before the bytes go, so a crash between the two leaves a
+    // record of a file that may be there, never a file nothing records.
+    await pending.add(remote, target, path, entry);
+  };
+
+  return [
+    route("GET", "/publish/targets", 0, "none", async ({ authorization }) => {
+      const presented = presentedToken(authorization);
+      return {
+        targets: Object.values(publish.targets)
+          .filter((target) => opensTarget(publish, target, presented))
+          .map((target) => ({
+            name: target.name,
+            baseUrl: target.baseUrl,
+            siteTitle: target.siteTitle
+          }))
+      };
+    }),
+
+    route("POST", "/publish/diagnostics", 64_000, "json", async ({ body, log, authorization }) => {
+      const target = targetFor(publish, body?.target, authorization);
+      const recent = diagnosed.get(target.name);
+      if (recent && now() - recent.at < DIAGNOSTICS_INTERVAL_MS) return recent.result;
+
+      let result;
       try {
-        const remote = await open(target, config);
-        try {
+        // Through the pool: a publish's own connection proves the same login,
+        // and a test while one is open costs the host nothing.
+        result = await withRemote(pool, target, config.requestTimeoutMs, async (remote) => {
           // Listing a directory that is not there answers "empty", which is
           // not the answer: a site cannot be written to a root that is missing.
           if ((await remote.exists(target.root)) !== "d") {
             return { ok: false, target: target.name, error: "The web root does not exist." };
           }
           const entries = await remote.listNames(target.root);
-          return { ok: true, target: target.name, root: target.root, entries: entries.length };
-        } finally {
-          await remote.end();
-        }
+          // Whether the root is there, never where: the vault has no business
+          // learning the host's directory layout.
+          return { ok: true, target: target.name, rootExists: true, entries: entries.length };
+        });
       } catch (err) {
-        log("warn", `diagnostics ${target.name}: ${detailOf(err)}`);
-        return { ok: false, target: target.name, error: clientMessage(err) };
+        log("warn", `diagnostics ${target.name}: ${err.detail ?? detailOf(err)}`);
+        result = { ok: false, target: target.name, error: err.message || "SFTP failed." };
       }
+      diagnosed.set(target.name, { at: now(), result });
+      return result;
     }),
 
-    route("POST", "/publish/plan", publish.maxIndexBytes, "json", async ({ body, log }) => {
-      const target = targetOf(publish, body?.target);
-      const index = validateIndex(body?.index, publish);
+    route(
+      "POST",
+      "/publish/plan",
+      publish.maxIndexBytes,
+      "json",
+      async ({ body, log, authorization }) => {
+        const target = targetFor(publish, body?.target, authorization);
+        const index = validateIndex(body?.index, publish);
 
-      return withRemote(pool, target, config.requestTimeoutMs, async (remote) => {
-        const manifest = normalizeManifest(
-          await remote.readJson(remote.stateAbsolute(MANIFEST_FILE)),
-          target.name
-        );
-        const stored = await storedSourceHashes(remote);
-        const plan = planUploads({ index, manifest, storedSourceHashes: stored });
+        return withRemote(pool, target, config.requestTimeoutMs, async (remote) => {
+          const manifest = await readManifest(remote, target);
+          const stored = await storedSourceHashes(remote);
+          const plan = planUploads({ index, manifest, storedSourceHashes: stored });
+          const conflicts = target.adoptExisting
+            ? []
+            : await planConflicts(remote, index, plan, manifest, await ownedPaths(remote, target));
 
-        log(
-          "info",
-          `plan ${target.name}: ${plan.uploadSources.length} source(s), ` +
-            `${plan.uploadAssets.length} asset(s), ${plan.willDelete.length} to delete`
-        );
-        return { target: target.name, baseUrl: target.baseUrl, ...plan };
-      });
-    }),
+          log(
+            "info",
+            `plan ${target.name}: ${plan.uploadSources.length} source(s), ` +
+              `${plan.uploadAssets.length} asset(s), ${plan.willDelete.length} to delete, ` +
+              `${conflicts.length} in the way`
+          );
+          return { target: target.name, baseUrl: target.baseUrl, ...plan, conflicts };
+        });
+      }
+    ),
 
     route(
       "PUT",
       "/publish/source",
       publish.maxSourceBytes,
       "raw",
-      async ({ body, query, log }) => {
-        const target = targetOf(publish, query.get("target"));
+      async ({ body, query, log, authorization }) => {
+        const target = targetFor(publish, query.get("target"), authorization);
         const hash = verifyHash(body, query.get("sha256"));
 
-        return withRemote(pool, target, uploadTimeoutMs, async (remote) => {
-          await guard(remote, target);
-          await remote.writeAbsolute(remote.stateAbsolute(`${SOURCE_DIRECTORY}/${hash}.md`), body);
-          // The commit that follows renders this note; it need not read it back.
-          cache.set(hash, body);
-          log(
-            "info",
-            `source ${hash.slice(0, 12)} stored for ${target.name} (${body.length} bytes)`
-          );
-          return { sha256: hash, bytes: body.length };
-        });
+        return asUpload(target, body.length, () =>
+          withRemote(pool, target, uploadTimeoutMs, async (remote) => {
+            await guard(remote, target);
+            await remote.writeAbsolute(
+              remote.stateAbsolute(`${SOURCE_DIRECTORY}/${hash}.md`),
+              body
+            );
+            // The commit that follows renders this note; it need not read it back.
+            cache.set(hash, body);
+            log(
+              "info",
+              `source ${hash.slice(0, 12)} stored for ${target.name} (${body.length} bytes)`
+            );
+            return { sha256: hash, bytes: body.length };
+          })
+        );
       },
       uploadTimeoutMs
     ),
@@ -188,8 +281,8 @@ export function createPublishRoutes(config, { version }) {
       // memory its own limit allows.
       (query) => assetLimit(publish, query.get("name") ?? ""),
       "raw",
-      async ({ body, query, log }) => {
-        const target = targetOf(publish, query.get("target"));
+      async ({ body, query, log, authorization }) => {
+        const target = targetFor(publish, query.get("target"), authorization);
         const hash = verifyHash(body, query.get("sha256"));
         const name = query.get("name") ?? "";
 
@@ -206,13 +299,17 @@ export function createPublishRoutes(config, { version }) {
         }
 
         const path = safePath(assetPath(hash, name), target);
+        const entry = { sha256: hash, bytes: body.length };
 
-        return withRemote(pool, target, uploadTimeoutMs, async (remote) => {
-          await remote.writeFile(path, body);
-          uploads.record(target.name, path, { sha256: hash, bytes: body.length });
-          log("info", `asset ${path} stored for ${target.name} (${body.length} bytes)`);
-          return { sha256: hash, bytes: body.length, path };
-        });
+        return asUpload(target, body.length, () =>
+          withRemote(pool, target, uploadTimeoutMs, async (remote) => {
+            await claim(remote, target, path, entry);
+            await remote.writeFile(path, body);
+            uploads.record(target.name, path, entry);
+            log("info", `asset ${path} stored for ${target.name} (${body.length} bytes)`);
+            return { sha256: hash, bytes: body.length, path };
+          })
+        );
       },
       uploadTimeoutMs
     ),
@@ -222,8 +319,8 @@ export function createPublishRoutes(config, { version }) {
       "/publish/thumbnail",
       MAX_THUMBNAIL_BYTES,
       "raw",
-      async ({ body, query, log }) => {
-        const target = targetOf(publish, query.get("target"));
+      async ({ body, query, log, authorization }) => {
+        const target = targetFor(publish, query.get("target"), authorization);
         const hash = verifyHash(body, query.get("sha256"));
         const source = String(query.get("source") ?? "");
         const name = query.get("name") ?? "";
@@ -238,13 +335,17 @@ export function createPublishRoutes(config, { version }) {
           throw httpError(400, "thumbnail_rejected", "Not a thumbnail the site can serve.");
         }
         const path = safePath(thumbnailPath(source, name), target);
+        const entry = { sha256: hash, bytes: body.length };
 
-        return withRemote(pool, target, uploadTimeoutMs, async (remote) => {
-          await remote.writeFile(path, body);
-          uploads.record(target.name, path, { sha256: hash, bytes: body.length });
-          log("info", `thumbnail ${path} stored for ${target.name} (${body.length} bytes)`);
-          return { sha256: hash, bytes: body.length, path };
-        });
+        return asUpload(target, body.length, () =>
+          withRemote(pool, target, uploadTimeoutMs, async (remote) => {
+            await claim(remote, target, path, entry);
+            await remote.writeFile(path, body);
+            uploads.record(target.name, path, entry);
+            log("info", `thumbnail ${path} stored for ${target.name} (${body.length} bytes)`);
+            return { sha256: hash, bytes: body.length, path };
+          })
+        );
       },
       uploadTimeoutMs
     ),
@@ -254,12 +355,19 @@ export function createPublishRoutes(config, { version }) {
       "/publish/commit",
       publish.maxIndexBytes,
       "json",
-      async ({ body, log }) => {
-        const target = targetOf(publish, body?.target);
+      async ({ body, log, authorization }) => {
+        const target = targetFor(publish, body?.target, authorization);
         const index = validateIndex(body?.index, publish);
+        if (uploading.has(target.name)) {
+          throw httpError(
+            409,
+            "publish_in_progress",
+            `Uploads to ${target.name} are still running; commit once they are done.`
+          );
+        }
 
         return exclusive(busy, target.name, () =>
-          withRemote(pool, target, commitTimeoutMs, async (remote) => {
+          withRemote(pool, target, commitTimeoutMs, async (remote, signal) => {
             await guard(remote, target);
             const stored = await storedSourceHashes(remote);
             const storedSet = new Set(stored);
@@ -272,10 +380,7 @@ export function createPublishRoutes(config, { version }) {
               );
             }
 
-            const manifest = normalizeManifest(
-              await remote.readJson(remote.stateAbsolute(MANIFEST_FILE)),
-              target.name
-            );
+            const manifest = await readManifest(remote, target);
             const assets = availableAssets(index, manifest, uploads.written(target.name));
             if (assets.missing.length > 0) {
               throw httpError(
@@ -291,8 +396,9 @@ export function createPublishRoutes(config, { version }) {
               Buffer.from(JSON.stringify(index, null, 2), "utf8")
             );
 
-            return publishSite({
+            const summary = await publishSite({
               remote,
+              signal,
               target,
               index,
               manifest,
@@ -301,8 +407,11 @@ export function createPublishRoutes(config, { version }) {
               log,
               cache,
               stored,
-              uploads
+              uploads,
+              pending
             });
+            quota.reset(target.name);
+            return summary;
           })
         );
       },
@@ -314,20 +423,20 @@ export function createPublishRoutes(config, { version }) {
       "/publish/render",
       64_000,
       "json",
-      async ({ body, log }) => {
-        const target = targetOf(publish, body?.target);
+      async ({ body, log, authorization }) => {
+        const target = targetFor(publish, body?.target, authorization);
+        if (uploading.has(target.name)) {
+          throw httpError(409, "publish_in_progress", `Uploads to ${target.name} are running.`);
+        }
 
         return exclusive(busy, target.name, () =>
-          withRemote(pool, target, commitTimeoutMs, async (remote) => {
+          withRemote(pool, target, commitTimeoutMs, async (remote, signal) => {
             const stored = await remote.readJson(remote.stateAbsolute(INDEX_FILE));
             if (!stored) {
               throw httpError(409, "nothing_published", "This target has never been published.");
             }
             const index = validateIndex(stored, publish);
-            const manifest = normalizeManifest(
-              await remote.readJson(remote.stateAbsolute(MANIFEST_FILE)),
-              target.name
-            );
+            const manifest = await readManifest(remote, target);
             // Rebuilt from what the last commit recorded: an asset it did not
             // record was never on the host, and a page may not point at it.
             const assets = availableAssets(index, manifest, uploads.written(target.name));
@@ -341,6 +450,7 @@ export function createPublishRoutes(config, { version }) {
             }
             return publishSite({
               remote,
+              signal,
               target,
               index,
               manifest,
@@ -348,7 +458,8 @@ export function createPublishRoutes(config, { version }) {
               generator,
               log,
               cache,
-              uploads
+              uploads,
+              pending
             });
           })
         );
@@ -356,11 +467,18 @@ export function createPublishRoutes(config, { version }) {
       commitTimeoutMs
     )
   ];
+
+  /** Paths this process, or the record of pending uploads, says are the bridge's own. */
+  async function ownedPaths(remote, target) {
+    const recorded = await pending.of(remote, target);
+    return new Set([...uploads.written(target.name).keys(), ...recorded.keys()]);
+  }
 }
 
 /** Render, write what differs, delete what went, then record it. */
 async function publishSite({
   remote,
+  signal,
   target,
   index,
   manifest,
@@ -369,22 +487,12 @@ async function publishSite({
   log,
   cache,
   stored,
-  uploads
+  uploads,
+  pending
 }) {
   const started = Date.now();
-
-  const sources = new Map();
-  const missing = [];
-  for (const hash of new Set(index.notes.map((note) => note.sha256))) {
-    const text = cache.get(hash);
-    if (text === undefined) missing.push(hash);
-    else sources.set(hash, text);
-  }
-  await mapLimit(missing, SFTP_CONCURRENCY, async (hash) => {
-    const content = await remote.readFile(remote.stateAbsolute(`${SOURCE_DIRECTORY}/${hash}.md`));
-    cache.set(hash, content);
-    sources.set(hash, content.toString("utf8"));
-  });
+  const sources = await readSources(remote, index, cache);
+  signal?.throwIfAborted();
 
   // A page points at a thumbnail only once it is on the host: already in the
   // manifest, or written by an upload since.
@@ -401,6 +509,16 @@ async function publishSite({
   );
   for (const path of files.keys()) safePath(path, target, { output: true });
 
+  // The header files are the bridge's only where it wrote them: a .htaccess
+  // the operator keeps — rewrites, a password — is left exactly as it is.
+  for (const [path, content] of htaccessFiles(target)) {
+    if (!manifest.files[path] && (await remote.exists(remote.absolute(path)))) {
+      log("warn", `publish ${target.name}: ${path} is not the bridge's; its headers are not set`);
+      continue;
+    }
+    files.set(path, content);
+  }
+
   // Assets were written to the host by their own upload, so they are not
   // rebuilt here — but they belong in the manifest, because a file the
   // manifest does not know about is a file the bridge may never remove.
@@ -410,9 +528,24 @@ async function publishSite({
 
   const difference = diffOutputs(files, manifest, sha256, uploaded);
 
+  // A page the manifest does not know and the host already has is someone
+  // else's file — a placeholder index, another tool's page — and is refused
+  // before anything is written, unless the target may take such files over.
+  if (!target.adoptExisting) {
+    const recorded = await pending.of(remote, target);
+    const owned = new Set([...uploads.written(target.name).keys(), ...recorded.keys()]);
+    const fresh = difference.write.filter(
+      (path) => !manifest.files[path] && !owned.has(path) && !HTACCESS_FILES.has(path)
+    );
+    const taken = await present(remote, fresh);
+    if (taken.length > 0) throw conflictError(target, taken);
+  }
+  signal?.throwIfAborted();
+
   await mapLimit(difference.write, SFTP_CONCURRENCY, (path) =>
     remote.writeFile(path, files.get(path))
   );
+  signal?.throwIfAborted();
 
   // A deletion that failed stays in the manifest, so the next publish tries
   // again; forgotten, the file would have stayed on the host for good.
@@ -423,45 +556,44 @@ async function publishSite({
       await remote.remove(path);
       deleted.push(path);
     } catch (err) {
+      if (err instanceof AbandonedError) throw err;
       deleteFailed.push(path);
       log("warn", `publish ${target.name}: could not delete ${path}: ${detailOf(err)}`);
     }
   });
   const pruned = await remote.pruneEmptyDirectories(deleted);
+  signal?.throwIfAborted();
 
   // A commit already listed the stored sources to check the index; a render
   // has not, and asks here.
   const collected = orphanSources(stored ?? (await storedSourceHashes(remote)), index);
   await mapLimit(collected, SFTP_CONCURRENCY, (hash) =>
     remote.removeAbsolute(remote.stateAbsolute(`${SOURCE_DIRECTORY}/${hash}.md`)).catch((err) => {
+      if (err instanceof AbandonedError) throw err;
       log("warn", `publish ${target.name}: could not collect source ${hash}: ${detailOf(err)}`);
     })
   );
+  signal?.throwIfAborted();
 
   const carried = new Map(deleteFailed.map((path) => [path, manifest.files[path]]));
+  const recorded = buildManifest({
+    target: target.name,
+    files,
+    uploaded,
+    carried,
+    hash: sha256,
+    renderVersion: RENDER_VERSION,
+    generator
+  });
   await remote.writeAbsolute(
     remote.stateAbsolute(MANIFEST_FILE),
-    Buffer.from(
-      JSON.stringify(
-        buildManifest({
-          target: target.name,
-          files,
-          uploaded,
-          carried,
-          hash: sha256,
-          renderVersion: RENDER_VERSION,
-          generator
-        }),
-        null,
-        2
-      ),
-      "utf8"
-    )
+    Buffer.from(JSON.stringify(recorded, null, 2), "utf8")
   );
 
   // The manifest now records every upload the site uses; what it does not
   // use is asked for again by the next plan, should a later index need it.
   uploads.clear(target.name);
+  const abandoned = await pending.settle(remote, target, recorded.files, log);
 
   const summary = {
     at: new Date().toISOString(),
@@ -473,6 +605,7 @@ async function publishSite({
     deleteFailed: deleteFailed.length,
     pruned,
     collected: collected.length,
+    abandoned,
     durationMs: Date.now() - started
   };
   await appendHistory(remote, summary);
@@ -481,9 +614,198 @@ async function publishSite({
     "info",
     `publish ${summary.target}: ${summary.written} written, ${summary.unchanged} unchanged, ` +
       `${summary.deleted} deleted, ${summary.deleteFailed} not deleted, ` +
-      `${summary.pruned} pruned in ${summary.durationMs}ms`
+      `${summary.abandoned} abandoned upload(s) removed, ${summary.pruned} pruned ` +
+      `in ${summary.durationMs}ms`
   );
   return summary;
+}
+
+/**
+ * Every note's text, from memory where the bridge has it and from the host
+ * where it has not. What is read back is hashed again: the file is named
+ * after its content, and a file whose content no longer matches its name —
+ * truncated, edited on the host — would otherwise be published as the note.
+ * It is removed instead, so the next plan asks for it. All of it is held at
+ * once while the site renders, so the total is bounded.
+ */
+async function readSources(remote, index, cache) {
+  const sources = new Map();
+  const missing = [];
+  let held = 0;
+  const hold = (bytes) => {
+    held += bytes;
+    if (held > MAX_COMMIT_SOURCE_BYTES) {
+      throw httpError(
+        413,
+        "site_too_large",
+        `The notes of this site exceed ${MAX_COMMIT_SOURCE_BYTES} bytes together.`
+      );
+    }
+  };
+
+  for (const hash of new Set(index.notes.map((note) => note.sha256))) {
+    const text = cache.get(hash);
+    if (text === undefined) {
+      missing.push(hash);
+    } else {
+      hold(Buffer.byteLength(text));
+      sources.set(hash, text);
+    }
+  }
+
+  const corrupt = [];
+  await mapLimit(missing, SFTP_CONCURRENCY, async (hash) => {
+    const path = remote.stateAbsolute(`${SOURCE_DIRECTORY}/${hash}.md`);
+    const content = await remote.readFile(path);
+    if (sha256(content) !== hash) {
+      corrupt.push(hash);
+      await remote.removeAbsolute(path).catch((err) => {
+        if (err instanceof AbandonedError) throw err;
+      });
+      return;
+    }
+    hold(content.length);
+    cache.set(hash, content);
+    sources.set(hash, content.toString("utf8"));
+  });
+  if (corrupt.length > 0) {
+    throw httpError(
+      409,
+      "sources_missing",
+      `${corrupt.length} stored source(s) no longer matched their hash and were removed; ` +
+        "run the plan again."
+    );
+  }
+  return sources;
+}
+
+/**
+ * The paths the plan's commit would write over a file the bridge never
+ * wrote: on the host, but in neither the manifest nor the record of pending
+ * uploads. An asset already there with the very bytes the index promises is
+ * the same file, and not in the way.
+ */
+async function planConflicts(remote, index, plan, manifest, known) {
+  const promised = new Map(
+    plan.uploadAssets.map((entry) => [
+      entry.path,
+      index.assets.find((asset) => asset.sha256 === entry.sha256)
+    ])
+  );
+  const candidates = plannedOutputs(index, plan).filter(
+    (path) => !manifest.files[path] && !known.has(path)
+  );
+  const conflicts = [];
+  await mapLimit(candidates, SFTP_CONCURRENCY, async (path) => {
+    const absolute = remote.absolute(path);
+    const kind = await remote.exists(absolute);
+    if (!kind) return;
+    const asset = promised.get(path);
+    if (kind === "-" && asset?.bytes !== undefined) {
+      if (await sameContent(remote, absolute, { sha256: asset.sha256, bytes: asset.bytes })) {
+        return;
+      }
+    }
+    conflicts.push(path);
+  });
+  return conflicts.sort();
+}
+
+/** Which of `paths` the host has, file or directory. */
+async function present(remote, paths) {
+  const found = [];
+  await mapLimit(paths, SFTP_CONCURRENCY, async (path) => {
+    if (await remote.exists(remote.absolute(path))) found.push(path);
+  });
+  return found.sort();
+}
+
+/** Whether the file at `absolute` holds exactly the bytes `entry` promises. */
+async function sameContent(remote, absolute, entry) {
+  if ((await remote.sizeOf(absolute)) !== entry.bytes) return false;
+  return matches(await remote.readFile(absolute), entry);
+}
+
+function conflictError(target, paths) {
+  const named = paths.slice(0, NAMED_PATHS).join(", ");
+  const more = paths.length > NAMED_PATHS ? ` and ${paths.length - NAMED_PATHS} more` : "";
+  return httpError(
+    409,
+    "path_conflict",
+    `${paths.length} file(s) on ${target.name} were not written by the bridge and would be ` +
+      `overwritten: ${named}${more}. Remove them, or set ` +
+      `PUBLISH_${target.name.toUpperCase().replace(/[^A-Z0-9]/g, "_")}_ADOPT_EXISTING=true.`
+  );
+}
+
+/**
+ * The record of uploads not yet committed, per target, kept in the state
+ * directory and read once per process. Written whole on each change, one
+ * write at a time per target; an upload whose record could not be written is
+ * not written either.
+ */
+class PendingRecord {
+  #targets = new Map();
+
+  async of(remote, target) {
+    let slot = this.#targets.get(target.name);
+    if (!slot) {
+      const loading = remote
+        .readJson(remote.stateAbsolute(PENDING_FILE))
+        .then((raw) => normalizePending(raw));
+      slot = { loading, chain: Promise.resolve() };
+      this.#targets.set(target.name, slot);
+      // A read that failed is tried again by the next request.
+      loading.catch(() => {
+        if (this.#targets.get(target.name) === slot) this.#targets.delete(target.name);
+      });
+    }
+    return slot.loading;
+  }
+
+  async add(remote, target, path, entry) {
+    const entries = await this.of(remote, target);
+    const known = entries.get(path);
+    if (known?.sha256 === entry.sha256) return;
+    entries.set(path, entry);
+    await this.#save(remote, target, entries);
+  }
+
+  /**
+   * After a commit: remove the pending uploads the new manifest does not
+   * keep, and record only those that could not be removed. Returns how many
+   * went.
+   */
+  async settle(remote, target, manifestFiles, log) {
+    const entries = await this.of(remote, target);
+    const orphans = orphanUploads(entries, manifestFiles);
+    let removed = 0;
+    await mapLimit(orphans, SFTP_CONCURRENCY, async (path) => {
+      try {
+        if (await remote.exists(remote.absolute(path))) await remote.remove(path);
+        entries.delete(path);
+        removed += 1;
+      } catch (err) {
+        if (err instanceof AbandonedError) throw err;
+        log("warn", `publish ${target.name}: could not remove ${path}: ${detailOf(err)}`);
+      }
+    });
+    for (const path of [...entries.keys()]) {
+      if (Object.hasOwn(manifestFiles, path)) entries.delete(path);
+    }
+    await this.#save(remote, target, entries);
+    return removed;
+  }
+
+  #save(remote, target, entries) {
+    const slot = this.#targets.get(target.name);
+    const text = serializePending(target.name, entries);
+    const write = slot.chain.then(() =>
+      remote.writeAbsolute(remote.stateAbsolute(PENDING_FILE), Buffer.from(text, "utf8"))
+    );
+    slot.chain = write.catch(() => {});
+    return write;
+  }
 }
 
 /**
@@ -576,6 +898,10 @@ async function guardState(remote) {
   await remote.writeAbsolute(path, Buffer.from(STATE_GUARD, "utf8"));
 }
 
+async function readManifest(remote, target) {
+  return normalizeManifest(await remote.readJson(remote.stateAbsolute(MANIFEST_FILE)), target.name);
+}
+
 async function storedSourceHashes(remote) {
   const names = await remote.listNames(remote.stateAbsolute(SOURCE_DIRECTORY));
   return names
@@ -588,6 +914,19 @@ export function targetOf(publish, name) {
   // Own keys only: "constructor" is on every object and is not a target.
   const target = Object.hasOwn(publish.targets, key) ? publish.targets[key] : undefined;
   if (!target) {
+    throw httpError(404, "unknown_target", `No such publish target: ${name ?? "(none)"}.`);
+  }
+  return target;
+}
+
+/**
+ * The target, if the token presented opens it. One that does not is answered
+ * as a target that does not exist: a token for one site learns nothing about
+ * the others.
+ */
+export function targetFor(publish, name, authorization) {
+  const target = targetOf(publish, name);
+  if (!opensTarget(publish, target, presentedToken(authorization))) {
     throw httpError(404, "unknown_target", `No such publish target: ${name ?? "(none)"}.`);
   }
   return target;
@@ -635,13 +974,11 @@ function verifyHash(body, claimed) {
 /**
  * Whether uploaded bytes are what their extension says. An SVG is served
  * from the site's own domain, where it would run whatever it carries, so it
- * is held to the tab icon's rule; a raster file has to begin like one where
- * there is a signature to check.
+ * is held to the tab icon's rule; a picture or a video has to begin like one.
  */
 export function isAssetContent(bytes, extension) {
   if (extension === "svg") return isSafeSvg(bytes.toString("utf8"), { embedded: true });
-  const raster = RASTER_SIGNATURES.get(extension);
-  return raster ? isThumbnailFormat(bytes, raster) : true;
+  return hasSignature(bytes, extension);
 }
 
 async function open(target, config) {
@@ -656,15 +993,31 @@ async function open(target, config) {
  * Run `work` on the target's shared connection, under the request's deadline.
  *
  * The deadline is inside the pool's `use`, so running out of it retires the
- * connection: closing it is what fails the operation the server never
- * answered, and the request cannot hold the target's lock beyond its budget.
+ * connection. Running out also aborts the signal `work` is given and closes
+ * the socket at once: the view of the connection `work` holds refuses every
+ * operation from then on, so a commit that was given up on cannot write a
+ * file after the lock it held is released and a second commit has begun.
  */
 export async function withRemote(pool, target, timeoutMs, work) {
   let started = false;
+  const controller = new AbortController();
   try {
-    return await pool.use(target.name, (remote) => {
+    return await pool.use(target.name, async (remote) => {
       started = true;
-      return withDeadline(work(remote), timeoutMs, `Publish to ${target.name}`);
+      const scoped = remote.withSignal ? remote.withSignal(controller.signal) : remote;
+      try {
+        return await withDeadline(
+          work(scoped, controller.signal),
+          timeoutMs,
+          `Publish to ${target.name}`
+        );
+      } catch (err) {
+        if (err instanceof TimeoutError) {
+          controller.abort(err);
+          remote.destroy?.();
+        }
+        throw err;
+      }
     });
   } catch (err) {
     if (err.status || err instanceof TimeoutError) throw err;
@@ -678,9 +1031,9 @@ export async function withRemote(pool, target, timeoutMs, work) {
  * One publish at a time per target.
  *
  * No deadline of its own: a deadline here cannot stop the work, only stop
- * waiting for it, and a lock released while the writes go on lets a second
- * publish share the connection with the first. The work is bounded inside
- * `withRemote`, where running out closes the connection and so ends it.
+ * waiting for it. The work is bounded inside `withRemote`, where running out
+ * aborts it and closes its connection, so the lock is released only once the
+ * work can no longer write.
  */
 export async function exclusive(busy, name, work) {
   if (busy.has(name)) {

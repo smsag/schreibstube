@@ -15,7 +15,7 @@ import { parseSender } from "./mail-address.mjs";
 
 /** Bumped when the request or response shape changes in a way the plugin can
  *  see; the table in README.md says what each number brought. */
-export const PROTOCOL_VERSION = 7;
+export const PROTOCOL_VERSION = 8;
 
 /** What a TCP port can be. */
 const MAX_PORT = 65_535;
@@ -100,8 +100,26 @@ function loadPublish(env) {
     targets[name] = loadTarget(env, name);
   }
 
+  const shared = token(env.PUBLISH_TOKEN, "PUBLISH_TOKEN");
+  // A target's own token has to be its own: shared with the global one or
+  // another target, it would not say which target it opens, and shared with
+  // the mail token it would open the mailbox.
+  const taken = new Map([[shared, "PUBLISH_TOKEN"]]);
+  if (present(env.MAIL_TOKEN)) taken.set(env.MAIL_TOKEN.trim(), "MAIL_TOKEN");
+  const tokens = [shared];
+  for (const target of Object.values(targets)) {
+    if (!target.token) continue;
+    const owner = taken.get(target.token);
+    if (owner) throw new Error(`${prefixOf(target.name)}_TOKEN is the same as ${owner}.`);
+    taken.set(target.token, `${prefixOf(target.name)}_TOKEN`);
+    tokens.push(target.token);
+  }
+
   return {
-    token: token(env.PUBLISH_TOKEN, "PUBLISH_TOKEN"),
+    token: shared,
+    // Every token that opens a publish route; which target each one opens is
+    // decided per request, in publish/target-access.mjs.
+    tokens,
     // Three limits because the kinds differ by orders of magnitude: a route
     // holds an upload to the limit of the kind its name says, and a note-sized
     // budget for a video would refuse it while a video-sized one for a note
@@ -111,12 +129,30 @@ function loadPublish(env) {
     maxVideoBytes: integer(env.PUBLISH_MAX_VIDEO_BYTES, 25_000_000, "PUBLISH_MAX_VIDEO_BYTES"),
     maxIndexBytes: integer(env.PUBLISH_MAX_INDEX_BYTES, 4_000_000, "PUBLISH_MAX_INDEX_BYTES"),
     maxFiles: integer(env.PUBLISH_MAX_FILES, 2000, "PUBLISH_MAX_FILES"),
+    // What one target may be sent between two commits, which is what a
+    // publish is: the 500 MB PUBLISHING.md always promised, and twice the
+    // files a publish may name, since each picture may bring a thumbnail.
+    // Uploads that never see a commit stop here instead of filling the host.
+    maxPublishBytes: integer(
+      env.PUBLISH_MAX_PUBLISH_BYTES,
+      500_000_000,
+      "PUBLISH_MAX_PUBLISH_BYTES"
+    ),
+    maxUploads: integer(env.PUBLISH_MAX_UPLOADS, 4000, "PUBLISH_MAX_UPLOADS"),
     targets
   };
 }
 
+/** The variable prefix of a target: `PUBLISH_BLOG` for `blog`. */
+export function prefixOf(name) {
+  return `PUBLISH_${name.toUpperCase().replace(/[^A-Z0-9]/g, "_")}`;
+}
+
+/** A policy is one header line: printable, unquoted, and of a sane length. */
+const MAX_CSP_LENGTH = 4000;
+
 function loadTarget(env, name) {
-  const prefix = `PUBLISH_${name.toUpperCase().replace(/[^A-Z0-9]/g, "_")}`;
+  const prefix = prefixOf(name);
   const read = (suffix) => env[`${prefix}_${suffix}`]?.trim();
   const required = (suffix) => {
     const value = read(suffix);
@@ -141,6 +177,28 @@ function loadTarget(env, name) {
   if (!stateRoot.startsWith("/")) {
     throw new Error(`${prefix}_STATE_ROOT must be an absolute path.`);
   }
+  // The state holds every published note as written; inside the web root,
+  // only a server that reads .htaccess keeps it from being served. That used
+  // to be the default, with a warning in the log. It is now a choice the
+  // operator states, for the shared host where nothing else is writable.
+  const stateInsideRoot = isWithin(stateRoot, root.replace(/\/+$/, ""));
+  const stateInRoot = boolean(read("STATE_IN_ROOT"), false, `${prefix}_STATE_IN_ROOT`);
+  if (stateInsideRoot && !stateInRoot) {
+    throw new Error(
+      `${prefix}_STATE_ROOT (${stateRoot}) lies inside the web root, where the server may ` +
+        `serve every published note as written. Set ${prefix}_STATE_ROOT to a directory ` +
+        `outside ${root} and move the existing state there, or set ` +
+        `${prefix}_STATE_IN_ROOT=true if the host allows nothing else.`
+    );
+  }
+
+  const csp = read("CSP") || undefined;
+  if (csp !== undefined && !/^[\x20-\x21\x23-\x7e]+$/.test(csp)) {
+    throw new Error(`${prefix}_CSP must be one line of printable ASCII without double quotes.`);
+  }
+  if (csp !== undefined && csp.length > MAX_CSP_LENGTH) {
+    throw new Error(`${prefix}_CSP is longer than ${MAX_CSP_LENGTH} characters.`);
+  }
 
   const key = read("KEY");
   const password = read("PASSWORD");
@@ -162,7 +220,16 @@ function loadTarget(env, name) {
     fingerprint: required("HOST_FINGERPRINT"),
     root: root.replace(/\/+$/, ""),
     stateRoot,
-    stateInsideRoot: isWithin(stateRoot, root.replace(/\/+$/, "")),
+    stateInsideRoot,
+    // When set, only this token opens the target.
+    token: read("TOKEN") ? targetToken(read("TOKEN"), `${prefix}_TOKEN`) : undefined,
+    // A file on the host the bridge never wrote is refused rather than
+    // overwritten, unless the operator says the site may take it over.
+    adoptExisting: boolean(read("ADOPT_EXISTING"), false, `${prefix}_ADOPT_EXISTING`),
+    // Headers in .htaccess files are read by Apache, which is what the hosts
+    // that keep their state in the root run; any other target may ask too.
+    htaccess: boolean(read("HTACCESS"), stateInsideRoot, `${prefix}_HTACCESS`),
+    csp,
     baseUrl,
     siteTitle: read("SITE_TITLE") || name,
     allowHtml: boolean(read("ALLOW_HTML"), true, `${prefix}_ALLOW_HTML`),
@@ -227,6 +294,17 @@ export function isWithin(path, directory) {
 /** The names of the capabilities this configuration actually offers. */
 export function capabilityNames(config) {
   return ["mail", "publish"].filter((name) => config[name]);
+}
+
+/**
+ * A target's own token: held to the rules of every other token, and never
+ * the example an environment file was copied with.
+ */
+function targetToken(value, name) {
+  if (/replace-me|change-?me|placeholder|your-token|example/i.test(value)) {
+    throw new Error(`${name} is still a placeholder. Generate one with: openssl rand -base64 32`);
+  }
+  return token(value, name);
 }
 
 function token(value, name) {

@@ -142,36 +142,7 @@ function page({
     usedSlideshow ? `<link rel="stylesheet" href="${up}assets/slideshow.css">` : null
   ].filter(Boolean);
 
-  // Five megabytes, fetched when a diagram is actually about to be read rather
-  // than on load. A reader who never scrolls that far never pays for it, and a
-  // browser without IntersectionObserver simply loads it at once.
-  const scripts = usedMermaid
-    ? `<script>\n` +
-      `(function () {\n` +
-      `  var blocks = document.querySelectorAll("pre.mermaid");\n` +
-      `  if (!blocks.length) return;\n` +
-      `  var loaded = false;\n` +
-      `  function load() {\n` +
-      `    if (loaded) return;\n` +
-      `    loaded = true;\n` +
-      `    var s = document.createElement("script");\n` +
-      `    s.src = "${up}assets/mermaid.min.js";\n` +
-      `    s.onload = function () {\n` +
-      `      mermaid.initialize({ startOnLoad: true, securityLevel: "strict" });\n` +
-      `    };\n` +
-      `    document.head.appendChild(s);\n` +
-      `  }\n` +
-      `  if (!("IntersectionObserver" in window)) return load();\n` +
-      `  var watcher = new IntersectionObserver(function (entries) {\n` +
-      `    if (entries.some(function (e) { return e.isIntersecting; })) {\n` +
-      `      watcher.disconnect();\n` +
-      `      load();\n` +
-      `    }\n` +
-      `  }, { rootMargin: "400px" });\n` +
-      `  blocks.forEach(function (block) { watcher.observe(block); });\n` +
-      `})();\n` +
-      `</script>\n`
-    : "";
+  const scripts = usedMermaid ? `<script>${mermaidLoader(up)}</script>\n` : "";
 
   // A module runs after the page has been parsed, so it finds every block,
   // and a browser that runs no scripts keeps the plain layouts.
@@ -190,6 +161,43 @@ function page({
     slideshowScript +
     `</body>\n` +
     `</html>\n`
+  );
+}
+
+/**
+ * The page's one inline script, as it stands between its tags.
+ *
+ * Five megabytes, fetched when a diagram is actually about to be read rather
+ * than on load. A reader who never scrolls that far never pays for it, and a
+ * browser without IntersectionObserver simply loads it at once. Exported for
+ * the site's content security policy, which names it by its hash.
+ */
+export function mermaidLoader(up) {
+  return (
+    `\n` +
+    `(function () {\n` +
+    `  var blocks = document.querySelectorAll("pre.mermaid");\n` +
+    `  if (!blocks.length) return;\n` +
+    `  var loaded = false;\n` +
+    `  function load() {\n` +
+    `    if (loaded) return;\n` +
+    `    loaded = true;\n` +
+    `    var s = document.createElement("script");\n` +
+    `    s.src = "${up}assets/mermaid.min.js";\n` +
+    `    s.onload = function () {\n` +
+    `      mermaid.initialize({ startOnLoad: true, securityLevel: "strict" });\n` +
+    `    };\n` +
+    `    document.head.appendChild(s);\n` +
+    `  }\n` +
+    `  if (!("IntersectionObserver" in window)) return load();\n` +
+    `  var watcher = new IntersectionObserver(function (entries) {\n` +
+    `    if (entries.some(function (e) { return e.isIntersecting; })) {\n` +
+    `      watcher.disconnect();\n` +
+    `      load();\n` +
+    `    }\n` +
+    `  }, { rootMargin: "400px" });\n` +
+    `  blocks.forEach(function (block) { watcher.observe(block); });\n` +
+    `})();\n`
   );
 }
 

@@ -21,6 +21,7 @@ import { STATE_GUARD } from "./routes.mjs";
 const SERVER = fileURLToPath(new URL("../server.mjs", import.meta.url));
 const TOKEN = "p".repeat(32);
 const MAIL_TOKEN = "m".repeat(32);
+const OWN_TOKEN = "o".repeat(32);
 const SITE = "/site";
 const STATE = "/state";
 
@@ -137,7 +138,7 @@ beforeAll(async () => {
       ...process.env,
       PORT: String(port),
       PUBLISH_TOKEN: TOKEN,
-      PUBLISH_TARGETS: "blog,notizen,archiv,falsch",
+      PUBLISH_TARGETS: "blog,notizen,archiv,falsch,eigen,fremd",
       PUBLISH_BLOG_HOST: "127.0.0.1",
       PUBLISH_BLOG_PORT: String(sftp.port),
       PUBLISH_BLOG_USER: sftp.user,
@@ -155,6 +156,7 @@ beforeAll(async () => {
       PUBLISH_NOTIZEN_PASSWORD: sftp.password,
       PUBLISH_NOTIZEN_HOST_FINGERPRINT: sftp.fingerprint,
       PUBLISH_NOTIZEN_ROOT: "/notizen",
+      PUBLISH_NOTIZEN_STATE_IN_ROOT: "true",
       PUBLISH_NOTIZEN_BASE_URL: "https://notizen.example.com",
       PUBLISH_ARCHIV_HOST: "127.0.0.1",
       PUBLISH_ARCHIV_PORT: String(sftp.port),
@@ -162,6 +164,7 @@ beforeAll(async () => {
       PUBLISH_ARCHIV_PASSWORD: sftp.password,
       PUBLISH_ARCHIV_HOST_FINGERPRINT: sftp.fingerprint,
       PUBLISH_ARCHIV_ROOT: "/archiv",
+      PUBLISH_ARCHIV_STATE_IN_ROOT: "true",
       PUBLISH_ARCHIV_BASE_URL: "https://archiv.example.com",
       // The same host, pinned to a fingerprint it does not have.
       PUBLISH_FALSCH_HOST: "127.0.0.1",
@@ -170,7 +173,29 @@ beforeAll(async () => {
       PUBLISH_FALSCH_PASSWORD: sftp.password,
       PUBLISH_FALSCH_HOST_FINGERPRINT: "SHA256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
       PUBLISH_FALSCH_ROOT: "/falsch",
+      PUBLISH_FALSCH_STATE_ROOT: "/falsch-state",
       PUBLISH_FALSCH_BASE_URL: "https://falsch.example.com",
+      // A target with a token of its own, and one that may take over files
+      // it finds on the host.
+      PUBLISH_EIGEN_HOST: "127.0.0.1",
+      PUBLISH_EIGEN_PORT: String(sftp.port),
+      PUBLISH_EIGEN_USER: sftp.user,
+      PUBLISH_EIGEN_PASSWORD: sftp.password,
+      PUBLISH_EIGEN_HOST_FINGERPRINT: sftp.fingerprint,
+      PUBLISH_EIGEN_ROOT: "/eigen",
+      PUBLISH_EIGEN_STATE_ROOT: "/eigen-state",
+      PUBLISH_EIGEN_BASE_URL: "https://eigen.example.com",
+      PUBLISH_EIGEN_TOKEN: OWN_TOKEN,
+      PUBLISH_FREMD_HOST: "127.0.0.1",
+      PUBLISH_FREMD_PORT: String(sftp.port),
+      PUBLISH_FREMD_USER: sftp.user,
+      PUBLISH_FREMD_PASSWORD: sftp.password,
+      PUBLISH_FREMD_HOST_FINGERPRINT: sftp.fingerprint,
+      PUBLISH_FREMD_ROOT: "/fremd",
+      PUBLISH_FREMD_STATE_ROOT: "/fremd-state",
+      PUBLISH_FREMD_BASE_URL: "https://fremd.example.com",
+      PUBLISH_FREMD_ADOPT_EXISTING: "true",
+      PUBLISH_MAX_UPLOADS: "40",
       MAIL_TOKEN,
       IMAP_HOST: "127.0.0.1",
       IMAP_PORT: "1",
@@ -212,7 +237,9 @@ describe("targets", () => {
         { name: "blog", baseUrl: "https://blog.example.com", siteTitle: "Schreibstube" },
         { name: "notizen", baseUrl: "https://notizen.example.com", siteTitle: "notizen" },
         { name: "archiv", baseUrl: "https://archiv.example.com", siteTitle: "archiv" },
-        { name: "falsch", baseUrl: "https://falsch.example.com", siteTitle: "falsch" }
+        { name: "falsch", baseUrl: "https://falsch.example.com", siteTitle: "falsch" },
+        // Not "eigen": it has a token of its own, and this is not it.
+        { name: "fremd", baseUrl: "https://fremd.example.com", siteTitle: "fremd" }
       ]
     });
   });
@@ -253,7 +280,9 @@ describe("targets", () => {
     const response = await post("/publish/diagnostics", { target: "notizen" });
     expect(response.json.ok).toBe(true);
     expect(response.json.entries).toBe(0);
-    expect(response.json.root).toBe("/notizen");
+    // Whether the root is there, never where it is.
+    expect(response.json.rootExists).toBe(true);
+    expect(JSON.stringify(response.json)).not.toContain("/notizen");
     await expect(readdir(join(sftp.root, "notizen"))).resolves.toEqual([]);
   });
 });
@@ -763,5 +792,219 @@ describe("a host key that does not match", () => {
     // The fixture holds only an RSA key, so that is what the bridge is shown.
     expect(response.json.error).toContain(`presented ssh-rsa ${sftp.fingerprint}`);
     expect(response.json.error).toContain("must be the ssh-rsa one");
+  });
+});
+
+describe("connection tests", () => {
+  it("answer from the last attempt for a while, rather than logging in again", async () => {
+    const before = sftp.connections;
+    const again = await post("/publish/diagnostics", { target: "falsch" });
+    expect(again.json.error).toMatch(/^Host key mismatch/);
+    // A failed login is what a host bans an address for; the second test
+    // within the interval asked nobody.
+    expect(sftp.connections).toBe(before);
+  });
+});
+
+/** Plan, upload what it asks for, commit — against any target, with any token. */
+async function publishTo(target, index, sources, { token = TOKEN } = {}) {
+  const plan = await post("/publish/plan", { target, index }, { token });
+  if (plan.status !== 200) return plan;
+  for (const entry of plan.json.uploadSources) {
+    const body = Buffer.from(sources.get(entry.sha256), "utf8");
+    const upload = await put(`/publish/source?target=${target}&sha256=${entry.sha256}`, body, {
+      token
+    });
+    if (upload.status !== 200) return upload;
+  }
+  for (const entry of plan.json.uploadAssets) {
+    const upload = await put(
+      `/publish/asset?target=${target}&sha256=${entry.sha256}&name=${encodeURIComponent(entry.name)}`,
+      sources.get(entry.sha256),
+      { token }
+    );
+    if (upload.status !== 200) return upload;
+  }
+  return post("/publish/commit", { target, index }, { token });
+}
+
+describe("a target with a token of its own", () => {
+  const listed = async (token) =>
+    (
+      await (
+        await fetch(`${base}/publish/targets`, { headers: { authorization: `Bearer ${token}` } })
+      ).json()
+    ).targets.map((target) => target.name);
+
+  it("is opened by that token alone, and the token opens nothing else", async () => {
+    expect(await listed(OWN_TOKEN)).toEqual(["eigen"]);
+
+    const shared = await post("/publish/plan", { target: "eigen", index: bothNotes() });
+    expect(shared.status).toBe(404);
+    expect(shared.json.code).toBe("unknown_target");
+
+    const elsewhere = await post(
+      "/publish/plan",
+      { target: "blog", index: bothNotes() },
+      { token: OWN_TOKEN }
+    );
+    expect(elsewhere.status).toBe(404);
+
+    const upload = await put(
+      `/publish/source?target=blog&sha256=${sha256(second)}`,
+      Buffer.from(second, "utf8"),
+      { token: OWN_TOKEN }
+    );
+    expect(upload.status).toBe(404);
+
+    const own = await post(
+      "/publish/plan",
+      { target: "eigen", index: bothNotes() },
+      { token: OWN_TOKEN }
+    );
+    expect(own.status).toBe(200);
+  });
+});
+
+describe("files the bridge never wrote", () => {
+  const placeholder = "<h1>Hier entsteht eine neue Website</h1>";
+
+  it("are named in the plan and refused at commit, and left as they were", async () => {
+    await mkdir(join(sftp.root, "eigen"), { recursive: true });
+    await writeFile(join(sftp.root, "eigen", "index.html"), placeholder);
+
+    const plan = await post(
+      "/publish/plan",
+      { target: "eigen", index: bothNotes() },
+      { token: OWN_TOKEN }
+    );
+    expect(plan.json.conflicts).toEqual(["index.html"]);
+
+    const commit = await publishTo("eigen", bothNotes(), sources(), { token: OWN_TOKEN });
+    expect(commit.status).toBe(409);
+    expect(commit.json.code).toBe("path_conflict");
+    expect(commit.json.error).toContain("index.html");
+    expect(commit.json.error).toContain("PUBLISH_EIGEN_ADOPT_EXISTING=true");
+    expect(await readFile(join(sftp.root, "eigen", "index.html"), "utf8")).toBe(placeholder);
+    // Nothing of the refused commit was written, and no manifest claims the file.
+    await expect(readFile(join(sftp.root, "eigen", "erste", "index.html"))).rejects.toThrow();
+    await expect(readFile(join(sftp.root, "eigen-state", "manifest.json"))).rejects.toThrow();
+  });
+
+  it("are not overwritten by an upload either, unless they hold the same bytes", async () => {
+    const picture = Buffer.concat([image, Buffer.from("fremd")]);
+    const path = `assets/${sha256(picture).slice(0, 12)}-logo.png`;
+    await mkdir(join(sftp.root, "eigen", "assets"), { recursive: true });
+    await writeFile(join(sftp.root, "eigen", ...path.split("/")), "someone else's");
+
+    const query = `target=eigen&sha256=${sha256(picture)}&name=logo.png`;
+    const refused = await put(`/publish/asset?${query}`, picture, { token: OWN_TOKEN });
+    expect(refused.status).toBe(409);
+    expect(refused.json.code).toBe("path_conflict");
+    expect(await readFile(join(sftp.root, "eigen", ...path.split("/")), "utf8")).toBe(
+      "someone else's"
+    );
+
+    await writeFile(join(sftp.root, "eigen", ...path.split("/")), picture);
+    const same = await put(`/publish/asset?${query}`, picture, { token: OWN_TOKEN });
+    expect(same.status).toBe(200);
+  });
+
+  it("are taken over where the target says it may", async () => {
+    await mkdir(join(sftp.root, "fremd"), { recursive: true });
+    await writeFile(join(sftp.root, "fremd", "index.html"), placeholder);
+
+    const plan = await post("/publish/plan", { target: "fremd", index: bothNotes() });
+    expect(plan.json.conflicts).toEqual([]);
+    const commit = await publishTo("fremd", bothNotes(), sources());
+    expect(commit.status).toBe(200);
+    expect(await readFile(join(sftp.root, "fremd", "index.html"), "utf8")).toContain("Erste");
+  });
+});
+
+describe("uploads that no commit used", () => {
+  it("are recorded before they land, and removed by the next commit", async () => {
+    const stray = Buffer.concat([image, Buffer.from("verwaist")]);
+    const upload = await put(
+      `/publish/asset?target=blog&sha256=${sha256(stray)}&name=verwaist.png`,
+      stray
+    );
+    expect(upload.status).toBe(200);
+    const recorded = JSON.parse(await readFile(join(sftp.root, "state", "pending.json"), "utf8"));
+    expect(Object.keys(recorded.files)).toContain(upload.json.path);
+
+    const commit = await publish(bothNotes(), sources());
+    expect(commit.status).toBe(200);
+    expect(commit.json.abandoned).toBeGreaterThanOrEqual(1);
+    await expect(readFile(siteFile(...upload.json.path.split("/")))).rejects.toThrow();
+    const after = JSON.parse(await readFile(join(sftp.root, "state", "pending.json"), "utf8"));
+    expect(after.files).toEqual({});
+    // What the index does use is kept.
+    expect(await readFile(siteFile("assets", `${sha256(image).slice(0, 12)}-bild.png`))).toEqual(
+      image
+    );
+  });
+
+  it("stop at the target's quota until a commit", async () => {
+    const statuses = [];
+    for (let n = 0; n < 41; n += 1) {
+      const text = `# Notiz ${n}\n`;
+      const response = await put(
+        `/publish/source?target=eigen&sha256=${sha256(text)}`,
+        Buffer.from(text, "utf8"),
+        { token: OWN_TOKEN }
+      );
+      statuses.push(response.status);
+      if (response.status === 413) expect(response.json.code).toBe("quota_exceeded");
+    }
+    expect(statuses.filter((status) => status === 200).length).toBeLessThanOrEqual(40);
+    expect(statuses.at(-1)).toBe(413);
+  });
+});
+
+describe("a stored note whose bytes no longer match its name", () => {
+  it("is not published, but removed so the plan asks for it again", async () => {
+    const text = "# Dritte\n\nVom Host verändert.\n";
+    const hash = sha256(text);
+    await writeFile(join(sftp.root, "state", "src", `${hash}.md`), "# Etwas anderes\n");
+    const next = bothNotes();
+    next.notes.push(note({ sourcePath: "Blog/Dritte.md", sha256: hash, slug: "dritte" }));
+
+    const commit = await post("/publish/commit", { target: "blog", index: next });
+    expect(commit.status).toBe(409);
+    expect(commit.json.code).toBe("sources_missing");
+    await expect(readFile(siteFile("dritte", "index.html"))).rejects.toThrow();
+    expect(await readdir(join(sftp.root, "state", "src"))).not.toContain(`${hash}.md`);
+
+    const plan = await post("/publish/plan", { target: "blog", index: next });
+    expect(plan.json.uploadSources.map((entry) => entry.sha256)).toEqual([hash]);
+  });
+});
+
+describe("the headers of an Apache site", () => {
+  it("are written beside the pages, with a sandbox for the drawings", async () => {
+    const policy = await readFile(join(sftp.root, "archiv", ".htaccess"), "utf8");
+    expect(policy).toContain("Header always set Content-Security-Policy \"default-src 'self'");
+    expect(policy).toContain('X-Content-Type-Options "nosniff"');
+    expect(policy).toContain("Referrer-Policy");
+    const assets = await readFile(join(sftp.root, "archiv", "assets", ".htaccess"), "utf8");
+    expect(assets).toContain('<FilesMatch "\\.svg$">');
+    expect(assets).toContain('Content-Security-Policy "sandbox"');
+  });
+
+  it("are not written where the target keeps no .htaccess", async () => {
+    await expect(readFile(siteFile(".htaccess"))).rejects.toThrow();
+  });
+
+  it("leave an operator's own .htaccess alone", async () => {
+    const own = "RewriteEngine On\n";
+    await mkdir(join(sftp.root, "notizen"), { recursive: true });
+    await writeFile(join(sftp.root, "notizen", ".htaccess"), own);
+    const commit = await publishTo("notizen", bothNotes(), sources());
+    expect(commit.status).toBe(200);
+    expect(await readFile(join(sftp.root, "notizen", ".htaccess"), "utf8")).toBe(own);
+    expect(await readFile(join(sftp.root, "notizen", "assets", ".htaccess"), "utf8")).toContain(
+      "sandbox"
+    );
   });
 });

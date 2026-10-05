@@ -16,7 +16,9 @@ const VERSION = createRequire(import.meta.url)("./package.json").version;
 
 const config = loadConfig();
 const capabilities = capabilityNames(config);
-const tokens = Object.fromEntries(capabilities.map((name) => [name, config[name].token]));
+const tokens = Object.fromEntries(
+  capabilities.map((name) => [name, config[name].tokens ?? config[name].token])
+);
 const routes = [
   healthRoute(),
   ...(config.mail ? createMailRoutes(config) : []),
@@ -143,6 +145,9 @@ async function handle(req, res, requestId) {
       route.handler({
         body,
         query: url.searchParams,
+        // Which of a capability's tokens was presented, for a route whose
+        // answer depends on it: a publish target with a token of its own.
+        authorization: req.headers.authorization,
         requestId,
         log: (level, message) => log(level, message, requestId)
       })

@@ -12,8 +12,11 @@
  */
 
 /** Output files the bridge itself may write. Uploaded assets are checked
- *  against the target's own list, which is narrower still. */
+ *  against the target's own list, which is narrower still. `htaccess` is the
+ *  site's header file (site-headers.mjs): no slug and no upload name can
+ *  begin with a dot, so only the bridge ever names one. */
 export const OUTPUT_EXTENSIONS = new Set([
+  "htaccess",
   "html",
   "css",
   "js",
