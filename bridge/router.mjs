@@ -11,19 +11,26 @@
  */
 import { timingSafeEqual } from "node:crypto";
 
-/** Which capability the presented credential belongs to, if any. */
+/**
+ * Which capability the presented credential belongs to, if any. A capability
+ * may have several tokens — publishing has one per target that asks for its
+ * own — and any of them opens its routes; which target a token opens is the
+ * route's question.
+ */
 export function authenticate(authorizationHeader, tokens) {
   const prefix = "Bearer ";
   const header = authorizationHeader ?? "";
   if (!header.startsWith(prefix)) return null;
 
   const presented = Buffer.from(header.slice(prefix.length).trim());
-  for (const [capability, token] of Object.entries(tokens)) {
-    const expected = Buffer.from(token);
-    // timingSafeEqual throws on a length mismatch, so compare lengths first —
-    // that leaks only the token length, not its content.
-    if (presented.length === expected.length && timingSafeEqual(presented, expected)) {
-      return capability;
+  for (const [capability, accepted] of Object.entries(tokens)) {
+    for (const token of [accepted].flat()) {
+      const expected = Buffer.from(token);
+      // timingSafeEqual throws on a length mismatch, so compare lengths first —
+      // that leaks only the token length, not its content.
+      if (presented.length === expected.length && timingSafeEqual(presented, expected)) {
+        return capability;
+      }
     }
   }
   return null;

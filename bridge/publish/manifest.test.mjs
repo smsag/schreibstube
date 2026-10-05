@@ -6,6 +6,7 @@ import {
   emptyManifest,
   normalizeManifest,
   orphanSources,
+  plannedOutputs,
   planUploads
 } from "./manifest.mjs";
 
@@ -38,6 +39,32 @@ describe("normalizeManifest", () => {
   it("keeps a manifest of the current version", () => {
     const files = { "a.html": { sha256: "x", bytes: 1 } };
     expect(normalizeManifest({ version: MANIFEST_VERSION, files }, "blog").files).toEqual(files);
+  });
+});
+
+describe("plannedOutputs", () => {
+  it("names every page, the index, the stylesheet and the uploads the plan asks for", () => {
+    const planned = index({
+      notes: [{ ...note("eins"), tags: ["essay"] }, note("zwei")],
+      assets: [{ sourcePath: "b.png", sha256: hash("b"), name: "b.png", thumbnail: true }]
+    });
+    planned.headerTags = ["essay", "leer"];
+    const plan = planUploads({
+      index: planned,
+      manifest: emptyManifest("blog"),
+      storedSourceHashes: []
+    });
+    expect(plannedOutputs(planned, plan)).toEqual(
+      [
+        "assets/theme.css",
+        `assets/${hash("b").slice(0, 12)}-b.png`,
+        `assets/thumbs/${hash("b").slice(0, 12)}-b.png`,
+        "eins/index.html",
+        "index.html",
+        "tag/essay/index.html",
+        "zwei/index.html"
+      ].sort()
+    );
   });
 });
 

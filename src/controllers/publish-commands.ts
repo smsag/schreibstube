@@ -31,6 +31,7 @@ import {
   thumbnailType
 } from "../services/publish-thumbnail";
 import { getImageMimeType, resizeImageToBytes } from "../services/image-resize";
+import { sourceForUpload } from "../services/publish-source";
 import {
   ATTACHMENT_EXTENSIONS,
   findSlugCollision,
@@ -74,6 +75,7 @@ import { sha256 as hash } from "../utils/sha256";
 import { withTimeout } from "../utils/with-timeout";
 import { modalAnswer } from "../services/modal-answer";
 
+import { confirmBridge } from "./bridge-trust";
 import { DiagramCapture } from "./diagram-capture";
 import { NO_FORMULAS, type NoteFormulas } from "./sums-controller";
 import type { FreezeEntry } from "../services/table-formulas";
@@ -129,6 +131,14 @@ export class PublishCommands {
       const prepared = await this.prepare(account);
       if (!prepared) return;
 
+      // Files on the host the bridge never wrote would refuse the commit;
+      // the plan names them, and nothing is uploaded for a publish that
+      // cannot happen.
+      if (prepared.plan.conflicts.length > 0) {
+        new PublishPlanModal(this.app, account, prepared.plan, null).open();
+        return;
+      }
+
       // The guard is held through the dialog: the plan on show was hashed
       // against the vault as it was, and a publish started meanwhile would
       // make it a plan of nothing.
@@ -150,7 +160,7 @@ export class PublishCommands {
 
   async openSite(): Promise<void> {
     await this.withAccount(async (account) => {
-      const bridge = this.requireBridge();
+      const bridge = await this.requireBridge();
       if (!bridge) return;
 
       try {
@@ -342,7 +352,7 @@ export class PublishCommands {
 
   /** Collect the folder, hash everything, and ask the bridge what it needs. */
   private async prepare(account: PublishAccount): Promise<Prepared | null> {
-    const bridge = this.requireBridge();
+    const bridge = await this.requireBridge();
     if (!bridge) return null;
 
     try {
@@ -495,7 +505,9 @@ export class PublishCommands {
           });
         }
 
-        const bytes = new TextEncoder().encode(uploaded.content);
+        // The bridge keeps what it is sent, so what no page shows — the
+        // frontmatter, the `%%` comments — stays in the vault.
+        const bytes = new TextEncoder().encode(sourceForUpload(uploaded.content));
         const sha256 = await hash(bytes);
         sources.set(sha256, bytes.buffer as ArrayBuffer);
         const carried =
@@ -758,8 +770,11 @@ export class PublishCommands {
    * The URL falls back to the mail bridge's, because the usual deployment is
    * one bridge offering both capabilities. The tokens never fall back: they are
    * separate on purpose, so a leaked publish token cannot read the mailbox.
+   * The URL comes from synced settings and the token from this device, so the
+   * token goes only where this device sent it before, or where its person
+   * confirms.
    */
-  private requireBridge(): PublishBridgeConfig | null {
+  private async requireBridge(): Promise<PublishBridgeConfig | null> {
     const settings = this.getSettings();
     const url = normalizeBaseUrl(settings.publishBridgeUrl || settings.mailBridgeUrl);
     if (!url.ok) {
@@ -777,6 +792,10 @@ export class PublishCommands {
       return null;
     }
 
+    if (!(await confirmBridge(this.app, "publish", url.url))) {
+      new Notice(t().common.notice(t().bridgeTrust.declined));
+      return null;
+    }
     return { baseUrl: url.url, token: token.apiKey };
   }
 }

@@ -29,6 +29,7 @@ import {
   type DiagramFence
 } from "../services/publish-diagrams";
 import { sha256 } from "../utils/sha256";
+import { confirmBridge } from "./bridge-trust";
 import { DiagramCapture } from "./diagram-capture";
 import { NO_FORMULAS, type NoteFormulas } from "./sums-controller";
 import type { FreezeEntry } from "../services/table-formulas";
@@ -109,7 +110,7 @@ export class MailCommands {
       return;
     }
 
-    const bridge = this.requireBridge();
+    const bridge = await this.requireBridge();
     if (!bridge) {
       return;
     }
@@ -375,7 +376,7 @@ export class MailCommands {
   }
 
   async queryMailbox(): Promise<void> {
-    const bridge = this.requireBridge();
+    const bridge = await this.requireBridge();
     if (!bridge) {
       return;
     }
@@ -440,7 +441,7 @@ export class MailCommands {
       return;
     }
 
-    const bridge = this.requireBridge();
+    const bridge = await this.requireBridge();
     if (!bridge) {
       return;
     }
@@ -672,7 +673,8 @@ export class MailCommands {
     return readMailFields(this.app.metadataCache.getFileCache(file)?.frontmatter);
   }
 
-  private requireBridge(): MailBridgeConfig | null {
+  /** The bridge, once its address is one this device sends the mail token to. */
+  private async requireBridge(): Promise<MailBridgeConfig | null> {
     const settings = this.getSettings();
 
     const url = normalizeBaseUrl(settings.mailBridgeUrl);
@@ -692,6 +694,10 @@ export class MailCommands {
       return null;
     }
 
+    if (!(await confirmBridge(this.app, "mail", url.url))) {
+      new Notice(t().common.notice(t().bridgeTrust.declined));
+      return null;
+    }
     return { baseUrl: url.url, token: token.apiKey };
   }
 

@@ -27,24 +27,24 @@ compatible. `/health` reports what a deployment is actually running, and the
 plugin says plainly when the bridge is behind rather than failing later on a
 route that does not exist yet.
 
-| Bridge | Protocol | Plugin          | Notes                                                            |
-| ------ | -------- | --------------- | ---------------------------------------------------------------- |
-| 3.0.x  | 8        | 1.8.0 and later | `/search` `exclude`; allowed senders; quiet `/health`; see below |
-| 2.13.x | 7        | 1.8.0 and later | `:folder:` in a note is drawn as the plugin's icon               |
-| 2.12.x | 7        | 1.8.0 and later | `/attachments` hands over a received mail's files                |
-| 2.11.x | 6        | 1.8.0 and later | A commit reports `deleteFailed`; assets and SVGs checked         |
-| 2.10.x | 5        | 1.8.0 and later | A send may carry a note's diagrams as PNG attachments            |
-| 2.9.x  | 4        | 1.8.0 and later | Alias `from`, refused and unconfirmed sends, `MAIL_FROM` checked |
-| 2.8.x  | 3        | 1.8.0 and later | The site's tab icon, named by its theme                          |
-| 2.7.x  | 3        | 1.8.0 and later | Slideshows, filmstrip thumbnails, header tags and tag pages      |
-| 2.6.x  | 1        | 1.8.0 and later | Notes cached in memory, parallel SFTP, one login per publish     |
-| 2.5.x  | 1        | 1.8.0 and later | Sent folder by tag, state guard, absolute `STATE_ROOT`           |
-| 2.4.x  | 1        | 1.8.0 and later | Validated search body, fetch and asset byte bounds               |
-| 2.3.x  | 1        | 1.8.0 and later | `TRUST_PROXY`, Node 24, image without Mermaid's tree             |
-| 2.2.x  | 1        | 1.8.0 and later | Per-target switches, publish history, JSON logs                  |
-| 2.1.x  | 1        | 1.8.0 and later | Mail and publishing                                              |
-| 2.0.x  | 1        | 1.8.0 and later | Mail only; `BRIDGE_TOKEN` renamed to `MAIL_TOKEN`                |
-| 1.0.x  | —        | 1.7.0           | Mail only, single token, no version handshake                    |
+| Bridge | Protocol | Plugin          | Notes                                                                                                |
+| ------ | -------- | --------------- | ---------------------------------------------------------------------------------------------------- |
+| 3.0.x  | 8        | 1.8.0 and later | `/search` `exclude`, quiet `/health`; plan `conflicts`, diagnostics without the root path; see below |
+| 2.13.x | 7        | 1.8.0 and later | `:folder:` in a note is drawn as the plugin's icon                                                   |
+| 2.12.x | 7        | 1.8.0 and later | `/attachments` hands over a received mail's files                                                    |
+| 2.11.x | 6        | 1.8.0 and later | A commit reports `deleteFailed`; assets and SVGs checked                                             |
+| 2.10.x | 5        | 1.8.0 and later | A send may carry a note's diagrams as PNG attachments                                                |
+| 2.9.x  | 4        | 1.8.0 and later | Alias `from`, refused and unconfirmed sends, `MAIL_FROM` checked                                     |
+| 2.8.x  | 3        | 1.8.0 and later | The site's tab icon, named by its theme                                                              |
+| 2.7.x  | 3        | 1.8.0 and later | Slideshows, filmstrip thumbnails, header tags and tag pages                                          |
+| 2.6.x  | 1        | 1.8.0 and later | Notes cached in memory, parallel SFTP, one login per publish                                         |
+| 2.5.x  | 1        | 1.8.0 and later | Sent folder by tag, state guard, absolute `STATE_ROOT`                                               |
+| 2.4.x  | 1        | 1.8.0 and later | Validated search body, fetch and asset byte bounds                                                   |
+| 2.3.x  | 1        | 1.8.0 and later | `TRUST_PROXY`, Node 24, image without Mermaid's tree                                                 |
+| 2.2.x  | 1        | 1.8.0 and later | Per-target switches, publish history, JSON logs                                                      |
+| 2.1.x  | 1        | 1.8.0 and later | Mail and publishing                                                                                  |
+| 2.0.x  | 1        | 1.8.0 and later | Mail only; `BRIDGE_TOKEN` renamed to `MAIL_TOKEN`                                                    |
+| 1.0.x  | —        | 1.7.0           | Mail only, single token, no version handshake                                                        |
 
 ## Capabilities
 
@@ -70,8 +70,8 @@ token must belong to the capability that owns the route.
 | `POST` | `/search`              | mail       | `{criteria:{from?,to?,subject?,text?,since?,references?}, mailbox?, limit?, exclude?}` | `{messages[], mailbox, truncated}`                                                    |
 | `POST` | `/attachments`         | mail       | `{uid, mailbox?}`                                                                      | `{uid, attachments:[{filename, contentType, content}], skipped:[{filename, reason}]}` |
 | `GET`  | `/publish/targets`     | publish    | —                                                                                      | `{targets:[{name, baseUrl, siteTitle}]}`                                              |
-| `POST` | `/publish/diagnostics` | publish    | `{target}`                                                                             | `{ok, root, entries}` or `{ok:false, error}`; a missing web root is `ok:false`        |
-| `POST` | `/publish/plan`        | publish    | `{target, index}`                                                                      | what to upload, and what will be deleted                                              |
+| `POST` | `/publish/diagnostics` | publish    | `{target}`                                                                             | `{ok, rootExists, entries}` or `{ok:false, error}`; a missing root is `ok:false`      |
+| `POST` | `/publish/plan`        | publish    | `{target, index}`                                                                      | what to upload, what will be deleted, and the `conflicts` in the way                  |
 | `PUT`  | `/publish/source`      | publish    | raw Markdown, `?target=&sha256=`                                                       | `{sha256, bytes}`                                                                     |
 | `PUT`  | `/publish/asset`       | publish    | raw bytes, `?target=&sha256=&name=`                                                    | `{sha256, bytes, path}`                                                               |
 | `PUT`  | `/publish/thumbnail`   | publish    | raw JPEG or PNG, `?target=&source=&sha256=&name=`                                      | `{sha256, bytes, path}`                                                               |
@@ -90,6 +90,10 @@ other, and is answered with the public shape.
 `/diagnostics` opens a real connection with the configured credentials and
 reports each protocol on its own, because a health check that says only "a
 process is alive" cannot answer "is my configuration right".
+`/publish/diagnostics` runs on the target's shared connection and answers from
+its last attempt for 30 seconds: each test is a login, and a host that counts
+failed logins bans the address that makes them. It says whether the web root is
+there, never where.
 
 Every error carries a stable `code` and the `requestId` that identifies it in
 the logs:
@@ -212,6 +216,29 @@ one that was never uploaded — the plugin gave up halfway — refuses the commi
 with `409 assets_missing`, naming the files, as a missing source does with
 `sources_missing`. Running the plan again asks for them.
 
+**Only files the bridge wrote are written.** A page, a stylesheet or an
+upload whose path the manifest does not know, and that the host already
+has, belongs to someone else — the host's placeholder `index.html`, another
+tool's page. Overwriting it made the manifest claim it, and a later publish
+delete it. The plan now lists such files as `conflicts` (protocol 8), and an
+upload or a commit that would write one is refused with `409 path_conflict`
+naming them; an asset already there with the very bytes about to be written
+is the same file and goes ahead. `PUBLISH_<TARGET>_ADOPT_EXISTING=true` lets a
+target take such files over — for a site that was published before by other
+means, or whose manifest was lost.
+
+**Uploads have a budget.** Uploads arrive outside the publish lock, before
+the commit that names them. Between two commits a target takes at most
+`PUBLISH_MAX_UPLOADS` uploads (4000) and `PUBLISH_MAX_PUBLISH_BYTES` (500 MB)
+and answers `413 quota_exceeded` beyond them, counted in memory since the last
+commit or start. Every asset is recorded in `<state>/pending.json` before its
+bytes are written, and the next commit removes those its index does not use
+and counts them as `abandoned`, so an upload no commit came for does not stay
+on the host for good. Uploads and commits to one target do not overlap; each
+refuses with `409 publish_in_progress` while the other runs. A commit holds at
+most 200 MB of note text, and a stored note that no longer hashes to its name
+is removed rather than published, so the next plan asks for it again.
+
 **Each publish leaves a trace.** `<state>/history.json` keeps the last fifty
 summaries — when, what was written, what was deleted — so "when did that page
 change" has an answer without a log server. Failing to write it never fails a
@@ -235,22 +262,48 @@ rather than once per file; a connection that failed in a way that may have
 broken it is never reused. Every SFTP operation is under `UPSTREAM_TIMEOUT_MS`,
 a transfer under that plus a minute per 7.5 MB of the file, and every publish
 request under its own budget; when a request runs out, its
-connection is closed, which is what fails the operation the server never
-answered and frees the target for the next publish. The connection pings the
+connection is closed at once, which is what fails the operation the server
+never answered and frees the target for the next publish. The request is
+abandoned as well: every operation it would still start is refused before it
+reaches the server, so a commit that ran out of time cannot write a page after
+the next one has begun. The connection pings the
 server every ten seconds and gives up after three unanswered pings, so a line
 that died without a word is noticed within the minute.
 
-An uploaded asset has to be what its name says: a PNG or JPEG begins like one,
-and an SVG passes the tab icon's check below — no script, no event handler,
-nothing loaded from elsewhere — since it is served from the site's own domain.
-A drawing's own fonts and pictures embedded as `data:` URIs are allowed there,
-since an Excalidraw or draw.io export carries them.
+An uploaded asset has to be what its name says: a PNG, JPEG, GIF, WebP or
+AVIF, and an MP4, M4V, QuickTime, WebM or Ogg video, begins the way its format
+does. An SVG is served from the site's own domain, where one opened on its own
+runs whatever it carries, so it is read as an XML parser reads it and held to
+an allow-list (`publish/svg-guard.mjs`): the elements and attributes a drawing
+is made of, no namespace prefix but `xlink`, no DTD with entities, no
+processing instruction but the XML declaration, no event handler, no animation
+of a link, and no reference out of the document once character references are
+decoded. A drawing's own fonts and pictures embedded as `data:` URIs are
+allowed there, since an Excalidraw or draw.io export carries them; draw.io's
+HTML labels, which are `foreignObject`, are not.
 One that fails is refused with `400 asset_rejected`.
 
 Every write goes to a temporary name and is renamed over its target, so a reader
-never sees a half-written page. The host key is checked against a configured
-fingerprint: a stateless container cannot trust on first use, because it would
-re-trust a new key after every restart.
+never sees a half-written page. Every directory between the configured root and
+the file is looked at first, once per connection, and a link — a directory that
+points elsewhere — is refused for a write, a deletion or pruning alike, in the
+web root and in the state directory. The host key is checked against a
+configured fingerprint: a stateless container cannot trust on first use,
+because it would re-trust a new key after every restart.
+
+**Headers, where the bridge can set them.** A target with
+`PUBLISH_<TARGET>_HTACCESS=true` — the default for one that keeps its state
+in the web root, which is the shared Apache host — gets two files the bridge
+writes and keeps in its manifest: `.htaccess` at the root, which sends a
+content security policy, `X-Content-Type-Options: nosniff` and a referrer
+policy with every page, and `assets/.htaccess`, which serves every SVG with
+`Content-Security-Policy: sandbox`, so a drawing opened on its own has no
+origin to act in. The policy allows the site's own scripts and its one inline
+script by hash, inline styles (KaTeX and Mermaid write them), pictures and
+video from anywhere, and frames for a video a note embeds; a theme that loads
+a web font needs `PUBLISH_<TARGET>_CSP`. A `.htaccess` the operator keeps there
+is left alone, with a warning. Other servers take the same headers from their
+own configuration; `PUBLISHING.md` has them for nginx and Caddy.
 
 The rendered site is static. Maths is rendered to HTML by KaTeX at publish time;
 Mermaid needs JavaScript, and only on pages that contain a diagram, from a
@@ -308,9 +361,9 @@ A theme may name the site's **tab icon**:
 was sent, writes it as `assets/site-icon.svg` (or `.png`) and links it from
 every page's head, because a browser asks for an icon by address and never
 looks inside a stylesheet. The icon is served from the site's own domain, so it
-is checked: at most 32 kB, an SVG whose root is `<svg>` with no script, no
-event handler, no `foreignObject`, no `javascript:` and nothing loaded from
-elsewhere, or a PNG that begins like one. An icon that fails is left out — the
+is checked: at most 32 kB, an SVG held to the drawing allow-list above with no
+`data:` URIs of its own, or a PNG that begins like one. An icon that fails is
+left out — the
 site loses its tab icon, not its publish. An SVG icon may carry its own
 `prefers-color-scheme` rule to switch for a dark tab bar. No field of the index
 changed: the theme was always sent, so the protocol stays at 3.
@@ -385,11 +438,16 @@ anyone between — that does not offer the upgrade fails the connection rather
 than receiving the password in the clear. SMTP has always required it.
 
 **Where a target keeps its state.** `PUBLISH_<TARGET>_STATE_ROOT` is an
-absolute path on the SFTP host, and it holds every published note's Markdown as
-written — frontmatter and `%%` comments included — beside an index naming each
-note's place in the vault. Put it outside the web root wherever the host allows
-that. Left out, it defaults to `<ROOT>/.schreibstube`, inside the served tree,
-and then:
+absolute path on the SFTP host, and it holds every published note's Markdown —
+a current plugin leaves out the frontmatter and the `%%` comments, an older one
+sent the note as written — beside an index naming each note's place in the
+vault. It belongs outside the
+web root. Left out, it is `<ROOT>/.schreibstube`, inside the served tree, and
+**since bridge 3.0 the bridge refuses to start with the state inside the web
+root** unless `PUBLISH_<TARGET>_STATE_IN_ROOT=true` says the host allows nothing
+else. To migrate, either set `PUBLISH_<TARGET>_STATE_ROOT` to a directory
+outside the root and move the existing `.schreibstube` directory there, or set
+`PUBLISH_<TARGET>_STATE_IN_ROOT=true`. With the state in the root:
 
 - the bridge writes a `.htaccess` that denies everything into that directory
   before the first file lands there. Apache honours it, which covers most
@@ -400,6 +458,13 @@ and then:
   ```nginx
   location ^~ /.schreibstube/ { deny all; }
   ```
+
+**A target's own token.** `PUBLISH_<TARGET>_TOKEN` gives one target a token
+that alone opens it, under the same rules as every token: at least 24
+characters, not the example value, and shared with no other token. A token
+that does not open a target is answered as if the target did not exist, and
+`/publish/targets` lists only what the token opens. `PUBLISH_TOKEN` keeps
+opening every target without a token of its own.
 
 **Budgets.** `REQUEST_TIMEOUT_MS` (30 s) bounds a request, reading its body
 included, and `UPSTREAM_TIMEOUT_MS` (20 s) each operation against a mail or
@@ -416,8 +481,9 @@ The size limits are variables too: `MAX_BODY_BYTES` for a request body,
 `MAX_TEXT_CHARS` for the text kept from a message and `MAX_MESSAGE_BYTES` for
 what one message may weigh on the wire; `PUBLISH_MAX_SOURCE_BYTES`,
 `PUBLISH_MAX_IMAGE_BYTES`, `PUBLISH_MAX_VIDEO_BYTES`, `PUBLISH_MAX_INDEX_BYTES`
-and `PUBLISH_MAX_FILES` for a publication. `.env.example` lists them with their
-defaults.
+and `PUBLISH_MAX_FILES` for a publication, and `PUBLISH_MAX_PUBLISH_BYTES` and
+`PUBLISH_MAX_UPLOADS` for what a target takes between two commits.
+`.env.example` lists them with their defaults.
 
 A send may carry pictures, `attachments: [{filename, contentType, content}]`
 with the content in base64: the diagrams of a note, drawn by the plugin because
@@ -554,11 +620,19 @@ are the entire perimeter:
   longest route's budget. Headers must arrive within 10 seconds, and at most
   `MAX_CONNECTIONS` sockets (100) are open at once. A URL the parser cannot
   read is a 400.
-- A publish target's state directory is kept out of the web root, or, at its
-  default inside it, guarded by a deny `.htaccess` and a warning at every start
-  (see Configuration). So is a target that publishes raw HTML from notes
-  (`PUBLISH_<TARGET>_ALLOW_HTML`, on by default for a personal site): a vault
-  with more than one author should turn it off.
+- A publish target's state directory is kept out of the web root; the bridge
+  refuses to start with it inside unless told the host allows nothing else,
+  and then guards it with a deny `.htaccess` and a warning at every start (see
+  Configuration).
+- A publish writes only files the bridge wrote before, follows no linked
+  directory, and takes a bounded amount between commits. A target may have a
+  token of its own, so one site's token opens no other.
+- The plugin asks before sending a token to a bridge address the device has
+  not sent it to, since the address syncs with the vault and the token does
+  not.
+- A target that publishes raw HTML from notes (`PUBLISH_<TARGET>_ALLOW_HTML`,
+  on by default for a personal site) is said in a warning at every start: a
+  vault with more than one author should turn it off.
 - Add an IP allowlist or rate limit at the platform level if your provider
   offers one.
 

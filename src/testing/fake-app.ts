@@ -27,6 +27,8 @@ export interface FakeVault {
   app: FakeApp;
   file(path: string): TFile;
   frontmatterOf(path: string): Record<string, unknown>;
+  /** What the app keeps per device, outside the synced vault. */
+  deviceStorage: Map<string, unknown>;
 }
 
 interface FakeApp {
@@ -48,17 +50,23 @@ interface FakeApp {
     ): Promise<void>;
   };
   secretStorage: { getSecret(name: string): string | null };
+  loadLocalStorage(key: string): unknown;
+  saveLocalStorage(key: string, value: unknown): void;
 }
 
 export function fakeVault({
   notes = [],
   binaries = [],
-  secrets = { "publish-token": "t".repeat(32), "mail-token": "m".repeat(32) }
+  secrets = { "publish-token": "t".repeat(32), "mail-token": "m".repeat(32) },
+  device = {}
 }: {
   notes?: FakeNote[];
   binaries?: FakeBinary[];
   secrets?: Record<string, string>;
+  /** What this device has kept from earlier sessions, by key. */
+  device?: Record<string, unknown>;
 } = {}): FakeVault {
+  const deviceStorage = new Map<string, unknown>(Object.entries(device));
   const files = new Map<string, TFile>();
   const contents = new Map<string, string>();
   const frontmatter = new Map<string, Record<string, unknown>>();
@@ -120,7 +128,12 @@ export function fakeVault({
         frontmatter.set(file.path, current);
       }
     },
-    secretStorage: { getSecret: (name) => secrets[name] ?? null }
+    secretStorage: { getSecret: (name) => secrets[name] ?? null },
+    // As Obsidian's: null for a key never saved.
+    loadLocalStorage: (key) => deviceStorage.get(key) ?? null,
+    saveLocalStorage: (key, value) => {
+      deviceStorage.set(key, value);
+    }
   };
 
   return {
@@ -130,6 +143,7 @@ export function fakeVault({
       if (!file) throw new Error(`no file at ${path}`);
       return file;
     },
-    frontmatterOf: (path) => frontmatter.get(path) ?? {}
+    frontmatterOf: (path) => frontmatter.get(path) ?? {},
+    deviceStorage
   };
 }

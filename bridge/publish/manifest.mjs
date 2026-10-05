@@ -4,7 +4,7 @@ import { assetPath, pagePath, tagPagePath, thumbnailPath } from "./path.mjs";
 export const MANIFEST_VERSION = 1;
 
 /** Uploaded assets and their thumbnails are recognisable by their names. */
-const UPLOADED_ASSET = /^assets\/(thumbs\/)?[0-9a-f]{12}-/;
+export const UPLOADED_ASSET = /^assets\/(thumbs\/)?[0-9a-f]{12}-/;
 
 export function emptyManifest(target) {
   return {
@@ -100,6 +100,22 @@ export function planUploads({ index, manifest, storedSourceHashes }) {
     unchangedSources: index.notes.length - uploadSources.length,
     notes: index.notes.length
   };
+}
+
+/**
+ * The files a commit of this index will write that can be named before
+ * rendering: every page, the index and the stylesheet, and the uploads the
+ * plan asks for. What else the pages turn out to need — KaTeX, the diagram
+ * bundle — is only known at commit, and is checked there.
+ */
+export function plannedOutputs(index, plan) {
+  const paths = new Set(["index.html", "assets/theme.css"]);
+  for (const note of index.notes) paths.add(pagePath(note.slug));
+  for (const tag of index.headerTags ?? []) {
+    if (index.notes.some((note) => note.tags?.includes(tag))) paths.add(tagPagePath(tag));
+  }
+  for (const entry of [...plan.uploadAssets, ...plan.uploadThumbnails]) paths.add(entry.path);
+  return [...paths].sort();
 }
 
 /**

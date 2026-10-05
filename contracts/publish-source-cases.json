@@ -1,0 +1,55 @@
+{
+  "description": "What the plugin uploads of a note for publishing, and the proof it renders the same: the bridge's renderer must read each upload exactly as it reads the note. Read by src/services/publish-source.test.ts and bridge/publish/publish-source-contract.test.mjs.",
+  "cases": [
+    {
+      "name": "frontmatter and an inline comment",
+      "note": "---\ntitle: Hallo\npublished: true\n---\n# Hallo\n\nText %%nur für mich%% weiter.\n",
+      "upload": "# Hallo\n\nText  weiter.\n"
+    },
+    {
+      "name": "a comment across lines",
+      "note": "Eins\n%%\nEntwurf, nicht zeigen\n%%\nZwei\n",
+      "upload": "Eins\n\nZwei\n"
+    },
+    {
+      "name": "a comment marker inside a fenced block is code",
+      "note": "```sql\nSELECT '%%' AS x; -- %% bleibt\n```\n",
+      "upload": "```sql\nSELECT '%%' AS x; -- %% bleibt\n```\n"
+    },
+    {
+      "name": "a comment marker inside inline code is code",
+      "note": "`%%` steht da, %%das nicht%% hier",
+      "upload": "`%%` steht da,  hier"
+    },
+    {
+      "name": "an unclosed marker is text",
+      "note": "50%% Rabatt auf alles\n",
+      "upload": "50%% Rabatt auf alles\n"
+    },
+    {
+      "name": "a note with neither",
+      "note": "# Schlicht\n\nNur Text.\n",
+      "upload": "# Schlicht\n\nNur Text.\n"
+    },
+    {
+      "name": "a body that begins like frontmatter keeps a block for the renderer to take",
+      "note": "---\na: 1\n---\n---\nkein Kopf\n---\nText\n",
+      "upload": "---\n\n---\n---\nkein Kopf\n---\nText\n"
+    },
+    {
+      "name": "a comment whose removal leaves a frontmatter-like start",
+      "note": "%%x%%---\nfoo\n---\nText\n",
+      "upload": "---\n\n---\n---\nfoo\n---\nText\n"
+    },
+    {
+      "name": "frontmatter closed with dots is not the renderer's, and stays",
+      "note": "---\ntitle: A\n...\nText %%weg%%\n",
+      "upload": "---\ntitle: A\n...\nText \n"
+    },
+    {
+      "name": "a comment whose removal would pair backticks anew travels as written",
+      "note": "%`a%%`%a%",
+      "upload": "%`a%%`%a%"
+    }
+  ]
+}

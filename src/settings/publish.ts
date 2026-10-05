@@ -24,6 +24,7 @@ import { createLogger } from "../services/logger";
 import { checkTarget, listTargets } from "../platform/publish-client";
 import type { PublishBridgeConfig, PublishTarget } from "../services/publish-protocol";
 import { resolveApiKey } from "../services/secret";
+import { confirmBridge } from "../controllers/bridge-trust";
 import type { SettingsContext } from "./context";
 import { fold, markAi, section } from "./layout";
 
@@ -346,7 +347,7 @@ async function saveAccounts(
  * target field into a list.
  */
 async function testTarget(ctx: SettingsContext, account: PublishAccount): Promise<void> {
-  const bridge = resolveBridge(ctx);
+  const bridge = await resolveBridge(ctx);
   if (!bridge) return;
 
   try {
@@ -365,7 +366,7 @@ async function testTarget(ctx: SettingsContext, account: PublishAccount): Promis
   }
 }
 
-function resolveBridge(ctx: SettingsContext): PublishBridgeConfig | null {
+async function resolveBridge(ctx: SettingsContext): Promise<PublishBridgeConfig | null> {
   const settings = ctx.plugin.settings;
   const url = normalizeBaseUrl(settings.publishBridgeUrl || settings.mailBridgeUrl);
   if (!url.ok) {
@@ -383,5 +384,10 @@ function resolveBridge(ctx: SettingsContext): PublishBridgeConfig | null {
     return null;
   }
 
+  // The test sends the token as a publish would, so it asks as a publish would.
+  if (!(await confirmBridge(ctx.app, "publish", url.url))) {
+    new Notice(t().common.notice(t().bridgeTrust.declined));
+    return null;
+  }
   return { baseUrl: url.url, token: token.apiKey };
 }

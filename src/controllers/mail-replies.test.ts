@@ -18,6 +18,8 @@ vi.mock("../platform/mail-client", () => ({
 }));
 vi.mock("../platform/publish-client", () => ({ bridgeHealth: mocks.health }));
 vi.mock("./diagram-capture", () => ({ DiagramCapture: class {} }));
+// The bridge's address is confirmed in a dialogue; here, as a person would.
+vi.mock("../ui/bridge-origin-modal", () => ({ askToSendToken: async () => true }));
 vi.mock("../ui/mail-modals", () => ({
   MailConfirmModal: class {},
   MailSearchModal: class {},

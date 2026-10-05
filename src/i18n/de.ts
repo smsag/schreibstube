@@ -175,6 +175,12 @@ export const de: Messages = {
     planDelete: (count: number) => `${count} Datei(en) werden gelöscht`,
     planDeleteHeading: "Wird gelöscht:",
     planMore: (count: number) => `… und ${count} weitere`,
+    planConflicts: (count: number) =>
+      count === 1
+        ? "1 Datei auf dem Webspace stammt nicht von Schreibstube und würde überschrieben, darum veröffentlicht die Bridge nicht:"
+        : `${count} Dateien auf dem Webspace stammen nicht von Schreibstube und würden überschrieben, darum veröffentlicht die Bridge nicht:`,
+    planConflictsHelp:
+      "Entferne sie vom Webspace oder lass die Bridge sie übernehmen, indem du in ihrer Konfiguration PUBLISH_<ZIEL>_ADOPT_EXISTING=true setzt.",
     planConfirm: "Veröffentlichen",
     chooseAccount: "Konto wählen",
 
@@ -293,6 +299,24 @@ export const de: Messages = {
     figureAttached: (filename: string) => `im Anhang: ${filename}`,
     changedSinceShown:
       "Die Notiz hat sich geändert, während dieser Dialog offen war. So lautet sie jetzt — bitte prüfen und erneut auf Senden drücken."
+  },
+
+  bridgeTrust: {
+    mail: "E-Mail",
+    publish: "Veröffentlichungs",
+    titleNew: "Token an diese Bridge senden?",
+    titleChanged: "Die Adresse der Bridge hat sich geändert",
+    messageNew: (capability: string, origin: string) =>
+      `Dieses Gerät hat sein ${capability}-Token noch nie an ${origin} gesendet. Die Adresse ` +
+      "stammt aus den Plugin-Einstellungen, die mit dem Vault synchronisiert werden. Sende das " +
+      "Token nur, wenn das deine Bridge ist.",
+    messageChanged: (capability: string, origin: string, previous: string) =>
+      `Dieses Gerät hat sein ${capability}-Token bisher an ${previous} gesendet; die ` +
+      `Einstellungen nennen jetzt ${origin}. Wer einen synchronisierten Vault bearbeiten kann, ` +
+      "kann diese Adresse ändern und bekäme das Token. Sende es nur, wenn du die Adresse selbst " +
+      "geändert hast.",
+    confirm: "Token senden",
+    declined: "die Adresse der Bridge wurde nicht bestätigt, darum wurde nichts gesendet."
   },
 
   diagnostics: {

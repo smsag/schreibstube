@@ -11,8 +11,13 @@ const mocks = vi.hoisted(() => ({
   sendMail: vi.fn(),
   health: vi.fn(),
   capture: vi.fn(),
-  shown: [] as Record<string, unknown>[]
+  shown: [] as Record<string, unknown>[],
+  askToSendToken: vi.fn()
 }));
+
+// Whether the token may go to the bridge is asked in a dialogue; a test
+// answers it, and can see that it was asked.
+vi.mock("../ui/bridge-origin-modal", () => ({ askToSendToken: mocks.askToSendToken }));
 
 vi.mock("../platform/mail-client", () => ({ sendMail: mocks.sendMail, searchMail: vi.fn() }));
 vi.mock("../platform/publish-client", () => ({ bridgeHealth: mocks.health }));
@@ -60,8 +65,8 @@ function commands(content: string) {
 }
 
 /** The commands over settings a test can change between sends. */
-function commandsWith(content: string) {
-  const vault = fakeVault({ notes: [{ path: "Plan.md", content }] });
+function commandsWith(content: string, device: Record<string, unknown> = {}) {
+  const vault = fakeVault({ notes: [{ path: "Plan.md", content }], device });
   const file = vault.app.vault.getAbstractFileByPath("Plan.md");
   const app = { ...vault.app, workspace: { getActiveFile: () => file } };
   const settings = normalizeSettings({
@@ -75,7 +80,7 @@ function commandsWith(content: string) {
     warn: () => {},
     error: () => {}
   } as never);
-  return { mail, settings };
+  return { mail, settings, vault };
 }
 
 async function sent(): Promise<Record<string, unknown>> {
@@ -86,6 +91,8 @@ async function sent(): Promise<Record<string, unknown>> {
 beforeEach(() => {
   Notice.shown = [];
   mocks.shown.length = 0;
+  mocks.askToSendToken.mockReset();
+  mocks.askToSendToken.mockResolvedValue(true);
 
   mocks.sendMail.mockReset();
   mocks.sendMail.mockResolvedValue({
@@ -98,6 +105,36 @@ beforeEach(() => {
   mocks.health.mockResolvedValue({ version: "2.10.0", protocol: 5, capabilities: ["mail"] });
   mocks.capture.mockReset();
   mocks.capture.mockResolvedValue({ pictures: [PNG], expected: 1, title: "SWOT" });
+});
+
+describe("the bridge the mail token goes to", () => {
+  const KEY = "schreibstube-mail-bridge-origin";
+
+  it("is asked about once from a device, and then remembered", async () => {
+    const { mail, vault } = commandsWith(canvasNote);
+    await mail.sendNoteAsEmail();
+    await sent();
+    expect(mocks.askToSendToken).toHaveBeenCalledTimes(1);
+    expect(vault.deviceStorage.get(KEY)).toBe("https://bridge.example.app");
+
+    mocks.sendMail.mockClear();
+    await mail.sendNoteAsEmail();
+    await sent();
+    expect(mocks.askToSendToken).toHaveBeenCalledTimes(1);
+  });
+
+  it("is not sent to when the synced settings name another bridge and nobody confirms", async () => {
+    mocks.askToSendToken.mockResolvedValue(false);
+    const { mail, vault } = commandsWith(canvasNote, { [KEY]: "https://mine.example.app" });
+
+    await mail.sendNoteAsEmail();
+    expect(mocks.askToSendToken.mock.calls[0]?.[1]).toMatchObject({
+      message: expect.stringContaining("https://mine.example.app")
+    });
+    expect(mocks.sendMail).not.toHaveBeenCalled();
+    expect(vault.deviceStorage.get(KEY)).toBe("https://mine.example.app");
+    expect(Notice.shown.join(" ")).toContain("not confirmed");
+  });
 });
 
 describe("sending a note with a diagram", () => {

@@ -17,8 +17,11 @@ an acknowledgement within a week.
 
 Each credential is sent to exactly one host: a GitHub token only to GitHub, a
 provider key only to that provider's endpoint, a bridge token only to the
-configured bridge URL, which must be HTTPS unless loopback. A mail token opens
-no publish route and the other way round.
+configured bridge URL, which must be HTTPS unless loopback. That URL syncs with
+the vault and the token does not, so each device remembers where it sent each
+token and asks before sending it to another origin. A mail token opens no
+publish route and the other way round, and a publish target may have a token
+that alone opens it.
 
 ## The perimeter
 
@@ -31,13 +34,21 @@ than one proxy) so the address is the caller's rather than the proxy's. A
 request refused before its body arrived is closed, and `/health` names the
 bridge's version and capabilities only to a token holder. Request bodies are capped per
 route, every outbound operation has a deadline, uploads must hash to what they
-claim, the SFTP host key is pinned, and a remote write refuses to follow a
-symlink. Nothing is persisted on the bridge.
+claim and begin like the format they name, the SFTP host key is pinned, and a
+remote write, deletion or pruning refuses to follow a link at any directory
+below the root. A publish writes only files the bridge wrote before, takes a
+bounded amount between commits, and stops writing the moment its request runs
+out of time. Nothing is persisted on the bridge.
 
 On the published site, raw HTML from a note is passed through only when the
 target allows it (`PUBLISH_<TARGET>_ALLOW_HTML`, on by default for a personal
 site, and said in a warning at every start); a vault with more than one author
-should turn it off.
+should turn it off. An uploaded SVG is held to an allow-list of drawing
+elements and attributes, and where the bridge writes `.htaccess` files the site
+carries a content security policy and serves SVGs in a sandbox
+(`PUBLISHING.md` has the same for nginx and Caddy). A target's state
+directory, which holds the published notes' text, is kept out of the web root
+unless the operator says the host allows nothing else.
 
 ## Text from somebody else
 

@@ -45,11 +45,13 @@ function indexFor(sources) {
   };
 }
 
+const TOKEN = "b".repeat(32);
 const sftp = await startSftpServer({ latencyMs: LATENCY_MS });
 const config = {
   requestTimeoutMs: 30_000,
   upstreamTimeoutMs: 20_000,
   publish: {
+    token: TOKEN,
     maxSourceBytes: 2_000_000,
     maxImageBytes: 10_000_000,
     maxVideoBytes: 25_000_000,
@@ -80,7 +82,13 @@ let routes = createPublishRoutes(config, { version: "bench" });
 const call = (method, path, request) =>
   routes
     .find((route) => route.method === method && route.path === path)
-    .handler({ log: () => {}, requestId: "bench", query: new URLSearchParams(), ...request });
+    .handler({
+      log: () => {},
+      requestId: "bench",
+      query: new URLSearchParams(),
+      authorization: `Bearer ${TOKEN}`,
+      ...request
+    });
 
 /** What the plugin does: plan, upload what is missing, commit. */
 async function publish(sources) {

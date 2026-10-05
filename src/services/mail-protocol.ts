@@ -269,6 +269,21 @@ export const MAX_IMPORT_ATTACHMENTS = 20;
 export const MAX_IMPORT_ATTACHMENT_BYTES = 15_000_000;
 export const MAX_IMPORT_TOTAL_BYTES = 25_000_000;
 
+/**
+ * The largest answer the mail bridge gives, in bytes. A search is the large
+ * one among the rest: two hundred messages whose bodies the bridge cut at its
+ * default forty thousand characters, at three bytes a character, is
+ * twenty-four megabytes. A mail's files travel in base64, a third more than
+ * their bytes, with room for the names and the files left out.
+ */
+export const MAX_MAIL_RESPONSE_BYTES = 32_000_000;
+export const MAX_ATTACHMENTS_RESPONSE_BYTES = Math.ceil(MAX_IMPORT_TOTAL_BYTES / 3) * 4 + 4_000_000;
+
+/** How large the answer from a mail route may be. */
+export function mailResponseLimit(path: string): number {
+  return path === "/attachments" ? MAX_ATTACHMENTS_RESPONSE_BYTES : MAX_MAIL_RESPONSE_BYTES;
+}
+
 export interface AttachmentsRequest {
   uid: number;
   mailbox?: string;

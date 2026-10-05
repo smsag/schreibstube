@@ -4,13 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
-The bridge moves to 3.0.0, protocol 8: it closes its perimeter and stops
-being a relay for whoever holds the mail token, and reply fetches step past
-what a note already holds. It is a major version because it may refuse to
-start, or refuse sends, where 2.13.2 did not: a placeholder or monotonous
-token, one token for both capabilities, and a From outside `MAIL_FROM` and
-the new `MAIL_FROM_ALLOWED` — see Changed for the migration. The plugin works
-with either bridge.
+The bridge moves to 3.0.0, protocol 8: it closes its perimeter, stops
+being a relay for whoever holds the mail token, and publishes only into files
+it owns, within a budget, from a state directory outside the web root; reply
+fetches step past what a note already holds, and a publish plan names the
+files in its way. It is a major version because it may refuse to start, or
+refuse sends, where 2.13.2 did not: a placeholder or monotonous token, one
+token for both capabilities, a target whose state lies inside its web root,
+and a From outside `MAIL_FROM` and the new `MAIL_FROM_ALLOWED` — see Changed
+for both migrations. The plugin works with either bridge; with a bridge on 7
+a plan names no conflicts.
 
 ### Security
 
@@ -32,10 +35,24 @@ with either bridge.
 - **A mail's attachment is imported only if it is what its name says.** A program renamed `Rechnung.pdf` was saved as one, and opened by whatever opens PDFs on the device. The bridge now checks that each file begins the way its kind does — a PDF's header, a picture's signature, the zip or OLE header of an Office file — and names one that does not as left out, "content is not that type". Names lose the invisible characters that turn `fdp.exe` around on screen into `exe.pdf`, are cut to 200 bytes so a name in Chinese or emoji still saves, and a name Windows keeps for a device, such as `CON.pdf`, gets a `_` in front; the names of files left out are held to the same characters (bridge 3.0.0).
 - **A flood of mail can no longer hide a note's replies.** **Fetch replies into note** took the newest matches up to **Maximum results**, so anyone who sent fifty mails citing a note's Message-ID pushed its genuine replies out of every later fetch, and the plugin said so only in its log. The fetch now tells the bridge which replies the note already holds, and a bridge from 3.0.0 (protocol 8) steps past them, so each fetch reaches further back; when replies were left behind a notice says so and that running the command again reaches them — or, with an older bridge, that it needs updating. A search from the search dialogue that was cut off says so too. `schreibstubeMergedIds` keeps the newest 500 entries, and a `schreibstubeMessageId` that is not shaped like a Message-ID — a lone `<` matched every reply in the mailbox — is ignored rather than searched for.
 - **The bridge says at every start when a site publishes raw HTML from notes.** `PUBLISH_<TARGET>_ALLOW_HTML` stays on by default, since on a personal site it is how a note embeds what Markdown cannot; but a vault with more than one author lets each of them put script on the site, and only the operator knows which kind this is. The warning names the target and the variable that turns it off (bridge 3.0.0).
+- **A bridge address the device has not used is confirmed before a token goes there.** The mail and publish bridge URLs sync with the vault, the tokens do not, so anyone who could edit a shared vault could point a URL at their own server and receive your token. Each device now remembers, outside the vault, where it sent each token, and asks — once on the first send, and whenever the settings name another address. Publishing, the connection test and mail all ask; declining sends nothing.
+- **A published note's frontmatter and `%%` comments stay in the vault.** The bridge keeps a copy of every note it renders on the web host, and that copy carried both, although no page ever showed them. The note is now uploaded as the site reads it; the page is the same, and each note is uploaded once more after the update.
+- **An answer from the bridge is bounded in size.** Every request to the mail and publish bridges had a deadline but took whatever size of answer came back, so a bridge that was not yours could hand the plugin a body of any size to parse. An answer that declares or carries more than the largest the bridge gives — 32 MB for mail, 37 MB for a mail's files, 16 MB for publishing — is now refused with a message saying so.
+- **A publish that would overwrite someone else's file says so first.** With bridge 3.0.0, the plan lists files on the web host that Schreibstube never wrote and the publish would replace — a host's placeholder `index.html`, another tool's page — and nothing is uploaded until they are removed or the bridge is told to take them over.
+- **Only files the bridge wrote are written.** An upload or a commit that would overwrite a file the manifest does not know is refused with `409 path_conflict`, naming it, and the plan lists such files as `conflicts`; `PUBLISH_<TARGET>_ADOPT_EXISTING=true` lets a target take them over (bridge 3.0.0).
+- **Uploaded SVGs are held to an allow-list.** The check was a few patterns over the text, and a script under a namespace prefix, or a link turned into `javascript:` through a character reference, passed it. The drawing is now read as XML and only the elements and attributes of a picture are taken; Excalidraw, draw.io and Mermaid exports pass as before. The site's tab icon is held to the same rule (bridge 3.0.0).
+- **Every picture and video is checked by its first bytes**: GIF, WebP, AVIF, MP4, M4V, QuickTime, WebM and Ogg beside PNG and JPEG (bridge 3.0.0).
+- **No linked directory is followed.** Every directory between the root and a file is looked at before a write, a deletion or pruning, and a link is refused, in the web root and in the state directory (bridge 3.0.0).
+- **Uploads have a budget, and those no commit used are removed.** A target takes `PUBLISH_MAX_PUBLISH_BYTES` (500 MB) and `PUBLISH_MAX_UPLOADS` (4000) between commits; each asset is recorded before it is written, and the next commit removes the ones its index does not use. Uploads and commits no longer overlap, a commit holds at most 200 MB of note text, and a stored note whose bytes no longer match its name is removed rather than published (bridge 3.0.0).
+- **A commit that ran out of time stops writing.** Its connection is closed at once and every operation it would still start is refused, so it cannot write a page after the next publish has begun (bridge 3.0.0).
+- **A target may have a token of its own.** `PUBLISH_<TARGET>_TOKEN`, under the rules of every token, alone opens that target; `PUBLISH_TOKEN` keeps opening the others (bridge 3.0.0).
+- **Site headers on Apache.** Where the bridge writes `.htaccess` files (`PUBLISH_<TARGET>_HTACCESS`, on where the state is in the root), the site gets a content security policy, `nosniff` and a referrer policy, and SVGs under `assets/` are served in a sandbox; `PUBLISHING.md` has the same for nginx and Caddy (bridge 3.0.0).
+- **Connection tests no longer name the web root's path**, run on the shared connection, and answer from the last attempt for 30 seconds, so testing in a loop cannot get the bridge's address banned for failed logins (bridge 3.0.0).
 
 ### Changed
 
 - **Breaking for the bridge: a note's From must be one the operator allowed.** A deployment where notes send as an alias — `schreibstubeFrom` or the plugin's sender setting naming an address other than `MAIL_FROM` — refuses those sends from bridge 3.0.0 on with "The bridge does not send as …". To keep them working, set `MAIL_FROM_ALLOWED` on the bridge to the aliases, comma-separated, or to `@your-domain.de` for every address at the domain, and redeploy. Sends as `MAIL_FROM` itself need nothing.
+- **Breaking for the bridge: a publish target's state must lie outside its web root.** The state directory holds the text of every published note, and its default, `<ROOT>/.schreibstube`, was served by any web server that ignores `.htaccess`. A target with its state inside the web root no longer starts from bridge 3.0.0 on. Set `PUBLISH_<TARGET>_STATE_ROOT` to a directory outside the root and move the existing `.schreibstube` directory there, or, on a host where nothing else is writable, set `PUBLISH_<TARGET>_STATE_IN_ROOT=true`, and redeploy.
 - **An update from a source that brings in code another plugin runs is no longer taken with "Accept all".** A mirrored note shows what its source writes, and a source can write a `dataviewjs` block, Dataview's inline `$=` JavaScript, a Templater `<% %>` command, a JS Engine, Datacore, Meta Bind or Buttons block — which those plugins run with Obsidian's full rights once the note renders or is used. A card that adds or changes one now carries a **runs code** badge, names what it found, and is left out of **Accept all**: you read it and accept it on its own, or not at all. Code that is only shown, like a `js` or `html` fence, is not flagged.
 - **A source that sends binary data is refused.** A server that names no content type, or says `application/octet-stream`, was believed whenever the link ended in `.md`; a body with a NUL byte in it is now reported as not text instead of being offered as cards.
 

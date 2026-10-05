@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   BridgeError,
   buildEndpoint,
+  checkResponseSize,
   extractCode,
   extractError,
   normalizeBaseUrl,
@@ -121,5 +122,36 @@ describe("BridgeError", () => {
     expect(error.message).toBe("the web host error — SFTP failed.");
     expect(error.status).toBe(502);
     expect(error.code).toBe("sftp_error");
+  });
+});
+
+describe("checkResponseSize", () => {
+  it("takes an answer within the bound", () => {
+    expect(() => checkResponseSize({ text: "{}" }, 10)).not.toThrow();
+    expect(() =>
+      checkResponseSize({ headers: { "Content-Length": "2" }, text: "{}" }, 2)
+    ).not.toThrow();
+    expect(() => checkResponseSize({}, 10)).not.toThrow();
+  });
+
+  it("refuses an answer that declares more than the bound, before reading it", () => {
+    expect(() =>
+      checkResponseSize({ headers: { "content-length": "3000001" }, text: "{}" }, 3_000_000)
+    ).toThrow("larger than 3 MB");
+  });
+
+  it("counts the body in bytes, whatever the length it declared", () => {
+    expect(() => checkResponseSize({ text: "x".repeat(11) }, 10)).toThrow();
+    // Four umlauts are eight bytes: inside a bound of eight, past one of seven.
+    expect(() => checkResponseSize({ text: "ääää" }, 8)).not.toThrow();
+    expect(() =>
+      checkResponseSize({ headers: { "content-length": "1" }, text: "ääää" }, 7)
+    ).toThrow();
+  });
+
+  it("ignores a declared length that is not a number", () => {
+    expect(() =>
+      checkResponseSize({ headers: { "content-length": "viel" }, text: "{}" }, 10)
+    ).not.toThrow();
   });
 });

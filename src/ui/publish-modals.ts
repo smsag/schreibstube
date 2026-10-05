@@ -46,13 +46,29 @@ export class PublishPlanModal extends Modal {
       }
     }
 
+    // Shown before anything is uploaded, since the bridge would refuse the
+    // commit: someone else's file on the host is not the publish's to replace.
+    const conflicts = this.plan.conflicts;
+    if (conflicts.length > 0) {
+      contentEl.createEl("p", {
+        text: t().publish.planConflicts(conflicts.length),
+        cls: "schreibstube-publish-heading"
+      });
+      const list = contentEl.createEl("ul", { cls: "schreibstube-publish-list" });
+      for (const path of conflicts.slice(0, 20)) list.createEl("li", { text: path });
+      if (conflicts.length > 20) {
+        list.createEl("li", { text: t().publish.planMore(conflicts.length - 20) });
+      }
+      contentEl.createEl("p", { text: t().publish.planConflictsHelp });
+    }
+
     contentEl.createEl("p", {
       text: this.plan.baseUrl,
       cls: "schreibstube-publish-target"
     });
 
     new Setting(contentEl).addButton((button) => {
-      if (!this.onConfirm) {
+      if (!this.onConfirm || conflicts.length > 0) {
         return button.setButtonText(t().common.close).onClick(() => this.close());
       }
       return button

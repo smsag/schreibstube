@@ -19,7 +19,7 @@ import {
  * its own number on /health, so a mismatch can be named — "redeploy the bridge"
  * — instead of surfacing later as a 404 on a route that does not exist yet.
  */
-export const PROTOCOL_VERSION = 6;
+export const PROTOCOL_VERSION = 8;
 
 /** Plan, targets, diagnostics: a manifest read and a listing. */
 export const PUBLISH_REQUEST_TIMEOUT_MS = 120_000;
@@ -91,6 +91,12 @@ export interface PublishPlan {
   /** The thumbnails the site does not have yet. A protocol-1 bridge sends none. */
   uploadThumbnails: UploadRequest[];
   willDelete: string[];
+  /**
+   * Files on the host the bridge never wrote that this publish would
+   * overwrite, which the bridge refuses to do. Protocol 8; an older bridge
+   * sends none, and overwrites them.
+   */
+  conflicts: string[];
   unchangedSources: number;
   notes: number;
 }
@@ -125,6 +131,15 @@ export interface BridgeHealth {
  * bound on what a wrong bridge can make the plugin loop over.
  */
 export const MAX_PLAN_ENTRIES = 10_000;
+
+/**
+ * The largest answer the publish bridge gives, in bytes. The plan is the
+ * large one: for two thousand notes with a picture and a thumbnail each,
+ * every entry carrying a long vault path, its lists come to about five
+ * megabytes. Three times that is room for paths longer still, and a bound on
+ * what a bridge that is not ours can hand the plugin to parse.
+ */
+export const MAX_PUBLISH_RESPONSE_BYTES = 16_000_000;
 
 export function parseHealth(json: unknown): BridgeHealth {
   const record = asRecord(json);
@@ -174,9 +189,8 @@ export function parsePlan(json: unknown): PublishPlan {
     uploadSources: parseUploads(record.uploadSources),
     uploadAssets: parseUploads(record.uploadAssets),
     uploadThumbnails: parseUploads(record.uploadThumbnails),
-    willDelete: Array.isArray(record.willDelete)
-      ? record.willDelete.slice(0, MAX_PLAN_ENTRIES).map(str).filter(Boolean)
-      : [],
+    willDelete: paths(record.willDelete),
+    conflicts: paths(record.conflicts),
     unchangedSources: number(record.unchangedSources),
     notes: number(record.notes)
   };
@@ -195,6 +209,10 @@ export function parseSummary(json: unknown): PublishSummary {
     collected: number(record.collected),
     durationMs: number(record.durationMs)
   };
+}
+
+function paths(value: unknown): string[] {
+  return Array.isArray(value) ? value.slice(0, MAX_PLAN_ENTRIES).map(str).filter(Boolean) : [];
 }
 
 function parseUploads(value: unknown): UploadRequest[] {

@@ -23,6 +23,15 @@ describe("authenticate", () => {
     expect(authenticate(`Bearer ${PUBLISH}`, tokens)).toBe("publish");
   });
 
+  it("takes any of a capability's tokens, and only for that capability", () => {
+    const targetToken = "t".repeat(32);
+    const several = { mail: MAIL, publish: [PUBLISH, targetToken] };
+    expect(authenticate(`Bearer ${targetToken}`, several)).toBe("publish");
+    expect(authenticate(`Bearer ${PUBLISH}`, several)).toBe("publish");
+    expect(authenticate(`Bearer ${MAIL}`, several)).toBe("mail");
+    expect(authenticate(`Bearer ${"t".repeat(31)}x`, several)).toBeNull();
+  });
+
   it("rejects a missing header", () => {
     expect(authenticate(undefined, tokens)).toBeNull();
   });

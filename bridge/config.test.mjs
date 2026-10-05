@@ -135,6 +135,7 @@ describe("loadConfig, required values", () => {
       PUBLISH_BLOG_PASSWORD: "geheim",
       PUBLISH_BLOG_HOST_FINGERPRINT: "SHA256:abc",
       PUBLISH_BLOG_ROOT: "/var/www/blog",
+      PUBLISH_BLOG_STATE_ROOT: "/var/schreibstube/blog",
       PUBLISH_BLOG_BASE_URL: "https://blog.example.com"
     });
     expect(() => loadConfig(both)).toThrow(/MAIL_TOKEN and PUBLISH_TOKEN are the same/);
@@ -327,10 +328,21 @@ describe("loadConfig, the publish state directory", () => {
     ...overrides
   });
 
-  it("defaults to a directory inside the web root, and says so", () => {
-    const { blog } = loadConfig(publishEnv()).publish.targets;
+  it("refuses to start with the state inside the web root, saying how to move it", () => {
+    expect(() => loadConfig(publishEnv())).toThrow(
+      /PUBLISH_BLOG_STATE_ROOT \(\/var\/www\/blog\/\.schreibstube\) lies inside the web root.*PUBLISH_BLOG_STATE_IN_ROOT=true/
+    );
+    expect(() =>
+      loadConfig(publishEnv({ PUBLISH_BLOG_STATE_ROOT: "/var/www/blog/private" }))
+    ).toThrow(/inside the web root/);
+  });
+
+  it("keeps the state inside the web root when the operator says the host allows nothing else", () => {
+    const { blog } = loadConfig(publishEnv({ PUBLISH_BLOG_STATE_IN_ROOT: "true" })).publish.targets;
     expect(blog.stateRoot).toBe("/var/www/blog/.schreibstube");
     expect(blog.stateInsideRoot).toBe(true);
+    // That host is an Apache host, so the site's headers go into .htaccess.
+    expect(blog.htaccess).toBe(true);
   });
 
   it("knows a directory outside the web root is outside", () => {
@@ -338,6 +350,7 @@ describe("loadConfig, the publish state directory", () => {
       .publish.targets;
     expect(blog.stateRoot).toBe("/var/schreibstube/blog");
     expect(blog.stateInsideRoot).toBe(false);
+    expect(blog.htaccess).toBe(false);
   });
 
   it("refuses a relative state directory, as it refuses a relative root", () => {
@@ -372,6 +385,7 @@ describe("loadConfig, the publish target's own values", () => {
     PUBLISH_BLOG_PASSWORD: "geheim",
     PUBLISH_BLOG_HOST_FINGERPRINT: "SHA256:abc",
     PUBLISH_BLOG_ROOT: "/var/www/blog/",
+    PUBLISH_BLOG_STATE_ROOT: "/var/schreibstube/blog",
     PUBLISH_BLOG_BASE_URL: "https://blog.example.com",
     ...overrides
   });
@@ -406,6 +420,98 @@ describe("loadConfig, the publish target's own values", () => {
     expect(() => loadConfig(publishEnv({ PUBLISH_BLOG_ALLOW_DIAGRAMS: "jein" }))).toThrow(
       /PUBLISH_BLOG_ALLOW_DIAGRAMS/
     );
+    expect(() => loadConfig(publishEnv({ PUBLISH_BLOG_ADOPT_EXISTING: "jein" }))).toThrow(
+      /PUBLISH_BLOG_ADOPT_EXISTING/
+    );
+  });
+
+  it("refuses files it never wrote unless the target may take them over", () => {
+    expect(loadConfig(publishEnv()).publish.targets.blog.adoptExisting).toBe(false);
+    expect(
+      loadConfig(publishEnv({ PUBLISH_BLOG_ADOPT_EXISTING: "true" })).publish.targets.blog
+        .adoptExisting
+    ).toBe(true);
+  });
+
+  it("takes a policy of one printable line, and nothing that would break the header", () => {
+    const policy = "default-src 'self'; img-src * data:";
+    expect(loadConfig(publishEnv({ PUBLISH_BLOG_CSP: policy })).publish.targets.blog.csp).toBe(
+      policy
+    );
+    expect(loadConfig(publishEnv()).publish.targets.blog.csp).toBeUndefined();
+    for (const bad of ['default-src "self"', "default-src 'self'\u0007", "x".repeat(4001)]) {
+      expect(() => loadConfig(publishEnv({ PUBLISH_BLOG_CSP: bad }))).toThrow(/PUBLISH_BLOG_CSP/);
+    }
+  });
+});
+
+describe("loadConfig, publish tokens", () => {
+  const OWN = "own-target-token-0123456789-xyz";
+  const publishEnv = (overrides = {}) => ({
+    PUBLISH_TOKEN: TOKEN,
+    PUBLISH_TARGETS: "blog,notes",
+    ...Object.fromEntries(
+      ["BLOG", "NOTES"].flatMap((name) => [
+        [`PUBLISH_${name}_HOST`, "sftp.example.com"],
+        [`PUBLISH_${name}_USER`, "web"],
+        [`PUBLISH_${name}_PASSWORD`, "geheim"],
+        [`PUBLISH_${name}_HOST_FINGERPRINT`, "SHA256:abc"],
+        [`PUBLISH_${name}_ROOT`, `/var/www/${name.toLowerCase()}`],
+        [`PUBLISH_${name}_STATE_ROOT`, `/var/state/${name.toLowerCase()}`],
+        [`PUBLISH_${name}_BASE_URL`, "https://example.com"]
+      ])
+    ),
+    ...overrides
+  });
+
+  it("lets a target have a token of its own, beside the shared one", () => {
+    const { publish } = loadConfig(publishEnv({ PUBLISH_BLOG_TOKEN: ` ${OWN} ` }));
+    expect(publish.targets.blog.token).toBe(OWN);
+    expect(publish.targets.notes.token).toBeUndefined();
+    expect(publish.tokens).toEqual([TOKEN, OWN]);
+  });
+
+  it("holds a target's token to the same rules as every token", () => {
+    expect(() => loadConfig(publishEnv({ PUBLISH_BLOG_TOKEN: "kurz" }))).toThrow(
+      /PUBLISH_BLOG_TOKEN must be at least 24 characters/
+    );
+    expect(() =>
+      loadConfig(publishEnv({ PUBLISH_BLOG_TOKEN: "replace-me-with-at-least-24-characters" }))
+    ).toThrow(/PUBLISH_BLOG_TOKEN is still the placeholder/);
+    expect(() => loadConfig(publishEnv({ PUBLISH_BLOG_TOKEN: "o".repeat(32) }))).toThrow(
+      /PUBLISH_BLOG_TOKEN must use at least 10 different characters/
+    );
+  });
+
+  it("refuses a target token shared with another token", () => {
+    expect(() => loadConfig(publishEnv({ PUBLISH_BLOG_TOKEN: TOKEN }))).toThrow(
+      /PUBLISH_BLOG_TOKEN is the same as PUBLISH_TOKEN/
+    );
+    expect(() =>
+      loadConfig(publishEnv({ PUBLISH_BLOG_TOKEN: OWN, PUBLISH_NOTES_TOKEN: OWN }))
+    ).toThrow(/PUBLISH_NOTES_TOKEN is the same as PUBLISH_BLOG_TOKEN/);
+    // With the mailbox configured, a target token that is the mail token
+    // would open the mailbox; it is refused by name.
+    const mailbox = env();
+    expect(() =>
+      loadConfig({
+        ...mailbox,
+        ...publishEnv({
+          PUBLISH_TOKEN: "another-publish-token-0123456789",
+          PUBLISH_BLOG_TOKEN: mailbox.MAIL_TOKEN
+        })
+      })
+    ).toThrow(/PUBLISH_BLOG_TOKEN is the same as MAIL_TOKEN/);
+  });
+
+  it("bounds what a target may be sent between commits", () => {
+    const { publish } = loadConfig(publishEnv());
+    expect(publish.maxPublishBytes).toBe(500_000_000);
+    expect(publish.maxUploads).toBe(4000);
+    expect(
+      loadConfig(publishEnv({ PUBLISH_MAX_PUBLISH_BYTES: "1000", PUBLISH_MAX_UPLOADS: "3" }))
+        .publish
+    ).toMatchObject({ maxPublishBytes: 1000, maxUploads: 3 });
   });
 });
 

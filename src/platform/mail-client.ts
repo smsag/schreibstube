@@ -4,12 +4,14 @@ import {
   BridgeError,
   authHeaders,
   buildEndpoint,
+  checkResponseSize,
   extractCode,
   parseJsonBody
 } from "../services/bridge-protocol";
 import {
   MAIL_REQUEST_TIMEOUT_MS,
   describeBridgeError,
+  mailResponseLimit,
   parseAttachmentsResult,
   parseSearchResult,
   parseSendResult,
@@ -63,6 +65,7 @@ async function postJson(config: MailBridgeConfig, path: string, body: unknown): 
     (seconds) => `bridge did not respond within ${seconds}s.`
   );
 
+  checkResponseSize(response, mailResponseLimit(path));
   if (response.status < 200 || response.status >= 300) {
     throw new BridgeError(
       describeBridgeError(response.status, response.text),

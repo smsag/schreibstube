@@ -59,10 +59,14 @@ describe("fingerprintsMatch", () => {
  */
 function fakeClient(overrides = {}) {
   const calls = [];
+  // Directories made on this fake host, so the walk above a write finds them.
+  const made = new Set();
   const behaviours = {
-    exists: false,
+    exists: async (path) => (made.has(path) ? "d" : false),
     put: undefined,
-    mkdir: undefined,
+    mkdir: async (path) => {
+      made.add(path);
+    },
     posixRename: undefined,
     rename: undefined,
     delete: undefined,
