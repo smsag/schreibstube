@@ -27,24 +27,24 @@ compatible. `/health` reports what a deployment is actually running, and the
 plugin says plainly when the bridge is behind rather than failing later on a
 route that does not exist yet.
 
-| Bridge | Protocol | Plugin          | Notes                                                             |
-| ------ | -------- | --------------- | ----------------------------------------------------------------- |
-| 3.0.x  | 8        | 1.8.0 and later | Plan names `conflicts`; state outside the web root; target tokens |
-| 2.13.x | 7        | 1.8.0 and later | `:folder:` in a note is drawn as the plugin's icon                |
-| 2.12.x | 7        | 1.8.0 and later | `/attachments` hands over a received mail's files                 |
-| 2.11.x | 6        | 1.8.0 and later | A commit reports `deleteFailed`; assets and SVGs checked          |
-| 2.10.x | 5        | 1.8.0 and later | A send may carry a note's diagrams as PNG attachments             |
-| 2.9.x  | 4        | 1.8.0 and later | Alias `from`, refused and unconfirmed sends, `MAIL_FROM` checked  |
-| 2.8.x  | 3        | 1.8.0 and later | The site's tab icon, named by its theme                           |
-| 2.7.x  | 3        | 1.8.0 and later | Slideshows, filmstrip thumbnails, header tags and tag pages       |
-| 2.6.x  | 1        | 1.8.0 and later | Notes cached in memory, parallel SFTP, one login per publish      |
-| 2.5.x  | 1        | 1.8.0 and later | Sent folder by tag, state guard, absolute `STATE_ROOT`            |
-| 2.4.x  | 1        | 1.8.0 and later | Validated search body, fetch and asset byte bounds                |
-| 2.3.x  | 1        | 1.8.0 and later | `TRUST_PROXY`, Node 24, image without Mermaid's tree              |
-| 2.2.x  | 1        | 1.8.0 and later | Per-target switches, publish history, JSON logs                   |
-| 2.1.x  | 1        | 1.8.0 and later | Mail and publishing                                               |
-| 2.0.x  | 1        | 1.8.0 and later | Mail only; `BRIDGE_TOKEN` renamed to `MAIL_TOKEN`                 |
-| 1.0.x  | —        | 1.7.0           | Mail only, single token, no version handshake                     |
+| Bridge | Protocol | Plugin          | Notes                                                                                                |
+| ------ | -------- | --------------- | ---------------------------------------------------------------------------------------------------- |
+| 3.0.x  | 8        | 1.8.0 and later | `/search` `exclude`, quiet `/health`; plan `conflicts`, diagnostics without the root path; see below |
+| 2.13.x | 7        | 1.8.0 and later | `:folder:` in a note is drawn as the plugin's icon                                                   |
+| 2.12.x | 7        | 1.8.0 and later | `/attachments` hands over a received mail's files                                                    |
+| 2.11.x | 6        | 1.8.0 and later | A commit reports `deleteFailed`; assets and SVGs checked                                             |
+| 2.10.x | 5        | 1.8.0 and later | A send may carry a note's diagrams as PNG attachments                                                |
+| 2.9.x  | 4        | 1.8.0 and later | Alias `from`, refused and unconfirmed sends, `MAIL_FROM` checked                                     |
+| 2.8.x  | 3        | 1.8.0 and later | The site's tab icon, named by its theme                                                              |
+| 2.7.x  | 3        | 1.8.0 and later | Slideshows, filmstrip thumbnails, header tags and tag pages                                          |
+| 2.6.x  | 1        | 1.8.0 and later | Notes cached in memory, parallel SFTP, one login per publish                                         |
+| 2.5.x  | 1        | 1.8.0 and later | Sent folder by tag, state guard, absolute `STATE_ROOT`                                               |
+| 2.4.x  | 1        | 1.8.0 and later | Validated search body, fetch and asset byte bounds                                                   |
+| 2.3.x  | 1        | 1.8.0 and later | `TRUST_PROXY`, Node 24, image without Mermaid's tree                                                 |
+| 2.2.x  | 1        | 1.8.0 and later | Per-target switches, publish history, JSON logs                                                      |
+| 2.1.x  | 1        | 1.8.0 and later | Mail and publishing                                                                                  |
+| 2.0.x  | 1        | 1.8.0 and later | Mail only; `BRIDGE_TOKEN` renamed to `MAIL_TOKEN`                                                    |
+| 1.0.x  | —        | 1.7.0           | Mail only, single token, no version handshake                                                        |
 
 ## Capabilities
 
@@ -62,25 +62,30 @@ memory, and a second instance would not see it.
 All endpoints except `/health` require `Authorization: Bearer <token>`, and the
 token must belong to the capability that owns the route.
 
-| Method | Path                   | Capability | Body                                                                           | Returns                                                                               |
-| ------ | ---------------------- | ---------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------- |
-| `GET`  | `/health`              | —          | —                                                                              | `{status, version, protocol, capabilities[]}`                                         |
-| `POST` | `/diagnostics`         | mail       | —                                                                              | per-protocol reachability                                                             |
-| `POST` | `/send`                | mail       | `{to, cc?, bcc?, subject, text, from?, inReplyTo?, references?, attachments?}` | `{messageId, sentAt, filedInSent, rejected[]}`                                        |
-| `POST` | `/search`              | mail       | `{criteria:{from?,to?,subject?,text?,since?,references?}, mailbox?, limit?}`   | `{messages[], mailbox, truncated}`                                                    |
-| `POST` | `/attachments`         | mail       | `{uid, mailbox?}`                                                              | `{uid, attachments:[{filename, contentType, content}], skipped:[{filename, reason}]}` |
-| `GET`  | `/publish/targets`     | publish    | —                                                                              | `{targets:[{name, baseUrl, siteTitle}]}`                                              |
-| `POST` | `/publish/diagnostics` | publish    | `{target}`                                                                     | `{ok, rootExists, entries}` or `{ok:false, error}`; a missing root is `ok:false`      |
-| `POST` | `/publish/plan`        | publish    | `{target, index}`                                                              | what to upload, what will be deleted, and the `conflicts` in the way                  |
-| `PUT`  | `/publish/source`      | publish    | raw Markdown, `?target=&sha256=`                                               | `{sha256, bytes}`                                                                     |
-| `PUT`  | `/publish/asset`       | publish    | raw bytes, `?target=&sha256=&name=`                                            | `{sha256, bytes, path}`                                                               |
-| `PUT`  | `/publish/thumbnail`   | publish    | raw JPEG or PNG, `?target=&source=&sha256=&name=`                              | `{sha256, bytes, path}`                                                               |
-| `POST` | `/publish/commit`      | publish    | `{target, index}`                                                              | `{written, unchanged, deleted, deleteFailed, pruned, collected}`                      |
-| `POST` | `/publish/render`      | publish    | `{target}`                                                                     | the same, rebuilt from stored state                                                   |
+| Method | Path                   | Capability | Body                                                                                   | Returns                                                                               |
+| ------ | ---------------------- | ---------- | -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `GET`  | `/health`              | —          | —                                                                                      | `{status, protocol}`; with any valid token also `version, capabilities[]`             |
+| `POST` | `/diagnostics`         | mail       | —                                                                                      | per-protocol reachability                                                             |
+| `POST` | `/send`                | mail       | `{to, cc?, bcc?, subject, text, from?, inReplyTo?, references?, attachments?}`         | `{messageId, sentAt, filedInSent, rejected[]}`                                        |
+| `POST` | `/search`              | mail       | `{criteria:{from?,to?,subject?,text?,since?,references?}, mailbox?, limit?, exclude?}` | `{messages[], mailbox, truncated}`                                                    |
+| `POST` | `/attachments`         | mail       | `{uid, mailbox?}`                                                                      | `{uid, attachments:[{filename, contentType, content}], skipped:[{filename, reason}]}` |
+| `GET`  | `/publish/targets`     | publish    | —                                                                                      | `{targets:[{name, baseUrl, siteTitle}]}`                                              |
+| `POST` | `/publish/diagnostics` | publish    | `{target}`                                                                             | `{ok, rootExists, entries}` or `{ok:false, error}`; a missing root is `ok:false`      |
+| `POST` | `/publish/plan`        | publish    | `{target, index}`                                                                      | what to upload, what will be deleted, and the `conflicts` in the way                  |
+| `PUT`  | `/publish/source`      | publish    | raw Markdown, `?target=&sha256=`                                                       | `{sha256, bytes}`                                                                     |
+| `PUT`  | `/publish/asset`       | publish    | raw bytes, `?target=&sha256=&name=`                                                    | `{sha256, bytes, path}`                                                               |
+| `PUT`  | `/publish/thumbnail`   | publish    | raw JPEG or PNG, `?target=&source=&sha256=&name=`                                      | `{sha256, bytes, path}`                                                               |
+| `POST` | `/publish/commit`      | publish    | `{target, index}`                                                                      | `{written, unchanged, deleted, deleteFailed, pruned, collected}`                      |
+| `POST` | `/publish/render`      | publish    | `{target}`                                                                             | the same, rebuilt from stored state                                                   |
 
 `/health` is the version handshake: plugin and bridge deploy separately, and
 `protocol` is what lets the plugin say "redeploy the bridge" instead of failing
-later on an unknown route.
+later on an unknown route. Both it and `status` are public, since a platform's
+probe and a plugin without a token need them. The bridge's `version` and its
+`capabilities` tell a scanner which advisories apply and which token is worth
+guessing, so from 3.0.0 they are named only when the request carries a valid
+token of either capability; a wrong one counts against the throttle like any
+other, and is answered with the public shape.
 
 `/diagnostics` opens a real connection with the configured credentials and
 reports each protocol on its own, because a health check that says only "a
@@ -101,6 +106,15 @@ the logs:
 either `References` or `In-Reply-To`, which is how the plugin finds replies to a
 note it sent.
 
+`exclude`, from protocol 8, lists up to 500 Message-IDs (or `uid:<n>` for a
+message that had none) the caller already holds. The bridge reads the newest
+matches as envelopes and steps past those before it fills the window of
+`limit`, reading back at most 2,000 matches. Without it, anyone who sent fifty
+mails citing a note's Message-ID pushed the note's genuine replies out of
+every later fetch; with it, each fetch reaches further back, and `truncated`
+says when matches were left unread. An older bridge ignores the field and
+answers the newest matches, which the plugin tells the person.
+
 Two details worth knowing:
 
 - **The bridge generates the Message-ID** (in the `From` domain) and returns it,
@@ -108,8 +122,12 @@ Two details worth knowing:
   note's frontmatter, and it is the only thing linking later replies back to the
   note — so it has to be known before the send, not after.
 - **`from` sets the From line, not the sender of record.** A request may name
-  any one address, with or without a name, as its `from`; anything else is
-  refused with a 400 rather than sent under `MAIL_FROM`. The SMTP envelope
+  one address, with or without a name, as its `from`; anything else is
+  refused with a 400 rather than sent under `MAIL_FROM`. The address must be
+  `MAIL_FROM`'s own or one that `MAIL_FROM_ALLOWED` names, as an address or by
+  its `@domain`; any other is refused with a 403 `sender_not_allowed` that
+  names the variable. Until 3.0.0 any address was taken, which made the mail
+  token a token for mail from anyone. The SMTP envelope
   always carries `MAIL_FROM`'s address: that is the address the server
   authenticated and its SPF record vouches for, and bounces return to it.
   Whether the server accepts a From that differs is the provider's policy —
@@ -135,6 +153,14 @@ Two details worth knowing:
   in it is refused rather than sent to nobody; `subject`, `inReplyTo` and each
   of `references` are strings of at most 998 characters, `references` a list
   of at most 100. The Message-ID is always the bridge's own.
+- **A send reaches at most `MAX_RECIPIENTS` addresses (50)**, to, cc and bcc
+  together, and the bridge sends at most `MAIL_SEND_PER_HOUR` mails in any
+  hour (60). One more is answered 429 `send_rate_limited` with a
+  `retry-after`, and the plugin shows the bridge's reason rather than the
+  token advice a 429 otherwise gets. A refused request spends nothing.
+- **The log names a failed send by its codes**, such as `EENVELOPE 550`, never
+  by the server's words: they quote the recipients the server refused. The
+  caller still hears the whole reason.
 
 ## Tests
 
@@ -398,6 +424,19 @@ decimal digits, a port above 65535, a `PUBLISH_<TARGET>_KEY` that does not
 decode to a PEM, OpenSSH or PuTTY private key, or a flag spelled as neither true nor
 false. Leave a variable out to take its default; do not leave it half-written.
 
+**Who a mail may be from.** `MAIL_FROM_ALLOWED` lists, separated by commas,
+the further addresses a note may send as — the aliases of the mailbox — and
+`@domain` entries for every address at one domain (that domain only, not its
+subdomains): `MAIL_FROM_ALLOWED=buero@your-domain.de,@team.your-domain.de`.
+`MAIL_FROM`'s own address is always allowed, and unset is that address alone.
+An entry that is neither a bare address nor a domain fails at startup.
+Whether the server delivers mail from an alias is still its own policy.
+
+**`IMAP_SECURE=false` means STARTTLS, required.** The connection starts in
+the clear on port 143 and must be upgraded before the login; a server — or
+anyone between — that does not offer the upgrade fails the connection rather
+than receiving the password in the clear. SMTP has always required it.
+
 **Where a target keeps its state.** `PUBLISH_<TARGET>_STATE_ROOT` is an
 absolute path on the SFTP host, and it holds every published note's Markdown —
 a current plugin leaves out the frontmatter and the `%%` comments, an older one
@@ -460,7 +499,14 @@ A received mail's files come from `/attachments`, one message at a time by the
 UID a search returned, so a search stays as light as its text. Pictures, PDFs
 and Office files (Word, Excel, PowerPoint and their OpenDocument kin) are handed
 over in base64 under a plain name; anything else is named in `skipped` with the
-reason `type`, `size` or `limit`. A signature's logos, small pictures shown
+reason `type`, `size` or `limit`, and from 3.0.0 `content` for a file whose
+bytes do not begin the way its kind's do — a PDF's `%PDF-`, a PNG's, JPEG's,
+GIF's, WebP's or HEIC's signature, `PK` for the zipped Office and OpenDocument
+files, the OLE header for `.doc`, `.xls` and `.ppt`. A name, kept or shown in
+`skipped`, loses control and format characters (the latter include the
+overrides that turn `fdp.exe` around on screen), is cut to 200 bytes of UTF-8
+between characters, and a name Windows keeps for a device, such as `CON.pdf`,
+gets a `_` in front. A signature's logos, small pictures shown
 inside the text, and an S/MIME signature are left out without a word. At most
 20 files, 15 MB each and 25 MB together, from a mail of at most 40 MB as the
 server stores it (`mail-import.mjs`); a larger mail is answered 413
@@ -531,7 +577,7 @@ labels change over time, but the settings you need are:
 
    ```bash
    curl https://<your-service>.sliplane.app/health
-   # {"status":"ok"}
+   # {"status":"ok","protocol":8}
    ```
 
 7. Put that base URL into the plugin's **Bridge URL** setting, and the token into
@@ -546,8 +592,10 @@ region and data-processing terms yourself before relying on that.
 The bridge is reachable from the public internet, so the bearer token and TLS
 are the entire perimeter:
 
-- Use a long random token per capability (the service refuses anything under
-  24 characters) and rotate it by changing the env var and the plugin setting.
+- Use a long random token per capability and rotate it by changing the env
+  var and the plugin setting. The service refuses to start with a token under
+  24 characters, one of fewer than 10 different characters, the placeholder
+  an older `.env.example` carried, or the same token for mail and publishing.
   A mail token never opens a publish route, or the other way round.
 - The plugin refuses a plain `http://` bridge URL unless it is loopback, so a
   misconfiguration cannot silently send the token in the clear.
@@ -556,7 +604,22 @@ are the entire perimeter:
 - Request bodies are capped (`MAX_BODY_BYTES`, default 1 MB), every outbound
   operation has a deadline, and repeated token failures from one address are
   throttled. Behind a proxy that throttle needs `TRUST_PROXY=true`, or the
-  address it sees is the proxy's and one stranger's failures lock everyone out.
+  address it sees is the proxy's and one stranger's failures lock everyone out;
+  the log says so once when `X-Forwarded-For` arrives while it is off. With a
+  CDN in front of the platform's proxy, set `TRUST_PROXY_HOPS=2` (the number of
+  proxies; `TRUST_PROXY=true` is one) and the throttle takes the second address
+  from the right. An IPv6 caller is throttled by its /64, which one customer
+  holds whole, and an IPv4 address in IPv6 form as the IPv4 address. Failures
+  age out of the window and nothing else clears them: a good request with one
+  capability's token does not reset the guesses at another's. The throttle
+  remembers at most 10,000 addresses, forgetting the one that failed longest
+  ago first.
+- A request refused before its body was read — a wrong token, an unknown path,
+  a throttled address, an oversized body — is answered with
+  `connection: close` and its socket closed, rather than kept open for the
+  longest route's budget. Headers must arrive within 10 seconds, and at most
+  `MAX_CONNECTIONS` sockets (100) are open at once. A URL the parser cannot
+  read is a 400.
 - A publish target's state directory is kept out of the web root; the bridge
   refuses to start with it inside unless told the host allows nothing else,
   and then guards it with a deny `.htaccess` and a warning at every start (see
@@ -567,6 +630,9 @@ are the entire perimeter:
 - The plugin asks before sending a token to a bridge address the device has
   not sent it to, since the address syncs with the vault and the token does
   not.
+- A target that publishes raw HTML from notes (`PUBLISH_<TARGET>_ALLOW_HTML`,
+  on by default for a personal site) is said in a warning at every start: a
+  vault with more than one author should turn it off.
 - Add an IP allowlist or rate limit at the platform level if your provider
   offers one.
 

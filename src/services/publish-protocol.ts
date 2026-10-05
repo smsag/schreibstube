@@ -114,6 +114,11 @@ export interface PublishSummary {
   durationMs: number;
 }
 
+/**
+ * What `/health` says. A bridge from 3.0 on names its version and capabilities
+ * only to a caller holding a token, and the plugin asks without one, so those
+ * two read as empty there; `protocol` is the handshake and is always given.
+ */
 export interface BridgeHealth {
   version: string;
   protocol: number;

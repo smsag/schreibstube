@@ -87,6 +87,7 @@ vi.mock("imapflow", () => ({
 
 const {
   HTML_TEXT_RATIO,
+  MAX_EXCLUDE_SCAN,
   MAX_REFUSAL_CHARS,
   fetchEach,
   htmlToText,
@@ -119,7 +120,8 @@ function message({
     envelope: {
       from: [{ name: "Absender", address: "absender@example.com" }],
       to: [{ address: "post@example.com" }],
-      subject
+      subject,
+      messageId: `<${uid}@example.com>`
     },
     internalDate: new Date(date),
     headers: Buffer.from(headers ? `${headers}\r\n` : "")
@@ -533,6 +535,57 @@ describe("searchMessages, the result window", () => {
     withMessages(3);
     const result = await searchMessages(config(), { limit: 10 });
     expect(result.truncated).toBe(false);
+  });
+
+  const ids = (from, to) =>
+    Array.from({ length: to - from + 1 }, (_, i) => `<${from + i}@example.com>`);
+
+  it("steps past what the caller holds, so a flood cannot push older replies out of reach", async () => {
+    // Ten genuine replies, then fifty mails citing the same note, already merged.
+    withMessages(60);
+    const result = await searchMessages(config(), { limit: 10, exclude: ids(11, 60) });
+    expect(result.messages.map((m) => m.uid)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+    expect(result.truncated).toBe(false);
+    // Only envelopes were read to step past them, never the fifty bodies.
+    expect(imap.scans.every((scan) => scan.items.envelope && !scan.items.source)).toBe(true);
+  });
+
+  it("says older matches were left when the window filled before they were read", async () => {
+    withMessages(60);
+    const result = await searchMessages(config(), { limit: 10, exclude: ids(51, 60) });
+    expect(result.messages.map((m) => m.uid)).toEqual([41, 42, 43, 44, 45, 46, 47, 48, 49, 50]);
+    expect(result.truncated).toBe(true);
+  });
+
+  it("answers no messages, not a failure, when the caller holds every match", async () => {
+    withMessages(5);
+    const result = await searchMessages(config(), { exclude: ids(1, 5) });
+    expect(result).toEqual({ messages: [], mailbox: "INBOX", truncated: false });
+  });
+
+  it("knows a match without a Message-ID by the key the plugin gives it", async () => {
+    withMessages(3);
+    imap.envelopes.get(3).envelope.messageId = undefined;
+    const result = await searchMessages(config(), { exclude: ["uid:3", "<1@example.com>"] });
+    expect(result.messages.map((m) => m.uid)).toEqual([2]);
+  });
+
+  it("reads no further back than its bound, and says that it stopped", async () => {
+    withMessages(MAX_EXCLUDE_SCAN + 20);
+    const result = await searchMessages(config(), {
+      limit: 5,
+      exclude: ids(1, MAX_EXCLUDE_SCAN + 20)
+    });
+    expect(result.messages).toEqual([]);
+    expect(result.truncated).toBe(true);
+    const read = imap.scans.reduce((sum, scan) => sum + scan.window.length, 0);
+    expect(read).toBe(MAX_EXCLUDE_SCAN);
+  });
+
+  it("reads no envelopes when the caller excludes nothing", async () => {
+    withMessages(10);
+    await searchMessages(config(), { limit: 3, exclude: [] });
+    expect(imap.scans).toEqual([]);
   });
 });
 

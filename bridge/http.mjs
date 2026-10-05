@@ -3,6 +3,7 @@
  * per-route limit, and the two response shapes.
  */
 import { randomBytes } from "node:crypto";
+import { isIPv4, isIPv6 } from "node:net";
 
 export function newRequestId() {
   return `req_${randomBytes(4).toString("hex")}`;
@@ -20,17 +21,80 @@ export function newRequestId() {
  *
  * Off by default, because trusting the header without a proxy in front lets
  * anyone pick the address they are throttled as.
+ *
+ * `hops` is how many proxies stand in front, each appending the address it
+ * was reached from: with a CDN before the platform's proxy the caller is the
+ * second address from the right, and the last is the CDN's. A chain shorter
+ * than that was appended by trusted proxies alone, so its first entry is the
+ * caller. `trustProxy: true` with no `hops` is one proxy, as it always was.
  */
-export function clientAddress(req, { trustProxy = false } = {}) {
-  if (trustProxy) {
-    const forwarded = req.headers?.["x-forwarded-for"];
-    const chain = (Array.isArray(forwarded) ? forwarded.join(",") : (forwarded ?? ""))
-      .split(",")
-      .map((hop) => hop.trim())
-      .filter(Boolean);
-    if (chain.length > 0) return chain[chain.length - 1];
+export function clientAddress(req, { trustProxy = false, hops = trustProxy ? 1 : 0 } = {}) {
+  if (hops > 0) {
+    const chain = forwardedChain(req);
+    if (chain.length > 0) return chain[Math.max(0, chain.length - hops)];
   }
   return req.socket?.remoteAddress ?? "unknown";
+}
+
+/** Whether the request names a forwarded address at all, trusted or not. */
+export function hasForwardedFor(req) {
+  return forwardedChain(req).length > 0;
+}
+
+function forwardedChain(req) {
+  const forwarded = req.headers?.["x-forwarded-for"];
+  return (Array.isArray(forwarded) ? forwarded.join(",") : (forwarded ?? ""))
+    .split(",")
+    .map((hop) => hop.trim())
+    .filter(Boolean);
+}
+
+/** Longest throttle key kept. An address is at most 45 characters; anything
+ *  longer came from a header and is the sender's to inflate. */
+export const MAX_THROTTLE_KEY_CHARS = 64;
+
+/**
+ * The key an address is throttled under.
+ *
+ * One IPv6 customer is given a /64 at the least, and every address in it is
+ * theirs to send from: keyed per address, a stranger had 2^64 fresh sets of
+ * guesses. So an IPv6 address counts as its /64, and an IPv4 address that
+ * arrives in IPv6 clothing (`::ffff:192.0.2.1`, as a dual-stack socket reports
+ * it) as the IPv4 address it is. What is neither — a forwarded value that is
+ * not an address — is kept as text, cut to a bound.
+ */
+export function throttleKey(address) {
+  const text = String(address ?? "")
+    .trim()
+    .replace(/^\[|\]$/g, "")
+    .replace(/%.*$/, "");
+  if (isIPv4(text)) return text;
+  if (isIPv6(text)) {
+    const groups = expandIPv6(text);
+    if (groups.slice(0, 5).every((group) => group === 0) && groups[5] === 0xffff) {
+      return `${groups[6] >> 8}.${groups[6] & 0xff}.${groups[7] >> 8}.${groups[7] & 0xff}`;
+    }
+    return `${groups
+      .slice(0, 4)
+      .map((group) => group.toString(16))
+      .join(":")}::/64`;
+  }
+  return text.slice(0, MAX_THROTTLE_KEY_CHARS) || "unknown";
+}
+
+/** An IPv6 address as its eight groups, `::` and a dotted IPv4 tail expanded. */
+function expandIPv6(text) {
+  let body = text;
+  const dotted = /(\d+\.\d+\.\d+\.\d+)$/.exec(body);
+  if (dotted) {
+    const [a, b, c, d] = dotted[1].split(".").map(Number);
+    body = `${body.slice(0, dotted.index)}${((a << 8) | b).toString(16)}:${((c << 8) | d).toString(16)}`;
+  }
+  const [head, tail] = body.includes("::") ? body.split("::") : [body, null];
+  const left = head ? head.split(":") : [];
+  const right = tail ? tail.split(":") : [];
+  const missing = tail === null ? 0 : 8 - left.length - right.length;
+  return [...left, ...Array(missing).fill("0"), ...right].map((group) => parseInt(group, 16));
 }
 
 /**

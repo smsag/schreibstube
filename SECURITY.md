@@ -26,9 +26,13 @@ that alone opens it.
 ## The perimeter
 
 The bridge is a public URL guarded by per-capability bearer tokens of at least
-24 characters, compared in constant time. Repeated failures from one address
-are throttled; behind a hosting platform's proxy set `TRUST_PROXY=true` so the
-address is the caller's rather than the proxy's. Request bodies are capped per
+24 characters and 10 different ones, never shared between capabilities, and
+compared in constant time. Repeated failures from one address
+are throttled, an IPv6 caller by its /64, and only time clears them; behind a
+hosting platform's proxy set `TRUST_PROXY=true` (or `TRUST_PROXY_HOPS` for more
+than one proxy) so the address is the caller's rather than the proxy's. A
+request refused before its body arrived is closed, and `/health` names the
+bridge's version and capabilities only to a token holder. Request bodies are capped per
 route, every outbound operation has a deadline, uploads must hash to what they
 claim and begin like the format they name, the SFTP host key is pinned, and a
 remote write, deletion or pruning refuses to follow a link at any directory
@@ -38,12 +42,13 @@ out of time. Nothing is persisted on the bridge.
 
 On the published site, raw HTML from a note is passed through only when the
 target allows it (`PUBLISH_<TARGET>_ALLOW_HTML`, on by default for a personal
-site); a vault with more than one author should turn it off. An uploaded SVG is
-held to an allow-list of drawing elements and attributes, and where the bridge
-writes `.htaccess` files the site carries a content security policy and serves
-SVGs in a sandbox (`PUBLISHING.md` has the same for nginx and Caddy). A
-target's state directory, which holds the published notes' text, is kept out
-of the web root unless the operator says the host allows nothing else. Mail bodies merged
+site, and said in a warning at every start); a vault with more than one author
+should turn it off. An uploaded SVG is held to an allow-list of drawing
+elements and attributes, and where the bridge writes `.htaccess` files the site
+carries a content security policy and serves SVGs in a sandbox
+(`PUBLISHING.md` has the same for nginx and Caddy). A target's state
+directory, which holds the published notes' text, is kept out of the web root
+unless the operator says the host allows nothing else. Mail bodies merged
 into a note are escaped so a sender cannot embed a vault file into it.
 
 ## The typesetter the plugin downloads

@@ -19,9 +19,9 @@ import { STATE_GUARD } from "./routes.mjs";
  */
 
 const SERVER = fileURLToPath(new URL("../server.mjs", import.meta.url));
-const TOKEN = "p".repeat(32);
-const MAIL_TOKEN = "m".repeat(32);
-const OWN_TOKEN = "o".repeat(32);
+const TOKEN = "publish-token-for-the-test-0123";
+const MAIL_TOKEN = "mail-token-for-the-test-456789xy";
+const OWN_TOKEN = "own-target-token-for-the-test-42";
 const SITE = "/site";
 const STATE = "/state";
 

@@ -130,7 +130,11 @@ describe("POST /attachments", () => {
           cid: "image001.png@01DD"
         },
         { filename: "Termin.ics", content: "BEGIN:VCALENDAR", contentType: "text/calendar" },
-        { filename: "Foto.jpg", content: Buffer.alloc(5_000, 2), contentType: "image/jpeg" }
+        {
+          filename: "Foto.jpg",
+          content: Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(5_000, 2)]),
+          contentType: "image/jpeg"
+        }
       ],
       '<p>Gruß</p><img src="cid:image001.png@01DD">'
     );

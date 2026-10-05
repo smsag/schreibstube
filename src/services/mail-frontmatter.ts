@@ -20,6 +20,7 @@
  */
 
 import { splitFrontmatter } from "./frontmatter-block";
+import { isMessageId } from "./mail-protocol";
 import { t } from "../i18n";
 
 /* Every key is `schreibstube`-prefixed camelCase, the rule the rest of the
@@ -120,9 +121,16 @@ function parseStringList(value: unknown): string[] {
   return typeof value === "string" && value.trim() ? [value.trim()] : [];
 }
 
-/** YAML unquoted `<...>` is fine, but some editors strip the angle brackets.
- *  Normalise so the stored value always matches what IMAP will compare. */
-function parseMessageId(value: unknown): string | null {
+/**
+ * YAML unquoted `<...>` is fine, but some editors strip the angle brackets.
+ * Normalise so the stored value always matches what IMAP will compare.
+ *
+ * And refuse what is not a Message-ID once normalised. The bridge looks for
+ * replies by a substring of their `References`, so a value of `<` matched
+ * every reply to anything, and fetching replies merged a mailbox's threads
+ * into one note.
+ */
+export function parseMessageId(value: unknown): string | null {
   if (typeof value !== "string") {
     return null;
   }
@@ -130,7 +138,22 @@ function parseMessageId(value: unknown): string | null {
   if (!trimmed) {
     return null;
   }
-  return trimmed.startsWith("<") ? trimmed : `<${trimmed.replace(/^<|>$/g, "")}>`;
+  const id = trimmed.startsWith("<") ? trimmed : `<${trimmed.replace(/^<|>$/g, "")}>`;
+  return isMessageId(id) ? id : null;
+}
+
+/**
+ * The most merged keys a note keeps. Every fetch sends them, and a thread
+ * that someone floods with mail citing the note would otherwise grow its
+ * frontmatter, and each request, without end. The newest are kept: they are
+ * the ones the next fetch would find again.
+ */
+export const MAX_MERGED_IDS = 500;
+
+/** A note's merged keys after a merge: what it had and what came, newest last. */
+export function mergedIdsAfter(existing: unknown, added: readonly string[]): string[] {
+  const kept = Array.isArray(existing) ? existing.map(String) : [];
+  return [...kept, ...added].slice(-MAX_MERGED_IDS);
 }
 
 /** `missing`: the note lacks a value a key must hold, which a property set
