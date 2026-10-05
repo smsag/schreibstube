@@ -191,7 +191,7 @@ An Obsidian hotkey works only while Obsidian is the app in front. To start a new
 obsidian://schreibstube-new-doc?vault=Your%20Vault
 ```
 
-Opening that link does exactly what the **New note** command does. If Obsidian is closed, it starts, loads the vault and then opens the note. The link carries nothing else: it cannot choose the folder, the name or the text, so no web page can put anything into your vault with it.
+Opening that link does exactly what the **New note** command does. If Obsidian is closed, it starts, loads the vault and then opens the note. The link carries nothing else: it cannot choose the folder, the name or the text, so no web page can put anything into your vault with it. It acts at most once every five seconds; a second call within that time is ignored, so a page that opens the link over and over cannot fill the vault with empty notes and the screen with windows.
 
 **1. Get the link.** In Obsidian, open **Settings → Schreibstube**. Under **Focus mode**, **New note from outside Obsidian** has a **Copy link** button, which copies the link for the vault you are in. To write it by hand, put your vault's name after `vault=`, with a space as `%20` (`My Notes` becomes `vault=My%20Notes`). Leaving out `?vault=…` works too, but then Obsidian uses whichever vault was open last.
 

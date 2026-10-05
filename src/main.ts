@@ -35,6 +35,7 @@ import {
 } from "./services/command-availability";
 import { toggledFocusMode } from "./services/focus-settings";
 import { getImageMimeType } from "./services/image-resize";
+import { linkCallAllowed } from "./services/link-rate";
 import { hasSourceBinding } from "./services/sync-source";
 import { describePollSummary } from "./services/sync-summary";
 import { mergeSyncState, sameSyncState } from "./services/sync-merge";
@@ -175,6 +176,8 @@ export default class SchreibstubePlugin extends Plugin {
   private propertyControls: PropertyWidgetControls | null = null;
   private pictureActions: PictureEmbedActions | null = null;
   private pictureArticles: PictureArticleLinker | null = null;
+  /** When the new-note link last made a note, for `linkCallAllowed`. */
+  private newDocLinkActedAt: number | null = null;
   private baseReading: BaseReadingFlags | null = null;
   private tagSuggest: TagSuggestController | null = null;
   private readonly draftWidth = new DraftWidth(this.app);
@@ -1756,10 +1759,17 @@ export default class SchreibstubePlugin extends Plugin {
    * system's rather than one that works only while Obsidian is in front.
    * Nothing the link carries is read: Obsidian takes `vault` itself, and a
    * link that could say where the note goes or what it holds would be one
-   * any web page could write into the vault with.
+   * any web page could write into the vault with. A page can still call it
+   * in a loop, so it acts at most once in a few seconds.
    */
   private registerNewDocLink(): void {
     this.registerObsidianProtocolHandler(NEW_DOC_ACTION, () => {
+      const now = Date.now();
+      if (!linkCallAllowed(this.newDocLinkActedAt, now)) {
+        this.logger.debug("Ignoring the new-note link: called again within its interval.");
+        return;
+      }
+      this.newDocLinkActedAt = now;
       // A link that started Obsidian arrives before the workspace is laid
       // out, and a window opened then is lost when the layout is restored.
       this.app.workspace.onLayoutReady(() => this.newDoc());

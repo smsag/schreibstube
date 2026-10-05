@@ -11,6 +11,7 @@ All notable changes to this project will be documented in this file.
 - **A picture description loads nothing and runs nothing.** Links and images in the model's answer are reduced to their words, so no remote picture is fetched when the note opens, and backticks, fences, Templater tags and comments are taken out along with the HTML, tags and headings that already were.
 - **An AI rename cannot hide what a name is.** Control and invisible formatting characters, a right-to-left override among them, are taken out of a proposed name; it is cut by bytes, not characters; and a name that is still not one a file can have, `CON` or `NUL` among them, is refused with a notice. The pane's create and rename dialogs refuse those Windows device names too.
 - **Folder settings cannot point into the config folder.** Every folder setting — picture descriptions, print output and templates, property sets, the term folder, a publishing account's folder — refuses a segment starting with a dot, `..`, a doubled slash, a backslash or a control character, and falls back to its default. Such a value could only come from an edited `data.json`.
+- **The new-note link acts at most once every five seconds.** Any web page can open `obsidian://schreibstube-new-doc`, and one that opened it in a loop filled the vault with empty notes and the screen with windows.
 
 ### Changed
 
