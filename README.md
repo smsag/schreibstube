@@ -1002,6 +1002,10 @@ Requires a bridge with the publish capability configured — see [`bridge/README
 
 The token is deliberately separate from the mail token, so a leaked publish token cannot reach the mailbox. **Verbindung testen** proves the token, the target, the SSH login, the host key and the web root in one request, without writing anything.
 
+The bridge URLs sync with the vault; the tokens stay on the device. Each device remembers, outside the vault, the bridge it sent each token to, and asks before sending it to any other — the first time, and whenever the settings name a new address. Someone who can edit a shared vault can change the URL, but not where your device sends its token without you agreeing.
+
+What is uploaded of a note is what the site shows: its frontmatter and its `%%comments%%` stay in the vault, since the bridge keeps a copy of every note it renders. A plan that would overwrite a file on the web host that Schreibstube did not write lists it and publishes nothing; remove the file or let the bridge take it over (`PUBLISH_<TARGET>_ADOPT_EXISTING`).
+
 ### Printing
 
 | Setting          | What it does                                                                                |

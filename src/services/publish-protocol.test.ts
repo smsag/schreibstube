@@ -84,7 +84,16 @@ describe("parsePlan", () => {
     const plan = parsePlan({});
     expect(plan.uploadSources).toEqual([]);
     expect(plan.willDelete).toEqual([]);
+    // A bridge before protocol 8 names no conflicts.
+    expect(plan.conflicts).toEqual([]);
     expect(plan.notes).toBe(0);
+  });
+
+  it("reads the files on the host the bridge will not overwrite, and nothing else", () => {
+    const plan = parsePlan({ conflicts: ["index.html", 42, "", "assets/x.png"] });
+    expect(plan.conflicts).toEqual(["index.html", "assets/x.png"]);
+    const many = Array.from({ length: MAX_PLAN_ENTRIES + 5 }, (_, i) => `f${i}`);
+    expect(parsePlan({ conflicts: many }).conflicts).toHaveLength(MAX_PLAN_ENTRIES);
   });
 
   it("reads no more entries than a site could have", () => {

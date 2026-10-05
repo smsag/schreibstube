@@ -189,6 +189,12 @@ export const en = {
     planDelete: (count: number) => `${count} file(s) will be deleted`,
     planDeleteHeading: "Will be deleted:",
     planMore: (count: number) => `… and ${count} more`,
+    planConflicts: (count: number) =>
+      count === 1
+        ? "1 file on the web host was not written by Schreibstube and would be overwritten, so the bridge will not publish:"
+        : `${count} files on the web host were not written by Schreibstube and would be overwritten, so the bridge will not publish:`,
+    planConflictsHelp:
+      "Remove them from the host, or let the bridge take them over by setting PUBLISH_<TARGET>_ADOPT_EXISTING=true in its configuration.",
     planConfirm: "Publish",
     chooseAccount: "Choose an account",
 
@@ -307,6 +313,24 @@ export const en = {
     figureAttached: (filename: string) => `attached: ${filename}`,
     changedSinceShown:
       "The note changed while this dialogue was open. This is what it says now — check it and press Send again."
+  },
+
+  bridgeTrust: {
+    mail: "mail",
+    publish: "publish",
+    titleNew: "Send the token to this bridge?",
+    titleChanged: "The bridge address has changed",
+    /** The capability is `mail` or `publish`, as above. */
+    messageNew: (capability: string, origin: string) =>
+      `This device has not sent its ${capability} token to ${origin} before. The address comes ` +
+      "from the plugin settings, which sync with the vault. Send the token only if this is " +
+      "your bridge.",
+    messageChanged: (capability: string, origin: string, previous: string) =>
+      `This device sent its ${capability} token to ${previous} until now; the settings now name ` +
+      `${origin}. Anyone who can edit a synced vault can change that address and receive the ` +
+      "token. Send it only if you changed the address yourself.",
+    confirm: "Send token",
+    declined: "the bridge address was not confirmed, so nothing was sent."
   },
 
   diagnostics: {

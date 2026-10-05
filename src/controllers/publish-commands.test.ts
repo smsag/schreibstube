@@ -37,6 +37,11 @@ vi.mock("../ui/publish-modals", () => ({
   }
 }));
 
+// Whether the token may go to the bridge is asked in a dialogue; a test
+// answers it, and can see that it was asked.
+const trust = vi.hoisted(() => ({ ask: vi.fn() }));
+vi.mock("../ui/bridge-origin-modal", () => ({ askToSendToken: trust.ask }));
+
 const client = vi.hoisted(() => ({
   plan: vi.fn(),
   commit: vi.fn(),
@@ -52,6 +57,7 @@ vi.mock("../platform/publish-client", () => ({
   // protocol-1 bridge; a test's plan names one only when it asks for some.
   planPublish: async (...args: unknown[]) => ({
     uploadThumbnails: [],
+    conflicts: [],
     ...(await client.plan(...args))
   }),
   commitPublish: client.commit,
@@ -153,6 +159,8 @@ function plannedIndex() {
 
 beforeEach(() => {
   Notice.shown = [];
+  trust.ask.mockReset();
+  trust.ask.mockResolvedValue(true);
   client.plan.mockReset();
   // A bridge that has everything already: the plan counts the notes it was
   // given, as the real one does, and asks for no upload.
@@ -492,6 +500,91 @@ describe("publishing", () => {
 
     expect(client.uploadSource).toHaveBeenCalledTimes(1);
     expect(client.commit).toHaveBeenCalled();
+  });
+
+  it("uploads the note without its frontmatter and its comments", async () => {
+    client.plan.mockImplementation(
+      async (
+        _bridge: unknown,
+        _target: unknown,
+        index: { notes: { sourcePath: string; sha256: string }[] }
+      ) => ({
+        target: "blog",
+        baseUrl: "https://blog.example.com",
+        uploadSources: index.notes.map((note) => ({
+          sourcePath: note.sourcePath,
+          sha256: note.sha256
+        })),
+        uploadAssets: [],
+        willDelete: [],
+        unchangedSources: 0,
+        notes: index.notes.length
+      })
+    );
+    const { commands } = controller(
+      fakeVault({
+        notes: [
+          {
+            path: "Blog/Erste.md",
+            content: "---\npublished: true\nprivat: ja\n---\n# Erste\n\nOffen %%geheim%% hier.\n",
+            frontmatter: published
+          }
+        ]
+      })
+    );
+    await commands.publish();
+    await runEnded();
+
+    const sent = new TextDecoder().decode(client.uploadSource.mock.calls[0]?.[3] as ArrayBuffer);
+    expect(sent).toBe("# Erste\n\nOffen  hier.\n");
+  });
+
+  it("does not send the token to a bridge this device has not confirmed", async () => {
+    trust.ask.mockResolvedValue(false);
+    const target = fakeVault({
+      notes: [{ path: "Blog/Erste.md", content: "# Erste", frontmatter: published }],
+      device: { "schreibstube-publish-bridge-origin": "https://mine.example.app" }
+    });
+    const { commands } = controller(target);
+    await commands.publish();
+
+    expect(trust.ask).toHaveBeenCalledTimes(1);
+    expect(client.plan).not.toHaveBeenCalled();
+    expect(client.health).not.toHaveBeenCalled();
+    expect(target.deviceStorage.get("schreibstube-publish-bridge-origin")).toBe(
+      "https://mine.example.app"
+    );
+  });
+
+  it("sends it without asking to the bridge it went to before", async () => {
+    const target = fakeVault({
+      notes: [{ path: "Blog/Erste.md", content: "# Erste", frontmatter: published }],
+      device: { "schreibstube-publish-bridge-origin": "https://bridge.example.app" }
+    });
+    const { commands } = controller(target);
+    await commands.publish();
+    await runEnded();
+
+    expect(trust.ask).not.toHaveBeenCalled();
+    expect(client.commit).toHaveBeenCalled();
+  });
+
+  it("shows the files in the way and publishes nothing when the bridge names any", async () => {
+    client.plan.mockImplementation(async () => ({
+      target: "blog",
+      baseUrl: "https://blog.example.com",
+      uploadSources: [{ sourcePath: "Blog/Erste.md", sha256: "a".repeat(64) }],
+      uploadAssets: [],
+      willDelete: [],
+      conflicts: ["index.html"],
+      unchangedSources: 0,
+      notes: 1
+    }));
+    const { commands } = controller(vault());
+    await commands.publish();
+
+    expect(client.uploadSource).not.toHaveBeenCalled();
+    expect(client.commit).not.toHaveBeenCalled();
   });
 
   it("records what the last run did, so the settings can show it", async () => {
