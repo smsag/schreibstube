@@ -346,8 +346,7 @@ describe("renderDescriptionNote", () => {
 describe("normalizeDescriptionFolder — a hand-edited data.json must not choose where notes land", () => {
   it.each([
     ["a plain folder", "Bilder", "Bilder"],
-    ["slashes at either end and doubled", "/Archiv//Bilder/", "Archiv/Bilder"],
-    ["backslashes", "Archiv\\Bilder", "Archiv/Bilder"],
+    ["slashes at either end", "/Archiv/Bilder/", "Archiv/Bilder"],
     ["spaces around segments", " Archiv / Bilder ", "Archiv/Bilder"]
   ])("keeps %s", (_what, input, expected) => {
     expect(normalizeDescriptionFolder(input)).toBe(expected);
@@ -356,6 +355,9 @@ describe("normalizeDescriptionFolder — a hand-edited data.json must not choose
   it.each([
     ["a parent segment", "../outside"],
     ["a dot segment", "Bilder/./x"],
+    ["the config folder", ".obsidian/plugins/schreibstube"],
+    ["a doubled slash", "Archiv//Bilder"],
+    ["a backslash", "Archiv\\Bilder"],
     ["nothing", ""],
     ["only slashes", "///"],
     ["not a string", 42]

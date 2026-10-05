@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MAX_FILE_NAME_BYTES, checkFileName } from "./file-name";
+import { MAX_FILE_NAME_BYTES, checkFileName, normalizeVaultFolder } from "./file-name";
 
 describe("checkFileName", () => {
   it("accepts an ordinary name, and hands it back", () => {
@@ -90,5 +90,36 @@ describe("checkFileName", () => {
     expect(checkFileName("ä".repeat(200))).toEqual({ ok: false, problem: "too-long" });
     expect(checkFileName("ä".repeat(127))).toEqual({ ok: true, name: "ä".repeat(127) });
     expect(checkFileName("🙂".repeat(64))).toEqual({ ok: false, problem: "too-long" });
+  });
+});
+
+describe("normalizeVaultFolder", () => {
+  it.each([
+    ["a plain folder", "Bilder", "Bilder"],
+    ["a nested one", "Archiv/2026/Bilder", "Archiv/2026/Bilder"],
+    ["slashes at either end", "/Archiv/Bilder/", "Archiv/Bilder"],
+    ["spaces around the path and its segments", "  Archiv / Bilder ", "Archiv/Bilder"],
+    ["a dot inside a name", "Fassung 2.1", "Fassung 2.1"],
+    ["nothing, which means no folder", "", ""],
+    ["only slashes", "///", ""]
+  ])("keeps %s", (_what, input, expected) => {
+    expect(normalizeVaultFolder(input)).toBe(expected);
+  });
+
+  it.each([
+    ["a parent segment", "../outside"],
+    ["a parent segment further in", "Bilder/../../outside"],
+    ["a dot segment", "Bilder/./x"],
+    ["the config folder", ".obsidian"],
+    ["inside the config folder", ".obsidian/plugins/schreibstube"],
+    ["any hidden segment", "Archiv/.trash"],
+    ["an empty segment", "Archiv//Bilder"],
+    ["a backslash", "Archiv\\Bilder"],
+    ["a control character", "Archiv\u0000/Bilder"],
+    ["a C1 control character", "Archiv\u0085Bilder"],
+    ["not a string", 42],
+    ["undefined", undefined]
+  ])("refuses %s", (_what, input) => {
+    expect(normalizeVaultFolder(input)).toBeNull();
   });
 });

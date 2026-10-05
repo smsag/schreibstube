@@ -84,3 +84,27 @@ export function checkFileName(raw: string): FileNameCheck {
 
   return { ok: true, name };
 }
+
+/**
+ * A folder setting as a vault path: `""` for none, null when it cannot be one.
+ *
+ * Every folder the plugin writes into, reads templates from or publishes is a
+ * setting, and settings live in `data.json`, which a person edits by hand and
+ * a sync client carries between devices. A `..` there would reach outside the
+ * vault; a segment starting with a dot reaches the config folder, where a note
+ * written into `.obsidian/plugins/…` is a plugin's code or settings, and a
+ * folder published from there is the vault's private configuration. So a
+ * path with an empty or dot-led segment, a backslash or a control character
+ * is refused outright rather than repaired into something the person did not
+ * write. Slashes at either end and spaces around a segment are only typing.
+ */
+export function normalizeVaultFolder(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim().replace(/^\/+|\/+$/g, "");
+  if (trimmed === "") return "";
+  if (trimmed.includes("\\") || /\p{Cc}/u.test(trimmed)) return null;
+
+  const segments = trimmed.split("/").map((segment) => segment.trim());
+  if (segments.some((segment) => segment === "" || segment.startsWith("."))) return null;
+  return segments.join("/");
+}

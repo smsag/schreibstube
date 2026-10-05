@@ -14,6 +14,7 @@ import {
   normalizeFocusSettings
 } from "./focus-settings";
 import { BOOKMARK_FILE_DEFAULT } from "./bookmark-file";
+import { normalizeVaultFolder } from "./file-name";
 import { normalizeTermFolder } from "./glossary-term-folder";
 import { LLM_PROVIDER_IDS, PROVIDER_MODELS } from "./llm-providers";
 import { DEFAULT_PUBLISH_KEYS, normalizeHeaderTags, normalizePublishKeys } from "./publish-index";
@@ -379,14 +380,10 @@ export function normalizeSettings(loaded: LoadedSettings): SchreibstubeSettings 
     publishFrontmatterKeys: normalizePublishKeys(loaded?.publishFrontmatterKeys),
     publishLastRun: publishRunsOrDefault(loaded?.publishLastRun),
     printEnabled: loaded?.printEnabled === true,
-    printTemplateRoot: nonEmptyStringOrDefault(
-      loaded?.printTemplateRoot,
-      DEFAULT_SETTINGS.printTemplateRoot
-    ),
-    printOutputFolder: trimmedStringOrDefault(
-      loaded?.printOutputFolder,
-      DEFAULT_SETTINGS.printOutputFolder
-    ),
+    printTemplateRoot:
+      normalizeVaultFolder(loaded?.printTemplateRoot) || DEFAULT_SETTINGS.printTemplateRoot,
+    printOutputFolder:
+      normalizeVaultFolder(loaded?.printOutputFolder) ?? DEFAULT_SETTINGS.printOutputFolder,
     printDefaultTemplate: trimmedStringOrDefault(
       loaded?.printDefaultTemplate,
       DEFAULT_SETTINGS.printDefaultTemplate
@@ -409,7 +406,9 @@ function publishAccountsOrDefault(value: unknown): PublishAccount[] {
     if (!entry || typeof entry !== "object") continue;
     const record = entry as Partial<PublishAccount>;
 
-    const folder = typeof record.folder === "string" ? record.folder.replace(/^\/+|\/+$/g, "") : "";
+    // A folder published from the config folder would put the vault's private
+    // settings on a website, so it is read as strictly as any folder setting.
+    const folder = normalizeVaultFolder(record.folder) ?? "";
     const target = typeof record.target === "string" ? record.target.trim() : "";
     if (!folder || !target) continue;
 
