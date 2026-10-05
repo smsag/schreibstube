@@ -778,6 +778,8 @@ class PendingRecord {
    */
   async settle(remote, target, manifestFiles, log) {
     const entries = await this.of(remote, target);
+    // Nothing pending, nothing to write: the usual commit costs no request here.
+    if (entries.size === 0) return 0;
     const orphans = orphanUploads(entries, manifestFiles);
     let removed = 0;
     await mapLimit(orphans, SFTP_CONCURRENCY, async (path) => {
@@ -1005,16 +1007,21 @@ export async function withRemote(pool, target, timeoutMs, work) {
     return await pool.use(target.name, async (remote) => {
       started = true;
       const scoped = remote.withSignal ? remote.withSignal(controller.signal) : remote;
+      // Settled once the work has ended by itself. One of its own operations
+      // timing out ends it that way, and the requests sharing the line go on;
+      // only the request's budget running out with the work still going
+      // abandons it.
+      let settled = false;
+      const running = work(scoped, controller.signal).finally(() => {
+        settled = true;
+      });
       try {
-        return await withDeadline(
-          work(scoped, controller.signal),
-          timeoutMs,
-          `Publish to ${target.name}`
-        );
+        return await withDeadline(running, timeoutMs, `Publish to ${target.name}`);
       } catch (err) {
-        if (err instanceof TimeoutError) {
+        if (!settled) {
           controller.abort(err);
           remote.destroy?.();
+          running.catch(() => {});
         }
         throw err;
       }

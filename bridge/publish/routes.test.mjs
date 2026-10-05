@@ -104,6 +104,31 @@ describe("withRemote", () => {
     expect(remote.destroyed).toBe(true);
   });
 
+  it("leaves the line to the others when one of the work's own operations timed out", async () => {
+    const remote = {
+      destroyed: false,
+      onClose() {},
+      async end() {},
+      destroy() {
+        remote.destroyed = true;
+      }
+    };
+    const pool = createConnectionPool({
+      connect: async () => remote,
+      setTimer: () => 0,
+      clearTimer: () => {}
+    });
+    let signal;
+    await expect(
+      withRemote(pool, target, 1_000, async (_remote, given) => {
+        signal = given;
+        throw new TimeoutError("SFTP put", 20);
+      })
+    ).rejects.toBeInstanceOf(TimeoutError);
+    expect(remote.destroyed).toBe(false);
+    expect(signal.aborted).toBe(false);
+  });
+
   it("answers a login that failed as unreachable, with the short wording", async () => {
     const pool = createConnectionPool({
       connect: async () => {
