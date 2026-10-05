@@ -1,4 +1,5 @@
-import { EMPTY_CELL, type MarkdownTable } from "./text-to-table";
+import { neutralizeIntroducedCode } from "./foreign-text";
+import { EMPTY_CELL, renderMarkdownTable, type MarkdownTable } from "./text-to-table";
 
 /** Room for a table of a few dozen rows; a reply cut off by the limit fails to parse. */
 export const TABLE_MAX_TOKENS = 4096;
@@ -78,4 +79,41 @@ function cellText(value: unknown): string {
   } catch {
     return "";
   }
+}
+
+/**
+ * The table with code the selection did not hold disarmed in every cell, and
+ * which kinds were.
+ *
+ * The model is told to keep code in a cell as written, which is right for the
+ * selection's own and a way in for anyone else's: an inline `$=` span or a
+ * Templater tag in a cell runs like one anywhere else in the note. A tag can
+ * also be opened in one cell and closed in the next, since Templater reads
+ * the note's text and not its table; when the rendered table still holds code
+ * the cells did not, every opener in it is disarmed.
+ */
+export function guardTableCode(
+  table: MarkdownTable,
+  source: string
+): { table: MarkdownTable; kinds: string[] } {
+  const kinds = new Set<string>();
+  const guard = (cell: string): string => {
+    const result = neutralizeIntroducedCode(source, cell);
+    for (const kind of result.kinds) kinds.add(kind);
+    return result.text;
+  };
+  const guarded = {
+    header: table.header.map(guard),
+    rows: table.rows.map((row) => row.map(guard))
+  };
+
+  const across = neutralizeIntroducedCode(source, renderMarkdownTable(guarded)).kinds;
+  if (across.length === 0) return { table: guarded, kinds: [...kinds] };
+
+  for (const kind of across) kinds.add(kind);
+  const strict = (cell: string): string => cell.replace(/<%/g, "&lt;%").replace(/`/g, "&#96;");
+  return {
+    table: { header: guarded.header.map(strict), rows: guarded.rows.map((row) => row.map(strict)) },
+    kinds: [...kinds]
+  };
 }

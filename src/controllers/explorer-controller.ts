@@ -1913,6 +1913,8 @@ export class ExplorerController {
         return create.trailingDot;
       case "too-long":
         return create.tooLong;
+      case "reserved":
+        return create.reserved;
       default:
         return create.invalid;
     }

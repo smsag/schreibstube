@@ -9,6 +9,7 @@
  */
 
 import { t } from "../i18n";
+import { exceedsBytes } from "./response-size";
 import { githubApiUrl, type SourceTarget } from "./sync-source";
 
 /** A document larger than this is refused rather than pasted into a note. */
@@ -157,15 +158,10 @@ export function interpretSourceResponse(
     return { status: "error", message: messages.notMarkdownType(base) };
   }
 
-  // The declared length is checked first so a body that is plainly too big
-  // is refused without being encoded, and the body itself is measured in
-  // bytes: a document of umlauts is larger than its character count says.
-  const declared = Number(header(response.headers, "content-length"));
-  if (Number.isFinite(declared) && declared > MAX_SOURCE_BYTES) {
-    return { status: "error", message: messages.tooLarge };
-  }
+  // In bytes, not characters: a document of umlauts is larger than its
+  // character count says.
   const body = response.text ?? "";
-  if (body.length > MAX_SOURCE_BYTES || utf8Bytes(body) > MAX_SOURCE_BYTES) {
+  if (exceedsBytes(response.headers, body, MAX_SOURCE_BYTES)) {
     return { status: "error", message: messages.tooLarge };
   }
 
@@ -177,10 +173,6 @@ export function interpretSourceResponse(
   }
 
   return { status: "updated", body, etag: header(response.headers, "etag") ?? "" };
-}
-
-function utf8Bytes(text: string): number {
-  return new TextEncoder().encode(text).byteLength;
 }
 
 /** Header names arrive in whatever case the server used. */
