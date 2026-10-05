@@ -9,6 +9,7 @@
     en: "xenova-all-MiniLM-L6-v2"
   }[q.get("model") ?? "latin"];
   const config = models[key];
+  const runtime = await (await fetch("runtime.wasm")).arrayBuffer();
   const batch = Number(q.get("batch") ?? 16),
     rounds = Number(q.get("rounds") ?? 6),
     mode = q.get("mode") ?? "worker";
@@ -27,12 +28,13 @@
     w.onerror = (e) => log("worker error " + e.message);
     w.onmessage = (e) => onmsg(e.data);
     send = (m) => w.postMessage(m);
-    send({ type: "init", config });
+    send({ type: "init", config, runtime });
   } else {
     const f = document.createElement("iframe");
     f.style.display = "none";
-    f.srcdoc = `<script>window.__EMBEDDING_MODEL_CONFIG__=${JSON.stringify(config)}<\/script><script type="module" src="${location.origin}/${"bundle.mjs"}"><\/script>`;
+    f.srcdoc = `<script type="module" src="${location.origin}/${"bundle.mjs"}"><\/script>`;
     window.addEventListener("message", (e) => onmsg(e.data));
+    f.addEventListener("load", () => send({ type: "init", config, runtime }), { once: true });
     document.body.append(f);
     send = (m) => f.contentWindow.postMessage(m, "*");
   }

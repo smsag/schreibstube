@@ -117,16 +117,17 @@ export const RUNTIME_SOURCE_PATHS: Record<string, string> = {
  *
  * From the release of the plugin version that is installed, so the pair is
  * always the pair that was tested together, and a vault that never updates
- * keeps working against the release it has.
+ * keeps working against the release it has. The search runtime is fetched the
+ * same way, which is why this takes any named file.
  */
-export function runtimeAssetUrl(pluginVersion: string, asset: RuntimeAsset): string {
+export function runtimeAssetUrl(pluginVersion: string, asset: Pick<RuntimeAsset, "name">): string {
   return `https://github.com/smsag/schreibstube/releases/download/${encodeURIComponent(
     pluginVersion
   )}/${asset.name}`;
 }
 
 /** Where it is kept once fetched: beside the plugin, not inside the vault's notes. */
-export function runtimeCachePath(pluginDir: string, asset: RuntimeAsset): string {
+export function runtimeCachePath(pluginDir: string, asset: Pick<RuntimeAsset, "name">): string {
   return `${pluginDir.replace(/\/+$/, "")}/${asset.name}`;
 }
 
@@ -157,7 +158,10 @@ export function toHex(digest: ArrayBuffer): string {
  * wrong, and "the compiler downloaded for printing does not match what this
  * version of the plugin expects" is the whole message.
  */
-export function checkRuntimeBytes(asset: RuntimeAsset, actualSha256: string): string | null {
+export function checkRuntimeBytes(
+  asset: Pick<RuntimeAsset, "name" | "sha256">,
+  actualSha256: string
+): string | null {
   if (actualSha256 === asset.sha256) return null;
   return `${asset.name}: expected ${short(asset.sha256)}, got ${short(actualSha256)}`;
 }

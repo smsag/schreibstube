@@ -113,6 +113,13 @@ jobs:
       - name: Build and verify the Typst runtime
         run: node scripts/fetch-typst-runtime.mjs
 
+      # The WebAssembly search by meaning runs, fetched on a device's first
+      # search. Taken from the onnxruntime-web this tree installed — the one
+      # whose JavaScript main.js carries — and checked against the hash in
+      # src/services/semantic/search-runtime.json, which the plugin checks too.
+      - name: Stage and verify the search runtime
+        run: node scripts/stage-search-runtime.mjs
+
       - name: Extract release notes
         run: |
           awk -v version="$VERSION" \
@@ -130,7 +137,8 @@ jobs:
         id: stage
         run: |
           mkdir release
-          cp main.js main.js.map manifest.json styles.css release_notes.md dist/typst-runtime-* release/
+          cp main.js main.js.map manifest.json styles.css release_notes.md \
+            dist/typst-runtime-* dist/search-runtime-* release/
           cd release
           sha256sum -- * > ../SHA256SUMS
           mv ../SHA256SUMS .
@@ -216,6 +224,7 @@ jobs:
             release/manifest.json
             release/styles.css
             release/typst-runtime-*
+            release/search-runtime-*
 
       # main.js.map is attached for symbolicating a reported stack trace. It is
       # not one of the three files Obsidian installs, so no vault ever loads it.
@@ -229,4 +238,4 @@ jobs:
             --target "$GITHUB_SHA" \
             --title "$VERSION" \
             --notes-file release_notes.md \
-            main.js manifest.json styles.css main.js.map typst-runtime-*
+            main.js manifest.json styles.css main.js.map typst-runtime-* search-runtime-*

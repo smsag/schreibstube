@@ -1,63 +1,29 @@
-// Runs INSIDE the embedding iframe only — never imported by the main plugin
-// bundle. This is the sole file that pulls in @huggingface/transformers, so the
-// esbuild "iframe" pass (browser target) bundles it here while `main.js` stays
-// free of the heavy ML runtime. The onnxruntime WASM and the model weights are
-// fetched from the CDN / HuggingFace at runtime and cached by the browser.
+// Runs INSIDE the embedding Worker or iframe only — never imported by the main
+// plugin bundle. This is the sole file that pulls in @huggingface/transformers,
+// so the esbuild embedding pass (browser target) bundles it here while
+// `main.js` carries the result only as a string. The runtime's JavaScript is in
+// that bundle; its WebAssembly arrives from the host, checked against its pin;
+// the model weights are fetched from Hugging Face and cached by the browser.
 
 import { env, pipeline, type ProgressInfo } from "@huggingface/transformers";
 import type { EmbeddingModelConfig } from "../../../../services/semantic/embedding-models";
 import { sliceBatch } from "./batch-slice";
-import { plainRuntimePaths } from "./runtime-build";
+import { pinRuntime, type WasmFlags } from "./runtime-build";
 import { TaskQueue } from "./task-queue";
 
 env.allowLocalModels = false;
 
-// Force SINGLE-THREADED WASM. onnxruntime-web defaults to multi-threaded WASM,
-// which spawns nested worker threads and uses SharedArrayBuffer — unstable in
-// Obsidian's Electron renderer, where it can hard-crash the process and reload
-// the whole app (the same class of instability that made us disable WebGPU; see
-// #initialize). It's a bit slower but stable, and it also keeps memory to a
-// single WASM heap. Applies to both the iframe and the Web Worker backend, since
-// both import this module. Optional-chained: the onnx backend is initialized at
-// transformers import time, so `env.backends.onnx.wasm` already exists here.
-// Typed as optional against transformers' own types, which promise the shape
-// this guard exists to doubt.
-const onnx = (
-  env.backends as
-    | {
-        onnx?: {
-          versions?: { web?: unknown };
-          wasm?: { numThreads?: number; wasmPaths?: unknown };
-        };
-      }
-    | undefined
-)?.onnx;
-const wasm = onnx?.wasm;
-if (wasm) {
-  wasm.numThreads = 1;
-  // The plain build, not the library's WebGPU-ready one: half the memory for
-  // the same vectors (see `plainRuntimePaths`). Set after the import, which is
-  // when the library writes its own choice.
-  const paths = plainRuntimePaths(onnx.versions?.web);
-  if (paths) wasm.wasmPaths = paths;
-  // An error, not a warning: without it an iPhone runs out of memory, and
-  // this console is the only place the worker or the frame can say so.
-  else
-    console.error(
-      "[Schreibstube] semantic engine: runtime version unreadable — its larger default build loads"
-    );
-} else {
-  // NEVER silent (principle 2). This `if` guards the fix for a known HARD CRASH —
-  // multi-threaded WASM + SharedArrayBuffer reloads the whole Electron renderer
-  // (Pythia ADR-119) — so "the shape wasn't there" must be reportable, not inferred.
-  // It is reachable: when transformers resolves to the NODE backend, `onnx` is
-  // the node binding and has no `.wasm`, which is precisely the case Pythia ADR-182's
-  // worker prefix removes. If this line appears, the crash guard did not apply.
-  // console.error because this runs inside the worker or iframe, where the
-  // plugin's logger does not exist; the host console is the only place it can go.
-  console.error(
-    "[Schreibstube] semantic engine: onnx wasm backend absent — numThreads guard NOT applied"
-  );
+// The onnx backend is initialized at transformers import time, so its settings
+// exist here. Typed as optional against transformers' own types, which promise
+// the shape this guard exists to doubt.
+const wasm = (env.backends as { onnx?: { wasm?: WasmFlags } } | undefined)?.onnx?.wasm;
+if (!wasm) {
+  // NEVER silent (principle 2). Reachable when transformers resolves to the
+  // NODE backend, whose binding has no `.wasm` — precisely the case the Worker
+  // prelude removes (Pythia ADR-182). The model then refuses to load (see
+  // `pinRuntime`) rather than run unpinned; this says why, in the only console
+  // the worker or the frame has.
+  console.error("[Schreibstube] semantic engine: onnx wasm backend absent — runtime not pinned");
 }
 
 // transformers.js's `pipeline()` overloads produce a union type too large for TS
@@ -109,12 +75,22 @@ export class EmbeddingModel {
   readonly config: EmbeddingModelConfig;
   ready: Promise<void>;
 
-  constructor(config: EmbeddingModelConfig, onProgress?: ModelLoadProgressCallback) {
+  /** `runtime`: the WebAssembly module the host sent, as it arrived. */
+  constructor(
+    config: EmbeddingModelConfig,
+    runtime: unknown,
+    onProgress?: ModelLoadProgressCallback
+  ) {
     this.config = config;
-    this.ready = this.#initialize(onProgress);
+    this.ready = this.#initialize(runtime, onProgress);
   }
 
-  async #initialize(onProgress?: ModelLoadProgressCallback): Promise<void> {
+  async #initialize(runtime: unknown, onProgress?: ModelLoadProgressCallback): Promise<void> {
+    // Before anything can start the runtime: without its pinned module it
+    // would go looking for one, and nothing it finds is checked.
+    const problem = pinRuntime(wasm, runtime);
+    if (problem !== null) throw new Error(problem);
+
     if (!navigator.onLine && !(await isModelCached(this.config.repoId))) {
       throw new Error(
         `The ${this.config.label} model has not been downloaded yet and you appear to be offline. ` +

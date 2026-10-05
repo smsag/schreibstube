@@ -1589,6 +1589,14 @@ export const de: Messages = {
       hours: (h: number, m: number) => (m > 0 ? `${h} h ${m} min` : `${h} h`),
       decimal: (n: number) => n.toFixed(1).replace(".", ",")
     },
+    runtime: {
+      unreachable: (detail: string) =>
+        `die Laufzeit der Suche ließ sich nicht von der Veröffentlichung dieser Version laden (${detail}). ` +
+        "Sie wird einmal je Gerät gebraucht; mit Internet neu aufbauen.",
+      mismatch: (detail: string) =>
+        `die geladene Laufzeit der Suche ist nicht die, die diese Version erwartet, und wurde nicht verwendet (${detail}).`,
+      slow: (seconds: number) => `keine Antwort innerhalb von ${seconds} s`
+    },
     state: {
       off: "Aus.",
       blocked: (name: string) =>

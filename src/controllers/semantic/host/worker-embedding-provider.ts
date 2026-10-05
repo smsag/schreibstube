@@ -25,6 +25,9 @@ export class WorkerEmbeddingProvider extends PostMessageEmbeddingProvider {
 
   constructor(
     modelId: EmbeddingModelId,
+    /** The runtime's checked WebAssembly, sent with the model's settings: the
+     *  bundle fetches no code of its own (`SearchRuntimeLoader`). */
+    private readonly runtime: () => Promise<ArrayBuffer>,
     onProgress?: (p: ModelLoadProgress) => void,
     /** Optional: resolve a same-origin, loadable URL for the worker script (e.g. a
      *  plugin resource path). When omitted, the worker loads from a `blob:` URL.
@@ -42,6 +45,8 @@ export class WorkerEmbeddingProvider extends PostMessageEmbeddingProvider {
   }
 
   protected async mount(): Promise<BackendChannel> {
+    // Ahead of the Worker, so a runtime that cannot be had leaves nothing to tear down.
+    const runtime = await this.runtime();
     let url: string;
     if (this.spawnUrl) {
       url = await this.spawnUrl(); // blob-free (resource path)
@@ -67,7 +72,9 @@ export class WorkerEmbeddingProvider extends PostMessageEmbeddingProvider {
       this.failLoad(new Error(event.message || "Embedding worker error"));
     worker.addEventListener("message", onMessage);
     worker.addEventListener("error", onError);
-    worker.postMessage({ type: "init", config: this.config });
+    // Copied rather than transferred: the bytes are the loader's, and another
+    // load that asked for them at the same moment may be sending them too.
+    worker.postMessage({ type: "init", config: this.config, runtime });
     return {
       send: (message) => worker.postMessage(message),
       close: () => {

@@ -4,6 +4,7 @@ import {
   type ModelLoadProgress
 } from "./post-message-backend";
 import { getEmbeddingBundle } from "./embedding-bundle";
+import type { EmbeddingModelId } from "../../../services/semantic/embedding-models";
 
 export type { ModelLoadProgress };
 
@@ -14,6 +15,13 @@ export type { ModelLoadProgress };
  * bootstrap as a string. The LAST resort in the backend chain — inference here
  * shares Obsidian's UI thread, which is why callers throttle a build on it.
  *
+ * Same-origin is a choice with a cost, and SECURITY.md says which. A sandboxed
+ * frame would have an opaque origin, and an opaque origin has no Cache Storage:
+ * the model, 75 to 120 MB, would download again on every start of a device that
+ * lands here. What runs in the frame is therefore held to what runs in a
+ * Worker — the bundle main.js carries and the WebAssembly checked against its
+ * pin, nothing fetched as code — rather than walled off from the window.
+ *
  * The conversation with the backend is `PostMessageEmbeddingProvider` (Pythia ADR-204);
  * what is here is how the iframe is mounted and removed, since no unit test
  * can reach this path.
@@ -21,21 +29,43 @@ export type { ModelLoadProgress };
 export class IframeEmbeddingProvider extends PostMessageEmbeddingProvider {
   protected readonly label = "Embedding iframe";
 
+  constructor(
+    modelId: EmbeddingModelId,
+    /** The runtime's checked WebAssembly; see `WorkerEmbeddingProvider`. */
+    private readonly runtime: () => Promise<ArrayBuffer>,
+    onProgress?: (p: ModelLoadProgress) => void
+  ) {
+    super(modelId, onProgress);
+  }
+
   /** Same-origin iframe → inference runs on the renderer UI thread, not off it. */
   isOffThread(): boolean {
     return false;
   }
 
   protected async mount(): Promise<BackendChannel> {
-    const configJson = JSON.stringify(this.config).replace(/</g, "\\u003c");
+    const runtime = await this.runtime();
     // Wrap the shared backend bundle in a module <script> at runtime; escape any
     // "</script" so it can't terminate the srcdoc script early.
-    const moduleScript = `<script type="module">\n${getEmbeddingBundle().replace(/<\/script/gi, "<\\/script")}\n</script>`;
-    const srcdoc = `<script>window.__EMBEDDING_MODEL_CONFIG__ = ${configJson};</script>\n${moduleScript}\n`;
+    const srcdoc = `<script type="module">\n${getEmbeddingBundle().replace(/<\/script/gi, "<\\/script")}\n</script>\n`;
 
     const iframe = document.createElement("iframe");
     iframe.setAttribute("style", "display: none;");
     iframe.srcdoc = srcdoc;
+    // The settings and the runtime go in as a message, as they do to a Worker:
+    // 14 MB of WebAssembly has no place in the frame's source text. A module
+    // script has run by the time its document has loaded, so the frame's
+    // listener is there to hear it.
+    iframe.addEventListener(
+      "load",
+      () => {
+        iframe.contentWindow?.postMessage(
+          { type: "init", config: this.config, runtime },
+          window.origin
+        );
+      },
+      { once: true }
+    );
     document.body.appendChild(iframe);
 
     const onMessage = (event: MessageEvent): void => {

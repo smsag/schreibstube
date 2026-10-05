@@ -9,7 +9,7 @@ const hold: { release: (() => void) | null; on: string | null } = { release: nul
 /** Every backend instance that was told to unload — the model's only release. */
 const unloaded: string[] = [];
 /** The message a failing backend throws, when a test needs a specific one. */
-const failWith: { message: string | null } = { message: null };
+const failWith: { message: string | null; error: Error | null } = { message: null, error: null };
 const built: string[] = [];
 /** Backends that failed after they were ready (a Worker's error event). */
 const dead = new Set<string>();
@@ -18,7 +18,7 @@ vi.mock("./worker-embedding-provider", () => ({
   WorkerEmbeddingProvider: class {
     readonly dim = 4;
     private readonly kind: string;
-    constructor(_id: string, _p?: unknown, spawnUrl?: () => Promise<string>) {
+    constructor(_id: string, _runtime: unknown, _p?: unknown, spawnUrl?: () => Promise<string>) {
       this.kind = spawnUrl ? "resourceWorker" : "blobWorker";
       built.push(this.kind);
     }
@@ -28,7 +28,7 @@ vi.mock("./worker-embedding-provider", () => ({
           hold.release = r;
         });
       if (fail[this.kind as "blobWorker" | "resourceWorker"])
-        throw new Error(failWith.message ?? `${this.kind} unavailable`);
+        throw failWith.error ?? new Error(failWith.message ?? `${this.kind} unavailable`);
     }
     async embed(): Promise<Float32Array[]> {
       return [];
@@ -71,7 +71,11 @@ vi.mock("./iframe-embedding-provider", () => ({
 }));
 
 import { createEmbeddingProvider } from "./embedding-provider-factory";
+
+/** The runtime's bytes; the mocked backends never read them. */
+const runtime = async (): Promise<ArrayBuffer> => new ArrayBuffer(8);
 import { DEFAULT_EMBEDDING_MODEL_ID } from "../../../services/semantic/embedding-models";
+import { SearchRuntimeError } from "../../../services/semantic/search-runtime";
 
 const make = (): {
   provider: ReturnType<typeof createEmbeddingProvider>;
@@ -80,6 +84,7 @@ const make = (): {
   const seen: EmbeddingBackend[] = [];
   const provider = createEmbeddingProvider(
     DEFAULT_EMBEDDING_MODEL_ID,
+    runtime,
     undefined,
     async () => "app://resource/worker.mjs",
     (b) => seen.push(b)
@@ -92,6 +97,7 @@ beforeEach(() => {
   fail.resourceWorker = false;
   fail.iframe = false;
   failWith.message = null;
+  failWith.error = null;
   built.length = 0;
   hold.on = null;
   hold.release = null;
@@ -167,6 +173,7 @@ describe("FallbackEmbeddingProvider — why the others failed (Pythia ADR-185)",
     const seen: { backend: string; failures: string[] }[] = [];
     const provider = createEmbeddingProvider(
       DEFAULT_EMBEDDING_MODEL_ID,
+      runtime,
       undefined,
       async () => "app://resource/worker.mjs",
       (backend, failures) => seen.push({ backend, failures })
@@ -225,6 +232,17 @@ describe("FallbackEmbeddingProvider — out of memory ends the chain (Pythia ADR
     const { provider } = make();
     await provider.ready();
     expect(built).toEqual(["blobWorker", "resourceWorker"]);
+  });
+});
+
+describe("FallbackEmbeddingProvider — a runtime that cannot be had ends the chain", () => {
+  it("does not fetch it again for the next backend, which runs the same module", async () => {
+    fail.blobWorker = true;
+    failWith.error = new SearchRuntimeError("the search runtime could not be fetched (HTTP 404)");
+    const { provider, seen } = make();
+    await expect(provider.ready()).rejects.toBe(failWith.error);
+    expect(built).toEqual(["blobWorker"]);
+    expect(seen).toEqual([]);
   });
 });
 
