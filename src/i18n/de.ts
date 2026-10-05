@@ -267,7 +267,8 @@ export const de: Messages = {
     skipReason: {
       type: "Dateityp",
       size: "zu groß",
-      limit: "Grenze erreicht"
+      limit: "Grenze erreicht",
+      content: "Inhalt passt nicht zum Typ"
     },
     confirmTitle: "E-Mail senden",
     confirmFrom: "Von",
@@ -610,6 +611,10 @@ export const de: Messages = {
     selectText: "zuerst Text markieren, der zusammengefasst werden soll.",
     summarizing: "fasst zusammen …",
     summarizeFailed: "Zusammenfassung fehlgeschlagen — das LLM lieferte eine leere Antwort.",
+    responseTooLarge: (provider: string, megabytes: number) =>
+      `${provider}: die Antwort war größer als ${megabytes} MB und wurde nicht gelesen.`,
+    codeNeutralized: (kinds: readonly string[]) =>
+      `die Antwort enthielt Code, den ein anderes Plugin ausführt (${kinds.join(", ")}); er wurde als Text eingefügt, der nicht läuft.`,
     renameFailedName: "Umbenennen fehlgeschlagen — das LLM lieferte keinen brauchbaren Namen.",
     renameTooShort: "diese Notiz ist zu kurz, um aus ihrem Inhalt benannt zu werden.",
     cannotName: "nur eine Notiz oder ein Bild lässt sich aus dem Inhalt benennen.",
@@ -931,6 +936,12 @@ export const de: Messages = {
     noCriteria: "mindestens ein Suchkriterium angeben.",
     noMessages: "keine Nachricht gefunden.",
     noReplies: "keine neuen Antworten.",
+    searchTruncated: (count: number) =>
+      `die neuesten ${count} Treffer; ältere wurden ausgelassen — die Suche eingrenzen, um sie zu finden.`,
+    repliesTruncated:
+      "mehr Antworten beziehen sich auf diese Notiz, als ein Abruf holt; ältere sind liegen geblieben. „Antworten in die Notiz holen“ noch einmal ausführen, um sie zu holen.",
+    repliesTruncatedOld:
+      "mehr Antworten beziehen sich auf diese Notiz, als ein Abruf holt, und diese Bridge liefert immer die neuesten. Die Bridge aktualisieren, um die älteren zu holen.",
     sending: "sendet …",
     drawing: (index: number, total: number) =>
       `zeichne Visualisierung ${index} von ${total} für die Mail …`,
@@ -1238,7 +1249,8 @@ export const de: Messages = {
         "ein Name darf # ^ [ oder ] nicht enthalten: Links auf die Datei würden brechen.",
       hidden: "ein Name, der mit einem Punkt beginnt, wird vom Vault versteckt.",
       trailingDot: "ein Name darf nicht mit einem Punkt enden.",
-      tooLong: "ein Name darf höchstens 255 Zeichen lang sein."
+      tooLong: "ein Name darf höchstens 255 Zeichen lang sein.",
+      reserved: "Windows hält diesen Namen für ein Gerät frei und legt keine Datei damit an."
     },
 
     delete: {
@@ -1719,6 +1731,8 @@ export const de: Messages = {
     ratesTimeout: (seconds: number) =>
       `die Europäische Zentralbank hat nicht innerhalb von ${seconds} Sekunden geantwortet.`,
     ratesUnreadable: "die Antwort der Europäischen Zentralbank war keine Kursliste.",
+    ratesTooLarge:
+      "die Antwort der Europäischen Zentralbank war viel größer als eine Kursliste und wurde nicht gelesen.",
     freezeStale:
       "die Formeln der Notiz haben sich seit dem Versand geändert, darum wurde nichts festgeschrieben.",
     freezeFailed: (path: string) =>

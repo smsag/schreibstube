@@ -12,16 +12,25 @@
  */
 
 import { parseSender } from "./mail-address.mjs";
+import { DEFAULT_MAX_RECIPIENTS, DEFAULT_SEND_PER_HOUR, parseFromAllowed } from "./mail-policy.mjs";
 
 /** Bumped when the request or response shape changes in a way the plugin can
  *  see; the table in README.md says what each number brought. */
-export const PROTOCOL_VERSION = 7;
+export const PROTOCOL_VERSION = 8;
 
 /** What a TCP port can be. */
 const MAX_PORT = 65_535;
 
 /** Minimum token length. Short tokens are brute-forceable over a public URL. */
 export const MIN_TOKEN_LENGTH = 24;
+
+/**
+ * Fewest distinct characters a token may be made of. Length alone let
+ * `aaaaaaaaaaaaaaaaaaaaaaaa` through, and a token typed by hand rather than
+ * generated is the one an attacker's word list already holds. Base64 of 32
+ * random bytes has around thirty.
+ */
+export const MIN_TOKEN_DISTINCT_CHARS = 10;
 
 /** Variables that, if any is present, mean the operator intended mail. */
 const MAIL_KEYS = [
@@ -44,6 +53,15 @@ export function loadConfig(env = process.env) {
   const mail = MAIL_KEYS.some((key) => present(env[key])) ? loadMail(env) : null;
   const publish = PUBLISH_KEYS.some((key) => present(env[key])) ? loadPublish(env) : null;
 
+  // One token for both is a publish token that opens the mailbox: the router
+  // names the first capability whose token matches, and that is always mail.
+  if (mail && publish && mail.token === publish.token) {
+    throw new Error(
+      "MAIL_TOKEN and PUBLISH_TOKEN are the same. Give each capability its own token, " +
+        "so a leaked one reaches only its own routes."
+    );
+  }
+
   if (!mail && !publish) {
     throw new Error(
       "No capability is configured. Set the mail variables " +
@@ -62,8 +80,12 @@ export function loadConfig(env = process.env) {
     authFailureWindowMs: integer(env.AUTH_FAILURE_WINDOW_MS, 60_000, "AUTH_FAILURE_WINDOW_MS"),
     drainTimeoutMs: integer(env.DRAIN_TIMEOUT_MS, 10_000, "DRAIN_TIMEOUT_MS"),
     logFormat: env.LOG_FORMAT?.trim() === "json" ? "json" : "text",
-    // Whether the throttle may believe X-Forwarded-For; see http.mjs.
-    trustProxy: boolean(env.TRUST_PROXY, false, "TRUST_PROXY"),
+    // Whether the throttle may believe X-Forwarded-For, and how many proxies
+    // stand in front; see http.mjs.
+    ...proxyTrust(env),
+    // Sockets open at once. One person's plugin uses a handful; the rest is
+    // room for a phone and a laptop together, not for whoever opens the most.
+    maxConnections: integer(env.MAX_CONNECTIONS, 100, "MAX_CONNECTIONS"),
     mail,
     publish
   };
@@ -205,6 +227,11 @@ function loadMail(env) {
       auth
     },
     from: sender(env.MAIL_FROM),
+    // Who a send may claim to be, how many it may reach and how often; see
+    // mail-policy.mjs.
+    fromAllowed: parseFromAllowed(env.MAIL_FROM_ALLOWED, parseSender(env.MAIL_FROM).address),
+    maxRecipients: integer(env.MAX_RECIPIENTS, DEFAULT_MAX_RECIPIENTS, "MAX_RECIPIENTS"),
+    sendPerHour: integer(env.MAIL_SEND_PER_HOUR, DEFAULT_SEND_PER_HOUR, "MAIL_SEND_PER_HOUR"),
     defaultMailbox: env.DEFAULT_MAILBOX?.trim() || "INBOX",
     // A name, "" for "never file", or null for "ask the server".
     sentMailbox: env.SENT_MAILBOX === "" ? "" : env.SENT_MAILBOX?.trim() || null
@@ -224,17 +251,49 @@ export function isWithin(path, directory) {
   return path === base || path.startsWith(`${base}/`) || base === "";
 }
 
+/** More proxies than this in front of one bridge is a header someone wrote. */
+const MAX_PROXY_HOPS = 10;
+
+/**
+ * `TRUST_PROXY=true` is one proxy; `TRUST_PROXY_HOPS=<n>` says how many. Set
+ * against an explicit `TRUST_PROXY=false` the two contradict each other, and a
+ * bridge that guessed which one was meant would guess the throttle's key.
+ */
+function proxyTrust(env) {
+  const trusted = boolean(env.TRUST_PROXY, false, "TRUST_PROXY");
+  const hops = integer(env.TRUST_PROXY_HOPS, trusted ? 1 : 0, "TRUST_PROXY_HOPS", MAX_PROXY_HOPS);
+  if (hops > 0 && present(env.TRUST_PROXY) && !trusted) {
+    throw new Error("TRUST_PROXY_HOPS is set but TRUST_PROXY is false; unset one of them.");
+  }
+  return { trustProxy: hops > 0, trustProxyHops: hops };
+}
+
 /** The names of the capabilities this configuration actually offers. */
 export function capabilityNames(config) {
   return ["mail", "publish"].filter((name) => config[name]);
 }
 
+/**
+ * A capability's token, refused at startup unless it could have come from a
+ * generator. `.env.example` once carried a placeholder long enough to pass,
+ * and a deployment copied from it was guarded by a token printed in this
+ * repository.
+ */
 function token(value, name) {
   const trimmed = value.trim();
+  const advice = "Generate one with: openssl rand -base64 32";
   if (trimmed.length < MIN_TOKEN_LENGTH) {
     throw new Error(
       `${name} must be at least ${MIN_TOKEN_LENGTH} characters ` +
-        `(got ${trimmed.length}). Generate one with: openssl rand -base64 32`
+        `(got ${trimmed.length}). ${advice}`
+    );
+  }
+  if (/replace-?me/i.test(trimmed)) {
+    throw new Error(`${name} is still the placeholder from .env.example. ${advice}`);
+  }
+  if (new Set(trimmed).size < MIN_TOKEN_DISTINCT_CHARS) {
+    throw new Error(
+      `${name} must use at least ${MIN_TOKEN_DISTINCT_CHARS} different characters. ${advice}`
     );
   }
   return trimmed;

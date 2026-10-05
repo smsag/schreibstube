@@ -12,6 +12,7 @@
  */
 
 import { t } from "../i18n";
+import { introducedCodeKinds } from "./foreign-text";
 import type { GlossaryHit, GlossaryMatcher } from "./glossary-matcher";
 import {
   placeholdersIntact,
@@ -276,8 +277,17 @@ function suggestionsForBlock(
   // edit offset is directly usable against the document.
   const rewritten = restorePlaceholders(maskedRewrite, placeholders);
 
-  return diffToEdits(block.text, rewritten).map((edit) =>
-    createSuggestion(
+  // A rewrite is the model's text, and the model read the note, which may
+  // quote somebody else's instructions. Code it brings in is checked per edit
+  // and across the block, since two harmless edits can open and close one
+  // Templater tag between them; a block that gained code holds every card of
+  // it back from "Accept all".
+  const blockCode = introducedCodeKinds(block.text, rewritten);
+
+  return diffToEdits(block.text, rewritten).map((edit) => {
+    const applied = block.text.slice(0, edit.from) + edit.after + block.text.slice(edit.to);
+    const runsCode = [...new Set([...introducedCodeKinds(block.text, applied), ...blockCode])];
+    return createSuggestion(
       {
         kind: editKind(edit.before, edit.after),
         source: "llm",
@@ -287,15 +297,16 @@ function suggestionsForBlock(
         to: block.from + edit.to,
         original: edit.before,
         replacement: edit.after,
-        note: ""
+        note: runsCode.length > 0 ? t().proofread.cardRunsCode(runsCode) : "",
+        ...(runsCode.length > 0 ? { runsCode } : {})
       },
       // The document's coordinates, not the block's: an edit at the very start
       // of a block has nothing before it inside that block, and taking the
       // slice there recorded no anchor at all — which left the card unplaceable
       // against the very text it had just been read from.
       docText.slice(0, block.from + edit.from)
-    )
-  );
+    );
+  });
 }
 
 function editKind(before: string, after: string): Suggestion["kind"] {

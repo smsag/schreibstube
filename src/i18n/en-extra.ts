@@ -298,6 +298,10 @@ export const enExtra = {
     selectText: "select some text to summarize first.",
     summarizing: "summarizing…",
     summarizeFailed: "summarize failed — the LLM returned an empty response.",
+    responseTooLarge: (provider: string, megabytes: number) =>
+      `${provider}: the answer was larger than ${megabytes} MB and was not read.`,
+    codeNeutralized: (kinds: readonly string[]) =>
+      `the answer held code another plugin runs (${kinds.join(", ")}); it was inserted as text that does not run.`,
     renameFailedName: "rename failed — the LLM returned an unusable filename.",
     renameTooShort: "this note is too short to be named from its content.",
     cannotName: "only a note or a picture can be named from what is inside it.",
@@ -609,6 +613,12 @@ export const enExtra = {
     noCriteria: "enter at least one search criterion.",
     noMessages: "no messages matched.",
     noReplies: "no new replies.",
+    searchTruncated: (count: number) =>
+      `showing the newest ${count} matches; older ones were left out — narrow the search to reach them.`,
+    repliesTruncated:
+      'more replies cite this note than one fetch takes; older ones were left behind. Run "Fetch replies into note" again to reach them.',
+    repliesTruncatedOld:
+      "more replies cite this note than one fetch takes, and this bridge always returns the newest. Update the bridge to reach the older ones.",
     sending: "sending…",
     drawing: (index: number, total: number) => `drawing diagram ${index} of ${total} for the mail…`,
     searching: "searching mailbox…",
@@ -911,7 +921,8 @@ export const enExtra = {
       linkCharacters: "a name cannot contain # ^ [ or ]: links to the file would break.",
       hidden: "a name starting with a dot is hidden by the vault.",
       trailingDot: "a name cannot end with a dot.",
-      tooLong: "a name can be at most 255 characters."
+      tooLong: "a name can be at most 255 characters.",
+      reserved: "Windows keeps that name for a device and cannot create a file with it."
     },
 
     delete: {
@@ -1367,6 +1378,8 @@ export const enExtra = {
     ratesTimeout: (seconds: number) =>
       `the European Central Bank did not answer within ${seconds} seconds.`,
     ratesUnreadable: "the European Central Bank's answer was not a list of rates.",
+    ratesTooLarge:
+      "the European Central Bank's answer was far larger than a list of rates and was not read.",
     freezeStale: "the note's formulas changed since it was sent, so nothing was frozen.",
     freezeFailed: (path: string) =>
       `the fixed totals in ${path} could not be written; they stay live until the next send.`

@@ -22,6 +22,7 @@ import type { Logger } from "../services/logger";
 import type { PrintJob } from "../services/print-job";
 import { compileDeadline, compilePayload } from "../services/print-job";
 import {
+  checkDownloadSize,
   checkRuntimeBytes,
   COMPILER_MEGABYTES,
   DEVICE_ASSETS,
@@ -312,6 +313,8 @@ export class TypstCompiler {
     if (response.status < 200 || response.status >= 300) {
       throw new Error(this.strings.unreachable(`HTTP ${response.status}`));
     }
+    const tooLarge = checkDownloadSize(asset, response.headers, response.arrayBuffer);
+    if (tooLarge !== null) throw new Error(this.strings.mismatch(tooLarge));
     return new Uint8Array(response.arrayBuffer);
   }
 

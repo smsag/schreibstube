@@ -7,8 +7,7 @@ import { MAX_IMAGE_BYTES, getImageMimeType, resizeImageToBase64 } from "../servi
 import {
   generateImageRenameFilename,
   generateRenameFilename,
-  sanitizeFilename,
-  stripFilenameExtension
+  proposedFileName
 } from "../platform/llm-rename";
 import { generateSummary } from "../platform/llm-summarize";
 import { generateImageDescription } from "../platform/llm-describe";
@@ -28,8 +27,10 @@ import {
   TABLE_MAX_INPUT_CHARS,
   TABLE_MAX_TOKENS,
   TABLE_SYSTEM_PROMPT,
+  guardTableCode,
   parseTableResponse
 } from "../services/llm-table";
+import { neutralizeIntroducedCode } from "../services/foreign-text";
 import type { MarkdownTable } from "../services/text-to-table";
 import {
   TAGS_MAX_TOKENS,
@@ -387,11 +388,8 @@ export class LlmCommands {
   }
 
   private usableName(proposed: string, extension: string): string | null {
-    const sanitized = stripFilenameExtension(
-      sanitizeFilename(proposed, this.getSettings().renameMaxFilenameLength),
-      extension
-    );
-    if (sanitized) return sanitized;
+    const name = proposedFileName(proposed, extension, this.getSettings().renameMaxFilenameLength);
+    if (name) return name;
 
     this.logger.warn("Rename produced an unusable filename:", proposed);
     new Notice(t().common.notice(t().ai.renameFailedName));
@@ -445,7 +443,13 @@ export class LlmCommands {
         new Notice(t().common.notice(t().ai.selectionMoved));
         return;
       }
-      editor.replaceRange(summary, from, to);
+      // The answer is the model's, and the model read text that may hold
+      // instructions of somebody else's; code it adds must not run unread.
+      const guarded = neutralizeIntroducedCode(selection, summary);
+      editor.replaceRange(guarded.text, from, to);
+      if (guarded.kinds.length > 0) {
+        new Notice(t().common.notice(t().ai.codeNeutralized(guarded.kinds)), 0);
+      }
     });
   }
 
@@ -506,7 +510,11 @@ export class LlmCommands {
         new Notice(t().common.notice(t().ai.tableSelectionMoved));
         return;
       }
-      insertTable(editor, range, table);
+      const guarded = guardTableCode(table, original);
+      insertTable(editor, range, guarded.table);
+      if (guarded.kinds.length > 0) {
+        new Notice(t().common.notice(t().ai.codeNeutralized(guarded.kinds)), 0);
+      }
     });
   }
 

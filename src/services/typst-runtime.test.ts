@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { t } from "../i18n";
 import {
+  checkDownloadSize,
   checkRuntimeBytes,
+  MAX_ASSET_BYTES,
   describeDiagnostics,
   LOADER_ASSET,
   readCompileResult,
@@ -65,6 +67,36 @@ describe("checkRuntimeBytes", () => {
   it("refuses a hash that merely starts the same way", () => {
     const almost = `${WASM_ASSET.sha256.slice(0, 63)}0`;
     expect(checkRuntimeBytes(WASM_ASSET, almost)).not.toBeNull();
+  });
+});
+
+describe("checkDownloadSize", () => {
+  it("passes a download no larger than its kind allows", () => {
+    expect(
+      checkDownloadSize(WASM_ASSET, { "content-length": "28325178" }, new Uint8Array(4))
+    ).toBeNull();
+    expect(checkDownloadSize(LOADER_ASSET, undefined, new Uint8Array(59874))).toBeNull();
+  });
+
+  it("refuses one that declares more, before its bytes are hashed", () => {
+    const declared = String(MAX_ASSET_BYTES.compiler + 1);
+    expect(checkDownloadSize(WASM_ASSET, { "Content-Length": declared }, new Uint8Array(0))).toBe(
+      `${WASM_ASSET.name}: ${declared} bytes, at most ${MAX_ASSET_BYTES.compiler}`
+    );
+  });
+
+  it("refuses one that is larger than it declared", () => {
+    const font = FONT_ASSETS[0];
+    expect(font).toBeDefined();
+    if (!font) return;
+    const body = new Uint8Array(MAX_ASSET_BYTES.font + 1);
+    expect(checkDownloadSize(font, { "content-length": "10" }, body)).not.toBeNull();
+  });
+
+  it("holds every kind of asset to a bound", () => {
+    for (const asset of DEVICE_ASSETS) {
+      expect(MAX_ASSET_BYTES[asset.label], asset.name).toBeGreaterThan(0);
+    }
   });
 });
 

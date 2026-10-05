@@ -41,6 +41,22 @@ describe("diagnose", () => {
     });
   });
 
+  it("requires STARTTLS when the connection does not start in TLS, so the upgrade cannot be struck", async () => {
+    imap.hang = false;
+    await diagnose(
+      { ...config, imap: { ...config.imap, port: 143, secure: false } },
+      { verify: async () => {} }
+    );
+    expect(imap.options.at(-1)).toMatchObject({ secure: false, doSTARTTLS: true });
+  });
+
+  it("asks for no STARTTLS on a connection that is TLS from the start, which imapflow refuses", async () => {
+    imap.hang = false;
+    await diagnose(config, { verify: async () => {} });
+    expect(imap.options.at(-1).secure).toBe(true);
+    expect(imap.options.at(-1)).not.toHaveProperty("doSTARTTLS");
+  });
+
   it("answers its own shape when a protocol hangs, naming the protocol", async () => {
     imap.hang = true;
     const result = await diagnose(config, { verify: () => new Promise(() => {}) });

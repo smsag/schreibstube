@@ -17,7 +17,7 @@
 import { fenceMarker } from "./markdown-fence";
 
 /** Fence languages whose block another plugin executes. */
-const EXECUTING_FENCES = new Set([
+export const EXECUTING_FENCE_LANGUAGES: readonly string[] = [
   "dataviewjs",
   "datacorejs",
   "datacorejsx",
@@ -26,7 +26,9 @@ const EXECUTING_FENCES = new Set([
   "js-engine",
   "meta-bind-js-view",
   "button"
-]);
+];
+
+const EXECUTING_FENCES = new Set(EXECUTING_FENCE_LANGUAGES);
 
 /** Dataview's inline JavaScript: an inline code span opening with `$=`. */
 const INLINE_DATAVIEW_JS = /`\$=[^`\n]*`/g;

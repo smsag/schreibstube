@@ -16,6 +16,7 @@
  * is written, the note, its path and the fingerprint that says whether a
  * picture changed since it was described.
  */
+import { normalizeVaultFolder } from "./file-name";
 import { normalizeTag, tagKey } from "./tag-suggestions";
 
 /** Bounds on what a description may carry into the vault. A model's answer is
@@ -115,12 +116,22 @@ function extractJson(raw: string): unknown {
  *
  * The answer is data, and a note is not a neutral container: `[[…]]` would
  * become a link, a leading `#` a tag or heading, a `---` line a frontmatter
- * fence, and HTML would render. Each is taken out rather than escaped, because
- * a description has no use for any of them.
+ * fence, and HTML would render. A Markdown image would be fetched the moment
+ * the note is shown — a remote one tells its owner the note was opened — and
+ * a backtick, a `<%` or a `%%` is where code another plugin runs, or a
+ * comment hiding the rest of the note, begins. Each is taken out rather than
+ * escaped, because a description has no use for any of them; a link keeps its
+ * words, which are the part that describes.
  */
 export function sanitizeDescriptionText(value: string): string {
   return value
+    .replace(/<%|%>|%%/g, "")
     .replace(/<[^>]*>/g, "")
+    .replace(/<(?=[a-z/!?])/gi, "")
+    .replace(/`|~{3,}/g, "")
+    .replace(/!?\[([^\]\n]*)\]\([^)\n]*\)/g, "$1")
+    .replace(/^[ \t]*\[[^\]\n]+\]:.*$/gm, "")
+    .replace(/!(?=\[)/g, "")
     .replace(/\[\[|\]\]/g, "")
     .replace(/^\s*-{3,}\s*$/gm, "")
     .replace(/^[ \t]*#+[ \t]+/gm, "")
@@ -201,22 +212,12 @@ export const DEFAULT_DESCRIPTION_FOLDER = "Bildbeschreibungen";
 /**
  * The description folder as a vault path, or the default.
  *
- * `data.json` is edited by hand as well as by the settings tab, and this path is
- * written to: a `..` segment, a leading slash or an empty name must not choose
- * where notes are created. Slashes at either end are dropped and runs of them
- * collapsed; anything with a `.` or `..` segment falls back to the default.
+ * This path is written to, so it is read as `normalizeVaultFolder` reads every
+ * folder setting, and anything that cannot be a folder in the vault — an empty
+ * name included — means the default.
  */
 export function normalizeDescriptionFolder(value: unknown): string {
-  if (typeof value !== "string") return DEFAULT_DESCRIPTION_FOLDER;
-  const segments = value
-    .replace(/\\/g, "/")
-    .split("/")
-    .map((segment) => segment.trim())
-    .filter((segment) => segment.length > 0);
-  if (segments.length === 0 || segments.some((s) => s === "." || s === "..")) {
-    return DEFAULT_DESCRIPTION_FOLDER;
-  }
-  return segments.join("/");
+  return normalizeVaultFolder(value) || DEFAULT_DESCRIPTION_FOLDER;
 }
 
 /** The frontmatter keys a description note owns. */
