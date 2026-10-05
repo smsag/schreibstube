@@ -7,7 +7,7 @@ import {
 } from "../services/llm-providers";
 import { sendRequest } from "./llm-client";
 
-export { sanitizeFilename, stripFilenameExtension } from "../services/llm-providers";
+export { proposedFileName } from "../services/llm-providers";
 
 type RenameSettings = Pick<
   SchreibstubeSettings,

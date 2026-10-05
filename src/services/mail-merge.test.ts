@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { EXECUTING_FENCE_LANGUAGES, findExecutableCode } from "./executable-code";
 import type { MailMessage } from "./mail-protocol";
+import { fenceMarker } from "./markdown-fence";
 import {
   appendToSection,
   formatMessage,
@@ -234,5 +236,47 @@ describe("raw HTML in somebody else's mail", () => {
   it("leaves an address in angle brackets alone, since a tag name has no @", () => {
     const rendered = formatMessage(message({ text: "Schreib an <k@example.com>, 3 < 4." }));
     expect(rendered).toContain("> Schreib an <k@example.com>, 3 < 4.");
+  });
+});
+
+describe("code in somebody else's mail", () => {
+  const unquoted = (line: string): string => line.replace(/^>\s?/, "");
+
+  it("cannot arrive as a fence another plugin runs, for any of them", () => {
+    for (const language of EXECUTING_FENCE_LANGUAGES) {
+      for (const fence of ["```", "~~~", "````"]) {
+        const text = `Siehe:\n${fence}${language}\napp.vault.delete()\n${fence}\nGruß`;
+        const rendered = formatMessage(message({ text, subject: `${fence}${language}` }));
+        expect(findExecutableCode(rendered), `${fence}${language}`).toEqual([]);
+        const fences = rendered.split("\n").filter((line) => fenceMarker(unquoted(line)));
+        expect(fences, `${fence}${language}`).toEqual([]);
+      }
+    }
+  });
+
+  it("cannot arrive as Dataview's inline JavaScript, a Templater tag or a comment", () => {
+    const rendered = formatMessage(
+      message({
+        subject: "`$= dv.pages().length`",
+        from: "<% tp.system.prompt() %>",
+        text: "Summe: `$= app.vault.getFiles()`\n<%* await tp.file.move('/x') %>\n%% weg %% <!-- weg -->"
+      })
+    );
+    expect(findExecutableCode(rendered)).toEqual([]);
+    expect(rendered).not.toContain("`");
+    expect(rendered).not.toContain("<%");
+    expect(rendered).not.toContain("%%");
+    expect(rendered).not.toContain("<!--");
+  });
+
+  it("keeps every line of a body with bare carriage returns inside the quote", () => {
+    const rendered = formatMessage(message({ text: "Erste\r# Überschrift\r\n- Liste\rletzte" }));
+    expect(rendered.split("\n").filter((line) => line.startsWith(">"))).toEqual([
+      "> Erste",
+      "> # Überschrift",
+      "> - Liste",
+      "> letzte"
+    ]);
+    expect(rendered).not.toContain("\r");
   });
 });

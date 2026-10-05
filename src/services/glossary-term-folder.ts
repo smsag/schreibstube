@@ -14,6 +14,7 @@
  * hand.
  */
 
+import { normalizeVaultFolder } from "./file-name";
 import {
   DEFAULT_GLOSSARY_LANGUAGE,
   type Glossary,
@@ -48,10 +49,9 @@ export interface TermRule {
 
 export type AvoidError = "empty" | "same" | "duplicate" | "tooLong" | "tooMany" | "multiline";
 
-/** A folder path as a setting holds it: trimmed, no leading or trailing slash. */
+/** A folder path as a setting holds it, or `""` — off — for one that cannot be a folder. */
 export function normalizeTermFolder(value: unknown): string {
-  if (typeof value !== "string") return "";
-  return value.trim().replace(/^\/+|\/+$/g, "");
+  return normalizeVaultFolder(value) ?? "";
 }
 
 export function isInTermFolder(path: string, folder: string): boolean {

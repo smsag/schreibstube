@@ -5,6 +5,7 @@ import { parseJsonBody } from "../services/bridge-protocol";
 import {
   REQUEST_TIMEOUT_MS,
   describeApiError,
+  llmResponseSizeProblem,
   parseResponse,
   providerLabel,
   type BuiltRequest
@@ -24,6 +25,9 @@ export async function sendRequest(provider: LlmProvider, request: BuiltRequest):
     REQUEST_TIMEOUT_MS,
     (seconds) => `${providerLabel(provider)}: request timed out after ${seconds}s.`
   );
+
+  const tooLarge = llmResponseSizeProblem(provider, response.headers, response.arrayBuffer);
+  if (tooLarge !== null) throw new Error(tooLarge);
 
   if (response.status < 200 || response.status >= 300) {
     throw new Error(describeApiError(providerLabel(provider), response.status, response.text));

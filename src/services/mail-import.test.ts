@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
+import { findExecutableCode } from "./executable-code";
 import {
   attachmentQuoteLines,
   isImageAttachment,
   MAX_ATTACHMENT_NAME_BYTES,
   MAX_ATTACHMENT_NAME_CHARS,
+  MAX_SKIPPED_NAME_CHARS,
   safeAttachmentName,
   safeDisplayName
 } from "./mail-import";
@@ -93,9 +95,35 @@ describe("attachmentQuoteLines", () => {
   });
 
   it("names what was left out", () => {
-    expect(attachmentQuoteLines([], ["setup.exe (Dateityp)", "Film.mov (zu groß)"], label)).toBe(
+    const skipped = [
+      { filename: "setup.exe", reason: "Dateityp" },
+      { filename: "Film.mov", reason: "zu groß" }
+    ];
+    expect(attachmentQuoteLines([], skipped, label)).toBe(
       ">\n> Nicht übernommen: setup.exe (Dateityp), Film.mov (zu groß)"
     );
+  });
+
+  it("writes a name the sender chose as text, never as an embed or code", () => {
+    const skipped = [
+      { filename: "![[Finanzen/Gehalt.pdf]].ics", reason: "Dateityp" },
+      { filename: "x.ics\n```dataviewjs\napp.vault.delete()\n```", reason: "Dateityp" },
+      { filename: "`$= dv.pages()`<% tp.file.title %>%%.ics", reason: "Dateityp" }
+    ];
+    const lines = attachmentQuoteLines([], skipped, label);
+
+    expect(lines).not.toContain("![[");
+    expect(lines).toContain("!\\[\\[Finanzen/Gehalt.pdf]].ics (Dateityp)");
+    expect(findExecutableCode(lines)).toEqual([]);
+    expect(lines).not.toContain("`");
+    expect(lines).not.toContain("<%");
+    expect(lines).not.toContain("%%");
+    expect(lines.split("\n").every((line) => line.startsWith(">"))).toBe(true);
+  });
+
+  it("cuts a name chosen to be enormous", () => {
+    const lines = attachmentQuoteLines([], [{ filename: "a".repeat(5000), reason: "x" }], label);
+    expect(lines.length).toBeLessThan(MAX_SKIPPED_NAME_CHARS + 60);
   });
 
   it("adds nothing for a mail without files", () => {

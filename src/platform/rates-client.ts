@@ -12,6 +12,7 @@ import {
   parseEcbRates,
   RATES_TIMEOUT_MS,
   RATES_URL,
+  ratesSizeProblem,
   type ExchangeRates
 } from "../services/exchange-rates";
 
@@ -22,6 +23,8 @@ export async function fetchEcbRates(now: number): Promise<ExchangeRates> {
     (seconds) => t().sums.ratesTimeout(seconds)
   );
   if (response.status !== 200) throw new Error(`HTTP ${response.status}`);
+  const tooLarge = ratesSizeProblem(response.headers, response.arrayBuffer);
+  if (tooLarge !== null) throw new Error(tooLarge);
   const rates = parseEcbRates(response.text, now);
   if (!rates) throw new Error(t().sums.ratesUnreadable);
   return rates;

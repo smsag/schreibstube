@@ -611,6 +611,10 @@ export const de: Messages = {
     selectText: "zuerst Text markieren, der zusammengefasst werden soll.",
     summarizing: "fasst zusammen …",
     summarizeFailed: "Zusammenfassung fehlgeschlagen — das LLM lieferte eine leere Antwort.",
+    responseTooLarge: (provider: string, megabytes: number) =>
+      `${provider}: die Antwort war größer als ${megabytes} MB und wurde nicht gelesen.`,
+    codeNeutralized: (kinds: readonly string[]) =>
+      `die Antwort enthielt Code, den ein anderes Plugin ausführt (${kinds.join(", ")}); er wurde als Text eingefügt, der nicht läuft.`,
     renameFailedName: "Umbenennen fehlgeschlagen — das LLM lieferte keinen brauchbaren Namen.",
     renameTooShort: "diese Notiz ist zu kurz, um aus ihrem Inhalt benannt zu werden.",
     cannotName: "nur eine Notiz oder ein Bild lässt sich aus dem Inhalt benennen.",
@@ -1245,7 +1249,8 @@ export const de: Messages = {
         "ein Name darf # ^ [ oder ] nicht enthalten: Links auf die Datei würden brechen.",
       hidden: "ein Name, der mit einem Punkt beginnt, wird vom Vault versteckt.",
       trailingDot: "ein Name darf nicht mit einem Punkt enden.",
-      tooLong: "ein Name darf höchstens 255 Zeichen lang sein."
+      tooLong: "ein Name darf höchstens 255 Zeichen lang sein.",
+      reserved: "Windows hält diesen Namen für ein Gerät frei und legt keine Datei damit an."
     },
 
     delete: {
@@ -1715,6 +1720,8 @@ export const de: Messages = {
     ratesTimeout: (seconds: number) =>
       `die Europäische Zentralbank hat nicht innerhalb von ${seconds} Sekunden geantwortet.`,
     ratesUnreadable: "die Antwort der Europäischen Zentralbank war keine Kursliste.",
+    ratesTooLarge:
+      "die Antwort der Europäischen Zentralbank war viel größer als eine Kursliste und wurde nicht gelesen.",
     freezeStale:
       "die Formeln der Notiz haben sich seit dem Versand geändert, darum wurde nichts festgeschrieben.",
     freezeFailed: (path: string) =>

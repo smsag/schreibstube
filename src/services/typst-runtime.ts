@@ -6,6 +6,7 @@
 import type { BlockPosition } from "./print-breaks";
 import type { SlideFit } from "./print-slides";
 import { t } from "../i18n";
+import { declaredLength, exceedsBytes } from "./response-size";
 import FONT_MANIFEST from "./typst-fonts.json";
 
 /** The typst.ts release these hashes belong to. Bumped deliberately. */
@@ -160,6 +161,33 @@ export function toHex(digest: ArrayBuffer): string {
 export function checkRuntimeBytes(asset: RuntimeAsset, actualSha256: string): string | null {
   if (actualSha256 === asset.sha256) return null;
   return `${asset.name}: expected ${short(asset.sha256)}, got ${short(actualSha256)}`;
+}
+
+/**
+ * The most a download of each kind may weigh, a little above what the pinned
+ * files weigh: the compiler 28.3 MB, its loader 60 KB, the largest font 507 KB.
+ *
+ * The hash already refuses wrong bytes, but only once they are all in memory;
+ * a release asset swapped for something far larger would be held whole on a
+ * phone before it was found wrong. A pin that grows past its bound fails
+ * loudly on the first print rather than quietly, and the bound moves with it.
+ */
+export const MAX_ASSET_BYTES: Readonly<Record<RuntimeAsset["label"], number>> = {
+  compiler: 32_000_000,
+  loader: 256_000,
+  font: 1_000_000
+};
+
+/** Why a download is refused for its size, or null when it is not. */
+export function checkDownloadSize(
+  asset: RuntimeAsset,
+  headers: Record<string, string> | undefined,
+  body: ArrayBuffer | Uint8Array
+): string | null {
+  const max = MAX_ASSET_BYTES[asset.label];
+  if (!exceedsBytes(headers, body, max)) return null;
+  const size = Math.max(declaredLength(headers) ?? 0, body.byteLength);
+  return `${asset.name}: ${size} bytes, at most ${max}`;
 }
 
 function short(hash: string): string {

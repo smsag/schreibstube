@@ -286,6 +286,34 @@ describe("normalizeSettings", () => {
     );
   });
 
+  it("reads every folder setting as a vault folder, never the config folder or above", () => {
+    const hostile = {
+      imageDescriptionFolder: ".obsidian/plugins/x",
+      printOutputFolder: "../outside",
+      printTemplateRoot: ".obsidian",
+      propertySetFolder: "Sets/../../x",
+      glossaryTermFolder: "Glossar\\..",
+      publishAccounts: [{ id: "a", name: "A", folder: ".obsidian", target: "blog" }]
+    } as never;
+    const settings = normalizeSettings(hostile);
+
+    expect(settings.imageDescriptionFolder).toBe(DEFAULT_SETTINGS.imageDescriptionFolder);
+    expect(settings.printOutputFolder).toBe("");
+    expect(settings.printTemplateRoot).toBe(DEFAULT_SETTINGS.printTemplateRoot);
+    expect(settings.propertySetFolder).toBe("");
+    expect(settings.glossaryTermFolder).toBe("");
+    expect(settings.publishAccounts).toEqual([]);
+  });
+
+  it("keeps an ordinary print folder and template root, slashes at the ends aside", () => {
+    const settings = normalizeSettings({
+      printOutputFolder: " /Ablage/PDF/ ",
+      printTemplateRoot: "Vorlagen/Druck/"
+    });
+    expect(settings.printOutputFolder).toBe("Ablage/PDF");
+    expect(settings.printTemplateRoot).toBe("Vorlagen/Druck");
+  });
+
   it("defaults document sync to off", () => {
     expect(normalizeSettings({}).syncEnabled).toBe(false);
   });

@@ -365,3 +365,59 @@ describe("inAcceptAll", () => {
     expect(inAcceptAll({ ...card, status: "accepted" })).toBe(false);
   });
 });
+
+describe("a proof-read rewrite that brings in code", () => {
+  const options = { chunkChars: 1000, concurrency: 1 };
+
+  it("marks the card, which then stays out of Accept all", async () => {
+    const text = "Das ist ein Fhler.\n\nZweiter Absatz mit Fhler.";
+    const result = await runProofread(
+      text,
+      echoSender((b) =>
+        b.masked.startsWith("Das")
+          ? "Das ist ein Fehler `$= app.vault.getFiles()`."
+          : b.masked.replace("Fhler", "Fehler")
+      ),
+      options,
+      createCancelToken()
+    );
+
+    const coded = result.suggestions.filter((entry) => entry.runsCode?.length);
+    expect(coded.length).toBeGreaterThan(0);
+    for (const entry of coded) {
+      expect(entry.runsCode).toEqual(["dataviewjs"]);
+      expect(entry.note).not.toBe("");
+      expect(inAcceptAll(entry)).toBe(false);
+    }
+    // The other paragraph's fix brought nothing, and is taken as before.
+    const clean = result.suggestions.find((entry) => entry.from > text.indexOf("Zweiter"));
+    expect(clean?.runsCode).toBeUndefined();
+    expect(clean && inAcceptAll(clean)).toBe(true);
+  });
+
+  it("marks edits that open and close a Templater tag between them", async () => {
+    const text = "Erstens ein Satz und zweitens noch einer.";
+    const result = await runProofread(
+      text,
+      echoSender(() => "Erstens <% tp.file.move('/x') ein Satz und zweitens %> noch einer."),
+      options,
+      createCancelToken()
+    );
+
+    expect(result.suggestions.length).toBeGreaterThan(0);
+    expect(result.suggestions.every((entry) => entry.runsCode?.includes("templater"))).toBe(true);
+  });
+
+  it("does not mark a fix next to code the note already held", async () => {
+    const text = "Die Zahl `$= dv.pages().length` ist ein Fhler.";
+    const result = await runProofread(
+      text,
+      echoSender((b) => b.masked.replace("Fhler", "Fehler")),
+      options,
+      createCancelToken()
+    );
+
+    expect(result.suggestions).toHaveLength(1);
+    expect(result.suggestions[0]?.runsCode).toBeUndefined();
+  });
+});

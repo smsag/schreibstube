@@ -1,5 +1,6 @@
 import { t } from "../i18n";
 import { formatIsoMinutes } from "../utils/format-date";
+import { escapeForeignText, foreignLine } from "./foreign-text";
 import { fencedLines } from "./markdown-fence";
 import type { MailMessage } from "./mail-protocol";
 
@@ -36,46 +37,20 @@ export function selectUnmerged(messages: MailMessage[], mergedIds: string[]): Ma
 }
 
 /**
- * Everything an email brings with it is written by whoever sent it.
+ * Render one message as Markdown. Everything an email brings with it is
+ * written by whoever sent it.
  *
  * Quoting the body stops a line that begins with `#` or `-` becoming a heading
  * or a list, which is what the quoting was for. It does not stop an embed: a
  * `![[…]]` renders inside a quote as happily as anywhere else, and it renders
  * whatever it names — a private note, a scan, a contract. Merge such a reply
  * into a note and publish that note, which are two things this plugin is for,
- * and the file it names is uploaded to a website by a stranger's choosing.
+ * and the file it names is uploaded to a website by a stranger's choosing. Nor
+ * does it stop a `dataviewjs` fence, which Dataview runs inside a quote too.
  *
- * So the sequences that make a link or an embed are escaped wherever mail text
- * is written into a note. They are escaped rather than stripped, because the
- * point is to show what the sender wrote, not to quietly edit it.
- *
- * A wikilink embed was escaped and a Markdown one was not, though they do the
- * same thing: `![](Privat/Gehalt.png)` renders the vault file it names, and a
- * remote one is a tracking pixel that reports when the note is read. So is an
- * `<img>`: Obsidian renders raw HTML, so a tag opener is written as `&lt;`,
- * which shows the same and loads nothing. An address in angle brackets is not
- * a tag — a tag name ends at a space, a slash or the closing bracket — and
- * stays as written.
- */
-function escapeMailMarkdown(text: string): string {
-  return text
-    .replace(/!?\[\[|!\[/g, (match) => match.replace(/\[/g, "\\["))
-    .replace(/<(?=\/?[a-z][a-z0-9-]*(?:[\s/>]|$))/gi, "&lt;");
-}
-
-/**
- * A single line of somebody else's text.
- *
- * A subject may hold newlines, and a subject written into a heading takes the
- * rest of the note's structure with it: everything after the first line lands
- * outside the heading as Markdown of the sender's choosing.
- */
-function oneLine(text: string): string {
-  return escapeMailMarkdown(text.replace(/\s+/g, " ").trim());
-}
-
-/**
- * Render one message as Markdown.
+ * So subject, sender and body all go through `escapeForeignText`, which shows
+ * what the sender wrote rather than quietly editing it, and the subject and
+ * sender are kept to one line each.
  *
  * The body is quoted rather than inlined. That is not decoration: an email line
  * starting with `#` or `-` would otherwise be parsed as a heading or list and
@@ -84,8 +59,8 @@ function oneLine(text: string): string {
  */
 export function formatMessage(message: MailMessage): string {
   const words = t().mail;
-  const heading = oneLine(message.subject) || words.noSubject;
-  const from = oneLine(message.from);
+  const heading = foreignLine(message.subject) || words.noSubject;
+  const from = foreignLine(message.from);
   const meta = [
     from ? words.mergedFrom(from) : "",
     message.date ? words.mergedDate(formatIsoMinutes(message.date)) : ""
@@ -94,8 +69,8 @@ export function formatMessage(message: MailMessage): string {
     .join(" · ");
 
   const body = message.text.trim() || words.mergedNoText;
-  const quoted = escapeMailMarkdown(body)
-    .split(/\r?\n/)
+  const quoted = escapeForeignText(body)
+    .split("\n")
     .map((line) => (line.trim() ? `> ${line}` : ">"))
     .join("\n");
 
