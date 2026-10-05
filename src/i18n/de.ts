@@ -1713,6 +1713,8 @@ export const de: Messages = {
     ratesTimeout: (seconds: number) =>
       `die Europäische Zentralbank hat nicht innerhalb von ${seconds} Sekunden geantwortet.`,
     ratesUnreadable: "die Antwort der Europäischen Zentralbank war keine Kursliste.",
+    ratesTooLarge:
+      "die Antwort der Europäischen Zentralbank war viel größer als eine Kursliste und wurde nicht gelesen.",
     freezeStale:
       "die Formeln der Notiz haben sich seit dem Versand geändert, darum wurde nichts festgeschrieben.",
     freezeFailed: (path: string) =>

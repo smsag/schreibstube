@@ -12,6 +12,7 @@ All notable changes to this project will be documented in this file.
 - **An AI rename cannot hide what a name is.** Control and invisible formatting characters, a right-to-left override among them, are taken out of a proposed name; it is cut by bytes, not characters; and a name that is still not one a file can have, `CON` or `NUL` among them, is refused with a notice. The pane's create and rename dialogs refuse those Windows device names too.
 - **Folder settings cannot point into the config folder.** Every folder setting — picture descriptions, print output and templates, property sets, the term folder, a publishing account's folder — refuses a segment starting with a dot, `..`, a doubled slash, a backslash or a control character, and falls back to its default. Such a value could only come from an edited `data.json`.
 - **The new-note link acts at most once every five seconds.** Any web page can open `obsidian://schreibstube-new-doc`, and one that opened it in a loop filled the vault with empty notes and the screen with windows.
+- **Answers from the network are bounded in size.** A model provider's answer may be at most 4 MB, the exchange rates 64 KB, and each typesetter download a little more than the pinned file weighs; a larger answer is refused, by its declared length before its bytes are read, with a message that says why.
 
 ### Changed
 

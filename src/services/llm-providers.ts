@@ -1,5 +1,7 @@
 import type { LlmProvider, SchreibstubeSettings } from "../types";
+import { t } from "../i18n";
 import { checkFileName, MAX_FILE_NAME_BYTES } from "./file-name";
+import { exceedsBytes, megabytes } from "./response-size";
 
 /** Max tokens requested for a filename completion. Filenames are short, but
  *  leave headroom so a descriptive name is never cut mid-word. */
@@ -7,6 +9,24 @@ export const MAX_TOKENS = 64;
 
 /** How long to wait for a provider response before giving up. */
 export const REQUEST_TIMEOUT_MS = 30_000;
+
+/**
+ * The largest answer a provider may send. The longest completion any command
+ * asks for is a few thousand tokens, tens of kilobytes even as JSON with its
+ * envelope; four megabytes is room for any of them, and not for a body that
+ * would take a phone's memory with it.
+ */
+export const MAX_LLM_RESPONSE_BYTES = 4_000_000;
+
+/** Why a provider's answer is refused for its size, or null when it is not. */
+export function llmResponseSizeProblem(
+  provider: LlmProvider,
+  headers: Record<string, string> | undefined,
+  body: ArrayBuffer | string
+): string | null {
+  if (!exceedsBytes(headers, body, MAX_LLM_RESPONSE_BYTES)) return null;
+  return t().ai.responseTooLarge(providerLabel(provider), megabytes(MAX_LLM_RESPONSE_BYTES));
+}
 
 const TEXT_SYSTEM_PROMPT =
   `You are a file naming assistant. Given the content of a Markdown note, ` +

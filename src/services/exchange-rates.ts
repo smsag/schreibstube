@@ -9,7 +9,9 @@
  * which a person can edit; both are checked here before anything is converted
  * with them.
  */
+import { t } from "../i18n";
 import { CURRENCY_CODES } from "./amounts";
+import { exceedsBytes } from "./response-size";
 
 export const RATES_URL = "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml";
 
@@ -17,6 +19,19 @@ export const RATES_URL = "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-da
 export const MAX_RATES_BYTES = 64 * 1024;
 
 export const RATES_TIMEOUT_MS = 15_000;
+
+/**
+ * Why the bank's answer is refused for its size, or null when it is not.
+ *
+ * The parser holds the same bound, but only once the body has been decoded
+ * into text; this reads the bytes and the declared length, before that.
+ */
+export function ratesSizeProblem(
+  headers: Record<string, string> | undefined,
+  body: ArrayBuffer | string
+): string | null {
+  return exceedsBytes(headers, body, MAX_RATES_BYTES) ? t().sums.ratesTooLarge : null;
+}
 
 /**
  * How long fetched rates are used before they are fetched again.

@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   LLM_PROVIDER_IDS,
+  MAX_LLM_RESPONSE_BYTES,
   MAX_PROPOSED_NAME_BYTES,
+  llmResponseSizeProblem,
   PROVIDER_MODELS,
   proposedFileName,
   buildImageDescriptionRequest,
@@ -330,5 +332,23 @@ describe("buildImageDescriptionRequest", () => {
     const body = JSON.parse(buildImageRequest("openai", "m", "sk", "AAAA", "image/png", 60).body);
     expect(body.messages[1].content[0].image_url.detail).toBe("low");
     expect(body.max_tokens).toBeLessThan(900);
+  });
+});
+
+describe("llmResponseSizeProblem", () => {
+  it("passes an ordinary answer", () => {
+    expect(llmResponseSizeProblem("anthropic", { "content-length": "900" }, "{}")).toBeNull();
+  });
+
+  it("refuses an answer that declares more than the bound, naming the provider", () => {
+    const headers = { "Content-Length": String(MAX_LLM_RESPONSE_BYTES + 1) };
+    const problem = llmResponseSizeProblem("anthropic", headers, "{}");
+    expect(problem).toContain(providerLabel("anthropic"));
+    expect(problem).toContain("4 MB");
+  });
+
+  it("refuses a body over the bound that declared nothing", () => {
+    const body = new ArrayBuffer(MAX_LLM_RESPONSE_BYTES + 1);
+    expect(llmResponseSizeProblem("openai", undefined, body)).not.toBeNull();
   });
 });
