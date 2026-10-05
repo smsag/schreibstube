@@ -5,6 +5,7 @@ import {
 } from "./post-message-backend";
 import { getEmbeddingBundle } from "./embedding-bundle";
 import type { EmbeddingModelId } from "../../../services/semantic/embedding-models";
+import { modelPinFor } from "../../../services/semantic/model-pins";
 
 export type { ModelLoadProgress };
 
@@ -60,7 +61,7 @@ export class IframeEmbeddingProvider extends PostMessageEmbeddingProvider {
       "load",
       () => {
         iframe.contentWindow?.postMessage(
-          { type: "init", config: this.config, runtime },
+          { type: "init", config: this.config, runtime, pin: modelPinFor(this.config.repoId) },
           window.origin
         );
       },

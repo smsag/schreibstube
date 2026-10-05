@@ -17,6 +17,8 @@ const pin = JSON.parse(
   readFileSync(join(here, "../../src/services/semantic/search-runtime.json"), "utf8")
 );
 copyFileSync(join(here, "../../node_modules", pin.package, pin.source), join(out, "runtime.wasm"));
+// And the model pins, which the bundle refuses to load a model without.
+copyFileSync(join(here, "../../src/services/semantic/model-pins.json"), join(out, "pins.json"));
 const table = await esbuild.build({
   stdin: {
     contents:

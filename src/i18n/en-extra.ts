@@ -1273,6 +1273,9 @@ export const enExtra = {
         "The model is not downloaded yet and this device is offline. Connect to the " +
         "internet and build again.",
       timedOut: "The model did not answer in time. Build now to try again.",
+      modelPin:
+        "The model's files did not match what this version of the plugin expects, or this " +
+        "version has none pinned, so the model was not loaded. An update of the plugin fixes it.",
       paused: "Paused after a build did not finish twice in a row. Build now to try again.",
       phonePaused:
         "Paused on this phone: Obsidian closed twice in a row while the model was working. " +

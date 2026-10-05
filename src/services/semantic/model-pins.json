@@ -1,0 +1,34 @@
+{
+  "models": [
+    {
+      "repoId": "Xenova/all-MiniLM-L6-v2",
+      "revision": "",
+      "files": {
+        "config.json": { "size": null, "sha256": "" },
+        "tokenizer_config.json": { "size": null, "sha256": "" },
+        "tokenizer.json": { "size": null, "sha256": "" },
+        "onnx/model_quantized.onnx": { "size": null, "sha256": "" }
+      }
+    },
+    {
+      "repoId": "Xenova/paraphrase-multilingual-MiniLM-L12-v2",
+      "revision": "",
+      "files": {
+        "config.json": { "size": null, "sha256": "" },
+        "tokenizer_config.json": { "size": null, "sha256": "" },
+        "tokenizer.json": { "size": null, "sha256": "" },
+        "onnx/model_quantized.onnx": { "size": null, "sha256": "" }
+      }
+    },
+    {
+      "repoId": "smsag007/paraphrase-multilingual-MiniLM-L12-v2-latin",
+      "revision": "",
+      "files": {
+        "config.json": { "size": null, "sha256": "" },
+        "tokenizer_config.json": { "size": null, "sha256": "" },
+        "tokenizer.json": { "size": null, "sha256": "" },
+        "onnx/model_quantized.onnx": { "size": null, "sha256": "" }
+      }
+    }
+  ]
+}

@@ -5,16 +5,20 @@
  * What the unit tests cannot show is that the pieces fit: transformers.js
  * importing the WebAssembly-only build in place of the WebGPU one, the glue
  * that build carries starting from the bytes it is handed, and no fetch of code
- * on the way. So this runs the production bundle, with the Worker prelude in
- * front of it, against a model small enough to write here and a Hugging Face
- * that answers from memory, and reports every request it saw.
+ * on the way, and the model's files fetched at their pinned commit and checked
+ * against their pinned hashes. So this runs the production bundle, with the
+ * Worker prelude in front of it, against a model small enough to write here
+ * and a Hugging Face that answers from memory, and reports every request it saw.
  *
- *   node scripts/embedding-smoke.mjs            # with the pinned runtime
- *   node scripts/embedding-smoke.mjs --without  # without it: the bundle must refuse
+ *   node scripts/embedding-smoke.mjs             # pinned runtime, pinned model
+ *   node scripts/embedding-smoke.mjs --without   # no runtime: the bundle must refuse
+ *   node scripts/embedding-smoke.mjs --unpinned  # no model pin: the bundle must refuse
+ *   node scripts/embedding-smoke.mjs --tampered  # a file that changed: the bundle must refuse
  *
  * Prints one line of JSON. The prelude hides `process` from everything after
  * it, this script included, so what it needs of `process` is read first.
  */
+import { createHash } from "node:crypto";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -27,12 +31,15 @@ const PIN = JSON.parse(
   readFileSync(new URL("../src/services/semantic/search-runtime.json", import.meta.url), "utf8")
 );
 const without = process.argv.includes("--without");
+const unpinned = process.argv.includes("--unpinned");
+const tampered = process.argv.includes("--tampered");
 const host = process;
 const setExitCode = (code) => (host.exitCode = code);
 
 /** The model: input ids and mask, cast to floats side by side, [b, s, 2]. */
 const MODEL = onnxModel();
 const REPO = "smoke/model";
+const REVISION = "5a0be5a0be5a0be5a0be5a0be5a0be5a0be5a0be";
 const FILES = {
   "config.json": JSON.stringify({ model_type: "bert", hidden_size: 2 }),
   "tokenizer_config.json": JSON.stringify({
@@ -67,12 +74,30 @@ const FILES = {
   "onnx/model_quantized.onnx": MODEL
 };
 
+/** The pin the host would send, over the files as written above. */
+const MODEL_PIN = {
+  repoId: REPO,
+  revision: REVISION,
+  files: Object.fromEntries(
+    Object.entries(FILES).map(([name, contents]) => {
+      const bytes = typeof contents === "string" ? Buffer.from(contents) : contents;
+      return [
+        name,
+        { size: bytes.length, sha256: createHash("sha256").update(bytes).digest("hex") }
+      ];
+    })
+  )
+};
+
 const requested = [];
 globalThis.fetch = async (input) => {
   const url = String(input);
   requested.push(url);
-  const prefix = `https://huggingface.co/${REPO}/resolve/main/`;
-  const file = url.startsWith(prefix) ? FILES[url.slice(prefix.length)] : undefined;
+  const prefix = `https://huggingface.co/${REPO}/resolve/${REVISION}/`;
+  const name = url.startsWith(prefix) ? url.slice(prefix.length) : undefined;
+  let file = name === undefined ? undefined : FILES[name];
+  // One character of the tokenizer changed, at the same length.
+  if (tampered && name === "tokenizer.json") file = file.replace("hello", "hellp");
   return file === undefined
     ? new Response("not found", { status: 404 })
     : new Response(file, { status: 200 });
@@ -103,7 +128,8 @@ try {
     maxTokens: 128,
     pooling: "mean"
   };
-  globalThis.onmessage({ data: { type: "init", config, runtime } });
+  const pin = unpinned ? { repoId: REPO, revision: "", files: {} } : MODEL_PIN;
+  globalThis.onmessage({ data: { type: "init", config, runtime, pin } });
   globalThis.onmessage({ data: { requestId: 1, texts: ["hello world", "again"] } });
   for (let i = 0; i < 200 && !replies.some((m) => m.requestId === 1); i++) {
     await new Promise((resolve) => setTimeout(resolve, 25));

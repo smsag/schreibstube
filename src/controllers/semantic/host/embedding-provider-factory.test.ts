@@ -244,6 +244,15 @@ describe("FallbackEmbeddingProvider — a runtime that cannot be had ends the ch
     expect(built).toEqual(["blobWorker"]);
     expect(seen).toEqual([]);
   });
+
+  it("nor do model files that are not the pinned ones, told apart after crossing as text", async () => {
+    fail.blobWorker = true;
+    failWith.message = "model pin mismatch: tokenizer.json: expected 1 bytes, got 2";
+    const { provider, seen } = make();
+    await expect(provider.ready()).rejects.toThrow(/model pin mismatch/);
+    expect(built).toEqual(["blobWorker"]);
+    expect(seen).toEqual([]);
+  });
 });
 
 describe("FallbackEmbeddingProvider — unloaded while the model is still loading (#363)", () => {

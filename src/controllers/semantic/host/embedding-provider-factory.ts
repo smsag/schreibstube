@@ -20,6 +20,7 @@ import {
   isOutOfMemoryError
 } from "../../../services/semantic/memory-error";
 import { isSearchRuntimeError } from "../../../services/semantic/search-runtime";
+import { isModelPinError } from "../../../services/semantic/model-pins";
 
 /**
  * The embedding provider the engine uses (Pythia ADR-119): a Web Worker (off the
@@ -82,9 +83,10 @@ export class FallbackEmbeddingProvider implements EmbeddingProvider {
     // so the next one would load the same model into the same exhausted heap —
     // on iOS that was two more loads, the last on the UI thread.
     if (isOutOfMemoryError(err)) throw new EmbeddingOutOfMemoryError(err);
-    // So does a runtime that could not be had: every backend runs the same
-    // module, and the next would fetch it again to be refused the same way.
-    if (isSearchRuntimeError(err)) throw err;
+    // So does a runtime that could not be had, or model files that are not
+    // the pinned ones: every backend runs the same module on the same files,
+    // and the next would fetch them again to be refused the same way.
+    if (isSearchRuntimeError(err) || isModelPinError(err)) throw err;
   }
 
   ready(): Promise<void> {

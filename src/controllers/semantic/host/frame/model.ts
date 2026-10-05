@@ -3,15 +3,36 @@
 // so the esbuild embedding pass (browser target) bundles it here while
 // `main.js` carries the result only as a string. The runtime's JavaScript is in
 // that bundle; its WebAssembly arrives from the host, checked against its pin;
-// the model weights are fetched from Hugging Face and cached by the browser.
+// the model's files are fetched from Hugging Face at a pinned commit, checked
+// against their pinned hashes, and cached by the browser.
 
-import { env, pipeline, type ProgressInfo } from "@huggingface/transformers";
+import {
+  AutoModel,
+  AutoTokenizer,
+  env,
+  FeatureExtractionPipeline,
+  type ProgressInfo
+} from "@huggingface/transformers";
 import type { EmbeddingModelConfig } from "../../../../services/semantic/embedding-models";
 import { sliceBatch } from "./batch-slice";
 import { pinRuntime, type WasmFlags } from "./runtime-build";
+import {
+  modelFileUrl,
+  pinnedFetch,
+  readModelPin,
+  type ModelPin
+} from "../../../../services/semantic/model-pins";
 import { TaskQueue } from "./task-queue";
 
 env.allowLocalModels = false;
+
+/**
+ * The fetch transformers.js was given at import; every model request goes
+ * through `pinnedFetch` in front of it. A file read from the browser's cache
+ * does not: it was checked on its way in, under a key that names the pinned
+ * commit, and only code already running in Obsidian could have changed it.
+ */
+const unpinnedFetch = env.fetch as (input: string | URL, init?: RequestInit) => Promise<Response>;
 
 // The onnx backend is initialized at transformers import time, so its settings
 // exist here. Typed as optional against transformers' own types, which promise
@@ -26,8 +47,8 @@ if (!wasm) {
   console.error("[Schreibstube] semantic engine: onnx wasm backend absent — runtime not pinned");
 }
 
-// transformers.js's `pipeline()` overloads produce a union type too large for TS
-// to represent (TS2590), so we cast to these minimal local signatures.
+// transformers.js's pipeline types form a union too large for TS to represent
+// (TS2590), so the pipeline is cast to this minimal local signature.
 // `padding` is what makes a BATCH possible: without it transformers refuses a
 // multi-text call whose members tokenize to different lengths. Padding itself is
 // neutral for mean pooling — the attention mask excludes the pad positions — but
@@ -44,25 +65,22 @@ type FeaturePipeline = (
   input: string | string[],
   opts: { pooling: "mean" | "cls"; normalize: boolean; padding?: boolean }
 ) => Promise<{ data: Float32Array; dims: number[] }>;
-type CreatePipeline = (
-  task: "feature-extraction",
-  model: string,
-  options?: Record<string, unknown>
-) => Promise<FeaturePipeline>;
-const createPipeline = pipeline as unknown as CreatePipeline;
 
 export type ModelLoadProgress = { progress: number; file: string; loaded: number; total: number };
 export type ModelLoadProgressCallback = (p: ModelLoadProgress) => void;
 
 const TRANSFORMERS_CACHE = "transformers-cache";
-const cacheKeyFor = (repoId: string, file: string) =>
-  `https://huggingface.co/${repoId}/resolve/main/${file}`;
 
-async function isModelCached(repoId: string): Promise<boolean> {
+/**
+ * Whether the pinned model is in the browser's cache. transformers.js keys a
+ * file by the address it fetched it from, and that address names the pinned
+ * commit, so a new pin reads as not cached and is fetched and checked afresh.
+ */
+async function isModelCached(pin: ModelPin): Promise<boolean> {
   if (typeof caches === "undefined") return true;
   try {
     const cache = await caches.open(TRANSFORMERS_CACHE);
-    return (await cache.match(cacheKeyFor(repoId, "config.json"))) !== undefined;
+    return (await cache.match(modelFileUrl(pin, "config.json"))) !== undefined;
   } catch {
     return true;
   }
@@ -75,38 +93,45 @@ export class EmbeddingModel {
   readonly config: EmbeddingModelConfig;
   ready: Promise<void>;
 
-  /** `runtime`: the WebAssembly module the host sent, as it arrived. */
+  /** `runtime` and `pin`: the WebAssembly module and the model's pin the host sent, as they arrived. */
   constructor(
     config: EmbeddingModelConfig,
     runtime: unknown,
+    pin: unknown,
     onProgress?: ModelLoadProgressCallback
   ) {
     this.config = config;
-    this.ready = this.#initialize(runtime, onProgress);
+    this.ready = this.#initialize(runtime, pin, onProgress);
   }
 
-  async #initialize(runtime: unknown, onProgress?: ModelLoadProgressCallback): Promise<void> {
+  async #initialize(
+    runtime: unknown,
+    rawPin: unknown,
+    onProgress?: ModelLoadProgressCallback
+  ): Promise<void> {
     // Before anything can start the runtime: without its pinned module it
     // would go looking for one, and nothing it finds is checked.
     const problem = pinRuntime(wasm, runtime);
     if (problem !== null) throw new Error(problem);
 
-    if (!navigator.onLine && !(await isModelCached(this.config.repoId))) {
+    // The model's files the same way: one commit, every file checked before
+    // the library reads it, and nothing fetched that the pin does not name.
+    // Before the offline check, so a version without pins says that, not
+    // that the device is offline.
+    const pin = readModelPin(rawPin, this.config.repoId);
+    if (typeof pin === "string") throw new Error(pin);
+    env.fetch = pinnedFetch(unpinnedFetch, pin);
+
+    if (!navigator.onLine && !(await isModelCached(pin))) {
       throw new Error(
         `The ${this.config.label} model has not been downloaded yet and you appear to be offline. ` +
           `Connect to the internet to finish setting up.`
       );
     }
 
-    // Always the WASM backend. WebGPU compute is unstable in Obsidian's
-    // Electron renderer — requesting a WebGPU device could hard-crash the GPU
-    // process and reload the whole app. WASM is portable and stable (a bit
-    // slower). Revisit WebGPU behind an opt-in once it's verified safe here.
-    this.#pipeline = await createPipeline("feature-extraction", this.config.repoId, {
-      device: "wasm",
-      dtype: "q8",
-      progress_callback: onProgress
-        ? (info: ProgressInfo) => {
+    const progress = onProgress
+      ? {
+          progress_callback: (info: ProgressInfo) => {
             if (info.status === "progress") {
               onProgress({
                 progress: info.progress,
@@ -116,8 +141,33 @@ export class EmbeddingModel {
               });
             }
           }
-        : undefined
-    });
+        }
+      : {};
+    // The tokenizer and the model, each at the pinned revision, rather than
+    // `pipeline()`: in transformers.js 4.3 it first works out which files to
+    // load by reading config.json and probing tokenizer_config.json at `main`,
+    // whatever revision it is given. The pinned fetch refused those requests,
+    // and should: they are the unpinned path. Assembled by hand, every file is
+    // asked for at the pinned commit — `scripts/embedding-smoke.mjs` shows it.
+    //
+    // Always the WASM backend. WebGPU compute is unstable in Obsidian's
+    // Electron renderer — requesting a WebGPU device could hard-crash the GPU
+    // process and reload the whole app. WASM is portable and stable (a bit
+    // slower). Revisit WebGPU behind an opt-in once it's verified safe here.
+    const [tokenizer, model] = await Promise.all([
+      AutoTokenizer.from_pretrained(this.config.repoId, { revision: pin.revision, ...progress }),
+      AutoModel.from_pretrained(this.config.repoId, {
+        revision: pin.revision,
+        device: "wasm",
+        dtype: "q8",
+        ...progress
+      })
+    ]);
+    this.#pipeline = new FeatureExtractionPipeline({
+      task: "feature-extraction",
+      model,
+      tokenizer
+    }) as unknown as FeaturePipeline;
   }
 
   /**

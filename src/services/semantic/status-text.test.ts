@@ -65,6 +65,20 @@ describe("semanticStatusText", () => {
     expect(failed(offline)).not.toContain("appear");
   });
 
+  it("says a model whose files are not the pinned ones was refused, not that it timed out", () => {
+    const refused = new Error(
+      "Embedding worker: model pin mismatch: onnx/model_quantized.onnx: expected 1 bytes, got 2"
+    );
+    expect(failureCause(refused)).toBe("modelPin");
+    expect(failureCause(new Error("model pin missing: x has no pinned revision"))).toBe("modelPin");
+    expect(
+      semanticStatusText(
+        { ...base, state: "failed", error: refused.message, cause: failureCause(refused) },
+        strings
+      )
+    ).toBe(strings.modelPin);
+  });
+
   it("has a sentence for every state", () => {
     const states: SemanticStatus["state"][] = [
       "off",

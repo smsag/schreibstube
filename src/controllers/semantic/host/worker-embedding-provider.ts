@@ -6,6 +6,7 @@ import {
 import type { EmbeddingModelId } from "../../../services/semantic/embedding-models";
 import { getEmbeddingBundle } from "./embedding-bundle";
 import { withWorkerPrelude } from "./worker-prelude";
+import { modelPinFor } from "../../../services/semantic/model-pins";
 
 /**
  * Runs the embedding model in a real Web Worker (Pythia ADR-119) so inference executes on
@@ -74,7 +75,12 @@ export class WorkerEmbeddingProvider extends PostMessageEmbeddingProvider {
     worker.addEventListener("error", onError);
     // Copied rather than transferred: the bytes are the loader's, and another
     // load that asked for them at the same moment may be sending them too.
-    worker.postMessage({ type: "init", config: this.config, runtime });
+    worker.postMessage({
+      type: "init",
+      config: this.config,
+      runtime,
+      pin: modelPinFor(this.config.repoId)
+    });
     return {
       send: (message) => worker.postMessage(message),
       close: () => {

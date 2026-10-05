@@ -1619,6 +1619,9 @@ export const de: Messages = {
         "Internet verbinden und neu aufbauen.",
       timedOut:
         "Das Modell hat nicht rechtzeitig geantwortet. „Jetzt aufbauen“ versucht es erneut.",
+      modelPin:
+        "Die Dateien des Modells sind nicht die, die diese Version des Plugins erwartet, oder sie " +
+        "sind in dieser Version nicht festgelegt; das Modell wurde nicht geladen. Ein Update des Plugins behebt es.",
       paused:
         "Pausiert, nachdem ein Aufbau zweimal nicht fertig wurde. „Jetzt aufbauen“ versucht es erneut.",
       phonePaused:

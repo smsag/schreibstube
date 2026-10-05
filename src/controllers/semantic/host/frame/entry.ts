@@ -5,8 +5,9 @@
 // instead of twice. Replaces the former separate bootstrap.ts (iframe) and
 // worker.ts (worker) entries.
 //
-//   Host  →  { type:"init", config, runtime } then { requestId, texts|ping }
-//            (`runtime`: the WebAssembly module, checked by the host)
+//   Host  →  { type:"init", config, runtime, pin } then { requestId, texts|ping }
+//            (`runtime`: the WebAssembly module, checked by the host;
+//             `pin`: the model's commit and file hashes, checked here)
 //   Both  →  { requestId, vectors[], error? }
 //            { type:"model-load-progress"|"model-load-error", … }
 
@@ -30,9 +31,10 @@ const EMBED_BATCH_SIZE = 16;
 function makeModel(
   config: EmbeddingModelConfig,
   runtime: unknown,
+  pin: unknown,
   reply: (m: unknown) => void
 ): void {
-  model = new EmbeddingModel(config, runtime, (p) =>
+  model = new EmbeddingModel(config, runtime, pin, (p) =>
     reply({
       type: "model-load-progress",
       progress: p.progress,
@@ -87,11 +89,11 @@ async function handle(raw: unknown, reply: (m: unknown) => void): Promise<void> 
  * ignored rather than loading another model beside the first.
  */
 function receive(raw: unknown, reply: (m: unknown) => void): void {
-  const data: { type?: unknown; config?: unknown; runtime?: unknown } =
+  const data: { type?: unknown; config?: unknown; runtime?: unknown; pin?: unknown } =
     typeof raw === "object" && raw !== null ? raw : {};
   if (data.type === "init") {
     if (!model && typeof data.config === "object" && data.config !== null) {
-      makeModel(data.config as EmbeddingModelConfig, data.runtime, reply);
+      makeModel(data.config as EmbeddingModelConfig, data.runtime, data.pin, reply);
     }
     return;
   }

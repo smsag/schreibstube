@@ -80,6 +80,10 @@ jobs:
       - run: npm run format:check
       - run: npm run test:coverage
 
+      # A release whose model pins Hugging Face no longer serves would ship a
+      # search by meaning every device refuses to load.
+      - run: node scripts/check-model-pins.mjs
+
   # What ships is built here, from a tree installed without scripts: esbuild
   # finds its binary through its platform package, and nothing else the
   # bundle needs runs code at install. The bundle comes out byte for byte the
