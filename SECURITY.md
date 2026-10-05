@@ -54,8 +54,13 @@ no Typst package may be imported.
 Every change runs the bridge's runtime tree through `npm audit` at the high
 level, builds the bridge's Docker image and probes its health route, type-checks
 under strict flags, lints for unhandled promises, and proves the plugin bundle
-reaches for no Node built-in. Dependabot opens grouped update pull requests
-weekly for both trees, the workflows and the image base.
+reaches for no Node built-in. Dependabot opens update pull requests weekly for
+both trees, the workflows and the image base. A package or action version is
+offered only once it has been public for a week, long enough for most
+hijacked releases to be found and pulled; the root's runtime dependency, which
+ships inside `main.js`, arrives on its own rather than grouped with the dev
+tooling. The image base is pinned by digest, so it changes only through such
+a pull request.
 
 ## Known limits
 
