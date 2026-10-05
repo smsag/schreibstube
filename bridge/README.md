@@ -108,8 +108,12 @@ Two details worth knowing:
   note's frontmatter, and it is the only thing linking later replies back to the
   note — so it has to be known before the send, not after.
 - **`from` sets the From line, not the sender of record.** A request may name
-  any one address, with or without a name, as its `from`; anything else is
-  refused with a 400 rather than sent under `MAIL_FROM`. The SMTP envelope
+  one address, with or without a name, as its `from`; anything else is
+  refused with a 400 rather than sent under `MAIL_FROM`. The address must be
+  `MAIL_FROM`'s own or one that `MAIL_FROM_ALLOWED` names, as an address or by
+  its `@domain`; any other is refused with a 403 `sender_not_allowed` that
+  names the variable. Until 3.0.0 any address was taken, which made the mail
+  token a token for mail from anyone. The SMTP envelope
   always carries `MAIL_FROM`'s address: that is the address the server
   authenticated and its SPF record vouches for, and bounces return to it.
   Whether the server accepts a From that differs is the provider's policy —
@@ -135,6 +139,14 @@ Two details worth knowing:
   in it is refused rather than sent to nobody; `subject`, `inReplyTo` and each
   of `references` are strings of at most 998 characters, `references` a list
   of at most 100. The Message-ID is always the bridge's own.
+- **A send reaches at most `MAX_RECIPIENTS` addresses (50)**, to, cc and bcc
+  together, and the bridge sends at most `MAIL_SEND_PER_HOUR` mails in any
+  hour (60). One more is answered 429 `send_rate_limited` with a
+  `retry-after`, and the plugin shows the bridge's reason rather than the
+  token advice a 429 otherwise gets. A refused request spends nothing.
+- **The log names a failed send by its codes**, such as `EENVELOPE 550`, never
+  by the server's words: they quote the recipients the server refused. The
+  caller still hears the whole reason.
 
 ## Tests
 
@@ -348,6 +360,19 @@ address in it, a numeric one that is not a positive integer written in
 decimal digits, a port above 65535, a `PUBLISH_<TARGET>_KEY` that does not
 decode to a PEM, OpenSSH or PuTTY private key, or a flag spelled as neither true nor
 false. Leave a variable out to take its default; do not leave it half-written.
+
+**Who a mail may be from.** `MAIL_FROM_ALLOWED` lists, separated by commas,
+the further addresses a note may send as — the aliases of the mailbox — and
+`@domain` entries for every address at one domain (that domain only, not its
+subdomains): `MAIL_FROM_ALLOWED=buero@your-domain.de,@team.your-domain.de`.
+`MAIL_FROM`'s own address is always allowed, and unset is that address alone.
+An entry that is neither a bare address nor a domain fails at startup.
+Whether the server delivers mail from an alias is still its own policy.
+
+**`IMAP_SECURE=false` means STARTTLS, required.** The connection starts in
+the clear on port 143 and must be upgraded before the login; a server — or
+anyone between — that does not offer the upgrade fails the connection rather
+than receiving the password in the clear. SMTP has always required it.
 
 **Where a target keeps its state.** `PUBLISH_<TARGET>_STATE_ROOT` is an
 absolute path on the SFTP host, and it holds every published note's Markdown as

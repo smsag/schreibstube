@@ -182,6 +182,19 @@ describe("describeBridgeError", () => {
     expect(describeBridgeError(429, '{"error":"Too many failed attempts."}')).toMatch(/wait/i);
   });
 
+  it("passes on a send limit's own reason, which names the variable, not a token failure", () => {
+    const limited = JSON.stringify({
+      error: "The bridge has sent its 60 mails for this hour (MAIL_SEND_PER_HOUR).",
+      code: "send_rate_limited"
+    });
+    expect(describeBridgeError(429, limited)).toMatch(/MAIL_SEND_PER_HOUR/);
+    const sender = JSON.stringify({
+      error: "The bridge does not send as x@bank.example: … MAIL_FROM_ALLOWED …",
+      code: "sender_not_allowed"
+    });
+    expect(describeBridgeError(403, sender)).toMatch(/MAIL_FROM_ALLOWED/);
+  });
+
   it("explains a restarting bridge", () => {
     expect(describeBridgeError(503, '{"error":"Bridge is shutting down."}')).toMatch(/restarting/i);
   });

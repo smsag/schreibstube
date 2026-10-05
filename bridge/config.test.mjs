@@ -236,6 +236,30 @@ describe("loadConfig, proxy", () => {
   });
 });
 
+describe("loadConfig, what a send may do", () => {
+  it("allows only MAIL_FROM's address as a From by default", () => {
+    const { mail } = loadConfig(env());
+    expect([...mail.fromAllowed.addresses]).toEqual(["post@example.com"]);
+    expect(mail.fromAllowed.domains.size).toBe(0);
+  });
+
+  it("reads MAIL_FROM_ALLOWED beside MAIL_FROM, and refuses an entry it cannot read", () => {
+    const { mail } = loadConfig(env({ MAIL_FROM_ALLOWED: "buero@example.org, @example.de" }));
+    expect([...mail.fromAllowed.addresses]).toEqual(["post@example.com", "buero@example.org"]);
+    expect([...mail.fromAllowed.domains]).toEqual(["example.de"]);
+    expect(() => loadConfig(env({ MAIL_FROM_ALLOWED: "*" }))).toThrow(/MAIL_FROM_ALLOWED/);
+  });
+
+  it("defaults the recipients per mail and the mails per hour", () => {
+    const { mail } = loadConfig(env());
+    expect(mail.maxRecipients).toBe(50);
+    expect(mail.sendPerHour).toBe(60);
+    const set = loadConfig(env({ MAX_RECIPIENTS: "5", MAIL_SEND_PER_HOUR: "10" })).mail;
+    expect(set).toMatchObject({ maxRecipients: 5, sendPerHour: 10 });
+    expect(() => loadConfig(env({ MAIL_SEND_PER_HOUR: "0" }))).toThrow(/MAIL_SEND_PER_HOUR/);
+  });
+});
+
 describe("loadConfig, connections", () => {
   it("bounds the sockets open at once, by default and by MAX_CONNECTIONS", () => {
     expect(loadConfig(env()).maxConnections).toBe(100);

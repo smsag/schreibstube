@@ -19,6 +19,14 @@ import {
 } from "./mail.mjs";
 import { parseSender, recipientAddresses } from "./mail-address.mjs";
 import { checkAttachments, maxSendBodyBytes } from "./mail-attachments.mjs";
+import {
+  createRateLimit,
+  DEFAULT_MAX_RECIPIENTS,
+  DEFAULT_SEND_PER_HOUR,
+  failureCodes,
+  parseFromAllowed,
+  senderAllowed
+} from "./mail-policy.mjs";
 
 /** RFC 5322's line limit; a header longer than that is folded or refused. */
 export const MAX_HEADER_CHARS = 998;
@@ -29,11 +37,24 @@ export const MAX_REFERENCES = 100;
 /** A mailbox name; IMAP servers cap them far lower. */
 export const MAX_MAILBOX_CHARS = 255;
 
+/** The window `MAIL_SEND_PER_HOUR` counts in. */
+const HOUR_MS = 3_600_000;
+
 export function createMailRoutes(
   config,
-  { transport = createSmtpTransport(config.mail, config.upstreamTimeoutMs) } = {}
+  {
+    transport = createSmtpTransport(config.mail, config.upstreamTimeoutMs),
+    now = () => Date.now()
+  } = {}
 ) {
   const mail = { ...config.mail, upstreamTimeoutMs: config.upstreamTimeoutMs };
+  const maxRecipients = mail.maxRecipients ?? DEFAULT_MAX_RECIPIENTS;
+  const sendPerHour = mail.sendPerHour ?? DEFAULT_SEND_PER_HOUR;
+  const fromAllowed =
+    mail.fromAllowed ?? parseFromAllowed("", parseSender(mail.from)?.address ?? "");
+  // One budget for the capability, and the capability has one token: this is
+  // the token's budget, which is what a stolen one would spend.
+  const sends = createRateLimit({ limit: sendPerHour, windowMs: HOUR_MS, now });
 
   const route = (path, handler, timeoutMs, maxBytes = mail.maxBodyBytes) => ({
     method: "POST",
@@ -54,10 +75,30 @@ export function createMailRoutes(
     route(
       "/send",
       async ({ body, log }) => {
-        const problem = validateSend(body, mail.maxTextChars);
+        const problem = validateSend(body, mail.maxTextChars, { maxRecipients });
         if (problem) throw httpError(400, "invalid_request", problem);
         const checked = checkAttachments(body.attachments);
         if (checked.problem) throw httpError(400, "invalid_request", checked.problem);
+        const claimed = parseSender(body.from);
+        if (claimed && !senderAllowed(claimed.address, fromAllowed)) {
+          throw httpError(
+            403,
+            "sender_not_allowed",
+            `The bridge does not send as ${claimed.address}: only MAIL_FROM and the ` +
+              "addresses and domains in MAIL_FROM_ALLOWED may be a mail's From."
+          );
+        }
+        const slot = sends.take();
+        if (!slot.allowed) {
+          const err = httpError(
+            429,
+            "send_rate_limited",
+            `The bridge has sent its ${sendPerHour} mails for this hour (MAIL_SEND_PER_HOUR); ` +
+              `the next may go in ${Math.ceil(slot.retryAfterSeconds / 60)} minute(s).`
+          );
+          err.headers = { "retry-after": String(slot.retryAfterSeconds) };
+          throw err;
+        }
         const request = { ...body, attachments: checked.attachments };
 
         const result = await upstream(() => sendMessage(mail, transport, request, { log }), "Send");
@@ -105,7 +146,12 @@ export function createMailRoutes(
           if (err instanceof MessageTooLargeError) {
             throw httpError(413, "message_too_large", err.message);
           }
-          throw httpError(502, "upstream_error", `Fetching attachments failed: ${err.message}`);
+          throw httpError(
+            502,
+            "upstream_error",
+            `Fetching attachments failed: ${err.message}`,
+            `Fetching attachments failed: ${failureCodes(err)}`
+          );
         }
         // Counts only: the names are the sender's words.
         log(
@@ -138,10 +184,22 @@ async function upstream(work, label) {
   try {
     return await work();
   } catch (err) {
+    // The caller is told the server's words, since they are the caller's own
+    // mail; the log, which is the host's to read, hears only the codes.
     if (err instanceof SendUnconfirmedError) {
-      throw httpError(504, "send_unconfirmed", err.message);
+      throw httpError(
+        504,
+        "send_unconfirmed",
+        err.message,
+        `${label} unconfirmed: ${failureCodes(err.cause)}`
+      );
     }
-    throw httpError(502, "upstream_error", `${label} failed: ${err.message}`);
+    throw httpError(
+      502,
+      "upstream_error",
+      `${label} failed: ${err.message}`,
+      `${label} failed: ${failureCodes(err)}`
+    );
   }
 }
 
@@ -151,7 +209,7 @@ async function upstream(work, label) {
  * the server is asked to deliver to, and a "recipient" with no address in it
  * is refused rather than sent to nobody.
  */
-export function validateSend(body, maxTextChars) {
+export function validateSend(body, maxTextChars, { maxRecipients = DEFAULT_MAX_RECIPIENTS } = {}) {
   for (const field of ["to", "cc", "bcc"]) {
     const problem = checkRecipientField(body[field], field);
     if (problem) return problem;
@@ -163,6 +221,11 @@ export function validateSend(body, maxTextChars) {
   ];
   if (recipients.length === 0) {
     return "At least one recipient (to, cc or bcc) is required.";
+  }
+  // Each field was bounded per entry and not by count: a list of thousands,
+  // each short, was a mailing that went out under the account's name.
+  if (recipients.length > maxRecipients) {
+    return `At most ${maxRecipients} recipients (to, cc and bcc together) per mail (MAX_RECIPIENTS).`;
   }
   if (recipients.some((address) => !address.includes("@"))) {
     return "Every recipient must be an address.";

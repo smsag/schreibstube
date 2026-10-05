@@ -57,6 +57,8 @@ function environment(overrides = {}) {
     // High enough that the rejections these tests provoke never trip it; the
     // throttle gets an instance of its own.
     AUTH_FAILURE_LIMIT: "1000",
+    // The same for the send budget, which mail-routes tests on its own.
+    MAIL_SEND_PER_HOUR: "1000",
     ...overrides
   };
 }
@@ -271,6 +273,13 @@ describe("errors", () => {
     const response = await call("/send", { body: { ...valid, from: "Steffen Seitz" } });
     expect(response.status).toBe(400);
     expect(response.json.code).toBe("invalid_request");
+  });
+
+  it("refuses a from the operator did not allow, naming the rule, before anything is sent", async () => {
+    const response = await call("/send", { body: { ...valid, from: "ceo@bank.example" } });
+    expect(response.status).toBe(403);
+    expect(response.json.code).toBe("sender_not_allowed");
+    expect(response.json.error).toContain("MAIL_FROM_ALLOWED");
   });
 
   it("refuses a from that is not a string", async () => {

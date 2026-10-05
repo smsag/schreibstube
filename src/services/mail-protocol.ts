@@ -216,6 +216,9 @@ export function describeBridgeError(status: number, body: string): string {
   // The attachments route's own 404 and 413 say which mail, not which setting.
   const code = extractCode(body);
   if (code === "message_gone" || code === "message_too_large") return extractError(body);
+  // Bridge 3's limits on a send say which variable decides; a bare 429 would
+  // read as repeated token failures, and a 403 as a wrong token.
+  if (code === "sender_not_allowed" || code === "send_rate_limited") return extractError(body);
   if (status === 413) return "the note is too large for the bridge to accept.";
   if (status === 401) return "bridge rejected the token — check the Bridge token setting.";
   if (status === 404) return "bridge endpoint not found — check the Bridge URL setting.";

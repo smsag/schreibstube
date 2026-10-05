@@ -12,6 +12,7 @@
  */
 
 import { parseSender } from "./mail-address.mjs";
+import { DEFAULT_MAX_RECIPIENTS, DEFAULT_SEND_PER_HOUR, parseFromAllowed } from "./mail-policy.mjs";
 
 /** Bumped when the request or response shape changes in a way the plugin can
  *  see; the table in README.md says what each number brought. */
@@ -226,6 +227,11 @@ function loadMail(env) {
       auth
     },
     from: sender(env.MAIL_FROM),
+    // Who a send may claim to be, how many it may reach and how often; see
+    // mail-policy.mjs.
+    fromAllowed: parseFromAllowed(env.MAIL_FROM_ALLOWED, parseSender(env.MAIL_FROM).address),
+    maxRecipients: integer(env.MAX_RECIPIENTS, DEFAULT_MAX_RECIPIENTS, "MAX_RECIPIENTS"),
+    sendPerHour: integer(env.MAIL_SEND_PER_HOUR, DEFAULT_SEND_PER_HOUR, "MAIL_SEND_PER_HOUR"),
     defaultMailbox: env.DEFAULT_MAILBOX?.trim() || "INBOX",
     // A name, "" for "never file", or null for "ask the server".
     sentMailbox: env.SENT_MAILBOX === "" ? "" : env.SENT_MAILBOX?.trim() || null

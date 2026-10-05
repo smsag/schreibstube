@@ -175,7 +175,8 @@ export class SendUnconfirmedError extends Error {
   constructor(cause) {
     super(
       `The mail server did not confirm the send (${cause.message}). ` +
-        "It may still be delivered — check Sent before sending again."
+        "It may still be delivered — check Sent before sending again.",
+      { cause }
     );
     this.name = "SendUnconfirmedError";
   }
@@ -621,6 +622,11 @@ function newClient(config, warnings) {
     host: config.imap.host,
     port: config.imap.port,
     secure: config.imap.secure,
+    // Without TLS from the first byte, imapflow upgrades only if the server
+    // offers STARTTLS, and anyone between the two can strike the offer: the
+    // password would then cross in the clear. Required here, as SMTP's
+    // `requireTLS` is; imapflow refuses the flag next to `secure`.
+    ...(config.imap.secure ? {} : { doSTARTTLS: true }),
     auth: config.imap.auth,
     logger: { warn: keep, error: keep, fatal: keep },
     emitLogs: false,
