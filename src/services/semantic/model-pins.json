@@ -2,32 +2,68 @@
   "models": [
     {
       "repoId": "Xenova/all-MiniLM-L6-v2",
-      "revision": "",
+      "revision": "751bff37182d3f1213fa05d7196b954e230abad9",
       "files": {
-        "config.json": { "size": null, "sha256": "" },
-        "tokenizer_config.json": { "size": null, "sha256": "" },
-        "tokenizer.json": { "size": null, "sha256": "" },
-        "onnx/model_quantized.onnx": { "size": null, "sha256": "" }
+        "config.json": {
+          "size": 650,
+          "sha256": "7135149f7cffa1a573466c6e4d8423ed73b62fd2332c575bf738a0d033f70df7"
+        },
+        "tokenizer_config.json": {
+          "size": 366,
+          "sha256": "9261e7d79b44c8195c1cada2b453e55b00aeb81e907a6664974b4d7776172ab3"
+        },
+        "tokenizer.json": {
+          "size": 711661,
+          "sha256": "da0e79933b9ed51798a3ae27893d3c5fa4a201126cef75586296df9b4d2c62a0"
+        },
+        "onnx/model_quantized.onnx": {
+          "size": 22972370,
+          "sha256": "afdb6f1a0e45b715d0bb9b11772f032c399babd23bfc31fed1c170afc848bdb1"
+        }
       }
     },
     {
       "repoId": "Xenova/paraphrase-multilingual-MiniLM-L12-v2",
-      "revision": "",
+      "revision": "2c4055b12046f11709e9df2c122e59ffbdc2f900",
       "files": {
-        "config.json": { "size": null, "sha256": "" },
-        "tokenizer_config.json": { "size": null, "sha256": "" },
-        "tokenizer.json": { "size": null, "sha256": "" },
-        "onnx/model_quantized.onnx": { "size": null, "sha256": "" }
+        "config.json": {
+          "size": 673,
+          "sha256": "05b570bff786faa5c4604152aa16f19f77ed6dfc31e47dd0f3dd987078693ac7"
+        },
+        "tokenizer_config.json": {
+          "size": 496,
+          "sha256": "3f5961b9ac86288cccdb97f32fb848d6187c78e1603958c53f3ea1f296b7d8a2"
+        },
+        "tokenizer.json": {
+          "size": 17082913,
+          "sha256": "b60b6b43406a48bf3638526314f3d232d97058bc93472ff2de930d43686fa441"
+        },
+        "onnx/model_quantized.onnx": {
+          "size": 118308126,
+          "sha256": "66fc00f5f29afcaff34092e1bdd20008ca3918265a82fb9695a551e510cc4ebc"
+        }
       }
     },
     {
       "repoId": "smsag007/paraphrase-multilingual-MiniLM-L12-v2-latin",
-      "revision": "",
+      "revision": "a2fa2a1966c45647f99db3f2a2cc79385f445f6c",
       "files": {
-        "config.json": { "size": null, "sha256": "" },
-        "tokenizer_config.json": { "size": null, "sha256": "" },
-        "tokenizer.json": { "size": null, "sha256": "" },
-        "onnx/model_quantized.onnx": { "size": null, "sha256": "" }
+        "config.json": {
+          "size": 672,
+          "sha256": "a026e3835fac0579911708d29e12091d11795d5eb6e48b20ac83e5697d9c3402"
+        },
+        "tokenizer_config.json": {
+          "size": 496,
+          "sha256": "3f5961b9ac86288cccdb97f32fb848d6187c78e1603958c53f3ea1f296b7d8a2"
+        },
+        "tokenizer.json": {
+          "size": 4750480,
+          "sha256": "945a33e6ff93b4f49f061a9b4e87fb56b31ac68a5190994866df103ddbf3f4f2"
+        },
+        "onnx/model_quantized.onnx": {
+          "size": 71640606,
+          "sha256": "d596abf2bb03c15357d248a90aada7eb097221659fc4be24b8870a65bd3c2a32"
+        }
       }
     }
   ]

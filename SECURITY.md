@@ -159,9 +159,6 @@ a pull request.
 - The plugin bundles one runtime dependency, the model runtime that search by
   meaning starts; CI audits it with the bridge's tree. Everything else in the
   root tree is build tooling and affects the build machine only.
-- Until `src/services/semantic/model-pins.json` holds the values CI prints,
-  every pin is empty, and search by meaning refuses to load any model. That is
-  the intended failure: no model is better than an unchecked one.
 - The onnxruntime-web that transformers.js 4.3 requires is a nightly build
   (`1.31.0-dev`). It is pinned by the lockfile and the hash above, like any
   other version, but it has had less use than a release.
