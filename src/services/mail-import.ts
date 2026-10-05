@@ -6,6 +6,8 @@
  * the bridge is meant to hand over are written at all.
  */
 
+import { foreignLine } from "./foreign-text";
+
 /** The kinds a note embeds as a picture; the rest are linked. */
 const IMAGE_EXTENSIONS = new Set(["png", "jpg", "jpeg", "gif", "webp", "heic"]);
 
@@ -58,17 +60,30 @@ export function isImageAttachment(name: string): boolean {
   return extension !== undefined && IMAGE_EXTENSIONS.has(extension);
 }
 
+/** Longest name of a file left out that the note repeats, in characters. */
+export const MAX_SKIPPED_NAME_CHARS = 120;
+
 /**
  * The lines that follow a quoted mail: its files as embeds and links, and a
  * line naming what was left out, all inside the quote so they read as part of
  * that mail. `links` are the vault's own links to the saved files.
+ *
+ * The name of a file left out is the sender's, never made safe by being
+ * saved, so it is written as foreign text: `![[Finanzen/Gehalt.pdf]].ics`
+ * would otherwise be a live embed of a file the sender picked, and a name
+ * with a newline in it would end the quote.
  */
 export function attachmentQuoteLines(
   links: readonly { link: string; image: boolean }[],
-  skipped: readonly string[],
+  skipped: readonly { filename: string; reason: string }[],
   skippedLabel: (names: string) => string
 ): string {
   const lines = links.map(({ link, image }) => `> ${image ? "!" : ""}${link}`);
-  if (skipped.length > 0) lines.push(`> ${skippedLabel(skipped.join(", "))}`);
+  if (skipped.length > 0) {
+    const names = skipped.map(
+      (entry) => `${foreignLine(entry.filename, MAX_SKIPPED_NAME_CHARS)} (${entry.reason})`
+    );
+    lines.push(`> ${skippedLabel(names.join(", "))}`);
+  }
   return lines.length > 0 ? `>\n${lines.join("\n")}` : "";
 }
