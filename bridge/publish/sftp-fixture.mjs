@@ -10,7 +10,7 @@
  * serve one client at a time on a local socket.
  */
 import { createReadStream, createWriteStream } from "node:fs";
-import { mkdir, mkdtemp, readdir, rename, rm, rmdir, stat, unlink } from "node:fs/promises";
+import { lstat, mkdir, mkdtemp, readdir, rename, rm, rmdir, stat, unlink } from "node:fs/promises";
 import { createHash, generateKeyPairSync } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -28,8 +28,10 @@ const OPEN_MODE = ssh2.utils.sftp.OPEN_MODE;
  */
 export async function startSftpServer({ user = "web", password = "geheim", latencyMs = 0 } = {}) {
   // Paths the server refuses to remove, answering "permission denied", so a
-  // test can see what a publish does with a deletion the host would not do.
-  const stats = { requests: {}, reads: [], refusedRemovals: new Set() };
+  // test can see what a publish does with a deletion the host would not do;
+  // and paths whose writes it holds for a while before answering, so a test
+  // can see what a publish that ran out of time does next.
+  const stats = { requests: {}, reads: [], refusedRemovals: new Set(), slowWrites: new Map() };
   const root = await mkdtemp(join(tmpdir(), "schreibstube-sftp-"));
   const { privateKey } = generateKeyPairSync("rsa", {
     modulusLength: 2048,
@@ -142,6 +144,9 @@ function serve(channel, root, { latencyMs, stats }) {
   sftp.on("OPEN", async (id, path, flags) => {
     const full = real(path);
     const writing = Boolean(flags & (OPEN_MODE.WRITE | OPEN_MODE.TRUNC | OPEN_MODE.CREAT));
+    for (const [prefix, ms] of stats.slowWrites) {
+      if (writing && path.startsWith(prefix)) await new Promise((done) => setTimeout(done, ms));
+    }
     try {
       if (writing) {
         await mkdir(join(full, ".."), { recursive: true });
@@ -199,7 +204,7 @@ function serve(channel, root, { latencyMs, stats }) {
 
     const names = [];
     for (const item of entry.entries.slice(entry.index)) {
-      const attrs = await attributes(join(entry.base, item.name));
+      const attrs = await attributes(join(entry.base, item.name), lstat);
       names.push({
         filename: item.name,
         longname: `${item.isDirectory() ? "d" : "-"}rw-r--r-- 1 u u ${attrs.size} ${item.name}`,
@@ -210,20 +215,24 @@ function serve(channel, root, { latencyMs, stats }) {
     sftp.name(id, names);
   });
 
-  const statHandler = async (id, path) => {
-    try {
-      sftp.attrs(id, await attributes(real(path)));
-    } catch {
-      sftp.status(id, STATUS.NO_SUCH_FILE);
-    }
-  };
-  sftp.on("STAT", statHandler);
-  sftp.on("LSTAT", statHandler);
+  // LSTAT answers for a link itself, as a real server does, so the bridge's
+  // refusal to follow one can be tested against links on disk.
+  const statHandler =
+    (read = stat) =>
+    async (id, path) => {
+      try {
+        sftp.attrs(id, await attributes(real(path), read));
+      } catch {
+        sftp.status(id, STATUS.NO_SUCH_FILE);
+      }
+    };
+  sftp.on("STAT", statHandler());
+  sftp.on("LSTAT", statHandler(lstat));
 
   sftp.on("FSTAT", async (id, handle) => {
     const entry = lookup(handle);
     if (!entry?.path) return sftp.status(id, STATUS.FAILURE);
-    await statHandler(id, entry.path.slice(root.length) || "/");
+    await statHandler()(id, entry.path.slice(root.length) || "/");
   });
 
   sftp.on("MKDIR", async (id, path) => {
@@ -282,8 +291,8 @@ async function readAll(entry) {
   return entry.promise;
 }
 
-async function attributes(path) {
-  const info = await stat(path);
+async function attributes(path, read = stat) {
+  const info = await read(path);
   return {
     mode: info.mode,
     uid: 0,

@@ -117,28 +117,68 @@ export async function connect(target) {
   return new Remote(client, target);
 }
 
-/**
- * One connection's operations, each under the target's deadline: a request
- * the server never answers would otherwise hold the per-target publish lock
- * for as long as the socket stays open, which with a dead peer is forever.
- */
 /** A line slower than this is not one a publish can be expected to finish on. */
 const MIN_TRANSFER_BYTES_PER_SECOND = 128 * 1024;
 /** The largest file read back from the host, for the read deadline. */
 const MAX_READ_BYTES = 32 * 1024 * 1024;
 
+/**
+ * Work that was given up on — its request ran out of time — asking for one
+ * more operation. Raised before the operation starts, so a publish abandoned
+ * while a second one has begun cannot write a byte more.
+ */
+export class AbandonedError extends SftpError {
+  constructor() {
+    super("The publish was abandoned; no further operation is sent.", {
+      client: "The publish was abandoned."
+    });
+    this.name = "AbandonedError";
+  }
+}
+
+/**
+ * One connection's operations, each under the target's deadline: a request
+ * the server never answers would otherwise hold the per-target publish lock
+ * for as long as the socket stays open, which with a dead peer is forever.
+ *
+ * Every operation goes through `bounded`, which is also where a request that
+ * was abandoned stops: `withSignal` hands a request its own view of the shared
+ * connection, and once that request's signal fires, the view refuses to start
+ * anything.
+ */
 export class Remote {
   constructor(client, target) {
     this.client = client;
     this.target = target;
-    // Directories this connection has made sure of, as the promise that did
-    // it: a site's pages share a handful of parents, and asking for each one
-    // before every file was a round trip per file for nothing. Parallel writes
-    // into one new directory wait for the same request instead of racing.
-    this.directories = new Map();
-    // Whether the server has the POSIX rename extension: unknown until the
-    // first rename, then remembered so the fallback is not retried per file.
-    this.posixRename = null;
+    this.signal = null;
+    // Shared by every view of this connection.
+    this.shared = {
+      // Directories this connection has made sure of — real directories, not
+      // links — as the promise that did it: a site's pages share a handful of
+      // parents, and asking for each one before every file was a round trip
+      // per file for nothing. Parallel writes into one new directory wait for
+      // the same request instead of racing.
+      directories: new Map(),
+      // Whether the server has the POSIX rename extension: unknown until the
+      // first rename, then remembered so the fallback is not retried per file.
+      posixRename: null,
+      destroyed: false
+    };
+  }
+
+  get posixRename() {
+    return this.shared.posixRename;
+  }
+
+  set posixRename(value) {
+    this.shared.posixRename = value;
+  }
+
+  /** This connection, for one request: it stops when `signal` fires. */
+  withSignal(signal) {
+    const view = Object.create(this);
+    view.signal = signal;
+    return view;
   }
 
   /**
@@ -164,9 +204,26 @@ export class Remote {
     }
   }
 
-  /** One library call under the deadline, named for the log. */
-  bounded(operation, promise, extraMs = 0) {
-    return withDeadline(promise, this.target.timeoutMs + extraMs, `SFTP ${operation}`);
+  /**
+   * Close the socket now, without the goodbye `end` waits for. An operation
+   * the server is still holding fails at once instead of landing later.
+   */
+  destroy() {
+    this.shared.destroyed = true;
+    try {
+      this.client.client?.destroy?.();
+    } catch {
+      // Already closed.
+    }
+    void this.end();
+  }
+
+  /** One library call under the deadline, named for the log; none once abandoned. */
+  bounded(operation, start, extraMs = 0) {
+    if (this.shared.destroyed || this.signal?.aborted) {
+      return Promise.reject(new AbandonedError());
+    }
+    return withDeadline(start(), this.target.timeoutMs + extraMs, `SFTP ${operation}`);
   }
 
   /**
@@ -190,16 +247,98 @@ export class Remote {
   }
 
   /**
+   * The configured root a path lies under: the state root when it is the
+   * closer one, as it is when the state sits inside the web root.
+   */
+  rootOf(path) {
+    const roots = [this.target.stateRoot, this.target.root]
+      .filter(Boolean)
+      .map((root) => root.replace(/\/+$/, ""))
+      .sort((a, b) => b.length - a.length);
+    const root = roots.find((candidate) => path.startsWith(`${candidate}/`));
+    if (root === undefined) {
+      throw new SftpError(`Outside every root: ${path}`, { client: "A path left the site." });
+    }
+    return root;
+  }
+
+  /**
+   * Make sure every directory between the root and `path` is a directory, and
+   * not a link to one. Only the last component used to be looked at, so a
+   * linked parent — `assets` pointing at another site, or at the home
+   * directory — carried a write wherever it led. `create` makes the missing
+   * ones, one at a time, each looked at again once made. Without it, the
+   * answer is whether they all exist.
+   */
+  async verifyParents(path, { create = false } = {}) {
+    const root = this.rootOf(path);
+    const segments = path.slice(root.length + 1).split("/");
+    segments.pop();
+    let current = root;
+    for (const segment of segments) {
+      current = `${current}/${segment}`;
+      if (!(await this.directory(current, create))) return false;
+    }
+    return true;
+  }
+
+  /** Whether `path` is a real directory, made first when `create` asks for it. */
+  async directory(path, create) {
+    const known = this.shared.directories.get(path);
+    if (known && ((await known.catch(() => false)) || !create)) return known;
+
+    const check = this.inspectDirectory(path, create);
+    this.shared.directories.set(path, check);
+    // Only a directory that is there is remembered.
+    const forget = () => {
+      if (this.shared.directories.get(path) === check) this.shared.directories.delete(path);
+    };
+    check.then((present) => present || forget(), forget);
+    return check;
+  }
+
+  async inspectDirectory(path, create) {
+    let kind = await this.exists(path);
+    if (kind === false && create) {
+      // Refused when it raced another request making the same directory,
+      // which is fine; anything else shows in the look that follows.
+      await this.bounded("mkdir", () => this.client.mkdir(path)).catch((err) => {
+        if (err instanceof AbandonedError) throw err;
+      });
+      kind = await this.exists(path);
+    }
+    if (kind === "l") {
+      throw new SftpError(`Refusing to follow a linked directory: ${path}`, {
+        client: "Refusing to follow a linked directory."
+      });
+    }
+    if (kind === false) {
+      if (!create) return false;
+      throw new SftpError(`Cannot create the directory ${path}`, {
+        client: "Cannot create a directory."
+      });
+    }
+    if (kind !== "d") {
+      throw new SftpError(`A file is in the way of a directory: ${path}`, {
+        client: "A file is in the way of a directory."
+      });
+    }
+    return true;
+  }
+
+  /**
    * Write bytes to a path below the target root.
    *
-   * Refuses to write through a symlink: following one would place a file
-   * wherever the link points, which is outside everything this module checks.
+   * Refuses to write through a symlink, at the file or at any directory
+   * above it: following one would place a file wherever the link points,
+   * which is outside everything this module checks.
    */
   async writeFile(relative, content) {
     return this.writeAbsolute(this.absolute(relative), content);
   }
 
   async writeAbsolute(path, content) {
+    await this.verifyParents(path, { create: true });
     const kind = await this.exists(path);
     if (kind === "l") {
       throw new SftpError(`Refusing to write through a symlink: ${path}`, {
@@ -212,33 +351,19 @@ export class Remote {
       });
     }
 
-    await this.ensureDirectory(parentOf(path));
-
     const temporary = `${path}.schreibstube-${randomBytes(6).toString("hex")}`;
     const bytes = Buffer.from(content);
     await this.bounded(
       "put",
-      this.client.put(bytes, temporary),
+      () => this.client.put(bytes, temporary),
       this.transferAllowanceMs(bytes.length)
     );
     try {
       await this.rename(temporary, path);
     } catch (err) {
-      await this.removeAbsolute(temporary).catch(() => {});
+      await this.unlink(temporary).catch(() => {});
       throw err;
     }
-  }
-
-  /** Create a directory and its parents, once per connection. */
-  ensureDirectory(path) {
-    let made = this.directories.get(path);
-    if (!made) {
-      // A failure here is not fatal, as it never was: the directory may exist
-      // already, and a write into one that does not will fail on its own.
-      made = this.bounded("mkdir", this.client.mkdir(path, true)).catch(() => {});
-      this.directories.set(path, made);
-    }
-    return made;
   }
 
   /**
@@ -254,7 +379,7 @@ export class Remote {
   async rename(from, to) {
     if (this.posixRename !== false) {
       try {
-        await this.bounded("posixRename", this.client.posixRename(from, to));
+        await this.bounded("posixRename", () => this.client.posixRename(from, to));
         this.posixRename = true;
         return;
       } catch (err) {
@@ -262,13 +387,19 @@ export class Remote {
         this.posixRename = false;
       }
     }
-    await this.removeAbsolute(to).catch(() => {});
-    await this.bounded("rename", this.client.rename(from, to));
+    await this.unlink(to).catch(() => {});
+    await this.bounded("rename", () => this.client.rename(from, to));
   }
 
   /** False, "d", "-" or "l", as the client reports it. */
   async exists(path) {
-    return this.bounded("exists", this.client.exists(path));
+    return this.bounded("exists", () => this.client.exists(path));
+  }
+
+  /** The size of a file, as the link itself reports it. */
+  async sizeOf(path) {
+    const info = await this.bounded("lstat", () => this.client.lstat(path));
+    return info.size;
   }
 
   async readFile(path) {
@@ -276,7 +407,7 @@ export class Remote {
     // and the largest thing read back is a source at its own upload limit.
     const buffer = await this.bounded(
       "get",
-      this.client.get(path),
+      () => this.client.get(path),
       this.transferAllowanceMs(MAX_READ_BYTES)
     );
     return Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer);
@@ -318,7 +449,8 @@ export class Remote {
    */
   async listNames(path) {
     try {
-      return (await this.bounded("list", this.client.list(path))).map((entry) => entry.name);
+      const entries = await this.bounded("list", () => this.client.list(path));
+      return entries.map((entry) => entry.name);
     } catch (err) {
       if (isMissing(err)) return [];
       throw err;
@@ -329,15 +461,31 @@ export class Remote {
     await this.removeAbsolute(this.absolute(relative));
   }
 
+  /**
+   * Delete a file the bridge wrote. A linked directory above it, or a link
+   * where the file was, is refused: neither is something the bridge made, and
+   * the first would delete whatever lies at the other end.
+   */
   async removeAbsolute(path) {
-    await this.bounded("delete", this.client.delete(path, true));
+    if ((await this.verifyParents(path)) && (await this.exists(path)) === "l") {
+      throw new SftpError(`Refusing to delete a symlink: ${path}`, {
+        client: "Refusing to delete a symlink."
+      });
+    }
+    await this.unlink(path);
+  }
+
+  /** The bare deletion, for a path this connection has just checked or made. */
+  async unlink(path) {
+    await this.bounded("delete", () => this.client.delete(path, true));
   }
 
   /**
    * Remove directories left empty by a deletion, deepest first.
    *
    * Bounded by the target root: the loop stops as soon as a directory is not
-   * empty, and never considers the root itself.
+   * empty, and never considers the root itself. A directory that is a link,
+   * or is reached through one, is left alone.
    */
   async pruneEmptyDirectories(relativePaths) {
     const candidates = new Set();
@@ -357,27 +505,25 @@ export class Remote {
       const absolute = this.absolute(`${directory}/x.html`).replace(/\/x\.html$/, "");
       let entries;
       try {
+        if (!(await this.verifyParents(`${absolute}/x`))) continue;
         entries = await this.listNames(absolute);
-      } catch {
-        // The site is written by now; a directory that cannot be listed is
-        // left as it is rather than failing the publish over it.
+      } catch (err) {
+        if (err instanceof AbandonedError) throw err;
+        // The site is written by now; a directory that cannot be listed, or
+        // is a link, is left as it is rather than failing the publish over it.
         continue;
       }
       if (entries.length > 0) continue;
       try {
-        await this.bounded("rmdir", this.client.rmdir(absolute));
+        await this.bounded("rmdir", () => this.client.rmdir(absolute));
         // Gone now, so a later write on this connection has to make it again.
-        this.directories.delete(absolute);
+        this.shared.directories.delete(absolute);
         pruned += 1;
-      } catch {
+      } catch (err) {
+        if (err instanceof AbandonedError) throw err;
         // Busy, gone, or not ours to remove. Either way, not worth failing over.
       }
     }
     return pruned;
   }
-}
-
-function parentOf(path) {
-  const at = path.lastIndexOf("/");
-  return at <= 0 ? "/" : path.slice(0, at);
 }
