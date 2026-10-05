@@ -152,6 +152,48 @@ describe("buildSyncSuggestions", () => {
     expect(updated).toContain("# Neuer Titel");
   });
 
+  it("flags a card that brings in a block another plugin runs", () => {
+    const remote = `${body}\n\`\`\`dataviewjs\nawait app.vault.adapter.write("x", "y")\n\`\`\`\n`;
+    const [suggestion] = buildSyncSuggestions({
+      noteText: NOTE,
+      remoteBody: remote,
+      state: "clean"
+    });
+    expect(suggestion?.runsCode).toEqual(["dataviewjs"]);
+    expect(suggestion?.note).toContain("dataviewjs");
+  });
+
+  it("flags a line changed inside such a block, though the card holds no fence", () => {
+    const fenced = `${NOTE}\n\`\`\`dataviewjs\ndv.span(1)\n\`\`\`\n\nEnde.\n`;
+    const remote = splitNote(fenced).body.replace("dv.span(1)", "require('child_process')");
+    const [suggestion] = buildSyncSuggestions({
+      noteText: fenced,
+      remoteBody: remote,
+      state: "clean"
+    });
+    expect(suggestion?.replacement).not.toContain("```");
+    expect(suggestion?.runsCode).toEqual(["dataviewjs"]);
+  });
+
+  it("finds the block in the source after an earlier card shifted it", () => {
+    const fenced = `${NOTE}\nMitte.\n\n\`\`\`dataviewjs\ndv.span(1)\n\`\`\`\n`;
+    const remote = splitNote(fenced)
+      .body.replace("Erster Absatz.", "Erster Absatz.\nZwei.\nDrei.\nVier.")
+      .replace("dv.span(1)", "dv.span(2)");
+    const cards = buildSyncSuggestions({ noteText: fenced, remoteBody: remote, state: "clean" });
+    expect(cards.map((card) => card.runsCode ?? [])).toEqual([[], ["dataviewjs"]]);
+  });
+
+  it("leaves a plain prose change unflagged", () => {
+    const remote = body.replace("Erster Absatz.", "Erster Absatz, mit `<b>` und ```js.");
+    const [suggestion] = buildSyncSuggestions({
+      noteText: NOTE,
+      remoteBody: remote,
+      state: "clean"
+    });
+    expect(suggestion?.runsCode).toBeUndefined();
+  });
+
   it("reproduces the source exactly when every card is accepted", () => {
     const remote = "\n# Ganz neu\n\nAnderer Text.\n\nNoch einer.\n";
     const suggestions = buildSyncSuggestions({

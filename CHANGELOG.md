@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Changed
+
+- **An update from a source that brings in code another plugin runs is no longer taken with "Accept all".** A mirrored note shows what its source writes, and a source can write a `dataviewjs` block, Dataview's inline `$=` JavaScript, a Templater `<% %>` command, a JS Engine, Datacore, Meta Bind or Buttons block — which those plugins run with Obsidian's full rights once the note renders or is used. A card that adds or changes one now carries a **runs code** badge, names what it found, and is left out of **Accept all**: you read it and accept it on its own, or not at all. Code that is only shown, like a `js` or `html` fence, is not flagged.
+- **A source that sends binary data is refused.** A server that names no content type, or says `application/octet-stream`, was believed whenever the link ended in `.md`; a body with a NUL byte in it is now reported as not text instead of being offered as cards.
+
 ## 1.75.0 - 2026-10-03
 
 One word for one thing, and properties that stay where you put them.

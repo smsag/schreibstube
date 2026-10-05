@@ -6,6 +6,7 @@ import {
   cardActions,
   chunkBlocks,
   createCancelToken,
+  inAcceptAll,
   isFlagOnly,
   runProofread,
   scanGlossary
@@ -335,5 +336,32 @@ describe("cardActions", () => {
     const update = cardActions(card({ source: "remote", category: "update" }));
 
     expect(update).toEqual({ accept: true, reject: false, locate: true });
+  });
+});
+
+describe("inAcceptAll", () => {
+  const card = createSuggestion({
+    kind: "replace",
+    source: "remote",
+    category: "update",
+    severity: "suggestion",
+    from: 0,
+    to: 1,
+    original: "a",
+    replacement: "b",
+    note: ""
+  });
+
+  it("takes a pending card with something to apply", () => {
+    expect(inAcceptAll(card)).toBe(true);
+  });
+
+  it("leaves out a card that brings in code another plugin runs", () => {
+    expect(inAcceptAll({ ...card, runsCode: ["dataviewjs"] })).toBe(false);
+  });
+
+  it("leaves out a flag-only card and a settled one", () => {
+    expect(inAcceptAll({ ...card, replacement: "a" })).toBe(false);
+    expect(inAcceptAll({ ...card, status: "accepted" })).toBe(false);
   });
 });

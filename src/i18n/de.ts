@@ -753,6 +753,7 @@ export const de: Messages = {
     httpStatus: (status: number) => `Quelle antwortete mit HTTP ${status}.`,
     metadataNotFile: "GitHub lieferte Metadaten statt Dateiinhalt.",
     notMarkdownType: (type: string) => `Quelle ist kein Markdown (${type}).`,
+    notText: "Die Quelle ist kein Text: Sie enthält Binärdaten.",
     tooLarge: "Quelle überschreitet die Größengrenze.",
     timeout: (seconds: number) => `Quelle antwortete nicht innerhalb von ${seconds}s.`,
     networkError: "Netzwerkfehler."
@@ -802,6 +803,9 @@ export const de: Messages = {
     hitAvoid: (term: string) => `„${term}“ sollte vermieden werden.`,
     cardDiverged: "Lokale Änderung — Übernehmen stellt den Stand der Quelle wieder her.",
     cardFirstSync: "Erster Abgleich mit der Quelle.",
+    cardRunsCode: (kinds: readonly string[]) =>
+      `Bringt Code, den ein anderes Plugin ausführt (${kinds.join(", ")}). Vor dem Übernehmen ` +
+      `lesen — "Alle übernehmen" lässt ihn aus.`,
     sourceMatches: "Notiz entspricht der Quelle.",
     sourceUnchangedLocalEdits: "Quelle unverändert, die Notiz enthält lokale Änderungen.",
     divergedChanges: (count: number) =>
@@ -814,6 +818,7 @@ export const de: Messages = {
     badgeSource: "Quelle",
     badgeStale: "veraltet",
     badgeInflection: "Beugung prüfen",
+    badgeRunsCode: "führt Code aus",
     categories: {
       spelling: "Rechtschreibung",
       grammar: "Grammatik",

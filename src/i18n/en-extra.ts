@@ -437,6 +437,7 @@ export const enExtra = {
     httpStatus: (status: number) => `The source answered with HTTP ${status}.`,
     metadataNotFile: "GitHub returned metadata instead of the file's contents.",
     notMarkdownType: (type: string) => `The source is not Markdown (${type}).`,
+    notText: "The source is not text: it contains binary data.",
     tooLarge: "The source exceeds the size limit.",
     timeout: (seconds: number) => `The source did not answer within ${seconds}s.`,
     networkError: "Network error."
@@ -486,6 +487,9 @@ export const enExtra = {
     hitAvoid: (term: string) => `"${term}" should be avoided.`,
     cardDiverged: "Edited locally — accepting restores what the source says.",
     cardFirstSync: "First comparison with the source.",
+    cardRunsCode: (kinds: readonly string[]) =>
+      `Brings in code another plugin runs (${kinds.join(", ")}). Read it before accepting — ` +
+      `"Accept all" leaves it out.`,
     sourceMatches: "The note matches its source.",
     sourceUnchangedLocalEdits: "Source unchanged; the note carries local edits.",
     divergedChanges: (count: number) =>
@@ -497,6 +501,7 @@ export const enExtra = {
     badgeSource: "Source",
     badgeStale: "stale",
     badgeInflection: "check inflection",
+    badgeRunsCode: "runs code",
     categories: {
       spelling: "Spelling",
       grammar: "Grammar",

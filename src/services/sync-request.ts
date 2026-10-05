@@ -169,6 +169,13 @@ export function interpretSourceResponse(
     return { status: "error", message: messages.tooLarge };
   }
 
+  // A server that labels nothing, or says octet-stream, is believed about the
+  // extension; a NUL byte is what no Markdown file holds and every binary one
+  // does, so it is the line a body without a trustworthy type is held to.
+  if (body.includes("\u0000")) {
+    return { status: "error", message: messages.notText };
+  }
+
   return { status: "updated", body, etag: header(response.headers, "etag") ?? "" };
 }
 
