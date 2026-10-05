@@ -1,4 +1,7 @@
 import type { LlmProvider, SchreibstubeSettings } from "../types";
+import { t } from "../i18n";
+import { checkFileName, MAX_FILE_NAME_BYTES } from "./file-name";
+import { exceedsBytes, megabytes } from "./response-size";
 
 /** Max tokens requested for a filename completion. Filenames are short, but
  *  leave headroom so a descriptive name is never cut mid-word. */
@@ -6,6 +9,24 @@ export const MAX_TOKENS = 64;
 
 /** How long to wait for a provider response before giving up. */
 export const REQUEST_TIMEOUT_MS = 30_000;
+
+/**
+ * The largest answer a provider may send. The longest completion any command
+ * asks for is a few thousand tokens, tens of kilobytes even as JSON with its
+ * envelope; four megabytes is room for any of them, and not for a body that
+ * would take a phone's memory with it.
+ */
+export const MAX_LLM_RESPONSE_BYTES = 4_000_000;
+
+/** Why a provider's answer is refused for its size, or null when it is not. */
+export function llmResponseSizeProblem(
+  provider: LlmProvider,
+  headers: Record<string, string> | undefined,
+  body: ArrayBuffer | string
+): string | null {
+  if (!exceedsBytes(headers, body, MAX_LLM_RESPONSE_BYTES)) return null;
+  return t().ai.responseTooLarge(providerLabel(provider), megabytes(MAX_LLM_RESPONSE_BYTES));
+}
 
 const TEXT_SYSTEM_PROMPT =
   `You are a file naming assistant. Given the content of a Markdown note, ` +
@@ -266,12 +287,23 @@ export function effectiveModel(
 }
 
 const ILLEGAL_CHARS = /[/\\:*?"<>|#^[\]]/g;
+/** Control and format characters other than whitespace: invisible, and a
+ *  right-to-left override among them makes a name ending in `gpj.exe` read
+ *  as one ending in `exe.jpg`. */
+const INVISIBLE_CHARS = /(?!\s)[\p{Cc}\p{Cf}]/gu;
 const MULTIPLE_HYPHENS = /-{2,}/g;
 const WHITESPACE = /\s+/g;
 const EDGE_DOTS_HYPHENS = /^[.-]+|[.-]+$/g;
 
+/**
+ * The most bytes a proposed name may take, leaving room in the filesystem's
+ * 255 for the extension the caller adds.
+ */
+export const MAX_PROPOSED_NAME_BYTES = MAX_FILE_NAME_BYTES - 16;
+
 export function sanitizeFilename(raw: string, maxLength: number): string {
   const cleaned = raw
+    .replace(INVISIBLE_CHARS, "")
     .trim()
     .replace(ILLEGAL_CHARS, "")
     .replace(WHITESPACE, "-")
@@ -280,8 +312,33 @@ export function sanitizeFilename(raw: string, maxLength: number): string {
 
   // Cut by characters, not by the units a string is stored in: slicing in the
   // middle of a pair leaves half an emoji, which is not a character at all and
-  // which a filesystem may refuse for reasons it does not explain.
-  return [...cleaned].slice(0, maxLength).join("").replace(EDGE_DOTS_HYPHENS, "");
+  // which a filesystem may refuse for reasons it does not explain. Then by
+  // bytes, which is what the filesystem counts: sixty emoji are sixty
+  // characters and two hundred and forty bytes.
+  const chars = [...cleaned].slice(0, maxLength);
+  const encoder = new TextEncoder();
+  let bytes = 0;
+  let kept = 0;
+  for (const char of chars) {
+    bytes += encoder.encode(char).byteLength;
+    if (bytes > MAX_PROPOSED_NAME_BYTES) break;
+    kept += 1;
+  }
+  return chars.slice(0, kept).join("").replace(EDGE_DOTS_HYPHENS, "");
+}
+
+/**
+ * A model's proposal as the name the file gets, or null when there is none.
+ *
+ * Cleaning takes out what the model should not have written; what is left
+ * still has to pass the rules a name typed by a person passes, so a proposal
+ * of `CON`, which Windows will not create, is refused rather than renamed to.
+ */
+export function proposedFileName(raw: string, extension: string, maxLength: number): string | null {
+  const name = stripFilenameExtension(sanitizeFilename(raw, maxLength), extension);
+  if (!name) return null;
+  const checked = checkFileName(`${name}.${extension}`);
+  return checked.ok ? name : null;
 }
 
 /**

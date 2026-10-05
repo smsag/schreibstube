@@ -48,8 +48,34 @@ elements and attributes, and where the bridge writes `.htaccess` files the site
 carries a content security policy and serves SVGs in a sandbox
 (`PUBLISHING.md` has the same for nginx and Caddy). A target's state
 directory, which holds the published notes' text, is kept out of the web root
-unless the operator says the host allows nothing else. Mail bodies merged
-into a note are escaped so a sender cannot embed a vault file into it.
+unless the operator says the host allows nothing else.
+
+## Text from somebody else
+
+Obsidian renders an embed, raw HTML and a remote image as soon as a note is
+shown, and other plugins run code a note holds — Dataview a `dataviewjs`
+fence or an inline `$=` span, Templater a `<% %>` tag, JS Engine, Datacore,
+Meta Bind and Buttons their blocks — with Obsidian's rights, which on a
+desktop are the machine's. Everything the plugin writes into a note on
+someone else's behalf goes through one module, `src/services/foreign-text.ts`:
+
+- A mail's subject, sender and body, and the names of attachments left out of
+  an import, are escaped so they show and build nothing: no link or embed, no
+  HTML, comment or Templater tag, no backtick and no fence.
+- A summary or an AI table keeps its formatting, and any executing construct
+  the selection did not already hold is disarmed, with a notice.
+- A proof-read card or a source update that brings such code carries a "runs
+  code" badge and is left out of "Accept all".
+- A picture description has links, images, HTML, comments and code taken out.
+- A proposed file name has invisible characters removed and must pass the same
+  check as a name typed by hand.
+
+Every answer from a model provider, the exchange-rate service and the
+typesetter's download is held to a size as well as a deadline, by its declared
+length and by its bytes. Folder settings read from `data.json` refuse `..`, a
+backslash, a control character and any segment starting with a dot, so none
+can point at the config folder. The `obsidian://schreibstube-new-doc` link
+reads nothing it is given and acts at most once every five seconds.
 
 ## The typesetter the plugin downloads
 
@@ -65,13 +91,53 @@ in a folder a person can open — and refuses to load anything else. A template
 is compiled with no file system and no network: only the job's own files, and
 no Typst package may be imported.
 
+## How a release is made, and how to check one
+
+A release is built and published by the Release workflow, from `main` only,
+after someone approves it in the repository's `release` environment. The job
+that builds runs with a read-only token and installs without dependency
+scripts; the job that publishes holds the write and signing grants and runs
+nothing from npm or the repository, only a hash check of the built files and
+the GitHub CLI. `CONTRIBUTING.md` has the details.
+
+Every file on a release — `main.js`, `manifest.json`, `styles.css`, the source
+map and the Typst runtime — carries a signed provenance attestation that names
+the workflow and the commit it was built from. With the GitHub CLI:
+
+```bash
+gh attestation verify main.js -R smsag/schreibstube
+```
+
+A file that was changed after the build, or built anywhere else, fails.
+
+The build is also reproducible. From the tagged commit, with the Node version
+`.nvmrc` names:
+
+```bash
+git clone https://github.com/smsag/schreibstube && cd schreibstube
+git checkout 1.75.0                 # the release's tag
+npm ci --ignore-scripts
+npm run build
+sha256sum main.js styles.css manifest.json
+```
+
+The three hashes match those of the files attached to the release
+(`shasum -a 256` on macOS). The Typst runtime files are not built but checked:
+`node scripts/fetch-typst-runtime.mjs` downloads them and compares them with
+the hashes committed in `src/services/typst-runtime.ts`.
+
 ## What CI checks
 
 Every change runs the bridge's runtime tree through `npm audit` at the high
 level, builds the bridge's Docker image and probes its health route, type-checks
 under strict flags, lints for unhandled promises, and proves the plugin bundle
-reaches for no Node built-in. Dependabot opens grouped update pull requests
-weekly for both trees, the workflows and the image base.
+reaches for no Node built-in. Dependabot opens update pull requests weekly for
+both trees, the workflows and the image base. A package or action version is
+offered only once it has been public for a week, long enough for most
+hijacked releases to be found and pulled; the root's runtime dependency, which
+ships inside `main.js`, arrives on its own rather than grouped with the dev
+tooling. The image base is pinned by digest, so it changes only through such
+a pull request.
 
 ## Known limits
 
@@ -80,6 +146,17 @@ weekly for both trees, the workflows and the image base.
 - The plugin sends note text to the configured LLM provider when asked to
   proof-read, rename or summarize. Which provider, and what is excluded
   (frontmatter, code, tables, math, links), is documented in `README.md`.
+- Document sync downloads what a note's `schreibstubeSyncedFrom` names, and any
+  note that reaches the vault — synced, imported, pasted — can carry that key.
+  With sync and the background poll on, the plugin requests that URL on a
+  schedule, which its owner can see; nothing is written into the note until a
+  person accepts it. A mirrored note shows remote images, which tell their host
+  when the note is opened. Obsidian's request API follows redirects, so the
+  HTTPS and Markdown-extension checks hold for the URL the note names, not for
+  where a server redirects it; the GitHub token is attached only to requests
+  the plugin addresses to `api.github.com`.
+- Neutralising code covers the plugins named above. A plugin that runs some
+  other construct from a note's text is not known to this one.
 - The plugin bundles one runtime dependency, the model runtime that search by
   meaning starts; CI audits it with the bridge's tree. Everything else in the
   root tree is build tooling and affects the build machine only.

@@ -5,6 +5,7 @@ import {
   normalizeExchangeRates,
   parseEcbRates,
   RATES_MAX_AGE_MS,
+  ratesSizeProblem,
   ratesStale
 } from "./exchange-rates";
 
@@ -34,6 +35,18 @@ describe("parseEcbRates", () => {
     expect(parseEcbRates("<Cube time='2026-09-26'></Cube>", 0)).toBeNull();
     expect(parseEcbRates("<Cube time='yesterday'><Cube currency='USD' rate='1'/>", 0)).toBeNull();
     expect(parseEcbRates(ECB + " ".repeat(MAX_RATES_BYTES), 0)).toBeNull();
+  });
+});
+
+describe("ratesSizeProblem", () => {
+  it("passes the bank's file", () => {
+    expect(ratesSizeProblem({ "content-length": "1500" }, ECB)).toBeNull();
+  });
+
+  it("refuses an answer that declares or holds more than a list of rates", () => {
+    const declared = { "content-length": String(MAX_RATES_BYTES + 1) };
+    expect(ratesSizeProblem(declared, ECB)).not.toBeNull();
+    expect(ratesSizeProblem(undefined, new ArrayBuffer(MAX_RATES_BYTES + 1))).not.toBeNull();
   });
 });
 

@@ -616,9 +616,10 @@ export class MailCommands {
         return;
       }
       const words = t().mail;
-      const skipped = result.skipped.map(
-        (entry) => `${entry.filename} (${words.skipReason[entry.reason]})`
-      );
+      const skipped = result.skipped.map((entry) => ({
+        filename: entry.filename,
+        reason: words.skipReason[entry.reason]
+      }));
       insert(attachmentQuoteLines(links, skipped, words.attachmentsSkipped));
       if (links.length > 0) {
         new Notice(t().common.notice(t().mailNotices.attachmentsSaved(links.length)));
