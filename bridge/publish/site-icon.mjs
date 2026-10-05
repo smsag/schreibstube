@@ -3,6 +3,9 @@
  * a file of its own. Served from the site's domain, where an SVG opened on
  * its own would run whatever it carries, so it is checked first.
  */
+import { isSafeSvg } from "./svg-guard.mjs";
+
+export { isSafeSvg };
 
 /** Far more than an icon needs; a drawing of a pile is under one kilobyte. */
 export const MAX_SITE_ICON_BYTES = 32_000;
@@ -53,29 +56,6 @@ export function decodeDataUri(uri) {
   } catch {
     return null;
   }
-}
-
-/**
- * Whether an SVG is a picture and nothing more: its root is `<svg>`, and it
- * holds no script, no event handler, no `javascript:` and no reference to
- * anything outside itself. Stricter than a drawing needs, which is the point.
- */
-export function isSafeSvg(text, { embedded = false } = {}) {
-  const body = text.replace(/^\s*(?:(?:<\?xml[^>]*\?>|<!--[\s\S]*?-->|<!DOCTYPE[^>]*>)\s*)*/i, "");
-  if (!/^<svg[\s>]/i.test(body)) return false;
-  if (/<script[\s>]/i.test(body)) return false;
-  if (/<foreignObject[\s>]/i.test(body)) return false;
-  if (/\son[a-z]+\s*=/i.test(body)) return false;
-  if (/javascript:/i.test(body)) return false;
-  // A drawing exported by Excalidraw or draw.io carries its fonts and its
-  // pictures inside itself as data URIs; those load nothing from elsewhere,
-  // so an uploaded asset may keep them. A tab icon has no business with them.
-  const inside = embedded ? "#|data:" : "#";
-  if (new RegExp(`(?:xlink:)?href\\s*=\\s*["']?\\s*(?!${inside})[^"'\\s>]`, "i").test(body)) {
-    return false;
-  }
-  if (new RegExp(`@import|url\\(\\s*["']?(?!${inside})`, "i").test(body)) return false;
-  return true;
 }
 
 function isPng(bytes) {
