@@ -1,6 +1,11 @@
 # Dependencies are installed in a stage of their own so the image that runs
 # carries no npm cache, no lockfile churn, and no Mermaid tree.
-FROM node:24-alpine AS deps
+#
+# The base is pinned by digest as well as tag. A tag is whatever the registry
+# says it is today, so the same Dockerfile could build a different image
+# tomorrow; the digest names one image, and Dependabot moves it in a pull
+# request that can be read. Both stages use the same one.
+FROM node:24-alpine@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1 AS deps
 WORKDIR /app
 
 # `npm ci` only: a lockfile that no longer matches package.json fails the build
@@ -19,7 +24,7 @@ RUN mkdir -p vendor \
   && cp node_modules/mermaid/dist/mermaid.min.js vendor/ \
   && npm uninstall mermaid --no-save --omit=dev
 
-FROM node:24-alpine
+FROM node:24-alpine@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1
 
 ENV NODE_ENV=production
 WORKDIR /app

@@ -6,7 +6,8 @@ on:
     branches: [main]
 
 # The workflow only reads the repository. Nothing here needs to write, so the
-# token it receives cannot either.
+# token it receives cannot either, and no checkout leaves it on disk for a
+# dependency's install script or a test to read.
 permissions:
   contents: read
 
@@ -24,6 +25,8 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       # One Node everywhere: .nvmrc here, the image's base, and both engines
       # fields say 24. A version that is only claimed is not a version anyone
@@ -65,6 +68,8 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
@@ -85,6 +90,8 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - run: docker build --tag schreibstube-bridge:ci bridge
       # The deps stage vendors Mermaid and drops its tree; both halves of that
       # have to have happened, or a published diagram would fail at commit.

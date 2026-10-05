@@ -2,25 +2,39 @@
 # so the plugin's dev tooling and the bridge's runtime tree each arrive as a
 # single reviewable change. Majors come on their own, since those are the ones
 # that need reading.
+#
+# Nothing is offered until it has been public for a week. A hijacked package
+# or action is usually found and pulled within days of its release; waiting
+# out that window costs a week on an update and keeps the first days' risk off
+# this repository. The wait holds back version updates only: a security update,
+# where those are switched on, is not delayed by it.
 version: 2
 updates:
   - package-ecosystem: npm
     directory: /
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
     # The type declarations follow the one Node the project runs (.nvmrc, both
     # engines fields, the bridge image). A major here would describe a runtime
     # nothing uses; it moves together with the rest, by hand.
     ignore:
       - dependency-name: "@types/node"
         update-types: ["version-update:semver-major"]
+    # Only the dev tooling is grouped. The root's runtime dependency ships
+    # inside main.js to every vault, so its updates come on their own rather
+    # than inside a batch of linters and type declarations.
     groups:
       plugin-tooling:
+        dependency-type: development
         update-types: [minor, patch]
   - package-ecosystem: npm
     directory: /bridge
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
     groups:
       bridge-runtime:
         update-types: [minor, patch]
@@ -28,6 +42,11 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
+  # The Dockerfile pins the base by tag and digest; this moves the digest when
+  # the tag is rebuilt, which for an official image is mostly a security fix
+  # to Alpine or Node, so it waits for no cooldown.
   - package-ecosystem: docker
     directory: /bridge
     schedule:
