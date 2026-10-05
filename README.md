@@ -19,6 +19,8 @@ What the correction pass will not touch: frontmatter, fenced code blocks, tables
 
 If you edit the note while the queue is open, cards whose text can no longer be located are marked _veraltet_ instead of being applied to the wrong words.
 
+A correction that brings in code another plugin runs — a `dataviewjs` block, Dataview's inline `$=` JavaScript, a Templater `<% %>` command, a JS Engine, Datacore, Meta Bind or Buttons block — carries a **runs code** badge and is left out of **Alle übernehmen**, like such an update from a source. A model reads the whole note, and a note can quote somebody else's instructions; what it proposes that would run is read before it is accepted. If a paragraph's rewrite brought such code anywhere, every card from that paragraph is held back.
+
 ### Glossary
 
 A glossary is an ordinary note with `schreibstubeGlossary: true` in its frontmatter and a term table. Glossary checks run locally and need no API key, so the panel is useful before any provider is configured. The selected glossary is also passed to the correction pass as a constraint, so a rewrite does not undo a term the glossary just enforced.
@@ -351,13 +353,15 @@ A picture renamed outside Obsidian, or deleted while Obsidian was closed, leaves
 
 Describing a picture again replaces its note in place. The note records the picture's path, size and a fingerprint of its bytes, so a picture that changed can be told from one that did not. Keywords are written as a property and as plain text in the note; as Obsidian tags only if you switch that on, because many pictures with several keywords each fill the tag pane.
 
-What is sent and what is not: the picture is resized to the size set under **Rename file from content** before it leaves the device, and resizing drops its EXIF data, the location included. The model is asked not to say who a person is and not to read out licence plates, house numbers or other personal data. Nothing is sent while the setting is off. The answer is checked before anything is written: a reply without a title or a description writes nothing, every field has a length limit, and links, tags, headings, frontmatter fences and HTML are taken out of it.
+What is sent and what is not: the picture is resized to the size set under **Rename file from content** before it leaves the device, and resizing drops its EXIF data, the location included. The model is asked not to say who a person is and not to read out licence plates, house numbers or other personal data. Nothing is sent while the setting is off. The answer is checked before anything is written: a reply without a title or a description writes nothing, every field has a length limit, links and images are reduced to their words, so no picture is fetched when the note opens, and tags, headings, frontmatter fences, HTML, comments and code — backticks, fences and Templater tags, which another plugin could run — are taken out of it.
 
 ### Summarize selection
 
 Select any text and run **Insert: AI summary of the selection** to send it to an LLM and replace the selection with the result. Built for turning raw text pasted from analytics and reporting tools into a running insight log: copy the numbers into a note, select them, summarize, and keep the distilled takeaway in place of the raw dump.
 
 The summarize prompt is fully configurable in settings — a default tuned for the insight-log workflow is provided. The command uses the shared **AI models** configuration (provider, model, and API key).
+
+The summary is the model's text, written into your note. If it holds code another plugin runs — a `dataviewjs` or other executing block, an inline `$=` span, a Templater `<% %>` command — that the selection did not already hold word for word, that code is inserted so it does not run: a block is relabelled `text`, an inline span and a Templater tag lose the character that opens them to an HTML entity, and a notice says what was found. The same goes for **AI table**, cell by cell.
 
 ### Table from selection
 

@@ -298,6 +298,10 @@ export const enExtra = {
     selectText: "select some text to summarize first.",
     summarizing: "summarizing…",
     summarizeFailed: "summarize failed — the LLM returned an empty response.",
+    responseTooLarge: (provider: string, megabytes: number) =>
+      `${provider}: the answer was larger than ${megabytes} MB and was not read.`,
+    codeNeutralized: (kinds: readonly string[]) =>
+      `the answer held code another plugin runs (${kinds.join(", ")}); it was inserted as text that does not run.`,
     renameFailedName: "rename failed — the LLM returned an unusable filename.",
     renameTooShort: "this note is too short to be named from its content.",
     cannotName: "only a note or a picture can be named from what is inside it.",

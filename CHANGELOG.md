@@ -7,6 +7,8 @@ All notable changes to this project will be documented in this file.
 ### Security
 
 - **A mail cannot bring code into your note.** A merged or imported mail was escaped against embeds and HTML, but a sender could still write a `dataviewjs` fence, Dataview's inline `$=` JavaScript, a Templater `<% %>` tag or an Obsidian `%%` comment, and Dataview runs a fence inside a quote as readily as anywhere else. Backticks, fence runs, Templater openers, comments and HTML comments are now escaped too, as entities that read the same; a body with bare carriage returns no longer breaks out of its quote; and the names of attachments left out of an import, which are the sender's, are escaped and kept to one line, so `![[Finanzen/Gehalt.pdf]].ics` is shown rather than embedded.
+- **Model output is checked for code before it lands in a note.** A summary or an AI table that holds code another plugin runs, which the selected text did not already hold, is inserted with that code disarmed — a block relabelled `text`, an inline span or a Templater tag with its opener turned into an entity — and a notice says so. A proof-read correction that brings such code carries the **runs code** badge and stays out of **Alle übernehmen**, as a source update already did.
+- **A picture description loads nothing and runs nothing.** Links and images in the model's answer are reduced to their words, so no remote picture is fetched when the note opens, and backticks, fences, Templater tags and comments are taken out along with the HTML, tags and headings that already were.
 
 ### Changed
 

@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { parseTableResponse } from "./llm-table";
+import { findExecutableCode } from "./executable-code";
+import { guardTableCode, parseTableResponse } from "./llm-table";
+import { renderMarkdownTable, type MarkdownTable } from "./text-to-table";
 
 describe("parseTableResponse", () => {
   it("reads a plain JSON reply", () => {
@@ -55,5 +57,32 @@ describe("parseTableResponse", () => {
 
   it("rejects a table without rows", () => {
     expect(parseTableResponse('{"header":["a","b"],"rows":[]}')).toBeNull();
+  });
+});
+
+describe("guardTableCode", () => {
+  const table = (rows: string[][]): MarkdownTable => ({ header: ["A", "B"], rows });
+
+  it("leaves a table without code as it is", () => {
+    const plain = table([["`#54BEF7`", "Blau"]]);
+    expect(guardTableCode(plain, "Blau #54BEF7")).toEqual({ table: plain, kinds: [] });
+  });
+
+  it("disarms code in a cell that the selection did not hold", () => {
+    const hostile = table([["`$= app.vault.getFiles()`", "<% tp.file.title %>"]]);
+    const guarded = guardTableCode(hostile, "a; b");
+    expect(guarded.kinds).toEqual(["dataviewjs", "templater"]);
+    expect(findExecutableCode(renderMarkdownTable(guarded.table))).toEqual([]);
+  });
+
+  it("keeps the selection's own code, word for word", () => {
+    const own = "`$= dv.pages().length`";
+    expect(guardTableCode(table([[own, "x"]]), `Anzahl: ${own}`).kinds).toEqual([]);
+  });
+
+  it("disarms a Templater tag opened in one cell and closed in the next", () => {
+    const guarded = guardTableCode(table([["<% tp.file.move('/x')", "%>"]]), "a; b");
+    expect(guarded.kinds).toEqual(["templater"]);
+    expect(findExecutableCode(renderMarkdownTable(guarded.table))).toEqual([]);
   });
 });

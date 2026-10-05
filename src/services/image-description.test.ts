@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { findExecutableCode } from "./executable-code";
 import {
   DESCRIPTION_KEYS,
   MAX_DESCRIPTION_CHARS,
@@ -169,9 +170,69 @@ describe("sanitizeDescriptionText — nothing a note would act on", () => {
     ["a tag", "a #tag and #another", "a tag and another"],
     ["a heading", "# Heading", "Heading"],
     ["a frontmatter fence", "a\n---\nb", "a\n\nb"],
-    ["HTML", '<img src="x" onerror="y">text<b>bold</b>', "textbold"]
+    ["HTML", '<img src="x" onerror="y">text<b>bold</b>', "textbold"],
+    ["inline code", "eine `Formel` hier", "eine Formel hier"],
+    ["a fence", "a\n```dataviewjs\nx\n```\n~~~js\ny\n~~~", "a\ndataviewjs\nx\n\njs\ny"],
+    ["a Templater tag", "Datum <% tp.date.now() %> und <%* x", "Datum tp.date.now() und * x"],
+    ["a comment", "sichtbar %%versteckt%%", "sichtbar versteckt"],
+    ["a link, keeping its words", "siehe [die Studie](https://example.org/x)", "siehe die Studie"],
+    ["an image, keeping its alt text", "![Pixel](https://tracker.example/p.gif)", "Pixel"],
+    [
+      "a reference image and its definition",
+      "![Pixel][p]\n[p]: https://tracker.example/p.gif",
+      "[Pixel][p]"
+    ]
   ])("takes out %s", (_what, input, expected) => {
     expect(sanitizeDescriptionText(input)).toBe(expected);
+  });
+
+  it("keeps a comparison, which is no tag", () => {
+    expect(sanitizeDescriptionText("p < 0.05 und 3 <4")).toBe("p < 0.05 und 3 <4");
+  });
+});
+
+describe("a hostile answer, written as a note", () => {
+  const hostile = (field: string): string =>
+    [
+      `${field} \`$= app.vault.adapter.remove("x")\``,
+      "```dataviewjs",
+      "app.vault.getFiles().forEach((f) => app.vault.delete(f))",
+      "```",
+      "~~~meta-bind-js-view",
+      "x",
+      "~~~",
+      "```button",
+      "action x",
+      "```",
+      "<%* await tp.file.move('/weg') %> %%verborgen%%",
+      "![p](https://tracker.example/p.gif) [l](http://example.org)"
+    ].join("\n");
+
+  it("carries nothing another plugin runs, and nothing that loads", () => {
+    const desc = normalizeImageDescription(
+      JSON.stringify({
+        title: hostile("Titel"),
+        summary: hostile("Kurz"),
+        description: hostile("Beschreibung"),
+        keywords: [hostile("Stichwort"), "`$= 1`"],
+        visibleText: hostile("Text"),
+        source: hostile("Quelle"),
+        author: hostile("Autor")
+      })
+    );
+    expect(desc).not.toBeNull();
+    if (!desc) return;
+
+    const note = renderDescriptionNote(
+      { path: "a.jpg", hash: "h", size: 1, describedAt: "2026-10-05T00:00:00Z" },
+      desc,
+      { keywordsAsTags: true }
+    );
+    expect(findExecutableCode(note)).toEqual([]);
+    expect(note).not.toContain("](http");
+    expect(note).not.toContain("`");
+    expect(note).not.toContain("<%");
+    expect(note).not.toContain("%%");
   });
 });
 

@@ -28,8 +28,10 @@ import {
   TABLE_MAX_INPUT_CHARS,
   TABLE_MAX_TOKENS,
   TABLE_SYSTEM_PROMPT,
+  guardTableCode,
   parseTableResponse
 } from "../services/llm-table";
+import { neutralizeIntroducedCode } from "../services/foreign-text";
 import type { MarkdownTable } from "../services/text-to-table";
 import {
   TAGS_MAX_TOKENS,
@@ -445,7 +447,13 @@ export class LlmCommands {
         new Notice(t().common.notice(t().ai.selectionMoved));
         return;
       }
-      editor.replaceRange(summary, from, to);
+      // The answer is the model's, and the model read text that may hold
+      // instructions of somebody else's; code it adds must not run unread.
+      const guarded = neutralizeIntroducedCode(selection, summary);
+      editor.replaceRange(guarded.text, from, to);
+      if (guarded.kinds.length > 0) {
+        new Notice(t().common.notice(t().ai.codeNeutralized(guarded.kinds)), 0);
+      }
     });
   }
 
@@ -506,7 +514,11 @@ export class LlmCommands {
         new Notice(t().common.notice(t().ai.tableSelectionMoved));
         return;
       }
-      insertTable(editor, range, table);
+      const guarded = guardTableCode(table, original);
+      insertTable(editor, range, guarded.table);
+      if (guarded.kinds.length > 0) {
+        new Notice(t().common.notice(t().ai.codeNeutralized(guarded.kinds)), 0);
+      }
     });
   }
 

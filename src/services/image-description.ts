@@ -115,12 +115,22 @@ function extractJson(raw: string): unknown {
  *
  * The answer is data, and a note is not a neutral container: `[[…]]` would
  * become a link, a leading `#` a tag or heading, a `---` line a frontmatter
- * fence, and HTML would render. Each is taken out rather than escaped, because
- * a description has no use for any of them.
+ * fence, and HTML would render. A Markdown image would be fetched the moment
+ * the note is shown — a remote one tells its owner the note was opened — and
+ * a backtick, a `<%` or a `%%` is where code another plugin runs, or a
+ * comment hiding the rest of the note, begins. Each is taken out rather than
+ * escaped, because a description has no use for any of them; a link keeps its
+ * words, which are the part that describes.
  */
 export function sanitizeDescriptionText(value: string): string {
   return value
+    .replace(/<%|%>|%%/g, "")
     .replace(/<[^>]*>/g, "")
+    .replace(/<(?=[a-z/!?])/gi, "")
+    .replace(/`|~{3,}/g, "")
+    .replace(/!?\[([^\]\n]*)\]\([^)\n]*\)/g, "$1")
+    .replace(/^[ \t]*\[[^\]\n]+\]:.*$/gm, "")
+    .replace(/!(?=\[)/g, "")
     .replace(/\[\[|\]\]/g, "")
     .replace(/^\s*-{3,}\s*$/gm, "")
     .replace(/^[ \t]*#+[ \t]+/gm, "")

@@ -610,6 +610,10 @@ export const de: Messages = {
     selectText: "zuerst Text markieren, der zusammengefasst werden soll.",
     summarizing: "fasst zusammen …",
     summarizeFailed: "Zusammenfassung fehlgeschlagen — das LLM lieferte eine leere Antwort.",
+    responseTooLarge: (provider: string, megabytes: number) =>
+      `${provider}: die Antwort war größer als ${megabytes} MB und wurde nicht gelesen.`,
+    codeNeutralized: (kinds: readonly string[]) =>
+      `die Antwort enthielt Code, den ein anderes Plugin ausführt (${kinds.join(", ")}); er wurde als Text eingefügt, der nicht läuft.`,
     renameFailedName: "Umbenennen fehlgeschlagen — das LLM lieferte keinen brauchbaren Namen.",
     renameTooShort: "diese Notiz ist zu kurz, um aus ihrem Inhalt benannt zu werden.",
     cannotName: "nur eine Notiz oder ein Bild lässt sich aus dem Inhalt benennen.",
