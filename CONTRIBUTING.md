@@ -123,6 +123,14 @@ A change to the runtime, the model or the batch size is worth one run before
 and after; a peak well above a gigabyte is a phone that will not keep Obsidian
 running.
 
+A bump of transformers.js or onnxruntime-web moves the search runtime's pin.
+`src/services/semantic/search-runtime.test.ts` fails until
+`node scripts/stage-search-runtime.mjs --print` has been copied into
+`search-runtime.json`, and `scripts/embedding-bundle.test.mjs` fails if the new
+transformers.js no longer holds its CDN default in the shape the build cuts
+out. `node scripts/embedding-smoke.mjs` then shows the new pair still starts
+and embeds with nothing fetched but the model's files.
+
 ## Before a release: the mobile checklist
 
 The plugin's mobile support is architectural — no Node built-ins in the bundle,
@@ -149,6 +157,12 @@ half is worth ten minutes on a phone, once per release:
    else: a wide canvas comes out as a picture rather than as its source, the
    canvas's own title row is absent while the drawing's column headers are
    there, and the same print with the device offline still draws everything.
+10. Switch on **Search by meaning** and focus the Explorer search. The first
+    load downloads the search runtime from the release (14 MB) and the model;
+    the status line ends at a count of notes, not at "Failed". The plugin
+    folder then holds `search-runtime-<version>.wasm`, and a second start
+    fetches nothing from the release. On a desktop, the settings name the
+    backend that started: a worker, not the iframe.
 
 Record the result in the release notes. A claim that has not been checked on a
 phone since the last release is a claim about the code, not about the app.
@@ -180,8 +194,9 @@ The workflow runs in three jobs, and only the last can write:
   because the bridge's tests need ssh2's native build, and nothing it makes
   leaves the job.
 - **build** installs with `npm ci --ignore-scripts`, builds, fetches and
-  checks the Typst runtime, and hands the files on as an artifact together
-  with their SHA-256 list. Its token can only read.
+  checks the Typst runtime, takes the search runtime's WebAssembly from the
+  installed onnxruntime-web and checks it against its pin, and hands the files
+  on as an artifact together with their SHA-256 list. Its token can only read.
 - **publish** downloads that artifact, checks every file against the list and
   the list against the hash the build job reported, attests the files and
   creates the release. It holds `contents: write` and the signing grant, and

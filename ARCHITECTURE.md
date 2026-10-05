@@ -134,10 +134,24 @@ embed fails on the desktop — not by a deadline — is kept as a row without
 vectors, so it is not retried until its text changes.
 
 iOS ends Obsidian's web process at about 2 GB, without a catch or a log, so
-everything on a phone is sized against that line. The runtime loads its plain
+everything on a phone is sized against that line. The runtime runs its plain
 WebAssembly build (`frame/runtime-build.ts`): transformers.js 4 picks the
 WebGPU-ready "asyncify" build on Safari 26, which takes twice the memory for the
-same vectors. Schreibstube's model does not join another plugin's on a phone
+same vectors.
+
+None of the runtime is fetched as code. The bundle is built with
+onnxruntime-web's WebAssembly-only build in place of the WebGPU one, which
+carries the plain build's JavaScript inside it, and with transformers.js's
+jsDelivr default cut out (`scripts/embedding-bundle.mjs`); the build refuses a
+`main.js` that names a CDN. The 14 MB WebAssembly module is attached to each
+release, pinned in `services/semantic/search-runtime.json`, fetched once per
+device by `host/search-runtime-loader.ts`, hashed after the download and on
+every load, and handed to the Worker or the frame with the model's settings.
+The frame refuses to start without it. A runtime that cannot be had ends the
+chain of backends the way running out of memory does, since every backend
+would fetch the same file. `scripts/embedding-smoke.mjs` starts the production
+bundle as a Worker in Node, against a model written in the script, to show the
+pieces fit with nothing fetched but the model's files. Schreibstube's model does not join another plugin's on a phone
 (`services/semantic/model-plugins.ts`): Similarity's model alone left Obsidian at
 1.4 GB after its start. And every piece of model work a phone starts on its own
 is inside a crash breaker (`phoneModelGuard`), whose marker is written before
