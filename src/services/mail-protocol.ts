@@ -10,7 +10,7 @@ import {
   extractError,
   str
 } from "./bridge-protocol";
-import { safeAttachmentName, type SkipReason } from "./mail-import";
+import { safeAttachmentName, safeDisplayName, type SkipReason } from "./mail-import";
 
 /** How long to wait for a bridge response before giving up. Longer than the
  *  bridge's own allowance for a send, 45 s by default for delivery and filing
@@ -260,7 +260,7 @@ export interface AttachmentsResult {
   skipped: SkippedAttachment[];
 }
 
-const SKIP_REASONS = new Set<SkipReason>(["type", "size", "limit"]);
+const SKIP_REASONS = new Set<SkipReason>(["type", "size", "limit", "content"]);
 
 /**
  * A received mail's files. A file whose name has no kind a note may hold, or
@@ -289,7 +289,7 @@ export function parseAttachmentsResult(json: unknown): AttachmentsResult {
     }
     const bytes = filename ? fromBase64(content) : null;
     if (!filename || !bytes) {
-      skipped.push({ filename: given || "?", reason: "type" });
+      skipped.push({ filename: safeDisplayName(given) || "?", reason: "type" });
       continue;
     }
     total += bytes.length;
@@ -303,7 +303,7 @@ export function parseAttachmentsResult(json: unknown): AttachmentsResult {
   for (const entry of rawSkipped.slice(0, MAX_IMPORT_ATTACHMENTS * 2)) {
     const record = asRecord(entry);
     const reason = str(record.reason) as SkipReason;
-    const filename = str(record.filename).slice(0, MAX_HEADER_CHARS);
+    const filename = safeDisplayName(str(record.filename).slice(0, MAX_HEADER_CHARS));
     if (filename && SKIP_REASONS.has(reason)) skipped.push({ filename, reason });
   }
 

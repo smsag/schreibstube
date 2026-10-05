@@ -267,7 +267,8 @@ export const de: Messages = {
     skipReason: {
       type: "Dateityp",
       size: "zu groß",
-      limit: "Grenze erreicht"
+      limit: "Grenze erreicht",
+      content: "Inhalt passt nicht zum Typ"
     },
     confirmTitle: "E-Mail senden",
     confirmFrom: "Von",

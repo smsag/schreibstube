@@ -423,7 +423,14 @@ A received mail's files come from `/attachments`, one message at a time by the
 UID a search returned, so a search stays as light as its text. Pictures, PDFs
 and Office files (Word, Excel, PowerPoint and their OpenDocument kin) are handed
 over in base64 under a plain name; anything else is named in `skipped` with the
-reason `type`, `size` or `limit`. A signature's logos, small pictures shown
+reason `type`, `size` or `limit`, and from 3.0.0 `content` for a file whose
+bytes do not begin the way its kind's do — a PDF's `%PDF-`, a PNG's, JPEG's,
+GIF's, WebP's or HEIC's signature, `PK` for the zipped Office and OpenDocument
+files, the OLE header for `.doc`, `.xls` and `.ppt`. A name, kept or shown in
+`skipped`, loses control and format characters (the latter include the
+overrides that turn `fdp.exe` around on screen), is cut to 200 bytes of UTF-8
+between characters, and a name Windows keeps for a device, such as `CON.pdf`,
+gets a `_` in front. A signature's logos, small pictures shown
 inside the text, and an S/MIME signature are left out without a word. At most
 20 files, 15 MB each and 25 MB together, from a mail of at most 40 MB as the
 server stores it (`mail-import.mjs`); a larger mail is answered 413

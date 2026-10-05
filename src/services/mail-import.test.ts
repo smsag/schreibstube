@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   attachmentQuoteLines,
   isImageAttachment,
+  MAX_ATTACHMENT_NAME_BYTES,
   MAX_ATTACHMENT_NAME_CHARS,
-  safeAttachmentName
+  safeAttachmentName,
+  safeDisplayName
 } from "./mail-import";
 
 describe("safeAttachmentName", () => {
@@ -37,6 +39,31 @@ describe("safeAttachmentName", () => {
     expect(safeAttachmentName(`${"x".repeat(300)}.pdf`)).toBe(
       `${"x".repeat(MAX_ATTACHMENT_NAME_CHARS)}.pdf`
     );
+  });
+
+  it("drops the characters that make a name read as another, and C1 controls", () => {
+    expect(safeAttachmentName("Rechnung\u202Eexe.pdf")).toBe("Rechnungexe.pdf");
+    expect(safeAttachmentName("a\u200Bb\u2066c\u0085.pdf")).toBe("abc.pdf");
+  });
+
+  it("bounds a name in bytes, cutting between characters", () => {
+    const name = safeAttachmentName(`${"😀".repeat(100)}.pdf`) ?? "";
+    expect(new TextEncoder().encode(name).length).toBeLessThanOrEqual(MAX_ATTACHMENT_NAME_BYTES);
+    expect(name).toBe(`${"😀".repeat(49)}.pdf`);
+  });
+
+  it("renames a name Windows keeps for a device", () => {
+    expect(safeAttachmentName("CON.pdf")).toBe("_CON.pdf");
+    expect(safeAttachmentName("nul.tar.pdf")).toBe("_nul.tar.pdf");
+    expect(safeAttachmentName("_CON.pdf")).toBe("_CON.pdf");
+    expect(safeAttachmentName("Console.pdf")).toBe("Console.pdf");
+  });
+});
+
+describe("safeDisplayName", () => {
+  it("holds a left-out file's name to what a file name may say", () => {
+    expect(safeDisplayName("../x/Termin\u202E[[geheim]].ics")).toBe("Termin--geheim--.ics");
+    expect(safeDisplayName("\u202E")).toBe("");
   });
 });
 

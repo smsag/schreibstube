@@ -236,7 +236,7 @@ describe("parseAttachmentsResult", () => {
       attachments: [{ filename: "../../evil.js", content: toBase64(pdf) }]
     });
     expect(result.attachments).toEqual([]);
-    expect(result.skipped).toEqual([{ filename: "../../evil.js", reason: "type" }]);
+    expect(result.skipped).toEqual([{ filename: "evil.js", reason: "type" }]);
   });
 
   it("makes a name safe again before it becomes a path", () => {
@@ -280,6 +280,13 @@ describe("parseAttachmentsResult", () => {
       skipped: [{ filename: "a.pdf", reason: "because" }, { reason: "type" }, "x"]
     });
     expect(result.skipped).toEqual([]);
+  });
+
+  it("names a file the bridge found not to be its type, cleaned like any name", () => {
+    const result = parseAttachmentsResult({
+      skipped: [{ filename: "Rechnung\u202E[[x]].pdf", reason: "content" }]
+    });
+    expect(result.skipped).toEqual([{ filename: "Rechnung--x--.pdf", reason: "content" }]);
   });
 
   it("reads anything else as no files", () => {
