@@ -13,6 +13,7 @@ All notable changes to this project will be documented in this file.
 - **Folder settings cannot point into the config folder.** Every folder setting — picture descriptions, print output and templates, property sets, the term folder, a publishing account's folder — refuses a segment starting with a dot, `..`, a doubled slash, a backslash or a control character, and falls back to its default. Such a value could only come from an edited `data.json`.
 - **The new-note link acts at most once every five seconds.** Any web page can open `obsidian://schreibstube-new-doc`, and one that opened it in a loop filled the vault with empty notes and the screen with windows.
 - **Answers from the network are bounded in size.** A model provider's answer may be at most 4 MB, the exchange rates 64 KB, and each typesetter download a little more than the pinned file weighs; a larger answer is refused, by its declared length before its bytes are read, with a message that says why.
+- **The README and `SECURITY.md` say what binding a note to a source exposes.** A mirrored note shows the source's remote images, which tell their host when the note is opened; any note that reaches the vault can carry a binding, which the background poll then requests on its schedule; and the HTTPS and `.md` checks hold for the URL a note names, not for where a server redirects it.
 
 ### Changed
 

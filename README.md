@@ -160,6 +160,12 @@ The plugin remembers a hash of the note body as of the last sync. If the note st
 
 If the source is deleted or moved, the panel reports it and the note is left exactly as it is. It is never emptied.
 
+**What to know before binding a note.** A source is somebody else's text, and a binding is a standing request to their server.
+
+- A mirrored note shows what the source writes, images included. A remote image is fetched from its host each time the note is shown, which tells whoever runs that host when the note was opened, and from where. An update that brings in code another plugin runs carries a **runs code** badge and is left out of **Alle übernehmen**, so it is read before it is accepted; a picture is not held back, because it is ordinary Markdown.
+- The binding is a frontmatter key, and any note that reaches the vault can carry one: a note synced from another device, imported, or pasted in. With sync and the background poll on, the plugin then requests that URL on the schedule, so the URL's owner sees the requests. Nothing is written into the note without your accepting it.
+- Obsidian's request API follows redirects. The checks that a source is HTTPS and ends in a Markdown extension apply to the URL the note names, not to wherever its server redirects the request. The GitHub token is attached only to requests the plugin addresses to `api.github.com`, whatever the note names.
+
 ### Heading stack overlay
 
 Keeps a sticky, context-aware heading breadcrumb at the top of the active note as you scroll. Shows the ancestor headings above the current viewport position, so you always see where you are in the document's hierarchy. Click an ancestor to jump to that heading. The overlay can be turned off entirely in settings.

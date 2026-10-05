@@ -32,8 +32,34 @@ symlink. Nothing is persisted on the bridge.
 
 On the published site, raw HTML from a note is passed through only when the
 target allows it (`PUBLISH_<TARGET>_ALLOW_HTML`, on by default for a personal
-site); a vault with more than one author should turn it off. Mail bodies merged
-into a note are escaped so a sender cannot embed a vault file into it.
+site); a vault with more than one author should turn it off.
+
+## Text from somebody else
+
+Obsidian renders an embed, raw HTML and a remote image as soon as a note is
+shown, and other plugins run code a note holds — Dataview a `dataviewjs`
+fence or an inline `$=` span, Templater a `<% %>` tag, JS Engine, Datacore,
+Meta Bind and Buttons their blocks — with Obsidian's rights, which on a
+desktop are the machine's. Everything the plugin writes into a note on
+someone else's behalf goes through one module, `src/services/foreign-text.ts`:
+
+- A mail's subject, sender and body, and the names of attachments left out of
+  an import, are escaped so they show and build nothing: no link or embed, no
+  HTML, comment or Templater tag, no backtick and no fence.
+- A summary or an AI table keeps its formatting, and any executing construct
+  the selection did not already hold is disarmed, with a notice.
+- A proof-read card or a source update that brings such code carries a "runs
+  code" badge and is left out of "Accept all".
+- A picture description has links, images, HTML, comments and code taken out.
+- A proposed file name has invisible characters removed and must pass the same
+  check as a name typed by hand.
+
+Every answer from a model provider, the exchange-rate service and the
+typesetter's download is held to a size as well as a deadline, by its declared
+length and by its bytes. Folder settings read from `data.json` refuse `..`, a
+backslash, a control character and any segment starting with a dot, so none
+can point at the config folder. The `obsidian://schreibstube-new-doc` link
+reads nothing it is given and acts at most once every five seconds.
 
 ## The typesetter the plugin downloads
 
@@ -64,6 +90,17 @@ weekly for both trees, the workflows and the image base.
 - The plugin sends note text to the configured LLM provider when asked to
   proof-read, rename or summarize. Which provider, and what is excluded
   (frontmatter, code, tables, math, links), is documented in `README.md`.
+- Document sync downloads what a note's `schreibstubeSyncedFrom` names, and any
+  note that reaches the vault — synced, imported, pasted — can carry that key.
+  With sync and the background poll on, the plugin requests that URL on a
+  schedule, which its owner can see; nothing is written into the note until a
+  person accepts it. A mirrored note shows remote images, which tell their host
+  when the note is opened. Obsidian's request API follows redirects, so the
+  HTTPS and Markdown-extension checks hold for the URL the note names, not for
+  where a server redirects it; the GitHub token is attached only to requests
+  the plugin addresses to `api.github.com`.
+- Neutralising code covers the plugins named above. A plugin that runs some
+  other construct from a note's text is not known to this one.
 - The plugin bundles one runtime dependency, the model runtime that search by
   meaning starts; CI audits it with the bridge's tree. Everything else in the
   root tree is build tooling and affects the build machine only.
