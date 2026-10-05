@@ -17,7 +17,7 @@ import { fileURLToPath } from "node:url";
  */
 
 const SERVER = fileURLToPath(new URL("./server.mjs", import.meta.url));
-const TOKEN = "t".repeat(32);
+const TOKEN = "t0k3n-for-the-bridge-under-test";
 const MAX_BODY_BYTES = 2000;
 const MAX_TEXT_CHARS = 100;
 

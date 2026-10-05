@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  MIN_TOKEN_DISTINCT_CHARS,
   MIN_TOKEN_LENGTH,
   PROTOCOL_VERSION,
   capabilityNames,
@@ -14,7 +15,8 @@ import {
  * token, are not.
  */
 
-const TOKEN = "x".repeat(MIN_TOKEN_LENGTH);
+// Exactly the minimum length, and as varied as a generated token.
+const TOKEN = "Abcdefghijklmnopqrstuvwxyz0123456789".slice(0, MIN_TOKEN_LENGTH);
 
 function env(overrides = {}) {
   return {
@@ -96,6 +98,51 @@ describe("loadConfig, required values", () => {
 
   it("trims the token", () => {
     expect(loadConfig(env({ MAIL_TOKEN: ` ${TOKEN} ` })).mail.token).toBe(TOKEN);
+  });
+
+  it("refuses the placeholder from .env.example, however it is spelled", () => {
+    for (const placeholder of [
+      "replace-me-with-at-least-24-characters",
+      "REPLACE-ME-with-at-least-24-characters",
+      "my-own-Replaceme-token-0123456789"
+    ]) {
+      expect(() => loadConfig(env({ MAIL_TOKEN: placeholder }))).toThrow(
+        /^MAIL_TOKEN is still the placeholder/
+      );
+    }
+  });
+
+  it("refuses a long token made of too few characters, which no generator writes", () => {
+    expect(() => loadConfig(env({ MAIL_TOKEN: "x".repeat(40) }))).toThrow(
+      new RegExp(`^MAIL_TOKEN must use at least ${MIN_TOKEN_DISTINCT_CHARS} different`)
+    );
+    expect(() => loadConfig(env({ MAIL_TOKEN: "abcabcabcabcabcabcabcabcabc" }))).toThrow(
+      /different characters/
+    );
+  });
+
+  it("accepts a generated token", () => {
+    const generated = "q3Vh0mJ8Zr+1kYwF/8sLx2pN6tE4aC9uB7dG5iO0hRk=";
+    expect(loadConfig(env({ MAIL_TOKEN: generated })).mail.token).toBe(generated);
+  });
+
+  it("refuses one token for both capabilities, which made the publish token a mail one", () => {
+    const both = env({
+      PUBLISH_TOKEN: TOKEN,
+      PUBLISH_TARGETS: "blog",
+      PUBLISH_BLOG_HOST: "sftp.example.com",
+      PUBLISH_BLOG_USER: "web",
+      PUBLISH_BLOG_PASSWORD: "geheim",
+      PUBLISH_BLOG_HOST_FINGERPRINT: "SHA256:abc",
+      PUBLISH_BLOG_ROOT: "/var/www/blog",
+      PUBLISH_BLOG_BASE_URL: "https://blog.example.com"
+    });
+    expect(() => loadConfig(both)).toThrow(/MAIL_TOKEN and PUBLISH_TOKEN are the same/);
+    const reversed = `${TOKEN.slice(1)}Z`;
+    expect(capabilityNames(loadConfig({ ...both, PUBLISH_TOKEN: reversed }))).toEqual([
+      "mail",
+      "publish"
+    ]);
   });
 });
 

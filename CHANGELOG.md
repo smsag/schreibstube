@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Security
+
+- **The bridge refuses a token it could not have generated.** `.env.example` carried a placeholder of 38 characters for `MAIL_TOKEN` and `PUBLISH_TOKEN`, which passed the length check, so a deployment copied from it was guarded by a token printed in this repository. The example values are now empty, and the bridge refuses to start with a token that still holds `replace-me`, one made of fewer than 10 different characters, or one token for both capabilities — the bridge took that token for the mail one, so the publish setting opened the mailbox and publishing was refused. A deployment that fails to start on this needs a fresh token from `openssl rand -base64 32` (bridge 3.0.0).
+
 ### Changed
 
 - **An update from a source that brings in code another plugin runs is no longer taken with "Accept all".** A mirrored note shows what its source writes, and a source can write a `dataviewjs` block, Dataview's inline `$=` JavaScript, a Templater `<% %>` command, a JS Engine, Datacore, Meta Bind or Buttons block — which those plugins run with Obsidian's full rights once the note renders or is used. A card that adds or changes one now carries a **runs code** badge, names what it found, and is left out of **Accept all**: you read it and accept it on its own, or not at all. Code that is only shown, like a `js` or `html` fence, is not flagged.

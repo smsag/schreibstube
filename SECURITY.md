@@ -23,7 +23,8 @@ no publish route and the other way round.
 ## The perimeter
 
 The bridge is a public URL guarded by per-capability bearer tokens of at least
-24 characters, compared in constant time. Repeated failures from one address
+24 characters and 10 different ones, never shared between capabilities, and
+compared in constant time. Repeated failures from one address
 are throttled; behind a hosting platform's proxy set `TRUST_PROXY=true` so the
 address is the caller's rather than the proxy's. Request bodies are capped per
 route, every outbound operation has a deadline, uploads must hash to what they

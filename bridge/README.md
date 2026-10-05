@@ -479,8 +479,10 @@ region and data-processing terms yourself before relying on that.
 The bridge is reachable from the public internet, so the bearer token and TLS
 are the entire perimeter:
 
-- Use a long random token per capability (the service refuses anything under
-  24 characters) and rotate it by changing the env var and the plugin setting.
+- Use a long random token per capability and rotate it by changing the env
+  var and the plugin setting. The service refuses to start with a token under
+  24 characters, one of fewer than 10 different characters, the placeholder
+  an older `.env.example` carried, or the same token for mail and publishing.
   A mail token never opens a publish route, or the other way round.
 - The plugin refuses a plain `http://` bridge URL unless it is loopback, so a
   misconfiguration cannot silently send the token in the clear.

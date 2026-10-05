@@ -23,6 +23,14 @@ const MAX_PORT = 65_535;
 /** Minimum token length. Short tokens are brute-forceable over a public URL. */
 export const MIN_TOKEN_LENGTH = 24;
 
+/**
+ * Fewest distinct characters a token may be made of. Length alone let
+ * `aaaaaaaaaaaaaaaaaaaaaaaa` through, and a token typed by hand rather than
+ * generated is the one an attacker's word list already holds. Base64 of 32
+ * random bytes has around thirty.
+ */
+export const MIN_TOKEN_DISTINCT_CHARS = 10;
+
 /** Variables that, if any is present, mean the operator intended mail. */
 const MAIL_KEYS = [
   "MAIL_TOKEN",
@@ -43,6 +51,15 @@ const DEFAULT_ASSET_EXTENSIONS = "png,jpg,jpeg,gif,webp,avif,svg,mp4,webm,ogv,mo
 export function loadConfig(env = process.env) {
   const mail = MAIL_KEYS.some((key) => present(env[key])) ? loadMail(env) : null;
   const publish = PUBLISH_KEYS.some((key) => present(env[key])) ? loadPublish(env) : null;
+
+  // One token for both is a publish token that opens the mailbox: the router
+  // names the first capability whose token matches, and that is always mail.
+  if (mail && publish && mail.token === publish.token) {
+    throw new Error(
+      "MAIL_TOKEN and PUBLISH_TOKEN are the same. Give each capability its own token, " +
+        "so a leaked one reaches only its own routes."
+    );
+  }
 
   if (!mail && !publish) {
     throw new Error(
@@ -229,12 +246,27 @@ export function capabilityNames(config) {
   return ["mail", "publish"].filter((name) => config[name]);
 }
 
+/**
+ * A capability's token, refused at startup unless it could have come from a
+ * generator. `.env.example` once carried a placeholder long enough to pass,
+ * and a deployment copied from it was guarded by a token printed in this
+ * repository.
+ */
 function token(value, name) {
   const trimmed = value.trim();
+  const advice = "Generate one with: openssl rand -base64 32";
   if (trimmed.length < MIN_TOKEN_LENGTH) {
     throw new Error(
       `${name} must be at least ${MIN_TOKEN_LENGTH} characters ` +
-        `(got ${trimmed.length}). Generate one with: openssl rand -base64 32`
+        `(got ${trimmed.length}). ${advice}`
+    );
+  }
+  if (/replace-?me/i.test(trimmed)) {
+    throw new Error(`${name} is still the placeholder from .env.example. ${advice}`);
+  }
+  if (new Set(trimmed).size < MIN_TOKEN_DISTINCT_CHARS) {
+    throw new Error(
+      `${name} must use at least ${MIN_TOKEN_DISTINCT_CHARS} different characters. ${advice}`
     );
   }
   return trimmed;
