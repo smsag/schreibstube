@@ -79,8 +79,12 @@ export function loadConfig(env = process.env) {
     authFailureWindowMs: integer(env.AUTH_FAILURE_WINDOW_MS, 60_000, "AUTH_FAILURE_WINDOW_MS"),
     drainTimeoutMs: integer(env.DRAIN_TIMEOUT_MS, 10_000, "DRAIN_TIMEOUT_MS"),
     logFormat: env.LOG_FORMAT?.trim() === "json" ? "json" : "text",
-    // Whether the throttle may believe X-Forwarded-For; see http.mjs.
-    trustProxy: boolean(env.TRUST_PROXY, false, "TRUST_PROXY"),
+    // Whether the throttle may believe X-Forwarded-For, and how many proxies
+    // stand in front; see http.mjs.
+    ...proxyTrust(env),
+    // Sockets open at once. One person's plugin uses a handful; the rest is
+    // room for a phone and a laptop together, not for whoever opens the most.
+    maxConnections: integer(env.MAX_CONNECTIONS, 100, "MAX_CONNECTIONS"),
     mail,
     publish
   };
@@ -239,6 +243,23 @@ export function isWithin(path, directory) {
   if (path.split("/").includes("..")) return true;
   const base = directory.replace(/\/+$/, "");
   return path === base || path.startsWith(`${base}/`) || base === "";
+}
+
+/** More proxies than this in front of one bridge is a header someone wrote. */
+const MAX_PROXY_HOPS = 10;
+
+/**
+ * `TRUST_PROXY=true` is one proxy; `TRUST_PROXY_HOPS=<n>` says how many. Set
+ * against an explicit `TRUST_PROXY=false` the two contradict each other, and a
+ * bridge that guessed which one was meant would guess the throttle's key.
+ */
+function proxyTrust(env) {
+  const trusted = boolean(env.TRUST_PROXY, false, "TRUST_PROXY");
+  const hops = integer(env.TRUST_PROXY_HOPS, trusted ? 1 : 0, "TRUST_PROXY_HOPS", MAX_PROXY_HOPS);
+  if (hops > 0 && present(env.TRUST_PROXY) && !trusted) {
+    throw new Error("TRUST_PROXY_HOPS is set but TRUST_PROXY is false; unset one of them.");
+  }
+  return { trustProxy: hops > 0, trustProxyHops: hops };
 }
 
 /** The names of the capabilities this configuration actually offers. */

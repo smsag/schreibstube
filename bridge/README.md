@@ -63,7 +63,7 @@ token must belong to the capability that owns the route.
 
 | Method | Path                   | Capability | Body                                                                           | Returns                                                                               |
 | ------ | ---------------------- | ---------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------- |
-| `GET`  | `/health`              | —          | —                                                                              | `{status, version, protocol, capabilities[]}`                                         |
+| `GET`  | `/health`              | —          | —                                                                              | `{status, protocol}`; with any valid token also `version, capabilities[]`             |
 | `POST` | `/diagnostics`         | mail       | —                                                                              | per-protocol reachability                                                             |
 | `POST` | `/send`                | mail       | `{to, cc?, bcc?, subject, text, from?, inReplyTo?, references?, attachments?}` | `{messageId, sentAt, filedInSent, rejected[]}`                                        |
 | `POST` | `/search`              | mail       | `{criteria:{from?,to?,subject?,text?,since?,references?}, mailbox?, limit?}`   | `{messages[], mailbox, truncated}`                                                    |
@@ -79,7 +79,12 @@ token must belong to the capability that owns the route.
 
 `/health` is the version handshake: plugin and bridge deploy separately, and
 `protocol` is what lets the plugin say "redeploy the bridge" instead of failing
-later on an unknown route.
+later on an unknown route. Both it and `status` are public, since a platform's
+probe and a plugin without a token need them. The bridge's `version` and its
+`capabilities` tell a scanner which advisories apply and which token is worth
+guessing, so from 3.0.0 they are named only when the request carries a valid
+token of either capability; a wrong one counts against the throttle like any
+other, and is answered with the public shape.
 
 `/diagnostics` opens a real connection with the configured credentials and
 reports each protocol on its own, because a health check that says only "a
@@ -464,7 +469,7 @@ labels change over time, but the settings you need are:
 
    ```bash
    curl https://<your-service>.sliplane.app/health
-   # {"status":"ok"}
+   # {"status":"ok","protocol":8}
    ```
 
 7. Put that base URL into the plugin's **Bridge URL** setting, and the token into
@@ -491,10 +496,27 @@ are the entire perimeter:
 - Request bodies are capped (`MAX_BODY_BYTES`, default 1 MB), every outbound
   operation has a deadline, and repeated token failures from one address are
   throttled. Behind a proxy that throttle needs `TRUST_PROXY=true`, or the
-  address it sees is the proxy's and one stranger's failures lock everyone out.
+  address it sees is the proxy's and one stranger's failures lock everyone out;
+  the log says so once when `X-Forwarded-For` arrives while it is off. With a
+  CDN in front of the platform's proxy, set `TRUST_PROXY_HOPS=2` (the number of
+  proxies; `TRUST_PROXY=true` is one) and the throttle takes the second address
+  from the right. An IPv6 caller is throttled by its /64, which one customer
+  holds whole, and an IPv4 address in IPv6 form as the IPv4 address. Failures
+  age out of the window and nothing else clears them: a good request with one
+  capability's token does not reset the guesses at another's. The throttle
+  remembers at most 10,000 addresses, forgetting the one that failed longest
+  ago first.
+- A request refused before its body was read — a wrong token, an unknown path,
+  a throttled address, an oversized body — is answered with
+  `connection: close` and its socket closed, rather than kept open for the
+  longest route's budget. Headers must arrive within 10 seconds, and at most
+  `MAX_CONNECTIONS` sockets (100) are open at once. A URL the parser cannot
+  read is a 400.
 - A publish target's state directory is kept out of the web root, or, at its
   default inside it, guarded by a deny `.htaccess` and a warning at every start
-  (see Configuration).
+  (see Configuration). So is a target that publishes raw HTML from notes
+  (`PUBLISH_<TARGET>_ALLOW_HTML`, on by default for a personal site): a vault
+  with more than one author should turn it off.
 - Add an IP allowlist or rate limit at the platform level if your provider
   offers one.
 

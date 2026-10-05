@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { spawn } from "node:child_process";
-import { createServer } from "node:net";
+import { connect, createServer } from "node:net";
 import { request as httpRequest } from "node:http";
 import { fileURLToPath } from "node:url";
 
@@ -22,6 +22,8 @@ const MAX_BODY_BYTES = 2000;
 const MAX_TEXT_CHARS = 100;
 
 const running = [];
+/** What each started bridge has logged so far, by its URL. */
+const logs = new Map();
 let base;
 
 function freePort() {
@@ -68,6 +70,10 @@ async function start(overrides = {}) {
     stdio: ["ignore", "pipe", "pipe"]
   });
   running.push(child);
+  logs.set(url, "");
+  child.stdout.on("data", (chunk) => {
+    logs.set(url, logs.get(url) + chunk);
+  });
 
   const until = Date.now() + 10_000;
   for (;;) {
@@ -129,6 +135,26 @@ function streamed(path, chunks) {
   });
 }
 
+/**
+ * Bytes written straight to the socket, for what `fetch` will not send, and
+ * everything that comes back until the bridge ends the connection.
+ */
+function raw(at, bytes) {
+  return new Promise((resolve, reject) => {
+    const url = new URL(at);
+    const socket = connect(Number(url.port), url.hostname);
+    let text = "";
+    socket.setEncoding("utf8");
+    socket.on("data", (chunk) => {
+      text += chunk;
+    });
+    socket.on("error", reject);
+    socket.on("close", () => resolve(text));
+    socket.setTimeout(10_000, () => socket.destroy(new Error("the bridge kept the socket open")));
+    socket.write(bytes);
+  });
+}
+
 const valid = { to: "kunde@example.com", subject: "Angebot", text: "Guten Tag" };
 
 beforeAll(async () => {
@@ -146,15 +172,23 @@ describe("health", () => {
     expect(response.json.status).toBe("ok");
   });
 
-  it("reports the version pair the plugin compares against", async () => {
+  it("reports the protocol the plugin compares against to anyone, and nothing more", async () => {
     const { json } = await call("/health", { method: "GET", token: null });
-    expect(json.version).toMatch(/^\d+\.\d+\.\d+/);
+    expect(json).toEqual({ status: "ok", protocol: expect.any(Number) });
     expect(json.protocol).toBeGreaterThan(0);
   });
 
-  it("names the capabilities this deployment offers", async () => {
-    const { json } = await call("/health", { method: "GET", token: null });
+  it("names its version and capabilities only to a caller holding a token", async () => {
+    const { json } = await call("/health", { method: "GET" });
+    expect(json.version).toMatch(/^\d+\.\d+\.\d+/);
     expect(json.capabilities).toEqual(["mail"]);
+  });
+
+  it("answers a wrong token with the public shape, not with a refusal", async () => {
+    const response = await call("/health", { method: "GET", token: "f".repeat(32) });
+    expect(response.status).toBe(200);
+    expect(response.json.version).toBeUndefined();
+    expect(response.json.capabilities).toBeUndefined();
   });
 
   it("answers JSON that must not be cached", async () => {
@@ -418,6 +452,27 @@ describe("throttle", () => {
     const response = await call("/health", { method: "GET", token: null, at: throttled });
     expect(response.status).toBe(200);
   });
+
+  it("does not try a token at the health probe while the address is throttled", async () => {
+    const response = await call("/health", { method: "GET", at: throttled });
+    expect(response.status).toBe(200);
+    expect(response.json.version).toBeUndefined();
+  });
+
+  it("counts a wrong token at the health probe, so it is no oracle for guessing", async () => {
+    const guessed = await start({ AUTH_FAILURE_LIMIT: "2", AUTH_FAILURE_WINDOW_MS: "60000" });
+    await call("/health", { method: "GET", token: "f".repeat(32), at: guessed });
+    await call("/health", { method: "GET", token: "g".repeat(32), at: guessed });
+    expect((await call("/send", { body: valid, at: guessed })).status).toBe(429);
+  }, 20_000);
+
+  it("is not reset by a good token, so holding one buys no guesses at another", async () => {
+    const shared = await start({ AUTH_FAILURE_LIMIT: "2", AUTH_FAILURE_WINDOW_MS: "60000" });
+    await call("/send", { token: "f".repeat(32), at: shared });
+    expect((await call("/search", { body: {}, at: shared })).status).not.toBe(429);
+    await call("/send", { token: "f".repeat(32), at: shared });
+    expect((await call("/search", { body: {}, at: shared })).status).toBe(429);
+  }, 20_000);
 });
 
 describe("throttle behind a proxy", () => {
@@ -428,6 +483,14 @@ describe("throttle behind a proxy", () => {
     }
     const blocked = await call("/send", { token: null, at: direct });
     expect(blocked.status).toBe(429);
+
+    // Said once, since a proxy nobody told the bridge about is a setting to fix.
+    const said = logs
+      .get(direct)
+      .split("\n")
+      .filter((line) => line.includes("X-Forwarded-For"));
+    expect(said).toHaveLength(1);
+    expect(said[0]).toContain("TRUST_PROXY=true");
   }, 20_000);
 
   it("keys on the last forwarded hop when TRUST_PROXY is set, so one stranger cannot lock everyone out", async () => {
@@ -447,6 +510,71 @@ describe("throttle behind a proxy", () => {
     const response = await call("/send", { body: valid, at: proxied, headers: user });
     expect(response.status).not.toBe(429);
   }, 20_000);
+
+  it("keys on the hop TRUST_PROXY_HOPS names, behind a CDN and a platform's proxy", async () => {
+    const proxied = await start({
+      AUTH_FAILURE_LIMIT: "2",
+      AUTH_FAILURE_WINDOW_MS: "60000",
+      TRUST_PROXY_HOPS: "2"
+    });
+    // The last hop is the CDN's, the same for every caller.
+    const stranger = { "x-forwarded-for": "203.0.113.9, 192.0.2.50" };
+    await call("/send", { token: null, at: proxied, headers: stranger });
+    await call("/send", { token: null, at: proxied, headers: stranger });
+    expect((await call("/send", { token: null, at: proxied, headers: stranger })).status).toBe(429);
+
+    const user = { "x-forwarded-for": "198.51.100.4, 192.0.2.50" };
+    expect((await call("/send", { body: valid, at: proxied, headers: user })).status).not.toBe(429);
+  }, 20_000);
+
+  it("throttles a whole IPv6 /64 as one caller, since one customer holds all of it", async () => {
+    const proxied = await start({
+      AUTH_FAILURE_LIMIT: "2",
+      AUTH_FAILURE_WINDOW_MS: "60000",
+      TRUST_PROXY: "true"
+    });
+    for (const address of ["2001:db8:1:2::1", "2001:db8:1:2::2"]) {
+      await call("/send", { token: null, at: proxied, headers: { "x-forwarded-for": address } });
+    }
+    const next = { "x-forwarded-for": "2001:db8:1:2:dead:beef:0:3" };
+    expect((await call("/send", { token: null, at: proxied, headers: next })).status).toBe(429);
+    const neighbour = { "x-forwarded-for": "2001:db8:1:3::1" };
+    expect((await call("/send", { body: valid, at: proxied, headers: neighbour })).status).not.toBe(
+      429
+    );
+  }, 20_000);
+});
+
+describe("the request line", () => {
+  it("answers a URL it cannot read with a 400, not an internal error", async () => {
+    const response = await raw(
+      base,
+      "GET //[ HTTP/1.1\r\nHost: bridge\r\nConnection: close\r\n\r\n"
+    );
+    expect(response).toMatch(/^HTTP\/1\.1 400 /);
+    expect(response).toContain('"code":"invalid_url"');
+  });
+});
+
+describe("connections", () => {
+  it("closes a refused request whose body has not arrived, rather than waiting for it", async () => {
+    const started = Date.now();
+    const response = await raw(
+      base,
+      "POST /send HTTP/1.1\r\nHost: bridge\r\nContent-Type: application/json\r\n" +
+        "Content-Length: 100000\r\n\r\n{"
+    );
+    expect(response).toMatch(/^HTTP\/1\.1 401 /);
+    expect(response.toLowerCase()).toContain("connection: close");
+    // `raw` resolves when the bridge ends the connection; the body never came.
+    expect(Date.now() - started).toBeLessThan(5_000);
+  });
+
+  it("keeps a connection whose request was read whole, so a plugin's next call reuses it", async () => {
+    const response = await call("/gibtesnicht", { method: "GET", token: null });
+    expect(response.status).toBe(401);
+    expect(response.headers.get("connection")).not.toBe("close");
+  });
 });
 
 describe("shutdown", () => {
@@ -490,6 +618,64 @@ describe("startup", () => {
       child.on("exit", (code) => resolve({ code, stderr }));
     });
   }
+
+  /** What a bridge says once it listens, and what it said before. */
+  function startupLog(overrides) {
+    return new Promise((resolve, reject) => {
+      const child = spawn(process.execPath, [SERVER], {
+        env: environment(overrides),
+        stdio: ["ignore", "pipe", "pipe"]
+      });
+      running.push(child);
+      let stdout = "";
+      let stderr = "";
+      child.stderr.on("data", (chunk) => {
+        stderr += chunk;
+      });
+      child.stdout.on("data", (chunk) => {
+        stdout += chunk;
+        if (stdout.includes("listening on")) {
+          // The warnings follow the listening line in the same callback.
+          setTimeout(() => {
+            child.kill("SIGKILL");
+            resolve(stdout);
+          }, 200);
+        }
+      });
+      child.on("exit", (code) => {
+        if (!stdout.includes("listening on")) reject(new Error(`exited with ${code}: ${stderr}`));
+      });
+    });
+  }
+
+  const target = (name, overrides = {}) => {
+    const prefix = `PUBLISH_${name.toUpperCase()}`;
+    return {
+      [`${prefix}_HOST`]: "127.0.0.1",
+      [`${prefix}_USER`]: "web",
+      [`${prefix}_PASSWORD`]: "geheim",
+      [`${prefix}_HOST_FINGERPRINT`]: "SHA256:abc",
+      [`${prefix}_ROOT`]: "/var/www/site",
+      [`${prefix}_STATE_ROOT`]: "/var/state/site",
+      [`${prefix}_BASE_URL`]: "https://site.example.com",
+      ...overrides
+    };
+  };
+
+  it("warns once per target that publishes raw HTML, naming the switch", async () => {
+    const stdout = await startupLog({
+      PORT: String(await freePort()),
+      PUBLISH_TOKEN: "publish-token-for-the-test-0123",
+      PUBLISH_TARGETS: "blog,team",
+      ...target("blog"),
+      ...target("team", { PUBLISH_TEAM_ALLOW_HTML: "false" })
+    });
+    const warnings = stdout.split("\n").filter((line) => line.includes("raw HTML"));
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain("publish target blog");
+    expect(warnings[0]).toContain("more than one author");
+    expect(warnings[0]).toContain("PUBLISH_BLOG_ALLOW_HTML=false");
+  }, 15_000);
 
   it("refuses to start without a mailbox host, naming the variable", async () => {
     const { code, stderr } = await attempt({ IMAP_HOST: "", PORT: "0" });

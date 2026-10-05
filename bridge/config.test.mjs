@@ -214,6 +214,34 @@ describe("loadConfig, proxy", () => {
     expect(loadConfig(env({ TRUST_PROXY: "true" })).trustProxy).toBe(true);
     expect(loadConfig(env({ TRUST_PROXY: "false" })).trustProxy).toBe(false);
   });
+
+  it("counts TRUST_PROXY as one proxy, and none without it", () => {
+    expect(loadConfig(env({ TRUST_PROXY: "true" })).trustProxyHops).toBe(1);
+    expect(loadConfig(env()).trustProxyHops).toBe(0);
+  });
+
+  it("takes the number of proxies from TRUST_PROXY_HOPS, which trusts them by itself", () => {
+    const config = loadConfig(env({ TRUST_PROXY_HOPS: "2" }));
+    expect(config.trustProxyHops).toBe(2);
+    expect(config.trustProxy).toBe(true);
+    expect(loadConfig(env({ TRUST_PROXY: "true", TRUST_PROXY_HOPS: "3" })).trustProxyHops).toBe(3);
+  });
+
+  it("refuses a number of proxies that contradicts TRUST_PROXY or is no number of proxies", () => {
+    expect(() => loadConfig(env({ TRUST_PROXY: "false", TRUST_PROXY_HOPS: "2" }))).toThrow(
+      /TRUST_PROXY_HOPS is set but TRUST_PROXY is false/
+    );
+    expect(() => loadConfig(env({ TRUST_PROXY_HOPS: "11" }))).toThrow(/up to 10/);
+    expect(() => loadConfig(env({ TRUST_PROXY_HOPS: "0" }))).toThrow(/TRUST_PROXY_HOPS/);
+  });
+});
+
+describe("loadConfig, connections", () => {
+  it("bounds the sockets open at once, by default and by MAX_CONNECTIONS", () => {
+    expect(loadConfig(env()).maxConnections).toBe(100);
+    expect(loadConfig(env({ MAX_CONNECTIONS: "20" })).maxConnections).toBe(20);
+    expect(() => loadConfig(env({ MAX_CONNECTIONS: "viele" }))).toThrow(/MAX_CONNECTIONS/);
+  });
 });
 
 describe("loadConfig, parsing", () => {
