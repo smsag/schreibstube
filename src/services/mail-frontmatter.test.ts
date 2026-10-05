@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  MAX_MERGED_IDS,
+  mergedIdsAfter,
   parseAddressList,
+  parseMessageId,
   readMailFields,
   splitAddresses,
   stripFrontmatter,
@@ -76,6 +79,22 @@ describe("readMailFields", () => {
     expect(readMailFields({ schreibstubeMessageId: "7f3a@example.de" }).messageId).toBe(
       "<7f3a@example.de>"
     );
+  });
+
+  it("refuses a stored value that is no Message-ID, since a fragment matches every reply", () => {
+    for (const value of [
+      "<",
+      ">",
+      "<>",
+      "< >",
+      "<a b@x.de>",
+      "<a<b@x.de>",
+      `<${"x".repeat(999)}>`
+    ]) {
+      expect(parseMessageId(value)).toBeNull();
+    }
+    expect(readMailFields({ schreibstubeMessageId: "<" }).messageId).toBeNull();
+    expect(parseMessageId(" <7f3a@example.de> ")).toBe("<7f3a@example.de>");
   });
 
   it("defaults cleanly for a note with no frontmatter", () => {
@@ -215,5 +234,24 @@ describe("stripFrontmatter", () => {
 
   it("does not mistake a horizontal rule inside the body for frontmatter", () => {
     expect(stripFrontmatter("Body\n\n---\n\nMore")).toBe("Body\n\n---\n\nMore");
+  });
+});
+
+describe("mergedIdsAfter", () => {
+  it("adds the new keys after what the note held", () => {
+    expect(mergedIdsAfter(["<a@x.de>"], ["<b@x.de>"])).toEqual(["<a@x.de>", "<b@x.de>"]);
+  });
+
+  it("reads a value that is no list as none", () => {
+    expect(mergedIdsAfter("<a@x.de>", ["<b@x.de>"])).toEqual(["<b@x.de>"]);
+    expect(mergedIdsAfter(undefined, [])).toEqual([]);
+  });
+
+  it("keeps the newest keys within its bound", () => {
+    const held = Array.from({ length: MAX_MERGED_IDS }, (_, i) => `<${i}@x.de>`);
+    const after = mergedIdsAfter(held, ["<neu@x.de>"]);
+    expect(after).toHaveLength(MAX_MERGED_IDS);
+    expect(after[0]).toBe("<1@x.de>");
+    expect(after.at(-1)).toBe("<neu@x.de>");
   });
 });

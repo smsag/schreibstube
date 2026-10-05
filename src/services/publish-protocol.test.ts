@@ -55,6 +55,16 @@ describe("parseHealth", () => {
     });
   });
 
+  it("reads the protocol from the answer a bridge gives a caller without a token", () => {
+    // Bridge 3 names its version and capabilities only to a token holder; the
+    // handshake needs the protocol alone.
+    expect(parseHealth({ status: "ok", protocol: 8 })).toEqual({
+      version: "",
+      protocol: 8,
+      capabilities: []
+    });
+  });
+
   it("reads nothing into a body that is not a health answer", () => {
     expect(parseHealth("nope")).toEqual({ version: "", protocol: 0, capabilities: [] });
   });

@@ -6,7 +6,9 @@ import {
   MAX_IMPORT_ATTACHMENT_BYTES,
   MAX_IMPORT_ATTACHMENTS,
   MAX_IMPORT_TOTAL_BYTES,
+  MAX_SEARCH_EXCLUDE,
   describeBridgeError,
+  excludeFromMerged,
   fromBase64,
   hasCriteria,
   parseAttachmentsResult,
@@ -23,6 +25,21 @@ describe("hasCriteria", () => {
 
   it("is true as soon as one field carries a value", () => {
     expect(hasCriteria({ subject: "Angebot" })).toBe(true);
+  });
+});
+
+describe("excludeFromMerged", () => {
+  it("sends the keys a merge records, and nothing else a person wrote into the list", () => {
+    expect(
+      excludeFromMerged(["<a@x.de>", "uid:42", "uid:x", "<", "frei", "<a b@x.de>", "<b@x.de>"])
+    ).toEqual(["<a@x.de>", "uid:42", "<b@x.de>"]);
+  });
+
+  it("sends at most what the bridge takes, the newest", () => {
+    const held = Array.from({ length: MAX_SEARCH_EXCLUDE + 3 }, (_, i) => `<${i}@x.de>`);
+    const sent = excludeFromMerged(held);
+    expect(sent).toHaveLength(MAX_SEARCH_EXCLUDE);
+    expect(sent[0]).toBe("<3@x.de>");
   });
 });
 
@@ -182,6 +199,19 @@ describe("describeBridgeError", () => {
     expect(describeBridgeError(429, '{"error":"Too many failed attempts."}')).toMatch(/wait/i);
   });
 
+  it("passes on a send limit's own reason, which names the variable, not a token failure", () => {
+    const limited = JSON.stringify({
+      error: "The bridge has sent its 60 mails for this hour (MAIL_SEND_PER_HOUR).",
+      code: "send_rate_limited"
+    });
+    expect(describeBridgeError(429, limited)).toMatch(/MAIL_SEND_PER_HOUR/);
+    const sender = JSON.stringify({
+      error: "The bridge does not send as x@bank.example: … MAIL_FROM_ALLOWED …",
+      code: "sender_not_allowed"
+    });
+    expect(describeBridgeError(403, sender)).toMatch(/MAIL_FROM_ALLOWED/);
+  });
+
   it("explains a restarting bridge", () => {
     expect(describeBridgeError(503, '{"error":"Bridge is shutting down."}')).toMatch(/restarting/i);
   });
@@ -223,7 +253,7 @@ describe("parseAttachmentsResult", () => {
       attachments: [{ filename: "../../evil.js", content: toBase64(pdf) }]
     });
     expect(result.attachments).toEqual([]);
-    expect(result.skipped).toEqual([{ filename: "../../evil.js", reason: "type" }]);
+    expect(result.skipped).toEqual([{ filename: "evil.js", reason: "type" }]);
   });
 
   it("makes a name safe again before it becomes a path", () => {
@@ -267,6 +297,13 @@ describe("parseAttachmentsResult", () => {
       skipped: [{ filename: "a.pdf", reason: "because" }, { reason: "type" }, "x"]
     });
     expect(result.skipped).toEqual([]);
+  });
+
+  it("names a file the bridge found not to be its type, cleaned like any name", () => {
+    const result = parseAttachmentsResult({
+      skipped: [{ filename: "Rechnung\u202E[[x]].pdf", reason: "content" }]
+    });
+    expect(result.skipped).toEqual([{ filename: "Rechnung--x--.pdf", reason: "content" }]);
   });
 
   it("reads anything else as no files", () => {

@@ -45,7 +45,7 @@ plain Obsidian Markdown plus what this file lists. Write only what is here.
 | `schreibstubePrint`           | any note       | map of values the template reads (see 3–5)                     |
 | `schreibstubeTo`              | mail note      | address or list of addresses                                   |
 | `schreibstubeCc`              | mail note      | list of addresses                                              |
-| `schreibstubeFrom`            | mail note      | optional sender, `Name <address>`                              |
+| `schreibstubeFrom`            | mail note      | optional sender `Name <address>`, one the bridge allows        |
 | `schreibstubeSubject`         | mail note      | subject line                                                   |
 | `schreibstubeSyncedFrom`      | synced note    | HTTPS address of a Markdown file                               |
 | `schreibstubeSyncEvery`       | synced note    | `Alle 2 Tage`, `weekly`, `every 6 hours` or a cron line        |

@@ -10,7 +10,7 @@ import {
   extractError,
   str
 } from "./bridge-protocol";
-import { safeAttachmentName, type SkipReason } from "./mail-import";
+import { safeAttachmentName, safeDisplayName, type SkipReason } from "./mail-import";
 
 /** How long to wait for a bridge response before giving up. Longer than the
  *  bridge's own allowance for a send, 45 s by default for delivery and filing
@@ -51,7 +51,35 @@ export interface SearchRequest {
   criteria: SearchCriteria;
   mailbox?: string;
   limit?: number;
+  /** Messages the caller already holds, by the key `mergeKey` gives them; the
+   *  bridge steps past them before it fills the window. Protocol 8; an older
+   *  bridge ignores the field and answers the newest matches as before. */
+  exclude?: string[];
 }
+
+/** The first protocol whose bridge steps past the replies a note holds. */
+export const MAIL_EXCLUDE_PROTOCOL = 8;
+
+/** The most keys a search carries in `exclude`; the bridge refuses more. */
+export const MAX_SEARCH_EXCLUDE = 500;
+
+/** A key a merged message is recorded under when it had no Message-ID. */
+const UID_KEY = /^uid:\d{1,10}$/;
+
+/**
+ * What a reply fetch asks the bridge to step past: the newest of a note's
+ * merged keys that are keys at all. The list is frontmatter, which anyone
+ * can edit, so a value that is neither a Message-ID nor a UID key is left
+ * out rather than sent for the bridge to refuse the whole search over.
+ */
+export function excludeFromMerged(mergedIds: readonly string[]): string[] {
+  return mergedIds
+    .filter((id) => id.length <= MAX_EXCLUDE_KEY_CHARS && (isMessageId(id) || UID_KEY.test(id)))
+    .slice(-MAX_SEARCH_EXCLUDE);
+}
+
+/** The longest key the bridge takes in `exclude`: one header line. */
+const MAX_EXCLUDE_KEY_CHARS = 998;
 
 export interface SearchResult {
   messages: MailMessage[];
@@ -202,7 +230,8 @@ function parseMessage(raw: unknown): MailMessage {
   };
 }
 
-function isMessageId(value: string): boolean {
+/** RFC 5322's shape of a Message-ID, as the bridge returns and a note stores one. */
+export function isMessageId(value: string): boolean {
   return MESSAGE_ID.test(value);
 }
 
@@ -216,6 +245,9 @@ export function describeBridgeError(status: number, body: string): string {
   // The attachments route's own 404 and 413 say which mail, not which setting.
   const code = extractCode(body);
   if (code === "message_gone" || code === "message_too_large") return extractError(body);
+  // Bridge 3's limits on a send say which variable decides; a bare 429 would
+  // read as repeated token failures, and a 403 as a wrong token.
+  if (code === "sender_not_allowed" || code === "send_rate_limited") return extractError(body);
   if (status === 413) return "the note is too large for the bridge to accept.";
   if (status === 401) return "bridge rejected the token — check the Bridge token setting.";
   if (status === 404) return "bridge endpoint not found — check the Bridge URL setting.";
@@ -257,7 +289,7 @@ export interface AttachmentsResult {
   skipped: SkippedAttachment[];
 }
 
-const SKIP_REASONS = new Set<SkipReason>(["type", "size", "limit"]);
+const SKIP_REASONS = new Set<SkipReason>(["type", "size", "limit", "content"]);
 
 /**
  * A received mail's files. A file whose name has no kind a note may hold, or
@@ -286,7 +318,7 @@ export function parseAttachmentsResult(json: unknown): AttachmentsResult {
     }
     const bytes = filename ? fromBase64(content) : null;
     if (!filename || !bytes) {
-      skipped.push({ filename: given || "?", reason: "type" });
+      skipped.push({ filename: safeDisplayName(given) || "?", reason: "type" });
       continue;
     }
     total += bytes.length;
@@ -300,7 +332,7 @@ export function parseAttachmentsResult(json: unknown): AttachmentsResult {
   for (const entry of rawSkipped.slice(0, MAX_IMPORT_ATTACHMENTS * 2)) {
     const record = asRecord(entry);
     const reason = str(record.reason) as SkipReason;
-    const filename = str(record.filename).slice(0, MAX_HEADER_CHARS);
+    const filename = safeDisplayName(str(record.filename).slice(0, MAX_HEADER_CHARS));
     if (filename && SKIP_REASONS.has(reason)) skipped.push({ filename, reason });
   }
 

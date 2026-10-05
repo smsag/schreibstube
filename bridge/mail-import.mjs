@@ -3,8 +3,9 @@
  *
  * A received mail is written by whoever sent it: its file names, types and
  * sizes are claims. What is handed over is decided here, before anything is
- * encoded: only kinds of file a note can embed or open, under a size a phone
- * can hold, with a name that is only a name. A signature's logos are left out,
+ * encoded: only kinds of file a note can embed or open, whose bytes begin the
+ * way that kind does, under a size a phone can hold, with a name that is only
+ * a name. A signature's logos are left out,
  * since every mail from Outlook carries them and nobody imports a mail for
  * them.
  */
@@ -33,6 +34,65 @@ export const SIGNATURE_IMAGE_BYTES = 40_000;
 
 /** Longest name kept, extension aside; file systems allow 255 bytes in all. */
 export const MAX_NAME_CHARS = 100;
+
+/**
+ * Longest name kept in UTF-8, extension included. A hundred characters of
+ * Chinese or of emoji are three and four hundred bytes, past what ext4, APFS
+ * and a sync client allow, so the file failed to save after it was fetched.
+ * Cut on a character, never inside one.
+ */
+export const MAX_NAME_BYTES = 200;
+
+/**
+ * Names Windows reserves for a device, with any extension: a vault synced to
+ * Windows cannot hold `CON.pdf` or `nul.tar.pdf`, and a sync client that
+ * tries reports an error the person cannot trace back to a mail.
+ */
+const DEVICE_NAME = /^(con|prn|aux|nul|com[1-9¹²³]|lpt[1-9¹²³])(\.|$)/i;
+
+/**
+ * What a kind's bytes begin with, by extension. A sender's name and type are
+ * claims, and a program renamed `Rechnung.pdf` is handed to whatever opens
+ * PDFs on the device. Each entry is an offset and the bytes found there;
+ * a kind matches when all of one alternative match.
+ */
+const ZIP = [[0, [0x50, 0x4b, 0x03, 0x04]]];
+const OLE = [[0, [0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]]];
+const ascii = (text) => [...text].map((char) => char.charCodeAt(0));
+const MAGIC = new Map([
+  ["png", [[[0, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]]]]],
+  ["jpg", [[[0, [0xff, 0xd8, 0xff]]]]],
+  ["jpeg", [[[0, [0xff, 0xd8, 0xff]]]]],
+  ["gif", [[[0, ascii("GIF87a")]], [[0, ascii("GIF89a")]]]],
+  [
+    "webp",
+    [
+      [
+        [0, ascii("RIFF")],
+        [8, ascii("WEBP")]
+      ]
+    ]
+  ],
+  [
+    "heic",
+    ["heic", "heix", "hevc", "hevx", "heim", "heis", "mif1", "msf1"].map((brand) => [
+      [4, ascii(`ftyp${brand}`)]
+    ])
+  ],
+  ["doc", [OLE]],
+  ["xls", [OLE]],
+  ["ppt", [OLE]],
+  ["docx", [ZIP]],
+  ["xlsx", [ZIP]],
+  ["pptx", [ZIP]],
+  ["odt", [ZIP]],
+  ["ods", [ZIP]],
+  ["odp", [ZIP]]
+]);
+
+/** Readers accept a PDF whose header follows some bytes of junk, and so do
+ *  scanners that write one; the header has to be within the first kilobyte. */
+const PDF_HEADER_WITHIN = 1024;
 
 /** The kinds kept, by extension, with the type they are handed over as. */
 const KINDS = new Map([
@@ -86,6 +146,10 @@ export function chooseImportAttachments(attachments) {
       skipped.push({ filename: shown, reason: "size" });
       continue;
     }
+    if (!contentMatches(content, kind.extension)) {
+      skipped.push({ filename: shown, reason: "content" });
+      continue;
+    }
     if (kept.length >= MAX_IMPORT_ATTACHMENTS || total + content.length > MAX_IMPORT_TOTAL_BYTES) {
       skipped.push({ filename: shown, reason: "limit" });
       continue;
@@ -126,19 +190,75 @@ function isSignatureFile(attachment) {
  * file system, not hidden, not empty, and ending in the extension of its kind.
  */
 export function safeFilename(name, extension, index = 0) {
-  const base = withoutControl(
-    String(name ?? "")
-      .split(/[\\/]/)
-      .pop()
-  )
+  const suffix = `.${extension}`;
+  const cleaned = cleanName(
+    lastSegment(name).replace(new RegExp(`\\.(${extension}|jpeg)$`, "i"), "")
+  );
+  const bounded = trimEnds([...cleaned].slice(0, MAX_NAME_CHARS).join(""));
+  const base = trimEnds(cutToBytes(notADevice(bounded), MAX_NAME_BYTES - suffix.length));
+  return `${base || `Anhang ${index + 1}`}${suffix}`;
+}
+
+/**
+ * Whether a file's bytes begin the way its kind does. A kind without a
+ * signature here is not handed over, rather than handed over unchecked.
+ */
+export function contentMatches(content, extension) {
+  if (extension === "pdf") {
+    return content.subarray(0, PDF_HEADER_WITHIN).includes("%PDF-");
+  }
+  const alternatives = MAGIC.get(extension);
+  if (!alternatives) return false;
+  return alternatives.some((alternative) =>
+    alternative.every(
+      ([offset, bytes]) =>
+        content.length >= offset + bytes.length &&
+        bytes.every((byte, i) => content[offset + i] === byte)
+    )
+  );
+}
+
+function lastSegment(name) {
+  return String(name ?? "")
+    .split(/[\\/]/)
+    .pop();
+}
+
+/**
+ * The characters a name may keep, for a file and for a name shown in a note
+ * alike: no control characters, C1 included; no format characters, which
+ * hold the bidirectional overrides that show `Rechnung` U+202E `fdp.exe` as
+ * `Rechnungexe.pdf`; nothing that breaks a wiki link or a file system.
+ */
+function cleanName(text) {
+  return text
+    .replace(/[\p{Cc}\p{Cf}]/gu, "")
     .normalize("NFC")
-    .replace(new RegExp(`\\.(${extension}|jpeg)$`, "i"), "")
     .replace(/[*"<>:|?#^[\]]/g, "-")
     .replace(/\s+/g, " ")
-    .replace(/^[.\s-]+|[.\s]+$/g, "")
-    .slice(0, MAX_NAME_CHARS)
-    .trim();
-  return `${base || `Anhang ${index + 1}`}.${extension}`;
+    .replace(/^[.\s-]+/, "");
+}
+
+/** Not hidden, not ending in a dot or a space, which Windows drops. */
+function trimEnds(text) {
+  return text.replace(/^[.\s-]+|[.\s]+$/g, "");
+}
+
+/** At most `limit` bytes of UTF-8, cut between characters. */
+function cutToBytes(text, limit) {
+  let used = 0;
+  let kept = "";
+  for (const char of text) {
+    used += Buffer.byteLength(char);
+    if (used > limit) break;
+    kept += char;
+  }
+  return kept;
+}
+
+/** A device name keeps its letters, behind a mark that makes it a name. */
+function notADevice(base) {
+  return DEVICE_NAME.test(base) ? `_${base}` : base;
 }
 
 function kindOf(filename, contentType) {
@@ -158,22 +278,28 @@ function kindOf(filename, contentType) {
   return null;
 }
 
-function displayName(filename, index) {
-  const name = withoutControl(String(filename ?? "")).trim();
-  return name.slice(0, MAX_NAME_CHARS + 10) || `Anhang ${index + 1}`;
-}
-
-/** Text without control characters, which no file name or note line should hold. */
-function withoutControl(text) {
-  return [...text].filter((char) => char.charCodeAt(0) > 0x1f && char !== "\u007f").join("");
+/**
+ * The name a left-out file is called by in the note and the notice: the
+ * sender's words, so held to the characters a file name may have. It is not
+ * a path, and keeps its extension as sent, since what was left out is the
+ * point of naming it.
+ */
+export function displayName(filename, index) {
+  const name = trimEnds(cutToBytes(cleanName(lastSegment(filename)), MAX_NAME_BYTES));
+  return name || `Anhang ${index + 1}`;
 }
 
 /** Two attachments may share a name; the second becomes "name 2.ext". */
 function unique(filename, taken) {
   if (!taken.has(filename.toLowerCase())) return filename;
   const dot = filename.lastIndexOf(".");
+  const suffix = filename.slice(dot);
+  // Inside both bounds with its number, or the plugin, which holds a name to
+  // them again, would cut the number off and write over the first file.
   for (let n = 2; ; n += 1) {
-    const candidate = `${filename.slice(0, dot)} ${n}${filename.slice(dot)}`;
+    const mark = ` ${n}`;
+    const stem = [...filename.slice(0, dot)].slice(0, MAX_NAME_CHARS - mark.length).join("");
+    const candidate = `${trimEnds(cutToBytes(stem, MAX_NAME_BYTES - suffix.length - mark.length))}${mark}${suffix}`;
     if (!taken.has(candidate.toLowerCase())) return candidate;
   }
 }

@@ -29,12 +29,21 @@ export const IMPORT_EXTENSIONS = new Set([
 /** Longest name kept, extension aside; the bridge keeps the same. */
 export const MAX_ATTACHMENT_NAME_CHARS = 100;
 
-/** Why the bridge left a file out. */
-export type SkipReason = "type" | "size" | "limit";
+/** Longest name kept in UTF-8, extension included; the bridge keeps the same. */
+export const MAX_ATTACHMENT_NAME_BYTES = 200;
+
+/** Why the bridge left a file out: `content` is a file whose bytes are not
+ *  of the kind its name says, from bridge 3.0.0. */
+export type SkipReason = "type" | "size" | "limit" | "content";
+
+/** Names Windows keeps for a device, with any extension; see the bridge. */
+const DEVICE_NAME = /^(con|prn|aux|nul|com[1-9¹²³]|lpt[1-9¹²³])(\.|$)/i;
 
 /**
  * A name that is only a name, or null when it has no kind a note may hold:
- * no folder, nothing that breaks a wiki link or a file system, not hidden.
+ * no folder, nothing that breaks a wiki link or a file system, not hidden,
+ * no device of Windows, and within what a file system holds. The same rules
+ * as the bridge's, so a name it chose comes through unchanged.
  */
 export function safeAttachmentName(name: string): string | null {
   const last = name.split(/[\\/]/).pop() ?? "";
@@ -42,16 +51,56 @@ export function safeAttachmentName(name: string): string | null {
   const extension = match?.[1]?.toLowerCase();
   if (!match || !extension || !IMPORT_EXTENSIONS.has(extension)) return null;
 
-  const base = [...last.slice(0, match.index)]
-    .filter((char) => char.charCodeAt(0) > 0x1f && char !== "\u007f")
-    .join("")
+  const suffix = `.${extension}`;
+  const bounded = trimEnds(
+    [...cleanName(last.slice(0, match.index))].slice(0, MAX_ATTACHMENT_NAME_CHARS).join("")
+  );
+  const named = DEVICE_NAME.test(bounded) ? `_${bounded}` : bounded;
+  const base = trimEnds(cutToBytes(named, MAX_ATTACHMENT_NAME_BYTES - suffix.length));
+  return base ? `${base}${suffix}` : null;
+}
+
+/**
+ * A left-out file's name as the note and the notice show it: the sender's
+ * words held to the characters a file name may have, or "" when nothing is
+ * left of them.
+ */
+export function safeDisplayName(name: string): string {
+  const last = name.split(/[\\/]/).pop() ?? "";
+  return trimEnds(cutToBytes(cleanName(last), MAX_ATTACHMENT_NAME_BYTES));
+}
+
+/**
+ * No control characters, C1 included, and no format characters: those hold
+ * the bidirectional overrides that show `Rechnung` U+202E `fdp.exe` as
+ * `Rechnungexe.pdf`. Nothing that breaks a wiki link or a file system.
+ */
+function cleanName(text: string): string {
+  return text
+    .replace(/[\p{Cc}\p{Cf}]/gu, "")
     .normalize("NFC")
     .replace(/[*"<>:|?#^[\]]/g, "-")
     .replace(/\s+/g, " ")
-    .replace(/^[.\s-]+|[.\s]+$/g, "")
-    .slice(0, MAX_ATTACHMENT_NAME_CHARS)
-    .trim();
-  return base ? `${base}.${extension}` : null;
+    .replace(/^[.\s-]+/, "");
+}
+
+/** Not hidden, not ending in a dot or a space, which Windows drops. */
+function trimEnds(text: string): string {
+  return text.replace(/^[.\s-]+|[.\s]+$/g, "");
+}
+
+const encoder = new TextEncoder();
+
+/** At most `limit` bytes of UTF-8, cut between characters. */
+function cutToBytes(text: string, limit: number): string {
+  let used = 0;
+  let kept = "";
+  for (const char of text) {
+    used += encoder.encode(char).length;
+    if (used > limit) break;
+    kept += char;
+  }
+  return kept;
 }
 
 /** Whether the file is shown in the note, rather than linked. */

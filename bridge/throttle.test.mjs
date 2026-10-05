@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createThrottle } from "./throttle.mjs";
+import { createThrottle, MAX_THROTTLE_KEYS } from "./throttle.mjs";
 
 /** A clock the test moves by hand, so nothing waits. */
 function clock(start = 1_000_000) {
@@ -74,11 +74,21 @@ describe("createThrottle", () => {
     expect(gate.check("5.6.7.8").allowed).toBe(true);
   });
 
-  it("clears the record when the caller proves it holds a token", () => {
+  it("offers no way to clear a record but time, so one token cannot buy guesses at another", () => {
     const { gate } = throttle();
+    expect(gate.recordSuccess).toBeUndefined();
     for (let i = 0; i < 3; i += 1) gate.recordFailure("1.2.3.4");
-    gate.recordSuccess("1.2.3.4");
-    expect(gate.check("1.2.3.4").allowed).toBe(true);
+    expect(gate.check("1.2.3.4").allowed).toBe(false);
+  });
+
+  it("keeps blocking for as long as the newest failures say, however many there were", () => {
+    const { gate, time } = throttle();
+    for (let i = 0; i < 10; i += 1) {
+      gate.recordFailure("1.2.3.4");
+      time.advance(1000);
+    }
+    // The last three failures were 3, 2 and 1 seconds ago.
+    expect(gate.check("1.2.3.4").retryAfterSeconds).toBe(57);
   });
 
   it("does not grow without bound as entries expire", () => {
@@ -138,5 +148,28 @@ describe("how often the throttle sweeps", () => {
     clock = 2100;
     throttle.recordFailure("10.9.9.10");
     expect(throttle.size).toBe(2);
+  });
+});
+
+describe("how much the throttle keeps", () => {
+  it("never remembers more addresses than its bound, forgetting the one that failed longest ago", () => {
+    const gate = createThrottle({ limit: 2, windowMs: 60_000, now: () => 0, maxKeys: 3 });
+    gate.recordFailure("a");
+    gate.recordFailure("a");
+    gate.recordFailure("b");
+    gate.recordFailure("c");
+    // "a" fails again, so "b" is now the one that failed longest ago.
+    gate.recordFailure("a");
+    gate.recordFailure("d");
+    expect(gate.size).toBe(3);
+    expect(gate.check("a").allowed).toBe(false);
+    gate.recordFailure("b");
+    expect(gate.check("b").allowed).toBe(true);
+  });
+
+  it("holds its default bound against a stranger who picks a new address for every guess", () => {
+    const gate = createThrottle({ limit: 5, windowMs: 60_000, now: () => 0 });
+    for (let i = 0; i < MAX_THROTTLE_KEYS + 500; i += 1) gate.recordFailure(`key-${i}`);
+    expect(gate.size).toBe(MAX_THROTTLE_KEYS);
   });
 });

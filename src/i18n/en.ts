@@ -282,7 +282,8 @@ export const en = {
     skipReason: {
       type: "file type",
       size: "too large",
-      limit: "limit reached"
+      limit: "limit reached",
+      content: "content is not that type"
     },
     confirmTitle: "Send email",
     confirmFrom: "From",

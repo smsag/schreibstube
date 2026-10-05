@@ -267,7 +267,8 @@ export const de: Messages = {
     skipReason: {
       type: "Dateityp",
       size: "zu groß",
-      limit: "Grenze erreicht"
+      limit: "Grenze erreicht",
+      content: "Inhalt passt nicht zum Typ"
     },
     confirmTitle: "E-Mail senden",
     confirmFrom: "Von",
@@ -935,6 +936,12 @@ export const de: Messages = {
     noCriteria: "mindestens ein Suchkriterium angeben.",
     noMessages: "keine Nachricht gefunden.",
     noReplies: "keine neuen Antworten.",
+    searchTruncated: (count: number) =>
+      `die neuesten ${count} Treffer; ältere wurden ausgelassen — die Suche eingrenzen, um sie zu finden.`,
+    repliesTruncated:
+      "mehr Antworten beziehen sich auf diese Notiz, als ein Abruf holt; ältere sind liegen geblieben. „Antworten in die Notiz holen“ noch einmal ausführen, um sie zu holen.",
+    repliesTruncatedOld:
+      "mehr Antworten beziehen sich auf diese Notiz, als ein Abruf holt, und diese Bridge liefert immer die neuesten. Die Bridge aktualisieren, um die älteren zu holen.",
     sending: "sendet …",
     drawing: (index: number, total: number) =>
       `zeichne Visualisierung ${index} von ${total} für die Mail …`,

@@ -23,16 +23,21 @@ no publish route and the other way round.
 ## The perimeter
 
 The bridge is a public URL guarded by per-capability bearer tokens of at least
-24 characters, compared in constant time. Repeated failures from one address
-are throttled; behind a hosting platform's proxy set `TRUST_PROXY=true` so the
-address is the caller's rather than the proxy's. Request bodies are capped per
+24 characters and 10 different ones, never shared between capabilities, and
+compared in constant time. Repeated failures from one address
+are throttled, an IPv6 caller by its /64, and only time clears them; behind a
+hosting platform's proxy set `TRUST_PROXY=true` (or `TRUST_PROXY_HOPS` for more
+than one proxy) so the address is the caller's rather than the proxy's. A
+request refused before its body arrived is closed, and `/health` names the
+bridge's version and capabilities only to a token holder. Request bodies are capped per
 route, every outbound operation has a deadline, uploads must hash to what they
 claim, the SFTP host key is pinned, and a remote write refuses to follow a
 symlink. Nothing is persisted on the bridge.
 
 On the published site, raw HTML from a note is passed through only when the
 target allows it (`PUBLISH_<TARGET>_ALLOW_HTML`, on by default for a personal
-site); a vault with more than one author should turn it off.
+site, and said in a warning at every start); a vault with more than one author
+should turn it off.
 
 ## Text from somebody else
 
