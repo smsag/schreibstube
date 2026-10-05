@@ -19,6 +19,8 @@ import {
   EmbeddingOutOfMemoryError,
   isOutOfMemoryError
 } from "../../../services/semantic/memory-error";
+import { isSearchRuntimeError } from "../../../services/semantic/search-runtime";
+import { isModelPinError } from "../../../services/semantic/model-pins";
 
 /**
  * The embedding provider the engine uses (Pythia ADR-119): a Web Worker (off the
@@ -57,6 +59,9 @@ export class FallbackEmbeddingProvider implements EmbeddingProvider {
 
   constructor(
     private readonly modelId: EmbeddingModelId,
+    /** The runtime's WebAssembly, fetched and checked against its pin; every
+     *  backend is handed it, since none may fetch code of its own. */
+    private readonly runtime: () => Promise<ArrayBuffer>,
     private readonly onProgress?: (p: ModelLoadProgress) => void,
     /** Optional: resolve a same-origin resource-path URL for the worker script, so
      *  a Worker can start where `blob:` Workers are blocked (Pythia ADR-126). When it
@@ -78,6 +83,10 @@ export class FallbackEmbeddingProvider implements EmbeddingProvider {
     // so the next one would load the same model into the same exhausted heap —
     // on iOS that was two more loads, the last on the UI thread.
     if (isOutOfMemoryError(err)) throw new EmbeddingOutOfMemoryError(err);
+    // So does a runtime that could not be had, or model files that are not
+    // the pinned ones: every backend runs the same module on the same files,
+    // and the next would fetch them again to be refused the same way.
+    if (isSearchRuntimeError(err) || isModelPinError(err)) throw err;
   }
 
   ready(): Promise<void> {
@@ -98,7 +107,7 @@ export class FallbackEmbeddingProvider implements EmbeddingProvider {
     // becomes ready afterwards is released rather than engaged (#363).
     const gen = this.generation;
     // 1. Blob-URL Worker (off-thread; works on most desktops).
-    const blobWorker = new WorkerEmbeddingProvider(this.modelId, this.onProgress);
+    const blobWorker = new WorkerEmbeddingProvider(this.modelId, this.runtime, this.onProgress);
     this.starting.add(blobWorker);
     try {
       await blobWorker.ready();
@@ -116,6 +125,7 @@ export class FallbackEmbeddingProvider implements EmbeddingProvider {
     if (this.resourceWorkerUrl) {
       const resWorker = new WorkerEmbeddingProvider(
         this.modelId,
+        this.runtime,
         this.onProgress,
         this.resourceWorkerUrl
       );
@@ -136,7 +146,7 @@ export class FallbackEmbeddingProvider implements EmbeddingProvider {
       }
     }
     // 3. Same-origin iframe (LAST resort; runs on the UI thread — throttled by callers).
-    const iframe = new IframeEmbeddingProvider(this.modelId, this.onProgress);
+    const iframe = new IframeEmbeddingProvider(this.modelId, this.runtime, this.onProgress);
     this.starting.add(iframe);
     try {
       await iframe.ready();
@@ -234,10 +244,18 @@ export class FallbackEmbeddingProvider implements EmbeddingProvider {
  *  script so a Worker can start where `blob:` is blocked (Pythia ADR-126). */
 export function createEmbeddingProvider(
   modelId: EmbeddingModelId,
+  runtime: () => Promise<ArrayBuffer>,
   onProgress?: (p: ModelLoadProgress) => void,
   resourceWorkerUrl?: () => Promise<string>,
   onBackend?: (backend: EmbeddingBackend, failures: string[]) => void,
   logger?: Pick<Logger, "warn" | "info">
 ): EmbeddingProvider {
-  return new FallbackEmbeddingProvider(modelId, onProgress, resourceWorkerUrl, onBackend, logger);
+  return new FallbackEmbeddingProvider(
+    modelId,
+    runtime,
+    onProgress,
+    resourceWorkerUrl,
+    onBackend,
+    logger
+  );
 }

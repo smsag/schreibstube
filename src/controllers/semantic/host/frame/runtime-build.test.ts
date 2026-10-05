@@ -1,29 +1,42 @@
 import { describe, it, expect } from "vitest";
-import { plainRuntimePaths } from "./runtime-build";
+import { pinRuntime, type WasmFlags } from "./runtime-build";
 
-describe("plainRuntimePaths", () => {
-  it("names the plain build of the bundled version, never the asyncify one", () => {
-    const paths = plainRuntimePaths("1.31.0-dev.20260914-8d85527a0");
-    expect(paths).toEqual({
-      mjs: "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.31.0-dev.20260914-8d85527a0/dist/ort-wasm-simd-threaded.mjs",
-      wasm: "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.31.0-dev.20260914-8d85527a0/dist/ort-wasm-simd-threaded.wasm"
-    });
-    expect(JSON.stringify(paths)).not.toMatch(/asyncify|jsep|jspi/);
-    expect(plainRuntimePaths("1.22.0")?.wasm).toMatch(/@1\.22\.0\/dist\//);
+/** The settings transformers.js leaves behind at import, CDN default and all. */
+function librarySettings(): WasmFlags {
+  return {
+    numThreads: 4,
+    proxy: true,
+    wasmPaths: {
+      mjs: "unpinned-runtime-refused:ort-wasm-simd-threaded.asyncify.mjs",
+      wasm: "unpinned-runtime-refused:ort-wasm-simd-threaded.asyncify.wasm"
+    }
+  };
+}
+
+describe("pinRuntime", () => {
+  it("hands over the module and takes away every way to fetch one", () => {
+    const wasm = librarySettings();
+    const module = new Uint8Array([0, 97, 115, 109, 1, 0, 0, 0]).buffer;
+    expect(pinRuntime(wasm, module)).toBeNull();
+    expect(wasm.wasmPaths).toBeUndefined();
+    expect(wasm.proxy).toBe(false);
+    expect(wasm.numThreads).toBe(1);
+    expect(wasm.wasmBinary).toBeInstanceOf(Uint8Array);
+    expect((wasm.wasmBinary as Uint8Array).buffer).toBe(module);
   });
 
-  it("leaves the choice to the library when the version is not one", () => {
-    for (const bad of [
-      undefined,
-      null,
-      1.31,
-      "",
-      "latest",
-      "1.31",
-      "1.31.0/../../evil",
-      "1.31.0?x=1"
-    ]) {
-      expect(plainRuntimePaths(bad)).toBeNull();
+  it("refuses to start without the module, and leaves nothing to fetch it with", () => {
+    for (const missing of [undefined, null, "", "AGFzbQ==", [0, 97], new ArrayBuffer(0)]) {
+      const wasm = librarySettings();
+      expect(pinRuntime(wasm, missing)).toBe("the runtime's WebAssembly module did not arrive");
+      expect(wasm.wasmPaths).toBeUndefined();
+      expect(wasm.wasmBinary).toBeUndefined();
     }
+  });
+
+  it("says so when the runtime has no WebAssembly settings at all", () => {
+    expect(pinRuntime(undefined, new ArrayBuffer(8))).toBe(
+      "the runtime has no WebAssembly settings to pin"
+    );
   });
 });

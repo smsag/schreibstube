@@ -5,7 +5,12 @@ import { dirname, extname, join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const types = { ".html": "text/html", ".mjs": "text/javascript", ".json": "application/json" };
+const types = {
+  ".html": "text/html",
+  ".mjs": "text/javascript",
+  ".json": "application/json",
+  ".wasm": "application/wasm"
+};
 createServer((req, res) => {
   if (req.method === "POST") {
     let body = "";

@@ -5,8 +5,9 @@
 // instead of twice. Replaces the former separate bootstrap.ts (iframe) and
 // worker.ts (worker) entries.
 //
-//   Worker:  host → { type:"init", config } then { requestId, texts|ping }
-//   Iframe:  config via window.__EMBEDDING_MODEL_CONFIG__, then postMessage requests
+//   Host  →  { type:"init", config, runtime, pin } then { requestId, texts|ping }
+//            (`runtime`: the WebAssembly module, checked by the host;
+//             `pin`: the model's commit and file hashes, checked here)
 //   Both  →  { requestId, vectors[], error? }
 //            { type:"model-load-progress"|"model-load-error", … }
 
@@ -27,8 +28,13 @@ let model: EmbeddingModel | null = null;
  */
 const EMBED_BATCH_SIZE = 16;
 
-function makeModel(config: EmbeddingModelConfig, reply: (m: unknown) => void): void {
-  model = new EmbeddingModel(config, (p) =>
+function makeModel(
+  config: EmbeddingModelConfig,
+  runtime: unknown,
+  pin: unknown,
+  reply: (m: unknown) => void
+): void {
+  model = new EmbeddingModel(config, runtime, pin, (p) =>
     reply({
       type: "model-load-progress",
       progress: p.progress,
@@ -78,32 +84,32 @@ async function handle(raw: unknown, reply: (m: unknown) => void): Promise<void> 
   }
 }
 
+/**
+ * One message from the host. The first `init` makes the model; a second is
+ * ignored rather than loading another model beside the first.
+ */
+function receive(raw: unknown, reply: (m: unknown) => void): void {
+  const data: { type?: unknown; config?: unknown; runtime?: unknown; pin?: unknown } =
+    typeof raw === "object" && raw !== null ? raw : {};
+  if (data.type === "init") {
+    if (!model && typeof data.config === "object" && data.config !== null) {
+      makeModel(data.config as EmbeddingModelConfig, data.runtime, data.pin, reply);
+    }
+    return;
+  }
+  void handle(raw, reply);
+}
+
 if (typeof window === "undefined") {
-  // ── Web Worker: config via an init message; reply to the worker host. ──
+  // ── Web Worker: reply to the worker host. ──
   const ctx = self as unknown as {
     postMessage: (m: unknown) => void;
     onmessage: ((e: MessageEvent) => void) | null;
   };
   const reply = (m: unknown) => ctx.postMessage(m);
-  ctx.onmessage = (event: MessageEvent): void => {
-    const data = (event.data ?? {}) as {
-      type?: string;
-      config?: EmbeddingModelConfig;
-      requestId?: number;
-      texts?: string[];
-      ping?: boolean;
-      priority?: boolean;
-    };
-    if (data.type === "init" && data.config) {
-      makeModel(data.config, reply);
-      return;
-    }
-    void handle(data, reply);
-  };
+  ctx.onmessage = (event: MessageEvent): void => receive(event.data, reply);
 } else {
-  // ── Iframe: config injected as a window global; reply to the parent frame. ──
-  const w = window as unknown as { __EMBEDDING_MODEL_CONFIG__: EmbeddingModelConfig };
-  makeModel(w.__EMBEDDING_MODEL_CONFIG__, (m) => window.parent.postMessage(m, window.origin));
+  // ── Iframe: reply to the parent frame. ──
   window.addEventListener("message", (event: MessageEvent) => {
     const source = event.source as Window | null;
     // Only the host that mounted this frame (principle 1). The host already
@@ -111,6 +117,6 @@ if (typeof window === "undefined") {
     // check in the other direction, so another frame in the window cannot ask
     // this one to embed text for it.
     if (!source || source !== window.parent) return;
-    void handle(event.data, (m) => source.postMessage(m, window.origin));
+    receive(event.data, (m) => source.postMessage(m, window.origin));
   });
 }

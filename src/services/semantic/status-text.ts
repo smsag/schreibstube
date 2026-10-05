@@ -1,4 +1,5 @@
 import type { Messages } from "../../i18n";
+import { isModelPinError } from "./model-pins";
 
 export type SemanticState =
   | "off"
@@ -15,7 +16,7 @@ export type SemanticState =
   | "desktopBuilds";
 
 /** What a failure was, as far as the status line can say what to do about it. */
-export type FailureCause = "offline" | "timeout" | "other";
+export type FailureCause = "offline" | "timeout" | "modelPin" | "other";
 
 /** Where the index stands, as the settings tab reports it. */
 export interface SemanticStatus {
@@ -42,6 +43,9 @@ export interface SemanticStatus {
  * person's language and leaves the text to the log.
  */
 export function failureCause(error: unknown): FailureCause {
+  // First: a pin refusal can mention a timeout or an address, and is the one
+  // cause no retry can fix.
+  if (isModelPinError(error)) return "modelPin";
   const message = error instanceof Error ? error.message : String(error);
   if (/\boffline\b/i.test(message)) return "offline";
   if (/timed? ?out/i.test(message)) return "timeout";
@@ -76,6 +80,7 @@ export function semanticStatusText(
       if (status.outOfMemory) return strings.outOfMemory;
       if (status.cause === "offline") return strings.offline;
       if (status.cause === "timeout") return strings.timedOut;
+      if (status.cause === "modelPin") return strings.modelPin;
       return strings.failed(status.error ?? "");
     case "paused":
       return strings.paused;

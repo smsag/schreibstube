@@ -1,4 +1,4 @@
-import { Notice, Platform, TFile, type Plugin } from "obsidian";
+import { normalizePath, Notice, Platform, TFile, type Plugin } from "obsidian";
 import type { SchreibstubeSettings } from "../../types";
 import type { Logger } from "../../services/logger";
 import { t } from "../../i18n";
@@ -46,6 +46,7 @@ import { modelPluginInTheWay } from "../../services/semantic/model-plugins";
 import { consentOf, type SourceDescriptor } from "../../services/semantic/semantic-api";
 import { createEmbeddingProvider } from "./host/embedding-provider-factory";
 import { embeddingWorkerUrl } from "./host/worker-bundle-url";
+import { SearchRuntimeLoader } from "./host/search-runtime-loader";
 import { SemanticSources, type ScoredKey } from "./semantic-sources";
 import { SemanticIndexFiles, removeRetiredIndexFiles } from "./index-files";
 import { registerVaultWatcher } from "./vault-watcher";
@@ -126,6 +127,7 @@ export class SemanticEngine {
   private service: VaultIndexService | null = null;
   private residency: EmbeddingResidency | null = null;
   private workerUrl: Promise<string> | null = null;
+  private runtimeLoader: SearchRuntimeLoader | null = null;
   private readonly guard: BuildGuard;
   /** The phone's own model work, which no build marker sees (`phoneModelGuard`). */
   private readonly phoneGuard: BuildGuard;
@@ -355,6 +357,7 @@ export class SemanticEngine {
     this.provider = new ResidentProvider(
       createEmbeddingProvider(
         this.modelId(),
+        () => this.searchRuntime().bytes(),
         (p) => this.logger.debug("semantic engine: model load", p),
         () => (this.workerUrl ??= embeddingWorkerUrl(this.plugin)),
         (backend, failures) => {
@@ -366,6 +369,20 @@ export class SemanticEngine {
       () => this.residency?.noteUse()
     );
     return this.provider;
+  }
+
+  /** The runtime's WebAssembly, from the plugin's release and checked against its pin. */
+  private searchRuntime(): SearchRuntimeLoader {
+    const plugin = this.plugin;
+    this.runtimeLoader ??= new SearchRuntimeLoader(
+      plugin.app,
+      normalizePath(
+        plugin.manifest.dir ?? `${plugin.app.vault.configDir}/plugins/${plugin.manifest.id}`
+      ),
+      plugin.manifest.version,
+      this.logger
+    );
+    return this.runtimeLoader;
   }
 
   private ensure(): VaultIndexService {

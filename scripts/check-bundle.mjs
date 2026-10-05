@@ -1,9 +1,11 @@
 /**
- * Two properties of the bundle that are easy to break with one import and
- * invisible until someone opens the vault on a phone.
+ * Three properties of the bundle that are easy to break with one import and
+ * invisible until someone opens the vault on a phone, or reads what it loads.
  *
  * The plugin must keep running on mobile, where Obsidian has no Node runtime.
  * That holds only while nothing pulls a Node built-in into the bundle.
+ *
+ * It must run only what the release attests: no code fetched from a CDN.
  *
  * And the bundle must stay small: Obsidian parses main.js on every start, so
  * its size is paid by every user every day. The budget is a ceiling, not a
@@ -11,6 +13,7 @@
  */
 import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { CODE_CDNS } from "./embedding-bundle.mjs";
 
 /**
  * The bundle was 277 KB when the budget was set at 400 KB.
@@ -224,6 +227,24 @@ if (unique.length > 0) {
   process.exit(1);
 }
 
+/**
+ * A CDN the bundle could load code from.
+ *
+ * Everything main.js runs is what the release attests, and the one thing it
+ * fetches to run — the search runtime's WebAssembly — is pinned by hash. A CDN
+ * address in the bundle is a path around both: the model runtime used to take
+ * its JavaScript from jsDelivr and nothing checked it. Named anywhere, even in
+ * a default nobody means to reach, it is refused.
+ */
+const cdns = CODE_CDNS.filter((host) => source.includes(host));
+if (cdns.length > 0) {
+  console.error(
+    `main.js names ${cdns.join(", ")}, where it could load code nothing has checked.\n` +
+      "Bundle the code, or pin and fetch it from the release; see scripts/embedding-bundle.mjs."
+  );
+  process.exit(1);
+}
+
 // Bytes, not UTF-16 code units: the German catalogue and the typographic
 // glyphs make the file larger on disk than its length suggests, so the budget
 // was being compared against an under-count.
@@ -236,4 +257,4 @@ if (kb > MAX_BUNDLE_KB) {
   process.exit(1);
 }
 
-console.log(`main.js is free of Node built-ins and within budget (${kb.toFixed(0)} KB).`);
+console.log(`main.js is free of Node built-ins and CDNs, and within budget (${kb.toFixed(0)} KB).`);

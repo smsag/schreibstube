@@ -1256,6 +1256,14 @@ export const enExtra = {
       hours: (h: number, m: number) => (m > 0 ? `${h} h ${m} min` : `${h} h`),
       decimal: (n: number) => n.toFixed(1)
     },
+    runtime: {
+      unreachable: (detail: string) =>
+        `the search runtime could not be fetched from this version's release (${detail}). ` +
+        "It is needed once per device; build again when online.",
+      mismatch: (detail: string) =>
+        `the search runtime that arrived is not what this version expects and was not used (${detail}).`,
+      slow: (seconds: number) => `no answer within ${seconds} s`
+    },
     state: {
       off: "Off.",
       blocked: (name: string) =>
@@ -1276,6 +1284,9 @@ export const enExtra = {
         "The model is not downloaded yet and this device is offline. Connect to the " +
         "internet and build again.",
       timedOut: "The model did not answer in time. Build now to try again.",
+      modelPin:
+        "The model's files did not match what this version of the plugin expects, or this " +
+        "version has none pinned, so the model was not loaded. An update of the plugin fixes it.",
       paused: "Paused after a build did not finish twice in a row. Build now to try again.",
       phonePaused:
         "Paused on this phone: Obsidian closed twice in a row while the model was working. " +

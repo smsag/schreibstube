@@ -91,6 +91,53 @@ in a folder a person can open — and refuses to load anything else. A template
 is compiled with no file system and no network: only the job's own files, and
 no Typst package may be imported.
 
+## The search runtime and the model files
+
+Search by meaning, when it is switched on, runs a language model on the device
+with onnxruntime-web. Three kinds of file are involved, and they are treated
+according to whether they are executed.
+
+- **The runtime's JavaScript** is bundled into `main.js`, and is therefore part
+  of what the release attests. The bundle takes onnxruntime-web's
+  WebAssembly-only build, which carries its own loader, and transformers.js's
+  default of fetching that loader from jsDelivr is cut out at build time. The
+  build fails if `main.js` names a CDN at all (`scripts/check-bundle.mjs`).
+- **The runtime's WebAssembly module**, 14 MB, is fetched once per device from
+  this repository's own release and kept beside the plugin, like the
+  typesetter. `src/services/semantic/search-runtime.json` holds its length and
+  SHA-256. A test holds that pin to the file the lockfile installs. The release
+  workflow takes the file from the same installed package and refuses it if it
+  does not match. The plugin checks the length and the hash after the download
+  and on every load, and refuses anything else. The download is bounded in
+  size and time. The model does not start without it. No code path fetches
+  the module, or any other code, from anywhere else.
+- **The model files** (configuration, tokenizer and the quantized ONNX
+  weights) come from Hugging Face on first use and are kept in the browser's
+  cache. They are data that the pinned runtime reads, not code that it runs,
+  but they decide what search finds, and one of the three repositories (the
+  Latin-script cut of the multilingual model) is under a personal account. So
+  they are pinned too. `src/services/semantic/model-pins.json` names, for each
+  model, one commit of its repository and the length and SHA-256 of every file
+  the plugin reads from it. The device asks only for those files at that
+  commit. It reads each file within its pinned length and checks the hash
+  before the library sees a byte of it. It refuses any other request, and a
+  model without a complete pin does not load. A size probe the library makes
+  at another revision is answered from the pin and never sent.
+  `scripts/check-model-pins.mjs` downloads every pinned file at its commit and
+  compares it, in CI on every change and before every release. A file read
+  back from the browser's cache is not hashed again. It was checked on its way
+  in, it is stored under an address that names the pinned commit, and only
+  code already running inside Obsidian could change it.
+
+The runtime runs in a module Worker when the platform allows one, and Node's
+globals are hidden from that Worker before any of its code runs (`process`,
+`require`, `module` and the rest; see `worker-prelude.ts`). The last-resort
+fallback is a hidden iframe. That iframe is same-origin and not sandboxed,
+because an opaque origin has no Cache Storage, and the model would download
+again at every start. Code in that iframe could reach the Obsidian window, so
+it is held to the same rule as the Worker: only the attested bundle and the
+pinned module run there.
+
 ## How a release is made, and how to check one
 
 A release is built and published by the Release workflow, from `main` only,
@@ -101,7 +148,8 @@ nothing from npm or the repository, only a hash check of the built files and
 the GitHub CLI. `CONTRIBUTING.md` has the details.
 
 Every file on a release — `main.js`, `manifest.json`, `styles.css`, the source
-map and the Typst runtime — carries a signed provenance attestation that names
+map, the Typst runtime and the search runtime — carries a signed provenance
+attestation that names
 the workflow and the commit it was built from. With the GitHub CLI:
 
 ```bash
@@ -124,14 +172,18 @@ sha256sum main.js styles.css manifest.json
 The three hashes match those of the files attached to the release
 (`shasum -a 256` on macOS). The Typst runtime files are not built but checked:
 `node scripts/fetch-typst-runtime.mjs` downloads them and compares them with
-the hashes committed in `src/services/typst-runtime.ts`.
+the hashes committed in `src/services/typst-runtime.ts`. The search runtime is
+not built either: `node scripts/stage-search-runtime.mjs` takes it from the
+installed onnxruntime-web and compares it with
+`src/services/semantic/search-runtime.json`.
 
 ## What CI checks
 
 Every change runs the bridge's runtime tree through `npm audit` at the high
 level, builds the bridge's Docker image and probes its health route, type-checks
 under strict flags, lints for unhandled promises, and proves the plugin bundle
-reaches for no Node built-in. Dependabot opens update pull requests weekly for
+reaches for no Node built-in and names no CDN. It also downloads every pinned
+model file at its commit and compares it with its pin. Dependabot opens update pull requests weekly for
 both trees, the workflows and the image base. A package or action version is
 offered only once it has been public for a week, long enough for most
 hijacked releases to be found and pulled; the root's runtime dependency, which
@@ -160,3 +212,8 @@ a pull request.
 - The plugin bundles one runtime dependency, the model runtime that search by
   meaning starts; CI audits it with the bridge's tree. Everything else in the
   root tree is build tooling and affects the build machine only.
+- The onnxruntime-web that transformers.js 4.3 requires is a nightly build
+  (`1.31.0-dev`). It is pinned by the lockfile and the hash above, like any
+  other version, but it has had less use than a release.
+- The fallback iframe is same-origin, for the reason given above. Its
+  containment is that it runs nothing unpinned, not a browser boundary.
