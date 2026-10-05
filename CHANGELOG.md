@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+The bridge moves to 3.0.0, protocol 8: it closes its perimeter and stops
+being a relay for whoever holds the mail token, and reply fetches step past
+what a note already holds. It is a major version because it may refuse to
+start, or refuse sends, where 2.13.2 did not: a placeholder or monotonous
+token, one token for both capabilities, and a From outside `MAIL_FROM` and
+the new `MAIL_FROM_ALLOWED` — see Changed for the migration. The plugin works
+with either bridge.
+
 ### Security
 
 - **The bridge refuses a token it could not have generated.** `.env.example` carried a placeholder of 38 characters for `MAIL_TOKEN` and `PUBLISH_TOKEN`, which passed the length check, so a deployment copied from it was guarded by a token printed in this repository. The example values are now empty, and the bridge refuses to start with a token that still holds `replace-me`, one made of fewer than 10 different characters, or one token for both capabilities — the bridge took that token for the mail one, so the publish setting opened the mailbox and publishing was refused. A deployment that fails to start on this needs a fresh token from `openssl rand -base64 32` (bridge 3.0.0).
