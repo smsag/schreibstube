@@ -69,13 +69,23 @@ according to whether they are executed.
   and on every load, and refuses anything else. The download is bounded in
   size and time. The model does not start without it. No code path fetches
   the module, or any other code, from anywhere else.
-- **The model files** (tokenizer, configuration and the quantized ONNX
+- **The model files** (configuration, tokenizer and the quantized ONNX
   weights) come from Hugging Face on first use and are kept in the browser's
-  cache. They are data that the pinned runtime reads, not code that it runs.
-  They are **not pinned yet**: they are fetched from each repository's `main`,
-  and one of the three repositories (the Latin-script cut of the multilingual
-  model) is under a personal account. Pinning each to a commit and a SHA-256
-  is the next step. See Known limits.
+  cache. They are data that the pinned runtime reads, not code that it runs,
+  but they decide what search finds, and one of the three repositories (the
+  Latin-script cut of the multilingual model) is under a personal account. So
+  they are pinned too. `src/services/semantic/model-pins.json` names, for each
+  model, one commit of its repository and the length and SHA-256 of every file
+  the plugin reads from it. The device asks only for those files at that
+  commit. It reads each file within its pinned length and checks the hash
+  before the library sees a byte of it. It refuses any other request, and a
+  model without a complete pin does not load. A size probe the library makes
+  at another revision is answered from the pin and never sent.
+  `scripts/check-model-pins.mjs` downloads every pinned file at its commit and
+  compares it, in CI on every change and before every release. A file read
+  back from the browser's cache is not hashed again. It was checked on its way
+  in, it is stored under an address that names the pinned commit, and only
+  code already running inside Obsidian could change it.
 
 The runtime runs in a module Worker when the platform allows one, and Node's
 globals are hidden from that Worker before any of its code runs (`process`,
@@ -130,7 +140,8 @@ installed onnxruntime-web and compares it with
 Every change runs the bridge's runtime tree through `npm audit` at the high
 level, builds the bridge's Docker image and probes its health route, type-checks
 under strict flags, lints for unhandled promises, and proves the plugin bundle
-reaches for no Node built-in and names no CDN. Dependabot opens update pull requests weekly for
+reaches for no Node built-in and names no CDN. It also downloads every pinned
+model file at its commit and compares it with its pin. Dependabot opens update pull requests weekly for
 both trees, the workflows and the image base. A package or action version is
 offered only once it has been public for a week, long enough for most
 hijacked releases to be found and pulled; the root's runtime dependency, which
@@ -148,10 +159,9 @@ a pull request.
 - The plugin bundles one runtime dependency, the model runtime that search by
   meaning starts; CI audits it with the bridge's tree. Everything else in the
   root tree is build tooling and affects the build machine only.
-- The search model's files are fetched from Hugging Face at each repository's
-  `main`, not at a pinned commit, and nothing checks their hashes. They are
-  read by the pinned runtime, not executed. A changed file can still change
-  what search by meaning finds, or stop it from loading.
+- Until `src/services/semantic/model-pins.json` holds the values CI prints,
+  every pin is empty, and search by meaning refuses to load any model. That is
+  the intended failure: no model is better than an unchecked one.
 - The onnxruntime-web that transformers.js 4.3 requires is a nightly build
   (`1.31.0-dev`). It is pinned by the lockfile and the hash above, like any
   other version, but it has had less use than a release.

@@ -151,7 +151,18 @@ The frame refuses to start without it. A runtime that cannot be had ends the
 chain of backends the way running out of memory does, since every backend
 would fetch the same file. `scripts/embedding-smoke.mjs` starts the production
 bundle as a Worker in Node, against a model written in the script, to show the
-pieces fit with nothing fetched but the model's files. Schreibstube's model does not join another plugin's on a phone
+pieces fit with nothing fetched but the model's files.
+
+The model's files are pinned the same way, in `services/semantic/model-pins.json`:
+a commit and each file's length and SHA-256, sent to the Worker or the frame
+with the runtime. There `pinnedFetch` sits in front of transformers.js's fetch.
+It lets through only the pinned files at the pinned commit. It hands a file on
+only after checking it, and answers the library's size probes from the pin.
+The frame builds the tokenizer and the model itself instead of calling
+`pipeline()`. In transformers.js 4.3, `pipeline()` reads `config.json` and
+probes the tokenizer at `main` before it uses the revision it was given. A pin
+failure ends the chain of backends, like a runtime that cannot be had.
+`scripts/check-model-pins.mjs`, run in CI, is where the values come from. Schreibstube's model does not join another plugin's on a phone
 (`services/semantic/model-plugins.ts`): Similarity's model alone left Obsidian at
 1.4 GB after its start. And every piece of model work a phone starts on its own
 is inside a crash breaker (`phoneModelGuard`), whose marker is written before

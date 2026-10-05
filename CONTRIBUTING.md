@@ -131,6 +131,15 @@ transformers.js no longer holds its CDN default in the shape the build cuts
 out. `node scripts/embedding-smoke.mjs` then shows the new pair still starts
 and embeds with nothing fetched but the model's files.
 
+The search models are pinned in `src/services/semantic/model-pins.json`. The
+CI job `model-pins` runs `node scripts/check-model-pins.mjs`, which downloads
+every pinned file at its commit and compares it. When a pin is empty, or
+Hugging Face serves something else, the job fails and prints the whole file as
+it should be. Read the commits it names before committing that block. To move
+a model to a newer commit, empty its `revision` and let the job propose one.
+A new model, or a change to which files the pipeline reads, also changes
+`MODEL_FILES` in `model-pins.ts`. The smoke run lists every file requested.
+
 ## Before a release: the mobile checklist
 
 The plugin's mobile support is architectural — no Node built-ins in the bundle,
