@@ -8,6 +8,26 @@ All notable changes to this project will be documented in this file.
 
 - **An update from a source that brings in code another plugin runs is no longer taken with "Accept all".** A mirrored note shows what its source writes, and a source can write a `dataviewjs` block, Dataview's inline `$=` JavaScript, a Templater `<% %>` command, a JS Engine, Datacore, Meta Bind or Buttons block — which those plugins run with Obsidian's full rights once the note renders or is used. A card that adds or changes one now carries a **runs code** badge, names what it found, and is left out of **Accept all**: you read it and accept it on its own, or not at all. Code that is only shown, like a `js` or `html` fence, is not flagged.
 - **A source that sends binary data is refused.** A server that names no content type, or says `application/octet-stream`, was believed whenever the link ended in `.md`; a body with a NUL byte in it is now reported as not text instead of being offered as cards.
+- **A bridge address the device has not used is confirmed before a token goes there.** The mail and publish bridge URLs sync with the vault, the tokens do not, so anyone who could edit a shared vault could point a URL at their own server and receive your token. Each device now remembers, outside the vault, where it sent each token, and asks — once on the first send, and whenever the settings name another address. Publishing, the connection test and mail all ask; declining sends nothing.
+- **A published note's frontmatter and `%%` comments stay in the vault.** The bridge keeps a copy of every note it renders on the web host, and that copy carried both, although no page ever showed them. The note is now uploaded as the site reads it; the page is the same, and each note is uploaded once more after the update.
+- **A publish that would overwrite someone else's file says so first.** With bridge 3.0, the plan lists files on the web host that Schreibstube never wrote and the publish would replace — a host's placeholder `index.html`, another tool's page — and nothing is uploaded until they are removed or the bridge is told to take them over.
+
+### Bridge 3.0.0
+
+The bridge moves to 3.0.0, protocol 8. A plugin on protocol 8 works with a bridge on 7, which names no conflicts in its plan; a bridge on 8 works with any plugin since 1.8.0.
+
+**Breaking for operators:** a publish target whose state directory lies inside its web root — the default, `<ROOT>/.schreibstube` — no longer starts. Set `PUBLISH_<TARGET>_STATE_ROOT` to a directory outside the root and move the existing `.schreibstube` directory there, or set `PUBLISH_<TARGET>_STATE_IN_ROOT=true` on a host where nothing else is writable.
+
+- **The notes behind a site are no longer kept where the site is served from**, unless the operator says the host allows nothing else; only a server that reads `.htaccess` kept them from being downloaded.
+- **Only files the bridge wrote are written.** An upload or a commit that would overwrite a file the manifest does not know is refused with `409 path_conflict`, naming it, and the plan lists such files as `conflicts`; `PUBLISH_<TARGET>_ADOPT_EXISTING=true` lets a target take them over.
+- **Uploaded SVGs are held to an allow-list.** The check was a few patterns over the text, and a script under a namespace prefix, or a link turned into `javascript:` through a character reference, passed it. The drawing is now read as XML and only the elements and attributes of a picture are taken; Excalidraw, draw.io and Mermaid exports pass as before. The site's tab icon is held to the same rule.
+- **Every picture and video is checked by its first bytes**: GIF, WebP, AVIF, MP4, M4V, QuickTime, WebM and Ogg beside PNG and JPEG.
+- **No linked directory is followed.** Every directory between the root and a file is looked at before a write, a deletion or pruning, and a link is refused, in the web root and in the state directory.
+- **Uploads have a budget, and those no commit used are removed.** A target takes `PUBLISH_MAX_PUBLISH_BYTES` (500 MB) and `PUBLISH_MAX_UPLOADS` (4000) between commits; each asset is recorded before it is written, and the next commit removes the ones its index does not use. Uploads and commits no longer overlap, a commit holds at most 200 MB of note text, and a stored note whose bytes no longer match its name is removed rather than published.
+- **A commit that ran out of time stops writing.** Its connection is closed at once and every operation it would still start is refused, so it cannot write a page after the next publish has begun.
+- **A target may have a token of its own.** `PUBLISH_<TARGET>_TOKEN`, under the rules of every token, alone opens that target; `PUBLISH_TOKEN` keeps opening the others.
+- **Site headers on Apache.** Where the bridge writes `.htaccess` files (`PUBLISH_<TARGET>_HTACCESS`, on where the state is in the root), the site gets a content security policy, `nosniff` and a referrer policy, and SVGs under `assets/` are served in a sandbox; `PUBLISHING.md` has the same for nginx and Caddy.
+- **Connection tests no longer name the web root's path**, run on the shared connection, and answer from the last attempt for 30 seconds, so testing in a loop cannot get the bridge's address banned for failed logins.
 
 ## 1.75.0 - 2026-10-03
 

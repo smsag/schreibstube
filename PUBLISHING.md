@@ -150,9 +150,14 @@ PUBLISH_BLOG_KEY_PASSPHRASE=…          # optional
 PUBLISH_BLOG_PASSWORD=…                # alternative to KEY, never both
 PUBLISH_BLOG_HOST_FINGERPRINT=SHA256:… # required
 PUBLISH_BLOG_ROOT=/var/www/blog
-PUBLISH_BLOG_STATE_ROOT=/var/schreibstube/blog   # default: <ROOT>/.schreibstube
+PUBLISH_BLOG_STATE_ROOT=/var/schreibstube/blog   # outside ROOT, or:
+PUBLISH_BLOG_STATE_IN_ROOT=true                  # optional: keep it at <ROOT>/.schreibstube
 PUBLISH_BLOG_BASE_URL=https://blog.example.com
 PUBLISH_BLOG_SITE_TITLE=Schreibstube
+PUBLISH_BLOG_TOKEN=…                   # optional: a token that alone opens this target
+PUBLISH_BLOG_ADOPT_EXISTING=false      # optional: take over files the bridge never wrote
+PUBLISH_BLOG_HTACCESS=false            # optional: write the site's headers as .htaccess
+PUBLISH_BLOG_CSP=…                     # optional: replaces the default policy
 ```
 
 Startup rejects a target whose root or state root is not absolute, whose base
@@ -163,11 +168,18 @@ key after every restart, which is not verification at all.
 
 `STATE_ROOT` is a path on the SFTP host, not on the bridge. The bridge keeps no
 disk state of its own, so it stays as disposable as it is today and Sliplane
-needs no volume. The state root should sit outside the served tree; the default
-keeps it under the web root for hosts that allow nothing else. There the bridge
-writes a deny `.htaccess` into it before the first source lands, leaves one it
-finds alone, and warns at every start, since only Apache reads the file: any
-other server needs its own deny rule for `/.schreibstube/`.
+needs no volume. The state root sits outside the served tree: the bridge refuses
+to start with it inside the web root, the old default, unless
+`STATE_IN_ROOT=true` says the host allows nothing else. There the bridge writes
+a deny `.htaccess` into it before the first source lands, leaves one it finds
+alone, and warns at every start, since only Apache reads the file: any other
+server needs its own deny rule for `/.schreibstube/`. The plugin uploads a note
+without its frontmatter and its `%%` comments, which no page shows, so less
+of the vault sits there in the first place.
+
+An operator on the old default migrates in one line: set `STATE_ROOT` to a
+directory outside the web root and move `<ROOT>/.schreibstube` there, or set
+`STATE_IN_ROOT=true`.
 
 The one deployment constraint is that the service runs as a **single
 instance**. The per-target publish lock is in memory, and two instances behind a
@@ -176,14 +188,14 @@ enabling more than one replica.
 
 ## Protocol
 
-| Method | Path                                   | Body              | Returns                                                                 |
-| ------ | -------------------------------------- | ----------------- | ----------------------------------------------------------------------- |
-| `GET`  | `/publish/targets`                     | —                 | `{targets:[{name, baseUrl, siteTitle}]}`                                |
-| `POST` | `/publish/plan`                        | `{target, index}` | `{uploadSources[], uploadAssets[], willWrite, willDelete[], unchanged}` |
-| `PUT`  | `/publish/source?target=&sha256=`      | raw Markdown      | `{sha256, bytes}`                                                       |
-| `PUT`  | `/publish/asset?target=&sha256=&name=` | raw bytes         | `{sha256, bytes, path}`                                                 |
-| `POST` | `/publish/commit`                      | `{target, index}` | `{written, deleted, pruned, unchanged, baseUrl}`                        |
-| `POST` | `/publish/render`                      | `{target}`        | `{written, unchanged}`                                                  |
+| Method | Path                                   | Body              | Returns                                                           |
+| ------ | -------------------------------------- | ----------------- | ----------------------------------------------------------------- |
+| `GET`  | `/publish/targets`                     | —                 | `{targets:[{name, baseUrl, siteTitle}]}`                          |
+| `POST` | `/publish/plan`                        | `{target, index}` | `{uploadSources[], uploadAssets[], willDelete[], conflicts[], …}` |
+| `PUT`  | `/publish/source?target=&sha256=`      | raw Markdown      | `{sha256, bytes}`                                                 |
+| `PUT`  | `/publish/asset?target=&sha256=&name=` | raw bytes         | `{sha256, bytes, path}`                                           |
+| `POST` | `/publish/commit`                      | `{target, index}` | `{written, deleted, pruned, unchanged, baseUrl}`                  |
+| `POST` | `/publish/render`                      | `{target}`        | `{written, unchanged}`                                            |
 
 `/publish/render` rebuilds the site from stored sources and the stored index.
 It is what makes a template change a redeploy rather than a re-upload, and it
@@ -265,9 +277,16 @@ different order of problem from a badly formatted email.
 A path is rejected unless it is relative, free of `..` and empty segments, free
 of backslashes and control characters, at most 1024 bytes with no segment over
 255, and carries an allowed extension. The resolved path must remain under the
-target root or state root. Before overwriting, the bridge stats the destination
-and refuses to write through an existing symlink. Pruning stops at the root and
+target root or state root. Before writing, the bridge looks at every directory
+between the root and the file and at the file itself, and refuses a link at any
+of them, for writes, deletions and pruning alike. Pruning stops at the root and
 removes only empty directories.
+
+The manifest is also what makes writing safe: a file on the host the manifest
+does not name, and that no upload since the last commit wrote, belongs to
+someone else. The plan lists every such file the publish would overwrite as a
+conflict, and the bridge refuses to write it unless the target says
+`ADOPT_EXISTING=true`.
 
 Uploaded asset names are never used as paths. They are slugified and prefixed
 with the content hash, so a hostile filename cannot escape anything.
@@ -284,7 +303,56 @@ test file. They are the part of this feature most worth over-testing.
 | Video                           | 25 MB  |
 | Files per publish               | 2000   |
 | Bytes per publish               | 500 MB |
+| Uploads per publish             | 4000   |
+| Note text held by a commit      | 200 MB |
 | Concurrent publishes per target | 1      |
+
+Bytes and uploads per publish are counted per target between two commits
+(`PUBLISH_MAX_PUBLISH_BYTES`, `PUBLISH_MAX_UPLOADS`). Every uploaded asset is
+recorded in the state directory before it is written, and the next commit
+removes the ones its index does not use, so a publish abandoned halfway leaves
+nothing behind for long.
+
+## Headers
+
+A published site is served with headers the generator decides: a content
+security policy that allows its own scripts and the one inline script that
+loads Mermaid (by its hash), inline styles, pictures and video from anywhere a
+note may point, and frames for a video a note embeds; `nosniff`; a referrer
+policy; and a sandbox for every SVG under `assets/`, so a drawing opened on its
+own runs nothing. On an Apache host the bridge writes them as `.htaccess` files
+(`HTACCESS=true`, the default where the state is in the web root). Every other
+server takes them from its own configuration. The policy line is the one the
+bridge writes into `.htaccess`; copy it from there, or from
+`bridge/publish/site-headers.mjs`, since its hash changes when the loader does.
+
+nginx:
+
+```nginx
+add_header Content-Security-Policy "<the policy>" always;
+add_header X-Content-Type-Options "nosniff" always;
+add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+
+location ~* ^/assets/.*\.svg$ {
+  add_header Content-Security-Policy "sandbox" always;
+  add_header X-Content-Type-Options "nosniff" always;
+}
+location ^~ /.schreibstube/ { deny all; }
+```
+
+Caddy:
+
+```caddy
+header {
+  Content-Security-Policy "<the policy>"
+  X-Content-Type-Options "nosniff"
+  Referrer-Policy "strict-origin-when-cross-origin"
+}
+@svg path /assets/*.svg
+header @svg Content-Security-Policy "sandbox"
+@state path /.schreibstube/*
+respond @state 403
+```
 
 ## Rendering
 
