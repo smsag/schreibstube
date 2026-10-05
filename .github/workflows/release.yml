@@ -8,28 +8,49 @@ on:
         required: true
         type: string
 
-# contents to create the release; id-token and attestations to sign a
-# provenance statement for its assets, which is how a vault owner can check
-# that the main.js they installed was built by this workflow from this commit.
-permissions:
-  contents: write
-  id-token: write
-  attestations: write
+# Nothing by default. Each job names what it needs, so the one job that can
+# write to the repository and sign for it is also the one that runs no
+# dependency's code: an install script or a build plugin that turned hostile
+# would find a read-only token and nothing to sign with.
+permissions: {}
+
+# Two dispatches of the same release would race to create one tag.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+env:
+  # Read into the environment once, and used as "$VERSION" from there.
+  # Expanded into a shell line, the input is the workflow's own text before
+  # any of the checks below run, and a dispatch is a person's typing.
+  VERSION: ${{ github.event.inputs.version }}
+  # No CUDA build from nuget.org: see ci.yml. Nothing a release ships runs
+  # on the runner's GPU, and 1.68.0's release failed on that download.
+  ONNXRUNTIME_NODE_INSTALL: skip
 
 jobs:
-  release:
+  # The same gate a pull request passes, run again on the commit being
+  # released. It installs with scripts, because the bridge's tests need ssh2's
+  # native build; nothing it produces leaves the job, so what those scripts do
+  # cannot reach a release.
+  verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-    # Read into the environment once, and used as "$VERSION" from there.
-    # Expanded into a shell line, the input is the workflow's own text before
-    # any of the checks below run, and a dispatch is a person's typing.
-    env:
-      VERSION: ${{ github.event.inputs.version }}
-      # No CUDA build from nuget.org: see ci.yml. Nothing a release ships runs
-      # on the runner's GPU, and 1.68.0's release failed on that download.
-      ONNXRUNTIME_NODE_INSTALL: skip
+    timeout-minutes: 20
+    permissions:
+      contents: read
     steps:
+      # A release is what main says. Dispatched from a branch, the workflow
+      # would tag and publish whatever that branch holds, reviewed or not.
+      - name: Check the release is dispatched from main
+        run: |
+          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "Releases are made from main, not $GITHUB_REF."
+            exit 1
+          fi
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
@@ -40,10 +61,10 @@ jobs:
       # reads the manifest, so that release would install as the wrong thing.
       - name: Check the version matches the manifest
         run: |
-          case "$VERSION" in
-            [0-9]*.[0-9]*.[0-9]*) ;;
-            *) echo "Version \"$VERSION\" is not a release number."; exit 1 ;;
-          esac
+          if ! printf '%s\n' "$VERSION" | grep -Eqx '[0-9]+\.[0-9]+\.[0-9]+'; then
+            echo "Version \"$VERSION\" is not a release number."
+            exit 1
+          fi
           manifest=$(node -p "require('./manifest.json').version")
           package=$(node -p "require('./package.json').version")
           if [ "$VERSION" != "$manifest" ] || [ "$manifest" != "$package" ]; then
@@ -52,6 +73,36 @@ jobs:
           fi
 
       - run: npm ci
+      - run: npm ci --prefix bridge
+      - run: npm audit --omit=dev --audit-level=high
+      - run: npm audit --prefix bridge --omit=dev --audit-level=high
+      - run: npm run lint
+      - run: npm run format:check
+      - run: npm run test:coverage
+
+  # What ships is built here, from a tree installed without scripts: esbuild
+  # finds its binary through its platform package, and nothing else the
+  # bundle needs runs code at install. The bundle comes out byte for byte the
+  # same as from an install with scripts, so anyone can repeat it from the
+  # tagged commit and compare hashes; SECURITY.md says how.
+  build:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    outputs:
+      sums: ${{ steps.stage.outputs.sums }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+
+      - run: npm ci --ignore-scripts
 
       - run: npm run build
 
@@ -72,24 +123,110 @@ jobs:
             exit 1
           fi
 
+      # The hash of the list travels as a job output, not inside the artifact,
+      # so the publish job can tell the files it downloads are the ones built
+      # here and not ones swapped in the artifact store between the two jobs.
+      - name: Stage the release files and hash them
+        id: stage
+        run: |
+          mkdir release
+          cp main.js main.js.map manifest.json styles.css release_notes.md dist/typst-runtime-* release/
+          cd release
+          sha256sum -- * > ../SHA256SUMS
+          mv ../SHA256SUMS .
+          cat SHA256SUMS
+          echo "sums=$(sha256sum SHA256SUMS | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release
+          path: release/
+          if-no-files-found: error
+          retention-days: 1
+
+  # Holds the write grant, and runs nothing from the repository or from npm:
+  # no checkout, no Node, only the downloaded files, a hash check and the
+  # GitHub CLI. The environment is where a person approves the release.
+  publish:
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: release
+    # contents to create the release; id-token and attestations to sign a
+    # provenance statement for its assets, which is how a vault owner can
+    # check that the main.js they installed was built by this workflow from
+    # this commit.
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: release
+          path: release
+
+      - name: Check the files are the ones the build job hashed
+        working-directory: release
+        env:
+          EXPECTED: ${{ needs.build.outputs.sums }}
+        run: |
+          echo "$EXPECTED  SHA256SUMS" | sha256sum --check --strict
+          sha256sum --check --strict SHA256SUMS
+          listed=$(awk '{print $2}' SHA256SUMS | sort)
+          present=$(ls -A | grep -vx SHA256SUMS | sort)
+          if [ "$listed" != "$present" ]; then
+            echo "The artifact holds files the build did not list:"
+            diff <(echo "$listed") <(echo "$present") || true
+            exit 1
+          fi
+
+      # `gh release create` puts a release on an existing tag as it finds it
+      # and ignores --target, so a tag left at another commit would publish
+      # this build under that commit's name. Checked here, the last moment
+      # before the release exists.
+      - name: Check the tag is free or already on this commit
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if ref=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$VERSION" \
+              --jq '.object.type + " " + .object.sha' 2> error.txt); then
+            set -- $ref
+            sha=$2
+            if [ "$1" = tag ]; then
+              sha=$(gh api "repos/$GITHUB_REPOSITORY/git/tags/$2" --jq .object.sha)
+            fi
+            if [ "$sha" != "$GITHUB_SHA" ]; then
+              echo "Tag $VERSION points at $sha, not at $GITHUB_SHA being released."
+              exit 1
+            fi
+          elif ! grep -q "HTTP 404" error.txt; then
+            cat error.txt
+            exit 1
+          fi
+          rm -f error.txt
+
       - name: Attest build provenance
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: |
-            main.js
-            main.js.map
-            manifest.json
-            styles.css
-            dist/typst-runtime-*
+            release/main.js
+            release/main.js.map
+            release/manifest.json
+            release/styles.css
+            release/typst-runtime-*
 
       # main.js.map is attached for symbolicating a reported stack trace. It is
       # not one of the three files Obsidian installs, so no vault ever loads it.
       - name: Create release
+        working-directory: release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release create "$VERSION" \
+            --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
             --title "$VERSION" \
             --notes-file release_notes.md \
-            main.js manifest.json styles.css main.js.map dist/typst-runtime-*
+            main.js manifest.json styles.css main.js.map typst-runtime-*

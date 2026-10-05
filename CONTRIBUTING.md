@@ -167,7 +167,39 @@ it leaves that diff lying in wait for whoever installs next. It refuses a versio
 that is not newer than the current one, refuses a dirty working tree, and stops
 rather than half-bump a lockfile whose shape it no longer recognises.
 
-Then commit, tag, and run the Release workflow with the same version.
+Then commit, merge to `main`, and run the Release workflow from `main` with the
+same version. It creates the tag on the commit it built; a tag pushed by hand
+beforehand has to point at that same commit, or the workflow stops rather than
+publish one commit's build under another commit's name. It also stops when it
+is dispatched from any branch but `main`.
+
+The workflow runs in three jobs, and only the last can write:
+
+- **verify** runs the gate — both audits, lint, format, the suite against the
+  coverage floor — on the commit being released. It installs with scripts,
+  because the bridge's tests need ssh2's native build, and nothing it makes
+  leaves the job.
+- **build** installs with `npm ci --ignore-scripts`, builds, fetches and
+  checks the Typst runtime, and hands the files on as an artifact together
+  with their SHA-256 list. Its token can only read.
+- **publish** downloads that artifact, checks every file against the list and
+  the list against the hash the build job reported, attests the files and
+  creates the release. It holds `contents: write` and the signing grant, and
+  runs no npm and nothing from the repository: there is no checkout.
+
+Three settings make this hold, and none can be written into a workflow file;
+they are set once in the repository's settings:
+
+1. **An environment named `release`** (Settings → Environments) with
+   required reviewers and its deployment branches limited to `main`. The
+   publish job waits there until someone approves, so dispatching the
+   workflow is not by itself enough to publish.
+2. **Immutable releases** (Settings → General → Releases). A published
+   release's assets and tag can then not be changed or moved, so the files a
+   vault installed stay the files that were attested.
+3. **A tag ruleset** protecting the version tags from being moved or deleted,
+   for the same reason, and for the tags pushed before releases were
+   immutable.
 
 ## The bridge
 
