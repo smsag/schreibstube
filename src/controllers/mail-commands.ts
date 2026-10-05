@@ -7,8 +7,10 @@ import { fetchAttachments, searchMail, sendMail } from "../platform/mail-client"
 import { bridgeHealth } from "../platform/publish-client";
 import { normalizeBaseUrl } from "../services/bridge-protocol";
 import {
+  excludeFromMerged,
   hasCriteria,
   MAIL_ATTACHMENTS_PROTOCOL,
+  MAIL_EXCLUDE_PROTOCOL,
   MAIL_IMPORT_PROTOCOL,
   MAX_MAIL_ATTACHMENT_BYTES,
   toBase64,
@@ -35,6 +37,7 @@ import {
   FM_MESSAGE_ID,
   FM_SEND_UNCONFIRMED,
   FM_SENT_AT,
+  mergedIdsAfter,
   readMailFields,
   validateSendable,
   type MailFields
@@ -397,8 +400,9 @@ export class MailCommands {
       const progress = new Notice(t().common.notice(t().mailNotices.searching), 0);
 
       let messages: MailMessage[];
+      let truncated: boolean;
       try {
-        messages = await this.runSearch(bridge, criteria);
+        ({ messages, truncated } = await this.runSearch(bridge, criteria));
       } catch (err) {
         this.fail("search", t().mailNotices.failSearch, err);
         return;
@@ -409,6 +413,9 @@ export class MailCommands {
       if (messages.length === 0) {
         new Notice(t().common.notice(t().mailNotices.noMessages));
         return;
+      }
+      if (truncated) {
+        new Notice(t().common.notice(t().mailNotices.searchTruncated(messages.length)));
       }
 
       new MailResultModal(this.app, messages, (message) => {
@@ -453,14 +460,22 @@ export class MailCommands {
       const progress = new Notice(t().common.notice(t().mailNotices.searching), 0);
 
       let messages: MailMessage[];
+      let truncated: boolean;
       try {
-        messages = await this.runSearch(bridge, { references: messageId });
+        ({ messages, truncated } = await this.runSearch(
+          bridge,
+          { references: messageId },
+          excludeFromMerged(fields.mergedIds)
+        ));
       } catch (err) {
         this.fail("fetch replies", t().mailNotices.failSearch, err);
         return;
       } finally {
         progress.hide();
       }
+      // Said whatever the merge brings: older replies are out of reach of this
+      // fetch, and only the person can decide to fetch again.
+      if (truncated) await this.sayRepliesTruncated(bridge);
 
       const fresh = selectUnmerged(messages, fields.mergedIds);
       if (fresh.length === 0) {
@@ -484,10 +499,10 @@ export class MailCommands {
       // mark messages as merged when they never reached the note.
       try {
         await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
-          const existing = Array.isArray(frontmatter[FM_MERGED_IDS])
-            ? (frontmatter[FM_MERGED_IDS] as unknown[]).map(String)
-            : [];
-          frontmatter[FM_MERGED_IDS] = [...existing, ...fresh.map(mergeKey)];
+          frontmatter[FM_MERGED_IDS] = mergedIdsAfter(
+            frontmatter[FM_MERGED_IDS],
+            fresh.map(mergeKey)
+          );
         });
       } catch (err) {
         this.logger.error("Replies merged but merged_ids could not be updated:", err);
@@ -505,20 +520,38 @@ export class MailCommands {
    *  word both outcomes differently. */
   private async runSearch(
     bridge: MailBridgeConfig,
-    criteria: SearchCriteria
-  ): Promise<MailMessage[]> {
+    criteria: SearchCriteria,
+    exclude: string[] = []
+  ): Promise<{ messages: MailMessage[]; truncated: boolean }> {
     const settings = this.getSettings();
     const result = await searchMail(bridge, {
       criteria,
       mailbox: settings.mailMailbox,
-      limit: settings.mailMaxResults
+      limit: settings.mailMaxResults,
+      ...(exclude.length > 0 ? { exclude } : {})
     });
 
     if (result.truncated) {
       this.logger.info("Search hit the result limit; older matches were dropped.");
     }
 
-    return result.messages;
+    return { messages: result.messages, truncated: result.truncated };
+  }
+
+  /**
+   * Say that a reply fetch left older matches behind. A bridge from protocol
+   * 8 on steps past what the note holds, so fetching again reaches them; an
+   * older one answers the same newest matches every time, and only an update
+   * helps. Said in a notice that stays, since a log line is where it went
+   * unread while a flood of mail kept the genuine replies out.
+   */
+  private async sayRepliesTruncated(bridge: MailBridgeConfig): Promise<void> {
+    const speaks = await this.bridgeSpeaks(bridge, MAIL_EXCLUDE_PROTOCOL);
+    const notices = t().mailNotices;
+    new Notice(
+      t().common.notice(speaks === "no" ? notices.repliesTruncatedOld : notices.repliesTruncated),
+      0
+    );
   }
 
   private insertMessage(message: MailMessage): void {

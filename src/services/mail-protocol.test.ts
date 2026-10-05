@@ -6,7 +6,9 @@ import {
   MAX_IMPORT_ATTACHMENT_BYTES,
   MAX_IMPORT_ATTACHMENTS,
   MAX_IMPORT_TOTAL_BYTES,
+  MAX_SEARCH_EXCLUDE,
   describeBridgeError,
+  excludeFromMerged,
   fromBase64,
   hasCriteria,
   parseAttachmentsResult,
@@ -23,6 +25,21 @@ describe("hasCriteria", () => {
 
   it("is true as soon as one field carries a value", () => {
     expect(hasCriteria({ subject: "Angebot" })).toBe(true);
+  });
+});
+
+describe("excludeFromMerged", () => {
+  it("sends the keys a merge records, and nothing else a person wrote into the list", () => {
+    expect(
+      excludeFromMerged(["<a@x.de>", "uid:42", "uid:x", "<", "frei", "<a b@x.de>", "<b@x.de>"])
+    ).toEqual(["<a@x.de>", "uid:42", "<b@x.de>"]);
+  });
+
+  it("sends at most what the bridge takes, the newest", () => {
+    const held = Array.from({ length: MAX_SEARCH_EXCLUDE + 3 }, (_, i) => `<${i}@x.de>`);
+    const sent = excludeFromMerged(held);
+    expect(sent).toHaveLength(MAX_SEARCH_EXCLUDE);
+    expect(sent[0]).toBe("<3@x.de>");
   });
 });
 

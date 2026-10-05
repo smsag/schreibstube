@@ -16,7 +16,7 @@ import { DEFAULT_MAX_RECIPIENTS, DEFAULT_SEND_PER_HOUR, parseFromAllowed } from 
 
 /** Bumped when the request or response shape changes in a way the plugin can
  *  see; the table in README.md says what each number brought. */
-export const PROTOCOL_VERSION = 7;
+export const PROTOCOL_VERSION = 8;
 
 /** What a TCP port can be. */
 const MAX_PORT = 65_535;

@@ -29,6 +29,7 @@ route that does not exist yet.
 
 | Bridge | Protocol | Plugin          | Notes                                                            |
 | ------ | -------- | --------------- | ---------------------------------------------------------------- |
+| 3.0.x  | 8        | 1.8.0 and later | `/search` `exclude`; allowed senders; quiet `/health`; see below |
 | 2.13.x | 7        | 1.8.0 and later | `:folder:` in a note is drawn as the plugin's icon               |
 | 2.12.x | 7        | 1.8.0 and later | `/attachments` hands over a received mail's files                |
 | 2.11.x | 6        | 1.8.0 and later | A commit reports `deleteFailed`; assets and SVGs checked         |
@@ -61,21 +62,21 @@ memory, and a second instance would not see it.
 All endpoints except `/health` require `Authorization: Bearer <token>`, and the
 token must belong to the capability that owns the route.
 
-| Method | Path                   | Capability | Body                                                                           | Returns                                                                               |
-| ------ | ---------------------- | ---------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------- |
-| `GET`  | `/health`              | —          | —                                                                              | `{status, protocol}`; with any valid token also `version, capabilities[]`             |
-| `POST` | `/diagnostics`         | mail       | —                                                                              | per-protocol reachability                                                             |
-| `POST` | `/send`                | mail       | `{to, cc?, bcc?, subject, text, from?, inReplyTo?, references?, attachments?}` | `{messageId, sentAt, filedInSent, rejected[]}`                                        |
-| `POST` | `/search`              | mail       | `{criteria:{from?,to?,subject?,text?,since?,references?}, mailbox?, limit?}`   | `{messages[], mailbox, truncated}`                                                    |
-| `POST` | `/attachments`         | mail       | `{uid, mailbox?}`                                                              | `{uid, attachments:[{filename, contentType, content}], skipped:[{filename, reason}]}` |
-| `GET`  | `/publish/targets`     | publish    | —                                                                              | `{targets:[{name, baseUrl, siteTitle}]}`                                              |
-| `POST` | `/publish/diagnostics` | publish    | `{target}`                                                                     | `{ok, root, entries}` or `{ok:false, error}`; a missing web root is `ok:false`        |
-| `POST` | `/publish/plan`        | publish    | `{target, index}`                                                              | what to upload, and what will be deleted                                              |
-| `PUT`  | `/publish/source`      | publish    | raw Markdown, `?target=&sha256=`                                               | `{sha256, bytes}`                                                                     |
-| `PUT`  | `/publish/asset`       | publish    | raw bytes, `?target=&sha256=&name=`                                            | `{sha256, bytes, path}`                                                               |
-| `PUT`  | `/publish/thumbnail`   | publish    | raw JPEG or PNG, `?target=&source=&sha256=&name=`                              | `{sha256, bytes, path}`                                                               |
-| `POST` | `/publish/commit`      | publish    | `{target, index}`                                                              | `{written, unchanged, deleted, deleteFailed, pruned, collected}`                      |
-| `POST` | `/publish/render`      | publish    | `{target}`                                                                     | the same, rebuilt from stored state                                                   |
+| Method | Path                   | Capability | Body                                                                                   | Returns                                                                               |
+| ------ | ---------------------- | ---------- | -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `GET`  | `/health`              | —          | —                                                                                      | `{status, protocol}`; with any valid token also `version, capabilities[]`             |
+| `POST` | `/diagnostics`         | mail       | —                                                                                      | per-protocol reachability                                                             |
+| `POST` | `/send`                | mail       | `{to, cc?, bcc?, subject, text, from?, inReplyTo?, references?, attachments?}`         | `{messageId, sentAt, filedInSent, rejected[]}`                                        |
+| `POST` | `/search`              | mail       | `{criteria:{from?,to?,subject?,text?,since?,references?}, mailbox?, limit?, exclude?}` | `{messages[], mailbox, truncated}`                                                    |
+| `POST` | `/attachments`         | mail       | `{uid, mailbox?}`                                                                      | `{uid, attachments:[{filename, contentType, content}], skipped:[{filename, reason}]}` |
+| `GET`  | `/publish/targets`     | publish    | —                                                                                      | `{targets:[{name, baseUrl, siteTitle}]}`                                              |
+| `POST` | `/publish/diagnostics` | publish    | `{target}`                                                                             | `{ok, root, entries}` or `{ok:false, error}`; a missing web root is `ok:false`        |
+| `POST` | `/publish/plan`        | publish    | `{target, index}`                                                                      | what to upload, and what will be deleted                                              |
+| `PUT`  | `/publish/source`      | publish    | raw Markdown, `?target=&sha256=`                                                       | `{sha256, bytes}`                                                                     |
+| `PUT`  | `/publish/asset`       | publish    | raw bytes, `?target=&sha256=&name=`                                                    | `{sha256, bytes, path}`                                                               |
+| `PUT`  | `/publish/thumbnail`   | publish    | raw JPEG or PNG, `?target=&source=&sha256=&name=`                                      | `{sha256, bytes, path}`                                                               |
+| `POST` | `/publish/commit`      | publish    | `{target, index}`                                                                      | `{written, unchanged, deleted, deleteFailed, pruned, collected}`                      |
+| `POST` | `/publish/render`      | publish    | `{target}`                                                                             | the same, rebuilt from stored state                                                   |
 
 `/health` is the version handshake: plugin and bridge deploy separately, and
 `protocol` is what lets the plugin say "redeploy the bridge" instead of failing
@@ -100,6 +101,15 @@ the logs:
 `references` is the thread lookup: it matches messages citing that Message-ID in
 either `References` or `In-Reply-To`, which is how the plugin finds replies to a
 note it sent.
+
+`exclude`, from protocol 8, lists up to 500 Message-IDs (or `uid:<n>` for a
+message that had none) the caller already holds. The bridge reads the newest
+matches as envelopes and steps past those before it fills the window of
+`limit`, reading back at most 2,000 matches. Without it, anyone who sent fifty
+mails citing a note's Message-ID pushed the note's genuine replies out of
+every later fetch; with it, each fetch reaches further back, and `truncated`
+says when matches were left unread. An older bridge ignores the field and
+answers the newest matches, which the plugin tells the person.
 
 Two details worth knowing:
 

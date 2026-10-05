@@ -459,7 +459,7 @@ schreibstubeMergedIds: ["<reply-1@mail.kunde.de>"] # written on merge; keeps mer
 ---
 ```
 
-`schreibstubeMessageId` is what ties replies back to the note, so **Fetch replies** only works on notes that were sent from Obsidian.
+`schreibstubeMessageId` is what ties replies back to the note, so **Fetch replies** only works on notes that were sent from Obsidian, and only with a value shaped like a Message-ID: a fragment such as `<` would match every reply in the mailbox and is ignored. One fetch takes the newest replies up to **Maximum results**; a bridge from 3.0.0 skips the ones the note already holds, so when more cite the note than one fetch takes, a notice says so and running the command again reaches the older ones. `schreibstubeMergedIds` keeps the newest 500.
 
 `schreibstubeFrom` sends one note under another address, such as an alias of your mailbox. Without it the note goes out under **Settings → Schreibstube → From**, and without that under the bridge's `MAIL_FROM`; the confirmation dialog names the sender either way. From bridge 3.0.0 the alias must be one the bridge allows — `MAIL_FROM` itself, or an address or `@domain` in its `MAIL_FROM_ALLOWED` — and any other is refused with the bridge's reason rather than sent. The alias sets only the `From` line: the mail is still sent through, and bounces return to, the bridge's mailbox. Replies go to the alias, so **Fetch replies** finds them only if the alias delivers into that mailbox. An address on a domain your mail provider does not send for, a freemail address for instance, is likely to be filed as spam or refused by the recipient's server.
 

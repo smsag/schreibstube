@@ -37,6 +37,12 @@ export const MAX_REFERENCES = 100;
 /** A mailbox name; IMAP servers cap them far lower. */
 export const MAX_MAILBOX_CHARS = 255;
 
+/**
+ * The Message-IDs a search may ask to step past: the replies a note has
+ * merged, which the plugin keeps no more of than this. Protocol 8.
+ */
+export const MAX_EXCLUDE = 500;
+
 /** The window `MAIL_SEND_PER_HOUR` counts in. */
 const HOUR_MS = 3_600_000;
 
@@ -315,6 +321,14 @@ export function validateSearch(body) {
     typeof body.limit !== "string"
   ) {
     return "limit must be a number.";
+  }
+  if (body.exclude !== undefined) {
+    if (!Array.isArray(body.exclude) || body.exclude.length > MAX_EXCLUDE) {
+      return `exclude must be a list of at most ${MAX_EXCLUDE} Message-IDs.`;
+    }
+    if (body.exclude.some((item) => typeof item !== "string" || item.length > MAX_HEADER_CHARS)) {
+      return `Every excluded Message-ID must be a string of at most ${MAX_HEADER_CHARS} characters.`;
+    }
   }
   if (body.criteria === undefined) return null;
   if (typeof body.criteria !== "object" || body.criteria === null || Array.isArray(body.criteria)) {

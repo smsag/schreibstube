@@ -51,7 +51,35 @@ export interface SearchRequest {
   criteria: SearchCriteria;
   mailbox?: string;
   limit?: number;
+  /** Messages the caller already holds, by the key `mergeKey` gives them; the
+   *  bridge steps past them before it fills the window. Protocol 8; an older
+   *  bridge ignores the field and answers the newest matches as before. */
+  exclude?: string[];
 }
+
+/** The first protocol whose bridge steps past the replies a note holds. */
+export const MAIL_EXCLUDE_PROTOCOL = 8;
+
+/** The most keys a search carries in `exclude`; the bridge refuses more. */
+export const MAX_SEARCH_EXCLUDE = 500;
+
+/** A key a merged message is recorded under when it had no Message-ID. */
+const UID_KEY = /^uid:\d{1,10}$/;
+
+/**
+ * What a reply fetch asks the bridge to step past: the newest of a note's
+ * merged keys that are keys at all. The list is frontmatter, which anyone
+ * can edit, so a value that is neither a Message-ID nor a UID key is left
+ * out rather than sent for the bridge to refuse the whole search over.
+ */
+export function excludeFromMerged(mergedIds: readonly string[]): string[] {
+  return mergedIds
+    .filter((id) => id.length <= MAX_EXCLUDE_KEY_CHARS && (isMessageId(id) || UID_KEY.test(id)))
+    .slice(-MAX_SEARCH_EXCLUDE);
+}
+
+/** The longest key the bridge takes in `exclude`: one header line. */
+const MAX_EXCLUDE_KEY_CHARS = 998;
 
 export interface SearchResult {
   messages: MailMessage[];
@@ -202,7 +230,8 @@ function parseMessage(raw: unknown): MailMessage {
   };
 }
 
-function isMessageId(value: string): boolean {
+/** RFC 5322's shape of a Message-ID, as the bridge returns and a note stores one. */
+export function isMessageId(value: string): boolean {
   return MESSAGE_ID.test(value);
 }
 

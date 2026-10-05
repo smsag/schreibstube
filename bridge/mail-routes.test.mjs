@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createMailRoutes, validateSearch, validateSend } from "./mail-routes.mjs";
+import { createMailRoutes, MAX_EXCLUDE, validateSearch, validateSend } from "./mail-routes.mjs";
 import { parseFromAllowed } from "./mail-policy.mjs";
 import { TimeoutError } from "./timeout.mjs";
 
@@ -213,6 +213,17 @@ describe("validateSearch", () => {
       /criteria.references must be a string/
     );
     expect(validateSearch({ criteria: { references: "<a@b.de>" } })).toBeNull();
+  });
+
+  it("bounds the Message-IDs a search may step past", () => {
+    expect(validateSearch({ exclude: ["<a@b.de>", "uid:7"] })).toBeNull();
+    expect(validateSearch({ exclude: Array(MAX_EXCLUDE).fill("<a@b.de>") })).toBeNull();
+    expect(validateSearch({ exclude: Array(MAX_EXCLUDE + 1).fill("<a@b.de>") })).toMatch(
+      /at most 500/
+    );
+    expect(validateSearch({ exclude: "<a@b.de>" })).toMatch(/exclude must be a list/);
+    expect(validateSearch({ exclude: [5] })).toMatch(/Every excluded Message-ID/);
+    expect(validateSearch({ exclude: ["x".repeat(999)] })).toMatch(/Every excluded Message-ID/);
   });
 
   it("bounds the mailbox name", () => {

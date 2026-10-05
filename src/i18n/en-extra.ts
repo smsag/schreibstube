@@ -609,6 +609,12 @@ export const enExtra = {
     noCriteria: "enter at least one search criterion.",
     noMessages: "no messages matched.",
     noReplies: "no new replies.",
+    searchTruncated: (count: number) =>
+      `showing the newest ${count} matches; older ones were left out — narrow the search to reach them.`,
+    repliesTruncated:
+      'more replies cite this note than one fetch takes; older ones were left behind. Run "Fetch replies into note" again to reach them.',
+    repliesTruncatedOld:
+      "more replies cite this note than one fetch takes, and this bridge always returns the newest. Update the bridge to reach the older ones.",
     sending: "sending…",
     drawing: (index: number, total: number) => `drawing diagram ${index} of ${total} for the mail…`,
     searching: "searching mailbox…",

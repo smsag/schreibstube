@@ -290,8 +290,16 @@ export async function searchMessages(config, request, log = () => {}) {
         return { messages: [], mailbox, truncated: scanMissedOlder };
       }
 
-      // Newest UIDs are highest, so the tail is the most recent window.
-      const window = uids.slice(-limit);
+      // Newest UIDs are highest, so the tail is the most recent window: of
+      // the matches the caller does not already hold, when it says which.
+      const exclude = new Set(request.exclude ?? []);
+      const { window, older } =
+        exclude.size > 0
+          ? await windowWithout(client, uids, exclude, limit, log)
+          : { window: uids.slice(-limit), older: uids.length > limit };
+      if (window.length === 0) {
+        return { messages: [], mailbox, truncated: scanMissedOlder || older };
+      }
       const messages = [];
       // A bound on the download, not only on what is kept: without one, fifty
       // messages with attachments were pulled into memory in full and parsed
@@ -316,13 +324,59 @@ export async function searchMessages(config, request, log = () => {}) {
       }
       messages.sort((a, b) => (a.date ?? "").localeCompare(b.date ?? ""));
 
-      return { messages, mailbox, truncated: scanMissedOlder || uids.length > window.length };
+      return { messages, mailbox, truncated: scanMissedOlder || older };
     } finally {
       lock.release();
     }
   } finally {
     await safeLogout(client);
   }
+}
+
+/** The most matches read as envelopes to step past the ones the caller holds. */
+export const MAX_EXCLUDE_SCAN = 2000;
+
+/**
+ * The newest `limit` of `uids` whose Message-ID is not in `exclude`, read
+ * from the newest backwards in envelopes, which are a fraction of a message.
+ *
+ * The window used to be the newest matches, whatever the caller held: anyone
+ * who could send fifty mails citing a note's Message-ID pushed its genuine
+ * replies out of reach of every later fetch. Skipping what the note has
+ * already merged means each fetch reaches further back, and the flood costs
+ * one fetch each time instead of the thread. `older` says a match was left
+ * unread: the window filled first, or the scan reached its bound. A match
+ * without a Message-ID is named as the plugin names it, `uid:<n>`.
+ */
+export async function windowWithout(client, uids, exclude, limit, log = () => {}) {
+  const budget = Math.min(uids.length, MAX_EXCLUDE_SCAN);
+  const chunk = limit + exclude.size;
+  const kept = [];
+  const state = { seen: new Set(), skipped: [] };
+  let examined = 0;
+
+  while (kept.length < limit && examined < budget) {
+    const end = uids.length - examined;
+    const ids = uids.slice(Math.max(uids.length - budget, end - chunk), end);
+    const messageIds = new Map();
+    await fetchEach(
+      client,
+      ids,
+      { uid: true, envelope: true },
+      { uid: true },
+      (msg) => messageIds.set(msg.uid, msg.envelope?.messageId?.trim() || null),
+      state
+    );
+    for (const uid of ids.toReversed()) {
+      if (kept.length >= limit) break;
+      examined += 1;
+      const id = messageIds.get(uid);
+      if (exclude.has(id ?? `uid:${uid}`)) continue;
+      kept.push(uid);
+    }
+  }
+  reportSkipped(log, "UID", state.skipped);
+  return { window: kept.toReversed(), older: examined < uids.length };
 }
 
 /**
