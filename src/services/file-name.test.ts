@@ -44,6 +44,28 @@ describe("checkFileName", () => {
     expect(checkFileName("Entwurf.")).toEqual({ ok: false, problem: "trailing-dot" });
   });
 
+  it("refuses a name Windows keeps for a device, whatever its case or extension", () => {
+    for (const name of [
+      "CON",
+      "prn",
+      "Aux",
+      "NUL",
+      "COM1",
+      "lpt9",
+      "COM¹",
+      "con.md",
+      "nul.tar.gz"
+    ]) {
+      expect(checkFileName(name), name).toEqual({ ok: false, problem: "reserved" });
+    }
+  });
+
+  it("keeps a name that only begins like a device", () => {
+    expect(checkFileName("Console")).toEqual({ ok: true, name: "Console" });
+    expect(checkFileName("COM10")).toEqual({ ok: true, name: "COM10" });
+    expect(checkFileName("Nullpunkt.md")).toEqual({ ok: true, name: "Nullpunkt.md" });
+  });
+
   it("keeps a dot inside the name: that is a version, not a hidden file", () => {
     expect(checkFileName("Fassung 2.1")).toEqual({ ok: true, name: "Fassung 2.1" });
   });

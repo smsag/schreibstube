@@ -7,8 +7,7 @@ import { MAX_IMAGE_BYTES, getImageMimeType, resizeImageToBase64 } from "../servi
 import {
   generateImageRenameFilename,
   generateRenameFilename,
-  sanitizeFilename,
-  stripFilenameExtension
+  proposedFileName
 } from "../platform/llm-rename";
 import { generateSummary } from "../platform/llm-summarize";
 import { generateImageDescription } from "../platform/llm-describe";
@@ -389,11 +388,8 @@ export class LlmCommands {
   }
 
   private usableName(proposed: string, extension: string): string | null {
-    const sanitized = stripFilenameExtension(
-      sanitizeFilename(proposed, this.getSettings().renameMaxFilenameLength),
-      extension
-    );
-    if (sanitized) return sanitized;
+    const name = proposedFileName(proposed, extension, this.getSettings().renameMaxFilenameLength);
+    if (name) return name;
 
     this.logger.warn("Rename produced an unusable filename:", proposed);
     new Notice(t().common.notice(t().ai.renameFailedName));

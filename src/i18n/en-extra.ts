@@ -915,7 +915,8 @@ export const enExtra = {
       linkCharacters: "a name cannot contain # ^ [ or ]: links to the file would break.",
       hidden: "a name starting with a dot is hidden by the vault.",
       trailingDot: "a name cannot end with a dot.",
-      tooLong: "a name can be at most 255 characters."
+      tooLong: "a name can be at most 255 characters.",
+      reserved: "Windows keeps that name for a device and cannot create a file with it."
     },
 
     delete: {

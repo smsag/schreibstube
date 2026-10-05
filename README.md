@@ -283,7 +283,7 @@ Assigns a filename to the active note or image based on its content, with one co
 
 - **Rename note with AI** — on a note, its text is sent to an LLM and the file is renamed with the result; on an image (jpg, png, gif, webp; up to 10 MB), the picture is resized and sent to a vision model, and the file is renamed.
 
-The rename does nothing if the note is shorter than the configured minimum length, or if no API key has been set.
+The rename does nothing if the note is shorter than the configured minimum length, or if no API key has been set. The proposed name is cleaned before it is used: characters a filesystem or a link refuses, control characters and invisible formatting characters (a right-to-left override can make `gpj.exe` read as `exe.jpg`) are taken out, and it is cut to fit the filesystem in bytes, not characters. A name that is still not one a file can have — `CON` or `NUL`, which Windows keeps for devices, among them — is refused with a notice instead of being used.
 
 The same thing is on the explorer's context menu, as one entry that follows the file: **Rename from the text…** on a note, **Rename from the picture…** on an image, and nothing at all on a file neither path can read. From the menu the proposed name is not applied outright — it opens the pane's rename dialog with the suggestion in the field, where it can be read, corrected or cancelled, because a menu acts on a row in a tree rather than on the note in front of you.
 

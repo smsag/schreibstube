@@ -25,6 +25,8 @@ export type FileNameProblem =
   | "hidden"
   /** Ends with a dot, which Windows drops silently and macOS keeps. */
   | "trailing-dot"
+  /** A device name Windows will not create a file under, whatever follows the dot. */
+  | "reserved"
   /** More bytes than any common filesystem takes in one name. */
   | "too-long";
 
@@ -48,6 +50,8 @@ export function basename(path: string): string {
 
 const FILESYSTEM_CHARS = /[/\\:*?"<>|]/;
 const LINK_CHARS = /[#^[\]]/;
+/** `CON`, `NUL`, `COM1` and the rest: on Windows a device, never a file, also as `con.md`. */
+const WINDOWS_DEVICE = /^(?:con|prn|aux|nul|com[0-9¹²³]|lpt[0-9¹²³])$/i;
 /** The characters no name and no property key may hold; refusing them is the point. */
 // eslint-disable-next-line no-control-regex -- spelt out so the source holds no raw bytes.
 export const CONTROL_CHARS = /[\u0000-\u001f\u007f]/;
@@ -74,6 +78,9 @@ export function checkFileName(raw: string): FileNameCheck {
   if (LINK_CHARS.test(name)) return { ok: false, problem: "link-characters" };
   if (name.startsWith(".")) return { ok: false, problem: "hidden" };
   if (name.endsWith(".")) return { ok: false, problem: "trailing-dot" };
+  if (WINDOWS_DEVICE.test((name.split(".")[0] ?? "").trimEnd())) {
+    return { ok: false, problem: "reserved" };
+  }
 
   return { ok: true, name };
 }

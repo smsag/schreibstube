@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   LLM_PROVIDER_IDS,
+  MAX_PROPOSED_NAME_BYTES,
   PROVIDER_MODELS,
+  proposedFileName,
   buildImageDescriptionRequest,
   buildImageRequest,
   buildSummaryRequest,
@@ -251,6 +253,43 @@ describe("sanitizeFilename and characters that are pairs", () => {
 
   it("counts characters as a person counts them", () => {
     expect([...sanitizeFilename("ä".repeat(80), 60)].length).toBe(60);
+  });
+
+  it("also stops at the bytes a filesystem counts, on a character's edge", () => {
+    const cut = sanitizeFilename("🏠".repeat(255), 255);
+    expect(new TextEncoder().encode(cut).byteLength).toBeLessThanOrEqual(MAX_PROPOSED_NAME_BYTES);
+    expect(cut).toBe("🏠".repeat(Math.floor(MAX_PROPOSED_NAME_BYTES / 4)));
+  });
+});
+
+describe("sanitizeFilename and characters nobody sees", () => {
+  it("takes out a right-to-left override, so the name reads as it is", () => {
+    expect(sanitizeFilename("rechnung\u202Efdp.exe", 60)).toBe("rechnungfdp.exe");
+  });
+
+  it("takes out control and format characters, keeping line breaks as separators", () => {
+    expect(sanitizeFilename("a\u0000b\u200Bc\u2066d\nnext", 60)).toBe("abcd-next");
+  });
+});
+
+describe("proposedFileName", () => {
+  it("cleans the proposal and drops the extension the model added", () => {
+    expect(proposedFileName("Quartals bericht.md", "md", 60)).toBe("Quartals-bericht");
+  });
+
+  it("refuses a name Windows keeps for a device", () => {
+    for (const raw of ["CON", "nul", "com1", "LPT9.md", "aux.txt"]) {
+      expect(proposedFileName(raw, "md", 60), raw).toBeNull();
+    }
+  });
+
+  it("refuses a proposal that cleaning leaves empty", () => {
+    expect(proposedFileName("///", "md", 60)).toBeNull();
+    expect(proposedFileName("\u202E\u200B", "png", 60)).toBeNull();
+  });
+
+  it("keeps a name that only starts like a device", () => {
+    expect(proposedFileName("console-log", "md", 60)).toBe("console-log");
   });
 });
 

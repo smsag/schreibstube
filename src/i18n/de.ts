@@ -1242,7 +1242,8 @@ export const de: Messages = {
         "ein Name darf # ^ [ oder ] nicht enthalten: Links auf die Datei würden brechen.",
       hidden: "ein Name, der mit einem Punkt beginnt, wird vom Vault versteckt.",
       trailingDot: "ein Name darf nicht mit einem Punkt enden.",
-      tooLong: "ein Name darf höchstens 255 Zeichen lang sein."
+      tooLong: "ein Name darf höchstens 255 Zeichen lang sein.",
+      reserved: "Windows hält diesen Namen für ein Gerät frei und legt keine Datei damit an."
     },
 
     delete: {
