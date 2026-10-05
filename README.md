@@ -1044,6 +1044,17 @@ Copy `main.js`, `manifest.json`, and `styles.css` into your vault plugin folder:
 <Vault>/.obsidian/plugins/schreibstube/
 ```
 
+To check that the files are the ones this repository's release workflow built
+from the tagged commit, before you copy them:
+
+```bash
+gh attestation verify main.js -R smsag/schreibstube
+```
+
+The build is reproducible too: `npm ci --ignore-scripts && npm run build` at
+the release's tag gives a `main.js` with the same SHA-256. See
+[`SECURITY.md`](SECURITY.md#how-a-release-is-made-and-how-to-check-one).
+
 ## Development
 
 ```bash

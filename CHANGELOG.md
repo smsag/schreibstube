@@ -9,6 +9,11 @@ All notable changes to this project will be documented in this file.
 - **An update from a source that brings in code another plugin runs is no longer taken with "Accept all".** A mirrored note shows what its source writes, and a source can write a `dataviewjs` block, Dataview's inline `$=` JavaScript, a Templater `<% %>` command, a JS Engine, Datacore, Meta Bind or Buttons block — which those plugins run with Obsidian's full rights once the note renders or is used. A card that adds or changes one now carries a **runs code** badge, names what it found, and is left out of **Accept all**: you read it and accept it on its own, or not at all. Code that is only shown, like a `js` or `html` fence, is not flagged.
 - **A source that sends binary data is refused.** A server that names no content type, or says `application/octet-stream`, was believed whenever the link ended in `.md`; a body with a NUL byte in it is now reported as not text instead of being offered as cards.
 
+### Security
+
+- **A release is built without the right to publish, and you can rebuild it yourself.** The files on a release are built by a job that can only read the repository and installs its dependencies without running their scripts, and published by a separate job, from `main` only, after someone approves it. To check a release before installing it, run `gh attestation verify main.js -R smsag/schreibstube`; to check it a second way, run `npm ci --ignore-scripts && npm run build` at the release's tag and compare the SHA-256 of `main.js`. `SECURITY.md` has both.
+- **The bridge's image is built from one fixed Node image.** Its base is pinned by digest rather than by a tag that can change underneath it, and no `.env.*` file next to the Dockerfile reaches the image any more; before, only `.env` was kept out.
+
 ## 1.75.0 - 2026-10-03
 
 One word for one thing, and properties that stay where you put them.

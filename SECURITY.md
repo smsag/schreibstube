@@ -49,6 +49,41 @@ in a folder a person can open — and refuses to load anything else. A template
 is compiled with no file system and no network: only the job's own files, and
 no Typst package may be imported.
 
+## How a release is made, and how to check one
+
+A release is built and published by the Release workflow, from `main` only,
+after someone approves it in the repository's `release` environment. The job
+that builds runs with a read-only token and installs without dependency
+scripts; the job that publishes holds the write and signing grants and runs
+nothing from npm or the repository, only a hash check of the built files and
+the GitHub CLI. `CONTRIBUTING.md` has the details.
+
+Every file on a release — `main.js`, `manifest.json`, `styles.css`, the source
+map and the Typst runtime — carries a signed provenance attestation that names
+the workflow and the commit it was built from. With the GitHub CLI:
+
+```bash
+gh attestation verify main.js -R smsag/schreibstube
+```
+
+A file that was changed after the build, or built anywhere else, fails.
+
+The build is also reproducible. From the tagged commit, with the Node version
+`.nvmrc` names:
+
+```bash
+git clone https://github.com/smsag/schreibstube && cd schreibstube
+git checkout 1.75.0                 # the release's tag
+npm ci --ignore-scripts
+npm run build
+sha256sum main.js styles.css manifest.json
+```
+
+The three hashes match those of the files attached to the release
+(`shasum -a 256` on macOS). The Typst runtime files are not built but checked:
+`node scripts/fetch-typst-runtime.mjs` downloads them and compares them with
+the hashes committed in `src/services/typst-runtime.ts`.
+
 ## What CI checks
 
 Every change runs the bridge's runtime tree through `npm audit` at the high
