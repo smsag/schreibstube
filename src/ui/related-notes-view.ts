@@ -29,6 +29,13 @@ export const RELATED_NOTES_VIEW_TYPE = "schreibstube-related-notes";
  */
 const SETTLE_MS = 300;
 
+/**
+ * How long the cursor rests before the panel asks whether it is in another
+ * section. The selection changes with every keystroke; the place to rank
+ * from changes when the writer has moved on, which they show by staying.
+ */
+const REFOCUS_MS = 800;
+
 export class RelatedNotesView extends ItemView {
   private host: RecommendedHost | null = null;
   private panel: RecommendedPanel | null = null;
@@ -37,6 +44,8 @@ export class RelatedNotesView extends ItemView {
   private frame: number | null = null;
   /** A redraw waiting for the link graph to settle. */
   private settleTimer: number | null = null;
+  /** A look at where the cursor is, waiting for it to rest. */
+  private refocusTimer: number | null = null;
   /** A draw was due while the panel was out of sight; it is made on return. */
   private stale = false;
   /** The header button that keeps the panel on one note or lets it follow. */
@@ -140,8 +149,18 @@ export class RelatedNotesView extends ItemView {
       })
     );
     // A draw skipped while the panel was hidden is made when it shows again.
+    // The cursor in another section is another place to rank from. Each
+    // window has its own document, and a note in a pop-out moves its cursor there.
+    const moved = (): void => this.requestRefocus();
+    this.registerDomEvent(document, "selectionchange", moved);
+    this.registerEvent(
+      this.app.workspace.on("window-open", (win) =>
+        this.registerDomEvent(win.doc, "selectionchange", moved)
+      )
+    );
     const catchUp = (): void => {
       if (this.stale) this.requestRender();
+      else this.requestRefocus();
     };
     this.registerEvent(this.app.workspace.on("active-leaf-change", catchUp));
     this.registerEvent(this.app.workspace.on("layout-change", catchUp));
@@ -158,8 +177,10 @@ export class RelatedNotesView extends ItemView {
     const win = this.containerEl.win;
     if (this.frame !== null) win.cancelAnimationFrame(this.frame);
     if (this.settleTimer !== null) win.clearTimeout(this.settleTimer);
+    if (this.refocusTimer !== null) win.clearTimeout(this.refocusTimer);
     this.frame = null;
     this.settleTimer = null;
+    this.refocusTimer = null;
     this.contentEl.empty();
   }
 
@@ -211,6 +232,16 @@ export class RelatedNotesView extends ItemView {
       this.settleTimer = null;
       this.requestRender();
     }, SETTLE_MS);
+  }
+
+  /** A look at the cursor once it has rested; nothing while the panel is out of sight. */
+  private requestRefocus(): void {
+    const win = this.containerEl.win;
+    if (this.refocusTimer !== null) win.clearTimeout(this.refocusTimer);
+    this.refocusTimer = win.setTimeout(() => {
+      this.refocusTimer = null;
+      if (this.contentEl.isShown()) this.panel?.refocus();
+    }, REFOCUS_MS);
   }
 
   private render(): void {

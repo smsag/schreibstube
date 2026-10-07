@@ -230,7 +230,7 @@ describe("RecommendedPanel", () => {
   it("heads the list under a note with the section and its count, and the sidebar with the note", async () => {
     const recommend = async () => ({ items: [note("a.md"), note("b.md")] });
     const under = setup(recommend);
-    const footer = new RecommendedPanel(under.root, under.host, { heading: false });
+    const footer = new RecommendedPanel(under.root, under.host, { heading: false, place: "end" });
     footer.show("x.md");
     await settle();
     expect(under.root.querySelector(".schreibstube-related-section-label")?.textContent).toBe(
@@ -254,7 +254,7 @@ describe("RecommendedPanel", () => {
   it("folds under a note at a press on its heading, and opens again for the next note", async () => {
     const recommend = async () => ({ items: [note("a.md"), note("b.md")] });
     const under = setup(recommend);
-    const footer = new RecommendedPanel(under.root, under.host, { heading: false });
+    const footer = new RecommendedPanel(under.root, under.host, { heading: false, place: "end" });
     footer.show("x.md");
     await settle();
     const heading = () => under.root.querySelector<HTMLElement>(".schreibstube-related-section")!;
@@ -345,6 +345,70 @@ describe("RecommendedPanel", () => {
     panel.refresh();
     panel.refresh();
     expect(recommend).toHaveBeenCalledTimes(1);
+  });
+
+  it("asks for the place it ranks from: the cursor in the sidebar, the end under the note", () => {
+    const recommend = vi.fn(async () => null);
+    setup(recommend).panel.show("a.md");
+    const { host } = setup(recommend);
+    new RecommendedPanel(document.createElement("div"), host, {
+      heading: false,
+      place: "end"
+    }).show("b.md");
+    expect(recommend.mock.calls).toEqual([
+      ["a.md", "cursor"],
+      ["b.md", "end"]
+    ]);
+  });
+
+  it("asks again when the cursor is in another section, and keeps each section's answer", async () => {
+    const pending: ((value: Recommendation) => void)[] = [];
+    const recommend = vi.fn(
+      (_path: string) => new Promise<Recommendation | null>((r) => pending.push(r))
+    );
+    const { root, panel, host } = setup(recommend);
+    let section = "section:1";
+    host.placeKey = () => section;
+
+    panel.show("a.md");
+    pending[0]?.({ items: [note("kitchen.md", ["meaning"])] });
+    await settle();
+    expect(titles(root)).toEqual(["kitchen"]);
+
+    // Within the same section nothing is asked.
+    panel.refocus();
+    expect(recommend).toHaveBeenCalledTimes(1);
+
+    // Another section: the last answer stays on screen until its own arrives.
+    section = "section:2";
+    panel.refocus();
+    expect(recommend).toHaveBeenCalledTimes(2);
+    expect(titles(root)).toEqual(["kitchen"]);
+    pending[1]?.({ items: [note("garden.md", ["meaning"])] });
+    await settle();
+    expect(titles(root)).toEqual(["garden"]);
+
+    // Back to the first: its answer is kept, and asked for no more.
+    section = "section:1";
+    panel.refocus();
+    expect(titles(root)).toEqual(["kitchen"]);
+    expect(recommend).toHaveBeenCalledTimes(2);
+  });
+
+  it("forgets the sections' answers when another note is shown", async () => {
+    const recommend = vi.fn(async (path: string) => ({
+      items: [note(`for-${path}`, ["meaning"])]
+    }));
+    const { root, panel, host } = setup(recommend);
+    host.placeKey = () => "section:1";
+    panel.show("a.md");
+    await settle();
+    panel.show("b.md");
+    expect(titles(root)).toEqual(["linked"]);
+    await settle();
+    expect(titles(root)).toEqual(["for-b"]);
+    panel.refocus();
+    expect(recommend).toHaveBeenCalledTimes(2);
   });
 
   it("says so when there is no note", () => {

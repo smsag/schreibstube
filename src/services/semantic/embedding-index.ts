@@ -8,6 +8,44 @@ export interface IndexedConversation {
   contentHash: string;
   /** One Int8 vector per chunk of the conversation. */
   chunks: Int8Array[];
+  /**
+   * A hash of each passage's text (`passageHash`), one per vector, in order.
+   * Vault rows only, and optional: what lets a later version of a note find
+   * which of its stored vectors are the passages around a given place in it.
+   */
+  passages?: Uint32Array;
+}
+
+/**
+ * The same FNV-1a over one passage, as a number: kept per passage, so it is
+ * stored as compactly as the header allows. Only ever compared with itself.
+ */
+export function passageHash(text: string): number {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < text.length; i++) {
+    h ^= text.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return h >>> 0;
+}
+
+/** Every passage's hash, in order. */
+export function passageHashes(chunks: readonly string[]): Uint32Array {
+  return Uint32Array.from(chunks, passageHash);
+}
+
+/**
+ * A row's passage hashes read from a header, validated: one non-negative 32-bit
+ * integer per vector, or nothing. A list that does not fit its row is dropped
+ * rather than refused: the row's vectors are good without it, and a later
+ * embed writes it again.
+ */
+export function readPassages(value: unknown, count: number): Uint32Array | undefined {
+  if (!Array.isArray(value) || value.length !== count || count === 0) return undefined;
+  for (const n of value) {
+    if (typeof n !== "number" || !Number.isInteger(n) || n < 0 || n > 0xffffffff) return undefined;
+  }
+  return Uint32Array.from(value as number[]);
 }
 
 /**
@@ -65,6 +103,10 @@ export function diffIndex(
 //     scope has to drop what is now out of it, and nothing else can tell.
 //
 // A v1 file is refused, which the caller treats as "no index" and rebuilds.
+//
+// `p` on a row is optional and needs no version either: the hash of each
+// passage's text, one per vector (`passageHash`). A row without it, or with a
+// list that does not fit, ranks from its vectors by position, as before.
 //
 // `keeper` (Pythia ADR-221) is optional and needs no version: which kind of device last
 // wrote the file. A phone does not rewrite an index a desktop keeps. A file
@@ -126,7 +168,14 @@ export function serializeIndex(
     complete: info.complete === true,
     scope: typeof info.scope === "string" ? info.scope : "",
     ...signature(info),
-    rows: items.map((it) => ({ id: it.id, h: it.contentHash, c: it.chunks.length }))
+    rows: items.map((it) => ({
+      id: it.id,
+      h: it.contentHash,
+      c: it.chunks.length,
+      ...(it.passages && it.passages.length === it.chunks.length && it.chunks.length > 0
+        ? { p: Array.from(it.passages) }
+        : {})
+    }))
   };
   const metaBytes = new TextEncoder().encode(JSON.stringify(meta));
   const totalChunks = items.reduce((n, it) => n + it.chunks.length, 0);
@@ -223,7 +272,7 @@ export function deserializeIndex(buf: ArrayBuffer): {
     rows?: unknown;
   } | null;
   o += metaLen;
-  const meta = head?.rows as { id: string; h: string; c: number }[];
+  const meta = head?.rows as { id: string; h: string; c: number; p?: unknown }[];
   if (!Array.isArray(meta) || meta.length < count)
     throw new Error("deserializeIndex: meta/count mismatch");
   // Every row checked before a vector is read: a count that is negative or
@@ -273,7 +322,8 @@ export function deserializeIndex(buf: ArrayBuffer): {
       chunks.push(new Int8Array(buf, blobStart + row * dim, dim));
       row++;
     }
-    items.push({ id: m.id, contentHash: m.h, chunks });
+    const passages = readPassages(m.p, m.c);
+    items.push({ id: m.id, contentHash: m.h, chunks, ...(passages ? { passages } : {}) });
   }
   // The raw header too, UNVALIDATED: a caller reading fields of its own (the
   // journal's) validates them itself.

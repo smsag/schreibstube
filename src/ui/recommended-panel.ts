@@ -19,7 +19,10 @@
  * the one shown is dropped.
  *
  * The same panel is the sidebar view and the footer under a note, so the two
- * places cannot drift apart.
+ * places cannot drift apart. They differ in where in the note the meaning half
+ * ranks from: the sidebar from the section the cursor is in, the footer from
+ * the note's end, where it is read. Each section's answer is kept while the
+ * note is shown, so moving back and forth asks nothing again.
  */
 import { Keymap } from "obsidian";
 import { t } from "../i18n";
@@ -88,11 +91,19 @@ export interface Recommendation {
   items: RecommendedItem[];
 }
 
+/** Where in the note the meaning half ranks from: the place being written, or the end. */
+export type RecommendPlace = "cursor" | "end";
+
 export interface RecommendedHost {
   /** The link graph's answer, at once. */
   links(path: string): RecommendedItem[];
   /** The full answer with meaning in it, or null when search by meaning is off. */
-  recommend?(path: string): Promise<Recommendation | null>;
+  recommend?(path: string, place: RecommendPlace): Promise<Recommendation | null>;
+  /**
+   * Which part of the note `place` stands for now, as a key: a list moved
+   * within it asks nothing. Without it, the whole note is one place.
+   */
+  placeKey?(path: string, place: RecommendPlace): string;
   /** The title to put at the top: what the list is related *to*. */
   titleOf(path: string): string | null;
   open(path: string, where: PaneTarget): Promise<void>;
@@ -121,12 +132,21 @@ const RELEVANCE_BARS: Record<Relevance, number> = { high: 3, medium: 2, low: 1 }
  */
 const REASK_MS = 15_000;
 
+/** The most places of one note whose answers are kept while it is shown. */
+const MAX_KEPT_ANSWERS = 16;
+
 export class RecommendedPanel {
   private source: string | null = null;
-  private answer: { path: string; value: Recommendation } | null = null;
+  /** The place in the note shown: its section, or the end (`placeKey`). */
+  private place = "";
+  /** Each place's answer for the note shown, and when each was last asked for. */
+  private answers = new Map<string, Recommendation>();
+  private asks = new Map<string, number>();
+  /** The last answer that landed for the note shown, whatever its place: shown
+   *  for a new place until its own arrives, rather than the links alone. */
+  private latest: Recommendation | null = null;
   /** Which request is the latest, so an older answer cannot land on a newer note. */
   private asked = 0;
-  private lastAsk: { path: string; at: number } | null = null;
   /** Under the note only: folded away by a press on its heading. Not kept:
    *  the next note opens with the list shown. */
   private collapsed = false;
@@ -145,18 +165,24 @@ export class RecommendedPanel {
     private readonly root: HTMLElement,
     private readonly host: RecommendedHost,
     /** `heading`: the note's title over the list (the sidebar); without it,
-     *  a section heading with the count (under the note). */
-    private readonly opts: { heading: boolean } = { heading: true }
+     *  a section heading with the count (under the note). `place`: where in
+     *  the note the meaning half ranks from. */
+    private readonly opts: { heading: boolean; place: RecommendPlace } = {
+      heading: true,
+      place: "cursor"
+    }
   ) {}
 
   /** Show what belongs with `path`, or the empty state for no note. */
   show(path: string | null): void {
     if (path !== this.source) {
-      this.answer = null;
-      this.lastAsk = null;
+      this.answers.clear();
+      this.asks.clear();
+      this.latest = null;
       this.collapsed = false;
     }
     this.source = path;
+    this.place = path === null ? "" : (this.host.placeKey?.(path, this.opts.place) ?? "");
     this.draw();
     if (path !== null) this.ask(path);
   }
@@ -166,25 +192,53 @@ export class RecommendedPanel {
     this.show(this.source);
   }
 
+  /**
+   * The place in the note may have moved — the cursor went somewhere else.
+   * Asks only when it is in another section than before.
+   */
+  refocus(): void {
+    const path = this.source;
+    if (path === null) return;
+    const place = this.host.placeKey?.(path, this.opts.place) ?? "";
+    if (place === this.place) return;
+    this.place = place;
+    this.draw();
+    this.ask(path);
+  }
+
   private ask(path: string): void {
     const recommend = this.host.recommend;
     if (!recommend) return;
+    const place = this.place;
     const now = Date.now();
-    if (this.lastAsk?.path === path && now - this.lastAsk.at < REASK_MS) return;
-    this.lastAsk = { path, at: now };
+    const asked = this.asks.get(place);
+    if (asked !== undefined && now - asked < REASK_MS) return;
+    this.asks.set(place, now);
     const token = ++this.asked;
-    recommend(path)
+    recommend(path, this.opts.place)
       .then((value) => {
-        if (token !== this.asked || this.source !== path || value === null) return;
-        this.answer = { path, value };
-        this.draw();
+        if (this.source !== path || value === null) return;
+        this.keep(place, value);
+        // An older answer for this place does not replace a newer one on screen.
+        if (token === this.asked) this.latest = value;
+        if (place === this.place) this.draw();
       })
       // The graph's answer is already on screen; a meaning search that failed
       // leaves it there, and the next change asks again.
       .catch((e: unknown) => {
         this.host.warn?.("recommended: the answer for the open note failed", e);
-        if (this.lastAsk?.path === path) this.lastAsk = null;
+        if (this.source === path) this.asks.delete(place);
       });
+  }
+
+  /** A place's answer, kept for the note shown; the oldest goes past the limit. */
+  private keep(place: string, value: Recommendation): void {
+    this.answers.delete(place);
+    this.answers.set(place, value);
+    if (this.answers.size > MAX_KEPT_ANSWERS) {
+      const oldest = this.answers.keys().next().value;
+      if (oldest !== undefined) this.answers.delete(oldest);
+    }
   }
 
   private draw(): void {
@@ -197,10 +251,11 @@ export class RecommendedPanel {
     const items =
       path === null || title === null
         ? []
-        : (this.answer?.path === path ? this.answer.value.items : this.host.links(path)).slice(
-            0,
-            this.host.count()
-          );
+        : (
+            this.answers.get(this.place)?.items ??
+            this.latest?.items ??
+            this.host.links(path)
+          ).slice(0, this.host.count());
 
     const signature = JSON.stringify([path, title, this.collapsed, items]);
     if (signature === this.drawn) return;

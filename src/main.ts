@@ -41,6 +41,7 @@ import { describePollSummary } from "./services/sync-summary";
 import { mergeSyncState, sameSyncState } from "./services/sync-merge";
 import type { SyncRecord } from "./services/sync-document";
 import { NoteCommands } from "./controllers/note-commands";
+import { RecommendPlaces, type PassageFocus } from "./controllers/recommend-place";
 import { DoneTasksCommand } from "./controllers/done-tasks-command";
 import { SumsController } from "./controllers/sums-controller";
 import { registerTableFormulaPostProcessor } from "./processors/table-formulas";
@@ -902,9 +903,12 @@ export default class SchreibstubePlugin extends Plugin {
   private recommendedHost(): RecommendedHost | null {
     const explorer = this.explorer;
     if (!explorer) return null;
+    const places = new RecommendPlaces(this.app);
     return {
       links: (path) => this.linkItems(explorer, path),
-      recommend: (path) => this.recommend(path),
+      recommend: async (path, place) =>
+        this.recommend(path, this.settings.recommendedCount, await places.focus(path, place)),
+      placeKey: (path, place) => places.key(path, place),
       titleOf: (path) => explorer.displayTitle(path),
       open: async (path, where) => {
         const file = this.app.vault.getAbstractFileByPath(path);
@@ -1031,17 +1035,24 @@ export default class SchreibstubePlugin extends Plugin {
   }
 
   /**
-   * The link graph and search by meaning together, for one note. Null when
-   * search by meaning is off, so the panel keeps the graph's answer alone.
+   * The link graph and search by meaning together, for one note, meaning
+   * ranked from the place `focus` names or else from the note's opening. Null
+   * when search by meaning is off, so the panel keeps the graph's answer alone.
    */
   private async recommend(
     path: string,
-    count = this.settings.recommendedCount
+    count = this.settings.recommendedCount,
+    focus?: PassageFocus
   ): Promise<Recommendation | null> {
     const explorer = this.explorer;
     const engine = this.semantic;
     if (!explorer || !engine?.enabled()) return null;
-    const found = await engine.relatedToNote(path, Math.max(RECOMMEND_LIMIT, count));
+    const found = await engine.relatedToNote(
+      path,
+      Math.max(RECOMMEND_LIMIT, count),
+      undefined,
+      focus
+    );
     const cards = explorer.relatedCards(path);
     // A description note whose picture is gone had nothing to fold into, and
     // is left out rather than recommended as a note.

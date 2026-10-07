@@ -182,6 +182,27 @@ desktop. A test holds the generation to the versions in the lockfile, so a
 dependency bump cannot land until someone has measured whether the vectors
 moved.
 
+Recommended ranks a note against the index by at most eight of its own
+passages, because each is compared with every row on the UI thread, a
+phone's too; ninety-six of them took seconds there. The eight were always the
+first, so under a long note the list was about its opening. They are now the
+passages around the place the person is: the section the cursor is in, in
+the sidebar, and the end of the note, under it, where the footer is read.
+Eight passages from one place cost what eight from the opening did, the
+model is never loaded for it, and nothing about the index has to change for
+a phone. The stored vectors belong to the version of the note the index last
+read, and the note being written has moved on since, so the passages are
+found by their text: each row keeps a hash of every passage (`p`, optional,
+no version), the note as it is on screen is cut the way the index cuts it,
+and the stored passages whose hashes lie nearest the place are taken
+(`services/semantic/passage-focus.ts`). A passage written since has no stored
+vector and is passed over for its nearest neighbour; a row without hashes
+ranks from its passages by position. Rows written before the hashes existed
+get them at the desktop's next sync, from the text it reads anyway, in one
+write and without an embed; a phone reads them from the file. The sidebar
+asks again only when the cursor has rested in another section, and keeps
+each section's answer while the note is open.
+
 The Explorer filter reads note text too, separately from the model: a
 vocabulary of every note's words (`services/body-index.ts`), read once when the
 filter is first used. Both it and the model read a note through

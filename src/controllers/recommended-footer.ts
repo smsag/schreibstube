@@ -23,7 +23,8 @@ interface Footer {
  * setting). Wiring only: the panel is the sidebar's, drawn at the end of each
  * open note's scrolling content, so it is read where the note ends — in
  * editing and in Reading view alike, moved across when the view switches.
- * Switched back to the sidebar, every footer goes.
+ * Being read there, it ranks from the end of the note rather than its
+ * opening. Switched back to the sidebar, every footer goes.
  */
 export class RecommendedFooter {
   private readonly footers = new Map<MarkdownView, Footer>();
@@ -115,7 +116,7 @@ export class RecommendedFooter {
         placeAfterNote(target, el);
         // Inside the editor's content: a press here must not place the cursor.
         el.setAttr("contenteditable", "false");
-        const panel = new RecommendedPanel(el.createDiv(), host, { heading: false });
+        const panel = new RecommendedPanel(el.createDiv(), host, { heading: false, place: "end" });
         const unwatch = watchViewMode(view.containerEl, () => this.sync());
         footer = { el, panel, path: null, unwatch, tail: null };
         this.footers.set(view, footer);
