@@ -5,6 +5,7 @@
  */
 import { Notice, Setting } from "obsidian";
 import { activeLocale, t } from "../i18n";
+import { normalizeDoneTaskMode } from "../services/done-tasks";
 import { MAX_DIM_OPACITY, MIN_DIM_OPACITY } from "../services/focus-settings";
 import { normalizeTermFolder } from "../services/glossary-term-folder";
 import { createLogger } from "../services/logger";
@@ -80,6 +81,7 @@ export function renderHelpers(ctx: SettingsContext): void {
     );
 
   renderProperties(ctx);
+  renderDoneTasks(ctx);
 
   // No switch here: which bases open their notes for reading is each base's
   // own to say, in its file, and a switch for all of them was the wrong place.
@@ -99,6 +101,29 @@ export function renderHelpers(ctx: SettingsContext): void {
       t().commands.linksSwitch
     ]
   });
+}
+
+function renderDoneTasks(ctx: SettingsContext): void {
+  const words = t().tasks;
+  section(ctx, {
+    name: words.tidyHeading,
+    desc: words.tidyIntro,
+    commands: [t().commands.tidyDoneTasks]
+  });
+
+  new Setting(ctx.containerEl)
+    .setName(words.tidyMode)
+    .setDesc(words.tidyModeDesc)
+    .addDropdown((dropdown) => {
+      dropdown
+        .addOption("back", words.modeBack)
+        .addOption("archive", words.modeArchive)
+        .addOption("delete", words.modeDelete)
+        .setValue(ctx.plugin.settings.doneTasksMode)
+        .onChange(async (value) => {
+          await ctx.update({ doneTasksMode: normalizeDoneTaskMode(value) });
+        });
+    });
 }
 
 function renderProperties(ctx: SettingsContext): void {

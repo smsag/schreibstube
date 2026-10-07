@@ -19,6 +19,7 @@ export const en = {
     switchReadingEditing: "Switch reading/editing",
     newNote: "New note",
     insertTaskSummary: "Insert: task summary",
+    tidyDoneTasks: "Tidy up done tasks",
     insertSlideshow: "Insert: slideshow",
     insertPdfSummary: "Insert: summary from the attached PDF",
     rename: "Rename note with AI",
@@ -76,7 +77,35 @@ export const en = {
      *  numbers have to appear as plain digits here. */
     ribbon: (open: number, total: number) => `${open} open of ${total}`,
     /** The badge after a heading. */
-    badge: (open: number, total: number) => `${open} of ${total} open`
+    badge: (open: number, total: number) => `${open} of ${total} open`,
+
+    tidyHeading: "Done tasks",
+    tidyIntro:
+      "Clears a note's done tasks out of the way in one go: [x] and [-], each with everything " +
+      "indented under it. A done task with a sub-task still open stays where it is, and tasks " +
+      "under ## Archive are left alone. The notice afterwards offers to undo it.",
+    tidyMode: "What tidying up does",
+    tidyModeDesc: "Applies to the note that is open when the command runs.",
+    modeBack: "Move them to the end of their list",
+    modeArchive: "Move them under ## Archive at the end of the note",
+    modeDelete: "Delete them",
+    nothing: "there are no done tasks to tidy up.",
+    nothingBack: "every done task is already at the end of its list.",
+    moved: (count: number) =>
+      count === 1
+        ? "1 done task moved to the end of its list."
+        : `${count} done tasks moved to the end of their lists.`,
+    archived: (count: number) =>
+      count === 1
+        ? "1 done task moved to the archive."
+        : `${count} done tasks moved to the archive.`,
+    deleted: (count: number) =>
+      count === 1 ? "1 done task deleted." : `${count} done tasks deleted.`,
+    undo: "Undo",
+    undone: "the tidy-up was undone.",
+    undoFailed:
+      "the lines it changed have been edited since, so it was not undone. The editor's own undo " +
+      "can still take it back."
   },
 
   slideshow: {
