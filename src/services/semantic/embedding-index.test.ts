@@ -4,8 +4,11 @@ import {
   diffIndex,
   serializeIndex,
   deserializeIndex,
+  passageHash,
+  passageHashes,
   peekIndexMeta,
   readKeeper,
+  readPassages,
   readWrittenAt,
   type IndexedConversation
 } from "./embedding-index";
@@ -245,5 +248,42 @@ describe("when the index was written (Pythia ADR-221)", () => {
     ]) {
       expect(readWrittenAt(bad)).toBeUndefined();
     }
+  });
+});
+
+describe("passage hashes on a row", () => {
+  const vec = (n: number): Int8Array => Int8Array.from([n, 0, 0]);
+  const row = (passages?: Uint32Array): IndexedConversation => ({
+    id: "n.md",
+    contentHash: "h",
+    chunks: [vec(1), vec(2)],
+    ...(passages ? { passages } : {})
+  });
+
+  it("hashes one passage the same every time, and two passages apart", () => {
+    expect(passageHash("kitchen")).toBe(passageHash("kitchen"));
+    expect(passageHash("kitchen")).not.toBe(passageHash("garden"));
+    expect(Array.from(passageHashes(["a", "b"]))).toEqual([passageHash("a"), passageHash("b")]);
+  });
+
+  it("round-trip with the row, and a row without them stays without", () => {
+    const hashes = passageHashes(["a", "b"]);
+    const [read] = deserializeIndex(serializeIndex([row(hashes)], 3)).items;
+    expect(Array.from(read?.passages ?? [])).toEqual(Array.from(hashes));
+    const [plain] = deserializeIndex(serializeIndex([row()], 3)).items;
+    expect(plain).not.toHaveProperty("passages");
+  });
+
+  it("are left out of the file when they do not fit the row", () => {
+    const [read] = deserializeIndex(serializeIndex([row(passageHashes(["a"]))], 3)).items;
+    expect(read).not.toHaveProperty("passages");
+  });
+
+  it("are read only as one 32-bit integer per vector", () => {
+    expect(Array.from(readPassages([1, 4294967295], 2) ?? [])).toEqual([1, 4294967295]);
+    for (const bad of [[1], [1, -1], [1, 2.5], [1, 2 ** 32], [1, "2"], "1,2", null]) {
+      expect(readPassages(bad, 2)).toBeUndefined();
+    }
+    expect(readPassages([], 0)).toBeUndefined();
   });
 });

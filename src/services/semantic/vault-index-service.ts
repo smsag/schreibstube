@@ -4,6 +4,7 @@ import {
   serializeIndex,
   deserializeIndex,
   EMPTY_INDEX_META,
+  passageHashes,
   type IndexedConversation,
   type IndexKeeper,
   type IndexMeta
@@ -656,7 +657,12 @@ export class VaultIndexService {
     if (!opts.mayEmbed) return "unchanged";
 
     const raw = await this.embedAll(chunks);
-    const item = { id: note.path, contentHash: hash, chunks: raw.map(quantize) };
+    const item = {
+      id: note.path,
+      contentHash: hash,
+      chunks: raw.map(quantize),
+      passages: passageHashes(chunks)
+    };
     // A known row is changed in place: it keeps its place in the list without
     // a scan for it, and nothing holds a row across two batches.
     if (prev) Object.assign(prev, item);
@@ -793,6 +799,9 @@ export class VaultIndexService {
     let embedded = 0;
     let reused = 0;
     let passages = 0;
+    /** Unchanged rows given the passage hashes they were written without:
+     *  nothing to embed, but a reason to write the file once. */
+    let backfilled = 0;
     /** Notes this pass gave up on and holds as failed (a row without vectors)
      *  in `kept` right now. */
     let failed = 0;
@@ -906,7 +915,12 @@ export class VaultIndexService {
         const prev = existing.get(note.path);
         const { hash, reuse } = resolveRowHash(this.policy, prev?.contentHash, chunks);
         if (prev && reuse) {
-          kept.push(prev); // unchanged (or failed before, unchanged) — no re-embed
+          // Unchanged (or failed before, unchanged) — no re-embed. A row from
+          // before passages were hashed gets its hashes from the text just read.
+          if (!prev.passages && prev.chunks.length === chunks.length && chunks.length > 0) {
+            kept.push({ ...prev, passages: passageHashes(chunks) });
+            backfilled++;
+          } else kept.push(prev);
           if (prev.chunks.length > 0) reused++;
           else stillFailed++;
           // Resets the failure streak too. Not resetting here would let five
@@ -923,7 +937,12 @@ export class VaultIndexService {
         } else {
           try {
             const raw = await this.embedAll(chunks);
-            kept.push({ id: note.path, contentHash: hash, chunks: raw.map(quantize) });
+            kept.push({
+              id: note.path,
+              contentHash: hash,
+              chunks: raw.map(quantize),
+              passages: passageHashes(chunks)
+            });
             embedded++;
             passages += raw.length;
             failedInARow = 0;
@@ -1007,7 +1026,7 @@ export class VaultIndexService {
       // Out of budget: what was embedded is kept, and the index says it is
       // unfinished, so the device that keeps it carries on from here.
       const gone = [...existing.keys()].some((id) => !desired.has(id));
-      if (changes() > persistedChanges || gone || options.mergeFromStore)
+      if (changes() > persistedChanges || gone || backfilled > 0 || options.mergeFromStore)
         await persist(null, false);
       else this.items = snapshot();
       this.synced = true;
@@ -1024,7 +1043,7 @@ export class VaultIndexService {
     const finalIds = new Set(final.map((row) => row.id));
     const dropped = [...existing.keys()].some((id) => !finalIds.has(id));
     this.items = final;
-    const changed = changes() > persistedChanges || dropped;
+    const changed = changes() > persistedChanges || dropped || backfilled > 0;
     // …and when another kind of device signed it: a full sync is how a device
     // takes the index over (a phone's Build now, a desktop's catch-up), and an
     // unchanged index it does not sign stays the other device's (Pythia ADR-221).
@@ -1060,10 +1079,19 @@ export class VaultIndexService {
     return out;
   }
 
+  /**
+   * The stored vectors of one note with the hash of each passage, when the row
+   * has them, or null when it is not in the index.
+   */
+  sourceOf(path: string): { chunks: Int8Array[]; passages?: Uint32Array } | null {
+    const item = this.items.find((i) => i.id === path);
+    if (!item || item.chunks.length === 0) return null;
+    return { chunks: item.chunks, ...(item.passages ? { passages: item.passages } : {}) };
+  }
+
   /** The stored vectors of one note, or null when it is not in the index. */
   vectorsOf(path: string): Int8Array[] | null {
-    const item = this.items.find((i) => i.id === path);
-    return item && item.chunks.length > 0 ? item.chunks : null;
+    return this.sourceOf(path)?.chunks ?? null;
   }
 
   /**

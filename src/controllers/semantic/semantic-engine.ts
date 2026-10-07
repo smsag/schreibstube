@@ -38,6 +38,12 @@ import { BuildGuard, phoneModelGuard, vaultBuildGuard } from "../../services/sem
 import { isOutOfMemoryError } from "../../services/semantic/memory-error";
 import { selectIndexPaths, scopeSignature } from "../../services/semantic/index-scope";
 import { optedOut, type RetrievedNote } from "../../services/semantic/vault-retrieval";
+import {
+  choosePassages,
+  focusHashes,
+  type FocusFallback,
+  type FocusPoint
+} from "../../services/semantic/passage-focus";
 import { catchUpIndex, CATCH_UP_DELAY_MS } from "../../services/semantic/vault-catch-up";
 import { applyMeaningFloor, meaningFloor } from "../../services/semantic/search-fusion";
 import type { IndexKeeper } from "../../services/semantic/embedding-index";
@@ -906,11 +912,15 @@ export class SemanticEngine {
    * description note among them stands for its picture) and conversations.
    * Never loads the model for the notes, so the panel can follow the open note
    * on a phone that released it; a note not yet indexed has nothing to offer.
+   *
+   * With `focus`, the note ranks from its stored passages around that place
+   * in its text as it is now, rather than from its opening (passage-focus).
    */
   async relatedToNote(
     path: string,
     limit: number,
-    scope: RelatedScope = ALL
+    scope: RelatedScope = ALL,
+    focus?: { markdown: string; at: FocusPoint; fallback: FocusFallback }
   ): Promise<RelatedFound> {
     const floors = this.relatedFloors();
     const none: RelatedFound = { notes: [], items: [], ...floorsOf(floors) };
@@ -918,8 +928,16 @@ export class SemanticEngine {
     try {
       const svc = this.ensure();
       if (!svc.isReady()) await svc.loadPersisted();
-      const vectors = svc.vectorsOf(path);
-      if (!vectors) return none;
+      const source = svc.sourceOf(path);
+      if (!source) return none;
+      const vectors = focus
+        ? choosePassages(
+            source.chunks,
+            source.passages,
+            focusHashes(focus.markdown, focus.at, embedChunkChars(this.modelId())),
+            focus.fallback
+          )
+        : source.chunks;
       const notes = scope.notes
         ? await svc.rankByVectors(vectors, { minScore: floors.notes, limit, exclude: [path] })
         : [];
