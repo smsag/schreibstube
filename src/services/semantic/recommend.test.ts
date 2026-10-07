@@ -8,7 +8,7 @@ import {
   similarityPercent,
   withAttached,
   type RecommendReason,
-  withoutPicturesShown
+  withoutShown
 } from "./recommend";
 import type { RelatedReason } from "../related-notes";
 
@@ -19,6 +19,14 @@ const link: RelatedReason = { kind: "link", count: 1 };
 const tag: RelatedReason = { kind: "tag", count: 1 };
 
 describe("recommendNotes", () => {
+  it("gives a link either way the same lead over what meaning found first", () => {
+    const backlink: RelatedReason = { kind: "backlink", count: 1 };
+    const byLink = recommendNotes([g("a.md", link)], m("x.md"), 10);
+    const byBacklink = recommendNotes([g("a.md", backlink)], m("x.md"), 10);
+    expect(byBacklink.map((r) => r.path)).toEqual(["a.md", "x.md"]);
+    expect(byBacklink[0]?.score).toBe(byLink[0]?.score);
+  });
+
   it("adds what only meaning found — the note nobody linked", () => {
     const out = recommendNotes([g("linked.md", link)], m("same-kitchen.md"), 10);
     expect(out.map((r) => r.path)).toEqual(["linked.md", "same-kitchen.md"]);
@@ -164,6 +172,7 @@ describe("relevanceOf", () => {
 
   it("calls what a person said high", () => {
     expect(relevanceOf([link], floors)).toBe("high");
+    expect(relevanceOf([{ kind: "backlink", count: 1 }], floors)).toBe("high");
     expect(relevanceOf([{ kind: "attached", count: 1 }], floors)).toBe("high");
   });
 
@@ -232,7 +241,7 @@ describe("foldDescriptions", () => {
   });
 });
 
-describe("withoutPicturesShown", () => {
+describe("withoutShown", () => {
   const entries = [
     { path: "Bilder/kueche.jpg", picture: true },
     { path: "Bilder/bad.jpg", picture: true },
@@ -241,13 +250,20 @@ describe("withoutPicturesShown", () => {
 
   it("leaves out the pictures the note shows itself, and keeps the notes it links", () => {
     const shown = new Set(["Bilder/kueche.jpg", "Notizen/Objekt 12.md"]);
-    expect(withoutPicturesShown(entries, (entry) => entry.picture, shown)).toEqual([
+    expect(withoutShown(entries, (entry) => entry.picture, shown)).toEqual([
       { path: "Bilder/bad.jpg", picture: true },
       { path: "Notizen/Objekt 12.md", picture: false }
     ]);
   });
 
   it("keeps every entry for a note that shows no picture", () => {
-    expect(withoutPicturesShown(entries, (entry) => entry.picture, new Set())).toHaveLength(3);
+    expect(withoutShown(entries, (entry) => entry.picture, new Set())).toHaveLength(3);
+  });
+
+  it("leaves out the notes it links as well, under the note", () => {
+    const shown = new Set(["Bilder/kueche.jpg", "Notizen/Objekt 12.md"]);
+    expect(withoutShown(entries, (entry) => entry.picture, shown, true)).toEqual([
+      { path: "Bilder/bad.jpg", picture: true }
+    ]);
   });
 });

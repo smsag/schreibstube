@@ -14,7 +14,7 @@
  * added to the vault's language, not just to one note.
  */
 import { idf } from "./idf";
-import type { RelatedReasonKind } from "./related-notes";
+import { isDirectLink } from "./related-notes";
 
 /** Where a suggestion came from. The dialog draws one section per origin. */
 export type TagOrigin = "vault" | "stated" | "model";
@@ -219,14 +219,10 @@ export function votingNotes(
   entries: readonly RecommendedEntry[],
   limit = TAG_NEIGHBOUR_LIMIT
 ): VotingNote[] {
-  const link: RelatedReasonKind = "link";
   return entries
     .filter((entry) => entry.isNote)
     .slice(0, limit)
-    .map((entry) => ({
-      path: entry.path,
-      linked: entry.reasons.some((reason) => reason.kind === link)
-    }));
+    .map((entry) => ({ path: entry.path, linked: entry.reasons.some(isDirectLink) }));
 }
 
 /**

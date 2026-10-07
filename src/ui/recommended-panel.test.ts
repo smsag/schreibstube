@@ -10,7 +10,7 @@ import type { RecommendReason } from "../services/semantic/recommend";
 beforeAll(() => installObsidianDom());
 beforeEach(() => setLanguage("en"));
 
-type Kind = "link" | "meaning" | "tag";
+type Kind = "link" | "backlink" | "meaning" | "tag";
 
 /** A reason as the ranking gives it; likeness at 0.7, a middling score. */
 const reason = (kind: Kind): RecommendReason =>
@@ -452,6 +452,33 @@ describe("RecommendedPanel", () => {
       "Highly relevant: attached in the conversation"
     );
     expect(meters.every((el) => el.getAttribute("role") === "img")).toBe(true);
+  });
+
+  it("says which way a link runs", async () => {
+    const { root, panel } = setup(async () => ({
+      items: [note("target.md", ["link"]), note("fan.md", ["backlink"])]
+    }));
+    panel.show("x.md");
+    await settle();
+    const why = Array.from(root.querySelectorAll(".schreibstube-related-card-why")).map(
+      (el) => el.textContent
+    );
+    expect(why).toEqual(["linked from here", "links here"]);
+  });
+
+  it("asks the link graph for the place it is drawn in", () => {
+    const { host } = setup();
+    const links = vi.fn(() => []);
+    host.links = links;
+    new RecommendedPanel(document.createElement("div"), host).show("a.md");
+    new RecommendedPanel(document.createElement("div"), host, {
+      heading: false,
+      place: "end"
+    }).show("a.md");
+    expect(links.mock.calls).toEqual([
+      ["a.md", "cursor"],
+      ["a.md", "end"]
+    ]);
   });
 
   it("reads likeness against the floors the host gives", async () => {

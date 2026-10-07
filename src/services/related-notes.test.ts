@@ -47,11 +47,33 @@ const VAULT: RelatedSubject[] = [
 ];
 
 describe("rankRelated", () => {
-  it("puts a note linked from the source first", () => {
+  it("puts a note linked with the source first, here one that links to it", () => {
     const related = rankRelated("Objekte/Objekt 12.md", VAULT);
 
     expect(related[0]?.path).toBe("Objekte/Exposé 12.md");
-    expect(related[0]?.reasons[0]?.kind).toBe("link");
+    expect(related[0]?.reasons[0]?.kind).toBe("backlink");
+  });
+
+  it("names a link by its direction, and weighs both directions alike", () => {
+    const vault: RelatedSubject[] = [
+      note("Quelle.md", { links: ["Ziel.md", "Beide.md"], backlinks: ["Fan.md", "Beide.md"] }),
+      note("Ziel.md", { backlinks: ["Quelle.md"] }),
+      note("Fan.md", { links: ["Quelle.md"] }),
+      note("Beide.md", { links: ["Quelle.md"], backlinks: ["Quelle.md"] })
+    ];
+    const related = rankRelated("Quelle.md", vault);
+    const kind = (path: string) => related.find((entry) => entry.path === path)?.reasons[0]?.kind;
+    const score = (path: string) => related.find((entry) => entry.path === path)?.score;
+
+    expect(kind("Ziel.md")).toBe("link");
+    expect(kind("Fan.md")).toBe("backlink");
+    // Both ways is in this note's text, so it reads as a link from here, once.
+    const both = related.find((entry) => entry.path === "Beide.md")?.reasons ?? [];
+    expect(both.filter((reason) => reason.kind === "link" || reason.kind === "backlink")).toEqual([
+      { kind: "link", count: 1 }
+    ]);
+    expect(score("Fan.md")).toBe(score("Ziel.md"));
+    expect(score("Beide.md")).toBe(score("Ziel.md"));
   });
 
   it("finds siblings nothing links to each other by co-citation", () => {
@@ -168,7 +190,7 @@ describe("rankRelated", () => {
     const related = rankRelated("Objekte/Objekt 12.md", VAULT);
     const expose = related.find((entry) => entry.path === "Objekte/Exposé 12.md");
 
-    expect(expose?.reasons.map((reason) => reason.kind)).toEqual(["link", "tag", "folder"]);
+    expect(expose?.reasons.map((reason) => reason.kind)).toEqual(["backlink", "tag", "folder"]);
   });
 
   it("caps a long list rather than filtering it", () => {
@@ -220,7 +242,7 @@ describe("a note linking to itself", () => {
     const [fan] = rankRelated("A/Quelle.md", vault);
 
     expect(fan?.path).toBe("B/Fan.md");
-    expect(fan?.reasons).toEqual([{ kind: "link", count: 1 }]);
+    expect(fan?.reasons).toEqual([{ kind: "backlink", count: 1 }]);
   });
 
   it("does not make a self-linking neighbour share a link with the source", () => {

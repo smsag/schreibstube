@@ -11,7 +11,9 @@
  * Five signals, in the order they are worth anything:
  *
  * **A link either way** is the strongest thing a vault can say. Somebody wrote
- * it deliberately, on purpose, about these two notes.
+ * it deliberately, on purpose, about these two notes. Which way it runs is
+ * kept, for the reader rather than the score: a note this one links is in its
+ * text already, a note that links here can be seen from nowhere in it.
  *
  * **Shared links** — both notes point at the same third note. Two Exposés that
  * both link `Objekt 12` are about the same object.
@@ -57,7 +59,13 @@ export interface RelatedSubject {
 }
 
 /** Why a note is on the list. The view turns these into the row's chips. */
-export type RelatedReasonKind = "link" | "shared-link" | "co-citation" | "tag" | "folder";
+export type RelatedReasonKind =
+  "link" | "backlink" | "shared-link" | "co-citation" | "tag" | "folder";
+
+/** A link written in this note (`link`), or one in the other note pointing here (`backlink`). */
+export function isDirectLink(reason: { kind: string }): boolean {
+  return reason.kind === "link" || reason.kind === "backlink";
+}
 
 export interface RelatedReason {
   kind: RelatedReasonKind;
@@ -82,6 +90,7 @@ export interface RelatedNote {
  */
 const WEIGHTS: Record<RelatedReasonKind, number> = {
   link: 3,
+  backlink: 3,
   "shared-link": 1,
   "co-citation": 1,
   tag: 0.6,
@@ -314,8 +323,10 @@ export function rankRelated(
 
     // A link in either direction is one fact, counted once: a pair of notes
     // that link to each other are not twice as related as a pair where one
-    // links to the other, they are simply related.
-    if (myLinks.has(note.path) || myBacklinks.has(note.path)) add("link", 1, WEIGHTS.link);
+    // links to the other, they are simply related. Named by whether it is in
+    // this note's text, which a link both ways is.
+    if (myLinks.has(note.path)) add("link", 1, WEIGHTS.link);
+    else if (myBacklinks.has(note.path)) add("backlink", 1, WEIGHTS.backlink);
 
     // Both point at the same third note. Weighted by how often that third note
     // is pointed at, so sharing a link to an index everybody links to is worth

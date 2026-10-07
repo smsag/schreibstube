@@ -1099,7 +1099,8 @@ export const de: Messages = {
       },
       relevanceTitle: (level: string, reasons: string) => `${level}: ${reasons}`,
       reasons: {
-        link: "verlinkt",
+        link: "von hier verlinkt",
+        backlink: "verlinkt hierher",
         attached: "im Gespräch angehängt",
         meaning: (percent: number) => `${percent} % ähnlich im Inhalt`,
         sharedLink: (count: number) =>
