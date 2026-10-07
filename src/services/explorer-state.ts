@@ -5,6 +5,7 @@
  * path, follows moves, keeps tombstones and merges per entry.
  */
 import { basename } from "./file-name";
+import { parentOf } from "./tree-move";
 
 export const EXPLORER_DATA_VERSION = 2;
 
@@ -411,6 +412,41 @@ export function reorderPinned(
     const current = entries[path];
     if (!current) return;
     entries[path] = { ...current, pinnedAt: now + index, updatedAt: now };
+  });
+
+  return { version: EXPLORER_DATA_VERSION, entries };
+}
+
+/**
+ * Put the items held at the top of one folder in a given order.
+ *
+ * The same rewrite as the pinned block's: `keptAt` is the sort key among the
+ * kept siblings, so the folder's kept items get consecutive values from one
+ * base and a fresh `updatedAt` for the merge. The folder is the first given
+ * path's; paths in other folders and paths that are not kept are ignored, and
+ * a kept sibling the list left out keeps its place after the ones given, so a
+ * stale view cannot send it to the top.
+ */
+export function reorderKept(
+  data: ExplorerData,
+  orderedPaths: readonly string[],
+  now: number
+): ExplorerData {
+  const first = orderedPaths[0];
+  if (first === undefined) return data;
+  const folder = parentOf(first);
+  const siblings = Object.entries(data.entries)
+    .filter(([, entry]) => entry.orphanedAt === undefined && entry.keptAt !== undefined)
+    .filter(([path]) => parentOf(path) === folder)
+    .sort(([, a], [, b]) => (a.keptAt ?? 0) - (b.keptAt ?? 0))
+    .map(([path]) => path);
+  const moved = orderedPaths.filter((path) => siblings.includes(path));
+  if (moved.length === 0) return data;
+
+  const entries = { ...data.entries };
+  [...moved, ...siblings.filter((path) => !moved.includes(path))].forEach((path, index) => {
+    const current = entries[path];
+    if (current) entries[path] = { ...current, keptAt: now + index, updatedAt: now };
   });
 
   return { version: EXPLORER_DATA_VERSION, entries };

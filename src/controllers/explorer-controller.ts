@@ -50,6 +50,7 @@ import {
   reattachOrphans,
   renamePath,
   setIcon,
+  reorderKept,
   reorderPinned,
   setKept,
   setPinned,
@@ -633,6 +634,11 @@ export class ExplorerController {
   /** Put the pinned block in a new order, as a drag has just arranged it. */
   reorderPinned(orderedPaths: readonly string[]): void {
     this.store.mutate((data, now) => reorderPinned(data, orderedPaths, now));
+  }
+
+  /** Put the items held at the top of one folder in a new order, as a drag has just arranged them. */
+  reorderKept(orderedPaths: readonly string[]): void {
+    this.store.mutate((data, now) => reorderKept(data, orderedPaths, now));
   }
 
   /**

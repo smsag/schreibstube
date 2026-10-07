@@ -1,8 +1,10 @@
 /**
  * Where a drag may land.
  *
- * Two drags share the file pane: a row of the tree carried onto a folder, and
- * a row of the pinned block carried to a new place in it. Both need the same
+ * Three drags share the file pane: a row of the tree carried onto a folder, a
+ * row of the pinned block carried to a new place in it, and a row held at the
+ * top of its folder carried to a new place among the others held there. All
+ * need the same
  * question answered — what is under the pointer — and this module answers it
  * from the rows on screen, with no view state of its own. The marks it paints
  * are classes the stylesheet draws.
@@ -14,6 +16,8 @@ const MOVE_TARGETS =
 const FILE_ROWS =
   ".schreibstube-explorer-tree .schreibstube-explorer-row[data-path]:not(.is-folder)";
 const PINNED_ROWS = ".schreibstube-explorer-row.is-pinned-entry";
+/** In the tree, `.is-pinned` marks a row held at the top of its folder. */
+const KEPT_ROWS = ".schreibstube-explorer-tree .schreibstube-explorer-row.is-pinned[data-path]";
 const SECTION_HEADER = "schreibstube-explorer-section-header";
 
 /** Whether a point on screen is inside an element's box. */
@@ -113,35 +117,98 @@ export interface DropSlot {
   before: boolean;
 }
 
-/** Which pinned row the pointer is over, and which half of it. */
-export function dropAt(root: HTMLElement, clientY: number): DropSlot | null {
-  for (const row of pinnedRows(root)) {
+/**
+ * Which of `rows` the pointer is over, and which half of it. With
+ * `intoFolders`, a folder row answers only near its edges, since its middle is
+ * where the same drag drops into the folder.
+ */
+function slotIn(
+  rows: readonly HTMLElement[],
+  clientY: number,
+  intoFolders = false
+): DropSlot | null {
+  for (const row of rows) {
     const box = row.getBoundingClientRect();
     if (clientY < box.top || clientY > box.bottom) continue;
 
     const path = row.getAttribute("data-path");
     if (!path) continue;
-    return { path, before: clientY < box.top + box.height / 2 };
+    const edge = intoFolders && row.hasClass("is-folder") ? box.height / 3 : box.height / 2;
+    if (clientY < box.top + edge) return { path, before: true };
+    if (clientY > box.bottom - edge) return { path, before: false };
+    return null;
   }
   return null;
 }
 
-export function markDropTarget(root: HTMLElement, clientY: number, dragging: string | null): void {
-  clearDropMarks(root);
-  const target = dropAt(root, clientY);
-  if (!target || target.path === dragging) return;
+function markSlot(rows: readonly HTMLElement[], slot: DropSlot | null, dragging: string | null) {
+  clearSlotMarks(rows);
+  if (!slot || slot.path === dragging) return;
 
-  for (const row of pinnedRows(root)) {
-    if (row.getAttribute("data-path") !== target.path) continue;
-    row.addClass(target.before ? "is-drop-before" : "is-drop-after");
+  for (const row of rows) {
+    if (row.getAttribute("data-path") !== slot.path) continue;
+    row.addClass(slot.before ? "is-drop-before" : "is-drop-after");
   }
 }
 
-export function clearDropMarks(root: HTMLElement): void {
-  for (const row of pinnedRows(root)) {
+function clearSlotMarks(rows: readonly HTMLElement[]): void {
+  for (const row of rows) {
     row.removeClass("is-drop-before");
     row.removeClass("is-drop-after");
   }
+}
+
+/** Which pinned row the pointer is over, and which half of it. */
+export function dropAt(root: HTMLElement, clientY: number): DropSlot | null {
+  return slotIn(pinnedRows(root), clientY);
+}
+
+export function markDropTarget(root: HTMLElement, clientY: number, dragging: string | null): void {
+  markSlot(pinnedRows(root), dropAt(root, clientY), dragging);
+}
+
+export function clearDropMarks(root: HTMLElement): void {
+  clearSlotMarks(pinnedRows(root));
+}
+
+// --- the top of a folder: reordering what is held there ---------------------
+
+/**
+ * The tree's rows held at the top of `folder`, in drawn order. A kept row of
+ * another folder is not a place for this one: dropping there would be a move,
+ * and the move has its own drag.
+ */
+function keptRows(root: HTMLElement, folder: string): HTMLElement[] {
+  return Array.from(root.querySelectorAll<HTMLElement>(KEPT_ROWS)).filter(
+    (row) => parentOf(row.getAttribute("data-path") ?? "") === folder
+  );
+}
+
+/** The paths held at the top of `folder`, in the order the tree draws them. */
+export function keptOrder(root: HTMLElement, folder: string): string[] {
+  return keptRows(root, folder).map((row) => row.getAttribute("data-path") ?? "");
+}
+
+/** Which row held at the top of `folder` the pointer is over, and which half of it. */
+export function keptSlotAt(root: HTMLElement, folder: string, clientY: number): DropSlot | null {
+  return slotIn(keptRows(root, folder), clientY, true);
+}
+
+/** Mark where a kept row would land; whether there is such a place under the pointer. */
+export function markKeptSlot(
+  root: HTMLElement,
+  folder: string,
+  clientY: number,
+  dragging: string
+): boolean {
+  const rows = keptRows(root, folder);
+  const slot = slotIn(rows, clientY, true);
+  markSlot(rows, slot, dragging);
+  return slot !== null;
+}
+
+export function clearKeptMarks(root: HTMLElement): void {
+  clearSlotMarks(Array.from(root.querySelectorAll<HTMLElement>(KEPT_ROWS)));
 }
 
 /**
