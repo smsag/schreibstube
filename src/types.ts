@@ -3,6 +3,7 @@ import type { PublishKeyMap } from "./services/publish-index";
 import type { LanguagePreference } from "./i18n";
 import type { NumberStyle } from "./services/amounts";
 import type { ExchangeRates } from "./services/exchange-rates";
+import type { DoneTaskMode } from "./services/done-tasks";
 
 export type HeadingLevel = 1 | 2 | 3 | 4 | 5 | 6;
 
@@ -156,6 +157,8 @@ export interface SchreibstubeSettings {
   propertySetFolder: string;
   /** Show "Suggest tags" beside "Add property"; the command works either way. */
   tagSuggestControl: boolean;
+  /** What clearing finished tasks does with them: to the back of their list, to the archive, or away. */
+  doneTasksMode: DoneTaskMode;
   /** How an ambiguous number like 1.234 is read, and results written; "auto" follows Obsidian. */
   sumsNumberStyle: NumberStyle;
   /** A line ending in `=` shows its result beside it (contracts/CALCULATOR.md). */

@@ -846,6 +846,7 @@ Turns a long note with checkboxes into a progress view without any extra state i
 - While the note contains the ribbon block, every heading that owns tasks shows a muted badge such as `3 of 3 open`. A heading counts only the tasks directly beneath it, up to the next heading of any level; tasks under a sub-heading belong to that sub-heading.
 - Ribbon and badges update as soon as a checkbox is toggled. Badges stay visible when a heading is folded.
 - `[ ]` is open; any other marker (`[x]`, `[-]`, `[~]`, …) counts as done. Tasks inside fenced code blocks are ignored.
+- **Tidy up done tasks** — clears the done tasks of the open note out of the way, the way **Done tasks** in the settings says: to the end of their list, under a `## Archive` section at the end of the note, or out of the note. Here only `[x]` and `[-]` count as done. A task moves with everything indented under it, and a done task with a sub-task still open stays where it is. In archive mode a done sub-task stays with its open parent. The notice afterwards offers **Undo**, and the editor's own undo takes the change back in one step.
 
 The badges appear in Live Preview and Source mode. The ribbon also renders in Reading view.
 

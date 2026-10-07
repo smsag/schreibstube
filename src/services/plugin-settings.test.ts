@@ -49,6 +49,12 @@ describe("normalizeSettings", () => {
     expect(normalizeSettings({ tagSuggestControl: false }).tagSuggestControl).toBe(false);
   });
 
+  it("tidies done tasks to the back of their list unless another way was chosen", () => {
+    expect(normalizeSettings({}).doneTasksMode).toBe("back");
+    expect(normalizeSettings({ doneTasksMode: "archive" }).doneTasksMode).toBe("archive");
+    expect(normalizeSettings({ doneTasksMode: "shred" as never }).doneTasksMode).toBe("back");
+  });
+
   it("defaults llmModelCustom to an empty string", () => {
     expect(normalizeSettings({}).llmModelCustom).toBe("");
   });

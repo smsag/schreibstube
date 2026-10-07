@@ -15,6 +15,10 @@ and a From outside `MAIL_FROM` and the new `MAIL_FROM_ALLOWED` — see Changed
 for both migrations. The plugin works with either bridge; with a bridge on 7
 a plan names no conflicts.
 
+### Added
+
+- **Tidy up done tasks in one go.** **Tidy up done tasks** clears the open note's done tasks, `[x]` and `[-]`, out of the way, each with everything indented under it: sub-tasks stay sub-tasks and a note under a task stays its note. Which way is set under **Done tasks** in the settings: to the end of the list each one is in, under a `## Archive` section at the end of the note (made if the note has none), or out of the note. A done task with a sub-task still open stays where it is until everything under it is done, and the tasks already under `## Archive` are never touched again. The change is one step for the editor's own undo, and the notice afterwards offers an **Undo** for half a minute that keeps whatever was typed elsewhere in the note since. Other markers a theme gives meaning to, such as `[>]` or `[!]`, are not done and are left alone.
+
 ### Security
 
 - **A mail cannot bring code into your note.** A merged or imported mail was escaped against embeds and HTML, but a sender could still write a `dataviewjs` fence, Dataview's inline `$=` JavaScript, a Templater `<% %>` tag or an Obsidian `%%` comment, and Dataview runs a fence inside a quote as readily as anywhere else. Backticks, fence runs, Templater openers, comments and HTML comments are now escaped too, as entities that read the same; a body with bare carriage returns no longer breaks out of its quote; and the names of attachments left out of an import, which are the sender's, are escaped and kept to one line, so `![[Finanzen/Gehalt.pdf]].ics` is shown rather than embedded.

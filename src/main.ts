@@ -41,6 +41,7 @@ import { describePollSummary } from "./services/sync-summary";
 import { mergeSyncState, sameSyncState } from "./services/sync-merge";
 import type { SyncRecord } from "./services/sync-document";
 import { NoteCommands } from "./controllers/note-commands";
+import { DoneTasksCommand } from "./controllers/done-tasks-command";
 import { SumsController } from "./controllers/sums-controller";
 import { registerTableFormulaPostProcessor } from "./processors/table-formulas";
 import {
@@ -202,6 +203,7 @@ export default class SchreibstubePlugin extends Plugin {
   private publish: PublishCommands | null = null;
   private print: PrintCommands | null = null;
   private notes: NoteCommands | null = null;
+  private doneTasks: DoneTasksCommand | null = null;
   private pdf: PdfCommands | null = null;
   private sums: SumsController | null = null;
 
@@ -314,6 +316,7 @@ export default class SchreibstubePlugin extends Plugin {
       (file) => this.recommendedFooter?.holdBack(file) ?? (() => undefined),
       (leaf, file) => this.draftWidth.follow(leaf, file)
     );
+    this.doneTasks = new DoneTasksCommand(this.app, () => this.settings.doneTasksMode, this.logger);
     // The reader is reached for only when the command runs. Obsidian's pdf.js
     // is fetched on that first call, and every vault that never summarises a
     // PDF pays nothing for the feature but the bytes of this line.
@@ -1817,6 +1820,14 @@ export default class SchreibstubePlugin extends Plugin {
       name: t().commands.insertTaskSummary,
       editorCallback: (editor) => {
         this.insertTaskSummary(editor);
+      }
+    });
+
+    this.addCommand({
+      id: "tidy-done-tasks",
+      name: t().commands.tidyDoneTasks,
+      editorCallback: (editor, view) => {
+        this.doneTasks?.run(editor, view.file);
       }
     });
 

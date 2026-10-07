@@ -17,6 +17,7 @@ export const de: Messages = {
     switchReadingEditing: "Lesen/Bearbeiten wechseln",
     newNote: "Neue Notiz",
     insertTaskSummary: "Einfügen: Aufgaben-Zusammenfassung",
+    tidyDoneTasks: "Erledigte Aufgaben aufräumen",
     insertSlideshow: "Einfügen: Diaschau",
     insertPdfSummary: "Einfügen: Zusammenfassung aus dem angehängten PDF",
     rename: "Notiz mit KI umbenennen",
@@ -67,7 +68,36 @@ export const de: Messages = {
     alreadyPresent: "diese Notiz hat schon eine Aufgaben-Zusammenfassung.",
     none: "Keine Aufgaben",
     ribbon: (open: number, total: number) => `${open} offen von ${total}`,
-    badge: (open: number, total: number) => `${open} von ${total} offen`
+    badge: (open: number, total: number) => `${open} von ${total} offen`,
+
+    tidyHeading: "Erledigte Aufgaben",
+    tidyIntro:
+      "Räumt die erledigten Aufgaben einer Notiz in einem Zug aus dem Weg: [x] und [-], jeweils " +
+      "mit allem, was darunter eingerückt ist. Eine erledigte Aufgabe mit noch offener " +
+      "Unteraufgabe bleibt stehen, und Aufgaben unter ## Archive bleiben unberührt. Die Meldung " +
+      "danach bietet an, es rückgängig zu machen.",
+    tidyMode: "Was das Aufräumen tut",
+    tidyModeDesc: "Gilt für die Notiz, die beim Ausführen des Befehls offen ist.",
+    modeBack: "Ans Ende ihrer Liste verschieben",
+    modeArchive: "Unter ## Archive am Ende der Notiz verschieben",
+    modeDelete: "Löschen",
+    nothing: "es gibt keine erledigten Aufgaben aufzuräumen.",
+    nothingBack: "jede erledigte Aufgabe steht schon am Ende ihrer Liste.",
+    moved: (count: number) =>
+      count === 1
+        ? "1 erledigte Aufgabe ans Ende ihrer Liste verschoben."
+        : `${count} erledigte Aufgaben ans Ende ihrer Listen verschoben.`,
+    archived: (count: number) =>
+      count === 1
+        ? "1 erledigte Aufgabe ins Archiv verschoben."
+        : `${count} erledigte Aufgaben ins Archiv verschoben.`,
+    deleted: (count: number) =>
+      count === 1 ? "1 erledigte Aufgabe gelöscht." : `${count} erledigte Aufgaben gelöscht.`,
+    undo: "Rückgängig",
+    undone: "das Aufräumen wurde rückgängig gemacht.",
+    undoFailed:
+      "die geänderten Zeilen wurden inzwischen bearbeitet, daher wurde nichts zurückgenommen. " +
+      "Das Rückgängig des Editors kann es noch zurücknehmen."
   },
 
   slideshow: {

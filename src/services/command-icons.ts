@@ -15,6 +15,7 @@ export const COMMAND_ICONS: Readonly<Record<string, string>> = {
   "set-focus-paragraph-mode": "pilcrow",
   "switch-reading-editing": "book-open",
   "insert-task-summary": "list-checks",
+  "tidy-done-tasks": "check-check",
   "insert-slideshow": "gallery-horizontal",
   "insert-pdf-summary": "file-text",
   "explorer-focus-filter": "search",
