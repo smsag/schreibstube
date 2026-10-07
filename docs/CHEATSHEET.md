@@ -1,6 +1,6 @@
 # Schreibstube cheatsheet for language models
 
-Checked against Schreibstube 1.75.0
+Checked against Schreibstube 1.76.0
 
 **For the person:** paste this whole file into a conversation with a language
 model, then ask for what you need — a presentation, a letter, a mail, a cost
@@ -321,8 +321,8 @@ layout: compare
 
 - The block shows "20 open of 21" for the whole note; each heading with
   tasks shows its own count. Group tasks under headings for that.
-- `- [ ]` is open, any other mark is done. A done task folds its indented
-  details away.
+- `- [ ]` is open, any other mark is done; a done task folds its details.
+  `## Archive` is where **Tidy up done tasks** files `[x]` and `[-]` tasks.
 
 ### Callouts
 

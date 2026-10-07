@@ -2,7 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## 1.76.0 - 2026-10-07
+
+One command for finished tasks, an order of your own at the top of a
+folder, and a Recommended list that reads where you are. **Tidy up done
+tasks** moves a note's done tasks to the end of their list, under
+`## Archive` or out of the note, with everything indented under them, and
+any run can be undone. The files kept at the top of a folder can be dragged
+into an order of their own. Recommended ranks from the section you are
+writing in, or from the end of the note under it, and the list under a note
+no longer repeats the links its text already holds. Underneath, a long
+round of hardening: text from somebody else — a mail, a synced source, a
+model's answer — can no longer bring code into a note, every answer from
+the network is bounded in size, and a release is built without the right
+to publish.
+
+Mobile checklist: not run, and nothing in this release was tried in the
+Obsidian app; the test suite and the build covered it. What to try first on
+a phone: **Tidy up done tasks** in each of its three ways and its Undo; the
+Recommended list under a long note with many links; and a long press and
+drag among the files kept at the top of a folder.
 
 The bridge moves to 3.0.0, protocol 8: it closes its perimeter, stops
 being a relay for whoever holds the mail token, and publishes only into files
@@ -18,6 +37,16 @@ a plan names no conflicts.
 ### Added
 
 - **Tidy up done tasks in one go.** **Tidy up done tasks** clears the open note's done tasks, `[x]` and `[-]`, out of the way, each with everything indented under it: sub-tasks stay sub-tasks and a note under a task stays its note. Which way is set under **Done tasks** in the settings: to the end of the list each one is in, under a `## Archive` section at the end of the note (made if the note has none), or out of the note. A done task with a sub-task still open stays where it is until everything under it is done, and the tasks already under `## Archive` are never touched again. The change is one step for the editor's own undo, and the notice afterwards offers an **Undo** for half a minute that keeps whatever was typed elsewhere in the note since. Other markers a theme gives meaning to, such as `[>]` or `[!]`, are not done and are left alone.
+
+### Changed
+
+- **Recommended under a note no longer repeats its links.** A link is the strongest thing Recommended knows, so under a note with seven links the list was those seven notes, every one of which the reader had just passed in the text. Under the note, what it already links or embeds is now left out, as the pictures it shows already were, and the places go to notes that link here, that share its links, or that read alike. The sidebar keeps the linked notes, since reaching one from beside the text is what it is for there. The line under an entry now says which way a link runs: **linked from here** or **links here** (**von hier verlinkt** or **verlinkt hierher**).
+- **Recommended reads from where you are in the note.** Search by meaning compared a note with the rest of the vault by its first eight passages, about the first page, so under a long note the list was about its opening. In the sidebar it now follows the section the cursor is in: rest in another section for a moment and the list is ranked for that part of the note, and each section's list is kept while the note is open. Under the note it is ranked from the note's end, where it is read. A part written since the index last read the note draws on the passages nearest to it. It costs a phone nothing more: the same number of passages is compared, and no model is loaded for it. The index keeps a small hash for each passage to find them; a desktop adds them to an existing index once, at its next sync, without embedding anything.
+- **Breaking for the bridge: a note's From must be one the operator allowed.** A deployment where notes send as an alias — `schreibstubeFrom` or the plugin's sender setting naming an address other than `MAIL_FROM` — refuses those sends from bridge 3.0.0 on with "The bridge does not send as …". To keep them working, set `MAIL_FROM_ALLOWED` on the bridge to the aliases, comma-separated, or to `@your-domain.de` for every address at the domain, and redeploy. Sends as `MAIL_FROM` itself need nothing.
+- **Breaking for the bridge: a publish target's state must lie outside its web root.** The state directory holds the text of every published note, and its default, `<ROOT>/.schreibstube`, was served by any web server that ignores `.htaccess`. A target with its state inside the web root no longer starts from bridge 3.0.0 on. Set `PUBLISH_<TARGET>_STATE_ROOT` to a directory outside the root and move the existing `.schreibstube` directory there, or, on a host where nothing else is writable, set `PUBLISH_<TARGET>_STATE_IN_ROOT=true`, and redeploy.
+- **An update from a source that brings in code another plugin runs is no longer taken with "Accept all".** A mirrored note shows what its source writes, and a source can write a `dataviewjs` block, Dataview's inline `$=` JavaScript, a Templater `<% %>` command, a JS Engine, Datacore, Meta Bind or Buttons block — which those plugins run with Obsidian's full rights once the note renders or is used. A card that adds or changes one now carries a **runs code** badge, names what it found, and is left out of **Accept all**: you read it and accept it on its own, or not at all. Code that is only shown, like a `js` or `html` fence, is not flagged.
+- **A source that sends binary data is refused.** A server that names no content type, or says `application/octet-stream`, was believed whenever the link ended in `.md`; a body with a NUL byte in it is now reported as not text instead of being offered as cards.
+- **Files kept at the top of a folder can be put in order.** **Keep at top of folder** held its files in the order they were marked, and the only way to change it was to release them all and mark them again. Drag one held row onto another held in the same folder and it takes that place: the upper half of the row puts it before, the lower half after, the same drag the Pinned section reorders with. On a held folder only the top and bottom edges reorder; its middle still moves the row into the folder. The order is kept per folder and travels with the vault like the mark itself.
 
 ### Security
 
@@ -52,22 +81,10 @@ a plan names no conflicts.
 - **A target may have a token of its own.** `PUBLISH_<TARGET>_TOKEN`, under the rules of every token, alone opens that target; `PUBLISH_TOKEN` keeps opening the others (bridge 3.0.0).
 - **Site headers on Apache.** Where the bridge writes `.htaccess` files (`PUBLISH_<TARGET>_HTACCESS`, on where the state is in the root), the site gets a content security policy, `nosniff` and a referrer policy, and SVGs under `assets/` are served in a sandbox; `PUBLISHING.md` has the same for nginx and Caddy (bridge 3.0.0).
 - **Connection tests no longer name the web root's path**, run on the shared connection, and answer from the last attempt for 30 seconds, so testing in a loop cannot get the bridge's address banned for failed logins (bridge 3.0.0).
-
-### Changed
-
-- **Recommended under a note no longer repeats its links.** A link is the strongest thing Recommended knows, so under a note with seven links the list was those seven notes, every one of which the reader had just passed in the text. Under the note, what it already links or embeds is now left out, as the pictures it shows already were, and the places go to notes that link here, that share its links, or that read alike. The sidebar keeps the linked notes, since reaching one from beside the text is what it is for there. The line under an entry now says which way a link runs: **linked from here** or **links here** (**von hier verlinkt** or **verlinkt hierher**).
-- **Recommended reads from where you are in the note.** Search by meaning compared a note with the rest of the vault by its first eight passages, about the first page, so under a long note the list was about its opening. In the sidebar it now follows the section the cursor is in: rest in another section for a moment and the list is ranked for that part of the note, and each section's list is kept while the note is open. Under the note it is ranked from the note's end, where it is read. A part written since the index last read the note draws on the passages nearest to it. It costs a phone nothing more: the same number of passages is compared, and no model is loaded for it. The index keeps a small hash for each passage to find them; a desktop adds them to an existing index once, at its next sync, without embedding anything.
-- **Breaking for the bridge: a note's From must be one the operator allowed.** A deployment where notes send as an alias — `schreibstubeFrom` or the plugin's sender setting naming an address other than `MAIL_FROM` — refuses those sends from bridge 3.0.0 on with "The bridge does not send as …". To keep them working, set `MAIL_FROM_ALLOWED` on the bridge to the aliases, comma-separated, or to `@your-domain.de` for every address at the domain, and redeploy. Sends as `MAIL_FROM` itself need nothing.
-- **Breaking for the bridge: a publish target's state must lie outside its web root.** The state directory holds the text of every published note, and its default, `<ROOT>/.schreibstube`, was served by any web server that ignores `.htaccess`. A target with its state inside the web root no longer starts from bridge 3.0.0 on. Set `PUBLISH_<TARGET>_STATE_ROOT` to a directory outside the root and move the existing `.schreibstube` directory there, or, on a host where nothing else is writable, set `PUBLISH_<TARGET>_STATE_IN_ROOT=true`, and redeploy.
-- **An update from a source that brings in code another plugin runs is no longer taken with "Accept all".** A mirrored note shows what its source writes, and a source can write a `dataviewjs` block, Dataview's inline `$=` JavaScript, a Templater `<% %>` command, a JS Engine, Datacore, Meta Bind or Buttons block — which those plugins run with Obsidian's full rights once the note renders or is used. A card that adds or changes one now carries a **runs code** badge, names what it found, and is left out of **Accept all**: you read it and accept it on its own, or not at all. Code that is only shown, like a `js` or `html` fence, is not flagged.
-- **A source that sends binary data is refused.** A server that names no content type, or says `application/octet-stream`, was believed whenever the link ended in `.md`; a body with a NUL byte in it is now reported as not text instead of being offered as cards.
-- **Files kept at the top of a folder can be put in order.** **Keep at top of folder** held its files in the order they were marked, and the only way to change it was to release them all and mark them again. Drag one held row onto another held in the same folder and it takes that place: the upper half of the row puts it before, the lower half after, the same drag the Pinned section reorders with. On a held folder only the top and bottom edges reorder; its middle still moves the row into the folder. The order is kept per folder and travels with the vault like the mark itself.
-
-### Security
-
 - **A release is built without the right to publish, and you can rebuild it yourself.** The files on a release are built by a job that can only read the repository and installs its dependencies without running their scripts, and published by a separate job, from `main` only, after someone approves it. To check a release before installing it, run `gh attestation verify main.js -R smsag/schreibstube`; to check it a second way, run `npm ci --ignore-scripts && npm run build` at the release's tag and compare the SHA-256 of `main.js`. `SECURITY.md` has both.
 - **Search by meaning runs no code from a CDN.** The model runtime fetched its JavaScript loader and WebAssembly from jsDelivr, and nothing checked either. The loader is now part of `main.js`, so the release attests it. The 14 MB WebAssembly file is attached to each release, downloaded once per device from the release you installed, and checked against the hash this version expects, after the download and at every start. A file that does not match is not used, and search by meaning says so in its status line. The first search after updating downloads it once. On a desktop, the model's worker no longer sees Node's `require`, `module` or `process`. The model's files come from Hugging Face at one fixed commit, and each is checked against its pinned length and SHA-256 before it is used. A model whose files do not match is not loaded, and the status line says why. A model downloaded before this update is downloaded once more, at the pinned commit.
 - **The bridge's image is built from one fixed Node image.** Its base is pinned by digest rather than by a tag that can change underneath it, and no `.env.*` file next to the Dockerfile reaches the image any more; before, only `.env` was kept out.
+
 
 ## 1.75.0 - 2026-10-03
 
