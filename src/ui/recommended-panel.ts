@@ -95,8 +95,8 @@ export interface Recommendation {
 export type RecommendPlace = "cursor" | "end";
 
 export interface RecommendedHost {
-  /** The link graph's answer, at once. */
-  links(path: string): RecommendedItem[];
+  /** The link graph's answer, at once; under the note, without what it links. */
+  links(path: string, place: RecommendPlace): RecommendedItem[];
   /** The full answer with meaning in it, or null when search by meaning is off. */
   recommend?(path: string, place: RecommendPlace): Promise<Recommendation | null>;
   /**
@@ -254,7 +254,7 @@ export class RecommendedPanel {
         : (
             this.answers.get(this.place)?.items ??
             this.latest?.items ??
-            this.host.links(path)
+            this.host.links(path, this.opts.place)
           ).slice(0, this.host.count());
 
     const signature = JSON.stringify([path, title, this.collapsed, items]);
@@ -593,6 +593,8 @@ function reasonLabel(reason: RecommendReason): string {
   switch (reason.kind) {
     case "link":
       return labels.link;
+    case "backlink":
+      return labels.backlink;
     case "attached":
       return labels.attached;
     case "meaning":

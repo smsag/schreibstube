@@ -820,6 +820,8 @@ Five signals, in the order they are worth anything:
 | A shared tag      | A deliberate label, but about a group rather than this note |
 | The same folder   | The weakest, and only ever a tiebreak                       |
 
+A link counts the same whichever way it runs, but the line under an entry says which: **linked from here** for a note this one links, **links here** for one that links to it, which you cannot see from the note itself. Under the note, what it already links or embeds is left out: you have just read past every one of those links, and a list of them would leave no room for anything you had not found. In the sidebar, beside the text, they stay.
+
 A picture's [description note](#picture-descriptions) counts as the picture here: its links and tags relate the picture, and the list shows the picture's card, never the note beside it.
 
 With [Search by meaning](#search-by-meaning) switched on, a moment later the list gains what reads alike: notes nobody linked, marked **similar in meaning**, pictures whose descriptions are about the same thing, and conversations from Pythia about it. They come from vectors already stored, so no model is loaded to draw them, and the two answers are merged by rank, with a note you linked keeping its place above one that merely sounds similar. A note not yet in the index has only its links to offer.

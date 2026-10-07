@@ -19,7 +19,7 @@
  * the ten least relevant of another kind. One list, by relevance, a length a
  * person chose.
  */
-import type { RelatedReason } from "../related-notes";
+import { isDirectLink, type RelatedReason } from "../related-notes";
 import { FUSION_K } from "./search-fusion";
 import { relevance } from "./semantic-api";
 
@@ -61,6 +61,7 @@ function labelOnly(reasons: readonly RecommendReason[]): boolean {
 
 const ORDER: Record<RecommendReason["kind"], number> = {
   link: 0,
+  backlink: 0,
   attached: 0,
   meaning: 1,
   "shared-link": 2,
@@ -101,27 +102,34 @@ export function foldDescriptions<R extends { kind: string; count: number }>(
 }
 
 /**
- * The entries without the pictures the open note shows itself.
+ * The entries without what the open note already shows.
  *
  * A picture's description links the articles it is in (`schreibstubeArticles`)
  * and the picture it describes, so for an article every picture in it came
  * back as a backlink and a shared link — the strongest things the graph
  * knows — and stood at the top of its recommendations. What is already on
  * the page is not something to be shown beside it. `shown` is every file the
- * note links or embeds; a note it links stays, since reaching a linked note
- * from beside the text is what a recommendation is for.
+ * note links or embeds.
+ *
+ * Beside the note, in the sidebar, a note it links stays: reaching a linked
+ * note from beside the text, wherever the reader is in it, is what a
+ * recommendation is for there. Under the note (`linkedToo`) it goes as well.
+ * The reader has just passed every link on the way down, and a direct link
+ * is the strongest thing the ranking knows, so a note with seven links had
+ * nothing under it but those seven.
  */
-export function withoutPicturesShown<T extends { path: string }>(
+export function withoutShown<T extends { path: string }>(
   entries: readonly T[],
   isPicture: (entry: T) => boolean,
-  shown: ReadonlySet<string>
+  shown: ReadonlySet<string>,
+  linkedToo = false
 ): T[] {
-  return entries.filter((entry) => !(isPicture(entry) && shown.has(entry.path)));
+  return entries.filter((entry) => !(shown.has(entry.path) && (linkedToo || isPicture(entry))));
 }
 
-/** Said by a person rather than inferred: a link, or a note attached. */
+/** Said by a person rather than inferred: a link either way, or a note attached. */
 function isDeclared(reason: RecommendReason): boolean {
-  return reason.kind === "link" || reason.kind === "attached";
+  return isDirectLink(reason) || reason.kind === "attached";
 }
 
 /**
@@ -241,6 +249,7 @@ export function relevanceOf(
   for (const reason of reasons) {
     switch (reason.kind) {
       case "link":
+      case "backlink":
       case "attached":
         points += 3;
         break;

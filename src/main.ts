@@ -111,7 +111,7 @@ import {
 import {
   foldDescriptions,
   meaningOrder,
-  withoutPicturesShown,
+  withoutShown,
   recommendNotes,
   withAttached,
   type RelevanceFloors
@@ -905,9 +905,14 @@ export default class SchreibstubePlugin extends Plugin {
     if (!explorer) return null;
     const places = new RecommendPlaces(this.app);
     return {
-      links: (path) => this.linkItems(explorer, path),
+      links: (path, place) => this.linkItems(explorer, path, place === "end"),
       recommend: async (path, place) =>
-        this.recommend(path, this.settings.recommendedCount, await places.focus(path, place)),
+        this.recommend(
+          path,
+          this.settings.recommendedCount,
+          await places.focus(path, place),
+          place === "end"
+        ),
       placeKey: (path, place) => places.key(path, place),
       titleOf: (path) => explorer.displayTitle(path),
       open: async (path, where) => {
@@ -1001,13 +1006,18 @@ export default class SchreibstubePlugin extends Plugin {
     await this.semantic?.sources.removeFiles(id);
   }
 
-  /** The link graph's answer alone, a description note shown as its picture. */
-  private linkItems(explorer: ExplorerController, path: string): RecommendedItem[] {
+  /** The link graph's answer alone, a description note shown as its picture;
+   *  `underNote` leaves out what the note links (`withoutShown`). */
+  private linkItems(
+    explorer: ExplorerController,
+    path: string,
+    underNote = false
+  ): RecommendedItem[] {
     const folded = foldDescriptions(
       explorer.relatedCards(path),
       (note) => this.describedPicture(note)?.path ?? null
     );
-    return withoutPicturesShown(folded, (entry) => entry.picture, this.shownBy(path)).flatMap(
+    return withoutShown(folded, (entry) => entry.picture, this.shownBy(path), underNote).flatMap(
       (entry): RecommendedItem[] => {
         const file = this.app.vault.getAbstractFileByPath(entry.path);
         if (!(file instanceof TFile)) return [];
@@ -1038,11 +1048,13 @@ export default class SchreibstubePlugin extends Plugin {
    * The link graph and search by meaning together, for one note, meaning
    * ranked from the place `focus` names or else from the note's opening. Null
    * when search by meaning is off, so the panel keeps the graph's answer alone.
+   * `underNote` leaves out what the note links, as the list under it does.
    */
   private async recommend(
     path: string,
     count = this.settings.recommendedCount,
-    focus?: PassageFocus
+    focus?: PassageFocus,
+    underNote = false
   ): Promise<Recommendation | null> {
     const explorer = this.explorer;
     const engine = this.semantic;
@@ -1057,10 +1069,11 @@ export default class SchreibstubePlugin extends Plugin {
     // A description note whose picture is gone had nothing to fold into, and
     // is left out rather than recommended as a note.
     const shown = this.shownBy(path);
-    const graph = withoutPicturesShown(
+    const graph = withoutShown(
       foldDescriptions(cards, (note) => this.describedPicture(note)?.path ?? null),
       (entry) => entry.picture,
-      shown
+      shown,
+      underNote
     ).filter((entry) => entry.picture || !explorer.isDescriptionNote(entry.path));
 
     // One meaning ranking over the vault: a description note stands for its
@@ -1085,7 +1098,8 @@ export default class SchreibstubePlugin extends Plugin {
       if (
         note instanceof TFile &&
         !explorer.isTrashed(note.path) &&
-        !explorer.isDescriptionNote(note.path)
+        !explorer.isDescriptionNote(note.path) &&
+        !(underNote && shown.has(note.path))
       )
         byMeaning.push({ key: note.path, score: hit.score });
     }

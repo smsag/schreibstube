@@ -721,7 +721,8 @@ export const enExtra = {
       },
       relevanceTitle: (level: string, reasons: string) => `${level}: ${reasons}`,
       reasons: {
-        link: "linked",
+        link: "linked from here",
+        backlink: "links here",
         attached: "attached in the conversation",
         meaning: (percent: number) => `${percent}% similar in meaning`,
         sharedLink: (count: number) => (count === 1 ? "1 shared link" : `${count} shared links`),
