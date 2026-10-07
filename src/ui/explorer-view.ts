@@ -80,9 +80,13 @@ import { scrollsToOpenedNote, type PanePress } from "../services/pane-press";
 import { folderPathsUnder, treeAction } from "../services/vault-tree";
 import {
   clearDropMarks,
+  clearKeptMarks,
   clearMoveMarks,
   dropAt,
+  keptOrder,
+  keptSlotAt,
   markDropTarget,
+  markKeptSlot,
   markMoveTarget,
   moveTargetAt,
   orderAfterDrop
@@ -1915,6 +1919,12 @@ export class ExplorerPaneView extends ItemView {
    * section header, which stands for the vault root. Whether a move is allowed
    * at all is decided in `planMove`, away from the pointer, and a refusal says
    * why rather than doing nothing.
+   *
+   * A row held at the top of its folder carried onto another one held there
+   * takes a new place among them instead: the same drag the pinned block
+   * reorders with, and the only one there is for this, since a drop into the
+   * folder it is already in moves nothing. A held folder's middle still takes
+   * the row into it; only its edges reorder.
    */
   private wireTreeDrag(row: HTMLElement, path: string): void {
     // The pinned block lives in the shelf, beside the body rather than in it;
@@ -1925,28 +1935,47 @@ export class ExplorerPaneView extends ItemView {
     // whole vault to answer each one was the one cost in the pane that grew
     // with the vault and with how fast the hand moved.
     let context: MoveContext | null = null;
+    const folder = parentOf(path);
+    // The held rows of this folder as the drag found them, or null for a row
+    // that is not held and so has no place among them to change.
+    let kept: string[] | null = null;
     this.drag.wire(row, {
       path,
       onStart: () => {
         this.host?.explorer.closeMenu();
         context = this.moveContext();
+        const root = list();
+        kept = root && this.host?.explorer.isKept(path) ? keptOrder(root, folder) : null;
       },
       onMove: (x, y) => {
         const root = list();
-        const known = context ?? this.moveContext();
-        if (root) {
-          markMoveTarget(root, x, y, (target) =>
-            isMovePlan(planMove(this.drag.active ?? "", target, known))
-          );
+        if (!root) return;
+        if (kept && markKeptSlot(root, folder, y, path)) {
+          clearMoveMarks(root);
+          return;
         }
+        const known = context ?? this.moveContext();
+        markMoveTarget(root, x, y, (target) =>
+          isMovePlan(planMove(this.drag.active ?? "", target, known))
+        );
       },
       onEnd: () => {
         context = null;
+        kept = null;
         const root = list();
-        if (root) clearMoveMarks(root);
+        if (root) {
+          clearMoveMarks(root);
+          clearKeptMarks(root);
+        }
       },
       onDrop: (x, y) => {
         const root = list();
+        const slot = kept && root ? keptSlotAt(root, folder, y) : null;
+        if (kept && slot) {
+          const next = orderAfterDrop(kept, path, slot);
+          if (next) this.host?.explorer.reorderKept(next);
+          return;
+        }
         void this.dropInto(path, root ? moveTargetAt(root, x, y) : null);
       }
     });

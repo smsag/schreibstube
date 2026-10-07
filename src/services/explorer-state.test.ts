@@ -10,6 +10,7 @@ import {
   parseExplorerData,
   pruneExplorerData,
   reattachOrphans,
+  reorderKept,
   reorderPinned,
   renamePath,
   serializeExplorerData,
@@ -467,5 +468,77 @@ describe("reorderPinned", () => {
     const next = reorderPinned(data, ["b.md", "a.md"], 500);
 
     expect(next.entries["a.md"]?.icon).toBe("key");
+  });
+});
+
+describe("reorderKept", () => {
+  const keptData = (...paths: string[]): ExplorerData => ({
+    version: 2,
+    entries: Object.fromEntries(
+      paths.map((path, index) => [path, { keptAt: 100 + index, updatedAt: 100 + index }])
+    )
+  });
+  const order = (data: ExplorerData, ...paths: string[]): string[] =>
+    sortSiblings(
+      paths.map((path) => node(path)),
+      data
+    ).map((entry) => entry.path);
+
+  it("puts a folder's kept items in the order given, ahead of the rest", () => {
+    const data = keptData("F/a.md", "F/b.md", "F/c.md");
+
+    const next = reorderKept(data, ["F/c.md", "F/a.md", "F/b.md"], 500);
+
+    expect(order(next, "F/a.md", "F/b.md", "F/c.md", "F/0.md")).toEqual([
+      "F/c.md",
+      "F/a.md",
+      "F/b.md",
+      "F/0.md"
+    ]);
+    expect(next.entries["F/a.md"]?.updatedAt).toBe(500);
+  });
+
+  it("keeps a kept sibling the caller did not mention after the ones it did", () => {
+    const data = keptData("F/a.md", "F/b.md", "F/c.md");
+
+    const next = reorderKept(data, ["F/c.md", "F/b.md"], 500);
+
+    expect(order(next, "F/a.md", "F/b.md", "F/c.md")).toEqual(["F/c.md", "F/b.md", "F/a.md"]);
+  });
+
+  it("touches neither another folder's kept items nor items that are not kept", () => {
+    const data = keptData("F/a.md", "F/b.md", "G/x.md", "F/sub/y.md");
+
+    const next = reorderKept(data, ["F/b.md", "G/x.md", "F/new.md", "F/a.md"], 500);
+
+    expect(next.entries["G/x.md"]).toEqual(data.entries["G/x.md"]);
+    expect(next.entries["F/sub/y.md"]).toEqual(data.entries["F/sub/y.md"]);
+    expect(next.entries["F/new.md"]).toBeUndefined();
+    expect(order(next, "F/a.md", "F/b.md")).toEqual(["F/b.md", "F/a.md"]);
+  });
+
+  it("orders kept items at the vault root among themselves", () => {
+    const data = keptData("a.md", "b.md", "F/c.md");
+
+    const next = reorderKept(data, ["b.md", "a.md"], 500);
+
+    expect(order(next, "a.md", "b.md")).toEqual(["b.md", "a.md"]);
+    expect(next.entries["F/c.md"]).toEqual(data.entries["F/c.md"]);
+  });
+
+  it("leaves the data alone when nothing given is kept", () => {
+    const data = keptData("F/a.md");
+
+    expect(reorderKept(data, [], 500)).toBe(data);
+    expect(reorderKept(data, ["F/x.md"], 500)).toBe(data);
+  });
+
+  it("keeps the icon and the pin of a reordered entry", () => {
+    const data = keptData("F/a.md", "F/b.md");
+    data.entries["F/a.md"] = { keptAt: 100, pinnedAt: 7, icon: "key", updatedAt: 100 };
+
+    const next = reorderKept(data, ["F/b.md", "F/a.md"], 500);
+
+    expect(next.entries["F/a.md"]).toMatchObject({ icon: "key", pinnedAt: 7, keptAt: 501 });
   });
 });
