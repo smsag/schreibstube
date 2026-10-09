@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## 1.77.0 - 2026-10-09
 
 Deadlines you can see, and two questions the search box now answers on its
 own. A note can carry the day it is due, and the Explorer shows it at the
