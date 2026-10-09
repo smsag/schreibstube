@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+- **Rows without a due date are as they were.** 1.77.0 gave every note's row an empty slot at its right edge while **Due dates** was on, there to line the dates up in a column, and it changed the size of every row for a column most vaults never fill — on a phone, visibly. A date is now drawn only on the row that has one, beside its task count; nothing else on a row changed.
+
 ## 1.77.0 - 2026-10-09
 
 Deadlines you can see, and two questions the search box now answers on its
