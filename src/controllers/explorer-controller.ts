@@ -485,6 +485,15 @@ export class ExplorerController {
     return () => this.listeners.delete(listener);
   }
 
+  /**
+   * The settings were saved. Several of them change what a row draws — task
+   * counts, due dates, file extensions — and nothing else tells the pane, so
+   * without this a switched setting showed only after some unrelated change.
+   */
+  settingsChanged(): void {
+    this.emit();
+  }
+
   /** Called with the folder a person pressed in the pane, for as long as the
    *  unsubscribe returned here has not been called. */
   onFolderChosen(listener: (folder: string) => void): () => void {

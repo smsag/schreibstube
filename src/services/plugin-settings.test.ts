@@ -43,6 +43,12 @@ describe("normalizeSettings", () => {
     expect(normalizeSettings({ explorerTaskCounts: true }).explorerTaskCounts).toBe(true);
   });
 
+  it("keeps the due dates in the file pane off unless switched on", () => {
+    expect(normalizeSettings({}).explorerDueDates).toBe(false);
+    expect(normalizeSettings({ explorerDueDates: "on" as never }).explorerDueDates).toBe(false);
+    expect(normalizeSettings({ explorerDueDates: true }).explorerDueDates).toBe(true);
+  });
+
   it("shows the Suggest tags control unless it was switched off", () => {
     expect(normalizeSettings({}).tagSuggestControl).toBe(true);
     expect(normalizeSettings({ tagSuggestControl: "no" as never }).tagSuggestControl).toBe(true);

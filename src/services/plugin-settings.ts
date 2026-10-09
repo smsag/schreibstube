@@ -137,6 +137,7 @@ export const DEFAULT_SETTINGS: SchreibstubeSettings = {
   explorerBookmarksEnabled: true,
   explorerBookmarksFile: BOOKMARK_FILE_DEFAULT,
   explorerTaskCounts: false,
+  explorerDueDates: false,
   iconShortcodes: true,
   mailBridgeUrl: "",
   mailTokenSecretName: "",
@@ -351,6 +352,7 @@ export function normalizeSettings(loaded: LoadedSettings): SchreibstubeSettings 
       DEFAULT_SETTINGS.explorerBookmarksFile
     ),
     explorerTaskCounts: loaded?.explorerTaskCounts === true,
+    explorerDueDates: loaded?.explorerDueDates === true,
     // On unless switched off: the shortcode is the whole point of the icons
     // being in a note at all, and a setting nobody finds is a feature nobody has.
     iconShortcodes: loaded?.iconShortcodes !== false,

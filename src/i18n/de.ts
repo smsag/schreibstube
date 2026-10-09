@@ -466,6 +466,10 @@ export const de: Messages = {
     explorerTaskCountsDesc:
       'Zeigt hinter dem Namen einer Notiz, wie viele Aufgaben sie enthält und wie viele davon offen sind, als "1 / 7". ' +
       "Notizen ohne Aufgaben zeigen nichts.",
+    explorerDueDates: "Fälligkeiten",
+    explorerDueDatesDesc:
+      "Zeigt hinter dem Namen einer Notiz, wann sie fällig ist, aus der Eigenschaft schreibstubeDue. " +
+      "Am Tag selbst und danach hervorgehoben.",
     explorerIcons: "Symbolsatz",
     explorerIconsDesc: (count: number, version: string) =>
       `${count} Symbole aus Tabler Icons ${version} (MIT), im Plugin enthalten — offline und mobil verfügbar.`,
@@ -1057,6 +1061,12 @@ export const de: Messages = {
     searchPlaceholder: "Vault durchsuchen …",
     clearFilter: "Suche leeren",
     taskCount: (done: number, total: number) => `${done} von ${total} Aufgaben erledigt`,
+    dueDate: (date: string, state: "upcoming" | "today" | "overdue") =>
+      state === "today"
+        ? `Heute fällig, ${date}`
+        : state === "overdue"
+          ? `Überfällig, war am ${date} fällig`
+          : `Fällig am ${date}`,
     filterEmpty: "Darauf antwortet hier nichts.",
     filterMore: (count: number) =>
       count === 1

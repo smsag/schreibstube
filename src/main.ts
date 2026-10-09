@@ -1618,6 +1618,7 @@ export default class SchreibstubePlugin extends Plugin {
     // nothing else watches the settings object. The Latest list is not told
     // here: it reads the sync records, and the store says when those change.
     void this.sections?.reloadIfPathChanged();
+    this.explorer?.settingsChanged();
     this.recommendedFooter?.sync();
     this.proofread?.settingsChanged();
 
