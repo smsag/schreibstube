@@ -321,7 +321,7 @@ layout: compare
 
 - The block shows "20 open of 21" for the whole note; each heading with
   tasks shows its own count. Group tasks under headings for that.
-- `- [ ]` is open, any other mark is done; a done task folds its details.
+- `- [ ]` is open, `- [/]` started, `[x]` or `[-]` done; a done task folds.
   `## Archive` is where **Tidy up done tasks** files `[x]` and `[-]` tasks.
 
 ### Callouts

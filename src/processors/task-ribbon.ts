@@ -95,7 +95,9 @@ class TaskRibbon extends MarkdownRenderChild {
     // The numbers are what the eye is after; the words around them are the
     // same every time. Splitting on digits keeps the sentence translatable as
     // one string and still sets the counts in bold.
-    for (const part of t().tasks.ribbon(summary.open, summary.total).split(/(\d+)/)) {
+    for (const part of t()
+      .tasks.ribbon(summary.open, summary.total, summary.progress)
+      .split(/(\d+)/)) {
       if (part === "") continue;
       if (/^\d+$/.test(part)) line.createEl("strong", { text: part });
       else line.appendText(part);

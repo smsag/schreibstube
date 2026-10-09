@@ -42,6 +42,6 @@ export function drawRowMarks(
   el.createSpan({ cls: `${MARKS_CLASS}-due`, text: due.text });
   el.setAttribute(
     "aria-label",
-    `${t().explorer.taskCount(count.done, count.total)}, ${t().explorer.dueDate(due.long, due.state)}`
+    `${t().explorer.taskCount(count.done, count.total, count.progress)}, ${t().explorer.dueDate(due.long, due.state)}`
   );
 }

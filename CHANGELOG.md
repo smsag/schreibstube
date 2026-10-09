@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+- **A started task is not a done one.** Markdown knows two boxes, `[ ]` and `[x]`; every other marker is a theme's or a plugin's, and the plugin counted all of them as done, so `[/]` — a task somebody has started — was announced as finished in the Explorer's count, a pinned tag's sum, the ribbon and on paper. One rule now holds everywhere, the one **Tidy up done tasks** already used: `[x]`, `[X]` and `[-]` are done, everything else is open. `[/]` is open work started: the ribbon says "3 open of 7, 1 in progress", the Explorer's label says it, a print draws the box half filled, and a mail writes ◧. A note using `[>]`, `[?]` or `[!]` sees its open count go up, since those were counted done before; a done task still folds, a started one no longer does.
+
 ## 1.77.1 - 2026-10-09
 
 - **A count and a day share one pill.** A note with open tasks and a due date drew two pills side by side, which on a phone took a third of the row from the name. They are now one pill, a size smaller, `1/17 · 12. Okt.`, coloured by the day's state, and a name always keeps at least half its row: the marks give way, never the name.

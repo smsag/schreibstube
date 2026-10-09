@@ -15,6 +15,7 @@
  * What is in it has already been cleared once.
  */
 import { fenceMarker } from "./markdown-fence";
+import { taskState } from "./task-state";
 
 export const DONE_TASK_MODES = ["back", "archive", "delete"] as const;
 export type DoneTaskMode = (typeof DONE_TASK_MODES)[number];
@@ -40,7 +41,7 @@ const TASK_PATTERN = /^[ \t]*(?:[-*+]|\d{1,9}[.)])[ \t]+\[(.)\](?:[ \t]|$)/;
 const RULE_PATTERN = /^[ \t]*([-*_])(?:[ \t]*\1){2,}[ \t]*$/;
 const ARCHIVE_PATTERN = /^(#{1,6})[ \t]+archive[ \t]*#*[ \t]*$/i;
 const HEADING_PATTERN = /^(#{1,6})[ \t]+\S/;
-const FINISHED_MARKERS = new Set(["x", "X", "-"]);
+const finished = (marker: string): boolean => taskState(marker) === "done";
 
 interface Item {
   head: string;
@@ -232,14 +233,14 @@ function hasUnfinished(segments: readonly Segment[]): boolean {
       segment.kind === "list" &&
       segment.list.items.some((item) => {
         const state = marker(item);
-        return (state !== null && !FINISHED_MARKERS.has(state)) || hasUnfinished(item.body);
+        return (state !== null && !finished(state)) || hasUnfinished(item.body);
       })
   );
 }
 
 function isFinished(item: Item): boolean {
   const state = marker(item);
-  return state !== null && FINISHED_MARKERS.has(state) && !hasUnfinished(item.body);
+  return state !== null && finished(state) && !hasUnfinished(item.body);
 }
 
 function renderSegments(segments: readonly Segment[]): string[] {

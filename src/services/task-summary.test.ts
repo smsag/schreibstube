@@ -3,6 +3,7 @@ import {
   TASK_SUMMARY_SNIPPET,
   buildTaskSummaryInsertion,
   hasTaskSummaryBlock,
+  listTasks,
   summarizeTasks
 } from "./task-summary";
 
@@ -24,9 +25,17 @@ describe("summarizeTasks", () => {
     expect(summary.sections).toEqual([]);
   });
 
-  it("treats any non-space marker as done", () => {
-    const content = ["- [ ] open", "- [~] fixed", "- [-] dropped", "- [x] done"].join("\n");
-    expect(summarizeTasks(content)).toMatchObject({ total: 4, open: 1 });
+  it("takes [x] and [-] for done and every other marker for open, [/] as started", () => {
+    // Markdown knows [ ] and [x]; a theme's other marks flag an open task.
+    const content = [
+      "- [ ] open",
+      "- [~] flagged",
+      "- [-] dropped",
+      "- [x] done",
+      "- [/] begun"
+    ].join("\n");
+    expect(summarizeTasks(content)).toMatchObject({ total: 5, open: 3, progress: 1 });
+    expect(listTasks(content).map((task) => task.open)).toEqual([true, true, false, false, true]);
   });
 
   it("ignores lines that only look like tasks", () => {

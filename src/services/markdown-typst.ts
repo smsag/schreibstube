@@ -3,6 +3,7 @@
  * PRINTING.md says why it is hand-written and what it carries over.
  */
 import { t } from "../i18n";
+import { taskState } from "./task-state";
 import { parseImageAlt } from "./image-alt";
 import { fencedLines, fenceMarker } from "./markdown-fence";
 import { isTableDelimiter, rowCells } from "./markdown-table";
@@ -176,6 +177,18 @@ const REFERENCE_DEFINITION =
   /^ {0,3}\[([^\]^][^\]]*)\]:\s*<?([^\s>]+)>?(?:\s+(?:"[^"]*"|'[^']*'|\([^)]*\)))?\s*$/;
 /** A task's box. Any single character but a space is done, as the ribbon counts it. */
 const TASK = /^\[(.)\](?:\s+|$)/;
+
+/**
+ * The box a marker prints as. A started task has a box of its own, so a
+ * template that redraws `schreibstube-task` keeps its two boxes and the
+ * prelude's half box stands in for the third.
+ */
+function taskBox(marker: string): string {
+  const state = taskState(marker);
+  return state === "progress"
+    ? "schreibstube-task-progress()"
+    : `schreibstube-task(${state === "done"})`;
+}
 /** The line under a setext heading: `===` makes the text above it level 1, `---` level 2. */
 const SETEXT = /^ {0,3}(=+|-+)[ \t]*$/;
 /** A line that opens a block of math. */
@@ -718,7 +731,7 @@ class Converter {
       const text = indentContinuation(parts.join("\n").trimEnd(), indent + 2);
       out.push(
         task
-          ? `${" ".repeat(indent)}#schreibstube-task-item(schreibstube-task(${task[1] !== " "}))[${text}]`
+          ? `${" ".repeat(indent)}#schreibstube-task-item(${taskBox(task[1] ?? " ")})[${text}]`
           : `${" ".repeat(indent)}${marker} ${text}`
       );
     }
@@ -730,8 +743,7 @@ class Converter {
   private item(text: string): string {
     const task = TASK.exec(text);
     if (!task) return this.inline(text);
-    const done = task[1] !== " ";
-    return `#schreibstube-task(${done ? "true" : "false"}) ${this.inline(text.slice(task[0].length))}`;
+    return `#${taskBox(task[1] ?? " ")} ${this.inline(text.slice(task[0].length))}`;
   }
 
   /**
