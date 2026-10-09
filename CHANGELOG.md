@@ -2,7 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## 1.78.0 - 2026-10-09
+
+A started task is no longer a finished one. Markdown knows two boxes, `[ ]`
+and `[x]`; every other marker is a theme's, and the plugin counted all of
+them as done, so a task marked `[/]` was announced as finished wherever the
+plugin counts. One rule now holds everywhere: `[x]`, `[X]` and `[-]` are
+done, everything else is open, and `[/]` is open work already started — said
+in the ribbon and the Explorer's label, drawn half filled on paper.
+
+Mobile checklist: not run, and nothing in this release was tried in the
+Obsidian app; the test suite and the build covered it. What to try first on
+a phone: a note with `[/]` and `[>]` tasks — its Explorer count and the
+count's label, the ribbon line — and a print of it.
+
+The bridge's behaviour is unchanged; its runtime libraries moved to
+imapflow 2.1.1, mailparser 3.9.30 and nodemailer 10.0.12, which settle a
+closing connection and honour `requireTLS` more carefully.
+
+### Changed
 
 - **A started task is not a done one.** Markdown knows two boxes, `[ ]` and `[x]`; every other marker is a theme's or a plugin's, and the plugin counted all of them as done, so `[/]` — a task somebody has started — was announced as finished in the Explorer's count, a pinned tag's sum, the ribbon and on paper. One rule now holds everywhere, the one **Tidy up done tasks** already used: `[x]`, `[X]` and `[-]` are done, everything else is open. `[/]` is open work started: the ribbon says "3 open of 7, 1 in progress", the Explorer's label says it, a print draws the box half filled, and a mail writes ◧. A note using `[>]`, `[?]` or `[!]` sees its open count go up, since those were counted done before; a done task still folds, a started one no longer does.
 
