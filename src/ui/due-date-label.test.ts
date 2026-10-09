@@ -68,12 +68,10 @@ describe("drawDueDate", () => {
     expect(only(drawn).attrs["aria-label"]).toBe("Overdue, was due October 12, 2026");
   });
 
-  it("keeps the slot on a note without a day, empty and silent, so the columns line up", () => {
+  it("draws nothing at all for a note without a day, so its row is as it was", () => {
     const { host, drawn } = fakeHost();
     drawDueDate(host, null);
 
-    expect(only(drawn).state).toBe("none");
-    expect(only(drawn).text).toBeUndefined();
-    expect(only(drawn).attrs).toEqual({ "aria-hidden": "true" });
+    expect(drawn).toEqual([]);
   });
 });
