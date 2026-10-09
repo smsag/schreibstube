@@ -218,6 +218,10 @@ export interface SearchCandidate {
   /** Whether the note is bound to a source. Not part of the cached fields:
    *  the record behind it changes without the file changing. */
   synced?: boolean;
+  /** How many tasks the note still has open, for `aufgaben:`; asked only then. */
+  openTasks?: number;
+  /** The day the note is due, `YYYY-MM-DD`, for `fällig:`; asked only then. */
+  due?: string | null;
 }
 
 /**
@@ -286,7 +290,18 @@ export interface SearchHit {
  * note carries the word "Objekt" in its name cannot be narrowed by typing more
  * of it, only by saying which dimension was meant.
  */
-export type SearchScope = "all" | "tags" | "path" | "name" | "body" | "sync";
+export type SearchScope = "all" | "tags" | "path" | "name" | "body" | ListingScope;
+
+/**
+ * The prefixes that are a question on their own: which notes are synced,
+ * which still have work in them, which are due. Alone each lists its notes;
+ * whatever follows narrows that list.
+ */
+export type ListingScope = "sync" | "tasks" | "due";
+
+export function isListingScope(scope: SearchScope): scope is ListingScope {
+  return scope === "sync" || scope === "tasks" || scope === "due";
+}
 
 export interface ParsedQuery {
   scope: SearchScope;
@@ -322,6 +337,14 @@ const SCOPE_PREFIXES: Record<string, SearchScope> = {
   sync: "sync",
   synced: "sync",
   synchron: "sync",
+  // Not `todo:`: a note called `todo: Angebot` is promised to stay findable
+  // by typing its name.
+  aufgaben: "tasks",
+  tasks: "tasks",
+  fällig: "due",
+  faellig: "due",
+  due: "due",
+  deadline: "due",
   all: "all",
   alle: "all"
 };
@@ -338,10 +361,12 @@ export function parseSearchScope(raw: string): ParsedQuery {
   if (text.startsWith("#")) {
     return { scope: "tags", query: text.slice(1).trim(), explicit: true };
   }
-  const match = /^([\p{L}]+):\s*(.*)$/su.exec(text);
+  // Marks too, and composed: `fällig` typed on a keyboard that sends the
+  // umlaut as `a` plus a combining mark is still the prefix.
+  const match = /^([\p{L}\p{M}]+):\s*(.*)$/su.exec(text);
   const prefix = match?.[1];
   if (prefix !== undefined) {
-    const scope = SCOPE_PREFIXES[prefix.toLowerCase()];
+    const scope = SCOPE_PREFIXES[prefix.normalize("NFC").toLowerCase()];
     if (scope) return { scope, query: (match?.[2] ?? "").trim(), explicit: true };
   }
   return { scope: "all", query: text, explicit: false };
@@ -355,12 +380,50 @@ export function parseSearchScope(raw: string): ParsedQuery {
  * everything, so treating it as a filter emptied the tree and left every
  * bookmark standing — two answers to one question. It is no filter yet.
  *
- * `sync:` is the exception: alone it is a whole question, "which notes are
- * synced", and answered by listing them.
+ * The listing prefixes are the exception: `sync:`, `aufgaben:` and `fällig:`
+ * alone are each a whole question, answered by listing the notes.
  */
 export function hasSearchWords(raw: string): boolean {
   const { scope, query } = parseSearchScope(raw);
-  return scope === "sync" || queryTokens(query).length > 0;
+  return isListingScope(scope) || queryTokens(query).length > 0;
+}
+
+/**
+ * The notes with work left in them, most open tasks first, or the notes with a
+ * due day, the earliest first — a missed day above today, today above the days
+ * ahead, so what is late cannot scroll out of sight.
+ *
+ * The order is the question's own, so a word after the prefix narrows the list
+ * without reordering it: `fällig: angebot` is still soonest first. A word's
+ * rarity is measured among the listed notes, as under `sync:`.
+ */
+function listNotes(
+  scope: "tasks" | "due",
+  rest: string,
+  candidates: readonly SearchCandidate[],
+  limit: number | undefined,
+  body: BodyMatcher | undefined
+): SearchHit[] {
+  const listed =
+    scope === "tasks"
+      ? candidates.filter((candidate) => (candidate.openTasks ?? 0) > 0)
+      : candidates.filter((candidate) => typeof candidate.due === "string");
+  const order =
+    scope === "tasks"
+      ? (a: SearchCandidate, b: SearchCandidate) =>
+          (b.openTasks ?? 0) - (a.openTasks ?? 0) || comparePaths(a.path, b.path)
+      : (a: SearchCandidate, b: SearchCandidate) =>
+          (a.due ?? "").localeCompare(b.due ?? "") || comparePaths(a.path, b.path);
+
+  // A second prefix with no word yet is still being typed; the list stands.
+  const narrowed = hasSearchWords(rest)
+    ? new Set(rankFiles(rest, listed, undefined, body).map((hit) => hit.path))
+    : null;
+  const hits = listed
+    .filter((candidate) => narrowed === null || narrowed.has(candidate.path))
+    .sort(order)
+    .map((candidate) => ({ path: candidate.path, score: 1 }));
+  return typeof limit === "number" ? hits.slice(0, limit) : hits;
 }
 
 /** The fields a scope searches, in the order they are weighted. */
@@ -391,6 +454,24 @@ function fieldsForScope(scope: SearchScope): (keyof SearchFields)[] {
  * An empty query returns nothing rather than everything: "no filter" is the
  * view's own state and is not expressed by asking this for every file.
  */
+/**
+ * Every listing prefix a query uses, the first and any that follow it —
+ * `aufgaben: fällig:` needs both the tasks and the due days read — so the
+ * index reads only what the query will look at.
+ */
+export function listingScopesOf(raw: string): Set<ListingScope> {
+  const found = new Set<ListingScope>();
+  let rest = raw;
+  // A handful of levels; a query nesting more than this is not one anybody types.
+  for (let depth = 0; depth < 4; depth++) {
+    const { scope, query } = parseSearchScope(rest);
+    if (!isListingScope(scope)) break;
+    found.add(scope);
+    rest = query;
+  }
+  return found;
+}
+
 export function rankFiles(
   raw: string,
   candidates: readonly SearchCandidate[],
@@ -399,6 +480,8 @@ export function rankFiles(
 ): SearchHit[] {
   const { scope, query } = parseSearchScope(raw);
   const words = queryTokens(query);
+
+  if (scope === "tasks" || scope === "due") return listNotes(scope, query, candidates, limit, body);
 
   // `sync:` narrows to the notes bound to a source before anything is scored,
   // so a word's rarity is measured among the synced notes a person is looking
@@ -506,9 +589,9 @@ export function matchesText(
   allowed: readonly SearchScope[] = ["all", "name"]
 ): boolean {
   const { scope, query } = parseSearchScope(raw);
-  // A bare `tag:` is still being typed and keeps every row. A bare `sync:` is
-  // already a question, and a row that cannot be synced has no place in it.
-  if (query.length === 0) return scope !== "sync" || allowed.includes(scope);
+  // A bare `tag:` is still being typed and keeps every row. A bare listing
+  // prefix is already a question, and a row that is not a note has no place in it.
+  if (query.length === 0) return !isListingScope(scope) || allowed.includes(scope);
   if (!allowed.includes(scope)) return false;
 
   const words = queryTokens(query);

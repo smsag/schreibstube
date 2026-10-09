@@ -28,6 +28,7 @@ import {
   TFile,
   TFolder,
   View,
+  type CachedMetadata,
   type TAbstractFile,
   type WorkspaceLeaf
 } from "obsidian";
@@ -39,6 +40,8 @@ import { syncBadgeIcon, type SyncBadge } from "../services/explorer-badge";
 import type { PublishMark } from "../services/publish-mark";
 import {
   hasSearchWords,
+  listingScopesOf,
+  type ListingScope,
   matchesText,
   MAX_QUERY_LENGTH,
   parseSearchScope,
@@ -250,6 +253,8 @@ export class ExplorerPaneView extends ItemView {
   private renderFrame: number | null = null;
   /** What the due dates were last drawn against — see `dueDrawKey`. */
   private drawnDueKey: string | null = null;
+  /** The listing prefixes of the query the pane last drew. */
+  private drawnListings: ReadonlySet<ListingScope> = new Set();
   /** The pinned-row capacity the tree was last drawn for; null before the first draw. */
   private drawnShelfCapacity: number | null = null;
   /** A resize waiting for its frame to be measured; null when none is. */
@@ -336,7 +341,14 @@ export class ExplorerPaneView extends ItemView {
         const target = this.app.vault.getAbstractFileByPath(file.path);
         const controller = this.host?.explorer;
         return target instanceof TFile && !!controller && controller.badgeFor(target) !== "none";
-      }
+      },
+      // Whatever the display settings say: a person who typed `aufgaben:`
+      // asked for the notes with work in them, shown or not.
+      openTasks: (file) => {
+        const cache = this.markdownCache(file.path);
+        return cache && countsTasks(cache.frontmatter) ? tallyTasks(cache.listItems).open : 0;
+      },
+      due: (file) => dueDateOf(this.markdownCache(file.path)?.frontmatter)?.iso ?? null
     },
     this.bodies
   );
@@ -1033,6 +1045,7 @@ export class ExplorerPaneView extends ItemView {
       // is matched by its name.
       return file instanceof TFolder ? this.matchesQuery(file.name) : this.matches.has(path);
     });
+    this.drawnListings = listingScopesOf(this.query);
     this.drawnDueKey = this.dueKeyNow();
     host.empty();
     this.shelf?.empty();
@@ -1915,14 +1928,19 @@ export class ExplorerPaneView extends ItemView {
     this.renderBadge(row, file);
     const settings = this.host?.settings();
     if (!settings || file.extension !== "md") return;
-    if (!settings.explorerTaskCounts && !settings.explorerDueDates) return;
+    // A list ordered by open tasks or by due day shows what it is ordered by,
+    // whether or not the rows elsewhere show it.
+    const listing = this.drawnListings;
+    const showTasks = settings.explorerTaskCounts || listing.has("tasks");
+    const showDue = settings.explorerDueDates || listing.has("due");
+    if (!showTasks && !showDue) return;
     const cache = this.app.metadataCache.getFileCache(file);
 
     // A note can decline its figure: a reading list whose boxes are not work.
-    if (settings.explorerTaskCounts && countsTasks(cache?.frontmatter)) {
+    if (showTasks && countsTasks(cache?.frontmatter)) {
       drawTaskCount(row, tallyTasks(cache?.listItems), "schreibstube-explorer-tasks");
     }
-    if (settings.explorerDueDates && this.drawnDueKey !== null) {
+    if (showDue && this.drawnDueKey !== null) {
       // Measured against the day the render started with, so every row in it
       // agrees about what today is.
       const due = dueDateOf(cache?.frontmatter);
@@ -1930,9 +1948,18 @@ export class ExplorerPaneView extends ItemView {
     }
   }
 
+  /** A note's metadata, or null for anything that is not a parsed note. */
+  private markdownCache(path: string): CachedMetadata | null {
+    const target = this.app.vault.getAbstractFileByPath(path);
+    if (!(target instanceof TFile) || target.extension !== "md") return null;
+    return this.app.metadataCache.getFileCache(target);
+  }
+
   /** What the due dates would be drawn against if the pane drew now. */
   private dueKeyNow(): string | null {
-    return dueDrawKey(this.host?.settings().explorerDueDates === true, isoDate(new Date()));
+    const showing =
+      this.host?.settings().explorerDueDates === true || listingScopesOf(this.query).has("due");
+    return dueDrawKey(showing, isoDate(new Date()));
   }
 
   /**

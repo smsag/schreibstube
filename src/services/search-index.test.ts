@@ -350,3 +350,86 @@ describe("the sync: prefix", () => {
     expect(asked).toBe(0);
   });
 });
+
+describe("the aufgaben: prefix", () => {
+  const open: Record<string, number> = {
+    "Objekte/Objekt 12.md": 2,
+    "Objekte/Mietvertrag Seeblick.md": 5,
+    "Kontakte/Meier.md": 0
+  };
+  const source: SearchSource = {
+    ...fakeSource(VAULT),
+    openTasks: (file) => open[file.path] ?? 0
+  };
+
+  it("lists the notes with open tasks, the most open first", () => {
+    const index = new FileSearchIndex(source);
+    expect(index.search("aufgaben:", 10).hits.map((hit) => hit.path)).toEqual([
+      "Objekte/Mietvertrag Seeblick.md",
+      "Objekte/Objekt 12.md"
+    ]);
+    expect(index.search("tasks:", 10).hits).toHaveLength(2);
+  });
+
+  it("narrows by words or a second prefix without reordering", () => {
+    const index = new FileSearchIndex(source);
+    expect(index.search("aufgaben: seeblick", 10).hits.map((hit) => hit.path)).toEqual([
+      "Objekte/Mietvertrag Seeblick.md",
+      "Objekte/Objekt 12.md"
+    ]);
+    expect(index.search("aufgaben: #vertrag", 10).hits.map((hit) => hit.path)).toEqual([
+      "Objekte/Mietvertrag Seeblick.md"
+    ]);
+    expect(index.search("aufgaben: meier", 10).hits).toEqual([]);
+  });
+});
+
+describe("the fällig: prefix", () => {
+  const due: Record<string, string> = {
+    "Objekte/Objekt 12.md": "2026-10-20",
+    "Objekte/Mietvertrag Seeblick.md": "2026-09-30",
+    "Kontakte/Meier.md": "2026-10-20"
+  };
+  const source: SearchSource = {
+    ...fakeSource(VAULT),
+    due: (file) => due[file.path] ?? null,
+    openTasks: (file) => (file.path === "Kontakte/Meier.md" ? 1 : 0)
+  };
+
+  it("lists the notes with a due day, the earliest first, ties by path", () => {
+    const index = new FileSearchIndex(source);
+    expect(index.search("fällig:", 10).hits.map((hit) => hit.path)).toEqual([
+      "Objekte/Mietvertrag Seeblick.md",
+      "Kontakte/Meier.md",
+      "Objekte/Objekt 12.md"
+    ]);
+    for (const alias of ["faellig:", "due:", "deadline:", "Fällig:"]) {
+      expect(index.search(alias, 10).hits).toHaveLength(3);
+    }
+  });
+
+  it("combines with aufgaben:, the first prefix deciding the order", () => {
+    const index = new FileSearchIndex(source);
+    expect(index.search("fällig: aufgaben:", 10).hits.map((hit) => hit.path)).toEqual([
+      "Kontakte/Meier.md"
+    ]);
+  });
+
+  it("asks for due days and open tasks only when the query needs them", () => {
+    let asked = 0;
+    const index = new FileSearchIndex({
+      ...fakeSource(VAULT),
+      due: () => {
+        asked += 1;
+        return null;
+      },
+      openTasks: () => {
+        asked += 1;
+        return 0;
+      }
+    });
+    index.search("objekt", 10);
+    index.search("sync:", 10);
+    expect(asked).toBe(0);
+  });
+});

@@ -3,6 +3,7 @@ import {
   forwardMatchStrength,
   comparePaths,
   hasSearchWords,
+  listingScopesOf,
   matchesText,
   matchStrength,
   MAX_DESCRIPTION_LENGTH,
@@ -412,9 +413,70 @@ describe("hasSearchWords", () => {
     expect(hasSearchWords(raw)).toBe(true);
   });
 
-  it.each(["sync:", "synced:", "synchron:  ", "sync: angebot"])("asks something in %j", (raw) => {
-    // Alone, `sync:` is a question of its own: list the synced notes.
+  it.each([
+    "sync:",
+    "synced:",
+    "synchron:  ",
+    "sync: angebot",
+    "aufgaben:",
+    "tasks:",
+    "fällig:",
+    "due:"
+  ])("asks something in %j", (raw) => {
+    // Alone, a listing prefix is a question of its own: list its notes.
     expect(hasSearchWords(raw)).toBe(true);
+  });
+});
+
+describe("the listing prefixes", () => {
+  it("read aufgaben: and fällig: in their spellings, an umlaut composed or not", () => {
+    for (const raw of ["aufgaben:", "Tasks:"]) expect(parseSearchScope(raw).scope).toBe("tasks");
+    for (const raw of ["fällig:", "FÄLLIG:", "fa\u0308llig:", "faellig:", "due:", "deadline:"]) {
+      expect(parseSearchScope(raw).scope).toBe("due");
+    }
+  });
+
+  it("leave todo: as text, so a note called that stays findable", () => {
+    expect(parseSearchScope("todo: Angebot")).toEqual({
+      scope: "all",
+      query: "todo: Angebot",
+      explicit: false
+    });
+  });
+
+  it("name every listing a query nests, and nothing else", () => {
+    expect([...listingScopesOf("fällig: aufgaben: pfad:Kunden")]).toEqual(["due", "tasks"]);
+    expect([...listingScopesOf("sync: objekt")]).toEqual(["sync"]);
+    expect([...listingScopesOf("pfad:Kunden")]).toEqual([]);
+  });
+
+  it("hide every text row, with or without words", () => {
+    for (const raw of ["aufgaben:", "fällig: seeblick"]) {
+      expect(matchesText(raw, "Seeblick", ["all", "name", "tags"])).toBe(false);
+    }
+  });
+
+  it("list nothing from candidates that carry no tasks or days", () => {
+    const fields = {
+      name: ["a"],
+      title: [],
+      aliases: [],
+      tags: [],
+      path: [],
+      description: []
+    };
+    expect(rankFiles("aufgaben:", [{ path: "a.md", fields }])).toEqual([]);
+    expect(rankFiles("fällig:", [{ path: "a.md", fields, due: null }])).toEqual([]);
+  });
+
+  it("cap the list at the limit, keeping its order", () => {
+    const fields = { name: [], title: [], aliases: [], tags: [], path: [], description: [] };
+    const candidates = ["2026-10-03", "2026-10-01", "2026-10-02"].map((due, i) => ({
+      path: `${i}.md`,
+      fields,
+      due
+    }));
+    expect(rankFiles("due:", candidates, 2).map((hit) => hit.path)).toEqual(["1.md", "2.md"]);
   });
 });
 
