@@ -15,8 +15,7 @@ plain Obsidian Markdown plus what this file lists. Write only what is here.
   frontmatter first, between `---` lines, then the body. After the fence, one
   short list may name the placeholders the person has to replace.
 - Every key Schreibstube reads starts with `schreibstube`. Use only the keys
-  in this file; never invent one. Keys the plugin writes itself are marked
-  "written by the plugin" — leave them out.
+  in this file; never invent one, and never write one the plugin writes (2).
 - Pictures are files in the vault: `![Alt text](file.jpg)` or `![[file.jpg]]`.
   A web address does not print. When you do not know a file name, write a
   placeholder such as `objekt-aussen.jpg` and tell the person to replace it.
@@ -492,9 +491,9 @@ template's folder; a missing one is left out with a warning.
 
 - `####` for columns — columns are `###`; the count makes the layout.
 - Speaker text on the slide — put it in `> [!notes]`.
-- HTML for layout (`<div>`, `<br>` grids) — use headings, columns and comments listed here.
+- HTML for layout (`<div>`, `<br>` grids) — use headings, columns and
+  comments listed here.
 - Invented keys (`schreibstubeTheme`, `schreibstubeFooter`) — ignored.
 - A slideshow block with `![[…]]` lines — write `![Alt](file)` instead.
 - `recipient:` or `subject:` at the top level of a letter — they belong
   under `schreibstubePrint:`.
-- Writing plugin-written keys (`schreibstubeMessageId`, …) — leave them out.

@@ -264,6 +264,15 @@ beforeEach(() => {
   Notice.shown = [];
 });
 
+describe("saved settings", () => {
+  it("redraw the pane, since several of them change what a row draws", () => {
+    const f = fixture();
+    const before = f.redraws;
+    f.controller.settingsChanged();
+    expect(f.redraws).toBe(before + 1);
+  });
+});
+
 describe("deleting from the pane", () => {
   it("asks first, naming the file", async () => {
     const f = fixture();

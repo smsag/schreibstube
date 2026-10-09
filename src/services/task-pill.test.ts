@@ -62,6 +62,22 @@ describe("the task tally's pill", () => {
     }
   });
 
+  it("leaves the due slot, which wears the pill too, nothing but its size and its place", () => {
+    // The slot has a width of its own so the days form a column; the look is
+    // the pill's, and a state may take the fill away or add an outline.
+    const allowed = /^(font-size|text-align|box-sizing|min-width)$/;
+    const props = ruleBody(".schreibstube-explorer-due")
+      .split(";")
+      .map((d) => (d.split(":")[0] ?? "").trim())
+      .filter(Boolean);
+    expect(props.length).toBeGreaterThan(0);
+    for (const prop of props) expect(prop).toMatch(allowed);
+    for (const state of ["none", "upcoming", "today", "overdue"]) {
+      expect(css).toContain(`.schreibstube-explorer-due[data-state="${state}"]`);
+    }
+    expect(css).not.toMatch(/\.schreibstube-explorer-due\[[^\]]*\][^{]*\{[^}]*padding/);
+  });
+
   it("sets the figures at the row's weight, never bold", () => {
     // The tint is what makes the column findable. A weight here would be the
     // same emphasis arriving twice, inside a pill on a line of plain names.

@@ -6,11 +6,14 @@ All notable changes to this project will be documented in this file.
 
 - A note can say when it is due. Set `schreibstubeDue` to a date (or a date
   and time, of which only the day counts) and, with **Due dates** switched on
-  in the Explorer settings, the day appears after the note's name, next to its
-  task count. A day still ahead stays quiet, today is highlighted, and a day
-  that has passed is shown in red. The year appears only when it is not this
-  one. Nothing reminds you; the date is there to be seen while scanning the
-  list.
+  in the Explorer settings, the day appears at the row's right edge, beside
+  its task count, with the dates and the counts each in a column. A day still
+  ahead stays quiet, today is tinted, and a day that has passed is outlined in
+  red, so the three read apart without relying on colour. The year appears
+  only when it is not this one. Nothing reminds you; the date is there to be
+  seen while scanning the list.
+- Switching an Explorer setting — task counts, due dates, file extensions —
+  now shows in the pane at once, instead of after the next change to a note.
 
 ## 1.76.0 - 2026-10-07
 
