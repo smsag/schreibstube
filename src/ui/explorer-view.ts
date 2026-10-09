@@ -31,7 +31,7 @@ import {
   type TAbstractFile,
   type WorkspaceLeaf
 } from "obsidian";
-import { t } from "../i18n";
+import { activeLocale, t } from "../i18n";
 import { openTargetOf, treeRowTarget } from "../services/pane-target";
 import type { ExplorerController } from "../controllers/explorer-controller";
 import type { PaneSectionsController } from "../controllers/pane-sections";
@@ -65,6 +65,13 @@ import type { ImportSource } from "../controllers/explorer-controller";
 import { fileGlyph, fileNameParts } from "../services/file-glyph";
 import { groundColour } from "../services/ground-colour";
 import { countsTasks, tallyTasks, type TaskTally } from "../services/task-count";
+import {
+  dueDateOf,
+  dueState,
+  formatDueDate,
+  formatDueDateLong,
+  localIsoDate
+} from "../services/due-date";
 import type { LatestCandidate } from "../services/latest-files";
 import {
   ancestorsOf,
@@ -245,6 +252,10 @@ export class ExplorerPaneView extends ItemView {
   private selection: SelectionState = EMPTY_SELECTION;
   /** The redraw waiting for the next frame. */
   private renderFrame: number | null = null;
+  /** The local day the due dates were last drawn against, `YYYY-MM-DD`. */
+  private drawnToday = localIsoDate(new Date());
+  /** Whether due dates were on when the pane last drew. */
+  private drawnDueDates = false;
   /** The pinned-row capacity the tree was last drawn for; null before the first draw. */
   private drawnShelfCapacity: number | null = null;
   /** A resize waiting for its frame to be measured; null when none is. */
@@ -489,6 +500,23 @@ export class ExplorerPaneView extends ItemView {
       })
     );
     this.wireImportDrop(this.body);
+
+    // A due date turns from upcoming to today to overdue at midnight, when
+    // nothing in the vault changed to redraw the pane, and the setting that
+    // shows it saves without telling the pane. A look once a minute catches
+    // both and costs nothing while neither moved.
+    this.registerInterval(
+      this.containerEl.win.setInterval(() => {
+        const showing = this.host?.settings().explorerDueDates === true;
+        if (
+          showing === this.drawnDueDates &&
+          (!showing || localIsoDate(new Date()) === this.drawnToday)
+        ) {
+          return;
+        }
+        this.requestRender();
+      }, 60_000)
+    );
 
     // The vault changes under the pane: a note created by a template, a file
     // deleted on another device and delivered by sync, frontmatter that binds a
@@ -1016,6 +1044,8 @@ export class ExplorerPaneView extends ItemView {
       // is matched by its name.
       return file instanceof TFolder ? this.matchesQuery(file.name) : this.matches.has(path);
     });
+    this.drawnToday = localIsoDate(new Date());
+    this.drawnDueDates = this.host.settings().explorerDueDates;
     host.empty();
     this.shelf?.empty();
     this.folderCounts.clear();
@@ -1285,6 +1315,7 @@ export class ExplorerPaneView extends ItemView {
     });
     if (file instanceof TFile) {
       this.renderBadge(row, file);
+      this.renderDueDate(row, file);
       this.renderTaskCount(row, file);
     }
 
@@ -1490,6 +1521,7 @@ export class ExplorerPaneView extends ItemView {
       const target = this.app.vault.getAbstractFileByPath(file.path);
       if (target instanceof TFile) {
         this.renderBadge(row, target);
+        this.renderDueDate(row, target);
         this.renderTaskCount(row, target);
       }
 
@@ -1878,6 +1910,7 @@ export class ExplorerPaneView extends ItemView {
 
     if (file instanceof TFile) {
       this.renderBadge(row, file);
+      this.renderDueDate(row, file);
       this.renderTaskCount(row, file);
     }
 
@@ -1903,6 +1936,29 @@ export class ExplorerPaneView extends ItemView {
     if (!countsTasks(cache?.frontmatter)) return;
 
     drawTaskCount(row, tallyTasks(cache?.listItems), "schreibstube-explorer-tasks");
+  }
+
+  /**
+   * The day a note is due, just before its task count, so the task column
+   * keeps the right edge it has always had.
+   *
+   * Read from the metadata cache like the count, and only where a person
+   * asked for it. The day it is measured against is the one the pane last
+   * drew with, so every row in a render agrees about what today is.
+   */
+  private renderDueDate(row: HTMLElement, file: TFile): void {
+    if (!this.host?.settings().explorerDueDates || file.extension !== "md") return;
+    const due = dueDateOf(this.app.metadataCache.getFileCache(file)?.frontmatter);
+    if (!due) return;
+
+    const locale = activeLocale();
+    const state = dueState(due, this.drawnToday);
+    const el = row.createSpan({
+      cls: "schreibstube-explorer-due",
+      text: formatDueDate(due, this.drawnToday, locale)
+    });
+    el.dataset.state = state;
+    el.setAttribute("aria-label", t().explorer.dueDate(formatDueDateLong(due, locale), state));
   }
 
   /**

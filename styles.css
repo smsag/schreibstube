@@ -2129,6 +2129,38 @@
   text-align: right;
 }
 
+/* The day a note is due, just before its task count. A day still ahead is
+   context and stays muted with no fill, or a vault full of deadlines would
+   colour the whole column. Today takes the accent wash the task pill uses;
+   a missed day takes the error colour, the one row that must be seen first.
+   The padding is the pill's whether or not a fill is painted, so the column
+   does not jump between states. */
+.schreibstube-explorer-due {
+  flex: 0 0 auto;
+  margin-left: auto;
+  padding: 2px 8px;
+  border-radius: var(--schreibstube-border-radius);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: var(--text-muted);
+}
+
+/* Both push to the right edge with an auto margin; two of them would split
+   the slack and leave the date floating mid-row. The row's gap spaces them. */
+.schreibstube-explorer-due + .schreibstube-tasks {
+  margin-left: 0;
+}
+
+.schreibstube-explorer-due[data-state="today"] {
+  color: var(--text-normal);
+  background: color-mix(in srgb, var(--interactive-accent) 18%, transparent);
+}
+
+.schreibstube-explorer-due[data-state="overdue"] {
+  color: var(--text-error);
+  background: color-mix(in srgb, var(--text-error) 14%, transparent);
+}
+
 /* The "Move to…" list: a glyph and the folder's path on one line. */
 .schreibstube-folder-suggestion {
   display: flex;

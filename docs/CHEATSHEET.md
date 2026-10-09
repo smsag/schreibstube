@@ -56,6 +56,7 @@ plain Obsidian Markdown plus what this file lists. Write only what is here.
 | `schreibstubeAvoid`           | term note      | list of words to flag, the note's term offered instead         |
 | `schreibstubeIndex`           | any note       | `false` keeps it out of search by meaning                      |
 | `schreibstubeTaskCount`       | any note       | `false` hides its task count in the Explorer                   |
+| `schreibstubeDue`             | any note       | `YYYY-MM-DD`: the day it is due, shown in the Explorer         |
 | `schreibstubeReadingView`     | `.base` file   | `true` at the top: its notes open in Reading view              |
 | `type: schreibstube-passages` | `.base` view   | callouts and highlights; `calloutTypes`, `show`, `readingView` |
 | `published`                   | published note | `true` puts it on the website (see 9)                          |
@@ -491,8 +492,7 @@ template's folder; a missing one is left out with a warning.
 
 - `####` for columns — columns are `###`; the count makes the layout.
 - Speaker text on the slide — put it in `> [!notes]`.
-- HTML for layout (`<div>`, `<br>` grids) — use headings, columns and
-  comments listed here.
+- HTML for layout (`<div>`, `<br>` grids) — use headings, columns and comments listed here.
 - Invented keys (`schreibstubeTheme`, `schreibstubeFooter`) — ignored.
 - A slideshow block with `![[…]]` lines — write `![Alt](file)` instead.
 - `recipient:` or `subject:` at the top level of a letter — they belong

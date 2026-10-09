@@ -102,6 +102,10 @@ export const enExtra = {
     explorerTaskCountsDesc:
       'Show how many tasks a note holds and how many are still open, as "1 / 7" after its ' +
       "name. Notes without tasks show nothing.",
+    explorerDueDates: "Due dates",
+    explorerDueDatesDesc:
+      "Show the day a note is due after its name, from the schreibstubeDue property. " +
+      "Highlighted on the day and once it has passed.",
     explorerIcons: "Icon set",
     explorerIconsDesc: (count: number, version: string) =>
       `${count} icons from Tabler Icons ${version} (MIT), bundled with the plugin so they work offline and on mobile.`,
@@ -679,6 +683,12 @@ export const enExtra = {
     searchPlaceholder: "Search the vault…",
     clearFilter: "Clear the search",
     taskCount: (done: number, total: number) => `${done} of ${total} tasks done`,
+    dueDate: (date: string, state: "upcoming" | "today" | "overdue") =>
+      state === "today"
+        ? `Due today, ${date}`
+        : state === "overdue"
+          ? `Overdue, was due ${date}`
+          : `Due ${date}`,
     filterEmpty: "Nothing here answers that.",
     filterMore: (count: number) =>
       count === 1

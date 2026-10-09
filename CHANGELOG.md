@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+- A note can say when it is due. Set `schreibstubeDue` to a date (or a date
+  and time, of which only the day counts) and, with **Due dates** switched on
+  in the Explorer settings, the day appears after the note's name, next to its
+  task count. A day still ahead stays quiet, today is highlighted, and a day
+  that has passed is shown in red. The year appears only when it is not this
+  one. Nothing reminds you; the date is there to be seen while scanning the
+  list.
+
 ## 1.76.0 - 2026-10-07
 
 One command for finished tasks, an order of your own at the top of a
