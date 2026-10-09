@@ -20,7 +20,7 @@
  * vault-sized cost per edit.
  */
 import {
-  parseSearchScope,
+  listingScopesOf,
   rankFiles,
   type BodyMatcher,
   searchFields,
@@ -71,6 +71,12 @@ export interface SearchSource {
   metadata(file: IndexedFile): FileMetadata | null;
   /** Whether a note is bound to a source; asked only when a query needs it. */
   synced?(file: IndexedFile): boolean;
+  /** How many tasks a note has open, 0 for one that declines its count;
+   *  asked only when a query needs it. */
+  openTasks?(file: IndexedFile): number;
+  /** The day a note is due as `YYYY-MM-DD`, or null; asked only when a query
+   *  needs it. */
+  due?(file: IndexedFile): string | null;
 }
 
 /** What one draw of the filter needs to know. */
@@ -208,11 +214,13 @@ export class FileSearchIndex {
    * filter is guessing.
    */
   search(query: string, limit: number): SearchResult {
-    const wantsSync = parseSearchScope(query).scope === "sync";
+    const wants = listingScopesOf(query);
     const candidates: SearchCandidate[] = this.source.files().map((file) => ({
       path: file.path,
       fields: this.fieldsFor(file),
-      ...(wantsSync ? { synced: this.source.synced?.(file) === true } : {})
+      ...(wants.has("sync") ? { synced: this.source.synced?.(file) === true } : {}),
+      ...(wants.has("tasks") ? { openTasks: this.source.openTasks?.(file) ?? 0 } : {}),
+      ...(wants.has("due") ? { due: this.source.due?.(file) ?? null } : {})
     }));
 
     const hits = rankFiles(query, candidates, undefined, this.body);

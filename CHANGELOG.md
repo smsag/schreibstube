@@ -4,16 +4,29 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
-- A note can say when it is due. Set `schreibstubeDue` to a date (or a date
-  and time, of which only the day counts) and, with **Due dates** switched on
-  in the Explorer settings, the day appears at the row's right edge, beside
-  its task count, with the dates and the counts each in a column. A day still
-  ahead stays quiet, today is tinted, and a day that has passed is outlined in
-  red, so the three read apart without relying on colour. The year appears
-  only when it is not this one. Nothing reminds you; the date is there to be
-  seen while scanning the list.
-- Switching an Explorer setting — task counts, due dates, file extensions —
-  now shows in the pane at once, instead of after the next change to a note.
+Deadlines you can see, and two questions the search box now answers on its
+own. A note can carry the day it is due, and the Explorer shows it at the
+row's right edge beside the task count, tinted on the day and outlined once
+it has passed. **fällig:** lists every note with a due day, the most overdue
+first; **aufgaben:** lists every note with open tasks, the most first. And a
+switched Explorer setting now shows in the pane at once.
+
+Mobile checklist: not run, and nothing in this release was tried in the
+Obsidian app; the test suite and the build covered it. What to try first on
+a phone: the due-date slot beside long note names in a narrow sidebar, the
+overdue outline in light and dark themes, a note turning overdue after
+midnight, and `fällig:` typed on the phone's keyboard.
+
+The bridge is unchanged.
+
+### Added
+
+- **Due dates in the Explorer.** Set `schreibstubeDue` to a date, or a date and time of which only the day counts, and switch on **Due dates** in the Explorer settings: the day appears at the row's right edge, `Oct 12`, with the year only when it is not this one. A day still ahead stays quiet, today carries the task count's tint, and a missed day adds a red outline, so the three read apart without relying on colour; the full date and its state are on the row for a screen reader. The slot keeps its width on rows without a date, so the dates and the task counts each line up in a column. A time written with `Z` or an offset, as scripts write it, is due on the local day that moment falls on, and a value that is not a real day shows nothing. Nothing reminds you; the row turns from today to overdue at midnight by itself.
+- **`aufgaben:` and `fällig:` in the search box.** `aufgaben:` (or `tasks:`) lists the notes that still have open tasks, the most open first; `fällig:` (or `faellig:`, `due:`, `deadline:`) lists the notes with a due day, the earliest first, so whatever is late stays at the top. Words or a second prefix after either narrow the list without reordering it — `fällig: pfad:Kunden`, `fällig: aufgaben:`. The rows show each note's task count or due day while the list is up, whether or not **Task counts** or **Due dates** is on, and a note with `schreibstubeTaskCount: false` stays out of `aufgaben:`. `todo:` is still ordinary text, so a note called `todo: Angebot` is found by typing it.
+
+### Changed
+
+- **An Explorer setting shows at once.** Switching **Task counts**, **Due dates** or **Show file extensions** used to show in the pane only after the next change to a note; the pane now redraws when the settings are saved.
 
 ## 1.76.0 - 2026-10-07
 
