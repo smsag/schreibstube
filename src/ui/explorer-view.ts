@@ -111,7 +111,7 @@ import { basename as basenameOf } from "../services/file-name";
 import { indent } from "./explorer-row";
 import { applyIcon, installIconFont } from "./icon-font";
 import { pressable, pressKeys } from "./pressable";
-import { drawDueDate } from "./due-date-label";
+import { drawRowMarks } from "./row-marks";
 import { drawTaskCount } from "./task-count-label";
 import { SCHREIBSTUBE_ICON } from "./schreibstube-icon";
 import { isElementLike, isNodeLike } from "../services/workspace-internals";
@@ -1937,15 +1937,13 @@ export class ExplorerPaneView extends ItemView {
     const cache = this.app.metadataCache.getFileCache(file);
 
     // A note can decline its figure: a reading list whose boxes are not work.
-    if (showTasks && countsTasks(cache?.frontmatter)) {
-      drawTaskCount(row, tallyTasks(cache?.listItems), "schreibstube-explorer-tasks");
-    }
-    if (showDue && this.drawnDueKey !== null) {
-      // Measured against the day the render started with, so every row in it
-      // agrees about what today is.
-      const due = dueDateOf(cache?.frontmatter);
-      drawDueDate(row, due ? dueLabel(due, this.drawnDueKey, activeLocale()) : null);
-    }
+    const tally =
+      showTasks && countsTasks(cache?.frontmatter) ? tallyTasks(cache?.listItems) : null;
+    // Measured against the day the render started with, so every row in it
+    // agrees about what today is.
+    const today = showDue ? this.drawnDueKey : null;
+    const due = today !== null ? dueDateOf(cache?.frontmatter) : null;
+    drawRowMarks(row, tally, due && today !== null ? dueLabel(due, today, activeLocale()) : null);
   }
 
   /** A note's metadata, or null for anything that is not a parsed note. */

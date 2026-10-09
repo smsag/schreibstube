@@ -4,6 +4,7 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+- **A count and a day share one pill.** A note with open tasks and a due date drew two pills side by side, which on a phone took a third of the row from the name. They are now one pill, a size smaller, `1/17 · 12. Okt.`, coloured by the day's state, and a name always keeps at least half its row: the marks give way, never the name.
 - **Rows without a due date are as they were.** 1.77.0 gave every note's row an empty slot at its right edge while **Due dates** was on, there to line the dates up in a column, and it changed the size of every row for a column most vaults never fill — on a phone, visibly. A date is now drawn only on the row that has one, beside its task count; nothing else on a row changed.
 
 ## 1.77.0 - 2026-10-09

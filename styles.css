@@ -2015,6 +2015,11 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  /* The name is what the row is for. The marks at the right edge may take
+     what is left past half the row and no more; a name longer than that
+     ellipses, as it always did, but it is never squeezed to a few letters
+     by a count and a day beside it. */
+  min-width: 50%;
 }
 
 /* Both sit just after the name's last character, not against the right edge:
@@ -2154,6 +2159,28 @@
 .schreibstube-explorer-due[data-state="upcoming"] {
   color: var(--text-muted);
   background: transparent;
+}
+
+/* A count and a day on one row are one pill, a size smaller: two pills cost a
+   phone-width row a third of its name. The pill can shrink past the name's
+   floor, ellipsing its tail, rather than push the row wider. */
+.schreibstube-explorer-marks {
+  font-size: var(--font-ui-smaller);
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.schreibstube-explorer-marks-sep {
+  margin: 0 0.35em;
+  color: var(--text-faint);
+}
+
+/* The day's state colours the pill; a finished note's figures step back the
+   way a lone finished tally's do. */
+.schreibstube-explorer-marks[data-tasks="done"] .schreibstube-tasks-done {
+  color: var(--text-muted);
 }
 
 .schreibstube-explorer-due[data-state="today"] {

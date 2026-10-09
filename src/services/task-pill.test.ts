@@ -77,6 +77,19 @@ describe("the task tally's pill", () => {
     expect(css).not.toMatch(/\.schreibstube-explorer-due\[[^\]]*\][^{]*\{[^}]*padding/);
   });
 
+  it("leaves the one pill a row with both marks draws its size and its shrinking", () => {
+    // Smaller than a lone pill, and able to shrink past the name's floor: the
+    // marks give way, never the name. The look is still the pill's.
+    const allowed = /^(font-size|flex|min-width|overflow|text-overflow)$/;
+    const props = ruleBody(".schreibstube-explorer-marks")
+      .split(";")
+      .map((d) => (d.split(":")[0] ?? "").trim())
+      .filter(Boolean);
+    expect(props).toContain("font-size");
+    for (const prop of props) expect(prop).toMatch(allowed);
+    expect(ruleBody(".schreibstube-explorer-name")).toMatch(/min-width:\s*50%/);
+  });
+
   it("sets the figures at the row's weight, never bold", () => {
     // The tint is what makes the column findable. A weight here would be the
     // same emphasis arriving twice, inside a pill on a line of plain names.
