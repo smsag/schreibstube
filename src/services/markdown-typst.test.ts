@@ -537,12 +537,16 @@ describe("lists, as the note numbered and ticked them", () => {
     );
   });
 
-  it("draws any other single character in the box as done, as the ribbon counts it", () => {
-    expect(convert("- [-] gestrichen\n- [/] halb\n- [x]")).toBe(
+  it("draws the box by the marker's state, as the ribbon counts it", () => {
+    // Cancelled is done; a slash is a started task with a box of its own; a
+    // theme's other flags mark an open task.
+    expect(convert("- [-] gestrichen\n- [/] halb\n- [>] vertagt\n- [x]")).toBe(
       "#schreibstube-task-item(schreibstube-task(true))[gestrichen]\n" +
-        "#schreibstube-task-item(schreibstube-task(true))[halb]\n" +
+        "#schreibstube-task-item(schreibstube-task-progress())[halb]\n" +
+        "#schreibstube-task-item(schreibstube-task(false))[vertagt]\n" +
         "#schreibstube-task-item(schreibstube-task(true))[]"
     );
+    expect(convert("1. [/] halb")).toBe("+ #schreibstube-task-progress() halb");
   });
 });
 

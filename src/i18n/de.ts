@@ -67,7 +67,10 @@ export const de: Messages = {
   tasks: {
     alreadyPresent: "diese Notiz hat schon eine Aufgaben-Zusammenfassung.",
     none: "Keine Aufgaben",
-    ribbon: (open: number, total: number) => `${open} offen von ${total}`,
+    ribbon: (open: number, total: number, progress: number) =>
+      progress > 0
+        ? `${open} offen von ${total}, ${progress} in Arbeit`
+        : `${open} offen von ${total}`,
     badge: (open: number, total: number) => `${open} von ${total} offen`,
 
     tidyHeading: "Erledigte Aufgaben",
@@ -1060,7 +1063,10 @@ export const de: Messages = {
     empty: "In diesem Vault liegt noch keine Datei.",
     searchPlaceholder: "Vault durchsuchen …",
     clearFilter: "Suche leeren",
-    taskCount: (done: number, total: number) => `${done} von ${total} Aufgaben erledigt`,
+    taskCount: (done: number, total: number, progress = 0) =>
+      progress > 0
+        ? `${done} von ${total} Aufgaben erledigt, ${progress} in Arbeit`
+        : `${done} von ${total} Aufgaben erledigt`,
     dueDate: (date: string, state: "upcoming" | "today" | "overdue") =>
       state === "today"
         ? `Heute fällig, ${date}`

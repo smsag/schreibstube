@@ -682,7 +682,10 @@ export const enExtra = {
     empty: "This vault has no files yet.",
     searchPlaceholder: "Search the vault…",
     clearFilter: "Clear the search",
-    taskCount: (done: number, total: number) => `${done} of ${total} tasks done`,
+    taskCount: (done: number, total: number, progress = 0) =>
+      progress > 0
+        ? `${done} of ${total} tasks done, ${progress} in progress`
+        : `${done} of ${total} tasks done`,
     dueDate: (date: string, state: "upcoming" | "today" | "overdue") =>
       state === "today"
         ? `Due today, ${date}`

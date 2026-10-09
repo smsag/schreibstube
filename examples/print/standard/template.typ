@@ -88,6 +88,17 @@
   if done { box(width: 100%, height: 100%, fill: muted, radius: 0.5pt) },
 )
 
+// A started task, marked with a slash: the box half filled.
+#let schreibstube-task-progress() = box(
+  width: 0.7em,
+  height: 0.7em,
+  baseline: 0.05em,
+  stroke: 0.6pt + faint,
+  radius: 1pt,
+  inset: 0.14em,
+  box(width: 50%, height: 100%, fill: muted, radius: 0.5pt),
+)
+
 // The note's properties, when a print asks for them: keys in the marks' grey,
 // a hairline under the list.
 #let schreibstube-properties(rows) = block(

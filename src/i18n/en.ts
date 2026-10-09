@@ -75,7 +75,10 @@ export const en = {
     none: "No tasks",
     /** The ribbon's one line. Digits are emphasised by the renderer, so the
      *  numbers have to appear as plain digits here. */
-    ribbon: (open: number, total: number) => `${open} open of ${total}`,
+    ribbon: (open: number, total: number, progress: number) =>
+      progress > 0
+        ? `${open} open of ${total}, ${progress} in progress`
+        : `${open} open of ${total}`,
     /** The badge after a heading. */
     badge: (open: number, total: number) => `${open} of ${total} open`,
 

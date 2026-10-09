@@ -1,12 +1,13 @@
 /**
  * Task counting for the task summary ribbon and the per-heading badges.
  *
- * Two states only. A task is open when its box is `[ ]` and done for any other
- * single-character marker: `[x]`, `[X]`, `[-]`, `[~]` and whatever else a
- * theme or another plugin gives a meaning to. Distinguishing those would be
- * a task model, and the ribbon is a count.
+ * A task is open until it is finished — `[x]`, `[X]` or `[-]` — whatever flag
+ * a theme's other markers put on it; `[/]` is open work somebody has started,
+ * which the ribbon says beside the count. The rule is `task-state`'s, shared
+ * with the Explorer and **Tidy up done tasks**.
  */
 import { fenceMarker } from "./markdown-fence";
+import { taskState } from "./task-state";
 
 export const TASK_SUMMARY_LANGUAGE = "schreibstube-tasks";
 export const TASK_SUMMARY_SNIPPET = "```" + TASK_SUMMARY_LANGUAGE + "\n```";
@@ -22,6 +23,8 @@ export interface SectionTaskCount extends TaskCount {
 }
 
 export interface TaskSummary extends TaskCount {
+  /** Of the open tasks, those marked `[/]`. */
+  progress: number;
   /**
    * One entry per heading, in document order. A heading counts only the tasks
    * between itself and the next heading of any level, so a sub-heading's
@@ -83,13 +86,13 @@ export interface TaskLine {
 export function listTasks(content: string): TaskLine[] {
   const tasks: TaskLine[] = [];
   scanLines(content, (kind, lineNumber, detail) => {
-    if (kind === "task") tasks.push({ line: lineNumber, open: detail === " " });
+    if (kind === "task") tasks.push({ line: lineNumber, open: taskState(detail) !== "done" });
   });
   return tasks;
 }
 
 export function summarizeTasks(content: string): TaskSummary {
-  const summary: TaskSummary = { total: 0, open: 0, sections: [] };
+  const summary: TaskSummary = { total: 0, open: 0, progress: 0, sections: [] };
   let current: SectionTaskCount | null = null;
 
   scanLines(content, (kind, lineNumber, detail) => {
@@ -101,10 +104,11 @@ export function summarizeTasks(content: string): TaskSummary {
 
     if (kind !== "task") return;
 
-    const isOpen = detail === " ";
+    const state = taskState(detail);
     summary.total += 1;
     if (current) current.total += 1;
-    if (isOpen) {
+    if (state === "progress") summary.progress += 1;
+    if (state !== "done") {
       summary.open += 1;
       if (current) current.open += 1;
     }

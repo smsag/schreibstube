@@ -14,6 +14,7 @@
  */
 
 import { fenceMarker } from "./markdown-fence";
+import { taskState } from "./task-state";
 import { stripComments } from "./markdown-typst";
 
 /** Stand-in for a piece already final, so the inline rules cannot touch it. */
@@ -64,9 +65,11 @@ function convertLine(line: string): string {
   // A closing run of hashes is set off by a space; one glued to the text, as
   // in `# C#`, is the text.
   text = text.replace(/^#{1,6}\s+(.*?)(?:\s+#+)?\s*$/, "$1");
-  text = text.replace(/^(\s*)[-*+]\s+\[(.)\]\s+/, (_, indent: string, mark: string) =>
-    mark === " " ? `${indent}☐ ` : `${indent}☑ `
-  );
+  // The three boxes a mail client can show: open, started, finished.
+  text = text.replace(/^(\s*)[-*+]\s+\[(.)\]\s+/, (_, indent: string, mark: string) => {
+    const state = taskState(mark);
+    return `${indent}${state === "done" ? "☑" : state === "progress" ? "◧" : "☐"} `;
+  });
   text = text.replace(/^(\s*)[*+]\s+/, "$1- ");
   // A block id is Obsidian's anchor for a link, not part of the sentence.
   text = text.replace(/\s+\^[A-Za-z0-9-]+$/, "");

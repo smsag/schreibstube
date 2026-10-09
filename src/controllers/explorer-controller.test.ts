@@ -969,7 +969,11 @@ describe("a note that declines its task count", () => {
     expect(f.controller.tagTallies(["projekt"]).get("projekt")).toEqual({ open: 1, total: 2 });
     const cards = f.controller.tagCards("projekt");
     expect(cards.map((card) => card.path).sort()).toEqual(["reading.md", "work.md"]);
-    expect(cards.find((card) => card.path === "reading.md")?.tally).toEqual({ open: 0, total: 0 });
+    expect(cards.find((card) => card.path === "reading.md")?.tally).toEqual({
+      open: 0,
+      total: 0,
+      progress: 0
+    });
   });
 });
 

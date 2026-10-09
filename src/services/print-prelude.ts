@@ -438,6 +438,17 @@ export const PRELUDE_SOURCE = `// Defaults the converted note calls. A template 
   if done { box(width: 100%, height: 100%, fill: luma(90)) },
 )
 
+// A task somebody has started, marked with a slash: the box half filled, on
+// the left, the way the themes draw it on screen. Open and done keep theirs.
+#let schreibstube-task-progress() = box(
+  width: 0.75em,
+  height: 0.75em,
+  baseline: 0.05em,
+  stroke: 0.6pt + luma(90),
+  inset: 0.15em,
+  box(width: 50%, height: 100%, fill: luma(90)),
+)
+
 // A bulleted task: a list of one item whose marker is the task's box, so the
 // box stands where the bullet would. The converter passes the box in, drawn by
 // whichever schreibstube-task is in force, so a template that redraws the box

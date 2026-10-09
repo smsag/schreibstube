@@ -31,5 +31,5 @@ export function drawTaskCount(parent: HTMLElement, tally: TaskTally, base: strin
   if (count.complete) el.dataset.state = "done";
   el.createSpan({ cls: `${TASK_PILL_CLASS}-done`, text: String(count.done) });
   el.createSpan({ cls: `${TASK_PILL_CLASS}-total`, text: `/${count.total}` });
-  el.setAttribute("aria-label", t().explorer.taskCount(count.done, count.total));
+  el.setAttribute("aria-label", t().explorer.taskCount(count.done, count.total, count.progress));
 }
