@@ -449,6 +449,17 @@ export const PRELUDE_SOURCE = `// Defaults the converted note calls. A template 
   box(width: 50%, height: 100%, fill: luma(90)),
 )
 
+// A cancelled task, marked with a dash: the box struck through, so it reads
+// as finished without reading as done.
+#let schreibstube-task-cancelled() = box(
+  width: 0.75em,
+  height: 0.75em,
+  baseline: 0.05em,
+  stroke: 0.6pt + luma(90),
+  inset: 0.15em,
+  align(horizon, line(length: 100%, stroke: 0.8pt + luma(90))),
+)
+
 // A bulleted task: a list of one item whose marker is the task's box, so the
 // box stands where the bullet would. The converter passes the box in, drawn by
 // whichever schreibstube-task is in force, so a template that redraws the box

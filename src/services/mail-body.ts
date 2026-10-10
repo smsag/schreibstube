@@ -14,8 +14,16 @@
  */
 
 import { fenceMarker } from "./markdown-fence";
-import { taskState } from "./task-state";
+import { type TaskState, taskState } from "./task-state";
 import { stripComments } from "./markdown-typst";
+
+/** A box ticked with a cross reads as "no" beside one ticked with a check. */
+const TASK_BOX: Record<TaskState, string> = {
+  open: "☐",
+  progress: "◧",
+  done: "☑",
+  cancelled: "☒"
+};
 
 /** Stand-in for a piece already final, so the inline rules cannot touch it. */
 const HOLD = "\uE000";
@@ -65,10 +73,9 @@ function convertLine(line: string): string {
   // A closing run of hashes is set off by a space; one glued to the text, as
   // in `# C#`, is the text.
   text = text.replace(/^#{1,6}\s+(.*?)(?:\s+#+)?\s*$/, "$1");
-  // The three boxes a mail client can show: open, started, finished.
+  // The four boxes a mail client can show: open, started, done, cancelled.
   text = text.replace(/^(\s*)[-*+]\s+\[(.)\]\s+/, (_, indent: string, mark: string) => {
-    const state = taskState(mark);
-    return `${indent}${state === "done" ? "☑" : state === "progress" ? "◧" : "☐"} `;
+    return `${indent}${TASK_BOX[taskState(mark)]} `;
   });
   text = text.replace(/^(\s*)[*+]\s+/, "$1- ");
   // A block id is Obsidian's anchor for a link, not part of the sentence.

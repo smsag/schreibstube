@@ -1,13 +1,14 @@
 /**
  * Task counting for the task summary ribbon and the per-heading badges.
  *
- * A task is open until it is finished — `[x]`, `[X]` or `[-]` — whatever flag
- * a theme's other markers put on it; `[/]` is open work somebody has started,
- * which the ribbon says beside the count. The rule is `task-state`'s, shared
+ * A task is open until it is finished — done with `[x]` or `[X]`, cancelled
+ * with `[-]` — whatever flag a theme's other markers put on it; `[/]` is open
+ * work somebody has started, and the ribbon says that and the cancelled count
+ * beside the figure. A heading's badge has no room for either. The rule is `task-state`'s, shared
  * with the Explorer and **Tidy up done tasks**.
  */
 import { fenceMarker } from "./markdown-fence";
-import { taskState } from "./task-state";
+import { isOpenTask, taskState } from "./task-state";
 
 export const TASK_SUMMARY_LANGUAGE = "schreibstube-tasks";
 export const TASK_SUMMARY_SNIPPET = "```" + TASK_SUMMARY_LANGUAGE + "\n```";
@@ -25,6 +26,8 @@ export interface SectionTaskCount extends TaskCount {
 export interface TaskSummary extends TaskCount {
   /** Of the open tasks, those marked `[/]`. */
   progress: number;
+  /** Of the finished tasks, those marked `[-]`: no work left, but not done either. */
+  cancelled: number;
   /**
    * One entry per heading, in document order. A heading counts only the tasks
    * between itself and the next heading of any level, so a sub-heading's
@@ -86,13 +89,13 @@ export interface TaskLine {
 export function listTasks(content: string): TaskLine[] {
   const tasks: TaskLine[] = [];
   scanLines(content, (kind, lineNumber, detail) => {
-    if (kind === "task") tasks.push({ line: lineNumber, open: taskState(detail) !== "done" });
+    if (kind === "task") tasks.push({ line: lineNumber, open: isOpenTask(detail) });
   });
   return tasks;
 }
 
 export function summarizeTasks(content: string): TaskSummary {
-  const summary: TaskSummary = { total: 0, open: 0, progress: 0, sections: [] };
+  const summary: TaskSummary = { total: 0, open: 0, progress: 0, cancelled: 0, sections: [] };
   let current: SectionTaskCount | null = null;
 
   scanLines(content, (kind, lineNumber, detail) => {
@@ -108,7 +111,8 @@ export function summarizeTasks(content: string): TaskSummary {
     summary.total += 1;
     if (current) current.total += 1;
     if (state === "progress") summary.progress += 1;
-    if (state !== "done") {
+    if (state === "cancelled") summary.cancelled += 1;
+    if (state === "open" || state === "progress") {
       summary.open += 1;
       if (current) current.open += 1;
     }
