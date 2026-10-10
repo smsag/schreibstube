@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 1.79.0 - 2026-10-10
+
+A due date no longer has to be written twice. A vault whose deadlines
+another app already keeps — as `Zieldatum`, say — can name that property in
+the settings, and the Explorer reads the day from there; notes still on
+`schreibstubeDue` are counted, and moved with one button. A cancelled task
+is told apart from a done one wherever there is room to say so.
+
+Mobile checklist: not run, and nothing in this release was tried in the
+Obsidian app; the test suite and the build covered it. What to try first on
+a phone: the Explorer settings with the due-date property set to another
+key — the count of notes still on `schreibstubeDue`, the move, and the rows
+afterwards — and the ribbon line of a note with a `[-]` task.
+
+The bridge is unchanged.
+
 ### Added
 
 - **The due date can live in another app's property.** A vault whose deadlines another app already writes — as `Zieldatum`, say — no longer has to carry the same day a second time as `schreibstubeDue`: **Due-date property** names the key the Explorer reads, and **Also accept** lists further spellings for notes that use more than one. The settings count the notes that still say `schreibstubeDue` and offer to move their day to the new property, and a note that names two different days is left for you and named.
