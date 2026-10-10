@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 1.79.1 - 2026-10-10
+
+Mobile checklist: not run; the test suite and the build covered it. What to
+try first on a phone: a narrow Explorer with short and long names, some
+carrying a mark and a task count or due day.
+
+The bridge is unchanged.
+
 - **The Explorer's marks line up again.** The pin, the sync and publish marks and a described picture's sparkles sit in one column at the right edge, just before the task count and the due day, instead of hanging mid-row on a short name and after the text on a long one.
 
 ## 1.79.0 - 2026-10-10

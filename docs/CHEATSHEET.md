@@ -1,6 +1,6 @@
 # Schreibstube cheatsheet for language models
 
-Checked against Schreibstube 1.79.0
+Checked against Schreibstube 1.79.1
 
 **For the person:** paste this whole file into a conversation with a language
 model, then ask for what you need — a presentation, a letter, a mail, a cost
