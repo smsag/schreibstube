@@ -90,6 +90,12 @@ describe("the task tally's pill", () => {
     expect(ruleBody(".schreibstube-explorer-name")).toMatch(/min-width:\s*50%/);
   });
 
+  it("lets the name take the row's slack, so every mark sits at the right edge", () => {
+    // A name that only kept a floor left the slack after it, and the marks
+    // hung at the floor on a short name and after the text on a long one.
+    expect(ruleBody(".schreibstube-explorer-name")).toMatch(/flex:\s*1 1 auto/);
+  });
+
   it("sets the figures at the row's weight, never bold", () => {
     // The tint is what makes the column findable. A weight here would be the
     // same emphasis arriving twice, inside a pill on a line of plain names.
