@@ -1,11 +1,22 @@
 import { describe, expect, it } from "vitest";
 import {
+  DEFAULT_DUE_KEYS,
   dueDateOf,
   dueDrawKey,
+  dueKeysRead,
   dueLabel,
   dueState,
+  MAX_DUE_CONFLICTS_NAMED,
+  MAX_DUE_KEY_LENGTH,
   MAX_DUE_LENGTH,
+  MAX_DUE_SYNONYMS,
+  moveDue,
+  normalizeDueProperty,
+  normalizeDueSynonyms,
+  planDueMove,
+  tallyDueMoves,
   type DueDate,
+  type DueKeys,
   type LocalDayOf
 } from "./due-date";
 
@@ -17,7 +28,7 @@ function zone(offsetMinutes: number): LocalDayOf {
 const berlinSummer = zone(120);
 
 function due(value: unknown, dayOf: LocalDayOf = berlinSummer): DueDate | null {
-  return dueDateOf({ schreibstubeDue: value }, dayOf);
+  return dueDateOf({ schreibstubeDue: value }, DEFAULT_DUE_KEYS, dayOf);
 }
 
 describe("dueDateOf", () => {
@@ -104,6 +115,160 @@ describe("dueDateOf", () => {
     for (const frontmatter of [undefined, null, "text", 3, {}]) {
       expect(dueDateOf(frontmatter)).toBeNull();
     }
+  });
+});
+
+describe("the keys a due day is read from", () => {
+  const zieldatum: DueKeys = { property: "Zieldatum", synonyms: ["deadline", "due"] };
+  const iso = (frontmatter: Record<string, unknown>, keys: DueKeys = zieldatum) =>
+    dueDateOf(frontmatter, keys, berlinSummer)?.iso ?? null;
+
+  it("reads the named property instead of schreibstubeDue", () => {
+    expect(iso({ Zieldatum: "2026-10-12" })).toBe("2026-10-12");
+    expect(iso({ Zieldatum: "2026-10-12" }, DEFAULT_DUE_KEYS)).toBeNull();
+  });
+
+  it("prefers the property, then the synonyms in order, then schreibstubeDue", () => {
+    const all = {
+      Zieldatum: "2026-10-01",
+      deadline: "2026-10-02",
+      due: "2026-10-03",
+      schreibstubeDue: "2026-10-04"
+    };
+    expect(iso(all)).toBe("2026-10-01");
+    expect(iso({ ...all, Zieldatum: undefined })).toBe("2026-10-02");
+    expect(iso({ due: "2026-10-03", schreibstubeDue: "2026-10-04" })).toBe("2026-10-03");
+    expect(iso({ schreibstubeDue: "2026-10-04" })).toBe("2026-10-04");
+  });
+
+  it("passes over a key that holds no real day for the next one", () => {
+    expect(iso({ Zieldatum: "soon", deadline: "2026-02-30", due: "2026-10-03" })).toBe(
+      "2026-10-03"
+    );
+  });
+
+  it("reads only the note's own keys", () => {
+    const keys = { property: "constructor", synonyms: ["toString"] };
+    expect(iso({}, keys)).toBeNull();
+    expect(iso({ constructor: "2026-10-12" }, keys)).toBe("2026-10-12");
+  });
+
+  it("tries each key once, schreibstubeDue last", () => {
+    expect(dueKeysRead(DEFAULT_DUE_KEYS)).toEqual(["schreibstubeDue"]);
+    expect(dueKeysRead({ property: "Zieldatum", synonyms: ["schreibstubeDue", "due"] })).toEqual([
+      "Zieldatum",
+      "schreibstubeDue",
+      "due"
+    ]);
+    expect(dueKeysRead(zieldatum)).toEqual(["Zieldatum", "deadline", "due", "schreibstubeDue"]);
+  });
+});
+
+describe("normalizeDueProperty", () => {
+  it("keeps a typed name, trimmed", () => {
+    expect(normalizeDueProperty("  Zieldatum ")).toBe("Zieldatum");
+    expect(normalizeDueProperty("Fällig am")).toBe("Fällig am");
+  });
+
+  it("falls back to schreibstubeDue for anything that is no usable name", () => {
+    for (const value of [undefined, null, 3, ["due"], "", "   ", "a\nb", "tab\there"]) {
+      expect(normalizeDueProperty(value)).toBe("schreibstubeDue");
+    }
+    expect(normalizeDueProperty("k".repeat(MAX_DUE_KEY_LENGTH))).toBe(
+      "k".repeat(MAX_DUE_KEY_LENGTH)
+    );
+    expect(normalizeDueProperty("k".repeat(MAX_DUE_KEY_LENGTH + 1))).toBe("schreibstubeDue");
+  });
+});
+
+describe("normalizeDueSynonyms", () => {
+  it("reads a list or the field's text, one per line or comma", () => {
+    expect(normalizeDueSynonyms(["due", " deadline "], "Zieldatum")).toEqual(["due", "deadline"]);
+    expect(normalizeDueSynonyms("due\n deadline, Fälligkeit\n\n", "Zieldatum")).toEqual([
+      "due",
+      "deadline",
+      "Fälligkeit"
+    ]);
+  });
+
+  it("drops repeats, the property itself and unusable names", () => {
+    expect(
+      normalizeDueSynonyms(["due", "due", "Zieldatum", "", 3, null, "x".repeat(65)], "Zieldatum")
+    ).toEqual(["due"]);
+  });
+
+  it("is empty for anything that is no list", () => {
+    for (const value of [undefined, null, 3, { due: true }]) {
+      expect(normalizeDueSynonyms(value, "Zieldatum")).toEqual([]);
+    }
+  });
+
+  it(`stops at ${MAX_DUE_SYNONYMS}`, () => {
+    const many = Array.from({ length: 50 }, (_, i) => `key${i}`);
+    expect(normalizeDueSynonyms(many, "Zieldatum")).toEqual(many.slice(0, MAX_DUE_SYNONYMS));
+  });
+});
+
+describe("moving off schreibstubeDue", () => {
+  const plan = (frontmatter: unknown, property = "Zieldatum") =>
+    planDueMove(frontmatter, property, berlinSummer);
+
+  it("has nothing to do while the property is schreibstubeDue or the note lacks it", () => {
+    expect(plan({ schreibstubeDue: "2026-10-12" }, "schreibstubeDue")).toBe("none");
+    expect(plan({ Zieldatum: "2026-10-12" })).toBe("none");
+    for (const frontmatter of [undefined, null, "text", {}]) expect(plan(frontmatter)).toBe("none");
+  });
+
+  it("moves a day into an empty property", () => {
+    expect(plan({ schreibstubeDue: "2026-10-12" })).toBe("move");
+    expect(plan({ schreibstubeDue: "2026-10-12", Zieldatum: null })).toBe("move");
+    expect(plan({ schreibstubeDue: "2026-10-12", Zieldatum: " " })).toBe("move");
+  });
+
+  it("drops an empty old key, or one that repeats the property's day", () => {
+    expect(plan({ schreibstubeDue: null, Zieldatum: "2026-10-01" })).toBe("drop");
+    expect(plan({ schreibstubeDue: "" })).toBe("drop");
+    expect(plan({ schreibstubeDue: "2026-10-12", Zieldatum: "2026-10-12T09:00" })).toBe("drop");
+  });
+
+  it("leaves two different values for the person", () => {
+    expect(plan({ schreibstubeDue: "2026-10-12", Zieldatum: "2026-10-13" })).toBe("conflict");
+    expect(plan({ schreibstubeDue: "2026-10-12", Zieldatum: "soon" })).toBe("conflict");
+    expect(plan({ schreibstubeDue: "soon", Zieldatum: "later" })).toBe("conflict");
+  });
+
+  it("writes what it planned, and nothing for a conflict", () => {
+    const moved: Record<string, unknown> = { schreibstubeDue: "2026-10-12", title: "A" };
+    expect(moveDue(moved, "Zieldatum", berlinSummer)).toBe("move");
+    expect(moved).toEqual({ Zieldatum: "2026-10-12", title: "A" });
+
+    const dropped: Record<string, unknown> = {
+      schreibstubeDue: "2026-10-12",
+      Zieldatum: "2026-10-12"
+    };
+    expect(moveDue(dropped, "Zieldatum", berlinSummer)).toBe("drop");
+    expect(dropped).toEqual({ Zieldatum: "2026-10-12" });
+
+    const kept: Record<string, unknown> = {
+      schreibstubeDue: "2026-10-12",
+      Zieldatum: "2026-10-13"
+    };
+    expect(moveDue(kept, "Zieldatum", berlinSummer)).toBe("conflict");
+    expect(kept).toEqual({ schreibstubeDue: "2026-10-12", Zieldatum: "2026-10-13" });
+  });
+
+  it("counts the notes and names the first conflicts", () => {
+    const entries = [
+      { path: "a.md", move: "move" as const },
+      { path: "b.md", move: "none" as const },
+      { path: "c.md", move: "drop" as const },
+      ...Array.from({ length: 7 }, (_, i) => ({ path: `x${i}.md`, move: "conflict" as const }))
+    ];
+    const tally = tallyDueMoves(entries);
+    expect(tally).toMatchObject({ move: 1, drop: 1, conflict: 7 });
+    expect(tally.conflicts).toEqual(
+      Array.from({ length: MAX_DUE_CONFLICTS_NAMED }, (_, i) => `x${i}.md`)
+    );
   });
 });
 

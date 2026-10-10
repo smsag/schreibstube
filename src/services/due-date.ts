@@ -5,6 +5,13 @@
  * beside its name. Nothing reminds and nothing schedules: the date is there to
  * be seen while looking down a list, the way the task count is.
  *
+ * The key is `schreibstubeDue` until a person names another, because a vault
+ * whose deadlines another app already writes as `Zieldatum` should not have to
+ * carry the same day twice. A few synonyms cover a vault that grew more than
+ * one spelling. `schreibstubeDue` is still read after all of them, so naming a
+ * new key never blanks the days a vault already has; the settings count those
+ * notes instead, and offer to move them.
+ *
  * Only the day counts. A row cannot show an hour without becoming a clock
  * nobody asked for. A value without a zone — what Obsidian's own date and
  * date-and-time properties write — is due on the day it names. A value with
@@ -13,8 +20,24 @@
  */
 import { isoDate } from "./print-data";
 
-/** Frontmatter a note carries to say when it is due. */
+/** Frontmatter a note carries to say when it is due, unless the settings name another. */
 export const DUE_KEY = "schreibstubeDue";
+
+/** Longer than any property name a person types; past it, the setting is pasted text. */
+export const MAX_DUE_KEY_LENGTH = 64;
+
+/** More spellings than any vault grows; past it, a list is a paste, not a choice. */
+export const MAX_DUE_SYNONYMS = 8;
+
+/** Which frontmatter says when a note is due, as the settings name it. */
+export interface DueKeys {
+  /** Read first, and the one key a due day is moved to. */
+  property: string;
+  /** Read in order when the property names no day. */
+  synonyms: readonly string[];
+}
+
+export const DEFAULT_DUE_KEYS: DueKeys = { property: DUE_KEY, synonyms: [] };
 
 /**
  * Longer than any date or date-and-time Obsidian or a script writes. A value
@@ -49,14 +72,79 @@ export type LocalDayOf = (epochMs: number) => string;
 const localDayOf: LocalDayOf = (epochMs) => isoDate(new Date(epochMs));
 
 /**
- * The due day a note's frontmatter names, or null when it names none. A value
- * that is not a real calendar day or time — `2026-02-30`, `T25:00`, a word, a
- * list — is null as well, so a typo shows nothing rather than a date the
- * person did not write.
+ * A property name from the settings, or `schreibstubeDue` when it is no usable
+ * name: empty, too long, or holding a line break or other control character
+ * that no frontmatter key typed in Obsidian's Properties view can carry.
  */
-export function dueDateOf(frontmatter: unknown, dayOf: LocalDayOf = localDayOf): DueDate | null {
+export function normalizeDueProperty(value: unknown): string {
+  return dueKeyOf(value) ?? DUE_KEY;
+}
+
+/**
+ * The synonyms from the settings: a list, or the text the settings field holds
+ * with one per line or comma. Unusable names, repeats and the property itself
+ * are dropped, and the list ends at `MAX_DUE_SYNONYMS`.
+ */
+export function normalizeDueSynonyms(value: unknown, property: string): string[] {
+  const entries = Array.isArray(value)
+    ? value
+    : typeof value === "string"
+      ? value.split(/[\n,]/)
+      : [];
+  const kept: string[] = [];
+  for (const entry of entries) {
+    const key = dueKeyOf(entry);
+    if (key === null || key === property || kept.includes(key)) continue;
+    kept.push(key);
+    if (kept.length === MAX_DUE_SYNONYMS) break;
+  }
+  return kept;
+}
+
+function dueKeyOf(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const key = value.trim();
+  // eslint-disable-next-line no-control-regex
+  if (!key || key.length > MAX_DUE_KEY_LENGTH || /[\u0000-\u001f\u007f]/.test(key)) return null;
+  return key;
+}
+
+/** The keys read for a note's due day, in the order they are tried. */
+export function dueKeysRead(keys: DueKeys): string[] {
+  const order = [keys.property, ...keys.synonyms, DUE_KEY];
+  return order.filter((key, at) => order.indexOf(key) === at);
+}
+
+/**
+ * The due day a note's frontmatter names, or null when it names none: the
+ * first of the keys that holds a real day wins. A value that is not a real
+ * calendar day or time — `2026-02-30`, `T25:00`, a word, a list — counts as
+ * none, so a typo shows nothing rather than a date the person did not write.
+ */
+export function dueDateOf(
+  frontmatter: unknown,
+  keys: DueKeys = DEFAULT_DUE_KEYS,
+  dayOf: LocalDayOf = localDayOf
+): DueDate | null {
   if (!frontmatter || typeof frontmatter !== "object") return null;
-  const value = (frontmatter as Record<string, unknown>)[DUE_KEY];
+  for (const key of dueKeysRead(keys)) {
+    const due = parseDue(ownValue(frontmatter, key), dayOf);
+    if (due) return due;
+  }
+  return null;
+}
+
+/**
+ * Only the note's own keys: a property called `constructor` must not find the
+ * object's prototype instead of the note's frontmatter.
+ */
+function ownValue(frontmatter: object, key: string): unknown {
+  return Object.hasOwn(frontmatter, key)
+    ? (frontmatter as Record<string, unknown>)[key]
+    : undefined;
+}
+
+function parseDue(value: unknown, dayOf: LocalDayOf): DueDate | null {
   if (typeof value !== "string" || value.length > MAX_DUE_LENGTH) return null;
 
   const match = DUE_PATTERN.exec(value.trim());
@@ -75,6 +163,77 @@ export function dueDateOf(frontmatter: unknown, dayOf: LocalDayOf = localDayOf):
   const wall = utcMs(date.year, date.month, date.day) + (Number(hh) * 60 + Number(mi)) * 60_000;
   const local = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dayOf(wall - offsetMinutes * 60_000));
   return local ? calendarDay(Number(local[1]), Number(local[2]), Number(local[3])) : null;
+}
+
+/**
+ * What moving a note off `schreibstubeDue` onto the named property does:
+ * - `none`: nothing to move — the property is `schreibstubeDue`, or the note
+ *   does not carry it;
+ * - `move`: the property is empty, so the value moves there;
+ * - `drop`: the old key is empty, or names the same day the property does, so
+ *   it only goes;
+ * - `conflict`: the two disagree. Neither is chosen for the person: the note
+ *   is left as it is and counted.
+ */
+export type DueMove = "none" | "move" | "drop" | "conflict";
+
+export function planDueMove(
+  frontmatter: unknown,
+  property: string,
+  dayOf: LocalDayOf = localDayOf
+): DueMove {
+  if (property === DUE_KEY || !frontmatter || typeof frontmatter !== "object") return "none";
+  if (!Object.hasOwn(frontmatter, DUE_KEY)) return "none";
+  const old = ownValue(frontmatter, DUE_KEY);
+  if (isEmpty(old)) return "drop";
+  const current = ownValue(frontmatter, property);
+  if (isEmpty(current)) return "move";
+  const was = parseDue(old, dayOf);
+  const is = parseDue(current, dayOf);
+  return was && is && was.iso === is.iso ? "drop" : "conflict";
+}
+
+/**
+ * Moves a note's due day onto the property, as `planDueMove` decides from the
+ * frontmatter as it is at the moment of writing, and says what it did.
+ */
+export function moveDue(
+  frontmatter: Record<string, unknown>,
+  property: string,
+  dayOf: LocalDayOf = localDayOf
+): DueMove {
+  const move = planDueMove(frontmatter, property, dayOf);
+  if (move === "move") frontmatter[property] = frontmatter[DUE_KEY];
+  if (move === "move" || move === "drop") delete frontmatter[DUE_KEY];
+  return move;
+}
+
+/** How many notes carry the old key, by what moving them would do. */
+export interface DueMoveTally {
+  move: number;
+  drop: number;
+  conflict: number;
+  /** The first notes left as they are, for the settings to name. */
+  conflicts: string[];
+}
+
+/** Enough to find the notes to settle by hand without the settings turning into a list. */
+export const MAX_DUE_CONFLICTS_NAMED = 5;
+
+export function tallyDueMoves(entries: Iterable<{ path: string; move: DueMove }>): DueMoveTally {
+  const tally: DueMoveTally = { move: 0, drop: 0, conflict: 0, conflicts: [] };
+  for (const { path, move } of entries) {
+    if (move === "none") continue;
+    tally[move] += 1;
+    if (move === "conflict" && tally.conflicts.length < MAX_DUE_CONFLICTS_NAMED) {
+      tally.conflicts.push(path);
+    }
+  }
+  return tally;
+}
+
+function isEmpty(value: unknown): boolean {
+  return value === undefined || value === null || (typeof value === "string" && !value.trim());
 }
 
 function calendarDay(year: number, month: number, day: number): DueDate | null {

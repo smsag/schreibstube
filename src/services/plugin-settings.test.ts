@@ -49,6 +49,20 @@ describe("normalizeSettings", () => {
     expect(normalizeSettings({ explorerDueDates: true }).explorerDueDates).toBe(true);
   });
 
+  it("reads the due-date property and its synonyms, schreibstubeDue by default", () => {
+    expect(normalizeSettings({})).toMatchObject({
+      dueProperty: "schreibstubeDue",
+      dueSynonyms: []
+    });
+    expect(
+      normalizeSettings({ dueProperty: " Zieldatum ", dueSynonyms: ["due", "Zieldatum", "due"] })
+    ).toMatchObject({ dueProperty: "Zieldatum", dueSynonyms: ["due"] });
+    expect(normalizeSettings({ dueProperty: "", dueSynonyms: "due" as never })).toMatchObject({
+      dueProperty: "schreibstubeDue",
+      dueSynonyms: ["due"]
+    });
+  });
+
   it("shows the Suggest tags control unless it was switched off", () => {
     expect(normalizeSettings({}).tagSuggestControl).toBe(true);
     expect(normalizeSettings({ tagSuggestControl: "no" as never }).tagSuggestControl).toBe(true);

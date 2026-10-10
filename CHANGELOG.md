@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Added
+
+- **The due date can live in another app's property.** A vault whose deadlines another app already writes — as `Zieldatum`, say — no longer has to carry the same day a second time as `schreibstubeDue`: **Due-date property** names the key the Explorer reads, and **Also accept** lists further spellings for notes that use more than one. The settings count the notes that still say `schreibstubeDue` and offer to move their day to the new property, and a note that names two different days is left for you and named.
+
 ### Changed
 
 - **A cancelled task is not a done one.** `[-]` still counts as finished — it is not work left, so the Explorer's count, a pinned tag's sum and the heading badges read as before — but where there is room the plugin now says it was dropped rather than done: the ribbon reads "3 open of 7, 1 cancelled", a print draws the box struck through, and a mail writes ☒. **Tidy up done tasks** leaves a cancelled task where it is, as the record of a decision, instead of moving, archiving or deleting it; a cancelled sub-task still travels with its done parent.

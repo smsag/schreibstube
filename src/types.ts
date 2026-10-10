@@ -112,8 +112,12 @@ export interface SchreibstubeSettings {
   explorerBookmarksFile: string;
   /** Show "open / total" tasks after a note's name in the file pane. */
   explorerTaskCounts: boolean;
-  /** Show the day a note is due, from `schreibstubeDue`, after its name in the file pane. */
+  /** Show the day a note is due, from `dueProperty`, after its name in the file pane. */
   explorerDueDates: boolean;
+  /** The frontmatter key that says when a note is due; `schreibstubeDue` unless renamed. */
+  dueProperty: string;
+  /** Other keys read for the due day when `dueProperty` names none, in order. */
+  dueSynonyms: string[];
   /** Draw `:folder:` in a note as the icon, and offer the icons while one is typed. */
   iconShortcodes: boolean;
   /** Secret-storage name of a GitHub token, for private repositories. */

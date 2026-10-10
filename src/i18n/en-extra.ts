@@ -104,8 +104,43 @@ export const enExtra = {
       "name. Notes without tasks show nothing.",
     explorerDueDates: "Due dates",
     explorerDueDatesDesc:
-      "Show the day a note is due after its name, from the schreibstubeDue property. " +
+      "Show the day a note is due after its name, from the due-date property below. " +
       "Highlighted on the day and once it has passed.",
+    dueProperty: "Due-date property",
+    duePropertyDesc: (fallback: string) =>
+      "The property a note gives its due day in. Name the one another app already writes, " +
+      `such as Zieldatum, so the day is kept once. Empty means ${fallback}.`,
+    dueSynonyms: "Also accept",
+    dueSynonymsDesc: (max: number) =>
+      "Only for notes that spell it another way: further properties read when the one above " +
+      `is empty, one per line, up to ${max}.`,
+    dueMoveName: (old: string) => `Notes still using ${old}`,
+    dueMoveDesc: (old: string, property: string, movable: number, conflicts: number) =>
+      [
+        movable === 1
+          ? `One note gives its due day in ${old} and can move it to ${property}.`
+          : movable > 1
+            ? `${movable} notes give their due day in ${old} and can move it to ${property}.`
+            : "",
+        conflicts === 1
+          ? `One note names a different day in ${old} than in ${property} and is left for you.`
+          : conflicts > 1
+            ? `${conflicts} notes name a different day in ${old} than in ${property} and are left for you.`
+            : ""
+      ]
+        .filter(Boolean)
+        .join(" "),
+    dueMoveConflicts: (paths: string[]) => `Among them: ${paths.join(", ")}.`,
+    dueMoveButton: (property: string) => `Move to ${property}`,
+    dueMoved: (count: number, property: string, failed: number) =>
+      (count === 1
+        ? `Moved one due day to ${property}.`
+        : `Moved ${count} due days to ${property}.`) +
+      (failed === 0
+        ? ""
+        : failed === 1
+          ? " One note could not be written; the console says why."
+          : ` ${failed} notes could not be written; the console says why.`),
     explorerIcons: "Icon set",
     explorerIconsDesc: (count: number, version: string) =>
       `${count} icons from Tabler Icons ${version} (MIT), bundled with the plugin so they work offline and on mobile.`,
