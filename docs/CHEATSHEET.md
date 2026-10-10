@@ -319,7 +319,7 @@ layout: compare
 - [x] Exposé senden
 ````
 
-- The block shows "20 open of 21" for the whole note; each heading with
+- The block shows "20 of 21 open" for the whole note; each heading with
   tasks shows its own count. Group tasks under headings for that.
 - `- [ ]` is open, `- [/]` started, `[x]` done, `[-]` cancelled. Done and
   cancelled both count as finished and fold; the block names the cancelled.

@@ -75,19 +75,21 @@ export const en = {
     none: "No tasks",
     /** The ribbon's one line. Digits are emphasised by the renderer, so the
      *  numbers have to appear as plain digits here. */
-    ribbon: (open: number, total: number, progress: number, cancelled: number) =>
-      [
-        `${open} open of ${total}`,
-        ...(progress > 0 ? [`${progress} in progress`] : []),
-        ...(cancelled > 0 ? [`${cancelled} cancelled`] : [])
-      ].join(", "),
+    ribbon: (open: number, total: number, progress: number, cancelled: number) => {
+      const detail = [
+        progress > 0 ? `${progress} in progress` : "",
+        cancelled > 0 ? `${cancelled} cancelled` : ""
+      ].filter(Boolean);
+      return `${open} of ${total} open` + (detail.length > 0 ? ` (${detail.join(", ")})` : "");
+    },
     /** The badge after a heading. */
     badge: (open: number, total: number) => `${open} of ${total} open`,
 
     tidyHeading: "Done tasks",
     tidyIntro:
-      "Clears a note's done tasks out of the way in one go: [x] and [-], each with everything " +
-      "indented under it. A done task with a sub-task still open stays where it is, and tasks " +
+      "Clears a note's done tasks out of the way in one go: [x], each with everything indented " +
+      "under it. A cancelled task, [-], stays as the record of what was dropped. A done task " +
+      "with a sub-task still open stays where it is, and tasks " +
       "under ## Archive are left alone. The notice afterwards offers to undo it.",
     tidyMode: "What tidying up does",
     tidyModeDesc: "Applies to the note that is open when the command runs.",

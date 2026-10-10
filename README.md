@@ -849,10 +849,10 @@ Clicking the indicator in the status bar moves on the same way.
 
 Turns a long note with checkboxes into a progress view without any extra state in the tasks themselves.
 
-- **Insert: task summary** — inserts a ` ```schreibstube-tasks ` block at the cursor. The block renders as a one-line ribbon, e.g. **20** open of **21**, counting every task in the note.
+- **Insert: task summary** — inserts a ` ```schreibstube-tasks ` block at the cursor. The block renders as a one-line ribbon, e.g. **20** of **21** open, counting every task in the note.
 - While the note contains the ribbon block, every heading that owns tasks shows a muted badge such as `3 of 3 open`. A heading counts only the tasks directly beneath it, up to the next heading of any level; tasks under a sub-heading belong to that sub-heading.
 - Ribbon and badges update as soon as a checkbox is toggled. Badges stay visible when a heading is folded.
-- `[x]` and `[X]` are done and `[-]` is cancelled; both are finished, since neither is work left. Every other marker is open, since Markdown itself knows only those boxes and the rest are a theme's flags. `[/]` is open work already started. The ribbon names both: **3** open of **7**, **1** in progress, **1** cancelled. A heading's badge has no room and counts only open and total. Tasks inside fenced code blocks are ignored.
+- `[x]` and `[X]` are done and `[-]` is cancelled; both are finished, since neither is work left. Every other marker is open, since Markdown itself knows only those boxes and the rest are a theme's flags. `[/]` is open work already started. The ribbon names both: **3** of **7** open (**1** in progress, **1** cancelled). A heading's badge has no room and counts only open and total. Tasks inside fenced code blocks are ignored.
 - **Tidy up done tasks** — clears the done tasks of the open note out of the way, the way **Done tasks** in the settings says: to the end of their list, under a `## Archive` section at the end of the note, or out of the note. Here only `[x]` and `[X]` count as done; a cancelled task, `[-]`, stays where it is as the record of what was dropped. A task moves with everything indented under it, a cancelled sub-task included, and a done task with a sub-task still open stays where it is. In archive mode a done sub-task stays with its open parent. The notice afterwards offers **Undo**, and the editor's own undo takes the change back in one step.
 
 The badges appear in Live Preview and Source mode. The ribbon also renders in Reading view.

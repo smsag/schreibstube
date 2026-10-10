@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
-- **A cancelled task is not a done one.** `[-]` still counts as finished — it is not work left, so the Explorer's count, a pinned tag's sum and the heading badges read as before — but where there is room the plugin now says it was dropped rather than done: the ribbon reads "3 open of 7, 1 cancelled", a print draws the box struck through, and a mail writes ☒. **Tidy up done tasks** leaves a cancelled task where it is, as the record of a decision, instead of moving, archiving or deleting it; a cancelled sub-task still travels with its done parent.
+- **A cancelled task is not a done one.** `[-]` still counts as finished — it is not work left, so the Explorer's count, a pinned tag's sum and the heading badges read as before — but where there is room the plugin now says it was dropped rather than done: the ribbon reads "3 of 7 open (1 in progress, 1 cancelled)", in the order the heading badges use, a print draws the box struck through, and a mail writes ☒. **Tidy up done tasks** leaves a cancelled task where it is, as the record of a decision, instead of moving, archiving or deleting it; a cancelled sub-task still travels with its done parent. The settings text for **Done tasks** says so.
 
 ## 1.78.0 - 2026-10-09
 
