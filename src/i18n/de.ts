@@ -473,8 +473,43 @@ export const de: Messages = {
       "Notizen ohne Aufgaben zeigen nichts.",
     explorerDueDates: "Fälligkeiten",
     explorerDueDatesDesc:
-      "Zeigt hinter dem Namen einer Notiz, wann sie fällig ist, aus der Eigenschaft schreibstubeDue. " +
+      "Zeigt hinter dem Namen einer Notiz, wann sie fällig ist, aus der Fälligkeits-Eigenschaft unten. " +
       "Am Tag selbst und danach hervorgehoben.",
+    dueProperty: "Fälligkeits-Eigenschaft",
+    duePropertyDesc: (fallback: string) =>
+      "Die Eigenschaft, in der eine Notiz ihren Fälligkeitstag nennt. Trag die ein, die eine andere App " +
+      `schon schreibt, etwa Zieldatum, dann steht der Tag nur einmal da. Leer heißt ${fallback}.`,
+    dueSynonyms: "Ebenfalls lesen",
+    dueSynonymsDesc: (max: number) =>
+      "Nur für Notizen, die es anders schreiben: weitere Eigenschaften, gelesen, wenn die obige " +
+      `leer ist, eine pro Zeile, bis zu ${max}.`,
+    dueMoveName: (old: string) => `Notizen mit ${old}`,
+    dueMoveDesc: (old: string, property: string, movable: number, conflicts: number) =>
+      [
+        movable === 1
+          ? `Eine Notiz nennt ihren Fälligkeitstag in ${old} und kann ihn nach ${property} verschieben.`
+          : movable > 1
+            ? `${movable} Notizen nennen ihren Fälligkeitstag in ${old} und können ihn nach ${property} verschieben.`
+            : "",
+        conflicts === 1
+          ? `Eine Notiz nennt in ${old} einen anderen Tag als in ${property} und bleibt dir überlassen.`
+          : conflicts > 1
+            ? `${conflicts} Notizen nennen in ${old} einen anderen Tag als in ${property} und bleiben dir überlassen.`
+            : ""
+      ]
+        .filter(Boolean)
+        .join(" "),
+    dueMoveConflicts: (paths: string[]) => `Darunter: ${paths.join(", ")}.`,
+    dueMoveButton: (property: string) => `Nach ${property} verschieben`,
+    dueMoved: (count: number, property: string, failed: number) =>
+      (count === 1
+        ? `Einen Fälligkeitstag nach ${property} verschoben.`
+        : `${count} Fälligkeitstage nach ${property} verschoben.`) +
+      (failed === 0
+        ? ""
+        : failed === 1
+          ? " Eine Notiz ließ sich nicht schreiben; die Konsole sagt, warum."
+          : ` ${failed} Notizen ließen sich nicht schreiben; die Konsole sagt, warum.`),
     explorerIcons: "Symbolsatz",
     explorerIconsDesc: (count: number, version: string) =>
       `${count} Symbole aus Tabler Icons ${version} (MIT), im Plugin enthalten — offline und mobil verfügbar.`,

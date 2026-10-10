@@ -55,7 +55,7 @@ plain Obsidian Markdown plus what this file lists. Write only what is here.
 | `schreibstubeAvoid`           | term note      | list of words to flag, the note's term offered instead         |
 | `schreibstubeIndex`           | any note       | `false` keeps it out of search by meaning                      |
 | `schreibstubeTaskCount`       | any note       | `false` hides its task count in the Explorer                   |
-| `schreibstubeDue`             | any note       | `YYYY-MM-DD`: the day it is due, shown in the Explorer         |
+| `schreibstubeDue`             | any note       | `YYYY-MM-DD`: the day it is due; use the key the settings name |
 | `schreibstubeReadingView`     | `.base` file   | `true` at the top: its notes open in Reading view              |
 | `type: schreibstube-passages` | `.base` view   | callouts and highlights; `calloutTypes`, `show`, `readingView` |
 | `published`                   | published note | `true` puts it on the website (see 9)                          |

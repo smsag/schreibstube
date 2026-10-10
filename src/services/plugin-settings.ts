@@ -17,6 +17,7 @@ import { BOOKMARK_FILE_DEFAULT } from "./bookmark-file";
 import { normalizeVaultFolder } from "./file-name";
 import { normalizeTermFolder } from "./glossary-term-folder";
 import { LLM_PROVIDER_IDS, PROVIDER_MODELS } from "./llm-providers";
+import { DUE_KEY, normalizeDueProperty, normalizeDueSynonyms } from "./due-date";
 import { DEFAULT_PUBLISH_KEYS, normalizeHeaderTags, normalizePublishKeys } from "./publish-index";
 import { DEFAULT_TEMPLATE_BUILTIN, TEMPLATE_ROOT_DEFAULT } from "./print-template";
 import { normalizePropertyIcons } from "./property-icons";
@@ -138,6 +139,8 @@ export const DEFAULT_SETTINGS: SchreibstubeSettings = {
   explorerBookmarksFile: BOOKMARK_FILE_DEFAULT,
   explorerTaskCounts: false,
   explorerDueDates: false,
+  dueProperty: DUE_KEY,
+  dueSynonyms: [],
   iconShortcodes: true,
   mailBridgeUrl: "",
   mailTokenSecretName: "",
@@ -195,6 +198,7 @@ type LoadedSettings = Partial<SchreibstubeSettings> | null | undefined;
 
 export function normalizeSettings(loaded: LoadedSettings): SchreibstubeSettings {
   const focus = normalizeFocusSettings(loaded);
+  const dueProperty = normalizeDueProperty(loaded?.dueProperty);
 
   const loadedProvider = loaded?.llmProvider ?? "";
   const provider: LlmProvider = ALLOWED_PROVIDERS.has(loadedProvider as LlmProvider)
@@ -353,6 +357,8 @@ export function normalizeSettings(loaded: LoadedSettings): SchreibstubeSettings 
     ),
     explorerTaskCounts: loaded?.explorerTaskCounts === true,
     explorerDueDates: loaded?.explorerDueDates === true,
+    dueProperty,
+    dueSynonyms: normalizeDueSynonyms(loaded?.dueSynonyms, dueProperty),
     // On unless switched off: the shortcode is the whole point of the icons
     // being in a note at all, and a setting nobody finds is a feature nobody has.
     iconShortcodes: loaded?.iconShortcodes !== false,

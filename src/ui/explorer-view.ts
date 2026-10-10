@@ -68,7 +68,13 @@ import type { ImportSource } from "../controllers/explorer-controller";
 import { fileGlyph, fileNameParts } from "../services/file-glyph";
 import { groundColour } from "../services/ground-colour";
 import { countsTasks, tallyTasks, type TaskTally } from "../services/task-count";
-import { dueDateOf, dueDrawKey, dueLabel } from "../services/due-date";
+import {
+  DEFAULT_DUE_KEYS,
+  type DueKeys,
+  dueDateOf,
+  dueDrawKey,
+  dueLabel
+} from "../services/due-date";
 import { isoDate } from "../services/print-data";
 import type { LatestCandidate } from "../services/latest-files";
 import {
@@ -348,7 +354,8 @@ export class ExplorerPaneView extends ItemView {
         const cache = this.markdownCache(file.path);
         return cache && countsTasks(cache.frontmatter) ? tallyTasks(cache.listItems).open : 0;
       },
-      due: (file) => dueDateOf(this.markdownCache(file.path)?.frontmatter)?.iso ?? null
+      due: (file) =>
+        dueDateOf(this.markdownCache(file.path)?.frontmatter, this.dueKeys())?.iso ?? null
     },
     this.bodies
   );
@@ -1942,7 +1949,7 @@ export class ExplorerPaneView extends ItemView {
     // Measured against the day the render started with, so every row in it
     // agrees about what today is.
     const today = showDue ? this.drawnDueKey : null;
-    const due = today !== null ? dueDateOf(cache?.frontmatter) : null;
+    const due = today !== null ? dueDateOf(cache?.frontmatter, this.dueKeys()) : null;
     drawRowMarks(row, tally, due && today !== null ? dueLabel(due, today, activeLocale()) : null);
   }
 
@@ -1951,6 +1958,14 @@ export class ExplorerPaneView extends ItemView {
     const target = this.app.vault.getAbstractFileByPath(path);
     if (!(target instanceof TFile) || target.extension !== "md") return null;
     return this.app.metadataCache.getFileCache(target);
+  }
+
+  /** Which frontmatter says when a note is due, as the settings name it. */
+  private dueKeys(): DueKeys {
+    const settings = this.host?.settings();
+    return settings
+      ? { property: settings.dueProperty, synonyms: settings.dueSynonyms }
+      : DEFAULT_DUE_KEYS;
   }
 
   /** What the due dates would be drawn against if the pane drew now. */
