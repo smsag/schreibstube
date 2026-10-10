@@ -4,11 +4,11 @@
  *
  * Counted from Obsidian's own metadata rather than from the note's text, so
  * a pane drawing a thousand rows reads no files. What a marker means is
- * `task-state`'s to say, the same rule the ribbon and **Tidy up done tasks**
- * read: finished is `[x]` and `[-]`, everything else is open, and `[/]` is
- * open work somebody has started.
+ * `task-state`'s to say, the same rule the ribbon reads: finished is `[x]`,
+ * done, and `[-]`, cancelled; everything else is open, and `[/]` is open work
+ * somebody has started. A row has no room to tell done from cancelled.
  */
-import { taskState } from "./task-state";
+import { isOpenTask, taskState } from "./task-state";
 
 /** The one field of Obsidian's list item cache the count reads. */
 export interface TaskItem {
@@ -46,9 +46,8 @@ export function tallyTasks(items: readonly TaskItem[] | undefined): TaskTally {
   for (const item of items ?? []) {
     if (item.task === undefined) continue;
     total += 1;
-    const state = taskState(item.task);
-    if (state !== "done") open += 1;
-    if (state === "progress") progress += 1;
+    if (isOpenTask(item.task)) open += 1;
+    if (taskState(item.task) === "progress") progress += 1;
   }
   return { open, total, progress };
 }

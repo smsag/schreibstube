@@ -16,7 +16,7 @@ describe("normalizeDoneTaskMode", () => {
 });
 
 describe("what counts as finished", () => {
-  it("is [x], [X] and [-], and nothing else", () => {
+  it("is [x] and [X], and nothing else", () => {
     const result = run(
       "delete",
       "- [x] done",
@@ -27,8 +27,22 @@ describe("what counts as finished", () => {
       "- [ ] open",
       "- plain"
     );
-    expect(result.count).toBe(3);
-    expect(result.content).toBe(note("- [>] deferred", "- [!] important", "- [ ] open", "- plain"));
+    expect(result.count).toBe(2);
+    expect(result.content).toBe(
+      note("- [-] cancelled", "- [>] deferred", "- [!] important", "- [ ] open", "- plain")
+    );
+  });
+
+  it("leaves a cancelled task where it is, in every mode", () => {
+    const content = note("- [-] dropped", "- [ ] open");
+    for (const mode of ["back", "archive", "delete"] as const) {
+      expect(clearDoneTasks(content, mode)).toEqual({ content, count: 0 });
+    }
+  });
+
+  it("takes a cancelled sub-task along with its done parent", () => {
+    const result = run("delete", "- [x] parent", "  - [-] dropped", "- [ ] open");
+    expect(result).toEqual({ content: note("- [ ] open"), count: 1 });
   });
 
   it("is not a ticked task with a sub-task still open, or one marked otherwise", () => {
@@ -65,10 +79,10 @@ describe("what counts as finished", () => {
 
 describe("back of the list", () => {
   it("moves finished tasks after the rest of their list, in their order", () => {
-    const result = run("back", "# Today", "- [x] a", "- [ ] b", "- [-] c", "- [ ] d", "", "Text");
+    const result = run("back", "# Today", "- [x] a", "- [ ] b", "- [X] c", "- [ ] d", "", "Text");
     expect(result.count).toBe(2);
     expect(result.content).toBe(
-      note("# Today", "- [ ] b", "- [ ] d", "- [x] a", "- [-] c", "", "Text")
+      note("# Today", "- [ ] b", "- [ ] d", "- [x] a", "- [X] c", "", "Text")
     );
   });
 
@@ -256,12 +270,12 @@ describe("archive", () => {
       "- [x] old",
       "",
       "## Later",
-      "- [-] c",
+      "- [X] c",
       ""
     );
     expect(result.count).toBe(2);
     expect(result.content).toBe(
-      note("- [ ] b", "", "## Archive", "", "- [x] old", "- [x] a", "- [-] c", "", "## Later", "")
+      note("- [ ] b", "", "## Archive", "", "- [x] old", "- [x] a", "- [X] c", "", "## Later", "")
     );
   });
 
@@ -301,8 +315,8 @@ describe("archive", () => {
     expect(run("archive", "- [x] a", "## Archive", "* [x] old").content).toBe(
       note("## Archive", "* [x] old", "* [x] a")
     );
-    expect(run("archive", "- [x] a", "- [-] b", "## Archive", "4) [x] old").content).toBe(
-      note("## Archive", "4) [x] old", "5) [x] a", "6) [-] b")
+    expect(run("archive", "- [x] a", "- [X] b", "## Archive", "4) [x] old").content).toBe(
+      note("## Archive", "4) [x] old", "5) [x] a", "6) [X] b")
     );
   });
 

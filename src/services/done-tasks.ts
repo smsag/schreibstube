@@ -6,16 +6,19 @@
  * note typed with Shift+Enter, a code sample — travels with it unchanged, so
  * a task stays a task and a note under it stays a note, wherever it lands.
  *
- * Finished means `[x]`, `[X]` or `[-]`, done or cancelled. The other markers
- * a theme gives meaning to (`[>]`, `[!]`, `[?]`) are not finished, and neither
+ * Finished means done, `[x]` or `[X]`. A cancelled task, `[-]`, stays where
+ * it is: it is the record that something was decided against, which is worth
+ * more beside the work it was dropped from than in an archive. The markers a
+ * theme gives meaning to (`[>]`, `[!]`, `[?]`) are not finished, and neither
  * is a ticked task with a sub-task still open: clearing it would take open
- * work with it, so it stays where it is until everything under it is done.
+ * work with it, so it stays where it is until nothing under it is open. A
+ * cancelled sub-task is not open work and travels with its done parent.
  *
  * The `## Archive` section, wherever it is, is never read for finished tasks.
  * What is in it has already been cleared once.
  */
 import { fenceMarker } from "./markdown-fence";
-import { taskState } from "./task-state";
+import { isOpenTask, taskState } from "./task-state";
 
 export const DONE_TASK_MODES = ["back", "archive", "delete"] as const;
 export type DoneTaskMode = (typeof DONE_TASK_MODES)[number];
@@ -226,21 +229,21 @@ function marker(item: Item): string | null {
   return TASK_PATTERN.exec(item.head)?.[1] ?? null;
 }
 
-/** Whether anything under the item is a task that is not finished. */
-function hasUnfinished(segments: readonly Segment[]): boolean {
+/** Whether anything under the item is a task still open. */
+function hasOpenWork(segments: readonly Segment[]): boolean {
   return segments.some(
     (segment) =>
       segment.kind === "list" &&
       segment.list.items.some((item) => {
         const state = marker(item);
-        return (state !== null && !finished(state)) || hasUnfinished(item.body);
+        return (state !== null && isOpenTask(state)) || hasOpenWork(item.body);
       })
   );
 }
 
 function isFinished(item: Item): boolean {
   const state = marker(item);
-  return state !== null && finished(state) && !hasUnfinished(item.body);
+  return state !== null && finished(state) && !hasOpenWork(item.body);
 }
 
 function renderSegments(segments: readonly Segment[]): string[] {

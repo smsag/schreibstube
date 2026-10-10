@@ -25,7 +25,7 @@ describe("summarizeTasks", () => {
     expect(summary.sections).toEqual([]);
   });
 
-  it("takes [x] and [-] for done and every other marker for open, [/] as started", () => {
+  it("takes [x] and [-] for finished and every other marker for open, [/] as started", () => {
     // Markdown knows [ ] and [x]; a theme's other marks flag an open task.
     const content = [
       "- [ ] open",
@@ -34,7 +34,7 @@ describe("summarizeTasks", () => {
       "- [x] done",
       "- [/] begun"
     ].join("\n");
-    expect(summarizeTasks(content)).toMatchObject({ total: 5, open: 3, progress: 1 });
+    expect(summarizeTasks(content)).toMatchObject({ total: 5, open: 3, progress: 1, cancelled: 1 });
     expect(listTasks(content).map((task) => task.open)).toEqual([true, true, false, false, true]);
   });
 

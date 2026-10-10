@@ -99,6 +99,17 @@
   box(width: 50%, height: 100%, fill: muted, radius: 0.5pt),
 )
 
+// A cancelled task, marked with a dash: the box struck through.
+#let schreibstube-task-cancelled() = box(
+  width: 0.7em,
+  height: 0.7em,
+  baseline: 0.05em,
+  stroke: 0.6pt + faint,
+  radius: 1pt,
+  inset: 0.14em,
+  align(horizon, line(length: 100%, stroke: 0.8pt + muted)),
+)
+
 // The note's properties, when a print asks for them: keys in the marks' grey,
 // a hairline under the list.
 #let schreibstube-properties(rows) = block(

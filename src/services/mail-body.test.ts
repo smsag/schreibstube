@@ -55,6 +55,12 @@ describe("markdownToPlainText, emphasis and structure", () => {
     );
   });
 
+  it("gives a started and a cancelled task boxes of their own", () => {
+    expect(markdownToPlainText("- [/] begonnen\n- [-] gestrichen\n- [>] vertagt")).toBe(
+      "◧ begonnen\n☒ gestrichen\n☐ vertagt"
+    );
+  });
+
   it("keeps numbered lists as written", () => {
     expect(markdownToPlainText("1. Erstens\n2. Zweitens")).toBe("1. Erstens\n2. Zweitens");
   });

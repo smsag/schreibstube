@@ -175,19 +175,19 @@ const FOOTNOTE_DEFINITION = /^ {0,3}\[\^([^\]\s]+)\]:\s*(.*)$/;
 /** `[label]: target "title"` — where a reference-style link points. */
 const REFERENCE_DEFINITION =
   /^ {0,3}\[([^\]^][^\]]*)\]:\s*<?([^\s>]+)>?(?:\s+(?:"[^"]*"|'[^']*'|\([^)]*\)))?\s*$/;
-/** A task's box. Any single character but a space is done, as the ribbon counts it. */
+/** A task's box, whatever single character is in it; `task-state` says what it means. */
 const TASK = /^\[(.)\](?:\s+|$)/;
 
 /**
- * The box a marker prints as. A started task has a box of its own, so a
- * template that redraws `schreibstube-task` keeps its two boxes and the
- * prelude's half box stands in for the third.
+ * The box a marker prints as. A started and a cancelled task have boxes of
+ * their own, so a template that redraws `schreibstube-task` keeps its two
+ * boxes and the prelude's half and struck-through boxes stand in for the rest.
  */
 function taskBox(marker: string): string {
   const state = taskState(marker);
-  return state === "progress"
-    ? "schreibstube-task-progress()"
-    : `schreibstube-task(${state === "done"})`;
+  if (state === "progress") return "schreibstube-task-progress()";
+  if (state === "cancelled") return "schreibstube-task-cancelled()";
+  return `schreibstube-task(${state === "done"})`;
 }
 /** The line under a setext heading: `===` makes the text above it level 1, `---` level 2. */
 const SETEXT = /^ {0,3}(=+|-+)[ \t]*$/;
