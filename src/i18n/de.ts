@@ -67,18 +67,20 @@ export const de: Messages = {
   tasks: {
     alreadyPresent: "diese Notiz hat schon eine Aufgaben-Zusammenfassung.",
     none: "Keine Aufgaben",
-    ribbon: (open: number, total: number, progress: number, cancelled: number) =>
-      [
-        `${open} offen von ${total}`,
-        ...(progress > 0 ? [`${progress} in Arbeit`] : []),
-        ...(cancelled > 0 ? [`${cancelled} abgebrochen`] : [])
-      ].join(", "),
+    ribbon: (open: number, total: number, progress: number, cancelled: number) => {
+      const detail = [
+        progress > 0 ? `${progress} in Arbeit` : "",
+        cancelled > 0 ? `${cancelled} abgebrochen` : ""
+      ].filter(Boolean);
+      return `${open} von ${total} offen` + (detail.length > 0 ? ` (${detail.join(", ")})` : "");
+    },
     badge: (open: number, total: number) => `${open} von ${total} offen`,
 
     tidyHeading: "Erledigte Aufgaben",
     tidyIntro:
-      "Räumt die erledigten Aufgaben einer Notiz in einem Zug aus dem Weg: [x] und [-], jeweils " +
-      "mit allem, was darunter eingerückt ist. Eine erledigte Aufgabe mit noch offener " +
+      "Räumt die erledigten Aufgaben einer Notiz in einem Zug aus dem Weg: [x], jeweils mit " +
+      "allem, was darunter eingerückt ist. Eine abgebrochene Aufgabe, [-], bleibt als Vermerk " +
+      "stehen, was verworfen wurde. Eine erledigte Aufgabe mit noch offener " +
       "Unteraufgabe bleibt stehen, und Aufgaben unter ## Archive bleiben unberührt. Die Meldung " +
       "danach bietet an, es rückgängig zu machen.",
     tidyMode: "Was das Aufräumen tut",
