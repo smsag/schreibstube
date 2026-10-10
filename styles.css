@@ -2011,7 +2011,12 @@
 }
 
 .schreibstube-explorer-name {
-  flex: 0 1 auto;
+  /* The name takes all the slack, so everything after it — pin, sync,
+     publish, described, then the count and the day — sits at the right edge
+     in that order, one column down the pane. With the slack left over, the
+     marks hung at whichever came later, the name's last letter or the floor
+     below, and wandered from row to row. */
+  flex: 1 1 auto;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -2022,9 +2027,9 @@
   min-width: 50%;
 }
 
-/* Both sit just after the name's last character, not against the right edge:
-   they belong to the name, and a state never replaces another one. The negative
-   margin trims the row's shared gap down to a hair for these two. */
+/* State marks, at the right edge with the count and the day (the name pushes
+   them there), and a state never replaces another one. The negative margin
+   trims the row's shared gap down to a hair, so they read as one cluster. */
 .schreibstube-explorer-pin,
 .schreibstube-explorer-badge {
   flex: 0 0 auto;
