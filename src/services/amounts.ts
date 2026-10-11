@@ -189,7 +189,10 @@ function patternFor(format: NumberFormat): RegExp {
 
 /**
  * The value of a number as written, and how many decimals it was written
- * with; null when its separators contradict each other (`26.09.2026`).
+ * with; null when its separators contradict each other (`26.09.2026`) or when
+ * its value is not finite. A run of four hundred digits is not a number a
+ * person means, and as `Infinity` it would pass through a sum as one and come
+ * out as a zero or a total of nothing.
  */
 export function readNumber(
   written: string,
@@ -199,7 +202,7 @@ export function readNumber(
     mark: match[0],
     at: match.index
   }));
-  if (marks.length === 0) return { value: Number(written), decimals: 0 };
+  if (marks.length === 0) return finite(Number(written), 0);
 
   const decimalAt = decimalPosition(written, marks, format);
   const whole = decimalAt === -1 ? written : written.slice(0, decimalAt);
@@ -213,8 +216,11 @@ export function readNumber(
     const [first, ...rest] = groups;
     if (!first || first.length > 3 || rest.some((run) => run.length !== 3)) return null;
   }
-  const value = Number(`${groups.join("")}${fraction ? `.${fraction}` : ""}`);
-  return { value, decimals: fraction.length };
+  return finite(Number(`${groups.join("")}${fraction ? `.${fraction}` : ""}`), fraction.length);
+}
+
+function finite(value: number, decimals: number): { value: number; decimals: number } | null {
+  return Number.isFinite(value) ? { value, decimals } : null;
 }
 
 /** Where the decimal mark is, or -1 for a whole number. */

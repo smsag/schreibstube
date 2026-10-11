@@ -84,6 +84,15 @@ describe("in the editor, beside the line (Source mode)", () => {
     expect(view.state.doc.toString()).toBe("2 + 2 = 4");
   });
 
+  it("keeps line numbers with Windows line ends, and does not split at U+2028", () => {
+    const view = editor("1 + 1 =\r\n2 +\u20282 =\r\n3 + 3 =", 0);
+
+    expect(
+      Array.from(view.dom.querySelectorAll(".schreibstube-calc-result")).map((s) => s.textContent)
+    ).toEqual(["2", "4", "6"]);
+    expect(view.state.doc.lines).toBe(3);
+  });
+
   it("shows nothing inside a code block, or while the setting is off", () => {
     expect(
       editor("```\n2 + 2 =\n```", 0).dom.querySelector(".schreibstube-calc-result")
