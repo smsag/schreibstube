@@ -5,8 +5,13 @@ import {
   compute,
   formatAmount,
   formatRateDate,
+  mergeRateNotes,
+  outcomeParts,
   outcomeText,
-  type FormulaContext
+  rateLines,
+  splitStoredResult,
+  type FormulaContext,
+  type RateNote
 } from "./formulas";
 
 const de = numberFormatFor("comma", "en");
@@ -118,5 +123,133 @@ describe("formatting", () => {
   it("writes the rates' day the way the format's language does", () => {
     expect(formatRateDate("2026-09-26", de)).toBe("26.09.2026");
     expect(formatRateDate("2026-09-26", en)).toBe("09/26/2026");
+  });
+});
+
+describe("the rates a result was converted at", () => {
+  const mixed = [eur(300), { value: 25, currency: "USD", decimals: 0 }];
+  const plain = (value: string[]) => value.map((line) => line.replace(/\u00a0|\u202f/g, " "));
+
+  it("are kept with it, one for each currency that was converted", () => {
+    const outcome = compute(
+      "sum",
+      [
+        ...mixed,
+        { value: 8, currency: "GBP", decimals: 0 },
+        { value: 5, currency: "USD", decimals: 0 }
+      ],
+      ctx({ defaultCurrency: "EUR", rates })
+    );
+    expect(outcome).toMatchObject({
+      rateDate: "2026-09-26",
+      rates: [
+        { currency: "USD", perUnit: 1.25 },
+        { currency: "GBP", perUnit: 0.8 }
+      ]
+    });
+  });
+
+  it("leave out the default currency, which was not converted", () => {
+    const outcome = compute("sum", mixed, ctx({ defaultCurrency: "EUR", rates }));
+    expect(outcome.kind === "value" && outcome.rates.map((rate) => rate.currency)).toEqual(["USD"]);
+  });
+
+  it("are crossed through the euro when the default is not the euro", () => {
+    const outcome = compute(
+      "sum",
+      [{ value: 8, currency: "GBP", decimals: 0 }, mixed[1]!],
+      ctx({ defaultCurrency: "USD", rates })
+    );
+    expect(outcome.kind === "value" && outcome.rates[0]?.perUnit).toBeCloseTo(0.64);
+  });
+
+  it("are none for a result nothing was converted for", () => {
+    expect(compute("sum", [eur(1), eur(2)], ctx({ defaultCurrency: "EUR", rates }))).toMatchObject({
+      rateDate: null,
+      rates: []
+    });
+    expect(compute("count", mixed, ctx())).toMatchObject({ rates: [] });
+  });
+
+  it("are read as a rate is: how many of the currency one default unit buys", () => {
+    const note = outcomeParts(compute("sum", mixed, ctx({ defaultCurrency: "EUR", rates })), de)
+      ?.note as RateNote;
+    expect(note.day).toBe("26.09.2026");
+    expect(plain(rateLines(note, de))).toEqual(["1 € = 1,25 $"]);
+  });
+
+  it("are given the decimals the bank gave them, and no zeros of ours", () => {
+    const note = (perUnit: number): RateNote => ({
+      day: "26.09.2026",
+      into: "EUR",
+      rates: [{ currency: "JPY", perUnit }]
+    });
+    expect(plain(rateLines(note(158.3), de))).toEqual(["1 € = 158,30 ¥"]);
+    expect(plain(rateLines(note(1.0712), de))).toEqual(["1 € = 1,0712 ¥"]);
+    expect(plain(rateLines(note(0.852345678), de))).toEqual(["1 € = 0,8523 ¥"]);
+  });
+});
+
+describe("outcomeParts", () => {
+  it("separates the value from the note on its rates", () => {
+    const outcome = compute(
+      "sum",
+      [eur(300), { value: 25, currency: "USD", decimals: 0 }],
+      ctx({ defaultCurrency: "EUR", rates })
+    );
+    const parts = outcomeParts(outcome, de);
+    expect(parts?.value.replace(/\u00a0|\u202f/g, " ")).toBe("320,00 €");
+    expect(parts?.note?.day).toBe("26.09.2026");
+    expect(text(outcome)).toBe("≈ 320,00 € · ECB 26.09.2026");
+  });
+
+  it("has no note for a result nothing was converted for, and nothing for one without a number", () => {
+    expect(outcomeParts(compute("sum", [eur(1)], ctx()), de)?.note).toBeNull();
+    expect(outcomeParts({ kind: "mixed" }, de)).toBeNull();
+    expect(
+      outcomeParts(compute("sum", [eur(1), { value: 2, currency: "USD", decimals: 0 }], ctx()), de)
+    ).toMatchObject({ note: null });
+  });
+});
+
+describe("splitStoredResult", () => {
+  it("reads the value and the day out of what a frozen result stored", () => {
+    expect(splitStoredResult("≈ 320,00 € · ECB 26.09.2026")).toEqual({
+      value: "320,00 €",
+      note: { day: "26.09.2026", into: "", rates: [] }
+    });
+  });
+
+  it("takes a result without a mark as the value it is", () => {
+    expect(splitStoredResult(" 320 € ")).toEqual({ value: "320 €", note: null });
+    expect(splitStoredResult("≈ 5 € without the day")).toEqual({
+      value: "≈ 5 € without the day",
+      note: null
+    });
+  });
+});
+
+describe("mergeRateNotes", () => {
+  const note = (day: string, ...currencies: string[]): RateNote => ({
+    day,
+    into: "EUR",
+    rates: currencies.map((currency) => ({ currency, perUnit: 2 }))
+  });
+
+  it("makes one note of those of the same day, with every rate used", () => {
+    const merged = mergeRateNotes([note("a", "USD"), note("a", "GBP", "USD")]);
+    expect(merged).toHaveLength(1);
+    expect(merged[0]?.rates.map((rate) => rate.currency)).toEqual(["USD", "GBP"]);
+  });
+
+  it("keeps the days apart, in the order they first appear", () => {
+    expect(
+      mergeRateNotes([note("b", "USD"), note("a", "USD"), note("b")]).map((n) => n.day)
+    ).toEqual(["b", "a"]);
+  });
+
+  it("lets a note that knows only its day join one that knows the rates", () => {
+    const merged = mergeRateNotes([{ day: "a", into: "", rates: [] }, note("a", "USD")]);
+    expect(merged).toEqual([{ day: "a", into: "EUR", rates: [{ currency: "USD", perUnit: 2 }] }]);
   });
 });

@@ -1832,6 +1832,10 @@ export const de: Messages = {
     skipped: (count: number) =>
       count === 1 ? "1 Zelle ausgelassen" : `${count} Zellen ausgelassen`,
     now: (total: string) => `jetzt ${total}`,
+    rateNote: (day: string, rates: readonly string[]) =>
+      rates.length > 0
+        ? `Umgerechnet zu den Referenzkursen der Europäischen Zentralbank vom ${day}: ${rates.join("; ")}.`
+        : `Referenzkurse der Europäischen Zentralbank, ${day}.`,
     frozen: (count: number) =>
       count === 0
         ? "in dieser Notiz ist nichts festzuschreiben."

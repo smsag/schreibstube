@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { numberFormatFor } from "../services/amounts";
-import type { FormulaContext, Outcome } from "../services/formulas";
+import type { FormulaContext, Outcome, RateNote } from "../services/formulas";
 import { installObsidianDom } from "../testing/obsidian-dom";
 import { registerTableFormulaPostProcessor, type TableFormulaHost } from "./table-formulas";
 
@@ -9,6 +9,13 @@ const CTX: FormulaContext = {
   format: numberFormatFor("comma", "en"),
   defaultCurrency: "",
   rates: null
+};
+
+/** Dollars and pounds converted into euros at one day's rates. */
+const CONVERTING: FormulaContext = {
+  ...CTX,
+  defaultCurrency: "EUR",
+  rates: { date: "2026-09-26", fetchedAt: 0, rates: { USD: 1.25, GBP: 0.8 } }
 };
 
 beforeAll(() => installObsidianDom());
@@ -19,14 +26,16 @@ afterEach(() => {
 
 type Processor = (el: HTMLElement) => void;
 
-function register(inEditor = true) {
+function register(inEditor = true, context: FormulaContext = CTX) {
   let process: Processor = () => undefined;
   let editor = inEditor;
   const host = {
-    context: vi.fn((): FormulaContext => CTX),
+    context: vi.fn((): FormulaContext => context),
     unavailable: (): string => "–",
     seen: vi.fn((_outcomes: readonly Outcome[]): void => undefined),
     inEditor: (): boolean => editor,
+    rateNote: (note: RateNote): string =>
+      `Rates of ${note.day}: ${note.rates.map((rate) => rate.currency).join(", ")}`,
     setEditor(on: boolean): void {
       editor = on;
     }
@@ -363,5 +372,167 @@ describe("in Reading view", () => {
 
     expect(host.context).not.toHaveBeenCalled();
     expect(el.innerHTML).toBe("<p>=sum</p>");
+  });
+});
+
+describe("a result converted at the bank's rates", () => {
+  const TRIP = [
+    ["Item", "Amount"],
+    ["Hotel", "300 €"],
+    ["Taxi", "25 $"],
+    ["Total", "=sum"]
+  ];
+
+  describe("in Live Preview", () => {
+    it("shows the value alone and an asterisk, which says the rates when it is pointed at", async () => {
+      const { process } = register(true, CONVERTING);
+      const table = livePreviewTable(TRIP);
+
+      await drawCells(process, table);
+
+      const content = contentOf(table, 3, 1);
+      expect(plain(content.querySelector(".schreibstube-formula")?.textContent)).toBe("320,00 €");
+      expect(content.textContent).not.toContain("ECB");
+      const mark = content.querySelector("sup.schreibstube-formula-mark");
+      expect(mark?.textContent).toBe("*");
+      expect(mark?.getAttribute("title")).toBe("Rates of 26.09.2026: USD");
+    });
+
+    it("puts the mark after the result and inside the emphasis the formula had", async () => {
+      const { process } = register(true, CONVERTING);
+      const table = livePreviewTable(
+        TRIP.map((row, at) => (at === 3 ? ["Total", "<strong>=sum</strong>"] : row))
+      );
+
+      await drawCells(process, table);
+
+      const strong = contentOf(table, 3, 1).firstElementChild;
+      expect(strong?.tagName).toBe("STRONG");
+      expect(strong?.children[0]?.className).toBe("schreibstube-formula");
+      expect(strong?.children[1]?.className).toBe("schreibstube-formula-mark");
+    });
+
+    it("keeps one mark however often the table is drawn, and does not count it as an amount", async () => {
+      const { process, tables } = register(true, CONVERTING);
+      const table = livePreviewTable([...TRIP, ["Max", "=max"]]);
+      await drawCells(process, table);
+
+      tables.redrawEditor();
+      tables.redrawEditor();
+
+      expect(contentOf(table, 3, 1).querySelectorAll("sup")).toHaveLength(1);
+      expect(plain(contentOf(table, 4, 1).textContent)).toBe("300,00 €*");
+    });
+
+    it("takes the mark away with the result when the setting is switched off", async () => {
+      const { process, tables, host } = register(true, CONVERTING);
+      const table = livePreviewTable(TRIP);
+      await drawCells(process, table);
+
+      host.setEditor(false);
+      tables.redrawEditor();
+
+      expect(contentOf(table, 3, 1).innerHTML).toBe("=sum");
+    });
+
+    it("has no mark for a result nothing was converted for", async () => {
+      const { process } = register(true, CONVERTING);
+      const table = livePreviewTable(BUDGET);
+
+      await drawCells(process, table);
+
+      expect(contentOf(table, 3, 1).querySelector("sup")).toBeNull();
+    });
+
+    it("says a frozen result's day, and gives a second day its own asterisks", async () => {
+      const { process } = register(true, CONVERTING);
+      const table = livePreviewTable([
+        ["Item", "Amount"],
+        ["Hotel", "300 €"],
+        ["Frozen", "=sum(fixed: ≈ 9,00 € · ECB 20.09.2026)"],
+        ["Taxi", "25 $"],
+        ["Total", "=sum"]
+      ]);
+
+      await drawCells(process, table);
+
+      const frozen = contentOf(table, 2, 1);
+      expect(frozen.querySelector(".schreibstube-formula")?.textContent).toBe("9,00 €");
+      expect(frozen.querySelector("sup")?.textContent).toBe("*");
+      expect(frozen.querySelector("sup")?.getAttribute("title")).toBe("Rates of 20.09.2026: ");
+      expect(contentOf(table, 4, 1).querySelector("sup")?.textContent).toBe("**");
+    });
+  });
+
+  describe("in Reading view", () => {
+    function section(rows: string[][]): HTMLElement {
+      const el = document.body.createDiv();
+      const body = rows
+        .slice(1)
+        .map((cells) => `<tr>${cells.map((cell) => `<td>${cell}</td>`).join("")}</tr>`)
+        .join("");
+      el.innerHTML =
+        `<div class="el-table"><table><thead><tr>${rows[0]?.map((cell) => `<th>${cell}</th>`).join("")}</tr></thead>` +
+        `<tbody>${body}</tbody></table></div>`;
+      return el;
+    }
+
+    it("shows the value and an asterisk in the cell, and the note under the table", () => {
+      const { process } = register(true, CONVERTING);
+      const el = section(TRIP);
+
+      process(el);
+
+      const total = el.querySelectorAll("tr")[3]?.cells[1] as HTMLTableCellElement;
+      expect(plain(total.querySelector(".schreibstube-formula")?.textContent)).toBe("320,00 €");
+      expect(total.querySelector("sup")?.textContent).toBe("*");
+      const notes = el.querySelector("table + .schreibstube-formula-notes");
+      expect(notes?.textContent).toBe("* Rates of 26.09.2026: USD");
+    });
+
+    it("lists a second day's rates under the first, with two asterisks", () => {
+      const { process } = register(true, CONVERTING);
+      const el = section([
+        ["Item", "Amount"],
+        ["Hotel", "300 €"],
+        ["Frozen", "=sum(fixed: ≈ 9,00 € · ECB 20.09.2026)"],
+        ["Taxi", "25 $"],
+        ["Total", "=sum"]
+      ]);
+
+      process(el);
+
+      const lines = Array.from(el.querySelectorAll(".schreibstube-formula-notes > div")).map(
+        (line) => line.textContent
+      );
+      expect(lines).toEqual(["* Rates of 20.09.2026: ", "** Rates of 26.09.2026: USD"]);
+    });
+
+    it("has no note under a table nothing was converted in, or when the setting is off for the editor only", () => {
+      const plainTable = register(true, CONVERTING);
+      const el = section(BUDGET);
+      plainTable.process(el);
+      expect(el.querySelector(".schreibstube-formula-notes")).toBeNull();
+
+      const off = register(false, CONVERTING);
+      const converted = section(TRIP);
+      off.process(converted);
+      expect(converted.querySelector(".schreibstube-formula-notes")).not.toBeNull();
+    });
+
+    it("keeps what Reading view says beside a result: the skipped cells", () => {
+      const { process } = register(true, CONVERTING);
+      const el = section([
+        ["Item", "Amount"],
+        ["Rent", "plenty"],
+        ["Hotel", "300 €"],
+        ["Taxi", "25 $"],
+        ["Total", "=sum"]
+      ]);
+
+      process(el);
+
+      expect(el.querySelector(".schreibstube-formula-note")?.textContent).toBe("(1 cell skipped)");
+    });
   });
 });

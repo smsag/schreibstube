@@ -1417,6 +1417,10 @@ export const enExtra = {
     unavailable: "–",
     skipped: (count: number) => (count === 1 ? "1 cell skipped" : `${count} cells skipped`),
     now: (total: string) => `now ${total}`,
+    rateNote: (day: string, rates: readonly string[]) =>
+      rates.length > 0
+        ? `Converted at the European Central Bank's reference rates of ${day}: ${rates.join("; ")}.`
+        : `European Central Bank reference rates, ${day}.`,
     frozen: (count: number) =>
       count === 0
         ? "nothing to freeze in this note."

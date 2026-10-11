@@ -167,6 +167,14 @@ describe("inline", () => {
     expect(out).toBe("Text#footnote[Die Anmerkung] weiter");
   });
 
+  it("places a footnote referred to from a table cell at that cell, once", () => {
+    const out = convert(
+      "| Posten | Betrag |\n| --- | --- |\n| Summe | **317,60 €**[^kurs] |\n\n[^kurs]: Kurse vom 26.09.2026."
+    );
+    expect(out).toContain("[#strong[317,60 €]#footnote[Kurse vom 26.09.2026.]]");
+    expect(out.match(/Kurse vom 26\.09\.2026\./g)).toHaveLength(1);
+  });
+
   it("honours a backslash escape the way Markdown does", () => {
     expect(convert("Gehalt\\.de")).toBe("Gehalt.de");
   });

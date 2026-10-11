@@ -29,25 +29,85 @@ const TASK_BOX: Record<TaskState, string> = {
 const HOLD = "\uE000";
 const HELD = /\uE000(\d+)\uE000/g;
 
+/** A footnote is defined on a line of its own, anywhere in the note. */
+const FOOTNOTE_DEFINITION = /^ {0,3}\[\^([^\]\s]+)\]:\s*(.*)$/;
+
+/**
+ * The footnotes of a note: what each says, and the number each takes when it
+ * is first referred to. Plain text has no place at the foot of a page, so a
+ * reference reads `[1]` and the notes follow the message, in that order.
+ */
+class Footnotes {
+  private readonly numbers = new Map<string, number>();
+  private readonly order: string[] = [];
+
+  constructor(private readonly definitions: ReadonlyMap<string, string>) {}
+
+  /** The number a reference takes, or null for one the note never defined. */
+  refer(label: string): number | null {
+    if (!this.definitions.has(label)) return null;
+    let number = this.numbers.get(label);
+    if (number === undefined) {
+      number = this.order.push(label);
+      this.numbers.set(label, number);
+    }
+    return number;
+  }
+
+  /** The notes that were referred to, as lines, in the order of their numbers. */
+  lines(convert: (text: string) => string): string[] {
+    // A note may refer to another, which takes the next number as it is met.
+    const lines: string[] = [];
+    for (let at = 0; at < this.order.length; at++) {
+      lines.push(`[${at + 1}] ${convert(this.definitions.get(this.order[at] ?? "") ?? "")}`);
+    }
+    return lines;
+  }
+}
+
 export function markdownToPlainText(markdown: string): string {
   const source = stripComments(markdown.replace(/\r\n?/g, "\n"));
 
   // Only the block's own two fence lines are dropped. A line inside a block
   // that merely looks like a fence — `~~~` quoted in a Markdown sample, or a
   // shorter run of backticks — is content, and used to vanish from the mail.
-  const out: string[] = [];
+  const lines: { text: string; code: boolean }[] = [];
   let open: string | null = null;
   for (const line of source.split("\n")) {
     const marker = fenceMarker(line);
     if (open === null) {
       if (marker) open = marker;
-      else out.push(convertLine(line));
+      else lines.push({ text: line, code: false });
     } else if (marker && marker[0] === open[0] && marker.length >= open.length) {
       open = null;
     } else {
-      out.push(line);
+      lines.push({ text: line, code: true });
     }
   }
+
+  // Definitions first, wherever they stand: a reference above one is as good
+  // as a reference below it. A definition goes on over the indented lines
+  // under it.
+  const definitions = new Map<string, string>();
+  const body: typeof lines = [];
+  for (let at = 0; at < lines.length; at++) {
+    const entry = lines[at];
+    const match = entry && !entry.code ? FOOTNOTE_DEFINITION.exec(entry.text) : null;
+    if (!entry || !match?.[1]) {
+      if (entry) body.push(entry);
+      continue;
+    }
+    const parts = [match[2] ?? ""];
+    while (lines[at + 1] && !lines[at + 1]!.code && /^(?: {2,}|\t)\S/.test(lines[at + 1]!.text)) {
+      parts.push(lines[++at]!.text.trim());
+    }
+    if (!definitions.has(match[1])) definitions.set(match[1], parts.join(" ").trim());
+  }
+
+  const footnotes = new Footnotes(definitions);
+  const out = body.map((entry) => (entry.code ? entry.text : convertLine(entry.text, footnotes)));
+  const notes = footnotes.lines((text) => convertInline(text, footnotes));
+  if (notes.length > 0) out.push("", ...notes);
 
   return out
     .join("\n")
@@ -56,7 +116,7 @@ export function markdownToPlainText(markdown: string): string {
     .trim();
 }
 
-function convertLine(line: string): string {
+function convertLine(line: string, footnotes: Footnotes): string {
   // A rule before emphasis: `***` is a line, not two stars around one.
   if (/^\s*([-*_])(\s*\1){2,}\s*$/.test(line)) return "————————";
 
@@ -82,10 +142,10 @@ function convertLine(line: string): string {
   text = text.replace(/\s+\^[A-Za-z0-9-]+$/, "");
 
   const depth = (prefix.match(/>/g) ?? []).length;
-  return (depth > 0 ? "> ".repeat(depth) : prefix) + convertInline(text);
+  return (depth > 0 ? "> ".repeat(depth) : prefix) + convertInline(text, footnotes);
 }
 
-function convertInline(text: string): string {
+function convertInline(text: string, footnotes: Footnotes): string {
   const held: string[] = [];
   const hold = (value: string): string => `${HOLD}${held.push(value) - 1}${HOLD}`;
 
@@ -94,6 +154,12 @@ function convertInline(text: string): string {
     .replace(/(`+)(.+?)\1/g, (_, __, code: string) => hold(code.trim()))
     // An escaped character is the character, and no rule below may pair it.
     .replace(/\\([\\`*_{}[\]()#+\-.!|~=<>])/g, (_, char: string) => hold(char))
+    // A reference to a note that is there reads as its number; one to a note
+    // that is not stays as it was written.
+    .replace(/\[\^([^\]\s]+)\]/g, (whole, label: string) => {
+      const number = footnotes.refer(label);
+      return number === null ? whole : hold(`[${number}]`);
+    })
     // An embed cannot travel in a text mail; its name says what was there.
     .replace(/!\[\[([^\]|#]+)(?:#[^\]|]*)?(?:\|[^\]]*)?\]\]/g, (_, target: string) =>
       hold(`[${basename(target)}]`)
@@ -105,7 +171,7 @@ function convertInline(text: string): string {
       hold(alias ?? wikiTarget(target))
     )
     .replace(/\[([^\]]+)\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g, (_, label: string, url: string) =>
-      hold(linkText(label, url))
+      hold(linkText(label, url, footnotes))
     )
     .replace(/<((?:https?|mailto):[^>\s]+)>/g, (_, url: string) => hold(url))
     // A bare address keeps its underscores and stars.
@@ -128,8 +194,8 @@ function convertInline(text: string): string {
 }
 
 /** The label, and the address after it unless the label already is one. */
-function linkText(label: string, url: string): string {
-  const plainLabel = convertInline(label);
+function linkText(label: string, url: string, footnotes: Footnotes): string {
+  const plainLabel = convertInline(label, footnotes);
   if (!isExternal(url)) return plainLabel;
   const shown = url.replace(/^mailto:/, "");
   return plainLabel === url || plainLabel === shown ? shown : `${plainLabel} (${shown})`;

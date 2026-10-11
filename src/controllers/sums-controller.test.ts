@@ -147,7 +147,37 @@ describe("exchange rates", () => {
 
     expect(fetchEcbRates).toHaveBeenCalledTimes(1);
     expect(f.saved).toHaveLength(1);
-    expect(resolved).toContain("≈ 320,00 € · ECB 26.09.2026");
+    expect(resolved).toContain("| 320,00 €[^schreibstube-rates-1] |");
+  });
+
+  it("are said once, in a footnote, in the language the plugin is set to", async () => {
+    const f = fixture(converting);
+    fetchEcbRates.mockResolvedValue({ ...RATES, fetchedAt: f.clock.now });
+
+    const english = plain((await f.controller.forExport(MIXED)).text);
+    expect(english).not.toContain("ECB");
+    expect(english.trimEnd().split("\n").pop()).toBe(
+      "[^schreibstube-rates-1]: Converted at the European Central Bank's reference rates of 26.09.2026: 1 € = 1,25 $."
+    );
+
+    setLanguage("de");
+    const german = plain((await f.controller.forExport(MIXED)).text);
+    expect(german.trimEnd().split("\n").pop()).toBe(
+      "[^schreibstube-rates-1]: Umgerechnet zu den Referenzkursen der Europäischen Zentralbank vom 26.09.2026: 1 € = 1,25 $."
+    );
+  });
+
+  it("are not written into what a frozen total stores: the mark stays in the note, the footnote is for the copy", async () => {
+    const f = fixture(converting);
+    fetchEcbRates.mockResolvedValue({ ...RATES, fetchedAt: f.clock.now });
+    const note = "| A |\n|---|\n| 300 € |\n| 25 $ |\n| =sum(fixed) |";
+
+    const exported = await f.controller.forExport(note);
+
+    expect(plain(exported.text)).toContain("320,00 €[^schreibstube-rates-1]");
+    expect(exported.freezes.map((entry) => plain(entry.text ?? ""))).toEqual([
+      "≈ 320,00 € · ECB 26.09.2026"
+    ]);
   });
 
   it("are not fetched while converting is off, or for a note in one currency", async () => {

@@ -4,6 +4,7 @@ import {
   MAX_RATES_BYTES,
   normalizeExchangeRates,
   parseEcbRates,
+  rateBetween,
   RATES_MAX_AGE_MS,
   ratesSizeProblem,
   ratesStale
@@ -93,5 +94,32 @@ describe("convert", () => {
 
   it("has no answer for a currency without a rate", () => {
     expect(convert(1, "JPY", "EUR", rates)).toBeNull();
+  });
+});
+
+describe("rateBetween", () => {
+  const rates = { date: "2026-09-26", fetchedAt: 0, rates: { USD: 1.25, GBP: 0.8 } };
+
+  it("says how many units of a currency one euro buys, for a rate the bank lists", () => {
+    expect(rateBetween("USD", "EUR", rates)).toBe(1.25);
+  });
+
+  it("says how many euros it takes the other way round", () => {
+    expect(rateBetween("EUR", "USD", rates)).toBe(0.8);
+  });
+
+  it("goes through the euro between two other currencies", () => {
+    expect(rateBetween("GBP", "USD", rates)).toBeCloseTo(0.64);
+  });
+
+  it("is one for a currency and itself, and nothing for a rate the bank does not list", () => {
+    expect(rateBetween("USD", "USD", rates)).toBe(1);
+    expect(rateBetween("JPY", "EUR", rates)).toBeNull();
+    expect(rateBetween("EUR", "JPY", rates)).toBeNull();
+  });
+
+  it("is the factor convert divides by", () => {
+    const converted = convert(10, "GBP", "USD", rates) ?? 0;
+    expect(10 / (rateBetween("GBP", "USD", rates) ?? 1)).toBeCloseTo(converted);
   });
 });

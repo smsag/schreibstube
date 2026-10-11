@@ -8,7 +8,13 @@ import { CURRENCY_CODES, numberFormatFor } from "../services/amounts";
 import { calculationFormatFor, type CalculationContext } from "../services/line-calculator";
 import { RATES_RETRY_MS, ratesStale, type ExchangeRates } from "../services/exchange-rates";
 import { fetchEcbRates } from "../platform/rates-client";
-import { formatRateDate, type FormulaContext, type Outcome } from "../services/formulas";
+import {
+  formatRateDate,
+  rateLines,
+  type FormulaContext,
+  type Outcome,
+  type RateNote
+} from "../services/formulas";
 import { selectionTotal } from "../services/selection-total";
 import { copyText } from "../ui/copy-text";
 
@@ -199,6 +205,11 @@ export class SumsController implements NoteFormulas {
     });
   }
 
+  /** What a converted result says about its rates, in words: the day and each rate as it is read. */
+  rateNote(note: RateNote): string {
+    return t().sums.rateNote(note.day, rateLines(note, this.context().format));
+  }
+
   /** A result without a number, in words. */
   unavailable(outcome: Outcome): string {
     return outcome.kind === "mixed" ? t().sums.mixed : t().sums.unavailable;
@@ -218,7 +229,10 @@ export class SumsController implements NoteFormulas {
     if (!FORMULA_HINT.test(markdown)) return { text: markdown, freezes: [] };
     const ctx = await this.exportContext(markdown);
     return {
-      text: resolveFormulas(markdown, ctx, (outcome) => this.unavailable(outcome)),
+      text: resolveFormulas(markdown, ctx, {
+        unavailable: (outcome) => this.unavailable(outcome),
+        rateNote: t().sums.rateNote
+      }),
       freezes: freezePlan(markdown, ctx)
     };
   }

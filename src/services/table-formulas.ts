@@ -20,10 +20,15 @@
 import { readCell, type Amount, type CellReading } from "./amounts";
 import {
   compute,
+  mergeRateNotes,
+  outcomeParts,
   outcomeText,
+  rateLines,
+  splitStoredResult,
   type FormulaContext,
   type FormulaOp,
-  type Outcome
+  type Outcome,
+  type RateNote
 } from "./formulas";
 import { fencedLines } from "./markdown-fence";
 import { isTableDelimiter, splitRow, type MarkdownCell } from "./markdown-table";
@@ -68,6 +73,13 @@ export interface CellResult {
    * an average of nothing) — the caller puts that into words.
    */
   text: string | null;
+  /**
+   * The same without the mark of its rates: the value alone, which is what a
+   * cell shows or a copy carries when the rates are said in a note instead.
+   */
+  shown: string | null;
+  /** What it was converted at, for that note; null when nothing was converted. */
+  note: RateNote | null;
   /** For a frozen formula: what it would come to now, when that differs. */
   now: string | null;
   /** For a `(fixed)` formula not frozen yet: the text it freezes at. */
@@ -111,6 +123,7 @@ export function evaluateGrid(
       const outcome = compute(formula.op, amounts, ctx);
       const current = outcomeText(outcome, ctx.format);
       if (formula.frozen !== null) {
+        const stored = splitStoredResult(formula.frozen);
         results.push({
           row,
           col,
@@ -118,10 +131,13 @@ export function evaluateGrid(
           outcome,
           skipped,
           text: formula.frozen,
+          shown: stored.value,
+          note: stored.note,
           now: changedSince(formula.frozen, outcome, current),
           freezeAt: null
         });
       } else {
+        const parts = outcomeParts(outcome, ctx.format);
         results.push({
           row,
           col,
@@ -129,6 +145,8 @@ export function evaluateGrid(
           outcome,
           skipped,
           text: current,
+          shown: parts?.value ?? null,
+          note: parts?.note ?? null,
           now: null,
           freezeAt: formula.fixed ? current : null
         });
@@ -249,21 +267,75 @@ function cellSafe(text: string): string {
 }
 
 /**
+ * The notes on rates a table on screen calls for, one for each day its results
+ * were converted at, in the order the days first appear, with the mark each is
+ * cited by: `*`, then `**`. Asterisks and not numbers, because a note of the
+ * writer's own is numbered by Obsidian and the two must not be mistaken.
+ */
+export function tableNotes(
+  results: readonly Pick<CellResult, "note">[]
+): { note: RateNote; marker: string }[] {
+  const notes = results.flatMap((result) => (result.note ? [result.note] : []));
+  return mergeRateNotes(notes).map((note, at) => ({ note, marker: "*".repeat(at + 1) }));
+}
+
+/** What an export says in words: the result that is not a number, and the note on rates. */
+export interface ExportWording {
+  unavailable(outcome: Outcome): string;
+  /** The footnote on what results were converted at: the day, and each rate as it is read. */
+  rateNote(day: string, rates: readonly string[]): string;
+}
+
+const NOTE_LABEL = "schreibstube-rates-";
+
+/**
  * The note as it leaves the vault: every formula replaced by its result.
  *
  * A `(fixed)` formula not yet frozen shows what it is about to be frozen at,
  * which is the same number, so the copy sent and the value written back agree.
  * A result that is not a number is written as `unavailable` says.
+ *
+ * A converted result is the value alone, followed by a footnote reference; the
+ * day and the rates are said once, in a footnote at the end of the note, for
+ * every result converted that day. A frozen result carries only its day, and
+ * shares the note of a live one of the same day. The label is the plugin's own
+ * and is passed over where the note already has one of that name.
  */
 export function resolveFormulas(
   markdown: string,
   ctx: FormulaContext,
-  unavailable: (outcome: Outcome) => string
+  wording: ExportWording
 ): string {
-  return rewriteCells(markdown, ctx, (result) => {
-    const text = result.text ?? unavailable(result.outcome);
-    return `${result.formula.wrap}${cellSafe(text)}${result.formula.wrap}`;
-  }).text;
+  const taken = new Set([...markdown.matchAll(/\[\^([^\]\s]+)\]/g)].map((match) => match[1]));
+  const labels = new Map<string, string>();
+  let counter = 0;
+  const labelFor = (day: string): string => {
+    let label = labels.get(day);
+    if (label === undefined) {
+      counter++;
+      while (taken.has(`${NOTE_LABEL}${counter}`)) counter++;
+      label = `${NOTE_LABEL}${counter}`;
+      labels.set(day, label);
+    }
+    return label;
+  };
+
+  const notes: RateNote[] = [];
+  const { text } = rewriteCells(markdown, ctx, (result) => {
+    const shown = result.shown ?? wording.unavailable(result.outcome);
+    let reference = "";
+    if (result.note) {
+      notes.push(result.note);
+      reference = `[^${labelFor(result.note.day)}]`;
+    }
+    return `${result.formula.wrap}${cellSafe(shown)}${result.formula.wrap}${reference}`;
+  });
+  if (notes.length === 0) return text;
+
+  const definitions = mergeRateNotes(notes).map(
+    (note) => `[^${labelFor(note.day)}]: ${wording.rateNote(note.day, rateLines(note, ctx.format))}`
+  );
+  return `${text.replace(/\s+$/, "")}\n\n${definitions.join("\n\n")}\n`;
 }
 
 /** One `(fixed)` formula waiting to be frozen, in the order it stands in the note. */
