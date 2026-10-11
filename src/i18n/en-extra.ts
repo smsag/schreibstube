@@ -1384,11 +1384,12 @@ export const enExtra = {
       "How a number like 1.234 is read when it could be either, and how results are written. " +
       "Numbers that say it on their own, like 1.234,50, are always read right.",
     automatic: (example: string) => `Automatic (${example})`,
-    calculateLines: "Calculate lines ending in =",
+    calculateLines: "Calculate while writing",
     calculateLinesDesc:
-      "A line like 12,5 * 8 + 3 = shows its result beside it; press Tab at the end of the line, " +
-      "or click the result, to write it into the note. Works with currencies, percentages and " +
-      "units.",
+      "In Live Preview, a line like 12,5 * 8 + 3 = and a table cell holding =sum show their result " +
+      "in place of what you typed, until the cursor reaches it. In Source mode and Reading view a " +
+      "line's result stands beside it. Press Tab at the end of a line, or click the result beside " +
+      "it, to write it into the note. Works with currencies, percentages and units.",
     acceptResult: "Press Tab or click to write the result into the note",
     defaultCurrency: "Default currency",
     defaultCurrencyDesc:

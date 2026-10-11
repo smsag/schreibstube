@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Changed
+
+- **A calculation shows its result where you typed it, in Live Preview.** `Grundpreis 12,5 * 8 + 3 =` reads `Grundpreis 103` until the cursor is on it, and then the calculation is back with the result beside it, where Tab or a click still writes it into the note. A table cell holding `=sum`, `=avg` or any other formula does the same, which it could not in the editor before: it shows its total, the formula is there as soon as you click into the cell, and a total follows the amounts above it once you leave the cell you were typing in. The editor shows the number only; the notes Reading view prints beside a result, such as the skipped cells, stay in Reading view. Source mode keeps the result beside the line, and Reading view is as it was.
+- **One setting for both, with a new name.** **Calculate lines ending in =** is now **Calculate while writing**, and it also governs the table formulas in the editor. Switching it off puts every typed calculation and every formula back on screen at once. Reading view's table results do not depend on it, as before.
+
 ## 1.79.1 - 2026-10-10
 
 Mobile checklist: not run; the test suite and the build covered it. What to

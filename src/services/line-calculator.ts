@@ -201,21 +201,42 @@ export function forEachProseLine(text: string, visit: (line: string, index: numb
   });
 }
 
-/** The result a single line shows, or null when it is not a calculation. */
-export function calculateLine(raw: string, ctx: CalculationContext): CalculationResult | null {
+/** A calculation found in a line: its result, and the part of the line it was read from. */
+export interface CalculationSpan extends CalculationResult {
+  /** Offsets into the line as given: the first character of the calculation, and the end of its `=`. */
+  from: number;
+  to: number;
+}
+
+/**
+ * Finds a line's calculation: the result, and where in the line it stands.
+ *
+ * What stands before `from` — a list or heading marker, a label — is not part
+ * of the calculation and stays as written; what stands after `to` is only
+ * whitespace.
+ */
+export function calculationSpan(raw: string, ctx: CalculationContext): CalculationSpan | null {
   const line = raw.trim();
   if (line.length > MAX_CALCULATION_LINE) return null;
   if (!line.endsWith("=") || line.endsWith("==")) return null;
   const body = line.slice(0, -1).replace(PREFIX, "");
   if (!/\d/.test(body)) return null;
 
+  const lead = raw.length - raw.trimStart().length;
+  const prefix = line.length - 1 - body.length;
   for (const start of wordStarts(body)) {
     const tail = body.slice(start).trim();
     if (/^[+*/%]/.test(tail)) continue;
     const result = evaluateTail(tail, ctx);
-    if (result) return result;
+    if (result) return { ...result, from: lead + prefix + start, to: lead + line.length };
   }
   return null;
+}
+
+/** The result a single line shows, or null when it is not a calculation. */
+export function calculateLine(raw: string, ctx: CalculationContext): CalculationResult | null {
+  const found = calculationSpan(raw, ctx);
+  return found ? { text: found.text } : null;
 }
 
 /** The line with its result written after the `=`, or null when it shows none. */

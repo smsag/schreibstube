@@ -7,6 +7,8 @@
  * grows only when a test needs it to.
  */
 
+import { StateField } from "@codemirror/state";
+
 export class TFile {
   path: string;
   name: string;
@@ -155,6 +157,12 @@ export class SecretComponent {
     return this;
   }
 }
+
+/** Whether an editor is in Live Preview. A test that wants Source mode leaves the field out of its state. */
+export const editorLivePreviewField = StateField.define<boolean>({
+  create: () => true,
+  update: (value) => value
+});
 
 export class MarkdownView {}
 export class ItemView {}

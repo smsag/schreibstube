@@ -4059,6 +4059,13 @@
   color: var(--text-accent);
 }
 
+/* The result standing in for the calculation it came from, in Live Preview: part
+   of the text, so it keeps the text's colour. The calculation is a hover away
+   and comes back under the cursor. */
+.markdown-source-view .schreibstube-calc-shown {
+  font-variant-numeric: tabular-nums;
+}
+
 /* The note the new-note command opens, while its window fills the screen
    (controllers/draft-width): lines two thirds of the window wide. With
    readable line length on, Obsidian narrows its sizers to --file-line-width,
