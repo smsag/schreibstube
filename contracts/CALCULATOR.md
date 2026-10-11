@@ -10,6 +10,12 @@ Nothing is written into a note until the person accepts a result.
 
 ## 1. Which lines
 
+**Lines.** A note is split into lines at `\n` and nowhere else; one `\r`
+directly before the `\n` is dropped, so a file with Windows line ends has the
+lines it looks like it has. U+2028, U+2029 and a lone `\r` do not end a line:
+inside one they are whitespace like any other. A line's number is the count of
+`\n` before it.
+
 The whole note is scanned, because some lines are not prose:
 
 - **Frontmatter**: from a first line `---` to the next line `---` or `...`
@@ -26,8 +32,10 @@ The whole note is scanned, because some lines are not prose:
 - **Inline code**: a line with a backtick anywhere is passed over.
 
 Every other line is a candidate when, with leading and trailing whitespace
-removed, it is at most 500 characters long, ends in `=` and does not end in
-`==` (that closes a highlight). The final `=` is removed, then one Markdown
+removed, it is at most 500 UTF-16 code units long (what JavaScript's
+`String.length` counts: a character outside the Basic Multilingual Plane, an
+emoji say, is two), ends in `=` and does not end in `==` (that closes a
+highlight). The final `=` is removed, then one Markdown
 prefix: `- [ ] `, `- [x] ` (any of `-*+`, `x` or `X`), `- `, `#`–`######`
 and a space, `1. `, `> `. What is left must contain a digit.
 
@@ -66,6 +74,13 @@ space when exactly three digits follow it and no digit after those. Its value:
 7. Otherwise — `1.234` — the format decides: it is the decimal mark when it is
    the format's decimal mark, else it groups.
 
+Its value is the double nearest to the decimal number written, the digits read
+with `.` as the decimal mark (JavaScript's `Number("1234.5")`, Swift's
+`Double("1234.5")`), and a value that is not finite is not a number: a run of
+four hundred digits, or a 1 followed by 309 zeros, is not read as infinity, the
+tail fails. A long run of digits is judged by its value alone, so four hundred
+zeros and a 1 are a 1.
+
 Whatever is left of the decimal mark may group with one separator character
 only — `'` and `’` are two, and so are a plain space, U+00A0 and U+202F —
 with a first group of one to three digits and every other of three. After the
@@ -93,7 +108,23 @@ product  = unary { ("*" | "/") unary }
 unary    = ("-" | "+") unary | postfix
 postfix  = primary [ "%" [ ("von" | "of") sum ] ]
 primary  = amount | "(" sum ")"
+amount   = currency [ sign ] number | number [ currency ]
+sign     = "-" | "+"
 ```
+
+A leading `-` or `+` before a number alone is `unary`'s. Between a currency
+and its number, the sign belongs to the amount: `€-5` is minus five euros, and
+`€-5 * 2 =` is `-€10,00`. In a calculation the minus has its three spellings
+(`-` `−` `–`) and whitespace around the sign is ignored (`€ - 5`). A number with
+a currency on both sides (`€5 EUR`) and a sign repeated (`€--5`) are not
+amounts of a calculation. After a number, a currency is the number's and the
+next sign is an operator: `5 €-3` is `5 € - 3`. A sign inside an amount counts
+as an operator, as `unary`'s does: `€-5 =` shows `-€5,00`, `€5 =` shows nothing.
+
+The amount reader of the table formulas takes the same
+forms, `€-5`, `€ - 5`, `-€5`, `5 €` and `-5 €`. It differs where a table cell is
+not a calculation: its minus is `-` or `−` only, it also takes `20,-` and a
+currency on both sides, which a calculation does not.
 
 A value is a number with an optional currency.
 
@@ -112,25 +143,33 @@ A value is a number with an optional currency.
   an amount with a currency (`10 €%`) fails.
 - **Signs.** A bare percentage is a percentage without a sign of its own:
   `200 + -10%` is `200 + (-0,1)`, which is 199,9.
-- **Fails**: division by zero, a result that is not finite or is a
-  quadrillion (10^15) or more either way, a tail with nothing but a number in
-  it.
+- **Fails**: division by zero, a result that is not finite or is ten
+  trillion (10^13) or more either way (the absolute value is compared, and
+  only the final result: `10000000000000 * 0 =` is `0`), a tail with nothing
+  but a number in it.
 
 **Unit conversion** is tried before the grammar, on the whole tail:
 `[-]number unit (in | to | nach | -> | →) unit` (the minus also `−` or `–`), units and the connecting
 word in any case, both units of one kind: `-5 C in F` is 23, `3 KM IN M`
 is 3.000. The result is `((value * factor + offset) - offset₂) / factor₂`, with
-the target's factor and offset second. The table is `units` in the cases file; it holds the
+the target's factor and offset second, and the same limit as above. The table is `units` in the cases file; it holds the
 factors Apple's Foundation uses, so the quick-note app's results did not move.
 
 ## 5. Writing the result
 
-Rounded to two decimals, halves away from zero — `sign(v) * round(|v| * 100) / 100`
-with `round` to the nearest integer — and `-0` is `0`. The whole part is
-grouped in threes with the format's group, the decimal mark is the format's,
-and a negative value starts with `-`, before a currency too (`-€5,00`). The
-digits come from the whole number of cents, `round(|v| * 100)`, so a result
-near the limit is written exactly.
+A result `v` is written from its cents, `c = round(|v| * 100)`: the double
+product of `|v|` and 100, rounded to the nearest integer, halves up. It is the
+product in doubles, not in decimals, so `1,005 * 1 =` is `1`: the double
+nearest 1,005, times 100, is 100,49999999999999. Section 4's limit keeps `|v|`
+under 10^13, so `c` stays under 10^15, well below 2^53 (about 9e15), where a
+double holds every integer exactly: JavaScript and Swift get the same `c` and
+write the same digits. The earlier limit of 10^15 allowed a `c` of 10^17,
+where neighbouring doubles are 16 apart and the last digits were whichever
+double the product landed on. The whole part is `(c - c mod 100) / 100` in
+decimal digits, grouped in threes with the format's group; the decimal mark is
+the format's, and the two digits after it are `c mod 100`. A result starts
+with `-` when `v < 0` and `c` is not 0 (`-0` is `0`), before a currency too
+(`-€5,00`).
 
 - **Without a currency**: at most two decimals, trailing zeros dropped —
   `103`, `11,4`, `3.000`, `22,22`.
@@ -149,5 +188,9 @@ That line no longer ends in `=` and is no longer a calculation.
   the European Central Bank's daily rates, into its default currency. Such a
   result starts with `≈ ` and ends with ` · ECB` and the rates' day, so it is
   plain whose numbers they are; the quick-note app shows nothing for that line.
+- **Schreibstube's editor** shows the lines CodeMirror made of the note, and
+  CodeMirror also ends a line at a lone `\r`; Reading view reads the file's
+  text and follows section 1. Only a note with a lone `\r` in it can tell the
+  two apart.
 - Where the result shows, how it is accepted (Tab at the end of the line, a
   click, a tap) and how it looks are each app's own.

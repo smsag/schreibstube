@@ -6,6 +6,7 @@ import {
   calculateLine,
   calculationFormatFor,
   calculationSpan,
+  forEachProseLine,
   type CalculationContext
 } from "./line-calculator";
 
@@ -61,6 +62,59 @@ describe("a line it will not evaluate", () => {
   it("nests deeper than anyone writes by hand", () => {
     expect(calculateLine(`${"(".repeat(33)}1${")".repeat(33)} + 1 =`, plain)).toBeNull();
     expect(calculateLine(`${"(".repeat(32)}1${")".repeat(32)} + 1 =`, plain)?.text).toBe("2");
+  });
+});
+
+describe("where a note's lines end", () => {
+  const lines = (text: string): [number, string][] => {
+    const found: [number, string][] = [];
+    forEachProseLine(text, (line, index) => found.push([index, line]));
+    return found;
+  };
+
+  it("is at a line feed, with one carriage return before it dropped", () => {
+    expect(lines("a\r\nb\nc\r\r\nd")).toEqual([
+      [0, "a"],
+      [1, "b"],
+      [2, "c\r"],
+      [3, "d"]
+    ]);
+  });
+
+  it("is nowhere else: not at U+2028, U+2029 or a lone carriage return", () => {
+    expect(lines("a\u2028b\u2029c\rd")).toEqual([[0, "a\u2028b\u2029c\rd"]]);
+  });
+});
+
+describe("the length of a line", () => {
+  it("counts UTF-16 code units, so an emoji is two", () => {
+    const emoji = (count: number) => `${"😀".repeat(count)} 1 + 1 =`;
+    expect(emoji(246).length).toBe(MAX_CALCULATION_LINE);
+    expect(calculateLine(emoji(246), plain)?.text).toBe("2");
+    expect([...emoji(247)].length).toBeLessThan(MAX_CALCULATION_LINE);
+    expect(calculateLine(emoji(247), plain)).toBeNull();
+  });
+});
+
+describe("the largest result", () => {
+  it("is written from cents a double holds exactly", () => {
+    expect(calculateLine("9999999999999,99 * 1 =", plain)?.text).toBe("9.999.999.999.999,99");
+    expect(calculateLine("10000000000000 * 1 =", plain)).toBeNull();
+    expect(calculateLine("-10000000000000 * 1 =", plain)).toBeNull();
+  });
+
+  it("rounds from the double product, as the contract says", () => {
+    expect(calculateLine("1,005 * 1 =", plain)?.text).toBe("1");
+    expect(calculateLine("0,005 * 1 =", plain)?.text).toBe("0,01");
+  });
+});
+
+describe("a sign after a currency", () => {
+  it("belongs to the amount and is not a subtraction", () => {
+    expect(calculateLine("€-5 * 2 =", plain)?.text).toBe("-€10,00");
+    expect(calculateLine("€ + 5 * 2 =", plain)?.text).toBe("€10,00");
+    expect(calculateLine("5 €-3 =", plain)?.text).toBe("2,00 €");
+    expect(calculateLine("€5 =", plain)).toBeNull();
   });
 });
 

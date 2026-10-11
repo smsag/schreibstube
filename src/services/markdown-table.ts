@@ -29,13 +29,32 @@ export interface MarkdownCell {
   text: string;
 }
 
+/** A run of backticks in a row, and what it turned out to be. */
+interface BacktickRun {
+  at: number;
+  length: number;
+  /** Opens a code span, closes one, sits inside one, or is plain text. */
+  role: "open" | "close" | "inside" | "literal";
+}
+
 /**
- * The cells of a table row, split at the pipes that are not escaped and not
- * inside inline code.
+ * Where a row's unescaped pipes are, and how its backtick runs pair up.
+ *
+ * A backslash makes the character after it ordinary, whatever it is, so an
+ * escaped backtick is no run and an escaped pipe no separator. A run of
+ * backticks opens a code span only when a run of exactly the same length
+ * follows later in the row; the first such run closes it. A run with no
+ * partner is plain text, as in CommonMark: the `it`s` in a cell does not
+ * swallow the pipes that come after it.
  */
-export function splitRow(line: string): MarkdownCell[] {
-  const bounds: number[] = [];
-  let code = 0;
+function scanRow(line: string): {
+  pipes: number[];
+  runs: BacktickRun[];
+  /** Each code span as [from, to): the opening run's start to the closing run's end. */
+  spans: [number, number][];
+} {
+  const pipes: number[] = [];
+  const runs: BacktickRun[] = [];
   for (let at = 0; at < line.length; at++) {
     const char = line[at];
     if (char === "\\") {
@@ -43,14 +62,51 @@ export function splitRow(line: string): MarkdownCell[] {
       continue;
     }
     if (char === "`") {
-      let run = 1;
-      while (line[at + run] === "`") run++;
-      code = code === 0 ? run : code === run ? 0 : code;
-      at += run - 1;
+      let length = 1;
+      while (line[at + length] === "`") length++;
+      runs.push({ at, length, role: "literal" });
+      at += length - 1;
       continue;
     }
-    if (char === "|" && code === 0) bounds.push(at);
+    if (char === "|") pipes.push(at);
   }
+
+  // The next run of each run's length, found once from the right so a row of
+  // thousands of backticks costs a pass, not a search per run.
+  const next: (number | undefined)[] = [];
+  const seen = new Map<number, number>();
+  for (let i = runs.length - 1; i >= 0; i--) {
+    const run = runs[i]!;
+    next[i] = seen.get(run.length);
+    seen.set(run.length, i);
+  }
+  const spans: [number, number][] = [];
+  for (let i = 0; i < runs.length; i++) {
+    const partner = next[i];
+    if (partner === undefined) continue;
+    const open = runs[i]!;
+    const close = runs[partner]!;
+    open.role = "open";
+    close.role = "close";
+    for (let inside = i + 1; inside < partner; inside++) runs[inside]!.role = "inside";
+    spans.push([open.at, close.at + close.length]);
+    i = partner;
+  }
+  return { pipes, runs, spans };
+}
+
+/**
+ * The cells of a table row, split at the pipes that are not escaped and not
+ * inside inline code.
+ */
+export function splitRow(line: string): MarkdownCell[] {
+  const { pipes, spans } = scanRow(line);
+  let span = 0;
+  const bounds = pipes.filter((pipe) => {
+    while (span < spans.length && spans[span]![1] <= pipe) span++;
+    const current = spans[span];
+    return !(current && current[0] < pipe);
+  });
 
   const cells: MarkdownCell[] = [];
   let start = 0;
@@ -75,11 +131,17 @@ export function rowCells(line: string): string[] {
  * A cell's text as it has to be written so that `splitRow` reads it back as
  * one cell: every pipe escaped, and a backslash already standing before a pipe
  * doubled, or `\\|` would read as an escaped backslash and a real separator.
- * A line break would end the row, so it becomes the `<br>` a table renders.
+ * A backtick run with no partner in the cell is escaped too, every backtick of
+ * it: left alone, the next cell's backtick of the same length would pair with
+ * it and the code span would carry the separator between them away. A line
+ * break would end the row, so it becomes the `<br>` a table renders.
  */
 export function escapeCell(text: string): string {
-  return text
-    .replace(/(\\+)(?=\|)/g, "$1$1")
-    .replace(/\|/g, "\\|")
-    .replace(/\r\n|\r|\n/g, "<br>");
+  const piped = text.replace(/(\\+)(?=\|)/g, "$1$1").replace(/\|/g, "\\|");
+  const unpaired = scanRow(piped).runs.filter((run) => run.role === "literal");
+  let escaped = piped;
+  for (const run of unpaired.reverse()) {
+    escaped = `${escaped.slice(0, run.at)}${"\\`".repeat(run.length)}${escaped.slice(run.at + run.length)}`;
+  }
+  return escaped.replace(/\r\n|\r|\n/g, "<br>");
 }

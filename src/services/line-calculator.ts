@@ -15,14 +15,24 @@
 import { readNumber, type NumberFormat } from "./amounts";
 import { convert, type ExchangeRates } from "./exchange-rates";
 
-/** A longer line is not a sum anyone types. */
+/**
+ * A longer line is not a sum anyone types. Counted in UTF-16 code units, as
+ * `String.length` does: an emoji is two, so the other app has to count the
+ * same way for a line to be a calculation in both.
+ */
 export const MAX_CALCULATION_LINE = 500;
 
 /** Parentheses deeper than this are a paste, not arithmetic. */
 const MAX_DEPTH = 32;
 
-/** A result this large has lost the cents it would be written with. */
-const MAX_RESULT = 1e15;
+/**
+ * A result this large shows nothing. The cents it is written with are
+ * `round(|v| * 100)`, and a double holds every integer exactly only up to
+ * 2^53 (about 9e15): below 10^13 the product stays under 10^15, so JavaScript
+ * and Swift get the same integer and write the same digits. A rule that let
+ * 10^15 through wrote digits no double could hold.
+ */
+const MAX_RESULT = 1e13;
 
 /** The four fixed formats of the contract; automatic resolves to one of them. */
 export type CalculationFormat = "comma" | "point" | "space" | "apostrophe";
@@ -152,6 +162,12 @@ export function calculationLines(
  * Calls `visit` with each line that is prose, by index. Exported for the
  * editor and Reading view, which walk the same lines and evaluate only those
  * they have on screen.
+ *
+ * A document is split at `\n` only, and one `\r` directly before it goes: a
+ * file with Windows line ends has the lines it looks like it has. U+2028,
+ * U+2029 and a lone `\r` do not end a line, in either app. The editor hands
+ * this the text of its own lines joined with `\n`, so its line numbers are
+ * these indexes plus one.
  */
 export function forEachProseLine(text: string, visit: (line: string, index: number) => void): void {
   const lines = text.split(/\r?\n/);
@@ -527,11 +543,20 @@ class Parser {
       this.depth--;
       return asValue(inner);
     }
+    // An amount is `currency [sign] number` or `number [currency]`, the forms
+    // the amount reader of a table takes; a sign before a number alone is
+    // `unary`'s. `€-5` is minus five euros, not a euro sign and a subtraction.
     let currency: Written | null = null;
+    let negative = false;
     const first = this.peek();
     if (first?.kind === "currency") {
       currency = { code: first.code, token: first.token, before: true };
       this.at++;
+      const sign = this.takeOp("-", "+");
+      if (sign) {
+        this.sawOperator = true;
+        negative = sign === "-";
+      }
     }
     const number = this.peek();
     if (number?.kind !== "number") return null;
@@ -542,7 +567,7 @@ class Parser {
       currency = { code: after.code, token: after.token, before: false };
       this.at++;
     }
-    return { value: number.value, currency, rateDate: null };
+    return { value: negative ? -number.value : number.value, currency, rateDate: null };
   }
 }
 
@@ -554,33 +579,39 @@ function asValue(value: Value | Percent): Value {
 
 // --- writing -------------------------------------------------------------
 
-function rounded(value: number): number {
-  const result = (Math.sign(value) * Math.round(Math.abs(value) * 100)) / 100;
-  return result === 0 ? 0 : result;
+/**
+ * The cents a result is written with: `round(|v| * 100)`, halves up. Below
+ * `MAX_RESULT` an integer a double holds exactly, so every digit is certain.
+ */
+function cents(value: number): number {
+  return Math.round(Math.abs(value) * 100);
+}
+
+/** Whether a result starts with a minus: below zero and not rounded to `-0`. */
+function isNegative(value: number): boolean {
+  return value < 0 && cents(value) !== 0;
 }
 
 /** Digits grouped in threes, with the format's group and decimal marks. */
 function layout(value: number, places: "upTo2" | "exactly2", format: CalculationFormat): string {
   const { group, decimal } = FORMATS[format];
-  const negative = value < 0;
-  // From the whole number of cents: `toFixed` drifts a cent near the limit.
-  const allCents = Math.round(Math.abs(value) * 100);
-  const whole = String(Math.floor(allCents / 100));
-  const cents = String(allCents % 100).padStart(2, "0");
+  const allCents = cents(value);
+  const rest = allCents % 100;
+  const whole = String((allCents - rest) / 100);
+  const fraction = String(rest).padStart(2, "0");
   const grouped = whole.replace(/\B(?=(\d{3})+(?!\d))/g, group);
-  const fraction = places === "exactly2" ? cents : cents.replace(/0+$/, "");
-  return `${negative ? "-" : ""}${grouped}${fraction ? decimal + fraction : ""}`;
+  const shown = places === "exactly2" ? fraction : fraction.replace(/0+$/, "");
+  return `${isNegative(value) ? "-" : ""}${grouped}${shown ? decimal + shown : ""}`;
 }
 
 function formatPlain(value: number, format: CalculationFormat): string {
-  return layout(rounded(value), "upTo2", format);
+  return layout(value, "upTo2", format);
 }
 
 function formatValue(result: Value, ctx: CalculationContext): string {
-  const value = rounded(result.value);
-  if (!result.currency) return formatPlain(value, ctx.format);
-  const number = layout(Math.abs(value), "exactly2", ctx.format);
-  const minus = value < 0 ? "-" : "";
+  if (!result.currency) return formatPlain(result.value, ctx.format);
+  const number = layout(Math.abs(result.value), "exactly2", ctx.format);
+  const minus = isNegative(result.value) ? "-" : "";
   const { token, before } = result.currency;
   const isCode = /^[A-Z]{3}$/.test(token);
   const amount = before
