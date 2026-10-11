@@ -150,3 +150,42 @@ describe("markdownToPlainText, code", () => {
     expect(markdownToPlainText("````\n```\ninner\n```\n````")).toBe("```\ninner\n```");
   });
 });
+
+describe("markdownToPlainText, footnotes", () => {
+  it("reads a reference as its number and puts the note after the message", () => {
+    const note = "Summe 317,60 €[^kurs]\n\n[^kurs]: Umgerechnet am 26.09.2026.";
+    expect(markdownToPlainText(note)).toBe("Summe 317,60 €[1]\n\n[1] Umgerechnet am 26.09.2026.");
+  });
+
+  it("numbers the notes in the order they are referred to, wherever they are defined", () => {
+    const note = "[^b]: Zweite.\n[^a]: Erste.\n\nEins[^a], zwei[^b], eins noch einmal[^a].";
+    expect(markdownToPlainText(note)).toBe(
+      "Eins[1], zwei[2], eins noch einmal[1].\n\n[1] Erste.\n[2] Zweite."
+    );
+  });
+
+  it("leaves out a note nothing refers to, and a reference to a note that is not there", () => {
+    expect(markdownToPlainText("Text[^fehlt] und mehr.\n\n[^lose]: Niemand liest sie.")).toBe(
+      "Text[^fehlt] und mehr."
+    );
+  });
+
+  it("joins the indented lines under a note, and gives the note's text its own emphasis rules", () => {
+    const note = "Satz[^1].\n\n[^1]: Siehe **Anlage**\n    auf Seite 3.";
+    expect(markdownToPlainText(note)).toBe("Satz[1].\n\n[1] Siehe Anlage auf Seite 3.");
+  });
+
+  it("writes the reference in a table row as it writes any text", () => {
+    const note =
+      "| Posten | Betrag |\n| --- | --- |\n| **Summe** | 317,60 €[^kurs] |\n\n[^kurs]: Kurs vom Tag.";
+    expect(markdownToPlainText(note)).toBe(
+      "| Posten | Betrag |\n| --- | --- |\n| Summe | 317,60 €[1] |\n\n[1] Kurs vom Tag."
+    );
+  });
+
+  it("keeps what looks like a reference inside code as it was written", () => {
+    expect(markdownToPlainText("`[^a]` und\n```\n[^a]: Code\n```\n\n[^a]: Echt.")).toBe(
+      "[^a] und\n[^a]: Code"
+    );
+  });
+});

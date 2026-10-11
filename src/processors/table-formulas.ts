@@ -1,7 +1,7 @@
 import type { Plugin } from "obsidian";
 import { t } from "../i18n";
-import type { FormulaContext, Outcome } from "../services/formulas";
-import { evaluateGrid, type CellResult } from "../services/table-formulas";
+import type { FormulaContext, Outcome, RateNote } from "../services/formulas";
+import { evaluateGrid, tableNotes, type CellResult } from "../services/table-formulas";
 import { livePreviewCellContent, livePreviewCellOf } from "../services/workspace-internals";
 
 export interface TableFormulaHost {
@@ -11,6 +11,8 @@ export interface TableFormulaHost {
   seen(outcomes: readonly Outcome[]): void;
   /** Whether Live Preview shows a formula's result: the setting for calculating while writing. */
   inEditor(): boolean;
+  /** What a converted result says about its rates, in words. */
+  rateNote(note: RateNote): string;
 }
 
 export interface TableFormulas {
@@ -19,6 +21,8 @@ export interface TableFormulas {
 }
 
 const RESULT_CLASS = "schreibstube-formula";
+const MARK_CLASS = "schreibstube-formula-mark";
+const NOTES_CLASS = "schreibstube-formula-notes";
 
 /** On a cell Live Preview shows a result in: the formula that result stands for. */
 const FORMULA_ATTRIBUTE = "data-schreibstube-formula";
@@ -40,6 +44,11 @@ const FORMULA_ATTRIBUTE = "data-schreibstube-formula";
  * underneath, hidden, and the result is back when the cursor leaves. The
  * notes are left out there; a person typing the amounts has the table in front
  * of them.
+ *
+ * A result converted at the bank's rates is the value alone, followed by a
+ * mark: an asterisk, and a second for a second day's rates. Reading view says
+ * what the mark stands for under the table, as a footnote does; Live Preview,
+ * which has no room under a cell, says it when the mark is pointed at.
  */
 export function registerTableFormulaPostProcessor(
   plugin: Plugin,
@@ -84,11 +93,14 @@ export function registerTableFormulaPostProcessor(
     for (const table of Array.from(tables)) {
       const rows = Array.from(table.rows);
       const grid = rows.map((row) => Array.from(row.cells).map((cell) => cell.textContent));
-      for (const result of evaluateGrid(grid, ctx)) {
+      const results = evaluateGrid(grid, ctx);
+      const notes = tableNotes(results);
+      for (const result of results) {
         const cell = rows[result.row]?.cells[result.col];
-        if (cell) show(cell, result, host);
+        if (cell) show(cell, result, host, markOf(result, notes, host));
         outcomes.push(result.outcome);
       }
+      showNotes(table, notes, host);
     }
     if (outcomes.length > 0) host.seen(outcomes);
   });
@@ -103,28 +115,84 @@ export function registerTableFormulaPostProcessor(
   };
 }
 
+/** The mark a result is cited by, and what it stands for, or null for a result nothing was converted for. */
+interface Mark {
+  text: string;
+  note: string;
+}
+
+function markOf(
+  result: Pick<CellResult, "note">,
+  notes: ReturnType<typeof tableNotes>,
+  host: TableFormulaHost
+): Mark | null {
+  const entry = notes.find(({ note }) => note.day === result.note?.day);
+  return entry ? { text: entry.marker, note: host.rateNote(entry.note) } : null;
+}
+
 /** Puts a result where a formula was, inside the emphasis around it: `**=sum**` stays bold. */
-function placeResult(content: HTMLElement, formula: string, text: string): void {
+function placeResult(content: HTMLElement, formula: string, text: string): HTMLElement {
   // Compared by text, not by class: a note in a pop-out window has its own HTMLElement.
   const only =
     content.children.length === 1 ? (content.firstElementChild as HTMLElement | null) : null;
   const target = only && only.textContent.trim() === formula ? only : content;
   target.empty();
-  target.createSpan({ cls: RESULT_CLASS, text });
+  return target.createSpan({ cls: RESULT_CLASS, text });
 }
 
-function show(cell: HTMLTableCellElement, result: CellResult, host: TableFormulaHost): void {
+/** The mark straight after a result: set, replaced or taken away. */
+function setMark(result: HTMLElement, mark: Mark | null): void {
+  const next = result.nextElementSibling;
+  const current = next?.classList.contains(MARK_CLASS) ? next : null;
+  if (!mark) {
+    current?.remove();
+    return;
+  }
+  const sup = current ?? result.ownerDocument.createElement("sup");
+  sup.className = MARK_CLASS;
+  sup.textContent = mark.text;
+  sup.setAttribute("title", mark.note);
+  if (!current) result.after(sup);
+}
+
+function show(
+  cell: HTMLTableCellElement,
+  result: CellResult,
+  host: TableFormulaHost,
+  mark: Mark | null
+): void {
   const formula = cell.textContent.trim();
   cell.setAttribute("title", formula);
-  placeResult(cell, formula, result.text ?? host.unavailable(result.outcome));
+  const shown = placeResult(cell, formula, result.shown ?? host.unavailable(result.outcome));
+  setMark(shown, mark);
 
   const notes: string[] = [];
   if (result.skipped > 0) notes.push(t().sums.skipped(result.skipped));
   if (result.now !== null) notes.push(t().sums.now(result.now));
   if (notes.length > 0) {
-    const target = cell.querySelector(`.${RESULT_CLASS}`)?.parentElement ?? cell;
+    const target = shown.parentElement ?? cell;
     target.createSpan({ cls: "schreibstube-formula-note", text: `(${notes.join(", ")})` });
   }
+}
+
+/** What the marks of a table stand for, directly under it, the way a footnote stands at the foot. */
+function showNotes(
+  table: HTMLTableElement,
+  notes: ReturnType<typeof tableNotes>,
+  host: TableFormulaHost
+): void {
+  const before = table.nextElementSibling;
+  if (before?.classList.contains(NOTES_CLASS)) before.remove();
+  if (notes.length === 0) return;
+
+  const block = table.ownerDocument.createElement("div");
+  block.className = NOTES_CLASS;
+  for (const { note, marker } of notes) {
+    const line = block.createDiv();
+    line.createSpan({ cls: `${NOTES_CLASS}-mark`, text: marker });
+    line.createSpan({ text: ` ${host.rateNote(note)}` });
+  }
+  table.after(block);
 }
 
 /**
@@ -155,21 +223,22 @@ function drawEditorTable(table: HTMLTableElement, host: TableFormulaHost): void 
   }
 
   const outcomes: Outcome[] = [];
-  for (const result of evaluateGrid(grid, host.context())) {
+  const results = evaluateGrid(grid, host.context());
+  const notes = tableNotes(results);
+  for (const result of results) {
     outcomes.push(result.outcome);
     const cell = cells[result.row]?.[result.col];
     const parts = cell ? livePreviewCellContent(cell) : null;
     // Its editor is open: the person is reading the formula, not the result.
     if (!cell || !parts || parts.editing) continue;
 
-    const text = result.text ?? host.unavailable(result.outcome);
+    const text = result.shown ?? host.unavailable(result.outcome);
     const formula = cell.getAttribute(FORMULA_ATTRIBUTE) ?? parts.content.textContent.trim();
     const existing = shown(cell);
     if (existing) {
       if (existing.textContent !== text) existing.textContent = text;
-    } else {
-      placeResult(parts.content, formula, text);
     }
+    setMark(existing ?? placeResult(parts.content, formula, text), markOf(result, notes, host));
     cell.setAttribute(FORMULA_ATTRIBUTE, formula);
     cell.setAttribute("title", formula);
   }
@@ -185,6 +254,9 @@ function forget(cell: HTMLTableCellElement): void {
 function putBack(cell: HTMLTableCellElement, result: HTMLElement | null): void {
   const formula = cell.getAttribute(FORMULA_ATTRIBUTE);
   if (formula === null) return;
-  if (result) result.replaceWith(result.ownerDocument.createTextNode(formula));
+  if (result) {
+    setMark(result, null);
+    result.replaceWith(result.ownerDocument.createTextNode(formula));
+  }
   forget(cell);
 }

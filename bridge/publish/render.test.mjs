@@ -388,6 +388,15 @@ describe("the rest of the syntax", () => {
     expect(render("Text.[^1]\n\n[^1]: Die Fussnote.")).toContain("footnote");
   });
 
+  it("renders a footnote referred to from a table cell, with its text at the foot of the page", () => {
+    const html = render(
+      "| a | b |\n|---|---|\n| Summe | **317,60 €**[^kurs] |\n\n[^kurs]: Kurse vom 26.09.2026."
+    );
+    const table = html.slice(html.indexOf("<table>"), html.indexOf("</table>"));
+    expect(table).toContain("footnote-ref");
+    expect(html.slice(html.indexOf("</table>"))).toContain("Kurse vom 26.09.2026.");
+  });
+
   it("renders task lists as checkboxes", () => {
     expect(render("- [x] erledigt")).toContain('type="checkbox"');
   });

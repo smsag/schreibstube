@@ -9,7 +9,8 @@ import {
   freezeFormulas,
   freezePlan,
   parseFormula,
-  resolveFormulas
+  resolveFormulas,
+  tableNotes
 } from "./table-formulas";
 
 const ctx: FormulaContext = {
@@ -20,7 +21,11 @@ const ctx: FormulaContext = {
 
 /** Intl puts a space that cannot break before the euro sign; tests read plain ones. */
 const plain = (text: string) => text.replace(/\u00a0|\u202f/g, " ");
-const unavailable = () => "–";
+const wording = {
+  unavailable: () => "–",
+  rateNote: (day: string, rates: readonly string[]) =>
+    rates.length > 0 ? `Rates of ${day}: ${rates.join("; ")}.` : `Rates, ${day}.`
+};
 
 const NOTE = `# Budget
 
@@ -133,24 +138,157 @@ describe("evaluateGrid", () => {
 
 describe("resolveFormulas", () => {
   it("writes each result into its cell and leaves the rest of the note alone", () => {
-    const resolved = plain(resolveFormulas(NOTE, ctx, unavailable));
+    const resolved = plain(resolveFormulas(NOTE, ctx, wording));
     expect(resolved).toContain("| **Total** | 320 €   |");
     expect(resolved.replace("320 €", "=sum")).toBe(NOTE);
   });
 
   it("keeps emphasis around the result, and escapes a pipe in it", () => {
     const note = "| A |\n|---|\n| 5 |\n| **=sum** |";
-    expect(resolveFormulas(note, ctx, unavailable)).toContain("| **5** |");
-    expect(resolveFormulas("| A |\n|---|\n| =avg |", ctx, () => "a|b")).toContain("a\\|b");
+    expect(resolveFormulas(note, ctx, wording)).toContain("| **5** |");
+    expect(
+      resolveFormulas("| A |\n|---|\n| =avg |", ctx, { ...wording, unavailable: () => "a|b" })
+    ).toContain("a\\|b");
   });
 
   it("puts a result without a number into words", () => {
-    expect(resolveFormulas("| A |\n|---|\n| =avg |", ctx, unavailable)).toContain("| – |");
+    expect(resolveFormulas("| A |\n|---|\n| =avg |", ctx, wording)).toContain("| – |");
   });
 
   it("resolves two formulas in one row", () => {
     const note = "| A | B |\n|---|---|\n| 1 | 2 |\n| =sum | =count |";
-    expect(resolveFormulas(note, ctx, unavailable)).toContain("| 1 | 1 |");
+    expect(resolveFormulas(note, ctx, wording)).toContain("| 1 | 1 |");
+  });
+});
+
+describe("resolveFormulas, for results converted at the bank's rates", () => {
+  const converting: FormulaContext = {
+    ...ctx,
+    defaultCurrency: "EUR",
+    rates: { date: "2026-09-26", fetchedAt: 0, rates: { USD: 1.25, GBP: 0.8 } }
+  };
+  const TRIP = `| Item      | Amount |
+|-----------|--------|
+| Hotel     | 300 €  |
+| Taxi      | 25 $   |
+| **Total** | =sum   |
+
+After the table.`;
+
+  it("writes the value alone, and a footnote reference where the mark of the rates was", () => {
+    const resolved = plain(resolveFormulas(TRIP, converting, wording));
+    expect(resolved).toContain("| **Total** | 320,00 €[^schreibstube-rates-1]   |");
+    expect(resolved).not.toContain("ECB");
+    expect(resolved).not.toContain("≈");
+  });
+
+  it("says the day and each rate once, in a footnote at the end of the note", () => {
+    const resolved = plain(resolveFormulas(TRIP, converting, wording));
+    expect(
+      resolved.endsWith(
+        "After the table.\n\n[^schreibstube-rates-1]: Rates of 26.09.2026: 1 € = 1,25 $.\n"
+      )
+    ).toBe(true);
+  });
+
+  it("keeps the emphasis around the value, and the reference outside it", () => {
+    const note = TRIP.replace("=sum  ", "**=sum**");
+    expect(plain(resolveFormulas(note, converting, wording))).toContain(
+      "**320,00 €**[^schreibstube-rates-1]"
+    );
+  });
+
+  it("makes one footnote of every result converted at the same rates, with each rate used", () => {
+    const note = `| A |\n|---|\n| 100 € |\n| 10 $ |\n| 5 £ |\n| =sum |\n| =max |\n| =min |`;
+    const resolved = plain(resolveFormulas(note, converting, wording));
+    expect(resolved.match(/\[\^schreibstube-rates-1\](?!:)/g)).toHaveLength(3);
+    expect(resolved.match(/^\[\^schreibstube-rates-1\]:/gm)).toHaveLength(1);
+    expect(resolved).toContain("1 € = 1,25 $; 1 € = 0,80 £");
+    expect(resolved).not.toContain("schreibstube-rates-2");
+  });
+
+  it("leaves a note with nothing converted exactly as the cells alone change it", () => {
+    const resolved = resolveFormulas(NOTE, converting, wording);
+    expect(resolved).not.toContain("[^");
+    expect(plain(resolved).replace("320 €", "=sum")).toBe(NOTE);
+  });
+
+  it("does not take a footnote label the note already uses", () => {
+    const note = `${TRIP}\n\nAn own note[^schreibstube-rates-1].\n\n[^schreibstube-rates-1]: Mine.`;
+    const resolved = plain(resolveFormulas(note, converting, wording));
+    expect(resolved).toContain("320,00 €[^schreibstube-rates-2]");
+    expect(resolved).toContain("[^schreibstube-rates-2]: Rates of 26.09.2026");
+    expect(resolved).toContain("[^schreibstube-rates-1]: Mine.");
+  });
+
+  it("writes a frozen result as its value, with a note that has only its day", () => {
+    const note = "| A |\n|---|\n| 1 € |\n| =sum(fixed: ≈ 320,00 € · ECB 25.09.2026) |";
+    const resolved = plain(resolveFormulas(note, converting, wording));
+    expect(resolved).toContain("| 320,00 €[^schreibstube-rates-1] |");
+    expect(resolved).toContain("[^schreibstube-rates-1]: Rates, 25.09.2026.");
+  });
+
+  it("lets a frozen result of the same day share the note with a live one, which knows the rates", () => {
+    const note = `${TRIP}\n\n| A |\n|---|\n| 1 € |\n| =sum(fixed: ≈ 9,00 € · ECB 26.09.2026) |`;
+    const resolved = plain(resolveFormulas(note, converting, wording));
+    expect(resolved.match(/^\[\^schreibstube-rates-\d+\]:/gm)).toHaveLength(1);
+    expect(resolved).toContain("| 9,00 €[^schreibstube-rates-1] |");
+    expect(resolved).toContain("Rates of 26.09.2026: 1 € = 1,25 $.");
+  });
+
+  it("keeps the days apart: a frozen result of another day has a note of its own", () => {
+    const note = `${TRIP}\n\n| A |\n|---|\n| 1 € |\n| =sum(fixed: ≈ 9,00 € · ECB 20.09.2026) |`;
+    const resolved = plain(resolveFormulas(note, converting, wording));
+    expect(resolved.match(/^\[\^schreibstube-rates-\d+\]:/gm)).toHaveLength(2);
+    expect(resolved).toContain("Rates, 20.09.2026.");
+  });
+
+  it("takes a frozen result that was converted by no rates as it is", () => {
+    const note = "| A |\n|---|\n| 1 € |\n| =sum(fixed: 320 €) |";
+    const resolved = resolveFormulas(note, converting, wording);
+    expect(plain(resolved)).toContain("| 320 € |");
+    expect(resolved).not.toContain("[^");
+  });
+
+  it("does not put a footnote reference where a result has no number", () => {
+    const note = "| A |\n|---|\n| 300 € |\n| 25 $ |\n| =avg |";
+    const resolved = resolveFormulas(note, { ...converting, rates: null }, wording);
+    expect(resolved).toContain("| – |");
+    expect(resolved).not.toContain("[^");
+  });
+});
+
+describe("evaluateGrid, for what a cell shows and what it says about its rates", () => {
+  const converting: FormulaContext = {
+    ...ctx,
+    defaultCurrency: "EUR",
+    rates: { date: "2026-09-26", fetchedAt: 0, rates: { USD: 1.25 } }
+  };
+
+  it("gives the value without the mark, and the note on the rates beside it", () => {
+    const [total] = evaluateGrid([["A"], ["300 €"], ["25 $"], ["=sum"]], converting);
+    expect(plain(total?.shown ?? "")).toBe("320,00 €");
+    expect(plain(total?.text ?? "")).toBe("≈ 320,00 € · ECB 26.09.2026");
+    expect(total?.note).toMatchObject({
+      day: "26.09.2026",
+      into: "EUR",
+      rates: [{ currency: "USD", perUnit: 1.25 }]
+    });
+  });
+
+  it("gives a frozen result's value and its day, and no rates", () => {
+    const [total] = evaluateGrid(
+      [["A"], ["300 €"], ["=sum(fixed: ≈ 320,00 € · ECB 25.09.2026)"]],
+      converting
+    );
+    expect(total?.shown).toBe("320,00 €");
+    expect(total?.note).toEqual({ day: "25.09.2026", into: "", rates: [] });
+  });
+
+  it("has no note for a result nothing was converted for", () => {
+    const [total] = evaluateGrid([["A"], ["300 €"], ["=sum"]], converting);
+    expect(total?.note).toBeNull();
+    expect(plain(total?.shown ?? "")).toBe("300 €");
   });
 });
 
@@ -219,5 +357,47 @@ describe("formulaOutcomes", () => {
   it("lists what every formula in every table comes to", () => {
     const note = `${NOTE}\n\n| B |\n|---|\n| 1 € |\n| 2 $ |\n| =avg |`;
     expect(formulaOutcomes(note, ctx).map((outcome) => outcome.kind)).toEqual(["value", "mixed"]);
+  });
+});
+
+describe("tableNotes", () => {
+  const converting: FormulaContext = {
+    ...ctx,
+    defaultCurrency: "EUR",
+    rates: { date: "2026-09-26", fetchedAt: 0, rates: { USD: 1.25, GBP: 0.8 } }
+  };
+  const results = (grid: string[][]) => evaluateGrid(grid, converting);
+
+  it("is one note, marked with an asterisk, for results converted at the same day's rates", () => {
+    const notes = tableNotes(
+      results([
+        ["A", "B"],
+        ["300 €", "1 £"],
+        ["25 $", "2 $"],
+        ["=sum", "=sum"]
+      ])
+    );
+    expect(notes).toHaveLength(1);
+    expect(notes[0]?.marker).toBe("*");
+    expect(notes[0]?.note.rates.map((rate) => rate.currency)).toEqual(["USD", "GBP"]);
+  });
+
+  it("marks a second day with a second asterisk, in the order the days appear", () => {
+    const notes = tableNotes(
+      results([
+        ["A", "B"],
+        ["300 €", "1 €"],
+        ["25 $", "=sum(fixed: ≈ 9,00 € · ECB 20.09.2026)"],
+        ["=sum", "x"]
+      ])
+    );
+    expect(notes.map((entry) => [entry.marker, entry.note.day])).toEqual([
+      ["*", "20.09.2026"],
+      ["**", "26.09.2026"]
+    ]);
+  });
+
+  it("is nothing when nothing was converted", () => {
+    expect(tableNotes(results([["A"], ["300 €"], ["=sum"]]))).toEqual([]);
   });
 });

@@ -4041,6 +4041,27 @@
   font-size: var(--font-smaller);
 }
 
+/* The mark of a result converted at the bank's rates, and the note it stands
+   for under the table (Reading view) or in its tooltip (Live Preview). An
+   asterisk, set apart from the numbered footnotes a writer makes. */
+.schreibstube-formula-mark {
+  margin-inline-start: 0.1em;
+  color: var(--text-muted);
+  cursor: help;
+  /* A raised mark must not make its row taller than the rows around it. */
+  line-height: 0;
+}
+
+.schreibstube-formula-notes {
+  margin-top: 0.4em;
+  color: var(--text-muted);
+  font-size: var(--font-smaller);
+}
+
+.schreibstube-formula-notes-mark {
+  font-variant-numeric: tabular-nums;
+}
+
 /* A calculation line's result, beside the `=` and not part of the text: in
    the faint colour of something on offer, the accent when the pointer says
    it can be taken. Text on the page, no fill, like the plugin's controls. */

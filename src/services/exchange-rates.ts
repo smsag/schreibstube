@@ -125,3 +125,16 @@ export function convert(
   if (perEuroFrom === undefined || perEuroTo === undefined) return null;
   return (value / perEuroFrom) * perEuroTo;
 }
+
+/**
+ * How many units of `from` one unit of `into` buys, at these rates; null when
+ * a rate is missing. The same factor `convert` divides by, said the way a rate
+ * is read: `1 € = 1,25 $`.
+ */
+export function rateBetween(from: string, into: string, rates: ExchangeRates): number | null {
+  if (from === into) return 1;
+  const perEuroFrom = from === "EUR" ? 1 : rates.rates[from];
+  const perEuroInto = into === "EUR" ? 1 : rates.rates[into];
+  if (perEuroFrom === undefined || perEuroInto === undefined) return null;
+  return perEuroFrom / perEuroInto;
+}
