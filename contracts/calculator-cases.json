@@ -433,7 +433,7 @@
       "format": "comma",
       "line": "1000000000 * 1000000 =",
       "result": null,
-      "name": "a quadrillion is far beyond the limit"
+      "name": "a quadrillion is too large"
     },
     {
       "format": "comma",

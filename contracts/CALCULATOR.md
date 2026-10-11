@@ -114,14 +114,17 @@ sign     = "-" | "+"
 
 A leading `-` or `+` before a number alone is `unary`'s. Between a currency
 and its number, the sign belongs to the amount: `€-5` is minus five euros, and
-`€-5 * 2 =` is `-€10,00`. The minus has its three spellings here as everywhere
-(`-` `−` `–`) and whitespace around the sign is ignored (`€ - 5`). This is the
-amount reader of section 3 and of the table formulas, `€-5`, `-€5`, `5 €` and
-`-5 €` alike; that reader also takes `20,-`, which a calculation does not. A
-number with a currency on both sides (`€5 EUR`) and a sign repeated (`€--5`) are
-not amounts. After a number, a currency is the number's and the next sign is an
-operator: `5 €-3` is `5 € - 3`. A sign inside an amount counts as an operator,
-as `unary`'s does: `€-5 =` shows `-€5,00`, `€5 =` shows nothing.
+`€-5 * 2 =` is `-€10,00`. In a calculation the minus has its three spellings
+(`-` `−` `–`) and whitespace around the sign is ignored (`€ - 5`). A number with
+a currency on both sides (`€5 EUR`) and a sign repeated (`€--5`) are not
+amounts of a calculation. After a number, a currency is the number's and the
+next sign is an operator: `5 €-3` is `5 € - 3`. A sign inside an amount counts
+as an operator, as `unary`'s does: `€-5 =` shows `-€5,00`, `€5 =` shows nothing.
+
+The amount reader of the table formulas takes the same
+forms, `€-5`, `€ - 5`, `-€5`, `5 €` and `-5 €`. It differs where a table cell is
+not a calculation: its minus is `-` or `−` only, it also takes `20,-` and a
+currency on both sides, which a calculation does not.
 
 A value is a number with an optional currency.
 
