@@ -9,6 +9,8 @@ quick-note app that writes into the same vault, and changed in both together.
 
 ### Changed
 
+- **A calculation shows its result where you typed it, in Live Preview.** `Grundpreis 12,5 * 8 + 3 =` reads `Grundpreis 103` until the cursor is on it, and then the calculation is back with the result beside it, where Tab or a click still writes it into the note. A table cell holding `=sum`, `=avg` or any other formula does the same, which it could not in the editor before: it shows its total, the formula is there as soon as you click into the cell, and a total follows the amounts above it once you leave the cell you were typing in. The editor shows the number only; the notes Reading view prints beside a result, such as the skipped cells, stay in Reading view. Source mode keeps the result beside the line, and Reading view is as it was.
+- **One setting for both, with a new name.** **Calculate lines ending in =** is now **Calculate while writing**, and it also governs the table formulas in the editor. Switching it off puts every typed calculation and every formula back on screen at once. Reading view's table results do not depend on it, as before.
 - **A calculation understands `€-5`.** A sign between a currency and its number belongs to the amount, as it always did in a table: `€-5 * 2 =` shows `-€10,00`, where it showed nothing before. `€ + 5` and `EUR -5` work the same way.
 - **A calculation stops at ten trillion.** A result of 10^13 or more shows nothing, where it used to show digits from 10^13 up to 10^15 that a double can no longer hold to the cent. Below the limit nothing is written differently.
 

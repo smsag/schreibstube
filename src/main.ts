@@ -1,6 +1,7 @@
 import {
   type Command,
   type Editor,
+  editorLivePreviewField,
   MarkdownView,
   Notice,
   Plugin,
@@ -468,17 +469,28 @@ export default class SchreibstubePlugin extends Plugin {
     });
 
     this.linkMode.start(this.addStatusBarItem());
-    // The total of the selected amounts, and a formula's result in Reading view.
+    // The total of the selected amounts, and a formula's result in Reading view and Live Preview.
     const sums = this.sums;
     sums.startStatusBar(this.addStatusBarItem());
     this.registerEditorExtension(sums.editorExtension());
     this.registerEvent(this.app.workspace.on("active-leaf-change", () => sums.clearSelection()));
     this.register(() => sums.stop());
-    registerTableFormulaPostProcessor(this, sums);
+    const tableFormulas = registerTableFormulaPostProcessor(this, sums);
+    sums.useEditorRedraw(() => {
+      tableFormulas.redrawEditor();
+      // The calculation lines read the switch and the rates when their editor is
+      // next updated; this makes every open editor do so now.
+      this.app.workspace.updateOptions();
+    });
     // A line ending in `=` and its result, by a rule shared with another app.
     const calculation = () => sums.calculationContext();
     this.registerEditorExtension(
-      createCalculationExtension(calculation, () => t().sums.acceptResult)
+      createCalculationExtension(
+        calculation,
+        () => t().sums.acceptResult,
+        // Source mode shows the text as it is: there is nothing for a result to stand in for.
+        (state) => state.field(editorLivePreviewField, false) === true
+      )
     );
     registerCalculationPostProcessor(this, calculation);
 
@@ -1619,6 +1631,7 @@ export default class SchreibstubePlugin extends Plugin {
     // here: it reads the sync records, and the store says when those change.
     void this.sections?.reloadIfPathChanged();
     this.explorer?.settingsChanged();
+    this.sums?.settingsChanged();
     this.recommendedFooter?.sync();
     this.proofread?.settingsChanged();
 

@@ -1,6 +1,11 @@
 /**
- * Calculation lines on screen: the result beside a line that ends in `=`, in
- * the editor and in Reading view, and Tab or a click to write it in.
+ * Calculation lines on screen: a line that ends in `=` and its result, in the
+ * editor and in Reading view, and Tab or a click to write it in.
+ *
+ * In Live Preview the result stands where the calculation was typed, the way
+ * a checkbox stands where `- [ ]` was, and the calculation is shown again
+ * wherever the cursor is on it. In Source mode, and in Reading view, which
+ * has no cursor, the result stands beside what was typed.
  *
  * Which lines count and what they come to is decided in
  * `services/line-calculator`, by a rule shared with another app. This file draws it.
@@ -8,7 +13,7 @@
  * note, mailed or printed, says what the writer wrote.
  */
 
-import { Prec, RangeSetBuilder, type Extension } from "@codemirror/state";
+import { Prec, RangeSetBuilder, type EditorState, type Extension } from "@codemirror/state";
 import {
   Decoration,
   EditorView,
@@ -20,10 +25,11 @@ import {
   type ViewUpdate
 } from "@codemirror/view";
 import type { MarkdownPostProcessorContext, Plugin } from "obsidian";
+import { touchesRange } from "../services/cursor-touch";
 import {
   acceptedLine,
-  calculateLine,
   calculationLines,
+  calculationSpan,
   forEachProseLine,
   type CalculationContext
 } from "../services/line-calculator";
@@ -31,6 +37,7 @@ import { isElementLike } from "../services/workspace-internals";
 import { MAX_LIVE_CHARS } from "./live-limits";
 
 const RESULT_CLASS = "schreibstube-calc-result";
+const SHOWN_CLASS = "schreibstube-calc-shown";
 
 /** The calculation context, or null while the setting is off. */
 export type CalculationSource = () => CalculationContext | null;
@@ -96,25 +103,74 @@ class ResultWidget extends WidgetType {
   }
 }
 
+/**
+ * The result in place of the calculation it comes from, with what was written
+ * as its tooltip. A press on it puts the cursor at one edge of the
+ * calculation, which is on it, so it gives way to the text.
+ */
+class ShownWidget extends WidgetType {
+  constructor(
+    private readonly result: string,
+    private readonly written: string
+  ) {
+    super();
+  }
+
+  override eq(other: ShownWidget): boolean {
+    return other.result === this.result && other.written === this.written;
+  }
+
+  override toDOM(view: EditorView): HTMLElement {
+    const span = view.dom.doc.createElement("span");
+    span.className = SHOWN_CLASS;
+    span.textContent = this.result;
+    span.title = this.written;
+    return span;
+  }
+
+  override ignoreEvent(): boolean {
+    return false;
+  }
+}
+
 /** What the plugin found on screen, by line number, for Tab to look up. */
 interface Found {
   results: Map<number, string>;
 }
 
+/** A calculation line on screen, in document positions. */
+interface FoundLine {
+  number: number;
+  result: string;
+  /** The calculation: where the result stands when it takes its place. */
+  from: number;
+  to: number;
+  /** The end of the line: where the result stands beside it. */
+  end: number;
+  written: string;
+}
+
 /**
- * The editor: results beside the lines on screen, and Tab at the end of one to
+ * The editor: results for the lines on screen, and Tab at the end of one to
  * accept it. Lines are walked from the top so a fence that opened above the
  * screen is known, and evaluated only on screen; the cap on a note's length
  * keeps the walk the cost of a keystroke in prose.
+ *
+ * Reading the lines and drawing them are apart, as for the icon shortcodes:
+ * a cursor move only decides again which of the lines it is on.
+ * `inLivePreview` says whether results take the place of their calculations
+ * or stand beside them.
  */
 export function createCalculationExtension(
   source: CalculationSource,
-  title: () => string
+  title: () => string,
+  inLivePreview: (state: EditorState) => boolean
 ): Extension {
   const plugin = ViewPlugin.fromClass(
     class implements PluginValue, Found {
       decorations: DecorationSet = Decoration.none;
       results = new Map<number, string>();
+      private lines: FoundLine[] = [];
       private key = "";
 
       constructor(view: EditorView) {
@@ -124,6 +180,11 @@ export function createCalculationExtension(
       update(update: ViewUpdate): void {
         if (update.docChanged || update.viewportChanged || contextKey(source()) !== this.key) {
           this.scan(update.view);
+        } else if (
+          update.selectionSet ||
+          inLivePreview(update.startState) !== inLivePreview(update.state)
+        ) {
+          this.draw(update.view);
         }
       }
 
@@ -131,6 +192,7 @@ export function createCalculationExtension(
         const ctx = source();
         this.key = contextKey(ctx);
         this.results = new Map();
+        this.lines = [];
         const doc = view.state.doc;
         if (!ctx || doc.length > MAX_LIVE_CHARS || view.visibleRanges.length === 0) {
           this.decorations = Decoration.none;
@@ -144,22 +206,50 @@ export function createCalculationExtension(
         const onScreen = (number: number): boolean =>
           visible.some((range) => number >= range.from && number <= range.to);
 
-        const builder = new RangeSetBuilder<Decoration>();
         forEachProseLine(doc.sliceString(0, doc.line(last).to), (text, index) => {
           const number = index + 1;
           if (!onScreen(number)) return;
-          const result = calculateLine(text, ctx);
-          if (!result) return;
-          this.results.set(number, result.text);
-          builder.add(
-            doc.line(number).to,
-            doc.line(number).to,
-            Decoration.widget({
-              widget: new ResultWidget(result.text, number, title(), source),
-              side: 1
-            })
-          );
+          const found = calculationSpan(text, ctx);
+          if (!found) return;
+          const line = doc.line(number);
+          this.results.set(number, found.text);
+          this.lines.push({
+            number,
+            result: found.text,
+            from: line.from + found.from,
+            to: line.from + found.to,
+            end: line.to,
+            written: text.slice(found.from, found.to)
+          });
         });
+        this.draw(view);
+      }
+
+      private draw(view: EditorView): void {
+        const replacing = inLivePreview(view.state);
+        const selection = view.state.selection.ranges;
+        const builder = new RangeSetBuilder<Decoration>();
+        for (const line of this.lines) {
+          // The end of the line is part of what the cursor can be on: a
+          // result is accepted from there, and a space typed after the `=`
+          // must not hide the sum it follows.
+          if (!replacing || touchesRange(selection, line.from, line.end)) {
+            builder.add(
+              line.end,
+              line.end,
+              Decoration.widget({
+                widget: new ResultWidget(line.result, line.number, title(), source),
+                side: 1
+              })
+            );
+          } else {
+            builder.add(
+              line.from,
+              line.to,
+              Decoration.replace({ widget: new ShownWidget(line.result, line.written) })
+            );
+          }
+        }
         this.decorations = builder.finish();
       }
     },

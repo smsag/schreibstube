@@ -64,6 +64,8 @@ const SELECTION_SETTLE_MS = 120;
 export class SumsController implements NoteFormulas {
   private pending: Promise<{ rates: ExchangeRates | null; error: string | null }> | null = null;
   private redraw: () => void = () => undefined;
+  private redrawEditor: () => void = () => undefined;
+  private editorWasOn: boolean;
 
   private lastAttempt = Number.NEGATIVE_INFINITY;
   private statusEl: HTMLElement | null = null;
@@ -77,7 +79,9 @@ export class SumsController implements NoteFormulas {
     private readonly saveRates: (rates: ExchangeRates) => Promise<void>,
     private readonly logger: Logger,
     private readonly now: () => number = () => Date.now()
-  ) {}
+  ) {
+    this.editorWasOn = this.inEditor();
+  }
 
   /** The settings as the formulas read them, with the rates kept from last time. */
   context(): FormulaContext {
@@ -130,6 +134,24 @@ export class SumsController implements NoteFormulas {
     this.redraw = redraw;
   }
 
+  /** How to draw the tables of Live Preview again, which Reading view's redraw does not reach. */
+  useEditorRedraw(redraw: () => void): void {
+    this.redrawEditor = redraw;
+  }
+
+  /** Whether the editor shows a formula's result: the setting that calculates while writing. */
+  inEditor(): boolean {
+    return this.getSettings().calculateLines;
+  }
+
+  /** The settings were saved: a table on screen follows the switch at once. */
+  settingsChanged(): void {
+    const on = this.inEditor();
+    if (on === this.editorWasOn) return;
+    this.editorWasOn = on;
+    this.redrawEditor();
+  }
+
   /**
    * Fetch the day's rates and keep them. One request at a time, shared by
    * everyone who asks while it runs; asked for by a person, it says how it
@@ -171,7 +193,9 @@ export class SumsController implements NoteFormulas {
   seen(outcomes: readonly Outcome[]): void {
     if (!this.wantsRates(outcomes)) return;
     void this.updateRates(false).then((rates) => {
-      if (rates) this.redraw();
+      if (!rates) return;
+      this.redraw();
+      this.redrawEditor();
     });
   }
 
