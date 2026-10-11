@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { isUnconfirmed, sendMessage, SendUnconfirmedError, sentMailboxFor } from "./mail.mjs";
 import { TimeoutError } from "./timeout.mjs";
 
@@ -205,6 +205,10 @@ describe("sendMessage, the rest of the message", () => {
 describe("sendMessage, deadlines", () => {
   const never = () => new Promise(() => {});
 
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("reports a delivered message as sent when filing in Sent hangs", async () => {
     const transport = recorder();
     const result = await sendMessage(
@@ -228,13 +232,27 @@ describe("sendMessage, deadlines", () => {
   });
 
   it("gives the filing leg a deadline of its own, after delivery", async () => {
+    // The clock is the test's, not the machine's. With real sleeps a loop that
+    // stalled for ten milliseconds let the filing leg's deadline fire before
+    // its own sleep ended, and a correct bridge failed the release gate. The
+    // timers and the date are faked, nothing else: nodemailer compiling the
+    // message runs on the real scheduler and would hang on a frozen one.
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
+    const LEG_MS = 20;
+    const DEADLINE_MS = 30;
+    const started = Date.now();
+    const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+    const sending = Promise.withResolvers();
+    const filing = Promise.withResolvers();
+
     let filedAfterSend = false;
     const transport = recorder();
-    const result = await sendMessage(
-      config({ sentMailbox: "Sent", upstreamTimeoutMs: 30 }),
+    const pending = sendMessage(
+      config({ sentMailbox: "Sent", upstreamTimeoutMs: DEADLINE_MS }),
       {
         async sendMail(payload) {
-          await new Promise((resolve) => setTimeout(resolve, 20));
+          sending.resolve();
+          await sleep(LEG_MS);
           return transport.sendMail(payload);
         }
       },
@@ -242,12 +260,26 @@ describe("sendMessage, deadlines", () => {
       {
         fileInSent: async () => {
           filedAfterSend = transport.calls.length === 1;
-          await new Promise((resolve) => setTimeout(resolve, 20));
+          filing.resolve();
+          await sleep(LEG_MS);
           return true;
         }
       }
     );
-    // 20 ms and 20 ms: each leg fits its own 30 ms, together they would not.
+
+    // Each step waits for the leg to have started, and so for its two timers
+    // to exist, before the clock moves: the order is the promises', and the
+    // clock never runs ahead of the code under test.
+    await sending.promise;
+    await vi.advanceTimersByTimeAsync(LEG_MS);
+    await filing.promise;
+    await vi.advanceTimersByTimeAsync(LEG_MS);
+    const result = await pending;
+
+    // Each leg fits its own deadline; the two together do not fit one. That the
+    // clock ended past the deadline is asserted rather than left to the two
+    // constants above: the test proves nothing if the legs stop outlasting it.
+    expect(Date.now() - started).toBeGreaterThan(DEADLINE_MS);
     expect(filedAfterSend).toBe(true);
     expect(result.filedInSent).toBe(true);
   });
