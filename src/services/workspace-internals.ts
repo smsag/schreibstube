@@ -881,3 +881,50 @@ const CALLOUT_FOLD_TITLE = ".callout.is-collapsible > .callout-title";
 export function pressedCalloutFold(target: EventTarget | null): boolean {
   return isElementLike(target) && target.closest(CALLOUT_FOLD_TITLE) !== null;
 }
+
+/**
+ * Live Preview draws a table itself, cell by cell. A cell holds a wrapper with
+ * what it renders to, and, while the cursor is in it, a second wrapper with an
+ * editor of its own; the first is hidden for that time and drawn again, from
+ * the cell's text, when the cursor leaves. A note's post-processors are handed
+ * the first wrapper of one cell at a time, never the table, and the first time
+ * round that is before the table has been put on the page: the table's own
+ * class is what says whose it is, not where it stands. Not API: a build that
+ * renames any of this leaves a formula showing as written in the editor, and
+ * Reading view as it was.
+ */
+const TABLE_ELEMENT = "table-editor";
+const TABLE_CELL_WRAPPER = "table-cell-wrapper";
+const CELL_EDITOR = ".cm-editor";
+
+export interface LivePreviewCell {
+  cell: HTMLTableCellElement;
+  table: HTMLTableElement;
+}
+
+/**
+ * The cell a post-processor's element is the rendered content of, when it is
+ * one in a Live Preview table, and null for anything else: a section of
+ * Reading view, a table Obsidian drew another way.
+ */
+export function livePreviewCellOf(el: unknown): LivePreviewCell | null {
+  if (!isElementLike(el) || !el.classList.contains(TABLE_CELL_WRAPPER)) return null;
+  const cell = el.parentElement;
+  if (!isElementLike(cell) || (cell.tagName !== "TD" && cell.tagName !== "TH")) return null;
+  const table = cell.closest("table");
+  if (!isElementLike(table) || !table.classList.contains(TABLE_ELEMENT)) return null;
+  return { cell: cell as HTMLTableCellElement, table: table as HTMLTableElement };
+}
+
+/** A cell's rendered content, and whether its editor is open: then the content is out of date. */
+export function livePreviewCellContent(
+  cell: HTMLTableCellElement
+): { content: HTMLElement; editing: boolean } | null {
+  const wrappers = Array.from(cell.children).filter(
+    (child): child is HTMLElement =>
+      isElementLike(child) && child.classList.contains(TABLE_CELL_WRAPPER)
+  );
+  const content = wrappers[0];
+  if (!content) return null;
+  return { content, editing: wrappers.length > 1 || cell.querySelector(CELL_EDITOR) !== null };
+}

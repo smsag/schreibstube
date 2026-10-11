@@ -5,6 +5,7 @@ import {
   MAX_CALCULATION_LINE,
   calculateLine,
   calculationFormatFor,
+  calculationSpan,
   type CalculationContext
 } from "./line-calculator";
 
@@ -73,5 +74,50 @@ describe("the number format a calculation writes in", () => {
     expect(calculationFormatFor(numberFormatFor("auto", "en"))).toBe("point");
     expect(calculationFormatFor(numberFormatFor("auto", "fr"))).toBe("space");
     expect(calculationFormatFor(numberFormatFor("auto", "de-CH"))).toBe("apostrophe");
+  });
+});
+
+describe("where a calculation stands in its line", () => {
+  /** The characters the result stands in for, as the editor would hide them. */
+  const covered = (line: string, ctx = plain): string | null => {
+    const found = calculationSpan(line, ctx);
+    return found ? line.slice(found.from, found.to) : null;
+  };
+
+  it("is the whole line when nothing stands before it", () => {
+    expect(covered("12,5 * 8 + 3 =")).toBe("12,5 * 8 + 3 =");
+  });
+
+  it("leaves a label in front of it", () => {
+    expect(covered("Grundpreis 12,5 * 8 + 3 =")).toBe("12,5 * 8 + 3 =");
+  });
+
+  it("leaves a list, task or heading marker in front of it", () => {
+    expect(covered("- 2 + 2 =")).toBe("2 + 2 =");
+    expect(covered("- [x] Miete 1.240 € - 15% =")).toBe("1.240 € - 15% =");
+    expect(covered("## Summe 3 * 4 =")).toBe("3 * 4 =");
+    expect(covered("> 6 / 2 =")).toBe("6 / 2 =");
+  });
+
+  it("starts after leading whitespace and ends at the `=`, before what trails it", () => {
+    const line = "   Miete 2 + 2 =   ";
+    const found = calculationSpan(line, plain);
+    expect(line.slice(found?.from, found?.to)).toBe("2 + 2 =");
+    expect(found?.to).toBe(line.trimEnd().length);
+  });
+
+  it("starts at the longest tail that was evaluated, as the result does", () => {
+    expect(covered("Seite 5 Preis 10 + 5 =")).toBe("10 + 5 =");
+  });
+
+  it("carries the same result as the line shows", () => {
+    expect(calculationSpan("Grundpreis 12,5 * 8 + 3 =", plain)?.text).toBe(
+      calculateLine("Grundpreis 12,5 * 8 + 3 =", plain)?.text
+    );
+  });
+
+  it("is nothing for a line that shows nothing", () => {
+    expect(calculationSpan("Seite 5 =", plain)).toBeNull();
+    expect(calculationSpan("2 + 2", plain)).toBeNull();
   });
 });

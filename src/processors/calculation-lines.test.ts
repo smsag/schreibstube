@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
-import { EditorState } from "@codemirror/state";
+import { EditorState, StateEffect, StateField } from "@codemirror/state";
 import { EditorView, runScopeHandlers } from "@codemirror/view";
 import { CURRENCY_CODES } from "../services/amounts";
 import type { CalculationContext } from "../services/line-calculator";
@@ -15,26 +15,45 @@ afterEach(() => {
   document.body.innerHTML = "";
 });
 
-function editor(doc: string, cursor: number, ctx: CalculationContext | null = CTX): EditorView {
+/** Live Preview or Source mode, the way Obsidian keeps it: a field in the editor's state. */
+const setLive = StateEffect.define<boolean>();
+const live = StateField.define<boolean>({
+  create: () => false,
+  update: (value, tr) => tr.effects.reduce((v, e) => (e.is(setLive) ? e.value : v), value)
+});
+
+function editor(
+  doc: string,
+  cursor: number,
+  ctx: CalculationContext | null = CTX,
+  livePreview = false
+): EditorView {
   return new EditorView({
     state: EditorState.create({
       doc,
       selection: { anchor: cursor },
-      extensions: createCalculationExtension(
-        () => ctx,
-        () => "Accept"
-      )
+      extensions: [
+        live.init(() => livePreview),
+        createCalculationExtension(
+          () => ctx,
+          () => "Accept",
+          (state) => state.field(live)
+        )
+      ]
     }),
     parent: document.body.createDiv()
   });
 }
+
+const lineText = (view: EditorView, index = 0): string =>
+  view.dom.querySelectorAll(".cm-line")[index]?.textContent ?? "";
 
 function pressTab(view: EditorView): boolean {
   const event = new KeyboardEvent("keydown", { key: "Tab", bubbles: true, cancelable: true });
   return runScopeHandlers(view, event, "editor");
 }
 
-describe("in the editor", () => {
+describe("in the editor, beside the line (Source mode)", () => {
   it("shows a line's result beside it, without writing it", () => {
     const view = editor("Miete 1.240 € - 15% =\nnichts", 0);
 
@@ -70,6 +89,104 @@ describe("in the editor", () => {
       editor("```\n2 + 2 =\n```", 0).dom.querySelector(".schreibstube-calc-result")
     ).toBeNull();
     expect(editor("2 + 2 =", 0, null).dom.querySelector(".schreibstube-calc-result")).toBeNull();
+  });
+});
+
+describe("in the editor, in place of the calculation (Live Preview)", () => {
+  it("shows the result where the calculation was typed, and keeps the label", () => {
+    const view = editor("Grundpreis 12,5 * 8 + 3 =\nweiter", 0, CTX, true);
+
+    expect(lineText(view)).toBe("Grundpreis 103");
+    expect(view.dom.querySelector(".schreibstube-calc-shown")?.getAttribute("title")).toBe(
+      "12,5 * 8 + 3 ="
+    );
+    expect(view.dom.querySelector(".schreibstube-calc-result")).toBeNull();
+    expect(view.state.doc.toString()).toBe("Grundpreis 12,5 * 8 + 3 =\nweiter");
+  });
+
+  it("shows the calculation again, with the result beside it, where the cursor is on it", () => {
+    const view = editor("Grundpreis 12,5 * 8 + 3 =", 25, CTX, true);
+
+    expect(lineText(view)).toBe("Grundpreis 12,5 * 8 + 3 =103");
+    expect(view.dom.querySelector(".schreibstube-calc-shown")).toBeNull();
+    expect(view.dom.querySelector(".schreibstube-calc-result")?.textContent).toBe("103");
+  });
+
+  it("treats the edges of the calculation as being on it", () => {
+    const view = editor("Miete 2 + 2 =", 6, CTX, true);
+    expect(view.dom.querySelector(".schreibstube-calc-shown")).toBeNull();
+
+    view.dispatch({ selection: { anchor: 5 } });
+    expect(view.dom.querySelector(".schreibstube-calc-shown")?.textContent).toBe("4");
+  });
+
+  it("follows the cursor on to the line and off it again", () => {
+    const view = editor("2 + 2 =\n3 + 3 =", 0, CTX, true);
+    expect(lineText(view, 0)).toBe("2 + 2 =4");
+    expect(lineText(view, 1)).toBe("6");
+
+    view.dispatch({ selection: { anchor: 10 } });
+    expect(lineText(view, 0)).toBe("4");
+    expect(lineText(view, 1)).toBe("3 + 3 =6");
+  });
+
+  it("keeps the calculation shown while a space after the `=` has the cursor", () => {
+    const view = editor("2 + 2 = ", 8, CTX, true);
+
+    expect(lineText(view)).toBe("2 + 2 = 4");
+  });
+
+  it("shows the calculation of every line a selection reaches", () => {
+    const view = editor("2 + 2 =\n3 + 3 =\nweiter", 0, CTX, true);
+
+    view.dispatch({ selection: { anchor: 3, head: 20 } });
+
+    expect(view.dom.querySelector(".schreibstube-calc-shown")).toBeNull();
+    expect(view.dom.querySelectorAll(".schreibstube-calc-result")).toHaveLength(2);
+  });
+
+  it("still writes the result in with Tab at the end of the line", () => {
+    const view = editor("Miete 2 + 2 =", 13, CTX, true);
+
+    expect(pressTab(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe("Miete 2 + 2 = 4");
+  });
+
+  it("writes the result in when the result beside the calculation is clicked", () => {
+    const view = editor("2 + 2 =", 7, CTX, true);
+
+    view.dom.querySelector<HTMLElement>(".schreibstube-calc-result")?.click();
+
+    expect(view.state.doc.toString()).toBe("2 + 2 = 4");
+  });
+
+  it("does not write when the shown result is clicked: it only gives way to the text", () => {
+    const view = editor("Miete 2 + 2 =", 0, CTX, true);
+
+    view.dom.querySelector<HTMLElement>(".schreibstube-calc-shown")?.click();
+
+    expect(view.state.doc.toString()).toBe("Miete 2 + 2 =");
+  });
+
+  it("draws again when the editor changes between Live Preview and Source mode", () => {
+    const view = editor("Miete 2 + 2 =", 0, CTX, true);
+    expect(lineText(view)).toBe("Miete 4");
+
+    view.dispatch({ effects: setLive.of(false) });
+    expect(lineText(view)).toBe("Miete 2 + 2 =4");
+
+    view.dispatch({ effects: setLive.of(true) });
+    expect(lineText(view)).toBe("Miete 4");
+  });
+
+  it("shows nothing for a line that is not a calculation, or while the setting is off", () => {
+    expect(
+      editor("Seite 5 =", 0, CTX, true).dom.querySelector(".schreibstube-calc-shown")
+    ).toBeNull();
+    expect(
+      editor("2 + 2 =", 0, null, true).dom.querySelector(".schreibstube-calc-shown")
+    ).toBeNull();
+    expect(lineText(editor("2 + 2 =", 0, null, true))).toBe("2 + 2 =");
   });
 });
 

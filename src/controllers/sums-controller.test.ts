@@ -211,6 +211,59 @@ describe("exchange rates", () => {
     await vi.waitFor(() => expect(redraw).toHaveBeenCalledTimes(1));
     expect(f.saved).toHaveLength(1);
   });
+
+  it("draw the editor's tables again when they arrive, which Reading view's redraw does not reach", async () => {
+    const f = fixture(converting);
+    fetchEcbRates.mockResolvedValue(RATES);
+    const redrawEditor = vi.fn();
+    f.controller.useEditorRedraw(redrawEditor);
+    f.controller.seen([{ kind: "mixed" }]);
+    await vi.waitFor(() => expect(redrawEditor).toHaveBeenCalledTimes(1));
+  });
+
+  it("do not redraw anything when the request failed", async () => {
+    const f = fixture(converting);
+    fetchEcbRates.mockRejectedValue(new Error("offline"));
+    const redraw = vi.fn();
+    const redrawEditor = vi.fn();
+    f.controller.useRedraw(redraw);
+    f.controller.useEditorRedraw(redrawEditor);
+    f.controller.seen([{ kind: "mixed" }]);
+    await vi.waitFor(() => expect(fetchEcbRates).toHaveBeenCalledTimes(1));
+    await Promise.resolve();
+    expect(redraw).not.toHaveBeenCalled();
+    expect(redrawEditor).not.toHaveBeenCalled();
+  });
+});
+
+describe("the editor's switch", () => {
+  it("follows the setting that calculates while writing", () => {
+    const f = fixture({ calculateLines: true });
+    expect(f.controller.inEditor()).toBe(true);
+
+    f.settings.calculateLines = false;
+    expect(f.controller.inEditor()).toBe(false);
+  });
+
+  it("redraws the editor's tables when the setting changes, and only then", () => {
+    const f = fixture({ calculateLines: true });
+    const redrawEditor = vi.fn();
+    f.controller.useEditorRedraw(redrawEditor);
+
+    f.controller.settingsChanged();
+    expect(redrawEditor).not.toHaveBeenCalled();
+
+    f.settings.calculateLines = false;
+    f.controller.settingsChanged();
+    expect(redrawEditor).toHaveBeenCalledTimes(1);
+
+    f.controller.settingsChanged();
+    expect(redrawEditor).toHaveBeenCalledTimes(1);
+
+    f.settings.calculateLines = true;
+    f.controller.settingsChanged();
+    expect(redrawEditor).toHaveBeenCalledTimes(2);
+  });
 });
 
 describe("the selection", () => {
