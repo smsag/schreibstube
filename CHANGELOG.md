@@ -4,8 +4,29 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
-The calculation-line rules and the table-row rule below are shared with the
-quick-note app that writes into the same vault, and changed in both together.
+## 1.80.0 - 2026-10-11
+
+A calculation is no longer written twice on the page. In Live Preview a
+line that ends in `=` and a table cell holding `=sum` show their result
+where you typed them, and what you typed comes back under the cursor. A
+total converted at the bank's rates no longer carries the bank and the
+day after its number: it carries a mark, and a footnote says the day and
+each rate used — at the foot of a printed page, on a published page, in a
+mail, and under the table on screen.
+
+The calculation-line rules and the table-row rule below are shared with
+the quick-note app that writes into the same vault, and changed in both
+together.
+
+Mobile checklist: not run. Live Preview, Reading view and the text a copy
+is made from were tried in the desktop app, on a scratch vault; nothing in
+this release was tried on a phone. What to try first on a phone: a table
+of amounts in two currencies with a `=sum` row, in Live Preview — the
+result in the cell, the formula when you tap into it — and the same table
+in Reading view with its note under it; and a line like `12,5 * 8 + 3 =`
+in Live Preview, where the result stands in place of what you typed.
+
+The bridge is unchanged.
 
 ### Changed
 
