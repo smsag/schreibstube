@@ -81,10 +81,27 @@ describe("readNumber", () => {
     expect(readNumber("1'234.567", de)?.value).toBe(1234.567);
   });
 
+  it("refuses a run of digits whose value is not finite", () => {
+    expect(readNumber("1" + "0".repeat(400), de)).toBeNull();
+    expect(readNumber("1" + "0".repeat(309), de)).toBeNull();
+    expect(readNumber("1" + "0".repeat(308), de)?.value).toBe(1e308);
+    expect(readNumber("1" + "0".repeat(400) + ",5", de)).toBeNull();
+    expect(readNumber("1,5" + "0".repeat(400), de)?.value).toBe(1.5);
+    expect(readNumber("0".repeat(400) + "1", de)?.value).toBe(1);
+  });
+
   it("refuses separators that contradict each other", () => {
     expect(readNumber("26.09.2026", de)).toBeNull();
     expect(readNumber("1234.567", de)).toBeNull();
     expect(readNumber("1.234'567", de)).toBeNull();
+  });
+});
+
+describe("an amount too long for a double", () => {
+  it("is left out of a cell and of a total, not counted as infinity", () => {
+    const huge = "1" + "0".repeat(400);
+    expect(readCell(`${huge} €`, de)).toEqual({ kind: "unreadable" });
+    expect(amountsInText(`5 €\n${huge} €\n3 €`, de).map((amount) => amount.value)).toEqual([5, 3]);
   });
 });
 

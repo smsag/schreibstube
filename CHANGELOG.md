@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+The calculation-line rules and the table-row rule below are shared with the
+quick-note app that writes into the same vault, and changed in both together.
+
+### Changed
+
+- **A calculation understands `€-5`.** A sign between a currency and its number belongs to the amount, as it always did in a table: `€-5 * 2 =` shows `-€10,00`, where it showed nothing before. `€ + 5` and `EUR -5` work the same way.
+- **A calculation stops at ten trillion.** A result of 10^13 or more shows nothing, where it used to show digits from 10^13 up to 10^15 that a double can no longer hold to the cent. Below the limit nothing is written differently.
+
+### Fixed
+
+- **A number of hundreds of digits is no number.** `5 / 1` followed by four hundred zeros showed `0`, and in a table the same cell added up to `∞`: its value overflowed to infinity and was counted as one. The line now shows nothing, and the cell is left out and reported like any other cell without an amount.
+- **A lone backtick in a table cell no longer swallows the cells after it.** `| it`s | b | c |` is three cells: a backtick opens inline code only when a backtick run of the same length follows later in the row, as in CommonMark. Before, it hid every pipe up to the end of the row, so a table with a stray backtick lost its columns and its `=sum` row. Cells written by the plugin (a copied CSV, text turned into a table) escape such a backtick so they read back as one cell each.
+
 ## 1.79.1 - 2026-10-10
 
 Mobile checklist: not run; the test suite and the build covered it. What to

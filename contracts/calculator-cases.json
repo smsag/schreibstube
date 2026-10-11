@@ -1,5 +1,5 @@
 {
-  "comment": "The examples behind contracts/CALCULATOR.md. Schreibstube's suite and the quick-note app's run every one; a change here is a change in both apps. 'lines' are single lines and the result shown beside them, or null; 'documents' are whole notes and the results by line index; 'accept' is the line after its result was accepted, or null when there is none to accept.",
+  "comment": "The examples behind contracts/CALCULATOR.md. Schreibstube's suite and the quick-note app's run every one; a change here is a change in both apps. 'lines' are single lines and the result shown beside them, or null; 'documents' are whole notes and the results by line index; 'accept' is the line after its result was accepted, or null when there is none to accept. Characters outside the BMP count twice towards the 500-unit limit; a line break inside a case is written as an escape (\\r, \\u2028) so it stays visible.",
   "formats": {
     "comma": {
       "group": ".",
@@ -433,7 +433,7 @@
       "format": "comma",
       "line": "1000000000 * 1000000 =",
       "result": null,
-      "name": "a quadrillion is too large"
+      "name": "a quadrillion is far beyond the limit"
     },
     {
       "format": "comma",
@@ -775,12 +775,6 @@
     },
     {
       "format": "comma",
-      "line": "70368744177664,25 * 1 =",
-      "result": "70.368.744.177.664,25",
-      "name": "digits from whole cents, near the limit"
-    },
-    {
-      "format": "comma",
       "line": "−5 C in F =",
       "result": "23",
       "name": "a conversion's minus may be any of the three"
@@ -789,6 +783,270 @@
       "format": "comma",
       "line": "–5 C in F =",
       "result": "23"
+    },
+    {
+      "format": "comma",
+      "line": "9999999999999 * 1 =",
+      "result": "9.999.999.999.999",
+      "name": "the largest whole number below 10^13"
+    },
+    {
+      "format": "comma",
+      "line": "9999999999999,99 * 1 =",
+      "result": "9.999.999.999.999,99",
+      "name": "the largest result written, to the cent"
+    },
+    {
+      "format": "comma",
+      "line": "9999999999999,999 * 1 =",
+      "result": "10.000.000.000.000",
+      "name": "below the limit before rounding, at it after: still written"
+    },
+    {
+      "format": "comma",
+      "line": "10000000000000 * 1 =",
+      "result": null,
+      "name": "10^13 shows nothing"
+    },
+    {
+      "format": "comma",
+      "line": "10000000000000 - 0,01 =",
+      "result": "9.999.999.999.999,99",
+      "name": "a result just under the limit from an operand at it"
+    },
+    {
+      "format": "comma",
+      "line": "5000000000000 * 2 =",
+      "result": null
+    },
+    {
+      "format": "comma",
+      "line": "70368744177664,25 * 1 =",
+      "result": null,
+      "name": "a result whose cents no double holds exactly shows nothing"
+    },
+    {
+      "format": "comma",
+      "line": "-9999999999999,99 * 1 =",
+      "result": "-9.999.999.999.999,99"
+    },
+    {
+      "format": "comma",
+      "line": "-10000000000000 * 1 =",
+      "result": null,
+      "name": "the limit is on the absolute value"
+    },
+    {
+      "format": "comma",
+      "line": "9999999999999,99 € * 1 =",
+      "result": "9.999.999.999.999,99 €"
+    },
+    {
+      "format": "comma",
+      "line": "-9999999999999,99 € * 1 =",
+      "result": "-9.999.999.999.999,99 €"
+    },
+    {
+      "format": "point",
+      "line": "9,999,999,999,999.99 * 1 =",
+      "result": "9,999,999,999,999.99"
+    },
+    {
+      "format": "comma",
+      "line": "9999999999999 m in m =",
+      "result": "9.999.999.999.999",
+      "name": "a conversion obeys the same limit"
+    },
+    {
+      "format": "comma",
+      "line": "10000000000000 m in m =",
+      "result": null
+    },
+    {
+      "format": "comma",
+      "line": "5 / 10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000 =",
+      "result": null,
+      "name": "a run of digits whose value is not finite is not a number, not infinity"
+    },
+    {
+      "format": "comma",
+      "line": "5 / 1000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000 =",
+      "result": null,
+      "name": "1 followed by 309 zeros is beyond a double"
+    },
+    {
+      "format": "comma",
+      "line": "5 / 100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000 =",
+      "result": "0",
+      "name": "1 followed by 308 zeros is a double"
+    },
+    {
+      "format": "comma",
+      "line": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001 + 1 =",
+      "result": "2",
+      "name": "a long run of digits is judged by its value"
+    },
+    {
+      "format": "comma",
+      "line": "10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000 + 1 =",
+      "result": null
+    },
+    {
+      "format": "comma",
+      "line": "10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000 km in m =",
+      "result": null
+    },
+    {
+      "format": "comma",
+      "line": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa 1 + 1 =",
+      "result": "2",
+      "name": "500 UTF-16 units are a calculation"
+    },
+    {
+      "format": "comma",
+      "line": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa 1 + 1 =",
+      "result": null,
+      "name": "501 are not"
+    },
+    {
+      "format": "comma",
+      "line": "  aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa 1 + 1 =  ",
+      "result": "2",
+      "name": "leading and trailing whitespace is not counted"
+    },
+    {
+      "format": "comma",
+      "line": "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀 1 + 1 =",
+      "result": "2",
+      "name": "500 UTF-16 units, 254 characters: an emoji counts twice"
+    },
+    {
+      "format": "comma",
+      "line": "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀 1 + 1 =",
+      "result": null,
+      "name": "502 UTF-16 units, 255 characters"
+    },
+    {
+      "format": "comma",
+      "line": "€-5 * 2 =",
+      "result": "-€10,00",
+      "name": "a sign between the currency and the number belongs to the amount"
+    },
+    {
+      "format": "comma",
+      "line": "€ - 5 * 2 =",
+      "result": "-€10,00",
+      "name": "whitespace around it is ignored"
+    },
+    {
+      "format": "comma",
+      "line": "€+5 * 2 =",
+      "result": "€10,00"
+    },
+    {
+      "format": "comma",
+      "line": "EUR -5 * 2 =",
+      "result": "-EUR 10,00"
+    },
+    {
+      "format": "point",
+      "line": "$-5 * 2 =",
+      "result": "-$10.00"
+    },
+    {
+      "format": "comma",
+      "line": "€−5 * 2 =",
+      "result": "-€10,00",
+      "name": "the minus may be any of the three"
+    },
+    {
+      "format": "comma",
+      "line": "€–5 * 2 =",
+      "result": "-€10,00"
+    },
+    {
+      "format": "comma",
+      "line": "€-5 =",
+      "result": "-€5,00",
+      "name": "the sign is an operator, so a lone amount shows"
+    },
+    {
+      "format": "comma",
+      "line": "€5 =",
+      "result": null
+    },
+    {
+      "format": "comma",
+      "line": "-€5 * 2 =",
+      "result": "-€10,00",
+      "name": "a minus before the currency is the unary one"
+    },
+    {
+      "format": "comma",
+      "line": "10 + €-5 =",
+      "result": "€5,00"
+    },
+    {
+      "format": "comma",
+      "line": "10 - €-5 =",
+      "result": "€15,00"
+    },
+    {
+      "format": "comma",
+      "line": "€-5 + €-3 =",
+      "result": "-€8,00"
+    },
+    {
+      "format": "comma",
+      "line": "5 €-3 =",
+      "result": "2,00 €",
+      "name": "after a number, a currency is the number's and the minus subtracts"
+    },
+    {
+      "format": "comma",
+      "line": "€5 -3 =",
+      "result": "€2,00"
+    },
+    {
+      "format": "comma",
+      "line": "Preis €-5 * 2 =",
+      "result": "-€10,00"
+    },
+    {
+      "format": "comma",
+      "line": "€-5% * 2 =",
+      "result": null,
+      "name": "a percentage of a currency fails, signed or not"
+    },
+    {
+      "format": "comma",
+      "line": "€-€5 =",
+      "result": null,
+      "name": "two currencies are not an amount"
+    },
+    {
+      "format": "comma",
+      "line": "€--5 =",
+      "result": null,
+      "name": "one sign only"
+    },
+    {
+      "format": "comma",
+      "line": "20,- € * 2 =",
+      "result": null,
+      "name": "the table reader's 20,- is not part of a calculation"
+    },
+    {
+      "format": "comma",
+      "line": "1,005 * 1 =",
+      "result": "1",
+      "name": "cents come from the double product: 1,005 * 100 is 100,49999999999999"
+    },
+    {
+      "format": "comma",
+      "line": "10000000000000 * 0 =",
+      "result": "0",
+      "name": "the limit is on the final result only"
     }
   ],
   "documents": [
@@ -852,6 +1110,60 @@
       "format": "comma",
       "text": "1 + 1 =\n~~~\n2 + 2 =",
       "results": [[0, "2"]]
+    },
+    {
+      "name": "a line ends at a line feed, and a carriage return before it goes",
+      "format": "comma",
+      "text": "1 + 1 =\r\n2 + 2 =\r\n",
+      "results": [
+        [0, "2"],
+        [1, "4"]
+      ]
+    },
+    {
+      "name": "frontmatter and fences with Windows line ends",
+      "format": "comma",
+      "text": "---\r\na: 1 + 1 =\r\n---\r\n2 + 2 =\r\n```\r\n3 + 3 =\r\n```\r\n4 + 4 =",
+      "results": [
+        [3, "4"],
+        [7, "8"]
+      ]
+    },
+    {
+      "name": "a lone carriage return does not end a line",
+      "format": "comma",
+      "text": "2 +\r2 =\n3 + 3 =",
+      "results": [
+        [0, "4"],
+        [1, "6"]
+      ]
+    },
+    {
+      "name": "U+2028 does not end a line",
+      "format": "comma",
+      "text": "2 +\u20282 =\n3 + 3 =",
+      "results": [
+        [0, "4"],
+        [1, "6"]
+      ]
+    },
+    {
+      "name": "U+2029 does not end a line",
+      "format": "comma",
+      "text": "2 +\u20292 =\n3 + 3 =",
+      "results": [
+        [0, "4"],
+        [1, "6"]
+      ]
+    },
+    {
+      "name": "only a line feed counts towards a result's line",
+      "format": "comma",
+      "text": "x\r2 + 2 =\r3 + 3 =\n4 + 4 =",
+      "results": [
+        [0, "6"],
+        [1, "8"]
+      ]
     }
   ],
   "accept": [
