@@ -427,7 +427,8 @@ export const de: Messages = {
     focusHeading: "Fokus-Modus",
     focusOpacity: "Abdunklung",
     focusOpacityDesc:
-      "Deckkraft der Zeilen außerhalb des Fokus (0,2 = sehr blass, 0,8 = fast voll).",
+      "Deckkraft der Zeilen außerhalb des Fokus und der Zeilen, die mit // beginnen " +
+      "(0,2 = sehr blass, 0,8 = fast voll).",
 
     newDocLink: "Neue Notiz von außerhalb von Obsidian",
     newDocLinkDesc:

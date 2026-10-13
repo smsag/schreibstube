@@ -8,6 +8,7 @@ import {
 import { RangeSetBuilder, type Extension } from "@codemirror/state";
 import { resolveFocusRange, type FocusRange } from "../services/focus-range";
 import { topEdgeLine } from "../services/editor-top-edge";
+import { isCommentLine } from "../services/comment-line";
 import type { SchreibstubeSettings } from "../types";
 
 export interface EditorViewportUpdate {
@@ -22,6 +23,68 @@ interface EditorExtensionOptions {
 }
 
 export function createEditorExtension(options: EditorExtensionOptions): Extension {
+  return [createFocusExtension(options), createCommentDimExtension(options.getSettings)];
+}
+
+const COMMENT_LINE = Decoration.line({ class: "schreibstube-comment-line" });
+
+/**
+ * Lines that open with `//` are the writer's asides, and fade by the focus
+ * mode's dim strength whether focus mode is on or not.
+ *
+ * The strength goes on the editor as its own variable, because focus mode
+ * takes its variable down again whenever it switches off.
+ */
+function createCommentDimExtension(getSettings: () => SchreibstubeSettings): Extension {
+  return ViewPlugin.fromClass(
+    class {
+      decorations: DecorationSet;
+
+      constructor(private view: EditorView) {
+        this.decorations = this.build();
+        this.applyOpacity();
+        window.addEventListener(FOCUS_SETTINGS_CHANGED, this.applyOpacity);
+      }
+
+      update(update: ViewUpdate): void {
+        this.view = update.view;
+        if (update.docChanged || update.viewportChanged) {
+          this.decorations = this.build();
+        }
+      }
+
+      destroy(): void {
+        window.removeEventListener(FOCUS_SETTINGS_CHANGED, this.applyOpacity);
+        this.view.dom.style.removeProperty("--schreibstube-comment-dim-opacity");
+      }
+
+      private applyOpacity = (): void => {
+        this.view.dom.style.setProperty(
+          "--schreibstube-comment-dim-opacity",
+          String(getSettings().focusDimOpacity)
+        );
+      };
+
+      private build(): DecorationSet {
+        const builder = new RangeSetBuilder<Decoration>();
+        const doc = this.view.state.doc;
+        for (const range of this.view.visibleRanges) {
+          const lastLine = doc.lineAt(range.to).number;
+          for (let n = doc.lineAt(range.from).number; n <= lastLine; n += 1) {
+            const line = doc.line(n);
+            if (isCommentLine(line.text)) builder.add(line.from, line.from, COMMENT_LINE);
+          }
+        }
+        return builder.finish();
+      }
+    },
+    {
+      decorations: (value) => value.decorations
+    }
+  );
+}
+
+function createFocusExtension(options: EditorExtensionOptions): Extension {
   return ViewPlugin.fromClass(
     class {
       private view: EditorView;
