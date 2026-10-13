@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+A line that starts with `//` is dimmed in the editor, by the same strength
+as focus mode's out-of-focus lines, whether focus mode is on or not — so a
+note to yourself recedes behind the text around it. The dim strength setting
+drives both.
+
 ## 1.80.0 - 2026-10-11
 
 A calculation is no longer written twice on the page. In Live Preview a

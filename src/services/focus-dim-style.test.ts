@@ -63,4 +63,13 @@ describe("focus dim styling", () => {
     expect(value).toBeLessThanOrEqual(MAX_DIM_OPACITY);
     expect(value).toBe(DEFAULT_SETTINGS.focusDimOpacity);
   });
+
+  it("fades a // line by the same setting, even inside the focused paragraph", () => {
+    const body = ruleBody(".cm-line.schreibstube-comment-line,");
+    expect(body).toContain("var(--schreibstube-comment-dim-opacity");
+    expect(body).toContain("var(--schreibstube-focus-dim-opacity)");
+    expect(css).toContain(
+      ".schreibstube-focus-enabled .cm-line.schreibstube-focus-active.schreibstube-comment-line"
+    );
+  });
 });

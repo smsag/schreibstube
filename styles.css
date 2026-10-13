@@ -179,6 +179,16 @@
   color: var(--text-normal);
 }
 
+/* A line opening with `//` is an aside, and fades by the same strength as an
+   out-of-focus line. Outside focus mode and inside the focused paragraph it
+   dims by opacity, overruling the paragraph's full strength. A sentence-mode
+   line already dims by colour and resets opacity to 1, so the aside fades
+   once there, not twice. */
+.cm-line.schreibstube-comment-line,
+.schreibstube-focus-enabled .cm-line.schreibstube-focus-active.schreibstube-comment-line {
+  opacity: var(--schreibstube-comment-dim-opacity, var(--schreibstube-focus-dim-opacity));
+}
+
 /* Review sidebar
    ------------------------------------------------------------------ */
 
