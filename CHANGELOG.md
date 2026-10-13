@@ -4,10 +4,23 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
-A line that starts with `//` is dimmed in the editor, by the same strength
-as focus mode's out-of-focus lines, whether focus mode is on or not — so a
-note to yourself recedes behind the text around it. The dim strength setting
-drives both.
+## 1.81.0 - 2026-10-13
+
+A note to yourself now steps back from the text. A line that starts with
+`//` is dimmed in the editor, by the same strength as focus mode's
+out-of-focus lines, whether focus mode is on or not. It is only dimmed on
+screen: a print, a published page and a mail carry it as written.
+
+Mobile checklist: not run. The change was checked by the test suite only;
+it was not tried in the desktop app or on a phone. What to try first: a
+note with a `//` line in Live Preview, with focus mode off, in paragraph
+mode with the cursor in the same paragraph, and in sentence mode.
+
+The bridge is unchanged.
+
+### Added
+
+- **Lines starting with `//` are dimmed in the editor.** They fade by the **Dim opacity** setting, with or without focus mode, and stay dimmed inside the focused paragraph; in sentence mode they fade once, like any other unfocused line, not twice. An indented `//` line counts; `//` later in a line, as in a link, does not. Reading view shows them as before, since it joins a paragraph's lines into one.
 
 ## 1.80.0 - 2026-10-11
 
