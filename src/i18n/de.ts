@@ -88,6 +88,17 @@ export const de: Messages = {
     modeBack: "Ans Ende ihrer Liste verschieben",
     modeArchive: "Unter ## Archive am Ende der Notiz verschieben",
     modeDelete: "Löschen",
+    visibility: "Erledigte Aufgaben anzeigen",
+    visibilityDesc:
+      "Erledigte [x] und abgebrochene [-] Aufgaben, jeweils mit allem, was darunter eingerückt " +
+      "ist, in der Live-Vorschau und der Leseansicht. Nur die Anzeige ändert sich: Die Notiz " +
+      "behält jede Zeile. Eine erledigte Aufgabe mit einer offenen Aufgabe irgendwo darunter " +
+      "bleibt stehen, ebenso die, in der der Cursor steht. Der Quellmodus und der Druck zeigen " +
+      "alles. Abgedunkelt wird mit der Abdunklung des Fokus-Modus. Eine Notiz mit " +
+      "schreibstubeHideDoneTasks: false in ihren Eigenschaften zeigt alle ihre Aufgaben.",
+    visibilityOff: "Wie sie sind",
+    visibilityDim: "Abgedunkelt",
+    visibilityHide: "Ausgeblendet",
     nothing: "es gibt keine erledigten Aufgaben aufzuräumen.",
     nothingBack: "jede erledigte Aufgabe steht schon am Ende ihrer Liste.",
     moved: (count: number) =>
@@ -427,8 +438,8 @@ export const de: Messages = {
     focusHeading: "Fokus-Modus",
     focusOpacity: "Abdunklung",
     focusOpacityDesc:
-      "Deckkraft der Zeilen außerhalb des Fokus und der Zeilen, die mit // beginnen " +
-      "(0,2 = sehr blass, 0,8 = fast voll).",
+      "Deckkraft der Zeilen außerhalb des Fokus, der Zeilen, die mit // beginnen, und " +
+      "abgedunkelter erledigter Aufgaben (0,2 = sehr blass, 0,8 = fast voll).",
 
     newDocLink: "Neue Notiz von außerhalb von Obsidian",
     newDocLinkDesc:

@@ -6,6 +6,7 @@
 import { Notice, Setting } from "obsidian";
 import { activeLocale, t } from "../i18n";
 import { normalizeDoneTaskMode } from "../services/done-tasks";
+import { normalizeDoneTaskVisibility } from "../services/done-task-visibility";
 import { MAX_DIM_OPACITY, MIN_DIM_OPACITY } from "../services/focus-settings";
 import { normalizeTermFolder } from "../services/glossary-term-folder";
 import { createLogger } from "../services/logger";
@@ -122,6 +123,21 @@ function renderDoneTasks(ctx: SettingsContext): void {
         .setValue(ctx.plugin.settings.doneTasksMode)
         .onChange(async (value) => {
           await ctx.update({ doneTasksMode: normalizeDoneTaskMode(value) });
+        });
+    });
+
+  new Setting(ctx.containerEl)
+    .setName(words.visibility)
+    .setDesc(words.visibilityDesc)
+    .addDropdown((dropdown) => {
+      dropdown
+        .addOption("off", words.visibilityOff)
+        .addOption("dim", words.visibilityDim)
+        .addOption("hide", words.visibilityHide)
+        .setValue(ctx.plugin.settings.doneTaskVisibility)
+        .onChange(async (value) => {
+          await ctx.update({ doneTaskVisibility: normalizeDoneTaskVisibility(value) });
+          ctx.plugin.doneTaskVisibility?.settingChanged();
         });
     });
 }

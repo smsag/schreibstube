@@ -57,8 +57,8 @@ export const enExtra = {
     focusHeading: "Focus mode",
     focusOpacity: "Dim opacity",
     focusOpacityDesc:
-      "Opacity of out-of-focus lines in focus mode, and of lines starting with // " +
-      "(0.2 = very faint, 0.8 = nearly full).",
+      "Opacity of out-of-focus lines in focus mode, of lines starting with //, and of dimmed " +
+      "done tasks (0.2 = very faint, 0.8 = nearly full).",
 
     newDocLink: "New note from outside Obsidian",
     newDocLinkDesc:

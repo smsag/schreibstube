@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Added
+
+- **Done tasks can be dimmed or hidden on screen.** In a long list the open tasks got lost between the ticked ones, and the ticked ones have to stay in the file for the status report. **Show done tasks**, under **Done tasks** in the settings, is **As they are** by default, so nothing changes until it is chosen; **Dimmed** or **Hidden** apply in Live Preview and Reading view, never in Source mode, a print or a PDF export, and never touch the note. Done `[x]`, `[X]` and cancelled `[-]` tasks go with everything indented under them, unless an open task sits anywhere below; the task the cursor is in is always shown in full. Dimmed uses focus mode's **Dim opacity**. A note with `schreibstubeHideDoneTasks: false` in its properties shows all its tasks. While the setting is on, the page's body carries `data-done-tasks="managed"`, so another app's snippet that hides done tasks can step aside.
+
 ## 1.81.0 - 2026-10-13
 
 A note to yourself now steps back from the text. A line that starts with

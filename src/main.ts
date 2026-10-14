@@ -44,6 +44,7 @@ import type { SyncRecord } from "./services/sync-document";
 import { NoteCommands } from "./controllers/note-commands";
 import { RecommendPlaces, type PassageFocus } from "./controllers/recommend-place";
 import { DoneTasksCommand } from "./controllers/done-tasks-command";
+import { DoneTaskVisibilityController } from "./controllers/done-task-visibility";
 import { SumsController } from "./controllers/sums-controller";
 import { registerTableFormulaPostProcessor } from "./processors/table-formulas";
 import {
@@ -206,6 +207,8 @@ export default class SchreibstubePlugin extends Plugin {
   private print: PrintCommands | null = null;
   private notes: NoteCommands | null = null;
   private doneTasks: DoneTasksCommand | null = null;
+  /** Finished tasks dimmed or hidden on screen; the settings tab tells it when the setting moves. */
+  doneTaskVisibility: DoneTaskVisibilityController | null = null;
   private pdf: PdfCommands | null = null;
   private sums: SumsController | null = null;
 
@@ -467,6 +470,12 @@ export default class SchreibstubePlugin extends Plugin {
         void this.proofread?.syncActiveFile();
       }
     });
+    this.doneTaskVisibility = new DoneTaskVisibilityController(
+      this.app,
+      () => this.settings.doneTaskVisibility,
+      () => this.settings.focusDimOpacity
+    );
+    this.doneTaskVisibility.start(this);
 
     this.linkMode.start(this.addStatusBarItem());
     // The total of the selected amounts, and a formula's result in Reading view and Live Preview.

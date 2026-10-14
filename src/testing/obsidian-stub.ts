@@ -164,6 +164,12 @@ export const editorLivePreviewField = StateField.define<boolean>({
   update: (value) => value
 });
 
+/** The note an editor shows; a test that cares gives the field an initial value. */
+export const editorInfoField = StateField.define<{ file: TFile | null }>({
+  create: () => ({ file: null }),
+  update: (value) => value
+});
+
 export class MarkdownView {}
 export class ItemView {}
 

@@ -75,6 +75,14 @@ describe("normalizeSettings", () => {
     expect(normalizeSettings({ doneTasksMode: "shred" as never }).doneTasksMode).toBe("back");
   });
 
+  it("shows done tasks as they are unless dimming or hiding was chosen", () => {
+    expect(normalizeSettings({}).doneTaskVisibility).toBe("off");
+    expect(normalizeSettings({ doneTaskVisibility: "hide" }).doneTaskVisibility).toBe("hide");
+    expect(normalizeSettings({ doneTaskVisibility: "fade" as never }).doneTaskVisibility).toBe(
+      "off"
+    );
+  });
+
   it("defaults llmModelCustom to an empty string", () => {
     expect(normalizeSettings({}).llmModelCustom).toBe("");
   });

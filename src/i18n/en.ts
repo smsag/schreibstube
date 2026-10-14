@@ -96,6 +96,16 @@ export const en = {
     modeBack: "Move them to the end of their list",
     modeArchive: "Move them under ## Archive at the end of the note",
     modeDelete: "Delete them",
+    visibility: "Show done tasks",
+    visibilityDesc:
+      "Done [x] and cancelled [-] tasks, each with everything indented under it, in Live Preview " +
+      "and Reading view. Only the display changes: the note keeps every line. A done task with an " +
+      "open task anywhere under it stays, and so does the one the cursor is in. Source mode and " +
+      "printing show everything. Dimmed uses the dim opacity of focus mode. A note with " +
+      "schreibstubeHideDoneTasks: false in its properties shows all its tasks.",
+    visibilityOff: "As they are",
+    visibilityDim: "Dimmed",
+    visibilityHide: "Hidden",
     nothing: "there are no done tasks to tidy up.",
     nothingBack: "every done task is already at the end of its list.",
     moved: (count: number) =>

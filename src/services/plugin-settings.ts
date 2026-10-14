@@ -23,6 +23,7 @@ import { DEFAULT_TEMPLATE_BUILTIN, TEMPLATE_ROOT_DEFAULT } from "./print-templat
 import { normalizePropertyIcons } from "./property-icons";
 import { DEFAULT_DATE_FORMAT, normalizeDateFormat } from "./today-value";
 import { DEFAULT_DONE_TASK_MODE, normalizeDoneTaskMode } from "./done-tasks";
+import { DEFAULT_DONE_TASK_VISIBILITY, normalizeDoneTaskVisibility } from "./done-task-visibility";
 import { DEFAULT_DESCRIPTION_FOLDER, normalizeDescriptionFolder } from "./image-description";
 import { normalizeCurrency, normalizeNumberStyle } from "./amounts";
 import { normalizeExchangeRates } from "./exchange-rates";
@@ -162,6 +163,7 @@ export const DEFAULT_SETTINGS: SchreibstubeSettings = {
   propertySetFolder: "",
   tagSuggestControl: true,
   doneTasksMode: DEFAULT_DONE_TASK_MODE,
+  doneTaskVisibility: DEFAULT_DONE_TASK_VISIBILITY,
   sumsNumberStyle: "auto",
   calculateLines: true,
   sumsDefaultCurrency: "",
@@ -236,6 +238,7 @@ export function normalizeSettings(loaded: LoadedSettings): SchreibstubeSettings 
     propertySetFolder: normalizeTermFolder(loaded?.propertySetFolder),
     tagSuggestControl: loaded?.tagSuggestControl !== false,
     doneTasksMode: normalizeDoneTaskMode(loaded?.doneTasksMode),
+    doneTaskVisibility: normalizeDoneTaskVisibility(loaded?.doneTaskVisibility),
     sumsNumberStyle: normalizeNumberStyle(loaded?.sumsNumberStyle),
     calculateLines: loaded?.calculateLines !== false,
     sumsDefaultCurrency: normalizeCurrency(loaded?.sumsDefaultCurrency),

@@ -4,6 +4,7 @@ import type { LanguagePreference } from "./i18n";
 import type { NumberStyle } from "./services/amounts";
 import type { ExchangeRates } from "./services/exchange-rates";
 import type { DoneTaskMode } from "./services/done-tasks";
+import type { DoneTaskVisibility } from "./services/done-task-visibility";
 
 export type HeadingLevel = 1 | 2 | 3 | 4 | 5 | 6;
 
@@ -165,6 +166,8 @@ export interface SchreibstubeSettings {
   tagSuggestControl: boolean;
   /** What clearing finished tasks does with them: to the back of their list, to the archive, or away. */
   doneTasksMode: DoneTaskMode;
+  /** Finished tasks in Live Preview and Reading view: as they are, dimmed, or hidden. */
+  doneTaskVisibility: DoneTaskVisibility;
   /** How an ambiguous number like 1.234 is read, and results written; "auto" follows Obsidian. */
   sumsNumberStyle: NumberStyle;
   /** A line ending in `=` shows its result beside it (contracts/CALCULATOR.md). */
