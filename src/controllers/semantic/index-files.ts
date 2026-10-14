@@ -170,7 +170,8 @@ export async function removeSourceFiles(plugin: Plugin, sourceId: string): Promi
   }
 }
 
-function pluginDir(plugin: Plugin): string {
+/** Schreibstube's plugin folder, where the index files and the Nimbus list live. */
+export function pluginDir(plugin: Plugin): string {
   return normalizePath(
     plugin.manifest.dir ?? `${plugin.app.vault.configDir}/plugins/${plugin.manifest.id}`
   );

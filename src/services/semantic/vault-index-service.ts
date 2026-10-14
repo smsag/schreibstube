@@ -1092,6 +1092,15 @@ export class VaultIndexService {
     return { chunks: item.chunks, ...(item.passages ? { passages: item.passages } : {}) };
   }
 
+  /**
+   * Every row as it stands, for a reader that ranks the whole index against
+   * itself over several turns of the event loop: a copy of the list, so an
+   * edit landing meanwhile replaces rows rather than moving them under it.
+   */
+  rowsSnapshot(): IndexedConversation[] {
+    return [...this.items];
+  }
+
   /** The stored vectors of one note, or null when it is not in the index. */
   vectorsOf(path: string): Int8Array[] | null {
     return this.sourceOf(path)?.chunks ?? null;

@@ -60,6 +60,17 @@ describe("VaultIndexService", () => {
     expect(store.writes).toBe(1);
   });
 
+  it("hands out its rows as a copy that later edits do not move", async () => {
+    const svc = new VaultIndexService(new FakeProvider(), new MemStore());
+    await svc.sync([alpha, beta]);
+    const rows = svc.rowsSnapshot();
+    expect(rows.map((row) => row.id)).toEqual(["Notes/alpha.md", "Notes/beta.md"]);
+    expect(rows[0]?.passages?.length).toBe(rows[0]?.chunks.length);
+    await svc.updateNote(gamma);
+    expect(rows).toHaveLength(2);
+    expect(svc.rowsSnapshot()).toHaveLength(3);
+  });
+
   it("re-embeds nothing when unchanged (incremental)", async () => {
     const p = new FakeProvider();
     const store = new MemStore();

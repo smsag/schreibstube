@@ -11,3 +11,7 @@ bridge/publish/render/icons.generated.mjs
 
 # Built by scripts/model-memory/build.mjs.
 scripts/model-memory/out/
+
+# Copied verbatim from Nimbus, which owns the file: formatting it here would
+# make the two copies differ.
+contracts/related-cases.json

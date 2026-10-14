@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Added
+
+- **Related notes for Nimbus.** With **Search by meaning** on, the desktop writes `nimbus-related.json` into the plugin's folder: for every note with `nimbusProject` in its frontmatter, the twenty notes most like the project's own passages that do not carry its tag, each with its closest passage. Nimbus reads the file for its project status reports, since it cannot ask Obsidian. It is written at most every five minutes after the index or a project note changed, only when its content changed, never on a phone, and deleted when search by meaning is switched off. The rule is `contracts/RELATED.md`, shared with Nimbus.
+
 ### Fixed
 
 - **No more `journal 2.bin`, `journal 3.bin` … in an iCloud vault.** The semantic index's journal was replaced by a new file on every edit, and iCloud kept each replacement that met a file it was still syncing as a numbered copy, with that edit's rows in the copy rather than in the journal. The journal is now written over itself, so iCloud sees a changed file instead of a new one. The copies already in the plugin folder are read with the journal, so no edit they hold is lost, and the device that writes the journal removes them with its next write.

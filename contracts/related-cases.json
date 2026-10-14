@@ -1,0 +1,34 @@
+{
+  "comment": "Examples for RELATED.md that both Schreibstube (writer) and Nimbus (reader) test against. 'projectTags': a nimbusProject value and the tag it gives (null: no project). 'carriesTag': a passage text, a project tag and whether the text carries it (RELATED.md 3). 'substance': a passage and whether it has substance (at least 40 letters or digits besides heading lines and tags). 'files': file contents and whether a reader accepts them; 'refused' names why.",
+  "projectTags": [
+    { "value": "propstack/2026-c3", "tag": "propstack/2026-c3" },
+    { "value": "  #Propstack/2026-C3 ", "tag": "propstack/2026-c3" },
+    { "value": "##doppelt", "tag": "doppelt" },
+    { "value": "/umzug/bad/", "tag": "umzug/bad" },
+    { "value": "#", "tag": null },
+    { "value": "", "tag": null },
+    { "value": "   ", "tag": null }
+  ],
+  "carriesTag": [
+    { "text": "Initiative #propstack/2026-c3 in Linear anlegen", "tag": "propstack/2026-c3", "carries": true },
+    { "text": "Anforderungen für #propstack/2026-c3/compliance klären", "tag": "propstack/2026-c3", "carries": true },
+    { "text": "Groß: #Propstack/2026-C3 bleibt", "tag": "propstack/2026-c3", "carries": true },
+    { "text": "Ähnlich, aber #propstack/2026-c30 ist ein anderes", "tag": "propstack/2026-c3", "carries": false },
+    { "text": "Kein Tag: x#propstack/2026-c3 oder [[a]]#propstack/2026-c3", "tag": "propstack/2026-c3", "carries": false },
+    { "text": "Ganz ohne", "tag": "propstack/2026-c3", "carries": false }
+  ],
+  "substance": [
+    { "text": "## Ziel\n## Aufgaben\n## Ressourcen", "substance": false },
+    { "text": "#propstack/2026-c3 #Montag", "substance": false },
+    { "text": "## Compliance\nDie Anforderungen für den Energieausweis sind noch offen.", "substance": true },
+    { "text": "Kurz: 39 Zeichen sind zu wenig, ok!!!!", "substance": false }
+  ],
+  "files": [
+    { "content": "{\"format\":\"schreibstube-related\",\"version\":1,\"writtenAt\":\"2026-10-14T18:00:00.000Z\",\"model\":\"m\",\"floor\":0.65,\"projects\":[{\"tag\":\"umzug\",\"note\":\"Projekte/Umzug.md\",\"related\":[{\"path\":\"Notiz.md\",\"heading\":null,\"text\":\"Text\",\"score\":0.7,\"modified\":\"2026-10-13T08:00:00.000Z\"}]}]}", "accepted": true },
+    { "content": "{\"format\":\"schreibstube-related\",\"version\":1,\"writtenAt\":\"2026-10-14T18:00:00.000Z\",\"model\":\"m\",\"floor\":0.65,\"projects\":[]}", "accepted": true },
+    { "content": "{\"format\":\"schreibstube-related\",\"version\":2,\"writtenAt\":\"2026-10-14T18:00:00.000Z\",\"model\":\"m\",\"floor\":0.65,\"projects\":[]}", "accepted": false, "refused": "version" },
+    { "content": "{\"format\":\"pythia\",\"version\":1,\"writtenAt\":\"2026-10-14T18:00:00.000Z\",\"model\":\"m\",\"floor\":0.65,\"projects\":[]}", "accepted": false, "refused": "format" },
+    { "content": "{\"format\":\"schreibstube-related\",\"version\":1,\"projects\":[]}", "accepted": false, "refused": "writtenAt" },
+    { "content": "{kaputt", "accepted": false, "refused": "json" }
+  ]
+}

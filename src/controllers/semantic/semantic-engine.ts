@@ -56,6 +56,7 @@ import { SearchRuntimeLoader } from "./host/search-runtime-loader";
 import { SemanticSources, type ScoredKey } from "./semantic-sources";
 import { SemanticIndexFiles, removeRetiredIndexFiles } from "./index-files";
 import { registerVaultWatcher } from "./vault-watcher";
+import { RelatedExportWriter, type RelatedSnapshot } from "./related-export";
 
 /** Milliseconds for timing a search: steps with no clock change. */
 function now(): number {
@@ -172,6 +173,8 @@ export class SemanticEngine {
   private contentSeen = "";
   private contentTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly contentListeners = new Set<() => void>();
+  /** The list of related notes Nimbus reads, written on the desktop. */
+  private related: RelatedExportWriter | null = null;
 
   constructor(
     private readonly plugin: Plugin,
@@ -218,6 +221,17 @@ export class SemanticEngine {
       },
       log: (message, data) => this.logger.debug(message, data)
     });
+    this.related = new RelatedExportWriter(
+      this.plugin,
+      {
+        device: Platform.isMobile ? "mobile" : "desktop",
+        switchedOn: () => this.getSettings().semanticSearchEnabled,
+        snapshot: () => this.relatedSnapshot(),
+        onContentChange: (listener) => this.onContentChange(listener)
+      },
+      this.logger
+    );
+    this.related.start();
     this.plugin.app.workspace.onLayoutReady(() => {
       const id = window.setTimeout(() => void this.catchUp(), CATCH_UP_DELAY_MS);
       this.plugin.register(() => window.clearTimeout(id));
@@ -900,6 +914,24 @@ export class SemanticEngine {
     };
   }
 
+  /**
+   * The index's rows for the list Nimbus reads, with the model they come
+   * from and the floor they are read at; null while the index is being
+   * built or has not been read, since a list from half an index would drop
+   * notes only to add them again.
+   */
+  relatedSnapshot(): RelatedSnapshot | null {
+    const svc = this.service;
+    if (!this.enabled() || this.syncing || !svc?.isReady()) return null;
+    const model = this.modelId();
+    return {
+      rows: svc.rowsSnapshot(),
+      model: vectorFamily(model),
+      floor: this.relatedFloors().notes,
+      maxChars: embedChunkChars(model)
+    };
+  }
+
   /** The vector the vault index holds for `text`; null while it cannot answer. */
   private queryVector(text: string): Promise<Int8Array | null> {
     const svc = this.service;
@@ -1174,6 +1206,7 @@ export class SemanticEngine {
     if (!this.enabled() && !this.syncing && !this.sources.isSyncing()) this.teardown();
     // Switched on: a source that registered while it was off is asked about now.
     if (this.enabled()) this.sources.askPending();
+    this.related?.settingsChanged();
     this.emit();
   }
 
@@ -1192,6 +1225,7 @@ export class SemanticEngine {
     this.listeners.clear();
     this.contentListeners.clear();
     this.consentAsked.clear();
+    this.related?.dispose();
     if (this.contentTimer !== null) clearTimeout(this.contentTimer);
     this.sources.dispose();
     // A build running now stops at its next note instead of running through
