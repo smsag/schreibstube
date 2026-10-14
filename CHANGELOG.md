@@ -8,6 +8,10 @@ All notable changes to this project will be documented in this file.
 
 - **Insert: index** (`Einfügen: Inhaltsverzeichnis`) puts an index block at the cursor, with `depth: 2` and `collapsed: false` written out, so the settings it takes are in view instead of in the manual. Folding an index now sets its `collapsed:` line to `true` or `false` where it stands, rather than taking the line out on unfold, so a block keeps the settings it was written with.
 
+### Changed
+
+- **The index lines up with the note.** Its heading line and its top entries stand on the note's own left edge, under the task ribbon, instead of one and two steps in; a deeper entry steps in by a nested list's indent. The fold arrow is Obsidian's own, in the margin where Obsidian puts the arrow of a folded list or heading: shown on hover, and kept, turned, while the index is folded. On the website the top entries stand on the left edge too.
+
 ## 1.83.0 - 2026-10-14
 
 A long note can now carry its own table of contents. A

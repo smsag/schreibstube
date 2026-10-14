@@ -331,6 +331,7 @@ details.callout summary { cursor: pointer; }
 .schreibstube-index summary { cursor: pointer; }
 .schreibstube-index strong { color: var(--ink); }
 .schreibstube-index ul { list-style: none; margin: 0.25rem 0 0; padding-left: 1.25rem; }
+.schreibstube-index > ul { padding-left: 0; }
 .schreibstube-index li { margin: 0.15rem 0; }
 
 pre.mermaid { background: none; padding: 0; text-align: center; }
