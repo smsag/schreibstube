@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 1.84.1 - 2026-10-14
+
+The plugin folder of an iCloud vault stops filling with numbered copies of
+the semantic index's journal. Every edit replaced the journal with a new
+file, and iCloud kept each replacement that met a file it was still
+syncing as `journal 2.bin`, `journal 3.bin` and so on. The journal is now
+written over itself, and copies already there are read with it, so no edit
+in them is lost. The device that writes the journal removes them with its
+next save.
+
+Mobile checklist: not run. The phone's own journal is written the same
+way now, and that was checked by the test suite only, not on a phone.
+What to try first: edit a note on the phone, then check that
+`…phone-journal.bin` changes and no numbered copy of it appears.
+
+The bridge is unchanged, and so is the protocol.
+
 ### Fixed
 
 - **No more `journal 2.bin`, `journal 3.bin` … in an iCloud vault.** The semantic index's journal was replaced by a new file on every edit, and iCloud kept each replacement that met a file it was still syncing as a numbered copy, with that edit's rows in the copy rather than in the journal. The journal is now written over itself, so iCloud sees a changed file instead of a new one. The copies already in the plugin folder are read with the journal, so no edit they hold is lost, and the device that writes the journal removes them with its next write.
