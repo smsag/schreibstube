@@ -128,7 +128,10 @@ A note that changed any other way, a sync above all, is the desktop's to embed:
 at every launch a phone used to embed what had arrived while it was closed, and
 loaded the model two seconds into its start. The edits go to a journal of its own
 (`…phone-journal.bin`), tied to the desktop's base like the shared journal and
-ignored once the desktop writes a new one. A build
+ignored once the desktop writes a new one. Each journal is written over itself
+rather than replaced, since iCloud keeps a replaced file it
+was still syncing as a numbered copy; copies already there are merged into the
+journal when it is read and removed by its writer's next write. A build
 answers queries while it runs, and a note whose
 embed fails on the desktop — not by a deadline — is kept as a row without
 vectors, so it is not retried until its text changes.

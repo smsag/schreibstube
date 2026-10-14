@@ -1,5 +1,6 @@
 // The index file on disk: written beside itself and renamed over, so a write
-// cut short never leaves a torn file where a whole one was.
+// cut short never leaves a torn file where a whole one was. Its journals are
+// written over themselves, so iCloud never keeps a replaced one as a copy.
 import { describe, expect, it } from "vitest";
 import type { Plugin } from "obsidian";
 import { SemanticIndexFiles, removeRetiredIndexFiles } from "./index-files";
@@ -103,6 +104,60 @@ describe("SemanticIndexFiles", () => {
     expect(await files.journal().size()).toBe(2);
     expect(await files.phoneJournal().size()).toBe(3);
     expect(await files.exists()).toBe(false);
+  });
+});
+
+describe("the journals beside the index", () => {
+  const DIR = ".obsidian/plugins/schreibstube";
+  const JOURNAL = `${DIR}/semantic-notes-xenova-paraphrase-multilingual-MiniLM-L12-v2.journal.bin`;
+  const copy = (n: number): string =>
+    `semantic-notes-xenova-paraphrase-multilingual-MiniLM-L12-v2.journal ${n}.bin`;
+
+  it("are written over themselves, never replaced: iCloud keeps a replaced file as a copy", async () => {
+    const { ops, plugin } = fakeAdapter([JOURNAL]);
+    const files = new SemanticIndexFiles(plugin, "xenova-paraphrase-multilingual-MiniLM-L12-v2");
+    await files.journal().write(new ArrayBuffer(4));
+    await files.phoneJournal().write(new ArrayBuffer(4));
+    expect(ops).toEqual([
+      `write ${JOURNAL}`,
+      `write ${DIR}/semantic-notes-xenova-paraphrase-multilingual-MiniLM-L12-v2.phone-journal.bin`
+    ]);
+  });
+
+  it("list their own sync copies, and remove only those", async () => {
+    const { disk, plugin } = fakeAdapter([
+      JOURNAL,
+      PATH,
+      `${DIR}/${copy(2)}`,
+      `${DIR}/${copy(3)}`,
+      `${DIR}/semantic-notes-xenova-paraphrase-multilingual-MiniLM-L12-v2 2.bin`,
+      `${DIR}/data.json`
+    ]);
+    disk.set(`${DIR}/${copy(3)}`, new ArrayBuffer(3));
+    const journal = new SemanticIndexFiles(
+      plugin,
+      "xenova-paraphrase-multilingual-MiniLM-L12-v2"
+    ).journal();
+    const copies = await journal.copies();
+    expect(copies.map((c) => c.name)).toEqual([copy(3), copy(2)]);
+    expect((await copies[0]!.read()).byteLength).toBe(3);
+    await journal.removeCopies([copy(3), copy(2), "data.json", copy(9)]);
+    expect([...disk.keys()].sort()).toEqual(
+      [
+        JOURNAL,
+        PATH,
+        `${DIR}/semantic-notes-xenova-paraphrase-multilingual-MiniLM-L12-v2 2.bin`,
+        `${DIR}/data.json`
+      ].sort()
+    );
+  });
+
+  it("have no copies before the folder exists", async () => {
+    const { plugin } = fakeAdapter();
+    (plugin.app.vault.adapter as { exists: (p: string) => Promise<boolean> }).exists = async () =>
+      false;
+    const files = new SemanticIndexFiles(plugin, "xenova-paraphrase-multilingual-MiniLM-L12-v2");
+    expect(await files.journal().copies()).toEqual([]);
   });
 });
 

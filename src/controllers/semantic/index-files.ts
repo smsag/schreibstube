@@ -1,6 +1,7 @@
 import { normalizePath, type Plugin } from "obsidian";
 import type { IndexStore } from "../../services/semantic/index-store";
 import { vectorFamily, type EmbeddingModelId } from "../../services/semantic/embedding-models";
+import { conflictCopies } from "../../services/semantic/conflict-copies";
 
 /**
  * The semantic index as files in Schreibstube's plugin folder: one per model
@@ -17,7 +18,9 @@ export class SemanticIndexFiles implements IndexStore {
     private readonly modelId: EmbeddingModelId,
     suffix = ".bin",
     /** Which index: the vault's notes, or the conversations a source hands over. */
-    private readonly prefix: "semantic-notes" | `semantic-source-${string}` = "semantic-notes"
+    private readonly prefix: "semantic-notes" | `semantic-source-${string}` = "semantic-notes",
+    /** How a write lands: moved into place, or written over the file itself. */
+    private readonly replace: "move" | "in-place" = "move"
   ) {
     this.path = normalizePath(`${pluginDir(plugin)}/${prefix}-${vectorFamily(modelId)}${suffix}`);
   }
@@ -38,12 +41,18 @@ export class SemanticIndexFiles implements IndexStore {
    *  the app ended mid-build, a full disk — leaves the last whole index in
    *  place rather than a truncated one that reads as "no index" and rebuilds.
    *  Obsidian's rename refuses a destination that exists, so the old index is
-   *  moved aside first and removed only once the new one stands. */
+   *  moved aside first and removed only once the new one stands.
+   *
+   *  A journal is written over itself instead. Moving a new file in under a
+   *  name iCloud is still syncing makes it keep the new one as "name N" — a
+   *  copy on every edit, with the edits in the copy — and a torn journal
+   *  costs only its own edits, which the next launch's catch-up embeds again. */
   async write(buf: ArrayBuffer): Promise<void> {
     await this.restore();
     const adapter = this.plugin.app.vault.adapter;
     const dir = pluginDir(this.plugin);
     if (!(await adapter.exists(dir))) await adapter.mkdir(dir);
+    if (this.replace === "in-place") return adapter.writeBinary(this.path, buf);
     const tmp = `${this.path}.tmp`;
     const old = `${this.path}.old`;
     if (await adapter.exists(tmp)) await adapter.remove(tmp);
@@ -71,12 +80,47 @@ export class SemanticIndexFiles implements IndexStore {
   }
 
   journal(): SemanticIndexFiles {
-    return new SemanticIndexFiles(this.plugin, this.modelId, ".journal.bin", this.prefix);
+    return new SemanticIndexFiles(
+      this.plugin,
+      this.modelId,
+      ".journal.bin",
+      this.prefix,
+      "in-place"
+    );
   }
 
   /** The phone's own edits to an index the desktop keeps; only a phone reads it. */
   phoneJournal(): SemanticIndexFiles {
-    return new SemanticIndexFiles(this.plugin, this.modelId, ".phone-journal.bin", this.prefix);
+    return new SemanticIndexFiles(
+      this.plugin,
+      this.modelId,
+      ".phone-journal.bin",
+      this.prefix,
+      "in-place"
+    );
+  }
+
+  async copies(): Promise<{ name: string; read(): Promise<ArrayBuffer> }[]> {
+    const adapter = this.plugin.app.vault.adapter;
+    const dir = pluginDir(this.plugin);
+    if (!(await adapter.exists(dir))) return [];
+    const names = (await adapter.list(dir)).files.map(baseName);
+    return conflictCopies(names, baseName(this.path)).map((name) => ({
+      name,
+      read: () => adapter.readBinary(`${dir}/${name}`)
+    }));
+  }
+
+  async removeCopies(names: readonly string[]): Promise<void> {
+    const adapter = this.plugin.app.vault.adapter;
+    const dir = pluginDir(this.plugin);
+    const own = new Set(conflictCopies(names, baseName(this.path)));
+    for (const name of names) {
+      // Only ever a copy of this file, whatever the caller passed.
+      if (!own.has(name)) continue;
+      const path = `${dir}/${name}`;
+      if (await adapter.exists(path)) await adapter.remove(path);
+    }
   }
 
   async mtime(): Promise<number | null> {
@@ -104,7 +148,7 @@ export async function removeRetiredIndexFiles(plugin: Plugin): Promise<void> {
   if (!(await adapter.exists(dir))) return;
   const listed = await adapter.list(dir);
   for (const path of listed.files) {
-    const name = path.slice(path.lastIndexOf("/") + 1);
+    const name = baseName(path);
     if (name.startsWith("semantic-conversations-") && name.endsWith(".bin")) {
       await adapter.remove(path);
     }
@@ -121,7 +165,7 @@ export async function removeSourceFiles(plugin: Plugin, sourceId: string): Promi
   if (!(await adapter.exists(dir))) return;
   const prefix = `semantic-source-${sourceId}-`;
   for (const path of (await adapter.list(dir)).files) {
-    const name = path.slice(path.lastIndexOf("/") + 1);
+    const name = baseName(path);
     if (name.startsWith(prefix)) await adapter.remove(path);
   }
 }
@@ -130,4 +174,8 @@ function pluginDir(plugin: Plugin): string {
   return normalizePath(
     plugin.manifest.dir ?? `${plugin.app.vault.configDir}/plugins/${plugin.manifest.id}`
   );
+}
+
+function baseName(path: string): string {
+  return path.slice(path.lastIndexOf("/") + 1);
 }
