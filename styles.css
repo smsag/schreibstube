@@ -189,6 +189,30 @@
   opacity: var(--schreibstube-comment-dim-opacity, var(--schreibstube-focus-dim-opacity));
 }
 
+/* Finished tasks, dimmed or hidden (services/done-task-visibility). On screen
+   only: a print or a PDF export shows the note as it is, every line of it.
+
+   Reading view marks the list item, and its sub-list goes with it. Live
+   Preview dims by a class on each line and hides by replacing the lines in
+   the editor itself, so nothing here hides a line there. The line the
+   cursor is in never carries the class.
+
+   The editor's rule is as specific as focus mode's and comes after it, so a
+   done task inside the focused paragraph stays dim: it is the open lines
+   around it that the paragraph is about. Sentence mode's dimmed lines keep
+   opacity at 1 by a more specific rule and fade by colour instead, so a done
+   line out of focus there fades once, not twice. */
+@media screen {
+  .markdown-rendered li.schreibstube-done-task-dimmed,
+  .cm-editor .cm-line.schreibstube-done-task-dim {
+    opacity: var(--schreibstube-done-task-dim-opacity, var(--schreibstube-focus-dim-opacity));
+  }
+
+  .markdown-rendered li.schreibstube-done-task-hidden {
+    display: none;
+  }
+}
+
 /* Review sidebar
    ------------------------------------------------------------------ */
 
