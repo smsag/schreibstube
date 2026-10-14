@@ -14,7 +14,7 @@
  * would teach a person to ignore the flag.
  */
 
-import { fenceMarker } from "./markdown-fence";
+import { fenceLanguage, fenceMarker } from "./markdown-fence";
 
 /** Fence languages whose block another plugin executes. */
 export const EXECUTING_FENCE_LANGUAGES: readonly string[] = [
@@ -121,9 +121,4 @@ export function executableTouched(
     )
     .map((region) => region.kind);
   return [...new Set(kinds)];
-}
-
-function fenceLanguage(line: string, marker: string): string {
-  const info = line.trimStart().slice(marker.length).trim();
-  return (info.split(/\s+/)[0] ?? "").toLowerCase();
 }

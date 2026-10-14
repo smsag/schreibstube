@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { de } from "../i18n/de";
+import { buildHeadingIndex } from "./heading-index";
 import {
   DEFAULT_INDEX_DEPTH,
   MAX_INDEX_DEPTH,
@@ -34,6 +35,7 @@ interface PlanCase {
 const table = JSON.parse(readFileSync("contracts/index-cases.json", "utf8")) as {
   options: { name: string; source: string; expect: unknown }[];
   plans: PlanCase[];
+  headings: { name: string; source: string; levels: number[]; texts?: string[] }[];
   limits: { defaultDepth: number; maxDepth: number; maxEntries: number };
   labels: { summary: string; summaryOne: string };
 };
@@ -71,6 +73,14 @@ describe("the shared index contract, in the plugin", () => {
         expect(plan.count).toBe(wanted.count);
         expect(plan.fits).toBe(wanted.fits);
       }
+    });
+  }
+
+  for (const { name, source, levels, texts } of table.headings) {
+    it(`finds the headings: ${name}`, () => {
+      const headings = buildHeadingIndex(source);
+      expect(headings.map((heading) => heading.level)).toEqual(levels);
+      if (texts) expect(headings.map((heading) => heading.text)).toEqual(texts);
     });
   }
 

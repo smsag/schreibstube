@@ -1,12 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { createRenderer, renderMarkdown } from "./render/markdown.mjs";
+import { createRenderer, prepare, renderMarkdown } from "./render/markdown.mjs";
+
+const emptySite = { notes: new Map(), assets: new Map(), slugify: (value) => value };
 import {
   DEFAULT_INDEX_DEPTH,
   LABELS,
   MAX_INDEX_DEPTH,
   MAX_INDEX_ENTRIES,
+  pageHeadings,
   parseNoteIndexOptions,
   planNoteIndex
 } from "./render/note-index.mjs";
@@ -50,6 +53,14 @@ describe("the shared index contract, on the bridge", () => {
         expect(plan.count).toBe(wanted.count);
         expect(plan.fits).toBe(wanted.fits);
       }
+    });
+  }
+
+  for (const { name, source, levels, texts } of table.headings) {
+    it(`finds the headings: ${name}`, () => {
+      const headings = pageHeadings(createRenderer().parse(prepare(source), { site: emptySite }));
+      expect(headings.map((heading) => heading.level)).toEqual(levels);
+      if (texts) expect(headings.map((heading) => heading.text)).toEqual(texts);
     });
   }
 

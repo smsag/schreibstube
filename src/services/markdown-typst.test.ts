@@ -617,6 +617,11 @@ describe("the index block", () => {
     expect(markdownToTypst(`## Lage\n\n${index("")}`).body).toContain("#schreibstube-index(2, ");
   });
 
+  it("counts a note's setext headings, which the outline lists too", () => {
+    const { body } = markdownToTypst(`${index("")}\n\nLage\n----\n\nText.`);
+    expect(body).toContain("#schreibstube-index(2, ");
+  });
+
   it("prints nothing for a note with no heading shallow enough", () => {
     const { body } = markdownToTypst(`${index("")}\n\n### Tief`);
     expect(body).not.toContain("schreibstube-index");

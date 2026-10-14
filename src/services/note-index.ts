@@ -9,7 +9,7 @@
  */
 import type { HeadingIndex } from "../types";
 import { scanHeadings } from "./heading-index";
-import { fenceMarker } from "./markdown-fence";
+import { fenceLanguage, fenceMarker } from "./markdown-fence";
 
 export const NOTE_INDEX_LANGUAGE = "schreibstube-index";
 
@@ -170,40 +170,104 @@ export interface LineEdit {
 }
 
 /**
- * How to fold or unfold the index block between `lineStart` and `lineEnd`,
- * the lines of its opening and closing fence: the body with its `collapsed:`
- * line set, or taken out when the index opens, since open is the default and
- * a setting that says nothing is clutter. Null when those lines are no longer
- * an index block — the note changed under the click — so nothing is written.
+ * What stands before a block inside a list item or a callout: its indent, its
+ * `>` marks, and on the item's first line the list marker.
+ */
+const CONTAINER_PREFIX = /^(?:[ \t]*(?:>|(?:[-*+]|\d{1,9}[.)])(?=[ \t])))*[ \t]*/;
+
+interface FoundBlock {
+  open: number;
+  close: number;
+  /**
+   * The closing line's container prefix, which the block's lines carry: on a
+   * list item's first line the opening has a marker its other lines do not.
+   */
+  prefix: string;
+}
+
+/** The index blocks whose fences both stand between `from` and `to`, container prefixes and all. */
+function indexBlocksIn(lines: readonly string[], from: number, to: number): FoundBlock[] {
+  const found: FoundBlock[] = [];
+  let open: { line: number; marker: string; index: boolean } | null = null;
+
+  for (let i = Math.max(0, from); i <= to && i < lines.length; i += 1) {
+    const line = lines[i] ?? "";
+    const prefix = CONTAINER_PREFIX.exec(line)?.[0] ?? "";
+    const rest = line.slice(prefix.length);
+    const marker = fenceMarker(rest);
+    if (open) {
+      const closes =
+        marker !== null &&
+        marker[0] === open.marker[0] &&
+        marker.length >= open.marker.length &&
+        rest.trim() === marker;
+      if (closes) {
+        if (open.index) found.push({ open: open.line, close: i, prefix });
+        open = null;
+      }
+      continue;
+    }
+    if (marker) {
+      open = { line: i, marker, index: fenceLanguage(rest, marker) === NOTE_INDEX_LANGUAGE };
+    }
+  }
+  return found;
+}
+
+/** A block's text as compared: its lines without their container prefix, blank lines left out. */
+function settingsOf(lines: readonly string[]): string {
+  return lines
+    .map((line) => line.replace(CONTAINER_PREFIX, "").trim())
+    .filter((line) => line !== "")
+    .join("\n");
+}
+
+export interface CollapseEdit extends LineEdit {
+  /** The block's text once the edit is made, as the next press must find it. */
+  source: string;
+  /** Its fences' lines once the edit is made, which Obsidian learns only on its next render. */
+  block: { lineStart: number; lineEnd: number };
+}
+
+/**
+ * How to fold or unfold the index block whose text is `source`, somewhere
+ * between `lineStart` and `lineEnd`: the section Obsidian names for it, which
+ * is the block itself, or the list or callout it stands in. The body gets its
+ * `collapsed:` line, written with the prefix of the block's own lines so it
+ * stays inside a list item or a callout, or loses it when the index opens,
+ * since open is the default and a setting that says nothing is clutter.
+ *
+ * Null unless exactly one index block in the section holds that text: the
+ * note changed under the press, or two identical blocks stand together and
+ * there is no telling which was pressed. Nothing is written then.
  */
 export function collapseEdit(
   content: string,
   lineStart: number,
   lineEnd: number,
+  source: string,
   collapsed: boolean
-): LineEdit | null {
+): CollapseEdit | null {
   const lines = content.split(/\r?\n/);
-  const opening = lines[lineStart] ?? "";
-  const marker = fenceMarker(opening);
-  const language =
-    opening
-      .trim()
-      .slice(marker?.length ?? 0)
-      .trim()
-      .split(/\s+/)[0] ?? "";
-  if (marker === null || language.toLowerCase() !== NOTE_INDEX_LANGUAGE) return null;
-
-  const closing = fenceMarker(lines[lineEnd] ?? "");
-  if (lineEnd <= lineStart || closing === null || closing[0] !== marker[0]) return null;
-  if (closing.length < marker.length || (lines[lineEnd] ?? "").trim() !== closing) return null;
+  const wanted = settingsOf(source.split(/\r?\n/));
+  const blocks = indexBlocksIn(lines, lineStart, lineEnd).filter(
+    (block) => settingsOf(lines.slice(block.open + 1, block.close)) === wanted
+  );
+  const block = blocks.length === 1 ? blocks[0] : undefined;
+  if (!block) return null;
 
   const body = lines
-    .slice(lineStart + 1, lineEnd)
-    .filter((line) => !COLLAPSED_PATTERN.test(line.trim()));
-  if (collapsed) body.push("collapsed: true");
+    .slice(block.open + 1, block.close)
+    .filter((line) => !COLLAPSED_PATTERN.test(line.replace(CONTAINER_PREFIX, "").trim()));
+  if (collapsed) body.push(`${block.prefix}collapsed: true`);
 
-  const text = body.map((line) => `${line}\n`).join("");
-  return { fromLine: lineStart + 1, toLine: lineEnd, text };
+  return {
+    fromLine: block.open + 1,
+    toLine: block.close,
+    text: body.map((line) => `${line}\n`).join(""),
+    source: settingsOf(body),
+    block: { lineStart: block.open, lineEnd: block.open + 1 + body.length }
+  };
 }
 
 /** The note with `edit` made, in the note's own line endings. */
