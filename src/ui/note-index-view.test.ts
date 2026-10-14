@@ -36,6 +36,14 @@ describe("drawNoteIndex", () => {
     expect(head.getAttribute("aria-expanded")).toBe("true");
   });
 
+  it("folds with Obsidian's own arrow, inside the heading line so a press on it folds", () => {
+    const { head, container } = draw(plan);
+    const arrow = head.querySelector<HTMLElement>(".schreibstube-note-index-chevron");
+    expect(arrow?.classList.contains("collapse-icon")).toBe(true);
+    arrow!.click();
+    expect(container.classList.contains("is-collapsed")).toBe(true);
+  });
+
   it("lists each heading, indented as the outline reads", () => {
     const { list } = draw(plan);
     const items = Array.from(list!.querySelectorAll<HTMLElement>("li"));

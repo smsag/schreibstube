@@ -120,8 +120,10 @@
 }
 
 /* The index rendered by the ```schreibstube-index``` block: the ribbon's type
-   for its heading line, and the note's headings under it. The indent comes
-   from the outline, set on each entry by the renderer. */
+   for its heading line, and the note's headings under it. Its words stand on
+   the note's own left edge, like the ribbon above it; the fold arrow hangs in
+   the margin, where Obsidian puts the arrow of a folded list or heading, and
+   a deeper entry steps in by a nested list's indent. */
 .schreibstube-note-index {
   font-family: var(--font-text);
   font-size: var(--font-text-size);
@@ -135,15 +137,43 @@
 }
 
 .schreibstube-note-index-line[role="button"] {
-  display: flex;
-  align-items: center;
-  gap: var(--size-4-1);
+  position: relative;
   cursor: pointer;
 }
 
+/* Obsidian's arrow, sized and coloured as Obsidian sizes its own, shown on
+   hover and kept while the index is folded, as Obsidian keeps a folded one. */
 .schreibstube-note-index-chevron {
-  color: var(--text-faint);
-  font-size: var(--font-ui-smaller);
+  position: absolute;
+  inset-inline-end: 100%;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  padding-inline-end: var(--size-2-2);
+  color: var(--collapse-icon-color, var(--text-faint));
+  opacity: 0;
+  transition: opacity 0.1s ease-in-out;
+}
+
+.schreibstube-note-index-line:hover .schreibstube-note-index-chevron,
+.schreibstube-note-index-line:focus-visible .schreibstube-note-index-chevron,
+.schreibstube-note-index.is-collapsed .schreibstube-note-index-chevron {
+  opacity: 1;
+}
+
+.schreibstube-note-index.is-collapsed .schreibstube-note-index-chevron {
+  color: var(--collapse-icon-color-collapsed, var(--text-accent));
+}
+
+.schreibstube-note-index-chevron svg.svg-icon {
+  width: var(--icon-xs, 14px);
+  height: var(--icon-xs, 14px);
+  transition: transform 0.1s ease-in-out;
+}
+
+.schreibstube-note-index.is-collapsed .schreibstube-note-index-chevron svg.svg-icon {
+  transform: rotate(calc(var(--direction, 1) * -90deg));
 }
 
 .schreibstube-note-index-list {
@@ -154,7 +184,7 @@
 
 .schreibstube-note-index-entry {
   margin: 0;
-  padding-left: calc((var(--schreibstube-index-indent, 0) + 1) * 1.25em);
+  padding-inline-start: calc(var(--schreibstube-index-indent, 0) * var(--list-indent, 2.25em));
 }
 
 .schreibstube-note-index-link {

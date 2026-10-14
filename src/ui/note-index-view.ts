@@ -9,7 +9,7 @@
  */
 import { t } from "../i18n";
 import type { NoteIndexOptions, NoteIndexPlan } from "../services/note-index";
-import { applyIcon } from "./icon-font";
+import { applyObsidianIcon } from "./icon-font";
 import { appendWithStrongFigures } from "./strong-figures";
 
 export const NOTE_INDEX_CLASS = "schreibstube-note-index";
@@ -74,9 +74,13 @@ function drawList(
     }
   });
   container.toggleClass("is-collapsed", collapsed);
-  applyIcon(
-    head.createSpan({ cls: `${NOTE_INDEX_CLASS}-chevron` }),
-    collapsed ? "chevron-right" : "chevron-down"
+  // Obsidian's own fold arrow, with its own class, so it is the one beside a
+  // folded list or heading in whatever theme is on. One glyph for both states:
+  // the stylesheet turns it, as Obsidian turns its own.
+  applyObsidianIcon(
+    head.createSpan({ cls: `${NOTE_INDEX_CLASS}-chevron collapse-icon` }),
+    ["right-triangle"],
+    "chevron-down"
   );
   appendWithStrongFigures(head.createSpan(), words.summary(entries.length));
 
