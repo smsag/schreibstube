@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Added
+
+- **Insert: index** (`Einfügen: Inhaltsverzeichnis`) puts an index block at the cursor, with `depth: 2` and `collapsed: false` written out, so the settings it takes are in view instead of in the manual. Folding an index now sets its `collapsed:` line to `true` or `false` where it stands, rather than taking the line out on unfold, so a block keeps the settings it was written with.
+
 ## 1.83.0 - 2026-10-14
 
 A long note can now carry its own table of contents. A

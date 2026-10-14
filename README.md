@@ -850,16 +850,17 @@ Clicking the indicator in the status bar moves on the same way.
 
 ### Index
 
-A table of contents anywhere in a note, kept current as the headings change. There is no command; type the block where the index should stand:
+A table of contents anywhere in a note, kept current as the headings change. **Insert: index** puts the block at the cursor with both settings at their defaults, or type it yourself:
 
 ````markdown
 ```schreibstube-index
-depth: 3
+depth: 2
+collapsed: false
 ```
 ````
 
 - `depth:` is the deepest heading level listed, 1 to 6; without it the index lists `#` and `##`. The index lists every heading of the note, above the block as well as below it, `===` and `---` underlined ones included, but none in a code block, a callout or the properties. Each entry is indented by the outline, not by its number of `#`, so a note without a level-one heading starts at the left.
-- Its heading line, **Contents · 12 sections**, has the task ribbon's look. A press on it folds or unfolds the list and writes `collapsed: true` into the block, or takes it out again, so the note remembers it on every device; into the pane being edited when the note is open in one, so an unsaved change there is kept, and indented to match when the block stands in a list item or a callout. A press on an entry goes to that section, in Live Preview and in Reading view; two headings with the same words are told apart by their place.
+- Its heading line, **Contents · 12 sections**, has the task ribbon's look. A press on it folds or unfolds the list and sets the block's `collapsed:` line to `true` or `false`, or adds `collapsed: true` to a block without one, so the note remembers it on every device; into the pane being edited when the note is open in one, so an unsaved change there is kept, and indented to match when the block stands in a list item or a callout. A press on an entry goes to that section, in Live Preview and in Reading view; two headings with the same words are told apart by their place.
 - Past 150 entries an index stops being a way into the note. The block then says so instead of listing them, and names a depth that would fit: "Index too long: 214 headings up to level 3. Set depth: 2 or split the note." If finding the headings takes longer than 200 ms, which no ordinary note comes near, it says that instead of holding the editor, and does not try again until the note gets shorter; a note over 200,000 characters is not scanned at all, as the other live features leave it alone.
 - A line in the block it does not understand keeps the default and is named under the index; the index still shows.
 - **Print:** the index prints as the typesetter's own table of contents, with the page each section starts on, always unfolded. An index too long to show is left out, and the print dialog says why. A template may replace `schreibstube-index(depth, title)`.

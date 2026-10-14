@@ -19,6 +19,7 @@ export const en = {
     switchReadingEditing: "Switch reading/editing",
     newNote: "New note",
     insertTaskSummary: "Insert: task summary",
+    insertNoteIndex: "Insert: index",
     tidyDoneTasks: "Tidy up done tasks",
     insertSlideshow: "Insert: slideshow",
     insertPdfSummary: "Insert: summary from the attached PDF",

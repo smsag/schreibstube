@@ -244,7 +244,7 @@ describe("folding the index", () => {
     head().click();
     expect(view.editor.getValue()).toBe("```schreibstube-index\ncollapsed: true\n```\n## A");
     head().click();
-    expect(view.editor.getValue()).toBe("```schreibstube-index\n```\n## A");
+    expect(view.editor.getValue()).toBe("```schreibstube-index\ncollapsed: false\n```\n## A");
   });
 
   it("writes nothing when Obsidian cannot say where the block is", async () => {

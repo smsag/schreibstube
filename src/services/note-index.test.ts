@@ -3,8 +3,10 @@ import { scanHeadings } from "./heading-index";
 import {
   applyLineEdit,
   buildNoteIndex,
+  buildNoteIndexInsertion,
   collapseEdit,
   MAX_INDEX_ENTRIES,
+  NOTE_INDEX_SNIPPET,
   parseNoteIndexOptions
 } from "./note-index";
 
@@ -130,22 +132,37 @@ describe("collapseEdit", () => {
     });
   });
 
-  it("takes the line out again to unfold it, whatever it said", () => {
-    const folded = note.replace("depth: 3", "depth: 3\n  Collapsed: true");
-    expect(collapseEdit(folded, 1, 4, "depth: 3\n  Collapsed: true", false)).toEqual({
+  it("sets the line where it stands to unfold it, keeping its indent", () => {
+    const folded = note.replace("depth: 3", "  Collapsed: true\ndepth: 3");
+    expect(collapseEdit(folded, 1, 4, "  Collapsed: true\ndepth: 3", false)).toEqual({
       fromLine: 2,
       toLine: 4,
-      text: "depth: 3\n",
-      source: "depth: 3",
-      block: { lineStart: 1, lineEnd: 3 }
+      text: "  collapsed: false\ndepth: 3\n",
+      source: "collapsed: false\ndepth: 3",
+      block: { lineStart: 1, lineEnd: 4 }
     });
   });
 
-  it("does not write a second collapsed line", () => {
-    const folded = note.replace("depth: 3", "collapsed: false\ndepth: 3");
-    expect(collapseEdit(folded, 1, 4, "collapsed: false\ndepth: 3", true)?.text).toBe(
-      "depth: 3\ncollapsed: true\n"
-    );
+  it("keeps the settings Insert: index wrote, flipping only the value", () => {
+    const inserted = "```schreibstube-index\ndepth: 2\ncollapsed: false\n```";
+    const fold = collapseEdit(inserted, 0, 3, "depth: 2\ncollapsed: false", true);
+    if (!fold) throw new Error("the inserted block was not found");
+    const folded = applyLineEdit(inserted, fold);
+    expect(folded).toBe("```schreibstube-index\ndepth: 2\ncollapsed: true\n```");
+
+    const unfold = collapseEdit(folded, 0, 3, fold.source, false);
+    expect(unfold && applyLineEdit(folded, unfold)).toBe(inserted);
+  });
+
+  it("leaves a block without the line as it is when it unfolds", () => {
+    expect(collapseEdit(note, 1, 3, "depth: 3", false)?.text).toBe("depth: 3\n");
+  });
+
+  it("sets the first collapsed line and drops a contradicting second", () => {
+    const twice = note.replace("depth: 3", "collapsed: false\ndepth: 3\ncollapsed: false");
+    expect(
+      collapseEdit(twice, 1, 5, "collapsed: false\ndepth: 3\ncollapsed: false", true)?.text
+    ).toBe("collapsed: true\ndepth: 3\n");
   });
 
   it("writes into an empty block", () => {
@@ -176,11 +193,17 @@ describe("collapseEdit", () => {
     const quoted = "> [!note] Inhalt\n> ```schreibstube-index\n> collapsed: true\n> ```\n\nText";
     const edit = collapseEdit(quoted, 0, 3, "collapsed: true", false);
     expect(edit && applyLineEdit(quoted, edit)).toBe(
-      "> [!note] Inhalt\n> ```schreibstube-index\n> ```\n\nText"
+      "> [!note] Inhalt\n> ```schreibstube-index\n> collapsed: false\n> ```\n\nText"
     );
     const open = edit && applyLineEdit(quoted, edit);
-    const again = open && collapseEdit(open, 0, 2, "", true);
+    const again = open && collapseEdit(open, 0, 3, "collapsed: false", true);
     expect(again && applyLineEdit(open, again)).toBe(quoted);
+
+    const bare = "> ```schreibstube-index\n> ```";
+    const added = collapseEdit(bare, 0, 1, "", true);
+    expect(added && applyLineEdit(bare, added)).toBe(
+      "> ```schreibstube-index\n> collapsed: true\n> ```"
+    );
   });
 
   it("finds the block pressed among others in the same section by its text", () => {
@@ -224,10 +247,10 @@ describe("applyLineEdit", () => {
     );
   });
 
-  it("unfolds an emptied block to no body at all", () => {
+  it("unfolds a block that holds only the line", () => {
     const note = "```schreibstube-index\ncollapsed: true\n```";
     const edit = collapseEdit(note, 0, 2, "collapsed: true", false);
-    expect(edit && applyLineEdit(note, edit)).toBe("```schreibstube-index\n```");
+    expect(edit && applyLineEdit(note, edit)).toBe("```schreibstube-index\ncollapsed: false\n```");
   });
 
   it("keeps a note's Windows line endings", () => {
@@ -236,5 +259,24 @@ describe("applyLineEdit", () => {
     expect(edit && applyLineEdit(note, edit)).toBe(
       "```schreibstube-index\r\ncollapsed: true\r\n```\r\ntext"
     );
+  });
+});
+
+describe("buildNoteIndexInsertion", () => {
+  it("writes both settings at their defaults, on lines of their own", () => {
+    expect(NOTE_INDEX_SNIPPET).toBe("```schreibstube-index\ndepth: 2\ncollapsed: false\n```");
+    expect(buildNoteIndexInsertion("", "")).toBe(`${NOTE_INDEX_SNIPPET}\n`);
+    expect(buildNoteIndexInsertion("Text", "")).toBe(`\n${NOTE_INDEX_SNIPPET}\n`);
+    expect(buildNoteIndexInsertion("", "mehr")).toBe(`${NOTE_INDEX_SNIPPET}\n\n`);
+    expect(buildNoteIndexInsertion("  ", "  ")).toBe(`${NOTE_INDEX_SNIPPET}\n`);
+  });
+
+  it("writes a block the index reads as its defaults", () => {
+    const body = NOTE_INDEX_SNIPPET.split("\n").slice(1, -1).join("\n");
+    expect(parseNoteIndexOptions(body)).toEqual({
+      depth: 2,
+      collapsed: false,
+      unreadableLine: null
+    });
   });
 });

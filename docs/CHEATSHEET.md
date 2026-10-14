@@ -304,7 +304,7 @@ layout: compare
 
 ### Index and task summary
 
-The index is typed; **Insert: task summary** (`Einfügen: Aufgaben-Zusammenfassung`).
+**Insert: index** (`Einfügen: Inhaltsverzeichnis`); **Insert: task summary** (`Einfügen: Aufgaben-Zusammenfassung`).
 
 ````markdown
 ```schreibstube-index

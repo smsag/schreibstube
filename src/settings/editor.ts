@@ -97,6 +97,7 @@ export function renderHelpers(ctx: SettingsContext): void {
     desc: words.moreCommandsDesc,
     commands: [
       t().commands.insertTaskSummary,
+      t().commands.insertNoteIndex,
       t().commands.insertSlideshow,
       t().commands.insertPdfSummary,
       t().commands.linksSwitch
