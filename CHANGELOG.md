@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 1.82.0 - 2026-10-14
+
+Open tasks no longer get lost between the ticked ones. Done and cancelled
+tasks can be dimmed or hidden on screen, in Live Preview and Reading view,
+while the note itself stays as it is, so a status report still finds them.
+Nothing changes until **Show done tasks** is set to **Dimmed** or
+**Hidden**.
+
+Mobile checklist: not run. The change was checked by the test suite only;
+it was not tried in the desktop app or on a phone. What to try first: a
+long task list in Live Preview with **Hidden**, scrolling and moving the
+cursor with the arrow keys across hidden tasks, a hidden task with an
+embed or a callout under it, and a note with
+`schreibstubeHideDoneTasks: false`.
+
+The bridge is unchanged.
+
 ### Added
 
 - **Done tasks can be dimmed or hidden on screen.** In a long list the open tasks got lost between the ticked ones, and the ticked ones have to stay in the file for the status report. **Show done tasks**, under **Done tasks** in the settings, is **As they are** by default, so nothing changes until it is chosen; **Dimmed** or **Hidden** apply in Live Preview and Reading view, never in Source mode, a print or a PDF export, and never touch the note. Done `[x]`, `[X]` and cancelled `[-]` tasks go with everything indented under them, unless an open task sits anywhere below; the task the cursor is in is always shown in full. Dimmed uses focus mode's **Dim opacity**. A note with `schreibstubeHideDoneTasks: false` in its properties shows all its tasks. While the setting is on, the page's body carries `data-done-tasks="managed"`, so another app's snippet that hides done tasks can step aside.
