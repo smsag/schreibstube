@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 1.83.0 - 2026-10-14
+
+A long note can now carry its own table of contents. A
+` ```schreibstube-index ` block lists the note's headings wherever it
+stands, down to the level its `depth:` line names; an entry goes to its
+section, and the list folds and remembers it. It prints with page numbers
+and is published as a list of links. Headings underlined with `===` or
+`---` are now found everywhere the plugin reads headings.
+
+Mobile checklist: not run. The change was checked by the test suite and a
+print of every template only; it was not tried in the desktop app or on a
+phone. What to try first: pressing an index entry in Live Preview and in
+Reading view, folding an index inside a list item and inside a callout,
+and an index in a note open in two panes.
+
+The bridge moves to 3.1.0. It draws the index on the published page, reads
+headings by the same rules as the plugin, and takes the updates to
+imapflow, KaTeX, mailparser, Mermaid and nodemailer. Its render version is
+now 7, so every page is drawn again on the next publish. The protocol is
+unchanged.
+
 ### Added
 
 - **A note can carry its own index.** A long exposé or handbook is read by jumping to a section, and the outline pane is out of sight in a sidebar, never printed and never published. A ```` ```schreibstube-index ```` block lists the note's headings wherever it stands, down to the level its `depth:` line names, `#` and `##` without one. A press on an entry goes to that section; a press on the heading line folds the list and writes `collapsed: true` into the block, so the note keeps it. Past 150 entries the block says the index is too long and names a depth that fits, rather than listing a second copy of the note. It prints as a table of contents with page numbers, always unfolded, and on the website it is a list of links a reader can fold.
