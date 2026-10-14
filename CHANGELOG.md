@@ -8,6 +8,10 @@ All notable changes to this project will be documented in this file.
 
 - **A note can carry its own index.** A long exposé or handbook is read by jumping to a section, and the outline pane is out of sight in a sidebar, never printed and never published. A ```` ```schreibstube-index ```` block lists the note's headings wherever it stands, down to the level its `depth:` line names, `#` and `##` without one. A press on an entry goes to that section; a press on the heading line folds the list and writes `collapsed: true` into the block, so the note keeps it. Past 150 entries the block says the index is too long and names a depth that fits, rather than listing a second copy of the note. It prints as a table of contents with page numbers, always unfolded, and on the website it is a list of links a reader can fold.
 
+### Fixed
+
+- **Headings are read the way Obsidian draws them.** A heading underlined with `===` or `---`, or indented by up to three spaces, was missing from the heading stack above a note, and a synced note whose title was underlined took no title from it. Both now find them, and a closing run of hashes, `## Lage ##`, is no longer part of the heading's words. The new index and the published page read headings by the same rules, so they list the same sections.
+
 ## 1.82.0 - 2026-10-14
 
 Open tasks no longer get lost between the ticked ones. Done and cancelled

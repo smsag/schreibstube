@@ -106,3 +106,14 @@ describe("headings and code fences", () => {
     expect(buildHeadingIndex(note).map((entry) => entry.text)).toEqual(["Anfang"]);
   });
 });
+
+describe("buildHeadingIndex on long notes", () => {
+  it("reads a note that opens with an unclosed `---` once, not once per line", () => {
+    // The frontmatter's end was looked for again on every line: fifty
+    // thousand lines after an unclosed `---` took minutes on a keystroke.
+    const note = ["---", ...Array.from({ length: 50_000 }, (_, i) => `## H${i}`)].join("\n");
+    const started = performance.now();
+    expect(buildHeadingIndex(note)).toHaveLength(50_000);
+    expect(performance.now() - started).toBeLessThan(1000);
+  });
+});

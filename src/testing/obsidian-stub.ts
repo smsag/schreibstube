@@ -51,10 +51,29 @@ export class TFolder {
   }
 }
 
-/** A lifetime to hang rendered children on; a test has nothing to release. */
+/**
+ * A lifetime to hang rendered children on, with Obsidian's order: `load` runs
+ * `onload`, and `unload` releases what was registered before `onunload`. An
+ * event registered here is let go the way Obsidian does it, through the
+ * emitter the reference names, so a test can see that it was.
+ */
 export class Component {
-  load(): void {}
-  unload(): void {}
+  private readonly cleanups: Array<() => void> = [];
+  load(): void {
+    this.onload();
+  }
+  onload(): void {}
+  unload(): void {
+    for (const cleanup of this.cleanups.splice(0)) cleanup();
+    this.onunload();
+  }
+  onunload(): void {}
+  register(cleanup: () => void): void {
+    this.cleanups.push(cleanup);
+  }
+  registerEvent(ref: { e?: { offref(ref: unknown): void } }): void {
+    this.cleanups.push(() => ref.e?.offref(ref));
+  }
 }
 
 /** A Bases layout's base class: no data and no options until a test hands them over. */
@@ -178,8 +197,10 @@ export const Platform = {
   isDesktopApp: false
 };
 
-export class MarkdownRenderChild {
-  constructor(public containerEl: unknown) {}
+export class MarkdownRenderChild extends Component {
+  constructor(public containerEl: unknown) {
+    super();
+  }
 }
 
 export class Plugin {

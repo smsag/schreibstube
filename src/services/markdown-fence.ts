@@ -21,6 +21,15 @@ export function fenceMarker(line: string): string | null {
 }
 
 /**
+ * The language a fence's opening line names: the first word after the
+ * marker, in lower case, or "" for a fence that names none.
+ */
+export function fenceLanguage(line: string, marker: string): string {
+  const info = line.trimStart().slice(marker.length).trim();
+  return (info.split(/\s+/)[0] ?? "").toLowerCase();
+}
+
+/**
  * Whether each line sits inside a fenced block.
  *
  * The fence lines themselves count as inside: they are the block's own

@@ -121,52 +121,104 @@ describe("collapseEdit", () => {
   const note = ["# Titel", "```schreibstube-index", "depth: 3", "```", "text"].join("\n");
 
   it("adds the collapsed line to fold the index", () => {
-    expect(collapseEdit(note, 1, 3, true)).toEqual({
+    expect(collapseEdit(note, 1, 3, "depth: 3", true)).toEqual({
       fromLine: 2,
       toLine: 3,
-      text: "depth: 3\ncollapsed: true\n"
+      text: "depth: 3\ncollapsed: true\n",
+      source: "depth: 3\ncollapsed: true",
+      block: { lineStart: 1, lineEnd: 4 }
     });
   });
 
   it("takes the line out again to unfold it, whatever it said", () => {
     const folded = note.replace("depth: 3", "depth: 3\n  Collapsed: true");
-    expect(collapseEdit(folded, 1, 4, false)).toEqual({
+    expect(collapseEdit(folded, 1, 4, "depth: 3\n  Collapsed: true", false)).toEqual({
       fromLine: 2,
       toLine: 4,
-      text: "depth: 3\n"
+      text: "depth: 3\n",
+      source: "depth: 3",
+      block: { lineStart: 1, lineEnd: 3 }
     });
   });
 
   it("does not write a second collapsed line", () => {
     const folded = note.replace("depth: 3", "collapsed: false\ndepth: 3");
-    expect(collapseEdit(folded, 1, 4, true)?.text).toBe("depth: 3\ncollapsed: true\n");
+    expect(collapseEdit(folded, 1, 4, "collapsed: false\ndepth: 3", true)?.text).toBe(
+      "depth: 3\ncollapsed: true\n"
+    );
   });
 
   it("writes into an empty block", () => {
     const empty = "~~~~schreibstube-index\n~~~~";
-    expect(collapseEdit(empty, 0, 1, true)).toEqual({
+    expect(collapseEdit(empty, 0, 1, "", true)).toMatchObject({
       fromLine: 1,
       toLine: 1,
       text: "collapsed: true\n"
     });
-    expect(collapseEdit(empty, 0, 1, false)).toEqual({ fromLine: 1, toLine: 1, text: "" });
+    expect(collapseEdit(empty, 0, 1, "", false)).toMatchObject({
+      fromLine: 1,
+      toLine: 1,
+      text: ""
+    });
   });
 
-  it("writes nothing when the lines are no longer an index block", () => {
-    expect(collapseEdit(note, 0, 3, true)).toBeNull();
-    expect(collapseEdit(note.replace("schreibstube-index", "js"), 1, 3, true)).toBeNull();
-    expect(collapseEdit(note, 1, 2, true)).toBeNull();
-    expect(collapseEdit(note, 1, 1, true)).toBeNull();
-    expect(collapseEdit("```schreibstube-index\n~~~", 0, 1, true)).toBeNull();
-    expect(collapseEdit("````schreibstube-index\n```", 0, 1, true)).toBeNull();
-    expect(collapseEdit("```schreibstube-index\n``` text", 0, 1, true)).toBeNull();
+  it("keeps the line inside a list item, at the block's indent", () => {
+    // Unindented, the line ended the list item, closed the fence early, and
+    // the indented closing fence opened a new one that swallowed the note.
+    const listed = "- Objekt\n\n  ```schreibstube-index\n  depth: 3\n  ```\n\nMehr";
+    const edit = collapseEdit(listed, 0, 4, "depth: 3", true);
+    expect(edit && applyLineEdit(listed, edit)).toBe(
+      "- Objekt\n\n  ```schreibstube-index\n  depth: 3\n  collapsed: true\n  ```\n\nMehr"
+    );
+  });
+
+  it("keeps the line inside a callout, behind its marks", () => {
+    const quoted = "> [!note] Inhalt\n> ```schreibstube-index\n> collapsed: true\n> ```\n\nText";
+    const edit = collapseEdit(quoted, 0, 3, "collapsed: true", false);
+    expect(edit && applyLineEdit(quoted, edit)).toBe(
+      "> [!note] Inhalt\n> ```schreibstube-index\n> ```\n\nText"
+    );
+    const open = edit && applyLineEdit(quoted, edit);
+    const again = open && collapseEdit(open, 0, 2, "", true);
+    expect(again && applyLineEdit(open, again)).toBe(quoted);
+  });
+
+  it("finds the block pressed among others in the same section by its text", () => {
+    const two = [
+      "- ```schreibstube-index",
+      "  depth: 1",
+      "  ```",
+      "- ```schreibstube-index",
+      "  depth: 3",
+      "  ```"
+    ].join("\n");
+    const edit = collapseEdit(two, 0, 5, "depth: 3", true);
+    expect(edit).toMatchObject({ fromLine: 4, toLine: 5, text: "  depth: 3\n  collapsed: true\n" });
+  });
+
+  it("writes nothing when the block pressed cannot be told apart, or is gone", () => {
+    const twins = "```schreibstube-index\n```\n\n```schreibstube-index\n```";
+    expect(collapseEdit(twins, 0, 4, "", true)).toBeNull();
+    expect(collapseEdit(note, 1, 3, "depth: 2", true)).toBeNull();
+    expect(
+      collapseEdit(note.replace("schreibstube-index", "js"), 1, 3, "depth: 3", true)
+    ).toBeNull();
+    expect(collapseEdit(note, 1, 2, "depth: 3", true)).toBeNull();
+    expect(collapseEdit("```schreibstube-index\n~~~", 0, 1, "", true)).toBeNull();
+    expect(collapseEdit("````schreibstube-index\n```", 0, 1, "", true)).toBeNull();
+    expect(collapseEdit("```schreibstube-index\n``` text", 0, 1, "", true)).toBeNull();
+  });
+
+  it("passes over an index block quoted in another fence", () => {
+    const quoted = "````md\n```schreibstube-index\n```\n````";
+    expect(collapseEdit(quoted, 0, 3, "", true)).toBeNull();
   });
 });
 
 describe("applyLineEdit", () => {
   it("folds the block in the note and leaves the rest alone", () => {
     const note = "# T\n```schreibstube-index\ndepth: 3\n```\ntext";
-    const edit = collapseEdit(note, 1, 3, true);
+    const edit = collapseEdit(note, 1, 3, "depth: 3", true);
     expect(edit && applyLineEdit(note, edit)).toBe(
       "# T\n```schreibstube-index\ndepth: 3\ncollapsed: true\n```\ntext"
     );
@@ -174,13 +226,13 @@ describe("applyLineEdit", () => {
 
   it("unfolds an emptied block to no body at all", () => {
     const note = "```schreibstube-index\ncollapsed: true\n```";
-    const edit = collapseEdit(note, 0, 2, false);
+    const edit = collapseEdit(note, 0, 2, "collapsed: true", false);
     expect(edit && applyLineEdit(note, edit)).toBe("```schreibstube-index\n```");
   });
 
   it("keeps a note's Windows line endings", () => {
     const note = "```schreibstube-index\r\n```\r\ntext";
-    const edit = collapseEdit(note, 0, 1, true);
+    const edit = collapseEdit(note, 0, 1, "", true);
     expect(edit && applyLineEdit(note, edit)).toBe(
       "```schreibstube-index\r\ncollapsed: true\r\n```\r\ntext"
     );

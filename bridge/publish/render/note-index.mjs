@@ -98,22 +98,30 @@ function deepestThatFits(headings, depth) {
 }
 
 /**
- * The page's own headings, from the parsed tokens: those of the page itself,
- * not of a callout or a quote, with the id the anchor rule gave each one and
- * its words as that rule read them.
+ * The page's own headings, from the parsed tokens: none of a callout or a
+ * quote, as in the vault, with the id the anchor rule gave each one. Its words
+ * are the anchor rule's reading, a line break a space; a heading of an icon
+ * alone has no words left, and is named by its source, as the vault names it.
  */
 export function pageHeadings(tokens) {
   const headings = [];
+  let quoted = 0;
   for (let i = 0; i < tokens.length; i += 1) {
     const token = tokens[i];
-    if (token.type !== "heading_open" || token.level !== 0) continue;
+    if (token.type === "blockquote_open") quoted += 1;
+    if (token.type === "blockquote_close") quoted -= 1;
+    if (token.type !== "heading_open" || quoted > 0) continue;
     const id = token.attrGet("id");
-    const text = (tokens[i + 1]?.children ?? [])
-      .filter((child) => child.type === "text" || child.type === "code_inline")
-      .map((child) => child.content)
+    const inline = tokens[i + 1];
+    const words = (inline?.children ?? [])
+      .map((child) => {
+        if (child.type === "text" || child.type === "code_inline") return child.content;
+        return child.type === "softbreak" || child.type === "hardbreak" ? " " : "";
+      })
       .join("")
       .replace(/\s+/g, " ")
       .trim();
+    const text = words || String(inline?.content ?? "").trim();
     if (!id || text === "") continue;
     headings.push({ level: Number(token.tag.slice(1)), id, text });
   }
