@@ -27,6 +27,7 @@ import {
 } from "./services/plugin-settings";
 import { buildTaskSummaryInsertion, hasTaskSummaryBlock } from "./services/task-summary";
 import { buildSlideshowInsertion } from "./services/slideshow";
+import { buildNoteIndexInsertion } from "./services/note-index";
 import { createLogger, type Logger } from "./services/logger";
 import {
   commandAvailable,
@@ -1872,6 +1873,14 @@ export default class SchreibstubePlugin extends Plugin {
     });
 
     this.addCommand({
+      id: "insert-note-index",
+      name: t().commands.insertNoteIndex,
+      editorCallback: (editor) => {
+        this.insertNoteIndex(editor);
+      }
+    });
+
+    this.addCommand({
       id: "tidy-done-tasks",
       name: t().commands.tidyDoneTasks,
       editorCallback: (editor, view) => {
@@ -2162,6 +2171,21 @@ export default class SchreibstubePlugin extends Plugin {
 
     // Below the block, on the line the writer was heading for anyway; inside
     // it the cursor would show the raw fence instead of the ribbon.
+    const insertedLines = insertion.split("\n").length - 1;
+    editor.setCursor({ line: cursor.line + insertedLines, ch: 0 });
+  }
+
+  /**
+   * Drops an index block at the cursor with both settings at their defaults,
+   * so the writer sees what can be changed. A note may hold several indexes,
+   * one per depth, so nothing is checked.
+   */
+  private insertNoteIndex(editor: Editor): void {
+    const cursor = editor.getCursor();
+    const line = editor.getLine(cursor.line);
+    const insertion = buildNoteIndexInsertion(line.slice(0, cursor.ch), line.slice(cursor.ch));
+    editor.replaceRange(insertion, cursor);
+    // Below the block: inside it the cursor would show the raw fence instead of the index.
     const insertedLines = insertion.split("\n").length - 1;
     editor.setCursor({ line: cursor.line + insertedLines, ch: 0 });
   }

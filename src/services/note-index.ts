@@ -17,6 +17,23 @@ export const DEFAULT_INDEX_DEPTH = 2;
 export const MAX_INDEX_DEPTH = 6;
 
 /**
+ * What **Insert: index** writes: both settings spelled out at their defaults,
+ * so the block shows what can be changed instead of leaving it to be looked up.
+ */
+export const NOTE_INDEX_SNIPPET =
+  "```" + NOTE_INDEX_LANGUAGE + `\ndepth: ${DEFAULT_INDEX_DEPTH}\ncollapsed: false\n` + "```";
+
+/**
+ * The text to insert at the cursor so the block lands on lines of its own,
+ * whatever is on either side of the cursor.
+ */
+export function buildNoteIndexInsertion(textBeforeCursor: string, textAfterCursor: string): string {
+  const prefix = textBeforeCursor.trim().length > 0 ? "\n" : "";
+  const suffix = textAfterCursor.trim().length > 0 ? "\n" : "";
+  return `${prefix}${NOTE_INDEX_SNIPPET}\n${suffix}`;
+}
+
+/**
  * Past this many entries an index is a second copy of the note, not a way
  * into it: it is replaced by a note saying how to make it short again. A
  * count rather than a stopwatch, so a note shows the same thing on a phone,
@@ -232,10 +249,10 @@ export interface CollapseEdit extends LineEdit {
 /**
  * How to fold or unfold the index block whose text is `source`, somewhere
  * between `lineStart` and `lineEnd`: the section Obsidian names for it, which
- * is the block itself, or the list or callout it stands in. The body gets its
- * `collapsed:` line, written with the prefix of the block's own lines so it
- * stays inside a list item or a callout, or loses it when the index opens,
- * since open is the default and a setting that says nothing is clutter.
+ * is the block itself, or the list or callout it stands in. A `collapsed:`
+ * line the block has is set to the new state where it stands; one it lacks is
+ * added only to fold, with the prefix of the block's own lines so it stays
+ * inside a list item or a callout.
  *
  * Null unless exactly one index block in the section holds that text: the
  * note changed under the press, or two identical blocks stand together and
@@ -256,10 +273,22 @@ export function collapseEdit(
   const block = blocks.length === 1 ? blocks[0] : undefined;
   if (!block) return null;
 
-  const body = lines
-    .slice(block.open + 1, block.close)
-    .filter((line) => !COLLAPSED_PATTERN.test(line.replace(CONTAINER_PREFIX, "").trim()));
-  if (collapsed) body.push(`${block.prefix}collapsed: true`);
+  // The first `collapsed:` line is set where it stands, so a block written
+  // with its settings in view keeps them; a second one would contradict it
+  // and goes. A block that never had one gains it only when it folds, since
+  // open is the default and a setting that says nothing is clutter.
+  const value = collapsed ? "true" : "false";
+  const body: string[] = [];
+  let set = false;
+  for (const line of lines.slice(block.open + 1, block.close)) {
+    const setting = line.replace(CONTAINER_PREFIX, "").trim();
+    if (!COLLAPSED_PATTERN.test(setting)) body.push(line);
+    else if (!set) {
+      body.push(`${line.slice(0, line.search(/collapsed/i))}collapsed: ${value}`);
+      set = true;
+    }
+  }
+  if (!set && collapsed) body.push(`${block.prefix}collapsed: true`);
 
   return {
     fromLine: block.open + 1,

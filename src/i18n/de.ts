@@ -17,6 +17,7 @@ export const de: Messages = {
     switchReadingEditing: "Lesen/Bearbeiten wechseln",
     newNote: "Neue Notiz",
     insertTaskSummary: "Einfügen: Aufgaben-Zusammenfassung",
+    insertNoteIndex: "Einfügen: Inhaltsverzeichnis",
     tidyDoneTasks: "Erledigte Aufgaben aufräumen",
     insertSlideshow: "Einfügen: Diaschau",
     insertPdfSummary: "Einfügen: Zusammenfassung aus dem angehängten PDF",
