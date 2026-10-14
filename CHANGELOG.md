@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 1.84.0 - 2026-10-14
+
+An index is one command away. **Insert: index** puts the block at the
+cursor with its two settings written out, so what can be changed is in
+view, and folding the index now flips that `collapsed:` line rather than
+taking it out. The index also lines up with the note: its heading and top
+entries stand on the note's left edge, deeper entries step in like a
+nested list, and the fold arrow is Obsidian's own, in the margin.
+
+Mobile checklist: not run. The change was checked by the test suite and a
+browser mock-up of the stylesheet only; it was not tried in the desktop
+app or on a phone. What to try first: **Insert: index** in the middle of a
+line, folding and unfolding the index it inserts, and whether the fold
+arrow shows in full in Live Preview, where it hangs outside the block.
+
+The bridge moves to 3.1.1: the published index starts on the page's left
+edge too. Nothing else on the site changes, and the protocol is
+unchanged.
+
 ### Added
 
 - **Insert: index** (`Einfügen: Inhaltsverzeichnis`) puts an index block at the cursor, with `depth: 2` and `collapsed: false` written out, so the settings it takes are in view instead of in the manual. Folding an index now sets its `collapsed:` line to `true` or `false` where it stands, rather than taking the line out on unfold, so a block keeps the settings it was written with.
