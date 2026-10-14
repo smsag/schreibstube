@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Added
+
+- **A note can carry its own index.** A long exposé or handbook is read by jumping to a section, and the outline pane is out of sight in a sidebar, never printed and never published. A ```` ```schreibstube-index ```` block lists the note's headings wherever it stands, down to the level its `depth:` line names, `#` and `##` without one. A press on an entry goes to that section; a press on the heading line folds the list and writes `collapsed: true` into the block, so the note keeps it. Past 150 entries the block says the index is too long and names a depth that fits, rather than listing a second copy of the note. It prints as a table of contents with page numbers, always unfolded, and on the website it is a list of links a reader can fold.
+
 ## 1.82.0 - 2026-10-14
 
 Open tasks no longer get lost between the ticked ones. Done and cancelled

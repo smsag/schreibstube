@@ -563,7 +563,8 @@ describe("the prelude the body calls", () => {
   it("defines every helper the converter emits", () => {
     const body = markdownToTypst(
       "![b](b.png)\n\n```mermaid\nA\n```\n\n```ts\nx\n```\n\n| a |\n|---|\n| 1 |\n\n" +
-        "> [!tip] T\n> x\n\n- [ ] t\n\n```schreibstube-slideshow\n![a](a.png)\n![b](b.png)\n```",
+        "> [!tip] T\n> x\n\n- [ ] t\n\n```schreibstube-slideshow\n![a](a.png)\n![b](b.png)\n```" +
+        "\n\n```schreibstube-index\n```\n\n# H",
       { ...resolved, properties: [["autor", "x"]] }
     ).body;
     const called = new Set(
@@ -574,6 +575,7 @@ describe("the prelude the body calls", () => {
       "schreibstube-code",
       "schreibstube-diagram",
       "schreibstube-image",
+      "schreibstube-index",
       "schreibstube-properties",
       "schreibstube-slideshow",
       "schreibstube-table",
@@ -598,6 +600,36 @@ describe("the prelude the body calls", () => {
       expect(definition).toContain("breakable: true");
       expect(definition).not.toContain("breakable: false");
     }
+  });
+});
+
+describe("the index block", () => {
+  const index = (body: string) => "```schreibstube-index\n" + body + "\n```";
+
+  it("prints as the typesetter's outline, to the depth the block names, never folded", () => {
+    const note = `# Exposé\n\n${index("depth: 3\ncollapsed: true")}\n\n## Lage`;
+    const { body, warnings } = markdownToTypst(note);
+    expect(body).toContain('#schreibstube-index(3, "Contents")');
+    expect(warnings).toEqual([]);
+  });
+
+  it("prints at the default depth, and counts headings above it and in no callout", () => {
+    expect(markdownToTypst(`## Lage\n\n${index("")}`).body).toContain("#schreibstube-index(2, ");
+  });
+
+  it("prints nothing for a note with no heading shallow enough", () => {
+    const { body } = markdownToTypst(`${index("")}\n\n### Tief`);
+    expect(body).not.toContain("schreibstube-index");
+    expect(body).not.toContain("schreibstube-code");
+  });
+
+  it("leaves out an index too long to use, and says why in the dialog", () => {
+    const headings = ["# Teil", ...Array.from({ length: 150 }, (_, i) => `## H${i}`)].join("\n\n");
+    const { body, warnings } = markdownToTypst(`${index("")}\n\n${headings}`);
+    expect(body).not.toContain("schreibstube-index");
+    expect(warnings).toEqual([
+      "an index was left out — Index too long: 151 headings up to level 2. Set depth: 1 or split the note."
+    ]);
   });
 });
 

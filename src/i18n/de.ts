@@ -118,6 +118,22 @@ export const de: Messages = {
       "Das Rückgängig des Editors kann es noch zurücknehmen."
   },
 
+  noteIndex: {
+    title: "Inhalt",
+    summary: (count: number) => `Inhalt · ${count} ${count === 1 ? "Abschnitt" : "Abschnitte"}`,
+    expand: "Inhalt zeigen",
+    collapse: "Inhalt verbergen",
+    empty: (depth: number) => `Keine Überschriften bis Ebene ${depth}`,
+    tooLong: (count: number, depth: number, fits: number | null) =>
+      `Inhaltsverzeichnis zu lang: ${count} Überschriften bis Ebene ${depth}. ` +
+      (fits === null ? "Die Notiz aufteilen." : `depth: ${fits} setzen oder die Notiz aufteilen.`),
+    tooSlow:
+      "Inhaltsverzeichnis zu aufwendig, um es rechtzeitig aufzubauen. Ein kleineres depth: setzen oder die Notiz aufteilen.",
+    unreadable: (line: number) =>
+      `Zeile ${line} des Blocks nicht verstanden und ignoriert. ` +
+      "Er kennt depth: 1 bis 6 und collapsed: true oder false."
+  },
+
   slideshow: {
     tooFew: (min: number) => `eine Diaschau braucht mindestens ${min} Bilder.`,
     tooMany: (max: number) => `eine Diaschau fasst höchstens ${max} Bilder.`,
@@ -1428,6 +1444,7 @@ export const de: Messages = {
     builtIn: "eingebaut",
     slideshowUnreadable: (detail: string) =>
       `eine Diaschau wurde als Quelltext gedruckt — ${detail}`,
+    indexLeftOut: (detail: string) => `ein Inhaltsverzeichnis wurde weggelassen — ${detail}`,
     preparing: "bereite den Druck vor …",
     dialog: {
       title: "Drucken",

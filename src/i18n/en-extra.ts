@@ -1018,6 +1018,7 @@ export const enExtra = {
       `the default template ${path} is no longer in this vault; choose one, or pick another default in the print settings.`,
     builtIn: "built in",
     slideshowUnreadable: (detail: string) => `a slideshow was printed as its source — ${detail}`,
+    indexLeftOut: (detail: string) => `an index was left out — ${detail}`,
     preparing: "preparing the print…",
     dialog: {
       title: "Print",

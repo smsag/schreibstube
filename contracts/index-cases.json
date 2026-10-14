@@ -1,0 +1,150 @@
+{
+  "comment": "The ```schreibstube-index``` block, as the plugin reads it in the vault and the bridge reads it for the site. 'options' are block bodies and what they set; 'plans' are heading levels in note order, the depth asked for, and what the index shows: the indent of each entry, or why there is no list. 'limits' are the bounds both sides apply. 'labels' are what a reader of the site reads, in German, the site's language; '{n}' stands for a count. The plugin's German strings and the bridge's are each checked against these.",
+  "options": [
+    {
+      "name": "an empty block",
+      "source": "",
+      "expect": { "depth": 2, "collapsed": false, "unreadableLine": null }
+    },
+    {
+      "name": "a depth",
+      "source": "depth: 3",
+      "expect": { "depth": 3, "collapsed": false, "unreadableLine": null }
+    },
+    {
+      "name": "depth one",
+      "source": "depth: 1",
+      "expect": { "depth": 1, "collapsed": false, "unreadableLine": null }
+    },
+    {
+      "name": "depth six",
+      "source": "depth: 6",
+      "expect": { "depth": 6, "collapsed": false, "unreadableLine": null }
+    },
+    {
+      "name": "collapsed",
+      "source": "depth: 3\ncollapsed: true",
+      "expect": { "depth": 3, "collapsed": true, "unreadableLine": null }
+    },
+    {
+      "name": "collapsed false",
+      "source": "collapsed: false",
+      "expect": { "depth": 2, "collapsed": false, "unreadableLine": null }
+    },
+    {
+      "name": "case and spacing",
+      "source": "  Depth :4  \nCOLLAPSED:True",
+      "expect": { "depth": 4, "collapsed": true, "unreadableLine": null }
+    },
+    {
+      "name": "blank lines and comments",
+      "source": "\n// how deep\ndepth: 3\n\n",
+      "expect": { "depth": 3, "collapsed": false, "unreadableLine": null }
+    },
+    {
+      "name": "a depth too deep keeps the default",
+      "source": "depth: 7",
+      "expect": { "depth": 2, "collapsed": false, "unreadableLine": 1 }
+    },
+    {
+      "name": "depth zero keeps the default",
+      "source": "depth: 0",
+      "expect": { "depth": 2, "collapsed": false, "unreadableLine": 1 }
+    },
+    {
+      "name": "a word for a depth keeps the default",
+      "source": "depth: two",
+      "expect": { "depth": 2, "collapsed": false, "unreadableLine": 1 }
+    },
+    {
+      "name": "a fraction keeps the default",
+      "source": "depth: 2.5",
+      "expect": { "depth": 2, "collapsed": false, "unreadableLine": 1 }
+    },
+    {
+      "name": "collapsed must be true or false",
+      "source": "collapsed: yes",
+      "expect": { "depth": 2, "collapsed": false, "unreadableLine": 1 }
+    },
+    {
+      "name": "an unknown line is named, the rest still counts",
+      "source": "levels: 3\ndepth: 4",
+      "expect": { "depth": 4, "collapsed": false, "unreadableLine": 1 }
+    },
+    {
+      "name": "only the first unknown line is named",
+      "source": "depth: 3\nfoo\nbar",
+      "expect": { "depth": 3, "collapsed": false, "unreadableLine": 2 }
+    },
+    {
+      "name": "a later setting wins",
+      "source": "depth: 3\ndepth: 1",
+      "expect": { "depth": 1, "collapsed": false, "unreadableLine": null }
+    }
+  ],
+  "plans": [
+    { "name": "no headings", "levels": [], "depth": 2, "expect": { "kind": "empty" } },
+    {
+      "name": "only headings deeper than asked",
+      "levels": [3, 4],
+      "depth": 2,
+      "expect": { "kind": "empty" }
+    },
+    {
+      "name": "a plain outline",
+      "levels": [1, 2, 2, 1, 2],
+      "depth": 2,
+      "expect": { "kind": "entries", "indents": [0, 1, 1, 0, 1] }
+    },
+    {
+      "name": "deeper headings are left out",
+      "levels": [1, 2, 3, 2],
+      "depth": 2,
+      "expect": { "kind": "entries", "indents": [0, 1, 1] }
+    },
+    {
+      "name": "no level one: the list starts at the left",
+      "levels": [2, 3, 2],
+      "depth": 3,
+      "expect": { "kind": "entries", "indents": [0, 1, 0] }
+    },
+    {
+      "name": "a skipped level is one step",
+      "levels": [2, 4, 4, 2],
+      "depth": 4,
+      "expect": { "kind": "entries", "indents": [0, 1, 1, 0] }
+    },
+    {
+      "name": "a shallower heading after a deep one",
+      "levels": [3, 2, 3],
+      "depth": 3,
+      "expect": { "kind": "entries", "indents": [0, 0, 1] }
+    },
+    {
+      "name": "exactly at the limit",
+      "repeat": { "level": 2, "count": 150 },
+      "depth": 2,
+      "expect": { "kind": "entries", "count": 150 }
+    },
+    {
+      "name": "over the limit, a lower depth fits",
+      "repeat": { "level": 1, "count": 10, "then": { "level": 2, "count": 141 } },
+      "depth": 2,
+      "expect": { "kind": "too-long", "count": 151, "fits": 1 }
+    },
+    {
+      "name": "over the limit, and a lower depth would list nothing",
+      "repeat": { "level": 2, "count": 151 },
+      "depth": 2,
+      "expect": { "kind": "too-long", "count": 151, "fits": null }
+    },
+    {
+      "name": "over the limit at depth one",
+      "repeat": { "level": 1, "count": 151 },
+      "depth": 3,
+      "expect": { "kind": "too-long", "count": 151, "fits": null }
+    }
+  ],
+  "limits": { "defaultDepth": 2, "maxDepth": 6, "maxEntries": 150 },
+  "labels": { "summary": "Inhalt · {n} Abschnitte", "summaryOne": "Inhalt · 1 Abschnitt" }
+}

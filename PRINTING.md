@@ -288,6 +288,15 @@ a refresh answer must name what it refreshed and what failed. Anything else,
 or Pythia throwing, prints the note as it is with a warning that the footnotes
 were left out — never a failed print.
 
+### The index on paper
+
+A ` ```schreibstube-index ` block is read by the same `parseNoteIndexOptions`
+and `planNoteIndex` that draw it on screen, and becomes the prelude's
+`schreibstube-index(depth, title)`: Typst's own `outline`, so each entry
+carries the page its section starts on. It is never folded on paper, whatever
+the block's `collapsed:` says. An index the screen refuses as too long is left
+out, and the dialog names it; one with nothing to list prints nothing.
+
 ### Slideshows on paper
 
 A ` ```schreibstube-slideshow ` block is read by the same `parseSlideshow` that
@@ -568,6 +577,7 @@ after it.
 | `schreibstube-slide-area`, `-slide-filled`, `-slide-note-mark` | `(layout, picture, body)`, `(beside, body)`, `(title, notes)`                                        | not called by the note: the part under a slide's title, a picture with a space of its own, and a slide's speaker notes, for a template that draws its own slide                                     |
 | `schreibstube-slide-notes`                                     | `(heading:, slide:)`                                                                                 | the speaker notes after the last slide, when the dialog asks for them                                                                                                                               |
 | `schreibstube-slideshow`                                       | `(kind, images, columns: 1)`                                                                         | a slideshow: `kind` one of `single`, `filmstrip`, `feature`, `strip`, `masonry`, `compare`, `stacked`; `images` an array of `(path, description)`                                                   |
+| `schreibstube-index`                                           | `(depth, title)`                                                                                     | the note's index: `depth` the deepest heading level listed, 1 to 6; `title` the words over it, in the plugin's language                                                                             |
 
 Because the layout is imported whole, a top-level name in it may shadow one the
 prelude defines. That is the mechanism, so name private helpers of your own

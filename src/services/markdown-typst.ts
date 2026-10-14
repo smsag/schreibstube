@@ -11,6 +11,8 @@ import { typstArray, typstString } from "./typst-value";
 import { BLOCK_REPORT_LABEL } from "./print-breaks";
 import { parseSlideshow, SLIDESHOW_LANGUAGE } from "./slideshow";
 import { slideshowForPrint, type SlideshowPrintMode } from "./print-slideshow";
+import { buildHeadingIndex } from "./heading-index";
+import { NOTE_INDEX_LANGUAGE, parseNoteIndexOptions, planNoteIndex } from "./note-index";
 import {
   groupSlides,
   markSlideDirectives,
@@ -245,6 +247,8 @@ interface Shared {
   /** Footnotes being expanded right now, so one that cites itself ends. */
   expanding: Set<string>;
   slideshows: number;
+  /** What is printed, whole: an index lists the headings of all of it, not of a callout. */
+  printed: string;
   /**
    * Whether the note is printed as slides. Held here rather than read from the
    * options, which a callout's conversion turns off: a picture in a callout
@@ -261,6 +265,7 @@ export function markdownToTypst(source: string, options: ConvertOptions = {}): C
     warnings: [],
     expanding: new Set(),
     slideshows: 0,
+    printed: source,
     deck: options.slides === true
   }).run();
 }
@@ -596,6 +601,8 @@ class Converter {
       if (printed !== null) return printed;
     }
 
+    if (language.toLowerCase() === NOTE_INDEX_LANGUAGE) return this.noteIndex(source);
+
     if (DIAGRAM_LANGUAGES.has(language.toLowerCase())) {
       const block: DiagramBlock = {
         index: this.shared.diagrams.length,
@@ -651,6 +658,23 @@ class Converter {
     }
     if (placed.length === 0) return "";
     return `#schreibstube-slideshow(${typstString(plan.arrangement)}, (${placed.join(" ")}), columns: ${plan.columns})\n`;
+  }
+
+  /**
+   * The note's index, as the typesetter's own outline, so paper gets the page
+   * each section starts on. Always unfolded: a page cannot be opened later.
+   * An index the screen refuses as too long is left out here too, and the
+   * dialog says so; a notice on paper is one nobody can act on.
+   */
+  private noteIndex(source: string): string {
+    const options = parseNoteIndexOptions(source);
+    const plan = planNoteIndex(buildHeadingIndex(this.shared.printed), options.depth);
+    if (plan.kind === "too-long") {
+      const reason = t().noteIndex.tooLong(plan.count, options.depth, plan.fits);
+      this.warn(t().print.indexLeftOut(reason));
+    }
+    if (plan.kind !== "entries") return "";
+    return `#schreibstube-index(${options.depth}, ${typstString(t().noteIndex.title)})\n`;
   }
 
   /** A blockquote, or the callout Obsidian writes in the shape of one. */

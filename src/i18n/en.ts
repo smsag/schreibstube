@@ -125,6 +125,24 @@ export const en = {
       "can still take it back."
   },
 
+  noteIndex: {
+    title: "Contents",
+    /** The index's heading line. Digits are emphasised by the renderer, so the
+     *  count has to appear as plain digits here. */
+    summary: (count: number) => `Contents · ${count} ${count === 1 ? "section" : "sections"}`,
+    expand: "Show the index",
+    collapse: "Hide the index",
+    empty: (depth: number) => `No headings up to level ${depth}`,
+    /** Shown instead of the list. `fits` is the depth that would stay short enough, if any. */
+    tooLong: (count: number, depth: number, fits: number | null) =>
+      `Index too long: ${count} headings up to level ${depth}. ` +
+      (fits === null ? "Split the note." : `Set depth: ${fits} or split the note.`),
+    tooSlow: "Index took too long to build. Set a lower depth: or split the note.",
+    unreadable: (line: number) =>
+      `Line ${line} of the block was not understood and is ignored. ` +
+      "It takes depth: 1 to 6 and collapsed: true or false."
+  },
+
   slideshow: {
     /** Shown in place of the block when its text does not parse. */
     tooFew: (min: number) => `a slideshow needs at least ${min} images.`,
