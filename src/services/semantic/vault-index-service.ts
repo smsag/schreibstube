@@ -20,7 +20,7 @@ import {
   RANK_YIELD_EVERY
 } from "./vector-math";
 import { vaultNoteChunks, type RetrievedNote } from "./vault-retrieval";
-import { IndexJournal, applyJournal, deserializeJournal } from "./index-journal";
+import { IndexJournal, applyJournal, readJournal } from "./index-journal";
 import { isOutOfMemoryError } from "./memory-error";
 import { BackendGoneError, isBackendGone } from "./embedding-provider";
 import { createLogger, type Logger } from "../logger";
@@ -719,9 +719,12 @@ export class VaultIndexService {
       const { items, dim, meta } = deserializeIndex(buf);
       if (dim !== this.provider.dim) return "none";
       let rows = items;
-      const journalBuf = meta.writtenAt ? await this.store.journal?.().read() : null;
-      const journal = journalBuf ? deserializeJournal(journalBuf, dim) : null;
-      if (journal && journal.base === meta.writtenAt) rows = applyJournal(rows, journal);
+      const journalStore = this.store.journal?.();
+      const journal =
+        meta.writtenAt && journalStore
+          ? (await readJournal(journalStore, meta.writtenAt, dim, this.logger)).journal
+          : null;
+      if (journal) rows = applyJournal(rows, journal);
       return { rows: new Map(rows.map((row) => [row.id, row])), meta };
     } catch (e) {
       this.logger.warn("semantic index: could not read the stored index to merge it", e);

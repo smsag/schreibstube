@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Fixed
+
+- **No more `journal 2.bin`, `journal 3.bin` … in an iCloud vault.** The semantic index's journal was replaced by a new file on every edit, and iCloud kept each replacement that met a file it was still syncing as a numbered copy, with that edit's rows in the copy rather than in the journal. The journal is now written over itself, so iCloud sees a changed file instead of a new one. The copies already in the plugin folder are read with the journal, so no edit they hold is lost, and the device that writes the journal removes them with its next write.
+
 ## 1.84.0 - 2026-10-14
 
 An index is one command away. **Insert: index** puts the block at the

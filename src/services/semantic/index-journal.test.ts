@@ -4,6 +4,8 @@ import {
   COMPACT_MIN_ROWS,
   deserializeJournal,
   IndexJournal,
+  mergeJournals,
+  readJournal,
   serializeJournal,
   shouldCompact
 } from "./index-journal";
@@ -31,6 +33,27 @@ class MemStore implements IndexStore {
     this.bytes += b.byteLength;
   }
 }
+
+/** A journal with the conflict copies a sync left beside it. */
+class CopiedStore extends MemStore {
+  readonly copyBufs = new Map<string, ArrayBuffer | Error>();
+  removed: string[] = [];
+  async copies(): Promise<{ name: string; read(): Promise<ArrayBuffer> }[]> {
+    return [...this.copyBufs].map(([name, buf]) => ({
+      name,
+      read: async () => {
+        if (buf instanceof Error) throw buf;
+        return buf;
+      }
+    }));
+  }
+  async removeCopies(names: readonly string[]): Promise<void> {
+    this.removed.push(...names);
+    for (const n of names) this.copyBufs.delete(n);
+  }
+}
+
+const quiet = { warn: () => undefined };
 
 /** An index store with a journal beside it, as `VaultIndexStore` has. */
 class JournaledStore extends MemStore {
@@ -136,6 +159,96 @@ describe("IndexJournal — in memory", () => {
     const out = await j.load(2, [row("a")], 4);
     expect(out.items).toEqual([row("a")]);
     expect(j.rows).toBe(0);
+  });
+});
+
+describe("the sync copies of a journal", () => {
+  const at = (
+    writtenAt: number,
+    upserts: IndexedConversation[],
+    removed: string[] = [],
+    base = 7
+  ) => serializeJournal({ base, upserts, removed, keeper: "desktop", writtenAt }, 4);
+
+  it("merge oldest write first: a later entry for a note replaces an earlier one", () => {
+    const merged = mergeJournals([
+      { base: 7, upserts: [row("b", 2)], removed: ["a"], writtenAt: 30 },
+      { base: 7, upserts: [row("a"), row("b")], removed: ["c"], writtenAt: 10 },
+      { base: 7, upserts: [row("c")], removed: ["b"], writtenAt: 20 }
+    ]);
+    expect(merged?.upserts.map((u) => u.contentHash).sort()).toEqual(["h-b-2", "h-c-1"]);
+    expect(merged?.removed).toEqual(["a"]);
+    expect(merged?.writtenAt).toBe(30);
+    expect(mergeJournals([])).toBeNull();
+  });
+
+  it("are read with the journal, so the edits a copy alone holds are not lost", async () => {
+    const store = new CopiedStore();
+    store.buf = at(10, [row("a")]);
+    store.copyBufs.set("j 3.bin", at(30, [row("a"), row("b")], ["x"]));
+    store.copyBufs.set("j 2.bin", at(20, [row("a")]));
+    store.copyBufs.set("j 4.bin", at(40, [row("old")], [], 6)); // another base
+    store.copyBufs.set("j 5.bin", new ArrayBuffer(3)); // torn
+    const j = new IndexJournal(store);
+    const out = await j.load(7, [row("x"), row("y")], 4);
+    expect(out.items.map((i) => i.id).sort()).toEqual(["a", "b", "y"]);
+    expect(out.writtenAt).toBe(30);
+    expect(j.rows).toBe(3);
+  });
+
+  it("stand in for a journal the sync left only as a copy", async () => {
+    const store = new CopiedStore();
+    store.copyBufs.set("j 2.bin", at(20, [row("a")]));
+    const out = await new IndexJournal(store).load(7, [], 4);
+    expect(out.items.map((i) => i.id)).toEqual(["a"]);
+  });
+
+  it("are removed once the journal's own write carries them, and not before", async () => {
+    const store = new CopiedStore();
+    store.buf = at(10, [row("a")]);
+    store.copyBufs.set("j 2.bin", at(20, [row("b")]));
+    store.copyBufs.set("j 3.bin", at(40, [row("old")], [], 6));
+    const j = new IndexJournal(store);
+    await j.load(7, [], 4);
+    expect(store.removed).toEqual([]); // a reader alone never removes them
+    j.record("c", row("c"));
+    await j.write(4, { keeper: "desktop", writtenAt: 50 });
+    expect(store.removed.sort()).toEqual(["j 2.bin", "j 3.bin"]);
+    const next = await readJournal(store, 7, 4, quiet);
+    expect(next.journal?.upserts.map((u) => u.id).sort()).toEqual(["a", "b", "c"]);
+    expect(next.copies).toEqual([]);
+    await j.write(4, { keeper: "desktop", writtenAt: 60 });
+    expect(store.removed).toHaveLength(2);
+  });
+
+  it("are skipped, with a warning, when one cannot be read or listed", async () => {
+    const warnings: string[] = [];
+    const logger = { warn: (m: string) => void warnings.push(m) };
+    const store = new CopiedStore();
+    store.buf = at(10, [row("a")]);
+    store.copyBufs.set("j 2.bin", new Error("evicted"));
+    const read = await readJournal(store, 7, 4, logger);
+    expect(read.journal?.upserts.map((u) => u.id)).toEqual(["a"]);
+    expect(read.copies).toEqual(["j 2.bin"]);
+    store.copies = async () => {
+      throw new Error("no list");
+    };
+    expect((await readJournal(store, 7, 4, logger)).journal?.upserts).toHaveLength(1);
+    expect(warnings).toHaveLength(2);
+  });
+
+  it("stay when they cannot be removed, for the next launch to find", async () => {
+    const warnings: string[] = [];
+    const store = new CopiedStore();
+    store.copyBufs.set("j 2.bin", at(20, [row("b")]));
+    store.removeCopies = async () => {
+      throw new Error("busy");
+    };
+    const j = new IndexJournal(store, { warn: (m: string) => void warnings.push(m) });
+    await j.load(7, [], 4);
+    await j.write(4, { writtenAt: 30 });
+    expect(warnings).toHaveLength(1);
+    expect(store.copyBufs.size).toBe(1);
   });
 });
 

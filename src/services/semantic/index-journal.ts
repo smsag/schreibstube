@@ -8,6 +8,12 @@
 //
 // Rewritten whole rather than appended: `appendBinary` needs Obsidian 1.12.3, the
 // manifest promises 1.4.0, and a file this small costs nothing to rewrite.
+//
+// The shared journal is written by the device that keeps the index, the
+// phone's by the phone. The copies iCloud kept of a journal that was
+// replaced rather than written over (`conflict-copies.ts`) are read with it and
+// merged, oldest write first, so no edit they hold is lost; the writer removes
+// them once its own next write carries those edits.
 
 import type { IndexStore } from "./index-store";
 import { createLogger, type Logger } from "../logger";
@@ -78,12 +84,80 @@ export function applyJournal(
   return [...items.filter((i) => !superseded.has(i.id)), ...j.upserts];
 }
 
+/**
+ * Journals laid over one another, oldest write first: a later entry for a note
+ * replaces an earlier one. One writer's journals each hold all it wrote since
+ * the base, so their merge is simply the newest; two writers' are a union.
+ */
+export function mergeJournals(journals: readonly JournalContent[]): JournalContent | null {
+  const ordered = [...journals].sort((a, b) => (a.writtenAt ?? 0) - (b.writtenAt ?? 0));
+  const last = ordered[ordered.length - 1];
+  if (!last) return null;
+  const upserts = new Map<string, IndexedConversation>();
+  const removed = new Set<string>();
+  for (const j of ordered) {
+    for (const u of j.upserts) {
+      upserts.set(u.id, u);
+      removed.delete(u.id);
+    }
+    for (const id of j.removed) {
+      upserts.delete(id);
+      removed.add(id);
+    }
+  }
+  return {
+    base: last.base,
+    upserts: [...upserts.values()],
+    removed: [...removed],
+    keeper: last.keeper,
+    writtenAt: last.writtenAt
+  };
+}
+
+/**
+ * The journal of `base` on disk: the file and every conflict copy of it that
+ * extends that base, merged. `copies` names every copy found, whatever it
+ * held, since none of them is read by anything once this journal is written.
+ * Throws when the file itself cannot be read; a copy that cannot is skipped.
+ */
+export async function readJournal(
+  store: IndexStore,
+  base: number,
+  dim: number,
+  logger: Pick<Logger, "warn">
+): Promise<{ journal: JournalContent | null; copies: string[] }> {
+  const buf = await store.read();
+  const found: JournalContent[] = [];
+  const own = buf ? deserializeJournal(buf, dim) : null;
+  if (own) found.push(own);
+  let copies: { name: string; read(): Promise<ArrayBuffer> }[] = [];
+  try {
+    copies = (await store.copies?.()) ?? [];
+  } catch (e) {
+    logger.warn("semantic index: the index journal's sync copies could not be listed", e);
+  }
+  for (const copy of copies) {
+    try {
+      const j = deserializeJournal(await copy.read(), dim);
+      if (j) found.push(j);
+    } catch (e) {
+      logger.warn(`semantic index: the journal copy "${copy.name}" could not be read`, e);
+    }
+  }
+  // A stale journal: see the header of the file.
+  const current = found.filter((j) => j.base === base);
+  return { journal: mergeJournals(current), copies: copies.map((c) => c.name) };
+}
+
 /** The journal of one index: what changed since its base, in memory and on disk. */
 export class IndexJournal {
   private readonly upserts = new Map<string, IndexedConversation>();
   private readonly removed = new Set<string>();
   /** The base this journal extends; undefined when there is none it can name. */
   private base: number | undefined;
+  /** Conflict copies found when the journal was read: no reader needs them
+   *  once this journal's next write stands. */
+  private copies: string[] = [];
 
   constructor(
     private readonly store: IndexStore,
@@ -150,6 +224,15 @@ export class IndexJournal {
         dim
       )
     );
+    if (this.copies.length === 0 || !this.store.removeCopies) return;
+    const copies = this.copies;
+    this.copies = [];
+    try {
+      await this.store.removeCopies(copies);
+    } catch (e) {
+      // Left for the next launch to find again; they are only read, never trusted.
+      this.logger.warn("semantic index: the index journal's sync copies could not be removed", e);
+    }
   }
 
   /**
@@ -168,9 +251,9 @@ export class IndexJournal {
   }> {
     this.reset(base);
     if (base === undefined) return { items };
-    let buf: ArrayBuffer | null;
+    let read: Awaited<ReturnType<typeof readJournal>>;
     try {
-      buf = await this.store.read();
+      read = await readJournal(this.store, base, dim, this.logger);
     } catch (e) {
       this.logger.warn(
         "semantic index: the index journal could not be read — using the index without it",
@@ -178,8 +261,9 @@ export class IndexJournal {
       );
       return { items };
     }
-    const j = buf ? deserializeJournal(buf, dim) : null;
-    if (!j || j.base !== base) return { items }; // a stale journal: see the header
+    this.copies = read.copies;
+    const j = read.journal;
+    if (!j) return { items };
     for (const u of j.upserts) this.upserts.set(u.id, u);
     for (const id of j.removed) this.removed.add(id);
     return { items: applyJournal(items, j), keeper: j.keeper, writtenAt: j.writtenAt };
