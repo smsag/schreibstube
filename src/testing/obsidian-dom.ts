@@ -53,6 +53,9 @@ export function installObsidianDom(): void {
     toggle(this: HTMLElement, show: boolean) {
       this.style.display = show ? "" : "none";
     },
+    appendText(this: HTMLElement, text: string) {
+      this.appendChild(this.ownerDocument.createTextNode(text));
+    },
     setText(this: HTMLElement, text: string) {
       this.textContent = text;
     },

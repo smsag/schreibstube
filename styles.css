@@ -119,6 +119,58 @@
   font-weight: var(--bold-weight);
 }
 
+/* The index rendered by the ```schreibstube-index``` block: the ribbon's type
+   for its heading line, and the note's headings under it. The indent comes
+   from the outline, set on each entry by the renderer. */
+.schreibstube-note-index {
+  font-family: var(--font-text);
+  font-size: var(--font-text-size);
+  color: var(--text-muted);
+  margin: 0.25em 0;
+}
+
+.schreibstube-note-index strong {
+  color: var(--text-normal);
+  font-weight: var(--bold-weight);
+}
+
+.schreibstube-note-index-line[role="button"] {
+  display: flex;
+  align-items: center;
+  gap: var(--size-4-1);
+  cursor: pointer;
+}
+
+.schreibstube-note-index-chevron {
+  color: var(--text-faint);
+  font-size: var(--font-ui-smaller);
+}
+
+.schreibstube-note-index-list {
+  list-style: none;
+  margin: 0.25em 0 0;
+  padding: 0;
+}
+
+.schreibstube-note-index-entry {
+  margin: 0;
+  padding-left: calc((var(--schreibstube-index-indent, 0) + 1) * 1.25em);
+}
+
+.schreibstube-note-index-link {
+  color: var(--link-color);
+  text-decoration: none;
+}
+
+.schreibstube-note-index-link:hover {
+  text-decoration: underline;
+}
+
+.schreibstube-note-index-hint {
+  color: var(--text-faint);
+  font-size: var(--font-smaller);
+}
+
 .schreibstube-focus-enabled .cm-line.schreibstube-focus-dimmed {
   opacity: var(--schreibstube-focus-dim-opacity);
 }

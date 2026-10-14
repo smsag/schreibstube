@@ -16,12 +16,25 @@ function stripMarkdownFormatting(text: string): string {
     .trim();
 }
 
+/** How many lines pass between two looks at the clock while a scan may give up. */
+const EXPIRY_STRIDE = 256;
+
 export function buildHeadingIndex(content: string): HeadingIndex {
+  return scanHeadings(content, () => false) ?? [];
+}
+
+/**
+ * The headings, or null once `expired` says the time is up. A view that has
+ * to stay responsive asks for this one: the scan is synchronous, so the only
+ * way to bound it is to look at the clock as it goes.
+ */
+export function scanHeadings(content: string, expired: () => boolean): HeadingIndex | null {
   const lines = content.split(/\r?\n/);
   const result: HeadingEntry[] = [];
   let fence: string | null = null;
 
   for (const [lineNumber, line] of lines.entries()) {
+    if (lineNumber % EXPIRY_STRIDE === EXPIRY_STRIDE - 1 && expired()) return null;
     // A `# comment` in the properties is YAML, and it stood in the stack as
     // the note's first heading.
     if (lineNumber < frontmatterLines(lines)) continue;

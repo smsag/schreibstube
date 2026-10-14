@@ -428,6 +428,15 @@ export const PRELUDE_SOURCE = `// Defaults the converted note calls. A template 
   schreibstube-slide-area(layout, picture, body)
 }
 
+// The note's own index, the schreibstube-index block. Typst's outline rather
+// than a list drawn here: on paper the page a section starts on is what a
+// reader needs, and only the typesetter knows it. Every heading of the note
+// down to \`depth\` is listed; the block is never folded on paper.
+#let schreibstube-index(depth, title) = block(width: 100%, above: 1.2em, below: 1.6em, {
+  text(weight: 600, fill: luma(90), title)
+  outline(title: none, depth: depth, indent: auto)
+})
+
 // A task's box, drawn rather than typed so that no font has to carry the glyph.
 #let schreibstube-task(done) = box(
   width: 0.75em,

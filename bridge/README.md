@@ -29,6 +29,7 @@ route that does not exist yet.
 
 | Bridge | Protocol | Plugin          | Notes                                                                                                |
 | ------ | -------- | --------------- | ---------------------------------------------------------------------------------------------------- |
+| 3.1.x  | 8        | 1.8.0 and later | A `schreibstube-index` block becomes a foldable list of the page's sections                          |
 | 3.0.x  | 8        | 1.8.0 and later | `/search` `exclude`, quiet `/health`; plan `conflicts`, diagnostics without the root path; see below |
 | 2.13.x | 7        | 1.8.0 and later | `:folder:` in a note is drawn as the plugin's icon                                                   |
 | 2.12.x | 7        | 1.8.0 and later | `/attachments` hands over a received mail's files                                                    |
@@ -332,6 +333,15 @@ comparison is two pictures side by side. On pages that have one, it adds
 `publish/client/` that brings the header, the controls, the thumbnails, the
 divider and the fullscreen view. Only images the site has are shown; a block
 the plugin would refuse is left off the page.
+
+A ` ```schreibstube-index``` ` block becomes a `<details class="schreibstube-index">`
+holding a nested list of links to the page's own headings, the ids the anchor
+rule gave them, down to the block's `depth:`. It is open unless the block says
+`collapsed: true`, and a reader folds it without a script. The bridge reads the
+block by the plugin's rules, against `contracts/index-cases.json`. A block that
+would list nothing, or more than 150 entries, is left off the page: its notice
+is for the author, who sees it in the note. The protocol stays at 8; the
+render version moves to 7, so every page is drawn again on the next publish.
 
 A filmstrip's thumbnails are small copies the plugin makes, since it can
 decode a picture where the picture is and the bridge would otherwise need an

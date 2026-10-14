@@ -27,12 +27,10 @@ plain Obsidian Markdown plus what this file lists. Write only what is here.
   or mark them clearly as `[TODO: …]` in the body. Never invent them.
 - In the frontmatter, leave an unknown value out instead: a `[TODO: …]`
   there prints as written, on a title slide or in a letterhead.
-- Comments `<!-- … -->` and Obsidian's `%% … %%` are hidden in every view and
-  never printed, mailed or published. Schreibstube reads only the settings
-  this file names from them.
-- These do not reach a PDF: raw HTML (tags are dropped, words stay),
-  embedded notes (`![[Another note]]`), and LaTeX math, which prints as its
-  source in a code block.
+- Comments `<!-- … -->` and Obsidian's `%% … %%` are hidden in every view and never printed,
+  mailed or published. Schreibstube reads only the settings this file names from them.
+- These do not reach a PDF: raw HTML (tags are dropped, words stay), embedded notes
+  (`![[Another note]]`), and LaTeX math, which prints as its source in a code block.
 - Write the language the person writes. German UI names are given in
   parentheses where the plugin shows them in German.
 
@@ -272,9 +270,8 @@ A formula alone in a cell works on the cells above it; the note keeps it.
 - `=sum`, `=avg`, `=median`, `=count`, `=min`, `=max`.
 - `=sum(fixed)` is written down as `=sum(fixed: 451.500 €)` the first time the
   note is mailed, printed or published, and then stays.
-- Amounts: `300 €`, `€ 20`, `1.234,50 €`, `20,-`, `-20 €`. An amount in
-  quotes, `"300 €"`, is left out on purpose. Another formula above is not
-  counted twice.
+- Amounts: `300 €`, `€ 20`, `1.234,50 €`, `20,-`, `-20 €`. An amount in quotes, `"300 €"`, is
+  left out on purpose. Another formula above is not counted twice.
 - Alignment comes from the delimiter row: `:--`, `:-:`, `--:`.
 - A line ending in `=` shows its result: `Miete 1.240 € - 15% =`; Tab adds it.
 
@@ -305,11 +302,15 @@ layout: compare
 
 ## 7. Other blocks and inline syntax
 
-### Task summary
+### Index and task summary
 
-**Insert: task summary** (`Einfügen: Aufgaben-Zusammenfassung`).
+The index is typed; **Insert: task summary** (`Einfügen: Aufgaben-Zusammenfassung`).
 
 ````markdown
+```schreibstube-index
+depth: 3
+```
+
 ```schreibstube-tasks
 
 ```
@@ -320,10 +321,13 @@ layout: compare
 - [x] Exposé senden
 ````
 
-- The block shows "20 of 21 open" for the whole note; each heading with
-  tasks shows its own count. Group tasks under headings for that.
-- `- [ ]` is open, `- [/]` started, `[x]` done, `[-]` cancelled. Done and
-  cancelled both count as finished and fold; the block names the cancelled.
+- The index lists the note's headings down to `depth:` (1–6, default 2); each entry jumps to
+  its section, and `collapsed: true` folds it. Past 150 entries it shows a notice instead:
+  lower `depth:`. It prints unfolded, with page numbers; on the website a reader folds it.
+- The task block shows "20 of 21 open" for the whole note; each heading with tasks shows its
+  own count. Group tasks under headings for that.
+- `- [ ]` is open, `- [/]` started, `[x]` done, `[-]` cancelled. Done and cancelled both
+  count as finished and fold; the block names the cancelled.
 - `## Archive` is where **Tidy up done tasks** files `[x]` tasks; `[-]` stays.
 
 ### Callouts
@@ -340,16 +344,14 @@ styles, coloured by the template:
 
 ### Icons in the text
 
-`:name:` is drawn as an icon in Obsidian and on the website, and stays the
-word in a mail. Use only names you are sure of: `:home:`, `:building:`,
-`:key:`, `:map-pin:`, `:phone:`, `:mail:`, `:calendar:`, `:folder:`,
-`:star:`. Typing `:` and two letters in Obsidian lists all of them.
+`:name:` is drawn as an icon in Obsidian and on the website, and stays the word in a mail. Use
+only names you are sure of: `:home:`, `:building:`, `:key:`, `:map-pin:`, `:phone:`, `:mail:`,
+`:calendar:`, `:folder:`, `:star:`. Typing `:` and two letters in Obsidian lists all of them.
 
 ### Diagrams
 
-` ```mermaid ` and ` ```vizardry ` fences are drawn by Obsidian and its
-plugins, then printed and published as pictures. A diagram that cannot be
-drawn prints as its source.
+` ```mermaid ` and ` ```vizardry ` fences are drawn by Obsidian and its plugins, then printed
+and published as pictures. A diagram that cannot be drawn prints as its source.
 
 ### Footnotes and links
 
@@ -360,9 +362,8 @@ drawn prints as its source.
 
 ## 8. Mail
 
-**Send note as mail** (`Notiz als Mail senden`) sends the note as plain text
-after a confirmation; **Fetch replies into note** (`Antworten ins Doc holen`)
-appends answers.
+**Send note as mail** (`Notiz als Mail senden`) sends the note as plain text after a
+confirmation; **Fetch replies into note** (`Antworten ins Doc holen`) appends answers.
 
 ```markdown
 ---
@@ -376,10 +377,9 @@ Guten Tag Herr Beispiel,
 anbei unser Angebot …
 ```
 
-- The body is the mail: no title heading needed. Write the greeting and the
-  closing yourself; nothing is added. Formatting becomes plain text, a table
-  stays a table of text, and a formula is sent as its result. Embedded files
-  cannot be attached.
+- The body is the mail: no title heading needed. Write the greeting and the closing yourself;
+  nothing is added. Formatting becomes plain text, a table stays a table of text, and a formula
+  is sent as its result. Embedded files cannot be attached.
 
 ## 9. Publishing
 
@@ -396,11 +396,10 @@ slug: hallo-welt
 ---
 ```
 
-- All but `published` are optional. Slideshows, diagrams and totals are
-  carried over.
+- All but `published` are optional. Slideshows, diagrams, the index and totals are carried
+  over.
 - Leave `description` out rather than guess: an empty one may be written by
-  the AI when the note is published. Write one only when you know what the
-  note says.
+  the AI when the note is published.
 
 ## 10. Document sync
 
@@ -485,6 +484,7 @@ template's folder; a missing one is left out with a warning.
 | "Offer by mail to …"                   | a mail note with `schreibstubeTo` and a subject        |
 | "Cost overview with total"             | a table with `=sum`; `=sum(fixed)` if it goes out      |
 | "Checklist for the handover"           | a `schreibstube-tasks` block, tasks under headings     |
+| "Exposé with a table of contents"      | a `schreibstube-index` block under the title           |
 | "Publish this as a blog post"          | the note with `published: true`, `description`, `slug` |
 | "Our house terms"                      | a glossary note                                        |
 | "My CV for this job ad"                | a `Lebenslauf` note in the `###`/`####`/`#####` levels |

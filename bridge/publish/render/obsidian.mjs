@@ -13,6 +13,7 @@
 import { escapeAttribute, escapeHtml } from "./html.mjs";
 import { textWithIcons } from "./icons.mjs";
 import { renderSlideshow, SLIDESHOW_LANGUAGE } from "./slideshow.mjs";
+import { NOTE_INDEX_LANGUAGE, renderNoteIndex } from "./note-index.mjs";
 
 // Kept importable from here, where the page template has always found it.
 export { escapeHtml };
@@ -350,6 +351,9 @@ function findClose(tokens, openIndex) {
  * A `schreibstube-slideshow` fence becomes the plugin's slideshow, drawn by
  * the site's own script; see `slideshow.mjs`.
  *
+ * A `schreibstube-index` fence becomes the list of the page's headings; see
+ * `note-index.mjs`.
+ *
  * A `mermaid` fence becomes a block the client-side bundle picks up.
  *
  * Mermaid is the one thing the bridge cannot render, because it needs a browser
@@ -370,6 +374,7 @@ function overrideFence(md, allowDiagrams) {
       if (rendered.slideshow) env.usedSlideshow = true;
       return rendered.html;
     }
+    if (info === NOTE_INDEX_LANGUAGE) return renderNoteIndex(tokens[index].content, tokens);
     if (info === "mermaid" && allowDiagrams) {
       env.usedMermaid = true;
       return `<pre class="mermaid">${escapeHtml(tokens[index].content)}</pre>\n`;

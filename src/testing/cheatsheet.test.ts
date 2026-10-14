@@ -19,6 +19,7 @@ import { SLIDE_FORMATS } from "../services/print-options";
 import { REQUESTED_LAYOUTS, SLIDE_ALIGNS, SLIDE_DIRECTIVES } from "../services/print-slides";
 import { SLIDESHOW_LANGUAGE, SLIDESHOW_LAYOUTS } from "../services/slideshow";
 import { TASK_SUMMARY_LANGUAGE } from "../services/task-summary";
+import { NOTE_INDEX_LANGUAGE } from "../services/note-index";
 
 /** The page's length limit: past it, a model reads it less carefully and a person not at all. */
 export const MAX_CHEATSHEET_LINES = 500;
@@ -104,7 +105,7 @@ describe("the cheatsheet", () => {
     for (const layout of SLIDESHOW_LAYOUTS) expect(mentions(layout)).toBe(true);
     for (const formula of formulasInCode()) expect(sheet).toContain(`=${formula}`);
     expect(formulasInCode().length).toBeGreaterThan(0);
-    for (const language of [SLIDESHOW_LANGUAGE, TASK_SUMMARY_LANGUAGE]) {
+    for (const language of [SLIDESHOW_LANGUAGE, TASK_SUMMARY_LANGUAGE, NOTE_INDEX_LANGUAGE]) {
       expect(sheet).toContain(`\`\`\`${language}`);
     }
     for (const template of EXAMPLE_TEMPLATES) expect(mentions(template.name)).toBe(true);

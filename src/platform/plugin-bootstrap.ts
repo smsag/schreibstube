@@ -5,6 +5,7 @@ import { createTaskBadgeExtension } from "../processors/task-badges";
 import { createTaskFoldExtension } from "../processors/task-fold";
 import { createTaskFoldPostProcessor } from "../processors/task-fold-reading";
 import { registerTaskRibbon } from "../processors/task-ribbon";
+import { registerNoteIndex } from "../processors/note-index";
 import { registerSlideshow, type SlideshowPictureActions } from "../processors/slideshow";
 import type { SchreibstubeSettings } from "../types";
 
@@ -31,6 +32,7 @@ export function bootstrapSchreibstubeRuntime(plugin: Plugin, handlers: Bootstrap
   plugin.registerEditorExtension(createTaskFoldExtension());
   plugin.registerMarkdownPostProcessor(createTaskFoldPostProcessor());
   registerTaskRibbon(plugin);
+  registerNoteIndex(plugin);
   registerSlideshow(plugin, handlers.pictureActions);
 
   const reading = createReadingPostProcessor(({ viewportTopLine, scrollTop }) => {

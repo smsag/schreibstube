@@ -47,6 +47,13 @@ export const PRINT_CASES: readonly PrintCase[] = [
   { name: "paragraph", markdown: "Ein Absatz mit Umlauten: äöü ß.\n\nUnd ein zweiter." },
   { name: "headings", markdown: "# Eins\n\n## Zwei\n\n### Drei\n\nText." },
   {
+    // The typesetter's own outline, with page numbers, under the template's
+    // headings; a deck lists its slides' titles.
+    name: "index",
+    markdown:
+      "# Exposé\n\n```schreibstube-index\ndepth: 3\n```\n\n## Lage\n\n### Mikrolage\n\nText.\n\n## Preis\n\nText."
+  },
+  {
     // Every way a deck is grouped: title slide, divider, one, two and three
     // columns and a second row, a deeper heading inside a column, pictures
     // with and without a caption, a rule, and a slide that only fits once it
