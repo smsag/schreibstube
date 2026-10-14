@@ -1,11 +1,4 @@
-import {
-  type App,
-  type EventRef,
-  type Events,
-  MarkdownRenderChild,
-  MarkdownView,
-  TFile
-} from "obsidian";
+import { type App, MarkdownRenderChild, MarkdownView, TFile } from "obsidian";
 
 /** Long enough to fold a burst of keystrokes into one render, short enough
  *  that a tick reads as instant. */
@@ -21,7 +14,6 @@ const RERENDER_DELAY_MS = 60;
  * straight into the file.
  */
 export abstract class LiveNoteBlock extends MarkdownRenderChild {
-  private readonly subscriptions: Array<[Events, EventRef]> = [];
   private pendingRender: number | null = null;
 
   constructor(
@@ -36,33 +28,22 @@ export abstract class LiveNoteBlock extends MarkdownRenderChild {
   protected abstract draw(content: string): void;
 
   override onload(): void {
-    this.subscribe(
-      this.app.workspace,
+    this.registerEvent(
       this.app.workspace.on("editor-change", (_editor, info) => {
         if (info.file?.path === this.sourcePath) this.scheduleRender();
       })
     );
-    this.subscribe(
-      this.app.metadataCache,
+    this.registerEvent(
       this.app.metadataCache.on("changed", (file) => {
         if (file.path === this.sourcePath) this.scheduleRender();
       })
     );
+    this.register(() => {
+      if (this.pendingRender !== null) window.clearTimeout(this.pendingRender);
+      this.pendingRender = null;
+    });
 
     void this.render();
-  }
-
-  override onunload(): void {
-    if (this.pendingRender !== null) {
-      window.clearTimeout(this.pendingRender);
-      this.pendingRender = null;
-    }
-    for (const [emitter, ref] of this.subscriptions) emitter.offref(ref);
-    this.subscriptions.length = 0;
-  }
-
-  private subscribe(emitter: Events, ref: EventRef): void {
-    this.subscriptions.push([emitter, ref]);
   }
 
   private scheduleRender(): void {
@@ -77,13 +58,27 @@ export abstract class LiveNoteBlock extends MarkdownRenderChild {
     this.draw(await this.readContent());
   }
 
-  /** The open view of this note, if one is: its buffer is newer than the file. */
-  protected noteView(): MarkdownView | null {
+  /** The first open markdown view that `accepts`. */
+  protected findView(accepts: (view: MarkdownView) => boolean): MarkdownView | null {
     for (const leaf of this.app.workspace.getLeavesOfType("markdown")) {
       const view = leaf.view;
-      if (view instanceof MarkdownView && view.file?.path === this.sourcePath) return view;
+      if (view instanceof MarkdownView && accepts(view)) return view;
     }
     return null;
+  }
+
+  /**
+   * The editor holding this note, if one is open. One in Live Preview or
+   * Source mode first: a pane in Reading view shows the file, while an
+   * editor's buffer may be newer than it, and that buffer is what a write
+   * must go into so its next save does not drop the change.
+   */
+  protected noteEditor(): MarkdownView | null {
+    const showsNote = (view: MarkdownView) => view.file?.path === this.sourcePath;
+    return (
+      this.findView((view) => showsNote(view) && view.getMode() === "source") ??
+      this.findView(showsNote)
+    );
   }
 
   /**
@@ -92,7 +87,7 @@ export abstract class LiveNoteBlock extends MarkdownRenderChild {
    * no editor behind it.
    */
   private async readContent(): Promise<string> {
-    const view = this.noteView();
+    const view = this.noteEditor();
     if (view) return view.editor.getValue();
 
     const file = this.app.vault.getAbstractFileByPath(this.sourcePath);
