@@ -4,22 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
-## 1.84.1 - 2026-10-14
+### Added
 
-The plugin folder of an iCloud vault stops filling with numbered copies of
-the semantic index's journal. Every edit replaced the journal with a new
-file, and iCloud kept each replacement that met a file it was still
-syncing as `journal 2.bin`, `journal 3.bin` and so on. The journal is now
-written over itself, and copies already there are read with it, so no edit
-in them is lost. The device that writes the journal removes them with its
-next save.
-
-Mobile checklist: not run. The phone's own journal is written the same
-way now, and that was checked by the test suite only, not on a phone.
-What to try first: edit a note on the phone, then check that
-`…phone-journal.bin` changes and no numbered copy of it appears.
-
-The bridge is unchanged, and so is the protocol.
+- **Related notes for Nimbus.** With **Search by meaning** on, the desktop writes `nimbus-related.json` into the plugin's folder: for every note with `nimbusProject` in its frontmatter, the twenty notes most like the project's own passages that do not carry its tag, each with its closest passage. Nimbus reads the file for its project status reports, since it cannot ask Obsidian. It is written at most every five minutes after the index or a project note changed, only when its content changed, never on a phone, and deleted when search by meaning is switched off. The rule is `contracts/RELATED.md`, shared with Nimbus.
 
 ### Fixed
 

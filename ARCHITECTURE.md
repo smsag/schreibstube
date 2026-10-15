@@ -206,6 +206,21 @@ write and without an embed; a phone reads them from the file. The sidebar
 asks again only when the cursor has rested in another section, and keeps
 each section's answer while the note is open.
 
+Nimbus, a native app on the same vault, reads the index's answer for its
+project notes from a file rather than from the index: `nimbus-related.json` in
+the plugin folder, whose shape and rules are `contracts/RELATED.md`. The
+desktop alone writes it (`controllers/semantic/related-export.ts`), as it alone
+keeps the index, so the two devices never write it at once. A run waits for
+the vault to be quiet after the index or a project note changed, runs at most
+every five minutes, and ranks from stored vectors only, never the model. A
+passage's text comes from cutting the note again the way the index cut it,
+and is trusted only where the stored passage hashes match, so a note edited
+since its embed is passed over until it is embedded again. The decisions —
+which notes are projects, which passages anchor one, what counts as carrying
+its tag, scoring, the budget, the reader's checks — are in
+`services/semantic/related-export.ts`, and the contract's examples run against
+them.
+
 The Explorer filter reads note text too, separately from the model: a
 vocabulary of every note's words (`services/body-index.ts`), read once when the
 filter is first used. Both it and the model read a note through

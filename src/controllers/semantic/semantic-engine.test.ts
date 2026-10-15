@@ -171,6 +171,19 @@ beforeEach(() => {
 });
 
 describe("SemanticEngine", () => {
+  it("offers the list for Nimbus the index's rows only once it is built", async () => {
+    const w = world();
+    const e = w.engine();
+    expect(e.relatedSnapshot()).toBeNull();
+    await built(e);
+    const snapshot = e.relatedSnapshot();
+    expect(snapshot?.rows.map((row) => row.id).sort()).toEqual(["a.md", "b.md"]);
+    expect(snapshot?.model).toBe("xenova-paraphrase-multilingual-MiniLM-L12-v2");
+    expect(snapshot?.floor).toBe(0.65);
+    w.settings.semanticSearchEnabled = false;
+    expect(e.relatedSnapshot()).toBeNull();
+  });
+
   it("answers from a finished index that the panel or the settings read first", async () => {
     const w = world();
     await built(w.engine());

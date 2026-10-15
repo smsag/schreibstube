@@ -810,6 +810,12 @@ Recommended is not affected by any of this: it compares vectors already in the i
 
 If Obsidian on a phone restarts over and over, switch **Search by meaning** off in the Schreibstube settings as soon as it is up, and look for another plugin that runs a model of its own.
 
+#### Related notes for Nimbus
+
+Nimbus, a native app that writes project status reports into the same vault, wants the notes that belong to a project without carrying its tag, and cannot ask Schreibstube's index: it runs outside Obsidian. So the desktop that keeps the index writes what it finds into `nimbus-related.json` in the plugin's folder, and Nimbus reads only that file. A project is a note with `nimbusProject: <tag>` in its frontmatter. Its passages, and the passages of other notes carrying `#<tag>`, are compared with every other indexed note, and the twenty notes whose closest passage clears the balanced floor are listed with that passage, best first. Notes carrying the tag and reports (`type: summary`) are left out, since Nimbus has those already.
+
+The file is written only on a desktop, never on a phone, at most every five minutes after the index or a project note changed, and only when what it says changed; it is deleted when **Search by meaning** is switched off. Nothing in it leaves the vault. The rule both apps follow is [`contracts/RELATED.md`](contracts/RELATED.md), and the examples both test against are [`contracts/related-cases.json`](contracts/related-cases.json): a change to either is a change to both apps.
+
 ### Recommended
 
 The notes, pictures and conversations that belong with the one in front of you, opened with **Recommended** in the palette or from a note's menu in Schreibstube Explorer. **Recommended** in the Explorer settings puts them in the right sidebar (the default) or under the note, where it ends — while editing and in Reading view alike, following the note when it switches between the two. From the palette it follows whatever note is open, so the answer is already on screen by the time the question occurs to you; asked for from a note's menu it stays on that note instead.
