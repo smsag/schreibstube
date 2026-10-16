@@ -52,6 +52,14 @@ describe("articlesOf", () => {
     ]);
   });
 
+  it("sorts the same on every device, whatever its language", () => {
+    // Code-unit order: capitals before small letters, an umlaut after z.
+    // `localeCompare` put these differently per device and engine.
+    expect(
+      articlesOf(PICTURE, sources(["b.md", "Ä.md", "a.md", "B.md", "_x.md", "-y.md"]))
+    ).toEqual(["-y.md", "B.md", "_x.md", "a.md", "b.md", "Ä.md"]);
+  });
+
   it("names a note once however it was handed over", () => {
     expect(articlesOf(PICTURE, sources([ARTICLE, ARTICLE]))).toEqual([ARTICLE]);
   });
@@ -74,10 +82,13 @@ describe("articleLink", () => {
 describe("sameArticleLinks", () => {
   const wanted = ["[[a]]", "[[b]]"];
 
-  it("is the same only for the same links in the same order", () => {
+  it("is the same for the same links, in any order", () => {
     expect(sameArticleLinks(["[[a]]", "[[b]]"], wanted)).toBe(true);
-    expect(sameArticleLinks(["[[b]]", "[[a]]"], wanted)).toBe(false);
+    // Another device's order: rewriting it would only start the other device again.
+    expect(sameArticleLinks(["[[b]]", "[[a]]"], wanted)).toBe(true);
     expect(sameArticleLinks(["[[a]]"], wanted)).toBe(false);
+    expect(sameArticleLinks(["[[a]]", "[[a]]"], wanted)).toBe(false);
+    expect(sameArticleLinks(["[[a]]", "[[c]]"], wanted)).toBe(false);
   });
 
   it("takes a missing or misshapen value as a difference", () => {

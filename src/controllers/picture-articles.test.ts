@@ -23,6 +23,7 @@ function setup(
     articles?: unknown;
     described?: Map<string, string>;
     notes?: string[];
+    writes?: boolean;
   } = {}
 ) {
   const described = options.described ?? new Map([[DESCRIPTION, PICTURE]]);
@@ -58,6 +59,7 @@ function setup(
   const hooks = {
     describedPictures: () => described,
     isDescriptionNote: (path: string) => described.has(path),
+    writes: vi.fn(() => options.writes ?? true),
     setTimer: vi.fn((callback: () => void, _ms: number) => {
       timers.push(callback);
       return timers.length - 1;
@@ -127,6 +129,29 @@ describe("PictureArticleLinker", () => {
     for (const fire of timers) fire();
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(write).toHaveBeenCalledTimes(1);
+  });
+
+  it("leaves a list another device wrote in its own order alone", async () => {
+    const other = "Artikel/Anhang über Gurte.md";
+    const { linker, write } = setup({
+      links: {
+        [DESCRIPTION]: { [PICTURE]: 2 },
+        [ARTICLE]: { [PICTURE]: 1 },
+        [other]: { [PICTURE]: 1 }
+      },
+      notes: [other],
+      articles: ["[[Artikel/How a Harness Works]]", "[[Artikel/Anhang über Gurte]]"]
+    });
+    await linker.pass();
+    expect(write).not.toHaveBeenCalled();
+  });
+
+  it("writes nothing on a phone, and schedules nothing", async () => {
+    const { linker, write, hooks } = setup({ writes: false });
+    linker.schedule();
+    await linker.pass();
+    expect(hooks.setTimer).not.toHaveBeenCalled();
+    expect(write).not.toHaveBeenCalled();
   });
 
   it("does nothing once stopped", async () => {

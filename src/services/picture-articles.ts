@@ -55,7 +55,11 @@ export function articlesOf(picture: string, sources: ArticleSources): string[] {
     if (isDrawing(basename(path), "md") || sources.isDescriptionNote(path)) continue;
     articles.add(path);
   }
-  return [...articles].sort((a, b) => a.localeCompare(b)).slice(0, MAX_ARTICLE_LINKS);
+  // By code unit, never `localeCompare`: the list is written into a synced
+  // note from every device, and two devices whose language or engine sorted
+  // umlauts, case or punctuation differently rewrote each other's lists for
+  // good, each write a change that was indexed again.
+  return [...articles].sort(byCodeUnit).slice(0, MAX_ARTICLE_LINKS);
 }
 
 /** A note as a link in a property: its path without `.md`, which never resolves to another note of the same name. */
@@ -75,7 +79,20 @@ export function articleLinks(paths: readonly string[]): string[] {
  */
 export function sameArticleLinks(current: unknown, wanted: readonly string[]): boolean {
   if (!Array.isArray(current) || current.length !== wanted.length) return false;
-  return current.every((value, index) => value === wanted[index]);
+  // The same links in another order say the same thing. Writing them again
+  // only to reorder them is what kept two devices rewriting every description.
+  const want = new Set(wanted);
+  const seen = new Set<string>();
+  for (const value of current) {
+    if (typeof value !== "string" || !want.has(value) || seen.has(value)) return false;
+    seen.add(value);
+  }
+  return true;
+}
+
+/** Plain code-unit order: the same answer on every device and engine. */
+function byCodeUnit(a: string, b: string): number {
+  return a < b ? -1 : a > b ? 1 : 0;
 }
 
 /**

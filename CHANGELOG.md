@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Fixed
+
+- **Image descriptions stop being rewritten, and the vault stops being indexed again and again.** Every device kept `schreibstubeArticles` in every description note, sorted the list in its own language's order, and wrote it whenever the stored list was not in exactly that order. A phone and a desktop that sorted umlauts, capitals or punctuation differently, or whose link tables differed while sync caught up, rewrote each other's lists for good; every description showed as just changed, and each write was a change the index embedded again. The list is now sorted the same way on every device, a list that names the same notes in another order is left alone, and only the desktop writes it. A phone reads what the desktop wrote.
+
 ## 1.84.2 - 2026-10-16
 
 Pythia's conversation search no longer runs Schreibstube's model several

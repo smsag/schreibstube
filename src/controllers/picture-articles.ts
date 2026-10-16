@@ -27,6 +27,13 @@ export interface PictureArticleHooks {
   /** Every description note with the picture it is about, duplicates included. */
   describedPictures(): ReadonlyMap<string, string>;
   isDescriptionNote(path: string): boolean;
+  /**
+   * Whether this device writes the lists. Only the desktop does: the list is
+   * the same on every device once sync has settled, and a phone that wrote it
+   * too, from a link table still catching up, rewrote what the desktop had
+   * just written, and paid for each write with an embed of the note.
+   */
+  writes(): boolean;
   setTimer(callback: () => void, ms: number): unknown;
   clearTimer(handle: unknown): void;
 }
@@ -58,7 +65,7 @@ export class PictureArticleLinker {
 
   /** The links may have moved: look again once they have settled. */
   schedule(): void {
-    if (this.stopped) return;
+    if (this.stopped || !this.hooks.writes()) return;
     if (this.timer !== null) this.hooks.clearTimer(this.timer);
     this.timer = this.hooks.setTimer(() => {
       this.timer = null;
@@ -74,7 +81,7 @@ export class PictureArticleLinker {
 
   /** One pass over every description. Exposed for the tests; the plugin schedules it. */
   async pass(): Promise<void> {
-    if (this.stopped) return;
+    if (this.stopped || !this.hooks.writes()) return;
     if (this.running) {
       this.again = true;
       return;

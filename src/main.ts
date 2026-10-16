@@ -4,6 +4,7 @@ import {
   editorLivePreviewField,
   MarkdownView,
   Notice,
+  Platform,
   Plugin,
   TFile,
   TFolder,
@@ -617,6 +618,7 @@ export default class SchreibstubePlugin extends Plugin {
       {
         describedPictures: () => explorer.describedPictures(),
         isDescriptionNote: (path) => explorer.isDescriptionNote(path),
+        writes: () => !Platform.isMobile,
         setTimer: (callback, ms) => window.setTimeout(callback, ms),
         clearTimer: (handle) => window.clearTimeout(handle as number)
       },
