@@ -49,27 +49,116 @@ const POLICY = hashPolicyFor("xenova-paraphrase-multilingual-MiniLM-L12-v2");
 const OPTS = { minScore: 0.5, limit: 10 };
 
 describe("ConversationIndex", () => {
-  it("reads the stored index once for searches that arrive together", async () => {
+  it("reads the stored index once for searches that arrive together, and they wait for it", async () => {
     const store = new MemStore();
     await new ConversationIndex(new FakeProvider(), store, POLICY).sync([conv("a", "küche")]);
     const read = vi.spyOn(store, "read");
     const index = new ConversationIndex(new FakeProvider(), store, POLICY);
 
-    await Promise.all([index.loadStored(), index.loadStored(), index.query("küche", OPTS)]);
+    const [, , found] = await Promise.all([
+      index.loadStored(),
+      index.loadStored(),
+      index.query("küche", OPTS)
+    ]);
 
     expect(read).toHaveBeenCalledTimes(1);
-    expect(index.size()).toBe(1);
+    expect(found.map((r) => r.id)).toEqual(["a"]);
   });
 
-  it("reads again after a read that failed", async () => {
+  it("tries a failed read once more, so one transient error fails no waiter", async () => {
     const store = new MemStore();
-    const read = vi.spyOn(store, "read").mockRejectedValueOnce(new Error("disk"));
+    await new ConversationIndex(new FakeProvider(), store, POLICY).sync([conv("a", "küche")]);
+    const read = vi.spyOn(store, "read").mockRejectedValueOnce(new Error("EBUSY"));
+    const warn = vi.fn();
+    const index = new ConversationIndex(new FakeProvider(), store, POLICY, warn);
+
+    await Promise.all([index.loadStored(), index.loadStored()]);
+
+    expect(read).toHaveBeenCalledTimes(2);
+    expect(index.size()).toBe(1);
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining("trying once more"),
+      expect.any(Error)
+    );
+  });
+
+  it("rejects a read that failed twice, and the next caller reads again", async () => {
+    const store = new MemStore();
+    const read = vi
+      .spyOn(store, "read")
+      .mockRejectedValueOnce(new Error("disk"))
+      .mockRejectedValueOnce(new Error("disk"));
     const index = new ConversationIndex(new FakeProvider(), store, POLICY);
 
     await expect(index.loadStored()).rejects.toThrow("disk");
     await index.loadStored();
 
-    expect(read).toHaveBeenCalledTimes(2);
+    expect(read).toHaveBeenCalledTimes(3);
+  });
+
+  it("gives up a read that never answers, instead of holding every search", async () => {
+    const store = new MemStore();
+    vi.spyOn(store, "read").mockReturnValue(new Promise(() => {}));
+    const index = new ConversationIndex(new FakeProvider(), store, POLICY, () => undefined, 20);
+
+    await expect(index.loadStored()).rejects.toThrow("not read within");
+    expect(index.reading()).toBeNull();
+  });
+
+  it("says when the stored index cannot be decoded, and reads it as empty", async () => {
+    const store = new MemStore();
+    store.buf = new Uint8Array([1, 2, 3]).buffer;
+    const warn = vi.fn();
+    const index = new ConversationIndex(new FakeProvider(), store, POLICY, warn);
+
+    await index.loadStored();
+
+    expect(index.size()).toBe(0);
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining("could not be decoded"),
+      expect.anything()
+    );
+  });
+
+  it("reads again once another device replaced the file, not after its own write", async () => {
+    const store = new MemStore() as MemStore & { mtime(): Promise<number | null> };
+    let mtime = 1;
+    store.mtime = async () => mtime;
+    const desktop = new ConversationIndex(new FakeProvider(), new MemStore(), POLICY);
+    await desktop.sync([conv("a", "küche")]);
+    store.buf = (desktop as unknown as { store: MemStore }).store.buf;
+    const phone = new ConversationIndex(new FakeProvider(), store, POLICY);
+    await phone.loadStored();
+    expect(phone.size()).toBe(1);
+
+    await desktop.sync([conv("a", "küche"), conv("b", "garten")]);
+    store.buf = (desktop as unknown as { store: MemStore }).store.buf;
+    const read = vi.spyOn(store, "read");
+    await phone.loadStored();
+    expect(read).not.toHaveBeenCalled(); // unchanged on disk: no read
+
+    mtime = 2;
+    await phone.loadStored();
+    expect(read).toHaveBeenCalledTimes(1);
+    expect(phone.size()).toBe(2);
+  });
+
+  it("does not read its own write back as another device's", async () => {
+    const store = new MemStore() as MemStore & { mtime(): Promise<number | null> };
+    let mtime = 1;
+    store.mtime = async () => mtime;
+    const origWrite = store.write.bind(store);
+    store.write = async (b) => {
+      await origWrite(b);
+      mtime++;
+    };
+    const index = new ConversationIndex(new FakeProvider(), store, POLICY);
+    await index.sync([conv("a", "küche")]);
+    const read = vi.spyOn(store, "read");
+
+    await index.loadStored();
+
+    expect(read).not.toHaveBeenCalled();
   });
 
   it("finds conversations like another, from stored vectors", async () => {

@@ -41,7 +41,11 @@ function setup(files: Record<string, ArrayBuffer> = {}) {
         configDir: ".obsidian",
         adapter: {
           exists: async (p: string) => disk.has(p) || p === ".obsidian/plugins/schreibstube",
-          readBinary: async (p: string) => disk.get(p) ?? new ArrayBuffer(0),
+          readBinary: async (p: string) => {
+            state.readsStarted++;
+            if (state.readWait) await state.readWait;
+            return disk.get(p) ?? new ArrayBuffer(0);
+          },
           writeBinary: async (p: string, b: ArrayBuffer) => void disk.set(p, b),
           rename: async (from: string, to: string) => {
             disk.set(to, disk.get(from)!);
@@ -64,7 +68,10 @@ function setup(files: Record<string, ArrayBuffer> = {}) {
     enabled: true,
     background: true,
     phone: false,
-    vector: null as Int8Array | null
+    vector: null as Int8Array | null,
+    /** While set, a read of a file waits for it. */
+    readWait: null as Promise<void> | null,
+    readsStarted: 0
   };
   const answers: Record<string, SourceConsent> = { pythia: "allowed", reader: "allowed" };
   const asked: string[] = [];
@@ -440,6 +447,70 @@ describe("on a phone", () => {
     const found = await s.sources.find("küche", 5, 0.35);
     expect(found.map((r) => [r.key, r.title])).toEqual([[key("c1"), "Küche"]]);
     expect(s.provider.embedded).toEqual(["küche"]);
+  });
+});
+
+describe("searches arriving together on a phone", () => {
+  const phone = () => {
+    const s = setup({
+      [FILE("pythia")]: serializeIndex(
+        [
+          { id: "c1", contentHash: "x", chunks: KITCHEN },
+          { id: "c2", contentHash: "y", chunks: [new Int8Array([0, 127, 0, 0])] }
+        ],
+        4
+      )
+    });
+    s.state.phone = true;
+    s.state.background = false;
+    s.register();
+    return s;
+  };
+  const tick = () => new Promise((r) => setTimeout(r, 0));
+
+  it("run the model one after another", async () => {
+    const s = phone();
+    let open: () => void = () => undefined;
+    s.provider.gate = new Promise((r) => (open = r));
+    const garten = s.sources.search("garten", QUERY);
+    const kitchen = s.sources.search("küche", QUERY);
+    await tick();
+    await tick();
+    expect(s.provider.embedded).toEqual([]); // küche waits for garten's model run
+
+    open();
+    expect(ids(await garten)).toEqual([key("c2")]);
+    expect(ids(await kitchen)).toEqual([key("c1")]);
+    expect(s.provider.embedded).toEqual(["garten", "küche"]);
+  });
+
+  it("share one model run when they ask the same", async () => {
+    const s = phone();
+    const [a, b] = await Promise.all([
+      s.sources.search("küche", QUERY),
+      s.sources.search("küche", QUERY)
+    ]);
+    expect(ids(a)).toEqual([key("c1")]);
+    expect(ids(b)).toEqual([key("c1")]);
+    expect(s.provider.embedded).toEqual(["küche"]);
+  });
+
+  it("are not answered from a second copy of the index when the source registers again mid-read", async () => {
+    const s = phone();
+    let open: () => void = () => undefined;
+    s.state.readWait = new Promise((r) => (open = r));
+    const before = s.sources.search("küche", QUERY);
+    await tick();
+    s.register(); // e.g. Pythia reloaded
+    const after = s.sources.search("küche", QUERY);
+    await tick();
+    await tick();
+    expect(s.state.readsStarted).toBe(1); // the new index waits for the old read
+
+    s.state.readWait = null;
+    open();
+    await before;
+    expect(ids(await after)).toEqual([key("c1")]);
   });
 });
 
