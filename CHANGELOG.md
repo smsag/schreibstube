@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 1.84.3 - 2026-10-16
+
+Image description notes stop being rewritten over and over, and with them
+the vault stops being indexed again and again. Every device wrote its own
+order of each description's articles, and a phone and a desktop that
+sorted differently kept rewriting each other's lists. The list is now the
+same on every device, a list in another order is left alone, and only the
+desktop writes it.
+
+A correction to 1.84.2: the iPhone reload it was meant to fix was not the
+search. It came from a tap in Pythia's conversation panel falling through
+onto the chat underneath, and is fixed in Pythia 3.12.4. What 1.84.2
+changed still holds on its own.
+
+Mobile checklist: not run. What to try first: with the phone open, watch a
+base of description notes sorted by last change on the desktop; after the
+first pass, no description should show a new date unless a note that uses
+its picture changed.
+
+The bridge is unchanged, and so is the protocol.
+
 ### Fixed
 
 - **Image descriptions stop being rewritten, and the vault stops being indexed again and again.** Every device kept `schreibstubeArticles` in every description note, sorted the list in its own language's order, and wrote it whenever the stored list was not in exactly that order. A phone and a desktop that sorted umlauts, capitals or punctuation differently, or whose link tables differed while sync caught up, rewrote each other's lists for good; every description showed as just changed, and each write was a change the index embedded again. The list is now sorted the same way on every device, a list that names the same notes in another order is left alone, and only the desktop writes it. A phone reads what the desktop wrote.
