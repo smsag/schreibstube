@@ -49,6 +49,29 @@ const POLICY = hashPolicyFor("xenova-paraphrase-multilingual-MiniLM-L12-v2");
 const OPTS = { minScore: 0.5, limit: 10 };
 
 describe("ConversationIndex", () => {
+  it("reads the stored index once for searches that arrive together", async () => {
+    const store = new MemStore();
+    await new ConversationIndex(new FakeProvider(), store, POLICY).sync([conv("a", "küche")]);
+    const read = vi.spyOn(store, "read");
+    const index = new ConversationIndex(new FakeProvider(), store, POLICY);
+
+    await Promise.all([index.loadStored(), index.loadStored(), index.query("küche", OPTS)]);
+
+    expect(read).toHaveBeenCalledTimes(1);
+    expect(index.size()).toBe(1);
+  });
+
+  it("reads again after a read that failed", async () => {
+    const store = new MemStore();
+    const read = vi.spyOn(store, "read").mockRejectedValueOnce(new Error("disk"));
+    const index = new ConversationIndex(new FakeProvider(), store, POLICY);
+
+    await expect(index.loadStored()).rejects.toThrow("disk");
+    await index.loadStored();
+
+    expect(read).toHaveBeenCalledTimes(2);
+  });
+
   it("finds conversations like another, from stored vectors", async () => {
     const index = new ConversationIndex(new FakeProvider(), new MemStore(), POLICY);
     await index.sync([conv("a", "küche hell"), conv("b", "küche neu"), conv("c", "garten")]);

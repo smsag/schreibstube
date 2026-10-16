@@ -35,6 +35,10 @@ export interface ScoredId {
 export class ConversationIndex {
   private items: IndexedConversation[] = [];
   private loaded = false;
+  /** The read under way. Searches arrive faster than a phone reads the file,
+   *  and each one used to read and decode the whole index again beside the
+   *  others — several copies of it at once, on the device with least memory. */
+  private loading: Promise<void> | null = null;
   private syncing: Promise<void> | null = null;
 
   constructor(
@@ -51,8 +55,15 @@ export class ConversationIndex {
     return this.items.length;
   }
 
-  private async load(): Promise<void> {
-    if (this.loaded) return;
+  private load(): Promise<void> {
+    if (this.loaded) return Promise.resolve();
+    this.loading ??= this.read().finally(() => {
+      this.loading = null;
+    });
+    return this.loading;
+  }
+
+  private async read(): Promise<void> {
     const buf = await this.store.read();
     if (buf) {
       try {
