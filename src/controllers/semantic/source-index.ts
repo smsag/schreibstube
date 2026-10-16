@@ -79,6 +79,14 @@ export class SourceIndex {
   private catchingUp = false;
   private listingRun: Promise<void> | null = null;
   private syncing: Promise<void> | null = null;
+  /** The last read of the stored index. Kept past `release()`, so the index
+   *  that replaces this one reads its file only after this read let go. */
+  private reads: Promise<void> | null = null;
+  /** Searches run one after another: each one runs the model on a phone, and
+   *  a plugin asking after every pause in typing would otherwise run several
+   *  at once. A search for exactly the one still running or waiting shares it. */
+  private searchQueue: Promise<unknown> = Promise.resolve();
+  private searchAsked: { key: string; answer: Promise<ScoredId[]> } | null = null;
 
   constructor(
     private readonly host: SourceIndexHost,
@@ -122,7 +130,7 @@ export class SourceIndex {
 
   /** The work under way, for a caller that must not overlap it. */
   settled(): Promise<void> {
-    return Promise.all([this.listingRun, this.syncing])
+    return Promise.all([this.listingRun, this.syncing, this.reads])
       .then(() => undefined)
       .catch(() => undefined);
   }
@@ -278,7 +286,8 @@ export class SourceIndex {
       this.index = new ConversationIndex(
         this.host.provider(),
         this.files(modelId),
-        hashPolicyFor(modelId)
+        hashPolicyFor(modelId),
+        (message, error) => this.host.logger.warn(`semantic sources: ${this.id}: ${message}`, error)
       );
       this.indexModel = modelId;
       // Another model's file holds other rows: everything is listed afresh.
@@ -286,7 +295,9 @@ export class SourceIndex {
     }
     const index = this.index;
     if (!embed || !this.embedsHere) {
-      await index.loadStored();
+      const read = index.loadStored();
+      this.reads = read.catch(() => undefined);
+      await read;
       return index;
     }
     if (this.syncing) {
@@ -372,7 +383,28 @@ export class SourceIndex {
    * the model may run in the background; elsewhere the stored index answers,
    * and the titles are still read, since a hit without one cannot be shown.
    */
-  async search(
+  search(
+    text: string,
+    opts: { minScore: number; limit: number; exclude: Iterable<string> }
+  ): Promise<ScoredId[]> {
+    const exclude = [...opts.exclude];
+    const key = JSON.stringify([text, opts.minScore, opts.limit, exclude]);
+    if (this.searchAsked?.key === key) return this.searchAsked.answer;
+    const answer = this.searchQueue.then(() =>
+      this.searchNow(text, { minScore: opts.minScore, limit: opts.limit, exclude })
+    );
+    this.searchQueue = answer.catch(() => undefined);
+    const asked = { key, answer };
+    this.searchAsked = asked;
+    void answer
+      .finally(() => {
+        if (this.searchAsked === asked) this.searchAsked = null;
+      })
+      .catch(() => undefined);
+    return answer;
+  }
+
+  private async searchNow(
     text: string,
     opts: { minScore: number; limit: number; exclude: Iterable<string> }
   ): Promise<ScoredId[]> {

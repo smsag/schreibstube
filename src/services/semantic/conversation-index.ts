@@ -17,6 +17,14 @@ import { isOutOfMemoryError } from "./memory-error";
  *  conversation sent whole ran out of its deadline and cost the whole sync. */
 const CONVERSATION_REQUEST_CHUNKS = 16;
 
+/** How long a read of the stored index may take. A file iCloud is still
+ *  downloading can stall the read without end, and every search waits on it. */
+export const READ_DEADLINE_MS = 20_000;
+
+/** The pause before the one retry of a read that failed: long enough for a
+ *  file a sync is writing to come free. */
+export const READ_RETRY_MS = 250;
+
 export interface ScoredId {
   id: string;
   score: number;
@@ -35,12 +43,22 @@ export interface ScoredId {
 export class ConversationIndex {
   private items: IndexedConversation[] = [];
   private loaded = false;
+  /** The read under way. Searches arrive faster than a phone reads the file,
+   *  and each one used to read and decode the whole index again beside the
+   *  others — several copies of it at once, on the device with least memory. */
+  private loading: Promise<void> | null = null;
   private syncing: Promise<void> | null = null;
+
+  /** The stored file's modification time as last read or written here. */
+  private storedMtime: number | null = null;
 
   constructor(
     private readonly provider: EmbeddingProvider,
     private readonly store: IndexStore,
-    private readonly policy: HashPolicy
+    private readonly policy: HashPolicy,
+    /** Where a read or decode that went wrong is said: never silently empty. */
+    private readonly warn: (message: string, error?: unknown) => void = () => undefined,
+    private readonly readDeadlineMs = READ_DEADLINE_MS
   ) {}
 
   isSyncing(): boolean {
@@ -51,19 +69,84 @@ export class ConversationIndex {
     return this.items.length;
   }
 
-  private async load(): Promise<void> {
-    if (this.loaded) return;
-    const buf = await this.store.read();
+  private load(): Promise<void> {
+    if (this.loaded) return Promise.resolve();
+    this.loading ??= this.read().finally(() => {
+      this.loading = null;
+    });
+    return this.loading;
+  }
+
+  /** The read under way, for a caller that must not start another beside it. */
+  reading(): Promise<void> | null {
+    return this.loading;
+  }
+
+  /**
+   * One read, shared by everyone waiting on it. A read that fails is tried
+   * once more after a pause, since one transient error would otherwise fail
+   * every waiter together; a read that fails twice rejects them, and the next
+   * caller reads again.
+   */
+  private async read(): Promise<void> {
+    let buf: ArrayBuffer | null;
+    try {
+      buf = await this.readOnce();
+    } catch (e) {
+      this.warn("conversation index: could not read the stored index; trying once more", e);
+      await new Promise((r) => setTimeout(r, READ_RETRY_MS));
+      buf = await this.readOnce();
+    }
+    this.items = [];
     if (buf) {
       try {
         const { items, dim } = deserializeIndex(buf);
         // Another model's vectors: dropped, and the next sync rebuilds.
         if (dim === this.provider.dim) this.items = items;
-      } catch {
-        this.items = [];
+      } catch (e) {
+        // Said, not swallowed: on a phone an unreadable file means no search
+        // finds a conversation; on a desktop, that the next sync embeds all.
+        this.warn(
+          "conversation index: the stored index could not be decoded; reading it as empty",
+          e
+        );
       }
     }
+    await this.rememberMtime();
     this.loaded = true;
+  }
+
+  private readOnce(): Promise<ArrayBuffer | null> {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const deadline = new Promise<never>((_, reject) => {
+      timer = setTimeout(
+        () =>
+          reject(new Error(`the stored index was not read within ${this.readDeadlineMs / 1000} s`)),
+        this.readDeadlineMs
+      );
+    });
+    return Promise.race([this.store.read(), deadline]).finally(() => clearTimeout(timer));
+  }
+
+  private async rememberMtime(): Promise<void> {
+    try {
+      this.storedMtime = (await this.store.mtime?.()) ?? null;
+    } catch {
+      // A store that cannot say when it changed reads as unchanged.
+      this.storedMtime = null;
+    }
+  }
+
+  /** Whether the file is no longer the one read or written here: another
+   *  device's write, delivered by sync. */
+  private async replacedOnDisk(): Promise<boolean> {
+    if (!this.store.mtime || this.storedMtime === null) return false;
+    try {
+      const now = await this.store.mtime();
+      return now !== null && now !== this.storedMtime;
+    } catch {
+      return false;
+    }
   }
 
   /** Bring the index in line with `conversations`, the whole list. */
@@ -126,6 +209,8 @@ export class ConversationIndex {
       .map((id) => byId.get(id))
       .filter((i): i is IndexedConversation => i !== undefined);
     await this.store.write(serializeIndex(this.items, this.provider.dim));
+    // This device's own write is not another device's: no re-read for it.
+    await this.rememberMtime();
   }
 
   private async embedAll(chunks: string[]): Promise<Float32Array[]> {
@@ -147,8 +232,18 @@ export class ConversationIndex {
     return item && item.chunks.length > 0 ? item.chunks : null;
   }
 
-  /** Read the stored index without embedding anything. */
+  /**
+   * Read the stored index without embedding anything — and read it again when
+   * another device replaced the file since. A phone does not build this index
+   * but reads the desktop's, and one read at launch answered from that copy
+   * all day: conversations from today were never found by meaning there.
+   */
   async loadStored(): Promise<void> {
+    if (this.loaded && !this.loading && !this.syncing && (await this.replacedOnDisk())) {
+      // Checked again after the await: a read or a sync may have begun.
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- another call may set them while this one awaited
+      if (this.loaded && !this.loading && !this.syncing) this.loaded = false;
+    }
     await this.load();
   }
 
@@ -184,7 +279,10 @@ export class ConversationIndex {
     opts: { minScore: number; limit: number; exclude?: Iterable<string> }
   ): Promise<ScoredId[]> {
     const q = text.trim();
-    if (!q || this.items.length === 0) return [];
+    if (!q) return [];
+    // A search that arrives during the read waits for it rather than finding nothing.
+    await this.load();
+    if (this.items.length === 0) return [];
     const [raw] = await this.provider.embed([q], { priority: true });
     if (!raw) return [];
     return rankByQuery(quantize(raw), this.items, opts);

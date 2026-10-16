@@ -10,6 +10,8 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- **Searches that arrive together read the conversation index once, and run one at a time.** When another plugin asked by meaning several times in a row, as Pythia's conversation search did after every pause in typing, each question read and decoded the whole stored conversation index again while the first read was still running, and each ran the model beside the others. On a phone that meant several copies in memory at once, which can be the difference between an answer and Obsidian being reloaded. Questions that arrive during a read now wait for it, a source's searches run one after another, and the same question asked twice shares one answer. A read that stalls is given up after 20 seconds instead of holding every search, a read that fails is tried once more, and an index that cannot be decoded is logged instead of silently reading as empty.
+- **A phone finds today's conversations by meaning.** A phone reads the conversation index the desktop writes, but read it once per session, so conversations embedded since were never found there. It now reads the file again when sync has replaced it.
 - **No more `journal 2.bin`, `journal 3.bin` … in an iCloud vault.** The semantic index's journal was replaced by a new file on every edit, and iCloud kept each replacement that met a file it was still syncing as a numbered copy, with that edit's rows in the copy rather than in the journal. The journal is now written over itself, so iCloud sees a changed file instead of a new one. The copies already in the plugin folder are read with the journal, so no edit they hold is lost, and the device that writes the journal removes them with its next write.
 
 ## 1.84.0 - 2026-10-14
