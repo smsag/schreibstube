@@ -4,6 +4,28 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 1.84.2 - 2026-10-16
+
+Pythia's conversation search no longer runs Schreibstube's model several
+times at once on a phone. Pythia asked by meaning after every pause in
+typing; each question read the whole conversation index again and ran the
+model beside the others, and on an iPhone a tap on a result could freeze
+Obsidian until iOS reloaded it. A source's searches now run one at a
+time, the stored index is read once for everyone waiting, and a read that
+stalls is given up instead of holding every search. A phone now also finds
+conversations the desktop added after launch. Pythia 3.12.3 limits its own
+questions to one at a time as well; the two releases go together.
+
+The desktop also writes the related notes Nimbus reads for its project
+status reports.
+
+Mobile checklist: not run. The reload was reported on an iPhone and the
+fix was checked by the test suite only. What to try first: with Pythia
+3.12.3, search in Pythia's conversation panel with pauses while typing,
+then tap a result; the conversation should open and Obsidian should stay.
+
+The bridge is unchanged, and so is the protocol.
+
 ### Added
 
 - **Related notes for Nimbus.** With **Search by meaning** on, the desktop writes `nimbus-related.json` into the plugin's folder: for every note with `nimbusProject` in its frontmatter, the twenty notes most like the project's own passages that do not carry its tag, each with its closest passage. Nimbus reads the file for its project status reports, since it cannot ask Obsidian. It is written at most every five minutes after the index or a project note changed, only when its content changed, never on a phone, and deleted when search by meaning is switched off. The rule is `contracts/RELATED.md`, shared with Nimbus.
@@ -12,6 +34,26 @@ All notable changes to this project will be documented in this file.
 
 - **Searches that arrive together read the conversation index once, and run one at a time.** When another plugin asked by meaning several times in a row, as Pythia's conversation search did after every pause in typing, each question read and decoded the whole stored conversation index again while the first read was still running, and each ran the model beside the others. On a phone that meant several copies in memory at once, which can be the difference between an answer and Obsidian being reloaded. Questions that arrive during a read now wait for it, a source's searches run one after another, and the same question asked twice shares one answer. A read that stalls is given up after 20 seconds instead of holding every search, a read that fails is tried once more, and an index that cannot be decoded is logged instead of silently reading as empty.
 - **A phone finds today's conversations by meaning.** A phone reads the conversation index the desktop writes, but read it once per session, so conversations embedded since were never found there. It now reads the file again when sync has replaced it.
+
+## 1.84.1 - 2026-10-14
+
+The plugin folder of an iCloud vault stops filling with numbered copies of
+the semantic index's journal. Every edit replaced the journal with a new
+file, and iCloud kept each replacement that met a file it was still
+syncing as `journal 2.bin`, `journal 3.bin` and so on. The journal is now
+written over itself, and copies already there are read with it, so no edit
+in them is lost. The device that writes the journal removes them with its
+next save.
+
+Mobile checklist: not run. The phone's own journal is written the same
+way now, and that was checked by the test suite only, not on a phone.
+What to try first: edit a note on the phone, then check that
+`…phone-journal.bin` changes and no numbered copy of it appears.
+
+The bridge is unchanged, and so is the protocol.
+
+### Fixed
+
 - **No more `journal 2.bin`, `journal 3.bin` … in an iCloud vault.** The semantic index's journal was replaced by a new file on every edit, and iCloud kept each replacement that met a file it was still syncing as a numbered copy, with that edit's rows in the copy rather than in the journal. The journal is now written over itself, so iCloud sees a changed file instead of a new one. The copies already in the plugin folder are read with the journal, so no edit they hold is lost, and the device that writes the journal removes them with its next write.
 
 ## 1.84.0 - 2026-10-14
