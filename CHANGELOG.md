@@ -18,6 +18,8 @@ The bridge is unchanged, and so is the protocol.
 
 ### Fixed
 
+- **The heading stack follows a long note, and is shown only in Live Preview.** In reading view it had been drawn into the hidden editor and never seen, and in source mode it repeated the markup on screen; it now appears only while writing in Live Preview, and comes and goes as the mode is switched. In the editor it measured under its own height, so crossing into a shallower section made it flip between the two, and a split pane could lend it another note's overlay height; it now settles on one answer wherever the note is, measures under its own overlay, and only the note being edited moves it. A press on a row brings that heading to the top instead of the middle, where it shows as the current section, and leaves the cursor where it was.
+
 - **A press on an entry of a note's index only goes to that section.** It used to put the cursor on the heading and focus the editor, which on a phone opened the keyboard over the section just reached and, in Live Preview, opened the heading up to its markup. The editor now only scrolls there; the cursor stays where it was, and a tap on the index no longer hands the editor the focus.
 
 ## 1.84.3 - 2026-10-16

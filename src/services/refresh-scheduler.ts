@@ -1,10 +1,6 @@
-export interface RefreshOptions {
-  readingScrollTop?: number;
-}
-
 export interface RefreshPayload {
-  viewportTopLine?: number | undefined;
-  options?: RefreshOptions | undefined;
+  /** The lines under the overlay at each depth, when an editor has just measured them. */
+  edgeLines?: readonly number[] | undefined;
 }
 
 type ScheduleFrame = (callback: () => void) => void;
@@ -21,8 +17,10 @@ export class RefreshScheduler {
     this.onFlush = onFlush;
   }
 
-  enqueue(viewportTopLine?: number, options?: RefreshOptions): void {
-    this.pendingPayload = { viewportTopLine, options };
+  enqueue(edgeLines?: readonly number[]): void {
+    // A refresh asked for without a measurement, in the same frame as one
+    // with it, keeps the measurement rather than dropping it.
+    this.pendingPayload = { edgeLines: edgeLines ?? this.pendingPayload.edgeLines };
 
     if (this.queued) {
       return;

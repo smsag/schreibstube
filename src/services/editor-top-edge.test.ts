@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { topEdgeLine, type TopEdgeView } from "./editor-top-edge";
+import { topEdgeLine, topEdgeLines, type TopEdgeView } from "./editor-top-edge";
 
 /**
  * The line under the heading overlay, and what happens when CodeMirror cannot
@@ -82,5 +82,14 @@ describe("topEdgeLine", () => {
     const { fake, posAt } = view();
     topEdgeLine(fake, -20);
     expect(posAt).toHaveBeenCalledWith({ x: 141, y: 51 });
+  });
+});
+
+describe("topEdgeLines", () => {
+  it("asks once per height, each that far below the scroller's top", () => {
+    const posAt = vi.fn(({ y }: { x: number; y: number }): number | null => (y - 51) * 2);
+    const { fake } = view({ posAtCoords: posAt });
+    expect(topEdgeLines(fake, [0, 20, 40])).toEqual([0, 4, 8]);
+    expect(posAt.mock.calls.map(([coords]) => coords.y)).toEqual([51, 71, 91]);
   });
 });

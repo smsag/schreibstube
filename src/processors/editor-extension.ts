@@ -6,13 +6,23 @@ import {
   Decoration
 } from "@codemirror/view";
 import { RangeSetBuilder, type Extension } from "@codemirror/state";
+import { editorLivePreviewField } from "obsidian";
 import { resolveFocusRange, type FocusRange } from "../services/focus-range";
-import { topEdgeLine } from "../services/editor-top-edge";
+import { topEdgeLines } from "../services/editor-top-edge";
+import {
+  FALLBACK_OVERLAY_METRICS,
+  measureOverlayMetrics,
+  overlayHeightsByDepth,
+  type OverlayMetrics
+} from "../services/overlay-geometry";
 import { isCommentLine } from "../services/comment-line";
 import type { SchreibstubeSettings } from "../types";
 
 export interface EditorViewportUpdate {
-  viewportTopLine: number;
+  /** The zero-based line under the overlay at each depth it could take, from empty up. */
+  edgeLines: number[];
+  /** The editor that scrolled: every open editor reports, and only the active note's counts. */
+  editorDom: HTMLElement;
 }
 
 const FOCUS_SETTINGS_CHANGED = "schreibstube-focus-settings-changed";
@@ -90,7 +100,7 @@ function createFocusExtension(options: EditorExtensionOptions): Extension {
       private view: EditorView;
       decorations: DecorationSet = Decoration.none;
       private measurePending = false;
-      private lastViewportTopLine = -1;
+      private lastEdgeLines = "";
       private lastFocusSignature = "";
       /** Whether the editor wears the mode's classes and variable right now. */
       private dressed = false;
@@ -114,11 +124,16 @@ function createFocusExtension(options: EditorExtensionOptions): Extension {
         // under them, whether or not the focused range read the same.
         this.syncFocus(this.getSettings(), update.docChanged || update.viewportChanged);
 
-        if (!update.viewportChanged && !update.docChanged) {
+        // Turning Live Preview on or off puts the heading overlay up or takes
+        // it down, and moves no line of the note.
+        const livePreviewToggled =
+          update.startState.field(editorLivePreviewField, false) !==
+          update.state.field(editorLivePreviewField, false);
+        if (!update.viewportChanged && !update.docChanged && !livePreviewToggled) {
           return;
         }
 
-        this.queueViewportUpdate(update.docChanged);
+        this.queueViewportUpdate(update.docChanged || livePreviewToggled);
       }
 
       destroy(): void {
@@ -248,16 +263,17 @@ function createFocusExtension(options: EditorExtensionOptions): Extension {
 
         this.measurePending = true;
         this.view.requestMeasure({
-          read: () => resolveTopEdgeLine(this.view),
-          write: (viewportTopLine) => {
+          read: () => resolveEdgeLines(this.view),
+          write: (edgeLines) => {
             this.measurePending = false;
 
-            if (!force && viewportTopLine === this.lastViewportTopLine) {
+            const signature = edgeLines.join(",");
+            if (!force && signature === this.lastEdgeLines) {
               return;
             }
 
-            this.lastViewportTopLine = viewportTopLine;
-            this.onViewportUpdate({ viewportTopLine });
+            this.lastEdgeLines = signature;
+            this.onViewportUpdate({ edgeLines, editorDom: this.view.dom });
           }
         });
       }
@@ -268,9 +284,25 @@ function createFocusExtension(options: EditorExtensionOptions): Extension {
   );
 }
 
-function resolveTopEdgeLine(view: EditorView): number {
-  const overlay =
-    (view.scrollDOM.querySelector(".schreibstube-overlay") as HTMLElement | null) ??
-    (view.dom.ownerDocument.querySelector(".schreibstube-overlay") as HTMLElement | null);
-  return topEdgeLine(view, overlay?.offsetHeight ?? 0);
+/** The overlay as last drawn, kept for the frames in which it shows no rows to measure. */
+let overlayMetrics: OverlayMetrics = FALLBACK_OVERLAY_METRICS;
+
+function resolveEdgeLines(view: EditorView): number[] {
+  // This editor's own overlay: it sits beside the editor in the note's source
+  // view, never inside the scroller, and asking the whole document found the
+  // first overlay anywhere — another pane's, or none at all.
+  const overlay = view.dom
+    .closest(".markdown-source-view")
+    ?.querySelector<HTMLElement>(":scope > .schreibstube-overlay");
+  const list = overlay?.querySelector<HTMLElement>(".schreibstube-overlay-list");
+  if (overlay && list) {
+    const measured = measureOverlayMetrics({
+      overlayHeight: overlay.offsetHeight,
+      listHeight: list.offsetHeight,
+      rows: list.childElementCount,
+      gap: Number.parseFloat(getComputedStyle(list).rowGap) || 0
+    });
+    if (measured) overlayMetrics = measured;
+  }
+  return topEdgeLines(view, overlayHeightsByDepth(overlayMetrics));
 }
