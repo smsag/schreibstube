@@ -12,7 +12,8 @@ function registeredIds(): string[] {
   );
   return [
     ...main.matchAll(/this\.addCommand\(\{\s*id:\s*"([^"]+)"/g),
-    ...main.matchAll(/this\.addGatedCommand\(\s*"([^"]+)"/g)
+    ...main.matchAll(/this\.addGatedCommand\(\s*"([^"]+)"/g),
+    ...main.matchAll(/this\.addSectionCommand\(\s*"([^"]+)"/g)
   ]
     .map((match) => match[1] ?? "")
     .filter((id) => !own.has(id));

@@ -1,124 +1,192 @@
-import type { HeadingEntry, HeadingLevel } from "../types";
-import { isElementLike, isNodeLike } from "../services/workspace-internals";
+import { Menu, setIcon, setTooltip } from "obsidian";
+import { t } from "../i18n";
+import { collapsedCrumbs, sectionPosition, siblingsOf } from "../services/heading-tree";
+import type { HeadingEntry, HeadingIndex } from "../types";
+import { isNodeLike } from "../services/workspace-internals";
 
 export interface OverlayRenderInput {
   ancestorStack: HeadingEntry[];
+  /** The note's headings, for the sections beside each crumb and the position. */
+  headingIndex: HeadingIndex;
 }
 
-interface RowEvent {
-  lineNumber: number;
-  level: HeadingLevel;
-  kind: "ancestor";
-  source: "click";
-}
-
+/**
+ * The heading stack as one line above the note: the path to the section
+ * being read, each crumb opening the sections beside it, and where the
+ * section stands among its siblings.
+ *
+ * One line of fixed height, so it covers the same strip of text however deep
+ * the section is, and the page under it does not jump as the reader scrolls
+ * from one depth to another. A path too long for the width folds its outer
+ * crumbs into "…", which opens the folded headings.
+ */
 export class OverlayController {
   private container: HTMLElement;
-  private listEl: HTMLUListElement;
+  private crumbsEl: HTMLElement;
+  private positionEl: HTMLElement;
   private parent: HTMLElement;
-  private onRowEvent: (event: RowEvent) => void;
+  private onNavigate: (lineNumber: number) => void;
+  private input: OverlayRenderInput = { ancestorStack: [], headingIndex: [] };
+  private resizeObserver: ResizeObserver | null = null;
 
-  constructor(parent: HTMLElement, onRowEvent: (event: RowEvent) => void) {
+  constructor(parent: HTMLElement, onNavigate: (lineNumber: number) => void) {
     this.parent = parent;
+    this.onNavigate = onNavigate;
     this.parent.classList.add("schreibstube-overlay-host");
 
-    this.container = document.createElement("div");
+    const doc = parent.ownerDocument;
+    this.container = doc.createElement("div");
     this.container.classList.add("schreibstube-overlay");
+    this.crumbsEl = doc.createElement("nav");
+    this.crumbsEl.classList.add("schreibstube-overlay-crumbs");
+    this.crumbsEl.setAttribute("aria-label", t().overlay.label);
+    this.positionEl = doc.createElement("span");
+    this.positionEl.classList.add("schreibstube-overlay-position");
+    this.container.append(this.crumbsEl, this.positionEl);
+    parent.insertBefore(this.container, parent.firstChild);
 
-    if (parent.firstChild) {
-      parent.insertBefore(this.container, parent.firstChild);
-    } else {
-      parent.appendChild(this.container);
-    }
-
-    this.listEl = this.container.createEl("ul", { cls: "schreibstube-overlay-list" });
-    this.onRowEvent = onRowEvent;
-
+    // A press on the bar must not take the focus or the cursor from the text.
     this.container.addEventListener("pointerdown", this.handlePointerDown);
-    this.listEl.addEventListener("click", this.handleClick);
-    this.listEl.addEventListener("keydown", this.handleKey);
+    // A pane made narrower or wider has room for fewer or more crumbs.
+    const Observer = doc.defaultView?.ResizeObserver;
+    if (Observer) {
+      this.resizeObserver = new Observer(() => this.drawCrumbs());
+      this.resizeObserver.observe(this.container);
+    }
   }
 
   render(input: OverlayRenderInput): void {
-    this.listEl.empty();
-
-    if (input.ancestorStack.length === 0) {
-      this.container.classList.add("is-hidden");
+    this.input = input;
+    const stack = input.ancestorStack;
+    this.container.classList.toggle("is-hidden", stack.length === 0);
+    if (stack.length === 0) {
+      this.crumbsEl.replaceChildren();
+      this.positionEl.textContent = "";
       return;
     }
 
-    this.container.classList.remove("is-hidden");
-
-    const lastIndex = input.ancestorStack.length - 1;
-
-    for (const [i, entry] of input.ancestorStack.entries()) {
-      const isLast = i === lastIndex;
-
-      // A row is a control — pressing it goes to the heading — and says so, so
-      // a keyboard reaches it as the pointer does.
-      const row = this.listEl.createEl("li", {
-        cls: `schreibstube-overlay-row schreibstube-overlay-row-ancestor ${isLast ? "is-current" : "is-ancestor"}`,
-        attr: { role: "button", tabindex: "0" }
-      });
-      row.dataset.lineNumber = String(entry.lineNumber);
-      row.dataset.level = String(entry.level);
-
-      const connector = i === 0 ? "" : "   ".repeat(i - 1) + "└─ ";
-      if (connector) {
-        row.createSpan({ cls: "schreibstube-overlay-connector", text: connector });
-      }
-      row.createSpan({ cls: "schreibstube-overlay-text", text: entry.text });
+    const current = stack[stack.length - 1];
+    const position = current ? sectionPosition(input.headingIndex, current) : null;
+    this.positionEl.textContent = position
+      ? t().overlay.positionShort(position.position, position.count)
+      : "";
+    if (position) {
+      setTooltip(this.positionEl, t().overlay.position(position.position, position.count));
+    } else {
+      this.positionEl.removeAttribute("aria-label");
     }
+    this.drawCrumbs();
   }
 
   destroy(): void {
+    this.resizeObserver?.disconnect();
     this.container.removeEventListener("pointerdown", this.handlePointerDown);
-    this.listEl.removeEventListener("click", this.handleClick);
-    this.listEl.removeEventListener("keydown", this.handleKey);
     this.container.remove();
     this.parent.classList.remove("schreibstube-overlay-host");
   }
 
   contains(target: EventTarget | null): boolean {
-    if (!isNodeLike(target)) {
-      return false;
-    }
+    return isNodeLike(target) && this.container.contains(target);
+  }
 
-    return this.container.contains(target);
+  /**
+   * Draw the path, folding one more crumb at a time until it fits. Crumbs
+   * keep their width while folding is still possible: shrinking them first
+   * left every one an ellipsis, and the path then always fit, folded or not.
+   * Only a path that does not fit with everything folded may squeeze.
+   */
+  private drawCrumbs(): void {
+    const count = this.input.ancestorStack.length;
+    this.crumbsEl.classList.remove("is-squeezed");
+    for (let collapse = 0; collapse <= Math.max(0, count - 1); collapse += 1) {
+      this.drawPath(collapse);
+      if (this.crumbsEl.scrollWidth <= this.crumbsEl.clientWidth) return;
+    }
+    this.crumbsEl.classList.add("is-squeezed");
+  }
+
+  private drawPath(collapse: number): void {
+    const stack = this.input.ancestorStack;
+    const { shown, hidden } = collapsedCrumbs(stack.length, collapse);
+    const doc = this.crumbsEl.ownerDocument;
+    const parts: HTMLElement[] = [];
+
+    const separator = (): HTMLElement => {
+      const el = doc.createElement("span");
+      el.classList.add("schreibstube-overlay-separator");
+      el.setAttribute("aria-hidden", "true");
+      setIcon(el, "chevron-right");
+      return el;
+    };
+
+    if (hidden.length > 0) parts.push(this.moreButton(hidden.flatMap((h) => stack[h] ?? [])));
+    for (const i of shown) {
+      const entry = stack[i];
+      if (!entry) continue;
+      if (parts.length > 0) parts.push(separator());
+      parts.push(this.crumb(entry, i === stack.length - 1));
+    }
+    this.crumbsEl.replaceChildren(...parts);
+  }
+
+  private crumb(entry: HeadingEntry, isCurrent: boolean): HTMLElement {
+    const button = this.crumbsEl.ownerDocument.createElement("button");
+    button.classList.add("schreibstube-overlay-crumb", isCurrent ? "is-current" : "is-ancestor");
+    button.dataset.lineNumber = String(entry.lineNumber);
+    if (isCurrent) button.setAttribute("aria-current", "location");
+    const text = button.ownerDocument.createElement("span");
+    text.classList.add("schreibstube-overlay-crumb-text");
+    text.textContent = entry.text;
+    const chevron = button.ownerDocument.createElement("span");
+    chevron.classList.add("schreibstube-overlay-crumb-chevron");
+    chevron.setAttribute("aria-hidden", "true");
+    setIcon(chevron, "chevron-down");
+    button.append(text, chevron);
+    // Named by its heading, as a reader sees it; a tooltip would have
+    // replaced that name with its own for a screen reader.
+    button.setAttribute("aria-haspopup", "menu");
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      this.openMenu(button, siblingsOf(this.input.headingIndex, entry), entry);
+    });
+    return button;
+  }
+
+  private moreButton(folded: HeadingEntry[]): HTMLElement {
+    const button = this.crumbsEl.ownerDocument.createElement("button");
+    button.classList.add("schreibstube-overlay-crumb", "schreibstube-overlay-more");
+    button.textContent = t().overlay.folded;
+    button.setAttribute("aria-haspopup", "menu");
+    setTooltip(button, t().overlay.more);
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      this.openMenu(button, folded, null);
+    });
+    return button;
+  }
+
+  private openMenu(
+    anchor: HTMLElement,
+    headings: HeadingEntry[],
+    current: HeadingEntry | null
+  ): void {
+    const menu = new Menu();
+    for (const heading of headings) {
+      menu.addItem((item) =>
+        item
+          .setTitle(heading.text)
+          .setChecked(heading.lineNumber === current?.lineNumber)
+          .onClick(() => this.onNavigate(heading.lineNumber))
+      );
+    }
+    const rect = anchor.getBoundingClientRect();
+    menu.showAtPosition({ x: rect.left, y: rect.bottom }, anchor.ownerDocument);
   }
 
   private handlePointerDown = (event: PointerEvent): void => {
     event.preventDefault();
     event.stopPropagation();
   };
-
-  private handleClick = (event: MouseEvent): void => {
-    event.preventDefault();
-    event.stopPropagation();
-    this.pressRow(event.target);
-  };
-
-  private handleKey = (event: KeyboardEvent): void => {
-    if (event.key !== "Enter" && event.key !== " ") return;
-    event.preventDefault();
-    event.stopPropagation();
-    this.pressRow(event.target);
-  };
-
-  private pressRow(target: EventTarget | null): void {
-    const row = isElementLike(target)
-      ? (target.closest(".schreibstube-overlay-row") as HTMLElement | null)
-      : null;
-    if (!row) {
-      return;
-    }
-
-    const lineNumber = Number(row.dataset.lineNumber);
-    const level = Number(row.dataset.level) as HeadingLevel;
-    if (Number.isNaN(lineNumber) || Number.isNaN(level)) {
-      return;
-    }
-
-    this.onRowEvent({ lineNumber, level, kind: "ancestor", source: "click" });
-  }
 }

@@ -16,6 +16,9 @@ export const de: Messages = {
     focusParagraph: "Fokus: Absatz",
     switchReadingEditing: "Lesen/Bearbeiten wechseln",
     newNote: "Neue Notiz",
+    nextSection: "Überschriften-Stapel: nächster Abschnitt",
+    previousSection: "Überschriften-Stapel: voriger Abschnitt",
+    parentSection: "Überschriften-Stapel: übergeordneter Abschnitt",
     insertTaskSummary: "Einfügen: Aufgaben-Zusammenfassung",
     insertNoteIndex: "Einfügen: Inhaltsverzeichnis",
     tidyDoneTasks: "Erledigte Aufgaben aufräumen",
@@ -431,11 +434,20 @@ export const de: Messages = {
     noBase: "zuerst eine Base öffnen — die Einstellung gehört zu der Base, die vor dir liegt."
   },
 
+  overlay: {
+    label: "Überschriften-Pfad",
+    more: "Weitere übergeordnete Überschriften",
+    folded: "…",
+    positionShort: (position: number, count: number) => `§ ${position}/${count}`,
+    position: (position: number, count: number) =>
+      `Abschnitt ${position} von ${count} auf dieser Ebene`
+  },
+
   settings: {
     overlayHeading: "Überschriften-Stapel",
     overlayEnabled: "Überschriften-Stapel anzeigen",
     overlayEnabledDesc:
-      "Zeigt in Live Preview den mitlaufenden Pfad der übergeordneten Überschriften am oberen Rand der Notiz.",
+      "Zeigt in Live Preview den Pfad der Überschriften über dem gelesenen Abschnitt, in einer Zeile am oberen Rand der Notiz. Jeder Teil öffnet die Abschnitte daneben.",
 
     iconShortcodesHeading: "Icons im Text",
     iconShortcodesEnabled: ":folder: als Icon zeichnen",

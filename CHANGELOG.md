@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Changed
+
+- **The heading stack is one line.** It showed one row per heading above the section being read, up to six, covering as many lines of the note and growing and shrinking as the note scrolled. It is now a path in one line of fixed height — "Nimbus › Usage › Editor" — that covers the same strip whatever the depth. Each part opens the sections beside it, so a long note's twelfth section is two presses away; "§ 3/12" says where the section being read stands among them; and a path too long for the pane folds its outer parts into "…", which opens the folded headings, keeping the ones nearest the section being read. On a phone the parts are tall enough to tap. Three commands move by section from the one the path shows: next, previous and parent, each offered only where there is one to go to.
+
+### Fixed
+
+- **The heading stack follows a long note, and is shown only in Live Preview.** In reading view it had been drawn into the hidden editor and never seen, and in source mode it repeated the markup on screen; it now appears only while writing in Live Preview, and comes and goes as the mode is switched. In the editor it measured under its own height, so crossing into a shallower section made it flip between the two, and a split pane could lend it another note's overlay height; it now settles on one answer wherever the note is, measures under its own overlay, and only the note being edited moves it. A press on a row brings that heading to the top instead of the middle, where it shows as the current section, and leaves the cursor where it was. Editing a Live Preview table cell no longer puts the stack back on the note's first heading, and a note switched to shows the right section without first being scrolled.
+
 ## 1.84.4 - 2026-10-17
 
 A press on an entry of a note's index now only takes the reader to that
@@ -17,8 +25,6 @@ the heading with no keyboard and the heading's markup still hidden.
 The bridge is unchanged, and so is the protocol.
 
 ### Fixed
-
-- **The heading stack follows a long note, and is shown only in Live Preview.** In reading view it had been drawn into the hidden editor and never seen, and in source mode it repeated the markup on screen; it now appears only while writing in Live Preview, and comes and goes as the mode is switched. In the editor it measured under its own height, so crossing into a shallower section made it flip between the two, and a split pane could lend it another note's overlay height; it now settles on one answer wherever the note is, measures under its own overlay, and only the note being edited moves it. A press on a row brings that heading to the top instead of the middle, where it shows as the current section, and leaves the cursor where it was.
 
 - **A press on an entry of a note's index only goes to that section.** It used to put the cursor on the heading and focus the editor, which on a phone opened the keyboard over the section just reached and, in Live Preview, opened the heading up to its markup. The editor now only scrolls there; the cursor stays where it was, and a tap on the index no longer hands the editor the focus.
 

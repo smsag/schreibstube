@@ -11,7 +11,7 @@ describe("RefreshScheduler", () => {
       (payload) => flushed.push(payload)
     );
 
-    scheduler.enqueue([10]);
+    scheduler.enqueue([10, 11]);
     scheduler.enqueue([20, 22]);
     scheduler.enqueue([30, 32]);
 
@@ -49,10 +49,10 @@ describe("RefreshScheduler", () => {
       }
     );
 
-    scheduler.enqueue([5]);
+    scheduler.enqueue([5, 6]);
     callbacks[0]?.();
 
-    scheduler.enqueue([15]);
+    scheduler.enqueue([15, 16]);
     expect(callbacks).toHaveLength(2);
 
     callbacks[1]?.();

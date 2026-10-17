@@ -21,7 +21,8 @@ describe("OverlayCoordinator", () => {
     } as unknown as MarkdownView;
 
     const input = {
-      ancestorStack: []
+      ancestorStack: [],
+      headingIndex: []
     };
 
     coordinator.renderForView(view, input, () => {});
@@ -67,7 +68,8 @@ describe("OverlayCoordinator", () => {
     } as unknown as MarkdownView;
 
     const input = {
-      ancestorStack: []
+      ancestorStack: [],
+      headingIndex: []
     };
 
     coordinator.renderForView(viewA, input, () => {});
@@ -101,7 +103,8 @@ describe("OverlayCoordinator", () => {
     } as unknown as MarkdownView;
 
     const input = {
-      ancestorStack: []
+      ancestorStack: [],
+      headingIndex: []
     };
 
     coordinator.renderForView(withHost, input, () => {});
