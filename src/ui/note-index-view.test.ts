@@ -63,6 +63,19 @@ describe("drawNoteIndex", () => {
     document.body.removeEventListener("click", outside);
   });
 
+  it("keeps a press from reaching the editor, which would take the focus", () => {
+    const { list, head } = draw(plan);
+    const outside = vi.fn();
+    document.body.addEventListener("mousedown", outside);
+    for (const el of [list!.querySelector<HTMLElement>("a")!, head]) {
+      const down = new MouseEvent("mousedown", { bubbles: true, cancelable: true });
+      el.dispatchEvent(down);
+      expect(down.defaultPrevented).toBe(true);
+    }
+    expect(outside).not.toHaveBeenCalled();
+    document.body.removeEventListener("mousedown", outside);
+  });
+
   it("folds on a press of the heading line, at once, and reports it", () => {
     const { container, head, list, actions } = draw(plan);
     head.click();

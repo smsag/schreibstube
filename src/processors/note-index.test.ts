@@ -260,14 +260,18 @@ describe("folding the index", () => {
 describe("pressing an entry", () => {
   const text = "```schreibstube-index\n```\n\n## Lage\n\n## Preis";
 
-  it("puts the cursor on the heading in Live Preview", async () => {
+  it("scrolls Live Preview to the heading without starting to edit there", async () => {
     const view = fakeView("Note.md", "source", text);
     const { entries } = mount({ views: [view], host: view });
     await settle();
 
     entries()[1]!.click();
-    expect(view.editor.setCursor).toHaveBeenCalledWith(5, 0);
-    expect(view.editor.scrollIntoView).toHaveBeenCalled();
+    expect(view.editor.scrollIntoView).toHaveBeenCalledWith(
+      { from: { line: 5, ch: 0 }, to: { line: 5, ch: 0 } },
+      true
+    );
+    expect(view.editor.setCursor).not.toHaveBeenCalled();
+    expect(view.editor.focus).not.toHaveBeenCalled();
   });
 
   it("scrolls Reading view to the heading", async () => {

@@ -127,6 +127,11 @@ class NoteIndex extends LiveNoteBlock {
    * To the heading's line, in the view the block is drawn in. A block in an
    * embed or a hover belongs to a note that is not the one on screen, so
    * that note is opened at the line instead.
+   *
+   * Only the scroll moves: the index is for finding a place, and focusing the
+   * editor there put a phone's keyboard over the very section just reached.
+   * The cursor stays where the writer left it, so a heading in Live Preview
+   * is not opened up to its markup either.
    */
   private jump(line: number, plan: NoteIndexPlan): void {
     if (plan.kind !== "entries") return;
@@ -140,8 +145,6 @@ class NoteIndex extends LiveNoteBlock {
       view.previewMode.applyScroll(line);
       return;
     }
-    view.editor.setCursor(line, 0);
     view.editor.scrollIntoView({ from: { line, ch: 0 }, to: { line, ch: 0 } }, true);
-    view.editor.focus();
   }
 }

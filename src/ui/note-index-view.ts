@@ -111,9 +111,15 @@ function drawList(
 
 /**
  * A press of the mouse, Enter or Space. The event goes no further: in Live
- * Preview a click that reaches the block's widget opens its source.
+ * Preview a click that reaches the block's widget opens its source, and a
+ * mousedown that reaches the editor hands it the focus, which on a phone
+ * opens the keyboard.
  */
 function pressable(el: HTMLElement, press: () => void): void {
+  el.addEventListener("mousedown", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+  });
   el.addEventListener("click", (event) => {
     event.preventDefault();
     event.stopPropagation();
