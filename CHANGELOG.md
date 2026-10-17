@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 1.84.4 - 2026-10-17
+
+A press on an entry of a note's index now only takes the reader to that
+section. It used to put the cursor on the heading and start editing,
+which on a phone opened the keyboard over the very section just reached.
+
+Mobile checklist: not run. What to try first: on a phone, tap an entry in
+a `schreibstube-index` block in Live Preview; the note should scroll to
+the heading with no keyboard and the heading's markup still hidden.
+
+The bridge is unchanged, and so is the protocol.
+
 ### Fixed
 
 - **A press on an entry of a note's index only goes to that section.** It used to put the cursor on the heading and focus the editor, which on a phone opened the keyboard over the section just reached and, in Live Preview, opened the heading up to its markup. The editor now only scrolls there; the cursor stays where it was, and a tap on the index no longer hands the editor the focus.
