@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Fixed
+
+- **A press on an entry of a note's index only goes to that section.** It used to put the cursor on the heading and focus the editor, which on a phone opened the keyboard over the section just reached and, in Live Preview, opened the heading up to its markup. The editor now only scrolls there; the cursor stays where it was, and a tap on the index no longer hands the editor the focus.
+
 ## 1.84.3 - 2026-10-16
 
 Image description notes stop being rewritten over and over, and with them
