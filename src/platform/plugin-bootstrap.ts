@@ -1,6 +1,5 @@
 import type { Plugin } from "obsidian";
 import { createEditorExtension } from "../processors/editor-extension";
-import { createReadingPostProcessor } from "../processors/markdown-processor";
 import { createTaskBadgeExtension } from "../processors/task-badges";
 import { createTaskFoldExtension } from "../processors/task-fold";
 import { createTaskFoldPostProcessor } from "../processors/task-fold-reading";
@@ -12,7 +11,6 @@ import type { SchreibstubeSettings } from "../types";
 
 export interface BootstrapHandlers {
   onViewportFromEditor: (update: EditorViewportUpdate) => void;
-  onViewportFromReading: () => void;
   getSettings: () => SchreibstubeSettings;
   onActiveLeafChange: () => void;
   /** The picture's own buttons for a slideshow, once the plugin has made them. */
@@ -36,16 +34,8 @@ export function bootstrapSchreibstubeRuntime(plugin: Plugin, handlers: Bootstrap
   registerNoteIndex(plugin);
   registerSlideshow(plugin, handlers.pictureActions);
 
-  const reading = createReadingPostProcessor(() => {
-    handlers.onViewportFromReading();
-  });
-  plugin.registerMarkdownPostProcessor(reading.processor);
-  plugin.register(reading.dispose);
-  // A closed leaf is removed with an ancestor, which no observer on the view's
-  // own parent sees; the layout event is where a detached view is let go.
-  plugin.registerEvent(plugin.app.workspace.on("layout-change", reading.sweep));
-  // Switching a note between editing and reading is a layout change too, and
-  // moves the overlay to the view now on screen.
+  // Switching a note to reading view is a layout change, and takes the
+  // overlay down; switching back puts it up again.
   plugin.registerEvent(
     plugin.app.workspace.on("layout-change", () => {
       handlers.onActiveLeafChange();

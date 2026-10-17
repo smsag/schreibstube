@@ -6,6 +6,7 @@ import {
   Decoration
 } from "@codemirror/view";
 import { RangeSetBuilder, type Extension } from "@codemirror/state";
+import { editorLivePreviewField } from "obsidian";
 import { resolveFocusRange, type FocusRange } from "../services/focus-range";
 import { topEdgeLines } from "../services/editor-top-edge";
 import {
@@ -123,11 +124,16 @@ function createFocusExtension(options: EditorExtensionOptions): Extension {
         // under them, whether or not the focused range read the same.
         this.syncFocus(this.getSettings(), update.docChanged || update.viewportChanged);
 
-        if (!update.viewportChanged && !update.docChanged) {
+        // Turning Live Preview on or off puts the heading overlay up or takes
+        // it down, and moves no line of the note.
+        const livePreviewToggled =
+          update.startState.field(editorLivePreviewField, false) !==
+          update.state.field(editorLivePreviewField, false);
+        if (!update.viewportChanged && !update.docChanged && !livePreviewToggled) {
           return;
         }
 
-        this.queueViewportUpdate(update.docChanged);
+        this.queueViewportUpdate(update.docChanged || livePreviewToggled);
       }
 
       destroy(): void {

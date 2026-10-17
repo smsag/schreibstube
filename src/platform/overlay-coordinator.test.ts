@@ -16,7 +16,7 @@ describe("OverlayCoordinator", () => {
       getMode: () => "source",
       contentEl: {
         querySelector: (selector: string) =>
-          selector === ".markdown-source-view.mod-cm6" ? host : null
+          selector === ".markdown-source-view.mod-cm6.is-live-preview" ? host : null
       }
     } as unknown as MarkdownView;
 
@@ -54,7 +54,7 @@ describe("OverlayCoordinator", () => {
       getMode: () => "source",
       contentEl: {
         querySelector: (selector: string) =>
-          selector === ".markdown-source-view.mod-cm6" ? hostA : null
+          selector === ".markdown-source-view.mod-cm6.is-live-preview" ? hostA : null
       }
     } as unknown as MarkdownView;
 
@@ -62,7 +62,7 @@ describe("OverlayCoordinator", () => {
       getMode: () => "source",
       contentEl: {
         querySelector: (selector: string) =>
-          selector === ".markdown-source-view.mod-cm6" ? hostB : null
+          selector === ".markdown-source-view.mod-cm6.is-live-preview" ? hostB : null
       }
     } as unknown as MarkdownView;
 
@@ -91,7 +91,7 @@ describe("OverlayCoordinator", () => {
       getMode: () => "source",
       contentEl: {
         querySelector: (selector: string) =>
-          selector === ".markdown-source-view.mod-cm6" ? ({} as HTMLElement) : null
+          selector === ".markdown-source-view.mod-cm6.is-live-preview" ? ({} as HTMLElement) : null
       }
     } as unknown as MarkdownView;
 

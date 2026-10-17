@@ -38,7 +38,7 @@ export const enExtra = {
     overlayHeading: "Heading stack",
     overlayEnabled: "Enable heading stack overlay",
     overlayEnabledDesc:
-      "Show the sticky ancestor-heading breadcrumb at the top of the active note.",
+      "Show the sticky ancestor-heading breadcrumb at the top of the active note, in Live Preview.",
 
     iconShortcodesHeading: "Icons in the text",
     iconShortcodesEnabled: "Draw :folder: as the icon",

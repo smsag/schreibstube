@@ -2,11 +2,7 @@ import type { MarkdownView } from "obsidian";
 
 /**
  * A note's place in source lines, through the scroll position Obsidian keeps
- * in lines in both modes (the one that carries a note's place between them).
- *
- * Reading view draws a long note a stretch at a time, so pairing the headings
- * on the page with the note's headings by their order put the first heading
- * drawn — deep in a long note — at the note's first heading.
+ * in lines (the one that carries a note's place between modes).
  */
 
 /** The zero-based source line at the top of the note, or null while it is not laid out. */

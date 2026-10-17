@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { MarkdownView } from "obsidian";
-import { scrollViewToLine, viewTopLine } from "./reading-navigator";
+import { scrollViewToLine, viewTopLine } from "./view-scroll";
 
 function createView(mode: "source" | "preview", scroll: number | null = 0) {
   const applyScroll = vi.fn();

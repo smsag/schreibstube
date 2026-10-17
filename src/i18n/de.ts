@@ -435,7 +435,7 @@ export const de: Messages = {
     overlayHeading: "Überschriften-Stapel",
     overlayEnabled: "Überschriften-Stapel anzeigen",
     overlayEnabledDesc:
-      "Zeigt den mitlaufenden Pfad der übergeordneten Überschriften am oberen Rand der Notiz.",
+      "Zeigt in Live Preview den mitlaufenden Pfad der übergeordneten Überschriften am oberen Rand der Notiz.",
 
     iconShortcodesHeading: "Icons im Text",
     iconShortcodesEnabled: ":folder: als Icon zeichnen",

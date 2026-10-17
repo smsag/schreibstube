@@ -14,7 +14,7 @@ import {
 import { resolveStackUnderOverlay } from "./services/ancestor-stack";
 import { buildHeadingIndex } from "./services/heading-index";
 import { reduceOverlayRowEvent, type OverlayRowEvent } from "./services/overlay-interaction";
-import { scrollViewToLine, viewTopLine } from "./platform/reading-navigator";
+import { scrollViewToLine, viewTopLine } from "./platform/view-scroll";
 import { RefreshScheduler } from "./services/refresh-scheduler";
 import { OverlayCoordinator } from "./platform/overlay-coordinator";
 import { bootstrapSchreibstubeRuntime } from "./platform/plugin-bootstrap";
@@ -460,13 +460,10 @@ export default class SchreibstubePlugin extends Plugin {
       pictureActions: () => this.pictureActions,
       onViewportFromEditor: ({ edgeLines, editorDom }) => {
         // Every open editor reports its scroll, the hidden one behind a
-        // note in reading view included; only the note being read counts.
+        // note in reading view included; only the note being edited counts.
         const view = this.app.workspace.getActiveViewOfType(MarkdownView);
         if (view?.getMode() !== "source" || !view.contentEl.contains(editorDom)) return;
         this.queueRefreshForActiveView(edgeLines);
-      },
-      onViewportFromReading: () => {
-        this.queueRefreshForActiveView();
       },
       getSettings: () => this.settings,
       onActiveLeafChange: () => {
@@ -2255,10 +2252,6 @@ export default class SchreibstubePlugin extends Plugin {
     if (edgeLines) {
       this.edgeLines = edgeLines;
     }
-    if (view.getMode() === "preview") {
-      const top = viewTopLine(view);
-      if (top !== null) this.edgeLines = [top];
-    }
 
     const content = view.editor.getValue();
     if (content !== this.lastIndexedContent) {
@@ -2276,10 +2269,7 @@ export default class SchreibstubePlugin extends Plugin {
       return;
     }
 
-    // The mode is part of it: the same stack moves to the other view's host.
-    const sig =
-      `${view.getMode()}|` +
-      this.ancestorStack.map((e) => `${e.level}:${e.lineNumber}:${e.text}`).join("|");
+    const sig = this.ancestorStack.map((e) => `${e.level}:${e.lineNumber}:${e.text}`).join("|");
     if (sig === this.lastRenderSignature) return;
 
     const rendered = this.overlayCoordinator.renderForView(
