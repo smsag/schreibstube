@@ -2,13 +2,6 @@ import type { MarkdownView } from "obsidian";
 import { type OverlayRenderInput, OverlayController } from "../ui/overlay";
 import { findOverlayHost } from "./overlay-host";
 
-type OverlayRowEvent = {
-  lineNumber: number;
-  level: 1 | 2 | 3 | 4 | 5 | 6;
-  kind: "ancestor";
-  source: "click";
-};
-
 type OverlayControllerLike = {
   render: (input: OverlayRenderInput) => void;
   destroy: () => void;
@@ -17,7 +10,7 @@ type OverlayControllerLike = {
 
 type CreateOverlayController = (
   host: HTMLElement,
-  onRowEvent: (event: OverlayRowEvent) => void
+  onNavigate: (lineNumber: number) => void
 ) => OverlayControllerLike;
 
 export class OverlayCoordinator {
@@ -27,13 +20,13 @@ export class OverlayCoordinator {
 
   constructor(createController?: CreateOverlayController) {
     this.createController =
-      createController ?? ((host, onRowEvent) => new OverlayController(host, onRowEvent));
+      createController ?? ((host, onNavigate) => new OverlayController(host, onNavigate));
   }
 
   renderForView(
     view: MarkdownView,
     input: OverlayRenderInput,
-    onRowEvent: (event: OverlayRowEvent) => void
+    onNavigate: (lineNumber: number) => void
   ): boolean {
     const nextHost = findOverlayHost(view);
     if (!nextHost) {
@@ -44,7 +37,7 @@ export class OverlayCoordinator {
     if (this.host !== nextHost) {
       this.clear();
       this.host = nextHost;
-      this.controller = this.createController(nextHost, onRowEvent);
+      this.controller = this.createController(nextHost, onNavigate);
     }
 
     this.controller?.render(input);

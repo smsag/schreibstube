@@ -34,11 +34,18 @@ export const enExtra = {
     noBase: "open a base first — the setting belongs to the base you are looking at."
   },
 
+  overlay: {
+    label: "Heading path",
+    siblings: "Sections at this level",
+    more: "More headings above",
+    position: (position: number, count: number) => `Section ${position} of ${count} at this level`
+  },
+
   settings: {
     overlayHeading: "Heading stack",
     overlayEnabled: "Enable heading stack overlay",
     overlayEnabledDesc:
-      "Show the sticky ancestor-heading breadcrumb at the top of the active note, in Live Preview.",
+      "Show the path of headings above the section being read, in one line at the top of the note, in Live Preview. Each part opens the sections beside it.",
 
     iconShortcodesHeading: "Icons in the text",
     iconShortcodesEnabled: "Draw :folder: as the icon",

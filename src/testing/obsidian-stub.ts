@@ -189,6 +189,47 @@ export const editorInfoField = StateField.define<{ file: TFile | null }>({
   update: (value) => value
 });
 
+/** Obsidian's menu, kept where a test can read what it would show. */
+export class Menu {
+  static last: Menu | null = null;
+  items: Array<{ title: string; checked: boolean; click: () => void }> = [];
+  shownAt: { x: number; y: number } | null = null;
+
+  addItem(build: (item: MenuItemStub) => unknown): this {
+    const entry = { title: "", checked: false, click: () => {} };
+    const item: MenuItemStub = {
+      setTitle: (title) => ((entry.title = title), item),
+      setChecked: (checked) => ((entry.checked = checked === true), item),
+      setIcon: () => item,
+      onClick: (click) => ((entry.click = click), item)
+    };
+    build(item);
+    this.items.push(entry);
+    return this;
+  }
+
+  addSeparator(): this {
+    return this;
+  }
+
+  showAtPosition(position: { x: number; y: number }): this {
+    this.shownAt = position;
+    Menu.last = this;
+    return this;
+  }
+
+  showAtMouseEvent(event: { x: number; y: number }): this {
+    return this.showAtPosition(event);
+  }
+}
+
+interface MenuItemStub {
+  setTitle(title: string): MenuItemStub;
+  setChecked(checked: boolean | null): MenuItemStub;
+  setIcon(icon: string): MenuItemStub;
+  onClick(click: () => void): MenuItemStub;
+}
+
 export class MarkdownView {}
 export class ItemView {}
 

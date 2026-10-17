@@ -1,6 +1,6 @@
 export interface RefreshPayload {
-  /** The lines under the overlay at each depth, when an editor has just measured them. */
-  edgeLines?: readonly number[] | undefined;
+  /** The top line and the line under the overlay, when an editor has just measured them. */
+  edgeLines?: readonly [number, number] | undefined;
 }
 
 type ScheduleFrame = (callback: () => void) => void;
@@ -17,7 +17,7 @@ export class RefreshScheduler {
     this.onFlush = onFlush;
   }
 
-  enqueue(edgeLines?: readonly number[]): void {
+  enqueue(edgeLines?: readonly [number, number]): void {
     // A refresh asked for without a measurement, in the same frame as one
     // with it, keeps the measurement rather than dropping it.
     this.pendingPayload = { edgeLines: edgeLines ?? this.pendingPayload.edgeLines };

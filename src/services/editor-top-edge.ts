@@ -62,8 +62,3 @@ function lineOf(view: TopEdgeView, pos: number): number {
   const clamped = Math.min(Math.max(0, pos), view.state.doc.length);
   return Math.max(0, view.state.doc.lineAt(clamped).number - 1);
 }
-
-/** The line under the overlay at each of the heights it could take, in the same order. */
-export function topEdgeLines(view: TopEdgeView, overlayHeights: readonly number[]): number[] {
-  return overlayHeights.map((height) => topEdgeLine(view, height));
-}
