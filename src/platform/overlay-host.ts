@@ -20,3 +20,12 @@ export function findOverlayHost(view: MarkdownView): HTMLElement | null {
     ".markdown-source-view.mod-cm6.is-live-preview"
   ) as HTMLElement | null;
 }
+
+/**
+ * Whether an editor that reported its scroll is the note's own. Every editor
+ * runs the extension, those nested in the note included — a Live Preview
+ * table cell is one — and their lines count from their own small document.
+ */
+export function isNoteEditor(view: MarkdownView, editorDom: HTMLElement): boolean {
+  return view.contentEl.contains(editorDom) && !editorDom.parentElement?.closest(".cm-editor");
+}

@@ -17,7 +17,7 @@ import { nextSection, parentOf, previousSection } from "./services/heading-tree"
 import { scrollViewToLine, viewTopLine } from "./platform/view-scroll";
 import { RefreshScheduler } from "./services/refresh-scheduler";
 import { OverlayCoordinator } from "./platform/overlay-coordinator";
-import { findOverlayHost } from "./platform/overlay-host";
+import { findOverlayHost, isNoteEditor } from "./platform/overlay-host";
 import { bootstrapSchreibstubeRuntime } from "./platform/plugin-bootstrap";
 import {
   DEFAULT_SETTINGS,
@@ -461,9 +461,10 @@ export default class SchreibstubePlugin extends Plugin {
       pictureActions: () => this.pictureActions,
       onViewportFromEditor: ({ edgeLines, editorDom }) => {
         // Every open editor reports its scroll, the hidden one behind a
-        // note in reading view included; only the note being edited counts.
+        // note in reading view and those nested in a note included; only the
+        // note being edited counts.
         const view = this.app.workspace.getActiveViewOfType(MarkdownView);
-        if (view?.getMode() !== "source" || !view.contentEl.contains(editorDom)) return;
+        if (view?.getMode() !== "source" || !isNoteEditor(view, editorDom)) return;
         this.queueRefreshForActiveView(edgeLines);
       },
       getSettings: () => this.settings,
