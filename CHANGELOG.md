@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 1.85.0 - 2026-10-17
+
+The heading stack is now a way around a long note. It is one line above
+the text in Live Preview, "Nimbus › Usage › Editor", that stays the same
+height whatever the depth, and each part opens the sections beside it, so
+the twelfth section of a long README is two presses away. Three commands
+move to the next, the previous and the parent section. Underneath, the
+stack now follows the note: it named the wrong section deep in a long
+note, flickered between two at a boundary, and in reading view was never
+seen at all. It now appears only in Live Preview.
+
+Mobile checklist: not run. What to try first: on a phone, open a long note
+in Live Preview and scroll; the path should stay one line, clear the
+notch, and change once at each heading. Tap a part: the sections beside it
+should open as a sheet, and choosing one should bring that heading to the
+top with no keyboard.
+
+The bridge is unchanged, and so is the protocol.
+
 ### Changed
 
 - **The heading stack is one line.** It showed one row per heading above the section being read, up to six, covering as many lines of the note and growing and shrinking as the note scrolled. It is now a path in one line of fixed height — "Nimbus › Usage › Editor" — that covers the same strip whatever the depth. Each part opens the sections beside it, so a long note's twelfth section is two presses away; "§ 3/12" says where the section being read stands among them; and a path too long for the pane folds its outer parts into "…", which opens the folded headings, keeping the ones nearest the section being read. On a phone the parts are tall enough to tap. Three commands move by section from the one the path shows: next, previous and parent, each offered only where there is one to go to.
