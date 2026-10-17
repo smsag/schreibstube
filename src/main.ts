@@ -13,10 +13,11 @@ import {
 } from "obsidian";
 import { resolveStackUnderOverlay } from "./services/ancestor-stack";
 import { buildHeadingIndex } from "./services/heading-index";
-import { reduceOverlayRowEvent, type OverlayRowEvent } from "./services/overlay-interaction";
+import { nextSection, parentOf, previousSection } from "./services/heading-tree";
 import { scrollViewToLine, viewTopLine } from "./platform/view-scroll";
 import { RefreshScheduler } from "./services/refresh-scheduler";
 import { OverlayCoordinator } from "./platform/overlay-coordinator";
+import { findOverlayHost } from "./platform/overlay-host";
 import { bootstrapSchreibstubeRuntime } from "./platform/plugin-bootstrap";
 import {
   DEFAULT_SETTINGS,
@@ -163,8 +164,8 @@ export default class SchreibstubePlugin extends Plugin {
   /** Set first thing in `onunload`, so a frame or a callback that was already
    *  queued when the plugin went away finds nothing left to draw on. */
   private unloaded = false;
-  /** The line under the overlay at each depth it could take; see `resolveStackUnderOverlay`. */
-  private edgeLines: readonly number[] = [0];
+  /** The top line and the line under the overlay; see `resolveStackUnderOverlay`. */
+  private edgeLines: readonly [number, number] = [0, 0];
   private headingIndex: HeadingEntry[] = [];
   private lastIndexedContent = "";
   private ancestorStack: HeadingEntry[] = [];
@@ -1830,6 +1831,10 @@ export default class SchreibstubePlugin extends Plugin {
   }
 
   private registerCommands(): void {
+    this.addSectionCommand("heading-next-section", t().commands.nextSection, "next");
+    this.addSectionCommand("heading-previous-section", t().commands.previousSection, "previous");
+    this.addSectionCommand("heading-parent-section", t().commands.parentSection, "parent");
+
     this.addCommand({
       id: "create-untitled-note",
       name: t().commands.newNote,
@@ -2218,7 +2223,7 @@ export default class SchreibstubePlugin extends Plugin {
     window.dispatchEvent(new Event("schreibstube-focus-settings-changed"));
   }
 
-  private queueRefreshForActiveView(edgeLines?: readonly number[]): void {
+  private queueRefreshForActiveView(edgeLines?: readonly [number, number]): void {
     if (!this.refreshScheduler) {
       this.refreshForActiveView(edgeLines);
       return;
@@ -2226,7 +2231,7 @@ export default class SchreibstubePlugin extends Plugin {
     this.refreshScheduler.enqueue(edgeLines);
   }
 
-  private refreshForActiveView(edgeLines?: readonly number[]): void {
+  private refreshForActiveView(edgeLines?: readonly [number, number]): void {
     // A scroll queues a frame; disabling the plugin does not cancel it. The
     // frame used to arrive after `onunload` had cleared the overlay and draw a
     // fresh one into a live view, with no owner left to take it down.
@@ -2245,7 +2250,8 @@ export default class SchreibstubePlugin extends Plugin {
       this.currentView = view;
       // Until its editor measures, a note opened already scrolled shows the
       // stack of the line it opened at, not of its first line.
-      this.edgeLines = [viewTopLine(view) ?? 0];
+      const top = viewTopLine(view) ?? 0;
+      this.edgeLines = [top, top];
       this.lastRenderSignature = "";
     }
 
@@ -2257,9 +2263,11 @@ export default class SchreibstubePlugin extends Plugin {
     if (content !== this.lastIndexedContent) {
       this.headingIndex = buildHeadingIndex(content);
       this.lastIndexedContent = content;
+      // The crumbs' menus and the position read the headings, which changed.
+      this.lastRenderSignature = "";
     }
 
-    this.ancestorStack = resolveStackUnderOverlay(this.headingIndex, this.edgeLines);
+    this.ancestorStack = resolveStackUnderOverlay(this.headingIndex, ...this.edgeLines);
     this.renderOverlay(view);
   }
 
@@ -2274,8 +2282,8 @@ export default class SchreibstubePlugin extends Plugin {
 
     const rendered = this.overlayCoordinator.renderForView(
       view,
-      { ancestorStack: this.ancestorStack },
-      (event) => this.handleOverlayRowEvent(event)
+      { ancestorStack: this.ancestorStack, headingIndex: this.headingIndex },
+      (lineNumber) => this.navigateToLine(lineNumber)
     );
 
     if (!rendered) {
@@ -2292,8 +2300,36 @@ export default class SchreibstubePlugin extends Plugin {
     this.currentView = null;
   }
 
-  private handleOverlayRowEvent(event: OverlayRowEvent): void {
-    this.navigateToLine(reduceOverlayRowEvent(event));
+  /**
+   * The section a command moves to from the one the stack shows, or null
+   * when there is none, or no stack to move from: outside Live Preview, with
+   * the stack switched off, or in a note the stack has not read yet.
+   */
+  private sectionTarget(move: "next" | "previous" | "parent"): number | null {
+    const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+    if (!view || view !== this.currentView || !this.settings.overlayEnabled) return null;
+    if (!findOverlayHost(view)) return null;
+    const current = this.ancestorStack[this.ancestorStack.length - 1] ?? null;
+    const target =
+      move === "next"
+        ? nextSection(this.headingIndex, current)
+        : move === "previous"
+          ? previousSection(this.headingIndex, current)
+          : current && parentOf(this.headingIndex, current);
+    return target?.lineNumber ?? null;
+  }
+
+  private addSectionCommand(id: string, name: string, move: "next" | "previous" | "parent"): void {
+    this.addCommand({
+      id,
+      name,
+      checkCallback: (checking) => {
+        const line = this.sectionTarget(move);
+        if (line === null) return false;
+        if (!checking) this.navigateToLine(line);
+        return true;
+      }
+    });
   }
 
   private navigateToLine(lineNumber: number): void {

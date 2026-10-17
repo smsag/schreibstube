@@ -55,38 +55,23 @@ describe("resolveAncestorStack", () => {
 });
 
 describe("resolveStackUnderOverlay", () => {
-  // Line under an overlay of d rows: two lines per row, from top line `top`.
-  const edgeLines = (top: number): number[] =>
-    Array.from({ length: 7 }, (_, depth) => top + depth * 2);
-
   it("shows nothing before the first heading, when nothing covers the text", () => {
     const late: HeadingIndex = [{ level: 1, text: "Late", lineNumber: 40 }];
-    expect(resolveStackUnderOverlay(late, edgeLines(0))).toEqual([]);
+    expect(resolveStackUnderOverlay(late, 39, 41)).toEqual([]);
   });
 
-  it("agrees with the plain stack inside a section", () => {
-    expect(resolveStackUnderOverlay(index, edgeLines(12))).toEqual(resolveAncestorStack(index, 12));
-  });
-
-  it("takes a shallow heading that a deep overlay would cover, not the section above it", () => {
-    // Top line 17: one row reaches line 19 (still A.2.a, three deep); three
-    // rows reach line 23, past B. Measured under its own height, neither
-    // answer holds; B is the one that leaves no heading hidden.
-    expect(resolveStackUnderOverlay(index, edgeLines(17))).toEqual([
+  it("names the heading the overlay covers, not the section above it", () => {
+    // Top line 19 is still A.2.a; the overlay reaches line 21, past B.
+    expect(resolveStackUnderOverlay(index, 19, 21)).toEqual([
       { level: 1, text: "B", lineNumber: 20 }
     ]);
   });
 
-  it("lets a heading under a shallow overlay become current a row early, not hide", () => {
-    // Top line 6: A.1.a is three deep, and so is everything one row down; two
-    // rows reach line 10, A.2, which a two-row overlay covers and so shows.
-    expect(resolveStackUnderOverlay(index, edgeLines(6))).toEqual([
-      { level: 1, text: "A", lineNumber: 0 },
-      { level: 2, text: "A.2", lineNumber: 10 }
-    ]);
+  it("agrees with the plain stack inside a section", () => {
+    expect(resolveStackUnderOverlay(index, 12, 13)).toEqual(resolveAncestorStack(index, 13));
   });
 
-  it("falls back to the deepest measurement when every depth disagrees", () => {
-    expect(resolveStackUnderOverlay(index, [12, 12])).toEqual(resolveAncestorStack(index, 12));
+  it("never looks above the top line, whatever was measured", () => {
+    expect(resolveStackUnderOverlay(index, 21, 3)).toEqual(resolveAncestorStack(index, 21));
   });
 });

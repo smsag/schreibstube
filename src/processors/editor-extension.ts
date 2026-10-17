@@ -8,19 +8,13 @@ import {
 import { RangeSetBuilder, type Extension } from "@codemirror/state";
 import { editorLivePreviewField } from "obsidian";
 import { resolveFocusRange, type FocusRange } from "../services/focus-range";
-import { topEdgeLines } from "../services/editor-top-edge";
-import {
-  FALLBACK_OVERLAY_METRICS,
-  measureOverlayMetrics,
-  overlayHeightsByDepth,
-  type OverlayMetrics
-} from "../services/overlay-geometry";
+import { topEdgeLine } from "../services/editor-top-edge";
 import { isCommentLine } from "../services/comment-line";
 import type { SchreibstubeSettings } from "../types";
 
 export interface EditorViewportUpdate {
-  /** The zero-based line under the overlay at each depth it could take, from empty up. */
-  edgeLines: number[];
+  /** The zero-based line at the top edge, and the one just under the overlay. */
+  edgeLines: readonly [number, number];
   /** The editor that scrolled: every open editor reports, and only the active note's counts. */
   editorDom: HTMLElement;
 }
@@ -284,25 +278,19 @@ function createFocusExtension(options: EditorExtensionOptions): Extension {
   );
 }
 
-/** The overlay as last drawn, kept for the frames in which it shows no rows to measure. */
-let overlayMetrics: OverlayMetrics = FALLBACK_OVERLAY_METRICS;
+/**
+ * The overlay's height as last drawn, kept for the frames in which it is
+ * hidden; until it has been drawn once, the stylesheet's.
+ */
+let overlayHeight = 31;
 
-function resolveEdgeLines(view: EditorView): number[] {
+function resolveEdgeLines(view: EditorView): [number, number] {
   // This editor's own overlay: it sits beside the editor in the note's source
   // view, never inside the scroller, and asking the whole document found the
   // first overlay anywhere — another pane's, or none at all.
   const overlay = view.dom
     .closest(".markdown-source-view")
     ?.querySelector<HTMLElement>(":scope > .schreibstube-overlay");
-  const list = overlay?.querySelector<HTMLElement>(".schreibstube-overlay-list");
-  if (overlay && list) {
-    const measured = measureOverlayMetrics({
-      overlayHeight: overlay.offsetHeight,
-      listHeight: list.offsetHeight,
-      rows: list.childElementCount,
-      gap: Number.parseFloat(getComputedStyle(list).rowGap) || 0
-    });
-    if (measured) overlayMetrics = measured;
-  }
-  return topEdgeLines(view, overlayHeightsByDepth(overlayMetrics));
+  if (overlay && overlay.offsetHeight > 0) overlayHeight = overlay.offsetHeight;
+  return [topEdgeLine(view, 0), topEdgeLine(view, overlayHeight)];
 }

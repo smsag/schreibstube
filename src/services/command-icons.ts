@@ -49,7 +49,10 @@ export const COMMAND_ICONS: Readonly<Record<string, string>> = {
   "base-reading-view": "book-open",
   "print-note": "printer",
   "print-note-quick": "printer-check",
-  "print-selection": "text-select"
+  "print-selection": "text-select",
+  "heading-next-section": "chevrons-down",
+  "heading-previous-section": "chevrons-up",
+  "heading-parent-section": "corner-left-up"
 };
 
 /** The icon for a command, or none when the command brings its own or has none listed. */

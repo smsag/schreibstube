@@ -8,31 +8,33 @@
   position: relative;
 }
 
+/* The heading path: one line of fixed height over the top of the note. */
 .schreibstube-overlay {
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
-  display: block;
-  width: auto;
-  box-sizing: border-box;
   z-index: 50;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 31px;
   margin: 0;
-  padding: 6px 10px;
+  padding: 0 10px;
   border-bottom: 1px solid var(--background-modifier-border);
   background: var(--background-primary);
-  backdrop-filter: none;
-  box-shadow: none;
   pointer-events: auto;
   user-select: none;
   -webkit-user-select: none;
   touch-action: none;
 }
 
-/* iOS notch offset: keep first stack row below the safe-area inset. */
+/* iOS notch offset: keep the path below the safe-area inset. */
 @supports (-webkit-touch-callout: none) {
   .is-mobile .schreibstube-overlay {
-    padding-top: calc(6px + env(safe-area-inset-top, 0px));
+    height: calc(31px + env(safe-area-inset-top, 0px));
+    padding-top: env(safe-area-inset-top, 0px);
   }
 }
 
@@ -40,47 +42,73 @@
   display: none;
 }
 
-.schreibstube-overlay-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
+.schreibstube-overlay-crumbs {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
-  background: transparent;
+  align-items: center;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
 }
 
-.schreibstube-overlay-row {
+.schreibstube-overlay-crumb {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex: 0 1 auto;
+  min-width: 0;
+  height: 24px;
+  padding: 0 6px;
+  border: none;
+  border-radius: var(--radius-s);
+  background: transparent;
+  box-shadow: none;
   font-size: var(--font-ui-small);
-  line-height: 1.35;
+  font-weight: var(--font-normal);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.schreibstube-overlay-crumb:hover,
+.schreibstube-overlay-crumb:focus-visible {
+  background: var(--background-modifier-hover);
   color: var(--text-normal);
-  white-space: nowrap;
+}
+
+.schreibstube-overlay-crumb.is-current {
+  flex-shrink: 0;
+  max-width: 60%;
+  color: var(--text-accent);
+  font-weight: var(--font-semibold);
+}
+
+.schreibstube-overlay-crumb-text {
   overflow: hidden;
   text-overflow: ellipsis;
-  padding: 2px 8px;
-  border-radius: 4px;
-  cursor: pointer;
-  background: transparent;
 }
 
-.schreibstube-overlay-connector {
-  font-family: var(--font-monospace);
+.schreibstube-overlay-crumb-chevron,
+.schreibstube-overlay-separator {
+  display: inline-flex;
+  flex-shrink: 0;
   color: var(--text-faint);
-  white-space: pre;
 }
 
-.schreibstube-overlay-row:hover {
-  background: transparent;
+.schreibstube-overlay-crumb-chevron svg,
+.schreibstube-overlay-separator svg {
+  width: 12px;
+  height: 12px;
 }
 
-.schreibstube-overlay-row.is-ancestor {
-  color: var(--text-muted);
-  font-weight: normal;
+.schreibstube-overlay-more {
+  flex-shrink: 0;
 }
 
-.schreibstube-overlay-row.is-current {
-  color: var(--text-accent);
-  font-weight: 600;
+.schreibstube-overlay-position {
+  flex-shrink: 0;
+  font-family: var(--font-monospace);
+  font-size: var(--font-ui-smaller);
+  color: var(--text-faint);
 }
 
 /* Task summary: per-heading "N of M open" badge (Live Preview and Source mode). */
