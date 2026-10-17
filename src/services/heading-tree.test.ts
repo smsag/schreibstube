@@ -4,8 +4,11 @@ import {
   nextSection,
   parentOf,
   previousSection,
+  sameHeadings,
+  sectionCommandTarget,
   sectionPosition,
-  siblingsOf
+  siblingsOf,
+  type SectionMove
 } from "./heading-tree";
 import type { HeadingEntry, HeadingIndex } from "../types";
 
@@ -77,12 +80,58 @@ describe("collapsedCrumbs", () => {
     expect(collapsedCrumbs(4, 0)).toEqual({ shown: [0, 1, 2, 3], hidden: [] });
   });
 
-  it("folds the crumbs after the first, one at a time", () => {
-    expect(collapsedCrumbs(5, 2)).toEqual({ shown: [0, 3, 4], hidden: [1, 2] });
+  it("folds from the outermost crumb inwards, keeping those nearest the section", () => {
+    expect(collapsedCrumbs(5, 2)).toEqual({ shown: [2, 3, 4], hidden: [0, 1] });
   });
 
-  it("never folds the note's top section or the one being read", () => {
-    expect(collapsedCrumbs(4, 9)).toEqual({ shown: [0, 3], hidden: [1, 2] });
-    expect(collapsedCrumbs(2, 1)).toEqual({ shown: [0, 1], hidden: [] });
+  it("never folds the section being read", () => {
+    expect(collapsedCrumbs(4, 9)).toEqual({ shown: [3], hidden: [0, 1, 2] });
+    expect(collapsedCrumbs(1, 1)).toEqual({ shown: [0], hidden: [] });
+  });
+});
+
+describe("sameHeadings", () => {
+  it("holds for the same headings, though built anew", () => {
+    expect(
+      sameHeadings(
+        index,
+        index.map((heading) => ({ ...heading }))
+      )
+    ).toBe(true);
+  });
+
+  it("tells a heading moved, renamed, re-levelled, added or removed", () => {
+    const changed = (patch: Partial<HeadingEntry>) =>
+      index.map((heading, i) => (i === 2 ? { ...heading, ...patch } : heading));
+    expect(sameHeadings(index, changed({ lineNumber: 9 }))).toBe(false);
+    expect(sameHeadings(index, changed({ text: "Linux" }))).toBe(false);
+    expect(sameHeadings(index, changed({ level: 2 }))).toBe(false);
+    expect(sameHeadings(index, index.slice(1))).toBe(false);
+  });
+});
+
+describe("sectionCommandTarget", () => {
+  const target = (move: SectionMove, stack: HeadingEntry[], active = true) =>
+    sectionCommandTarget({ active, headingIndex: index, ancestorStack: stack, move });
+
+  it("is not offered where the stack is not at work", () => {
+    expect(target("next", [at(0), at(4)], false)).toBeNull();
+  });
+
+  it("moves from the section the stack shows", () => {
+    const stack = [at(0), at(4), at(13)];
+    expect(target("next", stack)).toBe(18);
+    expect(target("previous", stack)).toBe(8);
+    expect(target("parent", stack)).toBe(4);
+  });
+
+  it("is not offered where there is nowhere to go", () => {
+    expect(target("parent", [at(0)])).toBeNull();
+    expect(target("previous", [])).toBeNull();
+    expect(target("next", [at(40)])).toBeNull();
+  });
+
+  it("goes to the first heading from above it", () => {
+    expect(target("next", [])).toBe(0);
   });
 });

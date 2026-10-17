@@ -10,7 +10,16 @@ import type { HeadingEntry, HeadingIndex } from "../types";
  * Siblings share a parent, whatever their own level.
  */
 
+/**
+ * Each heading's parent line, built once per index: the breadcrumb asks on
+ * every render, every menu and every command check, and the plugin keeps
+ * the same index object for as long as the headings stay the same.
+ */
+const parentCache = new WeakMap<HeadingIndex, Map<number, number | null>>();
+
 function parentLines(index: HeadingIndex): Map<number, number | null> {
+  const cached = parentCache.get(index);
+  if (cached) return cached;
   const parents = new Map<number, number | null>();
   const open: HeadingEntry[] = [];
   for (const heading of index) {
@@ -18,6 +27,7 @@ function parentLines(index: HeadingIndex): Map<number, number | null> {
     parents.set(heading.lineNumber, open[open.length - 1]?.lineNumber ?? null);
     open.push(heading);
   }
+  parentCache.set(index, parents);
   return parents;
 }
 
@@ -76,17 +86,57 @@ export function previousSection(
 
 /**
  * Which crumbs of a path of `count` stand in one "…" when the path does not
- * fit: the second one first, then the ones after it, never the first (the
- * note's top section) or the last (the one being read).
+ * fit: the outermost first, then the ones after it, never the one being
+ * read. The outermost is the one least worth its room — in a README the
+ * project's name, which the note's title above already says — and the ones
+ * nearest the section being read say most about where it is.
  */
 export function collapsedCrumbs(
   count: number,
   collapse: number
 ): { shown: number[]; hidden: number[] } {
-  const hide = Math.max(0, Math.min(collapse, count - 2));
+  const hide = Math.max(0, Math.min(collapse, count - 1));
   const all = Array.from({ length: count }, (_, i) => i);
-  return {
-    shown: all.filter((i) => i === 0 || i > hide),
-    hidden: all.filter((i) => i > 0 && i <= hide)
-  };
+  return { shown: all.slice(hide), hidden: all.slice(0, hide) };
+}
+
+/** Whether two indexes hold the same headings on the same lines. */
+export function sameHeadings(a: HeadingIndex, b: HeadingIndex): boolean {
+  return (
+    a.length === b.length &&
+    a.every((heading, i) => {
+      const other = b[i];
+      return (
+        other !== undefined &&
+        other.lineNumber === heading.lineNumber &&
+        other.level === heading.level &&
+        other.text === heading.text
+      );
+    })
+  );
+}
+
+export type SectionMove = "next" | "previous" | "parent";
+
+/**
+ * The line a section command goes to from the stack, or null when it is not
+ * offered: where the stack is not at work (outside Live Preview, switched
+ * off, a note it has not read yet), or where there is nowhere to go.
+ */
+export function sectionCommandTarget(input: {
+  active: boolean;
+  headingIndex: HeadingIndex;
+  ancestorStack: readonly HeadingEntry[];
+  move: SectionMove;
+}): number | null {
+  if (!input.active) return null;
+  const { headingIndex, ancestorStack, move } = input;
+  const current = ancestorStack[ancestorStack.length - 1] ?? null;
+  const target =
+    move === "next"
+      ? nextSection(headingIndex, current)
+      : move === "previous"
+        ? previousSection(headingIndex, current)
+        : (ancestorStack[ancestorStack.length - 2] ?? null);
+  return target?.lineNumber ?? null;
 }

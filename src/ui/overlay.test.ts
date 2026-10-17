@@ -15,10 +15,13 @@ const index: HeadingIndex = [
 ];
 const path = (...lines: number[]) => lines.map((line) => index.find((h) => h.lineNumber === line)!);
 
+const live: OverlayController[] = [];
+
 function setup() {
   const host = document.body.appendChild(document.createElement("div"));
   const navigate = vi.fn();
   const controller = new OverlayController(host, navigate);
+  live.push(controller);
   const crumbs = () =>
     Array.from(host.querySelectorAll<HTMLElement>(".schreibstube-overlay-crumb")).map(
       (el) => el.textContent
@@ -26,7 +29,17 @@ function setup() {
   return { host, navigate, controller, crumbs };
 }
 
+/** Each crumb takes 100 px of a bar with room for `room` px. */
+function narrow(host: HTMLElement, room: number): void {
+  const nav = host.querySelector<HTMLElement>(".schreibstube-overlay-crumbs")!;
+  Object.defineProperty(nav, "clientWidth", { get: () => room });
+  Object.defineProperty(nav, "scrollWidth", {
+    get: () => nav.querySelectorAll(".schreibstube-overlay-crumb").length * 100
+  });
+}
+
 afterEach(() => {
+  for (const controller of live.splice(0)) controller.destroy();
   document.body.innerHTML = "";
   Menu.last = null;
 });
@@ -63,20 +76,34 @@ describe("the heading path", () => {
     expect(navigate).toHaveBeenCalledWith(30);
   });
 
-  it("folds the middle of a path too long for the bar into one entry that opens it", () => {
+  it("folds the outer crumbs of a path too long for the bar into one entry that opens them", () => {
     const { host, controller, crumbs } = setup();
-    const nav = host.querySelector<HTMLElement>(".schreibstube-overlay-crumbs")!;
-    // Each crumb takes 100 px; the bar has room for three.
-    Object.defineProperty(nav, "clientWidth", { get: () => 300 });
-    Object.defineProperty(nav, "scrollWidth", {
-      get: () => nav.querySelectorAll(".schreibstube-overlay-crumb").length * 100
-    });
+    narrow(host, 300);
 
     controller.render({ ancestorStack: path(0, 10, 12, 14, 16), headingIndex: index });
-    expect(crumbs()).toEqual(["Nimbus", "…", "Formulas"]);
+    expect(crumbs()).toEqual(["…", "Tables", "Formulas"]);
+    expect(host.querySelector(".is-squeezed")).toBeNull();
 
     host.querySelector<HTMLElement>(".schreibstube-overlay-more")?.click();
-    expect(Menu.last?.items.map((item) => item.title)).toEqual(["Usage", "Editor", "Tables"]);
+    expect(Menu.last?.items.map((item) => item.title)).toEqual(["Nimbus", "Usage", "Editor"]);
+  });
+
+  it("lets the crumbs give way only when even the folded path does not fit", () => {
+    const { host, controller, crumbs } = setup();
+    narrow(host, 150);
+
+    controller.render({ ancestorStack: path(0, 10, 12), headingIndex: index });
+    expect(crumbs()).toEqual(["…", "Editor"]);
+    expect(host.querySelector(".schreibstube-overlay-crumbs.is-squeezed")).not.toBeNull();
+  });
+
+  it("names each crumb by its heading and says it opens a menu", () => {
+    const { host, controller } = setup();
+    controller.render({ ancestorStack: path(0, 10), headingIndex: index });
+    const crumb = host.querySelector<HTMLElement>(".schreibstube-overlay-crumb")!;
+    expect(crumb.hasAttribute("aria-label")).toBe(false);
+    expect(crumb.textContent).toBe("Nimbus");
+    expect(crumb.getAttribute("aria-haspopup")).toBe("menu");
   });
 
   it("is hidden above the first heading", () => {

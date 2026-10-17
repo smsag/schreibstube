@@ -30,10 +30,20 @@
   touch-action: none;
 }
 
+/* On a phone the crumbs are what a finger presses, so they are taller. */
+.is-mobile .schreibstube-overlay {
+  height: 40px;
+}
+
+.is-mobile .schreibstube-overlay-crumb {
+  height: 36px;
+  padding: 0 8px;
+}
+
 /* iOS notch offset: keep the path below the safe-area inset. */
 @supports (-webkit-touch-callout: none) {
   .is-mobile .schreibstube-overlay {
-    height: calc(31px + env(safe-area-inset-top, 0px));
+    height: calc(40px + env(safe-area-inset-top, 0px));
     padding-top: env(safe-area-inset-top, 0px);
   }
 }
@@ -55,8 +65,8 @@
   display: inline-flex;
   align-items: center;
   gap: 2px;
-  flex: 0 1 auto;
-  min-width: 0;
+  /* Full width while the path can still fold; see the squeezed rule below. */
+  flex: 0 0 auto;
   height: 24px;
   padding: 0 6px;
   border: none;
@@ -75,8 +85,13 @@
   color: var(--text-normal);
 }
 
+/* A path too long even with everything folded: crumbs give way. */
+.schreibstube-overlay-crumbs.is-squeezed .schreibstube-overlay-crumb {
+  flex-shrink: 1;
+  min-width: 0;
+}
+
 .schreibstube-overlay-crumb.is-current {
-  flex-shrink: 0;
   max-width: 60%;
   color: var(--text-accent);
   font-weight: var(--font-semibold);
@@ -100,7 +115,7 @@
   height: 12px;
 }
 
-.schreibstube-overlay-more {
+.schreibstube-overlay-crumbs .schreibstube-overlay-more {
   flex-shrink: 0;
 }
 

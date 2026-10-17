@@ -13,7 +13,8 @@ import {
 } from "obsidian";
 import { resolveStackUnderOverlay } from "./services/ancestor-stack";
 import { buildHeadingIndex } from "./services/heading-index";
-import { nextSection, parentOf, previousSection } from "./services/heading-tree";
+import { sameHeadings, sectionCommandTarget, type SectionMove } from "./services/heading-tree";
+import { remeasureEditorsIn } from "./processors/editor-extension";
 import { scrollViewToLine, viewTopLine } from "./platform/view-scroll";
 import { RefreshScheduler } from "./services/refresh-scheduler";
 import { OverlayCoordinator } from "./platform/overlay-coordinator";
@@ -2254,6 +2255,8 @@ export default class SchreibstubePlugin extends Plugin {
       const top = viewTopLine(view) ?? 0;
       this.edgeLines = [top, top];
       this.lastRenderSignature = "";
+      // The estimate does not see under the overlay; the editor does.
+      remeasureEditorsIn(view.contentEl);
     }
 
     if (edgeLines) {
@@ -2262,10 +2265,15 @@ export default class SchreibstubePlugin extends Plugin {
 
     const content = view.editor.getValue();
     if (content !== this.lastIndexedContent) {
-      this.headingIndex = buildHeadingIndex(content);
       this.lastIndexedContent = content;
-      // The crumbs' menus and the position read the headings, which changed.
-      this.lastRenderSignature = "";
+      // Most edits leave the headings as they were. The same index is kept
+      // then, and the overlay is not drawn again for every keystroke; when
+      // they change, the crumbs' menus and the position read the new ones.
+      const index = buildHeadingIndex(content);
+      if (!sameHeadings(index, this.headingIndex)) {
+        this.headingIndex = index;
+        this.lastRenderSignature = "";
+      }
     }
 
     this.ancestorStack = resolveStackUnderOverlay(this.headingIndex, ...this.edgeLines);
@@ -2301,26 +2309,21 @@ export default class SchreibstubePlugin extends Plugin {
     this.currentView = null;
   }
 
-  /**
-   * The section a command moves to from the one the stack shows, or null
-   * when there is none, or no stack to move from: outside Live Preview, with
-   * the stack switched off, or in a note the stack has not read yet.
-   */
-  private sectionTarget(move: "next" | "previous" | "parent"): number | null {
+  private sectionTarget(move: SectionMove): number | null {
     const view = this.app.workspace.getActiveViewOfType(MarkdownView);
-    if (!view || view !== this.currentView || !this.settings.overlayEnabled) return null;
-    if (!findOverlayHost(view)) return null;
-    const current = this.ancestorStack[this.ancestorStack.length - 1] ?? null;
-    const target =
-      move === "next"
-        ? nextSection(this.headingIndex, current)
-        : move === "previous"
-          ? previousSection(this.headingIndex, current)
-          : current && parentOf(this.headingIndex, current);
-    return target?.lineNumber ?? null;
+    return sectionCommandTarget({
+      active:
+        view !== null &&
+        view === this.currentView &&
+        this.settings.overlayEnabled &&
+        findOverlayHost(view) !== null,
+      headingIndex: this.headingIndex,
+      ancestorStack: this.ancestorStack,
+      move
+    });
   }
 
-  private addSectionCommand(id: string, name: string, move: "next" | "previous" | "parent"): void {
+  private addSectionCommand(id: string, name: string, move: SectionMove): void {
     this.addCommand({
       id,
       name,
@@ -2338,6 +2341,10 @@ export default class SchreibstubePlugin extends Plugin {
     if (!view) return;
 
     scrollViewToLine(view, lineNumber);
+    // The heading is now at the top. Until the editor measures again, the
+    // stack goes by that, so a command pressed again in the meantime moves
+    // on from the heading just reached, not from the one before it.
+    this.edgeLines = [lineNumber, lineNumber];
     this.queueRefreshForActiveView();
   }
 }

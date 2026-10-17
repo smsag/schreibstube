@@ -36,8 +36,9 @@ export const enExtra = {
 
   overlay: {
     label: "Heading path",
-    siblings: "Sections at this level",
     more: "More headings above",
+    folded: "…",
+    positionShort: (position: number, count: number) => `§ ${position}/${count}`,
     position: (position: number, count: number) => `Section ${position} of ${count} at this level`
   },
 

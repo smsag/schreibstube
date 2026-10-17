@@ -21,6 +21,21 @@ export interface EditorViewportUpdate {
 
 const FOCUS_SETTINGS_CHANGED = "schreibstube-focus-settings-changed";
 
+/** Each open editor's way to measure again, by its element. */
+const remeasureByEditor = new Map<HTMLElement, () => void>();
+
+/**
+ * Ask the editors inside `container` to measure and report their top lines
+ * again. An editor reports when it scrolls or changes; a note switched to
+ * does neither, and its stack would otherwise go by an estimate until the
+ * reader scrolled.
+ */
+export function remeasureEditorsIn(container: HTMLElement): void {
+  for (const [dom, remeasure] of remeasureByEditor) {
+    if (container.contains(dom)) remeasure();
+  }
+}
+
 interface EditorExtensionOptions {
   onViewportUpdate: (update: EditorViewportUpdate) => void;
   getSettings: () => SchreibstubeSettings;
@@ -107,6 +122,7 @@ function createFocusExtension(options: EditorExtensionOptions): Extension {
         this.getSettings = options.getSettings;
         this.view.scrollDOM.addEventListener("scroll", this.handleScroll, { passive: true });
         window.addEventListener(FOCUS_SETTINGS_CHANGED, this.handleFocusSettingsChanged);
+        remeasureByEditor.set(view.dom, () => this.queueViewportUpdate(true));
         this.syncFocus(this.getSettings(), true);
         this.queueViewportUpdate(true);
       }
@@ -131,6 +147,7 @@ function createFocusExtension(options: EditorExtensionOptions): Extension {
       }
 
       destroy(): void {
+        remeasureByEditor.delete(this.view.dom);
         this.view.scrollDOM.removeEventListener("scroll", this.handleScroll);
         window.removeEventListener(FOCUS_SETTINGS_CHANGED, this.handleFocusSettingsChanged);
         this.undress();

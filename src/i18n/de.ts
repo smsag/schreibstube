@@ -436,8 +436,9 @@ export const de: Messages = {
 
   overlay: {
     label: "Überschriften-Pfad",
-    siblings: "Abschnitte auf dieser Ebene",
     more: "Weitere übergeordnete Überschriften",
+    folded: "…",
+    positionShort: (position: number, count: number) => `§ ${position}/${count}`,
     position: (position: number, count: number) =>
       `Abschnitt ${position} von ${count} auf dieser Ebene`
   },

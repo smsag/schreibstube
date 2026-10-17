@@ -17,8 +17,8 @@ export interface OverlayRenderInput {
  *
  * One line of fixed height, so it covers the same strip of text however deep
  * the section is, and the page under it does not jump as the reader scrolls
- * from one depth to another. A path too long for the width folds its middle
- * into "…", which opens the folded headings.
+ * from one depth to another. A path too long for the width folds its outer
+ * crumbs into "…", which opens the folded headings.
  */
 export class OverlayController {
   private container: HTMLElement;
@@ -67,9 +67,14 @@ export class OverlayController {
 
     const current = stack[stack.length - 1];
     const position = current ? sectionPosition(input.headingIndex, current) : null;
-    this.positionEl.textContent = position ? `§ ${position.position}/${position.count}` : "";
-    if (position)
+    this.positionEl.textContent = position
+      ? t().overlay.positionShort(position.position, position.count)
+      : "";
+    if (position) {
       setTooltip(this.positionEl, t().overlay.position(position.position, position.count));
+    } else {
+      this.positionEl.removeAttribute("aria-label");
+    }
     this.drawCrumbs();
   }
 
@@ -84,13 +89,20 @@ export class OverlayController {
     return isNodeLike(target) && this.container.contains(target);
   }
 
-  /** Draw the path, folding one more crumb at a time until it fits. */
+  /**
+   * Draw the path, folding one more crumb at a time until it fits. Crumbs
+   * keep their width while folding is still possible: shrinking them first
+   * left every one an ellipsis, and the path then always fit, folded or not.
+   * Only a path that does not fit with everything folded may squeeze.
+   */
   private drawCrumbs(): void {
     const count = this.input.ancestorStack.length;
-    for (let collapse = 0; collapse <= Math.max(0, count - 2); collapse += 1) {
+    this.crumbsEl.classList.remove("is-squeezed");
+    for (let collapse = 0; collapse <= Math.max(0, count - 1); collapse += 1) {
       this.drawPath(collapse);
       if (this.crumbsEl.scrollWidth <= this.crumbsEl.clientWidth) return;
     }
+    this.crumbsEl.classList.add("is-squeezed");
   }
 
   private drawPath(collapse: number): void {
@@ -107,14 +119,12 @@ export class OverlayController {
       return el;
     };
 
-    for (const [position, i] of shown.entries()) {
+    if (hidden.length > 0) parts.push(this.moreButton(hidden.flatMap((h) => stack[h] ?? [])));
+    for (const i of shown) {
       const entry = stack[i];
       if (!entry) continue;
-      if (position > 0) parts.push(separator());
+      if (parts.length > 0) parts.push(separator());
       parts.push(this.crumb(entry, i === stack.length - 1));
-      if (i === 0 && hidden.length > 0) {
-        parts.push(separator(), this.moreButton(hidden.flatMap((h) => stack[h] ?? [])));
-      }
     }
     this.crumbsEl.replaceChildren(...parts);
   }
@@ -132,7 +142,9 @@ export class OverlayController {
     chevron.setAttribute("aria-hidden", "true");
     setIcon(chevron, "chevron-down");
     button.append(text, chevron);
-    setTooltip(button, t().overlay.siblings);
+    // Named by its heading, as a reader sees it; a tooltip would have
+    // replaced that name with its own for a screen reader.
+    button.setAttribute("aria-haspopup", "menu");
     button.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
@@ -144,7 +156,8 @@ export class OverlayController {
   private moreButton(folded: HeadingEntry[]): HTMLElement {
     const button = this.crumbsEl.ownerDocument.createElement("button");
     button.classList.add("schreibstube-overlay-crumb", "schreibstube-overlay-more");
-    button.textContent = "…";
+    button.textContent = t().overlay.folded;
+    button.setAttribute("aria-haspopup", "menu");
     setTooltip(button, t().overlay.more);
     button.addEventListener("click", (event) => {
       event.preventDefault();
