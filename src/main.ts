@@ -11,14 +11,11 @@ import {
   type TAbstractFile,
   type WorkspaceLeaf
 } from "obsidian";
-import { resolveAncestorStack } from "./services/ancestor-stack";
+import { resolveStackUnderOverlay } from "./services/ancestor-stack";
 import { buildHeadingIndex } from "./services/heading-index";
 import { reduceOverlayRowEvent, type OverlayRowEvent } from "./services/overlay-interaction";
-import {
-  resolveViewportLineForReadingView,
-  scrollReadingHeadingIntoView
-} from "./platform/reading-navigator";
-import { RefreshScheduler, type RefreshOptions } from "./services/refresh-scheduler";
+import { scrollViewToLine, viewTopLine } from "./platform/reading-navigator";
+import { RefreshScheduler } from "./services/refresh-scheduler";
 import { OverlayCoordinator } from "./platform/overlay-coordinator";
 import { bootstrapSchreibstubeRuntime } from "./platform/plugin-bootstrap";
 import {
@@ -166,7 +163,8 @@ export default class SchreibstubePlugin extends Plugin {
   /** Set first thing in `onunload`, so a frame or a callback that was already
    *  queued when the plugin went away finds nothing left to draw on. */
   private unloaded = false;
-  private viewportTopLine = 0;
+  /** The line under the overlay at each depth it could take; see `resolveStackUnderOverlay`. */
+  private edgeLines: readonly number[] = [0];
   private headingIndex: HeadingEntry[] = [];
   private lastIndexedContent = "";
   private ancestorStack: HeadingEntry[] = [];
@@ -224,7 +222,7 @@ export default class SchreibstubePlugin extends Plugin {
 
     this.refreshScheduler = new RefreshScheduler(
       (callback) => window.requestAnimationFrame(callback),
-      ({ viewportTopLine, options }) => this.refreshForActiveView(viewportTopLine, options)
+      ({ edgeLines }) => this.refreshForActiveView(edgeLines)
     );
 
     this.linkMode = new LinkModeController(this.app, this.logger);
@@ -460,11 +458,15 @@ export default class SchreibstubePlugin extends Plugin {
 
     bootstrapSchreibstubeRuntime(this, {
       pictureActions: () => this.pictureActions,
-      onViewportFromEditor: (viewportTopLine) => {
-        this.queueRefreshForActiveView(viewportTopLine);
+      onViewportFromEditor: ({ edgeLines, editorDom }) => {
+        // Every open editor reports its scroll, the hidden one behind a
+        // note in reading view included; only the note being read counts.
+        const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+        if (view?.getMode() !== "source" || !view.contentEl.contains(editorDom)) return;
+        this.queueRefreshForActiveView(edgeLines);
       },
-      onViewportFromReading: ({ viewportTopLine, scrollTop }) => {
-        this.queueRefreshForActiveView(viewportTopLine, { readingScrollTop: scrollTop });
+      onViewportFromReading: () => {
+        this.queueRefreshForActiveView();
       },
       getSettings: () => this.settings,
       onActiveLeafChange: () => {
@@ -2219,15 +2221,15 @@ export default class SchreibstubePlugin extends Plugin {
     window.dispatchEvent(new Event("schreibstube-focus-settings-changed"));
   }
 
-  private queueRefreshForActiveView(viewportTopLine?: number, options?: RefreshOptions): void {
+  private queueRefreshForActiveView(edgeLines?: readonly number[]): void {
     if (!this.refreshScheduler) {
-      this.refreshForActiveView(viewportTopLine, options);
+      this.refreshForActiveView(edgeLines);
       return;
     }
-    this.refreshScheduler.enqueue(viewportTopLine, options);
+    this.refreshScheduler.enqueue(edgeLines);
   }
 
-  private refreshForActiveView(viewportTopLine?: number, options?: RefreshOptions): void {
+  private refreshForActiveView(edgeLines?: readonly number[]): void {
     // A scroll queues a frame; disabling the plugin does not cancel it. The
     // frame used to arrive after `onunload` had cleared the overlay and draw a
     // fresh one into a live view, with no owner left to take it down.
@@ -2242,15 +2244,20 @@ export default class SchreibstubePlugin extends Plugin {
       return;
     }
 
-    const didViewChange = this.currentView !== view;
-    if (didViewChange) {
+    if (this.currentView !== view) {
       this.currentView = view;
-      this.viewportTopLine = 0;
+      // Until its editor measures, a note opened already scrolled shows the
+      // stack of the line it opened at, not of its first line.
+      this.edgeLines = [viewTopLine(view) ?? 0];
       this.lastRenderSignature = "";
     }
 
-    if (viewportTopLine !== undefined) {
-      this.viewportTopLine = Math.max(0, viewportTopLine);
+    if (edgeLines) {
+      this.edgeLines = edgeLines;
+    }
+    if (view.getMode() === "preview") {
+      const top = viewTopLine(view);
+      if (top !== null) this.edgeLines = [top];
     }
 
     const content = view.editor.getValue();
@@ -2259,18 +2266,7 @@ export default class SchreibstubePlugin extends Plugin {
       this.lastIndexedContent = content;
     }
 
-    let resolvedViewportTopLine = this.viewportTopLine;
-    if (typeof options?.readingScrollTop === "number") {
-      resolvedViewportTopLine = resolveViewportLineForReadingView(
-        view,
-        this.headingIndex,
-        resolvedViewportTopLine,
-        options.readingScrollTop
-      );
-      this.viewportTopLine = resolvedViewportTopLine;
-    }
-
-    this.ancestorStack = resolveAncestorStack(this.headingIndex, resolvedViewportTopLine);
+    this.ancestorStack = resolveStackUnderOverlay(this.headingIndex, this.edgeLines);
     this.renderOverlay(view);
   }
 
@@ -2280,7 +2276,10 @@ export default class SchreibstubePlugin extends Plugin {
       return;
     }
 
-    const sig = this.ancestorStack.map((e) => `${e.level}:${e.lineNumber}:${e.text}`).join("|");
+    // The mode is part of it: the same stack moves to the other view's host.
+    const sig =
+      `${view.getMode()}|` +
+      this.ancestorStack.map((e) => `${e.level}:${e.lineNumber}:${e.text}`).join("|");
     if (sig === this.lastRenderSignature) return;
 
     const rendered = this.overlayCoordinator.renderForView(
@@ -2311,22 +2310,7 @@ export default class SchreibstubePlugin extends Plugin {
     const view = this.currentView ?? this.app.workspace.getActiveViewOfType(MarkdownView);
     if (!view) return;
 
-    const targetHeading = this.headingIndex.find((e) => e.lineNumber === lineNumber);
-    if (
-      targetHeading &&
-      scrollReadingHeadingIntoView(view, this.headingIndex, targetHeading.lineNumber)
-    ) {
-      this.viewportTopLine = targetHeading.lineNumber;
-      this.refreshForActiveView(this.viewportTopLine);
-      return;
-    }
-
-    view.editor.setCursor(lineNumber, 0);
-    view.editor.scrollIntoView(
-      { from: { line: lineNumber, ch: 0 }, to: { line: lineNumber, ch: 0 } },
-      true
-    );
-    this.viewportTopLine = lineNumber;
-    this.queueRefreshForActiveView(this.viewportTopLine);
+    scrollViewToLine(view, lineNumber);
+    this.queueRefreshForActiveView();
   }
 }

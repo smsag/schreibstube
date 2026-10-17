@@ -1,13 +1,4 @@
 import type { MarkdownPostProcessor } from "obsidian";
-import { editorOfReadingView } from "../services/workspace-internals";
-
-export interface ReadingViewportUpdate {
-  viewportTopLine: number;
-  scrollTop: number;
-  scrollHeight: number;
-  clientHeight: number;
-}
-
 const cleanupByReadingView = new WeakMap<HTMLElement, () => void>();
 
 export interface ReadingPostProcessor {
@@ -33,9 +24,7 @@ export interface ReadingPostProcessor {
  * observer, and kept reporting to a controller that was gone. `dispose` is
  * for the plugin to register, so the views on screen let go with it.
  */
-export function createReadingPostProcessor(
-  onViewportUpdate: (update: ReadingViewportUpdate) => void
-): ReadingPostProcessor {
+export function createReadingPostProcessor(onScroll: () => void): ReadingPostProcessor {
   const attached = new Set<HTMLElement>();
 
   const dispose = (): void => {
@@ -63,25 +52,12 @@ export function createReadingPostProcessor(
       return;
     }
 
-    const handler = () => {
-      const editor = editorOfReadingView(view);
-      if (!editor) {
-        return;
-      }
+    // The page scrolls inside the view, and a scroll event does not bubble:
+    // a listener on the view itself heard the first render and nothing after.
+    const scroller = view.querySelector<HTMLElement>(":scope > .markdown-preview-view") ?? view;
+    const handler = () => onScroll();
 
-      const scrollable = Math.max(1, view.scrollHeight - view.clientHeight);
-      const ratio = Math.min(1, Math.max(0, view.scrollTop / scrollable));
-      const lineCount = Math.max(1, editor.lineCount());
-      const viewportTopLine = Math.floor((lineCount - 1) * ratio);
-      onViewportUpdate({
-        viewportTopLine,
-        scrollTop: view.scrollTop,
-        scrollHeight: view.scrollHeight,
-        clientHeight: view.clientHeight
-      });
-    };
-
-    view.addEventListener("scroll", handler, { passive: true });
+    scroller.addEventListener("scroll", handler, { passive: true });
     handler();
 
     // The view leaving the DOM is watched on its parent's direct children
@@ -101,7 +77,7 @@ export function createReadingPostProcessor(
     observer?.observe(parent as HTMLElement, { childList: true });
 
     const cleanup = () => {
-      view.removeEventListener("scroll", handler);
+      scroller.removeEventListener("scroll", handler);
       observer?.disconnect();
       cleanupByReadingView.delete(view);
       attached.delete(view);

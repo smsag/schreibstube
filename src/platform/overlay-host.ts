@@ -1,5 +1,11 @@
 import type { MarkdownView } from "obsidian";
 
+/**
+ * Where the overlay goes: over the editor, or over the page in reading view.
+ *
+ * A note keeps both in its view and hides the one not in use, so the
+ * overlay drawn into the editor in reading view was drawn, and never seen.
+ */
 export function findOverlayHost(view: MarkdownView): HTMLElement | null {
   const contentEl = view.contentEl as
     | (HTMLElement & {
@@ -11,12 +17,14 @@ export function findOverlayHost(view: MarkdownView): HTMLElement | null {
     return null;
   }
 
-  const sourceChromeHost =
+  const selector =
+    view.getMode() === "preview" ? ".markdown-reading-view" : ".markdown-source-view.mod-cm6";
+  const modeHost =
     typeof contentEl.querySelector === "function"
-      ? (contentEl.querySelector(".markdown-source-view.mod-cm6") as HTMLElement | null)
+      ? (contentEl.querySelector(selector) as HTMLElement | null)
       : null;
-  if (sourceChromeHost) {
-    return sourceChromeHost;
+  if (modeHost) {
+    return modeHost;
   }
 
   return contentEl;

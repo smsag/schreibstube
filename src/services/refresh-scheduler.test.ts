@@ -1,34 +1,41 @@
 import { describe, expect, it } from "vitest";
-import { RefreshScheduler } from "./refresh-scheduler";
+import { RefreshScheduler, type RefreshPayload } from "./refresh-scheduler";
 
 describe("RefreshScheduler", () => {
-  it("coalesces multiple enqueue calls into one frame", () => {
+  it("coalesces multiple enqueue calls into one frame, with the latest measurement", () => {
     const callbacks: Array<() => void> = [];
-    const flushed: Array<{
-      viewportTopLine?: number | undefined;
-      readingScrollTop?: number | undefined;
-    }> = [];
+    const flushed: RefreshPayload[] = [];
 
     const scheduler = new RefreshScheduler(
       (cb) => callbacks.push(cb),
-      ({ viewportTopLine, options }) => {
-        flushed.push({
-          viewportTopLine,
-          readingScrollTop: options?.readingScrollTop
-        });
-      }
+      (payload) => flushed.push(payload)
     );
 
-    scheduler.enqueue(10);
-    scheduler.enqueue(20, { readingScrollTop: 120 });
-    scheduler.enqueue(30, { readingScrollTop: 240 });
+    scheduler.enqueue([10]);
+    scheduler.enqueue([20, 22]);
+    scheduler.enqueue([30, 32]);
 
     expect(callbacks).toHaveLength(1);
     expect(flushed).toHaveLength(0);
 
     callbacks[0]?.();
 
-    expect(flushed).toEqual([{ viewportTopLine: 30, readingScrollTop: 240 }]);
+    expect(flushed).toEqual([{ edgeLines: [30, 32] }]);
+  });
+
+  it("keeps a measurement when a plain refresh follows it in the same frame", () => {
+    const callbacks: Array<() => void> = [];
+    const flushed: RefreshPayload[] = [];
+    const scheduler = new RefreshScheduler(
+      (cb) => callbacks.push(cb),
+      (payload) => flushed.push(payload)
+    );
+
+    scheduler.enqueue([7, 9]);
+    scheduler.enqueue();
+    callbacks[0]?.();
+
+    expect(flushed).toEqual([{ edgeLines: [7, 9] }]);
   });
 
   it("schedules another frame after previous flush", () => {
@@ -42,10 +49,10 @@ describe("RefreshScheduler", () => {
       }
     );
 
-    scheduler.enqueue(5);
+    scheduler.enqueue([5]);
     callbacks[0]?.();
 
-    scheduler.enqueue(15);
+    scheduler.enqueue([15]);
     expect(callbacks).toHaveLength(2);
 
     callbacks[1]?.();

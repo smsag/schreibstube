@@ -11,12 +11,14 @@ import { createReadingPostProcessor } from "./markdown-processor";
 
 const ctx = {} as MarkdownPostProcessorContext;
 
-function readingView(): { view: HTMLElement; section: HTMLElement } {
+function readingView(): { view: HTMLElement; scroller: HTMLElement; section: HTMLElement } {
   const leaf = document.body.appendChild(document.createElement("div"));
   const view = leaf.appendChild(document.createElement("div"));
   view.className = "markdown-reading-view";
-  const section = view.appendChild(document.createElement("div"));
-  return { view, section };
+  const scroller = view.appendChild(document.createElement("div"));
+  scroller.className = "markdown-preview-view";
+  const section = scroller.appendChild(document.createElement("div"));
+  return { view, scroller, section };
 }
 
 afterEach(() => {
@@ -26,8 +28,8 @@ afterEach(() => {
 describe("the reading post-processor", () => {
   it("attaches to a view once, however many sections it renders", () => {
     const { processor } = createReadingPostProcessor(vi.fn());
-    const { view, section } = readingView();
-    const listen = vi.spyOn(view, "addEventListener");
+    const { scroller, section } = readingView();
+    const listen = vi.spyOn(scroller, "addEventListener");
 
     void processor(section, ctx);
     void processor(section, ctx);
@@ -37,9 +39,9 @@ describe("the reading post-processor", () => {
 
   it("lets go of a view whose leaf has left the document, so it can attach again", () => {
     const { processor, sweep } = createReadingPostProcessor(vi.fn());
-    const { view, section } = readingView();
-    const listen = vi.spyOn(view, "addEventListener");
-    const unlisten = vi.spyOn(view, "removeEventListener");
+    const { view, scroller, section } = readingView();
+    const listen = vi.spyOn(scroller, "addEventListener");
+    const unlisten = vi.spyOn(scroller, "removeEventListener");
     void processor(section, ctx);
 
     view.parentElement?.remove();
@@ -53,8 +55,8 @@ describe("the reading post-processor", () => {
 
   it("keeps a view that is still on screen", () => {
     const { processor, sweep } = createReadingPostProcessor(vi.fn());
-    const { view, section } = readingView();
-    const unlisten = vi.spyOn(view, "removeEventListener");
+    const { scroller, section } = readingView();
+    const unlisten = vi.spyOn(scroller, "removeEventListener");
     void processor(section, ctx);
 
     sweep();
@@ -65,7 +67,7 @@ describe("the reading post-processor", () => {
   it("sweeps on the next render, whether or not the layout event has arrived", () => {
     const { processor } = createReadingPostProcessor(vi.fn());
     const closed = readingView();
-    const unlisten = vi.spyOn(closed.view, "removeEventListener");
+    const unlisten = vi.spyOn(closed.scroller, "removeEventListener");
     void processor(closed.section, ctx);
     closed.view.parentElement?.remove();
 
@@ -73,5 +75,17 @@ describe("the reading post-processor", () => {
     void processor(open.section, ctx);
 
     expect(unlisten).toHaveBeenCalledWith("scroll", expect.any(Function));
+  });
+
+  it("hears the page scroll, which happens inside the view and does not bubble out of it", () => {
+    const onScroll = vi.fn();
+    const { processor } = createReadingPostProcessor(onScroll);
+    const { scroller, section } = readingView();
+    void processor(section, ctx);
+    onScroll.mockClear();
+
+    scroller.dispatchEvent(new Event("scroll"));
+
+    expect(onScroll).toHaveBeenCalledTimes(1);
   });
 });

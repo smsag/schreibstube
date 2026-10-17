@@ -6,6 +6,8 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- **The heading stack follows a long note.** In reading view it was drawn into the hidden editor and never seen, its scroll listener sat on an element that does not scroll, and it paired the headings on the page with the note's by their order — reading view draws a long note a stretch at a time, so deep in a README it named a section from the top. It now draws over the page and takes the line from Obsidian's own scroll position. In the editor, the stack measured under its own height, so crossing into a shallower section made it flip between the two, and a split pane could lend it another note's overlay height; it now settles on one answer wherever the note is and measures under its own overlay, and only the note being read moves it. A press on a row brings that heading to the top instead of the middle, where it shows as the current section, and leaves the cursor where it was.
+
 - **A press on an entry of a note's index only goes to that section.** It used to put the cursor on the heading and focus the editor, which on a phone opened the keyboard over the section just reached and, in Live Preview, opened the heading up to its markup. The editor now only scrolls there; the cursor stays where it was, and a tap on the index no longer hands the editor the focus.
 
 ## 1.84.3 - 2026-10-16

@@ -13,6 +13,7 @@ describe("OverlayCoordinator", () => {
 
     const coordinator = new OverlayCoordinator(createSpy);
     const view = {
+      getMode: () => "source",
       contentEl: {
         querySelector: (selector: string) =>
           selector === ".markdown-source-view.mod-cm6" ? host : null
@@ -50,6 +51,7 @@ describe("OverlayCoordinator", () => {
     const coordinator = new OverlayCoordinator(createSpy);
 
     const viewA = {
+      getMode: () => "source",
       contentEl: {
         querySelector: (selector: string) =>
           selector === ".markdown-source-view.mod-cm6" ? hostA : null
@@ -57,6 +59,7 @@ describe("OverlayCoordinator", () => {
     } as unknown as MarkdownView;
 
     const viewB = {
+      getMode: () => "source",
       contentEl: {
         querySelector: (selector: string) =>
           selector === ".markdown-source-view.mod-cm6" ? hostB : null
@@ -85,6 +88,7 @@ describe("OverlayCoordinator", () => {
     const coordinator = new OverlayCoordinator(createSpy);
 
     const withHost = {
+      getMode: () => "source",
       contentEl: {
         querySelector: (selector: string) =>
           selector === ".markdown-source-view.mod-cm6" ? ({} as HTMLElement) : null
@@ -92,6 +96,7 @@ describe("OverlayCoordinator", () => {
     } as unknown as MarkdownView;
 
     const noHost = {
+      getMode: () => "source",
       contentEl: null
     } as unknown as MarkdownView;
 

@@ -7,11 +7,12 @@ import { createTaskFoldPostProcessor } from "../processors/task-fold-reading";
 import { registerTaskRibbon } from "../processors/task-ribbon";
 import { registerNoteIndex } from "../processors/note-index";
 import { registerSlideshow, type SlideshowPictureActions } from "../processors/slideshow";
+import type { EditorViewportUpdate } from "../processors/editor-extension";
 import type { SchreibstubeSettings } from "../types";
 
 export interface BootstrapHandlers {
-  onViewportFromEditor: (viewportTopLine: number) => void;
-  onViewportFromReading: (payload: { viewportTopLine: number; scrollTop: number }) => void;
+  onViewportFromEditor: (update: EditorViewportUpdate) => void;
+  onViewportFromReading: () => void;
   getSettings: () => SchreibstubeSettings;
   onActiveLeafChange: () => void;
   /** The picture's own buttons for a slideshow, once the plugin has made them. */
@@ -21,8 +22,8 @@ export interface BootstrapHandlers {
 export function bootstrapSchreibstubeRuntime(plugin: Plugin, handlers: BootstrapHandlers): void {
   plugin.registerEditorExtension(
     createEditorExtension({
-      onViewportUpdate: ({ viewportTopLine }) => {
-        handlers.onViewportFromEditor(viewportTopLine);
+      onViewportUpdate: (update) => {
+        handlers.onViewportFromEditor(update);
       },
       getSettings: handlers.getSettings
     })
@@ -35,14 +36,21 @@ export function bootstrapSchreibstubeRuntime(plugin: Plugin, handlers: Bootstrap
   registerNoteIndex(plugin);
   registerSlideshow(plugin, handlers.pictureActions);
 
-  const reading = createReadingPostProcessor(({ viewportTopLine, scrollTop }) => {
-    handlers.onViewportFromReading({ viewportTopLine, scrollTop });
+  const reading = createReadingPostProcessor(() => {
+    handlers.onViewportFromReading();
   });
   plugin.registerMarkdownPostProcessor(reading.processor);
   plugin.register(reading.dispose);
   // A closed leaf is removed with an ancestor, which no observer on the view's
   // own parent sees; the layout event is where a detached view is let go.
   plugin.registerEvent(plugin.app.workspace.on("layout-change", reading.sweep));
+  // Switching a note between editing and reading is a layout change too, and
+  // moves the overlay to the view now on screen.
+  plugin.registerEvent(
+    plugin.app.workspace.on("layout-change", () => {
+      handlers.onActiveLeafChange();
+    })
+  );
 
   plugin.registerEvent(
     plugin.app.workspace.on("active-leaf-change", () => {

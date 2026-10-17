@@ -1,69 +1,29 @@
 import type { MarkdownView } from "obsidian";
-import type { HeadingIndex } from "../types";
-import {
-  getRenderedHeadingIndexForSourceLine,
-  resolveViewportLineFromRenderedHeadings
-} from "../services/reading-headings";
 
-function getPreviewRoot(view: MarkdownView): HTMLElement | null {
-  return view.containerEl.querySelector(".markdown-preview-view") as HTMLElement | null;
+/**
+ * A note's place in source lines, through the scroll position Obsidian keeps
+ * in lines in both modes (the one that carries a note's place between them).
+ *
+ * Reading view draws a long note a stretch at a time, so pairing the headings
+ * on the page with the note's headings by their order put the first heading
+ * drawn — deep in a long note — at the note's first heading.
+ */
+
+/** The zero-based source line at the top of the note, or null while it is not laid out. */
+export function viewTopLine(view: MarkdownView): number | null {
+  const scroll: unknown = view.currentMode.getScroll();
+  return typeof scroll === "number" && Number.isFinite(scroll)
+    ? Math.max(0, Math.round(scroll))
+    : null;
 }
 
-function getRenderedHeadings(previewRoot: HTMLElement): HTMLElement[] {
-  return Array.from(previewRoot.querySelectorAll("h1, h2, h3, h4, h5, h6")) as HTMLElement[];
-}
-
-export function resolveViewportLineForReadingView(
-  view: MarkdownView,
-  headingIndex: HeadingIndex,
-  fallbackLine: number,
-  scrollTop: number
-): number {
-  if (view.getMode() !== "preview") {
-    return fallbackLine;
-  }
-
-  const previewRoot = getPreviewRoot(view);
-  if (!previewRoot) {
-    return fallbackLine;
-  }
-
-  const renderedOffsets = getRenderedHeadings(previewRoot).map((heading) => heading.offsetTop);
-
-  return resolveViewportLineFromRenderedHeadings(
-    headingIndex,
-    renderedOffsets,
-    scrollTop,
-    fallbackLine
-  );
-}
-
-export function scrollReadingHeadingIntoView(
-  view: MarkdownView,
-  headingIndex: HeadingIndex,
-  lineNumber: number
-): boolean {
-  if (view.getMode() !== "preview") {
-    return false;
-  }
-
-  const previewRoot = getPreviewRoot(view);
-  if (!previewRoot) {
-    return false;
-  }
-
-  const sourceIndex = getRenderedHeadingIndexForSourceLine(headingIndex, lineNumber);
-  if (sourceIndex < 0) {
-    return false;
-  }
-
-  const renderedHeadings = getRenderedHeadings(previewRoot);
-  const target = renderedHeadings[sourceIndex];
-
-  if (!target) {
-    return false;
-  }
-
-  target.scrollIntoView({ block: "start", behavior: "instant" });
-  return true;
+/**
+ * Bring a heading's line to the top of the note, under the overlay, where the
+ * stack then shows it as the current section. Centring it, as before, left
+ * the section above it at the top and in the stack. The cursor stays where
+ * it was, as for the note index: on it, a phone opened the keyboard over the
+ * section and Live Preview opened the heading up to its markup.
+ */
+export function scrollViewToLine(view: MarkdownView, lineNumber: number): void {
+  view.currentMode.applyScroll(lineNumber);
 }
