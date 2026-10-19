@@ -123,17 +123,15 @@ above the slide's heading. `%% … %%` works the same as `<!-- … -->`.
 | `<!-- layout: image-right -->` | the same, picture on the right                              |
 | `<!-- agenda -->`              | lists the section dividers (or all other slide titles) here |
 
-- `columns:` needs exactly as many numbers (2 or 3, each up to 12) as the
-  slide has `###` columns; otherwise the columns stay equal and the print
-  warns.
+- `columns:` needs exactly as many numbers (2 or 3, each up to 12) as the slide has
+  `###` columns; otherwise the columns stay equal and the print warns.
 - For `image-left` / `image-right` the picture must stand on a line of its own.
 
 ### Pictures and diagrams
 
 - A slide holding one picture and nothing else shows it as large as fits.
-- The alt text is the caption: beside the picture on a full-width slide,
-  beneath it in a column. `![](x.jpg)` has no caption.
-  `![[x.jpg|300]]` is a width, not a caption.
+- The alt text is the caption: beside the picture on a full-width slide, beneath it in a
+  column. `![](x.jpg)` has no caption; `![[x.jpg|300]]` is a width, not a caption.
 - A ` ```mermaid ` or ` ```vizardry ` fence is drawn and placed as a picture.
 
 ### Writing good slides
@@ -335,8 +333,7 @@ depth: 3
 `> [!note] Title`, then `> text` lines. Every kind prints in one of four
 styles, coloured by the template:
 
-- note: `note`, `info`, `todo`, `abstract`, `summary`, `tldr`, `example`,
-  `quote`, `cite`
+- note: `note`, `info`, `todo`, `abstract`, `summary`, `tldr`, `example`, `quote`, `cite`
 - tip: `tip`, `hint`, `important`, `success`, `check`, `done`
 - warning: `warning`, `caution`, `attention`, `question`, `help`, `faq`
 - danger: `danger`, `error`, `bug`, `failure`, `fail`, `missing`
@@ -381,7 +378,7 @@ anbei unser Angebot …
   nothing is added. Formatting becomes plain text, a table stays a table of text, and a formula
   is sent as its result. Embedded files cannot be attached.
 
-## 9. Publishing
+## 9. Publishing and sharing
 
 **Publish folder** (`Ordner veröffentlichen`) puts a folder on a website.
 A note goes online only with `published: true`.
@@ -396,10 +393,13 @@ slug: hallo-welt
 ---
 ```
 
-- All but `published` are optional. Slideshows, diagrams, the index and totals are carried
-  over.
+- All but `published` are optional, and slideshows, diagrams, the index and totals carry
+  over. Never `slug: s`: shared links live at that address.
 - Leave `description` out rather than guess: an empty one may be written by
   the AI when the note is published.
+- **Share note as a link** (`Notiz als Link teilen`) needs no key: any note, as written. On the
+  shared page, links to other notes are plain text, pictures stay, videos are left out,
+  diagrams show as their source, and raw HTML runs no script.
 
 ## 10. Document sync
 
@@ -419,8 +419,7 @@ schreibstubeSyncEvery: Alle 2 Tage
 
 ## 11. Glossary
 
-A note of preferred and forbidden terms, checked by **Proof-read note**
-(`Notiz korrigieren`).
+A note of preferred and forbidden terms, checked by **Proof-read note** (`Notiz korrigieren`).
 
 ```markdown
 ---
@@ -486,6 +485,7 @@ template's folder; a missing one is left out with a warning.
 | "Checklist for the handover"           | a `schreibstube-tasks` block, tasks under headings     |
 | "Exposé with a table of contents"      | a `schreibstube-index` block under the title           |
 | "Publish this as a blog post"          | the note with `published: true`, `description`, `slug` |
+| "Something to share with a client"     | any note; the person shares it with a link             |
 | "Our house terms"                      | a glossary note                                        |
 | "My CV for this job ad"                | a `Lebenslauf` note in the `###`/`####`/`#####` levels |
 
