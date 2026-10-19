@@ -216,7 +216,8 @@ export interface SharedLink {
   protected: boolean;
 }
 
-const CODE = /^[A-HJ-NP-Za-km-z2-9]{10}$/;
+/** Two words, and a number for a link without a password; or the long code the first links had. */
+const CODE = /^(?:[a-z]{3,8}-[a-z]{3,8}(?:-[1-9][0-9])?|[A-HJ-NP-Za-km-z2-9]{10})$/;
 
 /**
  * A link as the bridge describes it, or null when it is not one: the address

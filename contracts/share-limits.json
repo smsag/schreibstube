@@ -5,18 +5,29 @@
   "maxAssets": 50,
   "maxAssetBytes": 20000000,
   "imageExtensions": ["avif", "gif", "jpeg", "jpg", "png", "svg", "webp"],
-  "codeAlphabet": "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789",
-  "codeLength": 10,
   "codes": {
-    "valid": ["ABCDEFGHJK", "zz23456789", "mnpqrstuvw"],
+    "valid": [
+      "apple-cloud",
+      "tiger-garden-42",
+      "owl-yak",
+      "sapphire-sequoia-99",
+      "ABCDEFGHJK",
+      "zz23456789"
+    ],
     "invalid": [
-      "ABCDEFGHJ",
-      "ABCDEFGHJKL",
+      "apple",
+      "apple-cloud-7",
+      "apple-cloud-100",
+      "apple-cloud-05",
+      "Apple-cloud",
+      "ap-cloud",
+      "apple-cloudberry",
+      "apple_cloud",
+      "apple-cloud-",
+      "../etc-x",
       "ABCDEFGHJ0",
-      "ABCDEFGHJO",
-      "ABCDEFGHJI",
-      "ABCDEFGHJl",
-      "../../etc1"
+      "ABCDEFGHJKL"
     ]
-  }
+  },
+  "codeWords": "three to eight letters a to z, two of them joined by a hyphen, a number from 10 to 99 after a third hyphen for a link without a password"
 }

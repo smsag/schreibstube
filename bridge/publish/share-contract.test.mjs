@@ -1,3 +1,4 @@
+import { SHARE_WORDS } from "./share-words.mjs";
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -7,8 +8,7 @@ import {
   MAX_SHARE_ASSETS,
   MAX_SHARE_PASSWORD_LENGTH,
   MIN_SHARE_PASSWORD_LENGTH,
-  SHARE_CODE_ALPHABET,
-  SHARE_CODE_LENGTH,
+  newShareCode,
   SHARE_IMAGE_TYPES
 } from "./share.mjs";
 
@@ -29,10 +29,16 @@ describe("the shared-link contract, on the bridge", () => {
     expect([...SHARE_IMAGE_TYPES.keys()].sort()).toEqual(contract.imageExtensions);
   });
 
-  it("draws codes the plugin reads", () => {
-    expect(SHARE_CODE_ALPHABET).toBe(contract.codeAlphabet);
-    expect(SHARE_CODE_LENGTH).toBe(contract.codeLength);
+  it("draws codes the plugin reads, and reads the codes it lists", () => {
     for (const code of contract.codes.valid) expect(isShareCode(code)).toBe(true);
     for (const code of contract.codes.invalid) expect(isShareCode(code)).toBe(false);
+    for (let i = 0; i < 50; i += 1) {
+      expect(isShareCode(newShareCode({ open: false }))).toBe(true);
+      expect(isShareCode(newShareCode({ open: true }))).toBe(true);
+    }
+  });
+
+  it("draws only from words of the shape the plugin reads", () => {
+    for (const word of SHARE_WORDS) expect(word).toMatch(/^[a-z]{3,8}$/);
   });
 });

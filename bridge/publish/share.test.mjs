@@ -16,8 +16,10 @@ import {
   SHARE_CSP,
   normalizeShares,
   renderShare,
-  SHARE_CODE_ALPHABET,
-  SHARE_CODE_LENGTH,
+  fitsOpenLink,
+  robotsKeepsOut,
+  SHARE_ROBOTS,
+  SHARE_ROBOTS_TXT,
   SHARE_ITERATIONS,
   ShareError,
   shareHtaccess,
@@ -27,6 +29,7 @@ import {
 } from "./share.mjs";
 import { decryptPayload, readPayload, WrongPasswordError } from "./client/share-unlock.mjs";
 import { checkIndex } from "./site.mjs";
+import { SHARE_WORDS } from "./share-words.mjs";
 
 const NOW = Date.parse("2026-10-19T12:00:00Z");
 const PNG = Buffer.from("89504e470d0a1a0a0000000d49484452", "hex");
@@ -42,30 +45,62 @@ function request(overrides = {}) {
 }
 
 describe("newShareCode", () => {
-  it("draws ten characters of the alphabet that reads without mistakes", () => {
+  it("draws two different words for a link with a password", () => {
     for (let i = 0; i < 50; i += 1) {
-      const code = newShareCode();
-      expect(code).toHaveLength(SHARE_CODE_LENGTH);
-      expect(isShareCode(code)).toBe(true);
-      expect([...code].every((char) => SHARE_CODE_ALPHABET.includes(char))).toBe(true);
+      const code = newShareCode({ open: false });
+      const [first, second, rest] = code.split("-");
+      expect(SHARE_WORDS).toContain(first);
+      expect(SHARE_WORDS).toContain(second);
+      expect(first).not.toBe(second);
+      expect(rest).toBeUndefined();
+      expect(fitsOpenLink(code)).toBe(false);
     }
   });
 
-  it("throws back the bytes past the last whole alphabet, so no character is favoured", () => {
-    let call = 0;
-    // 255 lies past 4 × 57 and must be skipped; 0 and 57 both mean "A".
-    const random = (n) => Buffer.from(call++ === 0 ? [255, 0, 57] : Array(n).fill(1));
-    expect(newShareCode(random)).toBe(`AA${"B".repeat(8)}`);
+  it("adds a number from 10 to 99 for a link without one", () => {
+    for (let i = 0; i < 50; i += 1) {
+      const code = newShareCode({ open: true });
+      expect(code).toMatch(/^[a-z]+-[a-z]+-[1-9][0-9]$/);
+      expect(fitsOpenLink(code)).toBe(true);
+    }
+  });
+
+  it("throws back draws past the last whole multiple, and draws a second word again when it repeats", () => {
+    // 65535 lies past the last whole multiple of the list and is skipped;
+    // the second draw repeats the first word, so a third is taken.
+    const values = [65_535, 0, 0, 1, 0];
+    const random = () => {
+      const buffer = Buffer.alloc(2);
+      buffer.writeUInt16BE(values.shift() ?? 0);
+      return buffer;
+    };
+    expect(newShareCode({ open: true }, random)).toBe(`${SHARE_WORDS[0]}-${SHARE_WORDS[1]}-10`);
   });
 });
 
-describe("isShareCode", () => {
-  it("refuses what could be read two ways, or reach outside the directory", () => {
+describe("isShareCode and fitsOpenLink", () => {
+  it("reads word codes and the first links' long codes, and nothing that could leave the directory", () => {
+    expect(isShareCode("apple-cloud")).toBe(true);
+    expect(isShareCode("apple-cloud-42")).toBe(true);
     expect(isShareCode("ABCDEFGHJK")).toBe(true);
-    expect(isShareCode("ABCDEFGHJ0")).toBe(false);
+    expect(isShareCode("apple-cloud-7")).toBe(false);
     expect(isShareCode("../../etc1")).toBe(false);
-    expect(isShareCode("ABCDEFGHJ")).toBe(false);
+    expect(isShareCode("Apple-cloud")).toBe(false);
     expect(isShareCode(42)).toBe(false);
+  });
+
+  it("lets a link be read without a password only at an address with a number, or a long one", () => {
+    expect(fitsOpenLink("apple-cloud-42")).toBe(true);
+    expect(fitsOpenLink("ABCDEFGHJK")).toBe(true);
+    expect(fitsOpenLink("apple-cloud")).toBe(false);
+  });
+});
+
+describe("the word list", () => {
+  it("holds over a thousand different words of three to eight letters", () => {
+    expect(new Set(SHARE_WORDS).size).toBe(SHARE_WORDS.length);
+    expect(SHARE_WORDS.length).toBeGreaterThan(1000);
+    for (const word of SHARE_WORDS) expect(word).toMatch(/^[a-z]{3,8}$/);
   });
 });
 
@@ -259,7 +294,8 @@ describe("apacheTime and shareHtaccess", () => {
     const text = shareHtaccess({ expiresAt: "2026-11-02T00:00:00.000Z" });
     expect(text).toContain(`<If "%{TIME} >= '20261102000000'">`);
     expect(text).toContain("Require all denied");
-    expect(text).toContain("noindex");
+    expect(text).toContain(`X-Robots-Tag "${SHARE_ROBOTS}"`);
+    expect(text).toContain('tdm-reservation "1"');
     expect(text).toContain("no-store");
     expect(text).toContain(`Content-Security-Policy "${SHARE_CSP}"`);
     expect(text).toContain("nosniff");
@@ -323,7 +359,8 @@ describe("sharePage", () => {
     });
     expect(page).toContain("<title>Angebot &lt;1&gt;</title>");
     expect(page).toContain("<h1>Angebot &lt;1&gt;</h1>");
-    expect(page).toContain('content="noindex, nofollow"');
+    expect(page).toContain(`<meta name="robots" content="${SHARE_ROBOTS}">`);
+    expect(page).toContain('<meta name="tdm-reservation" content="1">');
     expect(page).toContain('<meta name="referrer" content="no-referrer">');
     expect(page).toContain('href="katex/katex.css"');
     expect(page).toContain('src="slideshow.js"');
@@ -383,5 +420,33 @@ describe("the share directory", () => {
     const note = (slug) => ({ sourcePath: `${slug}.md`, sha256: "a".repeat(64), slug });
     expect(() => checkIndex({ notes: [note("s")], assets: [] })).toThrow("kept for shared links");
     expect(() => checkIndex({ notes: [note("so")], assets: [] })).not.toThrow();
+  });
+});
+
+describe("what a share tells crawlers", () => {
+  it("asks for no index, no copy, no snippet and no use by an AI", () => {
+    for (const word of [
+      "noindex",
+      "nofollow",
+      "noarchive",
+      "nosnippet",
+      "noimageindex",
+      "noai",
+      "noimageai"
+    ]) {
+      expect(SHARE_ROBOTS.split(", ")).toContain(word);
+    }
+  });
+
+  it("writes a robots.txt that names the directory and no link", () => {
+    expect(SHARE_ROBOTS_TXT).toContain("User-agent: *\nDisallow: /s/\n");
+    expect(robotsKeepsOut(SHARE_ROBOTS_TXT)).toBe(true);
+  });
+
+  it("tells a site's own robots.txt that keeps the links out from one that does not", () => {
+    expect(robotsKeepsOut("User-agent: *\ndisallow: /s\n")).toBe(true);
+    expect(robotsKeepsOut("User-agent: *\nDisallow: /sales/\n")).toBe(false);
+    expect(robotsKeepsOut("User-agent: *\nDisallow:\n")).toBe(false);
+    expect(robotsKeepsOut(undefined)).toBe(false);
   });
 });

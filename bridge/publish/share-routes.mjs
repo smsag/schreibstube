@@ -22,6 +22,7 @@ import {
   describeShare,
   encryptShare,
   expiredShares,
+  fitsOpenLink,
   isShareCode,
   MAX_SHARES,
   maxShareRequestBytes,
@@ -34,6 +35,8 @@ import {
   SHARE_CSP,
   SHARE_DIRECTORY,
   SHARE_INDEX_GUARD,
+  SHARE_ROBOTS_TXT,
+  robotsKeepsOut,
   shareDirectory,
   ShareError,
   shareHtaccess,
@@ -43,6 +46,7 @@ import {
 import { AbandonedError } from "./sftp.mjs";
 
 export const SHARES_FILE = "shares.json";
+const ROBOTS_FILE = "robots.txt";
 
 /** How often the sweep looks whether a link is due; it logs in only when one is. */
 export const SWEEP_INTERVAL_MS = 60_000;
@@ -72,6 +76,8 @@ export function createShareRoutes(
   // When each target's next link runs out: null when none will, absent until
   // the record has been read once since the start.
   const due = new Map();
+  // Targets whose robots.txt this process has looked at.
+  const robotsChecked = new Set();
   const writeTimeoutMs = Math.max(config.requestTimeoutMs, 180_000);
 
   const route = (method, path, maxBytes, bodyType, handler, timeoutMs) => ({
@@ -129,20 +135,37 @@ export function createShareRoutes(
     return codes.length;
   }
 
-  async function freshCode(remote, shares) {
+  async function freshCode(remote, shares, open) {
     for (let attempt = 0; attempt < CODE_ATTEMPTS; attempt += 1) {
-      const code = newShareCode(random);
+      const code = newShareCode({ open }, random);
       if (shares.has(code)) continue;
       if (!(await remote.exists(directoryOf(remote, shareDirectory(code))))) return code;
     }
     throw httpError(500, "share_failed", "No free share code was found.");
   }
 
-  async function guardIndex(remote) {
+  /**
+   * The share directory's own page, and the site's `robots.txt` where it has
+   * none. A `robots.txt` that is someone else's is left as it is, and the
+   * log says once per process when it lets crawlers into the links.
+   */
+  async function guardIndex(remote, target, say) {
     const path = `${SHARE_DIRECTORY}/index.html`;
     if (!(await remote.exists(remote.absolute(path)))) {
       await remote.writeFile(path, Buffer.from(SHARE_INDEX_GUARD, "utf8"));
     }
+    if (robotsChecked.has(target.name)) return;
+    const robots = remote.absolute(ROBOTS_FILE);
+    if (!(await remote.exists(robots))) {
+      await remote.writeFile(ROBOTS_FILE, Buffer.from(SHARE_ROBOTS_TXT, "utf8"));
+    } else if (!robotsKeepsOut((await remote.readFile(robots)).toString("utf8"))) {
+      say(
+        "warn",
+        `share ${target.name}: the site's robots.txt is not the bridge's and does not say ` +
+          `"Disallow: /${SHARE_DIRECTORY}/"; add it there to keep crawlers that ask out of shared links`
+      );
+    }
+    robotsChecked.add(target.name);
   }
 
   async function sweep() {
@@ -231,7 +254,18 @@ export function createShareRoutes(
                 `${target.name} keeps at most ${MAX_SHARES} links.`
               );
             }
-            const code = existing?.code ?? (await freshCode(remote, shares));
+            // Two words are an address for a link with a password; taking the
+            // password off would leave a guessable address as its only key.
+            if (existing && request.password === null && !fitsOpenLink(existing.code)) {
+              throw httpError(
+                409,
+                "share_needs_password",
+                `${existing.code} has a short address because it has a password; share the note ` +
+                  "as a new link to share it without one."
+              );
+            }
+            const code =
+              existing?.code ?? (await freshCode(remote, shares, request.password === null));
             const files = await shareFiles({ code, request, rendered, target, random });
 
             const at = new Date(now()).toISOString();
@@ -252,7 +286,7 @@ export function createShareRoutes(
             shares.set(code, { ...record, files: [...record.files, ...stale].sort() });
             await save(remote, target, shares);
 
-            await guardIndex(remote);
+            await guardIndex(remote, target, say);
             await mapLimit([...files.keys()], SFTP_CONCURRENCY, (path) =>
               remote.writeFile(path, files.get(path))
             );
