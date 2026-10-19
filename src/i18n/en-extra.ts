@@ -941,6 +941,7 @@ export const enExtra = {
     badge: {
       synced: "In sync with its source",
       described: "Has a description",
+      shared: "Shared by link",
       pending: (count: number) => `${count} change(s) waiting from the source`,
       unchecked: "Bound to a source, never checked",
       error: "The source cannot be fetched",

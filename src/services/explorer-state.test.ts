@@ -10,6 +10,7 @@ import {
   parseExplorerData,
   pruneExplorerData,
   reattachOrphans,
+  recordSharedLinks,
   reorderKept,
   reorderPinned,
   renamePath,
@@ -17,6 +18,7 @@ import {
   setIcon,
   setKept,
   setPinned,
+  sharedUntil,
   pinnedPaths,
   sortSiblings,
   type ExplorerData,
@@ -540,5 +542,135 @@ describe("reorderKept", () => {
     const next = reorderKept(data, ["F/b.md", "F/a.md"], 500);
 
     expect(next.entries["F/a.md"]).toMatchObject({ icon: "key", pinnedAt: 7, keptAt: 501 });
+  });
+});
+
+describe("shared links", () => {
+  const vault = new Set(["Kunden/Angebot.md", "Kunden/Preise.md", "Brief.md"]);
+  const exists = (path: string) => vault.has(path);
+  const at = (ms: number) => new Date(ms).toISOString();
+
+  it("marks each note with the latest of its links, and a link without an end above all", () => {
+    const data = recordSharedLinks(
+      emptyExplorerData(),
+      "kunden",
+      [
+        { sourcePath: "Kunden/Angebot.md", expiresAt: at(T0 + DAY) },
+        { sourcePath: "Kunden/Angebot.md", expiresAt: at(T0 + 7 * DAY) },
+        { sourcePath: "Kunden/Preise.md", expiresAt: at(T0 + DAY) },
+        { sourcePath: "Kunden/Preise.md", expiresAt: null },
+        { sourcePath: "Kunden/Preise.md", expiresAt: at(T0 + 2 * DAY) },
+        { sourcePath: "Verschoben.md", expiresAt: null },
+        { sourcePath: "Brief.md", expiresAt: "bald" }
+      ],
+      T0,
+      exists
+    );
+    expect(data.entries["Kunden/Angebot.md"]).toEqual({
+      shared: { kunden: T0 + 7 * DAY },
+      updatedAt: T0
+    });
+    expect(sharedUntil(entryFor(data, "Kunden/Preise.md"), T0)).toBe(0);
+    expect(data.entries["Verschoben.md"]).toBeUndefined();
+    expect(data.entries["Brief.md"]).toBeUndefined();
+  });
+
+  it("takes the mark off a note the target no longer lists, and leaves other targets alone", () => {
+    let data = setIcon(emptyExplorerData(), "Brief.md", "mail", T0);
+    data = recordSharedLinks(
+      data,
+      "blog",
+      [{ sourcePath: "Brief.md", expiresAt: null }],
+      T0,
+      exists
+    );
+    data = recordSharedLinks(
+      data,
+      "kunden",
+      [{ sourcePath: "Brief.md", expiresAt: null }],
+      T0,
+      exists
+    );
+
+    data = recordSharedLinks(data, "kunden", [], T0 + MINUTE, exists);
+    expect(data.entries["Brief.md"]).toEqual({
+      icon: "mail",
+      shared: { blog: 0 },
+      updatedAt: T0 + MINUTE
+    });
+    data = recordSharedLinks(data, "blog", [], T0 + 2 * MINUTE, exists);
+    expect(data.entries["Brief.md"]).toEqual({ icon: "mail", updatedAt: T0 + 2 * MINUTE });
+  });
+
+  it("marks nothing for a link that is already closed, a 1970 one included", () => {
+    const data = recordSharedLinks(
+      emptyExplorerData(),
+      "blog",
+      [
+        { sourcePath: "Brief.md", expiresAt: "1970-01-01T00:00:00.000Z" },
+        { sourcePath: "Kunden/Preise.md", expiresAt: at(T0 - MINUTE) }
+      ],
+      T0,
+      exists
+    );
+    expect(data.entries).toEqual({});
+  });
+
+  it("changes nothing when the list says what the marks already say", () => {
+    const links = [{ sourcePath: "Brief.md", expiresAt: null }];
+    const data = recordSharedLinks(emptyExplorerData(), "blog", links, T0, exists);
+    expect(recordSharedLinks(data, "blog", links, T0 + MINUTE, exists)).toBe(data);
+  });
+
+  it("keeps a tombstone's mark for the file it may become again", () => {
+    let data = recordSharedLinks(
+      emptyExplorerData(),
+      "blog",
+      [{ sourcePath: "Brief.md", expiresAt: null }],
+      T0,
+      exists
+    );
+    data = markMissing(data, "Brief.md", T0 + MINUTE);
+    expect(recordSharedLinks(data, "blog", [], T0 + 2 * MINUTE, exists)).toBe(data);
+  });
+
+  it("shows no mark once the time is up, and lets the entry go then", () => {
+    const data = recordSharedLinks(
+      emptyExplorerData(),
+      "blog",
+      [{ sourcePath: "Brief.md", expiresAt: at(T0 + DAY) }],
+      T0,
+      exists
+    );
+    expect(sharedUntil(entryFor(data, "Brief.md"), T0)).toBe(T0 + DAY);
+    expect(sharedUntil(entryFor(data, "Brief.md"), T0 + DAY)).toBeNull();
+    expect(sharedUntil(undefined, T0)).toBeNull();
+
+    expect(pruneExplorerData(data, T0 + 40 * DAY).entries["Brief.md"]).toBeUndefined();
+    const open = recordSharedLinks(
+      data,
+      "blog",
+      [{ sourcePath: "Brief.md", expiresAt: null }],
+      T0,
+      exists
+    );
+    expect(pruneExplorerData(open, T0 + 40 * DAY).entries["Brief.md"]).toBeDefined();
+  });
+
+  it("reads back only marks that make sense", () => {
+    const data = parseExplorerData({
+      version: 2,
+      entries: {
+        "a.md": {
+          updatedAt: 1,
+          shared: { blog: 5, "": 3, kunden: -1, x: "bald", [`${"t".repeat(65)}`]: 1 }
+        },
+        "b.md": { updatedAt: 1, shared: [1] },
+        "c.md": { updatedAt: 1, shared: { blog: Number.NaN } }
+      }
+    });
+    expect(data.entries["a.md"]).toEqual({ updatedAt: 1, shared: { blog: 5 } });
+    expect(data.entries["b.md"]).toEqual({ updatedAt: 1 });
+    expect(data.entries["c.md"]).toEqual({ updatedAt: 1 });
   });
 });

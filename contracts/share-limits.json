@@ -1,0 +1,22 @@
+{
+  "about": "What a shared link may be, read by the bridge (bridge/publish/share.mjs) and repeated by the plugin (src/services/share-link.ts). Both suites check their constants against this file, so a limit changed on one side fails a test on both.",
+  "passwordMinLength": 8,
+  "passwordMaxLength": 256,
+  "maxAssets": 50,
+  "maxAssetBytes": 20000000,
+  "imageExtensions": ["avif", "gif", "jpeg", "jpg", "png", "svg", "webp"],
+  "codeAlphabet": "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789",
+  "codeLength": 10,
+  "codes": {
+    "valid": ["ABCDEFGHJK", "zz23456789", "mnpqrstuvw"],
+    "invalid": [
+      "ABCDEFGHJ",
+      "ABCDEFGHJKL",
+      "ABCDEFGHJ0",
+      "ABCDEFGHJO",
+      "ABCDEFGHJI",
+      "ABCDEFGHJl",
+      "../../etc1"
+    ]
+  }
+}

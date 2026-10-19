@@ -26,6 +26,7 @@ import {
 import { generatorAssets } from "./assets.mjs";
 import { siteIconFromTheme } from "./site-icon.mjs";
 import { key } from "./render/obsidian.mjs";
+import { SHARE_DIRECTORY } from "./share.mjs";
 
 export class IndexError extends Error {}
 
@@ -64,6 +65,14 @@ export function checkIndex(index) {
     if (!isHash(note.sha256)) throw new IndexError(`${note.sourcePath}: missing content hash.`);
     if (!isValidSlug(note.slug)) {
       throw new IndexError(`${note.sourcePath}: unusable slug ${JSON.stringify(note.slug)}.`);
+    }
+    // The shared links live there, with a page of their own that keeps a
+    // listing host from naming them; a note at the same address would take
+    // that page over, and unpublishing it would delete it.
+    if (note.slug === SHARE_DIRECTORY) {
+      throw new IndexError(
+        `${note.sourcePath}: the address "${SHARE_DIRECTORY}" is kept for shared links; give the note another slug.`
+      );
     }
     for (const field of ["title", "date", "description"]) {
       if (note[field] !== undefined && typeof note[field] !== "string") {

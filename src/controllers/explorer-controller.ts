@@ -48,8 +48,11 @@ import {
   markMissing,
   pinnedPaths,
   reattachOrphans,
+  recordSharedLinks,
   renamePath,
   setIcon,
+  sharedUntil,
+  type SharedLinkMark,
   reorderKept,
   reorderPinned,
   setKept,
@@ -941,6 +944,27 @@ export class ExplorerController {
       keys: settings.publishFrontmatterKeys,
       lastRuns: settings.publishLastRun
     });
+  }
+
+  /**
+   * Whether a note has a shared link open, and until when (0: until taken
+   * down), from the copy of the bridge's list this device last heard.
+   */
+  sharedUntilOf(file: TFile): number | null {
+    return sharedUntil(entryFor(this.store.data(), file.path), Date.now());
+  }
+
+  /** The bridge's list of one target's links, which replaces what the marks said of it. */
+  recordSharedLinks(target: string, links: readonly SharedLinkMark[]): void {
+    this.store.mutate((data, now) =>
+      recordSharedLinks(
+        data,
+        target,
+        links,
+        now,
+        (path) => this.app.vault.getAbstractFileByPath(path) instanceof TFile
+      )
+    );
   }
 
   /**

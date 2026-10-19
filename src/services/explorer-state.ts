@@ -28,6 +28,14 @@ export interface ExplorerEntry {
   /** When the item was set to keep the top of its folder, which is also its
    *  order among the kept items of that folder. */
   keptAt?: number;
+  /**
+   * The note's shared links as this device last heard of them from the
+   * bridge, by publish target: when the latest of them closes, in epoch ms, or
+   * 0 for one kept until taken down. A copy, refreshed whenever the plugin
+   * lists, writes or takes down a link; a link taken down elsewhere shows
+   * until then, and one past its time no longer shows at all.
+   */
+  shared?: Record<string, number>;
   /** Epoch ms of the last change here. Decides the winner in a merge. */
   updatedAt: number;
   /** Basename kept while the entry is a tombstone, to match a reappearance. */
@@ -97,8 +105,26 @@ function parseEntry(value: unknown): ExplorerEntry | null {
   if (Number.isFinite(record.keptAt)) entry.keptAt = Number(record.keptAt);
   if (typeof record.name === "string" && record.name.length > 0) entry.name = record.name;
   if (Number.isFinite(record.orphanedAt)) entry.orphanedAt = Number(record.orphanedAt);
+  const shared = parseShared(record.shared);
+  if (shared) entry.shared = shared;
 
   return entry;
+}
+
+/** At most this many targets per note: more is a file somebody wrote by hand. */
+const MAX_SHARED_TARGETS = 20;
+
+function parseShared(value: unknown): Record<string, number> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const shared: Record<string, number> = {};
+  for (const [target, until] of Object.entries(value as Record<string, unknown>).slice(
+    0,
+    MAX_SHARED_TARGETS
+  )) {
+    if (target.length === 0 || target.length > 64) continue;
+    if (typeof until === "number" && Number.isFinite(until) && until >= 0) shared[target] = until;
+  }
+  return Object.keys(shared).length > 0 ? shared : null;
 }
 
 /**
@@ -134,6 +160,75 @@ export function isPinned(data: ExplorerData, path: string): boolean {
 /** Whether the item is held at the top of the folder it sits in. */
 export function isKept(data: ExplorerData, path: string): boolean {
   return entryFor(data, path)?.keptAt !== undefined;
+}
+
+/**
+ * Whether a note has a link open, and until when: 0 for one kept until taken
+ * down, else the latest closing time in epoch ms; null when none is open.
+ */
+export function sharedUntil(entry: ExplorerEntry | undefined, now: number): number | null {
+  let latest: number | null = null;
+  for (const until of Object.values(entry?.shared ?? {})) {
+    if (until === 0) return 0;
+    if (until > now && (latest === null || until > latest)) latest = until;
+  }
+  return latest;
+}
+
+/** A link as far as the mark is concerned: which note, and when it closes. */
+export interface SharedLinkMark {
+  sourcePath: string;
+  expiresAt: string | null;
+}
+
+/**
+ * Take the bridge's list of one target's links as the truth for that target:
+ * every note it names is marked with the latest of its links, and every note
+ * marked for the target that it no longer names loses the mark. A link whose
+ * note is not in the vault (moved since it was shared) marks nothing.
+ */
+export function recordSharedLinks(
+  data: ExplorerData,
+  target: string,
+  links: readonly SharedLinkMark[],
+  now: number,
+  exists: (path: string) => boolean
+): ExplorerData {
+  const wanted = new Map<string, number>();
+  for (const link of links) {
+    if (!exists(link.sourcePath)) continue;
+    // 0 stands for "until taken down" below, so a time is taken only when it
+    // lies ahead: a closed link, or one dated 1970, marks nothing.
+    const at = link.expiresAt === null ? 0 : Date.parse(link.expiresAt);
+    if (link.expiresAt !== null && !(at > now)) continue;
+    const known = wanted.get(link.sourcePath);
+    wanted.set(link.sourcePath, known === 0 || at === 0 ? 0 : Math.max(known ?? at, at));
+  }
+
+  let next = data;
+  for (const [path, entry] of Object.entries(data.entries)) {
+    // A tombstone keeps its mark for the file it may become again.
+    if (
+      entry.shared?.[target] === undefined ||
+      wanted.has(path) ||
+      entry.orphanedAt !== undefined
+    ) {
+      continue;
+    }
+    next = withEntry(next, path, now, (current) => {
+      const { [target]: _gone, ...rest } = current.shared ?? {};
+      const { shared: _all, ...without } = current;
+      return Object.keys(rest).length > 0 ? { ...without, shared: rest } : without;
+    });
+  }
+  for (const [path, until] of wanted) {
+    if (next.entries[path]?.shared?.[target] === until) continue;
+    next = withEntry(next, path, now, (current) => ({
+      ...current,
+      shared: { ...current.shared, [target]: until }
+    }));
+  }
+  return next;
 }
 
 /** Apply a change to one path, stamping it so a merge can order it. */
@@ -352,6 +447,7 @@ export function pruneExplorerData(
         : entry.icon === undefined &&
           entry.pinnedAt === undefined &&
           entry.keptAt === undefined &&
+          sharedUntil(entry, now) === null &&
           now - entry.updatedAt > graceMs;
 
     if (expired) {

@@ -139,6 +139,7 @@ import { copyText } from "./ui/copy-text";
 import { MailCommands } from "./controllers/mail-commands";
 
 import { PublishCommands } from "./controllers/publish-commands";
+import { ShareCommands } from "./controllers/share-commands";
 import { PrintCommands } from "./controllers/print-commands";
 import type { PrintTemplate } from "./services/print-template";
 import { SchreibstubeSettingTab } from "./settings/index";
@@ -206,6 +207,7 @@ export default class SchreibstubePlugin extends Plugin {
   private saveChain: Promise<void> = Promise.resolve();
   private mail: MailCommands | null = null;
   private publish: PublishCommands | null = null;
+  private share: ShareCommands | null = null;
   private print: PrintCommands | null = null;
   private notes: NoteCommands | null = null;
   private doneTasks: DoneTasksCommand | null = null;
@@ -293,6 +295,7 @@ export default class SchreibstubePlugin extends Plugin {
       },
       this.logger
     );
+    this.share = new ShareCommands(this.app, () => this.settings, this.publish, this.logger);
     this.print = new PrintCommands(
       this.app,
       () => this.settings,
@@ -315,6 +318,7 @@ export default class SchreibstubePlugin extends Plugin {
     });
     this.mail.useFormulas(this.sums);
     this.publish.useFormulas(this.sums);
+    this.share.useFormulas(this.sums);
     this.print.useFormulas(this.sums);
     // The footer is made later in the load; by the time the command runs it is there.
     this.notes = new NoteCommands(
@@ -401,6 +405,8 @@ export default class SchreibstubePlugin extends Plugin {
     this.explorer.useFolderTilesOpener((folder, following) =>
       this.activateFolderTiles(folder, following)
     );
+    // The pane marks shared notes from the lists the share commands learn.
+    this.share.useListener((target, links) => this.explorer?.recordSharedLinks(target, links));
     await this.explorer.start();
     this.startPictureActions(this.explorer);
     this.startPictureArticles(this.explorer);
@@ -2122,6 +2128,25 @@ export default class SchreibstubePlugin extends Plugin {
       name: t().commands.publish,
       callback: () => {
         void this.publish?.publish();
+      }
+    });
+
+    this.addCommand({
+      id: "share-note",
+      name: t().commands.shareNote,
+      checkCallback: (checking) => {
+        const file = this.app.workspace.getActiveFile();
+        if (!file || file.extension !== "md") return false;
+        if (!checking) void this.share?.shareActiveNote();
+        return true;
+      }
+    });
+
+    this.addCommand({
+      id: "manage-shared-links",
+      name: t().commands.shareLinks,
+      callback: () => {
+        void this.share?.manageShares();
       }
     });
 

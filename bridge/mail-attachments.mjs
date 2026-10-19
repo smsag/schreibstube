@@ -9,6 +9,7 @@
  * refused request, never a mail sent without it — the text of that mail would
  * point at a picture that is not there.
  */
+import { decodedLength, isBase64 } from "./base64.mjs";
 
 /** More pictures than this in one mail is not a note, it is an album. */
 export const MAX_ATTACHMENTS = 10;
@@ -24,8 +25,6 @@ export const ATTACHMENT_TYPES = new Set(["image/png"]);
 
 /** A name a mail client shows and saves as it is: no path, no header tricks. */
 const FILENAME = /^[A-Za-z0-9][A-Za-z0-9 ._-]{0,95}\.png$/;
-
-const BASE64 = /^[A-Za-z0-9+/]*={0,2}$/;
 
 const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
@@ -66,10 +65,10 @@ export function checkAttachments(value) {
 
     // Measured before it is decoded: the decoded size is three quarters of the
     // text, so a picture too large is refused without being materialised.
-    if (typeof content !== "string" || content.length % 4 !== 0 || !BASE64.test(content)) {
+    if (!isBase64(content)) {
       return { problem: `${label}.content must be base64.` };
     }
-    if ((content.length / 4) * 3 > MAX_ATTACHMENT_BYTES + 2) {
+    if (decodedLength(content) > MAX_ATTACHMENT_BYTES) {
       return { problem: `${label} is larger than ${MAX_ATTACHMENT_BYTES} bytes.` };
     }
 
