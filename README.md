@@ -508,7 +508,7 @@ published: true
 title: Hallo Welt # default: the first heading, else the filename
 date: 2026-09-12 # default: the file's creation date
 description: Kurzfassung # optional; page head and index entry; written by the AI when empty
-slug: hallo-welt # default: from the filename
+slug: hallo-welt # default: from the filename; never `s`, which shared links live under
 publishedAt: … # written back after publishing
 publishedUrl: … # written back after publishing
 ---
@@ -537,9 +537,11 @@ One note for someone outside the vault — an offer for a client, a draft for a 
 - **Notiz als Link teilen** — share the open note; the dialog also lists the links already made of it, to update or take down
 - **Geteilte Links verwalten** — every open link of a site, to copy or take down
 
+Sharing needs nothing of its own: it uses the publishing bridge, its token and an account's site, with bridge 3.2.0 (protocol 9) or later. A note in an account's folder is shared through that account, a note outside every folder asks which site, and so does **Geteilte Links verwalten** when there are several. On the host the links lie under `s/` in the site's folder and the bridge's record of them in its state folder; nothing has to be set up there. A target with `PUBLISH_<TARGET>_HTACCESS=true` also gives each link an `.htaccess` that closes it at its time even while the bridge is down — on Apache hosts that allow `Require` in `.htaccess`; try one link first, and turn the switch off if it answers with an error 500.
+
 A link carries a password unless you clear the field. One is filled in for you, four groups of four letters and digits that read aloud without mistakes; the page is encrypted with it in the bridge and opened with it in the reader's browser, so neither the web host nor anyone who copies the files can read the note without it, and the bridge never stores it. Send the link and the password through different channels. A link stays open for a day, a week, a month, three months or until you take it down; after that the bridge removes it, and on a host that reads `.htaccess` the host itself refuses it from that time.
 
-A link is the note as it was when you shared it. **Aktualisieren** puts the note as it is now behind the same address and keeps the link's time unless you choose another; a protected link asks for the password you sent with it, or a new one, since the bridge never stores a password, and an open link stays open. The note need not be in the account's folder and needs no `published` flag. Its pictures travel inside the page, so the password covers them too, up to 50 pictures and 20 MB; links to other notes become plain text, videos and other attachments are left out and named in a notice, and diagrams show as their source. A picture named only in a `%%comment%%` is not sent. Its frontmatter and `%%comments%%` stay in the vault, as for a publish.
+A link is the note as it was when you shared it. **Aktualisieren** puts the note as it is now behind the same address and keeps the link's time unless you choose another; a protected link asks for the password you sent with it, or a new one, since the bridge never stores a password, and an open link stays open. The note need not be in the account's folder and needs no `published` flag. Its pictures travel inside the page, so the password covers them too, up to 50 pictures and 20 MB; links to other notes become plain text, videos and other attachments are left out and named in a notice, and diagrams show as their source. A picture named only in a `%%comment%%` is not sent. Its frontmatter and `%%comments%%` stay in the vault, as for a publish. The page allows no inline script, so raw HTML in the note shows but runs nothing.
 
 A shared note carries a mark in Schreibstube's file pane, with the time its latest link closes in the tooltip. The mark comes from the list of links as this device last heard it from the bridge — whenever you share, take down or open **Geteilte Links verwalten** — and travels to your other devices with `explorer.json`. It goes by itself once the time is up; a link taken down from somewhere else, or a note moved since it was shared, shows as it was until the list is read again.
 
