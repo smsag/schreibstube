@@ -1385,8 +1385,8 @@ export const enExtra = {
     noteChanged: "another note is in front now, so the passages were not inserted.",
     highlightsHeading: "Highlights from a PDF",
     highlightsDesc:
-      "With a PDF open, this command collects the text highlighted in yellow or underlined into " +
-      "one running text, with […] between passages, and writes it into a new note in the folder " +
+      "With a PDF open, this command collects the text that is both highlighted in yellow and " +
+      "underlined into one running text, with […] between passages, and writes it into a new note in the folder " +
       "for new notes.",
     highlightsTemplate: "Template for the note",
     highlightsTemplateDesc:
@@ -1396,7 +1396,7 @@ export const enExtra = {
       "PDF is embedded. Without the first, the text goes at the end.",
     highlightsTemplatePlaceholder: "Templates/Reading Note",
     noMarks: (name: string) =>
-      `${name} has no text highlighted in yellow or underlined. Highlights made in Obsidian are ` +
+      `${name} has no text both highlighted in yellow and underlined. Highlights made in Obsidian are ` +
       "not stored in the PDF and cannot be read here.",
     marksWithoutText: (name: string) =>
       `${name} has highlights, but no text under them — a scan is a picture to anything that reads text.`,

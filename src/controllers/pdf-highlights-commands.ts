@@ -2,7 +2,7 @@ import { Notice, TFile, type App } from "obsidian";
 
 import { activeLocale, t } from "../i18n";
 import type { Logger } from "../services/logger";
-import { collectExcerpts, countedMarks, runningText } from "../services/pdf-highlights";
+import { collectExcerpts, marksWithoutText, runningText } from "../services/pdf-highlights";
 import {
   composeHighlightNote,
   fillCoreVariables,
@@ -24,9 +24,9 @@ const TEMPLATER_TIMEOUT_MS = 120_000;
 /**
  * The text marked in a PDF, written into a new note.
  *
- * The command runs on the PDF in front. It reads the highlights and
- * underlines (`services/pdf-highlights` decides which count and what text
- * they cover), makes a note from the person's template in the folder
+ * The command runs on the PDF in front. It reads the text that is both
+ * highlighted in yellow and underlined (`services/pdf-highlights` decides
+ * what that covers), makes a note from the person's template in the folder
  * Obsidian puts new notes in, and opens it. Every way this can fail ends in a
  * notice that names it; a template that is missing or a Templater that fails
  * still gives the note, since the text is what was asked for.
@@ -54,13 +54,14 @@ export class PdfHighlightCommands {
       return;
     }
 
-    if (countedMarks(result.pages) === 0) {
-      new Notice(t().common.notice(t().pdf.noMarks(pdf.basename)));
-      return;
-    }
     const excerpts = collectExcerpts(result.pages);
     if (excerpts.length === 0) {
-      new Notice(t().common.notice(t().pdf.marksWithoutText(pdf.basename)));
+      const scan = marksWithoutText(result.pages);
+      new Notice(
+        t().common.notice(
+          scan ? t().pdf.marksWithoutText(pdf.basename) : t().pdf.noMarks(pdf.basename)
+        )
+      );
       return;
     }
     if (result.truncated) {

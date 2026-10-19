@@ -16,17 +16,25 @@ function run(text: string, y: number): PdfPlacedRun {
   return { text, endsLine: true, x: 0, y, width: text.length, height: 10 };
 }
 
-function yellowOver(from: number, to: number, y: number): PdfMark {
-  return { kind: "highlight", color: YELLOW, boxes: [{ x0: from, x1: to, y0: y - 2, y1: y + 9 }] };
+function box(from: number, to: number, y: number) {
+  return { x0: from, x1: to, y0: y - 2, y1: y + 9 };
 }
 
-/** "First words" and "last words" highlighted, "skipped" between them not. */
+/** Highlighted in yellow and underlined: the text that counts. */
+function bothOver(from: number, to: number, y: number): PdfMark[] {
+  return [
+    { kind: "highlight", color: YELLOW, boxes: [box(from, to, y)] },
+    { kind: "underline", color: [236, 40, 20], boxes: [box(from, to, y)] }
+  ];
+}
+
+/** "First words" and "last words" marked twice, "skipped" between them not. */
 const MARKED: MarkedReadResult = {
   pages: [
     {
       page: 1,
       runs: [run("First words skipped last words", 100)],
-      marks: [yellowOver(0, 11, 100), yellowOver(20, 30, 100)]
+      marks: [...bothOver(0, 11, 100), ...bothOver(20, 30, 100)]
     }
   ],
   totalPages: 1,
@@ -196,12 +204,26 @@ describe("PdfHighlightCommands.highlightsToNote", () => {
     await commands.highlightsToNote(pdf);
 
     expect(files.size).toBe(0);
-    expect(notices()).toContain("no text highlighted in yellow or underlined");
+    expect(notices()).toContain("no text both highlighted in yellow and underlined");
+  });
+
+  it("makes no note for text that is only highlighted", async () => {
+    const yellowOnly: MarkedReadResult = {
+      pages: [{ page: 1, runs: [run("marked once", 100)], marks: [bothOver(0, 11, 100)[0]!] }],
+      totalPages: 1,
+      truncated: false
+    };
+    const { commands, files } = fake({ read: async () => yellowOnly });
+
+    await commands.highlightsToNote(pdf);
+
+    expect(files.size).toBe(0);
+    expect(notices()).toContain("no text both highlighted in yellow and underlined");
   });
 
   it("says when the marks have no text under them", async () => {
     const scan: MarkedReadResult = {
-      pages: [{ page: 1, runs: [], marks: [yellowOver(0, 5, 100)] }],
+      pages: [{ page: 1, runs: [], marks: bothOver(0, 5, 100) }],
       totalPages: 1,
       truncated: false
     };

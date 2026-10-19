@@ -1,18 +1,20 @@
 /**
- * The text a person marked in a PDF, as one running excerpt.
+ * The text a person marked twice in a PDF, as one running excerpt.
+ *
+ * A reader highlights in yellow as they go, and underlines what still holds
+ * on a second pass. What is both highlighted and underlined is what they
+ * want to keep; either mark alone is a step on the way, and is left out.
  *
  * A highlight or an underline in a PDF is an annotation: a colour and a set
  * of quadrilaterals on the page, and nothing else. Preview, the iOS
  * Documents app and Acrobat all store it that way, and none of them stores
- * the words underneath. So the words are found again by geometry — every
- * character whose box sits inside a marked quadrilateral counts as marked —
- * and that is the one decision this module makes.
+ * the words underneath. So the words are found again by geometry — a
+ * character counts when it sits inside a yellow highlight's quadrilateral
+ * and inside an underline's — and that is the one decision this module makes.
  *
- * It works on characters rather than on annotations, because annotations
- * overlap. A passage underlined and then highlighted is two annotations over
- * the same words, and taking each annotation's text in turn would quote it
- * twice. Marking characters makes the second mark free: a character is
- * marked or it is not.
+ * It works on characters rather than on annotations, because the two marks
+ * rarely cover the same span: the underline is drawn over a part of the
+ * highlight, or runs a little past it. Only the characters under both count.
  *
  * Nothing here imports pdf.js. The reader hands over plain runs with their
  * position and plain marks, read through `toPlacedRun` and `toMark` below, so
@@ -94,9 +96,19 @@ export function isYellow(color: readonly [number, number, number] | null): boole
   return hue >= 40 && hue <= 70;
 }
 
-/** Whether a mark is one whose words belong in the excerpt: any underline, a yellow highlight. */
-export function counts(mark: PdfMark): boolean {
-  return mark.kind === "underline" || isYellow(mark.color);
+/**
+ * The two layers a character has to be under to count: the yellow
+ * highlights, and the underlines of any colour. Highlights of another colour
+ * are neither.
+ */
+export function markLayers(marks: readonly PdfMark[]): [PdfBox[], PdfBox[]] {
+  const kept = marks.slice(0, MAX_MARKS_PER_PAGE);
+  return [
+    kept
+      .filter((mark) => mark.kind === "highlight" && isYellow(mark.color))
+      .flatMap((m) => m.boxes),
+    kept.filter((mark) => mark.kind === "underline").flatMap((m) => m.boxes)
+  ];
 }
 
 function finite(value: unknown): value is number {
@@ -201,7 +213,8 @@ function covers(box: PdfBox, middle: number, bottom: number, top: number): boole
 const WORD_CHARACTER = /[\p{L}\p{N}]/u;
 
 /**
- * Which characters of a run are marked, with partly marked words settled.
+ * Which characters of a run are marked — under a box of every one of
+ * `layers` — with partly marked words settled.
  *
  * A mark drawn by hand rarely starts and ends on a word boundary: it begins
  * on the second letter, or runs one letter into the next word. A word counts
@@ -211,10 +224,15 @@ const WORD_CHARACTER = /[\p{L}\p{N}]/u;
  * width evenly among its characters, which proportional type makes rough,
  * and which the word rule then smooths over.
  */
-export function markedCharacters(run: PdfPlacedRun, boxes: readonly PdfBox[]): boolean[] {
+export function markedCharacters(
+  run: PdfPlacedRun,
+  layers: readonly (readonly PdfBox[])[]
+): boolean[] {
   const characters = Array.from(run.text);
   const length = characters.length;
-  if (length === 0 || boxes.length === 0) return characters.map(() => false);
+  if (length === 0 || layers.length === 0 || layers.some((boxes) => boxes.length === 0)) {
+    return characters.map(() => false);
+  }
 
   const step = run.width / length;
   // A run's height is the font's size, measured up from the baseline; the
@@ -223,7 +241,7 @@ export function markedCharacters(run: PdfPlacedRun, boxes: readonly PdfBox[]): b
   const top = run.y + run.height * 0.8;
   const hit = characters.map((_, index) => {
     const middle = run.x + step * (index + 0.5);
-    return boxes.some((box) => covers(box, middle, bottom, top));
+    return layers.every((boxes) => boxes.some((box) => covers(box, middle, bottom, top)));
   });
 
   const marked = [...hit];
@@ -265,8 +283,8 @@ function finishExcerpt(raw: string): string {
  * person reads them in. An excerpt grows as long as marked words follow one
  * another; a word that is not marked ends it. A space or a comma that is not
  * marked does not: it is only what stood between two marked words, and the
- * excerpt keeps it. So two marks that meet are one excerpt, and the gap
- * between two that do not is where the separator goes.
+ * excerpt keeps it. So two marked passages that meet are one excerpt, and the
+ * gap between two that do not is where the separator goes.
  */
 export function collectExcerpts(pages: readonly PdfMarkedPage[]): string[] {
   const excerpts: string[] = [];
@@ -281,14 +299,11 @@ export function collectExcerpts(pages: readonly PdfMarkedPage[]): string[] {
   };
 
   for (const page of pages) {
-    const boxes = page.marks
-      .slice(0, MAX_MARKS_PER_PAGE)
-      .filter(counts)
-      .flatMap((mark) => mark.boxes);
+    const layers = markLayers(page.marks);
 
     for (const run of page.runs) {
       const characters = Array.from(run.text);
-      const marked = markedCharacters(run, boxes);
+      const marked = markedCharacters(run, layers);
       characters.forEach((character, index) => {
         if (marked[index]) {
           if (current !== "") current += pending;
@@ -307,12 +322,17 @@ export function collectExcerpts(pages: readonly PdfMarkedPage[]): string[] {
   return excerpts;
 }
 
-/** How many of a document's marks count toward the excerpt. */
-export function countedMarks(pages: readonly PdfMarkedPage[]): number {
-  return pages.reduce(
-    (sum, page) => sum + page.marks.slice(0, MAX_MARKS_PER_PAGE).filter(counts).length,
-    0
-  );
+/**
+ * Whether a document has marks of both kinds over a page without any text:
+ * the one case where nothing was found because there was nothing to read,
+ * which a scan is, rather than because nothing was marked twice.
+ */
+export function marksWithoutText(pages: readonly PdfMarkedPage[]): boolean {
+  return pages.some((page) => {
+    const [highlights, underlines] = markLayers(page.marks);
+    const text = page.runs.some((run) => run.text.trim() !== "");
+    return highlights.length > 0 && underlines.length > 0 && !text;
+  });
 }
 
 /** The excerpts as one running text, an omission mark between each two. */

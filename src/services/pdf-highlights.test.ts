@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   collectExcerpts,
-  countedMarks,
-  counts,
   isYellow,
   markedCharacters,
+  markLayers,
+  marksWithoutText,
   MAX_BOXES_PER_MARK,
   MAX_MARKS_PER_PAGE,
   quadBoxes,
@@ -45,6 +45,15 @@ function highlight(...boxes: PdfBox[]): PdfMark {
   return { kind: "highlight", color: PREVIEW_YELLOW, boxes };
 }
 
+function underline(...boxes: PdfBox[]): PdfMark {
+  return { kind: "underline", color: PREVIEW_RED, boxes };
+}
+
+/** The same boxes highlighted in yellow and underlined: the text that counts. */
+function both(...boxes: PdfBox[]): PdfMark[] {
+  return [highlight(...boxes), underline(...boxes)];
+}
+
 function page(runs: PdfPlacedRun[], marks: PdfMark[], number = 1): PdfMarkedPage {
   return { page: number, runs, marks };
 }
@@ -73,11 +82,16 @@ describe("which colours are yellow", () => {
     expect(isYellow(null)).toBe(false);
   });
 
-  it("counts every underline and only yellow highlights", () => {
-    expect(counts({ kind: "underline", color: PREVIEW_RED, boxes: [] })).toBe(true);
-    expect(counts({ kind: "underline", color: null, boxes: [] })).toBe(true);
-    expect(counts({ kind: "highlight", color: PREVIEW_YELLOW, boxes: [] })).toBe(true);
-    expect(counts({ kind: "highlight", color: [90, 170, 250], boxes: [] })).toBe(false);
+  it("puts yellow highlights in one layer and underlines of any colour in the other", () => {
+    const box = over(0, 1, 100);
+    const [highlights, underlines] = markLayers([
+      highlight(box),
+      { kind: "highlight", color: [90, 170, 250], boxes: [over(5, 6, 100)] },
+      underline(box),
+      { kind: "underline", color: null, boxes: [over(8, 9, 100)] }
+    ]);
+    expect(highlights).toEqual([box]);
+    expect(underlines).toEqual([box, over(8, 9, 100)]);
   });
 });
 
@@ -151,68 +165,96 @@ describe("reading what pdf.js hands over", () => {
 });
 
 describe("which characters a mark covers", () => {
-  it("takes the characters whose middle is inside the box", () => {
+  const shown = (run: PdfPlacedRun, marked: boolean[]): string =>
+    marked.map((on, i) => (on ? run.text[i] : "")).join("");
+
+  it("takes the characters whose middle is inside a box of every layer", () => {
     const run = line("one two three", 100);
-    const marked = markedCharacters(run, [over(4, 7, 100)]);
-    expect(marked.map((on, i) => (on ? run.text[i] : "")).join("")).toBe("two");
+    expect(shown(run, markedCharacters(run, [[over(4, 7, 100)]]))).toBe("two");
+    expect(shown(run, markedCharacters(run, [[over(0, 7, 100)], [over(4, 13, 100)]]))).toBe("two");
+  });
+
+  it("marks nothing when a layer is empty", () => {
+    const run = line("one two", 100);
+    expect(markedCharacters(run, [[over(0, 7, 100)], []]).some(Boolean)).toBe(false);
+    expect(markedCharacters(run, []).some(Boolean)).toBe(false);
   });
 
   it("completes a word more than half marked, and drops one half marked or less", () => {
     const run = line("But then In", 100);
     // "ut then I": two of three letters of "But", one of two of "In".
-    const marked = markedCharacters(run, [over(1, 10, 100)]);
-    expect(marked.map((on, i) => (on ? run.text[i] : "")).join("")).toBe("But then ");
+    expect(shown(run, markedCharacters(run, [[over(1, 10, 100)]]))).toBe("But then ");
+  });
+
+  it("settles a word on the letters under both marks, not under either", () => {
+    const run = line("overlapping", 100);
+    // Highlighted 0–6, underlined 4–11: both cover only 4 of 11 letters.
+    expect(markedCharacters(run, [[over(0, 6, 100)], [over(4, 11, 100)]]).some(Boolean)).toBe(
+      false
+    );
   });
 
   it("does not reach the line below or above", () => {
     const upper = line("upper line", 112);
     const lower = line("lower line", 100);
     const box = over(0, 10, 100);
-    expect(markedCharacters(upper, [box]).some(Boolean)).toBe(false);
-    expect(markedCharacters(lower, [box]).every(Boolean)).toBe(true);
+    expect(markedCharacters(upper, [[box]]).some(Boolean)).toBe(false);
+    expect(markedCharacters(lower, [[box]]).every(Boolean)).toBe(true);
   });
 
   it("takes an underline drawn as a thin strip under the baseline", () => {
     const run = line("under", 100);
     const strip: PdfBox = { x0: 0, x1: 5, y0: 98.5, y1: 99.5 };
-    expect(markedCharacters(run, [strip]).every(Boolean)).toBe(true);
+    expect(markedCharacters(run, [[over(0, 5, 100)], [strip]]).every(Boolean)).toBe(true);
   });
 
-  it("marks nothing in an empty run or without boxes", () => {
-    expect(markedCharacters(line("", 100), [over(0, 5, 100)])).toEqual([]);
-    expect(markedCharacters(line("abc", 100), [])).toEqual([false, false, false]);
+  it("marks nothing in an empty run", () => {
+    expect(markedCharacters(line("", 100), [[over(0, 5, 100)]])).toEqual([]);
   });
 });
 
 describe("the excerpts of a document", () => {
+  it("takes only the text that is both highlighted in yellow and underlined", () => {
+    const runs = [line("only yellow, both marks here, only underlined", 100)];
+    const marks = [highlight(over(0, 28, 100)), underline(over(13, 45, 100))];
+    expect(collectExcerpts([page(runs, marks)])).toEqual(["both marks here"]);
+  });
+
+  it("leaves out text with one mark only", () => {
+    const runs = [line("highlighted", 100), line("underlined", 88)];
+    const marks = [highlight(over(0, 11, 100)), underline(over(0, 10, 88))];
+    expect(collectExcerpts([page(runs, marks)])).toEqual([]);
+  });
+
+  it("does not count a highlight of another colour as the highlight", () => {
+    const runs = [line("blue and underlined", 100)];
+    const marks: PdfMark[] = [
+      { kind: "highlight", color: [90, 170, 250], boxes: [over(0, 19, 100)] },
+      underline(over(0, 19, 100))
+    ];
+    expect(collectExcerpts([page(runs, marks)])).toEqual([]);
+  });
+
   it("joins marked lines into prose and closes up a word split across them", () => {
     const runs = [line("The organi-", 100), line("zation of firms", 88), line("is next.", 76)];
-    const marks = [highlight(over(0, 11, 100), over(0, 15, 88))];
+    const marks = both(over(0, 11, 100), over(0, 15, 88));
     expect(collectExcerpts([page(runs, marks)])).toEqual(["The organization of firms"]);
   });
 
-  it("separates two marks with unmarked words between them", () => {
+  it("separates two marked passages with unmarked words between them", () => {
     const runs = [line("First part, skipped words, second part.", 100)];
-    const marks = [highlight(over(0, 10, 100)), highlight(over(27, 39, 100))];
+    const marks = both(over(0, 10, 100), over(27, 39, 100));
     const excerpts = collectExcerpts([page(runs, marks)]);
     expect(excerpts).toEqual(["First part", "second part."]);
     expect(runningText(excerpts)).toBe("First part […] second part.");
   });
 
-  it("quotes text that is both underlined and highlighted once", () => {
-    const runs = [line("Shared words here.", 100)];
-    const marks: PdfMark[] = [
-      highlight(over(0, 18, 100)),
-      { kind: "underline", color: PREVIEW_RED, boxes: [over(0, 12, 100)] }
-    ];
-    expect(collectExcerpts([page(runs, marks)])).toEqual(["Shared words here."]);
-  });
-
-  it("makes one excerpt of marks that meet", () => {
+  it("makes one excerpt where the overlaps of separate marks meet", () => {
     const runs = [line("alpha beta gamma", 100)];
-    const marks: PdfMark[] = [
+    const marks = [
       highlight(over(0, 6, 100)),
-      { kind: "underline", color: PREVIEW_RED, boxes: [over(6, 16, 100)] }
+      highlight(over(6, 16, 100)),
+      underline(over(0, 16, 100))
     ];
     expect(collectExcerpts([page(runs, marks)])).toEqual(["alpha beta gamma"]);
   });
@@ -220,40 +262,25 @@ describe("the excerpts of a document", () => {
   it("keeps an unmarked comma between marked words, and drops one before the first", () => {
     const runs = [line("so, I believe, the key", 100)];
     // Marked: ", I believe" and "the key", with the second comma left out.
-    const marks = [highlight(over(2, 13, 100), over(15, 22, 100))];
+    const marks = both(over(2, 13, 100), over(15, 22, 100));
     expect(collectExcerpts([page(runs, marks)])).toEqual(["I believe, the key"]);
   });
 
-  it("leaves out highlights of another colour", () => {
-    const runs = [line("yellow blue", 100)];
-    const marks: PdfMark[] = [
-      highlight(over(0, 6, 100)),
-      { kind: "highlight", color: [90, 170, 250], boxes: [over(7, 11, 100)] }
-    ];
-    expect(collectExcerpts([page(runs, marks)])).toEqual(["yellow"]);
-  });
-
   it("goes through the pages in order, the page furniture between them ending an excerpt", () => {
-    const first = page(
-      [line("End of page one", 100), line("12", 20)],
-      [highlight(over(0, 15, 100))],
-      1
-    );
-    const second = page([line("Top of page two", 700)], [highlight(over(0, 15, 700))], 2);
+    const first = page([line("End of page one", 100), line("12", 20)], both(over(0, 15, 100)), 1);
+    const second = page([line("Top of page two", 700)], both(over(0, 15, 700)), 2);
     expect(collectExcerpts([first, second])).toEqual(["End of page one", "Top of page two"]);
   });
 
   it("carries an excerpt over a page break with nothing unmarked between", () => {
-    const first = page([line("runs on", 100)], [highlight(over(0, 7, 100))], 1);
-    const second = page([line("to the next page", 700)], [highlight(over(0, 16, 700))], 2);
+    const first = page([line("runs on", 100)], both(over(0, 7, 100)), 1);
+    const second = page([line("to the next page", 700)], both(over(0, 16, 700)), 2);
     expect(collectExcerpts([first, second])).toEqual(["runs on to the next page"]);
   });
 
   it("reads runs that share a line without inventing a space", () => {
     const runs = [line("Inter", 100, { endsLine: false }), line("estingly so", 100, { x: 5 })];
-    expect(collectExcerpts([page(runs, [highlight(over(0, 16, 100))])])).toEqual([
-      "Interestingly so"
-    ]);
+    expect(collectExcerpts([page(runs, both(over(0, 16, 100)))])).toEqual(["Interestingly so"]);
   });
 
   it("ignores marks past the bound on a page", () => {
@@ -261,24 +288,27 @@ describe("the excerpts of a document", () => {
     const blue: PdfMark = { kind: "highlight", color: [90, 170, 250], boxes: [] };
     const marks = [
       ...Array.from({ length: MAX_MARKS_PER_PAGE }, () => blue),
-      highlight(over(0, 4, 100))
+      ...both(over(0, 4, 100))
     ];
     expect(collectExcerpts([page(runs, marks)])).toEqual([]);
-    expect(countedMarks([page(runs, marks)])).toBe(0);
-  });
-
-  it("counts only the marks that count", () => {
-    const marks: PdfMark[] = [
-      highlight(over(0, 1, 100)),
-      { kind: "highlight", color: [90, 170, 250], boxes: [] },
-      { kind: "underline", color: PREVIEW_RED, boxes: [] }
-    ];
-    expect(countedMarks([page([], marks), page([], marks, 2)])).toBe(4);
   });
 
   it("finds nothing where nothing is marked", () => {
     expect(collectExcerpts([page([line("plain", 100)], [])])).toEqual([]);
     expect(collectExcerpts([])).toEqual([]);
     expect(runningText([])).toBe("");
+  });
+});
+
+describe("why nothing was found", () => {
+  it("is a missing text layer when both marks lie over a page without text", () => {
+    expect(marksWithoutText([page([], both(over(0, 5, 100)))])).toBe(true);
+    expect(marksWithoutText([page([line("  ", 100)], both(over(0, 5, 100)))])).toBe(true);
+  });
+
+  it("is not, when the page has text or lacks one of the marks", () => {
+    expect(marksWithoutText([page([line("text", 100)], both(over(0, 5, 100)))])).toBe(false);
+    expect(marksWithoutText([page([], [highlight(over(0, 5, 100))])])).toBe(false);
+    expect(marksWithoutText([page([], [underline(over(0, 5, 100))])])).toBe(false);
   });
 });

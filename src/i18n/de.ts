@@ -1893,8 +1893,8 @@ export const de: Messages = {
       "inzwischen liegt eine andere Notiz vorn, darum wurden die Textstellen nicht eingefügt.",
     highlightsHeading: "Markierungen aus einem PDF",
     highlightsDesc:
-      "Bei geöffnetem PDF sammelt dieser Befehl den gelb markierten oder unterstrichenen Text zu " +
-      "einem Fließtext, mit […] zwischen den Stellen, und schreibt ihn in eine neue Notiz im Ordner " +
+      "Bei geöffnetem PDF sammelt dieser Befehl den Text, der gelb markiert und zugleich " +
+      "unterstrichen ist, zu einem Fließtext, mit […] zwischen den Stellen, und schreibt ihn in eine neue Notiz im Ordner " +
       "für neue Notizen.",
     highlightsTemplate: "Vorlage für die Notiz",
     highlightsTemplateDesc:
@@ -1904,7 +1904,7 @@ export const de: Messages = {
       "das PDF eingebettet wird. Ohne Ersteres kommt der Text ans Ende.",
     highlightsTemplatePlaceholder: "Vorlagen/Lesenotiz",
     noMarks: (name: string) =>
-      `${name} hat keinen gelb markierten oder unterstrichenen Text. In Obsidian gesetzte ` +
+      `${name} hat keinen Text, der gelb markiert und zugleich unterstrichen ist. In Obsidian gesetzte ` +
       "Markierungen stehen nicht im PDF und können hier nicht gelesen werden.",
     marksWithoutText: (name: string) =>
       `${name} hat Markierungen, aber keinen Text darunter — ein Scan ist für alles, was Text liest, ein Bild.`,
