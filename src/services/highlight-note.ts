@@ -8,93 +8,101 @@
  * placeholder the template puts where it wants it.
  *
  * The template's own variables are filled the way Obsidian's core Templates
- * plugin fills them, so a template that already works with "Insert template"
- * works here unchanged. Templater code is not run here; the controller hands
- * it to Templater, before any text from the PDF is in the note, so that a PDF
- * cannot write code into a template that will run.
+ * plugin fills them, in the formats it is set to, so a template that already
+ * works with "Insert template" works here unchanged. Templater code is not
+ * run here; the controller has Templater make the note from the template
+ * first, and only then is it filled here, so that nothing from the PDF is
+ * ever in front of Templater.
+ *
+ * That last point needs more than order. Templater's "trigger on new file
+ * creation" runs the code in every note that appears, a moment after it
+ * does, so the PDF's text and its file name are escaped here as foreign text
+ * is everywhere else, `<%` included: once in the note, they show and do
+ * nothing.
  */
 
-import { formatDate } from "./today-value";
+import { normalizeVaultFolder } from "./file-name";
+import { escapeForeignText, foreignLine } from "./foreign-text";
 
 /** Where the running text of the marked passages goes. */
 export const HIGHLIGHTS_PLACEHOLDER = "{{schreibstube-highlights}}";
 /** Where the link to the PDF goes, as an embed. */
 export const PDF_PLACEHOLDER = "{{schreibstube-pdf}}";
 
-/** What a template's core variables are filled with. */
-export interface TemplateValues {
-  /** The new note's name, without `.md`. */
-  title: string;
-  now: Date;
-  locale: string;
-}
-
-const CORE_DATE_FORMAT = "YYYY-MM-DD";
-const CORE_TIME_FORMAT = "HH:mm";
-
 /**
- * `{{title}}`, `{{date}}` and `{{time}}`, each date and time with an optional
- * `:format`, as the core Templates plugin reads them. Its default formats are
- * used for the bare forms; a template that wants another writes it in.
- */
-export function fillCoreVariables(template: string, values: TemplateValues): string {
-  return template.replace(
-    /\{\{\s*(title|date|time)\s*(?::([^}]*))?\}\}/gi,
-    (_match, name: string, format: string | undefined) => {
-      const kind = name.toLowerCase();
-      if (kind === "title") return values.title;
-      const fallback = kind === "date" ? CORE_DATE_FORMAT : CORE_TIME_FORMAT;
-      const chosen = format?.trim() || fallback;
-      return formatDate(values.now, chosen, values.locale);
-    }
-  );
-}
-
-/**
- * The excerpt made safe to sit in a note as prose.
- *
- * It is text from a file somebody sent, and Markdown reads some text as
- * instructions: `<` opens HTML, `[[` and `![[` link and embed, a backtick
- * opens code, and a line that starts with `#`, `>`, `-` or a number and a dot
- * becomes a heading, a quote or a list. Each of those is escaped, so the
- * excerpt reads as it was written and does nothing else. Everything else is
- * left alone: an escaped underscore in every second word would make the
- * note's source unreadable for nothing.
+ * The excerpt made safe to sit in a note as prose: escaped as foreign text,
+ * and kept from starting a heading, a quote or a list when the placeholder
+ * stands at the start of a line. A list number keeps its digits and has its
+ * dot escaped, which is the escape Markdown honours.
  */
 export function escapeExcerpt(text: string): string {
-  return text
-    .replace(/[\\`<]/g, (character) => `\\${character}`)
-    .replace(/\[\[/g, "\\[\\[")
-    .replace(/^(\s*)([#>+*-]|\d+[.)])/, "$1\\$2");
+  return escapeForeignText(text)
+    .replace(/^(\s*)([#>+*-])/, "$1\\$2")
+    .replace(/^(\s*)(\d+)([.)])/, "$1$2\\$3");
+}
+
+/**
+ * The embed of the PDF, unless its name could act in the note.
+ *
+ * A link cannot be escaped without breaking it, and a PDF called
+ * `<% … %>.pdf` is a legal file name that Templater would run. So a name with
+ * Templater's opener, or with `%%`, which hides the rest of the note, is
+ * written as its name and not linked.
+ */
+export function safeEmbed(embed: string, pdfName: string): string {
+  return /<%|%%/.test(embed) ? foreignLine(pdfName) : embed;
 }
 
 /** What the note is filled with. */
 export interface HighlightNoteParts {
   /** The running text, not yet escaped. */
   excerpt: string;
-  /** The embed of the PDF, as Obsidian generated it for the new note. */
+  /** The embed of the PDF, as Obsidian generated it for the new note, already checked. */
   pdfEmbed: string;
+  /** The new note's name, for `{{title}}`; escaped here. */
+  title: string;
+  /** The current date or time in a format of the kind the core plugin takes. */
+  formatNow: (format: string) => string;
+  /** The core Templates plugin's formats for a bare `{{date}}` and `{{time}}`. */
+  dateFormat: string;
+  timeFormat: string;
 }
 
+const FILLED =
+  /\{\{\s*(title|date|time)\s*(?::([^}]*))?\}\}|\{\{schreibstube-(highlights|pdf)\}\}/gi;
+
 /**
- * The note's text from the template, its core variables already filled.
+ * The note's text from the template.
  *
- * Both placeholders are replaced in one pass, so a PDF whose text happens to
- * contain a placeholder cannot have it filled in turn. A template without a
- * place for the excerpt still gets it, at the end: the person ran the command
- * to have the text, and a note without it would look like a failure. A
- * template without a place for the PDF does not get the embed, since leaving
- * it out may be the template's intention. With no template at all, the note
- * is the excerpt and the embed.
+ * The core variables and both placeholders are replaced in one pass, so
+ * nothing that went in — a PDF whose text or name happens to hold `{{date}}`
+ * or a placeholder — is read again. A template without a place for the
+ * excerpt still gets it, at the end: the person ran the command to have the
+ * text, and a note without it would look like a failure. A template without a
+ * place for the PDF does not get the embed, since leaving it out may be the
+ * template's intention. With no template at all, the note is the excerpt and
+ * the embed.
  */
 export function composeHighlightNote(template: string | null, parts: HighlightNoteParts): string {
   const excerpt = escapeExcerpt(parts.excerpt);
   if (template === null || template.trim() === "") return `${excerpt}\n\n${parts.pdfEmbed}\n`;
 
-  const filled = template.replace(/\{\{schreibstube-(highlights|pdf)\}\}/g, (_match, which) =>
-    which === "pdf" ? parts.pdfEmbed : excerpt
+  let placed = 0;
+  const filled = template.replace(
+    FILLED,
+    (_match, name: string | undefined, format: string | undefined, ours: string | undefined) => {
+      if (ours === "highlights") {
+        placed += 1;
+        return excerpt;
+      }
+      if (ours === "pdf") return parts.pdfEmbed;
+      const kind = (name ?? "").toLowerCase();
+      if (kind === "title") return foreignLine(parts.title);
+      const fallback = kind === "date" ? parts.dateFormat : parts.timeFormat;
+      return parts.formatNow(format?.trim() || fallback);
+    }
   );
-  if (template.includes(HIGHLIGHTS_PLACEHOLDER)) return filled;
+  if (placed > 0) return filled;
   return `${filled.replace(/\s*$/, "")}\n\n${excerpt}\n`;
 }
 
@@ -106,4 +114,15 @@ export function templateNotePath(setting: string): string {
   const trimmed = setting.trim();
   if (trimmed === "") return "";
   return /\.md$/i.test(trimmed) ? trimmed : `${trimmed}.md`;
+}
+
+/**
+ * The template setting as typed, as a vault path, or null when it cannot be
+ * one. A backslash is read as the folder separator Windows shows; anything
+ * else `normalizeVaultFolder` refuses — a folder starting with a dot, an
+ * empty segment — is refused here too, for the caller to say so.
+ */
+export function normalizeTemplatePath(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  return normalizeVaultFolder(value.replace(/\\/g, "/"));
 }

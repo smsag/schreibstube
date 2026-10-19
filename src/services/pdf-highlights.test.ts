@@ -4,6 +4,7 @@ import {
   isYellow,
   markedCharacters,
   markLayers,
+  marksBothWays,
   marksWithoutText,
   MAX_BOXES_PER_MARK,
   MAX_MARKS_PER_PAGE,
@@ -272,10 +273,11 @@ describe("the excerpts of a document", () => {
     expect(collectExcerpts([first, second])).toEqual(["End of page one", "Top of page two"]);
   });
 
-  it("carries an excerpt over a page break with nothing unmarked between", () => {
-    const first = page([line("runs on", 100)], both(over(0, 7, 100)), 1);
-    const second = page([line("to the next page", 700)], both(over(0, 16, 700)), 2);
-    expect(collectExcerpts([first, second])).toEqual(["runs on to the next page"]);
+  it("ends an excerpt at a page break, even with nothing unmarked between", () => {
+    // The last run of a page seldom ends a line in pdf.js's reading.
+    const first = page([line("Ende", 100, { endsLine: false })], both(over(0, 4, 100)), 3);
+    const second = page([line("Anfang", 700)], both(over(0, 6, 700)), 4);
+    expect(runningText(collectExcerpts([first, second]))).toBe("Ende […] Anfang");
   });
 
   it("reads runs that share a line without inventing a space", () => {
@@ -310,5 +312,19 @@ describe("why nothing was found", () => {
     expect(marksWithoutText([page([line("text", 100)], both(over(0, 5, 100)))])).toBe(false);
     expect(marksWithoutText([page([], [highlight(over(0, 5, 100))])])).toBe(false);
     expect(marksWithoutText([page([], [underline(over(0, 5, 100))])])).toBe(false);
+  });
+});
+
+describe("which pages are worth reading", () => {
+  it("are the pages with both a yellow highlight and an underline", () => {
+    expect(marksBothWays(both(over(0, 1, 100)))).toBe(true);
+    expect(marksBothWays([highlight(over(0, 1, 100))])).toBe(false);
+    expect(marksBothWays([underline(over(0, 1, 100))])).toBe(false);
+    expect(
+      marksBothWays([
+        { kind: "highlight", color: [90, 170, 250], boxes: [over(0, 1, 100)] },
+        underline(over(0, 1, 100))
+      ])
+    ).toBe(false);
   });
 });

@@ -1915,7 +1915,13 @@ export const de: Messages = {
     templaterMissing:
       "die Vorlage enthält Templater-Code, Templater ist aber nicht installiert; der Code blieb, wie er war.",
     templaterFailed: (reason: string) =>
-      `Templater konnte die Vorlage nicht füllen (${reason}); ihr Code blieb, wie er war.`,
+      `Templater konnte die Notiz nicht aus der Vorlage machen (${reason}); es wurde keine Notiz angelegt.`,
+    templaterNoNote: (path: string) =>
+      `Templater hat aus ${path} keine Notiz gemacht; seine eigene Meldung sagt, warum.`,
+    fillFailed: (path: string) =>
+      `${path} wurde aus der Vorlage angelegt, aber der Text konnte nicht hineingeschrieben werden.`,
+    templatePathInvalid:
+      "Kein Pfad im Vault: kein Ordner darf mit einem Punkt beginnen oder leer sein. Die gespeicherte Vorlage bleibt, wie sie war.",
     createFailed: (path: string) => `${path} konnte nicht angelegt werden.`
   },
 

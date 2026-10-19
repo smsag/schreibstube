@@ -7,7 +7,7 @@ import { createLogger } from "../services/logger";
 import { DEFAULT_SETTINGS } from "../services/plugin-settings";
 import type { PdfMark, PdfPlacedRun } from "../services/pdf-highlights";
 import type { MarkedReadResult } from "../pdf/pdf-reader";
-import type { TemplaterRender } from "../services/workspace-internals";
+import type { TemplaterCreate } from "../services/workspace-internals";
 import { setLanguage } from "../i18n";
 
 const YELLOW: [number, number, number] = [250, 205, 90];
@@ -47,8 +47,12 @@ interface FakeOptions {
   templateText?: string;
   existing?: string[];
   newFileFolder?: string;
-  templater?: TemplaterRender | null;
+  /** How Templater renders a template's text; absent when it is not installed. */
+  templater?: (text: string) => Promise<string | null>;
   createFails?: boolean;
+  modifyFails?: boolean;
+  openFails?: boolean;
+  templateReadFails?: boolean;
 }
 
 function fake(options: FakeOptions = {}) {
@@ -56,19 +60,28 @@ function fake(options: FakeOptions = {}) {
   if (options.templateText !== undefined) files.set("Vorlagen/Lesenotiz.md", options.templateText);
   for (const path of options.existing ?? []) files.set(path, "");
   const opened: string[] = [];
+  /** Every write of a note, in order: what Templater's trigger would see. */
+  const writes: { path: string; text: string; how: "create" | "modify" }[] = [];
 
   const app = {
     vault: {
       readBinary: vi.fn(async () => new ArrayBuffer(8)),
       getAbstractFileByPath: (path: string) => (files.has(path) ? new TFile(path) : null),
-      cachedRead: async (file: TFile) => files.get(file.path) ?? "",
+      cachedRead: async (file: TFile) => {
+        if (options.templateReadFails) throw new Error("gone");
+        return files.get(file.path) ?? "";
+      },
+      read: async (file: TFile) => files.get(file.path) ?? "",
       create: async (path: string, text: string) => {
         if (options.createFails) throw new Error("taken");
         files.set(path, text);
+        writes.push({ path, text, how: "create" });
         return new TFile(path);
       },
       modify: async (file: TFile, text: string) => {
+        if (options.modifyFails) throw new Error("sync conflict");
         files.set(file.path, text);
+        writes.push({ path: file.path, text, how: "modify" });
       }
     },
     fileManager: {
@@ -76,9 +89,27 @@ function fake(options: FakeOptions = {}) {
       generateMarkdownLink: (target: TFile) => `[[${target.name}]]`
     },
     workspace: {
-      getLeaf: () => ({ openFile: async (file: TFile) => opened.push(file.path) })
+      getLeaf: () => ({
+        openFile: async (file: TFile) => {
+          if (options.openFails) throw new Error("no leaf");
+          opened.push(file.path);
+        }
+      })
     }
   } as unknown as App;
+
+  // Templater's create_new_note_from_template, as far as this command sees it:
+  // the template rendered into a new note, or nothing when the template failed.
+  const templater = options.templater;
+  const create: TemplaterCreate | null = templater
+    ? async (template, folder, name) => {
+        const rendered = await templater(files.get(template.path) ?? "");
+        if (rendered === null) return null;
+        const path = `${folder}/${name}.md`;
+        files.set(path, rendered);
+        return new TFile(path) as unknown as import("obsidian").TFile;
+      }
+    : null;
 
   const settings = { ...DEFAULT_SETTINGS, pdfHighlightsTemplate: options.template ?? "" };
   const commands = new PdfHighlightCommands(
@@ -86,9 +117,9 @@ function fake(options: FakeOptions = {}) {
     createLogger(() => false, silent),
     () => settings,
     options.read ?? (async () => MARKED),
-    () => options.templater ?? null
+    () => create
   );
-  return { commands, files, opened };
+  return { commands, files, opened, writes };
 }
 
 const pdf = new TFile("Papers/Organization Design.pdf") as unknown as import("obsidian").TFile;
@@ -136,27 +167,62 @@ describe("PdfHighlightCommands.highlightsToNote", () => {
     expect(files.get("Inbox/Organization Design 1.md")).toContain("First words");
   });
 
-  it("runs Templater on the template before the PDF's text is in it", async () => {
-    const seen: string[] = [];
-    const templater: TemplaterRender = async (_template, _target, text) => {
-      seen.push(text);
-      return text.replace("<% tp.file.title %>", "Rendered");
-    };
-    const { commands, files } = fake({
-      template: "Vorlagen/Lesenotiz.md",
-      templateText: "# <% tp.file.title %>\n\n{{schreibstube-highlights}}\n",
-      templater
+  it("writes a note without Templater code once, whole, so no trigger finds it empty", async () => {
+    const { commands, writes } = fake({
+      template: "Vorlagen/Lesenotiz",
+      templateText: "## Auszug\n\n{{schreibstube-highlights}}\n"
     });
 
     await commands.highlightsToNote(pdf);
 
-    expect(seen).toEqual(["# <% tp.file.title %>\n\n{{schreibstube-highlights}}\n"]);
+    expect(writes).toEqual([
+      {
+        path: "Inbox/Organization Design.md",
+        text: "## Auszug\n\nFirst words […] last words\n",
+        how: "create"
+      }
+    ]);
+  });
+
+  it("has Templater make the note, then puts the PDF's text in", async () => {
+    const seen: string[] = [];
+    const { commands, files } = fake({
+      template: "Vorlagen/Lesenotiz.md",
+      templateText: "# <% tp.file.title %> {{date:YYYY}}\n\n{{schreibstube-highlights}}\n",
+      templater: async (text) => {
+        seen.push(text);
+        return text.replace("<% tp.file.title %>", "Rendered");
+      }
+    });
+
+    await commands.highlightsToNote(pdf);
+
+    expect(seen).toEqual(["# <% tp.file.title %> {{date:YYYY}}\n\n{{schreibstube-highlights}}\n"]);
     expect(files.get("Inbox/Organization Design.md")).toBe(
-      "# Rendered\n\nFirst words […] last words\n"
+      `# Rendered ${new Date().getFullYear()}\n\nFirst words […] last words\n`
     );
   });
 
-  it("keeps the Templater code as written when Templater fails, and says so", async () => {
+  it("puts no code from the PDF's name or text in front of Templater", async () => {
+    const sly = new TFile("Papers/<% tp.x %>.pdf") as unknown as import("obsidian").TFile;
+    const marked: MarkedReadResult = {
+      pages: [{ page: 1, runs: [run("run <% tp.y %> it", 100)], marks: bothOver(0, 17, 100) }],
+      totalPages: 1,
+      truncated: false
+    };
+    const { commands, writes } = fake({
+      read: async () => marked,
+      template: "Vorlagen/Lesenotiz",
+      templateText: "{{title}}\n{{schreibstube-highlights}}\n{{schreibstube-pdf}}\n"
+    });
+
+    await commands.highlightsToNote(sly);
+
+    expect(writes).toHaveLength(1);
+    expect(writes[0]?.text).not.toContain("<%");
+  });
+
+  it("makes no note when Templater fails, and says so", async () => {
     const { commands, files } = fake({
       template: "Vorlagen/Lesenotiz",
       templateText: "<% tp.oops %>\n{{schreibstube-highlights}}",
@@ -167,10 +233,35 @@ describe("PdfHighlightCommands.highlightsToNote", () => {
 
     await commands.highlightsToNote(pdf);
 
-    expect(files.get("Inbox/Organization Design.md")).toBe(
-      "<% tp.oops %>\nFirst words […] last words"
-    );
+    expect(files.has("Inbox/Organization Design.md")).toBe(false);
     expect(notices()).toContain("tp.oops is undefined");
+  });
+
+  it("says so when Templater gives back no note", async () => {
+    const { commands, files } = fake({
+      template: "Vorlagen/Lesenotiz",
+      templateText: "<% tp.oops %>",
+      templater: async () => null
+    });
+
+    await commands.highlightsToNote(pdf);
+
+    expect(files.has("Inbox/Organization Design.md")).toBe(false);
+    expect(notices()).toContain("Templater made no note from Vorlagen/Lesenotiz.md");
+  });
+
+  it("says so when the note Templater made cannot be filled", async () => {
+    const { commands, opened } = fake({
+      template: "Vorlagen/Lesenotiz",
+      templateText: "<% tp.file.title %>",
+      templater: async (text) => text,
+      modifyFails: true
+    });
+
+    await commands.highlightsToNote(pdf);
+
+    expect(opened).toEqual([]);
+    expect(notices()).toContain("text could not be written into it");
   });
 
   it("says when the template has Templater code and Templater is not there", async () => {
@@ -182,6 +273,28 @@ describe("PdfHighlightCommands.highlightsToNote", () => {
     await commands.highlightsToNote(pdf);
 
     expect(notices()).toContain("Templater is not installed");
+  });
+
+  it("makes the note without a template that cannot be read, and says so", async () => {
+    const { commands, files } = fake({
+      template: "Vorlagen/Lesenotiz",
+      templateText: "{{schreibstube-highlights}}",
+      templateReadFails: true
+    });
+
+    await commands.highlightsToNote(pdf);
+
+    expect(files.get("Inbox/Organization Design.md")).toContain("First words […] last words");
+    expect(notices()).toContain("Vorlagen/Lesenotiz.md was not found");
+  });
+
+  it("still says the note was made when it cannot be shown", async () => {
+    const { commands, files } = fake({ openFails: true });
+
+    await commands.highlightsToNote(pdf);
+
+    expect(files.get("Inbox/Organization Design.md")).toContain("First words");
+    expect(notices()).toContain("2 passages written to Organization Design");
   });
 
   it("makes the note without a template that is not there, and says so", async () => {

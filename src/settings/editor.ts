@@ -8,7 +8,7 @@ import { activeLocale, t } from "../i18n";
 import { normalizeDoneTaskMode } from "../services/done-tasks";
 import { normalizeDoneTaskVisibility } from "../services/done-task-visibility";
 import { MAX_DIM_OPACITY, MIN_DIM_OPACITY } from "../services/focus-settings";
-import { normalizeVaultFolder } from "../services/file-name";
+import { normalizeTemplatePath } from "../services/highlight-note";
 import { normalizeTermFolder } from "../services/glossary-term-folder";
 import { createLogger } from "../services/logger";
 import { newDocLink } from "../services/new-note";
@@ -116,16 +116,21 @@ function renderPdfHighlights(ctx: SettingsContext): void {
     commands: [t().commands.pdfHighlightsToNote]
   });
 
-  new Setting(ctx.containerEl)
+  const template = new Setting(ctx.containerEl)
     .setName(words.highlightsTemplate)
-    .setDesc(words.highlightsTemplateDesc)
-    .addText((text) => {
-      text.setPlaceholder(words.highlightsTemplatePlaceholder);
-      text.setValue(ctx.plugin.settings.pdfHighlightsTemplate);
-      text.onChange(async (value) => {
-        await ctx.update({ pdfHighlightsTemplate: normalizeVaultFolder(value) ?? "" });
-      });
+    .setDesc(words.highlightsTemplateDesc);
+  template.addText((text) => {
+    text.setPlaceholder(words.highlightsTemplatePlaceholder);
+    text.setValue(ctx.plugin.settings.pdfHighlightsTemplate);
+    text.onChange(async (value) => {
+      const path = normalizeTemplatePath(value);
+      // Refused rather than saved as nothing: an empty setting would make
+      // notes without a template and never say why. Said in the description,
+      // not a notice, since this runs on every key.
+      template.setDesc(path === null ? words.templatePathInvalid : words.highlightsTemplateDesc);
+      if (path !== null) await ctx.update({ pdfHighlightsTemplate: path });
     });
+  });
 }
 
 function renderDoneTasks(ctx: SettingsContext): void {

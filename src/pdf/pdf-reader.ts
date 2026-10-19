@@ -14,7 +14,14 @@
 
 import { loadPdfJs } from "obsidian";
 import type { PdfPageRuns, PdfTextRun } from "../services/pdf-passages";
-import { toMark, toPlacedRun, type PdfMark, type PdfMarkedPage } from "../services/pdf-highlights";
+import {
+  marksBothWays,
+  toMark,
+  toPlacedRun,
+  type PdfMark,
+  type PdfMarkedPage,
+  type PdfPlacedRun
+} from "../services/pdf-highlights";
 
 /**
  * How many pages are read before the reader stops.
@@ -68,8 +75,8 @@ export interface MarkedReadResult {
 }
 
 /**
- * Read the text layer of `data` with each run's place on the page, and the
- * highlights and underlines drawn over it.
+ * Read the highlights and underlines of `data`, and the text layer, with each
+ * run's place, of the pages that have both.
  *
  * As with the plain reading, a page that cannot be read costs that page: it
  * comes back with no runs and no marks, and the excerpt simply has nothing
@@ -113,17 +120,20 @@ async function markedPage(document: unknown, number: number): Promise<PdfMarkedP
   try {
     const doc = document as { getPage(n: number): Promise<unknown> };
     const page = (await doc.getPage(number)) as PdfJsPage;
-    const content = await page.getTextContent();
-    const items: unknown[] = Array.isArray(content.items) ? content.items : [];
     const annotations = (await page.getAnnotations?.()) ?? [];
+    const marks = (Array.isArray(annotations) ? annotations : [])
+      .map(toMark)
+      .filter((mark): mark is PdfMark => mark !== null);
+    // The text layer is the expensive part, and only a page marked both ways
+    // can give anything; every other page is left unread.
+    let runs: PdfPlacedRun[] = [];
+    if (marksBothWays(marks)) {
+      const content = await page.getTextContent();
+      const items: unknown[] = Array.isArray(content.items) ? content.items : [];
+      runs = items.map(toPlacedRun).filter((run) => run !== null);
+    }
     page.cleanup?.();
-    return {
-      page: number,
-      runs: items.map(toPlacedRun).filter((run) => run !== null),
-      marks: (Array.isArray(annotations) ? annotations : [])
-        .map(toMark)
-        .filter((mark): mark is PdfMark => mark !== null)
-    };
+    return { page: number, runs, marks };
   } catch {
     return { page: number, runs: [], marks: [] };
   }

@@ -230,18 +230,26 @@ export function markedCharacters(
 ): boolean[] {
   const characters = Array.from(run.text);
   const length = characters.length;
-  if (length === 0 || layers.length === 0 || layers.some((boxes) => boxes.length === 0)) {
-    return characters.map(() => false);
-  }
-
-  const step = run.width / length;
   // A run's height is the font's size, measured up from the baseline; the
   // descenders hang below it, so the extent starts a little lower.
   const bottom = run.y - run.height * 0.2;
   const top = run.y + run.height * 0.8;
+  // Only the boxes on this line can cover any of its characters. Sorting them
+  // out once per run, rather than once per character, keeps a page of many
+  // marks from costing characters times boxes.
+  const near = layers.map((boxes) =>
+    boxes.filter(
+      (box) => box.y1 > bottom && box.y0 < top && box.x1 >= run.x && box.x0 <= run.x + run.width
+    )
+  );
+  if (length === 0 || near.length === 0 || near.some((boxes) => boxes.length === 0)) {
+    return characters.map(() => false);
+  }
+
+  const step = run.width / length;
   const hit = characters.map((_, index) => {
     const middle = run.x + step * (index + 0.5);
-    return layers.every((boxes) => boxes.some((box) => covers(box, middle, bottom, top)));
+    return near.every((boxes) => boxes.some((box) => covers(box, middle, bottom, top)));
   });
 
   const marked = [...hit];
@@ -285,6 +293,13 @@ function finishExcerpt(raw: string): string {
  * marked does not: it is only what stood between two marked words, and the
  * excerpt keeps it. So two marked passages that meet are one excerpt, and the
  * gap between two that do not is where the separator goes.
+ *
+ * A page ends an excerpt. The last run of a page rarely says it ends a line,
+ * so carrying an excerpt over would glue the last word of one page to the
+ * first of the next; and from the marks alone, a passage marked on into the
+ * next page cannot be told from two passages that happen to sit on either
+ * side of the break. The separator is the safe reading of both: it never
+ * joins what was apart, and costs a passage that ran on only a `[…]`.
  */
 export function collectExcerpts(pages: readonly PdfMarkedPage[]): string[] {
   const excerpts: string[] = [];
@@ -317,9 +332,19 @@ export function collectExcerpts(pages: readonly PdfMarkedPage[]): string[] {
       });
       if (run.endsLine && current !== "") pending += "\n";
     }
+    if (current !== "") close();
   }
-  if (current !== "") close();
   return excerpts;
+}
+
+/**
+ * Whether a page has both kinds of mark, and so any text worth reading. The
+ * reader asks before it reads the text layer: a book with three pages
+ * marked is three pages of work, not two hundred.
+ */
+export function marksBothWays(marks: readonly PdfMark[]): boolean {
+  const [highlights, underlines] = markLayers(marks);
+  return highlights.length > 0 && underlines.length > 0;
 }
 
 /**
@@ -328,11 +353,9 @@ export function collectExcerpts(pages: readonly PdfMarkedPage[]): string[] {
  * which a scan is, rather than because nothing was marked twice.
  */
 export function marksWithoutText(pages: readonly PdfMarkedPage[]): boolean {
-  return pages.some((page) => {
-    const [highlights, underlines] = markLayers(page.marks);
-    const text = page.runs.some((run) => run.text.trim() !== "");
-    return highlights.length > 0 && underlines.length > 0 && !text;
-  });
+  return pages.some(
+    (page) => marksBothWays(page.marks) && !page.runs.some((run) => run.text.trim() !== "")
+  );
 }
 
 /** The excerpts as one running text, an omission mark between each two. */

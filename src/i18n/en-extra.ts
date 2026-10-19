@@ -1407,7 +1407,13 @@ export const enExtra = {
     templaterMissing:
       "the template has Templater code, but Templater is not installed; the code was left as written.",
     templaterFailed: (reason: string) =>
-      `Templater could not fill the template (${reason}); its code was left as written.`,
+      `Templater could not make the note from the template (${reason}); no note was made.`,
+    templaterNoNote: (path: string) =>
+      `Templater made no note from ${path}; its own notice says why.`,
+    fillFailed: (path: string) =>
+      `${path} was made from the template, but the text could not be written into it.`,
+    templatePathInvalid:
+      "Not a path in the vault: no folder may start with a dot, and none may be empty. The saved template stays as it was.",
     createFailed: (path: string) => `${path} could not be created.`
   },
 

@@ -15,6 +15,7 @@ import {
 } from "./focus-settings";
 import { BOOKMARK_FILE_DEFAULT } from "./bookmark-file";
 import { normalizeVaultFolder } from "./file-name";
+import { normalizeTemplatePath } from "./highlight-note";
 import { normalizeTermFolder } from "./glossary-term-folder";
 import { LLM_PROVIDER_IDS, PROVIDER_MODELS } from "./llm-providers";
 import { DUE_KEY, normalizeDueProperty, normalizeDueSynonyms } from "./due-date";
@@ -237,7 +238,7 @@ export function normalizeSettings(loaded: LoadedSettings): SchreibstubeSettings 
     propertyIcons: normalizePropertyIcons(loaded?.propertyIcons),
     dateFormat: normalizeDateFormat(loaded?.dateFormat),
     propertySetFolder: normalizeTermFolder(loaded?.propertySetFolder),
-    pdfHighlightsTemplate: normalizeVaultFolder(loaded?.pdfHighlightsTemplate) ?? "",
+    pdfHighlightsTemplate: normalizeTemplatePath(loaded?.pdfHighlightsTemplate) ?? "",
     tagSuggestControl: loaded?.tagSuggestControl !== false,
     doneTasksMode: normalizeDoneTaskMode(loaded?.doneTasksMode),
     doneTaskVisibility: normalizeDoneTaskVisibility(loaded?.doneTaskVisibility),
