@@ -3,7 +3,7 @@ import { createConnectionPool } from "./connection-pool.mjs";
 import { joinRemote } from "./path.mjs";
 import { createShareRoutes, SHARES_FILE, SWEEP_RETRY_MS } from "./share-routes.mjs";
 import { decryptPayload } from "./client/share-unlock.mjs";
-import { SHARE_INDEX_GUARD } from "./share.mjs";
+import { SHARE_INDEX_GUARD, SHARE_ROBOTS_TXT } from "./share.mjs";
 
 /**
  * The share routes against a host held in memory: which files a link is,
@@ -31,6 +31,9 @@ function memoryHost({ fail = null } = {}) {
     },
     async writeAbsolute(path, content) {
       files.set(path, Buffer.from(content));
+    },
+    async readFile(path) {
+      return files.get(path);
     },
     async writeFile(relative, content) {
       files.set(remote.absolute(relative), Buffer.from(content));
@@ -137,6 +140,8 @@ describe("POST /publish/share", () => {
     expect(host.files.has(`/site/s/${answer.code}/theme.css`)).toBe(true);
     expect(host.files.has(`/site/s/${answer.code}/unlock.js`)).toBe(false);
     expect(host.text("/site/s/index.html")).toBe(SHARE_INDEX_GUARD);
+    expect(host.text("/site/robots.txt")).toBe(SHARE_ROBOTS_TXT);
+    expect(answer.code).toMatch(/^[a-z]+-[a-z]+-[1-9][0-9]$/);
     expect(record().shares[0]).toMatchObject({
       code: answer.code,
       sourcePath: "Kunden/Angebot.md",
@@ -156,6 +161,31 @@ describe("POST /publish/share", () => {
     const opened = await decryptPayload(payload, "korrekt-pferd");
     expect(opened.html).toContain("<h1");
     expect(opened.title).toBe("Angebot");
+  });
+
+  it("gives a link with a password two words, and refuses to take the password off them", async () => {
+    const { share } = setup();
+    const answer = await share({ ...note, password: "korrekt-pferd" });
+    expect(answer.code).toMatch(/^[a-z]+-[a-z]+$/);
+    await expect(share({ ...note, code: answer.code })).rejects.toMatchObject({
+      status: 409,
+      code: "share_needs_password"
+    });
+  });
+
+  it("leaves a site's own robots.txt alone, and says when it lets crawlers in", async () => {
+    const { host, share, shares } = setup();
+    host.files.set("/site/robots.txt", Buffer.from("User-agent: *\nDisallow: /privat/\n"));
+    const warnings = [];
+    const route = shares.routes.find((entry) => entry.path === "/publish/share");
+    await route.handler({
+      body: { target: "blog", ...note },
+      authorization: AUTH,
+      log: (level, message) => warnings.push({ level, message })
+    });
+    await share(note);
+    expect(host.text("/site/robots.txt")).toBe("User-agent: *\nDisallow: /privat/\n");
+    expect(warnings.filter((entry) => entry.message.includes("robots.txt"))).toHaveLength(1);
   });
 
   it("writes the closing rule and the policy for a host that reads .htaccess", async () => {
@@ -188,24 +218,24 @@ describe("POST /publish/share", () => {
 
   it("rewrites a link in place, removing the files it no longer needs", async () => {
     const { host, share, clock, record } = setup();
-    const first = await share({ ...note, password: "korrekt-pferd" });
+    const first = await share({ ...note, source: "Der Preis ist $x^2$.\n" });
+    expect(host.files.has(`/site/s/${first.code}/katex/katex.css`)).toBe(true);
     clock.at += 60_000;
     const second = await share({ ...note, code: first.code, source: "Neu.\n" });
 
     expect(second.code).toBe(first.code);
     expect(second.createdAt).toBe(first.createdAt);
     expect(second.updatedAt).toBe("2026-10-19T12:01:00.000Z");
-    expect(second.protected).toBe(false);
-    expect(host.files.has(`/site/s/${first.code}/unlock.js`)).toBe(false);
+    expect(host.files.has(`/site/s/${first.code}/katex/katex.css`)).toBe(false);
     expect(host.text(`/site/s/${first.code}/index.html`)).toContain("Neu.");
     expect(record().shares).toHaveLength(1);
   });
 
   it("keeps a file it could not remove in the record, so it is tried again", async () => {
-    const { share, record } = setup({ fail: (path) => path.endsWith("unlock.js") });
-    const first = await share({ ...note, password: "korrekt-pferd" });
+    const { share, record } = setup({ fail: (path) => path.endsWith("katex.css") });
+    const first = await share({ ...note, source: "$x^2$\n" });
     await share({ ...note, code: first.code });
-    expect(record().shares[0].files).toContain(`s/${first.code}/unlock.js`);
+    expect(record().shares[0].files).toContain(`s/${first.code}/katex/katex.css`);
   });
 
   it("refuses a code it does not know, a request that does not check, and another site's token", async () => {

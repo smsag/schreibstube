@@ -21,6 +21,7 @@ import { escapeHtml, key } from "./render/obsidian.mjs";
 import { extensionOf, slugify } from "./path.mjs";
 import { decodedLength, isBase64 } from "../base64.mjs";
 import { hasSignature } from "./signatures.mjs";
+import { SHARE_WORDS } from "./share-words.mjs";
 import { isSafeSvg } from "./svg-guard.mjs";
 
 const derive = promisify(pbkdf2);
@@ -29,14 +30,15 @@ const derive = promisify(pbkdf2);
 export const SHARE_DIRECTORY = "s";
 
 /**
- * A code is the only thing that tells one share's address from another's, and
- * for a share without a password it is the only key. Ten characters of an
- * alphabet without the letters that read alike (0/O, 1/l/I) are 58 bits: read
- * aloud or typed from a phone without mistakes, and not to be guessed.
+ * A link's address is two words, `apple-cloud`, so it can be remembered and
+ * said. That is about a million addresses, which is no key: for a link with a
+ * password the password is the key, and the address only has to be one nobody
+ * else holds. A link without a password has nothing else, so its address
+ * carries a number as well, `apple-cloud-42`, ninety times as many.
  */
-export const SHARE_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
-export const SHARE_CODE_LENGTH = 10;
-const SHARE_CODE = new RegExp(`^[${SHARE_CODE_ALPHABET}]{${SHARE_CODE_LENGTH}}$`);
+const SHARE_CODE = /^[a-z]{3,8}-[a-z]{3,8}(?:-[1-9][0-9])?$/;
+/** The ten characters the first shared links were given; still read, so they can be taken down. */
+const FIRST_SHARE_CODE = /^[A-HJ-NP-Za-km-z2-9]{10}$/;
 
 /** How many links one target keeps at once. */
 export const MAX_SHARES = 200;
@@ -91,23 +93,37 @@ export const SHARE_IMAGE_TYPES = new Map([
 
 export class ShareError extends Error {}
 
-/** A fresh code, from an unbiased draw: bytes past the last whole alphabet are thrown back. */
-export function newShareCode(random = randomBytes) {
-  const size = SHARE_CODE_ALPHABET.length;
-  const ceiling = Math.floor(256 / size) * size;
-  let code = "";
-  while (code.length < SHARE_CODE_LENGTH) {
-    for (const byte of random(SHARE_CODE_LENGTH * 2)) {
-      if (byte >= ceiling) continue;
-      code += SHARE_CODE_ALPHABET[byte % size];
-      if (code.length === SHARE_CODE_LENGTH) break;
-    }
+/**
+ * A fresh address: two different words, and a number from 10 to 99 for a link
+ * without a password.
+ */
+export function newShareCode({ open }, random = randomBytes) {
+  const first = SHARE_WORDS[draw(SHARE_WORDS.length, random)];
+  let second = first;
+  while (second === first) second = SHARE_WORDS[draw(SHARE_WORDS.length, random)];
+  return open ? `${first}-${second}-${10 + draw(90, random)}` : `${first}-${second}`;
+}
+
+/** An unbiased number below `size`: two bytes at a time, past the last whole multiple thrown back. */
+function draw(size, random) {
+  const ceiling = Math.floor(65_536 / size) * size;
+  for (;;) {
+    const value = random(2).readUInt16BE(0);
+    if (value < ceiling) return value % size;
   }
-  return code;
 }
 
 export function isShareCode(value) {
-  return typeof value === "string" && SHARE_CODE.test(value);
+  return typeof value === "string" && (SHARE_CODE.test(value) || FIRST_SHARE_CODE.test(value));
+}
+
+/**
+ * Whether a link may be read without a password at this address: one with a
+ * number, or one of the first links' long codes. Two words alone are an
+ * address for a link with a password.
+ */
+export function fitsOpenLink(code) {
+  return FIRST_SHARE_CODE.test(code) || /-[1-9][0-9]$/.test(code);
 }
 
 /** Where a share's files lie, relative to the site's root. */
@@ -390,6 +406,40 @@ export async function encryptShare(plaintext, password, { random = randomBytes }
 }
 
 /**
+ * What every share tells a crawler, a search engine or an AI: do not index
+ * it, follow its links, keep a copy, quote it, index its pictures or offer to
+ * translate it, and do not use it for an AI (`noai`, `noimageai`, read by
+ * the crawlers that honour an opt-out). `tdm-reservation` reserves text and
+ * data mining in the machine-readable form of the W3C's TDMRep, which in the
+ * EU is the opt-out the copyright directive asks for. None of it stops a
+ * crawler that ignores it; the password does.
+ */
+export const SHARE_ROBOTS =
+  "noindex, nofollow, noarchive, nosnippet, noimageindex, notranslate, noai, noimageai";
+
+/** The same in a page's head, for a host that sends no header of its own. */
+const SHARE_ROBOTS_META =
+  `<meta name="robots" content="${SHARE_ROBOTS}">\n` + `<meta name="tdm-reservation" content="1">`;
+
+/**
+ * The site's `robots.txt`, written where the site has none, so a crawler that
+ * asks before it reads is told to leave every link alone. It names only the
+ * directory, never a link.
+ */
+export const SHARE_ROBOTS_TXT = [
+  "# Written by the Schreibstube bridge: shared links are for the people they were sent to.",
+  "User-agent: *",
+  `Disallow: /${SHARE_DIRECTORY}/`,
+  ""
+].join("\n");
+
+/** Whether a site's own `robots.txt` already keeps crawlers out of the share directory. */
+export function robotsKeepsOut(text) {
+  const rule = new RegExp(`^\\s*Disallow:\\s*/${SHARE_DIRECTORY}(?:/|\\s*$)`, "im");
+  return rule.test(String(text ?? ""));
+}
+
+/**
  * One share's page. A protected one names nothing — not even the title,
  * which is inside the ciphertext with the rest — and carries the script that
  * asks for the password. Neither kind is to be indexed or to pass its address
@@ -411,7 +461,7 @@ export function sharePage({
     // policy, which may allow a theme's web font, could only be narrowed.
     csp ? `<meta http-equiv="Content-Security-Policy" content="${escapeHtml(csp)}">` : null,
     `<meta name="viewport" content="width=device-width, initial-scale=1">`,
-    `<meta name="robots" content="noindex, nofollow">`,
+    SHARE_ROBOTS_META,
     `<meta name="referrer" content="no-referrer">`,
     expiresAt ? `<meta name="schreibstube-expires" content="${escapeHtml(expiresAt)}">` : null,
     `<title>${escapeHtml(encrypted ? "Geteiltes Dokument" : title)}</title>`,
@@ -507,7 +557,8 @@ export function shareHtaccess({ expiresAt, csp = SHARE_CSP }) {
     // has never been published, and has no root file to inherit.
     `  Header always set Content-Security-Policy "${csp}"`,
     '  Header always set X-Content-Type-Options "nosniff"',
-    '  Header always set X-Robots-Tag "noindex, nofollow"',
+    `  Header always set X-Robots-Tag "${SHARE_ROBOTS}"`,
+    '  Header always set tdm-reservation "1"',
     '  Header always set Referrer-Policy "no-referrer"',
     '  Header always set Cache-Control "no-store"',
     "</IfModule>",
@@ -527,4 +578,4 @@ export function apacheTime(iso) {
  */
 export const SHARE_INDEX_GUARD =
   `<!doctype html>\n<html lang="de">\n<head>\n<meta charset="utf-8">\n` +
-  `<meta name="robots" content="noindex, nofollow">\n<title></title>\n</head>\n<body></body>\n</html>\n`;
+  `${SHARE_ROBOTS_META}\n<title></title>\n</head>\n<body></body>\n</html>\n`;

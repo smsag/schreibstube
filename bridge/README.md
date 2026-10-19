@@ -29,6 +29,7 @@ route that does not exist yet.
 
 | Bridge | Protocol | Plugin          | Notes                                                                                                |
 | ------ | -------- | --------------- | ---------------------------------------------------------------------------------------------------- |
+| 3.3.x  | 9        | 1.8.0 and later | A shared link's address is two words (and a number without a password); no-index and no-AI signals   |
 | 3.2.x  | 9        | 1.8.0 and later | Shared links: one note at `s/<code>/`, optionally encrypted and closing on time; see Shared links    |
 | 3.1.x  | 8        | 1.8.0 and later | A `schreibstube-index` block becomes a foldable list of the page's sections                          |
 | 3.0.x  | 8        | 1.8.0 and later | `/search` `exclude`, quiet `/health`; plan `conflicts`, diagnostics without the root path; see below |
@@ -389,9 +390,23 @@ rather than as part of it. Its files are recorded in `<state>/shares.json`, not
 in the manifest, so a publish neither sees nor removes them, and a share never
 waits for a publish; `s/index.html`, an empty page, keeps a host that lists
 directories from listing the codes, and no published note may take the slug
-`s`. A code is ten characters of an alphabet
-without the letters that read alike, 58 bits, and is drawn afresh for every
-link. Each target keeps at most 200.
+`s`. An address is two different English words from a list of 1,119
+(`publish/share-words.mjs`), `apple-cloud`, so it can be remembered and read
+out: about 1.25 million addresses, which is why a link with a password gets
+only the words — the password is its key — and a link without one adds a
+number from 10 to 99, `apple-cloud-42`. A two-word link cannot be updated to
+go without its password (`409 share_needs_password`); it is shared anew.
+Codes are checked by their shape, so links made with the first, ten-character
+codes are still listed and taken down. Each target keeps at most 200.
+
+Every share asks crawlers, search engines and AI to leave it alone:
+`noindex, nofollow, noarchive, nosnippet, noimageindex, notranslate, noai,
+noimageai` and the TDMRep `tdm-reservation: 1`, which in the EU reserves text
+and data mining, in each page's head and on `s/index.html`. Where the site has
+no `robots.txt` the bridge writes one with `Disallow: /s/`, naming the
+directory and no link; one that is the site's own is left alone, and the log
+says once when it lets crawlers in. A crawler that ignores all of this still
+finds only what the password lets it read.
 
 The page is self-contained: the note rendered as a published page is, with
 links to other notes left as text and the pictures it carries (at most 50, 20
@@ -418,8 +433,9 @@ minute whether a link is due and logs in only when one is — once per target
 after a start, to read the record — and removes it; a host it cannot reach is
 tried again in 15 minutes. Listing the links removes those that are due as
 well. On a target with `HTACCESS=true` each link also gets its own `.htaccess`
-that refuses it from that time while the bridge is down, sends `noindex`,
-`no-referrer` and `no-store`, and needs the host to allow `Require` in
+that refuses it from that time while the bridge is down, sends the same as
+`X-Robots-Tag` and `tdm-reservation` headers with `no-referrer` and
+`no-store`, and needs the host to allow `Require` in
 `.htaccess` files. A link taken down whose files the host would not let go
 of is listed no more, and the sweep tries those files again every 15 minutes
 rather than every minute. Apache reads the time in the server's local time, and the

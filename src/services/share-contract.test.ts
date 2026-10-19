@@ -19,8 +19,6 @@ const contract = JSON.parse(readFileSync("contracts/share-limits.json", "utf8"))
   maxAssets: number;
   maxAssetBytes: number;
   imageExtensions: string[];
-  codeAlphabet: string;
-  codeLength: number;
   codes: { valid: string[]; invalid: string[] };
 };
 
@@ -37,9 +35,6 @@ describe("the shared-link contract, in the plugin", () => {
   });
 
   it("reads back every code the bridge can draw, and only those", () => {
-    for (const char of contract.codeAlphabet) {
-      expect(linkFor(char.repeat(contract.codeLength))).not.toBeNull();
-    }
     for (const code of contract.codes.valid) expect(linkFor(code)).not.toBeNull();
     for (const code of contract.codes.invalid) expect(linkFor(code)).toBeNull();
   });
