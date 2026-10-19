@@ -58,7 +58,8 @@ export function renderSync(ctx: SettingsContext): void {
       new SecretComponent(ctx.app, el)
         .setValue(ctx.plugin.settings.githubSecretName)
         .onChange(async (value) => {
-          await ctx.update({ githubSecretName: value });
+          // A cleared secret arrives as null; an empty name is how settings say none.
+          await ctx.update({ githubSecretName: value ?? "" });
         })
     );
 

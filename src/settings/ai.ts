@@ -69,7 +69,8 @@ export function renderAiModel(ctx: SettingsContext): void {
       new SecretComponent(ctx.app, el)
         .setValue(ctx.plugin.settings.llmSecretName)
         .onChange(async (value) => {
-          await ctx.update({ llmSecretName: value });
+          // A cleared secret arrives as null; an empty name is how settings say none.
+          await ctx.update({ llmSecretName: value ?? "" });
           // The note below and the switches that need a key follow it at once.
           ctx.refresh();
         })
