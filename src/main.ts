@@ -405,6 +405,8 @@ export default class SchreibstubePlugin extends Plugin {
     this.explorer.useFolderTilesOpener((folder, following) =>
       this.activateFolderTiles(folder, following)
     );
+    // The pane marks shared notes from the lists the share commands learn.
+    this.share.useListener((target, links) => this.explorer?.recordSharedLinks(target, links));
     await this.explorer.start();
     this.startPictureActions(this.explorer);
     this.startPictureArticles(this.explorer);

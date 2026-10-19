@@ -27,9 +27,13 @@ import { NO_FORMULAS, type NoteFormulas } from "./sums-controller";
  * the site. The note is read when the link is written and not again: a link
  * shows what was sent, and updating it is asking to send again.
  */
+/** Told each time the plugin learns a target's whole list of links. */
+export type ShareListener = (target: string, links: readonly SharedLink[]) => void;
+
 export class ShareCommands {
   private busy = false;
   private formulas: NoteFormulas = NO_FORMULAS;
+  private listener: ShareListener = () => {};
 
   constructor(
     private readonly app: App,
@@ -37,6 +41,11 @@ export class ShareCommands {
     private readonly publish: PublishCommands,
     private readonly logger: Logger
   ) {}
+
+  /** Who keeps a copy of the lists: the file pane, which marks shared notes. */
+  useListener(listener: ShareListener): void {
+    this.listener = listener;
+  }
 
   /** A note's formulas, resolved in what is sent, as a publish resolves them. */
   useFormulas(formulas: NoteFormulas): void {
@@ -52,15 +61,15 @@ export class ShareCommands {
     await this.withAccount(file.path, async (account) => {
       const bridge = await this.connect();
       if (!bridge) return;
-      const links = await this.guarded(() => listShares(bridge, account.target));
+      const links = await this.list(bridge, account);
       if (!links) return;
 
       new ShareModal(
         this.app,
         file.basename,
         linksOfNote(links, file.path),
-        (choice) => void this.guarded(() => this.share(bridge, account, file, choice)),
-        (link) => void this.guarded(() => this.revoke(bridge, account, link))
+        (choice) => void this.guarded(() => this.share(bridge, account, file, choice, links)),
+        (link) => void this.guarded(() => this.revoke(bridge, account, link, links))
       ).open();
     });
   }
@@ -70,23 +79,40 @@ export class ShareCommands {
     await this.withAccount(active?.path ?? null, async (account) => {
       const bridge = await this.connect();
       if (!bridge) return;
-      const links = await this.guarded(() => listShares(bridge, account.target));
+      const links = await this.list(bridge, account);
       if (!links) return;
+      // The list the dialog shows, as revokes leave it.
+      let open: readonly SharedLink[] = links;
       new ShareListModal(
         this.app,
         account.name,
-        links,
-        async (link) => (await this.guarded(() => this.revoke(bridge, account, link))) ?? false,
+        [...links],
+        async (link) => {
+          const done = await this.guarded(() => this.revoke(bridge, account, link, open));
+          if (done) open = open.filter((entry) => entry.code !== link.code);
+          return done ?? false;
+        },
         this.logger
       ).open();
     });
+  }
+
+  /** The target's links, and the file pane told of them. */
+  private async list(
+    bridge: PublishBridgeConfig,
+    account: PublishAccount
+  ): Promise<SharedLink[] | null> {
+    const links = await this.guarded(() => listShares(bridge, account.target));
+    if (links) this.listener(account.target, links);
+    return links;
   }
 
   private async share(
     bridge: PublishBridgeConfig,
     account: PublishAccount,
     file: TFile,
-    choice: ShareChoice
+    choice: ShareChoice,
+    known: readonly SharedLink[]
   ): Promise<void> {
     const notice = new Notice(t().common.notice(t().share.working), 0);
     try {
@@ -125,6 +151,7 @@ export class ShareCommands {
         ...(themeCss !== undefined ? { themeCss } : {})
       });
       notice.hide();
+      this.listener(account.target, [...known.filter((entry) => entry.code !== link.code), link]);
       if (left.length > 0) new Notice(t().common.notice(t().share.left(left)), 10_000);
       new ShareResultModal(this.app, link, choice.password, this.logger).open();
     } catch (error) {
@@ -148,9 +175,15 @@ export class ShareCommands {
   private async revoke(
     bridge: PublishBridgeConfig,
     account: PublishAccount,
-    link: SharedLink
+    link: SharedLink,
+    known: readonly SharedLink[]
   ): Promise<boolean> {
     const complete = await revokeShare(bridge, account.target, link.code);
+    // Down either way: a file left behind is the bridge's to retry, not a link.
+    this.listener(
+      account.target,
+      known.filter((entry) => entry.code !== link.code)
+    );
     new Notice(t().common.notice(complete ? t().share.revoked : t().share.revokeLeft));
     return true;
   }

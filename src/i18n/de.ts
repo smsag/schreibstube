@@ -1419,6 +1419,7 @@ export const de: Messages = {
     badge: {
       synced: "Mit der Quelle abgeglichen",
       described: "Hat eine Beschreibung",
+      shared: "Per Link geteilt",
       pending: (count: number) => `${count} Änderung(en) aus der Quelle warten`,
       unchecked: "An eine Quelle gebunden, noch nie geprüft",
       error: "Die Quelle lässt sich nicht laden",

@@ -541,6 +541,8 @@ A link carries a password unless you clear the field. One is filled in for you, 
 
 A link is the note as it was when you shared it. **Aktualisieren** puts the note as it is now behind the same address; the password and the time are set anew. The note need not be in the account's folder and needs no `published` flag. Its pictures travel inside the page, so the password covers them too, up to 50 pictures and 20 MB; links to other notes become plain text, and videos and diagrams are left out, which the notice names. Its frontmatter and `%%comments%%` stay in the vault, as for a publish.
 
+A shared note carries a mark in Schreibstube's file pane, with the time its latest link closes in the tooltip. The mark comes from the list of links as this device last heard it from the bridge — whenever you share, take down or open **Geteilte Links verwalten** — and travels to your other devices with `explorer.json`. It goes by itself once the time is up; a link taken down from somewhere else, or a note moved since it was shared, shows as it was until the list is read again.
+
 ### Printing
 
 Turns the note you are looking at into a PDF, through the built-in **Standard** template or one you keep in the vault. It works on every platform Obsidian runs on — Windows, macOS, Linux, iOS, Android — offline, with no bridge and no account: Typst is compiled to WebAssembly and typesets on the device. A letter written on a train becomes a PDF on that train.

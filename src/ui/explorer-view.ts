@@ -2181,6 +2181,19 @@ export class ExplorerPaneView extends ItemView {
       applyIcon(el, "world-upload");
     }
 
+    // A note someone outside the vault can read, and until when.
+    const shared = controller.sharedUntilOf(file);
+    if (shared !== null) {
+      const label = t().explorer.badge.shared;
+      const detail =
+        shared === 0 ? t().share.untilRevoked : t().share.until(new Date(shared).toLocaleString());
+      const el = row.createSpan({ cls: "schreibstube-explorer-badge" });
+      el.setAttribute("data-shared", "true");
+      el.setAttribute("aria-label", `${label}, ${detail}`);
+      el.setAttribute("title", `${label}\n${detail}`);
+      applyIcon(el, "share");
+    }
+
     // Last, and only a report: a picture or PDF whose description note exists.
     const described = controller.descriptionFields(file.path);
     if (described) {

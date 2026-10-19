@@ -152,10 +152,17 @@ function setup({
     async () => {},
     logger
   );
-  return new ShareCommands(app as never, () => settings, publish, logger);
+  const commands = new ShareCommands(app as never, () => settings, publish, logger);
+  commands.useListener((target, links) =>
+    heard.push({ target, codes: links.map((link) => link.code) })
+  );
+  return commands;
 }
 
+let heard: { target: string; codes: string[] }[] = [];
+
 beforeEach(() => {
+  heard = [];
   Notice.shown = [];
   dialogs.share = [];
   dialogs.result = [];
@@ -263,5 +270,25 @@ describe("managing links", () => {
 
     client.revoke.mockRejectedValueOnce(new Error("gone"));
     await expect(dialogs.list[0]?.revoke(LINK)).resolves.toBe(false);
+  });
+});
+
+describe("telling the file pane", () => {
+  it("passes on each list, and the list as a share or a revoke leaves it", async () => {
+    client.create.mockResolvedValueOnce({ ...LINK, code: "CDEFGHJKLM" });
+    await setup().shareActiveNote();
+    dialogs.share[0]?.submit({ password: "korrekt-pferd", expiry: "7d" });
+    await vi.waitFor(() => expect(heard).toHaveLength(2));
+    expect(heard).toEqual([
+      { target: "kunden", codes: ["ABCDEFGHJK", "BCDEFGHJKL"] },
+      { target: "kunden", codes: ["ABCDEFGHJK", "BCDEFGHJKL", "CDEFGHJKLM"] }
+    ]);
+
+    heard = [];
+    await setup({ accounts: [clients] }).manageShares();
+    await dialogs.list[0]?.revoke(LINK);
+    client.revoke.mockRejectedValueOnce(new Error("gone"));
+    await dialogs.list[0]?.revoke({ ...LINK, code: "BCDEFGHJKL" });
+    expect(heard.at(-1)).toEqual({ target: "kunden", codes: ["BCDEFGHJKL"] });
   });
 });
