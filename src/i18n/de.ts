@@ -1349,7 +1349,10 @@ export const de: Messages = {
         `die Datei hat mehr als ${max} Zeilen – zu lang für eine Tabelle.`,
       tooManyColumns: (max: number) => `die Datei hat mehr als ${max} Spalten.`,
       readFailed: "die Datei ließ sich nicht lesen.",
-      copyFailed: "die Zwischenablage ist hier nicht verfügbar."
+      copyFailed: "die Zwischenablage ist hier nicht verfügbar.",
+      notShown: (reason: string) => `Diese Datei lässt sich nicht als Tabelle zeigen: ${reason}`,
+      shown: (rows: number, columns: number) =>
+        `${rows} ${rows === 1 ? "Zeile" : "Zeilen"} · ${columns} ${columns === 1 ? "Spalte" : "Spalten"}`
     },
 
     latest: {

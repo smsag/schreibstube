@@ -3,10 +3,13 @@ import {
   MAX_CSV_COLUMNS,
   MAX_CSV_ROWS,
   MAX_PAD_WIDTH,
+  csvRefusal,
+  csvToGrid,
   csvToMarkdown,
   isCsvExtension,
   isNumeric,
   looksLikeData,
+  numericColumns,
   parseCsv,
   renderAlignedTable
 } from "./csv-table";
@@ -49,6 +52,56 @@ describe("parseCsv", () => {
 
   it("refuses a quote that never closes", () => {
     expect(parseCsv('a,"b\nc,d', ",")).toBeNull();
+  });
+});
+
+describe("csvToGrid", () => {
+  it("gives the header, the rows padded to one width, and the number columns", () => {
+    const outcome = csvToGrid("Name;Betrag\nAnna;1.234,50\nBo");
+    expect(outcome).toEqual({
+      ok: true,
+      table: {
+        header: ["Name", "Betrag"],
+        rows: [
+          ["Anna", "1.234,50"],
+          ["Bo", ""]
+        ]
+      },
+      columns: 2,
+      numeric: [false, true]
+    });
+  });
+
+  it("names the columns when the first row is data", () => {
+    const outcome = csvToGrid("Anna;12\nBo;7", (i) => `Spalte ${i}`);
+    expect(outcome.ok && outcome.table.header).toEqual(["Spalte 1", "Spalte 2"]);
+  });
+
+  it("refuses what a copy refuses", () => {
+    expect(csvToGrid("")).toEqual({ ok: false, reason: "empty" });
+    expect(csvToGrid('"a,b')).toEqual({ ok: false, reason: "malformed" });
+  });
+});
+
+describe("csvRefusal", () => {
+  it("names the limit a file went over", () => {
+    expect(csvRefusal("too-many-rows")).toContain(String(MAX_CSV_ROWS));
+    expect(csvRefusal("too-many-columns")).toContain(String(MAX_CSV_COLUMNS));
+    expect(csvRefusal("empty")).not.toBe(csvRefusal("malformed"));
+  });
+});
+
+describe("numericColumns", () => {
+  it("ignores blank cells and needs at least one number", () => {
+    expect(
+      numericColumns({
+        header: ["a", "b", "c"],
+        rows: [
+          ["1", "", "x"],
+          ["", "", "2"]
+        ]
+      })
+    ).toEqual([true, false, false]);
   });
 });
 

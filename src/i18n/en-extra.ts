@@ -863,13 +863,14 @@ export const enExtra = {
       column: (index: number) => `Column ${index}`,
       empty: "the file holds no rows.",
       malformed: "a quote in the file is never closed, so its columns cannot be told apart.",
-      tooLarge: (maxKb: number) =>
-        `the file is larger than ${maxKb} KB — too long to paste as a table.`,
-      tooManyRows: (max: number) =>
-        `the file has more than ${max} rows — too long to paste as a table.`,
+      tooLarge: (maxKb: number) => `the file is larger than ${maxKb} KB — too long for a table.`,
+      tooManyRows: (max: number) => `the file has more than ${max} rows — too long for a table.`,
       tooManyColumns: (max: number) => `the file has more than ${max} columns.`,
       readFailed: "the file could not be read.",
-      copyFailed: "the clipboard is not available here."
+      copyFailed: "the clipboard is not available here.",
+      notShown: (reason: string) => `This file cannot be shown as a table: ${reason}`,
+      shown: (rows: number, columns: number) =>
+        `${rows} ${rows === 1 ? "row" : "rows"} · ${columns} ${columns === 1 ? "column" : "columns"}`
     },
 
     latest: {

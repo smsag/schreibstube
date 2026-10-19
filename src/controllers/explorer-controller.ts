@@ -65,14 +65,7 @@ import { isAtOrUnder } from "../services/path-follow";
 
 import { frontmatterTitle } from "../services/note-title";
 import { getImageMimeType } from "../services/image-resize";
-import {
-  MAX_CSV_BYTES,
-  MAX_CSV_COLUMNS,
-  MAX_CSV_ROWS,
-  csvToMarkdown,
-  isCsvExtension,
-  type CsvRefusal
-} from "../services/csv-table";
+import { MAX_CSV_BYTES, csvRefusal, csvToMarkdown, isCsvExtension } from "../services/csv-table";
 import {
   isMovePlan,
   isUnder,
@@ -1250,8 +1243,9 @@ export class ExplorerController {
    *
    * The size is checked before the file is read: a file too long to paste is
    * refused from its stat alone, without holding a megabyte in memory first.
+   * The CSV view's header button lands here too.
    */
-  private async copyCsvTable(file: TAbstractFile): Promise<void> {
+  async copyCsvTable(file: TAbstractFile): Promise<void> {
     if (!(file instanceof TFile) || !isCsvExtension(file.extension)) return;
 
     const words = t().explorer.csv;
@@ -2011,18 +2005,4 @@ function countChildren(folder: TFolder): number {
     (total, child) => total + 1 + (child instanceof TFolder ? countChildren(child) : 0),
     0
   );
-}
-
-function csvRefusal(reason: CsvRefusal): string {
-  const words = t().explorer.csv;
-  switch (reason) {
-    case "empty":
-      return words.empty;
-    case "malformed":
-      return words.malformed;
-    case "too-many-rows":
-      return words.tooManyRows(MAX_CSV_ROWS);
-    case "too-many-columns":
-      return words.tooManyColumns(MAX_CSV_COLUMNS);
-  }
 }

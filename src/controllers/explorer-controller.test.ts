@@ -1034,7 +1034,7 @@ describe("copying a spreadsheet as a table", () => {
     expect(Notice.shown).toEqual([
       "Schreibstube: the file holds no rows.",
       "Schreibstube: a quote in the file is never closed, so its columns cannot be told apart.",
-      "Schreibstube: the file has more than 2000 rows — too long to paste as a table.",
+      "Schreibstube: the file has more than 2000 rows — too long for a table.",
       "Schreibstube: the file could not be read."
     ]);
   });
