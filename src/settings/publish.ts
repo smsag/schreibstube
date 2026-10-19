@@ -65,7 +65,8 @@ export function renderPublish(ctx: SettingsContext): void {
       new SecretComponent(ctx.app, el)
         .setValue(ctx.plugin.settings.publishTokenSecretName)
         .onChange(async (value) => {
-          await ctx.update({ publishTokenSecretName: value });
+          // A cleared secret arrives as null; an empty name is how settings say none.
+          await ctx.update({ publishTokenSecretName: value ?? "" });
         })
     );
 

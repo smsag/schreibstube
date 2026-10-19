@@ -37,7 +37,8 @@ export function renderMail(ctx: SettingsContext): void {
       new SecretComponent(ctx.app, el)
         .setValue(ctx.plugin.settings.mailTokenSecretName)
         .onChange(async (value) => {
-          await ctx.update({ mailTokenSecretName: value });
+          // A cleared secret arrives as null; an empty name is how settings say none.
+          await ctx.update({ mailTokenSecretName: value ?? "" });
         })
     );
 

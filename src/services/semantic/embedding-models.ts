@@ -153,6 +153,10 @@ export const SELECTABLE_EMBEDDING_MODEL_IDS: readonly EmbeddingModelId[] =
  * another with numbers from two different instruments, so a row embedded under
  * an older generation is re-embedded rather than reused.
  *
+ * transformers 4.3.1 only added a model family; with onnxruntime-web unchanged,
+ * ten notes embedded bit-identically on the English and the multilingual model,
+ * so it kept generation 2.
+ *
  * Generation 1 is every row written before this existed; its hashes carry no mark.
  * `tests` compare `transformers` and `onnxruntimeWeb` against the lockfile, so a
  * dependency bump fails until someone measures it and either raises the
@@ -160,7 +164,7 @@ export const SELECTABLE_EMBEDDING_MODEL_IDS: readonly EmbeddingModelId[] =
  */
 export const EMBEDDING_RUNTIME = {
   generation: 2,
-  transformers: "4.3.0",
+  transformers: "4.3.1",
   onnxruntimeWeb: "1.31.0-dev.20260914-8d85527a0"
 } as const;
 
