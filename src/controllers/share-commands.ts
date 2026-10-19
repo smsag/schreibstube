@@ -1,0 +1,206 @@
+import { t } from "../i18n";
+import { Notice, TFile, type App } from "obsidian";
+import type { PublishAccount, SchreibstubeSettings } from "../types";
+import type { Logger } from "../services/logger";
+import { createShare, listShares, revokeShare } from "../platform/publish-client";
+import type { PublishBridgeConfig } from "../services/publish-protocol";
+import { isInsideFolder, referencedAttachments, resolveNote } from "../services/publish-index";
+import { sourceForUpload } from "../services/publish-source";
+import {
+  bytesToBase64,
+  expiresAtFor,
+  linksOfNote,
+  pickShareAssets,
+  type ShareCandidate,
+  type SharedLink
+} from "../services/share-link";
+import { PublishAccountModal } from "../ui/publish-modals";
+import { ShareListModal, ShareModal, ShareResultModal, type ShareChoice } from "../ui/share-modals";
+import type { PublishCommands } from "./publish-commands";
+import { NO_FORMULAS, type NoteFormulas } from "./sums-controller";
+
+/**
+ * Shared links: one note at a short address under a publish account's site.
+ *
+ * The bridge, its token and the target are publishing's; a note need not be
+ * in the account's folder, since the point is a document that is not part of
+ * the site. The note is read when the link is written and not again: a link
+ * shows what was sent, and updating it is asking to send again.
+ */
+export class ShareCommands {
+  private busy = false;
+  private formulas: NoteFormulas = NO_FORMULAS;
+
+  constructor(
+    private readonly app: App,
+    private readonly getSettings: () => SchreibstubeSettings,
+    private readonly publish: PublishCommands,
+    private readonly logger: Logger
+  ) {}
+
+  /** A note's formulas, resolved in what is sent, as a publish resolves them. */
+  useFormulas(formulas: NoteFormulas): void {
+    this.formulas = formulas;
+  }
+
+  async shareActiveNote(): Promise<void> {
+    const file = this.app.workspace.getActiveFile();
+    if (!file || file.extension !== "md") {
+      new Notice(t().common.notice(t().share.noNote));
+      return;
+    }
+    await this.withAccount(file.path, async (account) => {
+      const bridge = await this.connect();
+      if (!bridge) return;
+      const links = await this.guarded(() => listShares(bridge, account.target));
+      if (!links) return;
+
+      new ShareModal(
+        this.app,
+        file.basename,
+        linksOfNote(links, file.path),
+        (choice) => void this.guarded(() => this.share(bridge, account, file, choice)),
+        (link) => void this.guarded(() => this.revoke(bridge, account, link))
+      ).open();
+    });
+  }
+
+  async manageShares(): Promise<void> {
+    const active = this.app.workspace.getActiveFile();
+    await this.withAccount(active?.path ?? null, async (account) => {
+      const bridge = await this.connect();
+      if (!bridge) return;
+      const links = await this.guarded(() => listShares(bridge, account.target));
+      if (!links) return;
+      new ShareListModal(
+        this.app,
+        account.name,
+        links,
+        async (link) => (await this.guarded(() => this.revoke(bridge, account, link))) ?? false,
+        this.logger
+      ).open();
+    });
+  }
+
+  private async share(
+    bridge: PublishBridgeConfig,
+    account: PublishAccount,
+    file: TFile,
+    choice: ShareChoice
+  ): Promise<void> {
+    const notice = new Notice(t().common.notice(t().share.working), 0);
+    try {
+      const content = (await this.formulas.forExport(await this.app.vault.read(file))).text;
+      const note = resolveNote(
+        {
+          path: file.path,
+          basename: file.basename,
+          content,
+          createdMs: file.stat.ctime,
+          frontmatter: this.app.metadataCache.getFileCache(file)?.frontmatter
+        },
+        this.getSettings().publishFrontmatterKeys
+      );
+
+      const { carried, left } = pickShareAssets(this.candidates(content, file.path));
+      const assets = [];
+      for (const candidate of carried) {
+        const target = this.app.vault.getAbstractFileByPath(candidate.path);
+        if (!(target instanceof TFile)) continue;
+        const bytes = new Uint8Array(await this.app.vault.readBinary(target));
+        assets.push({ sourcePath: candidate.path, data: bytesToBase64(bytes) });
+      }
+      const themeCss = await this.publish.readTheme(account);
+
+      const link = await createShare(bridge, {
+        target: account.target,
+        ...(choice.code ? { code: choice.code } : {}),
+        title: note.title,
+        sourcePath: file.path,
+        // What a page never shows stays in the vault, as for a publish.
+        source: sourceForUpload(content),
+        assets,
+        ...(choice.password ? { password: choice.password } : {}),
+        expiresAt: expiresAtFor(choice.expiry, Date.now()),
+        ...(themeCss !== undefined ? { themeCss } : {})
+      });
+      notice.hide();
+      if (left.length > 0) new Notice(t().common.notice(t().share.left(left)), 10_000);
+      new ShareResultModal(this.app, link, choice.password, this.logger).open();
+    } catch (error) {
+      notice.hide();
+      throw error;
+    }
+  }
+
+  /** The files the note embeds, with their size, in the order it embeds them. Notes are not files to carry. */
+  private candidates(content: string, sourcePath: string): ShareCandidate[] {
+    const found: ShareCandidate[] = [];
+    for (const reference of referencedAttachments(content)) {
+      const target = this.app.metadataCache.getFirstLinkpathDest(reference, sourcePath);
+      if (target instanceof TFile && target.extension !== "md") {
+        found.push({ path: target.path, bytes: target.stat.size });
+      }
+    }
+    return found;
+  }
+
+  private async revoke(
+    bridge: PublishBridgeConfig,
+    account: PublishAccount,
+    link: SharedLink
+  ): Promise<boolean> {
+    const complete = await revokeShare(bridge, account.target, link.code);
+    new Notice(t().common.notice(complete ? t().share.revoked : t().share.revokeLeft));
+    return true;
+  }
+
+  private async connect(): Promise<PublishBridgeConfig | null> {
+    const bridge = await this.publish.requireBridge();
+    if (bridge) await this.publish.checkBridgeVersion(bridge);
+    return bridge;
+  }
+
+  /** One request at a time, and a failure said rather than thrown into a click. */
+  private async guarded<T>(work: () => Promise<T>): Promise<T | null> {
+    if (this.busy) {
+      new Notice(t().common.notice(t().share.busy));
+      return null;
+    }
+    this.busy = true;
+    try {
+      return await work();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      new Notice(t().common.notice(t().share.failed(message)));
+      this.logger.debug("Share failed.", error);
+      return null;
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  /**
+   * The account whose folder holds the note, if one does; the only account
+   * when there is one; otherwise the question. The note need be in no folder.
+   */
+  private async withAccount(
+    path: string | null,
+    work: (account: PublishAccount) => Promise<void>
+  ): Promise<void> {
+    const accounts = this.getSettings().publishAccounts;
+    if (accounts.length === 0) {
+      new Notice(t().common.notice(t().publish.noAccount));
+      return;
+    }
+    const holding = path
+      ? accounts.filter((account) => account.folder && isInsideFolder(path, account.folder))
+      : [];
+    const [only] = holding.length === 1 ? holding : accounts.length === 1 ? accounts : [];
+    if (only) {
+      await work(only);
+      return;
+    }
+    new PublishAccountModal(this.app, accounts, (account) => void work(account)).open();
+  }
+}

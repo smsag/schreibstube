@@ -1008,3 +1008,45 @@ describe("the headers of an Apache site", () => {
     );
   });
 });
+
+describe("shared links", () => {
+  it("are written beside the site, kept by a publish, and taken down by a revoke", async () => {
+    const shared = await post("/publish/share", {
+      target: "blog",
+      title: "Angebot",
+      sourcePath: "Kunden/Angebot.md",
+      source: "# Angebot\n\nNur für dich.\n",
+      password: "korrekt-pferd",
+      expiresAt: new Date(Date.now() + 86_400_000).toISOString()
+    });
+    expect(shared.status).toBe(200);
+    const { code, url } = shared.json;
+    expect(url).toBe(`https://blog.example.com/s/${code}/`);
+    const page = await readFile(siteFile("s", code, "index.html"), "utf8");
+    expect(page).not.toContain("Nur für dich");
+    expect(await readdir(siteFile("s", code))).toEqual(["index.html", "theme.css", "unlock.js"]);
+
+    // A publish knows nothing of the share, and so removes nothing of it.
+    expect((await publish(bothNotes(), sources())).status).toBe(200);
+    expect(Object.keys((await manifest()).files).some((path) => path.startsWith("s/"))).toBe(false);
+    expect(await readdir(siteFile("s", code))).toContain("index.html");
+
+    const listed = await fetch(`${base}/publish/shares?target=blog`, {
+      headers: { authorization: `Bearer ${TOKEN}` }
+    });
+    expect((await listed.json()).shares.map((entry) => entry.code)).toEqual([code]);
+
+    expect((await post("/publish/share/revoke", { target: "blog", code })).json).toEqual({
+      code,
+      revoked: true
+    });
+    await expect(readdir(siteFile("s", code))).rejects.toThrow();
+  });
+
+  it("are closed to the mail token", async () => {
+    const response = await fetch(`${base}/publish/shares?target=blog`, {
+      headers: { authorization: `Bearer ${MAIL_TOKEN}` }
+    });
+    expect(response.status).toBe(401);
+  });
+});

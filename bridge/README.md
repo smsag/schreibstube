@@ -29,6 +29,7 @@ route that does not exist yet.
 
 | Bridge | Protocol | Plugin          | Notes                                                                                                |
 | ------ | -------- | --------------- | ---------------------------------------------------------------------------------------------------- |
+| 3.2.x  | 9        | 1.8.0 and later | Shared links: one note at `s/<code>/`, optionally encrypted and closing on time; see Shared links    |
 | 3.1.x  | 8        | 1.8.0 and later | A `schreibstube-index` block becomes a foldable list of the page's sections                          |
 | 3.0.x  | 8        | 1.8.0 and later | `/search` `exclude`, quiet `/health`; plan `conflicts`, diagnostics without the root path; see below |
 | 2.13.x | 7        | 1.8.0 and later | `:folder:` in a note is drawn as the plugin's icon                                                   |
@@ -63,21 +64,24 @@ memory, and a second instance would not see it.
 All endpoints except `/health` require `Authorization: Bearer <token>`, and the
 token must belong to the capability that owns the route.
 
-| Method | Path                   | Capability | Body                                                                                   | Returns                                                                               |
-| ------ | ---------------------- | ---------- | -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| `GET`  | `/health`              | —          | —                                                                                      | `{status, protocol}`; with any valid token also `version, capabilities[]`             |
-| `POST` | `/diagnostics`         | mail       | —                                                                                      | per-protocol reachability                                                             |
-| `POST` | `/send`                | mail       | `{to, cc?, bcc?, subject, text, from?, inReplyTo?, references?, attachments?}`         | `{messageId, sentAt, filedInSent, rejected[]}`                                        |
-| `POST` | `/search`              | mail       | `{criteria:{from?,to?,subject?,text?,since?,references?}, mailbox?, limit?, exclude?}` | `{messages[], mailbox, truncated}`                                                    |
-| `POST` | `/attachments`         | mail       | `{uid, mailbox?}`                                                                      | `{uid, attachments:[{filename, contentType, content}], skipped:[{filename, reason}]}` |
-| `GET`  | `/publish/targets`     | publish    | —                                                                                      | `{targets:[{name, baseUrl, siteTitle}]}`                                              |
-| `POST` | `/publish/diagnostics` | publish    | `{target}`                                                                             | `{ok, rootExists, entries}` or `{ok:false, error}`; a missing root is `ok:false`      |
-| `POST` | `/publish/plan`        | publish    | `{target, index}`                                                                      | what to upload, what will be deleted, and the `conflicts` in the way                  |
-| `PUT`  | `/publish/source`      | publish    | raw Markdown, `?target=&sha256=`                                                       | `{sha256, bytes}`                                                                     |
-| `PUT`  | `/publish/asset`       | publish    | raw bytes, `?target=&sha256=&name=`                                                    | `{sha256, bytes, path}`                                                               |
-| `PUT`  | `/publish/thumbnail`   | publish    | raw JPEG or PNG, `?target=&source=&sha256=&name=`                                      | `{sha256, bytes, path}`                                                               |
-| `POST` | `/publish/commit`      | publish    | `{target, index}`                                                                      | `{written, unchanged, deleted, deleteFailed, pruned, collected}`                      |
-| `POST` | `/publish/render`      | publish    | `{target}`                                                                             | the same, rebuilt from stored state                                                   |
+| Method | Path                    | Capability | Body                                                                                                         | Returns                                                                                         |
+| ------ | ----------------------- | ---------- | ------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------- |
+| `GET`  | `/health`               | —          | —                                                                                                            | `{status, protocol}`; with any valid token also `version, capabilities[]`                       |
+| `POST` | `/diagnostics`          | mail       | —                                                                                                            | per-protocol reachability                                                                       |
+| `POST` | `/send`                 | mail       | `{to, cc?, bcc?, subject, text, from?, inReplyTo?, references?, attachments?}`                               | `{messageId, sentAt, filedInSent, rejected[]}`                                                  |
+| `POST` | `/search`               | mail       | `{criteria:{from?,to?,subject?,text?,since?,references?}, mailbox?, limit?, exclude?}`                       | `{messages[], mailbox, truncated}`                                                              |
+| `POST` | `/attachments`          | mail       | `{uid, mailbox?}`                                                                                            | `{uid, attachments:[{filename, contentType, content}], skipped:[{filename, reason}]}`           |
+| `GET`  | `/publish/targets`      | publish    | —                                                                                                            | `{targets:[{name, baseUrl, siteTitle}]}`                                                        |
+| `POST` | `/publish/diagnostics`  | publish    | `{target}`                                                                                                   | `{ok, rootExists, entries}` or `{ok:false, error}`; a missing root is `ok:false`                |
+| `POST` | `/publish/plan`         | publish    | `{target, index}`                                                                                            | what to upload, what will be deleted, and the `conflicts` in the way                            |
+| `PUT`  | `/publish/source`       | publish    | raw Markdown, `?target=&sha256=`                                                                             | `{sha256, bytes}`                                                                               |
+| `PUT`  | `/publish/asset`        | publish    | raw bytes, `?target=&sha256=&name=`                                                                          | `{sha256, bytes, path}`                                                                         |
+| `PUT`  | `/publish/thumbnail`    | publish    | raw JPEG or PNG, `?target=&source=&sha256=&name=`                                                            | `{sha256, bytes, path}`                                                                         |
+| `POST` | `/publish/commit`       | publish    | `{target, index}`                                                                                            | `{written, unchanged, deleted, deleteFailed, pruned, collected}`                                |
+| `POST` | `/publish/render`       | publish    | `{target}`                                                                                                   | the same, rebuilt from stored state                                                             |
+| `GET`  | `/publish/shares`       | publish    | `?target=`                                                                                                   | `{target, shares:[{code, url, title, sourcePath, createdAt, updatedAt, expiresAt, protected}]}` |
+| `POST` | `/publish/share`        | publish    | `{target, code?, title, sourcePath, source, assets?:[{sourcePath, data}], password?, expiresAt?, themeCss?}` | the link, as listed                                                                             |
+| `POST` | `/publish/share/revoke` | publish    | `{target, code}`                                                                                             | `{code, revoked}`                                                                               |
 
 `/health` is the version handshake: plugin and bridge deploy separately, and
 `protocol` is what lets the plugin say "redeploy the bridge" instead of failing
@@ -378,6 +382,48 @@ site loses its tab icon, not its publish. An SVG icon may carry its own
 `prefers-color-scheme` rule to switch for a dark tab bar. No field of the index
 changed: the theme was always sent, so the protocol stays at 3.
 
+### Shared links
+
+A shared link is one note at `<BASE_URL>/s/<code>/`, written beside the site
+rather than as part of it. Its files are recorded in `<state>/shares.json`, not
+in the manifest, so a publish neither sees nor removes them, and a share never
+waits for a publish; `s/index.html`, an empty page, keeps a host that lists
+directories from listing the codes. A code is ten characters of an alphabet
+without the letters that read alike, 58 bits, and is drawn afresh for every
+link. Each target keeps at most 200.
+
+The page is self-contained: the note rendered as a published page is, with
+links to other notes left as text and the pictures it carries (at most 50, 20
+MB together, each within `PUBLISH_MAX_IMAGE_BYTES`) folded in as data URLs.
+Diagrams stay their source and videos are named, since either would need a
+file or a script beside the page. A theme the plugin sends dresses it; KaTeX
+and the slideshow script are copied into the link's directory when it uses
+them.
+
+With a `password` (8 to 256 characters) the page is ciphertext: AES-256-GCM
+under a key derived by PBKDF2-SHA256 with 600,000 rounds and a fresh salt, the
+title encrypted with the rest. `unlock.js` beside it derives the same key in
+the reader's browser and opens the page; nothing is sent anywhere, and a wrong
+password is known by the cipher's tag. The bridge keeps neither the password
+nor the plaintext. Without one, the code is the only key.
+
+`expiresAt`, at most 366 days ahead, closes the link. The bridge looks once a
+minute whether a link is due and logs in only when one is — once per target
+after a start, to read the record — and removes it; a host it cannot reach is
+tried again in 15 minutes. Listing the links removes those that are due as
+well. On a target with `HTACCESS=true` each link also gets its own `.htaccess`
+that refuses it from that time while the bridge is down, sends `noindex`,
+`no-referrer` and `no-store`, and needs the host to allow `Require` in
+`.htaccess` files. Apache reads the time in the server's local time, and the
+bridge writes UTC: a host east of Greenwich refuses the link early by its
+offset, never late.
+
+A share request is one JSON body of at most 30 MB, with up to 180 seconds to
+be written. Rewriting a link by its `code` keeps its address and its creation
+time; the files it no longer needs go once the new ones are in place, and a
+file the host would not delete stays in the record, so the next sweep tries
+again.
+
 ## Dependencies and advisories
 
 CI runs `npm audit --omit=dev --audit-level=high` over this tree on every
@@ -587,7 +633,7 @@ labels change over time, but the settings you need are:
 
    ```bash
    curl https://<your-service>.sliplane.app/health
-   # {"status":"ok","protocol":8}
+   # {"status":"ok","protocol":9}
    ```
 
 7. Put that base URL into the plugin's **Bridge URL** setting, and the token into

@@ -48,6 +48,8 @@ export const de: Messages = {
     queryMailbox: "Postfach durchsuchen",
     fetchReplies: "Antworten in die Notiz holen",
     publish: "Ordner veröffentlichen",
+    shareNote: "Notiz als Link teilen",
+    shareLinks: "Geteilte Links verwalten",
     linksSwitch: "Links: Seite wechseln",
     sumSelection: "Auswahl summieren",
     freezeTotals: "Notiz-Summen festschreiben",
@@ -295,6 +297,63 @@ export const de: Messages = {
     connectionFailed: (reason: string) => reason,
     bridgeOutdated: (bridge: number, plugin: number) =>
       `die Bridge spricht Protokoll ${bridge}, das Plugin erwartet ${plugin} — Bridge neu ausrollen.`
+  },
+
+  share: {
+    title: (note: string) => `Teilen: ${note}`,
+    intro:
+      "Schreibt diese Notiz, wie sie jetzt ist, auf eine Seite unter der Adresse der Website, die " +
+      "nur findet, wer den Link hat. Links auf andere Notizen werden zu Text, Bilder reisen in der " +
+      "Seite mit; Videos und Diagramme bleiben weg.",
+    password: "Passwort",
+    passwordDesc:
+      "Damit öffnet der Empfänger die Seite, die damit verschlüsselt ist. Schick es auf einem " +
+      "anderen Weg als den Link. Leer gelassen, öffnet jeder die Seite, der den Link hat.",
+    passwordGenerate: "Neues Passwort",
+    passwordShort: (min: number) => `Ein Passwort hat mindestens ${min} Zeichen.`,
+    passwordLong: (max: number) => `Ein Passwort hat höchstens ${max} Zeichen.`,
+    expiry: "Offen für",
+    expiryDesc: "Danach nimmt die Bridge den Link vom Netz.",
+    expiryChoices: {
+      "1d": "1 Tag",
+      "7d": "7 Tage",
+      "30d": "30 Tage",
+      "90d": "90 Tage",
+      never: "Bis zum Zurückziehen"
+    },
+    existing: "Links auf diese Notiz",
+    existingDesc:
+      "Aktualisieren legt die Notiz, wie sie jetzt ist, hinter dieselbe Adresse. Passwort und Frist werden neu gesetzt; die Bridge speichert kein Passwort.",
+    update: "Aktualisieren",
+    create: "Link erstellen",
+    revoke: "Zurückziehen",
+    withPassword: "mit Passwort",
+    withoutPassword: "ohne Passwort",
+    until: (when: string) => `offen bis ${when}`,
+    untilRevoked: "offen bis zum Zurückziehen",
+    working: "wird geteilt …",
+    resultTitle: "Link bereit",
+    resultLink: "Link",
+    resultPassword: "Passwort",
+    resultHint:
+      "Schick Link und Passwort auf verschiedenen Wegen — den Link etwa per E-Mail, das Passwort per SMS.",
+    copyLink: "Link kopieren",
+    copyPassword: "Passwort kopieren",
+    linkCopied: "Link kopiert.",
+    passwordCopied: "Passwort kopiert.",
+    copyFailed: "konnte nicht in die Zwischenablage kopiert werden.",
+    left: (paths: string[]) =>
+      paths.length === 1
+        ? `nicht in der geteilten Seite: ${paths[0]}`
+        : `${paths.length} Dateien sind nicht in der geteilten Seite: ${paths.join(", ")}`,
+    failed: (reason: string) => `Teilen fehlgeschlagen — ${reason}`,
+    noNote: "öffne eine Notiz, um sie zu teilen.",
+    busy: "es wird schon geteilt.",
+    listTitle: (account: string) => `Geteilte Links: ${account}`,
+    listEmpty: "Keine Links sind offen.",
+    revoked: "Link zurückgezogen.",
+    revokeLeft:
+      "der Link ist zurückgezogen, aber eine Datei davon blieb auf dem Host; die Bridge versucht es erneut."
   },
 
   mail: {

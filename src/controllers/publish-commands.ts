@@ -644,8 +644,8 @@ export class PublishCommands {
     });
   }
 
-  /** A `theme.css` in the publish folder replaces the built-in stylesheet. */
-  private async readTheme(account: PublishAccount): Promise<string | undefined> {
+  /** A `theme.css` in the publish folder replaces the built-in stylesheet, on a shared link too. */
+  async readTheme(account: PublishAccount): Promise<string | undefined> {
     const path = account.folder ? `${account.folder}/theme.css` : "theme.css";
     const file = this.app.vault.getAbstractFileByPath(path);
     return file instanceof TFile ? this.app.vault.read(file) : undefined;
@@ -723,7 +723,7 @@ export class PublishCommands {
    * bridge answers a request for a route it does not have with a 404, which
    * reads as a wrong URL rather than as a missing redeploy.
    */
-  private async checkBridgeVersion(bridge: PublishBridgeConfig): Promise<void> {
+  async checkBridgeVersion(bridge: PublishBridgeConfig): Promise<void> {
     if (this.handshaken.has(bridge.baseUrl)) return;
     this.handshaken.add(bridge.baseUrl);
 
@@ -774,7 +774,7 @@ export class PublishCommands {
    * token goes only where this device sent it before, or where its person
    * confirms.
    */
-  private async requireBridge(): Promise<PublishBridgeConfig | null> {
+  async requireBridge(): Promise<PublishBridgeConfig | null> {
     const settings = this.getSettings();
     const url = normalizeBaseUrl(settings.publishBridgeUrl || settings.mailBridgeUrl);
     if (!url.ok) {

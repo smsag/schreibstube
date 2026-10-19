@@ -50,6 +50,8 @@ export const en = {
     queryMailbox: "Search mailbox",
     fetchReplies: "Fetch replies into note",
     publish: "Publish folder",
+    shareNote: "Share note as a link",
+    shareLinks: "Manage shared links",
     linksSwitch: "Links: switch side",
     sumSelection: "Sum selection",
     freezeTotals: "Freeze note totals",
@@ -309,6 +311,62 @@ export const en = {
     connectionFailed: (reason: string) => reason,
     bridgeOutdated: (bridge: number, plugin: number) =>
       `the bridge speaks protocol ${bridge}, the plugin expects ${plugin} — redeploy the bridge.`
+  },
+
+  share: {
+    title: (note: string) => `Share: ${note}`,
+    intro:
+      "Writes this note, as it is now, to a page under the website's address that only someone " +
+      "with the link finds. Links to other notes become plain text and pictures travel inside " +
+      "the page; videos and diagrams are left out.",
+    password: "Password",
+    passwordDesc:
+      "The reader needs it to open the page, which is encrypted with it. Send it through another " +
+      "channel than the link. Leave it empty for a link anyone who has it can open.",
+    passwordGenerate: "New password",
+    passwordShort: (min: number) => `A password has at least ${min} characters.`,
+    passwordLong: (max: number) => `A password has at most ${max} characters.`,
+    expiry: "Open for",
+    expiryDesc: "After that the bridge takes the link down.",
+    expiryChoices: {
+      "1d": "1 day",
+      "7d": "7 days",
+      "30d": "30 days",
+      "90d": "90 days",
+      never: "Until taken down"
+    },
+    existing: "Links to this note",
+    existingDesc:
+      "Update one to put the note as it is now behind the same address. The password and the time are set anew; the bridge never stores a password.",
+    update: "Update",
+    create: "Create link",
+    revoke: "Take down",
+    withPassword: "with password",
+    withoutPassword: "without password",
+    until: (when: string) => `open until ${when}`,
+    untilRevoked: "open until taken down",
+    working: "sharing …",
+    resultTitle: "Link ready",
+    resultLink: "Link",
+    resultPassword: "Password",
+    resultHint:
+      "Send the link and the password through different channels — the link by email, say, and the password by text message.",
+    copyLink: "Copy link",
+    copyPassword: "Copy password",
+    linkCopied: "link copied.",
+    passwordCopied: "password copied.",
+    copyFailed: "could not copy to the clipboard.",
+    left: (paths: string[]) =>
+      paths.length === 1
+        ? `not in the shared page: ${paths[0]}`
+        : `${paths.length} files are not in the shared page: ${paths.join(", ")}`,
+    failed: (reason: string) => `sharing failed — ${reason}`,
+    noNote: "open a note to share it.",
+    busy: "a share is already running.",
+    listTitle: (account: string) => `Shared links: ${account}`,
+    listEmpty: "No links are open.",
+    revoked: "link taken down.",
+    revokeLeft: "the link is down, but a file of it stayed on the host; the bridge tries again."
   },
 
   mail: {

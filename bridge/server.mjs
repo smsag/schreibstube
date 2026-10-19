@@ -20,6 +20,7 @@ import { createThrottle } from "./throttle.mjs";
 import { TimeoutError, withDeadline } from "./timeout.mjs";
 import { createMailRoutes } from "./mail-routes.mjs";
 import { createPublishRoutes } from "./publish/routes.mjs";
+import { createShareRoutes } from "./publish/share-routes.mjs";
 
 const VERSION = createRequire(import.meta.url)("./package.json").version;
 
@@ -28,10 +29,12 @@ const capabilities = capabilityNames(config);
 const tokens = Object.fromEntries(
   capabilities.map((name) => [name, config[name].tokens ?? config[name].token])
 );
+const shares = config.publish ? createShareRoutes(config, { log }) : null;
 const routes = [
   healthRoute(),
   ...(config.mail ? createMailRoutes(config) : []),
-  ...(config.publish ? createPublishRoutes(config, { version: VERSION }) : [])
+  ...(config.publish ? createPublishRoutes(config, { version: VERSION }) : []),
+  ...(shares?.routes ?? [])
 ];
 const throttle = createThrottle({
   limit: config.authFailureLimit,
@@ -87,6 +90,9 @@ server.maxConnections = config.maxConnections;
 
 server.listen(config.port, () => {
   log("info", `listening on :${config.port} — capabilities: ${capabilities.join(", ")}`);
+  // Links close on time even when nobody asks for the list; the sweep logs in
+  // only when one is due.
+  shares?.start();
   // Said at every start for the same reason: the default is right for one
   // person's site and wrong for a shared vault, and only the operator knows
   // which this is.

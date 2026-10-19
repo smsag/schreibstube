@@ -27,6 +27,13 @@ import {
   type PublishSummary,
   type PublishTarget
 } from "../services/publish-protocol";
+import {
+  SHARE_REQUEST_TIMEOUT_MS,
+  parseSharedLink,
+  parseSharedLinks,
+  type ShareRequest,
+  type SharedLink
+} from "../services/share-link";
 
 /**
  * Transport for the publish capability.
@@ -141,6 +148,38 @@ export async function uploadThumbnail(
     `/publish/thumbnail?target=${encodeURIComponent(target)}&source=${source}` +
       `&sha256=${sha256}&name=${encodeURIComponent(name)}`,
     content
+  );
+}
+
+/** The target's open links. Protocol 9. */
+export async function listShares(
+  config: PublishBridgeConfig,
+  target: string
+): Promise<SharedLink[]> {
+  return parseSharedLinks(
+    await send(config, "GET", `/publish/shares?target=${encodeURIComponent(target)}`)
+  );
+}
+
+/** Write a link, or rewrite the one `request.code` names. Protocol 9. */
+export async function createShare(
+  config: PublishBridgeConfig,
+  request: ShareRequest
+): Promise<SharedLink> {
+  const link = parseSharedLink(
+    await send(config, "POST", "/publish/share", request, SHARE_REQUEST_TIMEOUT_MS)
+  );
+  if (!link) throw new Error("the bridge did not answer with a link.");
+  return link;
+}
+
+export async function revokeShare(
+  config: PublishBridgeConfig,
+  target: string,
+  code: string
+): Promise<boolean> {
+  return (
+    asRecord(await send(config, "POST", "/publish/share/revoke", { target, code })).revoked === true
   );
 }
 

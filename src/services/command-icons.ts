@@ -29,6 +29,8 @@ export const COMMAND_ICONS: Readonly<Record<string, string>> = {
   "poll-all-sources": "refresh-cw",
   "query-mailbox": "mail-search",
   "publish-folder": "globe",
+  "share-note": "share-2",
+  "manage-shared-links": "link",
   "switch-link-side": "arrow-left-right",
   "sum-selection": "sigma",
   "freeze-totals": "snowflake",

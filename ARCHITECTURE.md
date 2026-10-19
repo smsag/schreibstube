@@ -61,7 +61,7 @@ server.mjs           configuration, route table, request handling
 config.mjs           one block per capability; absent means not offered
 router.mjs           which token opens which route
 mail-routes.mjs      send, search, diagnostics
-publish/             plan, upload, commit, render, SFTP
+publish/             plan, upload, commit, render, SFTP, shared links
 ```
 
 Capabilities are independent. A deployment can offer mail, publishing, or both,

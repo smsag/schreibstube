@@ -530,6 +530,17 @@ The site is one page per note plus an index sorted by date, newest first. Wikili
 
 What the bridge does and the plugin does not: rendering the Markdown, holding the SFTP credentials, and deciding what may be deleted. Only files the bridge itself wrote are ever removed, and the hosting key never enters the vault. See [`bridge/README.md`](bridge/README.md).
 
+#### Shared links
+
+One note for someone outside the vault — an offer for a client, a draft for a reviewer — at a short address under a publishing account's site, such as `https://writings.example.com/s/k3F9qXa2mP/`. Only someone with the link finds it: it is listed nowhere, and search engines are asked to leave it out.
+
+- **Notiz als Link teilen** — share the open note; the dialog also lists the links already made of it, to update or take down
+- **Geteilte Links verwalten** — every open link of a site, to copy or take down
+
+A link carries a password unless you clear the field. One is filled in for you, four groups of four letters and digits that read aloud without mistakes; the page is encrypted with it in the bridge and opened with it in the reader's browser, so neither the web host nor anyone who copies the files can read the note without it, and the bridge never stores it. Send the link and the password through different channels. A link stays open for a day, a week, a month, three months or until you take it down; after that the bridge removes it, and on a host that reads `.htaccess` the host itself refuses it from that time.
+
+A link is the note as it was when you shared it. **Aktualisieren** puts the note as it is now behind the same address; the password and the time are set anew. The note need not be in the account's folder and needs no `published` flag. Its pictures travel inside the page, so the password covers them too, up to 50 pictures and 20 MB; links to other notes become plain text, and videos and diagrams are left out, which the notice names. Its frontmatter and `%%comments%%` stay in the vault, as for a publish.
+
 ### Printing
 
 Turns the note you are looking at into a PDF, through the built-in **Standard** template or one you keep in the vault. It works on every platform Obsidian runs on — Windows, macOS, Linux, iOS, Android — offline, with no bridge and no account: Typst is compiled to WebAssembly and typesets on the device. A letter written on a train becomes a PDF on that train.

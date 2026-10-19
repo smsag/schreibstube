@@ -97,7 +97,7 @@ export function createPublishRoutes(config, { version, now = () => Date.now() })
   // between the moment a commit decides what the site is and its manifest.
   const uploading = new Map();
   const pool = createConnectionPool({
-    connect: (name) => open(publish.targets[name], config)
+    connect: (name) => openRemote(publish.targets[name], config)
   });
   const cache = new SourceCache();
   // Assets and thumbnails written since the last commit, per target: the
@@ -983,7 +983,8 @@ export function isAssetContent(bytes, extension) {
   return hasSignature(bytes, extension);
 }
 
-async function open(target, config) {
+/** A logged-in connection to the target's host, within the upstream deadline. */
+export async function openRemote(target, config) {
   return withDeadline(
     connect({ ...target, timeoutMs: config.upstreamTimeoutMs }),
     config.upstreamTimeoutMs,

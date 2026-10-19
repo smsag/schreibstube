@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Added
+
+- **A note can be shared as a link.** **Share note as a link** writes the open note to a short address under a publishing account's site, `…/s/<code>/`, for someone outside the vault: listed nowhere, kept out of search engines, open for a day, a week, a month, three months or until taken down. A password is filled in for you; the page is encrypted with it and opened with it in the reader's browser, so the web host never holds the note in the clear and the bridge never stores the password. The link shows the note as it was when shared, and **Update** puts the note as it is now behind the same address. Pictures travel inside the page; links to other notes become text, and videos and diagrams are left out, which the notice names. **Manage shared links** lists a site's open links to copy or take down. Needs bridge 3.2.0 (protocol 9).
+
 ## 1.85.0 - 2026-10-17
 
 The heading stack is now a way around a long note. It is one line above
